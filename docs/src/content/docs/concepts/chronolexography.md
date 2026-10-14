@@ -51,6 +51,7 @@ Law and policy say what is needed and how to compute it; they know no chronicle.
 | [The decision on the application](#the-decision-on-the-application) | Leerplichtwet 1969 art. 13a, Awb 3:46, 6:7 and 6:8, fictitious school policy | [RFC-047](/rfcs/rfc-047) |
 | [Once per school year](#once-per-school-year) | Leerplichtwet 1969 art. 13a lid 2, fictitious school policy, the school's reduction | [RFC-048](/rfcs/rfc-048) |
 | [The objection](#the-objection) | Awb 6:5, 6:9, 7:10 and 7:11, Leerplichtwet 1969 art. 13a, the school's reduction | [RFC-050](/rfcs/rfc-050) |
+| [A second case: the parking card](#a-second-case-the-parking-card) | BABW art. 49 and 51, Regeling gehandicaptenparkeerkaart art. 1, the Awb, fictitious municipal policy, the municipality's reduction | [RFC-045](/rfcs/rfc-045) to [RFC-050](/rfcs/rfc-050) |
 
 ## The application, with the Awb on it
 
@@ -244,3 +245,35 @@ The cell records the objection with `record_submission`, referring to the contes
 The cell contains no Awb article. [RFC-050](/rfcs/rfc-050) describes the design and what is still open.
 
 **Try it:** `just bdd`, which runs `corpus/regulation/nl/wet/algemene_wet_bestuursrecht/scenarios/bezwaar.feature`, or `cargo test --manifest-path packages/cel/Cargo.toml`
+
+## A second case: the parking card
+
+The college of a municipality grants a gehandicaptenparkeerkaart on application (Besluit administratieve bepalingen inzake het wegverkeer, BABW, art. 49). The case runs on the same cell without a change to the engine or the cell: everything below is rulework, a reduction and tests.
+
+```yaml
+# BABW, art. 49
+produces:
+  - type: AANVRAAG
+    requests: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
+    parameters: [bsn_aanvrager, kaart_als_bestuurder, kaart_als_passagier]
+  - type: BESCHIKKING
+    decision_type: TOEKENNING
+    outputs: [gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot]
+```
+
+What is the same:
+
+- The application gets Awb 4:2 and 4:13, the decision Awb 3:46, 6:7 and 6:8, and the objection Awb 6:5, 6:9, 7:10 and 7:11. No hook names the BABW.
+- The college judges the criteria after the medical examination, as the head judges Leerplichtwet 1969 art. 11 onder f: four open terms with `decided_per_case_by` on art. 49.
+- A reduction of the municipality, `reductie_geldige_gehandicaptenparkeerkaart`, reads the college's own decisions and answers `aanvrager_heeft_geldige_gehandicaptenparkeerkaart` by name. A refusal and a decision revoked on objection do not count.
+- On objection, the cell applies art. 49 anew. A new medical judgement revokes a refusal and grants the card, with a validity of its own.
+
+What differs:
+
+- The criteria sit in another regulation, the Regeling gehandicaptenparkeerkaart (art. 1). Art. 49 reads them through a cross-law `source` and passes the college's judgements as parameters.
+- The validity comes from the law: five years from the day of issue (BABW art. 51 lid 1). The reduction compares that date in each decision with the day of the new decision, so no policy bounds a period.
+- The municipality's fictitious policy fills the discretion of art. 49 ("kan"): no new card next to a valid one. It fills an open term the law leaves to the college per case, so the cell lets the policy go first.
+
+Not modeled: competence by place of residence (lid 1) and the CBR (lid 3), the institution (lid 2), the shorter validity of art. 51 lid 2 and 3, and the medical examination itself (Regeling art. 2): the judgements rest on it, but no rule checks that it took place, nor its exceptions.
+
+**Try it:** `just bdd`, which runs the scenarios next to the BABW and the Regeling, or `cargo test --manifest-path packages/cel/Cargo.toml --test parkeerkaart`

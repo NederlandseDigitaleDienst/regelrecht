@@ -1,0 +1,86 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.3/schema/v0.8.3/schema.json
+$id: reductie_geldige_gehandicaptenparkeerkaart
+regulatory_layer: REDUCTIE
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# Geen regelgeving: een reductie van de cel van de (fictieve) gemeente
+# Wilgendaal over haar eigen kroniek (RFC-022 §4.1, RFC-048). Ze staat bij de
+# cel en niet in corpus/regulation; alleen de cel laadt haar. Ze zoekt de
+# besluiten die ertoe doen; de geldigheidsduur staat al in elk besluit (artikel
+# 51 van het BABW). Haar antwoord neemt het besluit onder artikel 49 als
+# parameter op naam. Er is geen bekendmaking; de url wijst naar dat artikel.
+url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+name: Geldige gehandicaptenparkeerkaart bij de gemeente Wilgendaal (reductie)
+competent_authority:
+  name: Het college van burgemeester en wethouders van de gemeente Wilgendaal
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving: een reductie van de cel over haar eigen kroniek. De
+      aanvrager heeft een geldige gehandicaptenparkeerkaart als het college hem
+      in een besluit op een aanvraag (artikel 49 van het BABW) een kaart
+      verstrekte die op de dag van het besluit nog geldig is.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      execution:
+        # Wat het besluit zelf ook vraagt; de cel geeft het op naam door.
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de gehandicapte die de kaart aanvraagt.
+          - name: besluit_datum
+            type: date
+            description: De dag waarop het college op de aanvraag besluit.
+        input:
+          # De besluiten onder artikel 49, één rij per besluit, met de gegevens
+          # en de uitvoer van dat besluit onder hun eigen naam: onder meer
+          # bsn_aanvrager, gehandicaptenparkeerkaart_verstrekt en
+          # kaart_geldig_tot. De cel zet er bij elke rij
+          # bestreden_besluit_herroepen bij (Awb 7:11, tweede lid).
+          - name: besluiten
+            type: array
+            source:
+              decisions: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
+        output:
+          - name: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+            type: boolean
+            description: >-
+              Of het college de aanvrager een kaart verstrekte die op de dag van
+              het besluit nog geldig is.
+        actions:
+          # Een besluit dat dezelfde aanvrager een kaart verstrekte, geldig tot
+          # en met de dag van het besluit of later. Een weigering telt niet, en
+          # een besluit dat op bezwaar is herroepen ook niet (Awb 7:11, tweede
+          # lid); het besluit dat in zijn plaats kwam, telt als elk ander
+          # (RFC-050). Een kaart die haar geldigheid op een andere grond
+          # verloor (artikel 53, eerste lid, onder b tot en met e), en een kaart
+          # van een andere gemeente, ziet deze reductie niet: die staan niet in
+          # de kroniek. Met `as` is een besluit alleen als `$besluit.<veld>` te
+          # lezen (RFC-049).
+          - output: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+            value:
+              operation: FOREACH
+              collection: $besluiten
+              as: besluit
+              filter:
+                operation: AND
+                conditions:
+                  - operation: EQUALS
+                    subject: $besluit.gehandicaptenparkeerkaart_verstrekt
+                    value: true
+                  - operation: EQUALS
+                    subject: $besluit.bestreden_besluit_herroepen
+                    value: false
+                  - operation: EQUALS
+                    subject: $besluit.bsn_aanvrager
+                    value: $bsn_aanvrager
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject:
+                      operation: DATE_DIFF
+                      from: $besluit_datum
+                      to: $besluit.kaart_geldig_tot
+                      in: days
+                    value: 0
+              body: true
+              combine: OR
