@@ -66,6 +66,9 @@ articles:
               filter:
                 operation: AND
                 conditions:
+                  # Deze voorwaarde moet vóór de DATE_DIFF staan: AND stopt bij
+                  # de eerste onwaar, en een weigering heeft geen
+                  # kaart_geldig_tot, waarop DATE_DIFF faalt.
                   - operation: EQUALS
                     subject: $besluit.gehandicaptenparkeerkaart_verstrekt
                     value: true

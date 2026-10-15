@@ -276,4 +276,11 @@ What differs:
 
 Not modeled: competence by place of residence (lid 1) and the CBR (lid 3), the institution (lid 2), the shorter validity of art. 51 lid 2 and 3, and the medical examination itself (Regeling art. 2): the judgements rest on it, but no rule checks that it took place, nor its exceptions.
 
+What the cell cannot do yet:
+
+- The medical judgements belong in the Regeling (art. 2 and 3), but the cell collects only the open terms of the deciding article, so they sit on art. 49 and go to the Regeling as parameters.
+- The cell does not pass its own identity to the law. Competence by place of residence cannot be checked, and a policy scoped by `gemeente_code` is not found, so the municipality's policy is unscoped.
+- The decision keeps in `fields` only what the engine resolved. On a first application `OR` short-circuits before the policy term, so the decision does not record it.
+- An objection against a grant moves the validity. The day of issue is the day of the decision, so a heroverweging on a later day always yields another `kaart_geldig_tot`. The cell sees cause, revokes the grant and issues a card valid until a later day, even when the objection has no merit. A cell test pins this as a known defect.
+
 **Try it:** `just bdd`, which runs the scenarios next to the BABW and the Regeling, or `cargo test --manifest-path packages/cel/Cargo.toml --test parkeerkaart`

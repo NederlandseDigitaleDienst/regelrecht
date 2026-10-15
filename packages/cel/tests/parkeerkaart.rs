@@ -321,8 +321,11 @@ fn on_its_last_day_the_card_is_valid_and_the_day_after_it_is_not() {
 
 #[test]
 fn a_refusal_does_not_count() {
-    // A refusal also holds a last day of validity; only a card that was
-    // granted counts.
+    // A refusal has no last day of validity (`kaart_geldig_tot` is null);
+    // only a card that was granted counts. Without the reduction's
+    // `verstrekt` filter this test fails through the engine (DATE_DIFF on an
+    // absent operand), not on the assertion below: the filter guards that
+    // comparison as well.
     let mut cell = cell();
     apply_and_decide(&mut cell, APPLICANT, false, "2026-10-20");
     let gram = apply_and_decide(&mut cell, APPLICANT, true, "2026-10-27");
@@ -360,7 +363,7 @@ fn objection_on(ground: &str) -> Map<String, Value> {
         "naam_indiener": "A. de Vries",
         "adres_indiener": "Voorbeeldlaan 2",
         "dagtekening_bezwaarschrift": "2026-11-01",
-        "omschrijving_bestreden_besluit": "weigering gehandicaptenparkeerkaart",
+        "omschrijving_bestreden_besluit": "besluit op de aanvraag om een gehandicaptenparkeerkaart",
         "gronden_bezwaar": ground,
     }))
 }
@@ -506,4 +509,66 @@ fn a_revoked_card_does_not_count_as_a_valid_one() {
         later.outputs["gehandicaptenparkeerkaart_verstrekt"],
         json!(true)
     );
+}
+
+/// Object against the card granted on 2026-10-20 and decide on 2026-11-20,
+/// with the judgements the college gives anew in `anew`.
+fn object_to_a_grant(cell: &mut Cell, anew: &Map<String, Value>) -> ObjectionDecision {
+    let granted = apply_and_decide(cell, APPLICANT, true, "2026-10-20");
+    assert_eq!(granted.outputs["kaart_geldig_tot"], json!("2031-10-19"));
+    let bezwaar = cell
+        .record_objection(
+            &service(),
+            AWB,
+            OBJECTION,
+            &granted.id,
+            &objection_on("de kaart vermeldt alleen de letter B"),
+            day("2026-11-01"),
+        )
+        .unwrap();
+    decide_objection(cell, &bezwaar.id, anew, "2026-11-20")
+}
+
+#[test]
+fn on_objection_against_a_grant_the_contested_card_does_not_count() {
+    // A new examination still finds a long-term walking limitation. During
+    // the heroverweging the reduction leaves the contested grant out, so it
+    // does not refuse the card for being next to itself.
+    let mut cell = cell();
+    let anew = object_map(json!({ WALKING: true }));
+    let decided = object_to_a_grant(&mut cell, &anew);
+    let new = decided.new_decision.unwrap();
+    assert_eq!(new.fields[VALID], json!(false));
+    assert_eq!(
+        new.outputs["gehandicaptenparkeerkaart_verstrekt"],
+        json!(true)
+    );
+    // The validity moves with the day of the decision on the objection; see
+    // `known_defect_an_objection_against_a_grant_moves_the_validity`.
+    assert_eq!(new.outputs["kaart_geldig_tot"], json!("2031-11-19"));
+}
+
+#[test]
+fn known_defect_an_objection_against_a_grant_moves_the_validity() {
+    // Known defect, pinned so a change shows up. The day of issue is the day
+    // of the decision (`besluit_datum`, own choice), and the heroverweging
+    // runs art. 49 on the day of the decision on the objection. So
+    // `kaart_geldig_tot` always differs from the contested grant, the cell
+    // sees cause, and even an objection without merit (no judgement given
+    // anew) revokes the grant and issues a card valid one month longer. The
+    // comparison lives in the cell; how to fix it is a design decision for
+    // its owner, so this test records what happens rather than what should.
+    let mut cell = cell();
+    let decided = object_to_a_grant(&mut cell, &Map::new());
+    assert_eq!(decided.decision.fields[CAUSE], json!(true));
+    assert_eq!(
+        decided.decision.outputs["bestreden_besluit_herroepen"],
+        json!(true)
+    );
+    let new = decided.new_decision.unwrap();
+    assert_eq!(
+        new.outputs["gehandicaptenparkeerkaart_verstrekt"],
+        json!(true)
+    );
+    assert_eq!(new.outputs["kaart_geldig_tot"], json!("2031-11-19"));
 }
