@@ -320,9 +320,22 @@ fn on_its_last_day_the_card_is_valid_and_the_day_after_it_is_not() {
 }
 
 #[test]
-fn a_refusal_and_a_card_of_someone_else_do_not_count() {
+fn a_refusal_does_not_count() {
+    // A refusal also holds a last day of validity; only a card that was
+    // granted counts.
     let mut cell = cell();
     apply_and_decide(&mut cell, APPLICANT, false, "2026-10-20");
+    let gram = apply_and_decide(&mut cell, APPLICANT, true, "2026-10-27");
+    assert_eq!(gram.fields[VALID], json!(false));
+    assert_eq!(
+        gram.outputs["gehandicaptenparkeerkaart_verstrekt"],
+        json!(true)
+    );
+}
+
+#[test]
+fn a_card_of_someone_else_does_not_count() {
+    let mut cell = cell();
     apply_and_decide(&mut cell, "999990032", true, "2026-10-20");
     let gram = apply_and_decide(&mut cell, APPLICANT, true, "2026-10-27");
     assert_eq!(gram.fields[VALID], json!(false));
@@ -350,6 +363,32 @@ fn objection_on(ground: &str) -> Map<String, Value> {
         "omschrijving_bestreden_besluit": "weigering gehandicaptenparkeerkaart",
         "gronden_bezwaar": ground,
     }))
+}
+
+#[test]
+fn an_objection_does_not_change_the_application() {
+    // Awb 6:5 and 7:11 lid 1: the objection gives grounds, the college
+    // reconsiders on the application as it was. A card as a passenger is a
+    // new application.
+    let mut cell = cell();
+    let refused = apply_and_decide(&mut cell, APPLICANT, false, "2026-10-20");
+    let mut amended = objection();
+    amended.insert("kaart_als_passagier".to_string(), json!(true));
+    let e = cell
+        .record_objection(
+            &service(),
+            AWB,
+            OBJECTION,
+            &refused.id,
+            &amended,
+            day("2026-11-01"),
+        )
+        .unwrap_err();
+    assert!(
+        matches!(&e, Error::Refused(m) if m.contains("does not ask 'kaart_als_passagier'")),
+        "{e}"
+    );
+    assert_eq!(cell.grams().len(), 2);
 }
 
 fn object(cell: &mut Cell, contested: &str, on: &str) -> Gram {
