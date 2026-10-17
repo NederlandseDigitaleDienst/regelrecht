@@ -1,0 +1,231 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.3/schema/v0.8.3/schema.json
+$id: regeling_gehandicaptenparkeerkaart
+regulatory_layer: MINISTERIELE_REGELING
+publication_date: '2012-09-14'
+valid_from: '2013-01-01'
+bwb_id: BWBR0012625
+url: https://wetten.overheid.nl/BWBR0012625/2013-01-01
+preamble:
+  text: >-
+    Gelet op artikel 13, tweede lid, van de Wegenverkeerswet 1994, de artikelen 49 en 55 van het Besluit
+    administratieve bepalingen inzake het wegverkeer en de artikelen 85 en 86 van het Reglement verkeersregels en
+    verkeerstekens 1990;
+
+
+    Besluit:
+  url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#ArtikelAanhef
+articles:
+  - number: '1'
+    text: >-
+      1 Voor een gehandicaptenparkeerkaart kunnen in aanmerking komen:
+
+
+      a. bestuurders van motorvoertuigen op meer dan twee wielen en van brommobielen, die ten gevolge van een
+      aandoening of gebrek een aantoonbare loopbeperking hebben van langdurige aard, waardoor zij - met de gebruikelijke
+      loophulpmiddelen - in redelijkheid niet in staat zijn zelfstandig een afstand van meer dan 100 meter aan een stuk
+      te voet te overbruggen;
+
+
+      b. passagiers van motorvoertuigen op meer dan twee wielen en van brommobielen, die ten gevolge van een aandoening
+      of gebrek een aantoonbare loopbeperking hebben van langdurige aard, waardoor zij - met de gebruikelijke
+      loophulpmiddelen - in redelijkheid niet in staat zijn zelfstandig een afstand van meer dan 100 meter aan een
+      stuk te voet te overbruggen en die voor het vervoer van deur tot deur continu afhankelijk zijn van de hulp van
+      de bestuurder;
+
+
+      c. bestuurders en passagiers van motorvoertuigen op meer dan twee wielen en van brommobielen, die ten gevolge van
+      een aandoening of gebrek permanent rolstoelgebonden zijn;
+
+
+      d. bestuurders en passagiers van motorvoertuigen op meer dan twee wielen en van brommobielen, andere dan
+      bedoeld onder a en b, die ten gevolge van een aandoening of gebrek aantoonbare ernstige beperkingen, andere dan
+      loopbeperkingen hebben;
+
+
+      e. het bestuur van instellingen ten behoeve van het personeel belast met het vervoer van bewoners die voldoen aan
+      de criteria onder b, c of d.
+
+
+      2 Op de gehandicaptenparkeerkaart wordt met een hoofdletter B aangegeven of het een gehandicapte bestuurder
+      betreft en een hoofdletter P of het een gehandicapte passagier betreft. Een combinatie van beide is mogelijk. Een
+      gehandicaptenparkeerkaart, bestemd voor een instelling als bedoeld in het eerste lid, onderdeel e, wordt aangeduid
+      met een hoofdletter I.
+
+
+      3 De afgifte van de gehandicaptenparkeerkaart geschiedt niet elektronisch.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel1
+    machine_readable:
+      # Lid 1, onder a tot en met d: wie voor een kaart in aanmerking komt, als
+      # bestuurder of als passagier. Elk onderdeel stelt een gegeven over de
+      # aanvrager vast dat uit het geneeskundig onderzoek blijkt (artikel 2);
+      # het besluit dat de kaart verstrekt (artikel 49 van het BABW) geeft die
+      # gegevens mee. Onder e (het bestuur van een instelling, artikel 49,
+      # tweede lid, van het BABW) is niet gemodelleerd. Lid 2 (de letters B en
+      # P) staat bij artikel 49 van het BABW, bij de kaart die het college
+      # verstrekt. Lid 3 (geen elektronische afgifte) gaat over de wijze van
+      # afgifte en geeft geen uitkomst.
+      # Alle onderdelen gelden voor motorvoertuigen op meer dan twee wielen en
+      # brommobielen; de kaart is voor zulke voertuigen, dus dat gegeven is
+      # niet apart gevraagd.
+      execution:
+        parameters:
+          - name: langdurige_loopbeperking
+            type: boolean
+            description: >-
+              Of de aanvrager ten gevolge van een aandoening of gebrek een
+              aantoonbare loopbeperking van langdurige aard heeft, waardoor hij
+              met de gebruikelijke loophulpmiddelen in redelijkheid niet
+              zelfstandig een afstand van meer dan 100 meter aan een stuk te voet
+              kan overbruggen (onder a en b).
+          - name: continu_afhankelijk_van_hulp_bestuurder
+            type: boolean
+            description: >-
+              Of de aanvrager voor het vervoer van deur tot deur continu
+              afhankelijk is van de hulp van de bestuurder (onder b).
+          - name: permanent_rolstoelgebonden
+            type: boolean
+            description: >-
+              Of de aanvrager ten gevolge van een aandoening of gebrek permanent
+              rolstoelgebonden is (onder c).
+          - name: ernstige_beperkingen_andere_dan_loopbeperkingen
+            type: boolean
+            description: >-
+              Of de aanvrager ten gevolge van een aandoening of gebrek aantoonbare
+              ernstige beperkingen heeft, andere dan loopbeperkingen (onder d).
+        output:
+          - name: komt_in_aanmerking_als_bestuurder
+            type: boolean
+            description: Of de aanvrager als bestuurder voor een kaart in aanmerking komt (onder a, c en d).
+          - name: komt_in_aanmerking_als_passagier
+            type: boolean
+            description: Of de aanvrager als passagier voor een kaart in aanmerking komt (onder b, c en d).
+        actions:
+          # Onder d: "andere dan bedoeld onder a en b". Wie onder a of b valt,
+          # komt daarop al in aanmerking; dat d dan niet geldt, verandert de
+          # uitkomst niet.
+          - output: komt_in_aanmerking_als_bestuurder
+            value:
+              operation: OR
+              conditions:
+                - $langdurige_loopbeperking
+                - $permanent_rolstoelgebonden
+                - $ernstige_beperkingen_andere_dan_loopbeperkingen
+          - output: komt_in_aanmerking_als_passagier
+            value:
+              operation: OR
+              conditions:
+                - operation: AND
+                  conditions:
+                    - $langdurige_loopbeperking
+                    - $continu_afhankelijk_van_hulp_bestuurder
+                - $permanent_rolstoelgebonden
+                - $ernstige_beperkingen_andere_dan_loopbeperkingen
+  - number: '2'
+    text: |-
+      1 Een gehandicaptenparkeerkaart wordt niet afgegeven alvorens een geneeskundig onderzoek heeft plaatsgehad met
+      betrekking tot de handicap van de aanvrager.
+
+      2 Een geneeskundig onderzoek kan achterwege worden gelaten, indien:
+
+      a. aan de aanvrager eerder een gehandicaptenparkeerkaart is verstrekt en aan de verstrekkende instantie bekend is
+      dat de aanvrager nog steeds voldoet aan de in [artikel 1][ref1] omschreven criteria;
+
+      b. aan de aanvrager eerder een gehandicaptenparkeerkaart is verstrekt en de keurende instantie van oordeel is dat
+      de aanvrager nog steeds voldoet aan de in [artikel 1][ref2] omschreven criteria;
+
+      c. op grond van [artikel 49, derde lid, van het BABW][ref3] een gehandicaptenparkeerkaart wordt verstrekt in
+      verband met een kortstondig verblijf.
+
+      3 Een geneeskundig onderzoek wordt achterwege gelaten indien een gehandicaptenparkeerkaart is aangevraagd door het
+      bestuur van een instelling als bedoeld in [artikel 1, eerste lid, onderdeel e][ref4].
+
+
+      [ref1]: https://wetten.overheid.nl/BWBR0012625#Artikel1
+      [ref2]: https://wetten.overheid.nl/BWBR0012625#Artikel1
+      [ref3]: https://wetten.overheid.nl/BWBR0004826#Artikel49
+      [ref4]: https://wetten.overheid.nl/BWBR0012625#Artikel1
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel2
+    # Niet apart uitvoerbaar gemaakt. Lid 1: de oordelen bij artikel 49 van het
+    # BABW over de criteria van artikel 1 velt het college na het geneeskundig
+    # onderzoek (decided_per_case_by daar). Lid 2 en 3 (wanneer het onderzoek
+    # achterwege blijft) zijn niet gemodelleerd.
+    references:
+      - id: ref1
+        bwb_id: BWBR0012625
+        artikel: '1'
+        paragraaf: '1'
+      - id: ref2
+        bwb_id: BWBR0012625
+        artikel: '1'
+        paragraaf: '1'
+      - id: ref3
+        bwb_id: BWBR0004826
+        artikel: '49'
+      - id: ref4
+        bwb_id: BWBR0012625
+        artikel: '1'
+        paragraaf: '1'
+  - number: '3'
+    text: |-
+      1 Ingeval de gehandicaptenparkeerkaart wordt afgegeven door het gemeentelijk gezag, bedoeld in
+      [artikel 49 van het BABW][ref1], wordt het geneeskundig onderzoek verricht door de Gemeentelijke Gezondheidsdienst
+      dan wel - bij externe advisering - door een vanwege het gemeentelijk gezag aangewezen deskundige.
+
+      2 Ingeval de gehandicaptenparkeerkaart wordt afgegeven door de Minister van Verkeer en Waterstaat, wordt het
+      onderzoek verricht door een door de Minister van Verkeer en Waterstaat aan te wijzen arts, die niet de behandelend
+      arts van de aanvrager is.
+
+
+      [ref1]: https://wetten.overheid.nl/BWBR0004826#Artikel49
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    references:
+      - id: ref1
+        bwb_id: BWBR0004826
+        artikel: '49'
+  - number: '4'
+    text: >-
+      1 De gehandicaptenparkeerkaart moet op zodanige wijze bij de voorruit worden aangebracht, dat de voorzijde ervan
+      buiten het voertuig behoorlijk leesbaar is.
+
+
+      2 Als voorzijde geldt de zijde waarop de vervaldatum van de gehandicaptenparkeerkaart vermeld staat.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel4
+  - number: '5'
+    text: >-
+      1 Als model van de gehandicaptenparkeerkaart wordt vastgesteld het in de bijlage bij deze regeling opgenomen model.
+
+
+      2 Blanco gehandicaptenparkeerkaarten worden door de met de afgifte van gehandicaptenparkeerkaarten belaste
+      autoriteiten rechtstreeks besteld bij CIB verkoop en advies BV, onderdeel van VNG Diensten BV.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel5
+  - number: '6'
+    text: |-
+      Met een ingevolge [artikel 49 BABW][ref1] afgegeven gehandicaptenparkeerkaart wordt gelijkgesteld:
+
+      a. een gehandicaptenparkeerkaart overeenkomstig het communautair model, afgegeven door het daartoe bevoegde gezag
+      in een andere lidstaat van de Europese Gemeenschappen of in een andere staat die partij is bij de Overeenkomst
+      betreffende de Europese Economische Ruimte;
+
+      b. een gehandicaptenparkeerkaart, afgegeven door het daartoe bevoegde gezag buiten Nederland, voor zover aan de
+      voorzijde van de kaart het in de bijlage bij deze regeling opgenomen symbool of een nagenoeg daaraan gelijk symbool
+      voorkomt.
+
+
+      [ref1]: https://wetten.overheid.nl/BWBR0004826#Artikel49
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel6
+    references:
+      - id: ref1
+        bwb_id: BWBR0004826
+        artikel: '49'
+  - number: '7'
+    text: >-
+      De regeling van de Minister van Verkeer en Waterstaat van 1 oktober 1991, nr. RVR 103389, houdende vaststelling van
+      regels betreffende de invalidenparkeerkaart (Stcrt. 202), wordt ingetrokken.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel7
+  - number: '8'
+    text: Deze regeling treedt in werking met ingang van 1 oktober 2001.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel8
+  - number: '9'
+    text: 'Deze regeling wordt aangehaald als: Regeling gehandicaptenparkeerkaart.'
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel9

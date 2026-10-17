@@ -1,0 +1,74 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.3/schema/v0.8.3/schema.json
+$id: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# FICTIEF. De gemeente Wilgendaal bestaat niet en dit is geen bekendgemaakt
+# beleid, maar een eigen keuze in de modellering. Er is geen bekendmaking; de
+# url wijst daarom naar het artikel dat dit beleid uitwerkt.
+url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+name: Gehandicaptenparkeerkaart in de gemeente Wilgendaal (fictief beleid)
+competent_authority:
+  name: Het college van burgemeester en wethouders van de gemeente Wilgendaal
+# Geen legal_basis: geen artikel machtigt dit beleid met zoveel woorden.
+# Artikel 49, eerste lid, van het BABW zegt dat het college een kaart "kan"
+# verstrekken; hoe het die bevoegdheid gebruikt bij een aanvrager die al een
+# geldige kaart heeft, staat hier. Het wijkt af van de verlenging die het BABW
+# en de regeling veronderstellen (artikel 53, eerste lid, onder b, van het
+# BABW: een nieuwe kaart doet de oude vervallen; artikel 2, tweede lid, onder a
+# en b, van de regeling): wie een kaart heeft, krijgt pas een nieuwe na de
+# laatste geldige dag. Zo blijft de reductie zichtbaar in de uitkomst.
+# Ongescoped: een gemeente_code zou dit beleid tot één gemeente beperken, maar
+# de cel van de gemeente geeft de engine geen gemeente_code mee. Zolang dat zo
+# is, geldt dit fictieve beleid voor elke gemeente.
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Het
+      college verstrekt geen gehandicaptenparkeerkaart aan een aanvrager die op
+      de dag van het besluit al een geldige gehandicaptenparkeerkaart van het
+      college heeft. Een duplicaat (artikel 52 van het BABW) valt hier niet
+      onder.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      # Of de aanvrager al een geldige kaart heeft, weet het college uit zijn
+      # eigen besluiten; het stelt het per aanvraag vast. Hoe het die
+      # terugleest, zegt dit beleid niet, en het is geen veld van de aanvraag.
+      # In de cel van de gemeente vult haar reductie het begrip (implements,
+      # RFC-048), ook als Awb 7:11 artikel 49 opnieuw aanroept; zonder
+      # reductie geeft het college het als vaststelling. Geen default: een
+      # ontbrekend antwoord verstrekt geen kaart naast een geldige.
+      open_terms:
+        - id: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+          type: boolean
+          required: true
+          decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
+          description: >-
+            Of het college de aanvrager een gehandicaptenparkeerkaart verstrekte
+            die op de dag van het besluit nog geldig is.
+      implements:
+        - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+          article: '49'
+          open_term: bevoegdheid_tot_verstrekken_gebruikt
+      execution:
+        # Wie de aanvrager is en de dag van het besluit, uit artikel 49: het
+        # open begrip hierboven gaat over die aanvrager op die dag.
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de gehandicapte die de kaart aanvraagt.
+          - name: besluit_datum
+            type: date
+            description: De dag waarop het college op de aanvraag besluit.
+        output:
+          - name: bevoegdheid_tot_verstrekken_gebruikt
+            type: boolean
+            description: >-
+              Of het college van zijn bevoegdheid gebruikmaakt om de aanvrager
+              een kaart te verstrekken: niet als hij al een geldige heeft.
+        actions:
+          - output: bevoegdheid_tot_verstrekken_gebruikt
+            value:
+              operation: NOT
+              value: $aanvrager_heeft_geldige_gehandicaptenparkeerkaart
