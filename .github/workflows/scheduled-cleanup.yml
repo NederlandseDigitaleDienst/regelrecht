@@ -35,7 +35,7 @@ jobs:
           fetch-depth: 1
 
       - name: Cleanup stale ZAD deployments and GitHub environments
-        uses: RijksICTGilde/zad-actions/scheduled-cleanup@4ac541a57542a22bde95b28f3ace4ee3123acd7a  # v4.2.0
+        uses: RijksICTGilde/zad-actions/scheduled-cleanup@b612e5968bb88c2c9c05da30f0be2e96b98f78c6  # v4.3.2
         with:
           api-key: ${{ secrets.RIG_API_KEY }}
           project-id: ${{ env.ZAD_PROJECT }}
@@ -60,7 +60,7 @@ jobs:
         run: script/prune-orphaned-deployments.sh
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v6
         with:
           node-version: '22'
 
