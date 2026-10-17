@@ -248,7 +248,7 @@ The cell contains no Awb article. [RFC-050](/rfcs/rfc-050) describes the design 
 
 ## A second case: the parking card
 
-The college of a municipality grants a gehandicaptenparkeerkaart on application (Besluit administratieve bepalingen inzake het wegverkeer, BABW, art. 49). The case runs on the same cell without a change to the engine or the cell. Everything below is rulework, a reduction and tests.
+The college of a municipality grants a gehandicaptenparkeerkaart on application (Besluit administratieve bepalingen inzake het wegverkeer, BABW, art. 49). The case runs on the same cell without a change to the engine or the cell. Only rulework and tests change.
 
 ```yaml
 # BABW, art. 49
@@ -272,17 +272,17 @@ What is the same:
 What differs:
 
 - The criteria sit in another regulation, the Regeling gehandicaptenparkeerkaart (art. 1). Art. 49 reads them through a cross-law `source` and passes the college's judgements as parameters.
-- Art. 49 says the college "kan" grant the card, and nothing about an applicant who already holds one. Art. 53 lid 1 onder b even counts on a new card replacing the old. The rule "no card next to a valid one" is the municipality's fictitious policy. The policy fills the open term of art. 49 on how the college uses its power, and declares an open term of its own, `aanvrager_heeft_geldige_gehandicaptenparkeerkaart`, which the college decides per case and which has no default. The reduction implements that term, so the engine asks the cell inside the policy. The answer is therefore no field of the decision. A replay reports it (`Cell::explain`), and `Cell::explain_answer` shows which card the reduction counted.
-- The validity comes from the law: five years from the day of issue (BABW art. 51 lid 1). The reduction compares that date in each decision with the day of the new decision, so no policy bounds a period.
-- The last day of validity is derived data, not an outcome. A heroverweging falls on a later day and would give a card that runs a month longer. On its own that is no cause, so an objection without merit against a grant leaves the grant and its date as they were.
+- Art. 49 says the college "kan" grant the card, and nothing about an applicant who already holds one. Art. 53 lid 1 onder b even counts on a new card replacing the old. The rule "no card next to a valid one" is the municipality's fictitious policy. The policy fills the open term of art. 49 on how the college uses its power. It also declares an open term of its own, `aanvrager_heeft_geldige_gehandicaptenparkeerkaart`. The college decides it per case, and it has no default. The reduction implements that term, so the engine asks the cell inside the policy. Because the term belongs to the policy and not to art. 49, the cell's answer is no field of the decision. A replay reports it (`Cell::explain`), and `Cell::explain_answer` shows which card the reduction counted.
+- The validity comes from the law: five years from the day of issue (BABW art. 51 lid 1). The reduction compares that date in each decision with the day of the new decision, so unlike the school year for vakantieverlof, no policy has to set the period.
+- The last day of validity is derived data (`derived`, [RFC-050](/rfcs/rfc-050)). A heroverweging falls on a later day and would give a card that runs longer. That alone gives no cause, so an objection without merit against a grant leaves the grant and its date as they were.
 
-An applicant who fails the criteria is refused before art. 49 reads the college's power, so the engine does not ask the cell. Its account of such a decision answers that it was not asked.
+An applicant who fails the criteria is refused before art. 49 reads the college's power, so the engine does not ask the cell. Asked to explain its answer for such a decision (`Cell::explain_answer`), the cell says it was not asked.
 
-Not modeled: competence by place of residence (lid 1) and the CBR (lid 3), the institution (lid 2), the shorter validity of art. 51 lid 2 and 3, and the medical examination itself (Regeling art. 2). The judgements rest on that examination, but no rule checks that it took place, nor its exceptions.
+Not modeled: competence by place of residence (lid 1) and the CBR (lid 3), the institution (lid 2), the shorter validity of art. 51 lid 2 and 3, and the medical examination itself (Regeling art. 2). The judgements rest on that examination, but no rule checks that it took place or when it may be left out (Regeling art. 2 lid 2).
 
 What the cell cannot do yet:
 
-- The medical judgements belong in the Regeling (art. 2 and 3). The engine applies a finding to every article in the decision, but the cell derives the inputs of a decision only from the deciding article, and a decision value carries only that article's findings. At a heroverweging the college would have to give judgements on the Regeling anew. So they sit on art. 49 and go to the Regeling as parameters.
+- The medical judgements belong with the criteria in the Regeling (art. 1, after the examination of art. 2 and 3). The engine applies a finding to every article in the decision. The cell, however, derives the inputs of a decision only from the deciding article, and a decision value carries only that article's findings. At a heroverweging the college would have to give judgements on the Regeling anew. So they sit on art. 49 and go to the Regeling as parameters.
 - The cell does not pass its own identity to the law. Competence by place of residence cannot be checked, and a policy scoped by `gemeente_code` is not found, so the municipality's policy is unscoped.
 
 **Try it:** `just bdd`, which runs the scenarios next to the BABW and the Regeling, or `cargo test --manifest-path packages/cel/Cargo.toml --test parkeerkaart`

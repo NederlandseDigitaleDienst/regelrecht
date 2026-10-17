@@ -1066,9 +1066,9 @@ articles:
           - name: kaart_als_passagier
             type: boolean
             description: Of de aanvrager de kaart vraagt als passagier.
-          # De dag van het besluit (Awb 1:3). Eigen keuze: de kaart wordt
-          # afgegeven op die dag; vanaf de afgifte loopt de geldigheidsduur
-          # (artikel 51).
+          # De dag waarop het college het besluit (Awb 1:3) neemt. Eigen
+          # keuze: de kaart wordt afgegeven op die dag; vanaf de afgifte loopt
+          # de geldigheidsduur (artikel 51).
           - name: besluit_datum
             type: date
             description: De dag waarop het college op de aanvraag besluit.

@@ -50,11 +50,14 @@ Feature: Het bezwaar tegen een besluit op een gehandicaptenparkeerkaart
     Then output "kaart_geldig_tot" equals "2031-11-19"
 
   Scenario: Een bezwaar tegen een verstrekte kaart zonder nieuw oordeel laat het besluit in stand
-    # Verstrekt op 20 oktober, geldig tot en met 19 oktober 2031. De
-    # heroverweging op 20 november geeft een kaart tot en met 19 november
-    # 2031, maar dezelfde uitkomst: geen aanleiding. Het bestreden besluit
-    # telt bij de heroverweging niet mee als geldige kaart; in de cel laat haar
-    # reductie het weg, hier is het een vaststelling van het college.
+    # Verstrekt op 20 oktober, geldig tot en met 19 oktober 2031. Van de
+    # uitvoer bevat een besluitwaarde alleen de uitkomst, dus geen
+    # kaart_geldig_tot. Als besluit_datum staat de dag van de heroverweging,
+    # zoals de cel die invult: die geeft een kaart tot en met 19 november
+    # 2031, maar dezelfde uitkomst, dus geen aanleiding. Het bestreden besluit
+    # telt bij de heroverweging niet mee als geldige kaart. In de cel leest de
+    # reductie de kroniek zonder het bestreden besluit; hier is het een
+    # vaststelling van het college.
     Given the following parameters:
       | bezwaarschrift_tijdig_ingediend | true |
       | bestreden_besluit | {"grondslag": "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49", "taken_on": "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49", "fields": {"bsn_aanvrager": "999990020", "kaart_als_bestuurder": true, "kaart_als_passagier": false, "besluit_datum": "2026-11-20"}, "findings": {"langdurige_loopbeperking": true, "continu_afhankelijk_van_hulp_bestuurder": false, "permanent_rolstoelgebonden": false, "ernstige_beperkingen_andere_dan_loopbeperkingen": false}, "outputs": {"gehandicaptenparkeerkaart_verstrekt": true, "kaart_vermeldt_bestuurder": true, "kaart_vermeldt_passagier": false}} |

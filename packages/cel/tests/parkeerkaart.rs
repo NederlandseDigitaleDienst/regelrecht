@@ -227,8 +227,9 @@ fn the_decision_asks_from_the_application_the_college_the_policy_and_the_cell() 
             ("bsn_aanvrager", &Source::Application, false),
             ("kaart_als_bestuurder", &Source::Application, false),
             ("kaart_als_passagier", &Source::Application, false),
-            // A parameter of art. 49 that the Awb stage requires too: the
-            // day of the decision.
+            // The day of the decision (a parameter of art. 49 that the Awb
+            // stage also needs) and the day it is made known, both from the
+            // cell.
             ("besluit_datum", &Source::Cell, false),
             ("bekendmaking_datum", &Source::Cell, false),
             (WALKING, &Source::Caller, false),
@@ -604,9 +605,9 @@ fn an_unfounded_objection_against_a_grant_leaves_the_decision_standing() {
     // objection, a month after the grant, so it would issue a card valid a
     // month longer. That end is derived data (`derived`, RFC-050), no
     // outcome, so it gives no cause: the outcome is the same, and the grant
-    // stands with its own validity. During the heroverweging the reduction
-    // leaves the contested grant out, so it does not refuse the card for
-    // being next to itself.
+    // stands with its own validity. During the heroverweging the cell reads
+    // the chronicle without the contested grant, so the reduction does not
+    // refuse the card for being next to itself.
     let mut cell = cell();
     let (granted, bezwaar) = granted_and_objected(&mut cell);
     let decided = reconsider(&mut cell, &bezwaar.id, &Map::new(), "2026-11-20");
