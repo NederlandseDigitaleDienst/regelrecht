@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.3/schema/v0.8.3/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.5/schema/v0.8.5/schema.json
 $id: reductie_geldige_gehandicaptenparkeerkaart
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
@@ -8,8 +8,10 @@ valid_from: '2026-01-01'
 # Wilgendaal over haar eigen kroniek (RFC-022 §4.1, RFC-048). Ze staat bij de
 # cel en niet in corpus/regulation; alleen de cel laadt haar. Ze zoekt de
 # besluiten die ertoe doen; de geldigheidsduur staat al in elk besluit (artikel
-# 51 van het BABW). Haar antwoord neemt het besluit onder artikel 49 als
-# parameter op naam. Er is geen bekendmaking; de url wijst naar dat artikel.
+# 51 van het BABW). Haar antwoord vult het open begrip van het fictieve beleid
+# van de gemeente (implements, schema v0.8.5): waar de engine dat begrip leest,
+# ook als Awb 7:11 artikel 49 opnieuw aanroept, vraagt hij het de cel, en de
+# cel draait haar. Er is geen bekendmaking; de url wijst naar artikel 49.
 url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
 name: Geldige gehandicaptenparkeerkaart bij de gemeente Wilgendaal (reductie)
 competent_authority:
@@ -23,8 +25,14 @@ articles:
       verstrekte die op de dag van het besluit nog geldig is.
     url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
     machine_readable:
+      # Het open begrip van het beleid, dat het college anders per geval
+      # vaststelt.
+      implements:
+        - law: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+          article: '1'
+          open_term: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
       execution:
-        # Wat het besluit zelf ook vraagt; de cel geeft het op naam door.
+        # Parameters van het beleid; de cel geeft ze op naam door.
         parameters:
           - name: bsn_aanvrager
             type: string
@@ -36,19 +44,47 @@ articles:
           # De besluiten onder artikel 49, één rij per besluit, met de gegevens
           # en de uitvoer van dat besluit onder hun eigen naam: onder meer
           # bsn_aanvrager, gehandicaptenparkeerkaart_verstrekt en
-          # kaart_geldig_tot. De cel zet er bij elke rij
-          # bestreden_besluit_herroepen bij (Awb 7:11, tweede lid).
+          # kaart_geldig_tot (afgeleid, maar bij het besluit bewaard), en het
+          # id van het besluit.
           - name: besluiten
             type: array
             source:
               decisions: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
+          # De beslissingen op bezwaar (Awb 7:11), ook één rij per besluit.
+          # Een rij noemt het bestreden besluit bij zijn id
+          # (bestreden_besluit), en of zij het herriep
+          # (bestreden_besluit_herroepen). De cel moet daarvoor de Awb
+          # geladen hebben.
+          - name: beslissingen_op_bezwaar
+            type: array
+            source:
+              decisions: algemene_wet_bestuursrecht#7:11
         output:
+          - name: herroepen_besluiten
+            type: array
+            description: >-
+              De ids van de besluiten die een beslissing op bezwaar herriep
+              (Awb 7:11, tweede lid).
           - name: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
             type: boolean
             description: >-
               Of het college de aanvrager een kaart verstrekte die op de dag van
               het besluit nog geldig is.
         actions:
+          # Een besluit dat een beslissing op bezwaar herriep, is er niet meer
+          # (Awb 7:11, tweede lid). De koppeling loopt via een lijst ids:
+          # binnen een FOREACH is de binding van een buitenste FOREACH niet te
+          # lezen.
+          - output: herroepen_besluiten
+            value:
+              operation: FOREACH
+              collection: $beslissingen_op_bezwaar
+              as: beslissing
+              filter:
+                operation: EQUALS
+                subject: $beslissing.bestreden_besluit_herroepen
+                value: true
+              body: $beslissing.bestreden_besluit
           # Een besluit dat dezelfde aanvrager een kaart verstrekte, geldig tot
           # en met de dag van het besluit of later. Een weigering telt niet, en
           # een besluit dat op bezwaar is herroepen ook niet (Awb 7:11, tweede
@@ -72,9 +108,11 @@ articles:
                   - operation: EQUALS
                     subject: $besluit.gehandicaptenparkeerkaart_verstrekt
                     value: true
-                  - operation: EQUALS
-                    subject: $besluit.bestreden_besluit_herroepen
-                    value: false
+                  - operation: NOT
+                    value:
+                      operation: IN
+                      subject: $besluit.id
+                      value: $herroepen_besluiten
                   - operation: EQUALS
                     subject: $besluit.bsn_aanvrager
                     value: $bsn_aanvrager

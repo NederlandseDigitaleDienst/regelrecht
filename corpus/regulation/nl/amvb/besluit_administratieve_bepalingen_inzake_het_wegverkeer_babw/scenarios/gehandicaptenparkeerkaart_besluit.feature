@@ -3,12 +3,14 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
   ingeschreven, verstrekt de kaart overeenkomstig de criteria van de Regeling
   gehandicaptenparkeerkaart (artikel 49, eerste lid). Of de aanvrager aan die
   criteria voldoet, oordeelt het college na geneeskundig onderzoek. De kaart
-  is vijf jaar geldig vanaf de afgifte (artikel 51, eerste lid). Of de
-  aanvrager al een geldige kaart heeft, is een parameter: de cel van de
-  gemeente leidt het af uit haar besluiten (RFC-048). Het (fictieve) beleid
-  van de gemeente verstrekt dan geen nieuwe. Het besluit is een beschikking:
-  de Awb vraagt een motivering (3:46) en opent een bezwaartermijn van zes
-  weken (6:7).
+  is vijf jaar geldig vanaf de afgifte (artikel 51, eerste lid). Hoe het
+  college zijn bevoegdheid gebruikt, zegt het (fictieve) beleid van de
+  gemeente: geen kaart naast een geldige. Of de aanvrager er al een heeft,
+  stelt het college vast. Hier is dat een vaststelling; in de cel van de
+  gemeente vult haar reductie dat open begrip van het beleid uit haar
+  besluiten (implements, RFC-048). Bij een weigering op de criteria vraagt
+  de engine het niet. Het besluit is een beschikking: de Awb vraagt een
+  motivering (3:46) en opent een bezwaartermijn van zes weken (6:7).
 
   Background:
     Given the calculation date is "2026-10-20"
@@ -24,6 +26,7 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | continu_afhankelijk_van_hulp_bestuurder           | false |
       | permanent_rolstoelgebonden                        | false |
       | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
+    Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
@@ -48,7 +51,6 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | continu_afhankelijk_van_hulp_bestuurder           | false |
       | permanent_rolstoelgebonden                        | false |
       | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
-      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_verstrekt" is false
@@ -66,7 +68,6 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | continu_afhankelijk_van_hulp_bestuurder           | false |
       | permanent_rolstoelgebonden                        | false |
       | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
-      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_verstrekt" is false
@@ -82,6 +83,7 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | continu_afhankelijk_van_hulp_bestuurder           | false |
       | permanent_rolstoelgebonden                        | true |
       | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
+    Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
@@ -100,6 +102,7 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | continu_afhankelijk_van_hulp_bestuurder           | false |
       | permanent_rolstoelgebonden                        | false |
       | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
+    Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | true |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
@@ -116,6 +119,7 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | continu_afhankelijk_van_hulp_bestuurder           | false |
       | permanent_rolstoelgebonden                        | false |
       | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
+    Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
@@ -131,6 +135,7 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | continu_afhankelijk_van_hulp_bestuurder           | false |
       | permanent_rolstoelgebonden                        | false |
       | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
+    Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
@@ -146,6 +151,7 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | continu_afhankelijk_van_hulp_bestuurder           | false |
       | permanent_rolstoelgebonden                        | false |
       | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
+    Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds

@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.3/schema/v0.8.3/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.4/schema/v0.8.4/schema.json
 $id: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
 regulatory_layer: AMVB
 publication_date: '2025-10-10'
@@ -964,8 +964,9 @@ articles:
         # college oordeelt per aanvraag op dat onderzoek, zoals het hoofd bij
         # vakantieverlof over de twee gegevens van artikel 11, onder f, van de
         # Leerplichtwet 1969. De oordelen staan hier en niet bij de regeling:
-        # de cel vraagt alleen de oordelen van het beslissende artikel. De
-        # regeling krijgt ze als parameters.
+        # de cel leidt de invoer van een besluit alleen af uit het beslissende
+        # artikel, en een besluitwaarde draagt bij een heroverweging alleen
+        # diens vaststellingen. De regeling krijgt ze als parameters.
         - id: langdurige_loopbeperking
           type: boolean
           required: true
@@ -1009,18 +1010,21 @@ articles:
             ernstige beperkingen heeft, andere dan loopbeperkingen (Regeling
             gehandicaptenparkeerkaart, artikel 1, eerste lid, onder d).
         # Lid 1: de kaart "kan" worden verstrekt; het college heeft een
-        # bevoegdheid, geen plicht. Eigen keuze: van die ruimte is alleen
-        # gemodelleerd of het college een kaart verstrekt aan wie er al een
-        # geldige heeft. Het beleid van de gemeente vult dit in, hier het
-        # fictieve beleid fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal.
-        - id: kaart_naast_geldige_kaart_verstrekken
+        # bevoegdheid, geen plicht. Hoe het die gebruikt, zegt dit besluit
+        # niet. Het beleid van de gemeente vult dit in, hier het fictieve
+        # beleid fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal.
+        # Of de aanvrager al een geldige kaart heeft, vraagt dit artikel niet:
+        # het besluit verbiedt geen kaart naast een geldige (artikel 53,
+        # eerste lid, onder b, rekent met een nieuwe kaart die de oude doet
+        # vervallen). Dat vraagt het beleid, als open begrip van zichzelf.
+        - id: bevoegdheid_tot_verstrekken_gebruikt
           type: boolean
           required: true
           decided_per_case_by: het college van burgemeester en wethouders (artikel 49, eerste lid)
           description: >-
-            Of het college een gehandicaptenparkeerkaart verstrekt aan een
-            aanvrager die op de dag van het besluit al een geldige kaart van het
-            college heeft.
+            Of het college van zijn bevoegdheid gebruikmaakt om een
+            gehandicaptenparkeerkaart te verstrekken aan een aanvrager die aan
+            de criteria voldoet.
       execution:
         # Lid 1: de kaart wordt verstrekt op aanvraag van de gehandicapte. Dit
         # artikel brengt twee dingen voort, zoals artikel 13a van de
@@ -1034,12 +1038,19 @@ articles:
               - bsn_aanvrager
               - kaart_als_bestuurder
               - kaart_als_passagier
+          # De uitkomst is of het college een kaart verstrekt, en welke
+          # letters zij draagt. De laatste geldige dag volgt uit de dag van
+          # afgifte (artikel 51) en is afgeleid (RFC-050): zij staat bij het
+          # besluit, maar telt niet als uitkomst. Een heroverweging op bezwaar
+          # (Awb 7:11) valt op een andere dag; die geeft geen aanleiding
+          # alleen omdat de kaart dan later zou aflopen.
           - type: BESCHIKKING
             decision_type: TOEKENNING
             outputs:
               - gehandicaptenparkeerkaart_verstrekt
               - kaart_vermeldt_bestuurder
               - kaart_vermeldt_passagier
+            derived:
               - kaart_geldig_tot
         parameters:
           # De eerste drie zijn de inhoud van de aanvraag (produces hierboven).
@@ -1055,15 +1066,6 @@ articles:
           - name: kaart_als_passagier
             type: boolean
             description: Of de aanvrager de kaart vraagt als passagier.
-          # Of de aanvrager al een geldige kaart heeft, weet het college uit
-          # zijn eigen besluiten. Hoe het die terugleest, zegt dit besluit niet.
-          # Het is geen veld van de aanvraag; de cel van de gemeente leidt het
-          # af uit haar kroniek (RFC-048).
-          - name: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
-            type: boolean
-            description: >-
-              Of het college de aanvrager een gehandicaptenparkeerkaart verstrekte
-              die op de dag van het besluit nog geldig is.
           # De dag van het besluit (Awb 1:3). Eigen keuze: de kaart wordt
           # afgegeven op die dag; vanaf de afgifte loopt de geldigheidsduur
           # (artikel 51).
@@ -1127,8 +1129,8 @@ articles:
           # aanmerking voor wat hij vraagt, als bestuurder, als passagier of
           # als beide. Eigen keuze: wie als bestuurder en als passagier vraagt
           # en maar voor een van beide in aanmerking komt, krijgt een kaart met
-          # alleen die letter. En het college verstrekt geen kaart naast een
-          # geldige, tenzij zijn beleid dat wel doet.
+          # alleen die letter. En het college gebruikt zijn bevoegdheid, zoals
+          # zijn beleid dat invult.
           - output: gehandicaptenparkeerkaart_verstrekt
             value:
               operation: AND
@@ -1143,11 +1145,7 @@ articles:
                       conditions:
                         - $kaart_als_passagier
                         - $komt_in_aanmerking_als_passagier
-                - operation: OR
-                  conditions:
-                    - operation: NOT
-                      value: $aanvrager_heeft_geldige_gehandicaptenparkeerkaart
-                    - $kaart_naast_geldige_kaart_verstrekken
+                - $bevoegdheid_tot_verstrekken_gebruikt
           - output: kaart_vermeldt_bestuurder
             value:
               operation: AND

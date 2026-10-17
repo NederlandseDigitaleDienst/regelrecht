@@ -248,7 +248,7 @@ The cell contains no Awb article. [RFC-050](/rfcs/rfc-050) describes the design 
 
 ## A second case: the parking card
 
-The college of a municipality grants a gehandicaptenparkeerkaart on application (Besluit administratieve bepalingen inzake het wegverkeer, BABW, art. 49). The case runs on the same cell without a change to the engine or the cell: everything below is rulework, a reduction and tests.
+The college of a municipality grants a gehandicaptenparkeerkaart on application (Besluit administratieve bepalingen inzake het wegverkeer, BABW, art. 49). The case runs on the same cell without a change to the engine or the cell. Everything below is rulework, a reduction and tests.
 
 ```yaml
 # BABW, art. 49
@@ -258,29 +258,31 @@ produces:
     parameters: [bsn_aanvrager, kaart_als_bestuurder, kaart_als_passagier]
   - type: BESCHIKKING
     decision_type: TOEKENNING
-    outputs: [gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot]
+    outputs: [gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier]
+    derived: [kaart_geldig_tot]
 ```
 
 What is the same:
 
 - The application gets Awb 4:2 and 4:13, the decision Awb 3:46, 6:7 and 6:8, and the objection Awb 6:5, 6:9, 7:10 and 7:11. No hook names the BABW.
-- The college judges the criteria after the medical examination, as the head judges Leerplichtwet 1969 art. 11 onder f: four open terms with `decided_per_case_by` on art. 49.
-- A reduction of the municipality, `reductie_geldige_gehandicaptenparkeerkaart`, reads the college's own decisions and answers `aanvrager_heeft_geldige_gehandicaptenparkeerkaart` by name. A refusal and a decision revoked on objection do not count.
-- On objection, the cell applies art. 49 anew. A new medical judgement revokes a refusal and grants the card, with a validity of its own.
+- The college judges the criteria after the medical examination, as the head judges Leerplichtwet 1969 art. 11 onder f. These are four open terms with `decided_per_case_by` on art. 49.
+- A reduction of the municipality, `reductie_geldige_gehandicaptenparkeerkaart`, reads the college's own decisions and fills an open term with `implements`. A refusal does not count, and neither does a decision that a decision on objection revoked.
+- On objection, 7:11 calls art. 49 anew. A new medical judgement revokes a refusal and grants the card, with a validity of its own.
 
 What differs:
 
 - The criteria sit in another regulation, the Regeling gehandicaptenparkeerkaart (art. 1). Art. 49 reads them through a cross-law `source` and passes the college's judgements as parameters.
+- Art. 49 says the college "kan" grant the card, and nothing about an applicant who already holds one. Art. 53 lid 1 onder b even counts on a new card replacing the old. The rule "no card next to a valid one" is the municipality's fictitious policy. The policy fills the open term of art. 49 on how the college uses its power, and declares an open term of its own, `aanvrager_heeft_geldige_gehandicaptenparkeerkaart`, which the college decides per case and which has no default. The reduction implements that term, so the engine asks the cell inside the policy. The answer is therefore no field of the decision. A replay reports it (`Cell::explain`), and `Cell::explain_answer` shows which card the reduction counted.
 - The validity comes from the law: five years from the day of issue (BABW art. 51 lid 1). The reduction compares that date in each decision with the day of the new decision, so no policy bounds a period.
-- The municipality's fictitious policy fills the discretion of art. 49 ("kan"): no new card next to a valid one. It fills an open term the law leaves to the college per case, so the cell lets the policy go first.
+- The last day of validity is derived data, not an outcome. A heroverweging falls on a later day and would give a card that runs a month longer. On its own that is no cause, so an objection without merit against a grant leaves the grant and its date as they were.
 
-Not modeled: competence by place of residence (lid 1) and the CBR (lid 3), the institution (lid 2), the shorter validity of art. 51 lid 2 and 3, and the medical examination itself (Regeling art. 2): the judgements rest on it, but no rule checks that it took place, nor its exceptions.
+An applicant who fails the criteria is refused before art. 49 reads the college's power, so the engine does not ask the cell. Its account of such a decision answers that it was not asked.
+
+Not modeled: competence by place of residence (lid 1) and the CBR (lid 3), the institution (lid 2), the shorter validity of art. 51 lid 2 and 3, and the medical examination itself (Regeling art. 2). The judgements rest on that examination, but no rule checks that it took place, nor its exceptions.
 
 What the cell cannot do yet:
 
-- The medical judgements belong in the Regeling (art. 2 and 3), but the cell collects only the open terms of the deciding article, so they sit on art. 49 and go to the Regeling as parameters.
+- The medical judgements belong in the Regeling (art. 2 and 3). The engine applies a finding to every article in the decision, but the cell derives the inputs of a decision only from the deciding article, and a decision value carries only that article's findings. At a heroverweging the college would have to give judgements on the Regeling anew. So they sit on art. 49 and go to the Regeling as parameters.
 - The cell does not pass its own identity to the law. Competence by place of residence cannot be checked, and a policy scoped by `gemeente_code` is not found, so the municipality's policy is unscoped.
-- The decision keeps in `fields` only what the engine resolved. On a first application `OR` short-circuits before the policy term, so the decision does not record it.
-- An objection against a grant moves the validity. The day of issue is the day of the decision, so a heroverweging on a later day always yields another `kaart_geldig_tot`. The cell sees cause, revokes the grant and issues a card valid until a later day, even when the objection has no merit. A cell test pins this as a known defect.
 
 **Try it:** `just bdd`, which runs the scenarios next to the BABW and the Regeling, or `cargo test --manifest-path packages/cel/Cargo.toml --test parkeerkaart`

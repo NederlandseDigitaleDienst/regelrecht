@@ -1,11 +1,14 @@
-Feature: Het bezwaar tegen de weigering van een gehandicaptenparkeerkaart
+Feature: Het bezwaar tegen een besluit op een gehandicaptenparkeerkaart
   Op een ontvankelijk bezwaar heroverweegt het college het besluit (Awb 7:11,
   eerste lid): het past artikel 49 opnieuw toe, op de feiten van die dag. Komt
-  er iets anders uit dan in het bestreden besluit, dan geeft de heroverweging
-  aanleiding het te herroepen (tweede lid). Deze scenario's tonen alleen de
-  heroverweging; wat artikel 7:11 ermee doet, staat in bezwaar.feature bij de
-  Awb, en de keten van bezwaarschrift naar beslissing en nieuw besluit
-  staat in de tests van de cel (packages/cel/tests/parkeerkaart.rs).
+  er een andere uitkomst uit dan in het bestreden besluit, dan geeft de
+  heroverweging aanleiding het te herroepen (tweede lid). De uitkomst is of
+  het college een kaart verstrekt, en met welke letters. De laatste geldige
+  dag is afgeleid (derived, RFC-050): een heroverweging op een latere dag
+  geeft een kaart die later afloopt, maar dat alleen is geen aanleiding. De
+  eerste twee scenario's tonen alleen de heroverweging, het derde ook wat
+  artikel 7:11 ermee doet. De keten van bezwaarschrift naar beslissing en
+  nieuw besluit staat in de tests van de cel (packages/cel/tests/parkeerkaart.rs).
 
   Background:
     Given the calculation date is "2026-11-20"
@@ -23,7 +26,6 @@ Feature: Het bezwaar tegen de weigering van een gehandicaptenparkeerkaart
       | continu_afhankelijk_van_hulp_bestuurder           | false |
       | permanent_rolstoelgebonden                        | false |
       | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
-      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_verstrekt" is false
@@ -40,8 +42,27 @@ Feature: Het bezwaar tegen de weigering van een gehandicaptenparkeerkaart
       | continu_afhankelijk_van_hulp_bestuurder           | false |
       | permanent_rolstoelgebonden                        | false |
       | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
+    Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_verstrekt" is true
     Then output "kaart_geldig_tot" equals "2031-11-19"
+
+  Scenario: Een bezwaar tegen een verstrekte kaart zonder nieuw oordeel laat het besluit in stand
+    # Verstrekt op 20 oktober, geldig tot en met 19 oktober 2031. De
+    # heroverweging op 20 november geeft een kaart tot en met 19 november
+    # 2031, maar dezelfde uitkomst: geen aanleiding. Het bestreden besluit
+    # telt bij de heroverweging niet mee als geldige kaart; in de cel laat haar
+    # reductie het weg, hier is het een vaststelling van het college.
+    Given the following parameters:
+      | bezwaarschrift_tijdig_ingediend | true |
+      | bestreden_besluit | {"grondslag": "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49", "taken_on": "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49", "fields": {"bsn_aanvrager": "999990020", "kaart_als_bestuurder": true, "kaart_als_passagier": false, "besluit_datum": "2026-11-20"}, "findings": {"langdurige_loopbeperking": true, "continu_afhankelijk_van_hulp_bestuurder": false, "permanent_rolstoelgebonden": false, "ernstige_beperkingen_andere_dan_loopbeperkingen": false}, "outputs": {"gehandicaptenparkeerkaart_verstrekt": true, "kaart_vermeldt_bestuurder": true, "kaart_vermeldt_passagier": false}} |
+    Given the following findings:
+      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | false |
+    When I evaluate outputs "bestreden_besluit_herroepen, nieuw_besluit" of "algemene_wet_bestuursrecht"
+    Then the execution succeeds
+    Then output "bezwaar_ontvankelijk" is true
+    Then output "heroverweging_geeft_aanleiding" is false
+    Then output "bestreden_besluit_herroepen" is false
+    Then output "nieuw_besluit" is absent
