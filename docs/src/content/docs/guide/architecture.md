@@ -90,6 +90,7 @@ regelrecht/
 │   ├── frontend-shared/  # Code shared by the Vue frontends
 │   ├── poc-portal/       # Password-gated portal for the PoCs
 │   ├── poc-napp/         # Backend of the napp PoC
+│   ├── poc-vakantieverlof/ # Backend of the vakantieverlof PoC (the cell as an app)
 │   ├── poc-assistent/    # Policy assistant for the PoCs (Node package)
 │   ├── arch-extract/     # Architecture explorer (developer tool)
 │   └── grafana/          # Provisioned dashboards

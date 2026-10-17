@@ -42,7 +42,7 @@ RUN set -eu; \
       exit 1; \
     fi
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"auth"/d; /"corpus"/d; /"editor-api"/d; /"github"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"auth"/d; /"corpus"/d; /"editor-api"/d; /"github"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"poc-vakantieverlof"/d; /"tui"/d' Cargo.toml
 COPY packages/engine/ engine/
 COPY packages/law-model/ law-model/
 COPY packages/shared/ shared/
@@ -99,7 +99,7 @@ WORKDIR /build
 FROM chef AS planner
 COPY packages/Cargo.lock packages/Cargo.toml ./
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"editor-api"/d; /"harvester"/d; /"pipeline"/d; /"poc-portal"/d; /"tui"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"editor-api"/d; /"harvester"/d; /"pipeline"/d; /"poc-portal"/d; /"poc-vakantieverlof"/d; /"tui"/d' Cargo.toml
 COPY packages/auth/ auth/
 COPY packages/corpus/ corpus/
 COPY packages/github/ github/

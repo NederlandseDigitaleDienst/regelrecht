@@ -82,7 +82,7 @@ repos:
         entry: script/check-tool-pins.sh
         language: system
         pass_filenames: false
-        files: (^frontend/Dockerfile$|^packages/(admin|pipeline|poc-portal|poc-napp)/Dockerfile$)
+        files: (^frontend/Dockerfile$|^packages/(admin|pipeline|poc-portal|poc-napp|poc-vakantieverlof)/Dockerfile$)
 
       - id: review-gate-tests
         name: Merge-poort op de Claude-review doet wat hij belooft
@@ -185,7 +185,7 @@ repos:
         entry: just dockerfile-consistency-test
         language: system
         pass_filenames: false
-        files: ^((frontend|frontend-demo)/Dockerfile|packages/(admin|pipeline|poc-portal|poc-napp)/Dockerfile|packages/Cargo\.toml|rust-toolchain\.toml|\.github/workflows/deploy\.yml|script/dockerfile-consistency\.test\.mjs)$
+        files: ^((frontend|frontend-demo)/Dockerfile|packages/(admin|pipeline|poc-portal|poc-napp|poc-vakantieverlof)/Dockerfile|packages/Cargo\.toml|rust-toolchain\.toml|\.github/workflows/deploy\.yml|script/dockerfile-consistency\.test\.mjs)$
 
       - id: deploy-gate-tests
         name: Deploy-poort op een groene CI doet wat hij belooft

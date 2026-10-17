@@ -107,6 +107,7 @@ fn product_crates_present() {
         "pipeline",
         "poc-napp",
         "poc-portal",
+        "poc-vakantieverlof",
         "shared",
         "tui",
     ]
@@ -299,6 +300,7 @@ fn frontend_apps_extracted() {
         "app:frontend-poc-nieuwkomersbekostiging",
         "app:frontend-poc-portal",
         "app:frontend-poc-terugbetaalregimes",
+        "app:frontend-poc-vakantieverlof",
         "app:frontend-shared",
     ]
     .iter()

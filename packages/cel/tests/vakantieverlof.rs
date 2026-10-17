@@ -2078,3 +2078,23 @@ fn a_replay_that_does_not_run_as_the_decision_ran_fails() {
     // Nor does the cell derive findings from it.
     assert!(cell.findings(&mut service(), &b.id).is_err());
 }
+
+#[test]
+fn a_decision_in_a_sandbox_stays_out_of_the_cell_and_its_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(RECORDING_ACTOR).join("kroniek.jsonl");
+    let mut cell = Cell::open(RECORDING_ACTOR, &path, cell_dir()).unwrap();
+    let app = applied(&mut cell, "2027-02-01", "2027-02-05", "2026-10-13");
+    let before = std::fs::read_to_string(&path).unwrap();
+
+    let mut sandbox = cell.sandbox();
+    assert_eq!(sandbox.reductions().len(), cell.reductions().len());
+    let gram = decide(&mut sandbox, &app.id, &judgement(true, true), "2026-10-20").unwrap();
+    assert_eq!(gram.outputs["verlof_verleend"], json!(true));
+    assert_eq!(sandbox.grams().len(), 2);
+
+    assert_eq!(cell.grams(), std::slice::from_ref(&app));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), before);
+    // The cell can still take that decision itself.
+    decide(&mut cell, &app.id, &judgement(true, true), "2026-10-20").unwrap();
+}

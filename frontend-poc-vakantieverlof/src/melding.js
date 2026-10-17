@@ -1,0 +1,77 @@
+/**
+ * Een weigering van de cel in het Nederlands. De cel meldt in het Engels wat
+ * ze weigert en waarom; de banner toont deze korte zin en houdt de melding
+ * zelf achter "Details". Hier staan de weigeringen die een bezoeker met de
+ * formulieren kan veroorzaken; de rest krijgt de algemene zin. De gevallen in
+ * tests/melding.test.js zijn kopieën van de meldingen in packages/cel
+ * (cell.rs, chronicle.rs): wie daar een melding herschrijft, past ze mee aan.
+ */
+import { GEEN_ANTWOORD } from './api.js';
+import { kort, leesbaar } from './spel.js';
+
+const vertalingen = [
+  // Een besluit wordt maar één keer vervangen (de cel, bij een tweede
+  // beslissing op bezwaar die hetzelfde besluit zou vervangen).
+  [
+    /in the place of '([^']+)', which chronolexogram '([^']+)' already replaces/,
+    (besluit, vervanger) =>
+      `Besluit ${kort(besluit)} is na een eerder bezwaar al vervangen door besluit ${kort(vervanger)}. Een besluit kan maar één keer worden vervangen. Er is niets vastgelegd.`,
+  ],
+  // De kroniek loopt alleen vooruit; dezelfde dag mag.
+  [
+    /before the last chronolexogram of the chronicle \('[^']+', (\d{4}-\d{2}-\d{2})\)/,
+    (laatste) =>
+      `De speeldatum ligt vóór de laatste stap in de kroniek (${laatste}). De kroniek loopt alleen vooruit: kies die dag of een latere.`,
+  ],
+  // De school beantwoordt een open begrip uit haar kroniek, maar op een
+  // speeldatum vóór de dag dat haar reductie geldt, heeft ze er geen.
+  [
+    /open term '([^']+)' of \S+ is filled by a reduction in \S+, but none is in force on (\d{4}-\d{2}-\d{2})/,
+    (begrip, dag) =>
+      `De school beantwoordt "${leesbaar(begrip)}" uit haar kroniek, maar op ${dag} geldt haar reductie nog niet. Kies een latere speeldatum.`,
+  ],
+  // Uitleg gevraagd over een begrip dat het besluit de school niet vroeg.
+  [
+    /the decision '([^']+)' did not ask the cell of '[^']+' for '([^']+)'/,
+    (besluit, begrip) =>
+      `Besluit ${kort(besluit)} vroeg de school niet om "${leesbaar(begrip)}", dus er is geen antwoord om uit te leggen.`,
+  ],
+  [/the application '[^']+' is already decided on/, () => 'Hierop is al besloten.'],
+  [
+    /lacks '([^']+)', which the decision of \S+ needs \(Awb 4:5\)/,
+    (veld) =>
+      `De aanvraag mist "${leesbaar(veld)}", en het besluit heeft dat nodig (Awb 4:5). Vul het aan in een nieuwe aanvraag.`,
+  ],
+  [
+    /asks '([^']+)' of the deciding authority/,
+    (veld) =>
+      `Het hoofd heeft "${leesbaar(veld)}" nog niet beoordeeld, en het besluit heeft die bevinding nodig.`,
+  ],
+  [
+    /'([^']+)' is .*, which does not fit a/,
+    (veld) => `De waarde van "${leesbaar(veld)}" past niet bij wat de wet vraagt.`,
+  ],
+  [
+    /the law does not ask '([^']+)' in the (\S+) of/,
+    (veld, soort) =>
+      `De wet vraagt niet om "${leesbaar(veld)}" bij ${soort === 'BEZWAAR' ? 'het bezwaar' : 'de aanvraag'}.`,
+  ],
+];
+
+/** De Nederlandse zin bij de melding `fout` van de cel of de server. */
+export function melding(fout) {
+  for (const [patroon, zin] of vertalingen) {
+    const gevonden = String(fout).match(patroon);
+    if (gevonden) return zin(...gevonden.slice(1));
+  }
+  return isEngels(fout)
+    ? 'Wat er misging, staat onder Details, in het Engels.'
+    : 'Wat er misging, staat onder Details.';
+}
+
+/**
+ * Of de melding Engels is: alles behalve de Nederlandse zin die api.js zelf
+ * geeft als de server geen antwoord gaf. De cel, de engine, axum en de
+ * browser melden in het Engels.
+ */
+export const isEngels = (fout) => String(fout) !== GEEN_ANTWOORD;

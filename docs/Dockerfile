@@ -41,7 +41,7 @@ RUN set -eu; \
 # Trim workspace members to engine + law-model + shared. When adding a new
 # workspace member that this image does NOT build, add it here as well.
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"auth"/d; /"corpus"/d; /"editor-api"/d; /"github"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"auth"/d; /"corpus"/d; /"editor-api"/d; /"github"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"poc-vakantieverlof"/d; /"tui"/d' Cargo.toml
 COPY packages/engine/ engine/
 COPY packages/law-model/ law-model/
 COPY packages/shared/ shared/

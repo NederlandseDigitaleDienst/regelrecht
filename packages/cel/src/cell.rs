@@ -45,7 +45,7 @@ pub struct Cell {
 }
 
 /// The reductions of a cell and the directory they came from.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Reductions {
     dir: PathBuf,
     versions: Vec<Reduction>,
@@ -253,6 +253,22 @@ impl Cell {
 
     pub fn grams(&self) -> &[Gram] {
         self.chronicle.grams()
+    }
+
+    /// The cell's reductions (RFC-048), as [`Cell::open`] or
+    /// [`Cell::in_memory`] read them from its directory.
+    pub fn reductions(&self) -> &[Reduction] {
+        &self.reductions.versions
+    }
+
+    /// A copy of this cell with its chronicle in memory, to try a decision
+    /// on: what is recorded in the copy is not kept in this cell or its file.
+    pub fn sandbox(&self) -> Self {
+        Self {
+            recording_actor: self.recording_actor.clone(),
+            chronicle: self.chronicle.in_memory_copy(),
+            reductions: self.reductions.clone(),
+        }
     }
 
     /// Record the submission that article `article` of `law_id` establishes,

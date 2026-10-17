@@ -138,3 +138,27 @@ pocs:
       De Napp bestaat niet en de Wet op de politieke partijen is een
       wetsvoorstel; de wettekst hier is een uitvoerbare reconstructie, geen
       geldend recht. Partijen, aanvragen en besluiten zijn verzonnen.
+
+  - slug: vakantieverlof
+    titel: Een uitvoeringsproces dat zichzelf terugleest
+    samenvatting: >-
+      Een verkenning van een aanvraag, het besluit erop en het bezwaar
+      ertegen, om te zien hoe een uitvoerder vastlegt wat er gebeurde en dat
+      bij een volgend besluit weer terugleest.
+    titel_intern: Vakantieverlof en chronolexografie
+    samenvatting_intern: >-
+      Het proces van vakantieverlof (Leerplichtwet 1969 artikel 13a) bij een
+      fictieve school, uitgevoerd door de cel uit packages/cel: aanvraag met
+      de Awb-haken, besluit van het hoofd met het waarom, bezwaar en
+      heroverweging, de kroniek en de reductie die de school erover draait
+      (RFC-045 tot en met RFC-050).
+    soort: proxy
+    upstream: vakantieverlof
+    corpus: []
+    assistent: false
+    tags: [Leerplichtwet, AWB, chronolexografie]
+    status: verkenning
+    voorbehoud: >-
+      De school, haar beleid en alle gegevens zijn verzonnen. Het model van
+      artikel 13a is niet met juristen of scholen nagelopen, en de kroniek is
+      voor alle bezoekers dezelfde en verdwijnt bij een herstart.

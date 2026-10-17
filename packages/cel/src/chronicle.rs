@@ -141,6 +141,15 @@ impl Chronicle {
         &self.grams
     }
 
+    /// The same chronolexograms, in a chronicle in memory: what is appended
+    /// to the copy stays out of this chronicle and its file.
+    pub(crate) fn in_memory_copy(&self) -> Self {
+        Self {
+            path: None,
+            grams: self.grams.clone(),
+        }
+    }
+
     /// Append a chronolexogram: to the file first (if there is one), then to
     /// memory.
     ///

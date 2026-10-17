@@ -98,6 +98,23 @@ export const COMPONENTS = {
       'packages/poc-napp/Dockerfile',
     ],
   },
+  // vakantieverlof draait net als napp als eigen, niet-gepubliceerd component.
+  // De crate-kant (cel, engine) volgt uit de graaf; het image neemt daarnaast
+  // de regelwerken mee die de cel draait, en de cel van de school.
+  'poc-vakantieverlof': {
+    crate: 'regelrecht-poc-vakantieverlof',
+    paths: [
+      'pocs/',
+      'corpus/regulation/nl/wet/leerplichtwet_1969/',
+      'corpus/regulation/nl/wet/algemene_wet_bestuursrecht/',
+      'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaar_obs_de_klimop/',
+      'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaargrenzen_obs_de_klimop/',
+      'corpus/cells/obs_de_klimop/',
+      'frontend-poc-vakantieverlof/',
+      'packages/frontend-shared/',
+      'packages/poc-vakantieverlof/Dockerfile',
+    ],
+  },
   // Het poc-portaal bakt de statische pocs in zijn eigen image, dus het raakt
   // ook aan hun frontends en hun casus-corpus. De crate-kant volgt uit de graaf,
   // over twee crates: de portaal-binary, en de engine die het image als WASM

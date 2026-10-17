@@ -14,6 +14,7 @@ members = [
     "pipeline",
     "poc-napp",
     "poc-portal",
+    "poc-vakantieverlof",
     "shared",
     "tui",
 ]
