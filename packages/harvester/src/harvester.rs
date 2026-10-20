@@ -9,7 +9,7 @@ use crate::content::download_content_xml;
 use crate::error::Result;
 use crate::splitting::{create_dutch_law_hierarchy, LeafSplitStrategy, SplitContext, SplitEngine};
 use crate::types::{Law, Preamble};
-use crate::wti::download_wti;
+use crate::wti::{download_wti, WtiParseResult};
 use crate::xml::{find_bijlage_context, find_by_path, find_children, get_tag_name, get_text};
 
 /// Download and parse a Dutch law.
@@ -59,8 +59,24 @@ pub async fn download_law_with_max_size(
     // Download content XML
     let content_xml = download_content_xml(client, bwb_id, date, max_size_bytes).await?;
 
+    parse_law(wti_result, &content_xml, bwb_id, date)
+}
+
+/// Build a `Law` from parsed WTI metadata and downloaded content XML.
+///
+/// This is the offline half of [`download_law_with_max_size`]: everything after
+/// the downloads. It is public so the pipeline can be tested on fixture files.
+///
+/// # Errors
+/// Returns an error if the content XML cannot be parsed.
+pub fn parse_law(
+    wti_result: WtiParseResult,
+    content_xml: &str,
+    bwb_id: &str,
+    date: &str,
+) -> Result<Law> {
     // Parse articles from content
-    let parsed = parse_articles(&content_xml, bwb_id, date)?;
+    let parsed = parse_articles(content_xml, bwb_id, date)?;
 
     // Combine warnings from WTI parsing and content parsing
     let mut warnings = wti_result.warnings;

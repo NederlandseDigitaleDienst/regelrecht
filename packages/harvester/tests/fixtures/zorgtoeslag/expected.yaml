@@ -23,153 +23,120 @@ preamble:
     verstaan, gelijk Wij goedvinden en verstaan bij deze:
   url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#ArtikelAanhef
 articles:
-  - number: '1.1'
-    text: 'In deze wet en de daarop berustende bepalingen wordt, tenzij anders is geregeld, verstaan onder:'
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel1
-  - number: 1.1.a
-    text: 'Onze Minister: Onze Minister van Volksgezondheid, Welzijn en Sport;'
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel1
-  - number: 1.1.b
+  - number: '1'
     text: |-
-      zorgverzekering: de schadeverzekering, bedoeld in [artikel 1, onder d, van de Zorgverzekeringswet][ref1];
+      1 In deze wet en de daarop berustende bepalingen wordt, tenzij anders is geregeld, verstaan onder:
 
+      a. Onze Minister: Onze Minister van Volksgezondheid, Welzijn en Sport;
 
-      [ref1]: https://wetten.overheid.nl/BWBR0018450#Artikel1
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel1
-    references:
-      - id: ref1
-        bwb_id: BWBR0018450
-        artikel: '1'
-  - number: 1.1.c
-    text: |-
-      verzekerde: de persoon, bedoeld in [artikel 1, onder f, van de Zorgverzekeringswet][ref1], de persoon die
-      een bijdrage als bedoeld in [artikel 68b, vijfde lid, van de Zorgverzekeringswet][ref2] verschuldigd is,
-      of de persoon, bedoeld in [artikel 69 van de Zorgverzekeringswet][ref3], steeds vanaf de eerste dag van de
+      b. zorgverzekering: de schadeverzekering, bedoeld in [artikel 1, onder d, van de Zorgverzekeringswet][ref1];
+
+      c. verzekerde: de persoon, bedoeld in [artikel 1, onder f, van de Zorgverzekeringswet][ref2], de persoon
+      die een bijdrage als bedoeld in [artikel 68b, vijfde lid, van de Zorgverzekeringswet][ref3] verschuldigd is,
+      of de persoon, bedoeld in [artikel 69 van de Zorgverzekeringswet][ref4], steeds vanaf de eerste dag van de
       kalendermaand volgende op de maand waarin hij achttien jaar wordt, met uitzondering van de verzekerde, bedoeld in
-      [artikel 24, eerste of derde lid, van die wet][ref4];
+      [artikel 24, eerste of derde lid, van die wet][ref5];
 
+      d. premie: een premie als bedoeld in [afdeling 3.3.1 van de Zorgverzekeringswet][ref6];
 
-      [ref1]: https://wetten.overheid.nl/BWBR0018450#Artikel1
-      [ref2]: https://wetten.overheid.nl/BWBR0018450#Artikel68b
-      [ref3]: https://wetten.overheid.nl/BWBR0018450#Artikel69
-      [ref4]: https://wetten.overheid.nl/BWBR0018450#Artikel24
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel1
-    references:
-      - id: ref1
-        bwb_id: BWBR0018450
-        artikel: '1'
-      - id: ref2
-        bwb_id: BWBR0018450
-        artikel: 68b
-      - id: ref3
-        bwb_id: BWBR0018450
-        artikel: '69'
-      - id: ref4
-        bwb_id: BWBR0018450
-        artikel: '24'
-  - number: 1.1.d
-    text: |-
-      premie: een premie als bedoeld in [afdeling 3.3.1 van de Zorgverzekeringswet][ref1];
+      e. zorgtoeslag: een tegemoetkoming in een premie dan wel in een bestuursrechtelijke premie als bedoeld in
+      [artikel 18d][ref7] of [18e van de Zorgverzekeringswet][ref8] en in het verplicht eigen risico, bedoeld in
+      [artikel 19 van de Zorgverzekeringswet][ref9];
 
-
-      [ref1]: https://wetten.overheid.nl/BWBR0018450#Afdeling3.3.1
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel1
-    references:
-      - id: ref1
-        bwb_id: BWBR0018450
-        afdeling: 3.3.1
-  - number: 1.1.e
-    text: |-
-      zorgtoeslag: een tegemoetkoming in een premie dan wel in een bestuursrechtelijke premie als bedoeld in
-      [artikel 18d][ref1] of [18e van de Zorgverzekeringswet][ref2] en in het verplicht eigen risico, bedoeld in
-      [artikel 19 van de Zorgverzekeringswet][ref3];
-
-
-      [ref1]: https://wetten.overheid.nl/BWBR0018450#Artikel18d
-      [ref2]: https://wetten.overheid.nl/BWBR0018450#Artikel18e
-      [ref3]: https://wetten.overheid.nl/BWBR0018450#Artikel19
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel1
-    references:
-      - id: ref1
-        bwb_id: BWBR0018450
-        artikel: 18d
-      - id: ref2
-        bwb_id: BWBR0018450
-        artikel: 18e
-      - id: ref3
-        bwb_id: BWBR0018450
-        artikel: '19'
-  - number: 1.1.f
-    text: |-
-      drempelinkomen: 108% van het twaalfvoud van het voor de maand januari van het berekeningsjaar geldende in
-      [artikel 8, eerste lid, onderdeel b, van de Wet minimumloon en minimumvakantiebijslag][ref1] bedoelde bedrag per
+      f. drempelinkomen: 108% van het twaalfvoud van het voor de maand januari van het berekeningsjaar geldende in
+      [artikel 8, eerste lid, onderdeel b, van de Wet minimumloon en minimumvakantiebijslag][ref10] bedoelde bedrag per
       maand;
 
+      g. de standaardpremie: het op grond van [artikel 4][ref11] vastgestelde bedrag;
 
-      [ref1]: https://wetten.overheid.nl/BWBR0002638#Artikel8
+      h. de normpremie: de aan de hand van het drempelinkomen en het toetsingsinkomen van de verzekerde berekende premie
+      voor een zorgverzekering in het berekeningsjaar.
+
+      2 De hoogte van de zorgtoeslag is afhankelijk van de draagkracht op basis van het inkomen en het vermogen.
+
+
+      [ref1]: https://wetten.overheid.nl/BWBR0018450#Artikel1
+      [ref2]: https://wetten.overheid.nl/BWBR0018450#Artikel1
+      [ref3]: https://wetten.overheid.nl/BWBR0018450#Artikel68b
+      [ref4]: https://wetten.overheid.nl/BWBR0018450#Artikel69
+      [ref5]: https://wetten.overheid.nl/BWBR0018450#Artikel24
+      [ref6]: https://wetten.overheid.nl/BWBR0018450#Afdeling3.3.1
+      [ref7]: https://wetten.overheid.nl/BWBR0018450#Artikel18d
+      [ref8]: https://wetten.overheid.nl/BWBR0018450#Artikel18e
+      [ref9]: https://wetten.overheid.nl/BWBR0018450#Artikel19
+      [ref10]: https://wetten.overheid.nl/BWBR0002638#Artikel8
+      [ref11]: https://wetten.overheid.nl/BWBR0018451#Artikel4
     url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel1
     references:
       - id: ref1
+        bwb_id: BWBR0018450
+        artikel: '1'
+      - id: ref2
+        bwb_id: BWBR0018450
+        artikel: '1'
+      - id: ref3
+        bwb_id: BWBR0018450
+        artikel: 68b
+      - id: ref4
+        bwb_id: BWBR0018450
+        artikel: '69'
+      - id: ref5
+        bwb_id: BWBR0018450
+        artikel: '24'
+      - id: ref6
+        bwb_id: BWBR0018450
+        afdeling: 3.3.1
+      - id: ref7
+        bwb_id: BWBR0018450
+        artikel: 18d
+      - id: ref8
+        bwb_id: BWBR0018450
+        artikel: 18e
+      - id: ref9
+        bwb_id: BWBR0018450
+        artikel: '19'
+      - id: ref10
         bwb_id: BWBR0002638
         artikel: '8'
-  - number: 1.1.g
-    text: |-
-      de standaardpremie: het op grond van [artikel 4][ref1] vastgestelde bedrag;
-
-
-      [ref1]: https://wetten.overheid.nl/BWBR0018451#Artikel4
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel1
-    references:
-      - id: ref1
+      - id: ref11
         bwb_id: BWBR0018451
         artikel: '4'
-  - number: 1.1.h
+  - number: '2'
     text: >-
-      de normpremie: de aan de hand van het drempelinkomen en het toetsingsinkomen van de verzekerde berekende premie
-      voor een zorgverzekering in het berekeningsjaar.
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel1
-  - number: '1.2'
-    text: De hoogte van de zorgtoeslag is afhankelijk van de draagkracht op basis van het inkomen en het vermogen.
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel1
-  - number: '2.1'
-    text: >-
-      Indien de normpremie voor een verzekerde in het berekeningsjaar minder bedraagt dan de standaardpremie in dat jaar,
-      heeft de verzekerde aanspraak op een zorgtoeslag ter grootte van dat verschil. Voor een verzekerde met een partner
-      wordt daarbij tweemaal de standaardpremie in aanmerking genomen; in dat geval worden de verzekerde en zijn partner
-      voor de toepassing van deze wet geacht gezamenlijk één aanspraak te hebben.
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel2
-  - number: '2.2'
-    text: >-
-      De normpremie bedraagt een percentage van het drempelinkomen in het berekeningsjaar, vermeerderd met een percentage
-      van het toetsingsinkomen van de verzekerde in dat jaar voorzover dat toetsingsinkomen het drempelinkomen te boven
-      gaat. Voor een verzekerde met een partner wordt daarbij het gezamenlijke toetsingsinkomen in aanmerking genomen.
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel2
-  - number: '2.3'
-    text: >-
-      De percentages worden voor verzekerden met een partner vastgesteld op 4,273% van het drempelinkomen, vermeerderd
+      1 Indien de normpremie voor een verzekerde in het berekeningsjaar minder bedraagt dan de standaardpremie in dat
+      jaar, heeft de verzekerde aanspraak op een zorgtoeslag ter grootte van dat verschil. Voor een verzekerde met een
+      partner wordt daarbij tweemaal de standaardpremie in aanmerking genomen; in dat geval worden de verzekerde en zijn
+      partner voor de toepassing van deze wet geacht gezamenlijk één aanspraak te hebben.
+
+
+      2 De normpremie bedraagt een percentage van het drempelinkomen in het berekeningsjaar, vermeerderd met een
+      percentage van het toetsingsinkomen van de verzekerde in dat jaar voorzover dat toetsingsinkomen het drempelinkomen
+      te boven gaat. Voor een verzekerde met een partner wordt daarbij het gezamenlijke toetsingsinkomen in aanmerking
+      genomen.
+
+
+      3 De percentages worden voor verzekerden met een partner vastgesteld op 4,273% van het drempelinkomen, vermeerderd
       met 13,700% van het toetsingsinkomen voor zover dat boven het drempelinkomen uitgaat en voor een verzekerde zonder
       partner op 1,896% van het drempelinkomen, vermeerderd met 13,700% van het toetsingsinkomen voor zover dat boven het
       drempelinkomen uitgaat. Deze percentages kunnen bij algemene maatregel van bestuur worden gewijzigd.
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel2
-  - number: '2.4'
-    text: >-
-      In afwijking van het eerste lid bedraagt de aanspraak op een zorgtoeslag voor een verzekerde met een partner die
+
+
+      4 In afwijking van het eerste lid bedraagt de aanspraak op een zorgtoeslag voor een verzekerde met een partner die
       geen verzekerde is, vijftig procent van het op grond van het eerste lid berekende bedrag.
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel2
-  - number: '2.5'
-    text: De aanspraak op een zorgtoeslag wordt voor iedere kalendermaand afzonderlijk bepaald.
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel2
-  - number: '2.6'
-    text: Bij regeling van Onze Minister kunnen omtrent het bepaalde in het vijfde lid nadere regels worden gesteld.
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel2
-  - number: '2.7'
-    text: >-
-      De voordracht voor een krachtens het derde lid vast te stellen algemene maatregel van bestuur wordt niet eerder
+
+
+      5 De aanspraak op een zorgtoeslag wordt voor iedere kalendermaand afzonderlijk bepaald.
+
+
+      6 Bij regeling van Onze Minister kunnen omtrent het bepaalde in het vijfde lid nadere regels worden gesteld.
+
+
+      7 De voordracht voor een krachtens het derde lid vast te stellen algemene maatregel van bestuur wordt niet eerder
       gedaan dan twee weken nadat het ontwerp aan beide kamers der Staten-Generaal is overgelegd.
     url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel2
-  - number: '3.1'
+  - number: '3'
     text: |-
-      In afwijking van [artikel 7, derde lid, van de Algemene wet inkomensafhankelijke regelingen][ref1],
+      1 In afwijking van [artikel 7, derde lid, van de Algemene wet inkomensafhankelijke regelingen][ref1],
       bestaat geen aanspraak op een zorgtoeslag indien de rendementsgrondslag, bedoeld in
       [artikel 5.3 van de Wet inkomstenbelasting 2001][ref2], van de verzekerde aan het begin van het berekeningsjaar
       meer bedraagt dan € 141.896 of, indien de verzekerde het gehele berekeningsjaar dezelfde partner heeft, de
@@ -178,10 +145,24 @@ articles:
       rendementsgrondslag, bedoeld in de vorige zin, wordt geen rekening gehouden met de vrijstelling, bedoeld in
       [artikel 5.13 van de Wet inkomstenbelasting 2001][ref3].
 
+      2 Bij het begin van het kalenderjaar worden de bedragen, bedoeld in het eerste lid,
+      bij ministeriële regeling gewijzigd overeenkomstig de tabelcorrectiefactor, bedoeld in
+      [artikel 10.2 van de Wet inkomstenbelasting 2001][ref4].
+
+      3 Indien er aanleiding is om de bedragen, bedoeld in het eerste lid, te verhogen op een andere wijze dan op grond
+      van het tweede lid, worden de bedragen vastgesteld bij algemene maatregel van bestuur.
+
+      4 De overeenkomstig het tweede en derde lid aangepaste bedragen treden in de plaats van de bedragen, genoemd in het
+      eerste lid.
+
+      5 Indien een verhoging als bedoeld in het derde lid wordt toegepast, vindt deze verhoging plaats nadat het tweede
+      lid toepassing heeft gevonden.
+
 
       [ref1]: https://wetten.overheid.nl/BWBR0018472#Artikel7
       [ref2]: https://wetten.overheid.nl/BWBR0011353#Artikel5.3
       [ref3]: https://wetten.overheid.nl/BWBR0011353#Artikel5.13
+      [ref4]: https://wetten.overheid.nl/BWBR0011353#Artikel10.2
     url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel3
     references:
       - id: ref1
@@ -193,34 +174,9 @@ articles:
       - id: ref3
         bwb_id: BWBR0011353
         artikel: '5.13'
-  - number: '3.2'
-    text: |-
-      Bij het begin van het kalenderjaar worden de bedragen, bedoeld in het eerste lid, bij
-      ministeriële regeling gewijzigd overeenkomstig de tabelcorrectiefactor, bedoeld in
-      [artikel 10.2 van de Wet inkomstenbelasting 2001][ref1].
-
-
-      [ref1]: https://wetten.overheid.nl/BWBR0011353#Artikel10.2
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel3
-    references:
-      - id: ref1
+      - id: ref4
         bwb_id: BWBR0011353
         artikel: '10.2'
-  - number: '3.3'
-    text: >-
-      Indien er aanleiding is om de bedragen, bedoeld in het eerste lid, te verhogen op een andere wijze dan op grond van
-      het tweede lid, worden de bedragen vastgesteld bij algemene maatregel van bestuur.
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel3
-  - number: '3.4'
-    text: >-
-      De overeenkomstig het tweede en derde lid aangepaste bedragen treden in de plaats van de bedragen, genoemd in het
-      eerste lid.
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel3
-  - number: '3.5'
-    text: >-
-      Indien een verhoging als bedoeld in het derde lid wordt toegepast, vindt deze verhoging plaats nadat het tweede lid
-      toepassing heeft gevonden.
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel3
   - number: '4'
     text: |-
       Onze Minister stelt uiterlijk 22 dagen voorafgaande aan het berekeningsjaar bij regeling de standaardpremie
@@ -235,17 +191,33 @@ articles:
       - id: ref1
         bwb_id: BWBR0018450
         artikel: '19'
-  - number: 4a.1
+  - number: 4a
     text: |-
-      De standaardpremie voor een persoon als bedoeld in [artikel 69 van de Zorgverzekeringswet][ref1] is, in afwijking
+      1 De standaardpremie voor een persoon als bedoeld in [artikel 69 van de Zorgverzekeringswet][ref1] is, in afwijking
       van [artikel 4][ref2], gelijk aan het met toepassing van dat artikel bepaalde bedrag, vermenigvuldigd met het getal
       dat wordt berekend uit de verhouding tussen de gemiddelde uitgaven voor zorg voor een persoon ten laste van de
       sociale zorgverzekeringen in het woonland van deze persoon, en de gemiddelde uitgaven voor zorg voor een persoon
       ten laste van de sociale zorgverzekeringen in Nederland.
 
+      2 Bij ministeriële regeling wordt jaarlijks uiterlijk in november per land het in het eerste lid bedoelde
+      verhoudingsgetal vastgesteld.
+
+      3 De aanspraak op een zorgtoeslag van een verzekerde met een partner die een persoon is als
+      bedoeld in [artikel 69 van de Zorgverzekeringswet][ref3], wordt berekend met toepassing van
+      [artikel 2, eerste lid, tweede zin][ref4], waarbij de standaardpremie, bedoeld in het eerste lid, in acht wordt
+      genomen.
+
+      4 De standaardpremie voor een partner van een persoon als bedoeld in [artikel 69 van de Zorgverzekeringswet][ref5]
+      wordt overeenkomstig het eerste lid vastgesteld, tenzij deze partner een persoon is als bedoeld in
+      [artikel 1, onderdeel f, van de Zorgverzekeringswet][ref6].
+
 
       [ref1]: https://wetten.overheid.nl/BWBR0018450#Artikel69
       [ref2]: https://wetten.overheid.nl/BWBR0018451#Artikel4
+      [ref3]: https://wetten.overheid.nl/BWBR0018450#Artikel69
+      [ref4]: https://wetten.overheid.nl/BWBR0018451#Artikel2
+      [ref5]: https://wetten.overheid.nl/BWBR0018450#Artikel69
+      [ref6]: https://wetten.overheid.nl/BWBR0018450#Artikel1
     url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel4a
     references:
       - id: ref1
@@ -254,61 +226,50 @@ articles:
       - id: ref2
         bwb_id: BWBR0018451
         artikel: '4'
-  - number: 4a.2
-    text: >-
-      Bij ministeriële regeling wordt jaarlijks uiterlijk in november per land het in het eerste lid bedoelde
-      verhoudingsgetal vastgesteld.
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel4a
-  - number: 4a.3
-    text: |-
-      De aanspraak op een zorgtoeslag van een verzekerde met een partner die een persoon is als
-      bedoeld in [artikel 69 van de Zorgverzekeringswet][ref1], wordt berekend met toepassing van
-      [artikel 2, eerste lid, tweede zin][ref2], waarbij de standaardpremie, bedoeld in het eerste lid, in acht wordt
-      genomen.
-
-
-      [ref1]: https://wetten.overheid.nl/BWBR0018450#Artikel69
-      [ref2]: https://wetten.overheid.nl/BWBR0018451#Artikel2
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel4a
-    references:
-      - id: ref1
+      - id: ref3
         bwb_id: BWBR0018450
         artikel: '69'
-      - id: ref2
+      - id: ref4
         bwb_id: BWBR0018451
         artikel: '2'
-  - number: 4a.4
-    text: |-
-      De standaardpremie voor een partner van een persoon als bedoeld in [artikel 69 van de Zorgverzekeringswet][ref1]
-      wordt overeenkomstig het eerste lid vastgesteld, tenzij deze partner een persoon is als bedoeld in
-      [artikel 1, onderdeel f, van de Zorgverzekeringswet][ref2].
-
-
-      [ref1]: https://wetten.overheid.nl/BWBR0018450#Artikel69
-      [ref2]: https://wetten.overheid.nl/BWBR0018450#Artikel1
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel4a
-    references:
-      - id: ref1
+      - id: ref5
         bwb_id: BWBR0018450
         artikel: '69'
-      - id: ref2
+      - id: ref6
         bwb_id: BWBR0018450
         artikel: '1'
-  - number: '5.1'
-    text: De Dienst Toeslagen is belast met de uitvoering van deze wet.
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel5
-  - number: '5.2'
+  - number: '5'
     text: |-
-      In afwijking van [artikel 25, eerste lid, van de Algemene wet inkomensafhankelijke regelingen][ref1] betaalt de
+      1 De Dienst Toeslagen is belast met de uitvoering van deze wet.
+
+      2 In afwijking van [artikel 25, eerste lid, van de Algemene wet inkomensafhankelijke regelingen][ref1] betaalt de
       Dienst Toeslagen in opdracht van het CAK, genoemd in [artikel 6.1.1, eerste lid, van de Wet langdurige zorg][ref2],
       de zorgtoeslag of het voorschot op de zorgtoeslag als tegemoetkoming in de bestuursrechtelijke premie, bedoeld in
       [artikel 18d][ref3] of [18e van de Zorgverzekeringswet][ref4], aan het CAK uit.
+
+      3 De persoon, bedoeld in [artikel 68b, vijfde lid, van de Zorgverzekeringswet][ref5], wordt geacht, zo nodig in
+      afwijking van [artikel 15, eerste lid, van de Algemene wet inkomensafhankelijke regelingen][ref6], tijdig een
+      aanvraag als bedoeld in laatstgenoemd artikel te hebben gedaan voor de berekeningsjaren in de periode gelegen
+      tussen de ingangsdatum van de verzekeringsplicht voor de [Zorgverzekeringswet][ref7] en het moment waarop hij van
+      het CAK een kennisgeving heeft ontvangen van de verplichting om een zorgverzekering af te sluiten.
+
+      4 Voor de toepassing van [artikel 16, eerste lid, van de Algemene wet inkomensafhankelijke regelingen][ref8]
+      wordt in het geval, bedoeld in het derde lid, de aanvraag geacht te zijn gedaan op het moment waarop
+      de Belastingdienst/Toeslagen van het CAK een afschrift heeft ontvangen van de beschikking, bedoeld in
+      [artikel 68b, zesde lid, van de Zorgverzekeringswet][ref9].
+
+      5 De zorgtoeslag komt ten laste van het Rijk.
 
 
       [ref1]: https://wetten.overheid.nl/BWBR0018472#Artikel25
       [ref2]: https://wetten.overheid.nl/BWBR0035917#Artikel6.1.1
       [ref3]: https://wetten.overheid.nl/BWBR0018450#Artikel18d
       [ref4]: https://wetten.overheid.nl/BWBR0018450#Artikel18e
+      [ref5]: https://wetten.overheid.nl/BWBR0018450#Artikel68b
+      [ref6]: https://wetten.overheid.nl/BWBR0018472#Artikel15
+      [ref7]: https://wetten.overheid.nl/BWBR0018450
+      [ref8]: https://wetten.overheid.nl/BWBR0018472#Artikel16
+      [ref9]: https://wetten.overheid.nl/BWBR0018450#Artikel68b
     url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel5
     references:
       - id: ref1
@@ -323,49 +284,20 @@ articles:
       - id: ref4
         bwb_id: BWBR0018450
         artikel: 18e
-  - number: '5.3'
-    text: |-
-      De persoon, bedoeld in [artikel 68b, vijfde lid, van de Zorgverzekeringswet][ref1], wordt geacht, zo nodig in
-      afwijking van [artikel 15, eerste lid, van de Algemene wet inkomensafhankelijke regelingen][ref2], tijdig een
-      aanvraag als bedoeld in laatstgenoemd artikel te hebben gedaan voor de berekeningsjaren in de periode gelegen
-      tussen de ingangsdatum van de verzekeringsplicht voor de [Zorgverzekeringswet][ref3] en het moment waarop hij van
-      het CAK een kennisgeving heeft ontvangen van de verplichting om een zorgverzekering af te sluiten.
-
-
-      [ref1]: https://wetten.overheid.nl/BWBR0018450#Artikel68b
-      [ref2]: https://wetten.overheid.nl/BWBR0018472#Artikel15
-      [ref3]: https://wetten.overheid.nl/BWBR0018450
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel5
-    references:
-      - id: ref1
+      - id: ref5
         bwb_id: BWBR0018450
         artikel: 68b
-      - id: ref2
+      - id: ref6
         bwb_id: BWBR0018472
         artikel: '15'
-      - id: ref3
+      - id: ref7
         bwb_id: BWBR0018450
-  - number: '5.4'
-    text: |-
-      Voor de toepassing van [artikel 16, eerste lid, van de Algemene wet inkomensafhankelijke regelingen][ref1]
-      wordt in het geval, bedoeld in het derde lid, de aanvraag geacht te zijn gedaan op het moment waarop
-      de Belastingdienst/Toeslagen van het CAK een afschrift heeft ontvangen van de beschikking, bedoeld in
-      [artikel 68b, zesde lid, van de Zorgverzekeringswet][ref2].
-
-
-      [ref1]: https://wetten.overheid.nl/BWBR0018472#Artikel16
-      [ref2]: https://wetten.overheid.nl/BWBR0018450#Artikel68b
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel5
-    references:
-      - id: ref1
+      - id: ref8
         bwb_id: BWBR0018472
         artikel: '16'
-      - id: ref2
+      - id: ref9
         bwb_id: BWBR0018450
         artikel: 68b
-  - number: '5.5'
-    text: De zorgtoeslag komt ten laste van het Rijk.
-    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel5
   - number: '6'
     text: >-
       Onze Minister zendt binnen vier jaar na de inwerkingtreding van deze wet, en vervolgens telkens na vier jaar,
