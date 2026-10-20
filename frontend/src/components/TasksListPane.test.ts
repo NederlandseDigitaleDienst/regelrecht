@@ -520,10 +520,12 @@ describe('TasksListPane', () => {
     ]);
   });
 
-  it('geeft een lopende job onder alle geen knop - er valt niets te doen', async () => {
+  it('geeft een lopende job onder alle een indicator en alleen het menu van de job', async () => {
     const wrapper = await mountPane([], [{ job_id: 'j1', law_id: 'test_wet' }]);
-    expect(wrapper.findAll('nldd-button')).toHaveLength(0);
     expect(wrapper.findAll('nldd-activity-indicator')).toHaveLength(1);
+    // Wachten is geen taak: geen taakactie, alleen kijken naar wat er loopt.
+    expect(wrapper.findAll('nldd-icon-button')).toHaveLength(1);
+    expect(itemLabels(wrapper)).toEqual(['Bekijk regelwerk']);
   });
 
   it('toont niet de lege staat onder alle wanneer er alleen iets loopt', async () => {
