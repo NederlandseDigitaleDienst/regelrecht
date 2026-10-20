@@ -1,36 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useLaw, fetchLaw, resolveLawName } from './useLaw';
 import type { LawDocument } from '../lib/lawFormat';
-
-// Helper: shape a Response-like object with headers + body + status.
-// Mirrors the harness in useTrajectDocuments.test.js.
-interface ResOptions {
-  ok?: boolean;
-  status?: number;
-  body?: unknown;
-  etag?: string | null;
-  json?: unknown;
-}
-
-function res({ ok = true, status = 200, body = '', etag = null, json = null }: ResOptions) {
-  const headers = new Map<string, string>();
-  if (etag) headers.set('etag', etag);
-  if (json) headers.set('content-type', 'application/json');
-  else if (typeof body === 'string') headers.set('content-type', 'text/plain');
-  return {
-    ok,
-    status,
-    headers: {
-      get: (k: string) => headers.get(k.toLowerCase()) ?? null,
-    },
-    async text() {
-      return typeof body === 'string' ? body : JSON.stringify(body);
-    },
-    async json() {
-      return json ?? body;
-    },
-  };
-}
+import { res, stubFetch as stubGlobalFetch } from '../test-utils/fetchStubs';
 
 type FetchOptions = { method?: string; headers?: Record<string, string>; body?: unknown };
 interface FetchCall {
@@ -38,9 +9,9 @@ interface FetchCall {
   opts: FetchOptions;
 }
 
-// Install a fetch stub; it returns Response-like stubs, not Responses.
+// Install a fetch stub with the call shape these tests read.
 function stubFetch(impl: (url: string, opts?: FetchOptions) => Promise<unknown>) {
-  globalThis.fetch = vi.fn().mockImplementation(impl) as unknown as typeof fetch;
+  stubGlobalFetch(impl);
 }
 
 // A recorded write call, failing the test outright when it is missing, so an

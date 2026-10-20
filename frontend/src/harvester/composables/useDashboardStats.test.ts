@@ -1,13 +1,8 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
+import { jsonResponse } from '../../test-utils/fetchStubs';
 
 // useDashboardStats calls apiFetch, which ultimately calls the global fetch.
-// Stub that (as useFeatureFlags.test.js does) rather than mocking the module.
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
-}
+// Stub that (as useFeatureFlags.test.ts does) rather than mocking the module.
 
 const PAYLOAD = {
   jobs: {

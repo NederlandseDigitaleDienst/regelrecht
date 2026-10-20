@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
+import { jsonResponse } from '../test-utils/fetchStubs';
 
 const POLL_INTERVAL_MS = 5000;
 const POLL_MAX_MS = 10 * 60 * 1000;
@@ -11,12 +12,6 @@ async function freshHarvest() {
   const mod = await import('./useBwbHarvest');
   return mod.useBwbHarvest();
 }
-
-const jsonResponse = (body: unknown) =>
-  new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { 'content-type': 'application/json' },
-  });
 
 /** Stub fetch: POST /api/harvest → queued; status polls → `pollStatus()`. */
 function stubFetch(pollStatus: () => string) {

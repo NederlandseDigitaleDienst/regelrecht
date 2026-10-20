@@ -1,41 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ref, nextTick } from 'vue';
 import { useTrajectDocuments } from './useTrajectDocuments';
-
-// Helper: shape a Response-like object with headers + body + status.
-interface ResInit {
-  ok?: boolean;
-  status?: number;
-  body?: unknown;
-  etag?: string | null;
-  json?: unknown;
-}
+import { res, stubFetch } from '../test-utils/fetchStubs';
 
 // A fetch call as the mocks below record it.
 interface FetchCall {
   url: string;
   opts: RequestInit;
-}
-
-// Only the Response members the composable reads; cast once here.
-function res({ ok = true, status = 200, body = '', etag = null, json = null }: ResInit): Response {
-  const headers = new Map<string, string>();
-  if (etag) headers.set('etag', etag);
-  if (json) headers.set('content-type', 'application/json');
-  else if (typeof body === 'string') headers.set('content-type', 'text/plain');
-  return {
-    ok,
-    status,
-    headers: {
-      get: (k: string) => headers.get(k.toLowerCase()) ?? null,
-    },
-    async text() {
-      return typeof body === 'string' ? body : JSON.stringify(body);
-    },
-    async json() {
-      return json ?? body;
-    },
-  } as unknown as Response;
 }
 
 beforeEach(() => {
@@ -48,7 +19,7 @@ describe('useTrajectDocuments', () => {
     const fetchSpy = vi.fn().mockResolvedValue(
       res({ json: { documents: [{ path: 'notes.md' }, { path: 'mvt/concept.md' }] } }),
     );
-    globalThis.fetch = fetchSpy;
+    stubFetch(fetchSpy);
 
     const trajectRef = ref('mig-1a2b3c4d');
     const { documents, fetchList } = useTrajectDocuments(trajectRef);
@@ -63,7 +34,7 @@ describe('useTrajectDocuments', () => {
 
   it('uploads a document as multipart and refreshes the list', async () => {
     const calls: FetchCall[] = [];
-    globalThis.fetch = vi.fn().mockImplementation(async (url, opts) => {
+    stubFetch(async (url, opts) => {
       calls.push({ url, opts: opts ?? {} });
       if (opts?.method === 'POST') {
         return res({ status: 202, json: { target_path: 'rapport.md' } });
@@ -97,7 +68,7 @@ describe('useTrajectDocuments', () => {
     // resource already exists) instead of 202 Accepted (async conversion). The
     // composable must treat any ok status the same: read `target_path`, refresh.
     const calls: FetchCall[] = [];
-    globalThis.fetch = vi.fn().mockImplementation(async (url, opts) => {
+    stubFetch(async (url, opts) => {
       calls.push({ url, opts: opts ?? {} });
       if (opts?.method === 'POST') {
         return res({ status: 201, json: { target_path: 'notities.md' } });
@@ -124,7 +95,7 @@ describe('useTrajectDocuments', () => {
     // 2nd call: list refresh on trajectRef change (the immediate watch).
     // 3rd call: saveCurrent PUT.
     const calls: FetchCall[] = [];
-    globalThis.fetch = vi.fn().mockImplementation(async (url, opts) => {
+    stubFetch(async (url, opts) => {
       calls.push({ url, opts: opts ?? {} });
       if (url === '/api/trajects/mig-1a2b3c4d/corpus/documents') {
         return res({ json: { documents: [{ path: 'notes.md' }] } });
@@ -152,7 +123,7 @@ describe('useTrajectDocuments', () => {
 
   it('surfaces a 412 as a conflict instead of overwriting silently', async () => {
     const trajectRef = ref('mig-1a2b3c4d');
-    globalThis.fetch = vi.fn().mockImplementation(async (url, opts) => {
+    stubFetch(async (url, opts) => {
       if (url.endsWith('/documents')) return res({ json: { documents: [] } });
       if (opts?.method === 'PUT') return res({ ok: false, status: 412 });
       return res({ body: '# Existing', etag: '"v1"' });
@@ -184,7 +155,7 @@ describe('useTrajectDocuments', () => {
     const fetchSpy = vi.fn().mockResolvedValue(
       res({ body: '# Concept', etag: '"v1"' }),
     );
-    globalThis.fetch = fetchSpy;
+    stubFetch(fetchSpy);
 
     const docs = useTrajectDocuments(trajectRef);
     await docs.openDocument('mvt/concept-v2.md');
@@ -199,7 +170,7 @@ describe('useTrajectDocuments', () => {
 
   it('dropDraft discards local edits by reverting the body to the saved baseline', async () => {
     const trajectRef = ref('mig-1a2b3c4d');
-    globalThis.fetch = vi.fn().mockImplementation(async (url) => {
+    stubFetch(async (url) => {
       if (url.endsWith('/documents')) return res({ json: { documents: [] } });
       return res({ body: '# Server', etag: '"v1"' });
     });
@@ -229,7 +200,7 @@ describe('useTrajectDocuments', () => {
     vi.useFakeTimers();
     try {
       const trajectRef = ref('mig-1a2b3c4d');
-      globalThis.fetch = vi.fn().mockImplementation(async (url) => {
+      stubFetch(async (url) => {
         if (url.endsWith('/documents')) return res({ json: { documents: [] } });
         return res({ ok: false, status: 404 });
       });
