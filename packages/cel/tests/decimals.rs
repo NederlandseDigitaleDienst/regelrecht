@@ -155,7 +155,7 @@ fn service() -> LawExecutionService {
 }
 
 fn day() -> NaiveDate {
-    NaiveDate::parse_from_str(ON, "%Y-%m-%d").unwrap()
+    common::day(ON)
 }
 
 fn numbers(teller: i64, noemer: i64) -> Map<String, serde_json::Value> {

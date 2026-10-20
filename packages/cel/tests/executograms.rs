@@ -7,13 +7,12 @@
 // a failing fixture reports itself.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use chrono::NaiveDate;
 use regelrecht_cel::{reading, Cell, Error, EXECUTOGRAM};
 use regelrecht_engine::{AnswerRequest, Authority, LawExecutionService, OpenTermAnswerer};
 use serde_json::{json, Map, Value};
 
 mod common;
-use common::cell_tempdir;
+use common::{cell_tempdir, day, object_map};
 
 const ACTOR: &str = "school_fictief";
 
@@ -93,14 +92,6 @@ fn service() -> LawExecutionService {
     service
 }
 
-fn day(s: &str) -> NaiveDate {
-    NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
-}
-
-fn map(value: Value) -> Map<String, Value> {
-    value.as_object().unwrap().clone()
-}
-
 /// A cell of the fictional school, without reductions.
 fn cell() -> (Cell, tempfile::TempDir) {
     let dir = cell_tempdir();
@@ -112,7 +103,7 @@ fn refused(e: &Error, says: &str) {
 }
 
 fn stand(plaats: &str, sinds: &str) -> Map<String, Value> {
-    map(json!({ "plaats": plaats, "sinds": sinds }))
+    object_map(json!({ "plaats": plaats, "sinds": sinds }))
 }
 
 fn record(
@@ -155,7 +146,7 @@ fn an_executogram_is_whole_or_not_recorded() {
     let e = record(
         &mut cell,
         "wet_vaststelling_fictief#4#stand",
-        &map(json!({"plaats": "Utrecht"})),
+        &object_map(json!({"plaats": "Utrecht"})),
         "2026-08-01",
     )
     .unwrap_err();
@@ -185,7 +176,7 @@ fn an_executogram_is_whole_or_not_recorded() {
     let e = record(
         &mut cell,
         FACT,
-        &map(json!({"plaats": "Utrecht", "sinds": 2020})),
+        &object_map(json!({"plaats": "Utrecht", "sinds": 2020})),
         "2026-08-01",
     )
     .unwrap_err();
@@ -194,7 +185,7 @@ fn an_executogram_is_whole_or_not_recorded() {
     let e = record(
         &mut cell,
         FACT,
-        &map(json!({"plaats": "Utrecht"})),
+        &object_map(json!({"plaats": "Utrecht"})),
         "2026-08-01",
     )
     .unwrap_err();
@@ -204,7 +195,7 @@ fn an_executogram_is_whole_or_not_recorded() {
     let e = record(
         &mut cell,
         "wet_vaststelling_fictief#5#nummer",
-        &map(json!({"id": "x"})),
+        &object_map(json!({"id": "x"})),
         "2026-08-01",
     )
     .unwrap_err();
@@ -218,7 +209,7 @@ fn an_executogram_is_whole_or_not_recorded() {
     let e = record(
         &mut cell,
         "wet_vaststelling_fictief#6#verwijzing",
-        &map(json!({"refers_to": "x"})),
+        &object_map(json!({"refers_to": "x"})),
         "2026-08-01",
     )
     .unwrap_err();
@@ -508,7 +499,7 @@ articles:
             "wet_kring_fictief",
             "1",
             None,
-            &map(json!({ "dagen": 2 })),
+            &object_map(json!({ "dagen": 2 })),
             on,
         )
         .unwrap();
