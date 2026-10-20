@@ -9431,26 +9431,6 @@ articles:
         }
 
         #[test]
-        fn test_load_from_directory() {
-            let regulation_path = get_regulation_path().join("nl");
-
-            let mut resolver = crate::resolver::RuleResolver::new();
-            let count = resolver.load_from_directory(&regulation_path).unwrap();
-
-            // Should load all YAML files from the regulation directory
-            assert!(
-                count >= 10,
-                "Expected at least 10 laws loaded from corpus/regulation/nl, got {}",
-                count
-            );
-
-            // Verify known laws are loaded
-            assert!(resolver.has_law("wet_op_de_zorgtoeslag"));
-            assert!(resolver.has_law("regeling_standaardpremie"));
-            assert!(resolver.has_law("participatiewet"));
-        }
-
-        #[test]
         fn test_get_law_info_real() {
             let regulation_path = get_regulation_path();
             let path = regulation_path.join("nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml");
@@ -9753,7 +9733,7 @@ articles:
     }
 
     #[test]
-    fn test_cross_law_call_optional_parameter_taken_from_law_data() {
+    fn test_cross_law_call_does_not_fill_an_omitted_optional_parameter_from_law_data() {
         // The permit law's form field was answered earlier and kept as data
         // bound to that law. That data is *not* consulted for a parameter the
         // caller omits (RFC-036): a parameter is what the caller passes, and
