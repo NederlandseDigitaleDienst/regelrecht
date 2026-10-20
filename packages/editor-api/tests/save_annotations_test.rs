@@ -22,8 +22,8 @@
 mod common;
 
 use common::{
-    app_state, empty_state, insert_traject, local_traject, seed_account_record, verified_session,
-    TEST_NAME,
+    app_state, empty_state, insert_traject, local_traject, seed_account_record, traject_ref,
+    verified_session, TEST_NAME,
 };
 
 use axum::extract::{Extension, Path, State};
@@ -72,12 +72,6 @@ fn note(target_law: &str, exact: &str) -> serde_json::Value {
         },
         "body": { "type": "TextualBody", "value": "een toelichting", "purpose": "commenting" }
     })
-}
-
-/// URL form of a traject reference, via the production helper. All
-/// trajects here are named `Test`.
-fn traject_ref(traject_id: Uuid) -> String {
-    regelrecht_editor_api::trajects::traject_ref("Test", traject_id)
 }
 
 fn sidecar_path(corpus_dir: &std::path::Path) -> std::path::PathBuf {

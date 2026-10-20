@@ -263,7 +263,7 @@ describe('useDependencies.loadImplementors', () => {
   });
 
   it('is best-effort: a failed scan resolves without throwing and can be retried', async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(res({ ok: false, status: 500, json: null }));
+    const fetchSpy = vi.fn().mockResolvedValue(res({ ok: false, status: 500 }));
     stubFetch(fetchSpy);
     const engine = fakeEngine();
     const { loadImplementors } = useDependencies();

@@ -28,7 +28,9 @@ use regelrecht_pipeline::test_utils::TestDb;
 const LAW_ID: &str = "wet_op_de_zorgtoeslag";
 
 // ---------------------------------------------------------------------------
-// Helpers — deliberately duplicated per test file (suite convention)
+// Helpers — the rest comes from `common`; `sub_only_session` and `traject_ref`
+// stay local on purpose: a sub-only session (no verified identity) and a
+// `t-` slug ref.
 // ---------------------------------------------------------------------------
 
 /// Write a minimal but schema-valid law file and a `scenarios/` directory
@@ -66,7 +68,7 @@ fn write_corpus(corpus_dir: &std::path::Path) {
 /// Build a session that carries `sub` as the authenticated user identity.
 /// The active traject is passed in the URL path (traject_ref), not in the
 /// session — so no `SESSION_KEY_ACTIVE_TRAJECT` insertion needed.
-async fn session_for(sub: &str) -> Session {
+async fn sub_only_session(sub: &str) -> Session {
     let session = Session::new(None, Arc::new(MemoryStore::default()), None);
     session.insert(SESSION_KEY_SUB, sub).await.unwrap();
     session
@@ -102,7 +104,7 @@ async fn list_traject_scenarios_returns_target_law_ids() {
     let axum::Json(entries) = list_traject_scenarios(
         State(state),
         Extension(account),
-        session_for(&sub).await,
+        sub_only_session(&sub).await,
         Path((traject_ref(traject), LAW_ID.to_string())),
         axum::http::HeaderMap::new(),
     )

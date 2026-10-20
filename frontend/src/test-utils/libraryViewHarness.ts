@@ -7,8 +7,8 @@
 // helper here therefore takes `overrides` as a function that runs when
 // LibraryView calls the composable (at mount, when those consts exist) and
 // receives the composable's arguments; what it returns wins over the default.
-// Module-level stubs (`apiFetchModule`, `trajectsModule`) are evaluated when
-// the factory runs, so values passed there have to come from `vi.hoisted`.
+// The exception is `apiFetchModule`: it takes its values eagerly, when the
+// factory runs, so values passed there have to come from `vi.hoisted`.
 //
 // Usage, with the import above `import LibraryView`:
 //

@@ -12,7 +12,7 @@
 
 mod common;
 
-use common::{empty_state, seed_account_record};
+use common::{empty_state, seed_account_record, state_with_user_token_mode};
 
 use std::sync::Arc;
 
@@ -24,7 +24,6 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use regelrecht_editor_api::accounts::AccountRecord;
-use regelrecht_editor_api::config::AppConfig;
 use regelrecht_editor_api::github_oauth::{self, GithubOAuth};
 use regelrecht_editor_api::state::AppState;
 use regelrecht_editor_api::trajects::{
@@ -200,13 +199,7 @@ async fn create_custom_repo_requires_linked_github_when_enforced() {
     // create-traject preflight must refuse with 428 — before any GitHub
     // round-trip (no mock server needed) and before any DB row is written.
     let db = TestDb::new().await;
-    let mut state = empty_state(db.pool.clone());
-    state.config = Arc::new(AppConfig {
-        oidc: None,
-        base_url: None,
-        github_oauth: Some(GithubOAuth::for_tests(true)),
-        task_enrich_provider: "claude".to_string(),
-    });
+    let state = state_with_user_token_mode(db.pool.clone(), GithubOAuth::for_tests(true));
     let owner = seed_account_record(&db.pool, "owner-enforced@example.com", "Owner").await;
 
     let err = trajects::create(
@@ -245,13 +238,7 @@ async fn create_custom_repo_preflights_with_the_linked_user_token() {
 
     let mut oauth = GithubOAuth::for_tests(true);
     oauth.api_base = server.uri();
-    let mut state = empty_state(db.pool.clone());
-    state.config = Arc::new(AppConfig {
-        oidc: None,
-        base_url: None,
-        github_oauth: Some(oauth.clone()),
-        task_enrich_provider: "claude".to_string(),
-    });
+    let state = state_with_user_token_mode(db.pool.clone(), oauth.clone());
     let owner = seed_account_record(&db.pool, "owner-linked@example.com", "Owner").await;
 
     Mock::given(method("GET"))
@@ -368,13 +355,7 @@ async fn create_custom_repo_mints_the_traject_branch() {
 
     let mut oauth = GithubOAuth::for_tests(true);
     oauth.api_base = server.uri();
-    let mut state = empty_state(db.pool.clone());
-    state.config = Arc::new(AppConfig {
-        oidc: None,
-        base_url: None,
-        github_oauth: Some(oauth.clone()),
-        task_enrich_provider: "claude".to_string(),
-    });
+    let state = state_with_user_token_mode(db.pool.clone(), oauth.clone());
     let owner = seed_account_record(&db.pool, "owner-branch@example.com", "Owner").await;
 
     Mock::given(method("GET"))
@@ -478,13 +459,7 @@ async fn create_fails_loudly_and_persists_nothing_when_the_branch_cannot_be_mint
 
     let mut oauth = GithubOAuth::for_tests(true);
     oauth.api_base = server.uri();
-    let mut state = empty_state(db.pool.clone());
-    state.config = Arc::new(AppConfig {
-        oidc: None,
-        base_url: None,
-        github_oauth: Some(oauth.clone()),
-        task_enrich_provider: "claude".to_string(),
-    });
+    let state = state_with_user_token_mode(db.pool.clone(), oauth.clone());
     let owner = seed_account_record(&db.pool, "owner-branchfail@example.com", "Owner").await;
 
     // Preflight passes: repo readable, push allowed, base branch present.
@@ -1274,13 +1249,7 @@ async fn move_repo_without_a_token_for_the_new_repo_changes_nothing() {
     // User-token mode with no linked account: the preflight refuses before
     // any GitHub call, and the row keeps pointing at the old repo.
     let db = TestDb::new().await;
-    let mut state = empty_state(db.pool.clone());
-    state.config = Arc::new(AppConfig {
-        oidc: None,
-        base_url: None,
-        github_oauth: Some(GithubOAuth::for_tests(true)),
-        task_enrich_provider: "claude".to_string(),
-    });
+    let state = state_with_user_token_mode(db.pool.clone(), GithubOAuth::for_tests(true));
     let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = own_repo_traject(&db.pool, &alice, Some("regulation/nl")).await;
 
@@ -1307,13 +1276,7 @@ async fn move_repo_points_the_own_source_at_the_new_repo() {
     let server = MockServer::start().await;
     let mut oauth = GithubOAuth::for_tests(true);
     oauth.api_base = server.uri();
-    let mut state = empty_state(db.pool.clone());
-    state.config = Arc::new(AppConfig {
-        oidc: None,
-        base_url: None,
-        github_oauth: Some(oauth.clone()),
-        task_enrich_provider: "claude".to_string(),
-    });
+    let state = state_with_user_token_mode(db.pool.clone(), oauth.clone());
     let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = own_repo_traject(&db.pool, &alice, Some("regulation/nl")).await;
 

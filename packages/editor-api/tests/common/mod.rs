@@ -31,7 +31,8 @@ pub const TEST_NAME: &str = "Test User";
 pub const TEST_EMAIL: &str = "alice@test.local";
 
 /// An `AppState` with an empty global corpus and no OIDC, pipeline or
-/// harvest backends. `oauth` switches on the GitHub user-token mode.
+/// harvest backends. `oauth` configures GitHub OAuth; its
+/// `require_user_token` decides whether user-token mode is on.
 pub fn app_state(pool: Option<PgPool>, oauth: Option<GithubOAuth>) -> AppState {
     AppState {
         corpus: Arc::new(RwLock::new(CorpusState::empty())),
@@ -63,7 +64,8 @@ pub fn empty_state(pool: PgPool) -> AppState {
     app_state(Some(pool), None)
 }
 
-/// `app_state` on a database, in GitHub user-token mode.
+/// `app_state` on a database, with GitHub OAuth configured. Pass
+/// `GithubOAuth::for_tests(true)` for user-token mode.
 pub fn state_with_user_token_mode(pool: PgPool, oauth: GithubOAuth) -> AppState {
     app_state(Some(pool), Some(oauth))
 }
@@ -157,10 +159,10 @@ pub async fn add_central_seed(pool: &PgPool, traject_id: Uuid, seed_dir: &Path) 
     .unwrap();
 }
 
-/// URL form of a traject reference: `{slug}-{first 8 hex of the UUID}`
-/// (see `trajects::resolve_traject_ref`).
+/// URL form of a traject reference, via the production helper. Every
+/// traject [`insert_traject`] creates is named `Test`.
 pub fn traject_ref(traject_id: Uuid) -> String {
-    format!("test-{}", &traject_id.to_string()[..8])
+    regelrecht_editor_api::trajects::traject_ref("Test", traject_id)
 }
 
 /// A session with a verified editor identity: the save handlers require

@@ -15,7 +15,8 @@
 mod common;
 
 use common::{
-    app_state, empty_state, insert_traject, local_traject, seed_account, session_for, traject_ref,
+    app_state, empty_state, insert_traject, local_traject, seed_account, session_for,
+    state_with_user_token_mode, traject_ref,
 };
 
 use std::sync::Arc;
@@ -29,7 +30,6 @@ use tower_sessions::Session;
 use uuid::Uuid;
 
 use regelrecht_editor_api::accounts::AccountRecord;
-use regelrecht_editor_api::config::AppConfig;
 use regelrecht_editor_api::corpus_handlers::{
     get_corpus_law, get_traject_corpus_law, get_traject_scenario, list_traject_corpus_laws,
     list_traject_scenarios, save_law, save_scenario,
@@ -850,13 +850,7 @@ async fn user_token_enforcement_skips_local_backed_trajects() {
     // satisfy the requirement there. This pins the requiredness decision
     // to the *resolved* backend, not the deployment switch alone.
     let db = TestDb::new().await;
-    let mut state = empty_state(db.pool.clone());
-    state.config = Arc::new(AppConfig {
-        oidc: None,
-        base_url: None,
-        github_oauth: Some(GithubOAuth::for_tests(true)),
-        task_enrich_provider: "claude".to_string(),
-    });
+    let state = state_with_user_token_mode(db.pool.clone(), GithubOAuth::for_tests(true));
     let (owner, sub) = seed_account(&db.pool, "alice@test.local").await;
 
     let corpus = tempfile::tempdir().unwrap();
@@ -898,13 +892,7 @@ async fn feature_flag_row_drives_user_token_requirement() {
     // through the "Functies" menu. Drive the requirement through that DB row:
     // the env switch stays OFF, so any 428 below can only come from the flag.
     let db = TestDb::new().await;
-    let mut state = empty_state(db.pool.clone());
-    state.config = Arc::new(AppConfig {
-        oidc: None,
-        base_url: None,
-        github_oauth: Some(GithubOAuth::for_tests(false)),
-        task_enrich_provider: "claude".to_string(),
-    });
+    let state = app_state(Some(db.pool.clone()), Some(GithubOAuth::for_tests(false)));
     let account_id = Uuid::new_v4();
 
     // Flag row absent (default off): pre-spike behaviour, no override demanded.

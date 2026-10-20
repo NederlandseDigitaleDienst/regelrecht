@@ -16,7 +16,10 @@
 
 mod common;
 
-use common::{insert_traject, state_with_user_token_mode, traject_ref, verified_session};
+use common::{
+    insert_traject, seed_account_record, state_with_user_token_mode, traject_ref, verified_session,
+    TEST_NAME,
+};
 
 use axum::extract::{Extension, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -28,7 +31,6 @@ use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use regelrecht_corpus::dto::PaginationParams;
-use regelrecht_editor_api::accounts::AccountRecord;
 use regelrecht_editor_api::corpus_handlers::list_traject_corpus_laws;
 use regelrecht_editor_api::github_oauth::{self, GithubOAuth};
 use regelrecht_editor_api::trajects::{self, UpdateTrajectRequest};
@@ -46,28 +48,6 @@ const CORPUS_LAW: &str = "wet_alpha";
 const WORKDIR_LAW: &str = "generatoren";
 const USER_TOKEN: &str = "user-token";
 const EMAIL: &str = "alice@test.local";
-
-async fn seed_owner(pool: &PgPool) -> (AccountRecord, String) {
-    let sub = format!("sub-{EMAIL}");
-    let (id,): (Uuid,) = sqlx::query_as(
-        "INSERT INTO accounts (person_sub, email, name) VALUES ($1, $2, $3) RETURNING id",
-    )
-    .bind(&sub)
-    .bind(EMAIL)
-    .bind("Test User")
-    .fetch_one(pool)
-    .await
-    .unwrap();
-    (
-        AccountRecord {
-            id,
-            person_sub: sub.clone(),
-            email: EMAIL.to_string(),
-            name: "Test User".to_string(),
-        },
-        sub,
-    )
-}
 
 /// Traject met één bron: de eigen GitHub-repo op repo-root (`gh_path`
 /// NULL), zoals een traject dat bij aanmaken geen subpath meekreeg.
@@ -150,7 +130,7 @@ async fn changing_the_root_path_reindexes_the_traject_corpus() {
     let db = TestDb::new().await;
     let oauth = GithubOAuth::for_tests(true);
     let state = state_with_user_token_mode(db.pool.clone(), oauth.clone());
-    let (alice, sub) = seed_owner(&db.pool).await;
+    let alice = seed_account_record(&db.pool, EMAIL, TEST_NAME).await;
     let headers = cookie_headers(&oauth, alice.id);
     let traject_id = seeded_traject(&db.pool, alice.id).await;
     let tref = traject_ref(traject_id);
@@ -159,7 +139,7 @@ async fn changing_the_root_path_reindexes_the_traject_corpus() {
     let laws = list_traject_corpus_laws(
         State(state.clone()),
         Extension(alice.clone()),
-        verified_session(&sub, EMAIL).await,
+        verified_session(&alice.person_sub, EMAIL).await,
         Path(tref.clone()),
         all_laws_query(),
         headers.clone(),
@@ -196,7 +176,7 @@ async fn changing_the_root_path_reindexes_the_traject_corpus() {
     let laws = list_traject_corpus_laws(
         State(state.clone()),
         Extension(alice.clone()),
-        verified_session(&sub, EMAIL).await,
+        verified_session(&alice.person_sub, EMAIL).await,
         Path(tref),
         all_laws_query(),
         headers,
