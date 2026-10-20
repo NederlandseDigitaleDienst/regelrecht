@@ -92,6 +92,7 @@ fn test_pipeline_article_1_folds_leden_and_onderdelen() {
         .find(|a| a.number == "1")
         .expect("artikel 1");
     let blocks: Vec<&str> = art_1.text.split("\n\n").collect();
+    assert_eq!(blocks.len(), 11, "got:\n{}", art_1.text);
 
     // Lid 1 intro, its onderdelen a..h, then lid 2, each with its enumerator,
     // followed by the reference definitions.
@@ -106,7 +107,6 @@ fn test_pipeline_article_1_folds_leden_and_onderdelen() {
     );
     assert!(blocks[9].starts_with("2 De hoogte van de zorgtoeslag"));
     assert!(blocks[10].trim_start().starts_with("[ref1]: "));
-    assert_eq!(blocks.len(), 11, "got:\n{}", art_1.text);
 }
 
 #[test]

@@ -67,6 +67,11 @@ pub async fn download_law_with_max_size(
 /// This is the offline half of [`download_law_with_max_size`]: everything after
 /// the downloads. It is public so the pipeline can be tested on fixture files.
 ///
+/// Callers must pass a `bwb_id` and `date` that already passed
+/// [`validate_bwb_id`] and [`validate_date`], and `bwb_id` must equal
+/// `wti_result.metadata.bwb_id`; both feed the generated article URLs.
+/// [`download_law_with_max_size`] guarantees this.
+///
 /// # Errors
 /// Returns an error if the content XML cannot be parsed.
 pub fn parse_law(
