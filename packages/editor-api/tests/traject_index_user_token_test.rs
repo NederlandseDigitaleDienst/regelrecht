@@ -31,29 +31,25 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::sync::Arc;
+mod common;
+
+use common::{
+    add_central_seed, insert_traject, seed_account, state_with_user_token_mode, traject_ref,
+    verified_session,
+};
 
 use axum::extract::{Extension, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use pretty_assertions::assert_eq;
 use sqlx::PgPool;
-use tokio::sync::{Mutex, RwLock};
-use tower_sessions::Session;
-use tower_sessions_memory_store::MemoryStore;
 use uuid::Uuid;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use regelrecht_auth::handlers::{
-    SESSION_KEY_EMAIL, SESSION_KEY_EMAIL_VERIFIED, SESSION_KEY_NAME, SESSION_KEY_SUB,
-};
 use regelrecht_corpus::dto::PaginationParams;
 use regelrecht_editor_api::accounts::AccountRecord;
-use regelrecht_editor_api::config::AppConfig;
 use regelrecht_editor_api::corpus_handlers::{list_traject_corpus_laws, list_traject_sources};
 use regelrecht_editor_api::github_oauth::{self, GithubOAuth};
-use regelrecht_editor_api::state::{AppState, CorpusState};
-use regelrecht_editor_api::traject_corpus::TrajectCorpusCache;
 
 use regelrecht_pipeline::test_utils::TestDb;
 
@@ -62,41 +58,6 @@ const SEED_ONLY_LAW: &str = "wet_alleen_centraal";
 const OWN_BRANCH: &str = "traject-voorbeeld";
 const OWN_SUBPATH: &str = "corpus/regulation";
 const USER_TOKEN: &str = "user-token";
-
-fn state_with_user_token_mode(pool: PgPool, oauth: GithubOAuth) -> AppState {
-    AppState {
-        corpus: Arc::new(RwLock::new(CorpusState::empty())),
-        oidc_client: None,
-        end_session_url: None,
-        config: Arc::new(AppConfig {
-            oidc: None,
-            base_url: None,
-            github_oauth: Some(oauth),
-            task_enrich_provider: "claude".to_string(),
-        }),
-        http_client: regelrecht_auth::http_client(),
-        pool: Some(pool),
-        pipeline_api_url: None,
-        harvest_admin_url: None,
-        reload_lock: Arc::new(Mutex::new(())),
-        integrity: Default::default(),
-        trajects: Arc::new(TrajectCorpusCache::new()),
-    }
-}
-
-async fn seed_account(pool: &PgPool, email: &str) -> (Uuid, String) {
-    let sub = format!("sub-{email}");
-    let (id,): (Uuid,) = sqlx::query_as(
-        "INSERT INTO accounts (person_sub, email, name) VALUES ($1, $2, $3) RETURNING id",
-    )
-    .bind(&sub)
-    .bind(email)
-    .bind("Test User")
-    .fetch_one(pool)
-    .await
-    .unwrap();
-    (id, sub)
-}
 
 /// Traject zoals deployed: GitHub writable-own op een user-gekozen repo
 /// (auth_ref zonder geconfigureerd `CORPUS_AUTH_*_TOKEN`-env → server-side
@@ -108,23 +69,7 @@ async fn seeded_traject(
     own_repo_name: &str,
     seed_dir: &std::path::Path,
 ) -> Uuid {
-    let (traject_id,): (Uuid,) = sqlx::query_as(
-        "INSERT INTO trajects (name, description, scope, created_by)
-         VALUES ('Test', '', '', $1) RETURNING id",
-    )
-    .bind(owner_id)
-    .fetch_one(pool)
-    .await
-    .unwrap();
-    sqlx::query(
-        "INSERT INTO traject_members (traject_id, account_id, role)
-         VALUES ($1, $2, 'owner')",
-    )
-    .bind(traject_id)
-    .bind(owner_id)
-    .execute(pool)
-    .await
-    .unwrap();
+    let traject_id = insert_traject(pool, owner_id).await;
     sqlx::query(
         "INSERT INTO traject_corpus_sources
          (traject_id, source_id, name, source_type,
@@ -142,18 +87,7 @@ async fn seeded_traject(
     .execute(pool)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO traject_corpus_sources
-         (traject_id, source_id, name, source_type, local_path,
-          priority, scopes, is_writable_own)
-         VALUES ($1, 'central-seed', 'Centrale Corpus', 'local'::corpus_source_type, $2,
-                 2, '[]'::jsonb, FALSE)",
-    )
-    .bind(traject_id)
-    .bind(seed_dir.to_string_lossy().to_string())
-    .execute(pool)
-    .await
-    .unwrap();
+    add_central_seed(pool, traject_id, seed_dir).await;
     traject_id
 }
 
@@ -167,22 +101,6 @@ async fn add_member(pool: &PgPool, traject_id: Uuid, account_id: Uuid) {
     .execute(pool)
     .await
     .unwrap();
-}
-
-fn traject_ref(traject_id: Uuid) -> String {
-    format!("test-{}", &traject_id.to_string()[..8])
-}
-
-async fn session_for(sub: &str, email: &str) -> Session {
-    let session = Session::new(None, Arc::new(MemoryStore::default()), None);
-    session.insert(SESSION_KEY_SUB, sub).await.unwrap();
-    session.insert(SESSION_KEY_NAME, "Test User").await.unwrap();
-    session.insert(SESSION_KEY_EMAIL, email).await.unwrap();
-    session
-        .insert(SESSION_KEY_EMAIL_VERIFIED, true)
-        .await
-        .unwrap();
-    session
 }
 
 fn write_central_law(central_dir: &std::path::Path, law_id: &str) {
@@ -294,7 +212,7 @@ async fn traject_index_scans_with_user_token_and_fails_loud_without_any_token() 
     let laws = list_traject_corpus_laws(
         State(state.clone()),
         Extension(alice.clone()),
-        session_for(&alice_sub, &alice.email).await,
+        verified_session(&alice_sub, &alice.email).await,
         Path(tref_a.clone()),
         ids_query(),
         alice_headers.clone(),
@@ -322,7 +240,7 @@ async fn traject_index_scans_with_user_token_and_fails_loud_without_any_token() 
     let sources = list_traject_sources(
         State(state.clone()),
         Extension(alice.clone()),
-        session_for(&alice_sub, &alice.email).await,
+        verified_session(&alice_sub, &alice.email).await,
         Path(tref_a.clone()),
         alice_headers.clone(),
     )
@@ -344,7 +262,7 @@ async fn traject_index_scans_with_user_token_and_fails_loud_without_any_token() 
     let laws = list_traject_corpus_laws(
         State(state.clone()),
         Extension(bob.clone()),
-        session_for(&bob_sub, &bob.email).await,
+        verified_session(&bob_sub, &bob.email).await,
         Path(tref_a.clone()),
         ids_query(),
         HeaderMap::new(),
@@ -364,7 +282,7 @@ async fn traject_index_scans_with_user_token_and_fails_loud_without_any_token() 
     let err = list_traject_corpus_laws(
         State(state.clone()),
         Extension(bob.clone()),
-        session_for(&bob_sub, &bob.email).await,
+        verified_session(&bob_sub, &bob.email).await,
         Path(tref_a.clone()),
         ids_query(),
         HeaderMap::new(),
@@ -384,7 +302,7 @@ async fn traject_index_scans_with_user_token_and_fails_loud_without_any_token() 
     let sources = list_traject_sources(
         State(state.clone()),
         Extension(bob.clone()),
-        session_for(&bob_sub, &bob.email).await,
+        verified_session(&bob_sub, &bob.email).await,
         Path(tref_a.clone()),
         HeaderMap::new(),
     )
@@ -410,7 +328,7 @@ async fn traject_index_scans_with_user_token_and_fails_loud_without_any_token() 
     let laws = list_traject_corpus_laws(
         State(state.clone()),
         Extension(alice.clone()),
-        session_for(&alice_sub, &alice.email).await,
+        verified_session(&alice_sub, &alice.email).await,
         Path(tref_a.clone()),
         ids_query(),
         alice_headers.clone(),
@@ -448,7 +366,7 @@ async fn traject_index_scans_with_user_token_and_fails_loud_without_any_token() 
     let err = list_traject_corpus_laws(
         State(state.clone()),
         Extension(alice.clone()),
-        session_for(&alice_sub, &alice.email).await,
+        verified_session(&alice_sub, &alice.email).await,
         Path(tref_b.clone()),
         ids_query(),
         alice_headers.clone(),

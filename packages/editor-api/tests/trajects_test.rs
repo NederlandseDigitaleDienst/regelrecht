@@ -10,6 +10,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+mod common;
+
+use common::{empty_state, seed_account_record};
+
 use std::sync::Arc;
 
 use axum::extract::{Path, State};
@@ -17,14 +21,12 @@ use axum::http::StatusCode;
 use axum::{Extension, Json};
 use pretty_assertions::assert_eq;
 use sqlx::PgPool;
-use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
 use regelrecht_editor_api::accounts::AccountRecord;
 use regelrecht_editor_api::config::AppConfig;
 use regelrecht_editor_api::github_oauth::{self, GithubOAuth};
-use regelrecht_editor_api::state::{AppState, CorpusState};
-use regelrecht_editor_api::traject_corpus::TrajectCorpusCache;
+use regelrecht_editor_api::state::AppState;
 use regelrecht_editor_api::trajects::{
     self, AddMemberRequest, CreateTrajectRequest, MoveRepoRequest, UpdateMemberRequest,
     UpdateTrajectRequest,
@@ -38,46 +40,6 @@ use regelrecht_pipeline::test_utils::TestDb;
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-fn empty_state(pool: PgPool) -> AppState {
-    AppState {
-        corpus: Arc::new(RwLock::new(CorpusState::empty())),
-        oidc_client: None,
-        end_session_url: None,
-        config: Arc::new(AppConfig {
-            oidc: None,
-            base_url: None,
-            github_oauth: None,
-            task_enrich_provider: "claude".to_string(),
-        }),
-        http_client: regelrecht_auth::http_client(),
-        pool: Some(pool),
-        pipeline_api_url: None,
-        harvest_admin_url: None,
-        reload_lock: Arc::new(Mutex::new(())),
-        integrity: Default::default(),
-        trajects: Arc::new(TrajectCorpusCache::new()),
-    }
-}
-
-async fn seed_account(pool: &PgPool, email: &str, name: &str) -> AccountRecord {
-    let sub = format!("sub-{email}");
-    let row: (Uuid,) = sqlx::query_as(
-        "INSERT INTO accounts (person_sub, email, name) VALUES ($1, $2, $3) RETURNING id",
-    )
-    .bind(&sub)
-    .bind(email)
-    .bind(name)
-    .fetch_one(pool)
-    .await
-    .unwrap();
-    AccountRecord {
-        id: row.0,
-        person_sub: sub,
-        email: email.to_string(),
-        name: name.to_string(),
-    }
-}
 
 fn create_req(name: &str) -> CreateTrajectRequest {
     CreateTrajectRequest {
@@ -137,7 +99,7 @@ async fn add_member(
 async fn create_inserts_traject_with_creator_as_owner_and_writable_own_source() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
 
     let (status, Json(summary)) = trajects::create(
         State(state.clone()),
@@ -184,7 +146,7 @@ async fn create_inserts_traject_with_creator_as_owner_and_writable_own_source() 
 async fn create_rejects_empty_name() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
 
     let mut req = create_req("");
     req.name = "   ".to_string();
@@ -203,7 +165,7 @@ async fn create_rejects_empty_name() {
 async fn normal_traject_is_writable_with_github_own() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let owner = seed_account(&db.pool, "owner2@example.com", "Owner2").await;
+    let owner = seed_account_record(&db.pool, "owner2@example.com", "Owner2").await;
 
     let id = create_traject(&state, &owner, "Gewoon traject").await;
 
@@ -245,7 +207,7 @@ async fn create_custom_repo_requires_linked_github_when_enforced() {
         github_oauth: Some(GithubOAuth::for_tests(true)),
         task_enrich_provider: "claude".to_string(),
     });
-    let owner = seed_account(&db.pool, "owner-enforced@example.com", "Owner").await;
+    let owner = seed_account_record(&db.pool, "owner-enforced@example.com", "Owner").await;
 
     let err = trajects::create(
         State(state.clone()),
@@ -290,7 +252,7 @@ async fn create_custom_repo_preflights_with_the_linked_user_token() {
         github_oauth: Some(oauth.clone()),
         task_enrich_provider: "claude".to_string(),
     });
-    let owner = seed_account(&db.pool, "owner-linked@example.com", "Owner").await;
+    let owner = seed_account_record(&db.pool, "owner-linked@example.com", "Owner").await;
 
     Mock::given(method("GET"))
         .and(path("/repos/example-org/regelrecht-corpus-example"))
@@ -413,7 +375,7 @@ async fn create_custom_repo_mints_the_traject_branch() {
         github_oauth: Some(oauth.clone()),
         task_enrich_provider: "claude".to_string(),
     });
-    let owner = seed_account(&db.pool, "owner-branch@example.com", "Owner").await;
+    let owner = seed_account_record(&db.pool, "owner-branch@example.com", "Owner").await;
 
     Mock::given(method("GET"))
         .and(path("/repos/example-org/regelrecht-corpus-example"))
@@ -523,7 +485,7 @@ async fn create_fails_loudly_and_persists_nothing_when_the_branch_cannot_be_mint
         github_oauth: Some(oauth.clone()),
         task_enrich_provider: "claude".to_string(),
     });
-    let owner = seed_account(&db.pool, "owner-branchfail@example.com", "Owner").await;
+    let owner = seed_account_record(&db.pool, "owner-branchfail@example.com", "Owner").await;
 
     // Preflight passes: repo readable, push allowed, base branch present.
     Mock::given(method("GET"))
@@ -624,8 +586,8 @@ async fn create_fails_loudly_and_persists_nothing_when_the_branch_cannot_be_mint
 async fn list_returns_only_trajects_caller_is_a_member_of() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
-    let bob = seed_account(&db.pool, "bob@test.local", "Bob").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
+    let bob = seed_account_record(&db.pool, "bob@test.local", "Bob").await;
 
     let t_alice = create_traject(&state, &alice, "Alice traject").await;
     let _t_bob = create_traject(&state, &bob, "Bob traject").await;
@@ -645,8 +607,8 @@ async fn list_returns_only_trajects_caller_is_a_member_of() {
 async fn get_returns_403_for_non_member() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
-    let bob = seed_account(&db.pool, "bob@test.local", "Bob").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
+    let bob = seed_account_record(&db.pool, "bob@test.local", "Bob").await;
 
     let traject_id = create_traject(&state, &alice, "Alice traject").await;
 
@@ -660,7 +622,7 @@ async fn get_returns_403_for_non_member() {
 async fn get_returns_detail_for_member() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
 
     let traject_id = create_traject(&state, &alice, "Tarief").await;
 
@@ -685,8 +647,8 @@ async fn get_returns_detail_for_member() {
 async fn update_rejects_contributor_and_accepts_owner() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
-    let bob = seed_account(&db.pool, "bob@test.local", "Bob").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
+    let bob = seed_account_record(&db.pool, "bob@test.local", "Bob").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
     assert_eq!(
         add_member(&state, &alice, traject_id, &bob.email, "contributor").await,
@@ -741,7 +703,7 @@ async fn update_rejects_contributor_and_accepts_owner() {
 async fn update_validates_status_enum() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
 
     let err = trajects::update(
@@ -831,7 +793,7 @@ fn repo_path_req(repo_path: &str) -> UpdateTrajectRequest {
 async fn update_sets_own_repo_path_and_reports_it_back() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = own_repo_traject(&db.pool, &alice, None).await;
 
     let ok = trajects::update(
@@ -886,7 +848,7 @@ async fn update_sets_own_repo_path_and_reports_it_back() {
 async fn update_stores_blank_repo_path_as_null() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = own_repo_traject(&db.pool, &alice, Some("regulation/nl")).await;
 
     // Whitespace-only means "back to repo root". Stored as NULL, not "",
@@ -912,7 +874,7 @@ async fn update_stores_blank_repo_path_as_null() {
 async fn update_rejects_invalid_repo_path() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = own_repo_traject(&db.pool, &alice, Some("regulation/nl")).await;
 
     for bad in ["../etc", "/etc", "regulation/../..", "met spatie"] {
@@ -942,8 +904,8 @@ async fn update_rejects_invalid_repo_path() {
 async fn update_repo_path_is_owner_only() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
-    let bob = seed_account(&db.pool, "bob@test.local", "Bob").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
+    let bob = seed_account_record(&db.pool, "bob@test.local", "Bob").await;
     let traject_id = own_repo_traject(&db.pool, &alice, None).await;
     sqlx::query(
         "INSERT INTO traject_members (traject_id, account_id, role)
@@ -971,7 +933,7 @@ async fn update_repo_path_is_owner_only() {
 async fn update_refuses_to_move_the_central_corpus_root() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     // `create_traject` takes the default writable source: the central
     // corpus, shared by every traject that skips the repo fields. Its
     // layout is not one traject's to move.
@@ -1038,7 +1000,7 @@ async fn local_own_traject(pool: &PgPool, owner: &AccountRecord) -> Uuid {
 async fn update_refuses_a_repo_path_on_a_non_github_own_source() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = local_own_traject(&db.pool, &alice).await;
 
     let err = trajects::update(
@@ -1066,7 +1028,7 @@ async fn update_refuses_a_repo_path_on_a_non_github_own_source() {
 async fn update_refuses_a_repo_path_without_an_own_source() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     // A traject without a writable-own row: nothing of this traject's to
     // move, so the PATCH is refused instead of silently doing nothing.
     let (traject_id,): (Uuid,) = sqlx::query_as(
@@ -1182,9 +1144,9 @@ fn untouched_repo() -> (String, String, String, String) {
 async fn move_repo_is_refused_without_the_admin_role() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
-    let bob = seed_account(&db.pool, "bob@test.local", "Bob").await;
-    let carol = seed_account(&db.pool, "carol@test.local", "Carol").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
+    let bob = seed_account_record(&db.pool, "bob@test.local", "Bob").await;
+    let carol = seed_account_record(&db.pool, "carol@test.local", "Carol").await;
     let traject_id = own_repo_traject(&db.pool, &alice, None).await;
     sqlx::query(
         "INSERT INTO traject_members (traject_id, account_id, role)
@@ -1217,8 +1179,8 @@ async fn move_repo_is_refused_without_the_admin_role() {
 async fn move_repo_lets_an_admin_in_who_is_not_a_member() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
-    let admin = seed_account(&db.pool, "admin@test.local", "Admin").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
+    let admin = seed_account_record(&db.pool, "admin@test.local", "Admin").await;
     let traject_id = own_repo_traject(&db.pool, &alice, None).await;
 
     // Past the access check, the request is judged on its content: a bad
@@ -1253,7 +1215,7 @@ async fn move_repo_lets_an_admin_in_who_is_not_a_member() {
 async fn move_repo_refuses_the_central_corpus() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
 
     let err = trajects::move_repo(
@@ -1281,7 +1243,7 @@ async fn move_repo_refuses_to_point_a_traject_at_the_central_repo() {
     // would not apply; refuse it whatever the casing.
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = own_repo_traject(&db.pool, &alice, None).await;
 
     for (owner, repo) in [
@@ -1319,7 +1281,7 @@ async fn move_repo_without_a_token_for_the_new_repo_changes_nothing() {
         github_oauth: Some(GithubOAuth::for_tests(true)),
         task_enrich_provider: "claude".to_string(),
     });
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = own_repo_traject(&db.pool, &alice, Some("regulation/nl")).await;
 
     let err = trajects::move_repo(
@@ -1352,7 +1314,7 @@ async fn move_repo_points_the_own_source_at_the_new_repo() {
         github_oauth: Some(oauth.clone()),
         task_enrich_provider: "claude".to_string(),
     });
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = own_repo_traject(&db.pool, &alice, Some("regulation/nl")).await;
 
     // The preflight runs against the NEW coordinates, as the acting user.
@@ -1452,7 +1414,7 @@ async fn move_repo_points_the_own_source_at_the_new_repo() {
 async fn add_member_with_unknown_email_creates_pending_invite() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
 
     let status = add_member(
@@ -1488,7 +1450,7 @@ async fn add_member_with_unknown_email_creates_pending_invite() {
 async fn add_member_normalizes_email_case_for_pending_invites() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
 
     assert_eq!(
@@ -1524,8 +1486,8 @@ async fn add_member_normalizes_email_case_for_pending_invites() {
 async fn add_member_upserts_role_on_conflict() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
-    let bob = seed_account(&db.pool, "bob@test.local", "Bob").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
+    let bob = seed_account_record(&db.pool, "bob@test.local", "Bob").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
 
     assert_eq!(
@@ -1554,7 +1516,7 @@ async fn add_member_blocks_demoting_last_owner_via_upsert() {
     // last-owner check that update_member already enforces.
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
 
     let status = add_member(&state, &alice, traject_id, &alice.email, "contributor").await;
@@ -1565,7 +1527,7 @@ async fn add_member_blocks_demoting_last_owner_via_upsert() {
 async fn update_member_blocks_demoting_last_owner() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
 
     let err = trajects::update_member(
@@ -1585,7 +1547,7 @@ async fn update_member_blocks_demoting_last_owner() {
 async fn remove_member_blocks_removing_last_owner() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
 
     let err = trajects::remove_member(
@@ -1606,8 +1568,8 @@ async fn remove_member_blocks_removing_last_owner() {
 async fn delete_is_owner_only_and_cascades() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
-    let bob = seed_account(&db.pool, "bob@test.local", "Bob").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
+    let bob = seed_account_record(&db.pool, "bob@test.local", "Bob").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
     assert_eq!(
         add_member(&state, &alice, traject_id, &bob.email, "contributor").await,
@@ -1649,7 +1611,7 @@ async fn delete_is_owner_only_and_cascades() {
 async fn delete_dismisses_open_tasks_and_clears_their_blobs() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let doomed = create_traject(&state, &alice, "Tarief").await;
     let survivor = create_traject(&state, &alice, "Toeslag").await;
 
@@ -1780,7 +1742,7 @@ async fn task_state(pool: &PgPool, task_id: Uuid) -> (TaskStatus, Option<i64>, O
 async fn leave_blocks_last_owner() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
 
     let err = trajects::leave(State(state), Extension(alice), Path(traject_id))
@@ -1793,8 +1755,8 @@ async fn leave_blocks_last_owner() {
 async fn leave_allows_contributor() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
-    let bob = seed_account(&db.pool, "bob@test.local", "Bob").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
+    let bob = seed_account_record(&db.pool, "bob@test.local", "Bob").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
     assert_eq!(
         add_member(&state, &alice, traject_id, &bob.email, "contributor").await,
@@ -1832,7 +1794,7 @@ async fn pending_invite_is_promoted_to_membership_on_login() {
     // `account_middleware` runs the invite turns into a real membership.
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
 
     assert_eq!(
@@ -1848,7 +1810,7 @@ async fn pending_invite_is_promoted_to_membership_on_login() {
     );
 
     // Simulate the invitee logging in: a new accounts row is created.
-    let ghost = seed_account(&db.pool, "ghost@test.local", "Ghost").await;
+    let ghost = seed_account_record(&db.pool, "ghost@test.local", "Ghost").await;
 
     // Simulate `account_middleware` post-upsert step.
     regelrecht_editor_api::accounts::promote_pending_invites(&db.pool, ghost.id, &ghost.email)
@@ -1887,8 +1849,8 @@ async fn promotion_is_idempotent_when_user_is_already_a_member() {
     // and the invite must be cleaned up. Bob's existing role wins.
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
-    let bob = seed_account(&db.pool, "bob@test.local", "Bob").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
+    let bob = seed_account_record(&db.pool, "bob@test.local", "Bob").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
 
     add_member(&state, &alice, traject_id, &bob.email, "contributor")
@@ -1931,7 +1893,7 @@ async fn promotion_is_idempotent_when_user_is_already_a_member() {
 async fn get_returns_pending_invites_alongside_members() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
 
     assert_eq!(
@@ -1959,7 +1921,7 @@ async fn get_returns_pending_invites_alongside_members() {
 async fn remove_invite_deletes_and_is_idempotent_404() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
 
     assert_eq!(
@@ -1997,8 +1959,8 @@ async fn remove_invite_deletes_and_is_idempotent_404() {
 async fn remove_invite_requires_owner() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
-    let bob = seed_account(&db.pool, "bob@test.local", "Bob").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
+    let bob = seed_account_record(&db.pool, "bob@test.local", "Bob").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
     add_member(&state, &alice, traject_id, &bob.email, "contributor")
         .await
@@ -2032,7 +1994,7 @@ async fn add_member_active_path_cleans_up_stale_invite() {
     // GET doesn't return ghost in both members and pending_invites.
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
 
     assert_eq!(
@@ -2049,7 +2011,7 @@ async fn add_member_active_path_cleans_up_stale_invite() {
 
     // Ghost's account materialises (e.g. via OIDC login) but
     // promote_pending_invites hasn't run yet.
-    let _ghost = seed_account(&db.pool, "ghost@test.local", "Ghost").await;
+    let _ghost = seed_account_record(&db.pool, "ghost@test.local", "Ghost").await;
 
     // Owner re-invites — now the active path is taken.
     assert_eq!(
@@ -2077,8 +2039,8 @@ async fn add_member_active_path_cleans_up_stale_invite() {
 async fn get_hides_pending_invites_from_contributors() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
-    let bob = seed_account(&db.pool, "bob@test.local", "Bob").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
+    let bob = seed_account_record(&db.pool, "bob@test.local", "Bob").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
     add_member(&state, &alice, traject_id, &bob.email, "contributor")
         .await
@@ -2115,7 +2077,7 @@ async fn get_hides_pending_invites_from_contributors() {
 async fn add_member_rejects_malformed_emails() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
     let traject_id = create_traject(&state, &alice, "Tarief").await;
 
     for bad in [

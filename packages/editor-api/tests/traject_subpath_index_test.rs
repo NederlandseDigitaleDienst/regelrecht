@@ -14,30 +14,23 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::sync::Arc;
+mod common;
+
+use common::{insert_traject, state_with_user_token_mode, traject_ref, verified_session};
 
 use axum::extract::{Extension, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
 use pretty_assertions::assert_eq;
 use sqlx::PgPool;
-use tokio::sync::{Mutex, RwLock};
-use tower_sessions::Session;
-use tower_sessions_memory_store::MemoryStore;
 use uuid::Uuid;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use regelrecht_auth::handlers::{
-    SESSION_KEY_EMAIL, SESSION_KEY_EMAIL_VERIFIED, SESSION_KEY_NAME, SESSION_KEY_SUB,
-};
 use regelrecht_corpus::dto::PaginationParams;
 use regelrecht_editor_api::accounts::AccountRecord;
-use regelrecht_editor_api::config::AppConfig;
 use regelrecht_editor_api::corpus_handlers::list_traject_corpus_laws;
 use regelrecht_editor_api::github_oauth::{self, GithubOAuth};
-use regelrecht_editor_api::state::{AppState, CorpusState};
-use regelrecht_editor_api::traject_corpus::TrajectCorpusCache;
 use regelrecht_editor_api::trajects::{self, UpdateTrajectRequest};
 
 use regelrecht_pipeline::test_utils::TestDb;
@@ -53,27 +46,6 @@ const CORPUS_LAW: &str = "wet_alpha";
 const WORKDIR_LAW: &str = "generatoren";
 const USER_TOKEN: &str = "user-token";
 const EMAIL: &str = "alice@test.local";
-
-fn state_with_user_token_mode(pool: PgPool, oauth: GithubOAuth) -> AppState {
-    AppState {
-        corpus: Arc::new(RwLock::new(CorpusState::empty())),
-        oidc_client: None,
-        end_session_url: None,
-        config: Arc::new(AppConfig {
-            oidc: None,
-            base_url: None,
-            github_oauth: Some(oauth),
-            task_enrich_provider: "claude".to_string(),
-        }),
-        http_client: regelrecht_auth::http_client(),
-        pool: Some(pool),
-        pipeline_api_url: None,
-        harvest_admin_url: None,
-        reload_lock: Arc::new(Mutex::new(())),
-        integrity: Default::default(),
-        trajects: Arc::new(TrajectCorpusCache::new()),
-    }
-}
 
 async fn seed_owner(pool: &PgPool) -> (AccountRecord, String) {
     let sub = format!("sub-{EMAIL}");
@@ -100,23 +72,7 @@ async fn seed_owner(pool: &PgPool) -> (AccountRecord, String) {
 /// Traject met één bron: de eigen GitHub-repo op repo-root (`gh_path`
 /// NULL), zoals een traject dat bij aanmaken geen subpath meekreeg.
 async fn seeded_traject(pool: &PgPool, owner_id: Uuid) -> Uuid {
-    let (traject_id,): (Uuid,) = sqlx::query_as(
-        "INSERT INTO trajects (name, description, scope, created_by)
-         VALUES ('Test', '', '', $1) RETURNING id",
-    )
-    .bind(owner_id)
-    .fetch_one(pool)
-    .await
-    .unwrap();
-    sqlx::query(
-        "INSERT INTO traject_members (traject_id, account_id, role)
-         VALUES ($1, $2, 'owner')",
-    )
-    .bind(traject_id)
-    .bind(owner_id)
-    .execute(pool)
-    .await
-    .unwrap();
+    let traject_id = insert_traject(pool, owner_id).await;
     sqlx::query(
         "INSERT INTO traject_corpus_sources
          (traject_id, source_id, name, source_type,
@@ -134,22 +90,6 @@ async fn seeded_traject(pool: &PgPool, owner_id: Uuid) -> Uuid {
     .await
     .unwrap();
     traject_id
-}
-
-fn traject_ref(traject_id: Uuid) -> String {
-    format!("test-{}", &traject_id.to_string()[..8])
-}
-
-async fn session_for(sub: &str) -> Session {
-    let session = Session::new(None, Arc::new(MemoryStore::default()), None);
-    session.insert(SESSION_KEY_SUB, sub).await.unwrap();
-    session.insert(SESSION_KEY_NAME, "Test User").await.unwrap();
-    session.insert(SESSION_KEY_EMAIL, EMAIL).await.unwrap();
-    session
-        .insert(SESSION_KEY_EMAIL_VERIFIED, true)
-        .await
-        .unwrap();
-    session
 }
 
 fn cookie_headers(oauth: &GithubOAuth, account_id: Uuid) -> HeaderMap {
@@ -219,7 +159,7 @@ async fn changing_the_root_path_reindexes_the_traject_corpus() {
     let laws = list_traject_corpus_laws(
         State(state.clone()),
         Extension(alice.clone()),
-        session_for(&sub).await,
+        verified_session(&sub, EMAIL).await,
         Path(tref.clone()),
         all_laws_query(),
         headers.clone(),
@@ -256,7 +196,7 @@ async fn changing_the_root_path_reindexes_the_traject_corpus() {
     let laws = list_traject_corpus_laws(
         State(state.clone()),
         Extension(alice.clone()),
-        session_for(&sub).await,
+        verified_session(&sub, EMAIL).await,
         Path(tref),
         all_laws_query(),
         headers,

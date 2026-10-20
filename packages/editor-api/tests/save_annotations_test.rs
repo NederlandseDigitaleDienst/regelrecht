@@ -19,28 +19,25 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::sync::Arc;
+mod common;
+
+use common::{
+    app_state, empty_state, insert_traject, local_traject, seed_account_record, verified_session,
+    TEST_NAME,
+};
 
 use axum::extract::{Extension, Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
 use pretty_assertions::assert_eq;
 use sqlx::PgPool;
-use tokio::sync::{Mutex, RwLock};
-use tower_sessions::Session;
-use tower_sessions_memory_store::MemoryStore;
 use uuid::Uuid;
 
-use regelrecht_auth::handlers::{
-    SESSION_KEY_EMAIL, SESSION_KEY_EMAIL_VERIFIED, SESSION_KEY_NAME, SESSION_KEY_SUB,
-};
 use regelrecht_editor_api::accounts::AccountRecord;
-use regelrecht_editor_api::config::AppConfig;
 use regelrecht_editor_api::corpus_handlers::{
     get_annotations, get_traject_annotations, save_annotations, SaveResponse,
 };
-use regelrecht_editor_api::state::{AppState, CorpusState};
-use regelrecht_editor_api::traject_corpus::TrajectCorpusCache;
+use regelrecht_editor_api::state::AppState;
 
 use regelrecht_pipeline::test_utils::TestDb;
 
@@ -49,48 +46,6 @@ use regelrecht_pipeline::test_utils::TestDb;
 // ---------------------------------------------------------------------------
 
 const LAW_ID: &str = "wet_op_de_zorgtoeslag";
-
-fn empty_state(pool: PgPool) -> AppState {
-    AppState {
-        corpus: Arc::new(RwLock::new(CorpusState::empty())),
-        oidc_client: None,
-        end_session_url: None,
-        config: Arc::new(AppConfig {
-            oidc: None,
-            base_url: None,
-            github_oauth: None,
-            task_enrich_provider: "claude".to_string(),
-        }),
-        http_client: regelrecht_auth::http_client(),
-        pool: Some(pool),
-        pipeline_api_url: None,
-        harvest_admin_url: None,
-        reload_lock: Arc::new(Mutex::new(())),
-        integrity: Default::default(),
-        trajects: Arc::new(TrajectCorpusCache::new()),
-    }
-}
-
-/// Seed an account and return its row: the `AccountRecord` the account
-/// middleware would attach, plus the `person_sub` the session carries.
-async fn seed_account(pool: &PgPool, email: &str) -> AccountRecord {
-    let sub = format!("sub-{email}");
-    let (id,): (Uuid,) = sqlx::query_as(
-        "INSERT INTO accounts (person_sub, email, name) VALUES ($1, $2, $3) RETURNING id",
-    )
-    .bind(&sub)
-    .bind(email)
-    .bind("Test User")
-    .fetch_one(pool)
-    .await
-    .unwrap();
-    AccountRecord {
-        id,
-        person_sub: sub,
-        email: email.to_string(),
-        name: "Test User".to_string(),
-    }
-}
 
 /// A minimal but schema-valid law file so the source map's `$id` scan
 /// resolves `LAW_ID` to a file with a `relative_path`.
@@ -119,77 +74,10 @@ fn note(target_law: &str, exact: &str) -> serde_json::Value {
     })
 }
 
-/// Create a traject with a single **local** writable-own source whose
-/// path is `corpus_dir`. No GitHub seed, so `build_traject_corpus` never
-/// touches the network. Returns the traject id; `owner_id` is made a
-/// member so the handler's membership re-check passes.
-async fn local_traject(pool: &PgPool, owner_id: Uuid, corpus_dir: &std::path::Path) -> Uuid {
-    let (traject_id,): (Uuid,) = sqlx::query_as(
-        "INSERT INTO trajects (name, description, scope, created_by)
-         VALUES ('Test', '', '', $1) RETURNING id",
-    )
-    .bind(owner_id)
-    .fetch_one(pool)
-    .await
-    .unwrap();
-
-    sqlx::query(
-        "INSERT INTO traject_members (traject_id, account_id, role)
-         VALUES ($1, $2, 'owner')",
-    )
-    .bind(traject_id)
-    .bind(owner_id)
-    .execute(pool)
-    .await
-    .unwrap();
-
-    // The local source is writable_own with no auth_ref: it writes back
-    // through its own backend (no write_target_for_source entry needed —
-    // the law is read from this very source).
-    sqlx::query(
-        "INSERT INTO traject_corpus_sources
-         (traject_id, source_id, name, source_type, local_path,
-          priority, scopes, is_writable_own)
-         VALUES ($1, 'local', 'Local', 'local'::corpus_source_type, $2,
-                 0, '[]'::jsonb, TRUE)",
-    )
-    .bind(traject_id)
-    .bind(corpus_dir.to_string_lossy().to_string())
-    .execute(pool)
-    .await
-    .unwrap();
-
-    traject_id
-}
-
 /// URL form of a traject reference, via the production helper. All
 /// trajects here are named `Test`.
 fn traject_ref(traject_id: Uuid) -> String {
     regelrecht_editor_api::trajects::traject_ref("Test", traject_id)
-}
-
-/// A session with a verified editor identity — `save_annotations`
-/// requires name + email + `email_verified=true` for commit attribution,
-/// and the membership re-check joins on the session's sub.
-async fn session_for(account: &AccountRecord) -> Session {
-    let session = Session::new(None, Arc::new(MemoryStore::default()), None);
-    session
-        .insert(SESSION_KEY_SUB, &account.person_sub)
-        .await
-        .unwrap();
-    session
-        .insert(SESSION_KEY_NAME, &account.name)
-        .await
-        .unwrap();
-    session
-        .insert(SESSION_KEY_EMAIL, &account.email)
-        .await
-        .unwrap();
-    session
-        .insert(SESSION_KEY_EMAIL_VERIFIED, true)
-        .await
-        .unwrap();
-    session
 }
 
 fn sidecar_path(corpus_dir: &std::path::Path) -> std::path::PathBuf {
@@ -206,7 +94,7 @@ async fn save_notes(
     traject_id: Uuid,
     body: String,
 ) -> Result<Json<SaveResponse>, (StatusCode, String)> {
-    let session = session_for(account).await;
+    let session = verified_session(&account.person_sub, &account.email).await;
     save_annotations(
         State(state),
         Extension(account.clone()),
@@ -226,7 +114,7 @@ async fn save_notes(
 async fn writes_a_note_to_the_traject_local_sidecar() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let account = seed_account(&db.pool, "alice@test.local").await;
+    let account = seed_account_record(&db.pool, "alice@test.local", TEST_NAME).await;
 
     let corpus = tempfile::tempdir().unwrap();
     write_law(corpus.path());
@@ -259,8 +147,8 @@ async fn a_non_member_is_403() {
     // membership re-check must refuse the write.
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let owner = seed_account(&db.pool, "alice@test.local").await;
-    let outsider = seed_account(&db.pool, "mallory@test.local").await;
+    let owner = seed_account_record(&db.pool, "alice@test.local", TEST_NAME).await;
+    let outsider = seed_account_record(&db.pool, "mallory@test.local", TEST_NAME).await;
 
     let corpus = tempfile::tempdir().unwrap();
     write_law(corpus.path());
@@ -280,7 +168,7 @@ async fn a_non_member_is_403() {
 async fn a_note_targeting_another_law_is_rejected() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let account = seed_account(&db.pool, "alice@test.local").await;
+    let account = seed_account_record(&db.pool, "alice@test.local", TEST_NAME).await;
 
     let corpus = tempfile::tempdir().unwrap();
     write_law(corpus.path());
@@ -301,7 +189,7 @@ async fn a_note_targeting_another_law_is_rejected() {
 async fn re_saving_an_already_committed_note_is_a_no_op() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let account = seed_account(&db.pool, "alice@test.local").await;
+    let account = seed_account_record(&db.pool, "alice@test.local", TEST_NAME).await;
 
     let corpus = tempfile::tempdir().unwrap();
     write_law(corpus.path());
@@ -345,7 +233,7 @@ async fn re_saving_an_already_committed_note_is_a_no_op() {
 /// Helper: call `get_traject_annotations` and return the response body.
 /// Panics on any status other than 200.
 async fn read_annotations(state: AppState, account: &AccountRecord, traject_id: Uuid) -> String {
-    let session = session_for(account).await;
+    let session = verified_session(&account.person_sub, &account.email).await;
     let (status, _headers, body) = get_traject_annotations(
         State(state),
         session,
@@ -366,7 +254,7 @@ async fn saved_note_is_readable_on_the_same_traject() {
     // static mirror (which would 404 or serve the pre-baked main copy).
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let account = seed_account(&db.pool, "alice@test.local").await;
+    let account = seed_account_record(&db.pool, "alice@test.local", TEST_NAME).await;
 
     let corpus = tempfile::tempdir().unwrap();
     write_law(corpus.path());
@@ -393,13 +281,13 @@ async fn missing_sidecar_returns_404() {
     // an error.
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let account = seed_account(&db.pool, "alice@test.local").await;
+    let account = seed_account_record(&db.pool, "alice@test.local", TEST_NAME).await;
 
     let corpus = tempfile::tempdir().unwrap();
     write_law(corpus.path());
     let traject_id = local_traject(&db.pool, account.id, corpus.path()).await;
 
-    let session = session_for(&account).await;
+    let session = verified_session(&account.person_sub, &account.email).await;
     let err = get_traject_annotations(
         State(state),
         session,
@@ -420,8 +308,8 @@ async fn global_read_serves_the_global_corpus() {
     // backend at all for any law, so the GET resolves to NOT_FOUND from
     // the inner law lookup — the contract is "a clean 404 just like the
     // old static mirror, no 403 or 500".
-    let db = TestDb::new().await;
-    let state = empty_state(db.pool.clone());
+    // No database: the global read never touches the pool.
+    let state = app_state(None, None);
 
     let err = get_annotations(State(state), Path(LAW_ID.to_string()))
         .await
@@ -452,23 +340,7 @@ async fn seeded_traject(
     seed_dir: &std::path::Path,
     writable_own_dir: &std::path::Path,
 ) -> Uuid {
-    let (traject_id,): (Uuid,) = sqlx::query_as(
-        "INSERT INTO trajects (name, description, scope, created_by)
-         VALUES ('Test', '', '', $1) RETURNING id",
-    )
-    .bind(owner_id)
-    .fetch_one(pool)
-    .await
-    .unwrap();
-    sqlx::query(
-        "INSERT INTO traject_members (traject_id, account_id, role)
-         VALUES ($1, $2, 'owner')",
-    )
-    .bind(traject_id)
-    .bind(owner_id)
-    .execute(pool)
-    .await
-    .unwrap();
+    let traject_id = insert_traject(pool, owner_id).await;
     // Seed source — carries the law file.
     sqlx::query(
         "INSERT INTO traject_corpus_sources
@@ -518,7 +390,7 @@ async fn saved_note_is_readable_with_seeded_traject() {
     // is skipped entirely.
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let account = seed_account(&db.pool, "alice@test.local").await;
+    let account = seed_account_record(&db.pool, "alice@test.local", TEST_NAME).await;
 
     let seed = tempfile::tempdir().unwrap();
     let writable_own = tempfile::tempdir().unwrap();
@@ -567,7 +439,7 @@ async fn cross_traject_isolation_on_reads() {
     // edits from one traject into another's view.
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let account = seed_account(&db.pool, "alice@test.local").await;
+    let account = seed_account_record(&db.pool, "alice@test.local", TEST_NAME).await;
 
     let corpus_a = tempfile::tempdir().unwrap();
     write_law(corpus_a.path());
@@ -588,7 +460,7 @@ async fn cross_traject_isolation_on_reads() {
     assert!(from_a.contains("A-only-note"));
 
     // B sees nothing — its sidecar does not exist.
-    let session = session_for(&account).await;
+    let session = verified_session(&account.person_sub, &account.email).await;
     let err = get_traject_annotations(
         State(state),
         session,
