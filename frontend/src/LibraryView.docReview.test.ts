@@ -1,15 +1,15 @@
 // Targeted tests for the document-review orchestration in LibraryView.vue
 // (rejectDocReview / onDocSaved / clearDocReviewQuery / the proposal-seeding
-// watch, ~lines 240-380). LibraryView.vue itself has no other test coverage
-// (it's a 1500-line multi-concern view with no existing test harness), so
-// this file mounts it `shallow` with every composable it touches replaced by
-// a controllable stub - deliberately narrow: it exercises only the
-// review-flow surface, not the rest of the view (laws browsing, search,
-// traject panes, ...), which stay in their default/empty state.
+// watch). Like the other LibraryView.*.test.ts files, this one mounts the view
+// `shallow` with every composable it touches replaced by a controllable stub
+// from test-utils/libraryViewHarness.ts - deliberately narrow: it exercises
+// only the review-flow surface, not the rest of the view (laws browsing,
+// search, traject panes, ...), which stay in their default/empty state.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, type VueWrapper } from '@vue/test-utils';
 import { ref } from 'vue';
 import type { DocError } from './composables/useTrajectDocuments';
+import * as harness from './test-utils/libraryViewHarness';
 
 /** The route fields LibraryView reads; tests reassign params and query freely. */
 interface RouteStub {
@@ -49,34 +49,16 @@ const routeState: RouteStub = {
 };
 const replaceMock = vi.fn();
 const pushMock = vi.fn();
-vi.mock('vue-router', () => ({
-  useRoute: () => routeState,
-  useRouter: () => ({ replace: replaceMock, push: pushMock, resolve: () => ({ href: '#' }) }),
-  onBeforeRouteUpdate: vi.fn(),
-  onBeforeRouteLeave: vi.fn(),
-}));
-
-vi.mock('./composables/useAuth', () => ({
-  useAuth: () => ({ authenticated: ref(true), login: vi.fn() }),
-}));
-
-vi.mock('./composables/useTrajects', () => ({
-  useTrajects: () => ({
-    activeTrajectRef: ref('traject-abcd1234'),
-    activeTraject: ref({ name: 'Testtraject' }),
-  }),
-  refreshTrajects: vi.fn(),
-}));
-
-vi.mock('./lib/apiFetch', () => ({
-  apiFetch: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [] }),
-  apiFetchJson: vi.fn().mockResolvedValue([]),
-  ApiError: class ApiError extends Error {},
-}));
-
-vi.mock('./composables/useFeatureFlags', () => ({
-  useFeatureFlags: () => ({ isEnabled: () => true }),
-}));
+vi.mock('vue-router', () =>
+  harness.vueRouter(
+    () => routeState,
+    () => ({ replace: replaceMock, push: pushMock }),
+  ),
+);
+vi.mock('./composables/useAuth', () => harness.auth());
+vi.mock('./composables/useTrajects', () => harness.trajectsModule());
+vi.mock('./lib/apiFetch', () => harness.apiFetchModule());
+vi.mock('./composables/useFeatureFlags', () => harness.featureFlags());
 
 // The manager stub deliberately keeps `currentPath`/`currentBody`/`docLoading`/
 // `docError` as module-level refs so tests can drive the exact state the
@@ -88,47 +70,18 @@ const currentPath = ref<string | null>('report.md');
 const currentBody = ref('');
 const docLoading = ref(false);
 const docError = ref<DocError | null>(null);
-vi.mock('./composables/useDocumentsManager', () => ({
-  useDocumentsManager: () => ({
-    documents: ref([]),
-    listLoading: ref(false),
-    listError: ref(null),
+vi.mock('./composables/useDocumentsManager', () =>
+  harness.documentsManager(() => ({
     currentPath,
     currentBody,
-    hasChanges: ref(false),
     docLoading,
     docError,
-    saving: ref(false),
     open: openDoc,
-    startNew: vi.fn(),
-    close: vi.fn(),
-    uploadDocument: vi.fn(),
-    displayTitle: (p: string | null | undefined) => p,
     dropDraft,
-  }),
-}));
-
-vi.mock('./composables/useTrajectDocumentJobs', () => ({
-  useTrajectDocumentJobs: () => ({
-    jobs: ref([]),
-    refresh: vi.fn(),
-    startPolling: vi.fn(),
-    stopPolling: vi.fn(),
-  }),
-}));
-
-vi.mock('./composables/useDocumentUpload', () => ({
-  useDocumentUpload: () => ({
-    fileInput: ref(null),
-    uploadError: ref(null),
-    uploadRetryable: ref(false),
-    pendingFile: ref(null),
-    onUpload: vi.fn(),
-    onFileChange: vi.fn(),
-    confirmUpload: vi.fn(),
-    cancelUpload: vi.fn(),
-  }),
-}));
+  })),
+);
+vi.mock('./composables/useTrajectDocumentJobs', () => harness.trajectDocumentJobs());
+vi.mock('./composables/useDocumentUpload', () => harness.documentUpload());
 
 // The composable under test's caller-side orchestration: kept as
 // module-level refs (identity-equal to what LibraryView destructures) so
@@ -140,16 +93,16 @@ const loadError = ref<string | null>(null);
 const loadReview = vi.fn();
 const approveAfterSave = vi.fn();
 const rejectTask = vi.fn();
-vi.mock('./composables/useDocumentTaskReview', () => ({
-  useDocumentTaskReview: () => ({
+vi.mock('./composables/useDocumentTaskReview', () =>
+  harness.documentTaskReview(() => ({
     reviewTask,
     proposedContent,
     loadError,
     loadReview,
     approveAfterSave,
     reject: rejectTask,
-  }),
-}));
+  })),
+);
 
 import LibraryView from './LibraryView.vue';
 

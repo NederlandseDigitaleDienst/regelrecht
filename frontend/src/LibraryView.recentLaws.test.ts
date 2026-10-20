@@ -1,11 +1,12 @@
 // "Recent bekeken" is stored per traject: two trajects hold different laws, so
 // a law opened in the one must not turn up under the other, where that id may
-// not even resolve. Mounts LibraryView `shallow` with the same composable stubs
-// LibraryView.docReview.test.js uses - deliberately narrow, this file only
+// not even resolve. Mounts LibraryView `shallow` with the composable stubs from
+// test-utils/libraryViewHarness.ts - deliberately narrow, this file only
 // exercises the recent-laws surface.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, type VueWrapper } from '@vue/test-utils';
 import { ref } from 'vue';
+import * as harness from './test-utils/libraryViewHarness';
 
 /** A "Recent bekeken" entry as LibraryView stores it. */
 interface RecentLawEntry {
@@ -34,87 +35,22 @@ const routeState: { name: string; params: Record<string, string>; query: Record<
   fullPath: '/traject/traject-aaaa1111/bibliotheek',
   hash: '',
 };
-vi.mock('vue-router', () => ({
-  useRoute: () => routeState,
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), resolve: () => ({ href: '#' }) }),
-  onBeforeRouteUpdate: vi.fn(),
-  onBeforeRouteLeave: vi.fn(),
-}));
-
-vi.mock('./composables/useAuth', () => ({
-  useAuth: () => ({ authenticated: ref(true), login: vi.fn() }),
-}));
+vi.mock('vue-router', () => harness.vueRouter(() => routeState));
+vi.mock('./composables/useAuth', () => harness.auth());
 
 // The ref the view watches: switching traject keeps the view mounted, so the
 // test drives the switch by writing to this exact ref.
 const activeTrajectRef = ref<string | null>('traject-aaaa1111');
-vi.mock('./composables/useTrajects', () => ({
-  useTrajects: () => ({
-    activeTrajectRef,
-    activeTraject: ref({ name: 'Traject A' }),
-  }),
-  refreshTrajects: vi.fn(),
-}));
+vi.mock('./composables/useTrajects', () =>
+  harness.trajectsModule(() => ({ activeTrajectRef, activeTraject: ref({ name: 'Traject A' }) })),
+);
 
-vi.mock('./lib/apiFetch', () => ({
-  apiFetch: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [] }),
-  apiFetchJson: vi.fn().mockResolvedValue([]),
-  ApiError: class ApiError extends Error {},
-}));
-
-vi.mock('./composables/useFeatureFlags', () => ({
-  useFeatureFlags: () => ({ isEnabled: () => true }),
-}));
-
-vi.mock('./composables/useDocumentsManager', () => ({
-  useDocumentsManager: () => ({
-    documents: ref([]),
-    listLoading: ref(false),
-    listError: ref(null),
-    currentPath: ref(null),
-    currentBody: ref(''),
-    hasChanges: ref(false),
-    docLoading: ref(false),
-    docError: ref(null),
-    saving: ref(false),
-    open: vi.fn(),
-    startNew: vi.fn(),
-    close: vi.fn(),
-    uploadDocument: vi.fn(),
-    displayTitle: (p: string | null | undefined) => p,
-    dropDraft: vi.fn(),
-  }),
-}));
-
-vi.mock('./composables/useTrajectDocumentJobs', () => ({
-  useTrajectDocumentJobs: () => ({
-    jobs: ref([]),
-    refresh: vi.fn(),
-    startPolling: vi.fn(),
-    stopPolling: vi.fn(),
-  }),
-}));
-
-vi.mock('./composables/useDocumentUpload', () => ({
-  useDocumentUpload: () => ({
-    fileInput: ref(null),
-    uploadError: ref(null),
-    uploadRetryable: ref(false),
-    onUpload: vi.fn(),
-    onFileChange: vi.fn(),
-  }),
-}));
-
-vi.mock('./composables/useDocumentTaskReview', () => ({
-  useDocumentTaskReview: () => ({
-    reviewTask: ref(null),
-    proposedContent: ref(null),
-    loadError: ref(null),
-    loadReview: vi.fn(),
-    approveAfterSave: vi.fn(),
-    reject: vi.fn(),
-  }),
-}));
+vi.mock('./lib/apiFetch', () => harness.apiFetchModule());
+vi.mock('./composables/useFeatureFlags', () => harness.featureFlags());
+vi.mock('./composables/useDocumentsManager', () => harness.documentsManager());
+vi.mock('./composables/useTrajectDocumentJobs', () => harness.trajectDocumentJobs());
+vi.mock('./composables/useDocumentUpload', () => harness.documentUpload());
+vi.mock('./composables/useDocumentTaskReview', () => harness.documentTaskReview());
 
 import LibraryView from './LibraryView.vue';
 

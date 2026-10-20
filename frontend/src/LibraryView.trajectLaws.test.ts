@@ -6,11 +6,12 @@
 // base erfde staat er bewust niet in: een traject op de centrale corpus zou
 // anders duizenden wetten tonen die niemand hier heeft aangeraakt.
 //
-// Harnas overgenomen van LibraryView.indexErrorTakeover.repro.test.js:
-// shallow-mount met elke composable gestubd, bewust smal op dit ene oppervlak.
+// Harness: test-utils/libraryViewHarness.ts, shallow-mount with every
+// composable stubbed, deliberately narrow to this one surface.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, type VueWrapper } from '@vue/test-utils';
-import { ref, nextTick, type Ref } from 'vue';
+import { ref, nextTick } from 'vue';
+import * as harness from './test-utils/libraryViewHarness';
 
 /** The route fields LibraryView reads; tests reassign params freely. */
 interface RouteStub {
@@ -46,38 +47,19 @@ const routeState: RouteStub = {
   query: {},
   fullPath: '/trajecten/traject-abcd1234',
 };
-vi.mock('vue-router', () => ({
-  useRoute: () => routeState,
-  useRouter: () => ({
-    replace: vi.fn().mockResolvedValue(undefined),
-    push: vi.fn(),
-    resolve: () => ({ href: '#' }),
-  }),
-  onBeforeRouteUpdate: vi.fn(),
-  onBeforeRouteLeave: vi.fn(),
-}));
+vi.mock('vue-router', () => harness.vueRouter(() => routeState));
+vi.mock('./composables/useAuth', () => harness.auth());
 
-vi.mock('./composables/useAuth', () => ({
-  useAuth: () => ({ authenticated: ref(true), login: vi.fn() }),
-}));
-
-// In een hoisted box zodat een test in-place van traject kan wisselen: de
-// traject-switcher laat LibraryView gemonteerd en verandert alleen de
-// route-param, waar `watch(activeTrajectRef)` op reageert.
-// `activeTrajectRef` is set in the useTrajects mock factory, which runs when
-// LibraryView is imported - before any test.
-const { trajectScope } = vi.hoisted(() => ({ trajectScope: {} as { activeTrajectRef: Ref<string> } }));
-
-vi.mock('./composables/useTrajects', () => {
-  trajectScope.activeTrajectRef = ref('traject-abcd1234');
-  return {
-    useTrajects: () => ({
-      activeTrajectRef: trajectScope.activeTrajectRef,
-      activeTraject: ref({ name: 'Testtraject' }),
-    }),
-    refreshTrajects: vi.fn(),
-  };
-});
+// The ref the view watches: the traject switcher leaves LibraryView mounted
+// and only swaps the route param, which is what `watch(activeTrajectRef)`
+// reacts to, so a test switches traject in-place by writing to this exact ref.
+const activeTrajectRef = ref('traject-abcd1234');
+vi.mock('./composables/useTrajects', () =>
+  harness.trajectsModule(() => ({
+    activeTrajectRef,
+    activeTraject: ref({ name: 'Testtraject' }),
+  })),
+);
 
 // Het antwoordboek dat elke test naar smaak omzet: de bronnen van het traject,
 // de wetten van de eigen bron, de favorieten en de bewerkte wetten.
@@ -165,67 +147,18 @@ const { server, ApiErrorStub, apiFetch, apiFetchJson } = vi.hoisted(() => {
   };
 });
 
-vi.mock('./lib/apiFetch', () => ({
-  apiFetch: (...a: Parameters<typeof apiFetch>) => apiFetch(...a),
-  apiFetchJson: (...a: Parameters<typeof apiFetchJson>) => apiFetchJson(...a),
-  ApiError: ApiErrorStub,
-}));
-
-vi.mock('./composables/useFeatureFlags', () => ({
-  useFeatureFlags: () => ({ isEnabled: () => true }),
-}));
-
-vi.mock('./composables/useDocumentsManager', () => ({
-  useDocumentsManager: () => ({
-    documents: ref([]),
-    listLoading: ref(false),
-    listError: ref(null),
-    currentPath: ref(null),
-    currentBody: ref(''),
-    hasChanges: ref(false),
-    docLoading: ref(false),
-    docError: ref(null),
-    saving: ref(false),
-    open: vi.fn(),
-    startNew: vi.fn(),
-    close: vi.fn(),
-    uploadDocument: vi.fn(),
-    displayTitle: (p: string | null | undefined) => String(p ?? '').replace(/\.md$/, ''),
-    dropDraft: vi.fn(),
-    refreshList: vi.fn().mockResolvedValue(undefined),
+vi.mock('./lib/apiFetch', () =>
+  harness.apiFetchModule({
+    apiFetch: (...a: Parameters<typeof apiFetch>) => apiFetch(...a),
+    apiFetchJson: (...a: Parameters<typeof apiFetchJson>) => apiFetchJson(...a),
+    ApiError: ApiErrorStub,
   }),
-}));
-
-vi.mock('./composables/useTrajectDocumentJobs', () => ({
-  useTrajectDocumentJobs: () => ({
-    jobs: ref([]),
-    cancelJob: vi.fn(),
-    refresh: vi.fn(),
-    startPolling: vi.fn(),
-    stopPolling: vi.fn(),
-  }),
-}));
-
-vi.mock('./composables/useDocumentUpload', () => ({
-  useDocumentUpload: () => ({
-    fileInput: ref(null),
-    uploadError: ref(null),
-    uploadRetryable: ref(false),
-    onUpload: vi.fn(),
-    onFileChange: vi.fn(),
-  }),
-}));
-
-vi.mock('./composables/useDocumentTaskReview', () => ({
-  useDocumentTaskReview: () => ({
-    reviewTask: ref(null),
-    proposedContent: ref(null),
-    loadError: ref(null),
-    loadReview: vi.fn().mockResolvedValue(undefined),
-    approveAfterSave: vi.fn(),
-    reject: vi.fn(),
-  }),
-}));
+);
+vi.mock('./composables/useFeatureFlags', () => harness.featureFlags());
+vi.mock('./composables/useDocumentsManager', () => harness.documentsManager());
+vi.mock('./composables/useTrajectDocumentJobs', () => harness.trajectDocumentJobs());
+vi.mock('./composables/useDocumentUpload', () => harness.documentUpload());
+vi.mock('./composables/useDocumentTaskReview', () => harness.documentTaskReview());
 
 import LibraryView from './LibraryView.vue';
 
@@ -311,7 +244,7 @@ beforeEach(() => {
   localStorage.clear();
   routeState.name = 'library-traject';
   routeState.params = { trajectRef: 'traject-abcd1234' };
-  trajectScope.activeTrajectRef.value = 'traject-abcd1234';
+  activeTrajectRef.value = 'traject-abcd1234';
   server.sourceLaws = SEVEN_LAWS;
   server.favorites = [];
   server.changed = SEVEN_LAWS.map((l) => l.law_id);
@@ -416,7 +349,7 @@ describe('LibraryView - wat dit traject heeft aangeraakt, in het linkermenu', ()
     server.holdFavoritesFor = null;
     server.favorites = ['wet_a', 'wet_f'];
     routeState.params = { trajectRef: 'traject-99998888' };
-    trajectScope.activeTrajectRef.value = 'traject-99998888';
+    activeTrajectRef.value = 'traject-99998888';
     for (let i = 0; i < 8; i++) await nextTick();
 
     expect(sectionLaws(wrapper, 'favorites')).toEqual(['Zorgverzekeringswet', 'Kieswet']);
@@ -503,7 +436,7 @@ describe('LibraryView - wat dit traject heeft aangeraakt, in het linkermenu', ()
     });
     server.changed = [];
     routeState.params = { trajectRef: 'traject-99998888' };
-    trajectScope.activeTrajectRef.value = 'traject-99998888';
+    activeTrajectRef.value = 'traject-99998888';
     for (let i = 0; i < 4; i++) await nextTick();
 
     expect(sectionLaws(wrapper, 'favorites')).toEqual(['Kieswet']);
