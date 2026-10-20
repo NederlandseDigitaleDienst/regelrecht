@@ -8,8 +8,8 @@ Feature: Landelijke Aanpak Adreskwaliteit (LAA)
   Background:
     Given the calculation date is "2025-03-01"
 
-  # Alleen de genoemde bron twijfelt: de andere bronnen kennen het adres zoals
-  # de BRP het heeft, zodat het signaal niet via een van hen kan komen.
+  # Alleen de genoemde bron twijfelt: Toeslagen kent het BRP-adres en CJIB meldt
+  # geen onbestelbare post, dus het signaal kan alleen van de Belastingdienst komen.
   Scenario: Belastingdienst meldt twijfel over adres - genereert signaal type MELDING
     Given parameter "bsn" is "999993653"
     And the following "KADASTER" data with key "adres" for law "wet_bag":

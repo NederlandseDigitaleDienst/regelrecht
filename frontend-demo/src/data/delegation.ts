@@ -347,6 +347,14 @@ export function chosenDelegationKey(delegation: DelegationLike | null | undefine
 }
 
 /**
+ * The delegations that can be chosen in the toolbar: everything the law
+ * grants, or nothing when the DELEGATION flag is off.
+ */
+export function selectableDelegations<D>(enabled: boolean, delegations: D[]): D[] {
+  return enabled ? delegations : [];
+}
+
+/**
  * The chosen delegation, or null when acting for oneself. A stored choice that
  * no longer exists (another reference date, another profile) silently falls
  * back to acting for oneself: that is the safe side.
@@ -372,7 +380,7 @@ export function activeDelegationFor<D extends DelegationLike>({
   const start = startDelegationKey(profile);
   const key = (enabled ? chosenKey : null) ?? start;
   if (!key || key === SELF_KEY) return null;
-  const pool = key === start || enabled ? delegations : [];
+  const pool = key === start ? delegations : selectableDelegations(enabled, delegations);
   const found = pool.find((d) => delegationKey(d) === key) ?? null;
   return found && found.subjectType !== 'SELF' ? found : null;
 }

@@ -27,6 +27,7 @@ import {
   delegationsFor,
   maySubmitClaims,
   portalSubject,
+  selectableDelegations,
   subjectBsnFor,
   subjectParams,
 } from '../data/delegation';
@@ -559,7 +560,9 @@ const delegationResult = computed<{ delegations: Delegation[]; errors: Delegatio
 const delegationEnabled = computed(() => features.value.DELEGATION);
 
 /** De machtigingen die dit profiel kan kiezen; leeg als de vlag uit staat. */
-const delegations = computed<Delegation[]>(() => (delegationEnabled.value ? delegationResult.value.delegations : []));
+const delegations = computed<Delegation[]>(() =>
+  selectableDelegations(delegationEnabled.value, delegationResult.value.delegations),
+);
 
 /** The chosen delegation, or null when acting for oneself (see `activeDelegationFor`). */
 const activeDelegation = computed<Delegation | null>(() =>

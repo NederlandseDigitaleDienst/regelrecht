@@ -13,6 +13,7 @@ import {
   delegationsFor,
   maySubmitClaims,
   portalSubject,
+  selectableDelegations,
   subjectBsnFor,
   subjectParams,
 } from '../data/delegation';
@@ -46,7 +47,7 @@ function makeContext({
     activeDelegationFor({ profile, chosenKey: key.value, enabled: delegationEnabledFlag, delegations });
   return {
     key,
-    list: () => (delegationEnabledFlag ? delegations : []),
+    list: () => selectableDelegations(delegationEnabledFlag, delegations),
     active,
     setDelegation: (d: DelegationFixture | null) => {
       key.value = chosenDelegationKey(d);
