@@ -42,9 +42,10 @@ fn validate_law_id(law_id: &str) -> Result<(), StatusCode> {
 
 /// Resolve the traject ref and re-check membership, so a favorite can never be
 /// read from or written to a traject you are not in. Same guard the other
-/// traject routes apply. De rol binnen het traject doet hier niet ter zake: wie
-/// er mag sterren wordt bepaald door de tier van de route (lezen op
-/// editor-reader, schrijven op editor-writer), net als bij de Corpus-juris-set.
+/// traject routes apply. The role within the traject does not matter here: who
+/// may star is decided by the route's tier (read on editor-reader, write on
+/// editor-writer). The Corpus juris set is different: any account may write
+/// it, since it touches nothing but the account itself.
 async fn scope_traject(
     state: &AppState,
     account: &AccountRecord,

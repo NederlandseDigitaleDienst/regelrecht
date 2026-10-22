@@ -221,10 +221,16 @@ async fn main() {
     const MAX_UPLOAD_BODY: usize = 25 * 1024 * 1024;
 
     // Reader routes — `editor-reader` covers user-scoped reads (favorites,
-    // settings) and harvest search (search is behind auth because it triggers
-    // outbound requests and would otherwise be an amplification vector).
+    // settings), the user's own Corpus juris favorites (any account may keep
+    // them; they touch nothing but the account), and harvest search (search is
+    // behind auth because it triggers outbound requests and would otherwise be
+    // an amplification vector).
     let reader_routes = Router::new()
         .route("/api/favorites", get(favorites::list))
+        .route(
+            "/api/favorites/{law_id}",
+            axum::routing::put(favorites::add).delete(favorites::remove),
+        )
         .route("/api/user/settings", get(user_settings::list))
         .route("/api/harvest/search", get(harvest_proxy::proxy_harvest))
         .route_layer(axum_middleware::from_fn_with_state(
@@ -239,10 +245,6 @@ async fn main() {
     // POSTs (which trigger outbound requests) sit here so anonymous callers
     // can never reach them.
     let writer_routes = Router::new()
-        .route(
-            "/api/favorites/{law_id}",
-            axum::routing::put(favorites::add).delete(favorites::remove),
-        )
         // 4 KiB is ample for `{"value":"<one allowed enum>"}` and rejects
         // oversized bodies before deserialization.
         .route(
@@ -267,7 +269,7 @@ async fn main() {
     // never git). Handlers extract `Extension<AccountRecord>`, so
     // `account_middleware` must run per request, same as traject routes.
     // Reads at reader tier, mutations at writer tier, mirroring how
-    // favorites/settings split across `reader_routes`/`writer_routes`
+    // settings split across `reader_routes`/`writer_routes`
     // (which stay Session-based and therefore don't carry the account
     // middleware).
     let user_notes_reader_routes = Router::new()

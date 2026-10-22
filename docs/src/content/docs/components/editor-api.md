@@ -128,7 +128,7 @@ Review tasks produced by asynchronous jobs, scoped to the account that requested
 | Method | Path | Gate |
 |--------|------|------|
 | GET | `/api/favorites` | Reader |
-| PUT, DELETE | `/api/favorites/{law_id}` | Writer |
+| PUT, DELETE | `/api/favorites/{law_id}` | Reader |
 | GET | `/api/user/settings` | Reader |
 | PUT | `/api/user/settings/{key}` | Writer (4 KiB body) |
 | GET | `/api/user/notes/{law_id}` | Reader + account |
