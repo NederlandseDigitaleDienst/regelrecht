@@ -349,6 +349,7 @@ async fn ttl_refresh_picks_up_upstream_laws_and_reconciles_saves() {
                 q: None,
                 ids: None,
                 source: None,
+                enriched: false,
             }),
             HeaderMap::new(),
         )

@@ -118,6 +118,7 @@ fn all_laws_query() -> Query<PaginationParams> {
         q: None,
         ids: None,
         source: None,
+        enriched: false,
     })
 }
 

@@ -33,6 +33,8 @@ fn make_local_source(id: &str, name: &str, path: PathBuf, priority: u32) -> Sour
         priority,
         auth_ref: None,
         strict_auth: false,
+        enriched: None,
+        load_all: false,
     }
 }
 

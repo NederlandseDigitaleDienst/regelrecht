@@ -177,6 +177,8 @@ impl CorpusRegistry {
     /// Uses the Trees API (1 call per GitHub source) to discover paths,
     /// then fetches only the files matching `law_ids`. This keeps startup
     /// fast and avoids burning rate limits on thousands of unused files.
+    /// A source marked `load_all` is the exception: it is small by design,
+    /// so every law in it is fetched.
     #[cfg(feature = "github")]
     pub async fn load_favorites_async(
         &self,
@@ -198,14 +200,25 @@ impl CorpusRegistry {
             map.laws().map(|l| l.law_id.clone()).collect();
         let missing: std::collections::HashSet<String> =
             law_ids.difference(&local_ids).cloned().collect();
+        let any_load_all = self
+            .sources
+            .iter()
+            .any(|s| s.load_all && matches!(s.source_type, SourceType::GitHub { .. }));
 
-        if missing.is_empty() {
+        if missing.is_empty() && !any_load_all {
             tracing::info!("all favorites available locally, skipping GitHub fetch");
             return Ok(map);
         }
 
         for source in &self.sources {
             if let SourceType::GitHub { github } = &source.source_type {
+                // A `load_all` source is fetched whole; any other only for the
+                // listed laws that no local source already provides.
+                let filter = if source.load_all {
+                    None
+                } else {
+                    Some(&missing)
+                };
                 let token = crate::auth::CredentialResolver::new(auth_file)
                     .resolve_source(source)?
                     .into_token();
@@ -213,7 +226,7 @@ impl CorpusRegistry {
                     &client,
                     github,
                     token.as_deref(),
-                    &missing,
+                    filter,
                     today,
                 )
                 .await?
