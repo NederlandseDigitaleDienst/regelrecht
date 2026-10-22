@@ -50,6 +50,7 @@ fn github_source(
         strict_auth,
         enriched: None,
         load_all: false,
+        library_only: false,
     }
 }
 

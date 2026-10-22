@@ -406,6 +406,7 @@ mod tests {
             strict_auth: false,
             enriched: None,
             load_all: false,
+            library_only: false,
         };
         let mut map = crate::source_map::SourceMap::new("2026-06-01");
         map.load_source(&source).expect("load local source");

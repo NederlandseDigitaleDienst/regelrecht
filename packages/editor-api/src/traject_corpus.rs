@@ -2350,6 +2350,7 @@ impl TrajectSourceRow {
             strict_auth: self.is_writable_own,
             enriched: None,
             load_all: false,
+            library_only: false,
         }
     }
 }
@@ -2957,6 +2958,7 @@ mod tests {
             strict_auth: false,
             enriched: None,
             load_all: false,
+            library_only: false,
         };
         let registry = CorpusRegistry::from_sources(vec![source.clone()]);
         let source_map = registry.load_local_sources("2026-06-01").unwrap();
