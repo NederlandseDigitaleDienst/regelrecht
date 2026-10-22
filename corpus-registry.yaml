@@ -11,4 +11,6 @@ sources:
       path: regulation/nl
     scopes: []
     priority: 2
+    # Text only on purpose: no law from here counts as enriched.
+    enriched: false
     # Auth by convention: CORPUS_AUTH_MINBZK_CENTRAL_TOKEN

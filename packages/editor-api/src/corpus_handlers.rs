@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -20,7 +21,8 @@ use regelrecht_corpus::annotation_sidecar::{self, LegacyFallback};
 use regelrecht_corpus::backend::{EditorUser, PersistOutcome, RepoBackend, WriteContext};
 use regelrecht_corpus::dto::{build_source_summaries, PaginationParams, SourceSummary};
 use regelrecht_corpus::source_map::{
-    collect_law_outputs, extract_law_id, validate_yaml_syntax, LoadedLaw, SourceMap,
+    collect_law_outputs, extract_date_from_path, extract_law_id, validate_yaml_syntax, LoadedLaw,
+    SourceMap,
 };
 use regelrecht_corpus::timing;
 use regelrecht_corpus::CorpusError;
@@ -93,6 +95,13 @@ pub struct CorpusLawEntry {
     /// value, so the traject's own writable repo (priority 0) sorts above
     /// the seeded central corpus.
     pub source_priority: u32,
+    /// Whether this version carries `machine_readable` content, from a source
+    /// not marked `enriched: false` in the registry.
+    pub enriched: bool,
+    /// When this version is not enriched but another version is: the date of
+    /// the newest such version, so the library can point to it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enriched_version: Option<String>,
 }
 
 /// A parameter required by the execution block that declares an output.
@@ -568,12 +577,49 @@ pub async fn list_traject_corpus_laws(
 }
 
 fn list_corpus_laws_in_scope(scope: &ReadScope, params: PaginationParams) -> Vec<CorpusLawEntry> {
-    filter_corpus_laws(&scope.corpus().source_map, &params)
+    let corpus = scope.corpus();
+    filter_corpus_laws(&corpus.source_map, &never_enriched_sources(corpus), &params)
+}
+
+/// Ids of the registry sources marked `enriched: false`: their laws never count
+/// as enriched, whatever their bodies say.
+fn never_enriched_sources(corpus: &CorpusState) -> HashSet<String> {
+    corpus
+        .registry
+        .sources()
+        .iter()
+        .filter(|s| s.enriched == Some(false))
+        .map(|s| s.id.clone())
+        .collect()
+}
+
+/// Whether one version counts as enriched (see [`CorpusLawEntry::enriched`]).
+fn is_enriched(law: &LoadedLaw, never_enriched: &HashSet<String>) -> bool {
+    law.has_machine_readable && !never_enriched.contains(&law.source_id)
+}
+
+/// For a current version that is not enriched: the date of the newest other
+/// version that is (see [`CorpusLawEntry::enriched_version`]).
+fn other_enriched_version(
+    source_map: &SourceMap,
+    current: &LoadedLaw,
+    never_enriched: &HashSet<String>,
+) -> Option<String> {
+    source_map
+        .get_law_versions(&current.law_id)?
+        .iter()
+        .filter(|v| v.file_path != current.file_path && is_enriched(v, never_enriched))
+        .filter_map(|v| extract_date_from_path(&v.file_path))
+        .max()
 }
 
 /// The pure body of [`list_corpus_laws_in_scope`], split out so the filter
 /// precedence can be tested without an axum/session/DB harness.
-fn filter_corpus_laws(source_map: &SourceMap, params: &PaginationParams) -> Vec<CorpusLawEntry> {
+fn filter_corpus_laws(
+    source_map: &SourceMap,
+    never_enriched: &HashSet<String>,
+    params: &PaginationParams,
+) -> Vec<CorpusLawEntry> {
     let limit = params.effective_limit();
 
     // Exact-id filter (highest precedence). The library sidebar sends the
@@ -621,6 +667,9 @@ fn filter_corpus_laws(source_map: &SourceMap, params: &PaginationParams) -> Vec<
                     return false;
                 }
             }
+            if params.enriched && !is_enriched(law, never_enriched) {
+                return false;
+            }
             if let Some(ids) = &id_filter {
                 return ids.contains(law.law_id.as_str());
             }
@@ -635,16 +684,25 @@ fn filter_corpus_laws(source_map: &SourceMap, params: &PaginationParams) -> Vec<
                 }
             }
         })
-        .map(|law| CorpusLawEntry {
-            law_id: law.law_id.clone(),
-            name: law.name.clone(),
-            // Precomputed at index/load time (see `LoadedLaw::display_name`)
-            // so the unfiltered list doesn't re-scan every law body — let
-            // alone fully re-parse the `name: '#ref'` ones — per page load.
-            display_name: law.display_name.clone(),
-            source_id: law.source_id.clone(),
-            source_name: law.source_name.clone(),
-            source_priority: law.source_priority,
+        .map(|law| {
+            let enriched = is_enriched(law, never_enriched);
+            CorpusLawEntry {
+                law_id: law.law_id.clone(),
+                name: law.name.clone(),
+                // Precomputed at index/load time (see `LoadedLaw::display_name`)
+                // so the unfiltered list doesn't re-scan every law body — let
+                // alone fully re-parse the `name: '#ref'` ones — per page load.
+                display_name: law.display_name.clone(),
+                source_id: law.source_id.clone(),
+                source_name: law.source_name.clone(),
+                source_priority: law.source_priority,
+                enriched,
+                enriched_version: if enriched {
+                    None
+                } else {
+                    other_enriched_version(source_map, law, never_enriched)
+                },
+            }
         })
         .collect();
 
@@ -3011,7 +3069,7 @@ pub async fn reload_corpus(
         }
     }
 
-    let new_map = registry
+    let mut new_map = registry
         .load_favorites_async(
             &law_ids,
             auth_file.as_deref(),
@@ -3025,6 +3083,8 @@ pub async fn reload_corpus(
                 "Failed to reload corpus".to_string(),
             )
         })?;
+    // Same rule as at startup (`init_corpus`): the version in force is current.
+    new_map.prefer_version_in_force();
 
     let law_count = new_map.len();
     {
@@ -5299,6 +5359,7 @@ mod tests {
             q: q.map(str::to_string),
             ids: ids.map(str::to_string),
             source: source.map(str::to_string),
+            enriched: false,
         }
     }
 
@@ -5308,13 +5369,97 @@ mod tests {
         ids
     }
 
+    /// A Corpus juris with an example source (priority 1) next to the central
+    /// corpus (priority 2, marked `enriched: false` by the caller):
+    /// - `wet_a`: example 2025 version enriched, central 2026 version text only
+    /// - `wet_c`: central only, with `machine_readable` it must not get credit for
+    /// - `wet_d`: example only, enriched
+    fn enriched_map() -> SourceMap {
+        const TEXT: &str = "$id: {id}\narticles:\n  - number: '1'\n    text: tekst\n";
+        const MACHINE: &str = "$id: {id}\narticles:\n  - number: '1'\n    text: tekst\n    machine_readable:\n      execution:\n        output: []\n";
+        let mut map = SourceMap::new("2026-06-01");
+        for (id, date, source, priority, body) in [
+            ("wet_a", "2025-01-01", "example", 1, MACHINE),
+            ("wet_a", "2026-01-01", "central", 2, TEXT),
+            ("wet_c", "2025-01-01", "central", 2, MACHINE),
+            ("wet_d", "2025-01-01", "example", 1, MACHINE),
+        ] {
+            map.load_fetched_file(
+                &body.replace("{id}", id),
+                &format!("wet/{id}/{date}.yaml"),
+                None,
+                source,
+                source,
+                priority,
+            )
+            .unwrap();
+        }
+        map.prefer_version_in_force();
+        map
+    }
+
+    fn central_never_enriched() -> HashSet<String> {
+        HashSet::from(["central".to_string()])
+    }
+
+    #[test]
+    fn list_entry_points_to_an_older_enriched_version() {
+        let map = enriched_map();
+        let entries =
+            filter_corpus_laws(&map, &central_never_enriched(), &params(None, None, None));
+        let wet_a = entries.iter().find(|e| e.law_id == "wet_a").unwrap();
+        // The central 2026 version is in force, and it is text only...
+        assert_eq!(wet_a.source_id, "central");
+        assert!(!wet_a.enriched);
+        // ...but the example's 2025 version has a machine version.
+        assert_eq!(wet_a.enriched_version.as_deref(), Some("2025-01-01"));
+    }
+
+    #[test]
+    fn a_source_marked_never_enriched_gets_no_credit_for_its_bodies() {
+        let map = enriched_map();
+        let entries =
+            filter_corpus_laws(&map, &central_never_enriched(), &params(None, None, None));
+        let wet_c = entries.iter().find(|e| e.law_id == "wet_c").unwrap();
+        assert!(!wet_c.enriched);
+        assert_eq!(wet_c.enriched_version, None);
+        // Without the registry flag the same body would count.
+        let entries = filter_corpus_laws(&map, &HashSet::new(), &params(None, None, None));
+        assert!(
+            entries
+                .iter()
+                .find(|e| e.law_id == "wet_c")
+                .unwrap()
+                .enriched
+        );
+    }
+
+    #[test]
+    fn enriched_filter_keeps_only_laws_whose_current_version_is_enriched() {
+        let map = enriched_map();
+        let mut only_enriched = params(None, None, None);
+        only_enriched.enriched = true;
+        assert_eq!(
+            law_ids(filter_corpus_laws(
+                &map,
+                &central_never_enriched(),
+                &only_enriched
+            )),
+            vec!["wet_d".to_string()]
+        );
+    }
+
     #[test]
     fn source_filter_returns_only_that_sources_laws() {
         // Wat de bibliotheek-sidebar stuurt voor de sectie "Traject":
         // alleen de eigen bron, niet het gefedereerde corpus.
         let map = two_source_map();
         assert_eq!(
-            law_ids(filter_corpus_laws(&map, &params(Some("own"), None, None))),
+            law_ids(filter_corpus_laws(
+                &map,
+                &HashSet::new(),
+                &params(Some("own"), None, None)
+            )),
             vec!["wet_alpha".to_string(), "wet_beta".to_string()]
         );
     }
@@ -5324,7 +5469,12 @@ mod tests {
         // Een bron-id dat niet in deze index bestaat filtert alles weg —
         // geen stille terugval op de volledige lijst.
         let map = two_source_map();
-        assert!(filter_corpus_laws(&map, &params(Some("bestaat-niet"), None, None)).is_empty());
+        assert!(filter_corpus_laws(
+            &map,
+            &HashSet::new(),
+            &params(Some("bestaat-niet"), None, None)
+        )
+        .is_empty());
     }
 
     #[test]
@@ -5333,11 +5483,19 @@ mod tests {
         // géén bron-id dat nergens op matcht — het wordt genormaliseerd naar
         // "geen filter", zodat een leeg queryveld de lijst niet leegt.
         let map = two_source_map();
-        let full = law_ids(filter_corpus_laws(&map, &params(None, None, None)));
+        let full = law_ids(filter_corpus_laws(
+            &map,
+            &HashSet::new(),
+            &params(None, None, None),
+        ));
         assert!(!full.is_empty());
         for blank in ["", "   "] {
             assert_eq!(
-                law_ids(filter_corpus_laws(&map, &params(Some(blank), None, None))),
+                law_ids(filter_corpus_laws(
+                    &map,
+                    &HashSet::new(),
+                    &params(Some(blank), None, None)
+                )),
                 full,
                 "een lege `source` hoort zich als een afwezige te gedragen"
             );
@@ -5350,7 +5508,11 @@ mod tests {
         // afwezige `source` mag niets veranderen aan wat er vandaag uitkomt.
         let map = two_source_map();
         assert_eq!(
-            law_ids(filter_corpus_laws(&map, &params(None, None, None))),
+            law_ids(filter_corpus_laws(
+                &map,
+                &HashSet::new(),
+                &params(None, None, None)
+            )),
             vec![
                 "wet_alpha".to_string(),
                 "wet_beta".to_string(),
@@ -5361,12 +5523,17 @@ mod tests {
         assert_eq!(
             law_ids(filter_corpus_laws(
                 &map,
+                &HashSet::new(),
                 &params(None, Some("wet_gamma"), None)
             )),
             vec!["wet_gamma".to_string()]
         );
         assert_eq!(
-            law_ids(filter_corpus_laws(&map, &params(None, None, Some("alpha")))),
+            law_ids(filter_corpus_laws(
+                &map,
+                &HashSet::new(),
+                &params(None, None, Some("alpha"))
+            )),
             vec!["wet_alpha".to_string()]
         );
     }
@@ -5382,6 +5549,7 @@ mod tests {
         assert_eq!(
             law_ids(filter_corpus_laws(
                 &map,
+                &HashSet::new(),
                 &params(Some("own"), Some("wet_alpha,wet_gamma"), None)
             )),
             vec!["wet_alpha".to_string()]
@@ -5391,6 +5559,7 @@ mod tests {
         assert_eq!(
             law_ids(filter_corpus_laws(
                 &map,
+                &HashSet::new(),
                 &params(Some("own"), None, Some("wet"))
             )),
             vec!["wet_alpha".to_string(), "wet_beta".to_string()]
@@ -5401,6 +5570,7 @@ mod tests {
         assert_eq!(
             law_ids(filter_corpus_laws(
                 &map,
+                &HashSet::new(),
                 &params(Some("own"), Some("wet_beta"), Some("alpha"))
             )),
             vec!["wet_beta".to_string()]
@@ -5414,10 +5584,11 @@ mod tests {
         // niet op (die sorteert op weergavenaam), maar de volgorde moet
         // deterministisch zijn.
         let map = two_source_map();
-        let ids: Vec<String> = filter_corpus_laws(&map, &params(Some("own"), None, None))
-            .into_iter()
-            .map(|e| e.law_id)
-            .collect();
+        let ids: Vec<String> =
+            filter_corpus_laws(&map, &HashSet::new(), &params(Some("own"), None, None))
+                .into_iter()
+                .map(|e| e.law_id)
+                .collect();
         assert_eq!(ids, vec!["wet_alpha".to_string(), "wet_beta".to_string()]);
     }
 

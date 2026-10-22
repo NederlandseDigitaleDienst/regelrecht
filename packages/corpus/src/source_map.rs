@@ -28,6 +28,9 @@ pub struct LoadedLaw {
     /// Precomputed so "who implements law X" reverse lookups don't
     /// re-parse every law body per request.
     pub implements: Vec<String>,
+    /// Whether any article carries a `machine_readable` section, computed once
+    /// at load time. `false` for metadata-only entries, whose body is unknown.
+    pub has_machine_readable: bool,
     /// The raw YAML content.
     pub yaml_content: String,
     /// Path to the source file. For local sources this is the absolute path
@@ -99,6 +102,12 @@ pub struct SourceMap {
     /// answer is a Dutch calendar date (`regelrecht_shared::dates`), not the
     /// timezone of whichever machine happens to run the scan.
     reference_date: String,
+    /// How [`laws`](Self::laws) picks a law's current version when sources
+    /// overlap. `false` (the default): the highest-priority source supplies it,
+    /// whatever the dates. `true`: the version in force on `reference_date`
+    /// wins across sources, and priority only decides between two sources that
+    /// supply the same date. See [`Self::prefer_version_in_force`].
+    version_in_force_first: bool,
 }
 
 /// Record of a conflict that was resolved by priority.
@@ -119,6 +128,54 @@ impl SourceMap {
             versions: HashMap::new(),
             resolved_conflicts: Vec::new(),
             reference_date: reference_date.into(),
+            version_in_force_first: false,
+        }
+    }
+
+    /// Let the date decide a law's current version across sources, instead of
+    /// source priority.
+    ///
+    /// RFC-010's priority settles which source supplies a *version*; a version
+    /// for another date is a different version, not the same law twice. So a
+    /// source with an older version no longer hides a newer one from a
+    /// lower-priority source: the version in force on the reference date is
+    /// current, and priority still picks between two sources for one date (a
+    /// local override of the same version keeps working). The version set the
+    /// engine loads ([`Self::get_law_versions`]) already worked this way; this
+    /// makes the single current version agree with it.
+    ///
+    /// Re-derives every current version from the version set, so it can be
+    /// called after loading. Laws inserted later follow the same rule.
+    pub fn prefer_version_in_force(&mut self) {
+        self.version_in_force_first = true;
+        let ids: Vec<String> = self.versions.keys().cloned().collect();
+        for id in ids {
+            self.refresh_current_version(&id);
+        }
+    }
+
+    /// Set `laws[law_id]` to the version in force on the reference date, taken
+    /// from the merged version set (where priority already settled each date).
+    fn refresh_current_version(&mut self, law_id: &str) {
+        let Some(entries) = self.versions.get(law_id) else {
+            return;
+        };
+        let mut best: Option<&LoadedLaw> = None;
+        for candidate in entries {
+            let wins = match best {
+                None => true,
+                Some(current) => pick_best_version(
+                    extract_date_from_path(&current.file_path).as_deref(),
+                    extract_date_from_path(&candidate.file_path).as_deref(),
+                    &self.reference_date,
+                ),
+            };
+            if wins {
+                best = Some(candidate);
+            }
+        }
+        if let Some(best) = best.cloned() {
+            self.laws.insert(law_id.to_string(), best);
         }
     }
 
@@ -187,7 +244,7 @@ impl SourceMap {
             };
 
             let name = extract_law_name(&content);
-            let (display_name, implements) = derive_loaded_fields(&content);
+            let (display_name, implements, has_machine_readable) = derive_loaded_fields(&content);
 
             // Compute the path relative to the source root so that writes
             // can address the file via the backend without re-deriving the
@@ -202,6 +259,7 @@ impl SourceMap {
                 name,
                 display_name,
                 implements,
+                has_machine_readable,
                 yaml_content: content,
                 file_path: path.display().to_string(),
                 relative_path,
@@ -225,8 +283,45 @@ impl SourceMap {
     ///   `valid_from` date (from the filename) is closest to today without
     ///   exceeding it. If no version is currently valid, keep the latest.
     /// - **Different sources**: this is still a hard error (ambiguous ownership).
+    ///
+    /// After [`Self::prefer_version_in_force`], the current version comes from
+    /// the merged version set instead; see there.
     fn insert(&mut self, law: LoadedLaw) -> Result<()> {
         let law_id = law.law_id.clone();
+
+        if self.version_in_force_first {
+            // Two sources at equal priority stay an error, as RFC-010 asks,
+            // whichever of their versions happens to be current.
+            if let Some(other) = self.versions.get(&law_id).and_then(|vs| {
+                vs.iter().find(|v| {
+                    v.source_priority == law.source_priority && v.source_id != law.source_id
+                })
+            }) {
+                return Err(CorpusError::Config(format!(
+                    "Conflict: law '{}' provided by both '{}' and '{}' with equal priority {}",
+                    law_id, other.source_id, law.source_id, law.source_priority
+                )));
+            }
+            if let Some(existing) = self.laws.get(&law_id) {
+                if existing.source_id != law.source_id {
+                    let (winner, loser) = if law.source_priority < existing.source_priority {
+                        (&law, existing)
+                    } else {
+                        (existing, &law)
+                    };
+                    self.resolved_conflicts.push(ConflictResolution {
+                        law_id: law_id.clone(),
+                        winner_source_id: winner.source_id.clone(),
+                        winner_priority: winner.source_priority,
+                        loser_source_id: loser.source_id.clone(),
+                        loser_priority: loser.source_priority,
+                    });
+                }
+            }
+            self.insert_version(law);
+            self.refresh_current_version(&law_id);
+            return Ok(());
+        }
 
         // Record every version (independent of the single-best collapse below)
         // so the scenario loader can feed the engine the full set.
@@ -360,7 +455,7 @@ impl SourceMap {
         };
 
         let name = extract_law_name(content);
-        let (display_name, implements) = derive_loaded_fields(content);
+        let (display_name, implements, has_machine_readable) = derive_loaded_fields(content);
 
         // Strip the source's in-repo subpath so the stored relative path is
         // relative to the source root, matching the on-disk layout the
@@ -381,6 +476,7 @@ impl SourceMap {
             name,
             display_name,
             implements,
+            has_machine_readable,
             yaml_content: content.to_string(),
             file_path: file_path.to_string(),
             relative_path,
@@ -432,6 +528,7 @@ impl SourceMap {
             name: None,
             display_name: None,
             implements: Vec::new(),
+            has_machine_readable: false,
             yaml_content: String::new(),
             file_path: file_path.to_string(),
             relative_path,
@@ -490,20 +587,28 @@ impl SourceMap {
         // no-op, so don't pay for header parsing on that path. The borrow on
         // `laws` is released at the end of the block so the `versions` entry
         // (which reuses the derived fields) can be updated next.
-        let (file_path, name, display_name, implements) = {
+        let (file_path, name, display_name, implements, has_machine_readable) = {
             let Some(law) = self.laws.get_mut(law_id) else {
                 return false;
             };
             let name = extract_law_name(&new_content);
-            let (display_name, implements) = derive_loaded_fields(&new_content);
+            let (display_name, implements, has_machine_readable) =
+                derive_loaded_fields(&new_content);
             law.name = name.clone();
             law.display_name = display_name.clone();
             law.implements = implements.clone();
+            law.has_machine_readable = has_machine_readable;
             law.yaml_content = new_content.clone();
             // The in-memory content no longer matches the blob the source
             // enumeration reported — drop the stale content identity.
             law.content_sha = None;
-            (law.file_path.clone(), name, display_name, implements)
+            (
+                law.file_path.clone(),
+                name,
+                display_name,
+                implements,
+                has_machine_readable,
+            )
         };
 
         // Keep the matching version entry coherent with the edited body so the
@@ -513,6 +618,7 @@ impl SourceMap {
                 v.name = name;
                 v.display_name = display_name;
                 v.implements = implements;
+                v.has_machine_readable = has_machine_readable;
                 v.yaml_content = new_content;
                 v.content_sha = None;
             }
@@ -544,7 +650,7 @@ impl SourceMap {
 /// sorts against real dates by accident: `2025-01-01-concept` is greater than
 /// `2025-01-01` and would win. Returning `None` keeps such a file out of the
 /// running instead.
-pub(crate) fn extract_date_from_path(path: &str) -> Option<String> {
+pub fn extract_date_from_path(path: &str) -> Option<String> {
     let filename = path.rsplit('/').next().unwrap_or(path);
     let stem = filename.strip_suffix(".yaml")?;
     let bytes = stem.as_bytes();
@@ -744,17 +850,17 @@ fn resolve_name_reference(doc: &LawDoc, reference: &str) -> Option<String> {
 }
 
 /// Compute the content-derived [`LoadedLaw`] fields (`display_name`,
-/// `implements`) with a single YAML parse. Called once per law at load /
-/// update time so the read paths never have to re-parse bodies per
-/// request. Returns `(None, vec![])` for unparseable content — the same
-/// degraded result the per-request resolvers used to produce.
-fn derive_loaded_fields(yaml: &str) -> (Option<String>, Vec<String>) {
+/// `implements`, `has_machine_readable`) with a single YAML parse. Called once
+/// per law at load / update time so the read paths never have to re-parse
+/// bodies per request. Returns `(name, vec![], false)` for unparseable content,
+/// the same degraded result the per-request resolvers used to produce.
+fn derive_loaded_fields(yaml: &str) -> (Option<String>, Vec<String>, bool) {
     // `implements` always needs the parsed doc; the display name only
     // does for `name: '#ref'` laws, but sharing one parse keeps this a
     // single pass either way.
     let doc: LawDoc = match serde_yaml_ng::from_str(yaml) {
         Ok(d) => d,
-        Err(_) => return (extract_law_name(yaml), Vec::new()),
+        Err(_) => return (extract_law_name(yaml), Vec::new(), false),
     };
     // Resolve the display name from the already-parsed `name` field rather
     // than re-scanning the raw string: a literal name is used as-is, a
@@ -767,7 +873,12 @@ fn derive_loaded_fields(yaml: &str) -> (Option<String>, Vec<String>) {
             None => None,
         }
     });
-    (display_name, collect_implements_from_doc(&doc))
+    let has_machine_readable = doc.articles.iter().any(|a| a.machine_readable.is_some());
+    (
+        display_name,
+        collect_implements_from_doc(&doc),
+        has_machine_readable,
+    )
 }
 
 /// A collected output with the parameters required by its article's execution block.
@@ -1013,6 +1124,8 @@ mod tests {
             priority,
             auth_ref: None,
             strict_auth: false,
+            enriched: None,
+            load_all: false,
         }
     }
 
@@ -1373,6 +1486,88 @@ mod tests {
             versions.iter().any(|v| v.file_path.contains("2099-01-01")),
             "central's future version must be kept regardless of index order"
         );
+    }
+
+    #[test]
+    fn test_version_in_force_beats_priority_across_sources() {
+        // An example source (priority 1) holds an older version; the central
+        // corpus (priority 2) a newer one. By date the newer one is the law.
+        let example_dir = TempDir::new().unwrap();
+        let central_dir = TempDir::new().unwrap();
+        write_yaml(example_dir.path(), "wet/my_law/2025-01-01.yaml", "my_law");
+        write_yaml(central_dir.path(), "wet/my_law/2026-01-01.yaml", "my_law");
+
+        let example = make_source("example", "Example", example_dir.path(), 1);
+        let central = make_source("central", "Central", central_dir.path(), 2);
+
+        // Priority first (the default): the example's older version.
+        let mut map = SourceMap::new("2026-06-01");
+        map.load_source(&example).unwrap();
+        map.load_source(&central).unwrap();
+        assert_eq!(map.get_law("my_law").unwrap().source_id, "example");
+
+        // Version in force first: central's newer version, the older one kept.
+        map.prefer_version_in_force();
+        let law = map.get_law("my_law").unwrap();
+        assert_eq!(law.source_id, "central");
+        assert!(law.file_path.contains("2026-01-01"));
+        assert_eq!(map.get_law_versions("my_law").unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_version_in_force_keeps_priority_for_the_same_date() {
+        // A local override of the same version still wins.
+        let local_dir = TempDir::new().unwrap();
+        let central_dir = TempDir::new().unwrap();
+        write_yaml(local_dir.path(), "wet/my_law/2025-01-01.yaml", "my_law");
+        write_yaml(central_dir.path(), "wet/my_law/2025-01-01.yaml", "my_law");
+
+        let local = make_source("local", "Local", local_dir.path(), 1);
+        let central = make_source("central", "Central", central_dir.path(), 2);
+
+        let mut map = SourceMap::new("2026-06-01");
+        map.prefer_version_in_force();
+        map.load_source(&central).unwrap();
+        map.load_source(&local).unwrap();
+
+        assert_eq!(map.get_law("my_law").unwrap().source_id, "local");
+        assert_eq!(map.resolved_conflicts().len(), 1);
+    }
+
+    #[test]
+    fn test_version_in_force_ignores_a_future_version() {
+        // A version that is not in force yet does not become current.
+        let local_dir = TempDir::new().unwrap();
+        let central_dir = TempDir::new().unwrap();
+        write_yaml(local_dir.path(), "wet/my_law/2025-01-01.yaml", "my_law");
+        write_yaml(central_dir.path(), "wet/my_law/2099-01-01.yaml", "my_law");
+
+        let local = make_source("local", "Local", local_dir.path(), 2);
+        let central = make_source("central", "Central", central_dir.path(), 1);
+
+        let mut map = SourceMap::new("2026-06-01");
+        map.prefer_version_in_force();
+        map.load_source(&central).unwrap();
+        map.load_source(&local).unwrap();
+
+        assert_eq!(map.get_law("my_law").unwrap().source_id, "local");
+    }
+
+    #[test]
+    fn test_version_in_force_still_rejects_equal_priority() {
+        let dir_a = TempDir::new().unwrap();
+        let dir_b = TempDir::new().unwrap();
+        write_yaml(dir_a.path(), "wet/dup/2025-01-01.yaml", "dup_law");
+        write_yaml(dir_b.path(), "wet/dup/2026-01-01.yaml", "dup_law");
+
+        let source_a = make_source("source-a", "Source A", dir_a.path(), 5);
+        let source_b = make_source("source-b", "Source B", dir_b.path(), 5);
+
+        let mut map = SourceMap::new("2026-06-01");
+        map.prefer_version_in_force();
+        map.load_source(&source_a).unwrap();
+        let err = map.load_source(&source_b).unwrap_err().to_string();
+        assert!(err.contains("equal priority"));
     }
 
     #[test]

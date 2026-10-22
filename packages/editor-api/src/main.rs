@@ -788,7 +788,7 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
     };
 
     let today = regelrecht_shared::dates::today_str();
-    let source_map = match registry
+    let mut source_map = match registry
         .load_favorites_async(favorites, auth_file, &today)
         .await
     {
@@ -810,6 +810,11 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
             }
         }
     };
+
+    // Corpus juris shows the version in force, whichever source supplies it;
+    // priority only settles two sources for the same version (RFC-010).
+    // Trajecten keep priority first: their own repo must stay current there.
+    source_map.prefer_version_in_force();
 
     let backends = init_backends(&registry, auth_file).await;
 

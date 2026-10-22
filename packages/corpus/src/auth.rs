@@ -524,6 +524,8 @@ sources:
             priority: 0,
             auth_ref: Some(auth_ref.to_string()),
             strict_auth,
+            enriched: None,
+            load_all: false,
         }
     }
 

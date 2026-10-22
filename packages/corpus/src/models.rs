@@ -30,6 +30,18 @@ pub struct Source {
     /// format; operator-managed manifest sources default to `false`.
     #[serde(default)]
     pub strict_auth: bool,
+    /// Whether this source's laws can carry `machine_readable` content.
+    /// `Some(false)` says they never do: the editor then reports none of them
+    /// as enriched without reading their bodies (the central corpus, which is
+    /// text only on purpose and too large to scan). Absent, each law is
+    /// judged by its own body once that body is loaded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enriched: Option<bool>,
+    /// Load every law of this source into the public library, not only the
+    /// listed ones (`favorites.json`). Meant for a small source, such as a
+    /// repository of example rulework. Trajecten index every source anyway.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub load_all: bool,
 }
 
 /// Source type discriminator with configuration.
@@ -223,6 +235,8 @@ sources:
                 priority: 5,
                 auth_ref: None,
                 strict_auth: false,
+                enriched: None,
+                load_all: false,
             }],
         };
 
