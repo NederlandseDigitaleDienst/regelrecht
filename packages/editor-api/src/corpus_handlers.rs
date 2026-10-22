@@ -549,13 +549,14 @@ fn list_sources_in_scope(scope: &ReadScope) -> Vec<SourceSummary> {
 /// GET /api/corpus/laws — list loaded laws with source metadata (global view).
 ///
 /// Supports pagination via `?offset=0&limit=100`. Default limit is 100,
-/// maximum is 1000.
+/// maximum is 1000. The `X-Total-Count` header carries the number of matching
+/// laws before the limit, so a paged list knows how many pages there are.
 pub async fn list_corpus_laws(
     State(state): State<AppState>,
     Query(params): Query<PaginationParams>,
-) -> Result<Json<Vec<CorpusLawEntry>>, (StatusCode, String)> {
+) -> Result<CorpusLawsResponse, (StatusCode, String)> {
     let scope = global_scope(&state).await;
-    Ok(Json(list_corpus_laws_in_scope(&scope, params)))
+    Ok(list_corpus_laws_in_scope(&scope, params))
 }
 
 /// GET /api/trajects/{traject_id}/corpus/laws — same as `/api/corpus/laws`
@@ -567,18 +568,38 @@ pub async fn list_traject_corpus_laws(
     Path(traject_ref): Path<String>,
     Query(params): Query<PaginationParams>,
     headers: axum::http::HeaderMap,
-) -> Result<Json<Vec<CorpusLawEntry>>, (StatusCode, String)> {
+) -> Result<CorpusLawsResponse, (StatusCode, String)> {
     let scope = require_traject_scope(&state, &session, &account, &headers, &traject_ref).await?;
     // No silent central-only fallback: a traject whose own repo couldn't
     // be scanned fails this listing loudly, with the cause classified and
     // the status that fits it.
     require_traject_index(&scope).await?;
-    Ok(Json(list_corpus_laws_in_scope(&scope, params)))
+    Ok(list_corpus_laws_in_scope(&scope, params))
 }
 
-fn list_corpus_laws_in_scope(scope: &ReadScope, params: PaginationParams) -> Vec<CorpusLawEntry> {
+/// A page of the law list (`.0`) and the number of matching laws before the
+/// limit (`.1`), which goes out as the `X-Total-Count` header.
+#[derive(Debug)]
+pub struct CorpusLawsResponse(pub Vec<CorpusLawEntry>, pub usize);
+
+impl axum::response::IntoResponse for CorpusLawsResponse {
+    fn into_response(self) -> axum::response::Response {
+        (
+            [(
+                axum::http::HeaderName::from_static("x-total-count"),
+                self.1.to_string(),
+            )],
+            Json(self.0),
+        )
+            .into_response()
+    }
+}
+
+fn list_corpus_laws_in_scope(scope: &ReadScope, params: PaginationParams) -> CorpusLawsResponse {
     let corpus = scope.corpus();
-    filter_corpus_laws(&corpus.source_map, &never_enriched_sources(corpus), &params)
+    let (entries, total) =
+        filter_corpus_laws_counted(&corpus.source_map, &never_enriched_sources(corpus), &params);
+    CorpusLawsResponse(entries, total)
 }
 
 /// Ids of the registry sources marked `enriched: false`: their laws never count
@@ -615,11 +636,21 @@ fn other_enriched_version(
 
 /// The pure body of [`list_corpus_laws_in_scope`], split out so the filter
 /// precedence can be tested without an axum/session/DB harness.
+#[cfg(test)]
 fn filter_corpus_laws(
     source_map: &SourceMap,
     never_enriched: &HashSet<String>,
     params: &PaginationParams,
 ) -> Vec<CorpusLawEntry> {
+    filter_corpus_laws_counted(source_map, never_enriched, params).0
+}
+
+/// [`filter_corpus_laws`] plus the number of matching laws before the limit.
+fn filter_corpus_laws_counted(
+    source_map: &SourceMap,
+    never_enriched: &HashSet<String>,
+    params: &PaginationParams,
+) -> (Vec<CorpusLawEntry>, usize) {
     let limit = params.effective_limit();
 
     // Exact-id filter (highest precedence). The library sidebar sends the
@@ -706,7 +737,8 @@ fn filter_corpus_laws(
         })
         .collect();
 
-    if id_filter.is_some() || needle.is_some() || source_filter.is_some() {
+    let total = entries.len();
+    let page = if id_filter.is_some() || needle.is_some() || source_filter.is_some() {
         // Filtered (by ids, search or source): order so the grouped UI gets
         // the highest-priority sources first (the traject's own repo before
         // the central corpus), and the result cap can't starve a
@@ -724,7 +756,8 @@ fn filter_corpus_laws(
             .skip(params.offset)
             .take(limit)
             .collect()
-    }
+    };
+    (page, total)
 }
 
 /// GET /api/trajects/{traject_ref}/corpus/changed-laws — law ids that have

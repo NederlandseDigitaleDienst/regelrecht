@@ -8,6 +8,7 @@ import { useBwbHarvest } from '../composables/useBwbHarvest';
 import { useAuth } from '../composables/useAuth';
 import { useTrajects } from '../composables/useTrajects';
 import { lawsListUrl } from '../composables/corpusUrls';
+import { enrichedOnly } from '../composables/useLawOverview';
 import { apiFetchJson } from '../lib/apiFetch';
 import { useLatest } from '../lib/useLatest';
 import { SEARCH_PLACEHOLDER, SEARCH_ACCESSIBLE_LABEL } from '../constants';
@@ -110,11 +111,22 @@ const sortedLaws = computed(() =>
 const claimSearch = useLatest();
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-watch(search, (q) => {
+// The "only enriched" filter (shared with the Corpus juris overview) applies
+// straight away: with a term it narrows the matches, without one it lists the
+// enriched laws, since there are few and that is what someone ticking it wants.
+watch(enrichedOnly, () => runQuery(search.value));
+watch(search, runQuery);
+
+function runQuery(q: string) {
   clearBwb();
   searchFailed.value = false;
   if (debounceTimer) clearTimeout(debounceTimer);
   const term = q.trim();
+  if (enrichedOnly.value && term.length === 0) {
+    searching.value = true;
+    debounceTimer = setTimeout(() => runCorpusSearch(''), 0);
+    return;
+  }
   if (term.length < MIN_QUERY_LENGTH) {
     // Claim (and discard) a generation so any fetch already in flight
     // (debounce fired before this clear) is discarded when it resolves -
@@ -127,19 +139,24 @@ watch(search, (q) => {
   }
   searching.value = true;
   debounceTimer = setTimeout(() => runCorpusSearch(term), 200);
-});
+}
 
 async function runCorpusSearch(term: string) {
   const isCurrent = claimSearch();
   try {
-    const url = lawsListUrl(activeTrajectRef.value, `q=${encodeURIComponent(term)}&limit=60`);
+    const query = [term ? `q=${encodeURIComponent(term)}` : '', 'limit=60', enrichedOnly.value ? 'enriched=true' : '']
+      .filter(Boolean)
+      .join('&');
+    const url = lawsListUrl(activeTrajectRef.value, query);
     const laws = await apiFetchJson<CorpusLaw[]>(url);
     if (!isCurrent()) return; // a newer query superseded this one
     serverLaws.value = laws;
     searchFailed.value = false;
     // No match anywhere in the corpus → offer the external wetten.overheid.nl
     // search (unless the user must log in first to reach it).
-    if (laws.length === 0 && !needsLogin.value) searchBwb(term);
+    // Not while filtering on enriched laws: a law missing from that list is
+    // usually in the corpus, just without a machine version.
+    if (laws.length === 0 && !needsLogin.value && !enrichedOnly.value) searchBwb(term);
   } catch {
     // Backend error (500/503/…) or network failure. Surface it rather than
     // letting the empty result cascade to the external wetten.overheid.nl
@@ -151,6 +168,10 @@ async function runCorpusSearch(term: string) {
   } finally {
     if (isCurrent()) searching.value = false;
   }
+}
+
+function onEnrichedChange(event: Event) {
+  enrichedOnly.value = !!(event as CustomEvent<{ checked?: boolean } | undefined>).detail?.checked;
 }
 
 function bwbItemClick(result: BwbSearchResult) {
@@ -437,6 +458,14 @@ defineExpose({ show });
              blijven staan. Weghalen zodra de listbox zijn zoekveld zelf houdt. -->
         <nldd-list-item hidden></nldd-list-item>
 
+        <nldd-checkbox-field
+          slot="toolbar"
+          data-testid="search-enriched-filter"
+          label="Alleen verrijkte regelwerken"
+          :checked="enrichedOnly || undefined"
+          @change="onEnrichedChange"
+        ></nldd-checkbox-field>
+
         <!-- Op md anchort de popover naast de trigger - naast de popover
              klikken sluit 'm. Op sm (full-height sheet) en lg (centered
              overlay) heeft de gebruiker een expliciete sluit-knop nodig. -->
@@ -504,7 +533,7 @@ defineExpose({ show });
             supporting-text="De regelwerken konden niet worden doorzocht. Probeer het opnieuw."
           ></nldd-inline-dialog>
           <nldd-inline-dialog
-            v-else-if="needsLogin && searchTerm.length >= MIN_QUERY_LENGTH"
+            v-else-if="needsLogin && !enrichedOnly && searchTerm.length >= MIN_QUERY_LENGTH"
             icon="login"
             text="Log in om externe bronnen te doorzoeken"
             supporting-text="Inloggen is vereist om wetten op te halen van wetten.overheid.nl"

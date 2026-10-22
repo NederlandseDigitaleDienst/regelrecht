@@ -22,6 +22,7 @@ import InviteMembersSheet from './components/InviteMembersSheet.vue';
 import TasksCategoriesPane from './components/TasksCategoriesPane.vue';
 import TasksListPane from './components/TasksListPane.vue';
 import TasksSidebarItem from './components/TasksSidebarItem.vue';
+import LawOverviewPane from './components/LawOverviewPane.vue';
 import UploadConfirmDialog from './components/UploadConfirmDialog.vue';
 import { useAuth, ensureAuthReady } from './composables/useAuth';
 import {
@@ -556,8 +557,19 @@ const instellingenTab = computed(
 // empty-library and, crucially, the index-error takeover) can't drift apart:
 // a failed corpus index must only take over the library itself, never /taken,
 // /instellingen or /werkdocumenten, which don't read the wettenindex at all.
+// "Alle regelwerken" in Corpus juris: the overview in the secondary sidebar
+// (LawOverviewPane). It loads its own page of laws, so like the traject modes
+// it is not "library mode" and an index error does not take it over.
+const isOverviewMode = computed(() => route.name === 'corpus-overview');
+function goToOverview(): void {
+  router.push({ name: 'corpus-overview' });
+}
+function openLawFromOverview(lawId: string): void {
+  router.push({ name: 'corpus-juris', params: { lawId } });
+}
+
 const isLibraryMode = computed(
-  () => !isWerkdocMode.value && !isInstellingenMode.value && !isTakenMode.value,
+  () => !isWerkdocMode.value && !isInstellingenMode.value && !isTakenMode.value && !isOverviewMode.value,
 );
 function goToInstellingen(tab?: string) {
   if (!activeTrajectRef.value) return;
@@ -2214,10 +2226,9 @@ watch(activeTrajectRef, () => {
           </nldd-simple-section>
         </nldd-page>
 
-        <!-- Nothing curated yet (no favorites, no traject edits, no open law):
-             leave the canvas blank - the just-in-time coach-mark on the toolbar
-             search field (AppShell) points the user at search. -->
-        <nldd-page v-else-if="isEmptyLibrary"></nldd-page>
+        <!-- Nothing curated yet (no favorites, no open law) no longer means a
+             blank canvas: the sidebar always offers "Alle regelwerken".
+             `isEmptyLibrary` still drives the search coach-mark (AppShell). -->
 
         <nldd-navigation-split-view v-else @back="onPaneBack">
 
@@ -2233,6 +2244,20 @@ watch(activeTrajectRef, () => {
                   <!-- Werkdocumenten (in a traject): a single entry that opens
                        the document list in the secondary sidebar + editor in
                        main, mirroring how a law drills into its articles. -->
+                  <!-- Corpus juris: the way into every law, not only the ones
+                       you starred or opened before. -->
+                  <template v-if="!activeTrajectRef">
+                    <nldd-list appearance="simple">
+                      <nldd-list-item size="md" button data-testid="overview-entry" :current="isOverviewMode || undefined" @click="goToOverview">
+                        <nldd-icon-cell size="20"><nldd-icon icon="books"></nldd-icon></nldd-icon-cell>
+                        <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                        <nldd-text-cell text="Alle regelwerken"></nldd-text-cell>
+                        <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                        <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+                      </nldd-list-item>
+                    </nldd-list>
+                    <nldd-spacer size="24"></nldd-spacer>
+                  </template>
                   <template v-if="activeTrajectRef">
                     <nldd-list appearance="simple">
                       <nldd-list-item size="md" button :current="isInstellingenMode || undefined" @click="goToInstellingen()">
@@ -2392,6 +2417,11 @@ watch(activeTrajectRef, () => {
                 ></TasksCategoriesPane>
               </nldd-simple-section>
             </nldd-page>
+          </nldd-split-view-pane>
+
+          <!-- Secondary Sidebar (Corpus juris overview): every law, paged. -->
+          <nldd-split-view-pane v-else-if="isOverviewMode" slot="secondary-sidebar" has-content>
+            <LawOverviewPane :back-text="LIBRARY_HOME_BACK_TEXT" @select="openLawFromOverview"></LawOverviewPane>
           </nldd-split-view-pane>
 
           <!-- Secondary Sidebar (werkdoc mode): the document list. -->

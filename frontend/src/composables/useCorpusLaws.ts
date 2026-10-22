@@ -30,6 +30,10 @@ export interface CorpusLaw {
   source_id?: string;
   source_name?: string;
   source_priority?: number;
+  /** The current version carries `machine_readable` (see the backend field). */
+  enriched?: boolean;
+  /** When the current version is not enriched but another is: that version's date. */
+  enriched_version?: string | null;
 }
 
 type TrajectRef = string | null | undefined;

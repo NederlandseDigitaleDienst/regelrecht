@@ -36,7 +36,8 @@ Every route of these two tabs renders `LibraryView.vue`, which uses a navigation
 
 | Route | What it shows |
 |-------|---------------|
-| `/` | The public corpus, under the *Corpus juris* tab. The sidebar lists *Favorieten* and *Recent bekeken*. |
+| `/` | The public corpus, under the *Corpus juris* tab. The sidebar offers *Alle regelwerken* and lists *Favorieten* and *Recent bekeken*. Favorites of someone not logged in are kept in the browser and move to the account at the first login. |
+| `/alle-regelwerken` | Every law in the public corpus, 25 per page, in the secondary sidebar. *Alleen verrijkte regelwerken* narrows it to laws whose current version has a machine version; the search field has the same checkbox, and the two share it. |
 | `/corpus-juris/{lawId}/{article?}` | A law from the public corpus: articles in the secondary sidebar, the article in main with *Tekst*, *Machine* and *YAML* tabs. |
 | `/trajecten/{ref}` | The traject landing, under the *Traject* tab. The sidebar adds *Instellingen*, *Werkdocumenten* and *Taken*, and the section *In dit traject*. |
 | `/trajecten/{ref}/corpus/{lawId}/{article?}` | A law as the traject has it, read through `/api/trajects/{ref}/corpus/...`. |
