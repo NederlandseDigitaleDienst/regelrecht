@@ -1088,6 +1088,45 @@ function onDetailTabChange(e: CustomEvent<{ item?: NLDDTabBarItem } | null>) {
   if (view) detailView.value = view;
 }
 
+// --- Machine views in Corpus juris ------------------------------------------
+// Corpus juris shows a law's machine and YAML views only when its current
+// version is enriched, with a label that says it is an example and not
+// established; a text-only law shows its text, and says so when another
+// version does have a machine version. The list entry carries both facts
+// (`enriched`, `enriched_version`), so fetch it for the open law. A traject is
+// a place of work: there every law keeps all three views, as before.
+const lawEntry = shallowRef<CorpusLaw | null>(null);
+const claimLawEntry = useLatest();
+watch(
+  [selectedLawId, activeTrajectRef],
+  async ([lawId, trajectRef]) => {
+    const isCurrent = claimLawEntry();
+    lawEntry.value = null;
+    if (!lawId || trajectRef) return;
+    try {
+      const list = await apiFetchJson<CorpusLaw[]>(
+        lawsListUrl(null, `ids=${encodeURIComponent(lawId)}`),
+      );
+      if (isCurrent()) lawEntry.value = list.find((l) => l.law_id === lawId) ?? null;
+    } catch {
+      // Unknown, so treat it as text only: the safe side for a public page.
+    }
+  },
+  { immediate: true },
+);
+const showMachineViews = computed(() => !!activeTrajectRef.value || !!lawEntry.value?.enriched);
+// The view to render: a deep link to #machine on a text-only law shows the text.
+const shownDetailView = computed(() => (showMachineViews.value ? detailView.value : 'tekst'));
+const exampleSupportingText = computed(() => {
+  const source = lawEntry.value?.source_name;
+  return `De machineversie${source ? ` komt uit ${source} en` : ''} laat zien hoe dit regelwerk uitgevoerd kan worden. Ze is niet vastgesteld: de wettekst blijft leidend.`;
+});
+const otherEnrichedVersion = computed(() =>
+  !activeTrajectRef.value && lawEntry.value && !lawEntry.value.enriched
+    ? formatLawDate(lawEntry.value.enriched_version ?? null)
+    : null,
+);
+
 const activeAction = ref<ExecutionAction | null>(null);
 
 // Curated sidebar sections (in render order). Each entry is
@@ -2818,8 +2857,27 @@ watch(activeTrajectRef, () => {
                     <span slot="supporting-text">{{ lawName }}</span>
                   </nldd-title>
                   <nldd-spacer size="16"></nldd-spacer>
+                  <template v-if="!activeTrajectRef && lawEntry?.enriched">
+                    <nldd-banner
+                      data-testid="example-banner"
+                      variant="accent"
+                      size="sm"
+                      text="Voorbeeld, niet vastgesteld"
+                      :supporting-text="exampleSupportingText"
+                    ></nldd-banner>
+                    <nldd-spacer size="16"></nldd-spacer>
+                  </template>
+                  <template v-else-if="otherEnrichedVersion">
+                    <nldd-banner
+                      data-testid="other-version-banner"
+                      size="sm"
+                      text="Een andere versie heeft een machineversie"
+                      :supporting-text="`Deze versie heeft alleen de wettekst. De versie van ${otherEnrichedVersion} heeft ook een machineversie.`"
+                    ></nldd-banner>
+                    <nldd-spacer size="16"></nldd-spacer>
+                  </template>
                   <nldd-toolbar>
-                    <nldd-toolbar-item slot="start">
+                    <nldd-toolbar-item v-if="showMachineViews" slot="start">
                       <nldd-tab-bar size="md" @tabchange="onDetailTabChange">
                         <nldd-tab-bar-item data-view="tekst" :current="detailView === 'tekst' || undefined" text="Tekst"></nldd-tab-bar-item>
                         <nldd-tab-bar-item data-view="machine" :current="detailView === 'machine' || undefined" text="Machine"></nldd-tab-bar-item>
@@ -2832,9 +2890,9 @@ watch(activeTrajectRef, () => {
                   </nldd-toolbar>
                   <nldd-spacer size="24"></nldd-spacer>
                   <KeepAlive>
-                    <ArticleText v-if="detailView === 'tekst'" :article="selectedArticle" centered />
-                    <MachineReadable v-else-if="detailView === 'machine'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" @open-action="activeAction = $event" />
-                    <YamlView v-else-if="detailView === 'yaml'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" />
+                    <ArticleText v-if="shownDetailView === 'tekst'" :article="selectedArticle" centered />
+                    <MachineReadable v-else-if="shownDetailView === 'machine'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" @open-action="activeAction = $event" />
+                    <YamlView v-else-if="shownDetailView === 'yaml'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" />
                   </KeepAlive>
                 </nldd-simple-section>
               </template>
