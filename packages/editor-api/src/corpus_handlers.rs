@@ -5483,6 +5483,32 @@ mod tests {
     }
 
     #[test]
+    fn enriched_filter_keeps_offset_paging_and_counts_every_match() {
+        let map = enriched_map();
+        let mut first = params(None, None, None);
+        first.enriched = true;
+        first.limit = Some(1);
+        let never = HashSet::new(); // wet_a (example 2025) loses to central 2026; wet_c and wet_d count
+        let (page, total) = filter_corpus_laws_counted(&map, &never, &first);
+        assert_eq!(total, 2);
+        assert_eq!(law_ids(page), vec!["wet_c".to_string()]);
+
+        let mut second = params(None, None, None);
+        second.enriched = true;
+        second.limit = Some(1);
+        second.offset = 1;
+        let (page, _) = filter_corpus_laws_counted(&map, &never, &second);
+        assert_eq!(law_ids(page), vec!["wet_d".to_string()]);
+    }
+
+    #[test]
+    fn law_list_response_carries_the_total_in_a_header() {
+        use axum::response::IntoResponse;
+        let response = CorpusLawsResponse(Vec::new(), 42).into_response();
+        assert_eq!(response.headers().get("x-total-count").unwrap(), "42");
+    }
+
+    #[test]
     fn source_filter_returns_only_that_sources_laws() {
         // Wat de bibliotheek-sidebar stuurt voor de sectie "Traject":
         // alleen de eigen bron, niet het gefedereerde corpus.

@@ -302,21 +302,27 @@ impl SourceMap {
                     law_id, other.source_id, law.source_id, law.source_priority
                 )));
             }
-            if let Some(existing) = self.laws.get(&law_id) {
-                if existing.source_id != law.source_id {
-                    let (winner, loser) = if law.source_priority < existing.source_priority {
-                        (&law, existing)
-                    } else {
-                        (existing, &law)
-                    };
-                    self.resolved_conflicts.push(ConflictResolution {
-                        law_id: law_id.clone(),
-                        winner_source_id: winner.source_id.clone(),
-                        winner_priority: winner.source_priority,
-                        loser_source_id: loser.source_id.clone(),
-                        loser_priority: loser.source_priority,
-                    });
-                }
+            // Priority still settles one thing here: two sources supplying the
+            // same version. Only that is a conflict worth recording; versions
+            // for different dates sit side by side.
+            let date = extract_date_from_path(&law.file_path);
+            if let Some(existing) = self.versions.get(&law_id).and_then(|vs| {
+                vs.iter().find(|v| {
+                    v.source_id != law.source_id && extract_date_from_path(&v.file_path) == date
+                })
+            }) {
+                let (winner, loser) = if law.source_priority < existing.source_priority {
+                    (&law, existing)
+                } else {
+                    (existing, &law)
+                };
+                self.resolved_conflicts.push(ConflictResolution {
+                    law_id: law_id.clone(),
+                    winner_source_id: winner.source_id.clone(),
+                    winner_priority: winner.source_priority,
+                    loser_source_id: loser.source_id.clone(),
+                    loser_priority: loser.source_priority,
+                });
             }
             self.insert_version(law);
             self.refresh_current_version(&law_id);
@@ -1532,6 +1538,25 @@ mod tests {
 
         assert_eq!(map.get_law("my_law").unwrap().source_id, "local");
         assert_eq!(map.resolved_conflicts().len(), 1);
+    }
+
+    #[test]
+    fn test_version_in_force_records_no_conflict_for_different_dates() {
+        let example_dir = TempDir::new().unwrap();
+        let central_dir = TempDir::new().unwrap();
+        write_yaml(example_dir.path(), "wet/my_law/2025-01-01.yaml", "my_law");
+        write_yaml(central_dir.path(), "wet/my_law/2026-01-01.yaml", "my_law");
+
+        let example = make_source("example", "Example", example_dir.path(), 1);
+        let central = make_source("central", "Central", central_dir.path(), 2);
+
+        let mut map = SourceMap::new("2026-06-01");
+        map.prefer_version_in_force();
+        map.load_source(&example).unwrap();
+        map.load_source(&central).unwrap();
+
+        assert_eq!(map.get_law("my_law").unwrap().source_id, "central");
+        assert!(map.resolved_conflicts().is_empty());
     }
 
     #[test]
