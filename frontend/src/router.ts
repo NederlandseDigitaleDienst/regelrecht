@@ -44,6 +44,13 @@ const router = createRouter({
           meta: { title: 'Corpus juris' },
         },
         {
+          // Every law in Corpus juris, a page at a time (LawOverviewPane).
+          path: 'alle-regelwerken',
+          name: 'corpus-overview',
+          component: LibraryView,
+          meta: { title: 'Corpus juris' },
+        },
+        {
           // Traject-scoped Home landing: the same LibraryView, read through
           // `/api/trajects/{trajectRef}/corpus/...` so the active traject
           // survives a Home↔Editor tab switch. The active traject lives in the

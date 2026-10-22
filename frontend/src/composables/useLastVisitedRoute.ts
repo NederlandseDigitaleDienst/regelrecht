@@ -62,7 +62,7 @@ function save() {
 // public library (the landing and a law in it); the traject section is a
 // traject's own home with its corpus, werkdocumenten, instellingen and taken.
 // Each has its own top-level tab, so each remembers its own last page.
-export const CORPUS_ROUTE_NAMES = ['home', 'corpus-juris'];
+export const CORPUS_ROUTE_NAMES = ['home', 'corpus-juris', 'corpus-overview'];
 export const TRAJECT_ROUTE_NAMES = [
   'traject-home',
   'library-traject',

@@ -6,6 +6,7 @@ import { nextTick } from 'vue';
 import SearchPopover from './SearchPopover.vue';
 import { MIN_QUERY_LENGTH } from '../composables/useBwbSearch';
 import type { CorpusLaw } from '../composables/useCorpusLaws';
+import { enrichedOnly } from '../composables/useLawOverview';
 
 /** The part of a Response apiFetch reads; the stubs return only this. */
 interface StubResponse {
@@ -74,6 +75,7 @@ const LAWS: CorpusLaw[] = [
 
 beforeEach(() => {
   routeMock.params = {};
+  enrichedOnly.value = false;
   vi.stubGlobal(
     'fetch',
     vi.fn<FetchStub>(async (url) => {
@@ -436,5 +438,43 @@ describe('SearchPopover: minimale zoeklengte', () => {
     await searchFor(wrapper, `${'a'.repeat(MIN_QUERY_LENGTH - 1)}   `);
     expect(corpusCalls()).toEqual([]);
     expect(emptyTexts(wrapper)).toContain(`Typ minimaal ${WORDS[MIN_QUERY_LENGTH]} tekens om te zoeken`);
+  });
+});
+
+describe('SearchPopover: only enriched laws', () => {
+  const corpusUrls = () =>
+    fetchMock().mock.calls.map((c) => String(c[0])).filter((u) => u.includes('/corpus/laws'));
+
+  it('sends the filter along with the search term', async () => {
+    const wrapper = mount(SearchPopover);
+    enrichedOnly.value = true;
+    internals(wrapper).search = 'zorgtoeslag';
+    await nextTick();
+    await settle();
+    expect(corpusUrls().some((u) => u.includes('q=zorgtoeslag') && u.includes('enriched=true'))).toBe(true);
+  });
+
+  it('lists the enriched laws when there is no search term', async () => {
+    mount(SearchPopover);
+    enrichedOnly.value = true;
+    await nextTick();
+    await settle();
+    expect(corpusUrls().some((u) => !u.includes('q=') && u.includes('enriched=true'))).toBe(true);
+  });
+
+  it('does not fall back to wetten.overheid.nl when no enriched law matches', async () => {
+    fetchMock().mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.includes('/auth/status')) return { ok: true, json: async () => ({ authenticated: true }) };
+      return { ok: true, json: async () => [] };
+    });
+    const wrapper = mount(SearchPopover);
+    enrichedOnly.value = true;
+    internals(wrapper).search = 'kieswet';
+    await nextTick();
+    await settle();
+    await nextTick();
+    const bwbCalls = fetchMock().mock.calls.map((c) => String(c[0])).filter((u) => u.includes('/harvest/search'));
+    expect(bwbCalls).toHaveLength(0);
   });
 });
