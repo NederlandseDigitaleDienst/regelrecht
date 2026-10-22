@@ -186,8 +186,9 @@ vi.mock('./composables/useEnrichState', () => ({
 }));
 
 vi.mock('./composables/useLastVisitedRoute', () => ({
-  lastHomePath: ref({ name: 'home' }),
+  lastTrajectPath: ref(null),
   homeTarget: () => ({ name: 'home' }),
+  trajectTabTarget: () => ({ name: 'traject-home', params: {} }),
 }));
 
 vi.mock('./lib/apiFetch', () => ({

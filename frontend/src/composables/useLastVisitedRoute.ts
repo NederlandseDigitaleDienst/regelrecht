@@ -32,7 +32,7 @@ export interface HomeTargetOptions {
 type RouteResolver = Pick<Router, 'resolve'>;
 
 // Track the last visited fullPath per route name so the top-level
-// Bibliotheek/Editor tab switch returns the user to where they were
+// Corpus juris/Traject/Editor tab switch returns the user to where they were
 // instead of the section root.
 //
 // Backed by sessionStorage so a refresh keeps the state for the same
@@ -58,20 +58,33 @@ function save() {
   }
 }
 
-// Home-section route names: the public landing + a public law, and the traject
-// landing + its corpus. Kept in one place so every "am I on Home?" check and
-// "build a Home target" stays in sync as routes are added.
-export const HOME_ROUTE_NAMES = [
-  'home',
-  'corpus-juris',
+// The two halves of what used to be one "Home" section. Corpus juris is the
+// public library (the landing and a law in it); the traject section is a
+// traject's own home with its corpus, werkdocumenten, instellingen and taken.
+// Each has its own top-level tab, so each remembers its own last page.
+export const CORPUS_ROUTE_NAMES = ['home', 'corpus-juris'];
+export const TRAJECT_ROUTE_NAMES = [
   'traject-home',
   'library-traject',
   'werkdocumenten-traject',
   'instellingen-traject',
   'taken-traject',
+  'traject-structuur-controle',
 ];
-export function isHomeSection(routeName: RouteRecordNameGeneric | null | undefined): boolean {
-  return (HOME_ROUTE_NAMES as readonly unknown[]).includes(routeName);
+// Every route LibraryView renders, in either half. Kept for the checks that
+// only ask "library or editor?" (a traject switch, login-to-chooser).
+export const HOME_ROUTE_NAMES = [...CORPUS_ROUTE_NAMES, ...TRAJECT_ROUTE_NAMES];
+
+type RouteName = RouteRecordNameGeneric | null | undefined;
+
+export function isCorpusSection(routeName: RouteName): boolean {
+  return (CORPUS_ROUTE_NAMES as readonly unknown[]).includes(routeName);
+}
+export function isTrajectSection(routeName: RouteName): boolean {
+  return (TRAJECT_ROUTE_NAMES as readonly unknown[]).includes(routeName);
+}
+export function isHomeSection(routeName: RouteName): boolean {
+  return isCorpusSection(routeName) || isTrajectSection(routeName);
 }
 
 // Build a Home-section route location. With a traject: the bare traject home, or
@@ -107,30 +120,40 @@ export function trajectSwitchTarget(
 
 function storageKeyFor(routeName: RouteRecordNameGeneric): string {
   if (routeName === 'editor-traject') return 'editor';
-  // The whole Home section shares one key so the last write wins regardless of
-  // which shape (landing / law / traject) the user was last on.
-  if (isHomeSection(routeName)) return 'home';
+  if (isCorpusSection(routeName)) return 'corpus';
+  if (isTrajectSection(routeName)) return 'traject';
   // Route names in this app are strings, never symbols.
-  return routeName as string; // 'home', 'editor'
+  return routeName as string;
 }
 
 export function recordLastVisited(
   routeName: RouteRecordNameGeneric | null | undefined,
   fullPath: string,
+  trajectRef?: string | null,
 ): void {
   if (!routeName) return;
   // Mutate in place rather than re-spreading. The ref wraps a reactive
-  // object so a property assignment still notifies the lastHomePath /
-  // lastEditorPath computeds. Avoids GC churn if the section list grows.
-  _lastVisited.value[storageKeyFor(routeName)] = fullPath;
+  // object so a property assignment still notifies the computeds below.
+  const key = storageKeyFor(routeName);
+  _lastVisited.value[key] = fullPath;
+  // 'home' is the last page of either library half, for the places that
+  // return "to where you were browsing" (the traject chooser's back button).
+  if (key === 'corpus' || key === 'traject') _lastVisited.value.home = fullPath;
+  // The last traject you were in, from any section. The Traject and Editor
+  // tabs fall back to it while you are in Corpus juris, which has no traject.
+  if (trajectRef) _lastVisited.value.trajectRef = trajectRef;
   save();
 }
 
-// The Home section's last-visited full path — the public landing, a public law,
-// the traject bibliotheek, werkdocumenten or instellingen — all under the 'home'
-// key. The Home tab restores this through homeTabTarget (below): verbatim when
-// the stored scope matches the active traject, re-stamped onto it otherwise.
+// The last page of either library half (Corpus juris or a traject's home).
 export const lastHomePath = computed(() => _lastVisited.value.home ?? '/');
+
+// The last Corpus juris page; the Corpus juris tab restores it verbatim.
+export const lastCorpusPath = computed(() => _lastVisited.value.corpus ?? '/');
+
+// The last traject-section page and the last traject seen anywhere, or null.
+export const lastTrajectPath = computed(() => _lastVisited.value.traject ?? null);
+export const lastTrajectRef = computed(() => _lastVisited.value.trajectRef ?? null);
 
 // `/editor` (no traject) is the read-only editor. The first visit
 // lands there; subsequent visits restore the most-recently-seen
@@ -211,7 +234,7 @@ export function sectionTarget(
   }
 
   // Werkdocumenten sub-mode of Home: preserve it (re-stamp the active traject,
-  // keep the open document) so a Home↔Editor tab switch returns to the open
+  // keep the open document) so a Traject↔Editor tab switch returns to the open
   // werkdocument. Without a traject the werkdoc route doesn't apply, so it falls
   // through to the corpus shapes below.
   const isWerkdoc = name === 'werkdocumenten-traject'
@@ -223,7 +246,7 @@ export function sectionTarget(
   }
 
   // Taken sub-mode of Home: same preservation as werkdocumenten (re-stamp the
-  // active traject) so a Home↔Editor tab switch returns to the open taken-panel.
+  // active traject) so a Traject↔Editor tab switch returns to the open taken-panel.
   const isTaken = name === 'taken-traject'
     || (name == null && /\/taken($|[/?#])/.test(storedPath));
   if (isTaken && activeRef) {
@@ -266,20 +289,23 @@ function tabTargetFor(
   return sectionTarget(router, storedPath, activeRef);
 }
 
-// Target for the Home tab: the last-visited Home path, with the ACTIVE traject
-// re-stamped onto it so a Home<->Editor tab switch keeps you in the traject
-// you're working in instead of restoring a stale scope (e.g. Corpus juris after
-// opening a public deep-link).
-export function homeTabTarget(
+// Target for the Traject tab. `ref` is the traject to show: the one in the URL,
+// or (from Corpus juris, which has none) the last traject you were in. Without
+// one there is nothing to return to, so the tab opens the traject chooser.
+// With one: the last traject page verbatim when it belongs to that traject,
+// re-stamped onto it otherwise, or the traject home when there is none yet.
+export function trajectTabTarget(
   router: RouteResolver,
-  storedPath: string,
-  activeRef: string | null | undefined,
+  storedPath: string | null,
+  ref: string | null | undefined,
 ): string | NamedLocation {
-  return tabTargetFor(router, storedPath, activeRef);
+  if (!ref) return { name: 'trajecten', params: {}, query: { sectie: 'library' } };
+  if (!storedPath) return { name: 'traject-home', params: { trajectRef: ref } };
+  return tabTargetFor(router, storedPath, ref);
 }
 
 // Target for the Editor tab: same same-traject-verbatim / cross-traject-rebuild
-// rule as the Home tab. On a cross-traject stored path sectionTarget now lands
+// rule as the Traject tab. On a cross-traject stored path sectionTarget now lands
 // on the active traject's editor ROOT (dropping the foreign lawId), and the
 // editor's restore-on-entry flow opens the right article.
 export function editorTabTarget(

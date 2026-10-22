@@ -84,7 +84,7 @@ function trajectSupportingText(t: TrajectSummary) {
       <nldd-top-title-bar
         slot="header"
         text="Trajecten"
-        back-text="Home"
+        back-text="Terug"
         collapse-anchor="kies-traject-titel"
         @back="goBack"
       ></nldd-top-title-bar>

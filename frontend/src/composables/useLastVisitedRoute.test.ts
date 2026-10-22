@@ -1,6 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import type { Router } from 'vue-router';
-import { trajectSwitchTarget, sectionTarget, editorTabTarget } from './useLastVisitedRoute';
+import {
+  trajectSwitchTarget,
+  sectionTarget,
+  editorTabTarget,
+  recordLastVisited,
+  lastCorpusPath,
+  lastTrajectPath,
+  lastTrajectRef,
+  lastHomePath,
+} from './useLastVisitedRoute';
 
 const REF = 'ander-traject-12345678';
 const ACTIVE = 'actief-traject-0a1b2c3d';
@@ -85,5 +94,25 @@ describe('sectionTarget (Editor tab)', () => {
       name: 'editor-traject',
       params: { trajectRef: ACTIVE, lawId: 'wet_x' },
     });
+  });
+});
+
+describe('recordLastVisited - one memory per top-level tab', () => {
+  it('keeps Corpus juris and the traject section apart, and remembers the last traject', () => {
+    recordLastVisited('corpus-juris', '/corpus-juris/foo');
+    recordLastVisited('library-traject', `/trajecten/${REF}/corpus/bar`, REF);
+    recordLastVisited('corpus-juris', '/corpus-juris/baz');
+
+    expect(lastCorpusPath.value).toBe('/corpus-juris/baz');
+    expect(lastTrajectPath.value).toBe(`/trajecten/${REF}/corpus/bar`);
+    // Browsing Corpus juris has no traject, so it does not forget the last one.
+    expect(lastTrajectRef.value).toBe(REF);
+    // The chooser's back button returns to whichever library page came last.
+    expect(lastHomePath.value).toBe('/corpus-juris/baz');
+  });
+
+  it('remembers the traject from an editor visit too', () => {
+    recordLastVisited('editor-traject', '/trajecten/other-deadbeef/editor/foo', 'other-deadbeef');
+    expect(lastTrajectRef.value).toBe('other-deadbeef');
   });
 });
