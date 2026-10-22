@@ -114,7 +114,10 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 // The "only enriched" filter (shared with the Corpus juris overview) applies
 // straight away: with a term it narrows the matches, without one it lists the
 // enriched laws, since there are few and that is what someone ticking it wants.
-watch(enrichedOnly, () => runQuery(search.value));
+// Corpus juris only: a traject lists its laws by path without reading them, so
+// none would count as enriched there and every search would come back empty.
+const filterEnriched = computed(() => enrichedOnly.value && !activeTrajectRef.value);
+watch(filterEnriched, () => runQuery(search.value));
 watch(search, runQuery);
 
 function runQuery(q: string) {
@@ -122,7 +125,7 @@ function runQuery(q: string) {
   searchFailed.value = false;
   if (debounceTimer) clearTimeout(debounceTimer);
   const term = q.trim();
-  if (enrichedOnly.value && term.length === 0) {
+  if (filterEnriched.value && term.length === 0) {
     searching.value = true;
     debounceTimer = setTimeout(() => runCorpusSearch(''), 0);
     return;
@@ -144,7 +147,7 @@ function runQuery(q: string) {
 async function runCorpusSearch(term: string) {
   const isCurrent = claimSearch();
   try {
-    const query = [term ? `q=${encodeURIComponent(term)}` : '', 'limit=60', enrichedOnly.value ? 'enriched=true' : '']
+    const query = [term ? `q=${encodeURIComponent(term)}` : '', 'limit=60', filterEnriched.value ? 'enriched=true' : '']
       .filter(Boolean)
       .join('&');
     const url = lawsListUrl(activeTrajectRef.value, query);
@@ -156,7 +159,7 @@ async function runCorpusSearch(term: string) {
     // search (unless the user must log in first to reach it).
     // Not while filtering on enriched laws: a law missing from that list is
     // usually in the corpus, just without a machine version.
-    if (laws.length === 0 && !needsLogin.value && !enrichedOnly.value) searchBwb(term);
+    if (laws.length === 0 && !needsLogin.value && !filterEnriched.value) searchBwb(term);
   } catch {
     // Backend error (500/503/…) or network failure. Surface it rather than
     // letting the empty result cascade to the external wetten.overheid.nl
@@ -459,6 +462,7 @@ defineExpose({ show });
         <nldd-list-item hidden></nldd-list-item>
 
         <nldd-checkbox-field
+          v-if="!activeTrajectRef"
           slot="toolbar"
           data-testid="search-enriched-filter"
           label="Alleen verrijkte regelwerken"
@@ -533,7 +537,7 @@ defineExpose({ show });
             supporting-text="De regelwerken konden niet worden doorzocht. Probeer het opnieuw."
           ></nldd-inline-dialog>
           <nldd-inline-dialog
-            v-else-if="needsLogin && !enrichedOnly && searchTerm.length >= MIN_QUERY_LENGTH"
+            v-else-if="needsLogin && !filterEnriched && searchTerm.length >= MIN_QUERY_LENGTH"
             icon="login"
             text="Log in om externe bronnen te doorzoeken"
             supporting-text="Inloggen is vereist om wetten op te halen van wetten.overheid.nl"

@@ -68,7 +68,7 @@ function goToHarvesting() {
   rememberHarvesterOrigin(route.fullPath);
   router.push("/harvesting");
 }
-const { activeTrajectRef } = useTrajects();
+const { activeTrajectRef, trajects } = useTrajects();
 
 // Het kleurschema zit als submenu in dit menu en niet meer in de
 // instellingen-sheet: het is iets dat je even omzet, geen instelling die je
@@ -162,8 +162,14 @@ const isTrajectRoute = computed(() => isTrajectSection(route.name));
 const isEditorRoute = computed(() => !isCorpusRoute.value && !isTrajectRoute.value);
 
 // Corpus juris has no traject, so from there the Traject and Editor tabs return
-// to the last traject you were in. Inside a traject the URL's traject wins.
-const tabTrajectRef = computed(() => activeTrajectRef.value || lastTrajectRef.value);
+// to the last traject you were in, as long as it is still one of yours (not
+// left, deleted, or another account's in this browser tab). Inside a traject
+// the URL's traject wins.
+const tabTrajectRef = computed(() => {
+  if (activeTrajectRef.value) return activeTrajectRef.value;
+  const last = lastTrajectRef.value;
+  return last && trajects.value.some((t) => t.ref === last) ? last : null;
+});
 
 // Corpus juris tab: the last library page, verbatim. Traject and Editor tabs:
 // the last page of that section, re-stamped onto tabTrajectRef.

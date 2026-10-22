@@ -9,7 +9,7 @@ import type { CorpusLaw } from '../composables/useCorpusLaws';
 import { humanizeLawId } from '../lib/lawName';
 import PaginationControls from '../harvester/components/PaginationControls.vue';
 
-defineProps<{ backText: string; selectedLawId?: string | null }>();
+defineProps<{ backText: string }>();
 const emit = defineEmits<{ select: [lawId: string] }>();
 
 const page = ref(1);
@@ -72,7 +72,6 @@ function supportingText(law: CorpusLaw): string | undefined {
             size="md"
             button
             :data-law-id="law.law_id"
-            :current="law.law_id === selectedLawId || undefined"
             @click="emit('select', law.law_id)"
           >
             <nldd-text-cell :text="displayName(law)" :supporting-text="supportingText(law)"></nldd-text-cell>

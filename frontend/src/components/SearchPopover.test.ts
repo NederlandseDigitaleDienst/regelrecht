@@ -462,6 +462,21 @@ describe('SearchPopover: only enriched laws', () => {
     expect(corpusUrls().some((u) => !u.includes('q=') && u.includes('enriched=true'))).toBe(true);
   });
 
+  it('ignores the filter inside a traject, where laws are listed without their bodies', async () => {
+    routeMock.params = { trajectRef: 'mijn-traject-1a2b3c4d' };
+    const wrapper = mount(SearchPopover);
+    enrichedOnly.value = true;
+    internals(wrapper).search = 'zorgtoeslag';
+    await nextTick();
+    await settle();
+    // Only this traject's requests: popovers mounted by earlier tests in this
+    // file still listen to the shared filter, in the Corpus juris scope.
+    const urls = corpusUrls().filter((u) => u.includes('/trajects/mijn-traject-1a2b3c4d/'));
+    expect(urls.some((u) => u.includes('q=zorgtoeslag'))).toBe(true);
+    expect(urls.some((u) => u.includes('enriched=true'))).toBe(false);
+    expect(wrapper.find('[data-testid="search-enriched-filter"]').exists()).toBe(false);
+  });
+
   it('does not fall back to wetten.overheid.nl when no enriched law matches', async () => {
     fetchMock().mockImplementation(async (url) => {
       const u = String(url);
