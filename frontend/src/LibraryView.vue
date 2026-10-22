@@ -107,11 +107,6 @@ const onLoginTriggerPointerdown = inject('onLoginTriggerPointerdown', () => {});
 // actions that don't originate from a click on the button itself.
 const editButton = ref<NLDDButton | null>(null);
 
-// Label of the back-button that returns to the Home sidebar from underlying
-// pages. Kept fixed as "Home" even though the sidebar's own heading is now
-// traject-aware (see sidebarTitle) - a back-button reads more naturally as
-// "Home" than as the traject name.
-const LIBRARY_HOME_BACK_TEXT = 'Home';
 
 const route = useRoute();
 const router = useRouter();
@@ -120,6 +115,11 @@ const router = useRouter();
 // `route.params.trajectRef`, so the new `library-traject` route makes the
 // bibliotheek traject-aware without any extra plumbing.
 const { activeTrajectRef, activeTraject } = useTrajects();
+
+// Label of the back-button that returns to the primary sidebar from underlying
+// pages: the name of the tab you are in. A back-button reads more naturally
+// as the tab than as the traject's own name (which the heading shows).
+const LIBRARY_HOME_BACK_TEXT = computed(() => (activeTrajectRef.value ? 'Traject' : 'Corpus juris'));
 
 // Primary-sidebar heading: the active traject's name, or 'Corpus juris' for the
 // public/global corpus (logged-out, or logged-in without a chosen traject).

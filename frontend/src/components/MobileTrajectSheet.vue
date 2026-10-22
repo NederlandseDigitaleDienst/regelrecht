@@ -7,7 +7,7 @@ import type { TrajectSummary } from '../composables/useTrajects';
 import type { OpenTab } from '../lib/openTabsStorage';
 import { useAuth } from '../composables/useAuth';
 import { useLoginToChooser } from '../composables/useLoginToChooser';
-import { homeTarget, trajectSwitchTarget } from '../composables/useLastVisitedRoute';
+import { trajectSwitchTarget } from '../composables/useLastVisitedRoute';
 import { useAppChrome } from '../composables/useAppChrome';
 import TrajectCreateForm from './TrajectCreateForm.vue';
 
@@ -40,14 +40,12 @@ const buttonText = computed(() => {
     return `Artikel ${tab.articleNumber} · ${tabActions.value.displayName(tab)}`;
   }
   if (activeTraject.value) return activeTraject.value.name;
-  if (menuLoading.value) return 'Trajecten';
-  // Logged in without a traject = the global corpus scope.
-  if (authenticated.value) return 'Corpus juris';
+  // No traject in the URL (Corpus juris, or still loading): the neutral label.
   return 'Trajecten';
 });
 // A traject in the URL whose name hasn't resolved yet: the trigger shows a
 // spinner (see :loading) with the neutral 'Trajecten' label, not a '…'
-// placeholder. Corpus juris (no ref) is known immediately, so no spinner there.
+// placeholder. Without a traject in the URL there is nothing to load.
 const menuLoading = computed(
   () => !!activeTrajectRef.value && loading.value && !activeTraject.value,
 );
@@ -81,17 +79,6 @@ function onSheetClose(): void {
 // openen. Zie trajectSwitchTarget.
 async function goToTraject(trajectRef: string): Promise<void> {
   await router.push(trajectSwitchTarget(route.name, trajectRef));
-}
-
-// Switch to the traject-less global corpus ("Corpus juris") - a peer of the
-// trajecten in the switcher. Closes the sheet and carries the open law.
-function goToCorpusJuris(): void {
-  closeSheet();
-  if (!activeTrajectRef.value) return; // already on Corpus juris
-  router.push(homeTarget({
-    lawId: route.params.lawId || undefined,
-    articleNumber: route.params.articleNumber || undefined,
-  }));
 }
 
 async function selectTraject(t: TrajectSummary): Promise<void> {
@@ -277,8 +264,8 @@ onBeforeUnmount(() => {
           </nldd-list>
 
           <!-- Trajecten-switcher + nieuw traject. The "Trajecten" section title
-               only shows when the traject actions precede it (activeTraject); on
-               Corpus juris nothing is above it, so it would just duplicate the
+               only shows when the traject actions precede it (activeTraject); without
+               a traject nothing is above it, so it would just duplicate the
                sheet header. -->
           <template v-if="activeTraject">
             <nldd-spacer size="24"></nldd-spacer>
@@ -286,20 +273,6 @@ onBeforeUnmount(() => {
             <nldd-spacer size="8"></nldd-spacer>
           </template>
           <nldd-list appearance="box-tinted">
-            <!-- "Corpus juris" = the traject-less global scope, the default
-                 option (like `main` among the branches). -->
-            <nldd-list-item
-              size="md"
-              button
-              :current="!activeTrajectRef || undefined"
-              @click="goToCorpusJuris"
-            >
-              <nldd-spacer-cell size="12"></nldd-spacer-cell>
-              <nldd-icon-cell v-if="!activeTrajectRef" size="20"><nldd-icon icon="check-mark"></nldd-icon></nldd-icon-cell>
-              <nldd-spacer-cell v-else size="20"></nldd-spacer-cell>
-              <nldd-spacer-cell size="8"></nldd-spacer-cell>
-              <nldd-text-cell text="Corpus juris"></nldd-text-cell>
-            </nldd-list-item>
             <nldd-list-item
               v-for="t in trajects"
               :key="t.id"

@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import type { RouteLocationMatched } from 'vue-router';
 import router from './router';
-import { sectionTarget, homeTabTarget } from './composables/useLastVisitedRoute';
+import {
+  sectionTarget,
+  trajectTabTarget,
+  isCorpusSection,
+  isTrajectSection,
+} from './composables/useLastVisitedRoute';
 import type { NamedLocation } from './composables/useLastVisitedRoute';
 
 // The tests call a redirect function with only the parts of the target
@@ -19,7 +24,7 @@ function lastRedirect(matched: RouteLocationMatched[]): RedirectFn {
   return redirect as unknown as RedirectFn;
 }
 
-// homeTabTarget returns either a stored path verbatim or a named location;
+// trajectTabTarget returns either a stored path verbatim or a named location;
 // the tests that inspect name/params need the latter.
 function expectNamed(t: string | NamedLocation): NamedLocation {
   if (typeof t === 'string') throw new Error(`expected a named location, got the path ${t}`);
@@ -270,40 +275,54 @@ describe('sectionTarget - traject preserved across tab switches', () => {
   });
 });
 
-describe('homeTabTarget - Home tab carries the active traject', () => {
-  it('restores the stored path verbatim when it already carries the active scope (hash intact)', () => {
+describe('top-level tabs - which section a route belongs to', () => {
+  it('puts the public landing and a public law under Corpus juris', () => {
+    expect(isCorpusSection('home')).toBe(true);
+    expect(isCorpusSection('corpus-juris')).toBe(true);
+    expect(isTrajectSection('corpus-juris')).toBe(false);
+  });
+
+  it('puts every traject page under Traject, not Corpus juris', () => {
+    for (const name of ['traject-home', 'library-traject', 'werkdocumenten-traject',
+      'instellingen-traject', 'taken-traject', 'traject-structuur-controle']) {
+      expect(isTrajectSection(name)).toBe(true);
+      expect(isCorpusSection(name)).toBe(false);
+    }
+  });
+
+  it('leaves the editor in neither', () => {
+    expect(isCorpusSection('editor-traject')).toBe(false);
+    expect(isTrajectSection('editor-traject')).toBe(false);
+  });
+});
+
+describe('trajectTabTarget - Traject tab', () => {
+  it('opens the traject chooser when no traject is known', () => {
+    const t = expectNamed(trajectTabTarget(router, null, null));
+    expect(t.name).toBe('trajecten');
+    expect(t.query).toEqual({ sectie: 'library' });
+  });
+
+  it('opens the traject home when the traject section has no stored page yet', () => {
+    const t = expectNamed(trajectTabTarget(router, null, REF));
+    expect(t.name).toBe('traject-home');
+    expect(t.params.trajectRef).toBe(REF);
+  });
+
+  it('restores the stored path verbatim when it belongs to the traject (hash intact)', () => {
     const stored = `/trajecten/${REF}/corpus/foo/3#yaml`;
-    expect(homeTabTarget(router, stored, REF)).toBe(stored);
+    expect(trajectTabTarget(router, stored, REF)).toBe(stored);
   });
 
-  it('restores a public stored path verbatim when no traject is active', () => {
-    expect(homeTabTarget(router, '/corpus-juris/foo', null)).toBe('/corpus-juris/foo');
-  });
-
-  it('re-stamps the active traject onto a stored public law path', () => {
-    const t = expectNamed(homeTabTarget(router, '/corpus-juris/foo/3', REF));
+  it('re-stamps the traject over a stale stored traject', () => {
+    const t = expectNamed(trajectTabTarget(router, '/trajecten/old-deadbeef/corpus/foo', REF));
     expect(t.name).toBe('library-traject');
     expect(t.params.trajectRef).toBe(REF);
-    expect(t.params.lawId).toBe('foo');
-    expect(t.params.articleNumber).toBe('3');
-  });
-
-  it('re-stamps the active traject over a stale stored traject', () => {
-    const t = expectNamed(homeTabTarget(router, '/trajecten/old-deadbeef/corpus/foo', REF));
-    expect(t.name).toBe('library-traject');
-    expect(t.params.trajectRef).toBe(REF);
-    expect(t.params.lawId).toBe('foo');
-  });
-
-  it('drops the stored traject when none is active', () => {
-    const t = expectNamed(homeTabTarget(router, `/trajecten/${REF}/corpus/foo`, null));
-    expect(t.name).toBe('corpus-juris');
-    expect(t.params.trajectRef).toBeUndefined();
     expect(t.params.lawId).toBe('foo');
   });
 
   it('keeps the instellingen sub-mode when re-stamping onto another traject', () => {
-    const t = expectNamed(homeTabTarget(router, '/trajecten/old-deadbeef/instellingen/details', REF));
+    const t = expectNamed(trajectTabTarget(router, '/trajecten/old-deadbeef/instellingen/details', REF));
     expect(t.name).toBe('instellingen-traject');
     expect(t.params.trajectRef).toBe(REF);
     expect(t.params.tab).toBe('details');

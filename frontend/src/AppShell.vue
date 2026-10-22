@@ -15,11 +15,14 @@ import { useColorScheme } from './composables/useColorScheme';
 import { useSettingsSections } from './composables/useSettingsSections';
 import { useAddActions } from './composables/useAddActions';
 import {
-  lastHomePath,
+  lastCorpusPath,
+  lastTrajectPath,
+  lastTrajectRef,
   lastEditorPath,
   editorTabTarget as buildEditorTabTarget,
-  homeTabTarget,
-  isHomeSection,
+  trajectTabTarget as buildTrajectTabTarget,
+  isCorpusSection,
+  isTrajectSection,
   rememberHarvesterOrigin,
 } from './composables/useLastVisitedRoute';
 import { useAppChrome, openSearch, onBarSearchKeydown } from './composables/useAppChrome';
@@ -151,27 +154,28 @@ function openSettings() {
 const route = useRoute();
 const router = useRouter();
 
-// Which top-level section is active, derived from the route. Both tabs are
-// always rendered; the active one shows `selected` and does not navigate,
-// the other carries the cross-section target (traject re-stamped via
-// sectionTarget) - matching the previous per-app behaviour.
-// True on the Home section (public landing, a public law, the traject landing,
-// or a traject law). Kept named isLibraryRoute to limit this refactor's blast
-// radius.
-const isLibraryRoute = computed(() => isHomeSection(route.name));
-// Home tab: the last home path with the active traject re-stamped onto it
-// (see homeTabTarget) - switching Home<->Editor keeps you in the traject
-// you're working in, instead of restoring a stale scope (e.g. Corpus juris
-// after opening a public deep-link). The Editor tab does the same via
-// sectionTarget, which additionally carries the editor's traject logic
-// (chooser + law-as-query when no traject is active).
-const libraryTabTarget = computed(() =>
-  homeTabTarget(router, lastHomePath.value, activeTrajectRef.value),
+// Which top-level tab is active, derived from the route: Corpus juris (the
+// public library), Traject (a traject's own home) or Editor. All three tabs
+// are always rendered; the active one is `current` and does not navigate.
+const isCorpusRoute = computed(() => isCorpusSection(route.name));
+const isTrajectRoute = computed(() => isTrajectSection(route.name));
+const isEditorRoute = computed(() => !isCorpusRoute.value && !isTrajectRoute.value);
+
+// Corpus juris has no traject, so from there the Traject and Editor tabs return
+// to the last traject you were in. Inside a traject the URL's traject wins.
+const tabTrajectRef = computed(() => activeTrajectRef.value || lastTrajectRef.value);
+
+// Corpus juris tab: the last library page, verbatim. Traject and Editor tabs:
+// the last page of that section, re-stamped onto tabTrajectRef.
+const corpusTabTarget = computed(() => lastCorpusPath.value);
+const trajectTabTarget = computed(() =>
+  buildTrajectTabTarget(router, lastTrajectPath.value, tabTrajectRef.value),
 );
 const editorTabTarget = computed(() =>
-  buildEditorTabTarget(router, lastEditorPath.value, activeTrajectRef.value),
+  buildEditorTabTarget(router, lastEditorPath.value, tabTrajectRef.value),
 );
-const libraryTabHref = computed(() => router.resolve(libraryTabTarget.value).href);
+const corpusTabHref = computed(() => router.resolve(corpusTabTarget.value).href);
+const trajectTabHref = computed(() => router.resolve(trajectTabTarget.value).href);
 const editorTabHref = computed(() => router.resolve(editorTabTarget.value).href);
 
 // The editor requires login. Rather than letting the route guard bounce an
@@ -198,7 +202,26 @@ provide('onLoginTriggerPointerdown', onLoginTriggerPointerdown);
 // Show the login-warning popover anchored to `anchorEl`. Provided to the nested
 // views so every editor entry point (the Editor tab, the Bibliotheek
 // "Bewerken" button) shows the same heads-up instead of bouncing to SSO.
-function showLoginWarning(anchorEl: EventTarget | null | undefined, redirectHref?: string | null) {
+// `kind` picks the wording: the editor, or the trajecten (the Traject tab).
+type LoginWarningKind = 'editor' | 'traject';
+const loginWarningKind = ref<LoginWarningKind>('editor');
+const LOGIN_WARNING_TEXT: Record<LoginWarningKind, { text: string; supporting: string }> = {
+  editor: {
+    text: 'Log in om de editor te gebruiken',
+    supporting: 'Zodra je bent ingelogd kies je een traject en kun je aan de slag.',
+  },
+  traject: {
+    text: 'Log in om een traject te openen',
+    supporting: 'In een traject werk je met anderen aan regelwerken en werkdocumenten. Daarvoor heb je een account nodig.',
+  },
+};
+const loginWarningText = computed(() => LOGIN_WARNING_TEXT[loginWarningKind.value]);
+
+function showLoginWarning(
+  anchorEl: EventTarget | null | undefined,
+  redirectHref?: string | null,
+  kind: LoginWarningKind = 'editor',
+) {
   if (!loginWarning.value) return;
   // Consume the pointerdown snapshot so a later programmatic call (no pointerdown,
   // e.g. gating on navigation) still shows instead of inheriting a stale flag.
@@ -210,6 +233,7 @@ function showLoginWarning(anchorEl: EventTarget | null | undefined, redirectHref
     loginWarning.value.hide();
     return;
   }
+  loginWarningKind.value = kind;
   loginRedirect.value = redirectHref ?? editorTabHref.value;
   // Callers pass the clicked element (an event's currentTarget); assigned as is.
   loginWarning.value.anchorElement = anchorEl as Element | null;
@@ -225,12 +249,24 @@ function goToAccountRequest() {
   router.push({ name: 'account-aanvragen' });
 }
 
+function onCorpusTab() {
+  if (!isCorpusRoute.value) router.push(corpusTabTarget.value);
+}
+
+function onTrajectTab(e: Event) {
+  if (!authenticated.value) {
+    showLoginWarning(e.currentTarget, trajectTabHref.value, 'traject');
+    return;
+  }
+  if (!isTrajectRoute.value) router.push(trajectTabTarget.value);
+}
+
 function onEditorTab(e: Event) {
   if (!authenticated.value) {
     showLoginWarning(e.currentTarget);
     return;
   }
-  if (isLibraryRoute.value) router.push(editorTabTarget.value);
+  if (!isEditorRoute.value) router.push(editorTabTarget.value);
 }
 
 // View-specific toolbar bits published by the active view.
@@ -339,8 +375,9 @@ function onTabDismiss(e: Event) {
           <nldd-toolbar size="md">
             <nldd-toolbar-item slot="start">
               <nldd-tab-bar size="md" navigation>
-                <nldd-tab-bar-item :current="isLibraryRoute || undefined" :href="isLibraryRoute ? undefined : libraryTabHref" @click.prevent="isLibraryRoute || router.push(libraryTabTarget)" text="Home"></nldd-tab-bar-item>
-                <nldd-tab-bar-item :current="!isLibraryRoute || undefined" :href="authenticated && isLibraryRoute ? editorTabHref : undefined" @click.prevent="onEditorTab" @pointerdown.capture="onLoginTriggerPointerdown" text="Editor"></nldd-tab-bar-item>
+                <nldd-tab-bar-item :current="isCorpusRoute || undefined" :href="isCorpusRoute ? undefined : corpusTabHref" @click.prevent="onCorpusTab" text="Corpus juris"></nldd-tab-bar-item>
+                <nldd-tab-bar-item :current="isTrajectRoute || undefined" :href="authenticated && !isTrajectRoute ? trajectTabHref : undefined" @click.prevent="onTrajectTab" @pointerdown.capture="onLoginTriggerPointerdown" text="Traject"></nldd-tab-bar-item>
+                <nldd-tab-bar-item :current="isEditorRoute || undefined" :href="authenticated && !isEditorRoute ? editorTabHref : undefined" @click.prevent="onEditorTab" @pointerdown.capture="onLoginTriggerPointerdown" text="Editor"></nldd-tab-bar-item>
               </nldd-tab-bar>
             </nldd-toolbar-item>
             <nldd-toolbar-item v-if="lastSavedPr" slot="end">
@@ -446,8 +483,9 @@ function onTabDismiss(e: Event) {
           <nldd-toolbar size="md">
             <nldd-toolbar-item slot="start">
               <nldd-tab-bar size="md" navigation>
-                <nldd-tab-bar-item :current="isLibraryRoute || undefined" :href="isLibraryRoute ? undefined : libraryTabHref" @click.prevent="isLibraryRoute || router.push(libraryTabTarget)" text="Home"></nldd-tab-bar-item>
-                <nldd-tab-bar-item :current="!isLibraryRoute || undefined" :href="authenticated && isLibraryRoute ? editorTabHref : undefined" @click.prevent="onEditorTab" @pointerdown.capture="onLoginTriggerPointerdown" text="Editor"></nldd-tab-bar-item>
+                <nldd-tab-bar-item :current="isCorpusRoute || undefined" :href="isCorpusRoute ? undefined : corpusTabHref" @click.prevent="onCorpusTab" text="Corpus juris"></nldd-tab-bar-item>
+                <nldd-tab-bar-item :current="isTrajectRoute || undefined" :href="authenticated && !isTrajectRoute ? trajectTabHref : undefined" @click.prevent="onTrajectTab" @pointerdown.capture="onLoginTriggerPointerdown" text="Traject"></nldd-tab-bar-item>
+                <nldd-tab-bar-item :current="isEditorRoute || undefined" :href="authenticated && !isEditorRoute ? editorTabHref : undefined" @click.prevent="onEditorTab" @pointerdown.capture="onLoginTriggerPointerdown" text="Editor"></nldd-tab-bar-item>
               </nldd-tab-bar>
             </nldd-toolbar-item>
             <nldd-toolbar-item slot="center" min-width="240px" width="33%" max-width="480px">
@@ -756,8 +794,9 @@ function onTabDismiss(e: Event) {
           <nldd-toolbar size="lg">
             <nldd-toolbar-item slot="start">
               <nldd-tab-bar navigation>
-                <nldd-tab-bar-item :current="isLibraryRoute || undefined" :href="isLibraryRoute ? undefined : libraryTabHref" @click.prevent="isLibraryRoute || router.push(libraryTabTarget)" icon="home" text="Home"></nldd-tab-bar-item>
-                <nldd-tab-bar-item :current="!isLibraryRoute || undefined" :href="authenticated && isLibraryRoute ? editorTabHref : undefined" @click.prevent="onEditorTab" @pointerdown.capture="onLoginTriggerPointerdown" icon="edit" text="Editor"></nldd-tab-bar-item>
+                <nldd-tab-bar-item :current="isCorpusRoute || undefined" :href="isCorpusRoute ? undefined : corpusTabHref" @click.prevent="onCorpusTab" icon="books" text="Corpus juris"></nldd-tab-bar-item>
+                <nldd-tab-bar-item :current="isTrajectRoute || undefined" :href="authenticated && !isTrajectRoute ? trajectTabHref : undefined" @click.prevent="onTrajectTab" @pointerdown.capture="onLoginTriggerPointerdown" icon="traject" text="Traject"></nldd-tab-bar-item>
+                <nldd-tab-bar-item :current="isEditorRoute || undefined" :href="authenticated && !isEditorRoute ? editorTabHref : undefined" @click.prevent="onEditorTab" @pointerdown.capture="onLoginTriggerPointerdown" icon="edit" text="Editor"></nldd-tab-bar-item>
               </nldd-tab-bar>
             </nldd-toolbar-item>
             <nldd-toolbar-item slot="end">
@@ -850,14 +889,15 @@ function onTabDismiss(e: Event) {
     <SettingsSheet ref="settingsSheet"></SettingsSheet>
   </nldd-shell>
 
-  <!-- Editor requires login: a heads-up popover anchored to the clicked Editor
-       tab (sm/md/lg) so the SSO screen never appears unannounced. -->
+  <!-- Trajecten and the editor require login: a heads-up popover anchored to the
+       clicked Traject or Editor tab (sm/md/lg) so the SSO screen never appears
+       unannounced. -->
   <nldd-popover ref="loginWarning" accessible-label="Inloggen" width="320px">
     <nldd-container padding="16">
       <nldd-inline-dialog
         icon="login"
-        text="Log in om de editor te gebruiken"
-        supporting-text="Zodra je bent ingelogd kies je een traject en kun je aan de slag."
+        :text="loginWarningText.text"
+        :supporting-text="loginWarningText.supporting"
       >
         <nldd-button slot="actions" appearance="primary" text="Inloggen" @click="login(loginRedirect || editorTabHref)"></nldd-button>
         <nldd-button slot="actions" appearance="secondary" text="Account aanvragen" :href="accountRequestHref" @click.prevent="goToAccountRequest"></nldd-button>

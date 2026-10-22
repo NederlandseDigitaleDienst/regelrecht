@@ -13,7 +13,7 @@ import { useEnrichState } from './composables/useEnrichState';
 import { useTaskReview } from './composables/useTaskReview';
 import { useNotes, useResolvedDraftNotes } from './composables/useNotes';
 import { useDraftNotes } from './composables/useDraftNotes';
-import { lastHomePath, homeTarget } from './composables/useLastVisitedRoute';
+import { lastTrajectPath, homeTarget, trajectTabTarget } from './composables/useLastVisitedRoute';
 import {
   registerSearchPopover,
   setEditorChrome,
@@ -259,10 +259,11 @@ const reviewTaskIdParam = computed(() =>
   typeof route.query.task === 'string' ? route.query.task : null,
 );
 
-// Bibliotheek tab / "naar bibliotheek" buttons: restore the last library
-// position but re-stamp it with the currently active traject, so the
-// traject survives the Editor→Bibliotheek switch (it lives in the URL).
-const libraryTabTarget = computed(() => lastHomePath.value);
+// "Naar traject" buttons: the Traject tab's target for this editor's traject,
+// so they land on the same page the tab would.
+const libraryTabTarget = computed(() =>
+  trajectTabTarget(router, lastTrajectPath.value, (route.params.trajectRef as string | undefined) ?? null),
+);
 const libraryTabHref = computed(() => router.resolve(libraryTabTarget.value).href);
 
 // --- Initial law load (from route params) ---
@@ -1209,7 +1210,7 @@ onBeforeRouteUpdate(async (to) => {
   const newLawId = singleParam(to.params.lawId);
   const newArticle = singleParam(to.params.articleNumber);
   if (!newLawId) {
-    // Back/forward (or the Home/Editor tab) to the bare editor root WITHIN the
+    // Back/forward (or the Traject/Editor tab) to the bare editor root WITHIN the
     // same traject: the watch(activeTrajectRef) won't fire (ref unchanged), so
     // restore the last active article here. A trajectRef change is left to that
     // watch (which restores too). Not awaited and not blocking: restore's own
@@ -2053,7 +2054,7 @@ async function rejectReview() {
   if (reviewIsLawCreate.value) {
     await rejectReviewInternal();
     // De wet bestaat niet (en komt er na verwerpen ook niet): terugroutes
-    // naar de wetsroute zouden op een 404 landen, dus terug naar Home.
+    // naar de wetsroute zouden op een 404 landen, dus terug naar het traject.
     router.replace(libraryTabTarget.value);
     return;
   }
@@ -2741,7 +2742,7 @@ async function handleActionSave() {
              selected, no error to report. Two cases land here - genuinely no
              open tabs, and the moment right after a traject switch (tabs sit in
              the bar but none is active, since a switch never auto-opens one).
-             Both show the same "pick a tab or go Home" prompt, so this is NOT
+             Both show the same "pick a tab or go to the traject" prompt, so this is NOT
              keyed on `openTabs.length`. Deliberately NOT keyed on `!activeTab`
              alone either - that stays null for the WHOLE load of an explicit
              article URL (the add-tab watch only sets it once the article
@@ -2751,8 +2752,8 @@ async function handleActionSave() {
              branch below. -->
         <nldd-page v-else-if="!activeTab && !loading && !selectedArticle && !error">
           <nldd-simple-section width="full">
-            <nldd-inline-dialog text="Open een artikel vanuit de tabbalk of Home om te bewerken.">
-              <nldd-button slot="actions" appearance="secondary" text="Naar Home" :href="libraryTabHref" @click.prevent="router.push(libraryTabTarget)"></nldd-button>
+            <nldd-inline-dialog text="Open een artikel vanuit de tabbalk of het traject om te bewerken.">
+              <nldd-button slot="actions" appearance="secondary" text="Naar traject" :href="libraryTabHref" @click.prevent="router.push(libraryTabTarget)"></nldd-button>
             </nldd-inline-dialog>
           </nldd-simple-section>
         </nldd-page>
@@ -2772,7 +2773,7 @@ async function handleActionSave() {
               :text="`${failedLawName} is niet beschikbaar in dit traject`"
               supporting-text="Wissel van traject via het menu rechtsboven of ga terug naar het overzicht."
             >
-              <nldd-button slot="actions" appearance="primary" text="Naar Home" :href="libraryTabHref" @click.prevent="router.push(libraryTabTarget)"></nldd-button>
+              <nldd-button slot="actions" appearance="primary" text="Naar traject" :href="libraryTabHref" @click.prevent="router.push(libraryTabTarget)"></nldd-button>
               <nldd-button slot="actions" appearance="secondary" text="Probeer opnieuw" @click="retryLoadLaw"></nldd-button>
             </nldd-inline-dialog>
             <nldd-inline-dialog
