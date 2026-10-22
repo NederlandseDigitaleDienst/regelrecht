@@ -37,8 +37,8 @@ There are two applications today:
 
 | Role | Grants |
 |---|---|
-| `editor-reader` | Editor: read user-scoped data (favorites, settings) and harvest search. |
-| `editor-writer` | Editor: edit laws & scenarios inside a traject (see [Traject membership](#traject-membership)), manage favorites/settings, enqueue harvests. Inherits `editor-reader`. |
+| `editor-reader` | Editor: read user-scoped data (favorites, settings), keep your own Corpus juris favorites, and harvest search. |
+| `editor-writer` | Editor: edit laws & scenarios inside a traject (see [Traject membership](#traject-membership)), manage settings and traject favorites, enqueue harvests. Inherits `editor-reader`. |
 | `editor-admin` | Editor: corpus reload, feature-flag changes. Inherits `editor-writer`. |
 | `harvester-reader` | Harvester admin: read jobs, sources, law entries, platform info. |
 | `harvester-writer` | Harvester admin: enqueue harvest and enrich jobs. Inherits `harvester-reader`. |

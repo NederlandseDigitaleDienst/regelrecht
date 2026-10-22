@@ -23,7 +23,12 @@ import TasksCategoriesPane from './components/TasksCategoriesPane.vue';
 import TasksListPane from './components/TasksListPane.vue';
 import TasksSidebarItem from './components/TasksSidebarItem.vue';
 import UploadConfirmDialog from './components/UploadConfirmDialog.vue';
-import { useAuth } from './composables/useAuth';
+import { useAuth, ensureAuthReady } from './composables/useAuth';
+import {
+  readLocalFavorites,
+  toggleLocalFavorite,
+  moveLocalFavoritesToAccount,
+} from './composables/useLocalFavorites';
 import { useCorpusLaws } from './composables/useCorpusLaws';
 // useEnrichState (bovenop useTaskActions), niet useTasks: LibraryView heeft
 // alleen gerichte refreshes nodig - na een geannuleerde job, na een eigen
@@ -92,7 +97,7 @@ type PendingLeave =
   | { type: 'inview'; run: () => void }
   | { type: 'route'; resolve: (proceed: boolean) => void };
 
-const { authenticated, login } = useAuth();
+const { authenticated, loading: authLoading } = useAuth();
 
 // Provided by AppShell: shows the login-warning popover anchored to an element,
 // so "Bewerken" gates on login the same way the Editor tab does.
@@ -134,15 +139,6 @@ const sidebarTitle = computed(() =>
 const sidebarLoadingText = computed(() =>
   activeTrajectRef.value ? 'Traject laden' : 'Corpus juris laden',
 );
-
-// "Account aanvragen" affordance for the favoriet login popover (mirrors the
-// editor/bewerken login popover in AppShell): to the public account-request
-// page. /account-aanvragen is a top-level route, so navigating there unmounts
-// the popover along with the shell.
-const accountRequestHref = computed(() => router.resolve({ name: 'account-aanvragen' }).href);
-function goToAccountRequest() {
-  router.push({ name: 'account-aanvragen' });
-}
 
 // --- Werkdocumenten (folded into Home) ----------------------------------
 // The active traject's werkdocumenten live inside Home: a "Werkdocumenten"
@@ -1476,14 +1472,28 @@ function articleDescription(article: LawArticle): string {
 // controle overschrijft een traag antwoord van het vórige traject dat van het
 // huidige.
 async function loadFavorites(trajectRef: string | null | undefined, isCurrent: () => boolean) {
+  // Settle the login state first: before /auth/status answers, `authenticated`
+  // reads false, and a logged-in user would briefly see the browser's set.
+  if (authLoading.value) {
+    await ensureAuthReady();
+    if (!isCurrent()) return;
+  }
+  // Not logged in: Corpus juris favorites live in this browser.
+  if (!authenticated.value) {
+    favorites.value = trajectRef ? new Set() : readLocalFavorites();
+    return;
+  }
   try {
+    // Logged in: whatever was starred before logging in moves to the account
+    // first, so the list below already contains it.
+    if (!trajectRef) await moveLocalFavoritesToAccount();
     const favIds = await apiFetchJson<string[]>(favoritesUrl(trajectRef), {
       errorMessage: (status) => `Failed to load favorites: ${status}`,
     });
     if (!isCurrent()) return;
     favorites.value = new Set(favIds);
   } catch (e) {
-    // Not authenticated (401/403) or endpoint unavailable - no favorites.
+    // Endpoint unavailable (403, or 503 without a database) - no favorites.
     // Only server errors are worth a console trace.
     if (e instanceof ApiError && e.status >= 500) console.warn(e.message);
   }
@@ -1530,16 +1540,19 @@ async function fetchChangedLawIds(trajectRef: string | null | undefined): Promis
 //     the menu: the same stance as `fetchChangedLawIds`.
 const togglingFavorites = ref(new Set<string>());
 
-// Star button when not logged in: the login nudge sits in the button's popup
-// slot, so the component anchors and toggles it. Logged in there is no popover
-// and the click marks the law.
 function onFavoriteClick() {
-  if (!authenticated.value) return;
   toggleFavorite(selectedLawId.value);
 }
 
 async function toggleFavorite(lawId: string | null) {
-  if (!authenticated.value || !lawId) return;
+  if (!lawId) return;
+  // Not logged in: star in this browser (see useLocalFavorites), then refresh
+  // the sidebar so the law appears under Favorieten.
+  if (!authenticated.value) {
+    favorites.value = toggleLocalFavorite(lawId);
+    loadIndex();
+    return;
+  }
   if (togglingFavorites.value.has(lawId)) return;
 
   togglingFavorites.value.add(lawId);
@@ -2441,26 +2454,6 @@ watch(activeTrajectRef, () => {
                       :text="favorites?.has(selectedLawId) ? 'Verwijder uit favorieten' : 'Voeg toe aan favorieten'"
                       @click="onFavoriteClick"
                     >
-                      <!-- In de popup-slot: het component ankert en toggelt de
-                           popover zelf, dus een tweede klik sluit hem weer.
-                           Alleen zinvol zolang je niet bent ingelogd. -->
-                      <nldd-popover
-                        v-if="!authenticated"
-                        slot="popup"
-                        accessible-label="Inloggen"
-                        width="320px"
-                      >
-                        <nldd-container padding="16">
-                          <nldd-inline-dialog
-                            icon="login"
-                            text="Log in om regelwerken als favoriet te markeren"
-                            supporting-text="Zodra je bent ingelogd kun je regelwerken bewaren en snel terugvinden."
-                          >
-                            <nldd-button slot="actions" appearance="primary" text="Inloggen" @click="login()"></nldd-button>
-                            <nldd-button slot="actions" appearance="secondary" text="Account aanvragen" :href="accountRequestHref" @click.prevent="goToAccountRequest"></nldd-button>
-                          </nldd-inline-dialog>
-                        </nldd-container>
-                      </nldd-popover>
                     </nldd-icon-button>
                   </nldd-toolbar-item>
                   <nldd-toolbar-item v-if="canShare" slot="start" :priority="1">
