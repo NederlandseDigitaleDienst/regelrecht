@@ -46,6 +46,7 @@ Each source declares:
 - **Priority** (lower number = higher priority, used when the same law appears in multiple sources)
 - Optionally **`enriched: false`**: the source's regulations never carry `machine_readable` content, so the editor never reports one of them as enriched and never reads their bodies to find out. The central corpus is text only on purpose and carries this flag.
 - Optionally **`load_all: true`**: the editor's public library (Corpus juris) loads every regulation in the source, not only the listed ones in `favorites.json`. Meant for a small source, such as a repository of example rulework.
+- Optionally **`library_only: true`**: the source feeds only the editor's public library. A new traject does not copy it into its own sources, so example rulework, which the library labels as an example, never enters traject work without that label.
 
 ## How it works
 

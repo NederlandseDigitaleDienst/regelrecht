@@ -1250,6 +1250,9 @@ pub async fn create(
                 .registry
                 .sources()
                 .iter()
+                // Example rulework stays in the public library, where it is
+                // labelled as an example (see `Source::library_only`).
+                .filter(|s| !s.library_only)
                 .map(SeedSource::from_source)
                 .collect()
         };

@@ -42,6 +42,11 @@ pub struct Source {
     /// repository of example rulework. Trajecten index every source anyway.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub load_all: bool,
+    /// For the public library only: a new traject does not copy this source
+    /// into its own source list. Meant for example rulework, which is labelled
+    /// as an example in the library but would carry no such label in a traject.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub library_only: bool,
 }
 
 /// Source type discriminator with configuration.
@@ -237,6 +242,7 @@ sources:
                 strict_auth: false,
                 enriched: None,
                 load_all: false,
+                library_only: false,
             }],
         };
 
