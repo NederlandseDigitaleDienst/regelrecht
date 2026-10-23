@@ -13,7 +13,7 @@ valid_from: '2026-01-01'
 # geneeskundig_onderzoek_heeft_plaatsgehad (cel.yaml, answers). Het beleid van
 # de gemeente die beslist, koppelt dat antwoord aan het open begrip van dat
 # artikel; daarvoor is de GGD bevoegd (competent_authority van dat begrip,
-# RFC-052). Er is geen bekendmaking; de url wijst naar dat artikel.
+# RFC-051). Er is geen bekendmaking; de url wijst naar dat artikel.
 url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
 name: Geneeskundig onderzoek bij de GGD Wilgendaal (reductie)
 articles:

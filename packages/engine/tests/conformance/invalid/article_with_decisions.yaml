@@ -1,5 +1,5 @@
 ---
-# A call to an article stands apart from decisions (schema v0.8.4, RFC-050).
+# A call to an article stands apart from decisions (schema v0.8.4, RFC-045 §6).
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.4/schema/v0.8.4/schema.json
 $id: test_conformance_article_with_decisions
 regulatory_layer: WET

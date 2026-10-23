@@ -1,5 +1,5 @@
 //! What the cell records a decision on an application with, derived from
-//! the law (RFC-047).
+//! the law (RFC-045 §5).
 //!
 //! An article that establishes an application and decides on it follows a
 //! procedure (RFC-008). The decision runs at the stage BESLUIT and is made
@@ -168,7 +168,7 @@ pub fn derive(
         .map(str::to_string)
         .ok_or_else(|| refused(format!("{reference} takes no decision (legal_character)")))?;
     // The application it decides on: the submission that asks for this
-    // decision with `requests` (RFC-047), in this article or another.
+    // decision with `requests` (RFC-045 §1), in this article or another.
     let date = day.to_string();
     let applications = service.applications_for(law_id, article, &date)?;
     let application_reference = match applications.as_slice() {
@@ -206,7 +206,7 @@ pub fn derive(
     // The decision's outputs: what it decides.
     let outputs: Vec<&str> = decision.map(|d| deciding.outputs_of(d)).unwrap_or_default();
     // What the execution supplies at every stage of the decision: those, and
-    // the data derived for it (RFC-050). A hook may read either as a
+    // the data derived for it (RFC-045 §1). A hook may read either as a
     // parameter; it is no field of the decision.
     let computed: Vec<&str> = outputs
         .iter()

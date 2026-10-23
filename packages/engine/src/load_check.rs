@@ -13,7 +13,7 @@
 //! item per type, each with its own parameters and outputs. The loader
 //! refuses a list with two items of one type, an output given to two items
 //! or to none, a parameter or output the article lacks, or a submission that
-//! requests a decision this law does not take (RFC-047).
+//! requests a decision this law does not take (RFC-045 §1).
 //!
 //! A reduction (`regulatory_layer: REDUCTIE`, schema v0.8.2) is no
 //! regulation: a cell's reading of its own chronicle (RFC-048), which the
@@ -44,12 +44,12 @@
 //! The loader refuses any of these the other way round, and a `decisions`
 //! beside another way to the value.
 //!
-//! A call to an article (`source.article`, schema v0.8.4, RFC-050) stands
+//! A call to an article (`source.article`, schema v0.8.4, RFC-045 §6) stands
 //! apart from `regulation`, `decisions` and `endpoint`, and only such a call
 //! takes `parameters_from`.
 //!
 //! Who may answer an open term, or establish a fact, sits on that term or
-//! fact (`competent_authority`, schema v0.8.8, RFC-052); on an article the
+//! fact (`competent_authority`, schema v0.8.8, RFC-051); on an article the
 //! field keeps its meaning of RFC-002, who decides, and names one authority.
 
 use crate::answer::ChronicleRead;
@@ -252,7 +252,7 @@ pub(crate) fn chronicle_read(source: &regelrecht_law_model::Source) -> Option<Ch
     }
 }
 
-/// Refuse a call to an article (`source.article`, schema v0.8.4, RFC-050)
+/// Refuse a call to an article (`source.article`, schema v0.8.4, RFC-045 §6)
 /// beside another way to the value (`regulation`, `decisions`, `endpoint`),
 /// and `parameters_from` without `article`, which nothing would receive.
 pub(crate) fn reject_misplaced_article_call(law: &ArticleBasedLaw) -> Result<()> {
@@ -289,7 +289,7 @@ pub(crate) fn reject_misplaced_article_call(law: &ArticleBasedLaw) -> Result<()>
     Ok(())
 }
 
-/// Refuse competence where it does not belong (RFC-052):
+/// Refuse competence where it does not belong (RFC-051):
 ///
 /// - an article names one competent authority (RFC-002), never a list;
 /// - an open term or a fact names its competent authorities by name, one or
@@ -299,7 +299,7 @@ pub(crate) fn reject_misplaced_competence(law: &ArticleBasedLaw) -> Result<()> {
     for (where_, section) in sections(law) {
         let refuse = |why: String| {
             Err(EngineError::LoadError(format!(
-                "law '{}' {where_}: {why} (RFC-052)",
+                "law '{}' {where_}: {why} (RFC-051)",
                 law.id
             )))
         };
@@ -466,9 +466,9 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
     Ok(())
 }
 
-/// Refuse an article whose `produces` list (schema v0.8.1, RFC-047) has two
+/// Refuse an article whose `produces` list (schema v0.8.1, RFC-045 §1) has two
 /// items of one type, gives an output to two items (as one of its
-/// `outputs`, or as data `derived` for the decision, RFC-050), lists
+/// `outputs`, or as data `derived` for the decision, RFC-045 §1), lists
 /// `derived` on an item that is no decision, names a
 /// parameter or output the article lacks, or has a submission that requests
 /// a decision this law does not take. One item per type makes article and
@@ -481,13 +481,13 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
 /// An output that no item lists, beside a decision that lists its own,
 /// belongs to no item: it is an output of the article that another article
 /// may read, not part of the decision, and only computed when read
-/// (RFC-052).
+/// (RFC-045 §1).
 pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
     for article in law.articles.iter().filter(|a| a.produces_list()) {
         let produced = article.get_produced();
         let refuse = |why: String| {
             Err(EngineError::LoadError(format!(
-                "law '{}': article {} {why} (RFC-047)",
+                "law '{}': article {} {why} (RFC-045 §1)",
                 law.id, article.number
             )))
         };
@@ -547,14 +547,14 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
             .find(|p| p.legal_character().is_none() && p.listed_derived().is_some())
         {
             return refuse(format!(
-                "lists derived outputs on its {}; only a decision has derived data (RFC-050)",
+                "lists derived outputs on its {}; only a decision has derived data (RFC-045 §1)",
                 item.submission_kind().unwrap_or("item")
             ));
         }
         // Without a decision, an output no submission lists would be read by
         // nothing the article produces: refused, so a forgotten or misspelt
         // output fails. Beside a decision that lists its outputs, it belongs
-        // to no item (RFC-052).
+        // to no item (RFC-045 §1).
         if article.get_decision().is_none() {
             if let Some(name) = article
                 .get_outputs()
@@ -919,7 +919,7 @@ articles:
     }
 
     /// An output the decision lists under `derived` is data derived for it
-    /// (RFC-050): the article loads, and it is no output of the decision,
+    /// (RFC-045 §1): the article loads, and it is no output of the decision,
     /// also when the decision lists no `outputs` of its own.
     #[test]
     fn an_output_the_decision_derives_is_no_output_of_it() {
@@ -941,7 +941,7 @@ articles:
     }
 
     /// An output beside a decision that lists its own outputs belongs to no
-    /// item (RFC-052): the article loads, and the output is neither an
+    /// item (RFC-045 §1): the article loads, and the output is neither an
     /// output of the decision nor derived data for it.
     #[test]
     fn an_output_beside_the_decision_belongs_to_no_item() {

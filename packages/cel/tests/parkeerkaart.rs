@@ -7,7 +7,7 @@
 //!
 //! The medical examination is the GGD's (Regeling art. 3): a cell of its
 //! own records it, and the municipality's decisions take that cell along
-//! as their sphere (RFC-052). Each test has its own GGD ([`GGD`]). The GGD
+//! as their sphere (RFC-048). Each test has its own GGD ([`GGD`]). The GGD
 //! also records its advice, with per criterion whether the applicant meets
 //! it (the municipality's fictitious policy, art. 5); the policy fills the
 //! college's four judgements from it (art. 6), and without an advice the
@@ -308,7 +308,7 @@ fn an_application_is_recorded_with_the_awb_deadline() {
 fn the_decision_takes_the_application_and_the_cell_and_the_policy_says_what_the_college_finds() {
     let shape = decision::derive(&service(), LAW, ARTICLE, day("2026-10-20")).unwrap();
     assert_eq!(shape.kind, "BESCHIKKING");
-    // The outcome; the last day of validity is derived, no outcome (RFC-050).
+    // The outcome; the last day of validity is derived, no outcome (RFC-045 §1).
     assert_eq!(
         shape.outputs,
         [
@@ -561,7 +561,7 @@ fn a_cell_lists_the_answers_it_gives() {
 }
 
 // ---------------------------------------------------------------------------
-// The objection and the decision on it (Awb 7:11, RFC-050)
+// The objection and the decision on it (Awb 7:11, RFC-045 §7)
 // ---------------------------------------------------------------------------
 
 /// A complete objection on the ground `ground`, and `with`.
@@ -888,7 +888,7 @@ fn granted_and_objected(cell: &mut Cell) -> (Gram, Gram) {
 fn an_unfounded_objection_against_a_grant_leaves_the_decision_standing() {
     // The heroverweging runs art. 49 on the day of the decision on the
     // objection, a month after the grant, so it would issue a card valid a
-    // month longer. That end is derived data (`derived`, RFC-050), no
+    // month longer. That end is derived data (`derived`, RFC-045 §1), no
     // outcome, so it gives no cause: the outcome is the same, and the grant
     // stands with its own validity. During the heroverweging the cell reads
     // the chronicle without the contested grant, so the reduction does not
@@ -1103,7 +1103,7 @@ fn without_a_report_the_college_cannot_issue_the_card_yet() {
     assert_eq!(cell.grams().len(), 1);
 
     // Once the GGD has recorded the examination, the card is issued; the
-    // GGD's cell answered the term of art. 3 (RFC-052).
+    // GGD's cell answered the term of art. 3 (RFC-048).
     let report = reported(&mut cell, APPLICANT, "2026-10-16", "2026-10-19");
     assert_eq!(report.kind, "EXECUTOGRAM");
     assert_eq!(report.basis, format!("{REGELING}#3"));
@@ -1431,7 +1431,7 @@ fn a_card_the_court_granted_counts_as_an_earlier_card_but_not_as_a_valid_one() {
 fn a_municipality_that_gives_the_examination_answer_is_not_asked_for_it() {
     // The examination is the GGD's (Regeling art. 3): the term names who is
     // competent, so the binding asks the GGD and not the municipality, even
-    // where its catalogue gives the answer (RFC-052). Without the GGD the
+    // where its catalogue gives the answer (RFC-051). Without the GGD the
     // college finds it.
     let dir = tempfile::tempdir().unwrap();
     let identity = std::fs::read_to_string(cell_dir().join("cel.yaml")).unwrap();

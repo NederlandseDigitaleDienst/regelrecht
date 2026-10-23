@@ -75,7 +75,7 @@ voorbeeld:
     indiener_is_belanghebbende: true
     rechtsregel_geschonden: false
 
-# De andere cellen die de casus meeneemt (RFC-052). Het open begrip zegt wie
+# De andere cellen die de casus meeneemt (RFC-048). Het open begrip zegt wie
 # bevoegd is: de GGD of de aangewezen deskundige voor het onderzoek (Regeling
 # gehandicaptenparkeerkaart, artikel 3). De engine vraagt alleen een cel die
 # het begrip noemt, en één cel per vraag. Elke cel legt bij elke start en

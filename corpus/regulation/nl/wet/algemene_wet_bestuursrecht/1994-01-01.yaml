@@ -125,7 +125,7 @@ articles:
             nullable: true
             required: false
             description: De dagtekening van de aanvraag (lid 1, onder b).
-          # Kan later volgen uit `requests` van het aanvraag-item (RFC-047).
+          # Kan later volgen uit `requests` van het aanvraag-item (RFC-045).
           - name: gevraagde_beschikking
             type: string
             nullable: true
@@ -218,7 +218,7 @@ articles:
     # Niet uitvoerbaar gemaakt. Lid 1 zegt bij wie het bezwaarschrift wordt
     # ingediend, zoals artikel 4:1 dat voor de aanvraag zegt. Het bezwaar zelf
     # ontstaat bij het artikel dat erop beslist (7:11), zoals de aanvraag om
-    # vakantieverlof bij artikel 13a van de Leerplichtwet 1969 (RFC-050). Zo
+    # vakantieverlof bij artikel 13a van de Leerplichtwet 1969 (RFC-045 §7). Zo
     # ontstaat het beroep bij de bestuursrechter (lid 3) bij artikel 8:70.
     # Lid 2 (administratief beroep) is niet gemodelleerd.
 
@@ -456,7 +456,7 @@ articles:
     # Niet apart uitvoerbaar. Lid 1, onder a, toetsen twee artikelen: 7:11
     # (geen bezwaar tegen een besluit dat op bezwaar is genomen) en 8:70
     # (beroep alleen tegen een besluit dat op bezwaar is genomen). Beide lezen
-    # taken_on van het bestreden besluit (RFC-050). Niet gemodelleerd zijn
+    # taken_on van het bestreden besluit (RFC-045 §6). Niet gemodelleerd zijn
     # het besluit in administratief beroep (onder a) en de uitzonderingen
     # onder b tot en met g: beroep zonder voorafgaand bezwaar is in dit
     # corpus altijd niet-ontvankelijk.
@@ -534,12 +534,12 @@ articles:
       # en wat het bestuursorgaan bij de heroverweging opnieuw oordeelt. Lid 2:
       # geeft dat een andere uitkomst, dan herroept het bestuursorgaan het
       # besluit en neemt het in zijn plaats het besluit dat de heroverweging
-      # gaf (RFC-050).
+      # gaf (RFC-045 §7).
       execution:
         # Lid 1: de heroverweging vindt plaats "op grondslag van" het bezwaar.
         # Dit artikel brengt twee dingen voort, zoals artikel 13a van de
-        # Leerplichtwet 1969 de aanvraag en het besluit erop (RFC-047,
-        # RFC-050). Het bezwaar, waar de Awb op haakt (6:5, 6:9, 7:10), met
+        # Leerplichtwet 1969 de aanvraag en het besluit erop (RFC-045 §1
+        # en §7). Het bezwaar, waar de Awb op haakt (6:5, 6:9, 7:10), met
         # het bestreden besluit. En de beslissing op het bezwaar, een besluit
         # dat de procedure van de Awb volgt, met de uitvoer die daarbij hoort.
         # Eigen keuze: de beslissing op bezwaar tegen een beschikking is zelf
@@ -573,7 +573,7 @@ articles:
           # Lid 1: de heroverweging. Het bestreden besluit opnieuw genomen,
           # op de dag van de beslissing op het bezwaar (ex nunc), met zijn
           # eigen gegevens en bevindingen; wat het bestuursorgaan opnieuw
-          # vaststelt, geeft de uitvoering mee (RFC-050). Alleen gelezen als
+          # vaststelt, geeft de uitvoering mee (RFC-045 §6). Alleen gelezen als
           # het bezwaar ontvankelijk is.
           - name: heroverweging
             type: decision
@@ -616,7 +616,7 @@ articles:
           # berust op het artikel van het herroepen besluit, maar is genomen
           # op het bezwaar. Een besluitwaarde uit de kroniek noemt in
           # taken_on het artikel van de indiening waarop het besluit is
-          # genomen (RFC-050). De overige vereisten (artikelen 1:2, 6:5 met
+          # genomen (RFC-045 §7). De overige vereisten (artikelen 1:2, 6:5 met
           # 6:6) en artikel 6:11 nog niet.
           - output: bezwaar_ontvankelijk
             value:
@@ -632,7 +632,7 @@ articles:
           # Eigen keuze: aanleiding is er als de heroverweging een andere
           # uitkomst geeft dan het bestreden besluit. Alleen wat het
           # besluit-item van dat artikel als uitkomst noemt telt; gegevens die
-          # voor het besluit worden afgeleid niet (RFC-050). Elke uitkomst van
+          # voor het besluit worden afgeleid niet (RFC-045 §7). Elke uitkomst van
           # dat besluit-item telt, niet alleen de beslissing zelf: geeft de
           # heroverweging bij artikel 13a een ander aantal verlofdagen en
           # weigert zij het verlof opnieuw, dan wordt de weigering herroepen
@@ -719,7 +719,7 @@ articles:
         name: de bestuursrechter
         type: CATEGORY
       # De uitspraak op het beroep, zoals artikel 7:11 de beslissing op het
-      # bezwaar is (RFC-050). Onder a is niet gemodelleerd: de bevoegdheid
+      # bezwaar is (RFC-045 §7). Onder a is niet gemodelleerd: de bevoegdheid
       # (artikelen 8:6 en 8:7) staat niet in dit corpus, dus de
       # bestuursrechter is altijd bevoegd. Waarop de bestuursrechter de
       # ontvankelijkheid toetst en wanneer het beroep gegrond is, zegt dit
@@ -757,8 +757,8 @@ articles:
             Welke geschreven of ongeschreven rechtsregel of welk algemeen
             rechtsbeginsel geschonden wordt geoordeeld.
       execution:
-        # Dit artikel brengt twee dingen voort, zoals artikel 7:11 (RFC-047,
-        # RFC-050). Het beroep, waar de Awb op haakt (6:5, 6:9), met het
+        # Dit artikel brengt twee dingen voort, zoals artikel 7:11 (RFC-045 §1
+        # en §7). Het beroep, waar de Awb op haakt (6:5, 6:9), met het
         # bestreden besluit. En de uitspraak erop, met wat zij inhoudt. De
         # uitspraak is geen besluit: een orgaan dat met rechtspraak is
         # belast, is geen bestuursorgaan (artikel 1:1, tweede lid, onder c).
@@ -795,7 +795,7 @@ articles:
           # Wat artikel 8:72 aan een gegrondverklaring verbindt. Eigen keuze:
           # de uitspraak neemt het over, zodat het deel is van de uitspraak
           # en niet van een haak, die buiten de uitkomst van het besluit
-          # valt (RFC-047). Alleen gelezen bij een gegrond beroep: dat is
+          # valt (RFC-045 §1). Alleen gelezen bij een gegrond beroep: dat is
           # waar artikel 8:72 van toepassing is ("indien de bestuursrechter
           # het beroep gegrond verklaart").
           - name: vernietiging_bestreden_besluit
@@ -893,7 +893,7 @@ articles:
           # zijn niet gemodelleerd); en dat de indiener
           # belanghebbende is (artikel 8:1). Een besluitwaarde uit de kroniek
           # noemt in taken_on het artikel van de indiening waarop het besluit
-          # is genomen (RFC-050): de beslissing op bezwaar en het nieuwe
+          # is genomen (RFC-045 §6): de beslissing op bezwaar en het nieuwe
           # besluit dat zij in de plaats van een herroepen besluit nam,
           # hebben allebei 7:11. Artikel 6:6 en 6:11 nog niet.
           - output: beroep_ontvankelijk

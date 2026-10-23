@@ -83,7 +83,7 @@ begin:
         provincie: Utrecht
         sinds: '2020-08-01'
 
-# De andere cellen van de sfeer (RFC-052).
+# De andere cellen van de sfeer (RFC-048).
 andere_cellen:
   # De bestuursrechter (RFC-053): ook een andere cel, met een eigen kroniek.
   # Dat zij de rechter is, zegt haar cel.yaml (categorie "de

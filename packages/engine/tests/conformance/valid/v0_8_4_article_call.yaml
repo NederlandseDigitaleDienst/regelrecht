@@ -1,5 +1,5 @@
 ---
-# Tier C: a call to an article (schema v0.8.4, RFC-050). Article 1 decides
+# Tier C: a call to an article (schema v0.8.4, RFC-045). Article 1 decides
 # on an application and lists data derived for its decision under `derived`.
 # Article 2 calls a decision value anew, with its own fields and findings,
 # and calls the article a decision value names, with that decision's fields

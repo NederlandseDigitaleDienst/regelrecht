@@ -494,7 +494,7 @@ fn list_findings(findings: &[crate::typecheck::Finding]) -> String {
 }
 
 /// Whether `law` reads `law_id`: an input that takes one of its outputs or
-/// calls one of its articles by a fixed reference (RFC-050), or an article
+/// calls one of its articles by a fixed reference (RFC-045 §6), or an article
 /// that implements one of its open terms. These are the places where the
 /// type check consults another law (RFC-037, N5, T5).
 fn references_law(law: &ArticleBasedLaw, law_id: &str) -> bool {
@@ -547,7 +547,7 @@ impl RuleResolver {
         // RFC-036: an unknown is produced by resolution, never written by a
         // law. Refuse a document that carries the serialized sentinel.
         crate::load_check::reject_unknown_literals(&law)?;
-        // RFC-047: a law that produces several things in one article divides
+        // RFC-045: a law that produces several things in one article divides
         // its outputs over them without ambiguity.
         crate::load_check::reject_ambiguous_produces(&law)?;
         // RFC-051: a fact an article requires holds parameters it declares.

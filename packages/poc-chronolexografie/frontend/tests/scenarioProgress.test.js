@@ -16,7 +16,7 @@ vi.mock('../src/api.js', () => ({
 }));
 
 // Made-up ids, recognisable by their last characters; the shapes as the cell
-// records them (RFC-046, RFC-047, RFC-053).
+// records them (RFC-046, RFC-053).
 const id = (tail) => `019a0000-0000-7000-8000-0000${tail}`;
 const casus = {
   id: 'vakantieverlof',

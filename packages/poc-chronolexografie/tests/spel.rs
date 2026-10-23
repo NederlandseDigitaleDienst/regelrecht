@@ -307,7 +307,7 @@ fn parkeerkaart_a_second_card_next_to_a_valid_one() {
         casus["rol"],
         json!("het college van burgemeester en wethouders")
     );
-    // The other cells the case takes along (RFC-052), from the case file,
+    // The other cells the case takes along (RFC-048), from the case file,
     // the court among them (RFC-053).
     let andere: Vec<&str> = casus["andere_cellen"]
         .as_array()
@@ -387,7 +387,7 @@ fn the_preview_answers_a_refusal_as_a_state_and_records_nothing() {
 
     let kroniek = spel.kroniek().unwrap();
     // The application; the GGD's examination from the case file is in the
-    // GGD's own chronicle (RFC-052).
+    // GGD's own chronicle (RFC-048).
     assert_eq!(soorten(&kroniek), ["AANVRAAG"]);
     let ggd = &kroniek["andere"][0];
     assert_eq!(ggd["cel"], json!("ggd_wilgendaal"));
@@ -398,7 +398,7 @@ fn the_preview_answers_a_refusal_as_a_state_and_records_nothing() {
 fn the_ggd_records_an_examination_and_the_card_follows() {
     // Scenario "zonder onderzoek", continued: the GGD records the
     // examination in its own cell, and then the college can issue the card
-    // (RFC-052).
+    // (RFC-048).
     let mut spel = spel_met("gehandicaptenparkeerkaart");
     let casus = spel.casus().unwrap();
     let mut aanvraag = map(&casus["voorbeeld"]["aanvraag"]);
