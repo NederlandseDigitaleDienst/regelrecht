@@ -204,9 +204,8 @@ pub struct Source {
     )]
     pub decisions: Option<String>,
     /// The recorded instances of a fact an article requires,
-    /// `<regulation>#<article>#<fact>` (schema v0.8.7, RFC-051; v0.8.6
-    /// named a stream of the cell under `executograms`): a list with one row
-    /// per instance, as `decisions` gives one per decision. The article's
+    /// `<regulation>#<article>#<fact>` (schema v0.8.7, RFC-051): a list with
+    /// one row per instance, as `decisions` gives one per decision. The article's
     /// `requires` entry with that `fact` says what each holds. Only a data
     /// source answers it, such as the cell that records the facts, or the
     /// caller with a parameter of that name; no regulation is executed for
@@ -248,6 +247,12 @@ pub struct Source {
         deserialize_with = "optional_variable_references"
     )]
     pub parameters_from: Option<Vec<String>>,
+    /// Schema v0.8.6's way to read the recorded instances of a fact, which
+    /// v0.8.7 replaced by `facts` (RFC-051). The model reads it only so the
+    /// engine can refuse it at load and name `facts` instead of dropping it
+    /// silently; it is never written back.
+    #[serde(default, skip_serializing, deserialize_with = "present")]
+    pub executograms: Option<serde_json::Value>,
 }
 
 /// Parameter definition in execution spec
@@ -1407,6 +1412,15 @@ where
         )));
     }
     Ok(Some(references))
+}
+
+/// Record that a key is present, whatever it holds: also a bare key or an
+/// explicit `null`, which plain `Option` would read as absent.
+fn present<'de, D>(deserializer: D) -> Result<Option<serde_json::Value>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    serde_json::Value::deserialize(deserializer).map(Some)
 }
 
 /// Declaration that an article fires as a hook on matching lifecycle events (RFC-007)
