@@ -3,7 +3,7 @@ Feature: De aanvraag om vakantieverlof, met de Awb erop
   artikel 4:2 zegt wat de aanvraag ten minste bevat, artikel 4:13 wanneer
   de redelijke beslistermijn in ieder geval is verstreken. Buiten de
   procedure van de Awb voert de engine het artikel in één keer uit, met de
-  beslissing erop (RFC-047): daarom staan de oordelen van het hoofd erbij.
+  beslissing erop (RFC-045 §5): daarom staan de oordelen van het hoofd erbij.
 
   Background:
     Given the calculation date is "2026-10-13"

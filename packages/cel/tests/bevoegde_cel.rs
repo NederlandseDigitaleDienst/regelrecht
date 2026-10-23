@@ -69,7 +69,7 @@ articles:
                 bsn: $bsn
         output:
           - {name: kaart_verstrekt, type: boolean}
-          # Beside the decision: no item lists it (RFC-052).
+          # Beside the decision: no item lists it (RFC-045 §1).
           - {name: kaart_genummerd, type: boolean}
         actions:
           - output: kaart_verstrekt
@@ -475,7 +475,7 @@ fn a_competent_cell_without_the_answer_is_silent() {
 
 #[test]
 fn an_output_beside_the_decision_is_not_recorded_with_it() {
-    // What belongs to the decision is what its item lists (RFC-047); another
+    // What belongs to the decision is what its item lists (RFC-045 §1); another
     // output of the article is not computed for it and not recorded.
     let mut service = service();
     let mut wilgendaal = college("wilgendaal");

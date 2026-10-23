@@ -69,7 +69,7 @@ pub struct Casus {
     /// start and reset as the cell records anything ([`Begin`]).
     #[serde(default)]
     pub begin: Option<Begin>,
-    /// The other cells the case takes along (RFC-052): those the engine may
+    /// The other cells the case takes along (RFC-048): those the engine may
     /// ask for a value another actor establishes, where the law makes them
     /// competent. Each records what it knows before the first scenario.
     /// The court is one of them, for a case that plays the appeal
@@ -604,7 +604,7 @@ pub struct Afleiding {
     pub law: String,
     pub article: String,
     /// The article whose decision the application asks for (`requests`,
-    /// RFC-047): the application's own in the object form, or the article
+    /// RFC-045 §1): the application's own in the object form, or the article
     /// that its item names, which may be the application itself.
     pub decision_law: String,
     pub decision: String,
@@ -1058,7 +1058,7 @@ fn past(filter: &HookFilter, id: &str, a: &Article) -> bool {
 
 /// Who decides under `article` of `law`: the authority the article names,
 /// else the holder of the rulework (RFC-002). A reference (`#...`) names no
-/// one by itself; on an article the loader refuses a list (RFC-052).
+/// one by itself; on an article the loader refuses a list (RFC-051).
 fn bevoegd(law: &ArticleBasedLaw, article: &str) -> Option<NamedAuthority> {
     let a = law.articles.iter().find(|a| a.number == article)?;
     match a

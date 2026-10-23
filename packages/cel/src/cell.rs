@@ -3,7 +3,7 @@
 //!
 //! A submission may refer to a decision in the chronicle (`refers_to`). A
 //! field of type `decision` then holds that decision, and a field that the
-//! decision holds by name comes from it too (RFC-050). The chronolexogram
+//! decision holds by name comes from it too (RFC-045 §6). The chronolexogram
 //! keeps a decision by its id; the engine gets its decision value
 //! `{basis, taken_on, fields, findings, outputs}`, where `taken_on`
 //! is the article of the submission it was taken on. A decision output of
@@ -41,7 +41,7 @@ use regelrecht_law_model::stored;
 #[derive(Debug)]
 pub struct Cell {
     recording_actor: String,
-    /// Who the cell is (`cel.yaml`, RFC-052).
+    /// Who the cell is (`cel.yaml`, RFC-046).
     authority: Authority,
     /// Per answer the cell gives, the `$id` of its reduction (`cel.yaml`,
     /// `answers`, RFC-048).
@@ -236,17 +236,17 @@ impl Cell {
         &self.recording_actor
     }
 
-    /// Who the cell is, from its `cel.yaml` (RFC-052).
+    /// Who the cell is, from its `cel.yaml` (RFC-046).
     pub fn authority(&self) -> &Authority {
         &self.authority
     }
 
     /// The cell as another cell of the sphere answers a decision on `on`
-    /// (RFC-052): from what it recorded up to and including that day. The
+    /// (RFC-048 §6): from what it recorded up to and including that day. The
     /// decision keeps only the day, not a position in the other cell's
-    /// chronicle; a replay asks it as of that day (RFC-050: a source says
+    /// chronicle; a replay asks it as of that day (RFC-046: a source says
     /// what it knew on a given day). A record it makes later, dated up to
-    /// that day, enters the replay; RFC-052 says when that fails it.
+    /// that day, enters the replay; RFC-048 §6 says when that fails it.
     fn known_on(&self, on: NaiveDate) -> Reader<'_> {
         let grams = self
             .grams()
@@ -550,7 +550,7 @@ impl Cell {
             // In a procedure, the application is recorded at its own stage,
             // with the outputs that belong to it and the hooks on it; the
             // decision's outputs wait for the stages of the decision
-            // (RFC-047). A date the stage requires is the day of recording.
+            // (RFC-045 §5). A date the stage requires is the day of recording.
             Some(stage) => {
                 let requires = service
                     .procedure_stage(law_id, article, stage, &date)?
@@ -639,7 +639,7 @@ impl Cell {
     /// cannot be absent and is left out: there is no submission whose
     /// incompleteness a law speaks of, so what is recorded is whole or not
     /// recorded. A field that can be absent and is left out is `null`. Where
-    /// the fact names who establishes it (`competent_authority`, RFC-052),
+    /// the fact names who establishes it (`competent_authority`, RFC-051),
     /// the cell records it only when that names the cell.
     pub fn record_executogram(
         &mut self,
@@ -815,7 +815,7 @@ impl Cell {
     }
 
     /// Take the decision of article `article` of `law_id` on the application
-    /// recorded as chronolexogram `application`, on `on` (RFC-047).
+    /// recorded as chronolexogram `application`, on `on` (RFC-046).
     ///
     /// What the decision asks comes from the application, the holder's
     /// policy and the cell ([`decision::derive`]). The cell answers the
@@ -828,7 +828,7 @@ impl Cell {
     /// holds what the deciding authority
     /// supplies itself, such as a parameter of a hook, and `findings` what it
     /// found for this case, by the id of the open term the law leaves to it
-    /// per case (`decided_per_case_by`, RFC-050). All findings reach the
+    /// per case (`decided_per_case_by`, RFC-045 §5). All findings reach the
     /// engine apart from the parameters, so each applies to every article in
     /// the decision that leaves the term to the authority: the deciding
     /// article, and an article it calls, such as a decision called anew. The
@@ -1140,7 +1140,7 @@ impl Cell {
     }
 
     /// The fields of the decision `id` that hold a finding of the deciding
-    /// authority (RFC-050): a field on an open term of the decision that
+    /// authority (RFC-046): a field on an open term of the decision that
     /// nothing fills, of the deciding article or of a policy that fills one
     /// of its terms, and a field the decision's article does not ask, given
     /// for an article it called. A value a policy filled is none: no finding
@@ -1215,7 +1215,7 @@ impl Cell {
     /// outputs are the same at each stage.
     ///
     /// This assumes every source the decision read can say what it knew on
-    /// the day of the decision (RFC-050). The cell's own sources (the
+    /// the day of the decision (RFC-046). The cell's own sources (the
     /// chronicle and the law in force on a day) can.
     fn replay(
         &self,
@@ -1439,7 +1439,7 @@ impl Cell {
     }
 
     /// The decision value `{basis, taken_on, fields, findings,
-    /// outputs}` of the decision `gram`, as the engine builds one (RFC-050),
+    /// outputs}` of the decision `gram`, as the engine builds one (RFC-045 §6),
     /// in the law in force on the day it was recorded: of its outputs those
     /// its decision item names, and of its fields:
     ///
@@ -1750,7 +1750,7 @@ fn decisions_on<'g>(grams: &'g [Gram], id: &str) -> Vec<&'g Gram> {
         .collect()
 }
 
-/// Who answers the engine in a decision of a cell (RFC-052): the cell itself,
+/// Who answers the engine in a decision of a cell (RFC-048 §4): the cell itself,
 /// and the other cells of the sphere, each as it knew things on the day.
 struct Answerers<'r> {
     own: &'r dyn OpenTermAnswerer,
@@ -1814,7 +1814,7 @@ struct Filled {
 /// `answerer` for the terms its reductions fill ([`Reader`]). `fields` is what
 /// [`asked`] gathered, and `findings` every finding the authority gave, also
 /// for an article the decision calls. The engine gets the findings apart from
-/// the parameters (RFC-050), so one applies to every article in the decision
+/// the parameters (RFC-045 §5), so one applies to every article in the decision
 /// that leaves the term to the authority. Returns the fields, with what a
 /// policy or a finding filled, and the outputs.
 fn take(

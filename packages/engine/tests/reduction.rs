@@ -8,7 +8,7 @@
 //! reduction. It fills no open term: the head's policy binds the term to the
 //! answer of the cell (`source.reduction`, schema v0.8.9), and the engine
 //! asks the caller's answerer for it, at any depth, also where the article
-//! is called anew (RFC-050), and records who answered and through which
+//! is called anew (RFC-048 §6), and records who answered and through which
 //! binding.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -93,7 +93,7 @@ fn decision(bsn: &str, first: &str, granted: bool) -> serde_json::Value {
 }
 
 /// A decision on an objection under Awb 7:11 against the decision
-/// `contested` (its id), that revoked it or not (RFC-050).
+/// `contested` (its id), that revoked it or not (RFC-048 §6).
 fn on_objection(contested: &serde_json::Value, revoked: bool) -> serde_json::Value {
     json!({
         "id": format!("bezwaar-{}", contested["id"].as_str().unwrap()),

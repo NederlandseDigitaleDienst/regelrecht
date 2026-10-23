@@ -1,5 +1,5 @@
 ---
-# Only a decision has data derived for it (schema v0.8.4, RFC-050).
+# Only a decision has data derived for it (schema v0.8.4, RFC-045 §1).
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.4/schema/v0.8.4/schema.json
 $id: test_conformance_produces_list_derived_on_submission
 regulatory_layer: WET

@@ -211,7 +211,7 @@ articles:
     url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
     machine_readable:
       # Het begrip noemt wie bevoegd is: het college, dat het advies ontving
-      # (competent_authority, RFC-052). Zwijgt de cel, dan geldt het
+      # (competent_authority, RFC-051). Zwijgt de cel, dan geldt het
       # eigen open begrip hieronder. Niet verplicht: zonder vaststelling was er
       # geen onderzoek, en weigert het college de kaart (artikel 2 van de
       # regeling, artikel 49 van het BABW). Het vraagt het college dus niets.

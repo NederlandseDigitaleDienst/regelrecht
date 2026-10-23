@@ -1,5 +1,5 @@
 //! PoC: een uitvoeringsproces naspelen op de cel van een fictieve uitvoerder
-//! (chronolexografie, RFC-045 tot en met RFC-050). De bezoeker kiest een
+//! (chronolexografie, RFC-045, RFC-046 en RFC-048). De bezoeker kiest een
 //! casus: vakantieverlof (Leerplichtwet 1969 art. 13a) bij OBS De Klimop, de
 //! gehandicaptenparkeerkaart (BABW art. 49) bij de gemeente Wilgendaal, of de
 //! bedrijfsparkeervergunning (een fictieve parkeerverordening, art. 2) bij

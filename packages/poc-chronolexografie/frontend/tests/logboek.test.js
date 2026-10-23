@@ -184,7 +184,7 @@ describe('toon en artikelNaam', () => {
   });
 });
 
-describe('antwoorden van een andere cel (RFC-052)', () => {
+describe('antwoorden van een andere cel (RFC-048)', () => {
   const KVK = 'kamer_van_koophandel';
   beforeEach(() => {
     state.casus.andere_cellen = [{ cel: KVK, cel_naam: 'Kamer van Koophandel' }];

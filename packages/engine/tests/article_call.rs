@@ -1,4 +1,4 @@
-//! A call to an article (`source.article`, schema v0.8.4, RFC-050): the
+//! A call to an article (`source.article`, schema v0.8.4, RFC-045 §6): the
 //! article comes from the law or from a value, its parameters from
 //! `parameters_from` with `parameters` on top, and without `output` the
 //! input is a decision value `{basis, fields, findings, outputs}`.
@@ -20,7 +20,7 @@ const DATE: &str = "2025-06-01";
 
 /// The deciding law. Article 1 establishes an application and decides on
 /// it; its decision yields two of its four outputs, and `dagen_over`, which
-/// it lists under `derived`, is data derived for the decision (RFC-050). Article 3
+/// it lists under `derived`, is data derived for the decision (RFC-045 §1). Article 3
 /// decides nothing.
 const VERLOF: &str = r#"
 $id: wet_verlof
@@ -1423,7 +1423,7 @@ articles:
 // --- A judgement per case passed to the article --------------------------
 
 /// The head judges per case whether the ground is present (an open term with
-/// `decided_per_case_by`, RFC-047), as for Leerplichtwet 13a. The caller
+/// `decided_per_case_by`, RFC-045 §5), as for Leerplichtwet 13a. The caller
 /// merges the judgement into the parameters of the call.
 const HOOFD: &str = r#"
 $id: wet_hoofd

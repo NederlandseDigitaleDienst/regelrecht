@@ -57,7 +57,7 @@ export const gelezen = (p, grammen) =>
 /**
  * De cel die een begrip beantwoordde, zoals de bezoeker haar kent: de naam
  * uit de casus (OBS De Klimop, gemeente Wilgendaal, GGD Wilgendaal) als zij
- * de cel van de casus of een andere cel van de casus is (RFC-052), anders
+ * de cel van de casus of een andere cel van de casus is (RFC-048), anders
  * haar id.
  */
 export const celNaam = (cel) =>
@@ -67,7 +67,7 @@ export const celNaam = (cel) =>
 
 /**
  * De kroniek van de cel `cel`: die van de casus, of die van een andere cel
- * van de casus (RFC-052), om daar het laatst gelezen chronolexogram te
+ * van de casus (RFC-048), om daar het laatst gelezen chronolexogram te
  * vinden.
  */
 export const grammenVan = (cel, grammen) =>

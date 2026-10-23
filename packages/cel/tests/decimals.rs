@@ -383,7 +383,7 @@ fn a_stored_decision_called_anew_gives_no_false_difference() {
 
 #[test]
 fn a_decision_the_cell_reads_back_and_calls_anew_gives_no_false_difference() {
-    // The path of a submission that refers to a decision (RFC-050): the
+    // The path of a submission that refers to a decision (RFC-045 §6): the
     // cell reopens the file, builds the decision value of the stored
     // decision itself and passes it to article 5, which calls article 1
     // anew (`source.article`) and compares the outputs as records.
