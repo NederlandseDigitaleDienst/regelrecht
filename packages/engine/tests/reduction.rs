@@ -457,28 +457,24 @@ fn a_reduction_does_not_act_on_law() {
 #[test]
 fn a_reduction_fills_no_open_term() {
     // Its cell gives it as a named answer, which a policy binds (RFC-048).
+    // Schema v0.8.5 to v0.8.8 allowed `implements` on a reduction; v0.8.9
+    // removed it, and the engine runs every file with the latest semantics,
+    // so a file under any version, or none, is refused with the replacement
+    // named.
     let implements = "      implements:\n        - law: leerplichtwet_1969\n          \
                       article: 13a\n          open_term: verlof_al_verleend_in_schooljaar\n";
-    refused(
-        &acting(implements),
-        "a REDUCTIE fills no open term (implements)",
-    );
-    // Schema v0.8.5 to v0.8.8 allowed it, and a file that names one of them
-    // loads; the engine gives the declaration no meaning.
-    for allowed in ["v0.8.5", "v0.8.8"] {
-        ArticleBasedLaw::from_yaml_str(&acting(implements).replace("v0.8.12", allowed)).unwrap();
+    let says = "a REDUCTIE fills no open term (implements), which schema v0.8.9 removed; its \
+                cell gives it as a named answer, which a policy binds to the term with \
+                source.reduction";
+    for version in ["v0.8.4", "v0.8.5", "v0.8.8", "v0.8.9", "v0.8.12"] {
+        refused(&acting(implements).replace("v0.8.12", version), says);
     }
-    refused(
-        &acting(implements).replace("v0.8.12", "v0.8.4"),
-        "a REDUCTIE fills no open term (implements)",
-    );
-    // Without `$schema` the file is held to the current version.
     let unnamed: String = acting(implements)
         .lines()
         .filter(|line| !line.starts_with("$schema:"))
         .collect::<Vec<_>>()
         .join("\n");
-    refused(&unnamed, "a REDUCTIE fills no open term (implements)");
+    refused(&unnamed, says);
 }
 
 /// The head's policy with `from` replaced by `to` in its binding of art. 2.
@@ -557,15 +553,16 @@ fn a_binding_fills_a_term_in_a_policy_that_names_its_holder() {
     }
 }
 
+/// The engine has no behavior that depends on the schema version: a binding
+/// under an older `$schema` is for the schema validator to refuse, and the
+/// engine loads it as it loads one without `$schema`.
 #[test]
-fn a_binding_takes_an_answer_only_from_schema_v0_8_9() {
-    for older in ["v0.8.2", "v0.8.8"] {
-        refused(
-            &policy_yaml().replace("v0.8.9", older),
-            "which a policy does only from schema v0.8.9",
-        );
+fn a_binding_loads_whatever_version_the_file_names() {
+    for version in ["v0.8.2", "v0.8.8"] {
+        let older = policy_yaml().replace("v0.8.9", version);
+        assert_ne!(older, policy_yaml());
+        ArticleBasedLaw::from_yaml_str(&older).unwrap();
     }
-    // Without `$schema` the file is held to the current version.
     let unnamed: String = policy_yaml()
         .lines()
         .filter(|line| !line.starts_with("$schema:"))
@@ -573,6 +570,25 @@ fn a_binding_takes_an_answer_only_from_schema_v0_8_9() {
         .join("\n");
     assert_ne!(unnamed, policy_yaml());
     ArticleBasedLaw::from_yaml_str(&unnamed).unwrap();
+}
+
+/// Schema v0.8.7 replaced `source.executograms` (v0.8.6) by `source.facts`.
+/// A v0.8.6 file that still reads executograms is refused at load, with the
+/// replacement named, rather than run without the input it meant to read.
+#[test]
+fn executograms_of_v0_8_6_are_refused_with_facts_named() {
+    // Also a bare key, which reads as null, is refused rather than dropped.
+    for value in ["test_stroom_vestigingen", "~", ""] {
+        let yaml = variant(
+            "decisions: leerplichtwet_1969#13a",
+            &format!("executograms: {value}"),
+        )
+        .replace("v0.8.9", "v0.8.6");
+        refused(
+            &yaml,
+            "reads source.executograms, which schema v0.8.7 replaced; use source.facts",
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------

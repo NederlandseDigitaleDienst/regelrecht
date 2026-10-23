@@ -270,6 +270,8 @@ Three more bound the fuzzy search that anchors a note to law text. The sliding-w
 
 `SUPPORTED_SCHEMAS` lists the schema versions this engine build accepts. A law whose `$schema` names a version outside that list is refused at load time, with an error that lists the supported versions. A law without `$schema` is not checked against the list.
 
+The list holds every released schema version. A rulework is validated against the version its `$schema` names, and it runs with the semantics of the latest version. The engine has no behavior that depends on the version. A construct that a later version removed is refused at load, with an error that names its replacement. So a v0.8.6 rulework that reads `source.executograms` is told to use `source.facts`, which replaced it in v0.8.7. A reduction with `implements`, which v0.8.5 to v0.8.8 allowed, is told that its cell gives it as a named answer, which a policy binds to the term with `source.reduction` since v0.8.9.
+
 ## Execution Receipt
 
 The engine can produce an Execution Receipt: a JSON document that captures everything needed to reproduce a specific execution result. The receipt includes `engine_version`, `schema_version`, and `regulation_hash` alongside the regular `ArticleResult` fields. This allows independent verification of past decisions.

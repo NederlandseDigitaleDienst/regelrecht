@@ -23,10 +23,14 @@
 //! act on law: it fills no open term (`implements`), hooks onto nothing
 //! (`hooks`), replaces no output (`overrides`), takes no decision
 //! (`execution.produces`) and delegates nothing (`open_terms`). It names no
-//! holder (`competent_authority`): it sits with its cell, or with none. Schema
-//! v0.8.5 to v0.8.8 allowed `implements` on a reduction; a file that names
-//! one of them is held to that schema, and the engine gives the declaration
-//! no meaning ([`crate::resolver`]).
+//! holder (`competent_authority`): it sits with its cell, or with none.
+//!
+//! The engine has no behavior that depends on the schema version a file
+//! names: every file runs with the semantics of the latest version. A
+//! construct a later version removed is refused with its replacement named:
+//! `source.executograms` (v0.8.6), which v0.8.7 replaced by `source.facts`,
+//! and `implements` on a reduction (v0.8.5 to v0.8.8), which v0.8.9 replaced
+//! by a named answer that a policy binds with `source.reduction`.
 //!
 //! The policy of the authority that decides binds an open term to an answer
 //! (schema v0.8.9, RFC-048): a policy article that fills the term
@@ -52,40 +56,56 @@ use crate::answer::ChronicleRead;
 use crate::article::ArticleBasedLaw;
 use crate::error::{EngineError, Result};
 use regelrecht_law_model::{
-    parse_schema_version, ActionOperation, ActionValue, CompetentAuthority, MachineReadable,
-    RegulatoryLayer,
+    ActionOperation, ActionValue, CompetentAuthority, MachineReadable, RegulatoryLayer,
 };
 
-/// The schema versions in which a `REDUCTIE` may have `implements`: from
-/// v0.8.5, until v0.8.9 made the reduction a named answer.
-const REDUCTION_IMPLEMENTS: (u32, u32, u32) = (0, 8, 5);
-const REDUCTION_ANSWERS: (u32, u32, u32) = (0, 8, 9);
+/// Refuse a construct that a later schema version removed, naming what
+/// replaced it. The engine runs every file with the semantics of the latest
+/// version, so it cannot run such a construct; dropping it silently would run
+/// the file without it. So far there are two: `source.executograms` (v0.8.6),
+/// which v0.8.7 replaced by `source.facts` (RFC-051), and `implements` on a
+/// `REDUCTIE` (v0.8.5 to v0.8.8), which v0.8.9 replaced by a named answer of
+/// the cell that a policy binds to the term (`source.reduction`, RFC-048).
+pub(crate) fn reject_removed_constructs(law: &ArticleBasedLaw) -> Result<()> {
+    let refuse = |why: String| Err(EngineError::LoadError(format!("law '{}' {why}", law.id)));
+    let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
+    for (where_, section) in sections(law) {
+        if reduction && section.implements.is_some() {
+            return refuse(format!(
+                "{where_}: a REDUCTIE fills no open term (implements), which schema v0.8.9 \
+                 removed; its cell gives it as a named answer, which a policy binds to the term \
+                 with source.reduction (RFC-048)"
+            ));
+        }
+        for input in inputs(section) {
+            if input
+                .source
+                .as_ref()
+                .is_some_and(|source| source.executograms.is_some())
+            {
+                return refuse(format!(
+                    "{where_}: input '{}' reads source.executograms, which schema v0.8.7 \
+                     replaced; use source.facts (RFC-051)",
+                    input.name
+                ));
+            }
+        }
+    }
+    Ok(())
+}
 
 /// Refuse a reading of a chronicle (`source.decisions`, `source.facts`)
 /// outside a `REDUCTIE`, the keys that act on law and a holder
 /// (`competent_authority`) in a `REDUCTIE`, and a misplaced answer of a
-/// cell (`source.reduction`, RFC-048). A `REDUCTIE`
-/// may have `implements` only under a `$schema` from v0.8.5 to v0.8.8. An
-/// answer is taken only in a `UITVOERINGSBELEID` that names its holder, by
-/// an article that fills an open term, from schema v0.8.9; it stands apart
-/// from every other way to a value.
+/// cell (`source.reduction`, RFC-048). An answer is taken only in a
+/// `UITVOERINGSBELEID` that names its holder, by an article that fills an
+/// open term; it stands apart from every other way to a value.
 pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
     let refuse = |why: String| Err(EngineError::LoadError(format!("law '{}' {why}", law.id)));
     let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
     let policy = law.regulatory_layer == RegulatoryLayer::Uitvoeringsbeleid;
-    let version = law.schema_version().and_then(parse_schema_version);
-    // A file without `$schema` is held to the current version.
-    let implements_allowed =
-        version.is_some_and(|v| (REDUCTION_IMPLEMENTS..REDUCTION_ANSWERS).contains(&v));
-    let answers_allowed = version.is_none_or(|v| v >= REDUCTION_ANSWERS);
     for (where_, section) in sections(law) {
         if reduction {
-            if section.implements.is_some() && !implements_allowed {
-                return refuse(format!(
-                    "{where_}: a REDUCTIE fills no open term (implements); its cell gives it as \
-                     a named answer, which a policy binds to the term (RFC-048)"
-                ));
-            }
             if let Some(key) = acts_on_law(section) {
                 return refuse(format!(
                     "{where_}: a REDUCTIE is no regulation and does not act on law ({key})"
@@ -117,13 +137,6 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
                         "{where_}: input '{}' takes the answer '{answer}' of a cell; only the \
                          UITVOERINGSBELEID of the authority that decides binds a term to an \
                          answer (RFC-048)",
-                        input.name
-                    ));
-                }
-                if !answers_allowed {
-                    return refuse(format!(
-                        "{where_}: input '{}' takes the answer '{answer}' of a cell, which a \
-                         policy does only from schema v0.8.9",
                         input.name
                     ));
                 }
