@@ -7,23 +7,11 @@ import DocsFeatureCards from '~/components/DocsFeatureCards.astro';
 
 RegelRecht is an open-source project about writing Dutch legislation down in a form a computer can execute, and publishing it so that anyone can check how a decision was reached. It is an exploration by the Nederlandse Digitale Dienst, not a system in production: no government agency takes decisions with it today.
 
-What exists and runs is the groundwork. An [execution engine](/components/engine) in Rust evaluates ruleworks, natively on a server and as WebAssembly in the browser. The [corpus](/components/corpus) holds a curated set of regulations with machine-readable logic and [scenarios](/concepts/scenarios) that test it, among them the Wet op de zorgtoeslag and the Awb. The [harvester](/components/harvester) converts legislation from the national registers (BWB and CVDR) into that format. An [editor](/components/frontend) lets people read and work on the laws, and the [demo](/components/demo) runs a larger corpus of several dozen laws end to end in the browser. What is still being explored is listed on the [roadmap](/roadmap): how a rulework gets adopted and what legal status it has, attested execution, publication infrastructure, and executing a decision across organizations.
+What exists and runs is the groundwork: an [execution engine](/components/engine), a [corpus](/components/corpus) of ruleworks with [scenarios](/concepts/scenarios) that test them, a [harvester](/components/harvester), an [editor](/components/frontend) and a [demo](/components/demo). What is still being explored is on the [roadmap](/roadmap): how a rulework gets adopted and what legal status it has, attested execution, publication infrastructure, and executing a decision across organizations.
+
+[RegelRecht](/concepts/regelrecht) explains the approach and how the parts fit, with a map of every concept page.
 
 <DocsFeatureCards />
-
-## The problem
-
-Dutch law is published as natural language text. When government agencies need to implement legislation in IT systems, they manually translate legal rules into software. Each agency writes its own interpretation of the same law. Nobody can check whether those implementations match what Parliament intended. Citizens cannot see how decisions about them are made. There is no way to test whether the software follows the law.
-
-## The vision
-
-RegelRecht encodes each law once in a structured format and runs it through a single execution engine. A rulework is an interpretation of the law, not the law itself: where the two conflict, the statute prevails and the rulework has to be corrected ([Rules as Executed, section 4.2](/research/rules-as-executed#sec:legalstatus)). What the format adds is that the interpretation is written down where anyone can read it and run it, instead of staying buried in an agency's software. The aim is that one engine runs it the same way everywhere: in the editor for lawmakers, in the browser for citizens, and, if an agency adopts it, in government backends for official decisions. The [architecture overview](./architecture) shows how the corpus, the engine and the tools around them fit together.
-
-## An example
-
-Article 2 of the Wet op de zorgtoeslag says that an insured person is entitled to a healthcare allowance equal to the difference between the standard premium and the normative premium. In RegelRecht that article sits in a YAML file next to its original text, with a `machine_readable` section that states the calculation: derive the normative premium from the income as the Awir defines it, take the standard premium that a ministerial regulation sets each year, subtract the one from the other, and never go below zero.
-
-Ask the engine whether a given person qualifies on 1 January 2025 and it loads the zorgtoeslag law, follows its references into the Awir, the Zorgverzekeringswet and the ministerial regulation, and returns the amount together with a trace naming every article it applied. [How RegelRecht Works](/concepts/how-it-works) walks through that file and that execution step by step.
 
 ## Who is this for?
 
@@ -35,7 +23,8 @@ Ask the engine whether a given person qualifies on 1 January 2025 and it loads t
 
 ## Next steps
 
-- [How RegelRecht Works](/concepts/how-it-works) - the core concepts, each with a link to its own page
+- [RegelRecht](/concepts/regelrecht) - the approach and the parts, with a map of the concept pages
+- [Ruleworks](/concepts/ruleworks) - how a rulework is made, checked and used
 - [Architecture](./architecture) - the components and how data flows between them
 - [Getting Started](./getting-started) - from a fresh clone to a first build
 - [RFCs](/rfcs/) - all design decisions

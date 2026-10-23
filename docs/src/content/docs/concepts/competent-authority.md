@@ -5,7 +5,7 @@ description: "How an article records the bevoegd gezag: the authority whose exec
 
 A *beschikking* is only binding when the right body issues it. The tax inspector (*inspecteur*) assesses income. The CIZ decides on a long-term care indication. A municipal college grants social assistance. An article records which body is competent in `competent_authority`, the *bevoegd gezag*.
 
-The engine uses this field for two things. It tells a binding decision apart from a calculation that anyone may run (see [Multi-Org Execution](./multi-org-execution)). It also derives from it who may annotate a law with authority (see [Notes and Annotations](./notes-and-annotations)).
+The engine uses this field to decide which cell answers an open term (below). The note resolver derives from it whether a note on the article is authoritative (see [Notes and Annotations](./notes-and-annotations)).
 
 ## The two forms
 
@@ -92,12 +92,19 @@ competent_authority:
 
 A policy that binds an open term to a cell's answer must name its holder this way, by name. The loader refuses a `#` reference or a list there. A reduction names no holder. Since schema v0.8.12 it sits with its cell (`corpus/cells/<cell>/reductions/`), and a cell answers only from the reductions it keeps.
 
+## A decision or a calculation
+
+Dutch administrative law separates a *beschikking*, a binding act only the competent authority can issue, from a *berekening*, a computation anyone may perform. When one law reads the income another law establishes, it crosses from one organization to another, and the question is whether to compute that value or to accept the determination the competent body made.
+
+The engine does not make that choice. It computes every value locally, whoever is competent for it, and its outputs are unsigned. [RFC-009](/rfcs/rfc-009) proposes four modes on two axes, solo or federated and simulation or authoritative, in which an engine would identify as one organization, call the engines of others over FSC (Federated Service Connectivity) and sign what it decides. That RFC is proposed and none of it is built. Today, a value of another organization reaches a decision in one way: a cell that the open term names answers it from its own chronicle ([Chronolexography](/concepts/chronolexography#answers-of-other-cells)). The receipt has an `accepted_values` field for the other route, and it is always empty ([Execution Provenance](./execution-provenance)).
+
 ## Further reading
 
-- [Multi-Org Execution](./multi-org-execution) - how the competent authority decides execute-vs-accept
 - [Notes and Annotations](./notes-and-annotations) - how note authority is derived from the competent authority
 - [RFC-002: Bevoegdheid](/rfcs/rfc-002) - full specification
+- [RFC-009: Multi-Organization Execution](/rfcs/rfc-009) - the proposed execution modes across organizations
 - [RFC-051: Facts and Competence](/rfcs/rfc-051) - competence on an open term and a fact
 - [RFC-048: Reduction and Synthesis](/rfcs/rfc-048) - binding a cell's answer, and asking the competent cell for it
 - [Rules as Executed, section 4.3](/research/rules-as-executed#sec:whochooses) - the position paper on which authority chooses and publishes an encoding
 - [Rules as Executed, section 4.6](/research/rules-as-executed#sec:overrides) - the position paper on overrides and discretion
+- [Rules as Executed, sections 4.11 and 4.12](/research/rules-as-executed#sec:crossorg) - the position paper on executing across organizations and relying on another body's decision

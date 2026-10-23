@@ -81,10 +81,16 @@ Credentials for private repositories are stored separately from the manifest. Th
 
 ## Editor integration
 
-Municipalities can edit, validate, and submit their regulations through the web editor without needing a development environment. The editor writes directly to the appropriate GitHub repository via the Contents API, creating branches and pull requests.
+An authority can work on its ruleworks in the web editor without a development environment. The editor works inside a traject, which has its own branch, and every save is a commit on that branch through the GitHub Contents API. It does not open a pull request.
+
+A traject can point at the authority's own repository, private if need be, instead of the central corpus. Which token writes there, a service token per repository or the user's own GitHub account, is described on [Private-repo trajects](/operations/private-repo-trajects).
+
+## What is not built
+
+The checked-in `corpus-registry.yaml` lists one source, the central corpus; further sources come from a local registry during development. No repository of another authority is registered. Scopes are claims the loader warns about; they do not decide which ruleworks apply to a case. That is decided by the execution itself, for example by the `gemeente_code` with which [Inversion of Control](./inversion-of-control) selects a municipal ordinance.
 
 ## Further reading
 
 - [Inversion of Control](./inversion-of-control) - how `implements` works across repositories
-- [Multi-Org Execution](./multi-org-execution) - how organizational boundaries affect execution
+- [Competent Authority](./competent-authority) - who decides, and what crossing an organizational boundary means for execution
 - [RFC-010: Federated Corpus](/rfcs/rfc-010) - the full design specification

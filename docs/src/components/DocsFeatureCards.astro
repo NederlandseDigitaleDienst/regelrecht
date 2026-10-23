@@ -2,14 +2,14 @@
 /*
  * The documentation overview at the top of /guide/what-is-regelrecht (where
  * the "Documentatie" nav lands). Two boxed nldd-lists:
- *  1. Quick actions (how-it-works / get-started / GitHub).
+ *  1. Quick actions (concepts overview / get-started / GitHub).
  *  2. The six capability cards, each linking to the relevant docs section.
  */
 const cards = [
   {
     title: 'Executable Law',
     body: 'Dutch legislation encoded in YAML and executed by a deterministic engine. Every decision traces back to its legal source.',
-    href: '/concepts/how-it-works',
+    href: '/concepts/regelrecht',
   },
   {
     title: 'Cross-Law References',
@@ -27,9 +27,9 @@ const cards = [
     href: '/concepts/methodology',
   },
   {
-    title: 'Multi-Organization Execution',
-    body: 'Different government organizations handle different laws. The engine models these boundaries; exchanging signed results between organizations is proposed (RFC-009) but not yet built.',
-    href: '/concepts/multi-org-execution',
+    title: 'Competent Authority',
+    body: 'Each article names the body that decides. Different organizations handle different laws; exchanging signed results between them is proposed (RFC-009) but not yet built.',
+    href: '/concepts/competent-authority',
   },
   {
     title: 'Open Source',
@@ -39,7 +39,7 @@ const cards = [
 ];
 
 const actions = [
-  { text: 'How It Works', href: '/concepts/how-it-works' },
+  { text: 'How It Works', href: '/concepts/regelrecht' },
   { text: 'Get Started', href: '/guide/getting-started' },
   { text: 'GitHub', href: 'https://github.com/NederlandseDigitaleDienst/regelrecht' },
 ];
