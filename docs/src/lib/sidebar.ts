@@ -49,7 +49,7 @@ export const sidebar: Record<string, SidebarGroup[]> = {
     {
       text: 'Overview',
       items: [
-        { text: 'RegelRecht', link: '/concepts/regelrecht' },
+        { text: 'How RegelRecht Works', link: '/concepts/how-it-works' },
         { text: 'Ruleworks', link: '/concepts/ruleworks' },
       ],
     },

@@ -1,5 +1,5 @@
 ---
-title: "RegelRecht"
+title: "How RegelRecht Works"
 description: "What RegelRecht is and what it is for, the parts it consists of, and a map of the concept pages that explain each of them."
 ---
 

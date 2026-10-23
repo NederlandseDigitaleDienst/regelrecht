@@ -3,7 +3,7 @@ title: "Architecture Overview"
 description: "A tour of the two parts, the Corpus Juris and the Execution Engine, and how the pieces fit."
 ---
 
-RegelRecht has two parts: the **Corpus Juris** (a git-versioned body of all Dutch law) and the **Execution Engine** (a runtime that evaluates laws deterministically). Everything else on this page either feeds the corpus or puts the engine in front of someone. The ideas the engine implements, such as cross-law references and delegation, are explained under [RegelRecht](/concepts/regelrecht) and the concept pages it maps.
+RegelRecht has two parts: the **Corpus Juris** (a git-versioned body of all Dutch law) and the **Execution Engine** (a runtime that evaluates laws deterministically). Everything else on this page either feeds the corpus or puts the engine in front of someone. The ideas the engine implements, such as cross-law references and delegation, are explained under [How RegelRecht Works](/concepts/how-it-works) and the concept pages it maps.
 
 ## System context
 
@@ -109,7 +109,7 @@ regelrecht/
 
 ## Further reading
 
-- [RegelRecht](/concepts/regelrecht) - the concepts behind the engine, with a map of the concept pages
+- [How RegelRecht Works](/concepts/how-it-works) - the concepts behind the engine, with a map of the concept pages
 - [Engine](/components/engine) - execution engine architecture
 - [Chronolexography](/concepts/chronolexography) - how the `cel` crate records an application and the decision on it in a chronicle
 - [RFC Index](../rfcs/) - all design decisions

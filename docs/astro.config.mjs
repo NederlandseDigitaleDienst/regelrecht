@@ -47,7 +47,6 @@ export default defineConfig({
     // pagina geworden, en Multi-Org Execution beschreef alleen een voorstel
     // (RFC-009) dat niet gebouwd is; wat ervan klopt staat nu bij Competent
     // Authority.
-    '/concepts/how-it-works': '/concepts/regelrecht',
     '/concepts/validation-methodology': '/concepts/methodology',
     '/concepts/multi-org-execution': '/concepts/competent-authority',
   },
