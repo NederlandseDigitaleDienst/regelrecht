@@ -78,8 +78,8 @@ pub use resolver::{
     HookEntry, ImplementationLookup, ProcedureMiss, RuleResolver,
 };
 pub use service::{
-    ExecutionOutcome, LawExecutionService, LawInfo, ProcedureStage, ServiceProvider, StageReport,
-    StageState, Submission, SubmissionArticle,
+    DecisionTerm, ExecutionOutcome, LawExecutionService, LawInfo, ProcedureStage, ServiceProvider,
+    StageReport, StageState, Submission, SubmissionArticle,
 };
 pub use trace::{PathNode, TraceBuilder};
 pub use types::{

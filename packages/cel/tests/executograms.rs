@@ -443,6 +443,11 @@ articles:
   - number: '1'
     text: x is het antwoord van de cel.
     machine_readable:
+      open_terms:
+        - id: x_volgens_hoofd
+          type: boolean
+          required: true
+          decided_per_case_by: het hoofd
       implements:
         - {law: wet_kring_fictief, article: '1', open_term: x}
       execution:
@@ -452,9 +457,15 @@ articles:
             nullable: true
             source: {reduction: x}
         output:
-          - {name: x, type: boolean, nullable: true}
+          - {name: x, type: boolean}
         actions:
-          - {output: x, value: $antwoord}
+          - output: x
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord, value: null}
+                  then: $x_volgens_hoofd
+              default: $antwoord
 "#;
     let reduction = r#"
 $id: reductie_kring_fictief

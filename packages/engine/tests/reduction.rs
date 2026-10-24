@@ -23,6 +23,9 @@ use serde_json::json;
 
 const REDUCTION: &str = "reductie_verlof_al_verleend_in_schooljaar";
 const ONCE: &str = "verlof_al_verleend_in_schooljaar";
+/// The head's own finding on it, which the binding takes where the cell
+/// gives no answer (art. 3 of the policy, RFC-048 §2).
+const ONCE_HEAD: &str = "verlof_al_verleend_in_schooljaar_volgens_hoofd";
 /// The head's policy: the norms the reduction applies (art. 1 and 2) and
 /// the binding of the term of art. 13a to the cell's answer (art. 3).
 const POLICY: &str = "fictief_beleid_vakantieverlof_obs_de_klimop";
@@ -587,20 +590,32 @@ fn application() -> BTreeMap<String, Value> {
             Value::Bool(true),
         ),
         (
-            "verlof_valt_buiten_schoolvakanties".to_string(),
+            "verlof_valt_buiten_schoolvakanties_volgens_hoofd".to_string(),
             Value::Bool(true),
         ),
     ])
+}
+
+/// `parameters` as the call takes them: the head's findings on the open
+/// terms of the policy (`..._volgens_hoofd`) apart, as findings.
+fn split(
+    parameters: BTreeMap<String, Value>,
+) -> (BTreeMap<String, Value>, BTreeMap<String, Value>) {
+    parameters
+        .into_iter()
+        .partition(|(name, _)| !name.ends_with("_volgens_hoofd"))
 }
 
 fn granted_13a(
     service: &LawExecutionService,
     parameters: BTreeMap<String, Value>,
 ) -> regelrecht_engine::Result<regelrecht_engine::ArticleResult> {
-    service.evaluate_law_with_trace(
+    let (parameters, findings) = split(parameters);
+    service.evaluate_law_with_trace_in(
         "leerplichtwet_1969",
         &["verlof_verleend"],
         parameters,
+        Call::with_findings(findings),
         "2026-10-27",
     )
 }
@@ -688,8 +703,9 @@ fn granted_13a_with(
     parameters: BTreeMap<String, Value>,
     answerer: &Answerer,
 ) -> regelrecht_engine::Result<regelrecht_engine::ArticleResult> {
+    let (parameters, findings) = split(parameters);
     let call = Call {
-        findings: BTreeMap::new(),
+        findings,
         answerer: Some(answerer),
         sphere: Vec::new(),
     };
@@ -722,13 +738,13 @@ fn answered(node: &regelrecht_engine::PathNode) -> Vec<&regelrecht_engine::PathN
 }
 
 #[test]
-fn the_answerer_fills_the_term_of_13a_and_sets_the_heads_finding_aside() {
+fn the_answerer_fills_the_term_of_13a() {
     // The reduction is loaded, but the engine does not run it: the answer
     // is the answerer's, which the head's binding takes.
     let service = corpus_service(true);
     let mut parameters = application();
-    // The head finds otherwise; the answer is the general rule and wins.
-    parameters.insert(ONCE.to_string(), Value::Bool(false));
+    // The head's own finding is asked only where the cell is silent.
+    parameters.insert(ONCE_HEAD.to_string(), Value::Bool(false));
     let answerer = Answerer::giving(Some(true));
     let result = granted_13a_with(&service, parameters, &answerer).unwrap();
     assert_eq!(result.outputs["verlof_verleend"], Value::Bool(false));
@@ -769,8 +785,20 @@ fn the_answerer_fills_the_term_of_13a_and_sets_the_heads_finding_aside() {
         )),
         "{trace}"
     );
-    assert!(trace.contains("is set aside"), "{trace}");
+    assert!(!trace.contains(&format!("'{ONCE_HEAD}'")), "{trace}");
     assert!(!trace.contains("FOREACH"), "{trace}");
+}
+
+#[test]
+fn a_finding_on_the_term_the_policy_fills_is_asked_by_none() {
+    // No judgement of the head steps in on a term his policy fills: the
+    // policy says itself where he judges (RFC-048 §2).
+    let service = corpus_service(false);
+    let mut parameters = application();
+    parameters.insert(ONCE.to_string(), Value::Bool(false));
+    let answerer = Answerer::giving(Some(true));
+    let e = granted_13a_with(&service, parameters, &answerer).unwrap_err();
+    assert!(e.to_string().contains("is asked by none"), "{e}");
 }
 
 #[test]
@@ -785,20 +813,22 @@ fn a_loaded_reduction_fills_nothing_by_itself() {
     let e = granted_13a(&service, application()).unwrap_err();
     assert!(e.to_string().contains(ONCE), "{e}");
     let mut parameters = application();
-    parameters.insert(ONCE.to_string(), Value::Bool(false));
+    parameters.insert(ONCE_HEAD.to_string(), Value::Bool(false));
     let result = granted_13a(&service, parameters).unwrap();
     assert_eq!(result.outputs["verlof_verleend"], Value::Bool(true));
     assert!(result
         .open_terms
         .iter()
-        .any(|f| f.term == ONCE && f.filled_by == FilledBy::Finding));
+        .any(|f| f.term == ONCE_HEAD && f.filled_by == FilledBy::Finding));
 }
 
 #[test]
-fn an_answerer_that_does_not_fill_the_term_leaves_it_to_the_finding() {
+fn an_answerer_that_gives_no_answer_leaves_it_to_the_policy() {
+    // The binding still fills the term, with what the policy says holds
+    // without an answer: the head's own finding.
     let service = corpus_service(false);
     let mut parameters = application();
-    parameters.insert(ONCE.to_string(), Value::Bool(true));
+    parameters.insert(ONCE_HEAD.to_string(), Value::Bool(true));
     let answerer = Answerer::giving(None);
     let result = granted_13a_with(&service, parameters, &answerer).unwrap();
     assert_eq!(result.outputs["verlof_verleend"], Value::Bool(false));
@@ -806,39 +836,39 @@ fn an_answerer_that_does_not_fill_the_term_leaves_it_to_the_finding() {
     assert!(result
         .open_terms
         .iter()
-        .any(|f| f.term == ONCE && f.filled_by == FilledBy::Finding));
-    // Without a finding either, the required term has no answer.
+        .any(|f| f.term == ONCE_HEAD && f.filled_by == FilledBy::Finding));
+    // Without a finding either, the policy's required term has no value.
     let e = granted_13a_with(&service, application(), &answerer).unwrap_err();
     assert!(e.to_string().contains(ONCE), "{e}");
 }
 
 #[test]
-fn an_answerer_that_is_silent_leaves_the_term_to_the_finding() {
-    // A null answer on a term the law leaves to the head is silence, as
-    // for an implementation: the head's finding applies.
+fn a_silent_answerer_leaves_it_to_the_policy() {
+    // A null answer is no value of the binding's input; the policy says
+    // what then holds: the head's own finding.
     let service = corpus_service(false);
     let mut parameters = application();
-    parameters.insert(ONCE.to_string(), Value::Bool(true));
+    parameters.insert(ONCE_HEAD.to_string(), Value::Bool(true));
     let answerer = Answerer::giving_value(Some(Value::Null));
     let result = granted_13a_with(&service, parameters, &answerer).unwrap();
     assert_eq!(result.outputs["verlof_verleend"], Value::Bool(false));
     assert!(result
         .open_terms
         .iter()
-        .any(|f| f.term == ONCE && f.filled_by == FilledBy::Finding));
+        .any(|f| f.term == ONCE_HEAD && f.filled_by == FilledBy::Finding));
     let trace = result.trace.unwrap().render_box_drawing();
-    assert!(trace.contains("is silent for this case"), "{trace}");
+    assert!(trace.contains("is silent (null)"), "{trace}");
+    assert!(!trace.contains("is silent for this case"), "{trace}");
 }
 
 #[test]
-fn an_answer_without_a_finding_sets_nothing_aside() {
+fn an_answer_needs_no_finding() {
     let service = corpus_service(false);
     let answerer = Answerer::giving(Some(false));
     let result = granted_13a_with(&service, application(), &answerer).unwrap();
     assert_eq!(result.outputs["verlof_verleend"], Value::Bool(true));
     let trace = result.trace.unwrap().render_box_drawing();
     assert!(trace.contains("with the answer of een_cel"), "{trace}");
-    assert!(!trace.contains("set aside"), "{trace}");
 }
 
 /// An answerer whose own work fails.
@@ -863,10 +893,9 @@ impl OpenTermAnswerer for Failing {
 #[test]
 fn an_answerer_that_fails_ends_the_execution() {
     let service = corpus_service(false);
-    let mut parameters = application();
-    parameters.insert(ONCE.to_string(), Value::Bool(true));
+    let (parameters, findings) = split(application());
     let call = Call {
-        findings: BTreeMap::new(),
+        findings,
         answerer: Some(&Failing(cell_authority())),
         sphere: Vec::new(),
     };
@@ -888,7 +917,7 @@ fn an_answerer_the_policy_does_not_name_is_not_asked() {
     // cell of the call is not asked, also when it has the answer.
     let service = corpus_service(false);
     let mut parameters = application();
-    parameters.insert(ONCE.to_string(), Value::Bool(true));
+    parameters.insert(ONCE_HEAD.to_string(), Value::Bool(true));
     let answerer = Answerer::giving(Some(false)).of("Het hoofd van OBS Het Anker");
     let result = granted_13a_with(&service, parameters, &answerer).unwrap();
     assert!(answerer.asked.borrow().is_empty());
@@ -906,13 +935,13 @@ fn an_answerer_the_policy_does_not_name_is_not_asked() {
 fn without_an_answerer_the_term_is_the_heads_finding_or_an_error() {
     let service = corpus_service(false);
     let mut parameters = application();
-    parameters.insert(ONCE.to_string(), Value::Bool(true));
+    parameters.insert(ONCE_HEAD.to_string(), Value::Bool(true));
     let result = granted_13a(&service, parameters).unwrap();
     assert_eq!(result.outputs["verlof_verleend"], Value::Bool(false));
     assert!(result
         .open_terms
         .iter()
-        .any(|f| f.term == ONCE && matches!(f.filled_by, FilledBy::Finding)));
+        .any(|f| f.term == ONCE_HEAD && matches!(f.filled_by, FilledBy::Finding)));
     // No default: without the head's finding there is no answer, and no
     // second leave granted by silence.
     let e = granted_13a(&service, application()).unwrap_err();
@@ -933,7 +962,7 @@ fn refusal_b() -> serde_json::Value {
         },
         "findings": {
             "specifieke_aard_beroep_ouder": true,
-            "verlof_valt_buiten_schoolvakanties": true,
+            "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true,
         },
         "outputs": {
             "verlofdagen": 5,

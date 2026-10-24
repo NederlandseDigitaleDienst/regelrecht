@@ -16,7 +16,8 @@ use chrono::NaiveDate;
 use regelrecht_cel::{Cell, Error, Files};
 use regelrecht_engine::LawLoad;
 use regelrecht_law_model::{
-    Article, ArticleBasedLaw, AuthorityType, CompetentAuthority, HookFilter, ProcedureDefinition,
+    Article, ArticleBasedLaw, AuthorityType, CompetentAuthority, HookFilter, NamedAuthority,
+    ProcedureDefinition,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -96,8 +97,10 @@ pub struct Begin {
 }
 
 /// An application with its values `velden`, received and decided on
-/// `datum` with the deciding authority's `bevindingen`, without the
-/// sphere: the cell decides as the case file says it once did.
+/// `datum` with the deciding authority's `bevindingen`. The sphere is the
+/// case's own cell and the other cells begun before this one: they answer
+/// what the policy binds, as in any decision, and a finding is only the
+/// cell's own.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct BeginAanvraag {
@@ -108,12 +111,15 @@ pub struct BeginAanvraag {
 }
 
 /// An executogram of the fact `feit` (`<regulation>#<article>#<fact>`, a
-/// fact the article requires), with the values `velden`.
+/// fact the article requires), with the values `velden`, recorded on
+/// `datum`, or else on the day of its [`Begin`].
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct BeginExecutogram {
     pub feit: String,
     pub velden: Map<String, Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub datum: Option<NaiveDate>,
 }
 
 /// Fictional values the forms start with, so a visitor clicks through
@@ -326,10 +332,9 @@ pub struct Afleiding {
     /// (`type: BEROEP`) and decides on it, Awb 8:70, and the fact in which
     /// the cell records the receipt of a judgment ([`Beroep`]).
     pub beroep: Option<Beroep>,
-    /// Who decides: the competent authority of the article or its law, or
-    /// else the law's own words in `decided_per_case_by` on the article's
-    /// open terms ("het hoofd", "het college van burgemeester en
-    /// wethouders").
+    /// Who decides: the competent authority of the article, or else the
+    /// holder of its rulework (RFC-002), as the app names it ("het hoofd",
+    /// "het college van burgemeester en wethouders").
     pub rol: String,
     /// The regelwerken the cell runs, by `$id`, the article's law first.
     pub regelwerken: Vec<String>,
@@ -344,9 +349,9 @@ pub struct Beroep {
     /// judgment, `<law>#<article>#<fact>`: what the cell records when it
     /// receives a copy of one (`Cell::record_receipt`).
     pub ontvangst: String,
-    /// The court: the other cell of the case whose name or category is who
-    /// decides on the appeal, as the law says it ("de bestuursrechter",
-    /// from `decided_per_case_by` on Awb 8:70, as [`Afleiding::rol`]).
+    /// The court: the other cell of the case that the competent authority of
+    /// the article that decides on the appeal names ("de bestuursrechter",
+    /// on Awb 8:70).
     pub rechter: String,
 }
 
@@ -412,7 +417,7 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
         .ok_or_else(|| Error::Setup(format!("'{law}' is not in the corpus")))?;
     let rol = rol(werk.nieuwste(), article).ok_or_else(|| {
         Error::Setup(format!(
-            "case '{}': {law}#{article} names no competent authority and no one who decides per case",
+            "case '{}': {law}#{article} names no competent authority",
             casus.id
         ))
     })?;
@@ -430,7 +435,7 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
 
 /// The appeal, for a case with a court among its `andere` cells: the
 /// article that establishes it, the fact of its receipt, and the court, the
-/// one cell whose name or category is who decides on the appeal. A case
+/// one cell the competent authority of that article names. A case
 /// plays no appeal without other cells, without an article among its
 /// regelwerken that establishes an appeal (who the court is follows from
 /// that article), or when none of the other cells is the court.
@@ -451,15 +456,15 @@ fn beroep(
     let werk = regelwerken
         .get(&law)
         .ok_or_else(|| Error::Setup(format!("'{law}' is not in the corpus")))?;
-    let wie = rol(werk.nieuwste(), &article).ok_or_else(|| {
+    let bevoegd = bevoegd(werk.nieuwste(), &article).ok_or_else(|| {
         Error::Setup(format!(
             "case '{casus}': {law}#{article} names no one who decides on the appeal"
         ))
     })?;
-    let mut rechters = andere.iter().filter(|c| {
-        let a = c.authority();
-        a.name == wie || a.category.as_deref() == Some(wie.as_str())
-    });
+    let wie = &bevoegd.name;
+    let mut rechters = andere
+        .iter()
+        .filter(|c| c.authority().is_named_by(std::slice::from_ref(&bevoegd)));
     let rechter = match (rechters.next(), rechters.next()) {
         (None, _) => return Ok(None),
         (Some(r), None) => r.recording_actor().to_string(),
@@ -656,41 +661,37 @@ fn past(filter: &HookFilter, id: &str, a: &Article) -> bool {
     })
 }
 
-/// Who decides under `article` of `law`, in the law's words.
-fn rol(law: &ArticleBasedLaw, article: &str) -> Option<String> {
+/// Who decides under `article` of `law`: the authority the article names,
+/// else the holder of the rulework (RFC-002). A reference (`#...`) names no
+/// one by itself; on an article the loader refuses a list (RFC-052).
+fn bevoegd(law: &ArticleBasedLaw, article: &str) -> Option<NamedAuthority> {
     let a = law.articles.iter().find(|a| a.number == article)?;
-    let naam = |c: &CompetentAuthority| match c {
-        // A category names a kind of body: "het college van burgemeester en
-        // wethouders", as `decided_per_case_by` writes it.
-        CompetentAuthority::Structured(one) if one.kind() == AuthorityType::Category => {
-            Some(format!("het {}", one.name))
-        }
-        CompetentAuthority::Structured(one) => Some(one.name.clone()),
-        // On an article the loader refuses a list (RFC-052).
-        CompetentAuthority::List(_) => None,
-        // A reference (`#...`) names no one by itself.
-        CompetentAuthority::String(s) if !s.starts_with('#') => Some(s.clone()),
-        CompetentAuthority::String(_) => None,
-    };
-    let bevoegd = a
+    match a
         .machine_readable
         .as_ref()
         .and_then(|mr| mr.competent_authority.as_ref())
-        .or(law.competent_authority.as_ref())
-        .and_then(naam);
-    bevoegd.or_else(|| {
-        // "het hoofd (artikel 13a, eerste lid)", "het college van
-        // burgemeester en wethouders, na geneeskundig onderzoek (...)": the
-        // role is what comes before the first comma or parenthesis.
-        a.get_open_terms()?
-            .iter()
-            .find_map(|t| t.decided_per_case_by.as_deref())
-            .map(|wie| {
-                wie.split([',', '('])
-                    .next()
-                    .unwrap_or(wie)
-                    .trim()
-                    .to_string()
-            })
+        .or(law.competent_authority.as_ref())?
+    {
+        CompetentAuthority::Structured(one) => Some(one.clone()),
+        CompetentAuthority::String(s) if !s.starts_with('#') => Some(NamedAuthority {
+            name: s.clone(),
+            authority_type: None,
+        }),
+        CompetentAuthority::String(_) | CompetentAuthority::List(_) => None,
+    }
+}
+
+/// Who decides under `article` of `law` ([`bevoegd`]), as the app names it:
+/// a category is a kind of body, "het college van burgemeester en
+/// wethouders", unless its name already says so ("het hoofd").
+fn rol(law: &ArticleBasedLaw, article: &str) -> Option<String> {
+    let one = bevoegd(law, article)?;
+    let lidwoord = ["de ", "het ", "een "]
+        .iter()
+        .any(|l| one.name.to_lowercase().starts_with(l));
+    Some(if one.kind() == AuthorityType::Category && !lidwoord {
+        format!("het {}", one.name)
+    } else {
+        one.name
     })
 }

@@ -76,8 +76,8 @@ articles:
             value: $grond_aanwezig
 "#;
 
-/// A regulation that grants the ground for a short leave, and says nothing
-/// for a longer one.
+/// A regulation that grants the ground for a short leave, and leaves a
+/// longer one to the head, with an open term of its own (RFC-048 §2).
 const POLICY: &str = r#"
 $id: beleid_verlof_fictief
 regulatory_layer: UITVOERINGSBELEID
@@ -88,13 +88,17 @@ articles:
   - number: '1'
     text: Bij ten hoogste drie dagen is de grond aanwezig.
     machine_readable:
+      open_terms:
+        - id: grond_aanwezig_volgens_hoofd
+          type: boolean
+          decided_per_case_by: het hoofd
       implements:
         - {law: wet_verlof_fictief, article: '1', open_term: grond_aanwezig}
       execution:
         parameters:
           - {name: dagen, type: number}
         output:
-          - {name: grond_aanwezig, type: boolean, nullable: true}
+          - {name: grond_aanwezig, type: boolean}
         actions:
           - output: grond_aanwezig
             value:
@@ -102,7 +106,7 @@ articles:
               cases:
                 - when: {operation: LESS_THAN_OR_EQUAL, subject: $dagen, value: 3}
                   then: true
-              default: null
+              default: $grond_aanwezig_volgens_hoofd
 "#;
 
 const LAW: &str = "wet_verlof_fictief";
@@ -168,23 +172,91 @@ fn decide(
 }
 
 #[test]
-fn a_judgement_on_a_term_a_regulation_also_fills_may_be_supplied() {
+fn the_policy_fills_the_term_and_names_the_heads_finding() {
     let service = service(&[GENERAL_LAW, SPECIAL_LAW, POLICY]);
     let shape = decision::derive(&service, LAW, "1", day()).unwrap();
-    let input = shape.input("grond_aanwezig").unwrap();
-    assert_eq!(input.source, Source::Caller);
-    assert!(input.policy_first);
+    assert!(shape.input("grond_aanwezig").is_none());
+    assert!(shape.filled("grond_aanwezig"));
+    let cell = bare("fictieve_school");
+    let by = cell.authority();
+    assert!(shape.finding("grond_aanwezig", by).is_none());
+    let own = shape.finding("grond_aanwezig_volgens_hoofd", by).unwrap();
+    assert_eq!(own.declared_by(), "beleid_verlof_fictief#1");
+    // No regulation names who answers it: whoever executes the policy does.
+    assert!(own.answered_by.is_empty());
+}
+
+/// The policy names another authority on its own term (`competent_authority`):
+/// the finding is that authority's, not the cell's.
+fn policy_answered_by(authority: &str) -> String {
+    POLICY.replace(
+        "          decided_per_case_by: het hoofd\n      implements:",
+        &format!(
+            "          decided_per_case_by: het hoofd\n          competent_authority:\n            \
+             name: {authority}\n      implements:"
+        ),
+    )
 }
 
 #[test]
-fn where_the_regulation_is_silent_the_judgement_decides() {
+fn a_finding_another_authority_answers_is_refused() {
+    let policy = policy_answered_by("de leerplichtambtenaar");
+    assert_ne!(policy, POLICY);
+    let mut service = service(&[GENERAL_LAW, SPECIAL_LAW, &policy]);
+    let shape = decision::derive(&service, LAW, "1", day()).unwrap();
+    let cell = bare("fictieve_school");
+    let own = shape
+        .terms
+        .iter()
+        .find(|t| t.id == "grond_aanwezig_volgens_hoofd")
+        .unwrap();
+    assert!(own.asks_finding());
+    assert!(!own.answers(cell.authority()));
+    assert!(shape
+        .finding("grond_aanwezig_volgens_hoofd", cell.authority())
+        .is_none());
+    let e = decide(
+        &mut service,
+        5,
+        json!({"grond_aanwezig_volgens_hoofd": true}),
+    )
+    .unwrap_err();
+    assert!(
+        matches!(&e, Error::Refused(m) if m.contains("answered by 'de leerplichtambtenaar'")),
+        "{e}"
+    );
+}
+
+#[test]
+fn a_finding_the_cell_answers_by_name_is_taken() {
+    // The cell is "Testcel" (common::cell_tempdir): named, it answers.
+    let policy = policy_answered_by("Testcel");
+    let mut service = service(&[GENERAL_LAW, SPECIAL_LAW, &policy]);
+    let (gram, findings) = decide(
+        &mut service,
+        5,
+        json!({"grond_aanwezig_volgens_hoofd": true}),
+    )
+    .unwrap();
+    assert_eq!(gram.outputs["verlof_verleend"], json!(true));
+    assert_eq!(findings, ["grond_aanwezig_volgens_hoofd"]);
+}
+
+#[test]
+fn where_the_policy_leaves_the_case_to_the_head_his_finding_decides() {
     let mut service = service(&[GENERAL_LAW, SPECIAL_LAW, POLICY]);
-    let (gram, findings) = decide(&mut service, 5, json!({"grond_aanwezig": false})).unwrap();
+    let (gram, findings) = decide(
+        &mut service,
+        5,
+        json!({"grond_aanwezig_volgens_hoofd": false}),
+    )
+    .unwrap();
     assert_eq!(gram.outputs["verlof_verleend"], json!(false));
     assert_eq!(gram.fields["grond_aanwezig"], json!(false));
-    assert_eq!(findings, ["grond_aanwezig"]);
+    assert_eq!(gram.fields["grond_aanwezig_volgens_hoofd"], json!(false));
+    assert_eq!(findings, ["grond_aanwezig_volgens_hoofd"]);
 
-    // Without the judgement, nothing decides the norm for this case.
+    // Without the finding, nothing decides the norm for this case.
     let e = decide(&mut service, 5, json!({})).unwrap_err();
     assert!(
         matches!(&e, Error::Engine(m) if m.to_string().contains("decided per case by het hoofd")),
@@ -193,27 +265,17 @@ fn where_the_regulation_is_silent_the_judgement_decides() {
 }
 
 #[test]
-fn where_the_regulation_fills_the_term_it_sets_the_judgement_aside() {
+fn a_finding_on_a_term_the_policy_fills_is_refused() {
     let mut service = service(&[GENERAL_LAW, SPECIAL_LAW, POLICY]);
-    let (gram, findings) = decide(&mut service, 2, json!({"grond_aanwezig": false})).unwrap();
-    assert_eq!(gram.outputs["verlof_verleend"], json!(true));
-    assert_eq!(gram.fields["grond_aanwezig"], json!(true));
-    // The regulation decided it, not the head.
-    assert!(findings.is_empty(), "{:?}", findings);
-
-    // The judgement may be left out.
+    // No judgement of the head steps in where the policy fills the term
+    // (RFC-048 §2).
+    let e = decide(&mut service, 2, json!({"grond_aanwezig": false})).unwrap_err();
+    assert!(
+        matches!(&e, Error::Refused(m) if m.contains("is filled by the policy")),
+        "{e}"
+    );
     let (gram, findings) = decide(&mut service, 2, json!({})).unwrap();
-    assert_eq!(gram.fields["grond_aanwezig"], json!(true));
-    assert!(findings.is_empty(), "{:?}", findings);
-}
-
-/// Where the regulation gives what the head found, the regulation still
-/// decided it: the engine says who filled the term, the cell does not
-/// read it from the value.
-#[test]
-fn a_regulation_that_gives_the_judgement_s_value_still_sets_it_aside() {
-    let mut service = service(&[GENERAL_LAW, SPECIAL_LAW, POLICY]);
-    let (gram, findings) = decide(&mut service, 2, json!({"grond_aanwezig": true})).unwrap();
+    assert_eq!(gram.outputs["verlof_verleend"], json!(true));
     assert_eq!(gram.fields["grond_aanwezig"], json!(true));
     assert!(findings.is_empty(), "{:?}", findings);
 }
@@ -264,7 +326,7 @@ fn the_application_holds_what_its_item_lists() {
     );
     let shape = decision::derive(&service, LAW, "1", day()).unwrap();
     assert_eq!(shape.input("dagen").unwrap().source, Source::Application);
-    assert_eq!(shape.input("reden").unwrap().source, Source::Caller);
+    assert_eq!(shape.input("reden").unwrap().source, Source::Supplied);
 }
 
 /// Article 1 decides; article 2 establishes the application and asks for
@@ -452,8 +514,8 @@ fn a_hook_that_reads_derived_data_asks_nothing_for_it() {
     assert!(!gram.fields.contains_key("dagen_gevraagd"));
 }
 
-/// A judgement that may be absent and that the head leaves out is null in
-/// the chronolexogram, but no finding: the head found nothing.
+/// A judgement that may be absent and that the head leaves out is not in
+/// the chronolexogram, and no finding: the head found nothing.
 #[test]
 fn a_judgement_left_out_is_no_finding() {
     let special = SPECIAL_LAW
@@ -468,6 +530,10 @@ fn a_judgement_left_out_is_no_finding() {
     assert_ne!(special, SPECIAL_LAW);
     let mut service = service(&[GENERAL_LAW, &special]);
     let (gram, findings) = decide(&mut service, 5, json!({})).unwrap();
-    assert_eq!(gram.fields["grond_aanwezig"], Value::Null);
+    assert!(
+        !gram.fields.contains_key("grond_aanwezig"),
+        "{:?}",
+        gram.fields
+    );
     assert!(findings.is_empty(), "{:?}", findings);
 }

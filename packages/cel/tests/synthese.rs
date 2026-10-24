@@ -116,6 +116,11 @@ articles:
   - number: '1'
     text: Of eerder een kaart is verstrekt, zeggen de verstrekkende instanties.
     machine_readable:
+      open_terms:
+        - id: eerder_verstrekt_volgens_college
+          type: boolean
+          required: true
+          decided_per_case_by: het college
       implements:
         - {law: wet_kaart_fictief, article: '2', open_term: eerder_verstrekt}
       execution:
@@ -130,9 +135,15 @@ articles:
               parameters:
                 bsn: $bsn
         output:
-          - {name: eerder_verstrekt, type: boolean, nullable: true}
+          - {name: eerder_verstrekt, type: boolean}
         actions:
-          - {output: eerder_verstrekt, value: $antwoord}
+          - output: eerder_verstrekt
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord, value: null}
+                  then: $eerder_verstrekt_volgens_college
+              default: $antwoord
 "#;
 
 /// The reduction of the cell `actor`, whose holder is named `holder`: true
@@ -272,7 +283,7 @@ fn first(
         cell,
         sphere,
         on,
-        object(json!({"eerder_verstrekt": false})),
+        object(json!({"eerder_verstrekt_volgens_college": false})),
     )
 }
 

@@ -62,7 +62,7 @@ The law says what is needed. The process supplies it from:
 - policy, through `implements` ([Inversion of Control](/concepts/inversion-of-control)), which may take the answer of a cell ([Chronolexography](/concepts/chronolexography#answering-from-the-chronicle));
 - the authority, for a term with `decided_per_case_by`, as a finding keyed by the term's id.
 
-Which of these wins on an open term follows the [order of precedence](/concepts/inversion-of-control#policy-that-fills-an-open-term-with-a-cells-answer). [Cross-Law References](/concepts/cross-law-references#calling-the-decision-of-an-article) says when a finding is refused.
+A term that policy fills takes the policy's value, and no finding is asked for it; a policy that leaves a case to the authority says so with an open term of its own ([Inversion of Control](/concepts/inversion-of-control#policy-that-fills-an-open-term-with-a-cells-answer)). [Cross-Law References](/concepts/cross-law-references#calling-the-decision-of-an-article) says when a finding is refused.
 
 ## Objection
 

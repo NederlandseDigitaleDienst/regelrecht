@@ -712,6 +712,12 @@ articles:
       d. gegrondverklaring van het beroep.
     url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:70
     machine_readable:
+      # Bevoegd gezag (RFC-002): de bestuursrechter doet de uitspraak (onder
+      # a: "onbevoegdverklaring van de bestuursrechter"). Hij beantwoordt ook
+      # de open begrippen hieronder.
+      competent_authority:
+        name: de bestuursrechter
+        type: CATEGORY
       # De uitspraak op het beroep, zoals artikel 7:11 de beslissing op het
       # bezwaar is (RFC-050). Onder a is niet gemodelleerd: de bevoegdheid
       # (artikelen 8:6 en 8:7) staat niet in dit corpus, dus de
@@ -1004,6 +1010,11 @@ articles:
       toepassing.
     url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
     machine_readable:
+      # Bevoegd gezag (RFC-002): de bestuursrechter vernietigt en bepaalt
+      # (lid 1, 3 en 4). Hij beantwoordt de open begrippen hieronder.
+      competent_authority:
+        name: de bestuursrechter
+        type: CATEGORY
       # Lid 1 alleen voor een geheel besluit: gedeeltelijke vernietiging is
       # niet gemodelleerd. Lid 4, onder a, en de leden 5 en 6 (voorlopige
       # voorziening, dwangsom) zijn niet gemodelleerd. De aanwijzingen van

@@ -21,8 +21,9 @@ Feature: Het besluit op de aanvraag om vakantieverlof
       | eerste_verlofdag  | 2027-02-01 |
       | laatste_verlofdag | 2027-02-05 |
       | specifieke_aard_beroep_ouder       | true |
-      | verlof_valt_buiten_schoolvakanties | true |
-      | verlof_al_verleend_in_schooljaar   | false |
+    Given the following findings:
+      | verlof_valt_buiten_schoolvakanties_volgens_hoofd | true |
+      | verlof_al_verleend_in_schooljaar_volgens_hoofd   | false |
     When I evaluate "verlof_verleend" of "leerplichtwet_1969"
     Then the execution succeeds
     Then output "verlof_verleend" is true
@@ -39,8 +40,9 @@ Feature: Het besluit op de aanvraag om vakantieverlof
       | eerste_verlofdag  | 2027-02-01 |
       | laatste_verlofdag | 2027-02-12 |
       | specifieke_aard_beroep_ouder       | true |
-      | verlof_valt_buiten_schoolvakanties | true |
-      | verlof_al_verleend_in_schooljaar   | false |
+    Given the following findings:
+      | verlof_valt_buiten_schoolvakanties_volgens_hoofd | true |
+      | verlof_al_verleend_in_schooljaar_volgens_hoofd   | false |
     When I evaluate "verlof_verleend" of "leerplichtwet_1969"
     Then the execution succeeds
     Then output "verlofdagen" equals 10
@@ -52,8 +54,8 @@ Feature: Het besluit op de aanvraag om vakantieverlof
       | eerste_verlofdag  | 2027-02-01 |
       | laatste_verlofdag | 2027-02-15 |
       | specifieke_aard_beroep_ouder       | true |
-      | verlof_valt_buiten_schoolvakanties | true |
-      | verlof_al_verleend_in_schooljaar   | false |
+    Given the following findings:
+      | verlof_valt_buiten_schoolvakanties_volgens_hoofd | true |
     When I evaluate "verlof_verleend" of "leerplichtwet_1969"
     Then the execution succeeds
     Then output "verlofdagen" equals 11
@@ -65,8 +67,8 @@ Feature: Het besluit op de aanvraag om vakantieverlof
       | eerste_verlofdag  | 2026-09-10 |
       | laatste_verlofdag | 2026-09-11 |
       | specifieke_aard_beroep_ouder       | true |
-      | verlof_valt_buiten_schoolvakanties | true |
-      | verlof_al_verleend_in_schooljaar   | false |
+    Given the following findings:
+      | verlof_valt_buiten_schoolvakanties_volgens_hoofd | true |
     When I evaluate "verlof_verleend" of "leerplichtwet_1969"
     Then the execution succeeds
     Then output "verlof_raakt_eerste_twee_lesweken" is true
@@ -78,8 +80,6 @@ Feature: Het besluit op de aanvraag om vakantieverlof
       | eerste_verlofdag  | 2027-02-01 |
       | laatste_verlofdag | 2027-02-05 |
       | specifieke_aard_beroep_ouder       | false |
-      | verlof_valt_buiten_schoolvakanties | true  |
-      | verlof_al_verleend_in_schooljaar   | false |
     When I evaluate "verlof_verleend" of "leerplichtwet_1969"
     Then the execution succeeds
     Then output "verlof_verleend" is false
@@ -90,8 +90,8 @@ Feature: Het besluit op de aanvraag om vakantieverlof
       | eerste_verlofdag  | 2027-02-01 |
       | laatste_verlofdag | 2027-02-05 |
       | specifieke_aard_beroep_ouder       | true  |
-      | verlof_valt_buiten_schoolvakanties | false |
-      | verlof_al_verleend_in_schooljaar   | false |
+    Given the following findings:
+      | verlof_valt_buiten_schoolvakanties_volgens_hoofd | false |
     When I evaluate "verlof_verleend" of "leerplichtwet_1969"
     Then the execution succeeds
     Then output "verlof_verleend" is false
@@ -102,8 +102,8 @@ Feature: Het besluit op de aanvraag om vakantieverlof
       | eerste_verlofdag  | 2027-02-06 |
       | laatste_verlofdag | 2027-02-07 |
       | specifieke_aard_beroep_ouder       | true |
-      | verlof_valt_buiten_schoolvakanties | true |
-      | verlof_al_verleend_in_schooljaar   | false |
+    Given the following findings:
+      | verlof_valt_buiten_schoolvakanties_volgens_hoofd | true |
     When I evaluate "verlof_verleend" of "leerplichtwet_1969"
     Then the execution succeeds
     Then output "verlofdagen" equals 0
@@ -115,8 +115,8 @@ Feature: Het besluit op de aanvraag om vakantieverlof
       | eerste_verlofdag  | 2027-02-05 |
       | laatste_verlofdag | 2027-02-01 |
       | specifieke_aard_beroep_ouder       | true |
-      | verlof_valt_buiten_schoolvakanties | true |
-      | verlof_al_verleend_in_schooljaar   | false |
+    Given the following findings:
+      | verlof_valt_buiten_schoolvakanties_volgens_hoofd | true |
     When I evaluate "verlof_verleend" of "leerplichtwet_1969"
     Then the execution succeeds
     Then output "verlof_verleend" is false
@@ -130,8 +130,9 @@ Feature: Het besluit op de aanvraag om vakantieverlof
       | eerste_verlofdag  | 2027-02-01 |
       | laatste_verlofdag | 2027-02-05 |
       | specifieke_aard_beroep_ouder       | true |
-      | verlof_valt_buiten_schoolvakanties | true |
-      | verlof_al_verleend_in_schooljaar   | true |
+    Given the following findings:
+      | verlof_valt_buiten_schoolvakanties_volgens_hoofd | true |
+      | verlof_al_verleend_in_schooljaar_volgens_hoofd   | true |
     When I evaluate "verlof_verleend" of "leerplichtwet_1969"
     Then the execution succeeds
     Then output "verlofdagen" equals 5

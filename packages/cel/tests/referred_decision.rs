@@ -188,6 +188,11 @@ articles:
     text: Fictief.
     url: https://example.org/beleid#1
     machine_readable:
+      open_terms:
+        - id: al_verleend_volgens_hoofd
+          type: boolean
+          required: true
+          decided_per_case_by: het hoofd
       implements:
         - {law: wet_verlof_fictief, article: '1', open_term: al_verleend}
       execution:
@@ -201,9 +206,15 @@ articles:
               reduction: al_verleend
               parameters: {bsn: $bsn}
         output:
-          - {name: al_verleend, type: boolean, nullable: true}
+          - {name: al_verleend, type: boolean}
         actions:
-          - {output: al_verleend, value: $antwoord}
+          - output: al_verleend
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord, value: null}
+                  then: $al_verleend_volgens_hoofd
+              default: $antwoord
 "#;
 
 /// The cell's reduction: a grant to the same person counts, unless a
@@ -1001,8 +1012,17 @@ fn the_decision_value_holds_the_findings_apart() {
 }
 
 /// A regulation that fills the head's judgement on whether the reason is
-/// weighty, from `valid_from`: with `value`, or silent (`null`).
+/// weighty, from `valid_from`: with `value`, or, for `null`, with what the
+/// head judges per case, an open term of its own (RFC-048 §2).
 fn reden_policy(valid_from: &str, value: &str) -> String {
+    let (own, value) = if value == "null" {
+        (
+            "      open_terms:\n        - id: reden_gewichtig_volgens_hoofd\n          type: boolean\n          required: true\n          decided_per_case_by: het hoofd\n",
+            "$reden_gewichtig_volgens_hoofd",
+        )
+    } else {
+        ("", value)
+    };
     format!(
         r#"
 $id: beleid_reden_fictief
@@ -1014,19 +1034,13 @@ articles:
   - number: '1'
     text: Fictief.
     machine_readable:
-      implements:
+{own}      implements:
         - {{law: wet_verlof_fictief, article: '1', open_term: reden_gewichtig}}
       execution:
         output:
-          - {{name: reden_gewichtig, type: boolean, nullable: true}}
+          - {{name: reden_gewichtig, type: boolean}}
         actions:
-          - output: reden_gewichtig
-            value:
-              operation: IF
-              cases:
-                - when: true
-                  then: {value}
-              default: null
+          - {{output: reden_gewichtig, value: {value}}}
 "#
     )
 }
@@ -1046,7 +1060,7 @@ fn service_of(laws: &[&str]) -> LawExecutionService {
 fn decided_with(cell: &mut Cell, service: &mut LawExecutionService, findings: Value) -> Gram {
     let applied = apply(cell, service, 2, "2026-03-02");
     let mut findings = object(findings);
-    findings.insert("al_verleend".into(), json!(false));
+    findings.insert("al_verleend_volgens_hoofd".into(), json!(false));
     cell.decide(
         service,
         &[],
@@ -1099,7 +1113,7 @@ fn a_term_a_regulation_filled_is_no_finding_of_the_decision() {
     // Only the head's finding that no leave was granted before.
     assert_eq!(
         cell.findings(&mut service, &[], &granted.id).unwrap(),
-        ["al_verleend"]
+        ["al_verleend_volgens_hoofd"]
     );
 
     let bezwaar = object_to(
@@ -1126,20 +1140,20 @@ fn a_term_a_regulation_filled_is_no_finding_of_the_decision() {
         &mut cell,
         &mut service,
         &bezwaar.id,
-        json!({"reden_gewichtig": false}),
+        json!({"reden_gewichtig_volgens_hoofd": false}),
         "2026-03-11",
     )
     .unwrap();
     assert_eq!(
         decided[0].outputs["oordelen"],
-        json!({"al_verleend": false})
+        json!({"al_verleend_volgens_hoofd": false})
     );
     assert_eq!(decided.len(), 2);
     let new = &decided[1];
     assert_eq!(new.fields["reden_gewichtig"], json!(false));
     assert_eq!(
         cell.findings(&mut service, &[], &new.id).unwrap(),
-        ["al_verleend", "reden_gewichtig"]
+        ["al_verleend_volgens_hoofd", "reden_gewichtig_volgens_hoofd"]
     );
     assert_eq!(new.outputs["verleend"], json!(false));
 }
@@ -1160,7 +1174,7 @@ fn a_regulation_in_force_at_the_call_anew_sets_the_old_finding_aside() {
     assert_eq!(refused.outputs["verleend"], json!(false));
     assert_eq!(
         cell.findings(&mut service, &[], &refused.id).unwrap(),
-        ["al_verleend", "reden_gewichtig"]
+        ["al_verleend_volgens_hoofd", "reden_gewichtig"]
     );
 
     let bezwaar = object_to(
@@ -1181,7 +1195,7 @@ fn a_regulation_in_force_at_the_call_anew_sets_the_old_finding_aside() {
     .unwrap();
     assert_eq!(
         decided[0].outputs["oordelen"],
-        json!({"al_verleend": false, "reden_gewichtig": false})
+        json!({"al_verleend_volgens_hoofd": false, "reden_gewichtig": false})
     );
     assert_eq!(decided.len(), 2);
     let new = &decided[1];
@@ -1190,7 +1204,7 @@ fn a_regulation_in_force_at_the_call_anew_sets_the_old_finding_aside() {
     // The regulation set the old finding aside; the other stays.
     assert_eq!(
         cell.findings(&mut service, &[], &new.id).unwrap(),
-        ["al_verleend"]
+        ["al_verleend_volgens_hoofd"]
     );
 }
 
@@ -1655,8 +1669,8 @@ fn a_term_only_a_reduction_fills_is_no_finding_and_replays() {
     // A required term without a default or a finding: the binding takes an
     // answer that is never absent, so without the cell the decision fails.
     let never_absent = BINDING.replace("            nullable: true\n", "").replace(
-        "{name: al_verleend, type: boolean, nullable: true}",
-        "{name: al_verleend, type: boolean}",
+        "          - output: al_verleend\n            value:\n              operation: IF\n              cases:\n                - when: {operation: EQUALS, subject: $antwoord, value: null}\n                  then: $al_verleend_volgens_hoofd\n              default: $antwoord\n",
+        "          - {output: al_verleend, value: $antwoord}\n",
     );
     assert!(!never_absent.contains("nullable"));
     let mut service = LawExecutionService::new();

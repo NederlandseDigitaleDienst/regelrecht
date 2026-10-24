@@ -21,8 +21,9 @@ Feature: De aanvraag om vakantieverlof, met de Awb erop
       | gevraagde_beschikking | vakantieverlof        |
       | datum_ontvangst       | 2026-10-13            |
       | specifieke_aard_beroep_ouder       | true |
-      | verlof_valt_buiten_schoolvakanties | true |
-      | verlof_al_verleend_in_schooljaar   | false |
+    Given the following findings:
+      | verlof_valt_buiten_schoolvakanties_volgens_hoofd | true |
+      | verlof_al_verleend_in_schooljaar_volgens_hoofd   | false |
     When I evaluate "verlof_verleend" of "leerplichtwet_1969"
     Then the execution succeeds
     Then output "aanvraag_bevat_wat_artikel_4_2_eist" is true
@@ -42,8 +43,9 @@ Feature: De aanvraag om vakantieverlof, met de Awb erop
       | gevraagde_beschikking | vakantieverlof        |
       | datum_ontvangst       | 2026-10-13            |
       | specifieke_aard_beroep_ouder       | true |
-      | verlof_valt_buiten_schoolvakanties | true |
-      | verlof_al_verleend_in_schooljaar   | false |
+    Given the following findings:
+      | verlof_valt_buiten_schoolvakanties_volgens_hoofd | true |
+      | verlof_al_verleend_in_schooljaar_volgens_hoofd   | false |
     When I evaluate "verlof_verleend" of "leerplichtwet_1969"
     Then the execution succeeds
     Then output "aanvraag_bevat_wat_artikel_4_2_eist" is false

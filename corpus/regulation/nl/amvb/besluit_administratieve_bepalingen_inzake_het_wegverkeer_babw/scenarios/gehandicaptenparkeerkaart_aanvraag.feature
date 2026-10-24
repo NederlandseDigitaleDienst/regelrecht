@@ -22,13 +22,13 @@ Feature: De aanvraag om een gehandicaptenparkeerkaart, met de Awb erop
       | gevraagde_beschikking | gehandicaptenparkeerkaart |
       | datum_ontvangst       | 2026-10-13                |
       | besluit_datum         | 2026-10-13                |
-      | langdurige_loopbeperking                        | true  |
-      | continu_afhankelijk_van_hulp_bestuurder         | false |
-      | permanent_rolstoelgebonden                      | false |
-      | ernstige_beperkingen_andere_dan_loopbeperkingen | false |
     Given the following findings:
-      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | false |
-      | geneeskundig_onderzoek_heeft_plaatsgehad          | true  |
+      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college | false |
+      | geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college          | true  |
+      | langdurige_loopbeperking_volgens_college                        | true  |
+      | continu_afhankelijk_van_hulp_bestuurder_volgens_college         | false |
+      | permanent_rolstoelgebonden_volgens_college                      | false |
+      | ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college | false |
     When I evaluate "gehandicaptenparkeerkaart_verstrekt" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
     Then output "aanvraag_bevat_wat_artikel_4_2_eist" is true
@@ -48,13 +48,13 @@ Feature: De aanvraag om een gehandicaptenparkeerkaart, met de Awb erop
       | gevraagde_beschikking | gehandicaptenparkeerkaart |
       | datum_ontvangst       | 2026-10-13                |
       | besluit_datum         | 2026-10-13                |
-      | langdurige_loopbeperking                        | true  |
-      | continu_afhankelijk_van_hulp_bestuurder         | false |
-      | permanent_rolstoelgebonden                      | false |
-      | ernstige_beperkingen_andere_dan_loopbeperkingen | false |
     Given the following findings:
-      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | false |
-      | geneeskundig_onderzoek_heeft_plaatsgehad          | true  |
+      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college | false |
+      | geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college          | true  |
+      | langdurige_loopbeperking_volgens_college                        | true  |
+      | continu_afhankelijk_van_hulp_bestuurder_volgens_college         | false |
+      | permanent_rolstoelgebonden_volgens_college                      | false |
+      | ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college | false |
     When I evaluate "gehandicaptenparkeerkaart_verstrekt" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
     Then output "aanvraag_bevat_wat_artikel_4_2_eist" is false

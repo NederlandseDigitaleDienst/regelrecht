@@ -362,8 +362,8 @@ impl<'c> Reader<'c> {
             )));
         }
         // Before its first version the reduction gives nothing: the cell is
-        // silent, and the term is the deciding authority's, as it was then
-        // (a decision taken then still replays).
+        // silent, and the policy that takes the answer says what then holds,
+        // as it did then (a decision taken then still replays).
         let Some(law) = service.resolver().get_law_for_date(reduction, Some(day)) else {
             return Ok(None);
         };
@@ -665,6 +665,11 @@ articles:
     text: Fictief.
     url: https://example.org/beleid#1
     machine_readable:
+      open_terms:
+        - id: al_verleend_volgens_hoofd
+          type: boolean
+          required: true
+          decided_per_case_by: het hoofd
       implements:
         - law: wet_fictief
           article: '1'
@@ -684,10 +689,14 @@ articles:
         output:
           - name: al_verleend
             type: boolean
-            nullable: true
         actions:
           - output: al_verleend
-            value: $antwoord
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord, value: null}
+                  then: $al_verleend_volgens_hoofd
+              default: $antwoord
 "#;
 
     /// A reduction `id` of the holder `holder` whose output `al_verleend`
@@ -855,7 +864,7 @@ articles:
     }
 
     #[test]
-    fn without_the_cell_the_binding_gives_nothing_and_the_finding_decides() {
+    fn without_the_cell_the_binding_gives_nothing_and_the_policy_asks_the_finding() {
         // The reduction is loaded, but nothing runs it: the binding asks a
         // cell, and there is none.
         let service = service();
@@ -863,7 +872,7 @@ articles:
             .evaluate_law("wet_fictief", &["verleend"], parameters(), "2026-10-20")
             .unwrap_err();
         assert!(e.to_string().contains("al_verleend"), "{e}");
-        let findings = [("al_verleend".to_string(), Value::Bool(false))].into();
+        let findings = [("al_verleend_volgens_hoofd".to_string(), Value::Bool(false))].into();
         let result = service
             .evaluate_law_with_findings(
                 "wet_fictief",
@@ -874,10 +883,11 @@ articles:
             )
             .unwrap();
         assert_eq!(result.outputs["verleend"], Value::Bool(true));
-        assert_eq!(
-            result.open_terms[0].filled_by,
-            regelrecht_engine::FilledBy::Finding
-        );
+        assert!(result
+            .open_terms
+            .iter()
+            .any(|f| f.term == "al_verleend_volgens_hoofd"
+                && f.filled_by == regelrecht_engine::FilledBy::Finding));
     }
 
     #[test]
@@ -926,7 +936,7 @@ articles:
         let service = service();
         let none = BTreeMap::new();
         let reader = Reader::new(ACTOR, authority(), &none, decisions(), None);
-        let findings = [("al_verleend".to_string(), Value::Bool(false))].into();
+        let findings = [("al_verleend_volgens_hoofd".to_string(), Value::Bool(false))].into();
         let call = regelrecht_engine::Call {
             findings,
             answerer: Some(&reader),
@@ -941,10 +951,11 @@ articles:
                 "2026-10-20",
             )
             .unwrap();
-        assert_eq!(
-            result.open_terms[0].filled_by,
-            regelrecht_engine::FilledBy::Finding
-        );
+        assert!(result
+            .open_terms
+            .iter()
+            .any(|f| f.term == "al_verleend_volgens_hoofd"
+                && f.filled_by == regelrecht_engine::FilledBy::Finding));
         assert!(reader.asked().is_empty());
     }
 

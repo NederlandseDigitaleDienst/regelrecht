@@ -109,7 +109,7 @@ execution:
 ```
 
 - How a cell reduces is up to the cell; the engine only asks it for an answer by name. The cell in `packages/cel` uses what the engine offers: rulework of its own kind (`REDUCTIE`) in the corpus, under the holder it names. It reads decisions (`source.decisions`) or facts (`source.facts`), and may call policy for a norm.
-- Wherever the binding runs, the engine asks the cell, which runs the reduction its catalogue names. The binding is policy, so the answer sets a finding aside ([order of precedence](/concepts/inversion-of-control#policy-that-fills-an-open-term-with-a-cells-answer)). Null on a term with a default or `decided_per_case_by` is silence, and the term falls back; on any other term null is the value.
+- Wherever the binding runs, the engine asks the cell, which runs the reduction its catalogue names. The binding is policy: it fills the term, null included, and no finding of the authority takes its place ([Inversion of Control](/concepts/inversion-of-control#policy-that-fills-an-open-term-with-a-cells-answer)). Where the cell has no answer and the authority is to judge, the policy says so with an open term of its own (`decided_per_case_by`).
 - The loader refuses `source.decisions` and `source.facts` outside a `REDUCTIE`, and `source.reduction` outside such a binding.
 
 ## Documents between cells

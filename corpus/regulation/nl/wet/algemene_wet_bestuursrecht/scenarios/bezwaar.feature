@@ -58,7 +58,7 @@ Feature: Het bezwaar en de beslissing erop
       | gronden_bezwaar_of_beroep                 | verklaring werkgever     |
       | termijn_einddatum                         | 2026-12-01               |
       | bezwaar_of_beroepschrift_tijdig_ingediend | true                     |
-      | bestreden_besluit | {"grondslag": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar": false, "specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}} |
+      | bestreden_besluit | {"grondslag": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar_volgens_hoofd": false, "specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}} |
     Given the following findings:
       | specifieke_aard_beroep_ouder | true |
     When I evaluate outputs "bestreden_besluit_herroepen, nieuw_besluit" of "algemene_wet_bestuursrecht"
@@ -73,7 +73,7 @@ Feature: Het bezwaar en de beslissing erop
     # Het hoofd oordeelt niets opnieuw: artikel 13a weigert opnieuw.
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
-      | bestreden_besluit | {"grondslag": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar": false, "specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}} |
+      | bestreden_besluit | {"grondslag": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar_volgens_hoofd": false, "specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}} |
     When I evaluate outputs "bestreden_besluit_herroepen, nieuw_besluit" of "algemene_wet_bestuursrecht"
     Then the execution succeeds
     Then output "bezwaar_ontvankelijk" is true
@@ -87,7 +87,7 @@ Feature: Het bezwaar en de beslissing erop
     # heroverweging plaats (lid 1), dus het hoofd stelt niets opnieuw vast.
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | false |
-      | bestreden_besluit | {"grondslag": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar": false, "specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}} |
+      | bestreden_besluit | {"grondslag": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar_volgens_hoofd": false, "specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}} |
     When I evaluate outputs "bestreden_besluit_herroepen, nieuw_besluit" of "algemene_wet_bestuursrecht"
     Then the execution succeeds
     Then output "bezwaar_ontvankelijk" is false
@@ -113,7 +113,7 @@ Feature: Het bezwaar en de beslissing erop
     # (artikel 7:1, eerste lid, onder a).
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
-      | bestreden_besluit | {"grondslag": "leerplichtwet_1969#13a", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar": false, "specifieke_aard_beroep_ouder": true, "verlof_valt_buiten_schoolvakanties": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": true}} |
+      | bestreden_besluit | {"grondslag": "leerplichtwet_1969#13a", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar_volgens_hoofd": false, "specifieke_aard_beroep_ouder": true, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": true}} |
     When I evaluate outputs "bestreden_besluit_herroepen, nieuw_besluit" of "algemene_wet_bestuursrecht"
     Then the execution succeeds
     Then output "bezwaar_ontvankelijk" is false
@@ -126,7 +126,7 @@ Feature: Het bezwaar en de beslissing erop
     # oude bevinding houden.
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
-      | bestreden_besluit | {"grondslag": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar": false, "specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}} |
+      | bestreden_besluit | {"grondslag": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar_volgens_hoofd": false, "specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}} |
     Given the following findings:
       | specifieke_aard_beroep | true |
     When I evaluate outputs "bestreden_besluit_herroepen, nieuw_besluit" of "algemene_wet_bestuursrecht"
@@ -137,7 +137,7 @@ Feature: Het bezwaar en de beslissing erop
     # haar.
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | false |
-      | bestreden_besluit | {"grondslag": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar": false, "specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}} |
+      | bestreden_besluit | {"grondslag": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar_volgens_hoofd": false, "specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}} |
     Given the following findings:
       | specifieke_aard_beroep_ouder | true |
     When I evaluate outputs "bestreden_besluit_herroepen, nieuw_besluit" of "algemene_wet_bestuursrecht"
@@ -146,7 +146,7 @@ Feature: Het bezwaar en de beslissing erop
   Scenario: Een opnieuw vastgestelde bevinding van een ander type is een fout
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
-      | bestreden_besluit | {"grondslag": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar": false, "specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}} |
+      | bestreden_besluit | {"grondslag": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar_volgens_hoofd": false, "specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}} |
     Given the following findings:
       | specifieke_aard_beroep_ouder | ja |
     When I evaluate outputs "bestreden_besluit_herroepen, nieuw_besluit" of "algemene_wet_bestuursrecht"

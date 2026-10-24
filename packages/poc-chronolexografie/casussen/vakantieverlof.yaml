@@ -235,13 +235,15 @@ scenarios:
       - >-
         Bestuursorgaan: het vakantierooster van de school reikt nog niet tot
         schooljaar 2027–2028, dus de school weet niet of het verlof buiten de
-        schoolvakanties valt. De voorvertoning meldt dat, en het formulier
-        vraagt het nu aan het hoofd. Kies bij "verlof valt buiten
-        schoolvakanties" Nee en klik op Besluit nemen.
+        schoolvakanties valt. Dan laat het beleid van het hoofd het oordeel
+        aan het hoofd (artikel 4). De voorvertoning meldt dat, en het
+        formulier vraagt het nu. Kies bij "verlof valt buiten schoolvakanties
+        volgens hoofd" Nee en klik op Besluit nemen.
     eind: >-
       Het verlof wordt geweigerd. Bij het besluit staat "verlof valt buiten
-      schoolvakanties: nee" als bevinding van het bestuursorgaan, niet als
-      antwoord van de school.
+      schoolvakanties volgens hoofd: nee" als bevinding van het
+      bestuursorgaan bij artikel 4 van het beleid; het beleid vulde er
+      artikel 13a mee in, omdat de school geen antwoord had.
   - naam: Bezwaar ongegrond, beroep gegrond, nieuw besluit op bezwaar
     stappen:
       - >-

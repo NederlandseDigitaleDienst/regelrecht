@@ -73,7 +73,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     # genomen op het bezwaar (taken_on): artikel 7:1, eerste lid, onder a.
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
-      | bestreden_besluit | {"grondslag": "leerplichtwet_1969#13a", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar": false, "specifieke_aard_beroep_ouder": true, "verlof_valt_buiten_schoolvakanties": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": true}} |
+      | bestreden_besluit | {"grondslag": "leerplichtwet_1969#13a", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar_volgens_hoofd": false, "specifieke_aard_beroep_ouder": true, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": true}} |
     Given the following findings:
       | indiener_is_belanghebbende | true |
       | rechtsregel_geschonden | false |
@@ -88,7 +88,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     # g zijn niet gemodelleerd.
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
-      | bestreden_besluit | {"grondslag": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar": false, "specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}} |
+      | bestreden_besluit | {"grondslag": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar_volgens_hoofd": false, "specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}} |
     When I evaluate outputs "uitspraak_strekt_tot, geschonden_geoordeelde_rechtsregel, bestreden_besluit_vernietigd, rechtsgevolgen_vernietigd, opdracht_nieuw_besluit, termijn_nieuw_besluit_einddatum, uitspraak_in_de_plaats" of "algemene_wet_bestuursrecht"
     Then the execution succeeds
     Then output "beroep_ontvankelijk" is false
@@ -216,7 +216,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     # volgt geen opdracht (vierde lid).
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
-      | bestreden_besluit | {"grondslag": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bestreden_besluit": {"grondslag": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}}, "bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
+      | bestreden_besluit | {"grondslag": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bestreden_besluit": {"grondslag": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}}, "bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
     Given the following findings:
       | indiener_is_belanghebbende | true |
       | rechtsregel_geschonden | true |
@@ -224,7 +224,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
       | rechtsgevolgen_in_stand | false |
       | uitspraak_treedt_in_de_plaats | true |
       | specifieke_aard_beroep_ouder | true |
-      | verlof_al_verleend_in_schooljaar | false |
+      | verlof_al_verleend_in_schooljaar_volgens_hoofd | false |
     When I evaluate outputs "uitspraak_strekt_tot, geschonden_geoordeelde_rechtsregel, bestreden_besluit_vernietigd, rechtsgevolgen_vernietigd, opdracht_nieuw_besluit, termijn_nieuw_besluit_einddatum, uitspraak_in_de_plaats" of "algemene_wet_bestuursrecht"
     Then the execution succeeds
     Then output "uitspraak_strekt_tot" equals "gegrondverklaring van het beroep"
@@ -240,7 +240,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     # zonder dat oordeel is er geen uitspraak.
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
-      | bestreden_besluit | {"grondslag": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bestreden_besluit": {"grondslag": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}}, "bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
+      | bestreden_besluit | {"grondslag": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bestreden_besluit": {"grondslag": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}}, "bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
     Given the following findings:
       | indiener_is_belanghebbende | true |
       | rechtsregel_geschonden | true |

@@ -25,10 +25,10 @@
 //! )?;
 //! ```
 
-use crate::answer::{Answer, AnswerProvenance, AnswerRequest, Call, OpenTermAnswerer};
+use crate::answer::{Answer, AnswerProvenance, AnswerRequest, Authority, Call, OpenTermAnswerer};
 use crate::article::{
-    Article, ArticleBasedLaw, Execution, HookPoint, Input, MachineReadable, ProcedureDefinition,
-    Stage, StageRequirement,
+    Article, ArticleBasedLaw, CompetentAuthority, Execution, HookPoint, Input, MachineReadable,
+    NamedAuthority, ProcedureDefinition, Stage, StageRequirement,
 };
 use crate::config;
 use crate::context::{LazyInputs, RuleContext};
@@ -145,6 +145,12 @@ struct ResolutionContext<'a> {
     findings: BTreeMap<String, Value>,
     /// The ids of [`Self::findings`] that an article in the execution asked.
     findings_asked: BTreeSet<String>,
+    /// The ids of [`Self::findings`] on the open term of a policy that fills
+    /// a term of an article in the execution, noted when that article runs
+    /// (RFC-048 §2). They count as asked, so a case that does not reach the
+    /// policy's term does not fail on them, but they are applied only once
+    /// the policy reads them ([`Self::findings_asked`]).
+    findings_noted: BTreeSet<String>,
     /// The open terms a finding, a regulation or a binding filled in this
     /// execution ([`ArticleResult::open_terms`]).
     open_terms: Vec<OpenTermFilled>,
@@ -282,6 +288,7 @@ impl<'a> ResolutionContext<'a> {
             staged_article: None,
             findings: BTreeMap::new(),
             findings_asked: BTreeSet::new(),
+            findings_noted: BTreeSet::new(),
             open_terms: Vec::new(),
             answerer: None,
             sphere: Vec::new(),
@@ -298,42 +305,31 @@ impl<'a> ResolutionContext<'a> {
 
     /// The caller's findings (RFC-050) that apply to `article` of `law`: one
     /// for each open term it leaves to an authority per case
-    /// (`decided_per_case_by`). Each is marked asked. A finding that does
-    /// not fit the type of its term is an error naming it; `null` fits only
-    /// a term that is not required.
+    /// (`decided_per_case_by`) and that no regulation fills (`filled`, the
+    /// ids of the terms a regulation in force fills for this execution). A
+    /// finding on a filled term is not applied and stays unasked, so the
+    /// execution fails on it whether or not the case reads the term (RFC-048
+    /// §2). Each applied finding is marked asked. A finding that does not
+    /// fit the type of its term is an error naming it; `null` fits only a
+    /// term that is not required.
     fn findings_for(
         &mut self,
         law: &ArticleBasedLaw,
         article: &Article,
+        filled: &BTreeSet<String>,
     ) -> Result<BTreeMap<String, Value>> {
         let mut applied = BTreeMap::new();
         if self.findings.is_empty() {
             return Ok(applied);
         }
         for term in article.get_open_terms().into_iter().flatten() {
-            if term.decided_per_case_by.is_none() {
+            if term.decided_per_case_by.is_none() || filled.contains(&term.id) {
                 continue;
             }
             let Some(value) = self.findings.get(&term.id) else {
                 continue;
             };
-            if !finding_fits(term, value) {
-                return Err(EngineError::TypeMismatch {
-                    expected: format!(
-                        "a {} for the finding '{}' on {}#{}{}",
-                        format!("{:?}", term.term_type).to_lowercase(),
-                        term.id,
-                        law.id,
-                        article.number,
-                        if term.required {
-                            ", which is required"
-                        } else {
-                            ""
-                        }
-                    ),
-                    actual: value.to_string(),
-                });
-            }
+            check_finding(&law.id, &article.number, term, value)?;
             self.findings_asked.insert(term.id.clone());
             applied.insert(term.id.clone(), value.clone());
         }
@@ -341,12 +337,13 @@ impl<'a> ResolutionContext<'a> {
     }
 
     /// Every finding the caller gave was asked by an article in the
-    /// execution (RFC-050); otherwise an error naming those that were not.
+    /// execution (RFC-050), or noted for a policy's own term; otherwise an
+    /// error naming those that were not.
     fn check_findings_asked(&self) -> Result<()> {
         let findings: Vec<String> = self
             .findings
             .keys()
-            .filter(|id| !self.findings_asked.contains(*id))
+            .filter(|id| !self.findings_asked.contains(*id) && !self.findings_noted.contains(*id))
             .cloned()
             .collect();
         if findings.is_empty() {
@@ -1356,6 +1353,32 @@ fn finding_fits(term: &crate::article::OpenTerm, value: &Value) -> bool {
     }
 }
 
+/// Refuse a finding `value` on the open term `term` of `article` of `law_id`
+/// that does not fit the term ([`finding_fits`]), naming it.
+fn check_finding(
+    law_id: &str,
+    article: &str,
+    term: &crate::article::OpenTerm,
+    value: &Value,
+) -> Result<()> {
+    if finding_fits(term, value) {
+        return Ok(());
+    }
+    Err(EngineError::TypeMismatch {
+        expected: format!(
+            "a {} for the finding '{}' on {law_id}#{article}{}",
+            format!("{:?}", term.term_type).to_lowercase(),
+            term.id,
+            if term.required {
+                ", which is required"
+            } else {
+                ""
+            }
+        ),
+        actual: value.to_string(),
+    })
+}
+
 /// `value` as the value of `input` of `law`, unless it is a `null` the input
 /// is not declared to take (RFC-036); `origin` names where it came from.
 fn checked_call_value(
@@ -1701,6 +1724,64 @@ pub struct ProcedureStage {
     /// The article first, then every hook that fires on it at this stage, in
     /// the order the engine fires them (`pre_actions`, then `post_actions`).
     pub articles: Vec<SubmissionArticle>,
+}
+
+/// An open term that a decision under an article may need
+/// ([`LawExecutionService::decision_terms`]): one of that article, or of an
+/// article that fills one of its terms (`implements`), with whether it is
+/// judged per case, who answers it and what fills it. It says what the law
+/// and the policy need for the decision, and from whom; how and when a
+/// process asks it is the process's.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DecisionTerm {
+    /// The law and article that declare the term.
+    pub law_id: String,
+    pub article: String,
+    pub id: String,
+    pub term_type: crate::types::ParameterType,
+    pub required: bool,
+    /// Whether a default fills the term when nothing else does.
+    pub has_default: bool,
+    /// Whether the term is judged per case (`decided_per_case_by`): where
+    /// no article fills it, it takes a finding. The text says in words who
+    /// judges; the engine does not read it ([`Self::answered_by`]).
+    pub decided_per_case_by: Option<String>,
+    /// Who answers the term: the authorities its own `competent_authority`
+    /// names; where the term has none, the one the article names (RFC-002);
+    /// where the article has none either, the holder of the rulework (its
+    /// root `competent_authority`). Empty when the first of these that is
+    /// present is a reference (`#...`), or when none is present: then
+    /// whoever executes the article answers it.
+    pub answered_by: Vec<NamedAuthority>,
+    /// The articles that fill the term (`implements`), as
+    /// `<regulation>#<article>`, in force on the day. A term they fill takes
+    /// their value, null included; no finding is asked for it (RFC-048 §2).
+    pub filled_by: Vec<String>,
+}
+
+impl DecisionTerm {
+    /// Whether the term takes a finding at all: it is judged per case and
+    /// no article fills it. Who may give it is [`Self::is_finding`].
+    pub fn asks_finding(&self) -> bool {
+        self.decided_per_case_by.is_some() && self.filled_by.is_empty()
+    }
+
+    /// Whether `authority` may answer the term ([`Self::answered_by`]).
+    pub fn answers(&self, authority: &Authority) -> bool {
+        self.answered_by.is_empty() || authority.is_named_by(&self.answered_by)
+    }
+
+    /// Whether the term asks a finding of `authority`: it takes a finding
+    /// ([`Self::asks_finding`]) and `authority` answers it
+    /// ([`Self::answers`]).
+    pub fn is_finding(&self, authority: &Authority) -> bool {
+        self.asks_finding() && self.answers(authority)
+    }
+
+    /// The article that declares it, `<regulation>#<article>`.
+    pub fn declared_by(&self) -> String {
+        format!("{}#{}", self.law_id, self.article)
+    }
 }
 
 /// An article that takes part in a submission.
@@ -2424,6 +2505,79 @@ impl LawExecutionService {
             requires: stage.requires.clone().unwrap_or_default(),
             articles,
         })
+    }
+
+    /// The open terms a decision under article `article_number` of `law_id`
+    /// may need, in the laws in force on `calculation_date`: those of the
+    /// article, then for each that an article fills (`implements`) the
+    /// open terms of that article, and so on, each once, in that order. The
+    /// policy that fills a term may leave a case to the authority with an
+    /// open term of its own (`decided_per_case_by`, RFC-048 §2); this is
+    /// where it shows. Whether a case reaches such a term only an execution
+    /// says. The implementations are those that apply in `scope`, as in an
+    /// execution with those parameters: a regulation scoped by
+    /// `gemeente_code` fills a term only for a scope with that code.
+    pub fn decision_terms(
+        &self,
+        law_id: &str,
+        article_number: &str,
+        calculation_date: &str,
+        scope: &HashMap<String, Value>,
+    ) -> Result<Vec<DecisionTerm>> {
+        let ref_date = Some(parse_calculation_date(calculation_date)?);
+        let mut terms: Vec<DecisionTerm> = Vec::new();
+        let mut todo = vec![(law_id.to_string(), article_number.to_string())];
+        let mut seen: BTreeSet<(String, String)> = BTreeSet::new();
+        while let Some((law_id, number)) = todo.pop() {
+            if !seen.insert((law_id.clone(), number.clone())) {
+                continue;
+            }
+            let (law, article) = self.article_in_force(&law_id, &number, calculation_date)?;
+            // Who executes the article: the authority it names, else the
+            // rulework's holder. A reference (`#...`) is decided per case,
+            // so it names no one here: whoever executes answers.
+            let executes: Vec<NamedAuthority> = article
+                .machine_readable
+                .as_ref()
+                .and_then(|mr| mr.competent_authority.as_ref())
+                .or(law.competent_authority.as_ref())
+                .and_then(CompetentAuthority::named)
+                .map(<[_]>::to_vec)
+                .unwrap_or_default();
+            let mut found = Vec::new();
+            for term in article.get_open_terms().into_iter().flatten() {
+                let lookup = self
+                    .resolver
+                    .find_implementations(&law_id, &number, term, ref_date, scope)?;
+                let filled_by: Vec<String> = lookup
+                    .implementations
+                    .iter()
+                    .map(|(l, a)| format!("{}#{}", l.id, a.number))
+                    .collect();
+                for (l, a) in &lookup.implementations {
+                    found.push((l.id.clone(), a.number.clone()));
+                }
+                // A reference on the term names no one here either.
+                let answered_by = match &term.competent_authority {
+                    Some(own) => own.named().map(<[_]>::to_vec).unwrap_or_default(),
+                    None => executes.clone(),
+                };
+                terms.push(DecisionTerm {
+                    law_id: law_id.clone(),
+                    article: number.clone(),
+                    id: term.id.clone(),
+                    term_type: term.term_type,
+                    required: term.required,
+                    has_default: term.has_default(),
+                    decided_per_case_by: term.decided_per_case_by.clone(),
+                    answered_by,
+                    filled_by,
+                });
+            }
+            // Depth first, in the order of the terms.
+            todo.extend(found.into_iter().rev());
+        }
+        Ok(terms)
     }
 
     /// Execute one stage of the procedure that article `article_number` of
@@ -4009,7 +4163,13 @@ impl LawExecutionService {
         // call passes for the term, such as the decision value's own
         // finding; at the top it may not also be a parameter.
         let mut parameters = parameters;
-        for (id, finding) in res_ctx.findings_for(law, article)? {
+        self.note_policy_findings(law, article, &parameters, res_ctx)?;
+        let filled = if res_ctx.findings.is_empty() {
+            BTreeSet::new()
+        } else {
+            self.filled_terms(law, article, &parameters, res_ctx.reference_date())?
+        };
+        for (id, finding) in res_ctx.findings_for(law, article, &filled)? {
             if res_ctx.depth == 0 && parameters.contains_key(&id) {
                 return Err(EngineError::InvalidOperation(format!(
                     "'{id}' of {}#{} is given both as a parameter and as a finding",
@@ -4518,6 +4678,111 @@ impl LawExecutionService {
         Ok(Some(Value::Null))
     }
 
+    /// The ids of the open terms of `article` of `law` judged per case
+    /// (`decided_per_case_by`) that a regulation in force on `date` fills
+    /// with the execution's `parameters` as scope, as when the term is
+    /// resolved.
+    fn filled_terms(
+        &self,
+        law: &ArticleBasedLaw,
+        article: &Article,
+        parameters: &BTreeMap<String, Value>,
+        date: Option<NaiveDate>,
+    ) -> Result<BTreeSet<String>> {
+        let scope: HashMap<String, Value> = parameters
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        let mut filled = BTreeSet::new();
+        for term in article.get_open_terms().into_iter().flatten() {
+            if term.decided_per_case_by.is_none() {
+                continue;
+            }
+            let lookup =
+                self.resolver
+                    .find_implementations(&law.id, &article.number, term, date, &scope)?;
+            if !lookup.implementations.is_empty() {
+                filled.insert(term.id.clone());
+            }
+        }
+        Ok(filled)
+    }
+
+    /// Note the caller's findings on the open terms of the policy that
+    /// fills a term of `article` (`implements`), and so on: such a policy
+    /// leaves a case to the authority with an open term of its own (RFC-048
+    /// §2). Whether this case reaches it depends on what the article reads,
+    /// so the finding counts as asked by the article whose term the policy
+    /// fills, as a finding on the article's own term does. It is checked
+    /// against the term's type here, and applied only where the policy
+    /// reads it ([`ResolutionContext::findings_noted`]). The policies are
+    /// those that apply with the article's `parameters`, as when the term is
+    /// resolved.
+    fn note_policy_findings(
+        &self,
+        law: &ArticleBasedLaw,
+        article: &Article,
+        parameters: &BTreeMap<String, Value>,
+        res_ctx: &mut ResolutionContext<'_>,
+    ) -> Result<()> {
+        if res_ctx.findings.is_empty() {
+            return Ok(());
+        }
+        let scope: HashMap<String, Value> = parameters
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        let date = res_ctx.reference_date();
+        let mut todo: Vec<(String, String)> = vec![(law.id.clone(), article.number.clone())];
+        let mut seen: BTreeSet<(String, String)> = BTreeSet::new();
+        while let Some((law_id, number)) = todo.pop() {
+            if !seen.insert((law_id.clone(), number.clone())) {
+                continue;
+            }
+            let Some(found) = self
+                .resolver
+                .get_law_for_date(&law_id, date)
+                .and_then(|l| l.find_article_by_number(&number))
+            else {
+                continue;
+            };
+            for term in found.get_open_terms().into_iter().flatten() {
+                let lookup = self
+                    .resolver
+                    .find_implementations(&law_id, &number, term, date, &scope)?;
+                for (impl_law, impl_article) in &lookup.implementations {
+                    for own in impl_article.get_open_terms().into_iter().flatten() {
+                        if own.decided_per_case_by.is_none() {
+                            continue;
+                        }
+                        let Some(value) = res_ctx.findings.get(&own.id) else {
+                            continue;
+                        };
+                        // A term another regulation fills takes no finding.
+                        if !self
+                            .resolver
+                            .find_implementations(
+                                &impl_law.id,
+                                &impl_article.number,
+                                own,
+                                date,
+                                &scope,
+                            )?
+                            .implementations
+                            .is_empty()
+                        {
+                            continue;
+                        }
+                        check_finding(&impl_law.id, &impl_article.number, own, value)?;
+                        res_ctx.findings_noted.insert(own.id.clone());
+                    }
+                    todo.push((impl_law.id.clone(), impl_article.number.clone()));
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Resolve one open term declared on an article via IoC (implements index),
     /// the first time an action reads it (RFC-043).
     ///
@@ -4527,7 +4792,10 @@ impl LawExecutionService {
     /// 3. If not found + has default: execute the default actions. The same
     ///    when the implementation yields `null` for this case: an implementing
     ///    regulation that is silent has not deviated, so the delegating law's
-    ///    own rule (its default) applies (RFC-003, RFC-036).
+    ///    own rule (its default) applies (RFC-003, RFC-036). On a term without
+    ///    a default the implementation's value is the term's, null included:
+    ///    a term the law leaves to an authority per case gets no finding
+    ///    where a regulation fills it (RFC-048 §2).
     /// 4. If not found + required + no default: error
     /// 5. If not found + not required + no default: skip
     ///
@@ -4706,8 +4974,7 @@ impl LawExecutionService {
             };
 
             if let Some(value) = result.outputs.get(&term.id) {
-                if value.is_null() && (term.default.is_some() || term.decided_per_case_by.is_some())
-                {
+                if value.is_null() && term.default.is_some() {
                     // The verordening says nothing for this case ("de APV
                     // zwijgt"): no deviation was allowed, so the rule of
                     // the delegating law applies, which is its default.
@@ -4715,22 +4982,29 @@ impl LawExecutionService {
                     // for a term that has a default; RFC-036 accepts
                     // that, and the trace and the log say what happened,
                     // since a typo in the implementation looks the same.
-                    // A norm the law leaves to an authority per case falls
-                    // back to that authority's judgement the same way
-                    // (RFC-047).
                     silent.push(format!("{} article {}", impl_law.id, impl_article.number));
                 } else {
+                    // A regulation that fills a term the law leaves to an
+                    // authority per case fills it, also with null: no
+                    // finding takes its place. A policy that lets the
+                    // authority judge a case says so with an open term of
+                    // its own (RFC-048 §2). A finding given for the term is
+                    // then asked by nothing.
+                    if let Some(by) = term
+                        .decided_per_case_by
+                        .as_ref()
+                        .filter(|_| parameters.contains_key(&term.id))
+                    {
+                        let message = format!(
+                            "Open term '{}' on {}#{} is filled by {} article {}; the finding of \
+                             {by} for it is asked by none (RFC-048)",
+                            term.id, law.id, article.number, impl_law.id, impl_article.number
+                        );
+                        res_ctx.trace_set_message(message.clone());
+                        res_ctx.leave(&ot_key);
+                        return Err(EngineError::InvalidOperation(message));
+                    }
                     res_ctx.trace_set_result(value.clone());
-                    // The implementation is the general specification and
-                    // wins over a judgement for this case (RFC-047). The
-                    // judgement is set aside, and the trace says by what.
-                    let set_aside = match &term.decided_per_case_by {
-                        Some(by) if parameters.contains_key(&term.id) => format!(
-                            "; the judgement of {by} for this case is set aside by {} article {}",
-                            impl_law.id, impl_article.number
-                        ),
-                        _ => String::new(),
-                    };
                     // A binding that took the answer of a cell fills the
                     // term with it: who answered is part of who filled it
                     // (RFC-048).
@@ -4755,7 +5029,7 @@ impl LawExecutionService {
                         )
                     };
                     res_ctx.trace_set_message(format!(
-                        "Open term '{}' implemented by {} article {}{by}{set_aside}",
+                        "Open term '{}' implemented by {} article {}{by}",
                         term.id, impl_law.id, impl_article.number
                     ));
                     let law_id = impl_law.id.clone();
@@ -4808,22 +5082,28 @@ impl LawExecutionService {
         // A norm the law leaves to an authority per case
         // (`decided_per_case_by`) and that no regulation fills: the
         // authority's judgement for this case comes from the caller, under the
-        // term's id (RFC-047). An implementation above wins, because it is
-        // the general specification; the judgement wins over a default.
+        // term's id (RFC-047), and wins over a default. A regulation that is
+        // silent on a term with a default leaves it to the default, not to
+        // a finding (RFC-036, RFC-048 §2).
         if let Some(by) = &term.decided_per_case_by {
             if let Some(value) = parameters.get(&term.id) {
-                res_ctx.trace_set_result(value.clone());
-                let silent_note = if silent.is_empty() {
-                    String::new()
-                } else {
-                    res_ctx.trace_set_resolve_type(ResolveType::OpenTermSilent);
-                    format!(
-                        ": implementation {} is silent for this case (null)",
+                if !silent.is_empty() {
+                    let message = format!(
+                        "Open term '{}' on {}#{} is filled by its default: implementation {} \
+                         is silent for this case (null); the finding of {by} for it is asked by \
+                         none (RFC-048)",
+                        term.id,
+                        law.id,
+                        article.number,
                         silent.join(", ")
-                    )
-                };
+                    );
+                    res_ctx.trace_set_message(message.clone());
+                    res_ctx.leave(&ot_key);
+                    return Err(EngineError::InvalidOperation(message));
+                }
+                res_ctx.trace_set_result(value.clone());
                 res_ctx.trace_set_message(format!(
-                    "Open term '{}' decided in this case by {by}{silent_note}",
+                    "Open term '{}' decided in this case by {by}",
                     term.id
                 ));
                 res_ctx.note_open_term(&law.id, &article.number, &term.id, FilledBy::Finding);
@@ -5729,27 +6009,65 @@ impl LawExecutionService {
         // asks its parameters, and the judgement for this case on an open
         // term it leaves to an authority per case (`decided_per_case_by`),
         // under the term's id, as a caller at the top gives one (RFC-047).
-        // An implementation of that term still wins over the judgement, as
-        // at the top (`resolve_open_term`).
+        // A term that a regulation in force on this day fills takes no
+        // finding (RFC-048 §2): the decision's finding on it, from a day the
+        // regulation did not fill it yet, is not passed, and the trace says
+        // so.
         let declared = Self::filter_parameters_for_article(article, &passed);
-        let mut findings: BTreeMap<String, Value> = article
-            .get_open_terms()
-            .into_iter()
-            .flatten()
-            .filter(|term| term.decided_per_case_by.is_some() && !declared.contains_key(&term.id))
-            .filter_map(|term| {
-                passed
-                    .get(&term.id)
-                    .or_else(|| given_findings.get(&term.id))
-                    .map(|v| (term.id.clone(), v.clone()))
-            })
-            .collect();
-        let from_caller = res_ctx.findings_for(target_law, article)?;
+        let mut findings: BTreeMap<String, Value> = BTreeMap::new();
+        let mut now_filled: Vec<String> = Vec::new();
+        let filled = self.filled_terms(target_law, article, &passed, res_ctx.reference_date())?;
+        for term in article.get_open_terms().into_iter().flatten() {
+            if term.decided_per_case_by.is_none() || declared.contains_key(&term.id) {
+                continue;
+            }
+            let Some(value) = passed
+                .get(&term.id)
+                .or_else(|| given_findings.get(&term.id))
+            else {
+                continue;
+            };
+            if filled.contains(&term.id) {
+                now_filled.push(term.id.clone());
+            } else {
+                findings.insert(term.id.clone(), value.clone());
+            }
+        }
+        if !now_filled.is_empty() {
+            let _filled = res_ctx.trace_guard(
+                format!("{target} (filled by policy)"),
+                PathNodeType::Resolve,
+            );
+            res_ctx.trace_set_message(format!(
+                "{target}: a regulation in force fills {}, so the finding is not passed",
+                now_filled.join(", ")
+            ));
+        }
+        let from_caller = res_ctx.findings_for(target_law, article, &filled)?;
         findings.extend(from_caller.clone());
+        // A finding of the decision value on a term of another article the
+        // call runs, such as the open term a policy declares for a case its
+        // cell is silent on (RFC-048 §2), applies there as a caller's
+        // finding does, for this call only. A finding the caller gave wins.
+        let nested: BTreeMap<String, Value> = given_findings
+            .iter()
+            .filter(|(name, _)| {
+                !findings.contains_key(*name)
+                    && !declared.contains_key(*name)
+                    && !res_ctx.findings.contains_key(*name)
+                    && !now_filled.contains(*name)
+            })
+            .map(|(name, value)| (name.clone(), value.clone()))
+            .collect();
         let dropped: Vec<&str> = passed
             .keys()
             .chain(given_findings.keys())
-            .filter(|name| !declared.contains_key(*name) && !findings.contains_key(*name))
+            .filter(|name| {
+                !declared.contains_key(*name)
+                    && !findings.contains_key(*name)
+                    && !nested.contains_key(*name)
+                    && !now_filled.contains(*name)
+            })
             .map(String::as_str)
             .collect::<BTreeSet<_>>()
             .into_iter()
@@ -5841,6 +6159,9 @@ impl LawExecutionService {
         let outer_staged = res_ctx
             .staged_article
             .replace((target_law.id.clone(), article.number.clone()));
+        // The decision value's findings that an article the call runs asked:
+        // they are findings of this decision, as the article's own are.
+        let mut applied: BTreeMap<String, Value> = BTreeMap::new();
         let result = if res_ctx.depth > config::MAX_CROSS_LAW_DEPTH {
             Err(EngineError::CircularReference(format!(
                 "Cross-law resolution depth exceeded {} levels. Possible circular reference \
@@ -5848,14 +6169,61 @@ impl LawExecutionService {
                 config::MAX_CROSS_LAW_DEPTH
             )))
         } else {
-            self.evaluate_article_with_service(
+            for (name, value) in &nested {
+                res_ctx.findings.insert(name.clone(), value.clone());
+            }
+            let asked_before = res_ctx.findings_asked.clone();
+            let result = self.evaluate_article_with_service(
                 article,
                 target_law,
                 passed_on,
                 Some(&computed),
                 "BESLUIT",
                 res_ctx,
-            )
+            );
+            // A finding the caller gave that an article of the call read
+            // first, such as one on a policy's own term, is a finding of
+            // this decision too. One only noted for a policy the case did
+            // not reach is not.
+            // One already in `findings` or `nested` lands with the same value.
+            for name in res_ctx.findings_asked.difference(&asked_before) {
+                if let Some(value) = res_ctx.findings.get(name) {
+                    applied.insert(name.clone(), value.clone());
+                }
+            }
+            let mut unasked: Vec<&str> = Vec::new();
+            for (name, value) in &nested {
+                res_ctx.findings.remove(name);
+                let noted = res_ctx.findings_noted.remove(name);
+                if res_ctx.findings_asked.remove(name) {
+                    applied.insert(name.clone(), value.clone());
+                } else if !noted {
+                    unasked.push(name);
+                }
+            }
+            if !applied.is_empty() {
+                let _nested = res_ctx.trace_guard(
+                    format!("{target} (found for the articles it runs)"),
+                    PathNodeType::Resolve,
+                );
+                res_ctx.trace_set_message(format!(
+                    "{target}: the finding on {} applies to an article the call runs",
+                    applied
+                        .keys()
+                        .map(String::as_str)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
+            if !unasked.is_empty() {
+                let _dropped =
+                    res_ctx.trace_guard(format!("{target} (not asked)"), PathNodeType::Resolve);
+                res_ctx.trace_set_message(format!(
+                    "{target} does not declare {}, so not passed",
+                    unasked.join(", ")
+                ));
+            }
+            result
         };
         res_ctx.staged_article = outer_staged;
         for key in &output_keys {
@@ -5887,7 +6255,10 @@ impl LawExecutionService {
                 Value::Object(BTreeMap::from([
                     ("grondslag".to_string(), Value::String(target.clone())),
                     ("fields".to_string(), Value::Object(declared)),
-                    ("findings".to_string(), Value::Object(findings)),
+                    (
+                        "findings".to_string(),
+                        Value::Object(findings.into_iter().chain(applied).collect()),
+                    ),
                     ("outputs".to_string(), Value::Object(outputs)),
                 ]))
             }
@@ -10290,13 +10661,13 @@ articles:
         ));
     }
 
-    /// A norm decided per case, with a regulation that is silent for this
-    /// case and no judgement given. Required, it is an error; optional, it is
-    /// null. Either way the trace names the silent regulation instead of
-    /// claiming no implementation was found, as the judgement and default
-    /// branches do.
+    /// A norm decided per case that a regulation fills: the regulation's
+    /// value is the norm's, null included, and no finding takes its place
+    /// (RFC-048 §2). Optional, null is the value; required, the regulation
+    /// that may give null does not load (N5), and a finding given for the
+    /// norm is asked by none.
     #[test]
-    fn test_a_norm_decided_per_case_left_open_names_the_silent_implementation() {
+    fn test_a_norm_decided_per_case_that_a_regulation_fills_takes_its_null() {
         let wet = |required: bool| {
             format!(
                 r#"
@@ -10342,62 +10713,43 @@ articles:
         actions:
           - {output: grond_aanwezig, value: null}
 "#;
-        // The trace is read back after the run, also when the run fails: the
-        // test holds a root node of its own for the run to hang under.
-        let traced = |required: bool| {
-            let mut service = LawExecutionService::new();
-            service.load_law(&wet(required)).unwrap();
-            service.load_law(beleid).unwrap();
-            let trace = Rc::new(RefCell::new(TraceBuilder::new()));
-            trace
-                .borrow_mut()
-                .push("test harness".to_string(), PathNodeType::Article);
-            let result = service.evaluate_law_output_with_shared_trace(
+        let mut service = LawExecutionService::new();
+        service.load_law(&wet(false)).unwrap();
+        service.load_law(beleid).unwrap();
+        let result = service
+            .evaluate_law_with_trace(
                 "wet_verlof",
-                "verlof_verleend",
+                &["verlof_verleend"],
                 BTreeMap::new(),
                 "2026-10-13",
-                Rc::clone(&trace),
-            );
-            let root = Rc::try_unwrap(trace)
-                .ok()
-                .unwrap()
-                .into_inner()
-                .build()
-                .expect("a traced run has a trace");
-            (result, root)
-        };
-
-        let (result, root) = traced(true);
-        let e = result.unwrap_err();
-        assert!(
-            e.to_string().contains("decided per case by het hoofd"),
-            "{e}"
-        );
+            )
+            .unwrap();
+        assert_eq!(result.outputs["verlof_verleend"], Value::Null);
+        let root = result.trace.unwrap();
         assert!(
             trace_mentions(
                 &root,
-                "Open term 'grond_aanwezig' is required but implementation \
-                 beleid_verlof_zwijgt article 1 is silent for this case (null)"
+                "Open term 'grond_aanwezig' implemented by beleid_verlof_zwijgt article 1"
             ),
             "{}",
             root.render_box_drawing()
         );
-        assert!(trace_resolves_by(&root, &ResolveType::OpenTermSilent));
+        assert!(!trace_resolves_by(&root, &ResolveType::OpenTermSilent));
+        let e = service
+            .evaluate_law_with_findings(
+                "wet_verlof",
+                &["verlof_verleend"],
+                BTreeMap::new(),
+                BTreeMap::from([("grond_aanwezig".to_string(), Value::Bool(true))]),
+                "2026-10-13",
+            )
+            .unwrap_err();
+        assert!(e.to_string().contains("is asked by none"), "{e}");
 
-        let (result, root) = traced(false);
-        assert_eq!(result.unwrap().outputs["verlof_verleend"], Value::Null);
-        assert!(
-            trace_mentions(
-                &root,
-                "Open term 'grond_aanwezig' not required, implementation \
-                 beleid_verlof_zwijgt article 1 is silent for this case (null), \
-                 resolved as null"
-            ),
-            "{}",
-            root.render_box_drawing()
-        );
-        assert!(trace_resolves_by(&root, &ResolveType::OpenTermSilent));
+        let mut service = LawExecutionService::new();
+        service.load_law(&wet(true)).unwrap();
+        let e = service.load_law(beleid).unwrap_err();
+        assert!(e.to_string().contains("[N5]"), "{e}");
     }
 
     #[test]

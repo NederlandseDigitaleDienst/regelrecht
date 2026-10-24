@@ -24,7 +24,7 @@ Feature: Geen kaart voordat het geneeskundig onderzoek heeft plaatsgehad
       | bekend_dat_aanvrager_nog_steeds_voldoet                      | null       |
       | keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet | null       |
     Given the following findings:
-      | geneeskundig_onderzoek_heeft_plaatsgehad             | true  |
+      | geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college             | true  |
     When I evaluate "gehandicaptenparkeerkaart_mag_worden_afgegeven" of "regeling_gehandicaptenparkeerkaart"
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_mag_worden_afgegeven" is true
@@ -53,7 +53,7 @@ Feature: Geen kaart voordat het geneeskundig onderzoek heeft plaatsgehad
       | bekend_dat_aanvrager_nog_steeds_voldoet                      | null       |
       | keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet | null       |
     Given the following findings:
-      | geneeskundig_onderzoek_heeft_plaatsgehad             | false |
+      | geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college             | false |
     When I evaluate "gehandicaptenparkeerkaart_mag_worden_afgegeven" of "regeling_gehandicaptenparkeerkaart"
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_mag_worden_afgegeven" is false
@@ -67,7 +67,7 @@ Feature: Geen kaart voordat het geneeskundig onderzoek heeft plaatsgehad
       | bekend_dat_aanvrager_nog_steeds_voldoet                      | true       |
       | keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet | null       |
     Given the following findings:
-      | aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt | true  |
+      | aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt_volgens_college | true  |
     When I evaluate "gehandicaptenparkeerkaart_mag_worden_afgegeven" of "regeling_gehandicaptenparkeerkaart"
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_mag_worden_afgegeven" is true
@@ -81,7 +81,7 @@ Feature: Geen kaart voordat het geneeskundig onderzoek heeft plaatsgehad
       | bekend_dat_aanvrager_nog_steeds_voldoet                      | false      |
       | keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet | true       |
     Given the following findings:
-      | aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt | true  |
+      | aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt_volgens_college | true  |
     When I evaluate "gehandicaptenparkeerkaart_mag_worden_afgegeven" of "regeling_gehandicaptenparkeerkaart"
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_mag_worden_afgegeven" is true
@@ -99,7 +99,7 @@ Feature: Geen kaart voordat het geneeskundig onderzoek heeft plaatsgehad
       | bekend_dat_aanvrager_nog_steeds_voldoet                      | false      |
       | keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet | false      |
     Given the following findings:
-      | geneeskundig_onderzoek_heeft_plaatsgehad             | true  |
+      | geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college             | true  |
     When I evaluate "gehandicaptenparkeerkaart_mag_worden_afgegeven" of "regeling_gehandicaptenparkeerkaart"
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_mag_worden_afgegeven" is true

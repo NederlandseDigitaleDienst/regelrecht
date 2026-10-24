@@ -17,12 +17,12 @@ use std::path::Path;
 use chrono::NaiveDate;
 use regelrecht_engine::{
     ArticleResult, Authority, Call, FilledBy, LawExecutionService, OpenTermAnswerer,
-    OpenTermFilled, OutputProvenance, ParameterType, Value,
+    OutputProvenance, ParameterType, Value,
 };
 use serde_json::Map;
 
 use crate::chronicle::{Afschrift, Chronicle, Gram, GramMoment, Received, EXECUTOGRAM};
-use crate::decision::{self, DecisionShape, Source};
+use crate::decision::{self, finding_field, DecisionShape, Source};
 use crate::error::{refused, setup, Result};
 use crate::files::{Disk, Files};
 use crate::identity;
@@ -757,8 +757,11 @@ impl Cell {
     /// the decision that leaves the term to the authority: the deciding
     /// article, and an article it calls, such as a decision called anew. The
     /// cell checks a finding on a term of the deciding article as one of its
-    /// inputs; the engine refuses one that no article in the decision asks,
-    /// or of the wrong type. A finding for a call anew is so given only once
+    /// inputs, and refuses one on such a term that another authority
+    /// answers: the one the term names (`competent_authority`), or the one
+    /// that executes its article ([`regelrecht_engine::DecisionTerm`]). The
+    /// engine refuses one that no article in the decision asks, or of the
+    /// wrong type. A finding for a call anew is so given only once
     /// that call happens: given while the decision does not call anew (the
     /// objection is not admissible, say), no article asks it and the
     /// decision is refused. The chronolexogram keeps each finding among its
@@ -888,36 +891,69 @@ impl Cell {
         let reader = self.reader(grams, None);
         let others = known_on(sphere, on);
         let answerers = Answerers::new(&reader, &others);
-        if let Some(name) = supplied.keys().find(|name| is_finding(&shape, name)) {
+        if let Some(name) = supplied
+            .keys()
+            .find(|name| is_finding(&shape, name, &self.authority))
+        {
             return Err(refused(format!(
                 "'{name}' of the decision of {} is a finding of the deciding authority; it \
                  is given among the findings",
                 shape.grondslag()
             )));
         }
-        // A finding the decision asks is one of its inputs, which the cell
-        // checks as it checks what is supplied; any other is for an article
-        // the decision calls. All of them reach the engine as findings.
+        // A finding on an open term of the decision, of the deciding article
+        // or of a policy that fills one of its terms, is checked as what is
+        // supplied is; any other is for an article the decision calls. All
+        // of them reach the engine as findings.
         for (name, value) in findings {
             refuse_decimal_key(name, value)?;
+            if shape.input(name).is_some() {
+                return Err(refused(format!(
+                    "'{name}' of the decision of {} is no finding; it is supplied, or comes \
+                     from elsewhere",
+                    shape.grondslag()
+                )));
+            }
+            if shape.filled(name) {
+                return Err(refused(format!(
+                    "'{name}' of the decision of {} is filled by the policy; no finding takes \
+                     its place",
+                    shape.grondslag()
+                )));
+            }
+            refuse_finding_of_another(&shape, name, &self.authority)?;
+            if let Some(term) = shape.finding(name, &self.authority) {
+                let field = finding_field(term);
+                if !shape::fits(&field, value) {
+                    return Err(refused(format!(
+                        "'{name}' is {value}, which does not fit a {:?} ({})",
+                        field.type_,
+                        field.first_declared_by()
+                    )));
+                }
+            }
         }
-        let own: Map<_, _> = findings
-            .iter()
-            .filter(|(name, _)| shape.input(name).is_some())
-            .map(|(name, value)| (name.clone(), value.clone()))
-            .collect();
-        if let Some(name) = own.keys().find(|name| !is_finding(&shape, name)) {
+        // A finding the deciding article itself asks and cannot go without:
+        // the cell refuses the decision without it, as for a value the
+        // authority supplies. One a policy leaves to the authority for a
+        // case the engine asks only when the case reaches it.
+        if let Some(term) = shape.terms.iter().find(|t| {
+            t.is_finding(&self.authority)
+                && t.law_id == shape.law_id
+                && t.article == shape.article
+                && t.required
+                && !t.has_default
+                && !findings.contains_key(&t.id)
+        }) {
             return Err(refused(format!(
-                "'{name}' of the decision of {} is no finding; it is supplied, or comes from \
-                 elsewhere",
-                shape.grondslag()
+                "the decision of {} asks '{}' of the deciding authority ({})",
+                shape.grondslag(),
+                term.id,
+                term.declared_by()
             )));
         }
-        let mut given = supplied.clone();
-        given.extend(own);
-        let given = &given;
-        check_decision_supplied(&shape, given)?;
-        let inputs = asked(&shape, &applied, &decisions, given, on)?;
+        check_decision_supplied(&shape, supplied)?;
+        let inputs = asked(&shape, &applied, &decisions, supplied, on)?;
         let (mut fields, mut outputs) = take(service, &shape, inputs, findings, &answerers, on)?;
         for (name, (id, _)) in decisions {
             fields.insert(name, serde_json::Value::String(id));
@@ -997,8 +1033,8 @@ impl Cell {
     /// decision read it, with the parameters the binding passed then. One
     /// result per time the decision asked the answer, in that order, each
     /// with the reduction's own trace; it is no part of the decision's trace,
-    /// and nothing of it is stored. A silent answer (null), which the engine
-    /// set aside for the finding, is explained too. Refused when the
+    /// and nothing of it is stored. A silent answer (null), on which the
+    /// policy says what holds, is explained too. Refused when the
     /// decision did not ask the cell for `answer`.
     pub fn explain_answer(
         &self,
@@ -1024,18 +1060,15 @@ impl Cell {
     }
 
     /// The fields of the decision `id` that hold a finding of the deciding
-    /// authority it used (RFC-050), derived from a replay: the engine reports
-    /// who filled each open term (`ArticleResult::open_terms`). A field on a
-    /// term the law leaves to the authority is not one when the replay
-    /// reports only a regulation filled it, a reduction of the cell among
-    /// them: the regulation decided it, also where it gives what the
-    /// authority found. It stays one where a finding filled it too, and where
-    /// the decision did not read it. A field the decision's article does not
-    /// ask is a finding given for an article it called. The report is read by
-    /// the term's id, across every article the decision runs.
-    ///
-    /// Nothing about findings is stored: the execution is deterministic, so
-    /// the replay of the decision in its own context gives the same report.
+    /// authority (RFC-050): a field on an open term of the decision that
+    /// nothing fills, of the deciding article or of a policy that fills one
+    /// of its terms, and a field the decision's article does not ask, given
+    /// for an article it called. A value a policy filled is none: no finding
+    /// takes its place (RFC-048 §2). Nor is a finding on the open term of
+    /// such a policy that the policy did not need for this case: the replay
+    /// reports it filled its term without it. The decision is taken again
+    /// first ([`Cell::replay`]), so a chronicle that does not give the
+    /// decision fails here.
     pub fn findings(
         &self,
         service: &mut LawExecutionService,
@@ -1044,10 +1077,35 @@ impl Cell {
     ) -> Result<Vec<String>> {
         let gram = self.decision_gram(service, id)?.clone();
         let replayed = self.replay(service, sphere, id, None)?;
-        Ok(used(
-            &candidates(&replayed.shape, &gram),
-            &replayed.result.open_terms,
-        ))
+        let shape = &replayed.shape;
+        let report = &replayed.result.open_terms;
+        Ok(candidates(shape, &gram)
+            .keys()
+            .filter(|name| {
+                // A finding on the open term of a policy that fills a term
+                // of the decision, where that policy filled it for this case
+                // without the finding, is none: the case did not reach it.
+                let Some(term) = shape.terms.iter().find(|t| {
+                    t.id == **name
+                        && t.is_finding(&self.authority)
+                        && !(t.law_id == shape.law_id && t.article == shape.article)
+                }) else {
+                    return true;
+                };
+                let read = report
+                    .iter()
+                    .any(|f| f.term == **name && matches!(f.filled_by, FilledBy::Finding));
+                let filled_without = report.iter().any(|f| match &f.filled_by {
+                    FilledBy::Regulation { law_id, article }
+                    | FilledBy::Answer {
+                        law_id, article, ..
+                    } => *law_id == term.law_id && *article == term.article,
+                    FilledBy::Finding => false,
+                });
+                read || !filled_without
+            })
+            .cloned()
+            .collect())
     }
 
     /// Take the decision `id` again, with tracing, as [`Cell::decide`] took
@@ -1154,10 +1212,7 @@ impl Cell {
                 findings.insert(name.clone(), stored::from_stored(value)?);
                 continue;
             }
-            let Some(input) = shape.input(name) else {
-                continue;
-            };
-            if input.source == Source::Policy {
+            if shape.input(name).is_none() {
                 continue;
             }
             let value = decisions.get(name).map_or(value, |(_, v)| v);
@@ -1309,15 +1364,14 @@ impl Cell {
     /// its decision item names, and of its fields:
     ///
     /// - under `findings`, the deciding authority's findings for this case
-    ///   that the decision used ([`Cell::findings`], from a replay) on the
-    ///   open terms the deciding article leaves to it per case
-    ///   (`decided_per_case_by`): only the deciding article's own;
-    /// - no value for such a term that a regulation filled in the
-    ///   authority's place: the regulation decided it, and a call anew reads
-    ///   the regulation in force on its own day;
+    ///   ([`Cell::findings`], from a replay) on the open terms of the
+    ///   decision: of the deciding article, and of a policy that fills one of
+    ///   its terms and leaves a case to the authority (RFC-048 §2);
+    /// - no value a regulation filled: a call anew reads the regulation in
+    ///   force on its own day;
     /// - no finding given for an article the decision called: that is
     ///   recorded with the decision that article produced, the new decision;
-    /// - under `fields`, the others.
+    /// - under `fields`, the parameters.
     ///
     /// Data derived for the decision is no part of it. A decision the fields
     /// or outputs hold stays its id.
@@ -1348,25 +1402,14 @@ impl Cell {
             .get_decision()
             .map(|decision| found.outputs_of(decision))
             .unwrap_or_default();
-        let judged: Vec<&str> = found
-            .get_open_terms()
-            .into_iter()
-            .flatten()
-            .filter(|term| term.decided_per_case_by.is_some())
-            .map(|term| term.id.as_str())
-            .collect();
+        let shape = decision_shape_of(service, gram, gram.recorded_on)?;
         let mut fields = Map::new();
         let mut findings = Map::new();
         for (name, value) in &gram.fields {
-            let by_authority = used.contains(name);
-            match (judged.contains(&name.as_str()), by_authority) {
-                (true, true) => {
-                    findings.insert(name.clone(), value.clone());
-                }
-                (true, false) | (false, true) => {}
-                (false, false) => {
-                    fields.insert(name.clone(), value.clone());
-                }
+            if shape.input(name).is_some() {
+                fields.insert(name.clone(), value.clone());
+            } else if used.contains(name) && shape.finding(name, &self.authority).is_some() {
+                findings.insert(name.clone(), value.clone());
             }
         }
         let outputs: Map<String, serde_json::Value> = gram
@@ -1459,7 +1502,6 @@ impl Cell {
             // the stages read the policy in force on `on`, as for `decide`.
             let value = match input.source {
                 Source::Cell => Some(serde_json::Value::String(on.to_string())),
-                Source::Policy => None,
                 _ => given_fields
                     .get(name)
                     .or_else(|| given_findings.get(name))
@@ -1669,27 +1711,6 @@ struct Replayed {
 /// Values by name: the fields or the outputs of a chronolexogram.
 type Values = BTreeMap<String, serde_json::Value>;
 
-/// The names in `given` whose finding the decision used: all but those
-/// the engine reports a regulation filled in the authority's place
-/// ([`ArticleResult::open_terms`]), also where the regulation gives what
-/// the authority found. A finding the decision did not read is not set
-/// aside, so it stays a finding. A finding applies by the term's id to
-/// every article in the decision (RFC-050), so the report is read by id.
-/// A term listed as filled by both counts as used: the regulation that
-/// fills it read the finding in its place, so the finding was used.
-fn used(given: &Map<String, serde_json::Value>, filled: &[OpenTermFilled]) -> Vec<String> {
-    let by = |name: &str, finding: bool| {
-        filled
-            .iter()
-            .any(|f| f.term == name && matches!(f.filled_by, FilledBy::Finding) == finding)
-    };
-    given
-        .keys()
-        .filter(|name| by(name, true) || !by(name, false))
-        .cloned()
-        .collect()
-}
-
 /// Values as the engine takes them ([`stored::from_stored`]).
 fn engine_values<'v>(
     values: impl IntoIterator<Item = (&'v String, &'v serde_json::Value)>,
@@ -1745,18 +1766,16 @@ fn take(
     Ok((fields, outputs))
 }
 
-/// What may hold a finding of the deciding authority in the decision
-/// `gram` of `shape`: a field on a term the law leaves to it per case, and
-/// a field the decision's article does not ask, given for an article it
-/// called.
-///
-/// A null on such a term is none: the cell puts it in for a judgement the
-/// authority left out, and the engine resolves the term as null without it.
+/// What holds a finding of the deciding authority in the decision `gram`
+/// of `shape`: every field that is no parameter of the decision and no
+/// value a policy filled. That is a finding on an open term of the decision
+/// (of the deciding article, or of a policy that fills one of its terms),
+/// or one given for an article it called. A null is none.
 fn candidates(shape: &DecisionShape, gram: &Gram) -> Map<String, serde_json::Value> {
     gram.fields
         .iter()
         .filter(|(name, value)| {
-            !value.is_null() && (shape.input(name).is_none() || is_finding(shape, name))
+            !value.is_null() && shape.input(name).is_none() && !shape.filled(name)
         })
         .map(|(name, value)| (name.clone(), value.clone()))
         .collect()
@@ -1824,11 +1843,8 @@ fn asked(
                 }
                 None => None,
             },
-            Source::Caller => match supplied.get(name) {
+            Source::Supplied => match supplied.get(name) {
                 Some(value) => Some(value.clone()),
-                // A regulation fills it first; where it is silent for this
-                // case, the engine says the judgement is missing.
-                None if input.policy_first => None,
                 None if input.field.nullable => Some(serde_json::Value::Null),
                 None => {
                     return Err(refused(format!(
@@ -1839,8 +1855,6 @@ fn asked(
                 }
             },
             Source::Cell => Some(serde_json::Value::String(on.to_string())),
-            // The engine resolves it; the gram takes what it used.
-            Source::Policy => None,
         };
         if let Some(value) = value {
             fields.insert(name.clone(), value);
@@ -1877,23 +1891,15 @@ fn run_stages(
             &date,
         )?;
         collect_outputs(&result, &mut outputs)?;
-        for input in &shape.inputs {
-            let name = &input.field.name;
-            let Some(value) = result.resolved_inputs.get(name) else {
-                continue;
-            };
-            let value = stored::to_stored(value)?;
-            match &input.source {
-                Source::Policy => {
-                    fields.insert(name.clone(), value);
-                }
-                // A judgement on a term a regulation also fills: the gram
-                // takes what the engine used, which is the regulation's
-                // value where it fills the term (RFC-047).
-                Source::Caller if input.policy_first => {
-                    fields.insert(name.clone(), value);
-                }
-                _ => {}
+        // What a policy filled of the deciding article's open terms: the
+        // gram takes what the engine used.
+        for filled in result.open_terms.iter().filter(|f| {
+            f.law_id == shape.law_id
+                && f.article == shape.article
+                && !matches!(f.filled_by, FilledBy::Finding)
+        }) {
+            if let Some(value) = result.resolved_inputs.get(&filled.term) {
+                fields.insert(filled.term.clone(), stored::to_stored(value)?);
             }
         }
     }
@@ -1991,12 +1997,50 @@ fn collect_outputs(
     Ok(())
 }
 
-/// Whether `name` is a finding of the deciding authority on the decision of
-/// `shape`: an open term the deciding article leaves to it per case
-/// (`decided_per_case_by`), also one a regulation may fill.
-fn is_finding(shape: &DecisionShape, name: &str) -> bool {
-    shape.judgements.iter().any(|j| j == name)
-        || shape.input(name).is_some_and(|input| input.policy_first)
+/// Whether `name` is a finding of `authority` on the decision of `shape`:
+/// an open term of the decision that nothing fills, judged per case
+/// (`decided_per_case_by`) and answered by `authority`.
+fn is_finding(shape: &DecisionShape, name: &str, authority: &Authority) -> bool {
+    shape.finding(name, authority).is_some()
+}
+
+/// Refuse a finding on the open term `name` of the decision of `shape` that
+/// another authority answers: the one the term names in its
+/// `competent_authority`, or the one that executes its article. The cell
+/// of `authority` gives only its own findings.
+fn refuse_finding_of_another(
+    shape: &DecisionShape,
+    name: &str,
+    authority: &Authority,
+) -> Result<()> {
+    let asked: Vec<_> = shape
+        .terms
+        .iter()
+        .filter(|t| t.id == name && t.asks_finding())
+        .collect();
+    if asked.iter().any(|t| t.answers(authority)) {
+        return Ok(());
+    }
+    let Some(term) = asked.first() else {
+        return Ok(());
+    };
+    let names: Vec<String> = term
+        .answered_by
+        .iter()
+        .map(|n| format!("'{}'", n.name))
+        .collect();
+    Err(refused(format!(
+        "'{name}' of {} is answered by {}, and the cell is '{}'{}; a cell gives only its own \
+         findings",
+        term.declared_by(),
+        names.join(" or "),
+        authority.name,
+        authority
+            .category
+            .as_deref()
+            .map(|c| format!(" ({c})"))
+            .unwrap_or_default()
+    )))
 }
 
 /// Refuse what is no decision: a chronolexogram on a submission whose
@@ -2036,13 +2080,17 @@ fn check_decision_supplied(
 ) -> Result<()> {
     let decision = shape.grondslag();
     for (name, value) in supplied {
+        if shape.filled(name) {
+            return Err(refused(format!(
+                "'{name}' of the decision of {decision} comes from the policy"
+            )));
+        }
         let input = shape
             .input(name)
             .ok_or_else(|| refused(format!("the decision of {decision} does not ask '{name}'")))?;
         let from = match &input.source {
-            Source::Caller => None,
+            Source::Supplied => None,
             Source::Application => Some("the application".to_string()),
-            Source::Policy => Some("the policy".to_string()),
             Source::Cell => Some("the cell: it is the day of the decision".to_string()),
         };
         if let Some(from) = from {
@@ -2222,45 +2270,4 @@ pub(crate) fn refuse_decimal_key(name: &str, value: &serde_json::Value) -> Resul
         )));
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn filling(term: &str, filled_by: FilledBy) -> OpenTermFilled {
-        OpenTermFilled {
-            law_id: "wet".to_string(),
-            article: "1".to_string(),
-            term: term.to_string(),
-            filled_by,
-        }
-    }
-
-    fn regulation() -> FilledBy {
-        FilledBy::Regulation {
-            law_id: "beleid".to_string(),
-            article: "1".to_string(),
-        }
-    }
-
-    #[test]
-    fn used_keeps_a_finding_a_regulation_did_not_set_aside() {
-        let given: Map<String, serde_json::Value> = serde_json::from_value(serde_json::json!({
-            "door_vaststelling": true,
-            "door_regeling": true,
-            "door_beide": true,
-            "niet_gelezen": true,
-        }))
-        .unwrap();
-        let filled = [
-            filling("door_vaststelling", FilledBy::Finding),
-            filling("door_regeling", regulation()),
-            filling("door_beide", regulation()),
-            filling("door_beide", FilledBy::Finding),
-        ];
-        let mut found = used(&given, &filled);
-        found.sort();
-        assert_eq!(found, ["door_beide", "door_vaststelling", "niet_gelezen"]);
-    }
 }

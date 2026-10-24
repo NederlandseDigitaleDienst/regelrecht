@@ -15,8 +15,10 @@ valid_from: '2026-08-01'
 # Artikel 3 tot en met 7 koppelen open begrippen aan de antwoorden van de cel
 # van de school (source.reduction, RFC-048): zo ontleent het hoofd wat hij
 # anders per aanvraag vaststelt aan wat zijn eigen cel uit de kroniek haalt.
-# Buiten de cel geeft een koppeling niets en stelt het hoofd het zelf vast,
-# of zwijgt de regeling.
+# Buiten de cel geeft een koppeling niets. Wat dan geldt, zegt elk artikel
+# zelf: artikel 3 en 4 laten het hoofd dan oordelen (een eigen open begrip
+# met decided_per_case_by), bij artikel 5 tot en met 7 is de vestiging dan
+# onbekend.
 url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
 name: Vakantieverlof bij OBS De Klimop (fictief beleid)
 competent_authority:
@@ -157,11 +159,24 @@ articles:
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Of
       het hoofd de jongere in het schooljaar van het gevraagde verlof al
       verlof verleende, ontleent het hoofd aan het antwoord van zijn eigen
-      cel over zijn eerdere besluiten.
+      cel over zijn eerdere besluiten. Geeft de cel geen antwoord, dan stelt
+      het hoofd het zelf vast.
     url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
     machine_readable:
-      # Ook als Awb 7:11 artikel 13a opnieuw aanroept. Zonder antwoord stelt
-      # het hoofd het vast (decided_per_case_by).
+      # Ook als Awb 7:11 artikel 13a opnieuw aanroept. Zonder antwoord geldt
+      # wat het hoofd vaststelt: een eigen open begrip van dit artikel
+      # (decided_per_case_by), dat de engine alleen vraagt als de cel zwijgt.
+      # Geen default: zonder antwoord en zonder vaststelling faalt het
+      # besluit, zodat een ontbrekend antwoord geen tweede verlof verleent.
+      open_terms:
+        - id: verlof_al_verleend_in_schooljaar_volgens_hoofd
+          type: boolean
+          required: true
+          decided_per_case_by: het hoofd van OBS De Klimop
+          description: >-
+            Wat het hoofd vaststelt over de vraag of hij de jongere in het
+            schooljaar van het gevraagde verlof al verlof verleende, als de
+            cel geen antwoord geeft.
       implements:
         - law: leerplichtwet_1969
           article: 13a
@@ -186,22 +201,41 @@ articles:
         output:
           - name: verlof_al_verleend_in_schooljaar
             type: boolean
-            nullable: true
             description: >-
               Of het hoofd de jongere in het schooljaar van het gevraagde verlof
-              al verlof verleende; afwezig zonder antwoord van de cel.
+              al verlof verleende: het antwoord van de cel, of zonder dat wat
+              het hoofd vaststelt.
         actions:
           - output: verlof_al_verleend_in_schooljaar
-            value: $antwoord_verlof_al_verleend
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $antwoord_verlof_al_verleend
+                    value: null
+                  then: $verlof_al_verleend_in_schooljaar_volgens_hoofd
+              default: $antwoord_verlof_al_verleend
   - number: '4'
     text: >-
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Of
       het gevraagde verlof buiten de schoolvakanties valt, ontleent het hoofd
-      aan het antwoord van zijn eigen cel.
+      aan het antwoord van zijn eigen cel. Geeft de cel geen antwoord, dan
+      oordeelt het hoofd zelf.
     url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel11
     machine_readable:
-      # Kent de cel een vakantie niet, dan zwijgt zij en oordeelt het hoofd
-      # (decided_per_case_by).
+      # Kent de cel een vakantie niet, bijvoorbeeld in een schooljaar dat het
+      # rooster niet bereikt, dan zwijgt zij. Dan geldt het oordeel van het
+      # hoofd: een eigen open begrip van dit artikel (decided_per_case_by),
+      # dat de engine alleen vraagt als de cel zwijgt.
+      open_terms:
+        - id: verlof_valt_buiten_schoolvakanties_volgens_hoofd
+          type: boolean
+          required: true
+          decided_per_case_by: het hoofd van OBS De Klimop
+          description: >-
+            Het oordeel van het hoofd over de vraag of het gevraagde verlof
+            buiten de schoolvakanties valt, als de cel geen antwoord geeft.
       implements:
         - law: leerplichtwet_1969
           article: 13a
@@ -226,13 +260,20 @@ articles:
         output:
           - name: verlof_valt_buiten_schoolvakanties
             type: boolean
-            nullable: true
             description: >-
-              Of het gevraagde verlof buiten de schoolvakanties valt; afwezig
-              zonder antwoord van de cel.
+              Of het gevraagde verlof buiten de schoolvakanties valt: het
+              antwoord van de cel, of zonder dat het oordeel van het hoofd.
         actions:
           - output: verlof_valt_buiten_schoolvakanties
-            value: $antwoord_buiten_schoolvakanties
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $antwoord_buiten_schoolvakanties
+                    value: null
+                  then: $verlof_valt_buiten_schoolvakanties_volgens_hoofd
+              default: $antwoord_buiten_schoolvakanties
   - number: '5'
     text: >-
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. De

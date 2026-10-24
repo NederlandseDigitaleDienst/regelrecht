@@ -51,7 +51,16 @@ open_terms:
     combine: OR
 ```
 
-A cell's answer reaches such a term through the policy of the authority that decides, which binds the term to the answer (`source.reduction`, [RFC-048](/rfcs/rfc-048)). Wherever that binding runs, the engine asks only the answerers the term names and combines their answers with the term's `combine`. A cell the term does not name is not asked. For a term without `competent_authority`, the engine asks the cell of the policy's holder. The article's own `competent_authority` routes nothing.
+A cell's answer reaches such a term through the policy of the authority that decides, which binds the term to the answer (`source.reduction`, [RFC-048](/rfcs/rfc-048)). Wherever that binding runs, the engine asks only the answerers the term names and combines their answers with the term's `combine`. A cell the term does not name is not asked. For a term without `competent_authority`, the engine asks the cell of the policy's holder. The article's own `competent_authority` routes no answer.
+
+## Who gives a finding
+
+An open term with `decided_per_case_by` is judged per case: where nothing fills it, the decision takes a finding. The field says so in words, and the engine reads it only as that marker. Who gives the finding follows from competence:
+
+1. The authority the term names in its own `competent_authority`.
+2. Otherwise the authority that executes the article: the article's `competent_authority`, or else the holder of the rulework at its root.
+
+Art. 13a of the Leerplichtwet 1969 names the head as the one who grants leave, so the head answers its terms. The fictitious policy of Wilgendaal leaves the four criteria to its college where the GGD gives no advice. No law makes the GGD judge there, and the terms name no one, so the college answers them as the policy's holder. A cell gives findings only on the terms it answers, and refuses a finding on a term of another authority. Where neither the term, the article nor the rulework names an authority, whoever executes the article answers. [RFC-048](/rfcs/rfc-048) §2 gives the rule.
 
 ## One law, several authorities
 
