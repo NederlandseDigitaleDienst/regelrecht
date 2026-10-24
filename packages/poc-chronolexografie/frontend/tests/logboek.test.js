@@ -152,11 +152,11 @@ describe('stapTekst', () => {
 describe('uitslag', () => {
   it('leest de uitslag af aan de uitvoer van het chronolexogram', () => {
     expect(uitslag({ kind: 'AANVRAAG', outputs: {} }).tekst).toBe('ontvangen');
-    expect(uitslag({ kind: 'BESCHIKKING', grondslag: 'leerplichtwet_1969#13a', outputs: { verlof_verleend: false } })).toEqual({ tekst: 'afgewezen', kleur: 'critical' });
+    expect(uitslag({ kind: 'BESCHIKKING', basis: 'leerplichtwet_1969#13a', outputs: { verlof_verleend: false } })).toEqual({ tekst: 'afgewezen', kleur: 'critical' });
     // De uitvoer die toewijst, noemt de casus.
     state.casus.uitkomst = 'gehandicaptenparkeerkaart_verstrekt';
     expect(uitslag({ kind: 'BESCHIKKING', outputs: { gehandicaptenparkeerkaart_verstrekt: true } }).tekst).toBe('toegewezen');
-    const op = (o) => uitslag({ kind: 'BESCHIKKING', grondslag: 'algemene_wet_bestuursrecht#7:11', outputs: o }).tekst;
+    const op = (o) => uitslag({ kind: 'BESCHIKKING', basis: 'algemene_wet_bestuursrecht#7:11', outputs: o }).tekst;
     expect(op({ bezwaar_ontvankelijk: false })).toBe('niet-ontvankelijk');
     expect(op({ bezwaar_ontvankelijk: true, bestreden_besluit_herroepen: true })).toBe('gegrond');
     expect(op({ bezwaar_ontvankelijk: true, bestreden_besluit_herroepen: false })).toBe('ongegrond');
@@ -164,7 +164,7 @@ describe('uitslag', () => {
 });
 
 describe('wat de cel uit zichzelf vastlegde', () => {
-  const vestiging = { kind: 'EXECUTOGRAM', grondslag: 'regeling_vaststelling_schoolvakanties_20252030#2', stream: 'vestiging', outputs: {} };
+  const vestiging = { kind: 'EXECUTOGRAM', basis: 'regeling_vaststelling_schoolvakanties_20252030#2', stream: 'vestiging', outputs: {} };
   it('noemt de vestiging een executogram, vastgelegd', () => {
     expect(rol(vestiging)).toBe('Executogram');
     expect(uitslag(vestiging)).toEqual({ tekst: 'vastgelegd', kleur: 'neutral' });
@@ -174,7 +174,7 @@ describe('wat de cel uit zichzelf vastlegde', () => {
 describe('genomenBij', () => {
   it('vindt de beslissing op bezwaar die een besluit als nieuw besluit nam', () => {
     const nieuw = '019a0000-0000-7000-8000-00000000dddd';
-    const beslissing = { id: 'x', grondslag: 'algemene_wet_bestuursrecht#7:11', outputs: { nieuw_besluit: nieuw } };
+    const beslissing = { id: 'x', basis: 'algemene_wet_bestuursrecht#7:11', outputs: { nieuw_besluit: nieuw } };
     expect(genomenBij(nieuw, [beslissing])).toBe(beslissing);
     expect(genomenBij('ander', [beslissing])).toBeNull();
   });
@@ -183,7 +183,7 @@ describe('genomenBij', () => {
 describe('toon en artikelNaam', () => {
   it('maakt waarden en artikelen leesbaar', () => {
     expect(toon(true)).toBe('ja');
-    expect(toon({ grondslag: 'leerplichtwet_1969#13a', fields: {} })).toBe('een besluit onder leerplichtwet_1969#13a');
+    expect(toon({ basis: 'leerplichtwet_1969#13a', fields: {} })).toBe('een besluit onder leerplichtwet_1969#13a');
     expect(toon({ __decimal: '1.50' })).toBe('1.50');
     expect(artikelNaam('fictief_beleid', '2')).toBe('Fictief beleid artikel 2');
     expect(wetNaam('fictief_beleid_met_naam')).toBe('Beleid van de gemeente');

@@ -39,9 +39,9 @@ pub struct Gram {
     /// `BESCHIKKING`, or [`EXECUTOGRAM`] for an executogram.
     pub kind: String,
     /// The article that establishes it or decides, `<regulation>#<article>`
-    /// (RFC-022 `grondslag`); for an executogram, the article that requires
+    /// (RFC-022 `basis`); for an executogram, the article that requires
     /// the fact it records (RFC-051).
-    pub grondslag: String,
+    pub basis: String,
     /// For an executogram, the fact it records, by the name the article
     /// gives it in `requires` (schema v0.8.7, RFC-051). Absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -119,7 +119,7 @@ pub struct Afschrift {
     pub from: String,
     /// The decision as recorded.
     pub gram: Gram,
-    /// Its decision value `{grondslag, taken_on, fields, findings,
+    /// Its decision value `{basis, taken_on, fields, findings,
     /// outputs}` (RFC-050).
     pub value: Value,
     /// The decision of another cell that the submission it was taken on

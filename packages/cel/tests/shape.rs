@@ -181,7 +181,7 @@ fn a_decision_fits_only_as_a_decision_value() {
         declared_by: vec!["wet_heroverweging#1".into()],
     };
     let value = json!({
-        "grondslag": "wet_verlof#1",
+        "basis": "wet_verlof#1",
         "fields": {},
         "findings": {"reden": true},
         "outputs": {"verleend": true},
@@ -190,7 +190,7 @@ fn a_decision_fits_only_as_a_decision_value() {
     // As the cell gives one from its chronicle: with the article of the
     // submission it was taken on.
     let taken = json!({
-        "grondslag": "wet_verlof#1",
+        "basis": "wet_verlof#1",
         "taken_on": "wet_verlof#2",
         "fields": {},
         "findings": {},
@@ -199,15 +199,15 @@ fn a_decision_fits_only_as_a_decision_value() {
     assert!(shape::fits(&field, &taken));
     for odd in [
         json!("019a-besluit"),
-        json!({"grondslag": "wet_verlof", "fields": {}, "findings": {}, "outputs": {}}),
-        json!({"grondslag": "wet_verlof#1", "fields": [], "findings": {}, "outputs": {}}),
-        json!({"grondslag": "wet_verlof#1", "fields": {}, "findings": [], "outputs": {}}),
-        json!({"grondslag": "wet_verlof#1", "fields": {}, "findings": {}}),
-        json!({"grondslag": "wet_verlof#1", "fields": {}, "outputs": {}}),
-        json!({"grondslag": "wet_verlof#1", "fields": {}, "findings": {}, "outputs": {}, "extra": 1}),
-        json!({"grondslag": "wet_verlof#1", "taken_on": "wet_verlof", "fields": {}, "findings": {}, "outputs": {}}),
-        json!({"grondslag": "wet_verlof#1", "taken_on": null, "fields": {}, "findings": {}, "outputs": {}}),
-        json!({"grondslag": "wet_verlof#1", "taken_on": "wet_verlof#2", "fields": {}, "findings": {}, "outputs": {}, "extra": 1}),
+        json!({"basis": "wet_verlof", "fields": {}, "findings": {}, "outputs": {}}),
+        json!({"basis": "wet_verlof#1", "fields": [], "findings": {}, "outputs": {}}),
+        json!({"basis": "wet_verlof#1", "fields": {}, "findings": [], "outputs": {}}),
+        json!({"basis": "wet_verlof#1", "fields": {}, "findings": {}}),
+        json!({"basis": "wet_verlof#1", "fields": {}, "outputs": {}}),
+        json!({"basis": "wet_verlof#1", "fields": {}, "findings": {}, "outputs": {}, "extra": 1}),
+        json!({"basis": "wet_verlof#1", "taken_on": "wet_verlof", "fields": {}, "findings": {}, "outputs": {}}),
+        json!({"basis": "wet_verlof#1", "taken_on": null, "fields": {}, "findings": {}, "outputs": {}}),
+        json!({"basis": "wet_verlof#1", "taken_on": "wet_verlof#2", "fields": {}, "findings": {}, "outputs": {}, "extra": 1}),
         json!(null),
     ] {
         assert!(!shape::fits(&field, &odd), "{odd}");

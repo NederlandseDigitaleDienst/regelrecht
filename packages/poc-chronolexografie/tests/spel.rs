@@ -44,10 +44,7 @@ fn soorten(k: &Value) -> Vec<String> {
 fn the_forms_come_from_the_chosen_case() {
     let mut spel = spel_met("vakantieverlof");
     let vormen = spel.vormen(dag("2026-10-14")).unwrap();
-    assert_eq!(
-        vormen["aanvraag"]["grondslag"],
-        json!("leerplichtwet_1969#13a")
-    );
+    assert_eq!(vormen["aanvraag"]["basis"], json!("leerplichtwet_1969#13a"));
 }
 
 #[test]

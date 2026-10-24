@@ -19,13 +19,13 @@ import VeldInvoer from './VeldInvoer.vue';
 import Voorvertoning from './Voorvertoning.vue';
 
 const artikel = computed(() => artikelNaam(...state.casus.beroep.split('#')));
-const vorm = computed(() => state.vormen?.uitspraak ?? { bevindingen: [], grondslag: '' });
+const vorm = computed(() => state.vormen?.uitspraak ?? { bevindingen: [], basis: '' });
 // De bevindingen op het artikel van het beroep zelf, en die op een artikel
 // dat het leest.
-const eigen = computed(() => vorm.value.bevindingen.filter((b) => b.grondslag === vorm.value.grondslag));
-const gelezen = computed(() => vorm.value.bevindingen.filter((b) => b.grondslag !== vorm.value.grondslag));
+const eigen = computed(() => vorm.value.bevindingen.filter((b) => b.basis === vorm.value.basis));
+const gelezen = computed(() => vorm.value.bevindingen.filter((b) => b.basis !== vorm.value.basis));
 const gelezenArtikelen = computed(() =>
-  [...new Set(gelezen.value.map((b) => b.grondslag))].map((g) => artikelNaam(...g.split('#'))).join(', '),
+  [...new Set(gelezen.value.map((b) => b.basis))].map((g) => artikelNaam(...g.split('#'))).join(', '),
 );
 
 const open = computed(() => state.rechter.filter((g) => g.kind === 'BEROEP' && !uitspraakOp(g.id)));

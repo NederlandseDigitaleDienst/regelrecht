@@ -181,7 +181,7 @@ fn an_application_is_recorded_with_its_basis_and_the_awb_deadline() {
     let gram = record(&mut cell, &application(), "2026-10-13").unwrap();
 
     assert_eq!(gram.kind, "AANVRAAG");
-    assert_eq!(gram.grondslag, "leerplichtwet_1969#13a");
+    assert_eq!(gram.basis, "leerplichtwet_1969#13a");
     assert_eq!(gram.recording_actor, RECORDING_ACTOR);
     assert_eq!(gram.recorded_on, day("2026-10-13"));
     assert_eq!(uuid_version(&gram.id), 7);
@@ -215,8 +215,8 @@ fn an_application_is_recorded_with_its_basis_and_the_awb_deadline() {
     let serialized = serde_json::to_value(&gram).unwrap();
     assert!(serialized.get("field_basis").is_none());
     assert!(serialized.get("output_basis").is_none());
-    assert!(serialized["moment"].get("grondslag").is_none());
-    assert_eq!(serialized["grondslag"], "leerplichtwet_1969#13a");
+    assert!(serialized["moment"].get("basis").is_none());
+    assert_eq!(serialized["basis"], "leerplichtwet_1969#13a");
 
     assert_eq!(cell.grams(), [gram]);
 }
@@ -464,7 +464,7 @@ fn five_school_days_outside_the_first_two_weeks_on_the_ground_of_11f_are_granted
     let gram = decide(&mut cell, &app.id, &judgement(true, true), "2026-10-20").unwrap();
 
     assert_eq!(gram.kind, "BESCHIKKING");
-    assert_eq!(gram.grondslag, "leerplichtwet_1969#13a");
+    assert_eq!(gram.basis, "leerplichtwet_1969#13a");
     assert_eq!(gram.refers_to.as_deref(), Some(app.id.as_str()));
     assert_eq!(gram.recorded_on, day("2026-10-20"));
     assert_eq!(uuid_version(&gram.id), 7);
@@ -475,7 +475,7 @@ fn five_school_days_outside_the_first_two_weeks_on_the_ground_of_11f_are_granted
         gram.outputs["verlof_raakt_eerste_twee_lesweken"],
         json!(false)
     );
-    // The chronolexogram does not repeat the law: the article is `grondslag`, and
+    // The chronolexogram does not repeat the law: the article is `basis`, and
     // what rests on which provision follows from the law on `recorded_on`.
     let json = serde_json::to_value(&gram).unwrap();
     assert!(json.get("field_basis").is_none() && json.get("output_basis").is_none());
@@ -1298,7 +1298,7 @@ fn an_objection_refers_to_the_decision_and_takes_its_period_from_it() {
     let gram = object(&mut cell, &refused.id, &objection(&[]), "2026-11-01").unwrap();
 
     assert_eq!(gram.kind, "BEZWAAR");
-    assert_eq!(gram.grondslag, "algemene_wet_bestuursrecht#7:11");
+    assert_eq!(gram.basis, "algemene_wet_bestuursrecht#7:11");
     assert_eq!(gram.refers_to.as_deref(), Some(refused.id.as_str()));
     // The contested decision, by its id.
     assert_eq!(gram.fields["bestreden_besluit"], json!(refused.id));
@@ -1424,7 +1424,7 @@ fn a_second_application_upheld_on_objection_stands() {
 
     let decision = &decided[0];
     assert_eq!(decision.kind, "BESCHIKKING");
-    assert_eq!(decision.grondslag, "algemene_wet_bestuursrecht#7:11");
+    assert_eq!(decision.basis, "algemene_wet_bestuursrecht#7:11");
     assert_eq!(decision.refers_to.as_deref(), Some(bezwaar.id.as_str()));
     // The contested decision by its id; whether the objection came in on
     // time comes from the objection (Awb 6:9).
@@ -1471,7 +1471,7 @@ fn grounds_on_objection_lead_the_head_to_judge_anew_and_revoke_the_refusal() {
     // The decision on the objection holds the new decision by its id.
     assert_eq!(decision.outputs[NEW], json!(new.id));
     assert_eq!(new.kind, "BESCHIKKING");
-    assert_eq!(new.grondslag, "leerplichtwet_1969#13a");
+    assert_eq!(new.basis, "leerplichtwet_1969#13a");
     assert_eq!(new.refers_to.as_deref(), Some(bezwaar.id.as_str()));
     assert_eq!(new.recorded_on, day("2026-11-15"));
     // The application's own fields.
@@ -1533,7 +1533,7 @@ fn an_objection_against_the_decision_taken_on_objection_is_not_admissible() {
     let bezwaar = object(&mut cell, &refused.id, &objection(&[]), "2026-11-01").unwrap();
     let decided = reconsider(&mut cell, &bezwaar.id, &profession(true), "2026-11-15").unwrap();
     let new = &decided[1];
-    assert_eq!(new.grondslag, "leerplichtwet_1969#13a");
+    assert_eq!(new.basis, "leerplichtwet_1969#13a");
     assert_eq!(new.outputs["verlof_verleend"], json!(true));
 
     let again = object(&mut cell, &new.id, &objection(&[]), "2026-11-20").unwrap();
@@ -1651,10 +1651,9 @@ fn a_revoked_grant_does_not_count_as_leave_granted() {
     // The revoked grant stays in the chronicle, and its row is as it was.
     // The row of the decision on the objection names it by id and says it
     // revoked it; the reduction leaves it out (RFC-050).
-    let rows = |grondslag: &str| {
+    let rows = |basis: &str| {
         serde_json::to_value(
-            regelrecht_cel::reading::rows(&service(), cell.grams(), grondslag, "BESCHIKKING")
-                .unwrap(),
+            regelrecht_cel::reading::rows(&service(), cell.grams(), basis, "BESCHIKKING").unwrap(),
         )
         .unwrap()
     };
@@ -1833,7 +1832,7 @@ fn the_heroverweging_runs_only_for_an_admissible_objection() {
         .into_iter()
         .partition(|(name, _)| [PROFESSION, OUTSIDE_HOLIDAYS, ONCE].contains(&name.as_str()));
     let contested = json!({
-        "grondslag": refused.grondslag,
+        "basis": refused.basis,
         "taken_on": "leerplichtwet_1969#13a",
         "fields": fields,
         "findings": findings,
@@ -1858,7 +1857,7 @@ fn the_heroverweging_runs_only_for_an_admissible_objection() {
             result.outputs[REVOKED],
             regelrecht_engine::Value::from(json!(false))
         );
-        // The first line echoes the parameters, the grondslag among them.
+        // The first line echoes the parameters, the basis among them.
         let trace = result.trace.as_ref().unwrap().render_box_drawing();
         trace.lines().skip(1).collect::<Vec<_>>().join("\n")
     };

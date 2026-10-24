@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.11/schema/v0.8.11/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.11",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.12",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -54,7 +54,7 @@
         "WATERSCHAPS_VERORDENING",
         "REDUCTIE"
       ],
-      "description": "Type of legal instrument (regelgevingslaag). It fixes which identifier the file must carry, and it ranks candidates when several regulations implement the same open term. Which layer may implement a term is set by that term's `delegation_type`, not by this field alone. `REDUCTIE`: not a regulation but a cell's reduction over its own chronicle (RFC-022 §4, RFC-048). Since v0.8.9 it sits in the corpus under its holder (`competent_authority`), and its cell gives its outputs as named answers (the catalogue `answers` in `cel.yaml`). It is the only rulework that reads a chronicle: decisions (`source.decisions`) and the facts its cell recorded (`source.facts`, since v0.8.7; `source.executograms` in v0.8.6, RFC-051). It may call law or policy (`source.regulation`), passing what it reads from the chronicle as parameters. It fills no open term (no `implements`; v0.8.5 to v0.8.8 allowed it): the policy of the authority that decides binds a term to an answer (`source.reduction`). Beyond that it does not act on law (no `hooks` or `overrides`), takes no decisions (no `execution.produces`) and delegates nothing (no `open_terms`).",
+      "description": "Type of legal instrument (regelgevingslaag). It fixes which identifier the file must carry, and it ranks candidates when several regulations implement the same open term. Which layer may implement a term is set by that term's `delegation_type`, not by this field alone. `REDUCTIE`: not a regulation but a cell's reduction over its own chronicle (RFC-022 §4, RFC-048). Since v0.8.12 it sits with its cell (`corpus/cells/<cell>/reductions/`), or with none (`corpus/reductions/`), and names no `competent_authority`: the directory is its holder. Its cell gives its outputs as named answers (the catalogue `answers` in `cel.yaml`). It is the only rulework that reads a chronicle: decisions (`source.decisions`) and the facts its cell recorded (`source.facts`, since v0.8.7; `source.executograms` in v0.8.6, RFC-051). It may call law or policy (`source.regulation`), passing what it reads from the chronicle as parameters. It fills no open term (no `implements`; v0.8.5 to v0.8.8 allowed it): the policy of the authority that decides binds a term to an answer (`source.reduction`). Beyond that it does not act on law (no `hooks` or `overrides`), takes no decisions (no `execution.produces`) and delegates nothing (no `open_terms`).",
       "examples": [
         "WET",
         "GEMEENTELIJKE_VERORDENING"
@@ -127,7 +127,7 @@
       "description": "Organization responsible (for implementation policies without official IDs)."
     },
     "competent_authority": {
-      "description": "Since v0.8.9 in the schema: the authority this rulework is of, for every article that names none of its own (RFC-002). A `REDUCTIE` names its holder here: the authority whose cell keeps the chronicle it reads (RFC-048). A `UITVOERINGSBELEID` that binds an open term to the answer of a cell (`source.reduction`) names its holder by name: where the term names no competent authorities, the engine asks the cell of that holder, matched as RFC-052 matches an answerer (an `INSTANCE` by name, a `CATEGORY` by category).",
+      "description": "Since v0.8.9 in the schema: the authority this rulework is of, for every article that names none of its own (RFC-002). A `UITVOERINGSBELEID` that binds an open term to the answer of a cell (`source.reduction`) names its holder by name: where the term names no competent authorities, the engine asks the cell of that holder, matched as RFC-052 matches an answerer (an `INSTANCE` by name, a `CATEGORY` by category).",
       "oneOf": [
         {
           "type": "string",
@@ -566,6 +566,11 @@
         }
       },
       "then": {
+        "not": {
+          "required": [
+            "competent_authority"
+          ]
+        },
         "properties": {
           "articles": {
             "items": {
@@ -1021,7 +1026,7 @@
         },
         "type": {
           "type": "string",
-          "description": "Value type. What an `amount` is counted in is declared separately, in `type_spec.unit`; units are opt-in per law, and an un-annotated value has unit `unknown` and is never checked (RFC-023). A `decision` is a decision value `{grondslag, fields, findings, outputs}`: the article that decided (`<regulation>#<article>`), the parameters that article was given and declares, its findings per case (the open terms it leaves to an authority per case, `decided_per_case_by`, under their ids), and the outputs of its decision item (RFC-050). A value built from a recorded decision may also carry `taken_on`: the article that established the submission the decision was taken on.",
+          "description": "Value type. What an `amount` is counted in is declared separately, in `type_spec.unit`; units are opt-in per law, and an un-annotated value has unit `unknown` and is never checked (RFC-023). A `decision` is a decision value `{basis, fields, findings, outputs}`: the article that decided (`<regulation>#<article>`), the parameters that article was given and declares, its findings per case (the open terms it leaves to an authority per case, `decided_per_case_by`, under their ids), and the outputs of its decision item (RFC-050). A value built from a recorded decision may also carry `taken_on`: the article that established the submission the decision was taken on.",
           "enum": [
             "string",
             "number",
@@ -1194,7 +1199,7 @@
                       "$ref": "#/definitions/variableReference"
                     }
                   ],
-                  "description": "The decisions taken under an article: `<regulation>#<article>`, or (since v0.8.11) a `$`-reference to a parameter of the reading article that holds one. A list with one row per decision. A row holds the fields, the findings and the outputs of the decision under their own names, the article it was taken under as `grondslag`, and its `id`. A `decision` value `{grondslag, fields, findings, outputs}` in a field or an output, such as the decision a judgment sets in place, is a row in turn: with the `id` of the record that holds it, and with every output its article declares, null where the value has none. Only a `REDUCTIE` rulework reads it (RFC-048), and only a data source (or the caller, as a parameter) answers it: the cell that runs the reduction binds the decisions in its chronicle, also for a reduction that one calls; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters` or `endpoint`. Without a source that answers it the input is an error, never an empty list."
+                  "description": "The decisions taken under an article: `<regulation>#<article>`, or (since v0.8.11) a `$`-reference to a parameter of the reading article that holds one. A list with one row per decision. A row holds the fields, the findings and the outputs of the decision under their own names, the article it was taken under as `basis`, and its `id`. A `decision` value `{basis, fields, findings, outputs}` in a field or an output, such as the decision a judgment sets in place, is a row in turn: with the `id` of the record that holds it, and with every output its article declares, null where the value has none. Only a `REDUCTIE` rulework reads it (RFC-048), and only a data source (or the caller, as a parameter) answers it: the cell that runs the reduction binds the decisions in its chronicle, also for a reduction that one calls; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters` or `endpoint`. Without a source that answers it the input is an error, never an empty list."
                 },
                 "facts": {
                   "type": "string",
@@ -1202,7 +1207,7 @@
                   "not": {
                     "pattern": " lid [0-9]"
                   },
-                  "description": "Since v0.8.7 (`executograms` in v0.8.6): the recorded instances of a fact an article requires, `<regulation>#<article>#<fact>`: the article and the `fact` of its `requires` entry, since an article may require more than one fact. A list with one row per recorded instance, holding the parameters the `requires` entry lists, the record's `grondslag` and `id`, and the decision it refers to as `refers_to`, or null; a `decision` value in it is a row as under `decisions`. Only a `REDUCTIE` rulework reads it (RFC-048), and only a data source (or the caller, as a parameter) answers it: its cell binds the facts it recorded; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters`, `endpoint` or `decisions`. Without a source that answers it the input is an error, never an empty list."
+                  "description": "Since v0.8.7 (`executograms` in v0.8.6): the recorded instances of a fact an article requires, `<regulation>#<article>#<fact>`: the article and the `fact` of its `requires` entry, since an article may require more than one fact. A list with one row per recorded instance, holding the parameters the `requires` entry lists, the record's `basis` and `id`, and the decision it refers to as `refers_to`, or null; a `decision` value in it is a row as under `decisions`. Only a `REDUCTIE` rulework reads it (RFC-048), and only a data source (or the caller, as a parameter) answers it: its cell binds the facts it recorded; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters`, `endpoint` or `decisions`. Without a source that answers it the input is an error, never an empty list."
                 },
                 "reduction": {
                   "type": "string",
@@ -1229,7 +1234,7 @@
                       "$ref": "#/definitions/variableReference"
                     }
                   ],
-                  "description": "The article whose decision this input takes: `<regulation>#<article>`, or a `$`-reference to a value that holds one, such as the `grondslag` of a `decision` value, or that is a `decision` value itself. A `decision` value is called anew: the engine runs its `grondslag` with its own `fields` as parameters and its own `findings`. Without `output` the engine runs the decision item of that article at stage BESLUIT, and the input is a `decision` value `{grondslag, fields, findings, outputs}`. With `output`, the input is that one output of the decision item. The article is the one in force on the calculation date; one that is not in force, or that takes no decision, is an error at run time. The parameters are the `fields` of a `decision` value, then those of `parameters_from`, with `parameters` on top; a name the article does not declare is dropped, and the trace names it, unless it is the id of an open term the article leaves to an authority per case (`decided_per_case_by`): that is the finding for this case, kept under `findings`, not `fields`. A finding the caller of the engine gives for the execution, apart from the parameters, wins over one the call passes, and an implementation of the term still wins over both (RFC-047). It stands apart from `regulation`, `decisions` and `endpoint`."
+                  "description": "The article whose decision this input takes: `<regulation>#<article>`, or a `$`-reference to a value that holds one, such as the `basis` of a `decision` value, or that is a `decision` value itself. A `decision` value is called anew: the engine runs its `basis` with its own `fields` as parameters and its own `findings`. Without `output` the engine runs the decision item of that article at stage BESLUIT, and the input is a `decision` value `{basis, fields, findings, outputs}`. With `output`, the input is that one output of the decision item. The article is the one in force on the calculation date; one that is not in force, or that takes no decision, is an error at run time. The parameters are the `fields` of a `decision` value, then those of `parameters_from`, with `parameters` on top; a name the article does not declare is dropped, and the trace names it, unless it is the id of an open term the article leaves to an authority per case (`decided_per_case_by`): that is the finding for this case, kept under `findings`, not `fields`. A finding the caller of the engine gives for the execution, apart from the parameters, wins over one the call passes, and an implementation of the term still wins over both (RFC-047). It stands apart from `regulation`, `decisions` and `endpoint`."
                 },
                 "parameters_from": {
                   "type": "array",
@@ -1397,7 +1402,7 @@
                   "article": "$besluit"
                 },
                 {
-                  "article": "$besluit.grondslag",
+                  "article": "$besluit.basis",
                   "parameters_from": [
                     "$besluit.fields",
                     "$besluit.findings"

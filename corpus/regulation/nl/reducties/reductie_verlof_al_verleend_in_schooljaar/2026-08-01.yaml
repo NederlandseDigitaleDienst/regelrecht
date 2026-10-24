@@ -51,7 +51,7 @@ articles:
               regulation: reductie_algemene_wet_bestuursrecht
               output: geldende_besluiten
               parameters:
-                grondslag: leerplichtwet_1969#13a
+                basis: leerplichtwet_1969#13a
           # Artikel 1 van het beleid: het schooljaar van het verlof.
           - name: begin_schooljaar
             type: date

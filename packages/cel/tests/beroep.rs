@@ -320,7 +320,7 @@ fn the_copy_of_a_decision_holds_its_value_from_the_cell_that_took_it() {
     assert_eq!(copy.from, SCHOOL);
     assert_eq!(copy.gram, decided[0]);
     assert_eq!(
-        copy.value["grondslag"],
+        copy.value["basis"],
         json!("algemene_wet_bestuursrecht#7:11")
     );
     assert_eq!(
@@ -347,7 +347,7 @@ fn the_court_records_the_appeal_with_the_copy_it_received() {
     let appeal = appealed(&mut court, &copy).unwrap();
 
     assert_eq!(appeal.kind, "BEROEP");
-    assert_eq!(appeal.grondslag, "algemene_wet_bestuursrecht#8:70");
+    assert_eq!(appeal.basis, "algemene_wet_bestuursrecht#8:70");
     assert_eq!(appeal.refers_to, None);
     assert_eq!(
         appeal.received,
@@ -457,7 +457,7 @@ fn the_school_records_the_receipt_of_the_judgment() {
     let receipt = received(&mut case).unwrap();
     assert_eq!(receipt.kind, "EXECUTOGRAM");
     assert_eq!(receipt.fact.as_deref(), Some("afschrift_van_de_uitspraak"));
-    assert_eq!(receipt.grondslag, "algemene_wet_bestuursrecht#8:79");
+    assert_eq!(receipt.basis, "algemene_wet_bestuursrecht#8:79");
     assert_eq!(
         receipt.refers_to.as_deref(),
         Some(case.on_objection.id.as_str())
@@ -510,7 +510,7 @@ fn after_the_judgment_the_school_decides_on_the_objection_again() {
     assert_eq!(again.fields["bestreden_besluit"], json!(case.refused.id));
     assert_eq!(again.outputs["bestreden_besluit_herroepen"], json!(true));
     assert_eq!(again.outputs["nieuw_besluit"], json!(new.id));
-    assert_eq!(new.grondslag, "leerplichtwet_1969#13a");
+    assert_eq!(new.basis, "leerplichtwet_1969#13a");
     assert_eq!(new.outputs["verlof_verleend"], json!(true));
     // The school's chronicle: the application, the refusal, the objection,
     // the decision on it, the receipt, and the two decisions taken again.
@@ -1087,7 +1087,7 @@ fn the_copy_of_a_decision_on_objection_holds_the_contested_decision_as_a_value()
         .afschrift(&mut service(), &[], &decided[0].id)
         .unwrap();
     let contested = &copy.value["fields"]["bestreden_besluit"];
-    assert_eq!(contested["grondslag"], json!("leerplichtwet_1969#13a"));
+    assert_eq!(contested["basis"], json!("leerplichtwet_1969#13a"));
     assert_eq!(contested["outputs"]["verlof_verleend"], json!(false));
     // In the school's own chronicle the decision on the objection keeps it
     // by its id.
@@ -1105,16 +1105,13 @@ fn the_court_decides_the_case_itself_and_the_school_counts_its_grant() {
     assert_eq!(judgment.outputs["rechtsgevolgen_vernietigd"], json!(true));
     assert_eq!(judgment.outputs["opdracht_nieuw_besluit"], json!(false));
     let instead = judgment.outputs["uitspraak_in_de_plaats"].clone();
-    assert_eq!(
-        instead["grondslag"],
-        json!("algemene_wet_bestuursrecht#7:11")
-    );
+    assert_eq!(instead["basis"], json!("algemene_wet_bestuursrecht#7:11"));
     assert_eq!(
         instead["outputs"]["bestreden_besluit_herroepen"],
         json!(true)
     );
     let grant = &instead["outputs"]["nieuw_besluit"];
-    assert_eq!(grant["grondslag"], json!("leerplichtwet_1969#13a"));
+    assert_eq!(grant["basis"], json!("leerplichtwet_1969#13a"));
     assert_eq!(grant["outputs"]["verlof_verleend"], json!(true));
     // The court takes no decision of the school in its own chronicle: the
     // judgment holds the decision it sets in place as its value.

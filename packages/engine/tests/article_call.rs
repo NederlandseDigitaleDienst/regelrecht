@@ -1,7 +1,7 @@
 //! A call to an article (`source.article`, schema v0.8.4, RFC-050): the
 //! article comes from the law or from a value, its parameters from
 //! `parameters_from` with `parameters` on top, and without `output` the
-//! input is a decision value `{grondslag, fields, findings, outputs}`.
+//! input is a decision value `{basis, fields, findings, outputs}`.
 //! A decision value as the target is called anew with its own fields and
 //! findings, and the caller's findings win over those. Also the strict
 //! `EQUALS` on lists and records that compares two such values.
@@ -135,7 +135,7 @@ articles:
             type: decision
             nullable: true
             source:
-              article: $besluit.grondslag
+              article: $besluit.basis
               parameters_from:
                 - $besluit.fields
                 - $nieuwe_oordelen
@@ -220,7 +220,7 @@ articles:
             type: decision
             nullable: true
             source:
-              article: $besluit.grondslag
+              article: $besluit.basis
               parameters_from: [$besluit.fields]
         output:
           - name: herroepen
@@ -247,7 +247,7 @@ articles:
           - name: register
             type: boolean
             source:
-              article: $besluit.grondslag
+              article: $besluit.basis
               output: register_bijgehouden
         output:
           - name: register_ok
@@ -292,7 +292,7 @@ articles:
             type: boolean
             nullable: true
             source:
-              article: $besluit.grondslag
+              article: $besluit.basis
               output: verlof_verleend
               parameters_from: [$besluit.fields]
         output:
@@ -315,7 +315,7 @@ articles:
             type: decision
             nullable: true
             source:
-              article: $misschien.grondslag
+              article: $misschien.basis
               parameters_from: [$misschien.fields]
         output:
           - name: geen_besluit
@@ -346,7 +346,7 @@ fn params(value: serde_json::Value) -> BTreeMap<String, Value> {
 /// A decision under `wet_verlof#1` as a caller holds it.
 fn decision(dagen: i64, reden: bool, verleend: bool) -> serde_json::Value {
     json!({
-        "grondslag": "wet_verlof#1",
+        "basis": "wet_verlof#1",
         "taken_on": "wet_verlof#1",
         "fields": {"dagen": dagen, "reden_gewichtig": reden},
         "findings": {},
@@ -389,7 +389,7 @@ fn a_call_from_a_value_returns_the_decision_value() {
     assert_eq!(
         heroverwogen,
         Value::from(json!({
-            "grondslag": "wet_verlof#1",
+            "basis": "wet_verlof#1",
             "fields": {"dagen": 5, "reden_gewichtig": true},
         "findings": {},
             "outputs": {"verlof_verleend": true, "aantal_dagen": 5},
@@ -433,7 +433,7 @@ fn a_call_from_a_fixed_reference_with_output_returns_that_value() {
 fn a_call_from_a_value_with_output_takes_an_output_of_the_decision() {
     let service = service();
     // Article 3 decides nothing, so it is refused, output or not.
-    let besluit = json!({"grondslag": "wet_verlof#3", "taken_on": "wet_verlof#3", "fields": {}, "findings": {}, "outputs": {}});
+    let besluit = json!({"basis": "wet_verlof#3", "taken_on": "wet_verlof#3", "fields": {}, "findings": {}, "outputs": {}});
     let message = error(&service, "register_ok", json!({"besluit": besluit}));
     assert!(message.contains("takes no decision"), "{message}");
     // Article 1 decides, but register_bijgehouden is none of its outputs.
@@ -477,7 +477,7 @@ fn a_null_target_is_no_call_and_the_input_is_null() {
 #[test]
 fn a_null_target_for_an_input_that_is_never_absent_is_found_at_load() {
     let law = caller(
-        "          - name: misschien_opnieuw\n            type: decision\n            source:\n              article: $misschien.grondslag\n",
+        "          - name: misschien_opnieuw\n            type: decision\n            source:\n              article: $misschien.basis\n",
     )
     .replace(
         "          - name: tekst\n            type: string\n",
@@ -525,11 +525,11 @@ fn a_call_that_may_be_skipped_needs_a_nullable_input() {
             "'x' is null when 'misschien' is null",
         ),
         (
-            "          - name: x\n            type: decision\n            source:\n              article: $besluit.grondslag\n              parameters:\n                dagen: $misschien\n",
+            "          - name: x\n            type: decision\n            source:\n              article: $besluit.basis\n              parameters:\n                dagen: $misschien\n",
             "'x' is null when 'misschien' is null",
         ),
         (
-            "          - name: x\n            type: decision\n            source:\n              article: $besluit.grondslag\n              parameters_from: [$besluit.fields]\n",
+            "          - name: x\n            type: decision\n            source:\n              article: $besluit.basis\n              parameters_from: [$besluit.fields]\n",
             "from parameters_from",
         ),
     ] {
@@ -595,7 +595,7 @@ articles:
 "#;
     let mut service = service();
     service.load_law(helft).unwrap();
-    let stored = json!({"grondslag": "wet_helft#1", "taken_on": "wet_helft#1", "fields": {"dagen": 10}, "findings": {}, "outputs": {"helft": 5}});
+    let stored = json!({"basis": "wet_helft#1", "taken_on": "wet_helft#1", "fields": {"dagen": 10}, "findings": {}, "outputs": {"helft": 5}});
     let parameters = json!({"besluit": stored, "nieuwe_oordelen": null});
     let Value::Object(heroverwogen) =
         evaluate(&service, "heroverwogen", parameters.clone()).unwrap()
@@ -676,7 +676,7 @@ fn parameters_from_merges_in_order_and_parameters_go_on_top() {
     assert_eq!(
         samengevoegd,
         Value::from(json!({
-            "grondslag": "wet_verlof#1",
+            "basis": "wet_verlof#1",
             "fields": {"dagen": 3, "reden_gewichtig": true},
         "findings": {},
             "outputs": {"verlof_verleend": true, "aantal_dagen": 3},
@@ -709,7 +709,7 @@ fn a_name_the_target_does_not_ask_is_dropped_and_traced() {
 #[test]
 fn a_target_not_in_force_is_refused() {
     let mut besluit = decision(5, true, true);
-    besluit["grondslag"] = json!("wet_later#1");
+    besluit["basis"] = json!("wet_later#1");
     let error = evaluate(
         &service(),
         "heroverwogen",
@@ -725,7 +725,7 @@ fn a_target_not_in_force_is_refused() {
         ),
         "{error:?}"
     );
-    besluit["grondslag"] = json!("wet_onbekend#1");
+    besluit["basis"] = json!("wet_onbekend#1");
     let error = evaluate(
         &service(),
         "heroverwogen",
@@ -740,7 +740,7 @@ fn a_target_not_in_force_is_refused() {
 
 #[test]
 fn a_target_without_a_decision_is_refused() {
-    let besluit = json!({"grondslag": "wet_verlof#3", "taken_on": "wet_verlof#3", "fields": {}, "findings": {}, "outputs": {}});
+    let besluit = json!({"basis": "wet_verlof#3", "taken_on": "wet_verlof#3", "fields": {}, "findings": {}, "outputs": {}});
     let message = error(
         &service(),
         "heroverwogen",
@@ -773,7 +773,7 @@ fn service_with_besluit_as_object() -> LawExecutionService {
 fn a_target_that_is_no_article_reference_is_refused() {
     let service = service_with_besluit_as_object();
     let mut besluit = decision(5, true, true);
-    besluit["grondslag"] = json!(13);
+    besluit["basis"] = json!(13);
     let message = error(
         &service,
         "heroverwogen",
@@ -781,14 +781,14 @@ fn a_target_that_is_no_article_reference_is_refused() {
     );
     assert!(message.contains("an article reference"), "{message}");
     // A string is refused the same way when it names no article.
-    besluit["grondslag"] = json!("wet_verlof");
+    besluit["basis"] = json!("wet_verlof");
     let message = error(
         &service,
         "heroverwogen",
         json!({"besluit": besluit, "nieuwe_oordelen": null}),
     );
     assert!(
-        message.contains("an article reference or a decision value in $besluit.grondslag"),
+        message.contains("an article reference or a decision value in $besluit.basis"),
         "{message}"
     );
 }
@@ -871,7 +871,7 @@ fn a_decision_parameter_without_a_key_or_with_another_is_refused() {
         let message = error(&service, "herroepen", not_admissible);
         assert!(
             message.contains(&format!(
-                "parameter 'besluit' of wet_heroverweging#4 is no decision value {{grondslag, \
+                "parameter 'besluit' of wet_heroverweging#4 is no decision value {{basis, \
                  taken_on, fields, findings, outputs}}: it {flaw}"
             )),
             "{message}"
@@ -888,21 +888,21 @@ fn a_decision_parameter_without_a_key_or_with_another_is_refused() {
         message.contains("it holds the unknown key 'genomen_op'"),
         "{message}"
     );
-    // `grondslag` and `taken_on` are article references: a `taken_on` of
+    // `basis` and `taken_on` are article references: a `taken_on` of
     // null, a bare article number or a number would compare unequal to the
     // article that decides on objection, and so pass where it should not.
     for (key, value) in [
         ("taken_on", json!(null)),
         ("taken_on", json!("7:11")),
         ("taken_on", json!(5)),
-        ("grondslag", json!("wet_verlof")),
+        ("basis", json!("wet_verlof")),
     ] {
         let mut besluit = decision(5, false, false);
         besluit[key] = value;
         let message = error(&service, "heroverwogen", json!({"besluit": besluit}));
         assert!(
             message.contains(&format!(
-                "parameter 'besluit' of wet_heroverweging#1 is no decision value {{grondslag, \
+                "parameter 'besluit' of wet_heroverweging#1 is no decision value {{basis, \
                  taken_on, fields, findings, outputs}}: it holds no article reference in '{key}'"
             )),
             "{message}"
@@ -919,7 +919,7 @@ fn a_decision_parameter_without_a_key_or_with_another_is_refused() {
         let message = error(&service, "heroverwogen", json!({"besluit": value}));
         assert!(
             message.contains(&format!(
-                "parameter 'besluit' of wet_heroverweging#1 is no decision value {{grondslag, \
+                "parameter 'besluit' of wet_heroverweging#1 is no decision value {{basis, \
                  taken_on, fields, findings, outputs}}: it is of type {kind}"
             )),
             "{message}"
@@ -1156,7 +1156,7 @@ articles:
 #[test]
 fn a_call_without_output_is_of_type_decision() {
     let law = caller(
-        "          - name: heroverweging\n            type: object\n            source:\n              article: $besluit.grondslag\n",
+        "          - name: heroverweging\n            type: object\n            source:\n              article: $besluit.basis\n",
     );
     let message = load_error(&[&law]);
     assert!(
@@ -1194,7 +1194,7 @@ fn parameters_from_takes_objects_and_the_target_value_is_a_string() {
 
     // A decision is no object to merge: its parameters are under `fields`.
     let law = caller(
-        "          - name: heroverweging\n            type: decision\n            source:\n              article: $besluit.grondslag\n              parameters_from: [$besluit]\n",
+        "          - name: heroverweging\n            type: decision\n            source:\n              article: $besluit.basis\n              parameters_from: [$besluit]\n",
     );
     let message = load_error(&[&law]);
     assert!(
@@ -1510,7 +1510,7 @@ fn a_judgement_per_case_reaches_the_article_and_the_rest_is_dropped() {
         assert_eq!(
             value,
             Value::from(json!({
-                "grondslag": "wet_hoofd#1",
+                "basis": "wet_hoofd#1",
                 "fields": {"dagen": 5},
                 "findings": {"grond_aanwezig": judgement},
                 "outputs": {"verleend": judgement},
@@ -1585,7 +1585,7 @@ fn a_term_not_decided_per_case_is_no_judgement_and_is_dropped() {
     assert_eq!(
         value,
         Value::from(json!({
-            "grondslag": "wet_hoofd#1",
+            "basis": "wet_hoofd#1",
             "fields": {"dagen": 5},
             "findings": {"grond_aanwezig": true},
             "outputs": {"verleend": true},
@@ -1706,7 +1706,7 @@ fn hoofd_anew() -> String {
 
 fn hoofd_besluit(grond: bool) -> serde_json::Value {
     json!({
-        "grondslag": "wet_hoofd#1",
+        "basis": "wet_hoofd#1",
         "taken_on": "wet_hoofd#1",
         "fields": {"dagen": 5},
         "findings": {"grond_aanwezig": grond},
@@ -1984,12 +1984,12 @@ fn what_the_value_holds_that_the_article_does_not_ask_is_dropped() {
     // runs; one whose parts are no objects where the value is read.
     for (odd, flaw) in [
         (
-            json!({"grondslag": "wet_hoofd", "taken_on": "wet_hoofd", "fields": {}, "findings": {}, "outputs": {}}),
-            "it holds no article reference in 'grondslag'",
+            json!({"basis": "wet_hoofd", "taken_on": "wet_hoofd", "fields": {}, "findings": {}, "outputs": {}}),
+            "it holds no article reference in 'basis'",
         ),
         (
-            json!({"grondslag": "wet_hoofd#1", "taken_on": "wet_hoofd#1", "fields": [], "findings": {}, "outputs": {}}),
-            "a decision value {grondslag, fields, findings, outputs} in $besluit",
+            json!({"basis": "wet_hoofd#1", "taken_on": "wet_hoofd#1", "fields": [], "findings": {}, "outputs": {}}),
+            "a decision value {basis, fields, findings, outputs} in $besluit",
         ),
     ] {
         let message = anew(&service, odd.clone(), json!({}), "heroverwogen")
@@ -2037,7 +2037,7 @@ articles:
 fn a_decision_value_passed_on_without_an_article_reference_is_refused_at_the_call() {
     let mut service = anew_service();
     service.load_law(DOORGEEF).unwrap();
-    let odd = json!({"grondslag": "wet_hoofd", "taken_on": "wet_hoofd#1", "fields": {}, "findings": {}, "outputs": {}});
+    let odd = json!({"basis": "wet_hoofd", "taken_on": "wet_hoofd#1", "fields": {}, "findings": {}, "outputs": {}});
     let message = service
         .evaluate_law_output(
             "wet_doorgeef",
@@ -2048,7 +2048,7 @@ fn a_decision_value_passed_on_without_an_article_reference_is_refused_at_the_cal
         .unwrap_err()
         .to_string();
     assert!(
-        message.contains("a decision value {grondslag, fields, findings, outputs} in $besluit"),
+        message.contains("a decision value {basis, fields, findings, outputs} in $besluit"),
         "{message}"
     );
     // A value that is no object is refused at the call too, not before.
@@ -2088,7 +2088,7 @@ fn a_decision_value_passed_on_with_a_taken_on_that_is_no_article_reference_is_re
     let message = doorgegeven(besluit).unwrap_err().to_string();
     assert!(
         message.contains(
-            "parameter 'besluit' of wet_hoofd#3 is no decision value {grondslag, taken_on, \
+            "parameter 'besluit' of wet_hoofd#3 is no decision value {basis, taken_on, \
              fields, findings, outputs}: it holds no article reference in 'taken_on'"
         ),
         "{message}"

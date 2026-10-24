@@ -33,5 +33,5 @@ export function stilBegrippen(...oordelen) {
 // invult (`beleid`), zoals het advies van de GGD bij de parkeerkaart.
 export const nietGeweten = (v) =>
   v.beleid
-    ? `${v.grondslag} · Het beleid vult dit voor deze aanvraag niet in; ${state.casus.rol} oordeelt.`
-    : `${v.grondslag} · ${hoofdletter(state.casus.cel_naam)} weet dit niet voor deze aanvraag; ${state.casus.rol} oordeelt.`;
+    ? `${v.basis} · Het beleid vult dit voor deze aanvraag niet in; ${state.casus.rol} oordeelt.`
+    : `${v.basis} · ${hoofdletter(state.casus.cel_naam)} weet dit niet voor deze aanvraag; ${state.casus.rol} oordeelt.`;

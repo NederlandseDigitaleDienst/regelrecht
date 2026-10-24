@@ -72,7 +72,7 @@ fn service() -> LawExecutionService {
 fn decision(bsn: &str, first: &str, granted: bool) -> serde_json::Value {
     json!({
         "id": format!("{bsn}-{first}-{granted}"),
-        "grondslag": "leerplichtwet_1969#13a",
+        "basis": "leerplichtwet_1969#13a",
         "bsn_jongere": bsn,
         "eerste_verlofdag": first,
         "laatste_verlofdag": first,
@@ -387,12 +387,12 @@ fn decisions_stand_alone_and_name_an_article() {
 
 #[test]
 fn decisions_named_by_a_reference_name_a_parameter_of_the_article() {
-    // The reduction of the Awb names them by its parameter grondslag.
+    // The reduction of the Awb names them by its parameter basis.
     ArticleBasedLaw::from_yaml_str(&awb_reduction_yaml()).unwrap();
-    for not_a_parameter in ["$besluiten_in_stand", "$grondslag.wet"] {
+    for not_a_parameter in ["$besluiten_in_stand", "$basis.wet"] {
         refused(
             &awb_variant(
-                "decisions: $grondslag",
+                "decisions: $basis",
                 &format!("decisions: {not_a_parameter}"),
             ),
             "is no parameter of the article",
@@ -965,7 +965,7 @@ fn without_an_answerer_the_term_is_the_heads_finding_or_an_error() {
 /// not in it.
 fn refusal_b() -> serde_json::Value {
     json!({
-        "grondslag": "leerplichtwet_1969#13a",
+        "basis": "leerplichtwet_1969#13a",
         "taken_on": "leerplichtwet_1969#13a",
         "fields": {
             "bsn_jongere": "999990019",
@@ -1097,7 +1097,7 @@ fn judgment_keeping(about: &str, kept: bool, in_place: serde_json::Value) -> ser
     let id = format!("uitspraak-{about}");
     json!({
         "id": id,
-        "grondslag": "algemene_wet_bestuursrecht#8:79",
+        "basis": "algemene_wet_bestuursrecht#8:79",
         "refers_to": about,
         "bestreden_besluit_vernietigd": true,
         "rechtsgevolgen_vernietigd": !kept,
@@ -1110,7 +1110,7 @@ fn with_id(mut row: serde_json::Value, id: &str) -> serde_json::Value {
     if let Some(object) = row.as_object_mut() {
         object.insert("id".into(), json!(id));
         for value in object.values_mut() {
-            if value.get("grondslag").is_some() {
+            if value.get("basis").is_some() {
                 *value = with_id(value.clone(), id);
             }
         }
@@ -1118,12 +1118,12 @@ fn with_id(mut row: serde_json::Value, id: &str) -> serde_json::Value {
     row
 }
 
-/// The row of a decision value under `grondslag`, as a judgment holds it:
+/// The row of a decision value under `basis`, as a judgment holds it:
 /// the fields and the outputs flat, and the id of the receipt that holds it
 /// ([`judgment_keeping`]).
-fn value_under(grondslag: &str, outputs: serde_json::Value) -> serde_json::Value {
+fn value_under(basis: &str, outputs: serde_json::Value) -> serde_json::Value {
     let mut row = json!({
-        "grondslag": grondslag,
+        "basis": basis,
         "bsn_jongere": "999990019",
     });
     for (name, value) in outputs.as_object().unwrap() {
@@ -1140,7 +1140,7 @@ fn awb_output(
     output: &str,
 ) -> serde_json::Value {
     let parameters = BTreeMap::from([
-        ("grondslag".to_string(), Value::String(LEAVE.into())),
+        ("basis".to_string(), Value::String(LEAVE.into())),
         ("besluiten".to_string(), Value::from(decisions)),
         (
             "beslissingen_op_bezwaar".to_string(),
@@ -1286,11 +1286,11 @@ fn a_decision_on_objection_the_court_set_in_place_that_upholds_revokes_nothing()
     );
 }
 
-/// Article 2 of the Awb reduction on `judgments`, for `grondslag`.
-fn in_place(judgments: serde_json::Value, grondslag: &str) -> serde_json::Value {
+/// Article 2 of the Awb reduction on `judgments`, for `basis`.
+fn in_place(judgments: serde_json::Value, basis: &str) -> serde_json::Value {
     let parameters = BTreeMap::from([
         ("uitspraken".to_string(), Value::from(judgments)),
-        ("grondslag".to_string(), Value::String(grondslag.into())),
+        ("basis".to_string(), Value::String(basis.into())),
     ]);
     let result = awb_service()
         .evaluate_law_output(
@@ -1402,7 +1402,7 @@ impl regelrecht_engine::Chronicle for Kroniek {
             .borrow_mut()
             .push((law.id.clone(), read.to_string()));
         Ok(match read {
-            ChronicleRead::Decisions(grondslag) => self.decisions.get(grondslag).cloned(),
+            ChronicleRead::Decisions(basis) => self.decisions.get(basis).cloned(),
             ChronicleRead::Facts(_) => Some(self.judgments.clone()),
         }
         .map(Value::from))
@@ -1453,7 +1453,7 @@ fn decisions_named_by_a_parameter_are_read_under_its_value() {
         already_in(&chronicle, "999990019", "2027-05-10").unwrap(),
         Value::Bool(true)
     );
-    // `decisions: $grondslag` is read under the article the school passes.
+    // `decisions: $basis` is read under the article the school passes.
     assert!(chronicle.asked.borrow().contains(&(
         AWB_REDUCTION.to_string(),
         format!("the decisions taken under {LEAVE}")
@@ -1522,7 +1522,7 @@ articles:
               regulation: reductie_algemene_wet_bestuursrecht
               output: geldende_besluiten
               parameters:
-                grondslag: leerplichtwet_1969#13a
+                basis: leerplichtwet_1969#13a
         output:
           - name: besluiten
             type: array
@@ -1560,7 +1560,7 @@ fn the_decisions_that_hold_are_those_in_force_and_those_set_in_place() {
     let grant = value_under(LEAVE, json!({ "verlof_verleend": true }));
     let judgments = json!([judgment(b["id"].as_str().unwrap(), grant.clone())]);
     let parameters = BTreeMap::from([
-        ("grondslag".to_string(), Value::String(LEAVE.into())),
+        ("basis".to_string(), Value::String(LEAVE.into())),
         ("besluiten".to_string(), Value::from(json!([a, b]))),
         (
             "beslissingen_op_bezwaar".to_string(),
@@ -1585,11 +1585,11 @@ fn the_decisions_that_hold_are_those_in_force_and_those_set_in_place() {
 
 #[test]
 fn a_parameter_that_names_no_article_is_an_error_not_a_read() {
-    // `decisions: $grondslag` reads only under an article reference.
+    // `decisions: $basis` reads only under an article reference.
     let chronicle = Kroniek::with(json!([]), json!([]));
     for not_an_article in [json!("leerplichtwet_1969"), json!(7)] {
         let parameters = BTreeMap::from([
-            ("grondslag".to_string(), Value::from(not_an_article.clone())),
+            ("basis".to_string(), Value::from(not_an_article.clone())),
             (
                 "beslissingen_op_bezwaar".to_string(),
                 Value::from(json!([])),
@@ -1611,7 +1611,7 @@ fn a_parameter_that_names_no_article_is_an_error_not_a_read() {
             .unwrap_err();
         assert!(
             matches!(&e, EngineError::TypeMismatch { expected, .. }
-                if expected.contains("an article reference in $grondslag")),
+                if expected.contains("an article reference in $basis")),
             "{not_an_article}: {e}"
         );
     }

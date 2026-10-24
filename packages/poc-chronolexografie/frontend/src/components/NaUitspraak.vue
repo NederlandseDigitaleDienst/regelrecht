@@ -96,7 +96,7 @@ const termijn = (o) => {
                   :veld="b"
                   :model-value="opnieuw[o.id][b.naam]"
                   :leeg="`Laat staan (${jaNee(b.eerder)})`"
-                  :toelichting="`${b.grondslag} · eerder: ${jaNee(b.eerder)}`"
+                  :toelichting="`${b.basis} · eerder: ${jaNee(b.eerder)}`"
                   @update:model-value="opnieuw[o.id][b.naam] = $event"
                 />
                 <StilOordeel

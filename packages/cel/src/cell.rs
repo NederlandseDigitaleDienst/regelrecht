@@ -5,7 +5,7 @@
 //! field of type `decision` then holds that decision, and a field that the
 //! decision holds by name comes from it too (RFC-050). The chronolexogram
 //! keeps a decision by its id; the engine gets its decision value
-//! `{grondslag, taken_on, fields, findings, outputs}`, where `taken_on`
+//! `{basis, taken_on, fields, findings, outputs}`, where `taken_on`
 //! is the article of the submission it was taken on. A decision output of
 //! the deciding article is a decision the cell records as well, in the same
 //! append. The cell knows no article that does this; the law names it with
@@ -331,7 +331,7 @@ impl Cell {
                 "the {} of {} holds {} decisions ({}); the cell fills one, from the \
                  chronolexogram it refers to",
                 shape.kind,
-                shape.grondslag(),
+                shape.basis(),
                 decisions.len(),
                 decisions.join(", ")
             )));
@@ -384,8 +384,8 @@ impl Cell {
                          {value}; that does not fit a {}{:?} ({})",
                         field.name,
                         shape.kind,
-                        shape.grondslag(),
-                        referred.grondslag,
+                        shape.basis(),
+                        referred.basis,
                         if field.nullable { "" } else { "non-nullable " },
                         field.type_,
                         field.first_declared_by()
@@ -431,14 +431,11 @@ impl Cell {
             )));
         }
         check_decision(service, gram)?;
-        let grondslag = copy
-            .value
-            .get("grondslag")
-            .and_then(serde_json::Value::as_str);
-        if grondslag != Some(gram.grondslag.as_str()) {
+        let basis = copy.value.get("basis").and_then(serde_json::Value::as_str);
+        if basis != Some(gram.basis.as_str()) {
             return Err(refused(format!(
-                "the copy of '{}' holds a decision value under {grondslag:?}, not under {}",
-                gram.id, gram.grondslag
+                "the copy of '{}' holds a decision value under {basis:?}, not under {}",
+                gram.id, gram.basis
             )));
         }
         Ok(gram)
@@ -536,7 +533,7 @@ impl Cell {
         let gram = Gram {
             id: uuid::Uuid::now_v7().to_string(),
             kind: shape.kind.clone(),
-            grondslag: shape.grondslag(),
+            basis: shape.basis(),
             fact: None,
             refers_to: filled.refers_to,
             received: filled.received,
@@ -575,11 +572,11 @@ impl Cell {
         let declared = shape::fact_fields(service, fact, on, Some(&self.authority))?;
         let what = format!("executogram of {fact}");
         let fields = whole(&declared, supplied, &what)?;
-        let (grondslag, name) = shape::split_fact(fact)?;
+        let (basis, name) = shape::split_fact(fact)?;
         let gram = Gram {
             id: uuid::Uuid::now_v7().to_string(),
             kind: EXECUTOGRAM.to_string(),
-            grondslag: grondslag.to_string(),
+            basis: basis.to_string(),
             fact: Some(name.to_string()),
             refers_to: None,
             received: None,
@@ -635,7 +632,7 @@ impl Cell {
     ) -> Result<serde_json::Value> {
         let mut value = self.decision_value(service, sphere, gram)?;
         let typed: Vec<String> = gram
-            .grondslag
+            .basis
             .split_once('#')
             .and_then(|(law_id, article)| {
                 shape::article_on(service, law_id, article, gram.recorded_on)
@@ -716,11 +713,11 @@ impl Cell {
             .filter_map(|f| received.held(&f.name).map(|v| (f.name.clone(), v.clone())))
             .collect();
         let fields = whole(&declared, &supplied, &what)?;
-        let (grondslag, name) = shape::split_fact(fact)?;
+        let (basis, name) = shape::split_fact(fact)?;
         let gram = Gram {
             id: uuid::Uuid::now_v7().to_string(),
             kind: EXECUTOGRAM.to_string(),
-            grondslag: grondslag.to_string(),
+            basis: basis.to_string(),
             fact: Some(name.to_string()),
             refers_to: Some(refers_to.to_string()),
             received: Some(Received {
@@ -892,7 +889,7 @@ impl Cell {
             return Err(refused(format!(
                 "'{name}' of the decision of {} is a finding of the deciding authority; it \
                  is given among the findings",
-                shape.grondslag()
+                shape.basis()
             )));
         }
         // A finding the decision asks is one of its inputs, which the cell
@@ -910,7 +907,7 @@ impl Cell {
             return Err(refused(format!(
                 "'{name}' of the decision of {} is no finding; it is supplied, or comes from \
                  elsewhere",
-                shape.grondslag()
+                shape.basis()
             )));
         }
         let mut given = supplied.clone();
@@ -949,14 +946,14 @@ impl Cell {
                 return Err(refused(format!(
                     "the decision of {} would take a decision in the place of '{contested}', \
                      which chronolexogram '{replacement}' already replaces (taken by '{earlier}')",
-                    shape.grondslag()
+                    shape.basis()
                 )));
             }
         }
         let mut grams = vec![Gram {
             id,
             kind: shape.kind.clone(),
-            grondslag: shape.grondslag(),
+            basis: shape.basis(),
             fact: None,
             refers_to: Some(applied.id.clone()),
             received: None,
@@ -1124,10 +1121,10 @@ impl Cell {
                 ))
             })?
             .clone();
-        let (law_id, article) = decision.grondslag.split_once('#').ok_or_else(|| {
+        let (law_id, article) = decision.basis.split_once('#').ok_or_else(|| {
             setup(format!(
-                "chronolexogram '{}' has grondslag '{}', not <regulation>#<article>",
-                decision.id, decision.grondslag
+                "chronolexogram '{}' has basis '{}', not <regulation>#<article>",
+                decision.id, decision.basis
             ))
         })?;
         let on = decision.recorded_on;
@@ -1303,7 +1300,7 @@ impl Cell {
             })
     }
 
-    /// The decision value `{grondslag, taken_on, fields, findings,
+    /// The decision value `{basis, taken_on, fields, findings,
     /// outputs}` of the decision `gram`, as the engine builds one (RFC-050),
     /// in the law in force on the day it was recorded: of its outputs those
     /// its decision item names, and of its fields:
@@ -1333,7 +1330,7 @@ impl Cell {
     ) -> Result<serde_json::Value> {
         let used = self.findings(service, sphere, &gram.id)?;
         let found = gram
-            .grondslag
+            .basis
             .split_once('#')
             .and_then(|(law_id, article)| {
                 shape::article_on(service, law_id, article, gram.recorded_on)
@@ -1341,7 +1338,7 @@ impl Cell {
             .ok_or_else(|| {
                 setup(format!(
                     "the decision '{}' is under {}, which has no version in force on {}",
-                    gram.id, gram.grondslag, gram.recorded_on
+                    gram.id, gram.basis, gram.recorded_on
                 ))
             })?;
         let decided = found
@@ -1376,7 +1373,7 @@ impl Cell {
             .map(|(name, value)| (name.clone(), value.clone()))
             .collect();
         Ok(serde_json::json!({
-            "grondslag": gram.grondslag,
+            "basis": gram.basis,
             "taken_on": self.taken_on(gram)?,
             "fields": fields,
             "findings": findings,
@@ -1390,7 +1387,7 @@ impl Cell {
         gram.refers_to
             .as_deref()
             .and_then(|id| self.grams().iter().find(|g| g.id == id))
-            .map(|submission| submission.grondslag.as_str())
+            .map(|submission| submission.basis.as_str())
             .ok_or_else(|| {
                 setup(format!(
                     "the decision '{}' refers to {:?}, no submission in the chronicle of '{}'",
@@ -1430,16 +1427,16 @@ impl Cell {
         let not_a_decision = || {
             setup(format!(
                 "'{output}' of the decision of {} is {value}, no decision value \
-                 {{grondslag, fields, findings, outputs}}",
-                deciding.grondslag()
+                 {{basis, fields, findings, outputs}}",
+                deciding.basis()
             ))
         };
         let object = value
             .as_object()
             .filter(|o| shape::is_decision_value(o))
             .ok_or_else(not_a_decision)?;
-        let grondslag = object
-            .get("grondslag")
+        let basis = object
+            .get("basis")
             .and_then(serde_json::Value::as_str)
             .ok_or_else(not_a_decision)?;
         let part = |key: &str| {
@@ -1450,7 +1447,7 @@ impl Cell {
         };
         let (given_fields, given_findings) = (part("fields")?, part("findings")?);
         let expected = part("outputs")?;
-        let (law_id, article) = grondslag.split_once('#').ok_or_else(not_a_decision)?;
+        let (law_id, article) = basis.split_once('#').ok_or_else(not_a_decision)?;
         let shape = decision::derive(service, law_id, article, on)?;
         let mut fields = Values::new();
         for input in &shape.inputs {
@@ -1496,9 +1493,9 @@ impl Cell {
             .find(|name| outputs.get(name).is_some_and(|v| !v.is_null()))
         {
             return Err(setup(format!(
-                "'{output}' of the decision of {} is a decision under {grondslag} that takes \
+                "'{output}' of the decision of {} is a decision under {basis} that takes \
                  a decision in turn ('{nested}'); the cell records one level",
-                deciding.grondslag()
+                deciding.basis()
             )));
         }
         // As a chronicle stores them, compared as the engine's `EQUALS`
@@ -1509,9 +1506,9 @@ impl Cell {
         }
         if !same {
             return Err(setup(format!(
-                "'{output}' of the decision of {} is a decision under {grondslag} with outputs \
+                "'{output}' of the decision of {} is a decision under {basis} with outputs \
                  {}, but taken again on these fields that article decides {}",
-                deciding.grondslag(),
+                deciding.basis(),
                 serde_json::Value::Object(expected.clone()),
                 serde_json::json!(shape
                     .outputs
@@ -1523,20 +1520,20 @@ impl Cell {
         if let Some(taken_on) = object
             .get("taken_on")
             .and_then(serde_json::Value::as_str)
-            .filter(|t| *t != submission.grondslag)
+            .filter(|t| *t != submission.basis)
         {
             return Err(setup(format!(
                 "'{output}' of the decision of {} is a decision taken on {taken_on}, but the \
                  cell takes it on '{}', under {}",
-                deciding.grondslag(),
+                deciding.basis(),
                 submission.id,
-                submission.grondslag
+                submission.basis
             )));
         }
         Ok(Gram {
             id: uuid::Uuid::now_v7().to_string(),
             kind: shape.kind.clone(),
-            grondslag: shape.grondslag(),
+            basis: shape.basis(),
             fact: None,
             refers_to: Some(submission.id.clone()),
             received: None,
@@ -1566,14 +1563,14 @@ impl Cell {
                 self.recording_actor
             ))
         })?;
-        if gram.kind != shape.submission_kind || gram.grondslag != shape.application {
+        if gram.kind != shape.submission_kind || gram.basis != shape.application {
             return Err(refused(format!(
                 "chronolexogram '{id}' is a {} under {}, not an {} under {} that {} decides on",
                 gram.kind,
-                gram.grondslag,
+                gram.basis,
                 shape.submission_kind,
                 shape.application,
-                shape.grondslag()
+                shape.basis()
             )));
         }
         let last = decisions_on(self.grams(), id).last().copied();
@@ -1820,7 +1817,7 @@ fn asked(
                         "the application '{}' lacks '{name}', which the decision of {} needs \
                          (Awb 4:5)",
                         applied.id,
-                        shape.grondslag()
+                        shape.basis()
                     )))
                 }
                 None => None,
@@ -1834,7 +1831,7 @@ fn asked(
                 None => {
                     return Err(refused(format!(
                         "the decision of {} asks '{name}' of the deciding authority ({})",
-                        shape.grondslag(),
+                        shape.basis(),
                         input.field.first_declared_by()
                     )))
                 }
@@ -1912,7 +1909,7 @@ fn of_another_kind(
     on: NaiveDate,
 ) -> bool {
     value
-        .get("grondslag")
+        .get("basis")
         .and_then(serde_json::Value::as_str)
         .and_then(|g| g.split_once('#'))
         .and_then(|(law_id, article)| shape::article_on(service, law_id, article, on))
@@ -1946,10 +1943,10 @@ fn decision_shape_of(
     decision: &Gram,
     on: NaiveDate,
 ) -> Result<DecisionShape> {
-    let (law_id, article) = decision.grondslag.split_once('#').ok_or_else(|| {
+    let (law_id, article) = decision.basis.split_once('#').ok_or_else(|| {
         setup(format!(
-            "chronolexogram '{}' has grondslag '{}', not <regulation>#<article>",
-            decision.id, decision.grondslag
+            "chronolexogram '{}' has basis '{}', not <regulation>#<article>",
+            decision.id, decision.basis
         ))
     })?;
     decision::derive(service, law_id, article, on)
@@ -2006,13 +2003,13 @@ fn is_finding(shape: &DecisionShape, name: &str) -> bool {
 fn check_decision(service: &LawExecutionService, gram: &Gram) -> Result<()> {
     let id = &gram.id;
     let found = gram
-        .grondslag
+        .basis
         .split_once('#')
         .and_then(|(law_id, article)| shape::article_on(service, law_id, article, gram.recorded_on))
         .ok_or_else(|| {
             setup(format!(
                 "chronolexogram '{id}' is under {}, which has no version in force on {}",
-                gram.grondslag, gram.recorded_on
+                gram.basis, gram.recorded_on
             ))
         })?;
     let takes = found
@@ -2022,7 +2019,7 @@ fn check_decision(service: &LawExecutionService, gram: &Gram) -> Result<()> {
     if !takes || gram.refers_to.is_none() {
         return Err(refused(format!(
             "chronolexogram '{id}' is a {} under {}, not a decision",
-            gram.kind, gram.grondslag
+            gram.kind, gram.basis
         )));
     }
     Ok(())
@@ -2035,7 +2032,7 @@ fn check_decision_supplied(
     shape: &DecisionShape,
     supplied: &Map<String, serde_json::Value>,
 ) -> Result<()> {
-    let decision = shape.grondslag();
+    let decision = shape.basis();
     for (name, value) in supplied {
         let input = shape
             .input(name)
@@ -2179,7 +2176,7 @@ fn check_supplied(
     supplied: &Map<String, serde_json::Value>,
     from_referred: &[String],
 ) -> Result<()> {
-    let submission = shape.grondslag();
+    let submission = shape.basis();
     for (name, value) in supplied {
         if from_referred.contains(name) {
             return Err(refused(format!(

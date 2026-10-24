@@ -25,15 +25,15 @@ const casus = {
   rechter: { cel: 'rechtbank', cel_naam: 'Rechtbank' },
   scenarios: [],
 };
-const aanvraag = { id: id('0000aaaa'), kind: 'AANVRAAG', grondslag: 'wet#13a' };
-const weigering = { id: id('0000bbbb'), kind: 'BESCHIKKING', grondslag: 'wet#13a', refers_to: aanvraag.id, outputs: { verlof_verleend: false } };
-const bezwaar = { id: id('0000cccc'), kind: 'BEZWAAR', grondslag: 'awb#7:11', refers_to: weigering.id };
-const ongegrond = { id: id('0000dddd'), kind: 'BESCHIKKING', grondslag: 'awb#7:11', refers_to: bezwaar.id, outputs: { bezwaar_ontvankelijk: true, bestreden_besluit_herroepen: false } };
-const beroep = { id: id('0000eeee'), kind: 'BEROEP', grondslag: 'awb#8:70', received: { from: 'school', id: ongegrond.id } };
-const uitspraak = { id: id('0000ffff'), kind: 'UITSPRAAK', grondslag: 'awb#8:70', refers_to: beroep.id };
-const ontvangst = { id: id('00001111'), kind: 'EXECUTOGRAM', grondslag: 'awb#8:79', fact: 'afschrift_van_de_uitspraak', refers_to: ongegrond.id, received: { from: 'rechtbank', id: uitspraak.id }, fields: { opdracht_nieuw_besluit: true } };
-const nieuw = { id: id('00003333'), kind: 'BESCHIKKING', grondslag: 'wet#13a', refers_to: bezwaar.id, outputs: { verlof_verleend: true } };
-const gegrond = { id: id('00002222'), kind: 'BESCHIKKING', grondslag: 'awb#7:11', refers_to: bezwaar.id, after: ontvangst.id, outputs: { bezwaar_ontvankelijk: true, bestreden_besluit_herroepen: true, nieuw_besluit: nieuw.id } };
+const aanvraag = { id: id('0000aaaa'), kind: 'AANVRAAG', basis: 'wet#13a' };
+const weigering = { id: id('0000bbbb'), kind: 'BESCHIKKING', basis: 'wet#13a', refers_to: aanvraag.id, outputs: { verlof_verleend: false } };
+const bezwaar = { id: id('0000cccc'), kind: 'BEZWAAR', basis: 'awb#7:11', refers_to: weigering.id };
+const ongegrond = { id: id('0000dddd'), kind: 'BESCHIKKING', basis: 'awb#7:11', refers_to: bezwaar.id, outputs: { bezwaar_ontvankelijk: true, bestreden_besluit_herroepen: false } };
+const beroep = { id: id('0000eeee'), kind: 'BEROEP', basis: 'awb#8:70', received: { from: 'school', id: ongegrond.id } };
+const uitspraak = { id: id('0000ffff'), kind: 'UITSPRAAK', basis: 'awb#8:70', refers_to: beroep.id };
+const ontvangst = { id: id('00001111'), kind: 'EXECUTOGRAM', basis: 'awb#8:79', fact: 'afschrift_van_de_uitspraak', refers_to: ongegrond.id, received: { from: 'rechtbank', id: uitspraak.id }, fields: { opdracht_nieuw_besluit: true } };
+const nieuw = { id: id('00003333'), kind: 'BESCHIKKING', basis: 'wet#13a', refers_to: bezwaar.id, outputs: { verlof_verleend: true } };
+const gegrond = { id: id('00002222'), kind: 'BESCHIKKING', basis: 'awb#7:11', refers_to: bezwaar.id, after: ontvangst.id, outputs: { bezwaar_ontvankelijk: true, bestreden_besluit_herroepen: true, nieuw_besluit: nieuw.id } };
 
 const guide = (naam) => guideFor(casus, naam);
 const V2 = 'Afwijzing, bezwaar en heroverweging: gegrond';

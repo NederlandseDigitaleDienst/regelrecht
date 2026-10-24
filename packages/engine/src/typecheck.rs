@@ -169,7 +169,7 @@ enum Ty {
     Date,
     Array,
     Object,
-    /// A decision value `{grondslag, fields, findings, outputs}` (RFC-050): an object
+    /// A decision value `{basis, fields, findings, outputs}` (RFC-050): an object
     /// whose fields the checker does not type, like any object.
     Decision,
 }

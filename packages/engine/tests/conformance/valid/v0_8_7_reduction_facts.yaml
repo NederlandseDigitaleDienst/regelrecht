@@ -2,7 +2,7 @@
 # Tier C: a reduction that reads the recorded instances of a fact an article
 # requires (schema v0.8.7, RFC-051; v0.8.6 named a stream of the cell) and
 # picks the one in force with FOREACH combine ONLY.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.11/schema/v0.8.11/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
 $id: test_conformance_reduction_facts
 regulatory_layer: REDUCTIE
 publication_date: '2026-10-18'

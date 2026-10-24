@@ -18,7 +18,7 @@ import { artikelNaam } from '../logboek.js';
 import { stilBegrippen } from '../stil.js';
 import {
   aanvragen,
-  besluitGrondslag,
+  besluitBasis,
   beslissingOp,
   besluitOp,
   alsJson,
@@ -41,13 +41,13 @@ const voorbeeld = (naam) => state.casus.voorbeeld.bevindingen[naam] ?? true;
 const standaard = () => Object.fromEntries(oordelen().map((o) => [o.naam, voorbeeld(o.naam)]));
 
 const artikel = computed(() => {
-  const [wet, nummer] = besluitGrondslag().split('#');
+  const [wet, nummer] = besluitBasis().split('#');
   return artikelNaam(wet, nummer);
 });
 
 const open = computed(() => aanvragen().filter((a) => !besluitOp(a.id)));
 const besluiten = computed(() =>
-  state.grammen.filter((g) => g.grondslag === besluitGrondslag() && g.kind !== 'AANVRAAG'),
+  state.grammen.filter((g) => g.basis === besluitBasis() && g.kind !== 'AANVRAAG'),
 );
 const openBezwaren = computed(() =>
   state.grammen.filter((g) => g.kind === 'BEZWAAR' && !beslissingOp(g.id)),
@@ -229,7 +229,7 @@ const uitkomstOpBezwaar = (uit) =>
                 :veld="o"
                 :model-value="opnieuw[bz.id][o.naam]"
                 :leeg="`Laat staan (${jaNee(o.eerder)})`"
-                :toelichting="`${o.grondslag} · eerder: ${jaNee(o.eerder)}`"
+                :toelichting="`${o.basis} · eerder: ${jaNee(o.eerder)}`"
                 @update:model-value="opnieuw[bz.id][o.naam] = $event"
               />
               <StilOordeel

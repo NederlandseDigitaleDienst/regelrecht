@@ -104,7 +104,7 @@ articles:
             type: decision
             nullable: true
             source:
-              article: $besluit.grondslag
+              article: $besluit.basis
               parameters_from: [$besluit.fields]
         output:
           - {name: anders, type: boolean}
@@ -131,7 +131,7 @@ articles:
             type: decision
             nullable: true
             source:
-              article: $besluit.grondslag
+              article: $besluit.basis
               parameters_from: [$besluit.fields]
         output:
           - {name: anders, type: boolean}
@@ -166,7 +166,7 @@ fn numbers(teller: i64, noemer: i64) -> Map<String, serde_json::Value> {
 }
 
 /// Decide on `teller / noemer` in a chronicle file, open the file again
-/// and return the decision as a decision value `{grondslag, fields,
+/// and return the decision as a decision value `{basis, fields,
 /// findings, outputs}`, read back the way the engine reads it.
 fn stored_decision(service: &mut LawExecutionService, teller: i64, noemer: i64) -> Value {
     let dir = cell_tempdir();
@@ -192,8 +192,8 @@ fn stored_decision(service: &mut LawExecutionService, teller: i64, noemer: i64) 
         panic!("not an application and a decision")
     };
     let value = json!({
-        "grondslag": decision.grondslag,
-        "taken_on": application.grondslag,
+        "basis": decision.basis,
+        "taken_on": application.basis,
         "fields": application.fields,
         "findings": {},
         "outputs": decision.outputs,
@@ -552,7 +552,7 @@ fn a_gram_that_would_not_open_again_is_not_appended() {
     let gram = Gram {
         id: "g".into(),
         kind: "AANVRAAG".into(),
-        grondslag: format!("{ID}#1"),
+        basis: format!("{ID}#1"),
         fact: None,
         refers_to: None,
         received: None,

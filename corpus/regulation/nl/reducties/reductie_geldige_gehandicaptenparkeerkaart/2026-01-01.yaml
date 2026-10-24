@@ -61,7 +61,7 @@ articles:
               regulation: reductie_algemene_wet_bestuursrecht
               output: geldende_besluiten
               parameters:
-                grondslag: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
+                basis: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
         output:
           - name: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
             type: boolean
@@ -170,7 +170,7 @@ articles:
               regulation: reductie_algemene_wet_bestuursrecht
               output: geldende_besluiten
               parameters:
-                grondslag: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
+                basis: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
         output:
           - name: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
             type: boolean

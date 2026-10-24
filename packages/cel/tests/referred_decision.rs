@@ -75,7 +75,7 @@ articles:
           - {name: bestreden_grondslag, type: string}
         actions:
           - output: bestreden_grondslag
-            value: $bestreden_besluit.grondslag
+            value: $bestreden_besluit.basis
           - output: tijdig
             value:
               operation: GREATER_THAN_OR_EQUAL
@@ -147,7 +147,7 @@ articles:
             type: decision
             nullable: true
             source:
-              article: $bestreden_besluit.grondslag
+              article: $bestreden_besluit.basis
               parameters_from:
                 - $bestreden_besluit.fields
                 - $nieuwe_gegevens
@@ -667,12 +667,12 @@ fn with_cause_the_cell_records_the_new_decision_with_its_own_period() {
     assert_eq!(decided.len(), 2);
     assert_eq!(cell.grams().len(), before + 2);
     let (decision, new) = (&decided[0], &decided[1]);
-    assert_eq!(decision.grondslag, "wet_heroverweging_fictief#1");
+    assert_eq!(decision.basis, "wet_heroverweging_fictief#1");
     assert_eq!(decision.outputs["aanleiding"], json!(true));
     // The decision holds the new one by its id.
     assert_eq!(decision.outputs["nieuw_besluit"], json!(new.id));
     assert_eq!(new.kind, "BESCHIKKING");
-    assert_eq!(new.grondslag, "wet_verlof_fictief#1");
+    assert_eq!(new.basis, "wet_verlof_fictief#1");
     assert_eq!(new.refers_to.as_deref(), Some(bezwaar.id.as_str()));
     assert_eq!(new.recorded_on, day("2026-03-11"));
     assert_eq!(new.fields["dagen"], json!(20));
@@ -849,7 +849,7 @@ fn verlof_with_finding() -> String {
 fn heroverweging_with_findings() -> String {
     HEROVERWEGING
         .replace(
-            "              article: $bestreden_besluit.grondslag\n              parameters_from:\n                - $bestreden_besluit.fields\n                - $nieuwe_gegevens\n",
+            "              article: $bestreden_besluit.basis\n              parameters_from:\n                - $bestreden_besluit.fields\n                - $nieuwe_gegevens\n",
             "              article: $bestreden_besluit\n",
         )
         .replace(
@@ -1431,7 +1431,7 @@ fn a_new_decision_that_takes_a_decision_in_turn_is_refused() {
         )
         .unwrap();
     assert_eq!(nested.len(), 2);
-    assert_eq!(nested[1].grondslag, "wet_verlof_fictief#1");
+    assert_eq!(nested[1].basis, "wet_verlof_fictief#1");
     let bezwaar = object_to(
         &mut cell,
         &mut service,

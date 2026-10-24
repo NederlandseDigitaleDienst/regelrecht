@@ -35,7 +35,7 @@
 //! as a finding of the deciding authority. So a scenario or another system
 //! can supply the same value.
 //!
-//! Each row carries the decision's `id` and `grondslag`, and a field of type
+//! Each row carries the decision's `id` and `basis`, and a field of type
 //! `decision` holds the id of the decision it names, as the chronolexogram
 //! keeps it. A decision value a row holds, such as the decision a judgment
 //! set in place, is a row in turn.
@@ -178,19 +178,19 @@ pub fn bound_terms(
     terms
 }
 
-/// The decisions in `grams` taken under `grondslag` (`<regulation>#<article>`),
+/// The decisions in `grams` taken under `basis` (`<regulation>#<article>`),
 /// whose legal character is `kind`, as rows (`row`).
 pub fn rows(
     service: &LawExecutionService,
     grams: &[Gram],
-    grondslag: &str,
+    basis: &str,
     kind: &str,
 ) -> Result<Value> {
     rows_of(
         service,
         grams
             .iter()
-            .filter(|g| g.refers_to.is_some() && g.kind == kind && g.grondslag == grondslag),
+            .filter(|g| g.refers_to.is_some() && g.kind == kind && g.basis == basis),
     )
 }
 
@@ -204,12 +204,10 @@ pub fn executogram_rows(
     grams: &[Gram],
     fact: &str,
 ) -> Result<Value> {
-    let (grondslag, name) = crate::shape::split_fact(fact)?;
+    let (basis, name) = crate::shape::split_fact(fact)?;
     let grams: Vec<Gram> = grams
         .iter()
-        .filter(|g| {
-            g.kind == EXECUTOGRAM && g.grondslag == grondslag && g.fact.as_deref() == Some(name)
-        })
+        .filter(|g| g.kind == EXECUTOGRAM && g.basis == basis && g.fact.as_deref() == Some(name))
         .map(|g| {
             let mut row = g.clone();
             row.fields.insert(
@@ -241,7 +239,7 @@ fn rows_of<'g>(
             findings: None,
             outputs: &gram.outputs.clone().into_iter().collect(),
         };
-        let row = row(service, gram, parts, &gram.grondslag, &label)?;
+        let row = row(service, gram, parts, &gram.basis, &label)?;
         rows.push(serde_json::Value::Object(row));
     }
     Ok(stored::from_stored(&serde_json::Value::Array(rows))?)
@@ -256,21 +254,21 @@ struct Parts<'p> {
 }
 
 /// One row: the fields, the findings and the outputs under their own
-/// names, then the article it was taken under ([`ROW_GRONDSLAG`]) and the
+/// names, then the article it was taken under ([`ROW_BASIS`]) and the
 /// id of the chronolexogram `gram` that holds it ([`ROW_ID`]). A decision
-/// value in a field or output (`{grondslag, fields, findings, outputs}`,
+/// value in a field or output (`{basis, fields, findings, outputs}`,
 /// RFC-050), such as the decision a judgment sets in place, is a row in
 /// turn, with the id of `gram`; such a row holds every output its article
 /// declares, null where the value has none (RFC-036). `label` names what
 /// the row is of, for an error.
 ///
-/// A name of its own `id` or `grondslag` is refused, and so is a name that
+/// A name of its own `id` or `basis` is refused, and so is a name that
 /// two of the parts hold with another value: the row would hide one.
 fn row(
     service: &LawExecutionService,
     gram: &Gram,
     parts: Parts<'_>,
-    grondslag: &str,
+    basis: &str,
     label: &str,
 ) -> Result<Map<String, serde_json::Value>> {
     let mut row = Map::new();
@@ -279,14 +277,14 @@ fn row(
         let decision = value
             .as_object()
             .filter(|o| shape::is_decision_value(o))
-            .and_then(|o| Some((o, o.get("grondslag")?.as_str()?)));
+            .and_then(|o| Some((o, o.get("basis")?.as_str()?)));
         let value = match decision {
-            Some((decision, grondslag)) => {
-                serde_json::Value::Object(decision_row(service, gram, decision, grondslag)?)
+            Some((decision, basis)) => {
+                serde_json::Value::Object(decision_row(service, gram, decision, basis)?)
             }
             None => value.clone(),
         };
-        if [ROW_ID, ROW_GRONDSLAG].contains(&name.as_str()) {
+        if [ROW_ID, ROW_BASIS].contains(&name.as_str()) {
             return Err(setup(format!(
                 "{label} holds '{name}' itself; its row gives its {} under that name",
                 if name == ROW_ID { "id" } else { "article" }
@@ -307,8 +305,8 @@ fn row(
         }
     }
     row.insert(
-        ROW_GRONDSLAG.to_string(),
-        serde_json::Value::String(grondslag.to_string()),
+        ROW_BASIS.to_string(),
+        serde_json::Value::String(basis.to_string()),
     );
     row.insert(
         ROW_ID.to_string(),
@@ -317,20 +315,17 @@ fn row(
     Ok(row)
 }
 
-/// The row of the decision value `decision` under `grondslag` that `gram`
-/// holds (`row`): every output the article of its `grondslag` declares in
+/// The row of the decision value `decision` under `basis` that `gram`
+/// holds (`row`): every output the article of its `basis` declares in
 /// the version in force when `gram` was recorded, null where the value has
 /// none.
 fn decision_row(
     service: &LawExecutionService,
     gram: &Gram,
     decision: &Map<String, serde_json::Value>,
-    grondslag: &str,
+    basis: &str,
 ) -> Result<Map<String, serde_json::Value>> {
-    let label = format!(
-        "the decision under {grondslag} in chronolexogram '{}'",
-        gram.id
-    );
+    let label = format!("the decision under {basis} in chronolexogram '{}'", gram.id);
     let part = |key: &str| decision.get(key).and_then(serde_json::Value::as_object);
     let empty = Map::new();
     let parts = Parts {
@@ -338,13 +333,13 @@ fn decision_row(
         findings: part("findings"),
         outputs: part("outputs").unwrap_or(&empty),
     };
-    let mut row = row(service, gram, parts, grondslag, &label)?;
-    let declared = grondslag
+    let mut row = row(service, gram, parts, basis, &label)?;
+    let declared = basis
         .split_once('#')
         .and_then(|(law_id, article)| article_on(service, law_id, article, gram.recorded_on))
         .ok_or_else(|| {
             setup(format!(
-                "{label}: {grondslag} has no version in force on {}",
+                "{label}: {basis} has no version in force on {}",
                 gram.recorded_on
             ))
         })?;
@@ -360,7 +355,7 @@ pub const ROW_ID: &str = "id";
 
 /// The name under which a row gives the article its decision or fact was
 /// taken or recorded under, `<regulation>#<article>`.
-pub const ROW_GRONDSLAG: &str = "grondslag";
+pub const ROW_BASIS: &str = "basis";
 
 /// The legal character of the decision of article `reference` on `day`.
 pub fn decision_kind(
@@ -592,16 +587,16 @@ impl Reader<'_> {
             }
         }
         let key = match read {
-            ChronicleRead::Decisions(grondslag) => (true, grondslag.to_string(), day),
+            ChronicleRead::Decisions(basis) => (true, basis.to_string(), day),
             ChronicleRead::Facts(fact) => (false, fact.to_string(), day),
         };
         if let Some(rows) = self.read.borrow().get(&key) {
             return Ok(rows.clone());
         }
         let rows = match read {
-            ChronicleRead::Decisions(grondslag) => {
-                let kind = decision_kind(service, grondslag, day)?;
-                rows(service, &self.grams, grondslag, &kind)?
+            ChronicleRead::Decisions(basis) => {
+                let kind = decision_kind(service, basis, day)?;
+                rows(service, &self.grams, basis, &kind)?
             }
             ChronicleRead::Facts(fact) => {
                 // A fact its article does not require, the cell never records.
@@ -706,13 +701,13 @@ mod tests {
     use serde_json::json;
 
     const ACTOR: &str = "obs_de_klimop";
-    const GRONDSLAG: &str = "leerplichtwet_1969#13a";
+    const BASIS: &str = "leerplichtwet_1969#13a";
 
-    fn gram(kind: &str, grondslag: &str, refers_to: Option<&str>) -> Gram {
+    fn gram(kind: &str, basis: &str, refers_to: Option<&str>) -> Gram {
         Gram {
-            id: format!("{kind}-{grondslag}"),
+            id: format!("{kind}-{basis}"),
             kind: kind.into(),
-            grondslag: grondslag.into(),
+            basis: basis.into(),
             fact: None,
             refers_to: refers_to.map(str::to_string),
             received: None,
@@ -729,26 +724,20 @@ mod tests {
     #[test]
     fn rows_are_the_decisions_under_the_article_with_fields_and_outputs() {
         let grams = [
-            gram("AANVRAAG", GRONDSLAG, None),
-            gram("BESCHIKKING", GRONDSLAG, Some("a")),
+            gram("AANVRAAG", BASIS, None),
+            gram("BESCHIKKING", BASIS, Some("a")),
             gram("BESCHIKKING", "leerplichtwet_1969#11", Some("b")),
-            gram("TOETS", GRONDSLAG, Some("c")),
+            gram("TOETS", BASIS, Some("c")),
         ];
         let rows = serde_json::to_value(
-            rows(
-                &LawExecutionService::new(),
-                &grams,
-                GRONDSLAG,
-                "BESCHIKKING",
-            )
-            .unwrap(),
+            rows(&LawExecutionService::new(), &grams, BASIS, "BESCHIKKING").unwrap(),
         )
         .unwrap();
         assert_eq!(
             rows,
             json!([{
                 "id": "BESCHIKKING-leerplichtwet_1969#13a",
-                "grondslag": GRONDSLAG,
+                "basis": BASIS,
                 "eerste_verlofdag": "2027-02-01",
                 "verlof_verleend": true,
             }])
@@ -757,16 +746,16 @@ mod tests {
 
     #[test]
     fn a_name_grondslag_on_the_decision_is_refused() {
-        let mut decision = gram("BESCHIKKING", GRONDSLAG, Some("a"));
-        decision.outputs.insert("grondslag".into(), json!("x#1"));
+        let mut decision = gram("BESCHIKKING", BASIS, Some("a"));
+        decision.outputs.insert("basis".into(), json!("x#1"));
         let e = rows(
             &LawExecutionService::new(),
             &[decision],
-            GRONDSLAG,
+            BASIS,
             "BESCHIKKING",
         )
         .unwrap_err();
-        assert!(e.to_string().contains("holds 'grondslag' itself"), "{e}");
+        assert!(e.to_string().contains("holds 'basis' itself"), "{e}");
     }
 
     #[test]
@@ -780,7 +769,7 @@ mod tests {
         receipt.fields = [(
             "in_de_plaats".to_string(),
             json!({
-                "grondslag": "wet_fictief#1",
+                "basis": "wet_fictief#1",
                 "taken_on": "wet_fictief#0",
                 "fields": { "bsn": "999990019" },
                 "findings": { "al_verleend": false },
@@ -796,7 +785,7 @@ mod tests {
             rows[0]["in_de_plaats"],
             json!({
                 "id": receipt.id,
-                "grondslag": "wet_fictief#1",
+                "basis": "wet_fictief#1",
                 "bsn": "999990019",
                 "al_verleend": false,
                 "verleend": null,
@@ -806,12 +795,12 @@ mod tests {
 
     #[test]
     fn a_name_id_on_the_decision_is_refused() {
-        let mut decision = gram("BESCHIKKING", GRONDSLAG, Some("a"));
+        let mut decision = gram("BESCHIKKING", BASIS, Some("a"));
         decision.fields.insert("id".into(), json!("x"));
         let e = rows(
             &LawExecutionService::new(),
             &[decision],
-            GRONDSLAG,
+            BASIS,
             "BESCHIKKING",
         )
         .unwrap_err();
@@ -820,14 +809,14 @@ mod tests {
 
     #[test]
     fn a_name_that_is_a_field_and_another_output_is_refused() {
-        let mut decision = gram("BESCHIKKING", GRONDSLAG, Some("a"));
+        let mut decision = gram("BESCHIKKING", BASIS, Some("a"));
         decision
             .outputs
             .insert("eerste_verlofdag".into(), json!("2027-03-01"));
         assert!(rows(
             &LawExecutionService::new(),
             &[decision],
-            GRONDSLAG,
+            BASIS,
             "BESCHIKKING"
         )
         .is_err());
@@ -836,7 +825,7 @@ mod tests {
     #[test]
     fn a_name_that_is_a_field_and_the_same_output_is_one_value() {
         // The same decimal in another scale is the same value.
-        let mut decision = gram("BESCHIKKING", GRONDSLAG, Some("a"));
+        let mut decision = gram("BESCHIKKING", BASIS, Some("a"));
         decision
             .fields
             .insert("aandeel".into(), json!({"__decimal": "5.0"}));
@@ -846,7 +835,7 @@ mod tests {
         assert!(rows(
             &LawExecutionService::new(),
             &[decision],
-            GRONDSLAG,
+            BASIS,
             "BESCHIKKING"
         )
         .is_ok());
@@ -856,7 +845,7 @@ mod tests {
     fn a_name_that_is_an_integer_field_and_the_same_decimal_output_is_an_error() {
         // 5 and 5.0: the cell does not decide on its own that they are one
         // value, nor that they differ; it follows the engine's EQUALS.
-        let mut decision = gram("BESCHIKKING", GRONDSLAG, Some("a"));
+        let mut decision = gram("BESCHIKKING", BASIS, Some("a"));
         decision.fields.insert("aandeel".into(), json!(5));
         decision
             .outputs
@@ -864,7 +853,7 @@ mod tests {
         let err = rows(
             &LawExecutionService::new(),
             &[decision],
-            GRONDSLAG,
+            BASIS,
             "BESCHIKKING",
         )
         .unwrap_err();
@@ -1072,13 +1061,13 @@ articles:
     machine_readable:
       execution:
         parameters:
-          - name: grondslag
+          - name: basis
             type: string
         input:
           - name: besluiten
             type: array
             source:
-              decisions: $grondslag
+              decisions: $basis
         output:
           - name: verleend
             type: array
@@ -1119,7 +1108,7 @@ articles:
               regulation: reductie_zonder_houder
               output: verleend
               parameters:
-                grondslag: wet_fictief#1
+                basis: wet_fictief#1
         output:
           - name: al_verleend
             type: boolean

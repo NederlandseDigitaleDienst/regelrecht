@@ -84,7 +84,7 @@ articles:
           - {name: refers_to, type: string}
 "#;
 
-const GRONDSLAG: &str = "wet_vaststelling_fictief#3";
+const BASIS: &str = "wet_vaststelling_fictief#3";
 const FACT: &str = "wet_vaststelling_fictief#3#stand";
 
 fn service() -> LawExecutionService {
@@ -135,7 +135,7 @@ fn an_executogram_records_a_fact_the_article_requires() {
     )
     .unwrap();
     assert_eq!(gram.kind, EXECUTOGRAM);
-    assert_eq!(gram.grondslag, GRONDSLAG);
+    assert_eq!(gram.basis, BASIS);
     assert_eq!(gram.fact.as_deref(), Some("stand"));
     assert_eq!(gram.refers_to, None);
     assert_eq!(gram.recording_actor, ACTOR);
@@ -162,7 +162,7 @@ fn an_executogram_is_whole_or_not_recorded() {
     refused(&e, "requires no fact 'stand'");
     let e = record(
         &mut cell,
-        GRONDSLAG,
+        BASIS,
         &stand("Utrecht", "2020-08-01"),
         "2026-08-01",
     )
@@ -398,7 +398,7 @@ fn a_reduction_reads_only_a_fact_its_article_requires() {
     // A stream id, as v0.8.6 had it, or an article alone is no fact
     // reference.
     assert!(service().load_law(&reduction("stand")).is_err());
-    assert!(service().load_law(&reduction(GRONDSLAG)).is_err());
+    assert!(service().load_law(&reduction(BASIS)).is_err());
 }
 
 #[test]

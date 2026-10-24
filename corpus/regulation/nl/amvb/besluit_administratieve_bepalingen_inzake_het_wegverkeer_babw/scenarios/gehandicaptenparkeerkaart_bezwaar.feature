@@ -63,7 +63,7 @@ Feature: Het bezwaar tegen een besluit op een gehandicaptenparkeerkaart
     # hier is het een vaststelling van het college.
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
-      | bestreden_besluit | {"grondslag": "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49", "taken_on": "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49", "fields": {"bsn_aanvrager": "999990020", "kaart_als_bestuurder": true, "kaart_als_passagier": false, "besluit_datum": "2026-11-20", "dagtekening": "2026-10-12"}, "findings": {"langdurige_loopbeperking": true, "continu_afhankelijk_van_hulp_bestuurder": false, "permanent_rolstoelgebonden": false, "ernstige_beperkingen_andere_dan_loopbeperkingen": false}, "outputs": {"gehandicaptenparkeerkaart_verstrekt": true, "kaart_vermeldt_bestuurder": true, "kaart_vermeldt_passagier": false}} |
+      | bestreden_besluit | {"basis": "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49", "taken_on": "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49", "fields": {"bsn_aanvrager": "999990020", "kaart_als_bestuurder": true, "kaart_als_passagier": false, "besluit_datum": "2026-11-20", "dagtekening": "2026-10-12"}, "findings": {"langdurige_loopbeperking": true, "continu_afhankelijk_van_hulp_bestuurder": false, "permanent_rolstoelgebonden": false, "ernstige_beperkingen_andere_dan_loopbeperkingen": false}, "outputs": {"gehandicaptenparkeerkaart_verstrekt": true, "kaart_vermeldt_bestuurder": true, "kaart_vermeldt_passagier": false}} |
     Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | false |
       | geneeskundig_onderzoek_heeft_plaatsgehad          | true  |

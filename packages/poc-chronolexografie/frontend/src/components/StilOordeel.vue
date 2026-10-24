@@ -20,7 +20,7 @@ const emit = defineEmits(['update:modelValue']);
   />
   <VeldInvoer
     v-else
-    :veld="{ ...veld, grondslag: nietGeweten(veld) }"
+    :veld="{ ...veld, basis: nietGeweten(veld) }"
     :model-value="modelValue"
     @update:model-value="emit('update:modelValue', $event)"
   />

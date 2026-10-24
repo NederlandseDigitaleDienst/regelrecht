@@ -645,7 +645,7 @@ fn ongegrond_the_same_examination_refuses_again_and_the_refusal_stands() {
     let decided = reconsider(&mut cell, &bezwaar.id, &Map::new(), "2026-11-20");
     assert_eq!(decided.len(), 1);
     let decision = &decided[0];
-    assert_eq!(decision.grondslag, "algemene_wet_bestuursrecht#7:11");
+    assert_eq!(decision.basis, "algemene_wet_bestuursrecht#7:11");
     assert_eq!(decision.outputs[ADMISSIBLE], json!(true));
     assert_eq!(decision.outputs[CAUSE], json!(false));
     assert_eq!(decision.outputs[REVOKED], json!(false));
@@ -672,7 +672,7 @@ fn gegrond_a_new_examination_revokes_the_refusal_and_grants_the_card() {
     assert_eq!(decision.outputs[CAUSE], json!(true));
     assert_eq!(decision.outputs[REVOKED], json!(true));
     assert_eq!(decision.outputs[NEW], json!(new.id));
-    assert_eq!(new.grondslag, format!("{LAW}#{ARTICLE}"));
+    assert_eq!(new.basis, format!("{LAW}#{ARTICLE}"));
     assert_eq!(new.refers_to.as_deref(), Some(bezwaar.id.as_str()));
     assert_eq!(new.fields[WALKING], json!(true));
     assert_eq!(new.fields[OTHER], json!(false));
@@ -1065,7 +1065,7 @@ fn without_a_report_the_college_cannot_issue_the_card_yet() {
     // GGD's cell answered the term of art. 3 (RFC-052).
     let report = reported(&mut cell, APPLICANT, "2026-10-16", "2026-10-19");
     assert_eq!(report.kind, "EXECUTOGRAM");
-    assert_eq!(report.grondslag, format!("{REGELING}#3"));
+    assert_eq!(report.basis, format!("{REGELING}#3"));
     assert_eq!(
         report.fact.as_deref(),
         Some("geneeskundig_onderzoek_verricht")
@@ -1431,7 +1431,7 @@ fn granted_by_the_court(cell: &mut Cell, bsn: &str) -> Value {
     let instead = &judgment.outputs["uitspraak_in_de_plaats"];
     assert_eq!(instead["outputs"][REVOKED], json!(true));
     let grant = instead["outputs"][NEW].clone();
-    assert_eq!(grant["grondslag"], json!(format!("{LAW}#{ARTICLE}")));
+    assert_eq!(grant["basis"], json!(format!("{LAW}#{ARTICLE}")));
     assert_eq!(grant["fields"]["bsn_aanvrager"], json!(bsn));
     assert_eq!(
         grant["outputs"]["gehandicaptenparkeerkaart_verstrekt"],

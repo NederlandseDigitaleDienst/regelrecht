@@ -654,12 +654,12 @@ fn required_parameter_for_nobody(
 }
 
 /// The keys of a decision value (schema v0.8.4, RFC-050).
-const DECISION_KEYS: [&str; 5] = ["grondslag", "taken_on", "fields", "findings", "outputs"];
+const DECISION_KEYS: [&str; 5] = ["basis", "taken_on", "fields", "findings", "outputs"];
 
 /// Every parameter of `article` of type `decision` that `parameters` carries
-/// is an object that holds the keys of a decision value `{grondslag,
+/// is an object that holds the keys of a decision value `{basis,
 /// taken_on, fields, findings, outputs}`, and no other (RFC-050), and its
-/// `grondslag` and `taken_on` are article references (`<law>#<article>`).
+/// `basis` and `taken_on` are article references (`<law>#<article>`).
 /// Otherwise an error naming the parameter and the key, or the type the
 /// value has instead. Null and unknown are left to
 /// `required_parameter_for_nobody`, and an untranslatable value propagates
@@ -676,7 +676,7 @@ const DECISION_KEYS: [&str; 5] = ["grondslag", "taken_on", "fields", "findings",
 /// All of this holds at the top (`at_top`, depth 0). In a nested call,
 /// across laws or within one, a parameter is what the calling article passes
 /// on, which may be such a value without `taken_on`, so there only a
-/// `taken_on` the value holds must be an article reference. `grondslag` is
+/// `taken_on` the value holds must be an article reference. `basis` is
 /// checked where the call reads it.
 fn check_decision_parameters(
     law: &ArticleBasedLaw,
@@ -725,7 +725,7 @@ fn check_decision_parameters(
                         .map(|key| format!("holds the unknown key '{key}'"))
                 })
                 .or_else(|| {
-                    ["grondslag", "taken_on"]
+                    ["basis", "taken_on"]
                         .into_iter()
                         .find(|key| !reference(value, key))
                         .map(|key| format!("holds no article reference in '{key}'"))
@@ -754,7 +754,7 @@ fn decision_parameter_error(
     flaw: &str,
 ) -> EngineError {
     EngineError::InvalidOperation(format!(
-        "parameter '{name}' of {}#{} is no decision value {{grondslag, taken_on, fields, \
+        "parameter '{name}' of {}#{} is no decision value {{basis, taken_on, fields, \
          findings, outputs}}: it {flaw}",
         law.id, article.number
     ))
@@ -1311,7 +1311,7 @@ impl LazyInputs for LazyArticleInputs<'_, '_, '_> {
 type Values = BTreeMap<String, Value>;
 
 /// The parts of the decision value `value` that `named_by` holds, for
-/// `caller` to call anew (RFC-050): its `grondslag`, an article reference,
+/// `caller` to call anew (RFC-050): its `basis`, an article reference,
 /// and its `fields` and `findings`, two objects. Anything else is an error.
 fn decision_parts(
     mut value: BTreeMap<String, Value>,
@@ -1320,21 +1320,19 @@ fn decision_parts(
 ) -> Result<(String, Values, Values)> {
     let shown = Value::Object(value.clone()).to_string();
     let parts = (
-        value.remove("grondslag"),
+        value.remove("basis"),
         value.remove("fields"),
         value.remove("findings"),
     );
     match parts {
         (
-            Some(Value::String(grondslag)),
+            Some(Value::String(basis)),
             Some(Value::Object(fields)),
             Some(Value::Object(findings)),
-        ) if regelrecht_law_model::is_article_reference(&grondslag) => {
-            Ok((grondslag, fields, findings))
-        }
+        ) if regelrecht_law_model::is_article_reference(&basis) => Ok((basis, fields, findings)),
         _ => Err(EngineError::TypeMismatch {
             expected: format!(
-                "a decision value {{grondslag, fields, findings, outputs}} in {named_by} for \
+                "a decision value {{basis, fields, findings, outputs}} in {named_by} for \
                  {caller}"
             ),
             actual: shown,
@@ -5670,7 +5668,7 @@ impl LawExecutionService {
     /// Resolve an input that calls the decision of an article (RFC-050).
     /// `target` is an article reference, or a `$`-reference to a value that
     /// holds one or that is a decision value. A decision value is called
-    /// anew (RFC-050): its `grondslag` with its own `fields` and `findings`.
+    /// anew (RFC-050): its `basis` with its own `fields` and `findings`.
     ///
     /// The parameters are those `fields`, then the objects of
     /// `parameters_from`, merged in order, with `parameters` on top; a name
@@ -5684,7 +5682,7 @@ impl LawExecutionService {
     /// both (RFC-050). The article runs in the version in force on the calculation
     /// date, at stage BESLUIT, as a cross-law call does, and computes the
     /// outputs of its decision item. Without `output` the input is the
-    /// decision value `{grondslag, fields, findings, outputs}`; with it,
+    /// decision value `{basis, fields, findings, outputs}`; with it,
     /// that one output.
     ///
     /// Refused at run time: a target that is no article reference, an
@@ -5721,10 +5719,10 @@ impl LawExecutionService {
             Some(path) => match context.resolve(path)? {
                 Value::String(s) if regelrecht_law_model::is_article_reference(&s) => s,
                 Value::Object(value) => {
-                    let (grondslag, fields, findings) = decision_parts(value, named_by, &caller)?;
+                    let (basis, fields, findings) = decision_parts(value, named_by, &caller)?;
                     passed = fields;
                     given_findings = findings;
-                    grondslag
+                    basis
                 }
                 value @ (Value::Null | Value::Unknown(_)) => {
                     let _guard = res_ctx.trace_guard(named_by, PathNodeType::CrossLawReference);
@@ -5985,7 +5983,7 @@ impl LawExecutionService {
                     .map(|name| Ok((name.to_string(), pick(name)?)))
                     .collect::<Result<BTreeMap<_, _>>>()?;
                 Value::Object(BTreeMap::from([
-                    ("grondslag".to_string(), Value::String(target.clone())),
+                    ("basis".to_string(), Value::String(target.clone())),
                     ("fields".to_string(), Value::Object(declared)),
                     ("findings".to_string(), Value::Object(findings)),
                     ("outputs".to_string(), Value::Object(outputs)),

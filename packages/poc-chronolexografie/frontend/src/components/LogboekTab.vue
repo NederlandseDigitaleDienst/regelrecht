@@ -112,7 +112,7 @@ async function uitleg(knoop) {
             <nldd-text-cell
               :overline="`${dag(h.gram)} · cel ${h.gram.recording_actor}`"
               :text="`${rol(h.gram)} ${kort(h.gram.id)}`"
-              :supporting-text="h.gram.grondslag"
+              :supporting-text="h.gram.basis"
             ></nldd-text-cell>
             <nldd-cell>
               <nldd-badge size="sm" :color="uitslag(h.gram).kleur" :text="uitslag(h.gram).tekst"></nldd-badge>
@@ -140,7 +140,7 @@ async function uitleg(knoop) {
           :text="`${rol(handeling.gram)} ${kort(handeling.gram.id)}`"
         >
           <nldd-text slot="supporting-text">
-            {{ dag(handeling.gram) }} · {{ handeling.gram.kind }} onder {{ handeling.gram.grondslag }}
+            {{ dag(handeling.gram) }} · {{ handeling.gram.kind }} onder {{ handeling.gram.basis }}
           </nldd-text>
         </nldd-title>
         <nldd-container gap="16">
@@ -218,7 +218,7 @@ async function uitleg(knoop) {
           </template>
           <nldd-text v-else-if="handeling.gram.kind === 'EXECUTOGRAM'" size="sm" color="secondary">
             Geen besluit. De cel legde het feit {{ handeling.gram.fact }} vast, dat
-            {{ handeling.gram.grondslag }} vereist (een executogram, RFC-051). Een reductie van de cel
+            {{ handeling.gram.basis }} vereist (een executogram, RFC-051). Een reductie van de cel
             leest het terug, zoals de vestiging van een school waaruit de regeling de regio
             afleidt.
           </nldd-text>

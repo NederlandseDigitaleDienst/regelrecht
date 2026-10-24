@@ -337,7 +337,7 @@ fn a_decision_is_taken_on_the_application_that_requests_it_from_another_article(
         .unwrap()
         .remove(0);
     assert_eq!(gram.refers_to.as_deref(), Some(app.id.as_str()));
-    assert_eq!(gram.grondslag, "wet_verlof_fictief#1");
+    assert_eq!(gram.basis, "wet_verlof_fictief#1");
     assert_eq!(gram.outputs["verlof_verleend"], json!(true));
 }
 
