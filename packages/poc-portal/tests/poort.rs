@@ -452,7 +452,7 @@ async fn a_source_is_served_behind_the_password_of_its_poc() {
         ("/beta/bron/poortlokaal", "beta"),
     ] {
         let (status, body) = get(&app, pad, Some(&cookie_voor(poc))).await;
-        assert_ne!(status, StatusCode::OK, "{pad}");
+        assert_eq!(status, StatusCode::NOT_FOUND, "{pad}");
         assert!(!body.contains("bestanden"), "{pad}: {body}");
     }
 }

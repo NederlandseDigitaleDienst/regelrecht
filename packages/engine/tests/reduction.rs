@@ -323,7 +323,14 @@ fn judgments_nobody_supplies_are_an_error_not_an_empty_list() {
 fn a_source_for_another_law_does_not_answer_the_decisions() {
     let mut service = service();
     supply_for(&mut service, "een_andere_wet", json!([]), json!([]));
-    assert!(evaluate(&service, "999990019", "2027-05-10").is_err());
+    let e = evaluate(&service, "999990019", "2027-05-10").unwrap_err();
+    let message = e.to_string();
+    // The same failure as without any source: the decisions stay unanswered.
+    assert!(matches!(e, EngineError::DataSourceError(_)), "{message}");
+    assert!(
+        message.contains("no data source supplies them"),
+        "{message}"
+    );
 }
 
 /// `yaml` with `from` replaced by `to`.
