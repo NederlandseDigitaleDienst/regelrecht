@@ -26,8 +26,11 @@ articles:
       Oostmeer kijkt door middel van een chronolexografische reductie op zijn
       eigen kroniek of het de aanvrager eerder een kaart verstrekte. De
       aanvrager kreeg eerder een kaart als deze instantie hem in een besluit op
-      een aanvraag (artikel 49 van het BABW) een kaart verstrekte die niet op
-      bezwaar is herroepen; anders zegt het systeem niets.
+      een aanvraag (artikel 49 van het BABW) een kaart verstrekte die niet
+      herroepen is en niet door de bestuursrechter vernietigd, of als de
+      bestuursrechter hem zelf een kaart verstrekte in de plaats van een
+      besluit van deze instantie (Awb 8:72, derde lid, onder b); anders zegt
+      het systeem niets.
     url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel2
     machine_readable:
       execution:
@@ -36,20 +39,19 @@ articles:
             type: string
             description: Burgerservicenummer van de gehandicapte die de kaart aanvraagt.
         input:
-          - name: besluiten
+          # De besluiten onder artikel 49 die gelden, één rij per besluit,
+          # met de gegevens en de uitvoer van dat besluit onder hun eigen
+          # naam. Welke besluiten gelden, volgt uit de Awb (7:11 en 8:72):
+          # ook een besluit dat de bestuursrechter in de plaats stelde (Awb
+          # 8:72, derde lid, onder b).
+          - name: geldende_besluiten
             type: array
             source:
-              decisions: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
-          - name: beslissingen_op_bezwaar
-            type: array
-            source:
-              decisions: algemene_wet_bestuursrecht#7:11
+              regulation: reductie_algemene_wet_bestuursrecht
+              output: geldende_besluiten
+              parameters:
+                grondslag: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
         output:
-          - name: herroepen_besluiten
-            type: array
-            description: >-
-              De ids van de besluiten die een beslissing op bezwaar herriep
-              (Awb 7:11, tweede lid).
           - name: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
             type: boolean
             nullable: true
@@ -57,23 +59,14 @@ articles:
               Waar, als deze instantie de aanvrager eerder een kaart
               verstrekte; anders afwezig.
         actions:
-          - output: herroepen_besluiten
-            value:
-              operation: FOREACH
-              collection: $beslissingen_op_bezwaar
-              as: beslissing
-              filter:
-                operation: EQUALS
-                subject: $beslissing.bestreden_besluit_herroepen
-                value: true
-              body: $beslissing.bestreden_besluit
+          # Zoals artikel 2 van de reductie van de gemeente Wilgendaal.
           - output: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
             value:
               operation: IF
               cases:
                 - when:
                     operation: FOREACH
-                    collection: $besluiten
+                    collection: $geldende_besluiten
                     as: besluit
                     filter:
                       operation: AND
@@ -81,11 +74,6 @@ articles:
                         - operation: EQUALS
                           subject: $besluit.gehandicaptenparkeerkaart_verstrekt
                           value: true
-                        - operation: NOT
-                          value:
-                            operation: IN
-                            subject: $besluit.id
-                            value: $herroepen_besluiten
                         - operation: EQUALS
                           subject: $besluit.bsn_aanvrager
                           value: $bsn_aanvrager

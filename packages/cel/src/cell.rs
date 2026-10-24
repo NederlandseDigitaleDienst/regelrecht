@@ -1648,6 +1648,7 @@ impl<'r> Answerers<'r> {
         Call {
             findings,
             answerer: Some(self.own),
+            chronicle: None,
             sphere: self.sphere.clone(),
         }
     }

@@ -132,6 +132,7 @@ export const COMPONENTS = {
       'corpus/regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw/',
       'corpus/regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart/',
       'corpus/regulation/nl/ministeriele_regeling/regeling_vaststelling_schoolvakanties_20252030/',
+      'corpus/regulation/nl/reducties/reductie_algemene_wet_bestuursrecht/',
       'corpus/regulation/nl/reducties/reductie_eerder_verstrekte_gehandicaptenparkeerkaart_cbr/',
       'corpus/regulation/nl/reducties/reductie_eerder_verstrekte_gehandicaptenparkeerkaart_gemeente_oostmeer/',
       'corpus/regulation/nl/reducties/reductie_geldige_gehandicaptenparkeerkaart/',

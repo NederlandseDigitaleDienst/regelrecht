@@ -181,6 +181,7 @@ test('chronolexografie volgt zijn cellen, hun regelwerken, de casussen en zijn f
   for (const pad of [
     'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantieverlof_obs_de_klimop/2026-08-01.yaml',
     'corpus/regulation/nl/reducties/reductie_verlof_al_verleend_in_schooljaar/2026-08-01.yaml',
+    'corpus/regulation/nl/reducties/reductie_algemene_wet_bestuursrecht/2026-01-01.yaml',
     'corpus/cells/obs_de_klimop/cel.yaml',
     'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vestiging_obs_de_klimop/2026-08-01.yaml',
     'corpus/regulation/nl/ministeriele_regeling/regeling_vaststelling_schoolvakanties_20252030/2025-08-01.yaml',

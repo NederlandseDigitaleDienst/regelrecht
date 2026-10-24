@@ -284,10 +284,16 @@ pub fn fact_fields(
         .iter()
         .flatten()
         .map(|field| {
-            if field == crate::reading::ROW_ID || field == crate::reading::ROW_REFERS_TO {
+            if [
+                crate::reading::ROW_ID,
+                crate::reading::ROW_GRONDSLAG,
+                crate::reading::ROW_REFERS_TO,
+            ]
+            .contains(&field.as_str())
+            {
                 return Err(setup(format!(
                     "{fact}: the fact holds a field '{field}'; its row gives the executogram's \
-                     own id or what it refers to under that name"
+                     own id, its article or what it refers to under that name"
                 )));
             }
             let p = article

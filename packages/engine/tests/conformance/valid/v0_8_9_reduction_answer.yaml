@@ -3,7 +3,7 @@
 # It fills no open term; it names its holder, reads the decisions in the
 # holder's chronicle and passes what it found to the holder's policy as a
 # parameter.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.10/schema/v0.8.10/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.11/schema/v0.8.11/schema.json
 $id: test_conformance_reduction_answer
 regulatory_layer: REDUCTIE
 publication_date: '2026-10-22'

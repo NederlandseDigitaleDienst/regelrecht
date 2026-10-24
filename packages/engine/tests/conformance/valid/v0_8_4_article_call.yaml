@@ -5,7 +5,7 @@
 # and calls the article a decision value names, with that decision's fields
 # merged under what is given anew; both get a decision value back;
 # article 3 calls a fixed article for one output of its decision.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.10/schema/v0.8.10/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.11/schema/v0.8.11/schema.json
 $id: test_conformance_article_call
 regulatory_layer: WET
 publication_date: '2026-10-15'

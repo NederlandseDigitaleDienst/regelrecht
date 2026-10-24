@@ -5,7 +5,7 @@
 # answer takes under its own names; `combine` makes one value of the answers
 # of several cells. The policy names its holder. A second article holds a
 # norm that the reduction calls.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.10/schema/v0.8.10/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.11/schema/v0.8.11/schema.json
 $id: test_conformance_policy_binds_answer
 regulatory_layer: UITVOERINGSBELEID
 publication_date: '2026-10-22'

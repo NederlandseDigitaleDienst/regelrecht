@@ -2,7 +2,7 @@
 # Tier C: competence on an open term and on a fact (schema v0.8.8, RFC-052).
 # The article names who decides; the open term names who may answer it, a
 # list, and combines their answers with OR; the fact names who establishes it.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.10/schema/v0.8.10/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.11/schema/v0.8.11/schema.json
 $id: test_conformance_synthesis
 regulatory_layer: WET
 bwb_id: BWBR9999953

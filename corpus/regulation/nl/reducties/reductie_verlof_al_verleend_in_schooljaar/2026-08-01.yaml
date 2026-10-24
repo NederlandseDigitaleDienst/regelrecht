@@ -5,15 +5,15 @@ regulatory_layer: REDUCTIE
 publication_date: '2026-07-01'
 valid_from: '2026-08-01'
 # Geen regelgeving: een reductie van het hoofd van OBS De Klimop over zijn
-# eigen kroniek (RFC-022 §4.1, RFC-048). Ze zoekt de besluiten die ertoe doen
-# en past er de normen van het beleid van het hoofd op toe
-# (fictief_beleid_vakantieverlof_obs_de_klimop, artikel 1 en 2): welke
-# besluiten herroepen zijn, en welk schooljaar dat van het verlof is. Wat zij
-# uit de kroniek haalt, geeft zij dat beleid mee als parameter. De cel van de
+# eigen kroniek (RFC-022 §4.1, RFC-048). Ze zoekt de besluiten die ertoe doen.
+# Welke besluiten onder artikel 13a gelden, vraagt zij aan de reductie van de
+# Awb (reductie_algemene_wet_bestuursrecht), die uit dezelfde kroniek leest;
+# welk schooljaar dat van het verlof is, aan het beleid van het hoofd
+# (fictief_beleid_vakantieverlof_obs_de_klimop, artikel 1). De cel van de
 # school geeft haar uitvoer als het antwoord verlof_al_verleend_in_schooljaar
-# (cel.yaml, answers); artikel 3 van dat beleid koppelt het aan het open
-# begrip van artikel 13a, tweede lid, van de Leerplichtwet 1969, ook als
-# Awb 7:11 dat artikel opnieuw aanroept. Er is geen bekendmaking; de url wijst
+# (cel.yaml, answers); artikel 2 van dat beleid koppelt het aan het open
+# begrip van artikel 13a, tweede lid, van de Leerplichtwet 1969, ook als Awb
+# 7:11 dat artikel opnieuw aanroept. Er is geen bekendmaking; de url wijst
 # naar dat artikel.
 url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
 name: Al verleend vakantieverlof in het schooljaar bij OBS De Klimop (reductie)
@@ -24,14 +24,11 @@ articles:
     text: >-
       Geen regelgeving. Het systeem van het hoofd van OBS De Klimop kijkt door
       middel van een chronolexografische reductie op zijn eigen kroniek of er
-      in het schooljaar van het gevraagde verlof een besluit is waarin het
-      hoofd de jongere verlof verleende, en dat niet herroepen is en niet door
-      de bestuursrechter vernietigd. Welke besluiten herroepen of vernietigd
-      zijn en welk schooljaar dat van het verlof is, zegt het beleid van het
-      hoofd; de uitspraken leest het systeem uit de afschriften die het
-      ontving (Awb 8:79). Verleende de bestuursrechter zelf verlof, doordat
-      zijn uitspraak in de plaats trad van de vernietigde beslissing op
-      bezwaar (Awb 8:72, derde lid, onder b), dan telt dat verlof ook.
+      in het schooljaar van het gevraagde verlof een besluit geldt waarin de
+      jongere verlof kreeg. Welke besluiten gelden, volgt uit de Awb (7:11 en
+      8:72): ook een besluit dat de bestuursrechter in de plaats stelde (Awb
+      8:72, derde lid, onder b). Welk schooljaar dat van het verlof is, zegt
+      het beleid van het hoofd.
     url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
     machine_readable:
       execution:
@@ -45,54 +42,17 @@ articles:
             type: date
             description: Eerste dag van het gevraagde verlof.
         input:
-          # De besluiten onder artikel 13a, één rij per besluit, met de
-          # gegevens en de uitvoer van dat besluit onder hun eigen naam: onder
-          # meer bsn_jongere, eerste_verlofdag en verlof_verleend, en het id
-          # van het besluit.
-          - name: besluiten
+          # De besluiten onder artikel 13a die gelden, één rij per besluit,
+          # met de gegevens en de uitvoer van dat besluit onder hun eigen
+          # naam: onder meer bsn_jongere, eerste_verlofdag en verlof_verleend.
+          - name: geldende_besluiten
             type: array
             source:
-              decisions: leerplichtwet_1969#13a
-          # De beslissingen op bezwaar (Awb 7:11), ook één rij per besluit.
-          # De cel moet daarvoor de Awb geladen hebben.
-          - name: beslissingen_op_bezwaar
-            type: array
-            source:
-              decisions: algemene_wet_bestuursrecht#7:11
-          # De ontvangen afschriften van uitspraken van de bestuursrechter
-          # (Awb 8:79), één rij per ontvangst, met wat de uitspraak inhoudt en
-          # het besluit van het hoofd waarover zij gaat (refers_to, RFC-053).
-          - name: uitspraken
-            type: array
-            source:
-              facts: algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak
-          # Artikel 1 van het beleid: welke besluiten herroepen zijn, en welke
-          # de bestuursrechter vernietigde.
-          - name: herroepen_besluiten
-            type: array
-            source:
-              regulation: fictief_beleid_vakantieverlof_obs_de_klimop
-              output: herroepen_besluiten
+              regulation: reductie_algemene_wet_bestuursrecht
+              output: geldende_besluiten
               parameters:
-                beslissingen_op_bezwaar: $beslissingen_op_bezwaar
-                uitspraken: $uitspraken
-          - name: vernietigde_besluiten
-            type: array
-            source:
-              regulation: fictief_beleid_vakantieverlof_obs_de_klimop
-              output: vernietigde_besluiten
-              parameters:
-                beslissingen_op_bezwaar: $beslissingen_op_bezwaar
-                uitspraken: $uitspraken
-          - name: besluiten_van_vernietigde_beslissingen
-            type: array
-            source:
-              regulation: fictief_beleid_vakantieverlof_obs_de_klimop
-              output: besluiten_van_vernietigde_beslissingen
-              parameters:
-                beslissingen_op_bezwaar: $beslissingen_op_bezwaar
-                uitspraken: $uitspraken
-          # Artikel 2 van het beleid: het schooljaar van het verlof.
+                grondslag: leerplichtwet_1969#13a
+          # Artikel 1 van het beleid: het schooljaar van het verlof.
           - name: begin_schooljaar
             type: date
             source:
@@ -114,100 +74,38 @@ articles:
               Of het hoofd de jongere in het schooljaar van het gevraagde verlof
               al verlof verleende.
         actions:
-          # Een besluit dat dezelfde jongere verlof verleende, met een eerste
-          # verlofdag in het schooljaar van het gevraagde verlof, en dat niet
-          # herroepen of vernietigd is. Een weigering telt niet. Het besluit dat
-          # in de plaats van een herroepen besluit kwam, telt als elk ander
-          # (RFC-045), behalve als de bestuursrechter de beslissing die het nam
-          # vernietigde (RFC-053). Daarnaast telt verlof dat de bestuursrechter
-          # zelf verleende. Met `as` is een besluit alleen als `$besluit.<veld>`
-          # te lezen (RFC-049); `$bsn_jongere` is de parameter.
+          # Een besluit dat geldt en dezelfde jongere verlof verleende, met een
+          # eerste verlofdag in het schooljaar van het gevraagde verlof. Een
+          # weigering telt niet. Met `as` is een besluit alleen als
+          # `$besluit.<veld>` te lezen (RFC-049); `$bsn_jongere` is de
+          # parameter.
           - output: verlof_al_verleend_in_schooljaar
             value:
-              operation: OR
-              conditions:
-                - operation: FOREACH
-                  collection: $besluiten
-                  as: besluit
-                  filter:
-                    operation: AND
-                    conditions:
-                      - operation: EQUALS
-                        subject: $besluit.verlof_verleend
-                        value: true
-                      - operation: NOT
-                        value:
-                          operation: IN
-                          subject: $besluit.id
-                          value: $herroepen_besluiten
-                      - operation: NOT
-                        value:
-                          operation: IN
-                          subject: $besluit.id
-                          value: $vernietigde_besluiten
-                      - operation: NOT
-                        value:
-                          operation: IN
-                          subject: $besluit.id
-                          value: $besluiten_van_vernietigde_beslissingen
-                      - operation: EQUALS
-                        subject: $besluit.bsn_jongere
-                        value: $bsn_jongere
-                      - operation: GREATER_THAN_OR_EQUAL
-                        subject:
-                          operation: DATE_DIFF
-                          from: $begin_schooljaar
-                          to: $besluit.eerste_verlofdag
-                          in: days
-                        value: 0
-                      - operation: GREATER_THAN_OR_EQUAL
-                        subject:
-                          operation: DATE_DIFF
-                          from: $besluit.eerste_verlofdag
-                          to: $einde_schooljaar
-                          in: days
-                        value: 0
-                  body: true
-                  combine: OR
-                # Of de bestuursrechter de jongere zelf verlof verleende in dat
-                # schooljaar: het besluit in de plaats van de vernietigde
-                # beslissing op bezwaar (uitspraak_in_de_plaats), met het nieuwe
-                # besluit dat die beslissing nam (Awb 8:72, derde lid, onder b).
-                - operation: FOREACH
-                  collection: $uitspraken
-                  as: uitspraak
-                  filter:
-                    operation: AND
-                    conditions:
-                      - operation: NOT
-                        value:
-                          operation: EQUALS
-                          subject: $uitspraak.uitspraak_in_de_plaats
-                          value: null
-                      - operation: NOT
-                        value:
-                          operation: EQUALS
-                          subject: $uitspraak.uitspraak_in_de_plaats.outputs.nieuw_besluit
-                          value: null
-                      - operation: EQUALS
-                        subject: $uitspraak.uitspraak_in_de_plaats.outputs.nieuw_besluit.outputs.verlof_verleend
-                        value: true
-                      - operation: EQUALS
-                        subject: $uitspraak.uitspraak_in_de_plaats.outputs.nieuw_besluit.fields.bsn_jongere
-                        value: $bsn_jongere
-                      - operation: GREATER_THAN_OR_EQUAL
-                        subject:
-                          operation: DATE_DIFF
-                          from: $begin_schooljaar
-                          to: $uitspraak.uitspraak_in_de_plaats.outputs.nieuw_besluit.fields.eerste_verlofdag
-                          in: days
-                        value: 0
-                      - operation: GREATER_THAN_OR_EQUAL
-                        subject:
-                          operation: DATE_DIFF
-                          from: $uitspraak.uitspraak_in_de_plaats.outputs.nieuw_besluit.fields.eerste_verlofdag
-                          to: $einde_schooljaar
-                          in: days
-                        value: 0
-                  body: true
-                  combine: OR
+              operation: FOREACH
+              collection: $geldende_besluiten
+              as: besluit
+              filter:
+                operation: AND
+                conditions:
+                  - operation: EQUALS
+                    subject: $besluit.verlof_verleend
+                    value: true
+                  - operation: EQUALS
+                    subject: $besluit.bsn_jongere
+                    value: $bsn_jongere
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject:
+                      operation: DATE_DIFF
+                      from: $begin_schooljaar
+                      to: $besluit.eerste_verlofdag
+                      in: days
+                    value: 0
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject:
+                      operation: DATE_DIFF
+                      from: $besluit.eerste_verlofdag
+                      to: $einde_schooljaar
+                      in: days
+                    value: 0
+              body: true
+              combine: OR

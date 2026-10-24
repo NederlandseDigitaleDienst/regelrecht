@@ -58,6 +58,9 @@ fn service_without(without: &[&str]) -> LawExecutionService {
         // The school's reduction for lid 2, in the corpus under its holder
         // (RFC-048).
         format!("reducties/{REDUCTION}"),
+        // Which decisions still stand after objection and appeal: the
+        // reduction of the Awb, which the school's reduction calls.
+        "reducties/reductie_algemene_wet_bestuursrecht".to_string(),
     ]
     .into_iter()
     .filter(|law| !without.iter().any(|w| law.ends_with(w)))
@@ -1650,7 +1653,8 @@ fn a_revoked_grant_does_not_count_as_leave_granted() {
     // revoked it; the reduction leaves it out (RFC-050).
     let rows = |grondslag: &str| {
         serde_json::to_value(
-            regelrecht_cel::reading::rows(cell.grams(), grondslag, "BESCHIKKING").unwrap(),
+            regelrecht_cel::reading::rows(&service(), cell.grams(), grondslag, "BESCHIKKING")
+                .unwrap(),
         )
         .unwrap()
     };
@@ -1906,6 +1910,7 @@ fn a_reduction_reads_the_decisions_on_objection_with_their_own_outcome() {
     let decided = reconsider(&mut cell, &bezwaar.id, &profession(true), "2026-11-15").unwrap();
     let rows = serde_json::to_value(
         regelrecht_cel::reading::rows(
+            &service(),
             cell.grams(),
             "algemene_wet_bestuursrecht#7:11",
             "BESCHIKKING",
@@ -2006,15 +2011,15 @@ fn a_grant_revoked_on_objection_no_longer_counts_on_the_objection_against_the_re
     assert!(
         result.open_terms.iter().any(|f| f.term == ONCE
             && matches!(&f.filled_by, regelrecht_engine::FilledBy::Answer { law_id, article, answers }
-                if law_id == LEAVE_POLICY && article == "3" && answers == std::slice::from_ref(answer))),
+                if law_id == LEAVE_POLICY && article == "2" && answers == std::slice::from_ref(answer))),
         "{:?}",
         result.open_terms
     );
 
     // Step 2: asked why, the cell runs its reduction for that term again,
-    // with its own trace: A is among the revoked decisions, and both rows
-    // under art. 13a (A, and the refusal in its place) are skipped by the
-    // filter; B itself is not read.
+    // with its own trace: the Awb reduction counts A among the revoked
+    // decisions and leaves only the refusal in its place standing, which
+    // the filter skips; B itself is not read.
     let explained = cell
         .explain_answer(&mut service(), &[], &on_b[0].id, ONCE)
         .unwrap();
@@ -2028,8 +2033,13 @@ fn a_grant_revoked_on_objection_no_longer_counts_on_the_objection_against_the_re
         why.contains(&format!("herroepen_besluiten = ['{}']", a.id)),
         "A is not among the revoked:\n{why}"
     );
+    let standing = why
+        .lines()
+        .find(|line| line.contains("Result: besluiten_in_stand ="))
+        .unwrap_or_else(|| panic!("no decisions standing:\n{why}"));
+    assert!(!standing.contains(&a.id), "A still stands:\n{why}");
     assert!(
-        why.contains("FOREACH over 0 element(s), 2 skipped by filter = False"),
+        why.contains("FOREACH over 0 element(s), 1 skipped by filter = False"),
         "{why}"
     );
     // A term the decision did not ask the cell is refused.
@@ -2177,4 +2187,30 @@ fn a_cell_of_another_holder_gives_no_answer_from_the_heads_reduction() {
     use regelrecht_engine::OpenTermAnswerer;
     let e = reader.answer(&service(), &request).unwrap_err();
     assert!(e.to_string().contains("whose holder"), "{e}");
+}
+
+/// The reduction of the Awb has no holder: a reduction calls it, and no
+/// cell gives its output as an answer, not even the cell of a body that
+/// applies the Awb.
+#[test]
+fn no_cell_gives_the_reduction_of_the_awb_as_its_answer() {
+    const AWB_REDUCTION: &str = "reductie_algemene_wet_bestuursrecht";
+    let dir = answers_dir(&[("besluiten_in_stand", AWB_REDUCTION)]);
+    let cell = Cell::in_memory(RECORDING_ACTOR, dir.path()).unwrap();
+    let reader = regelrecht_cel::reading::Reader::new(
+        RECORDING_ACTOR,
+        cell.authority(),
+        cell.answers(),
+        Vec::new(),
+        None,
+    );
+    let request = regelrecht_engine::AnswerRequest {
+        name: "besluiten_in_stand",
+        parameters: &std::collections::BTreeMap::new(),
+        calculation_date: "2026-10-20",
+    };
+    use regelrecht_engine::OpenTermAnswerer;
+    let e = reader.answer(&service(), &request).unwrap_err();
+    assert!(e.to_string().contains("whose holder"), "{e}");
+    assert!(e.to_string().contains(AWB_REDUCTION), "{e}");
 }

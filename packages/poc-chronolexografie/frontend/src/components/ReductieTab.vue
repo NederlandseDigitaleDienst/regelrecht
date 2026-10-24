@@ -7,7 +7,9 @@
 // beleid dat zij voor een norm aanroept, en per invoer de rijen die zij uit
 // de kroniek krijgt: de besluiten onder een artikel (zoals dat van de casus
 // of Awb 7:11) of de executogrammen van een feit dat een artikel vereist
-// (zoals de vestiging van een school). Wat de cel bij een besluit antwoordde
+// (zoals de vestiging van een school). Ook de invoer van een reductie die
+// zij aanroept, zoals die van de Awb, staat erbij: die leest uit dezelfde
+// kroniek. Wat de cel bij een besluit antwoordde
 // en waarom, staat bij dat besluit (tabblad Bestuursorgaan).
 import { onMounted, ref, watch } from 'vue';
 import { api } from '../api.js';
@@ -38,8 +40,11 @@ const pad = (r) => {
 const koppelingen = (r, naam) =>
   stand.value.antwoorden.filter((k) => k.reduction === r.id && k.antwoord === naam);
 
-/** Het beleid dat de reductie voor een norm aanroept, als tekst. */
-const normen = (r) => opsomming(r.normen.map((n) => `beleid ${n.beleid} art. ${n.artikel}`));
+/** Het beleid of de reductie die de reductie voor een norm aanroept, als tekst. */
+const normen = (r) =>
+  opsomming(
+    r.normen.map((n) => `${n.laag === 'REDUCTIE' ? 'reductie' : 'beleid'} ${n.regelwerk} art. ${n.artikel}`),
+  );
 </script>
 
 <template>
@@ -88,14 +93,14 @@ const normen = (r) => opsomming(r.normen.map((n) => `beleid ${n.beleid} art. ${n
         <nldd-title slot="header" size="4" text="Zoals geschreven"></nldd-title>
         <nldd-code-viewer language="yaml" appearance="box-tinted">{{ r.yaml }}</nldd-code-viewer>
       </nldd-simple-section>
-      <nldd-simple-section v-for="i in r.invoer" :key="i.naam">
+      <nldd-simple-section v-for="i in r.invoer" :key="`${i.reductie}-${i.naam}`">
         <nldd-title
           slot="header"
           size="4"
-          :text="`Invoer ${i.naam}`"
+          :text="i.reductie === r.id ? `Invoer ${i.naam}` : `Invoer ${i.naam} van ${i.reductie}`"
           :supporting-text="i.executogrammen_van
             ? `${i.rijen.length} rij(en): één per executogram onder ${i.executogrammen_van} in de kroniek, met zijn gegevens en zijn id.`
-            : `${i.rijen.length} rij(en): één per besluit onder ${i.besluiten_onder} in de kroniek, met de gegevens en de uitvoer van dat besluit en zijn id.`"
+            : `${i.rijen.length} rij(en): één per besluit onder ${i.besluiten_onder} in de kroniek, met de gegevens en de uitvoer van dat besluit, zijn artikel en zijn id.`"
         ></nldd-title>
         <nldd-code-viewer language="json" appearance="box-tinted">{{ alsJson(i.rijen) }}</nldd-code-viewer>
       </nldd-simple-section>

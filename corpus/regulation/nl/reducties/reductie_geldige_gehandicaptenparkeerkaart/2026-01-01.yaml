@@ -29,11 +29,14 @@ articles:
     text: >-
       Geen regelgeving. Het systeem van het college van de gemeente Wilgendaal
       kijkt door middel van een chronolexografische reductie op zijn eigen
-      kroniek of er een niet-herroepen besluit is waarin het de aanvrager een
-      kaart verstrekte. De aanvrager heeft een geldige
+      kroniek of er een besluit is waarin het de aanvrager een kaart
+      verstrekte, en dat niet herroepen is en niet door de bestuursrechter
+      vernietigd (Awb 7:11 en 8:72). De aanvrager heeft een geldige
       gehandicaptenparkeerkaart als het college hem in een besluit op een
       aanvraag (artikel 49 van het BABW) een kaart verstrekte die op de dag van
-      het besluit nog geldig is.
+      het besluit nog geldig is. Verstrekte de bestuursrechter hem zelf een
+      kaart (Awb 8:72, derde lid, onder b), dan zegt het systeem niets: het
+      kent de geldigheid van die kaart niet.
     url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
     machine_readable:
       execution:
@@ -47,98 +50,105 @@ articles:
             type: date
             description: De dag waarop het college op de aanvraag besluit.
         input:
-          # De besluiten onder artikel 49, één rij per besluit, met de gegevens
-          # en de uitvoer van dat besluit onder hun eigen naam: onder meer
-          # bsn_aanvrager, gehandicaptenparkeerkaart_verstrekt en
-          # kaart_geldig_tot (afgeleid, maar bij het besluit bewaard), en het
-          # id van het besluit.
-          - name: besluiten
+          # De besluiten onder artikel 49 die gelden, één rij per besluit,
+          # met de gegevens en de uitvoer van dat besluit onder hun eigen
+          # naam. Welke besluiten gelden, volgt uit de Awb (7:11 en 8:72):
+          # ook een besluit dat de bestuursrechter in de plaats stelde (Awb
+          # 8:72, derde lid, onder b).
+          - name: geldende_besluiten
             type: array
             source:
-              decisions: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
-          # De beslissingen op bezwaar (Awb 7:11), ook één rij per besluit.
-          # Een rij noemt het bestreden besluit bij zijn id
-          # (bestreden_besluit), en of zij het herriep
-          # (bestreden_besluit_herroepen). De cel moet daarvoor de Awb
-          # geladen hebben.
-          - name: beslissingen_op_bezwaar
-            type: array
-            source:
-              decisions: algemene_wet_bestuursrecht#7:11
+              regulation: reductie_algemene_wet_bestuursrecht
+              output: geldende_besluiten
+              parameters:
+                grondslag: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
         output:
-          - name: herroepen_besluiten
-            type: array
-            description: >-
-              De ids van de besluiten die een beslissing op bezwaar herriep
-              (Awb 7:11, tweede lid).
           - name: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
             type: boolean
+            nullable: true
             description: >-
               Of het college de aanvrager een kaart verstrekte die op de dag van
-              het besluit nog geldig is.
+              het besluit nog geldig is; afwezig als de bestuursrechter hem
+              zelf een kaart verstrekte.
         actions:
-          # Een besluit dat een beslissing op bezwaar herriep, is er niet meer
-          # (Awb 7:11, tweede lid). De koppeling loopt via een lijst ids:
-          # binnen een FOREACH is de binding van een buitenste FOREACH niet te
-          # lezen.
-          - output: herroepen_besluiten
-            value:
-              operation: FOREACH
-              collection: $beslissingen_op_bezwaar
-              as: beslissing
-              filter:
-                operation: EQUALS
-                subject: $beslissing.bestreden_besluit_herroepen
-                value: true
-              body: $beslissing.bestreden_besluit
-          # Een besluit dat dezelfde aanvrager een kaart verstrekte, geldig tot
-          # en met de dag van het besluit of later. Een weigering telt niet, en
-          # een besluit dat op bezwaar is herroepen ook niet (Awb 7:11, tweede
-          # lid); het besluit dat in zijn plaats kwam, telt als elk ander
-          # (RFC-050). Een kaart die haar geldigheid op een andere grond
-          # verloor (artikel 53, eerste lid, onder b tot en met e), en een kaart
-          # van een andere gemeente, ziet deze reductie niet: die staan niet in
-          # de kroniek. Met `as` is een besluit alleen als `$besluit.<veld>` te
-          # lezen (RFC-049).
+          # Een besluit dat geldt en dezelfde aanvrager een kaart verstrekte,
+          # geldig tot en met de dag van het besluit of later. Een weigering
+          # telt niet. Een kaart die haar geldigheid op een andere grond
+          # verloor (artikel 53, eerste lid, onder b tot en met e), en een
+          # kaart van een andere gemeente, ziet deze reductie niet: die staan
+          # niet bij de besluiten van het college. Verstrekte de
+          # bestuursrechter zelf een kaart (Awb 8:72, derde lid, onder b), dan
+          # zwijgt het systeem (null) en oordeelt het college: het besluit dat
+          # hij in de plaats stelde, draagt geen kaart_geldig_tot (null), want
+          # die wordt alleen bij een besluit van het college afgeleid. Met
+          # `as` is een besluit alleen als `$besluit.<veld>` te lezen
+          # (RFC-049).
           - output: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
             value:
-              operation: FOREACH
-              collection: $besluiten
-              as: besluit
-              filter:
-                operation: AND
-                conditions:
-                  # Deze voorwaarde moet vóór de DATE_DIFF staan: AND stopt bij
-                  # de eerste onwaar, en een weigering heeft geen
-                  # kaart_geldig_tot, waarop DATE_DIFF faalt.
-                  - operation: EQUALS
-                    subject: $besluit.gehandicaptenparkeerkaart_verstrekt
-                    value: true
-                  - operation: NOT
-                    value:
-                      operation: IN
-                      subject: $besluit.id
-                      value: $herroepen_besluiten
-                  - operation: EQUALS
-                    subject: $besluit.bsn_aanvrager
-                    value: $bsn_aanvrager
-                  - operation: GREATER_THAN_OR_EQUAL
-                    subject:
-                      operation: DATE_DIFF
-                      from: $besluit_datum
-                      to: $besluit.kaart_geldig_tot
-                      in: days
-                    value: 0
-              body: true
-              combine: OR
+              operation: IF
+              cases:
+                - when:
+                    operation: FOREACH
+                    collection: $geldende_besluiten
+                    as: besluit
+                    filter:
+                      operation: AND
+                      conditions:
+                        # Deze voorwaarden moeten vóór de DATE_DIFF staan: AND
+                        # stopt bij de eerste onwaar, en een weigering of een
+                        # kaart van de bestuursrechter heeft geen
+                        # kaart_geldig_tot, waarop DATE_DIFF faalt.
+                        - operation: EQUALS
+                          subject: $besluit.gehandicaptenparkeerkaart_verstrekt
+                          value: true
+                        - operation: EQUALS
+                          subject: $besluit.bsn_aanvrager
+                          value: $bsn_aanvrager
+                        - operation: NOT
+                          value:
+                            operation: EQUALS
+                            subject: $besluit.kaart_geldig_tot
+                            value: null
+                        - operation: GREATER_THAN_OR_EQUAL
+                          subject:
+                            operation: DATE_DIFF
+                            from: $besluit_datum
+                            to: $besluit.kaart_geldig_tot
+                            in: days
+                          value: 0
+                    body: true
+                    combine: OR
+                  then: true
+                - when:
+                    operation: FOREACH
+                    collection: $geldende_besluiten
+                    as: besluit
+                    filter:
+                      operation: AND
+                      conditions:
+                        - operation: EQUALS
+                          subject: $besluit.gehandicaptenparkeerkaart_verstrekt
+                          value: true
+                        - operation: EQUALS
+                          subject: $besluit.bsn_aanvrager
+                          value: $bsn_aanvrager
+                        - operation: EQUALS
+                          subject: $besluit.kaart_geldig_tot
+                          value: null
+                    body: true
+                    combine: OR
+                  then: null
+              default: false
   - number: '2'
     text: >-
       Geen regelgeving. Het systeem van het college van de gemeente Wilgendaal
       kijkt door middel van een chronolexografische reductie op zijn eigen
       kroniek of het de aanvrager eerder een kaart verstrekte. Hij kreeg
       eerder een kaart als het college hem in een besluit op een aanvraag
-      (artikel 49 van het BABW) een kaart verstrekte die niet op bezwaar is
-      herroepen, geldig of niet; anders zegt het systeem niets.
+      (artikel 49 van het BABW) een kaart verstrekte die niet herroepen is en
+      niet door de bestuursrechter vernietigd, geldig of niet, of als de
+      bestuursrechter hem zelf een kaart verstrekte (Awb 8:72, derde lid,
+      onder b); anders zegt het systeem niets.
     url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel2
     machine_readable:
       execution:
@@ -149,20 +159,19 @@ articles:
             type: string
             description: Burgerservicenummer van de gehandicapte die de kaart aanvraagt.
         input:
-          - name: besluiten
+          # De besluiten onder artikel 49 die gelden, één rij per besluit,
+          # met de gegevens en de uitvoer van dat besluit onder hun eigen
+          # naam. Welke besluiten gelden, volgt uit de Awb (7:11 en 8:72):
+          # ook een besluit dat de bestuursrechter in de plaats stelde (Awb
+          # 8:72, derde lid, onder b).
+          - name: geldende_besluiten
             type: array
             source:
-              decisions: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
-          - name: beslissingen_op_bezwaar
-            type: array
-            source:
-              decisions: algemene_wet_bestuursrecht#7:11
+              regulation: reductie_algemene_wet_bestuursrecht
+              output: geldende_besluiten
+              parameters:
+                grondslag: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
         output:
-          - name: eerder_herroepen_besluiten
-            type: array
-            description: >-
-              De ids van de besluiten die een beslissing op bezwaar herriep
-              (Awb 7:11, tweede lid).
           - name: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
             type: boolean
             nullable: true
@@ -170,27 +179,19 @@ articles:
               Waar, als het college de aanvrager eerder een kaart verstrekte;
               anders afwezig.
         actions:
-          - output: eerder_herroepen_besluiten
-            value:
-              operation: FOREACH
-              collection: $beslissingen_op_bezwaar
-              as: beslissing
-              filter:
-                operation: EQUALS
-                subject: $beslissing.bestreden_besluit_herroepen
-                value: true
-              body: $beslissing.bestreden_besluit
-          # Een besluit dat dezelfde aanvrager eerder een kaart verstrekte,
-          # geldig of niet, en niet herroepen. Vindt het systeem er geen, dan
-          # zwijgt het (null): een kaart van een andere gemeente of van het
-          # CBR kent het niet; die cel antwoordt zelf (RFC-052).
+          # Een besluit dat geldt en dezelfde aanvrager eerder een kaart
+          # verstrekte, geldig of niet, ook een kaart die de bestuursrechter
+          # in de plaats van het vernietigde besluit verstrekte. Vindt het
+          # systeem er geen, dan zwijgt het (null): een kaart van een andere
+          # gemeente of van het CBR kent het niet; die cel antwoordt zelf
+          # (RFC-052).
           - output: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
             value:
               operation: IF
               cases:
                 - when:
                     operation: FOREACH
-                    collection: $besluiten
+                    collection: $geldende_besluiten
                     as: besluit
                     filter:
                       operation: AND
@@ -198,11 +199,6 @@ articles:
                         - operation: EQUALS
                           subject: $besluit.gehandicaptenparkeerkaart_verstrekt
                           value: true
-                        - operation: NOT
-                          value:
-                            operation: IN
-                            subject: $besluit.id
-                            value: $eerder_herroepen_besluiten
                         - operation: EQUALS
                           subject: $besluit.bsn_aanvrager
                           value: $bsn_aanvrager

@@ -7,12 +7,13 @@ valid_from: '2026-08-01'
 # FICTIEF beleid van het hoofd van OBS De Klimop, eigen keuze in de
 # modellering: geen bekendgemaakt beleid, maar een aanname namens de houder
 # (RFC-048). Er is geen bekendmaking; de url wijst naar artikel 13a.
-# Artikel 1 en 2 zijn normen die het hoofd hanteert bij artikel 13a, tweede
-# lid ("slechts eenmaal per schooljaar"): welke besluiten niet meer tellen,
-# en welk schooljaar dat van het verlof is. De reductie van de school
-# (reductie_verlof_al_verleend_in_schooljaar) leest de besluiten in de
-# kroniek en past deze normen toe; dit beleid leest zelf geen kroniek.
-# Artikel 3 tot en met 7 koppelen open begrippen aan de antwoorden van de cel
+# Artikel 1 is een norm die het hoofd hanteert bij artikel 13a, tweede lid
+# ("slechts eenmaal per schooljaar"): welk schooljaar dat van het verlof is.
+# De reductie van de school (reductie_verlof_al_verleend_in_schooljaar) leest
+# de besluiten en past deze norm toe; welke besluiten nog gelden, volgt uit de
+# Awb (reductie_algemene_wet_bestuursrecht). Dit beleid leest zelf geen
+# besluiten.
+# Artikel 2 tot en met 6 koppelen open begrippen aan de antwoorden van de cel
 # van de school (source.reduction, RFC-048): zo ontleent het hoofd wat hij
 # anders per aanvraag vaststelt aan wat zijn eigen cel uit de kroniek haalt.
 # Buiten de cel geeft een koppeling niets en stelt het hoofd het zelf vast,
@@ -23,97 +24,6 @@ competent_authority:
   name: Het hoofd van OBS De Klimop
 articles:
   - number: '1'
-    text: >-
-      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Een
-      besluit telt niet meer als verleend verlof als een beslissing op
-      bezwaar het herriep, of als de bestuursrechter het met zijn
-      rechtsgevolgen vernietigde. Vernietigde de bestuursrechter een
-      beslissing op bezwaar met haar rechtsgevolgen, dan telt haar herroeping
-      niet, en ook niet het besluit dat zij in de plaats nam (Awb 8:72, eerste
-      tot en met derde lid).
-    url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
-    machine_readable:
-      execution:
-        parameters:
-          # De beslissingen op bezwaar (Awb 7:11), zoals de reductie ze uit de
-          # kroniek haalt: per beslissing het bestreden besluit bij zijn id
-          # (bestreden_besluit), en of zij het herriep
-          # (bestreden_besluit_herroepen).
-          - name: beslissingen_op_bezwaar
-            type: array
-            description: De beslissingen op bezwaar van het hoofd.
-          # De ontvangen afschriften van uitspraken van de bestuursrechter
-          # (Awb 8:79), zoals de reductie ze uit de kroniek haalt: per
-          # uitspraak wat zij inhoudt, en het besluit van het hoofd waarover
-          # zij gaat (refers_to, RFC-053).
-          - name: uitspraken
-            type: array
-            description: De ontvangen uitspraken van de bestuursrechter.
-        output:
-          - name: vernietigde_besluiten
-            type: array
-            description: >-
-              De ids van de besluiten van het hoofd die de bestuursrechter met
-              hun rechtsgevolgen vernietigde (Awb 8:72, eerste en tweede lid,
-              niet in stand gelaten onder derde lid, onder a).
-          - name: besluiten_van_vernietigde_beslissingen
-            type: array
-            description: >-
-              De ids van de nieuwe besluiten die een vernietigde beslissing op
-              bezwaar in de plaats van een herroepen besluit nam.
-          - name: herroepen_besluiten
-            type: array
-            description: >-
-              De ids van de besluiten die een beslissing op bezwaar herriep
-              (Awb 7:11, tweede lid) en die niet herleefden doordat de
-              bestuursrechter die beslissing vernietigde.
-        actions:
-          # De uitspraak noemt de vernietiging met de rechtsgevolgen samen in
-          # rechtsgevolgen_vernietigd. De koppeling loopt via een lijst ids:
-          # binnen een FOREACH is de binding van een buitenste FOREACH niet te
-          # lezen.
-          - output: vernietigde_besluiten
-            value:
-              operation: FOREACH
-              collection: $uitspraken
-              as: uitspraak
-              filter:
-                operation: EQUALS
-                subject: $uitspraak.rechtsgevolgen_vernietigd
-                value: true
-              body: $uitspraak.refers_to
-          # Wat een vernietigde beslissing op bezwaar in de plaats nam,
-          # vervalt met haar rechtsgevolgen (Awb 8:72, tweede lid).
-          - output: besluiten_van_vernietigde_beslissingen
-            value:
-              operation: FOREACH
-              collection: $beslissingen_op_bezwaar
-              as: beslissing
-              filter:
-                operation: IN
-                subject: $beslissing.id
-                value: $vernietigde_besluiten
-              body: $beslissing.nieuw_besluit
-          # Vernietigde de bestuursrechter de beslissing op bezwaar, dan
-          # herleeft het bezwaar en geldt de herroeping niet.
-          - output: herroepen_besluiten
-            value:
-              operation: FOREACH
-              collection: $beslissingen_op_bezwaar
-              as: beslissing
-              filter:
-                operation: AND
-                conditions:
-                  - operation: EQUALS
-                    subject: $beslissing.bestreden_besluit_herroepen
-                    value: true
-                  - operation: NOT
-                    value:
-                      operation: IN
-                      subject: $beslissing.id
-                      value: $vernietigde_besluiten
-              body: $beslissing.bestreden_besluit
-  - number: '2'
     text: >-
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Het
       schooljaar van het gevraagde verlof is het schooljaar van de eerste
@@ -152,7 +62,7 @@ articles:
             value: $begin_schooljaar
           - output: einde_schooljaar_van_verlof
             value: $einde_schooljaar
-  - number: '3'
+  - number: '2'
     text: >-
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Of
       het hoofd de jongere in het schooljaar van het gevraagde verlof al
@@ -193,7 +103,7 @@ articles:
         actions:
           - output: verlof_al_verleend_in_schooljaar
             value: $antwoord_verlof_al_verleend
-  - number: '4'
+  - number: '3'
     text: >-
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Of
       het gevraagde verlof buiten de schoolvakanties valt, ontleent het hoofd
@@ -233,7 +143,7 @@ articles:
         actions:
           - output: verlof_valt_buiten_schoolvakanties
             value: $antwoord_buiten_schoolvakanties
-  - number: '5'
+  - number: '4'
     text: >-
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. De
       gemeente waarin de school gevestigd is, ontleent het hoofd aan het
@@ -272,11 +182,11 @@ articles:
         actions:
           - output: gemeente_van_vestiging
             value: $antwoord_gemeente
-  - number: '6'
+  - number: '5'
     text: >-
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. De
       provincie waarin de school gevestigd is, ontleent het hoofd aan het
-      antwoord van zijn eigen cel, zoals de gemeente (artikel 5).
+      antwoord van zijn eigen cel, zoals de gemeente (artikel 4).
     url: https://wetten.overheid.nl/BWBR0049811/2025-08-01#Artikel2
     machine_readable:
       implements:
@@ -307,11 +217,11 @@ articles:
         actions:
           - output: provincie_van_vestiging
             value: $antwoord_provincie
-  - number: '7'
+  - number: '6'
     text: >-
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Het
       deel van de gemeente waarin de school gevestigd is, ontleent het hoofd
-      aan het antwoord van zijn eigen cel, zoals de gemeente (artikel 5).
+      aan het antwoord van zijn eigen cel, zoals de gemeente (artikel 4).
     url: https://wetten.overheid.nl/BWBR0049811/2025-08-01#Artikel2
     machine_readable:
       implements:

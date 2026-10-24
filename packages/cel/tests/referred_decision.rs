@@ -743,7 +743,13 @@ fn the_answer_of_a_reduction_reaches_the_called_article_on_the_day_of_the_decisi
     // The rows link a decision on objection to the decision it contests by
     // id, and hold the new decision by id too.
     let rows = serde_json::to_value(
-        reading::rows(cell.grams(), "wet_heroverweging_fictief#1", "BESCHIKKING").unwrap(),
+        reading::rows(
+            &service,
+            cell.grams(),
+            "wet_heroverweging_fictief#1",
+            "BESCHIKKING",
+        )
+        .unwrap(),
     )
     .unwrap();
     let rows = rows.as_array().unwrap();

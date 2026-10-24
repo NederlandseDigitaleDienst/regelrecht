@@ -1,0 +1,40 @@
+---
+# Tier C: a reduction without a holder that reads the decisions taken under
+# the article its parameter names (schema v0.8.11, RFC-048). It has no
+# chronicle of its own: it reads that of the cell that runs the reduction
+# calling it.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.11/schema/v0.8.11/schema.json
+$id: test_conformance_decisions_by_parameter
+regulatory_layer: REDUCTIE
+publication_date: '2026-10-24'
+valid_from: '2026-10-24'
+name: Testreductie besluiten onder een artikel
+url: https://example.invalid/decisions-by-parameter
+articles:
+  - number: '1'
+    url: https://example.invalid/decisions-by-parameter/1
+    text: De besluiten onder het artikel grondslag die toekennen.
+    machine_readable:
+      execution:
+        parameters:
+          - name: grondslag
+            type: string
+        input:
+          - name: besluiten
+            type: array
+            source:
+              decisions: $grondslag
+        output:
+          - name: toekenningen
+            type: array
+        actions:
+          - output: toekenningen
+            value:
+              operation: FOREACH
+              collection: $besluiten
+              as: besluit
+              filter:
+                operation: EQUALS
+                subject: $besluit.toegekend
+                value: true
+              body: $besluit

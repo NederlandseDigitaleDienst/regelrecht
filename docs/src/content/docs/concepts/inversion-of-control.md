@@ -118,7 +118,7 @@ An implementation can state its value in terms of the law it fills in. A ministe
 A cell's reduction ([RFC-048](/rfcs/rfc-048)) reads the cell's own decisions back and gives a named answer. It is not a regulation and fills no open term. Policy of the authority that decides does that: an article fills the term with `implements` and takes the answer as an input (`source.reduction`, schema v0.8.9). Art. 13a of the Leerplichtwet 1969 leaves `verlof_al_verleend_in_schooljaar` to the head per case (`decided_per_case_by`), and the head's policy binds it:
 
 ```yaml
-# fictief_beleid_vakantieverlof_obs_de_klimop, article 3
+# fictief_beleid_vakantieverlof_obs_de_klimop, article 2
 # regulatory_layer: UITVOERINGSBELEID
 machine_readable:
   implements:

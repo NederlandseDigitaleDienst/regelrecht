@@ -33,7 +33,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::article::{AuthorityType, NamedAuthority};
+use crate::article::{ArticleBasedLaw, AuthorityType, NamedAuthority};
 use crate::error::Result;
 use crate::service::LawExecutionService;
 use crate::types::Value;
@@ -135,15 +135,63 @@ pub trait OpenTermAnswerer {
     ) -> Result<Option<Answer>>;
 }
 
+/// What a reduction reads from a chronicle (RFC-048): the decisions taken
+/// under an article (`source.decisions`, `<regulation>#<article>`), or the
+/// recorded instances of a fact an article requires (`source.facts`,
+/// `<regulation>#<article>#<fact>`, RFC-051).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChronicleRead<'r> {
+    Decisions(&'r str),
+    Facts(&'r str),
+}
+
+impl std::fmt::Display for ChronicleRead<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Decisions(grondslag) => write!(f, "the decisions taken under {grondslag}"),
+            Self::Facts(fact) => write!(f, "the recorded facts {fact}"),
+        }
+    }
+}
+
+/// The chronicle a reduction is applied to: that of the cell that runs it
+/// (RFC-048). A reduction reads it through its inputs that read decisions
+/// or facts, and so does every reduction it calls: a reduction without a
+/// holder, such as that of the Awb, has no chronicle of its own and reads
+/// the chronicle of the executing cell.
+pub trait Chronicle {
+    /// Who keeps the chronicle, as the trace names the provider of the rows.
+    fn keeper(&self) -> &str;
+
+    /// The rows `read` gives for an input of `law`, on `calculation_date`
+    /// (YYYY-MM-DD): one per decision or recorded instance, in the order of
+    /// the chronicle. `None` when
+    /// this chronicle does not answer it; the input is then an error, never
+    /// an empty list. An error ends the execution, such as a reduction of
+    /// another holder than the keeper.
+    fn rows(
+        &self,
+        service: &LawExecutionService,
+        law: &ArticleBasedLaw,
+        read: ChronicleRead<'_>,
+        calculation_date: &str,
+    ) -> Result<Option<Value>>;
+}
+
 /// What a caller gives an execution apart from its parameters: the
 /// findings for the case (RFC-045), the answerer of the call and the other
-/// answerers of the sphere (RFC-048 §4).
+/// answerers of the sphere (RFC-048 §4), and the chronicle a reduction is
+/// applied to.
 #[derive(Default)]
 pub struct Call<'a> {
     pub findings: BTreeMap<String, Value>,
     /// The cell that runs the execution: asked for the answers a binding of
     /// its policy takes (RFC-048).
     pub answerer: Option<&'a dyn OpenTermAnswerer>,
+    /// The chronicle of the cell that runs a reduction (RFC-048): it gives
+    /// the rows every reduction in the execution reads. Only a cell that
+    /// runs one of its reductions passes it; a decision is taken without.
+    pub chronicle: Option<&'a dyn Chronicle>,
     /// The other cells of the sphere, asked with [`Self::answerer`] where a
     /// binding fills a term that names them in `competent_authority`
     /// (RFC-048 §4), or where the binding's policy names them as its holder.

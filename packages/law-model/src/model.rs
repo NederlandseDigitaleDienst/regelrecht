@@ -161,7 +161,8 @@ pub struct TypeSpec {
 /// - Simple regulation reference: `regulation: "other_law"` + `output: "field_name"`
 /// - Same-law reference: `output: "field_name"` (resolved within the same law)
 /// - The decisions taken under an article: `decisions: "<regulation>#<article>"`
-///   (schema v0.8.2, RFC-048), only in a `REDUCTIE`
+///   (schema v0.8.2, RFC-048), or a `$`-reference to a parameter that holds
+///   one (schema v0.8.11), only in a `REDUCTIE`
 /// - The recorded instances of a fact an article requires: `facts:
 ///   "<regulation>#<article>#<fact>"` (schema v0.8.7, RFC-051), only in a
 ///   `REDUCTIE`
@@ -190,15 +191,16 @@ pub struct Source {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// The decisions taken under this article, `<regulation>#<article>`
-    /// (schema v0.8.2, RFC-048): a list with one row per decision. Only a
-    /// data source answers it, such as the cell that holds the decisions in
-    /// its chronicle, or the caller with a parameter of that name; no
-    /// regulation is executed for it. Only a rulework with
-    /// `regulatory_layer: REDUCTIE` may read it.
+    /// (schema v0.8.2, RFC-048), or a `$`-reference to a parameter of the
+    /// reading article that holds one (schema v0.8.11): a list with one row
+    /// per decision. Only a data source answers it, such as the cell on
+    /// whose chronicle the reduction is applied, or the caller with a
+    /// parameter of that name; no regulation is executed for it. Only a
+    /// rulework with `regulatory_layer: REDUCTIE` may read it.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_article_reference"
+        deserialize_with = "optional_article_target"
     )]
     pub decisions: Option<String>,
     /// The recorded instances of a fact an article requires,

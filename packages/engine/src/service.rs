@@ -25,7 +25,9 @@
 //! )?;
 //! ```
 
-use crate::answer::{Answer, AnswerProvenance, AnswerRequest, Call, OpenTermAnswerer};
+use crate::answer::{
+    Answer, AnswerProvenance, AnswerRequest, Call, Chronicle, ChronicleRead, OpenTermAnswerer,
+};
 use crate::article::{
     Article, ArticleBasedLaw, Execution, HookPoint, Input, MachineReadable, ProcedureDefinition,
     Stage, StageRequirement,
@@ -154,6 +156,9 @@ struct ResolutionContext<'a> {
     /// The other cells of the call (RFC-052), asked with [`Self::answerer`]
     /// where a binding names them.
     sphere: Vec<&'a dyn OpenTermAnswerer>,
+    /// The chronicle a reduction in this execution is applied to: that of
+    /// the cell that runs it (RFC-048).
+    chronicle: Option<&'a dyn Chronicle>,
     /// The answers each binding took, in the order the engine asked them
     /// ([`Bound`]): how an open term the binding fills came to its value
     /// ([`FilledBy::Answer`]).
@@ -285,6 +290,7 @@ impl<'a> ResolutionContext<'a> {
             open_terms: Vec::new(),
             answerer: None,
             sphere: Vec::new(),
+            chronicle: None,
             bound: Vec::new(),
         })
     }
@@ -294,6 +300,7 @@ impl<'a> ResolutionContext<'a> {
         self.findings = call.findings;
         self.answerer = call.answerer;
         self.sphere = call.sphere;
+        self.chronicle = call.chronicle;
     }
 
     /// The caller's findings (RFC-050) that apply to `article` of `law`: one
@@ -5003,6 +5010,98 @@ impl LawExecutionService {
         }
     }
 
+    /// Refuse a call from `caller` to the rulework `target` when `target`
+    /// is a `REDUCTIE` and `caller` is not: a reduction reads the chronicle
+    /// of the cell that runs it, so only a reduction calls one (RFC-048), on
+    /// that same chronicle. Each in the version in force on the reference
+    /// date, or else its newest. A call to the decision of an article
+    /// (`source.article`) needs none: a reduction takes no decision.
+    fn refuse_reduction_call(
+        &self,
+        caller: &str,
+        target: &str,
+        res_ctx: &ResolutionContext<'_>,
+    ) -> Result<()> {
+        let layer = |id: &str| {
+            self.resolver
+                .get_law_for_date(id, res_ctx.reference_date())
+                .or_else(|| self.get_law(id))
+                .map(|law| law.regulatory_layer)
+        };
+        if layer(target) == Some(RegulatoryLayer::Reductie)
+            && layer(caller) != Some(RegulatoryLayer::Reductie)
+        {
+            return Err(EngineError::ResolutionError(format!(
+                "{caller} calls the reduction {target}; only a REDUCTIE calls a REDUCTIE (RFC-048)"
+            )));
+        }
+        Ok(())
+    }
+
+    /// Resolve an input that reads a chronicle (`source.decisions`,
+    /// `source.facts`, RFC-048) from the chronicle of the call. The article
+    /// of `decisions: $<parameter>` is the value of that parameter, an
+    /// article reference (schema v0.8.11); any other value, null and
+    /// unknown included, is an error, since a read of no article would say
+    /// that no decision was taken. Without a chronicle that answers, the
+    /// input is an error too.
+    fn resolve_chronicle_read(
+        &self,
+        law: &ArticleBasedLaw,
+        input: &Input,
+        read: ChronicleRead<'_>,
+        context: &RuleContext,
+        res_ctx: &mut ResolutionContext<'_>,
+    ) -> Result<Value> {
+        let _guard = res_ctx.trace_guard(&input.name, PathNodeType::Resolve);
+        let named;
+        let read = match read {
+            ChronicleRead::Decisions(reference) => match reference.strip_prefix('$') {
+                None => read,
+                Some(path) => match context.resolve(path)? {
+                    Value::String(s) if regelrecht_law_model::is_article_reference(&s) => {
+                        named = s;
+                        ChronicleRead::Decisions(&named)
+                    }
+                    other => {
+                        let error = EngineError::TypeMismatch {
+                            expected: format!(
+                                "an article reference in {reference} for input '{}' of {}",
+                                input.name, law.id
+                            ),
+                            actual: other.to_string(),
+                        };
+                        res_ctx.trace_set_message(error.to_string());
+                        return Err(error);
+                    }
+                },
+            },
+            ChronicleRead::Facts(_) => read,
+        };
+        if let Some(chronicle) = res_ctx.chronicle {
+            let rows = chronicle.rows(self, law, read, res_ctx.calculation_date);
+            if let Some(rows) = rows.inspect_err(|e| res_ctx.trace_set_message(e.to_string()))? {
+                let keeper = chronicle.keeper().to_string();
+                res_ctx.trace_set_resolve_type(ResolveType::DataSource);
+                res_ctx.trace_set_result(rows.clone());
+                res_ctx.trace_set_source(ValueSource {
+                    kind: ResolveType::DataSource,
+                    provider: Some(keeper.clone()),
+                    scope: Some(law.id.clone()),
+                });
+                res_ctx
+                    .trace_set_message(format!("Resolving from the chronicle of {keeper}: {read}"));
+                return Ok(rows);
+            }
+        }
+        let message = format!(
+            "input '{}' of {} reads {read}, and no data source supplies them",
+            input.name, law.id
+        );
+        res_ctx.trace_set_message(message.clone());
+        Err(EngineError::DataSourceError(message))
+    }
+
     /// Whether resolving `input` calls another law: it names a regulation or
     /// an article (RFC-050) and no data source answers for it first, the
     /// order [`Self::resolve_input`] follows.
@@ -5097,20 +5196,16 @@ impl LawExecutionService {
         }
 
         // The decisions taken under an article (RFC-048): only a data source
-        // answers them, or a value passed under the input's name, as the
-        // cell passes its own decisions to its reduction.
-        // No regulation is executed for them, and no source is no empty
-        // list: a reduction over decisions nobody supplied would say that
-        // none were taken.
+        // answers them, a value passed under the input's name, or the
+        // chronicle of the call, that of the cell that runs the reduction.
+        // A reduction it calls reads that chronicle too. No regulation is
+        // executed for them, and no source is no empty list: a reduction
+        // over decisions nobody supplied would say that none were taken.
         // The recorded facts an article requires (RFC-051) likewise.
         if let Some(read) = crate::load_check::chronicle_read(source) {
-            let _guard = res_ctx.trace_guard(&input.name, PathNodeType::Resolve);
-            let message = format!(
-                "input '{}' of {} reads {read}, and no data source supplies them",
-                input.name, law.id
-            );
-            res_ctx.trace_set_message(message.clone());
-            return Err(EngineError::DataSourceError(message));
+            return self
+                .resolve_chronicle_read(law, input, read, context, res_ctx)
+                .map(Some);
         }
 
         // The named answer of a cell, which a binding takes (RFC-048).
@@ -5485,6 +5580,11 @@ impl LawExecutionService {
             format!("{}#{}", regulation, output),
             PathNodeType::CrossLawReference,
         );
+
+        if let Err(e) = self.refuse_reduction_call(context.law_id(), regulation, res_ctx) {
+            res_ctx.trace_set_message(e.to_string());
+            return Err(e);
+        }
 
         // Build parameters for the target article
         let target_params = match self.build_target_parameters(source_parameters, context) {

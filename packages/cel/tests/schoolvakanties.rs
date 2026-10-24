@@ -54,6 +54,9 @@ fn service_with(extra: &[String]) -> LawExecutionService {
         "reducties/reductie_plaats_van_vestiging".to_string(),
         "reducties/reductie_verlof_al_verleend_in_schooljaar".to_string(),
         format!("reducties/{HOLIDAYS}"),
+        // Which decisions still stand after objection and appeal: the
+        // reduction of the Awb, which the school's reduction calls.
+        "reducties/reductie_algemene_wet_bestuursrecht".to_string(),
     ] {
         for entry in std::fs::read_dir(regulation.join(law)).unwrap() {
             let path = entry.unwrap().path();

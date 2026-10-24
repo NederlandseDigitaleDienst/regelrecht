@@ -58,6 +58,9 @@ fn service() -> LawExecutionService {
         format!("uitvoeringsbeleid/{SCHOOL_YEAR}"),
         format!("uitvoeringsbeleid/{LEAVE_POLICY}"),
         format!("reducties/{REDUCTION}"),
+        // Which decisions still stand after objection and appeal: the
+        // reduction of the Awb, which the school's reduction calls.
+        "reducties/reductie_algemene_wet_bestuursrecht".to_string(),
     ] {
         for entry in std::fs::read_dir(regulation.join(law)).unwrap() {
             let path = entry.unwrap().path();

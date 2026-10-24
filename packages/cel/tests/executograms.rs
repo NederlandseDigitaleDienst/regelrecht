@@ -324,13 +324,15 @@ fn the_rows_are_the_executograms_of_that_fact() {
     .unwrap();
     record(&mut cell, FACT, &stand("Zeist", "2027-01-01"), "2026-09-01").unwrap();
     let rows =
-        serde_json::to_value(reading::executogram_rows(cell.grams(), FACT).unwrap()).unwrap();
+        serde_json::to_value(reading::executogram_rows(&service(), cell.grams(), FACT).unwrap())
+            .unwrap();
     assert_eq!(rows.as_array().unwrap().len(), 2);
     assert_eq!(rows[0]["id"], json!(first.id));
     assert_eq!(rows[0]["plaats"], json!("Utrecht"));
     assert_eq!(rows[1]["plaats"], json!("Zeist"));
     let none = serde_json::to_value(
-        reading::executogram_rows(cell.grams(), "wet_vaststelling_fictief#3#ander").unwrap(),
+        reading::executogram_rows(&service(), cell.grams(), "wet_vaststelling_fictief#3#ander")
+            .unwrap(),
     )
     .unwrap();
     assert_eq!(none, json!([]));

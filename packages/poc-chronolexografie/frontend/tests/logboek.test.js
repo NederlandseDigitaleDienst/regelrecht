@@ -35,7 +35,7 @@ const celAntwoord = {
   ingevuld_door: {
     answer: {
       law_id: 'fictief_beleid_vakantieverlof_obs_de_klimop',
-      article: '3',
+      article: '2',
       answers: [
         {
           answerer: 'obs_de_klimop',
@@ -96,14 +96,14 @@ describe('stapTekst', () => {
     expect(stapTekst(celAntwoord, grammen)).toEqual({
       tekst: 'verlof al verleend in schooljaar: nee',
       toelichting:
-        'ingevuld door beleid fictief_beleid_vakantieverlof_obs_de_klimop art. 3, antwoord verlof_al_verleend_in_schooljaar van OBS De Klimop (reductie reductie_verlof_al_verleend_in_schooljaar, 5 chronolexogrammen t/m bezwaar 0000bbbb)',
+        'ingevuld door beleid fictief_beleid_vakantieverlof_obs_de_klimop art. 2, antwoord verlof_al_verleend_in_schooljaar van OBS De Klimop (reductie reductie_verlof_al_verleend_in_schooljaar, 5 chronolexogrammen t/m bezwaar 0000bbbb)',
     });
   });
 
   it('noemt een koppeling waarop geen cel antwoordde', () => {
     const stil = { ...celAntwoord, waarde: null, ingevuld_door: { answer: { ...celAntwoord.ingevuld_door.answer, answers: [] } } };
     expect(stapTekst(stil, grammen).toelichting).toBe(
-      'ingevuld door beleid fictief_beleid_vakantieverlof_obs_de_klimop art. 3, geen antwoord van een cel',
+      'ingevuld door beleid fictief_beleid_vakantieverlof_obs_de_klimop art. 2, geen antwoord van een cel',
     );
   });
 

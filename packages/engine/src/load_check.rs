@@ -54,6 +54,7 @@
 //! needs none, and two without a rule are an error already. It sits only on
 //! a term that names its competent authorities.
 
+use crate::answer::ChronicleRead;
 use crate::article::ArticleBasedLaw;
 use crate::error::{EngineError, Result};
 use regelrecht_law_model::{
@@ -196,6 +197,26 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
                     input.name
                 ));
             }
+            // The article whose decisions it reads may be the value of a
+            // parameter (schema v0.8.11): one the article declares itself.
+            if let Some(name) = source
+                .decisions
+                .as_deref()
+                .and_then(|d| d.strip_prefix('$'))
+            {
+                let declared = section
+                    .execution
+                    .as_ref()
+                    .and_then(|e| e.parameters.as_ref())
+                    .is_some_and(|ps| ps.iter().any(|p| p.name == name));
+                if !declared {
+                    return refuse(format!(
+                        "{where_}: input '{}' reads {read}, but '{name}' is no parameter of the \
+                         article; the decisions are named by a parameter it declares",
+                        input.name
+                    ));
+                }
+            }
         }
     }
     Ok(())
@@ -247,14 +268,14 @@ fn acts_on_law(section: &MachineReadable) -> Option<&'static str> {
     .map(|(key, _)| key)
 }
 
-/// What an input reads from the chronicle of a cell, in words: the
-/// decisions taken under an article (RFC-048) or the recorded instances of a
-/// fact an article requires (schema v0.8.7, RFC-051). `None` for an input
-/// that reads neither.
-pub(crate) fn chronicle_read(source: &regelrecht_law_model::Source) -> Option<String> {
+/// What an input reads from the chronicle of a cell: the decisions taken
+/// under an article (RFC-048), named in the law or by a parameter (schema
+/// v0.8.11), or the recorded instances of a fact an article requires
+/// (schema v0.8.7, RFC-051). `None` for an input that reads neither.
+pub(crate) fn chronicle_read(source: &regelrecht_law_model::Source) -> Option<ChronicleRead<'_>> {
     match (&source.decisions, &source.facts) {
-        (Some(decisions), _) => Some(format!("the decisions taken under {decisions}")),
-        (None, Some(fact)) => Some(format!("the recorded facts {fact}")),
+        (Some(decisions), _) => Some(ChronicleRead::Decisions(decisions)),
+        (None, Some(fact)) => Some(ChronicleRead::Facts(fact)),
         (None, None) => None,
     }
 }

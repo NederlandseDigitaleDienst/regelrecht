@@ -27,8 +27,8 @@ Elsewhere:
 | The cell takes a decision's inputs only from the deciding article. A judgment that belongs in another regulation must sit on the deciding article and be passed on as a parameter, so the rulework departs from the law. | Large refactor | [046](/rfcs/rfc-046) |
 | Policy wins over a finding, so the deciding authority cannot depart from a policy that fills a term in a single case, as Awb 4:84 lets it. How should such a departure be recorded? | Choice | [045](/rfcs/rfc-045) |
 | The engine sees a cell as a black box, so `Cell::explain_answer` replays the decision and runs the reduction again, with tracing. If an answerer could return a trace with its answer, the engine would nest it under the answer node. The whole chain (law, policy binding, reduction, the decisions it counted) would then be one trace, and `explain_answer` could go. | Choice; small engine API change | [048](/rfcs/rfc-048) |
-| Several reductions read in the same way which decisions an objection revoked (`herroepen_besluiten` in four of them). Should that reading be one reduction that belongs to the Awb and serves every cell? | Choice | [048](/rfcs/rfc-048) |
 | The [version history](/reference/schema#version-history) says what each version adds to the schema, but not what changed with it in the engine and the cell, which a rulework author also notices. Nothing checks that the highest version has a row. Should each version get release notes split into schema and behavior, with a CI check, filled in back to v0.8.0? | Choice | none |
+| A reduction filters rows with a `FOREACH` per question. A filter on a source (a `where` on an input, or a lambda passed to a reduction it calls) would let a reduction ask for the rows it needs, and the reduction of the Awb would not have to return every row that holds. For a later change. | Choice | [048](/rfcs/rfc-048) |
 | A reduction, or the policy it calls, that picks one record with `combine: ONLY` fails when two records qualify. A correction recorded on the same day then blocks the decision, and the chronicle cannot undo it. Should a later record replace an earlier one? | Choice | [048](/rfcs/rfc-048) |
 
 ## Next steps
@@ -42,4 +42,4 @@ In order of priority, as of 24 October 2026:
 5. The motivation requirements of Awb 3:46 to 3:50, and 3:45 ([open points of the Awb procedure](/concepts/administrative-procedures#open-points)), together with the Awb 4:84 point.
 6. Building out the NAPP case.
 
-Later: a shared Awb reduction, several instances of one category, and a profile of its own for what serves a cell.
+Later: several instances of one category, and a profile of its own for what serves a cell.
