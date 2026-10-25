@@ -173,6 +173,25 @@ test('het poc-portaal volgt zijn register, zijn corpus en zijn frontends', () =>
   assert.equal(namesOf(['frontend-poc-terugbetaalregimes/src/App.vue'])['poc-napp'], false);
 });
 
+test('de wetsgeschiedenis volgt haar dienst, haar werker, haar frontend en haar gegevens, en niet het portaal', () => {
+  for (const pad of [
+    'packages/poc-wetsgeschiedenis/src/rij.rs',
+    'packages/poc-wetsgeschiedenis/werker.py',
+    'packages/poc-wetsgeschiedenis/afspeler/afspelen.py',
+    'frontend-poc-wetsgeschiedenis/src/OphaalVenster.vue',
+    'frontend-poc-wetsgeschiedenis/src/pagina.js',
+    'corpus-poc/wetsgeschiedenis/gegevens/36742.json',
+  ]) {
+    assert.equal(namesOf([pad])['poc-wetsgeschiedenis'], true, pad);
+  }
+  assert.equal(namesOf(['packages/poc-wetsgeschiedenis/src/rij.rs']).poc, false);
+  // De dienst hangt aan geen andere crate: een wijziging aan de engine raakt haar niet.
+  assert.equal(namesOf(['packages/engine/src/lib.rs'])['poc-wetsgeschiedenis'], false);
+  assert.equal(namesOf(['frontend-poc-wetsgeschiedenis/src/pagina.js']).poc, false);
+  // Een wijziging aan een andere poc raakt haar niet.
+  assert.equal(namesOf(['frontend-poc-terugbetaalregimes/src/App.vue'])['poc-wetsgeschiedenis'], false);
+});
+
 test('chronolexografie volgt zijn cellen, hun regelwerken, de casussen en zijn frontend', () => {
   // chronolexografie draait als WASM in de browser en zit in het poc-image:
   // de cellen van de casussen en de regelwerken die zij draaien raken dat

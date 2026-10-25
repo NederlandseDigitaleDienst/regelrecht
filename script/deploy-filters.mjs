@@ -98,6 +98,19 @@ export const COMPONENTS = {
       'packages/poc-napp/Dockerfile',
     ],
   },
+  // De wetsgeschiedenis draait als eigen, niet-gepubliceerd component: een
+  // Rust-dienst, met de afspeelketen in Python ernaast (werker.py, afspeler/).
+  // De crate-kant volgt uit de graaf; de werker en de afspeler staan in
+  // dezelfde map, maar zijn geen Rust.
+  'poc-wetsgeschiedenis': {
+    crate: 'regelrecht-poc-wetsgeschiedenis',
+    paths: [
+      'pocs/',
+      'corpus-poc/wetsgeschiedenis/',
+      'frontend-poc-wetsgeschiedenis/',
+      'packages/poc-wetsgeschiedenis/',
+    ],
+  },
   // Het poc-portaal bakt de statische pocs in zijn eigen image, dus het raakt
   // ook aan hun frontends en hun casus-corpus. De crate-kant volgt uit de graaf,
   // over twee crates: de portaal-binary, en de engine die het image als WASM

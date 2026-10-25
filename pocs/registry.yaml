@@ -223,3 +223,33 @@ pocs:
       BABW zijn niet met juristen of uitvoerders nagelopen. Het spel draait
       in je eigen browser: elk tabblad speelt zijn eigen casus, en wat je
       vastlegt verdwijnt als je het tabblad sluit.
+
+  - slug: wetsgeschiedenis
+    titel: Een wet door de tijd
+    samenvatting: >-
+      Een verkenning die de Kamerstukken van een wetsvoorstel stap voor stap
+      afspeelt op de wettekst, met bij elk artikel de toelichting uit die
+      stukken, en die een geldende wet versie voor versie volgt.
+    titel_intern: Wetsgeschiedenis uit de Kamerstukken
+    samenvatting_intern: >-
+      Nota's van wijziging en aangenomen amendementen, afgespeeld op het
+      voorstel van wet en gemeten aan het gewijzigd voorstel van de Eerste
+      Kamer, het Staatsblad of de BWB; per artikel de memorie van toelichting,
+      de verslagen, de nota's en de amendementen op hun datum. Dossiers 35968
+      (Archiefwet 2026) en 36889 (wijziging Archiefwet 1995), en de
+      Archiefwet 1995 door de tijd, elke
+      overgang afgespeeld uit het Staatsblad. De bezoeker haalt er zelf een
+      wet bij vanaf haar BWB-id: de dienst zoekt haar Kamerdossiers op, haalt
+      het gekozen dossier op en speelt het af.
+    soort: proxy
+    upstream: wetsgeschiedenis
+    corpus:
+      - corpus-poc/wetsgeschiedenis
+    assistent: false
+    tags: [Kamerstukken, wetsgeschiedenis, Archiefwet]
+    status: verkenning
+    voorbehoud: >-
+      De afspeler leest de wijzigingsopdrachten zelf en gokt niet: wat hij niet
+      kan lezen, staat als niet afgespeeld. De tekst die hij oplevert is geen
+      officiële of geconsolideerde versie; bij verschil gelden de
+      Kamerstukken, het Staatsblad en wetten.overheid.nl.

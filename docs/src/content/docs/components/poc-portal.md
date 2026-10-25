@@ -112,6 +112,8 @@ A source that is not available never stops the app. That covers a missing token 
 
 When this page was written (October 2026), the WASM file was about 3.1 MB (0.9 MB gzipped) and the bundle about 380 kB. The portal serves both uncompressed, as it does the engine of the other static PoCs.
 
+The third is wetsgeschiedenis, in `packages/poc-wetsgeschiedenis/` with its frontend in `frontend-poc-wetsgeschiedenis/`. It plays the parliamentary papers of a bill onto its text: the notes of amendment on their date and the adopted amendments on the date of the vote. It measures the result against the Senate's amended bill, the Staatsblad or the BWB text, and shows the explanatory memorandum and the rest of the file per article, in the order the papers appeared. Next to the bills it ships with (in `corpus-poc/wetsgeschiedenis/`), a visitor can look up any act by its BWB id. The service then reads on wetten.overheid.nl which parliamentary files made and amended it, fetches the chosen one from officielebekendmakingen.nl and the Tweede Kamer's Gegevensmagazijn, plays it, and adds it to the list. It can also follow the whole act through time, every version on wetten.overheid.nl, with every transition played from its Staatsblad. The service is Rust (axum), the frontend Vue around the generated viewer. The replay chain stays Python: the service runs `werker.py` as a process per task, which fetches with curl and reports every outside call back to the service's log (`GET /api/log`, `GET /api/diagnose`). The chain in `afspeler/` is exported from the case repository where it is developed, so fixes belong there. Tasks run one at a time in a queue: what a visitor asks for goes before the background, where the service fetches the parliamentary files of an act newest first and attaches their explanatory text to the transition they made. An act with many versions comes in two steps: first the newest forty, then in the background its whole history. Before 1995 wetten.overheid.nl links no parliamentary file to a version. The files that made such an act, like the first tranches of the Algemene wet bestuursrecht (1989 to 1993), exist only as scans with OCR from Staten-Generaal Digitaal. The chain finds them by the act's title and the queue fetches them first. They are read, not played: the bill numbered its articles differently (3.2.2, later 3:3), so per version of the bill each article is matched by its text to the oldest version on wetten.overheid.nl, and each paper is read in the numbering of its own date. What is fetched is shared by every visitor; it lives in `WG_DATA` and is gone after a restart unless that is a volume. The component needs outbound access to wetten.overheid.nl, zoek.officielebekendmakingen.nl, repository.overheid.nl and gegevensmagazijn.tweedekamer.nl.
+
 ### The gate
 
 One shared password per PoC, read from `POC_PW_<SLUG>` (the slug in capitals, hyphens as underscores). The portal will not start when a PoC in the register has no password, since that PoC would otherwise be open to anyone.
@@ -128,7 +130,7 @@ The list of cases comes from `POC_ASSISTENT_CASUSSEN` in `start.sh`, not from th
 
 ### Image and deployment
 
-`packages/poc-portal/Dockerfile` builds the engine and chronolexografie to WASM, the portal's design-system bundle from `frontend-poc-portal/`, each static PoC with its own base path, and the Rust binary. The portal and napp deploy as two ZAD components, `poc` and `napp`; see [Deployment](/operations/deployment). Only `poc` is published on the web. The image builds WASM from two crates the portal does not depend on: the engine and `regelrecht-poc-chronolexografie`. `script/deploy-filters.mjs` therefore ties the `poc` component to those two and to the portal binary, so a change to the engine or the cell rebuilds the image. The directories the chronolexografie bundle takes from `corpus/` are listed there too.
+`packages/poc-portal/Dockerfile` builds the engine and chronolexografie to WASM, the portal's design-system bundle from `frontend-poc-portal/`, each static PoC with its own base path, and the Rust binary. The portal, napp and wetsgeschiedenis deploy as three ZAD components, `poc`, `napp` and `wetsgeschiedenis`; see [Deployment](/operations/deployment). Only `poc` is published on the web. The image builds WASM from two crates the portal does not depend on: the engine and `regelrecht-poc-chronolexografie`. `script/deploy-filters.mjs` therefore ties the `poc` component to those two and to the portal binary, so a change to the engine or the cell rebuilds the image. The directories the chronolexografie bundle takes from `corpus/` are listed there too.
 
 ## Running locally
 
@@ -189,8 +191,21 @@ napp runs as its own component and reads its own variables. The defaults below a
 | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_DISCOVERY_URL` | none | SSO Rijk through the shared auth crate; without them only the mock login is available |
 | `OIDC_REQUIRED_ROLE` | realm membership | Role required after login; unset, membership of the ZAD realm is enough |
 
+### wetsgeschiedenis
+
+The image sets the port to `8000`, the base path to `/wetsgeschiedenis/`, the built frontend to `/app/static`, the shipped timelines to `/app/vast` and the data directory to `/data`. `just poc-wetsgeschiedenis` runs it locally.
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `WG_PORT` | `8420` | Listening port |
+| `WG_BASE_PATH` | `/wetsgeschiedenis/` | Path prefix; must match the portal path |
+| `WG_STATIC_DIR` | `dist` under `frontend-poc-wetsgeschiedenis/` in the repository | Built frontend, made by `npm run build` |
+| `WG_VAST_DIR` | `corpus-poc/wetsgeschiedenis/gegevens` | The timelines the image ships with |
+| `WG_DATA` | `data` under `packages/poc-wetsgeschiedenis/` | Fetched papers and timelines |
+| `WG_MAX` | `150` | How many fetched files and acts are kept; the oldest goes first |
+
 ## Further reading
 
 - [Shared Frontend Package](./frontend-shared) - the saved-state, variant and runner modules the static PoCs use
 - [Demo](./demo) - the one public entry on the index
-- [Deployment](/operations/deployment) - the `poc` and `napp` components
+- [Deployment](/operations/deployment) - the `poc`, `napp` and `wetsgeschiedenis` components

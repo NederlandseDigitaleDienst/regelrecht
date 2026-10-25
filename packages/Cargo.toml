@@ -15,6 +15,7 @@ members = [
     "poc-chronolexografie",
     "poc-napp",
     "poc-portal",
+    "poc-wetsgeschiedenis",
     "shared",
     "tui",
 ]

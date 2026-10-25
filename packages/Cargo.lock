@@ -4234,6 +4234,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "regelrecht-poc-wetsgeschiedenis"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "http-body-util",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower",
+ "tower-http 0.7.1",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "regelrecht-shared"
 version = "0.1.0"
 dependencies = [

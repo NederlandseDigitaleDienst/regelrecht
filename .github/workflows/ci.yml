@@ -64,6 +64,7 @@ jobs:
               - frontend-poc-terugbetaalregimes/**
               - frontend-poc-nieuwkomersbekostiging/**
               - frontend-poc-napp/**
+              - frontend-poc-wetsgeschiedenis/**
               - corpus-poc/**
               - pocs/**
               - packages/frontend-shared/**
@@ -736,6 +737,7 @@ jobs:
         run: |
           node script/check-nldd-imports.mjs frontend/src frontend/src/nldd-components.js
           node script/check-nldd-imports.mjs docs/src docs/src/nldd-components.js
+          node script/check-nldd-imports.mjs frontend-poc-wetsgeschiedenis/src frontend-poc-wetsgeschiedenis/src/nldd-components.js
 
   frontend-tests:
     name: Frontend tests
@@ -808,6 +810,12 @@ jobs:
 
       - name: Run chronolexografie poc tests
         run: npm test -w packages/poc-chronolexografie/frontend
+
+      # De wetsgeschiedenis: de frontend (geen inline script, de gegevens onder
+      # de basis, het venster, de bekijker in Vue). De dienst is Rust; haar
+      # tests draaien met de workspace, tegen een nagebootste werker.
+      - name: Run wetsgeschiedenis poc tests
+        run: npm test -w frontend-poc-wetsgeschiedenis
 
       # De rekenkunde van de opgenomen rondleiding (knippen, hoofdstukken,
       # ondertitels): pure Python zonder ffmpeg, dus hier in een paar seconden.

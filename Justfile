@@ -1010,15 +1010,30 @@ poc: poc-build
     #!/usr/bin/env bash
     set -euo pipefail
     echo "poc-portaal → http://localhost:8611"
-    echo "wachtwoorden: terugbetaalregimes/nieuwkomersbekostiging/napp/chronolexografie = 'demo'"
+    echo "wachtwoorden: terugbetaalregimes/nieuwkomersbekostiging/napp/chronolexografie/wetsgeschiedenis = 'demo'"
     POC_COOKIE_SECRET=lokale-ontwikkelsleutel-niet-geheim-0123 \
     POC_PW_TERUGBETAALREGIMES=demo \
     POC_PW_NIEUWKOMERSBEKOSTIGING=demo \
     POC_PW_NAPP=demo \
     POC_PW_CHRONOLEXOGRAFIE=demo \
+    POC_PW_WETSGESCHIEDENIS=demo \
     POC_STATIC_DIR="$(pwd)/.poc-static" \
     POC_PORT=8611 \
     cargo run --manifest-path packages/Cargo.toml --package regelrecht-poc-portal
+
+# Start de wetsgeschiedenis los, op http://localhost:8420/wetsgeschiedenis/
+#
+# Bouwt de frontend met hetzelfde voorvoegsel als achter het portaal, zodat
+# `POC_UPSTREAM_WETSGESCHIEDENIS=http://127.0.0.1:8420 just poc` haar ook via de
+# poort laat zien. Wat je ophaalt landt in packages/poc-wetsgeschiedenis/data/.
+# Nodig: python3 met pyyaml, en curl.
+poc-wetsgeschiedenis port="8420":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    POC_BASE=/wetsgeschiedenis/ npm run build -w poc-wetsgeschiedenis
+    echo "wetsgeschiedenis → http://localhost:{{port}}/wetsgeschiedenis/"
+    WG_PORT={{port}} WG_BASE_PATH=/wetsgeschiedenis/ \
+    cargo run --manifest-path packages/Cargo.toml -p regelrecht-poc-wetsgeschiedenis
 
 # Bouw de chronolexografie-poc als WASM, naar packages/poc-chronolexografie/frontend/public/wasm/pkg
 #

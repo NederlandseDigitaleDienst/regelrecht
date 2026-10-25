@@ -49,7 +49,7 @@ RUN set -eu; \
       exit 1; \
     fi
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"auth"/d; /"corpus"/d; /"editor-api"/d; /"github"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"auth"/d; /"corpus"/d; /"editor-api"/d; /"github"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d; /"poc-wetsgeschiedenis"/d' Cargo.toml
 COPY packages/cel/ cel/
 COPY packages/engine/ engine/
 COPY packages/law-model/ law-model/
@@ -143,7 +143,7 @@ COPY packages/Cargo.lock packages/Cargo.toml ./
 # hoeft te vinden. De grep-assertie valt om als de members-array ooit op één
 # regel wordt gezet — dan zou de sed er stilletjes langs lopen.
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"editor-api"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-chronolexografie"/d; /"tui"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"editor-api"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-chronolexografie"/d; /"tui"/d; /"poc-wetsgeschiedenis"/d' Cargo.toml
 COPY packages/auth/ auth/
 COPY packages/corpus/ corpus/
 # regelrecht-corpus hangt aan github; het portaal gebruikt uit corpus alleen
