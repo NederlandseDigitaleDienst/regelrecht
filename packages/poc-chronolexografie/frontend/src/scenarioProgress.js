@@ -12,7 +12,7 @@ import { isOntvangst } from './beroep.js';
 import {
   aanvragen,
   besluitOp,
-  bezwaarGrondslag,
+  bezwaarBasis,
   isBesluit,
   state,
   toegewezen,
@@ -21,7 +21,7 @@ import {
 /** What the chronicles hold, counted the way the guides ask for it. */
 export function counts() {
   const beslissingen = state.grammen.filter(
-    (g) => isBesluit(g) && g.grondslag === bezwaarGrondslag(),
+    (g) => isBesluit(g) && g.basis === bezwaarBasis(),
   );
   const uit = (g) => g.outputs ?? {};
   const andere = state.andere.flatMap((a) => a.grammen);

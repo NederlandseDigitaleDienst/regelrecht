@@ -234,7 +234,7 @@ pub struct Source {
     pub combine: Option<CombineOp>,
     /// The article whose decision this input takes (schema v0.8.4, RFC-050):
     /// an article reference `<regulation>#<article>`, or a `$`-reference to
-    /// a value that holds one, such as the `grondslag` of a `decision`
+    /// a value that holds one, such as the `basis` of a `decision`
     /// value. Without `output` the input is the decision value of that
     /// article; with `output`, that one output of its decision item. Stands
     /// apart from `regulation`, `decisions` and `endpoint`.

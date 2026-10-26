@@ -12,13 +12,13 @@ Recording is an optional layer ([RFC-046](/rfcs/rfc-046)). The procedure a cell 
 | Part | Role | Where |
 |---|---|---|
 | Cell | Keeps its chronicle; records and decides through the engine | `corpus/cells/<cell>/`, `packages/cel` |
-| Reduction | Gives a named answer from the chronicle | `corpus/regulation/nl/reducties/` |
+| Reduction | Gives a named answer from the chronicle | `corpus/cells/<cell>/reductions/`, or `corpus/cells/reductions/` for one of no cell |
 | Policy | Binds an open term of the law to a cell's answer | `corpus/regulation/nl/uitvoeringsbeleid/` |
 | Engine | Executes the law, asks the cells, combines their answers. Stores nothing | `packages/engine` |
 
 ## A cell
 
-A cell is a directory with `cel.yaml`. `Cell::open` opens it with its chronicle on file, `Cell::in_memory` with an empty chronicle.
+A cell is a directory with `cel.yaml` and its reductions, one directory per `$id` under `reductions/`. `Cell::open` opens it with its chronicle on file, `Cell::in_memory` with an empty chronicle.
 
 ```yaml
 # corpus/cells/<cell>/cel.yaml
@@ -28,7 +28,7 @@ answers:
   eerder_vergunning_verleend: reductie_eerder_vergunning_verleend
 ```
 
-The law names a role ([Competent Authority](/concepts/competent-authority)). The engine matches an `INSTANCE` to `name` and a `CATEGORY` to `category`. `answers` is the cell's catalogue: which answers it gives, and from which reduction. It holds no logic, and nothing else about a cell is configured.
+The law names a role ([Competent Authority](/concepts/competent-authority)). The engine matches an `INSTANCE` to `name` and a `CATEGORY` to `category`. `answers` is the cell's catalogue: which answers it gives, and from which of its own reductions. It holds no logic, and nothing else about a cell is configured. A catalogue that names a reduction the cell does not keep is refused when the cell opens.
 
 ## What a chronicle holds
 
@@ -42,7 +42,7 @@ The law names a role ([Competent Authority](/concepts/competent-authority)). The
 {
   "id": "019a1b2d-…",
   "kind": "BESCHIKKING",
-  "grondslag": "wet_voorbeeld#3",
+  "basis": "wet_voorbeeld#3",
   "recording_actor": "gemeente_voorbeeldstad",
   "recorded_on": "2026-10-20",
   "refers_to": "019a1b2c-…",
@@ -78,10 +78,8 @@ A decision output of another legal character than the deciding article's own sta
 A reduction gives a named answer from what the cell recorded earlier, such as "was this permit granted before?". It is the only rulework that reads a chronicle.
 
 ```yaml
-# corpus/regulation/nl/reducties/reductie_eerder_vergunning_verleend/<valid_from>.yaml
+# corpus/cells/gemeente_voorbeeldstad/reductions/reductie_eerder_vergunning_verleend/<valid_from>.yaml
 regulatory_layer: REDUCTIE
-competent_authority:
-  name: Het college van burgemeester en wethouders van Voorbeeldstad
 execution:                         # shortened
   parameters: [bsn_aanvrager]
   input:
@@ -108,7 +106,7 @@ execution:
         parameters: {bsn_aanvrager: $bsn_aanvrager}
 ```
 
-- How a cell reduces is up to the cell; the engine only asks it for an answer by name. The cell in `packages/cel` uses what the engine offers: rulework of its own kind (`REDUCTIE`) in the corpus, under the holder it names. It reads decisions (`source.decisions`, by an article or by a parameter that names one) or facts (`source.facts`), and may call policy for a norm. It may also call a reduction without a holder. Such a reduction has no chronicle of its own and no cell gives it as an answer; it reads the chronicle of the cell that runs its caller. The reduction of the Awb is one. Given an article, it gives the decisions under it that hold after objection and appeal.
+- How a cell reduces is up to the cell; the engine only asks it for an answer by name. The cell in `packages/cel` uses what the engine offers: rulework of its own kind (`REDUCTIE`) in the cell's directory. The directory names its cell, so the reduction names no `competent_authority`. It reads decisions (`source.decisions`, by an article or by a parameter that names one) or facts (`source.facts`), and may call policy for a norm. It may also call a reduction of no cell, in `corpus/cells/reductions/`. Such a reduction has no chronicle of its own and no cell gives it as an answer; it reads the chronicle of the cell that runs its caller. The reduction of the Awb is one: given an article, it gives the decisions under it that hold after objection and appeal. A reduction never calls a reduction of another cell, because that one would read the wrong chronicle. The corpus loader of the PoC refuses such a call, and its tests hold the whole corpus to it.
 - Wherever the binding runs, the engine asks the cell, which runs the reduction its catalogue names. The binding is policy, so the answer sets a finding aside ([order of precedence](/concepts/inversion-of-control#policy-that-fills-an-open-term-with-a-cells-answer)). Null on a term with a default or `decided_per_case_by` is silence, and the term falls back; on any other term null is the value.
 - The loader refuses `source.decisions` and `source.facts` outside a `REDUCTIE`, and `source.reduction` outside such a binding.
 

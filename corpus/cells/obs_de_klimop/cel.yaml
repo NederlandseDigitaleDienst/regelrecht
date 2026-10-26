@@ -5,8 +5,8 @@
 # Fictieve school.
 name: Het hoofd van OBS De Klimop
 category: het hoofd
-# Welke antwoorden de cel geeft, en uit welke reductie in de corpus
-# (RFC-048): de naam van het antwoord is de uitvoer van die reductie. Geen
+# Welke antwoorden de cel geeft, en uit welke eigen reductie (reductions/,
+# RFC-048): de naam van het antwoord is de uitvoer van die reductie. Geen
 # logica; het beleid van het hoofd koppelt de antwoorden aan open begrippen.
 answers:
   verlof_al_verleend_in_schooljaar: reductie_verlof_al_verleend_in_schooljaar

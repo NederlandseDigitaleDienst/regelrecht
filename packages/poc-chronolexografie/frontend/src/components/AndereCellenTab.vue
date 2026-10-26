@@ -16,8 +16,8 @@ import VeldInvoer from './VeldInvoer.vue';
 
 // Per cel en handeling de ingevulde velden.
 const invoer = reactive({});
-const sleutel = (cel, grondslag) => `${cel} ${grondslag}`;
-const velden = (cel, grondslag) => (invoer[sleutel(cel, grondslag)] ??= {});
+const sleutel = (cel, basis) => `${cel} ${basis}`;
+const velden = (cel, basis) => (invoer[sleutel(cel, basis)] ??= {});
 
 // `regeling_x#3#geneeskundig_onderzoek_verricht` → `Geneeskundig onderzoek verricht (… artikel 3)`.
 const naam = (feit) => {
@@ -30,15 +30,15 @@ const kroniek = (cel) => state.andere.find((a) => a.cel === cel)?.grammen ?? [];
 // Een schakelaar die uit staat, zegt nee: een feit met ja/nee-velden (zoals
 // het advies van de GGD per criterium) is anders nooit heel.
 async function vastleggen(cel, handeling) {
-  const grondslag = handeling.feit;
-  const ingevuld = velden(cel, grondslag);
+  const basis = handeling.feit;
+  const ingevuld = velden(cel, basis);
   const gegeven = Object.fromEntries(
     handeling.velden
       .map((v) => [v.naam, ingevuld[v.naam] ?? (v.type === 'boolean' && !v.mag_leeg ? false : undefined)])
       .filter(([, v]) => v !== undefined),
   );
-  const ok = await stap(() => api.vastleggen(cel, grondslag, gegeven, state.datum));
-  if (ok) invoer[sleutel(cel, grondslag)] = {};
+  const ok = await stap(() => api.vastleggen(cel, basis, gegeven, state.datum));
+  if (ok) invoer[sleutel(cel, basis)] = {};
 }
 </script>
 

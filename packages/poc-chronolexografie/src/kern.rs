@@ -33,7 +33,7 @@ pub struct Corpus {
     pub casus: Casus,
     pub afleiding: Afleiding,
     /// Per regelwerk the cell runs: its `$id`, its name and its directory
-    /// under `corpus/regulation/nl`.
+    /// under its root ([`crate::casus::Regelwerk::map`]).
     regelwerken: Vec<(String, Option<String>, String)>,
     versies: Vec<String>,
     /// Per `$id` and `valid_from` of a regelwerk the cell runs, that
@@ -335,8 +335,8 @@ impl Corpus {
         Ok(service)
     }
 
-    /// The directories of the regelwerken the cell runs, under
-    /// `corpus/regulation/nl`.
+    /// The directories of the regelwerken the cell runs, under their root
+    /// (`regulation/nl/...`, `cells/.../reductions/...`).
     pub fn mappen(&self) -> impl Iterator<Item = &str> {
         self.regelwerken.iter().map(|(_, _, map)| map.as_str())
     }
@@ -438,7 +438,7 @@ fn veld(field: &shape::Field) -> Value {
         "naam": field.name,
         "type": field.type_,
         "mag_leeg": field.nullable,
-        "grondslag": field.first_declared_by(),
+        "basis": field.first_declared_by(),
     })
 }
 
@@ -470,7 +470,7 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
     let moment = |s: &shape::Shape| {
         s.moment
             .as_ref()
-            .map(|m| json!({ "parameter": m.parameter, "grondslag": m.declared_by }))
+            .map(|m| json!({ "parameter": m.parameter, "basis": m.declared_by }))
     };
     let bevindingen: Vec<Value> = besluit
         .inputs
@@ -498,26 +498,26 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
     let mut vormen = json!({
         "aanvraag": {
             "soort": aanvraag.kind,
-            "grondslag": aanvraag.grondslag(),
+            "basis": aanvraag.basis(),
             "velden": in_te_vullen(&aanvraag),
             "moment": moment(&aanvraag),
         },
         "besluit": {
             "soort": besluit.kind,
-            "grondslag": besluit.grondslag(),
+            "basis": besluit.basis(),
             "bevindingen": bevindingen,
             "invoer": herkomst,
             "uitvoer": besluit.outputs,
         },
         "bezwaar": {
             "soort": bezwaar.kind,
-            "grondslag": bezwaar.grondslag(),
+            "basis": bezwaar.basis(),
             "velden": in_te_vullen(&bezwaar),
             "moment": moment(&bezwaar),
         },
         "beslissing_op_bezwaar": {
             "soort": op_bezwaar.kind,
-            "grondslag": op_bezwaar.grondslag(),
+            "basis": op_bezwaar.basis(),
             "uitvoer": op_bezwaar.outputs,
         },
         "andere_cellen": handelingen(&service, corpus, cell, on)?,
@@ -533,13 +533,13 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
         }
         vormen["beroep"] = json!({
             "soort": beroep.kind,
-            "grondslag": beroep.grondslag(),
+            "basis": beroep.basis(),
             "velden": in_te_vullen(&beroep),
             "moment": moment(&beroep),
         });
         vormen["uitspraak"] = json!({
             "soort": uitspraak.kind,
-            "grondslag": uitspraak.grondslag(),
+            "basis": uitspraak.basis(),
             "bevindingen": bevindingen,
             "uitvoer": uitspraak.outputs,
         });
@@ -582,7 +582,7 @@ fn opnieuw_te_beoordelen(
 /// of (`source.regulation`), declared there with `decided_per_case_by` and
 /// filled by no regulation. Those the deciding article asks only when it
 /// reads that article: 8:70 reads 8:72 for a well-founded appeal. Each has
-/// its article as `grondslag`.
+/// its article as `basis`.
 fn oordelen_van_de_rechter(
     service: &LawExecutionService,
     shape: &decision::DecisionShape,
@@ -638,7 +638,7 @@ fn oordelen_van_de_rechter(
                 "naam": term.id,
                 "type": term.term_type,
                 "mag_leeg": !term.required,
-                "grondslag": format!("{law_id}#{}", a.number),
+                "basis": format!("{law_id}#{}", a.number),
             }));
         }
     }
@@ -1158,15 +1158,15 @@ fn is_besluit(service: &LawExecutionService, gram: &Gram) -> Result<bool> {
         return Ok(false);
     }
     let (law_id, article) = gram
-        .grondslag
+        .basis
         .split_once('#')
-        .ok_or_else(|| Error::Setup(format!("'{}' has no grondslag", gram.id)))?;
+        .ok_or_else(|| Error::Setup(format!("'{}' has no basis", gram.id)))?;
     Ok(decision::derive(service, law_id, article, gram.recorded_on)?.kind == gram.kind)
 }
 
 /// The reductions the catalogues of `cells` name, each once, as `law`
-/// finds them by `$id`: the corpus holds them under their holders
-/// (RFC-048). A reduction it does not find is left out.
+/// finds them by `$id`: the corpus holds them with their cells (RFC-048).
+/// A reduction it does not find is left out.
 pub(crate) fn reducties_in<'l>(
     law: &dyn Fn(&str) -> Option<&'l regelrecht_engine::ArticleBasedLaw>,
     cells: &[&Cell],
@@ -1198,8 +1198,8 @@ fn leest_uit(reduction: &regelrecht_engine::ArticleBasedLaw) -> Vec<(String, Str
 /// The articles that `reduction` calls for a norm (RFC-048): per regelwerk of
 /// `UITVOERINGSBELEID` or `REDUCTIE` it reads with `source.regulation`, the
 /// articles that give the output it reads ([`artikelen_voor`]), with that
-/// regelwerk. Any called reduction counts, with or without a holder; the
-/// one of the Awb has none. Each article once.
+/// regelwerk. Any called reduction counts, of the cell or of no cell, such
+/// as that of the Awb. Each article once.
 pub(crate) fn beleid_van<'s>(
     service: &'s LawExecutionService,
     reduction: &regelrecht_engine::ArticleBasedLaw,
@@ -1597,9 +1597,9 @@ pub fn heroverweging(
 /// authority found then (`eerder`).
 fn opnieuw_te_vinden(corpus: &Corpus, cell: &Cellen, bestreden: &Gram) -> Result<Vec<Value>> {
     let (law_id, article) = bestreden
-        .grondslag
+        .basis
         .split_once('#')
-        .ok_or_else(|| Error::Setup(format!("'{}' has no grondslag", bestreden.id)))?;
+        .ok_or_else(|| Error::Setup(format!("'{}' has no basis", bestreden.id)))?;
     let mut service = corpus.service()?;
     let shape = decision::derive(&service, law_id, article, bestreden.recorded_on)?;
     let mut bevindingen = Vec::new();
@@ -1810,7 +1810,7 @@ fn stil_veld(service: &LawExecutionService, term: &str, waar: &str, on: NaiveDat
                 let open = article.get_open_terms()?.iter().find(|o| o.id == term)?;
                 serde_json::to_value(open.term_type).ok()
             });
-            json!({ "naam": term, "type": type_, "mag_leeg": false, "grondslag": waar })
+            json!({ "naam": term, "type": type_, "mag_leeg": false, "basis": waar })
         })
 }
 
@@ -1936,8 +1936,8 @@ fn lezingen_van(
             continue;
         };
         let bron = match (&source.decisions, &source.facts) {
-            (Some(grondslag), _) => match grondslag.strip_prefix('$') {
-                None => Some(Bron::Besluiten(grondslag.clone())),
+            (Some(basis), _) => match basis.strip_prefix('$') {
+                None => Some(Bron::Besluiten(basis.clone())),
                 Some(naam) => given.get(naam).cloned().map(Bron::Besluiten),
             },
             (None, Some(feit)) => Some(Bron::Feiten(feit.clone())),
@@ -2007,11 +2007,11 @@ pub fn reducties(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value>
         // reductions it calls, on the same chronicle.
         for lezing in kroniek_lezingen(&service, reduction, on) {
             let (bron, rijen) = match &lezing.bron {
-                Bron::Besluiten(grondslag) => {
-                    let kind = reading::decision_kind(&service, grondslag, on)?;
+                Bron::Besluiten(basis) => {
+                    let kind = reading::decision_kind(&service, basis, on)?;
                     (
-                        json!({ "besluiten_onder": grondslag }),
-                        reading::rows(&service, cell.grams(), grondslag, &kind)?,
+                        json!({ "besluiten_onder": basis }),
+                        reading::rows(&service, cell.grams(), basis, &kind)?,
                     )
                 }
                 Bron::Feiten(feit) => (
@@ -2230,9 +2230,9 @@ fn na_uitspraak<'c>(corpus: &Corpus, cell: &'c Cell, ontvangst: &str) -> Result<
             .ok_or_else(|| Error::Refused(format!("'{ontvangst}' leads to no {wat}")))
     };
     let receipt = gram(Some(ontvangst), "receipt of a judgment")?;
-    let (grondslag, feit) = shape::split_fact(&b.ontvangst)?;
+    let (basis, feit) = shape::split_fact(&b.ontvangst)?;
     if receipt.kind != EXECUTOGRAM
-        || receipt.grondslag != grondslag
+        || receipt.basis != basis
         || receipt.fact.as_deref() != Some(feit)
     {
         return Err(Error::Refused(format!(
@@ -2242,7 +2242,7 @@ fn na_uitspraak<'c>(corpus: &Corpus, cell: &'c Cell, ontvangst: &str) -> Result<
     }
     let beslissing = gram(receipt.refers_to.as_deref(), "decision")?;
     let op_bezwaar = format!("{}#{}", corpus.awb(), corpus.objection());
-    if beslissing.grondslag != op_bezwaar {
+    if beslissing.basis != op_bezwaar {
         return Err(Error::Refused(format!(
             "the judgment received in '{ontvangst}' concerns no decision under {op_bezwaar}"
         )));
@@ -2567,7 +2567,7 @@ mod tests {
         };
         // Lid 2 reads the decisions under 13a and those under 7:11, through
         // the reduction of the Awb it calls, which names 13a by its
-        // parameter grondslag.
+        // parameter basis.
         let lid_2 = "reductie_verlof_al_verleend_in_schooljaar";
         assert_eq!(rijen(lid_2, "besluiten_onder", "leerplichtwet_1969#13a"), 2);
         assert!(reductie(lid_2)["invoer"]
@@ -3430,7 +3430,7 @@ mod tests {
 
         let zonder = voorvertoning_besluit(&corpus, &cell, &app.id, &beroep(true), op).unwrap();
         assert_eq!(namen(&zonder.stil), [term]);
-        assert_eq!(zonder.stil[0]["grondslag"], json!("leerplichtwet_1969#13a"));
+        assert_eq!(zonder.stil[0]["basis"], json!("leerplichtwet_1969#13a"));
         assert!(zonder.voorlopig.is_none());
         assert!(zonder.geweigerd.unwrap().contains(term));
 
@@ -3557,7 +3557,7 @@ mod tests {
         let zonder =
             voorvertoning_na_uitspraak(&corpus, &cell, &ontvangst.id, &beroep(true), op).unwrap();
         assert_eq!(namen(&zonder.stil), [term]);
-        assert_eq!(zonder.stil[0]["grondslag"], json!("leerplichtwet_1969#13a"));
+        assert_eq!(zonder.stil[0]["basis"], json!("leerplichtwet_1969#13a"));
         assert!(zonder.voorlopig.is_none());
         assert!(zonder.geweigerd.unwrap().contains(term));
 
@@ -4104,7 +4104,7 @@ mod tests {
                 .collect()
         };
         assert_eq!(
-            vormen["beroep"]["grondslag"],
+            vormen["beroep"]["basis"],
             json!("algemene_wet_bestuursrecht#8:70")
         );
         assert!(!namen("/beroep/velden").contains(&"bestreden_besluit".to_string()));

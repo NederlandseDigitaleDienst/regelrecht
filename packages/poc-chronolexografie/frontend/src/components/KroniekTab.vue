@@ -88,7 +88,7 @@ const wie = computed(() => (keuze.value?.rechter ? 'de rechter' : 'het bestuurso
       >
         <nldd-text-cell
           :overline="`${i + 1} · ${g.recorded_on}`"
-          :text="`${g.kind} · ${g.grondslag}`"
+          :text="`${g.kind} · ${g.basis}`"
           :supporting-text="[kort(g.id), herkomst(g)].filter(Boolean).join(' · ')"
         ></nldd-text-cell>
       </nldd-list-item>
@@ -101,19 +101,19 @@ const wie = computed(() => (keuze.value?.rechter ? 'de rechter' : 'het bestuurso
         <nldd-list-item size="sm" :button="!!naar" @click="naar && (gekozen = naar.id)">
           <nldd-text-cell
             text="Verwijst naar"
-            :supporting-text="naar ? `${naar.kind} ${kort(naar.id)} · ${naar.grondslag}` : 'niets'"
+            :supporting-text="naar ? `${naar.kind} ${kort(naar.id)} · ${naar.basis}` : 'niets'"
           ></nldd-text-cell>
         </nldd-list-item>
         <nldd-list-item v-if="gram.received" size="sm" :button="!!ontvangen" @click="ontvangen && (gekozen = ontvangen.id)">
           <nldd-text-cell
             text="Ontvangen van"
-            :supporting-text="`${gram.received.from} · ${ontvangen ? `${ontvangen.kind} ${kort(ontvangen.id)} · ${ontvangen.grondslag}` : kort(gram.received.id)}`"
+            :supporting-text="`${gram.received.from} · ${ontvangen ? `${ontvangen.kind} ${kort(ontvangen.id)} · ${ontvangen.basis}` : kort(gram.received.id)}`"
           ></nldd-text-cell>
         </nldd-list-item>
         <nldd-list-item v-if="gram.after" size="sm" :button="!!na" @click="na && (gekozen = na.id)">
           <nldd-text-cell
             text="Opnieuw genomen na"
-            :supporting-text="na ? `${na.kind} ${kort(na.id)} · ${na.grondslag}` : kort(gram.after)"
+            :supporting-text="na ? `${na.kind} ${kort(na.id)} · ${na.basis}` : kort(gram.after)"
           ></nldd-text-cell>
         </nldd-list-item>
         <nldd-list-item size="sm">

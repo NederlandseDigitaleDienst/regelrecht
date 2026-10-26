@@ -22,7 +22,8 @@
 //! requires (`source.facts`); policy and law never do. A reduction does not
 //! act on law: it fills no open term (`implements`), hooks onto nothing
 //! (`hooks`), replaces no output (`overrides`), takes no decision
-//! (`execution.produces`) and delegates nothing (`open_terms`). Schema
+//! (`execution.produces`) and delegates nothing (`open_terms`). It names no
+//! holder (`competent_authority`): it sits with its cell, or with none. Schema
 //! v0.8.5 to v0.8.8 allowed `implements` on a reduction; a file that names
 //! one of them is held to that schema, and the engine gives the declaration
 //! no meaning ([`crate::resolver`]).
@@ -68,8 +69,9 @@ const REDUCTION_IMPLEMENTS: (u32, u32, u32) = (0, 8, 5);
 const REDUCTION_ANSWERS: (u32, u32, u32) = (0, 8, 9);
 
 /// Refuse a reading of a chronicle (`source.decisions`, `source.facts`)
-/// outside a `REDUCTIE`, the keys that act on law in a `REDUCTIE`, and a
-/// misplaced answer of a cell (`source.reduction`, RFC-048). A `REDUCTIE`
+/// outside a `REDUCTIE`, the keys that act on law and a holder
+/// (`competent_authority`) in a `REDUCTIE`, and a misplaced answer of a
+/// cell (`source.reduction`, RFC-048). A `REDUCTIE`
 /// may have `implements` only under a `$schema` from v0.8.5 to v0.8.8. An
 /// answer is taken only in a `UITVOERINGSBELEID` that names its holder, by
 /// an article that fills an open term, from schema v0.8.9; it stands apart
@@ -218,6 +220,13 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
                 }
             }
         }
+    }
+    if reduction && law.competent_authority.is_some() {
+        return refuse(
+            "is a REDUCTIE and names no competent_authority: it sits with its cell, or with \
+             none (schema v0.8.12)"
+                .to_string(),
+        );
     }
     Ok(())
 }

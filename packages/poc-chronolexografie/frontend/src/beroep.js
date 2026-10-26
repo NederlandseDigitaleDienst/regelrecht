@@ -36,7 +36,7 @@ export const uitspraakOp = (beroep) =>
 
 /** Of `g` de ontvangst van een uitspraak is: een executogram van dat feit. */
 export const isOntvangst = (g) =>
-  g.kind === 'EXECUTOGRAM' && `${g.grondslag}#${g.fact}` === state.casus?.ontvangst;
+  g.kind === 'EXECUTOGRAM' && `${g.basis}#${g.fact}` === state.casus?.ontvangst;
 
 /** De ontvangsten van een uitspraak die naar besluit `id` verwijzen. */
 export const ontvangstenBij = (id) =>

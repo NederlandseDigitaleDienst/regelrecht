@@ -13,6 +13,8 @@
 // a failing fixture reports itself.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod common;
+
 use std::path::Path;
 
 use chrono::NaiveDate;
@@ -37,36 +39,27 @@ fn service() -> LawExecutionService {
 
 /// [`service`], with the versions `extra` loaded as well.
 fn service_with(extra: &[String]) -> LawExecutionService {
-    let regulation = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/regulation/nl");
     let mut service = LawExecutionService::new();
-    for law in [
-        format!("wet/{LAW}"),
-        "wet/algemene_wet_bestuursrecht".to_string(),
-        format!("ministeriele_regeling/{REGELING}"),
-        "uitvoeringsbeleid/fictief_beleid_schooljaar_obs_de_klimop".to_string(),
-        "uitvoeringsbeleid/fictief_beleid_schooljaargrenzen_obs_de_klimop".to_string(),
-        format!("uitvoeringsbeleid/{ROOSTER}"),
-        "uitvoeringsbeleid/fictief_beleid_vestiging_obs_de_klimop".to_string(),
+    let laws = [
+        format!("regulation/nl/wet/{LAW}"),
+        "regulation/nl/wet/algemene_wet_bestuursrecht".to_string(),
+        format!("regulation/nl/ministeriele_regeling/{REGELING}"),
+        "regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaar_obs_de_klimop".to_string(),
+        "regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaargrenzen_obs_de_klimop"
+            .to_string(),
+        format!("regulation/nl/uitvoeringsbeleid/{ROOSTER}"),
+        "regulation/nl/uitvoeringsbeleid/fictief_beleid_vestiging_obs_de_klimop".to_string(),
         // The head's policy, which binds the terms to the answers of the
-        // school's cell, and the school's reductions in the corpus under
-        // their holder (RFC-048).
-        "uitvoeringsbeleid/fictief_beleid_vakantieverlof_obs_de_klimop".to_string(),
-        "reducties/reductie_plaats_van_vestiging".to_string(),
-        "reducties/reductie_verlof_al_verleend_in_schooljaar".to_string(),
-        format!("reducties/{HOLIDAYS}"),
+        // school's cell, and the reductions of that cell (RFC-048).
+        "regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantieverlof_obs_de_klimop".to_string(),
+        common::reduction_dir("reductie_plaats_van_vestiging"),
+        common::reduction_dir("reductie_verlof_al_verleend_in_schooljaar"),
+        common::reduction_dir(HOLIDAYS),
         // Which decisions still stand after objection and appeal: the
         // reduction of the Awb, which the school's reduction calls.
-        "reducties/reductie_algemene_wet_bestuursrecht".to_string(),
-    ] {
-        for entry in std::fs::read_dir(regulation.join(law)).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().is_some_and(|x| x == "yaml") {
-                service
-                    .load_law(&std::fs::read_to_string(&path).unwrap())
-                    .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            }
-        }
-    }
+        common::reduction_dir("reductie_algemene_wet_bestuursrecht"),
+    ];
+    common::load(&mut service, laws);
     for yaml in extra {
         service.load_law(yaml).unwrap();
     }
@@ -76,10 +69,9 @@ fn service_with(extra: &[String]) -> LawExecutionService {
 /// A fictional next version of the school's policy, for the school year
 /// 2027–2028, from 1 August 2027.
 fn rooster_2027() -> String {
-    let regulation = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/regulation/nl");
-    let current = std::fs::read_to_string(
-        regulation.join(format!("uitvoeringsbeleid/{ROOSTER}/2026-08-01.yaml")),
-    )
+    let current = std::fs::read_to_string(common::corpus().join(format!(
+        "regulation/nl/uitvoeringsbeleid/{ROOSTER}/2026-08-01.yaml"
+    )))
     .unwrap();
     let next = [
         (

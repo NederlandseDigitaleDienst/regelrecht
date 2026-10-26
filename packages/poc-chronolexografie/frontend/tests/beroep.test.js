@@ -5,23 +5,23 @@ import { dossier, geldendBesluit, isBesluit, isBesluitwaarde, rol, state, waarde
 // Ids verzonnen, op de laatste acht tekens na herkenbaar; de vormen zoals de
 // cel ze vastlegt (RFC-053).
 const id = (staart) => `019a0000-0000-7000-8000-0000${staart}`;
-const aanvraag = { id: id('0000aaaa'), kind: 'AANVRAAG', grondslag: 'wet#1' };
-const weigering = { id: id('0000bbbb'), kind: 'BESCHIKKING', grondslag: 'wet#1', refers_to: aanvraag.id, outputs: { toegekend: false } };
-const bezwaar = { id: id('0000cccc'), kind: 'BEZWAAR', grondslag: 'awb#7:11', refers_to: weigering.id };
-const ongegrond = { id: id('0000dddd'), kind: 'BESCHIKKING', grondslag: 'awb#7:11', refers_to: bezwaar.id, outputs: { bestreden_besluit_herroepen: false } };
-const beroep = { id: id('0000eeee'), kind: 'BEROEP', grondslag: 'awb#8:70', received: { from: 'school', id: ongegrond.id } };
-const uitspraak = { id: id('0000ffff'), kind: 'UITSPRAAK', grondslag: 'awb#8:70', refers_to: beroep.id };
+const aanvraag = { id: id('0000aaaa'), kind: 'AANVRAAG', basis: 'wet#1' };
+const weigering = { id: id('0000bbbb'), kind: 'BESCHIKKING', basis: 'wet#1', refers_to: aanvraag.id, outputs: { toegekend: false } };
+const bezwaar = { id: id('0000cccc'), kind: 'BEZWAAR', basis: 'awb#7:11', refers_to: weigering.id };
+const ongegrond = { id: id('0000dddd'), kind: 'BESCHIKKING', basis: 'awb#7:11', refers_to: bezwaar.id, outputs: { bestreden_besluit_herroepen: false } };
+const beroep = { id: id('0000eeee'), kind: 'BEROEP', basis: 'awb#8:70', received: { from: 'school', id: ongegrond.id } };
+const uitspraak = { id: id('0000ffff'), kind: 'UITSPRAAK', basis: 'awb#8:70', refers_to: beroep.id };
 const ontvangst = {
   id: id('00001111'),
   kind: 'EXECUTOGRAM',
-  grondslag: 'awb#8:79',
+  basis: 'awb#8:79',
   fact: 'afschrift_van_de_uitspraak',
   refers_to: ongegrond.id,
   received: { from: 'rechtbank', id: uitspraak.id },
   fields: { opdracht_nieuw_besluit: true, termijn_nieuw_besluit_einddatum: '2027-01-25' },
 };
-const gegrond = { id: id('00002222'), kind: 'BESCHIKKING', grondslag: 'awb#7:11', refers_to: bezwaar.id, after: ontvangst.id, outputs: { bestreden_besluit_herroepen: true, nieuw_besluit: id('00003333') } };
-const nieuw = { id: id('00003333'), kind: 'BESCHIKKING', grondslag: 'wet#1', refers_to: bezwaar.id, outputs: { toegekend: true } };
+const gegrond = { id: id('00002222'), kind: 'BESCHIKKING', basis: 'awb#7:11', refers_to: bezwaar.id, after: ontvangst.id, outputs: { bestreden_besluit_herroepen: true, nieuw_besluit: id('00003333') } };
+const nieuw = { id: id('00003333'), kind: 'BESCHIKKING', basis: 'wet#1', refers_to: bezwaar.id, outputs: { toegekend: true } };
 
 beforeEach(() => {
   state.casus = {
@@ -114,22 +114,22 @@ describe('waarde van een besluit in de uitspraak', () => {
   // Voorziet de rechter zelf in de zaak (Awb 8:72, derde lid, onder b), dan
   // houdt de uitspraak de beslissing op bezwaar als besluitwaarde, met het
   // nieuwe besluit daarin.
-  const verlening = { grondslag: 'wet#1', fields: {}, findings: {}, outputs: { toegekend: true } };
+  const verlening = { basis: 'wet#1', fields: {}, findings: {}, outputs: { toegekend: true } };
   const inDePlaats = {
-    grondslag: 'awb#7:11',
+    basis: 'awb#7:11',
     fields: { bestreden_besluit: verlening },
     findings: {},
     outputs: { bestreden_besluit_herroepen: true, nieuw_besluit: verlening },
   };
 
-  it('toont de grondslag en de uitvoer, een besluit daarin tussen haakjes', () => {
+  it('toont de basis en de uitvoer, een besluit daarin tussen haakjes', () => {
     expect(waarde(inDePlaats)).toBe(
       'besluit onder awb#7:11; bestreden besluit herroepen: true; nieuw besluit: (besluit onder wet#1; toegekend: true)',
     );
   });
 
   it('laat een gewone waarde JSON en een decimaal het getal', () => {
-    expect(waarde({ grondslag: 'wet#1', outputs: {} })).toBe('{"grondslag":"wet#1","outputs":{}}');
+    expect(waarde({ basis: 'wet#1', outputs: {} })).toBe('{"basis":"wet#1","outputs":{}}');
     expect(waarde({ __decimal: '1.5' })).toBe('1.5');
     expect(waarde(null)).toBe('null');
   });

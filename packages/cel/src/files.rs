@@ -154,7 +154,7 @@ mod tests {
         Bundle::new([
             ("cells/a/cel.yaml".to_string(), "name: A".to_string()),
             (
-                "cells/a/reducties/r/2026-01-01.yaml".to_string(),
+                "cells/a/reductions/r/2026-01-01.yaml".to_string(),
                 "r".to_string(),
             ),
             ("cells/b/cel.yaml".to_string(), "name: B".to_string()),
@@ -180,7 +180,7 @@ mod tests {
             entries,
             [
                 PathBuf::from("cells/a/cel.yaml"),
-                PathBuf::from("cells/a/reducties")
+                PathBuf::from("cells/a/reductions")
             ]
         );
     }

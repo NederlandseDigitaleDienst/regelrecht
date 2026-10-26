@@ -379,7 +379,7 @@ describe('EditSheet', () => {
           name: 'heroverweging',
           type: 'decision',
           source: {
-            article: '$besluit.grondslag',
+            article: '$besluit.basis',
             parameters_from: ['$besluit.fields'],
             parameters: { dagen: '$dagen' },
           },
@@ -394,7 +394,7 @@ describe('EditSheet', () => {
         name: 'heroverweging',
         type: 'decision',
         source: {
-          article: '$besluit.grondslag',
+          article: '$besluit.basis',
           parameters_from: ['$besluit.fields'],
           parameters: { dagen: '$dagen' },
         },
@@ -411,7 +411,7 @@ describe('EditSheet', () => {
           type: 'decision',
           nullable: true,
           description: 'het bestreden artikel opnieuw',
-          source: { article: '$besluit.grondslag', parameters_from: ['$besluit.fields'] },
+          source: { article: '$besluit.basis', parameters_from: ['$besluit.fields'] },
         },
       });
 
@@ -423,7 +423,7 @@ describe('EditSheet', () => {
         type: 'decision',
         nullable: true,
         description: 'het bestreden artikel opnieuw',
-        source: { article: '$besluit.grondslag', parameters_from: ['$besluit.fields'] },
+        source: { article: '$besluit.basis', parameters_from: ['$besluit.fields'] },
       });
     });
 

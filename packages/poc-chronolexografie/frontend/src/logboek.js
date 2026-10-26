@@ -9,7 +9,7 @@
  * `uitkomst` (een uitvoer van het artikel) of `begrip` (een open begrip, met
  * wie het invulde).
  */
-import { bezwaarGrondslag, hoofdletter, kort, leesbaar, neemt, state, toegewezen, waarde } from './state.js';
+import { bezwaarBasis, hoofdletter, kort, leesbaar, neemt, state, toegewezen, waarde } from './state.js';
 
 // Regelwerken die overal bij hun afkorting heten.
 const AFKORTINGEN = {
@@ -37,7 +37,7 @@ export function toon(v) {
   if (v === false) return 'nee';
   if (v == null) return 'geen waarde';
   if (Array.isArray(v)) return v.length ? v.map((x) => toon(x)).join(', ') : 'geen';
-  if (typeof v === 'object' && 'grondslag' in v) return `een besluit onder ${v.grondslag}`;
+  if (typeof v === 'object' && 'basis' in v) return `een besluit onder ${v.basis}`;
   if (typeof v === 'string') return v;
   return waarde(v);
 }
@@ -163,7 +163,7 @@ export function uitslag(g) {
   const o = g.outputs ?? {};
   if (g.kind === 'AANVRAAG' || g.kind === 'BEZWAAR') return { tekst: 'ontvangen', kleur: 'neutral' };
   if (g.kind === 'EXECUTOGRAM') return { tekst: 'vastgelegd', kleur: 'neutral' };
-  if (g.grondslag === bezwaarGrondslag()) {
+  if (g.basis === bezwaarBasis()) {
     if (o.bezwaar_ontvankelijk === false) return { tekst: 'niet-ontvankelijk', kleur: 'warning' };
     return o.bestreden_besluit_herroepen
       ? { tekst: 'gegrond', kleur: 'success' }
@@ -176,4 +176,4 @@ export function uitslag(g) {
 
 /** De beslissing op bezwaar die `id` als nieuw besluit nam, als die er is. */
 export const genomenBij = (id, grammen) =>
-  grammen.find((g) => g.grondslag === bezwaarGrondslag() && neemt(g, id)) ?? null;
+  grammen.find((g) => g.basis === bezwaarBasis() && neemt(g, id)) ?? null;

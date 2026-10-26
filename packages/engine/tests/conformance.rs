@@ -238,14 +238,19 @@ fn schema_accepts(version: &str, value: &Value) -> bool {
 #[test]
 fn tier_a_corpus_differential() {
     let root = repo_root();
-    let corpus = root.join("corpus/regulation");
+    // The reductions sit with their cell, or with none, under corpus/cells;
+    // a cell's identity there (cel.yaml) has no `$schema` and is skipped.
+    let corpus = [root.join("corpus/regulation"), root.join("corpus/cells")];
 
     let mut checked = 0usize;
     let mut hard_failures: Vec<String> = Vec::new();
     let mut not_revalid: Vec<String> = Vec::new();
     let mut value_drift: Vec<(String, String)> = Vec::new();
 
-    for entry in WalkDir::new(&corpus).into_iter().filter_map(Result::ok) {
+    for entry in corpus
+        .iter()
+        .flat_map(|dir| WalkDir::new(dir).into_iter().filter_map(Result::ok))
+    {
         let path = entry.path();
         if path.extension().and_then(|e| e.to_str()) != Some("yaml") {
             continue;

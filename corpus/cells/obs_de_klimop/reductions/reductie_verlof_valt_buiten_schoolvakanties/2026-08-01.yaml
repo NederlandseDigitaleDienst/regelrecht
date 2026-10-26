@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.9/schema/v0.8.9/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
 $id: reductie_verlof_valt_buiten_schoolvakanties
 regulatory_layer: REDUCTIE
 publication_date: '2026-07-01'
@@ -29,8 +29,6 @@ valid_from: '2026-08-01'
 # 2026.
 url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel11
 name: Verlof buiten de schoolvakanties bij OBS De Klimop (reductie)
-competent_authority:
-  name: Het hoofd van OBS De Klimop
 articles:
   - number: '1'
     text: >-

@@ -180,15 +180,15 @@ test('chronolexografie volgt zijn cellen, hun regelwerken, de casussen en zijn f
   assert.equal('poc-chronolexografie' in COMPONENTS, false);
   for (const pad of [
     'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantieverlof_obs_de_klimop/2026-08-01.yaml',
-    'corpus/regulation/nl/reducties/reductie_verlof_al_verleend_in_schooljaar/2026-08-01.yaml',
-    'corpus/regulation/nl/reducties/reductie_algemene_wet_bestuursrecht/2026-01-01.yaml',
+    'corpus/cells/obs_de_klimop/reductions/reductie_verlof_al_verleend_in_schooljaar/2026-08-01.yaml',
+    'corpus/cells/reductions/reductie_algemene_wet_bestuursrecht/2026-01-01.yaml',
     'corpus/cells/obs_de_klimop/cel.yaml',
     'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vestiging_obs_de_klimop/2026-08-01.yaml',
     'corpus/regulation/nl/ministeriele_regeling/regeling_vaststelling_schoolvakanties_20252030/2025-08-01.yaml',
     'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantierooster_obs_de_klimop/2026-08-01.yaml',
     'corpus/regulation/nl/wet/leerplichtwet_1969/2026-08-01.yaml',
-    'corpus/regulation/nl/reducties/reductie_geldige_gehandicaptenparkeerkaart/2026-01-01.yaml',
-    'corpus/regulation/nl/reducties/reductie_geneeskundig_onderzoek/2026-01-01.yaml',
+    'corpus/cells/gemeente_wilgendaal/reductions/reductie_geldige_gehandicaptenparkeerkaart/2026-01-01.yaml',
+    'corpus/cells/ggd_wilgendaal/reductions/reductie_geneeskundig_onderzoek/2026-01-01.yaml',
     'corpus/cells/gemeente_oostmeer/cel.yaml',
     'corpus/cells/cbr/cel.yaml',
     'corpus/cells/rechtbank_wilgendaal/cel.yaml',
@@ -205,10 +205,10 @@ test('chronolexografie volgt zijn cellen, hun regelwerken, de casussen en zijn f
   assert.equal(namesOf(['packages/poc-chronolexografie/src/kern.rs']).poc, true);
   assert.equal(namesOf(['packages/cel/src/cell.rs']).poc, true);
 
-  // Een wet die de cel niet draait, raakt het niet, en een reductie die geen
-  // cel noemt ook niet.
+  // Een wet die de cel niet draait, raakt het niet, en een reductie van geen
+  // cel die geen casus draait ook niet.
   assert.equal(namesOf(['corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml']).poc, false);
-  assert.equal(namesOf(['corpus/regulation/nl/reducties/reductie_elders/2026-01-01.yaml']).poc, false);
+  assert.equal(namesOf(['corpus/cells/reductions/reductie_elders/2026-01-01.yaml']).poc, false);
 });
 
 test('een engine-wijziging bouwt het poc-image, want dat bakt de engine als WASM', () => {

@@ -12,6 +12,8 @@
 // a failing fixture reports itself.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod common;
+
 use chrono::NaiveDate;
 use regelrecht_cel::{Cell, Error, Gram};
 use regelrecht_engine::{FilledBy, LawExecutionService};
@@ -135,9 +137,9 @@ articles:
           - {output: eerder_verstrekt, value: $antwoord}
 "#;
 
-/// The reduction of the cell `actor`, whose holder is named `holder`: true
-/// when it issued `bsn` a card before, otherwise silent.
-fn reduction(actor: &str, holder: &str) -> String {
+/// The reduction of the cell `actor`: true when it issued `bsn` a card
+/// before, otherwise silent.
+fn reduction(actor: &str) -> String {
     format!(
         r#"
 $id: reductie_eerder_{actor}
@@ -145,8 +147,6 @@ regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
 valid_from: '2026-01-01'
 url: https://example.org/reductie
-competent_authority:
-  name: {holder}
 articles:
   - number: '1'
     text: Eerder een kaart verstrekt door deze cel.
@@ -187,21 +187,16 @@ const LAW: &str = "wet_kaart_fictief";
 const BSN: &str = "999990019";
 const COLLEGE: &str = "college van burgemeester en wethouders";
 
-/// The cells of these tests: their actor and the name their holder has.
-const CELLS: [(&str, &str); 4] = [
-    ("oostmeer", "oostmeer"),
-    ("wilgendaal", "wilgendaal"),
-    ("landelijk", "Landelijke uitgever"),
-    ("ggd", "GGD Wilgendaal"),
-];
+/// The actors of the cells of these tests, each with its reduction.
+const CELLS: [&str; 4] = ["oostmeer", "wilgendaal", "landelijk", "ggd"];
 
 fn service() -> LawExecutionService {
     let mut service = LawExecutionService::new();
     service.load_law(GENERAL_LAW).unwrap();
     service.load_law(SPECIAL_LAW).unwrap();
     service.load_law(BINDING).unwrap();
-    for (actor, holder) in CELLS {
-        service.load_law(&reduction(actor, holder)).unwrap();
+    for actor in CELLS {
+        service.load_law(&reduction(actor)).unwrap();
     }
     service
 }
@@ -227,8 +222,13 @@ fn cell_answering(actor: &str, name: &str, category: Option<&str>, answers: bool
         identity.push_str(&format!(
             "answers:\n  eerder_verstrekt: reductie_eerder_{actor}\n"
         ));
+        common::keep_reduction(
+            dir.path(),
+            &format!("reductie_eerder_{actor}"),
+            &reduction(actor),
+        );
     }
-    std::fs::write(dir.path().join("cel.yaml"), identity).unwrap();
+    common::write_identity(dir.path(), &identity);
     Cell::in_memory(actor, dir.path()).unwrap()
 }
 
@@ -534,7 +534,7 @@ fn the_cell_is_known_by_its_identity() {
 fn a_blank_name_or_category_is_an_error() {
     for identity in ["name: ' '\ncategory: c\n", "name: n\ncategory: ''\n"] {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("cel.yaml"), identity).unwrap();
+        common::write_identity(dir.path(), identity);
         let e = Cell::in_memory("x", dir.path()).unwrap_err();
         assert!(
             matches!(&e, Error::Setup(m) if m.contains("may not be empty")),

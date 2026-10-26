@@ -102,7 +102,7 @@ pub struct DecisionShape {
 
 impl DecisionShape {
     /// The deciding article, `<regulation>#<article>`.
-    pub fn grondslag(&self) -> String {
+    pub fn basis(&self) -> String {
         format!("{}#{}", self.law_id, self.article)
     }
 

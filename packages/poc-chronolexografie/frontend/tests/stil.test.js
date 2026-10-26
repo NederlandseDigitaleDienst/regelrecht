@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { state } from '../src/state.js';
 import { nietGeweten, stilBegrippen } from '../src/stil.js';
 
-const veld = { naam: 'verlof_valt_buiten_schoolvakanties', type: 'boolean', grondslag: 'leerplichtwet_1969#13a' };
+const veld = { naam: 'verlof_valt_buiten_schoolvakanties', type: 'boolean', basis: 'leerplichtwet_1969#13a' };
 
 beforeEach(() => {
   state.casus = { cel_naam: 'OBS De Klimop', rol: 'het hoofd' };

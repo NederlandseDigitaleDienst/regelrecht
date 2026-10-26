@@ -13,7 +13,7 @@ import { beroepApi } from '../beroep.js';
 import { artikelNaam } from '../logboek.js';
 import {
   aanvragen,
-  bezwaarGrondslag,
+  bezwaarBasis,
   dossier,
   geldendBesluit,
   isBesluit,
@@ -68,7 +68,7 @@ const beroepArtikel = computed(() =>
 // Beroep staat open tegen een beslissing op bezwaar, bij een casus met een
 // rechter.
 const beroepMogelijk = (g) =>
-  !!state.casus.beroep && isBesluit(g) && g.grondslag === bezwaarGrondslag();
+  !!state.casus.beroep && isBesluit(g) && g.basis === bezwaarBasis();
 
 /** De stand van een aanvraag, als tag: tekst en kleur. */
 function stand(a) {
@@ -133,7 +133,7 @@ async function indienenTegen() {
           <nldd-list-item v-for="s in dossier(a)" :key="s.gram.id" size="sm">
             <nldd-text-cell
               :text="`${s.rol} ${kort(s.gram.id)}`"
-              :supporting-text="`${s.gram.recorded_on} · ${s.gram.grondslag}${s.rechter ? ` · ${state.casus.rechter.cel_naam}` : ''}`"
+              :supporting-text="`${s.gram.recorded_on} · ${s.gram.basis}${s.rechter ? ` · ${state.casus.rechter.cel_naam}` : ''}`"
             ></nldd-text-cell>
             <nldd-cell v-if="!s.rechter && isBesluit(s.gram)" width="fit-content">
               <nldd-button

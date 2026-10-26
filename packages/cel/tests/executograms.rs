@@ -84,7 +84,7 @@ articles:
           - {name: refers_to, type: string}
 "#;
 
-const GRONDSLAG: &str = "wet_vaststelling_fictief#3";
+const BASIS: &str = "wet_vaststelling_fictief#3";
 const FACT: &str = "wet_vaststelling_fictief#3#stand";
 
 fn service() -> LawExecutionService {
@@ -135,7 +135,7 @@ fn an_executogram_records_a_fact_the_article_requires() {
     )
     .unwrap();
     assert_eq!(gram.kind, EXECUTOGRAM);
-    assert_eq!(gram.grondslag, GRONDSLAG);
+    assert_eq!(gram.basis, BASIS);
     assert_eq!(gram.fact.as_deref(), Some("stand"));
     assert_eq!(gram.refers_to, None);
     assert_eq!(gram.recording_actor, ACTOR);
@@ -162,7 +162,7 @@ fn an_executogram_is_whole_or_not_recorded() {
     refused(&e, "requires no fact 'stand'");
     let e = record(
         &mut cell,
-        GRONDSLAG,
+        BASIS,
         &stand("Utrecht", "2020-08-01"),
         "2026-08-01",
     )
@@ -347,8 +347,6 @@ $id: reductie_plaats_fictief
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
 valid_from: '2026-01-01'
-competent_authority:
-  name: Testcel
 articles:
   - number: '1'
     text: De plaats is die van de stand.
@@ -380,10 +378,12 @@ fn a_reduction_reads_only_a_fact_its_article_requires() {
         category: None,
     };
     let answers = [("plaats".to_string(), "reductie_plaats_fictief".to_string())].into();
+    let reductions = ["reductie_plaats_fictief".to_string()].into();
     let reads = |fact: &str| {
         let mut service = service();
         service.load_law(&reduction(fact)).unwrap();
-        let reader = reading::Reader::new(ACTOR, &authority, &answers, Vec::new(), None);
+        let reader =
+            reading::Reader::new(ACTOR, &authority, &answers, &reductions, Vec::new(), None);
         let request = AnswerRequest {
             name: "plaats",
             parameters: &std::collections::BTreeMap::new(),
@@ -398,7 +398,7 @@ fn a_reduction_reads_only_a_fact_its_article_requires() {
     // A stream id, as v0.8.6 had it, or an article alone is no fact
     // reference.
     assert!(service().load_law(&reduction("stand")).is_err());
-    assert!(service().load_law(&reduction(GRONDSLAG)).is_err());
+    assert!(service().load_law(&reduction(BASIS)).is_err());
 }
 
 #[test]
@@ -463,8 +463,6 @@ $id: reductie_kring_fictief
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
 valid_from: '2026-01-01'
-competent_authority:
-  name: Testcel
 articles:
   - number: '1'
     text: x is wat artikel 1 zegt.
@@ -480,11 +478,11 @@ articles:
           - {output: x, value: $weer}
 "#;
     let dir = cell_tempdir();
-    std::fs::write(
-        dir.path().join("cel.yaml"),
+    common::write_identity(
+        dir.path(),
         "name: Testcel\nanswers:\n  x: reductie_kring_fictief\n",
-    )
-    .unwrap();
+    );
+    common::keep_reduction(dir.path(), "reductie_kring_fictief", reduction);
     let mut cell = Cell::in_memory(ACTOR, dir.path()).unwrap();
     let mut service = LawExecutionService::new();
     service.load_law(PROCEDURE_LAW).unwrap();

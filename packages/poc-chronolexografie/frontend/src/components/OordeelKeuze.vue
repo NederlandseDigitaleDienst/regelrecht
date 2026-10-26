@@ -21,7 +21,7 @@ const kies = (tekst) => emit('update:modelValue', tekst === '' ? undefined : tek
 </script>
 
 <template>
-  <nldd-form-field :label="leesbaar(veld.naam)" :supporting-label="toelichting || veld.grondslag">
+  <nldd-form-field :label="leesbaar(veld.naam)" :supporting-label="toelichting || veld.basis">
     <nldd-dropdown>
       <select :value="waarde(modelValue)" @change="kies($event.target.value)">
         <option value="">{{ leeg }}</option>

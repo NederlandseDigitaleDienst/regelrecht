@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.11/schema/v0.8.11/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
 $id: reductie_algemene_wet_bestuursrecht
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
@@ -7,13 +7,13 @@ valid_from: '2026-01-01'
 # Geen regelgeving: een reductie die alleen volgt wat de Awb zegt over
 # besluiten die herroepen of vernietigd zijn (Awb 7:11, tweede lid, en 8:72),
 # en over het besluit dat de uitspraak in de plaats stelt (Awb 8:72, derde
-# lid, onder b). Ze hoort bij geen bestuursorgaan: er is geen
-# competent_authority, en dus geen eigen kroniek. Daarom geeft geen
+# lid, onder b). Ze hoort bij geen cel: ze staat naast de cellen
+# (corpus/cells/reductions/) en heeft geen eigen kroniek. Daarom geeft geen
 # bestuursorgaan haar uitvoer als antwoord. Een andere reductie roept haar aan
 # (source.regulation) met het artikel waarvan zij de besluiten wil weten
-# (grondslag). De Awb-reductie leest dan uit de kroniek van de uitvoerder op
-# wiens kroniek ze wordt toegepast: de cel die de aanroepende reductie
-# draait. Er is geen bekendmaking; de url wijst naar artikel 8:72.
+# (`basis`). De Awb-reductie leest dan uit de kroniek van de uitvoerder op
+# wiens kroniek ze wordt toegepast: de cel die de aanroepende reductie draait.
+# Er is geen bekendmaking; de url wijst naar artikel 8:72.
 url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
 name: Besluiten die nog gelden, naar de Algemene wet bestuursrecht (reductie)
 articles:
@@ -32,20 +32,20 @@ articles:
     machine_readable:
       execution:
         parameters:
-          - name: grondslag
+          - name: basis
             type: string
             description: >-
               Het artikel waarop de gevraagde besluiten berusten, als
               <wet>#<artikel>.
         input:
-          # De besluiten onder het artikel grondslag, één rij per besluit,
+          # De besluiten onder het artikel `basis`, één rij per besluit,
           # met de gegevens en de uitvoer van het besluit onder hun eigen
-          # naam, het artikel (grondslag) en het id van het besluit. De rij
+          # naam, het artikel (`basis`) en het id van het besluit. De rij
           # komt terug zoals zij is.
           - name: besluiten
             type: array
             source:
-              decisions: $grondslag
+              decisions: $basis
           # De beslissingen op bezwaar (Awb 7:11): per beslissing het
           # bestreden besluit bij zijn id (bestreden_besluit), of zij het
           # herriep (bestreden_besluit_herroepen), en het besluit dat zij in
@@ -125,7 +125,7 @@ articles:
           # bezwaar (Awb 8:72, derde lid, onder b), dan gaat zij over die
           # beslissing (refers_to) en staat zij er als beslissing op bezwaar
           # in (uitspraak_in_de_plaats). Herroept zij het bestreden besluit,
-          # dan is dat besluit herroepen. Eerst de grondslag: een besluit van
+          # dan is dat besluit herroepen. Eerst de `basis`: een besluit van
           # een ander artikel heeft die uitvoer niet, en AND stopt bij de
           # eerste onwaar.
           - output: beslissingen_herroepen_bij_uitspraak
@@ -137,7 +137,7 @@ articles:
                 operation: AND
                 conditions:
                   - operation: EQUALS
-                    subject: $uitspraak.uitspraak_in_de_plaats.grondslag
+                    subject: $uitspraak.uitspraak_in_de_plaats.basis
                     value: algemene_wet_bestuursrecht#7:11
                   - operation: EQUALS
                     subject: $uitspraak.uitspraak_in_de_plaats.bestreden_besluit_herroepen
@@ -209,7 +209,7 @@ articles:
     machine_readable:
       execution:
         parameters:
-          - name: grondslag
+          - name: basis
             type: string
             description: >-
               Het artikel waarop de gevraagde besluiten berusten, als
@@ -228,16 +228,16 @@ articles:
           - name: besluiten_in_de_plaats
             type: array
             description: >-
-              De besluiten onder het artikel grondslag die de bestuursrechter
+              De besluiten onder het artikel `basis` die de bestuursrechter
               in de plaats stelde, elk als rij.
           - name: geldende_besluiten
             type: array
             description: >-
-              De besluiten onder het artikel grondslag die gelden: die welke
+              De besluiten onder het artikel `basis` die gelden: die welke
               nog gelden naar artikel 1, en die welke de bestuursrechter in de
               plaats stelde, elk als rij.
         actions:
-          # Eerst de grondslag: een besluit van een ander artikel heeft de
+          # Eerst de `basis`: een besluit van een ander artikel heeft de
           # uitvoer nieuw_besluit niet, en AND stopt bij de eerste onwaar.
           - output: besluiten_in_de_plaats
             value:
@@ -248,23 +248,23 @@ articles:
                 operation: OR
                 conditions:
                   - operation: EQUALS
-                    subject: $uitspraak.uitspraak_in_de_plaats.grondslag
-                    value: $grondslag
+                    subject: $uitspraak.uitspraak_in_de_plaats.basis
+                    value: $basis
                   - operation: AND
                     conditions:
                       - operation: EQUALS
-                        subject: $uitspraak.uitspraak_in_de_plaats.grondslag
+                        subject: $uitspraak.uitspraak_in_de_plaats.basis
                         value: algemene_wet_bestuursrecht#7:11
                       - operation: EQUALS
-                        subject: $uitspraak.uitspraak_in_de_plaats.nieuw_besluit.grondslag
-                        value: $grondslag
+                        subject: $uitspraak.uitspraak_in_de_plaats.nieuw_besluit.basis
+                        value: $basis
               body:
                 operation: IF
                 cases:
                   - when:
                       operation: EQUALS
-                      subject: $uitspraak.uitspraak_in_de_plaats.grondslag
-                      value: $grondslag
+                      subject: $uitspraak.uitspraak_in_de_plaats.basis
+                      value: $basis
                     then: $uitspraak.uitspraak_in_de_plaats
                 default: $uitspraak.uitspraak_in_de_plaats.nieuw_besluit
           - output: geldende_besluiten

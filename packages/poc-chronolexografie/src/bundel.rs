@@ -11,7 +11,8 @@
 //! Next to it the page may hold sources ([`Bron`]): a corpus the portal
 //! fetches when the page loads, such as a branch of another repository
 //! (`sources` of `chronolexografie` in the register). A source holds its own
-//! cases (`casussen/`), regelwerken (`regulation/nl/`) and cells (`cells/`).
+//! cases (`casussen/`), regelwerken (`regulation/nl/`) and cells (`cells/`,
+//! with their reductions).
 //! A case from a source runs on that source and the regelrecht corpus; the
 //! cases of this crate never see a source ([`met_bronnen`]).
 
@@ -19,14 +20,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use regelrecht_cel::{Bundle, Error, Files};
+use regelrecht_cel::{identity, Bundle, Error, Files};
 use serde::{Deserialize, Serialize};
 
 use crate::casus::{casussen as lees_casussen, Regelwerken};
 use crate::kern::{Corpus, Result};
 
 /// The corpus, under the repository root: the regelwerken under
-/// `regulation/nl` and the cells under `cells`.
+/// `regulation/nl` and the cells under `cells`, with their reductions.
 pub const CORPUS: &str = "corpus";
 
 /// The case files, under the repository root.
@@ -166,6 +167,11 @@ fn uit_bron(
             let Some(naam) = dir.file_name() else {
                 continue;
             };
+            // The reductions of no cell are regelwerken, which loading
+            // compares by $id.
+            if identity::is_shared_reductions(&dir) {
+                continue;
+            }
             let ook = Path::new(CORPUS).join("cells").join(naam);
             if bundle.is_dir(&ook) {
                 stand.meldingen.push(format!(
@@ -196,12 +202,17 @@ fn uit_bron(
 pub fn mappen(alle: &[Corpus]) -> BTreeSet<String> {
     let mut uit = BTreeSet::from([CASUSSEN.to_string()]);
     for c in alle {
-        uit.extend(c.mappen().map(|m| format!("{CORPUS}/regulation/nl/{m}")));
+        uit.extend(c.mappen().map(|m| format!("{CORPUS}/{m}")));
         let cellen =
             std::iter::once(&c.casus.cel).chain(c.casus.andere_cellen.iter().map(|a| &a.cel));
         uit.extend(cellen.map(|cel| format!("{CORPUS}/cells/{cel}")));
     }
-    uit
+    // The reductions of a cell are in its directory already.
+    let binnen = |m: &String| {
+        uit.iter()
+            .any(|ander| ander != m && m.starts_with(&format!("{ander}/")))
+    };
+    uit.iter().filter(|m| !binnen(m)).cloned().collect()
 }
 
 #[cfg(test)]
@@ -307,14 +318,14 @@ mod tests {
         without_cell.remove("corpus/cells/obs_de_klimop/cel.yaml");
         let e = casussen(without_cell).unwrap_err().to_string();
         assert!(e.contains("corpus/cells/obs_de_klimop"), "{e}");
-        // Without a reduction its catalogue names, the case cannot run.
+        // Without a reduction its catalogue names, the cell does not open.
         files.remove(
-            "corpus/regulation/nl/reducties/reductie_verlof_al_verleend_in_schooljaar/2026-08-01.yaml",
+            "corpus/cells/obs_de_klimop/reductions/reductie_verlof_al_verleend_in_schooljaar/2026-08-01.yaml",
         );
         let e = casussen(files).unwrap_err().to_string();
         assert!(
             e.contains("reductie_verlof_al_verleend_in_schooljaar")
-                && e.contains("not in the corpus"),
+                && e.contains("only the answers of its own reductions"),
             "{e}"
         );
     }
@@ -576,6 +587,81 @@ mod tests {
             standen[0].meldingen[0].contains("'vakantieverlof'"),
             "{:?}",
             standen[0]
+        );
+    }
+
+    /// The bundle's error when `files` replaces the file at `van` with the
+    /// file at `naar`, its text changed by `wijzig`.
+    fn verplaatst(van: &str, naar: &str, wijzig: impl Fn(&str) -> String) -> String {
+        let mut files = gebundeld();
+        let tekst = files.remove(van).unwrap();
+        files.insert(naar.into(), wijzig(&tekst));
+        casussen(files).unwrap_err().to_string()
+    }
+
+    const VERLOF: &str =
+        "corpus/cells/obs_de_klimop/reductions/reductie_verlof_al_verleend_in_schooljaar/2026-08-01.yaml";
+
+    #[test]
+    fn a_reduction_under_regulation_is_refused() {
+        let e = verplaatst(
+            VERLOF,
+            "corpus/regulation/nl/reducties/reductie_verlof_al_verleend_in_schooljaar/2026-08-01.yaml",
+            str::to_string,
+        );
+        assert!(e.contains("a REDUCTIE is no regulation"), "{e}");
+    }
+
+    #[test]
+    fn a_reduction_in_a_directory_not_named_by_its_id_is_refused() {
+        let e = verplaatst(
+            VERLOF,
+            "corpus/cells/obs_de_klimop/reductions/al_verleend/2026-08-01.yaml",
+            str::to_string,
+        );
+        assert!(e.contains("a directory named by its $id"), "{e}");
+    }
+
+    #[test]
+    fn a_directory_of_reductions_holds_only_reductions() {
+        let mut files = gebundeld();
+        let beleid = files
+            .keys()
+            .find(|p| p.contains("fictief_beleid_vestiging_obs_de_klimop/"))
+            .unwrap()
+            .clone();
+        let tekst = files[&beleid].clone();
+        files.insert(
+            "corpus/cells/reductions/fictief_beleid_vestiging_obs_de_klimop/2026-08-01.yaml".into(),
+            tekst,
+        );
+        files.remove(&beleid);
+        let e = casussen(files).unwrap_err().to_string();
+        assert!(e.contains("holds only REDUCTIE"), "{e}");
+    }
+
+    #[test]
+    fn a_loose_file_beside_the_reductions_of_no_cell_is_refused() {
+        let mut files = gebundeld();
+        files.insert("corpus/cells/reductions/los.yaml".into(), String::new());
+        let e = casussen(files).unwrap_err().to_string();
+        assert!(e.contains("a file per version"), "{e}");
+    }
+
+    #[test]
+    fn a_reduction_that_reads_one_of_another_cell_is_refused() {
+        // The school's reduction asks the CBR's: that one would read the
+        // school's chronicle, not the CBR's.
+        let e = verplaatst(VERLOF, VERLOF, |tekst| {
+            tekst.replacen(
+                "regulation: reductie_algemene_wet_bestuursrecht",
+                "regulation: reductie_eerder_verstrekte_gehandicaptenparkeerkaart_cbr",
+                1,
+            )
+        });
+        assert!(
+            e.contains("of the cell 'cbr'") && e.contains("only those of its own cell"),
+            "{e}"
         );
     }
 }

@@ -148,7 +148,7 @@ pub enum ChronicleRead<'r> {
 impl std::fmt::Display for ChronicleRead<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Decisions(grondslag) => write!(f, "the decisions taken under {grondslag}"),
+            Self::Decisions(basis) => write!(f, "the decisions taken under {basis}"),
             Self::Facts(fact) => write!(f, "the recorded facts {fact}"),
         }
     }

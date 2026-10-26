@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.9/schema/v0.8.9/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
 $id: reductie_geneeskundig_onderzoek
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
@@ -16,8 +16,6 @@ valid_from: '2026-01-01'
 # RFC-052). Er is geen bekendmaking; de url wijst naar dat artikel.
 url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
 name: Geneeskundig onderzoek bij de GGD Wilgendaal (reductie)
-competent_authority:
-  name: GGD Wilgendaal
 articles:
   - number: '1'
     text: >-

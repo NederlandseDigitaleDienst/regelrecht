@@ -20,7 +20,7 @@ articles:
           - name: heroverweging
             type: decision
             source:
-              article: $besluit.grondslag
+              article: $besluit.basis
               parameters_from:
                 - besluit.fields
         output:

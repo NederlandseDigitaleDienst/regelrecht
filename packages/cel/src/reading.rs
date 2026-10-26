@@ -3,8 +3,8 @@
 //!
 //! A reduction is rulework of its own kind (`regulatory_layer: REDUCTIE`,
 //! the chronolexoreductie of RFC-022 §4.1), in the law format and run by the
-//! engine, but no regulation. It sits in the corpus under its holder
-//! (`competent_authority`), beside the holder's policy, and it is the only
+//! engine, but no regulation. It sits with its cell
+//! (`<cell_dir>/reductions/`, [`crate::identity`]), and it is the only
 //! rulework that reads a chronicle. It asks for the decisions taken under an
 //! article with `source: {decisions: <regulation>#<article>}`, or names the
 //! article by a parameter (`decisions: $<name>`, schema v0.8.11); the cell
@@ -15,10 +15,12 @@
 //! `requires` entry for that fact says what each holds. For a norm or a
 //! calculation it calls law or policy like any rulework
 //! (`source.regulation`), and passes what it found in the chronicle as
-//! parameters. It may also call a reduction without a holder, such as that
-//! of the Awb: that one has no chronicle of its own, and the cell gives it
-//! the rows of its own chronicle, as for every reduction the execution runs
-//! (`Call::chronicle`, [`Reader::chronicle_rows`]).
+//! parameters. It may also call a reduction of no cell, such as that of the
+//! Awb: that one has no chronicle of its own, and the cell gives it the rows
+//! of its own chronicle, as for every reduction the execution runs
+//! (`Call::chronicle`, [`Reader::chronicle_rows`]). That a reduction calls
+//! none of another cell, the loader of the corpus checks: the service does
+//! not know where a reduction sits.
 //!
 //! A reduction fills no open term. The cell gives its outputs as named
 //! answers: its catalogue (`cel.yaml`, `answers`, [`crate::identity`]) names
@@ -35,7 +37,7 @@
 //! as a finding of the deciding authority. So a scenario or another system
 //! can supply the same value.
 //!
-//! Each row carries the decision's `id` and `grondslag`, and a field of type
+//! Each row carries the decision's `id` and `basis`, and a field of type
 //! `decision` holds the id of the decision it names, as the chronolexogram
 //! keeps it. A decision value a row holds, such as the decision a judgment
 //! set in place, is a row in turn.
@@ -45,7 +47,7 @@
 //! revoked it, a reduction reads from the rows of that other decision.
 
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::NaiveDate;
 use regelrecht_engine::{
@@ -178,19 +180,19 @@ pub fn bound_terms(
     terms
 }
 
-/// The decisions in `grams` taken under `grondslag` (`<regulation>#<article>`),
+/// The decisions in `grams` taken under `basis` (`<regulation>#<article>`),
 /// whose legal character is `kind`, as rows (`row`).
 pub fn rows(
     service: &LawExecutionService,
     grams: &[Gram],
-    grondslag: &str,
+    basis: &str,
     kind: &str,
 ) -> Result<Value> {
     rows_of(
         service,
         grams
             .iter()
-            .filter(|g| g.refers_to.is_some() && g.kind == kind && g.grondslag == grondslag),
+            .filter(|g| g.refers_to.is_some() && g.kind == kind && g.basis == basis),
     )
 }
 
@@ -204,12 +206,10 @@ pub fn executogram_rows(
     grams: &[Gram],
     fact: &str,
 ) -> Result<Value> {
-    let (grondslag, name) = crate::shape::split_fact(fact)?;
+    let (basis, name) = crate::shape::split_fact(fact)?;
     let grams: Vec<Gram> = grams
         .iter()
-        .filter(|g| {
-            g.kind == EXECUTOGRAM && g.grondslag == grondslag && g.fact.as_deref() == Some(name)
-        })
+        .filter(|g| g.kind == EXECUTOGRAM && g.basis == basis && g.fact.as_deref() == Some(name))
         .map(|g| {
             let mut row = g.clone();
             row.fields.insert(
@@ -241,7 +241,7 @@ fn rows_of<'g>(
             findings: None,
             outputs: &gram.outputs.clone().into_iter().collect(),
         };
-        let row = row(service, gram, parts, &gram.grondslag, &label)?;
+        let row = row(service, gram, parts, &gram.basis, &label)?;
         rows.push(serde_json::Value::Object(row));
     }
     Ok(stored::from_stored(&serde_json::Value::Array(rows))?)
@@ -256,21 +256,21 @@ struct Parts<'p> {
 }
 
 /// One row: the fields, the findings and the outputs under their own
-/// names, then the article it was taken under ([`ROW_GRONDSLAG`]) and the
+/// names, then the article it was taken under ([`ROW_BASIS`]) and the
 /// id of the chronolexogram `gram` that holds it ([`ROW_ID`]). A decision
-/// value in a field or output (`{grondslag, fields, findings, outputs}`,
+/// value in a field or output (`{basis, fields, findings, outputs}`,
 /// RFC-050), such as the decision a judgment sets in place, is a row in
 /// turn, with the id of `gram`; such a row holds every output its article
 /// declares, null where the value has none (RFC-036). `label` names what
 /// the row is of, for an error.
 ///
-/// A name of its own `id` or `grondslag` is refused, and so is a name that
+/// A name of its own `id` or `basis` is refused, and so is a name that
 /// two of the parts hold with another value: the row would hide one.
 fn row(
     service: &LawExecutionService,
     gram: &Gram,
     parts: Parts<'_>,
-    grondslag: &str,
+    basis: &str,
     label: &str,
 ) -> Result<Map<String, serde_json::Value>> {
     let mut row = Map::new();
@@ -279,14 +279,14 @@ fn row(
         let decision = value
             .as_object()
             .filter(|o| shape::is_decision_value(o))
-            .and_then(|o| Some((o, o.get("grondslag")?.as_str()?)));
+            .and_then(|o| Some((o, o.get("basis")?.as_str()?)));
         let value = match decision {
-            Some((decision, grondslag)) => {
-                serde_json::Value::Object(decision_row(service, gram, decision, grondslag)?)
+            Some((decision, basis)) => {
+                serde_json::Value::Object(decision_row(service, gram, decision, basis)?)
             }
             None => value.clone(),
         };
-        if [ROW_ID, ROW_GRONDSLAG].contains(&name.as_str()) {
+        if [ROW_ID, ROW_BASIS].contains(&name.as_str()) {
             return Err(setup(format!(
                 "{label} holds '{name}' itself; its row gives its {} under that name",
                 if name == ROW_ID { "id" } else { "article" }
@@ -307,8 +307,8 @@ fn row(
         }
     }
     row.insert(
-        ROW_GRONDSLAG.to_string(),
-        serde_json::Value::String(grondslag.to_string()),
+        ROW_BASIS.to_string(),
+        serde_json::Value::String(basis.to_string()),
     );
     row.insert(
         ROW_ID.to_string(),
@@ -317,20 +317,17 @@ fn row(
     Ok(row)
 }
 
-/// The row of the decision value `decision` under `grondslag` that `gram`
-/// holds (`row`): every output the article of its `grondslag` declares in
+/// The row of the decision value `decision` under `basis` that `gram`
+/// holds (`row`): every output the article of its `basis` declares in
 /// the version in force when `gram` was recorded, null where the value has
 /// none.
 fn decision_row(
     service: &LawExecutionService,
     gram: &Gram,
     decision: &Map<String, serde_json::Value>,
-    grondslag: &str,
+    basis: &str,
 ) -> Result<Map<String, serde_json::Value>> {
-    let label = format!(
-        "the decision under {grondslag} in chronolexogram '{}'",
-        gram.id
-    );
+    let label = format!("the decision under {basis} in chronolexogram '{}'", gram.id);
     let part = |key: &str| decision.get(key).and_then(serde_json::Value::as_object);
     let empty = Map::new();
     let parts = Parts {
@@ -338,13 +335,13 @@ fn decision_row(
         findings: part("findings"),
         outputs: part("outputs").unwrap_or(&empty),
     };
-    let mut row = row(service, gram, parts, grondslag, &label)?;
-    let declared = grondslag
+    let mut row = row(service, gram, parts, basis, &label)?;
+    let declared = basis
         .split_once('#')
         .and_then(|(law_id, article)| article_on(service, law_id, article, gram.recorded_on))
         .ok_or_else(|| {
             setup(format!(
-                "{label}: {grondslag} has no version in force on {}",
+                "{label}: {basis} has no version in force on {}",
                 gram.recorded_on
             ))
         })?;
@@ -360,7 +357,7 @@ pub const ROW_ID: &str = "id";
 
 /// The name under which a row gives the article its decision or fact was
 /// taken or recorded under, `<regulation>#<article>`.
-pub const ROW_GRONDSLAG: &str = "grondslag";
+pub const ROW_BASIS: &str = "basis";
 
 /// The legal character of the decision of article `reference` on `day`.
 pub fn decision_kind(
@@ -398,7 +395,7 @@ pub struct Asked {
 /// its answer on request ([`crate::Cell::explain_answer`]).
 ///
 /// The reduction is the rulework the service holds under that `$id`: a
-/// `REDUCTIE` whose holder (`competent_authority`) is the cell. The answer
+/// `REDUCTIE` the cell keeps (`reductions`). The answer
 /// is its output of the answer's name. The article that gives it gets, by
 /// name, the parameters the binding passes: each it declares, and none
 /// other. An input that reads decisions (`source.decisions`) or facts
@@ -414,6 +411,8 @@ pub struct Reader<'c> {
     authority: &'c Authority,
     /// The catalogue: per answer, the `$id` of the reduction.
     answers: &'c BTreeMap<String, String>,
+    /// The `$id`s of the reductions the cell keeps.
+    reductions: &'c BTreeSet<String>,
     grams: Vec<Gram>,
     explain: Option<&'c str>,
     asked: RefCell<Vec<Asked>>,
@@ -429,12 +428,14 @@ pub struct Reader<'c> {
 
 impl<'c> Reader<'c> {
     /// The cell of `recording_actor`, who is `authority`, with the
-    /// catalogue `answers`, reading `grams`. The reader runs the reduction
-    /// for the answer `explain` with its trace.
+    /// catalogue `answers` and the reductions `reductions`, reading `grams`.
+    /// The reader runs the reduction for the answer `explain` with its
+    /// trace.
     pub fn new(
         recording_actor: &'c str,
         authority: &'c Authority,
         answers: &'c BTreeMap<String, String>,
+        reductions: &'c BTreeSet<String>,
         grams: Vec<Gram>,
         explain: Option<&'c str>,
     ) -> Self {
@@ -442,6 +443,7 @@ impl<'c> Reader<'c> {
             recording_actor,
             authority,
             answers,
+            reductions,
             grams,
             explain,
             asked: RefCell::new(Vec::new()),
@@ -483,18 +485,14 @@ impl<'c> Reader<'c> {
                 law.regulatory_layer.as_str()
             )));
         }
-        // A cell reads only its own chronicle: the reduction is of its
-        // holder, and that is the cell.
-        let holder = law
-            .competent_authority
-            .as_ref()
-            .and_then(CompetentAuthority::named);
-        if !holder.is_some_and(|named| self.authority.is_named_by(named)) {
+        // A cell gives only the answers of its own reductions. Opening the
+        // cell checks its catalogue against them; a reader made otherwise
+        // is held to the same.
+        if !self.reductions.contains(reduction) {
             return Err(refused(format!(
-                "the answer '{name}' comes from the reduction '{reduction}', whose holder \
-                 (competent_authority) is not '{}'; a cell gives only the reductions of its \
-                 holder",
-                self.authority.name
+                "the answer '{name}' comes from the reduction '{reduction}', which the cell of \
+                 '{}' does not keep; a cell gives only the answers of its own reductions",
+                self.recording_actor
             )));
         }
         let article = law.find_article_by_output(name).ok_or_else(|| {
@@ -566,11 +564,10 @@ impl<'c> Reader<'c> {
 
 impl Reader<'_> {
     /// The rows `read` gives for an input of the reduction `law` on `day`,
-    /// from the cell's chronicle ([`rows`], [`executogram_rows`]). A
-    /// reduction is applied to this chronicle when its holder is the cell,
-    /// or when it has none, such as that of the Awb: it then reads from the
-    /// chronicle of the cell that executes it. A reduction of another
-    /// holder is refused: a cell reads only its own chronicle.
+    /// from the cell's chronicle ([`rows`], [`executogram_rows`]). Every
+    /// reduction the execution runs is applied to this chronicle: one of the
+    /// cell, or one of no cell, such as that of the Awb, which reads from
+    /// the chronicle of the cell that executes it.
     pub fn chronicle_rows(
         &self,
         service: &LawExecutionService,
@@ -578,30 +575,17 @@ impl Reader<'_> {
         read: ChronicleRead<'_>,
         day: NaiveDate,
     ) -> Result<Value> {
-        if let Some(holder) = &law.competent_authority {
-            if !holder
-                .named()
-                .is_some_and(|named| self.authority.is_named_by(named))
-            {
-                return Err(refused(format!(
-                    "reduction '{}' reads {read}, but its holder (competent_authority) is not \
-                     '{}'; a cell applies only its own reductions and those without a holder \
-                     to its chronicle",
-                    law.id, self.authority.name
-                )));
-            }
-        }
         let key = match read {
-            ChronicleRead::Decisions(grondslag) => (true, grondslag.to_string(), day),
+            ChronicleRead::Decisions(basis) => (true, basis.to_string(), day),
             ChronicleRead::Facts(fact) => (false, fact.to_string(), day),
         };
         if let Some(rows) = self.read.borrow().get(&key) {
             return Ok(rows.clone());
         }
         let rows = match read {
-            ChronicleRead::Decisions(grondslag) => {
-                let kind = decision_kind(service, grondslag, day)?;
-                rows(service, &self.grams, grondslag, &kind)?
+            ChronicleRead::Decisions(basis) => {
+                let kind = decision_kind(service, basis, day)?;
+                rows(service, &self.grams, basis, &kind)?
             }
             ChronicleRead::Facts(fact) => {
                 // A fact its article does not require, the cell never records.
@@ -706,13 +690,13 @@ mod tests {
     use serde_json::json;
 
     const ACTOR: &str = "obs_de_klimop";
-    const GRONDSLAG: &str = "leerplichtwet_1969#13a";
+    const BASIS: &str = "leerplichtwet_1969#13a";
 
-    fn gram(kind: &str, grondslag: &str, refers_to: Option<&str>) -> Gram {
+    fn gram(kind: &str, basis: &str, refers_to: Option<&str>) -> Gram {
         Gram {
-            id: format!("{kind}-{grondslag}"),
+            id: format!("{kind}-{basis}"),
             kind: kind.into(),
-            grondslag: grondslag.into(),
+            basis: basis.into(),
             fact: None,
             refers_to: refers_to.map(str::to_string),
             received: None,
@@ -729,26 +713,20 @@ mod tests {
     #[test]
     fn rows_are_the_decisions_under_the_article_with_fields_and_outputs() {
         let grams = [
-            gram("AANVRAAG", GRONDSLAG, None),
-            gram("BESCHIKKING", GRONDSLAG, Some("a")),
+            gram("AANVRAAG", BASIS, None),
+            gram("BESCHIKKING", BASIS, Some("a")),
             gram("BESCHIKKING", "leerplichtwet_1969#11", Some("b")),
-            gram("TOETS", GRONDSLAG, Some("c")),
+            gram("TOETS", BASIS, Some("c")),
         ];
         let rows = serde_json::to_value(
-            rows(
-                &LawExecutionService::new(),
-                &grams,
-                GRONDSLAG,
-                "BESCHIKKING",
-            )
-            .unwrap(),
+            rows(&LawExecutionService::new(), &grams, BASIS, "BESCHIKKING").unwrap(),
         )
         .unwrap();
         assert_eq!(
             rows,
             json!([{
                 "id": "BESCHIKKING-leerplichtwet_1969#13a",
-                "grondslag": GRONDSLAG,
+                "basis": BASIS,
                 "eerste_verlofdag": "2027-02-01",
                 "verlof_verleend": true,
             }])
@@ -756,17 +734,17 @@ mod tests {
     }
 
     #[test]
-    fn a_name_grondslag_on_the_decision_is_refused() {
-        let mut decision = gram("BESCHIKKING", GRONDSLAG, Some("a"));
-        decision.outputs.insert("grondslag".into(), json!("x#1"));
+    fn a_name_basis_on_the_decision_is_refused() {
+        let mut decision = gram("BESCHIKKING", BASIS, Some("a"));
+        decision.outputs.insert("basis".into(), json!("x#1"));
         let e = rows(
             &LawExecutionService::new(),
             &[decision],
-            GRONDSLAG,
+            BASIS,
             "BESCHIKKING",
         )
         .unwrap_err();
-        assert!(e.to_string().contains("holds 'grondslag' itself"), "{e}");
+        assert!(e.to_string().contains("holds 'basis' itself"), "{e}");
     }
 
     #[test]
@@ -780,7 +758,7 @@ mod tests {
         receipt.fields = [(
             "in_de_plaats".to_string(),
             json!({
-                "grondslag": "wet_fictief#1",
+                "basis": "wet_fictief#1",
                 "taken_on": "wet_fictief#0",
                 "fields": { "bsn": "999990019" },
                 "findings": { "al_verleend": false },
@@ -796,7 +774,7 @@ mod tests {
             rows[0]["in_de_plaats"],
             json!({
                 "id": receipt.id,
-                "grondslag": "wet_fictief#1",
+                "basis": "wet_fictief#1",
                 "bsn": "999990019",
                 "al_verleend": false,
                 "verleend": null,
@@ -806,12 +784,12 @@ mod tests {
 
     #[test]
     fn a_name_id_on_the_decision_is_refused() {
-        let mut decision = gram("BESCHIKKING", GRONDSLAG, Some("a"));
+        let mut decision = gram("BESCHIKKING", BASIS, Some("a"));
         decision.fields.insert("id".into(), json!("x"));
         let e = rows(
             &LawExecutionService::new(),
             &[decision],
-            GRONDSLAG,
+            BASIS,
             "BESCHIKKING",
         )
         .unwrap_err();
@@ -820,14 +798,14 @@ mod tests {
 
     #[test]
     fn a_name_that_is_a_field_and_another_output_is_refused() {
-        let mut decision = gram("BESCHIKKING", GRONDSLAG, Some("a"));
+        let mut decision = gram("BESCHIKKING", BASIS, Some("a"));
         decision
             .outputs
             .insert("eerste_verlofdag".into(), json!("2027-03-01"));
         assert!(rows(
             &LawExecutionService::new(),
             &[decision],
-            GRONDSLAG,
+            BASIS,
             "BESCHIKKING"
         )
         .is_err());
@@ -836,7 +814,7 @@ mod tests {
     #[test]
     fn a_name_that_is_a_field_and_the_same_output_is_one_value() {
         // The same decimal in another scale is the same value.
-        let mut decision = gram("BESCHIKKING", GRONDSLAG, Some("a"));
+        let mut decision = gram("BESCHIKKING", BASIS, Some("a"));
         decision
             .fields
             .insert("aandeel".into(), json!({"__decimal": "5.0"}));
@@ -846,7 +824,7 @@ mod tests {
         assert!(rows(
             &LawExecutionService::new(),
             &[decision],
-            GRONDSLAG,
+            BASIS,
             "BESCHIKKING"
         )
         .is_ok());
@@ -856,7 +834,7 @@ mod tests {
     fn a_name_that_is_an_integer_field_and_the_same_decimal_output_is_an_error() {
         // 5 and 5.0: the cell does not decide on its own that they are one
         // value, nor that they differ; it follows the engine's EQUALS.
-        let mut decision = gram("BESCHIKKING", GRONDSLAG, Some("a"));
+        let mut decision = gram("BESCHIKKING", BASIS, Some("a"));
         decision.fields.insert("aandeel".into(), json!(5));
         decision
             .outputs
@@ -864,7 +842,7 @@ mod tests {
         let err = rows(
             &LawExecutionService::new(),
             &[decision],
-            GRONDSLAG,
+            BASIS,
             "BESCHIKKING",
         )
         .unwrap_err();
@@ -950,9 +928,9 @@ articles:
             value: $antwoord
 "#;
 
-    /// A reduction `id` of the holder `holder` whose output `al_verleend`
-    /// says whether a decision in the chronicle granted leave.
-    fn reduction(id: &str, holder: &str, valid_from: &str) -> String {
+    /// A reduction `id` whose output `al_verleend` says whether a decision
+    /// in the chronicle granted leave.
+    fn reduction(id: &str, valid_from: &str) -> String {
         format!(
             r#"
 $id: {id}
@@ -960,8 +938,6 @@ regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
 valid_from: '{valid_from}'
 url: https://example.org/reductie
-competent_authority:
-  name: {holder}
 articles:
   - number: '1'
     text: Fictief.
@@ -1004,6 +980,12 @@ articles:
         })
     }
 
+    /// The reductions the cell keeps: `reductie_a`.
+    fn reductions() -> &'static BTreeSet<String> {
+        static REDUCTIONS: std::sync::OnceLock<BTreeSet<String>> = std::sync::OnceLock::new();
+        REDUCTIONS.get_or_init(|| ["reductie_a".to_string()].into())
+    }
+
     /// The catalogue of the cell: `al_verleend` from `reductie_a`.
     fn answers() -> &'static BTreeMap<String, String> {
         static ANSWERS: std::sync::OnceLock<BTreeMap<String, String>> = std::sync::OnceLock::new();
@@ -1012,7 +994,7 @@ articles:
 
     /// The deciding law, the binding and `reductie_a` of the cell.
     fn service() -> LawExecutionService {
-        service_with(&reduction("reductie_a", ACTOR, "2026-01-01"))
+        service_with(&reduction("reductie_a", "2026-01-01"))
     }
 
     fn service_with(reduction: &str) -> LawExecutionService {
@@ -1056,7 +1038,7 @@ articles:
         )
     }
 
-    /// A reduction without a holder, which reads the decisions under the
+    /// A reduction of no cell, which reads the decisions under the
     /// article its parameter names (schema v0.8.11), such as that of the
     /// Awb.
     const WITHOUT_HOLDER: &str = r#"
@@ -1072,13 +1054,13 @@ articles:
     machine_readable:
       execution:
         parameters:
-          - name: grondslag
+          - name: basis
             type: string
         input:
           - name: besluiten
             type: array
             source:
-              decisions: $grondslag
+              decisions: $basis
         output:
           - name: verleend
             type: array
@@ -1093,16 +1075,12 @@ articles:
 
     /// A reduction of the cell that calls [`WITHOUT_HOLDER`] for the
     /// decisions under `wet_fictief#1`.
-    fn calling(holder: &str) -> String {
-        format!(
-            r#"
+    const CALLING: &str = r#"
 $id: reductie_a
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
 valid_from: '2026-01-01'
 url: https://example.org/reductie
-competent_authority:
-  name: {holder}
 articles:
   - number: '1'
     text: Fictief.
@@ -1119,7 +1097,7 @@ articles:
               regulation: reductie_zonder_houder
               output: verleend
               parameters:
-                grondslag: wet_fictief#1
+                basis: wet_fictief#1
         output:
           - name: al_verleend
             type: boolean
@@ -1131,15 +1109,20 @@ articles:
               as: id
               body: true
               combine: OR
-"#
-        )
-    }
+"#;
 
     #[test]
-    fn a_called_reduction_without_holder_reads_the_executing_cell() {
-        let mut service = service_with(&calling(ACTOR));
+    fn a_called_reduction_of_no_cell_reads_the_executing_cell() {
+        let mut service = service_with(CALLING);
         service.load_law(WITHOUT_HOLDER).unwrap();
-        let reader = Reader::new(ACTOR, authority(), answers(), decisions(), None);
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
         let result = granted(&service, &reader).unwrap();
         // The reduction of the Awb kind found the grant in this cell's
         // chronicle: leave is already granted.
@@ -1164,55 +1147,16 @@ articles:
     }
 
     #[test]
-    fn a_reduction_that_calls_one_of_another_holder_gets_no_rows() {
-        // reductie_a of the cell calls a reduction of another holder: the
-        // cell does not apply it to its chronicle, and the answer fails.
-        let calls_other = calling(ACTOR).replace("reductie_zonder_houder", "reductie_b");
-        let mut service = service_with(&calls_other);
-        let other = WITHOUT_HOLDER
-            .replace("$id: reductie_zonder_houder", "$id: reductie_b")
-            .replace(
-                "url: https://example.org/reductie\n",
-                "url: https://example.org/reductie\ncompetent_authority:\n  name: obs_het_anker\n",
-            );
-        service.load_law(&other).unwrap();
-        let reader = Reader::new(ACTOR, authority(), answers(), decisions(), None);
-        let e = granted(&service, &reader).unwrap_err().to_string();
-        assert!(
-            e.contains("reductie_b") && e.contains("its holder") && e.contains(ACTOR),
-            "{e}"
-        );
-    }
-
-    #[test]
-    fn a_called_reduction_of_another_holder_is_refused() {
-        let other = reduction("reductie_b", "obs_het_anker", "2026-01-01");
-        let mut service = service();
-        service.load_law(&other).unwrap();
-        let reader = Reader::new(ACTOR, authority(), answers(), decisions(), None);
-        let law = service
-            .resolver()
-            .get_law_for_date("reductie_b", Some(day()))
-            .unwrap();
-        let e = reader
-            .chronicle_rows(
-                &service,
-                law,
-                ChronicleRead::Decisions("wet_fictief#1"),
-                day(),
-            )
-            .unwrap_err();
-        assert!(
-            matches!(&e, crate::Error::Refused(m) if m.contains("reductie_b")
-                && m.contains("its holder")),
-            "{e}"
-        );
-    }
-
-    #[test]
     fn the_cell_gives_the_answer_the_binding_names_and_the_engine_records_who() {
         let service = service();
-        let reader = Reader::new(ACTOR, authority(), answers(), decisions(), None);
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
         let result = granted(&service, &reader).unwrap();
         // One grant in the chronicle: leave is already granted.
         assert_eq!(result.outputs["verleend"], Value::Bool(false));
@@ -1259,6 +1203,7 @@ articles:
             ACTOR,
             authority(),
             answers(),
+            reductions(),
             decisions(),
             Some("al_verleend"),
         );
@@ -1297,7 +1242,14 @@ articles:
     #[test]
     fn without_the_decision_the_reduction_reads_an_empty_chronicle() {
         let service = service();
-        let reader = Reader::new(ACTOR, authority(), answers(), Vec::new(), None);
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            Vec::new(),
+            None,
+        );
         let result = granted(&service, &reader).unwrap();
         assert_eq!(result.outputs["verleend"], Value::Bool(true));
         let regelrecht_engine::FilledBy::Answer { answers, .. } = &result.open_terms[0].filled_by
@@ -1314,8 +1266,15 @@ articles:
     fn before_its_reduction_is_in_force_the_cell_is_silent() {
         // The term is then the deciding authority's, as it was when a
         // decision of that day was taken.
-        let service = service_with(&reduction("reductie_a", ACTOR, "2026-12-01"));
-        let reader = Reader::new(ACTOR, authority(), answers(), decisions(), None);
+        let service = service_with(&reduction("reductie_a", "2026-12-01"));
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
         let e = granted(&service, &reader).unwrap_err();
         assert!(e.to_string().contains("al_verleend"), "{e}");
         assert!(reader.asked().is_empty());
@@ -1327,7 +1286,14 @@ articles:
         let service = service();
         let elsewhere: BTreeMap<String, String> =
             [("al_verleend".to_string(), "reductie_b".to_string())].into();
-        let reader = Reader::new(ACTOR, authority(), &elsewhere, decisions(), None);
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            &elsewhere,
+            reductions(),
+            decisions(),
+            None,
+        );
         let e = granted(&service, &reader).unwrap_err();
         assert!(
             e.to_string().contains("'reductie_b', which is not loaded"),
@@ -1339,7 +1305,7 @@ articles:
     fn an_answer_the_catalogue_does_not_give_leaves_the_cell_silent() {
         let service = service();
         let none = BTreeMap::new();
-        let reader = Reader::new(ACTOR, authority(), &none, decisions(), None);
+        let reader = Reader::new(ACTOR, authority(), &none, reductions(), decisions(), None);
         let findings = [("al_verleend".to_string(), Value::Bool(false))].into();
         let call = regelrecht_engine::Call {
             findings,
@@ -1366,7 +1332,14 @@ articles:
     #[test]
     fn a_parameter_the_binding_does_not_pass_fails_the_answer() {
         let service = service();
-        let reader = Reader::new(ACTOR, authority(), answers(), decisions(), None);
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
         let request = AnswerRequest {
             name: "al_verleend",
             parameters: &BTreeMap::new(),
@@ -1381,12 +1354,19 @@ articles:
 
     #[test]
     fn a_parameter_the_reduction_may_go_without_need_not_be_passed() {
-        let optional = reduction("reductie_a", ACTOR, "2026-01-01").replace(
+        let optional = reduction("reductie_a", "2026-01-01").replace(
             "          - name: bsn\n            type: string\n        input:",
             "          - name: bsn\n            type: string\n            required: false\n        input:",
         );
         let service = service_with(&optional);
-        let reader = Reader::new(ACTOR, authority(), answers(), decisions(), None);
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
         let request = AnswerRequest {
             name: "al_verleend",
             parameters: &BTreeMap::new(),
@@ -1399,7 +1379,14 @@ articles:
     #[test]
     fn a_parameter_the_reduction_does_not_take_fails_the_answer() {
         let service = service();
-        let reader = Reader::new(ACTOR, authority(), answers(), decisions(), None);
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
         let mut given = parameters();
         given.insert("bsn_jongere".into(), Value::String("x".into()));
         let request = AnswerRequest {
@@ -1412,11 +1399,12 @@ articles:
     }
 
     #[test]
-    fn a_reduction_of_another_holder_is_refused() {
-        let service = service_with(&reduction("reductie_a", "een ander", "2026-01-01"));
-        let reader = Reader::new(ACTOR, authority(), answers(), decisions(), None);
+    fn an_answer_of_a_reduction_the_cell_does_not_keep_is_refused() {
+        let service = service();
+        let none = BTreeSet::new();
+        let reader = Reader::new(ACTOR, authority(), answers(), &none, decisions(), None);
         let e = granted(&service, &reader).unwrap_err();
-        assert!(e.to_string().contains("whose holder"), "{e}");
+        assert!(e.to_string().contains("does not keep"), "{e}");
     }
 
     #[test]
@@ -1424,7 +1412,7 @@ articles:
         let service = service();
         let policy: BTreeMap<String, String> =
             [("al_verleend".to_string(), "beleid_fictief".to_string())].into();
-        let reader = Reader::new(ACTOR, authority(), &policy, decisions(), None);
+        let reader = Reader::new(ACTOR, authority(), &policy, reductions(), decisions(), None);
         let e = granted(&service, &reader).unwrap_err();
         assert!(e.to_string().contains("not a REDUCTIE"), "{e}");
     }
@@ -1432,11 +1420,18 @@ articles:
     #[test]
     fn a_reduction_without_the_output_of_the_answer_is_an_error() {
         let service = service_with(
-            &reduction("reductie_a", ACTOR, "2026-01-01")
+            &reduction("reductie_a", "2026-01-01")
                 .replace("- name: al_verleend", "- name: iets_anders")
                 .replace("- output: al_verleend", "- output: iets_anders"),
         );
-        let reader = Reader::new(ACTOR, authority(), answers(), decisions(), None);
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
         let e = granted(&service, &reader).unwrap_err();
         assert!(e.to_string().contains("has no output 'al_verleend'"), "{e}");
     }
@@ -1445,7 +1440,7 @@ articles:
     fn a_reduction_that_asks_its_own_answer_is_refused() {
         // The reduction reads the deciding law, whose term the binding
         // binds to this very answer.
-        let looping = reduction("reductie_a", ACTOR, "2026-01-01").replace(
+        let looping = reduction("reductie_a", "2026-01-01").replace(
             "          - name: besluiten\n            type: array\n            source:\n              \
              decisions: wet_fictief#1\n",
             "          - name: besluiten\n            type: array\n            source:\n              \
@@ -1458,7 +1453,14 @@ articles:
             "value: $verleend\n              body: true",
         );
         let service = service_with(&looping);
-        let reader = Reader::new(ACTOR, authority(), answers(), decisions(), None);
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
         let e = granted(&service, &reader).unwrap_err();
         assert!(e.to_string().contains("while giving it"), "{e}");
     }
@@ -1524,7 +1526,7 @@ articles:
         service.load_law(&deciding).unwrap();
         service.load_law(&binding).unwrap();
         service
-            .load_law(&reduction("reductie_a", ACTOR, "2026-01-01"))
+            .load_law(&reduction("reductie_a", "2026-01-01"))
             .unwrap();
         assert!(bound_terms(&service, authority(), answers(), day()).is_empty());
         let other = Authority {

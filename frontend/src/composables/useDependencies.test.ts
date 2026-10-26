@@ -81,7 +81,7 @@ describe('extractRegulationRefs', () => {
             execution: {
               input: [
                 { name: 'a', source: { article: 'wet_verlof#1', output: 'verleend' } },
-                { name: 'b', source: { article: '$besluit.grondslag' } },
+                { name: 'b', source: { article: '$besluit.basis' } },
                 { name: 'c', source: { article: 'wet_heroverweging#2' } },
               ],
             },

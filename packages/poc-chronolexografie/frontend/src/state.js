@@ -8,7 +8,7 @@
  * dan de vorige weigert de cel.
  *
  * Wat in welke stap zit (aanvraag, besluit, bezwaar, beslissing op bezwaar)
- * leest dit bestand uit de kroniek af aan `kind`, `grondslag` en `refers_to`,
+ * leest dit bestand uit de kroniek af aan `kind`, `basis` en `refers_to`,
  * zoals de cel ze vastlegt (RFC-046, RFC-047, RFC-050). Onder welk artikel
  * het besluit valt en onder welk de beslissing op bezwaar, zegt de casus
  * (`api.casus`); het spel leidt het af uit de wet.
@@ -42,10 +42,10 @@ export const state = reactive({
 });
 
 /** Het artikel waaronder de casus op een aanvraag besluit, `<wet>#<artikel>`. */
-export const besluitGrondslag = () => state.casus?.besluit;
+export const besluitBasis = () => state.casus?.besluit;
 
 /** Het artikel van de beslissing op bezwaar (Awb 7:11). */
-export const bezwaarGrondslag = () => state.casus?.beslissing_op_bezwaar;
+export const bezwaarBasis = () => state.casus?.beslissing_op_bezwaar;
 
 /** Of een besluit het gevraagde toewijst, volgens de uitvoer die de casus noemt. */
 export const toegewezen = (g) => g?.outputs?.[state.casus?.uitkomst];
@@ -207,7 +207,7 @@ export const aanvragen = () => state.grammen.filter((g) => g.kind === 'AANVRAAG'
 
 /** Het besluit op een aanvraag, als het er is. */
 export const besluitOp = (id) =>
-  verwijstNaar(id).find((g) => g.grondslag === besluitGrondslag() && g.kind !== 'BEZWAAR');
+  verwijstNaar(id).find((g) => g.basis === besluitBasis() && g.kind !== 'BEZWAAR');
 
 /**
  * Of beslissing `b` het besluit `id` nam: een beslissing op bezwaar noemt
@@ -222,7 +222,7 @@ export const bezwarenTegen = (id) => verwijstNaar(id).filter((g) => g.kind === '
 
 /** Elke beslissing op een bezwaar (Awb 7:11): meer dan één na een uitspraak. */
 export const beslissingenOp = (bezwaar) =>
-  verwijstNaar(bezwaar).filter((g) => g.grondslag === bezwaarGrondslag());
+  verwijstNaar(bezwaar).filter((g) => g.basis === bezwaarBasis());
 
 /** De laatste beslissing op een bezwaar, als die er is. */
 export const beslissingOp = (bezwaar) => beslissingenOp(bezwaar).at(-1);
@@ -249,7 +249,7 @@ export function rol(g) {
   if (g.kind === 'BEROEP') return 'Beroep';
   if (g.kind === 'UITSPRAAK') return 'Uitspraak';
   if (g.kind === 'BEZWAAR') return 'Bezwaar';
-  if (g.grondslag === bezwaarGrondslag()) return 'Beslissing op bezwaar';
+  if (g.basis === bezwaarBasis()) return 'Beslissing op bezwaar';
   const op = state.grammen.find((x) => x.id === g.refers_to);
   return op?.kind === 'BEZWAAR' ? 'Nieuw besluit' : 'Besluit';
 }
@@ -295,7 +295,7 @@ export function dossier(aanvraag) {
 export function geldendBesluit(aanvraag) {
   const besluiten = dossier(aanvraag)
     .map((s) => s.gram)
-    .filter((g) => g.grondslag === besluitGrondslag() && g.refers_to);
+    .filter((g) => g.basis === besluitBasis() && g.refers_to);
   return besluiten.filter((b) => !herroepen(b)).at(-1) ?? null;
 }
 
@@ -332,7 +332,7 @@ export const kort = (id) => String(id).slice(-8);
  */
 export function samenvatting(aanvraag) {
   const eigen = (state.vormen?.aanvraag.velden ?? []).filter(
-    (v) => v.grondslag === besluitGrondslag() && v.naam in (aanvraag.fields ?? {}),
+    (v) => v.basis === besluitBasis() && v.naam in (aanvraag.fields ?? {}),
   );
   const delen = eigen.map((v) => `${leesbaar(v.naam)}: ${jaNee(aanvraag.fields[v.naam])}`);
   return [...delen, `ontvangen ${aanvraag.recorded_on}`].join(' · ');
@@ -351,19 +351,19 @@ const isDecimaal = (v) =>
   v !== null && typeof v === 'object' && Object.keys(v).length === 1 && '__decimal' in v;
 
 /**
- * Een besluitwaarde (`{grondslag, fields, findings, outputs}`), zoals de
+ * Een besluitwaarde (`{basis, fields, findings, outputs}`), zoals de
  * uitspraak die houdt als de rechter zelf in de zaak voorziet (Awb 8:72,
  * derde lid, onder b).
  */
 export const isBesluitwaarde = (v) =>
   v !== null &&
   typeof v === 'object' &&
-  typeof v.grondslag === 'string' &&
+  typeof v.basis === 'string' &&
   ['fields', 'findings', 'outputs'].every((k) => v[k] !== null && typeof v[k] === 'object');
 
 /**
  * Een waarde leesbaar: een decimaal als het getal, een besluitwaarde als
- * haar grondslag met haar uitvoer (een besluit daarin net zo, tussen
+ * haar basis met haar uitvoer (een besluit daarin net zo, tussen
  * haakjes), de rest als JSON.
  */
 export function waarde(v) {
@@ -373,7 +373,7 @@ export function waarde(v) {
       const tekst = waarde(w);
       return `${leesbaar(naam)}: ${isBesluitwaarde(w) ? `(${tekst})` : tekst}`;
     });
-    return [`besluit onder ${v.grondslag}`, ...uitvoer].join('; ');
+    return [`besluit onder ${v.basis}`, ...uitvoer].join('; ');
   }
   return JSON.stringify(v);
 }

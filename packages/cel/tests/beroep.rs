@@ -7,6 +7,8 @@
 // a failing fixture reports itself.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod common;
+
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
@@ -49,28 +51,19 @@ std::thread_local! {
 /// The Leerplichtwet, the Awb, the school's policies and its reduction for
 /// lid 2 from the corpus.
 fn service() -> LawExecutionService {
-    let regulation = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/regulation/nl");
     let mut service = LawExecutionService::new();
-    for law in [
-        format!("wet/{LAW}"),
-        format!("wet/{AWB}"),
-        format!("uitvoeringsbeleid/{POLICY}"),
-        format!("uitvoeringsbeleid/{SCHOOL_YEAR}"),
-        format!("uitvoeringsbeleid/{LEAVE_POLICY}"),
-        format!("reducties/{REDUCTION}"),
+    let laws = [
+        format!("regulation/nl/wet/{LAW}"),
+        format!("regulation/nl/wet/{AWB}"),
+        format!("regulation/nl/uitvoeringsbeleid/{POLICY}"),
+        format!("regulation/nl/uitvoeringsbeleid/{SCHOOL_YEAR}"),
+        format!("regulation/nl/uitvoeringsbeleid/{LEAVE_POLICY}"),
+        common::reduction_dir(REDUCTION),
         // Which decisions still stand after objection and appeal: the
         // reduction of the Awb, which the school's reduction calls.
-        "reducties/reductie_algemene_wet_bestuursrecht".to_string(),
-    ] {
-        for entry in std::fs::read_dir(regulation.join(law)).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().is_some_and(|x| x == "yaml") {
-                service
-                    .load_law(&std::fs::read_to_string(&path).unwrap())
-                    .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            }
-        }
-    }
+        common::reduction_dir("reductie_algemene_wet_bestuursrecht"),
+    ];
+    common::load(&mut service, laws);
     service
 }
 
@@ -87,7 +80,7 @@ fn school_dir() -> tempfile::TempDir {
     if !WITHOUT_REDUCTION.get() {
         yaml.push_str(&format!("answers:\n  {ONCE}: {REDUCTION}\n"));
     }
-    std::fs::write(dir.path().join("cel.yaml"), yaml).unwrap();
+    common::write_identity(dir.path(), &yaml);
     dir
 }
 
@@ -320,7 +313,7 @@ fn the_copy_of_a_decision_holds_its_value_from_the_cell_that_took_it() {
     assert_eq!(copy.from, SCHOOL);
     assert_eq!(copy.gram, decided[0]);
     assert_eq!(
-        copy.value["grondslag"],
+        copy.value["basis"],
         json!("algemene_wet_bestuursrecht#7:11")
     );
     assert_eq!(
@@ -347,7 +340,7 @@ fn the_court_records_the_appeal_with_the_copy_it_received() {
     let appeal = appealed(&mut court, &copy).unwrap();
 
     assert_eq!(appeal.kind, "BEROEP");
-    assert_eq!(appeal.grondslag, "algemene_wet_bestuursrecht#8:70");
+    assert_eq!(appeal.basis, "algemene_wet_bestuursrecht#8:70");
     assert_eq!(appeal.refers_to, None);
     assert_eq!(
         appeal.received,
@@ -457,7 +450,7 @@ fn the_school_records_the_receipt_of_the_judgment() {
     let receipt = received(&mut case).unwrap();
     assert_eq!(receipt.kind, "EXECUTOGRAM");
     assert_eq!(receipt.fact.as_deref(), Some("afschrift_van_de_uitspraak"));
-    assert_eq!(receipt.grondslag, "algemene_wet_bestuursrecht#8:79");
+    assert_eq!(receipt.basis, "algemene_wet_bestuursrecht#8:79");
     assert_eq!(
         receipt.refers_to.as_deref(),
         Some(case.on_objection.id.as_str())
@@ -510,7 +503,7 @@ fn after_the_judgment_the_school_decides_on_the_objection_again() {
     assert_eq!(again.fields["bestreden_besluit"], json!(case.refused.id));
     assert_eq!(again.outputs["bestreden_besluit_herroepen"], json!(true));
     assert_eq!(again.outputs["nieuw_besluit"], json!(new.id));
-    assert_eq!(new.grondslag, "leerplichtwet_1969#13a");
+    assert_eq!(new.basis, "leerplichtwet_1969#13a");
     assert_eq!(new.outputs["verlof_verleend"], json!(true));
     // The school's chronicle: the application, the refusal, the objection,
     // the decision on it, the receipt, and the two decisions taken again.
@@ -1087,7 +1080,7 @@ fn the_copy_of_a_decision_on_objection_holds_the_contested_decision_as_a_value()
         .afschrift(&mut service(), &[], &decided[0].id)
         .unwrap();
     let contested = &copy.value["fields"]["bestreden_besluit"];
-    assert_eq!(contested["grondslag"], json!("leerplichtwet_1969#13a"));
+    assert_eq!(contested["basis"], json!("leerplichtwet_1969#13a"));
     assert_eq!(contested["outputs"]["verlof_verleend"], json!(false));
     // In the school's own chronicle the decision on the objection keeps it
     // by its id.
@@ -1105,16 +1098,13 @@ fn the_court_decides_the_case_itself_and_the_school_counts_its_grant() {
     assert_eq!(judgment.outputs["rechtsgevolgen_vernietigd"], json!(true));
     assert_eq!(judgment.outputs["opdracht_nieuw_besluit"], json!(false));
     let instead = judgment.outputs["uitspraak_in_de_plaats"].clone();
-    assert_eq!(
-        instead["grondslag"],
-        json!("algemene_wet_bestuursrecht#7:11")
-    );
+    assert_eq!(instead["basis"], json!("algemene_wet_bestuursrecht#7:11"));
     assert_eq!(
         instead["outputs"]["bestreden_besluit_herroepen"],
         json!(true)
     );
     let grant = &instead["outputs"]["nieuw_besluit"];
-    assert_eq!(grant["grondslag"], json!("leerplichtwet_1969#13a"));
+    assert_eq!(grant["basis"], json!("leerplichtwet_1969#13a"));
     assert_eq!(grant["outputs"]["verlof_verleend"], json!(true));
     // The court takes no decision of the school in its own chronicle: the
     // judgment holds the decision it sets in place as its value.
