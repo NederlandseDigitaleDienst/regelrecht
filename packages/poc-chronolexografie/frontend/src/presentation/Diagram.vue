@@ -93,28 +93,6 @@ const synthese = {
       <text x="240" y="272" class="strong" text-anchor="middle">{{ synthese[name].uitkomst }}</text>
     </svg>
 
-    <!-- Afschriften: twee kronieken, en de afschriften die de wet tussen beide voorschrijft. -->
-    <svg v-else-if="name === 'afschrift'" viewBox="0 0 520 300">
-      <defs aria-hidden="true"><marker :id="arrowId" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="head" /></marker></defs>
-      <rect x="4" y="4" width="200" height="292" rx="8" class="box" />
-      <text x="104" y="34" class="strong" text-anchor="middle">Gemeente</text>
-      <text x="104" y="54" class="small" text-anchor="middle">eigen kroniek</text>
-      <rect x="316" y="4" width="200" height="292" rx="8" class="box" />
-      <text x="416" y="34" class="strong" text-anchor="middle">Rechtbank</text>
-      <text x="416" y="54" class="small" text-anchor="middle">eigen kroniek</text>
-
-      <text x="260" y="100" class="small" text-anchor="middle">afschrift besluit</text>
-      <text x="260" y="118" class="small" text-anchor="middle">(Awb 6:5)</text>
-      <path d="M 210 130 L 306 130" class="arrow" :marker-end="arrow" />
-      <text x="416" y="136" class="small" text-anchor="middle">beroep</text>
-
-      <text x="416" y="200" class="small" text-anchor="middle">uitspraak</text>
-      <text x="260" y="188" class="small" text-anchor="middle">afschrift uitspraak</text>
-      <text x="260" y="206" class="small" text-anchor="middle">(Awb 8:79)</text>
-      <path d="M 310 218 L 214 218" class="arrow" :marker-end="arrow" />
-      <text x="104" y="224" class="strong accent-text" text-anchor="middle">ontvangst</text>
-      <text x="104" y="244" class="small" text-anchor="middle">executogram</text>
-    </svg>
     <figcaption>{{ label }}</figcaption>
   </figure>
 </template>

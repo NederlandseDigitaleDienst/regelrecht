@@ -99,12 +99,13 @@ describe('the demo scenarios', () => {
 
 describe('startIndex', () => {
   it('opens the deck only with the parameter, at the slide it names', () => {
-    expect(startIndex('', 18)).toBeNull();
-    expect(startIndex('?casus=x', 18)).toBeNull();
-    expect(startIndex('?presentatie', 18)).toBe(0);
-    expect(startIndex('?presentatie=5', 18)).toBe(4);
-    expect(startIndex('?presentatie=99', 18)).toBe(17);
-    expect(startIndex('?presentatie=nee', 18)).toBe(0);
+    expect(startIndex('', slides.length)).toBeNull();
+    expect(startIndex('?casus=x', slides.length)).toBeNull();
+    expect(startIndex('?presentatie', slides.length)).toBe(0);
+    const n = slides.length;
+    expect(startIndex('?presentatie=5', n)).toBe(4);
+    expect(startIndex('?presentatie=99', n)).toBe(n - 1);
+    expect(startIndex('?presentatie=nee', n)).toBe(0);
   });
 });
 
