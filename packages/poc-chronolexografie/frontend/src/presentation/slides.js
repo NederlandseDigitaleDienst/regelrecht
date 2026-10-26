@@ -56,34 +56,7 @@ answers:
   aanvrager_heeft_geldige_gehandicaptenparkeerkaart: reductie_geldige_gehandicaptenparkeerkaart
   aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt: reductie_geldige_gehandicaptenparkeerkaart`;
 
-const BINDING = `# fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal, artikel 2
-implements:
-  - law: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
-    article: '1'
-    open_term: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
-execution:
-  input:
-    - name: antwoord_geldige_kaart
-      source:
-        reduction: aanvrager_heeft_geldige_gehandicaptenparkeerkaart`;
-
-const READS = `# reductie_algemene_wet_bestuursrecht, artikel 1
-input:
-  - name: besluiten
-    type: array
-    source:
-      decisions: $basis`;
-
-const OWN = `# reductie_geldige_gehandicaptenparkeerkaart, artikel 1
-input:
-  - name: geldende_besluiten
-    type: array
-    source:
-      regulation: reductie_algemene_wet_bestuursrecht
-      output: geldende_besluiten
-      parameters:
-        basis: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
-# …
+const FOREACH = `# reductie_geldige_gehandicaptenparkeerkaart, artikel 1
 operation: FOREACH
 collection: $geldende_besluiten
 as: besluit
@@ -96,9 +69,19 @@ filter:
     - operation: EQUALS
       subject: $besluit.bsn_aanvrager
       value: $bsn_aanvrager
-    # … en kaart_geldig_tot niet vóór besluit_datum
+    # …
 body: true
 combine: OR`;
+
+const INPUT = `# reductie_geldige_gehandicaptenparkeerkaart, artikel 1
+input:
+  - name: geldende_besluiten
+    type: array
+    source:
+      regulation: reductie_algemene_wet_bestuursrecht
+      output: geldende_besluiten
+      parameters:
+        basis: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49`;
 
 export const slides = [
   {
@@ -123,7 +106,7 @@ export const slides = [
     kind: 'bullets',
     overline: 'Waarom',
     title: 'Wetten vragen naar het verleden',
-    lead: 'Kreeg de aanvrager eerder een kaart? Geldt dat besluit nog?',
+    lead: 'Heeft de gemeente deze persoon al eens een parkeervergunning gegeven? En geldt dat besluit nog?',
     bullets: [
       'Dat antwoord ligt nu verspreid over systemen.',
       'Die bewaren vaak alleen de laatste stand.',
@@ -142,10 +125,10 @@ export const slides = [
     title: 'Chronolexogram',
     bullets: [
       'Een chronolexogram is één vastlegging: één handeling of besluit, op één moment.',
-      'Het ontstaat bij de organisatie die het feit vaststelt, en blijft daar.',
-      'In RegelRecht is het een aanvraag, bezwaar, beroep, besluit of **executogram**.',
-      'Een executogram legt vast dat iets is gedaan.',
-      'Bijvoorbeeld: de Gemeentelijke Gezondheidsdienst (GGD) heeft onderzocht, of de uitspraak is ontvangen.',
+      'Een **lexogram** legt vast dat wet- of regelgeving verandert, of gaat veranderen.',
+      'Een **decretogram** legt vast dat iets is besloten.',
+      'Een **executogram** legt vast dat iets is gedaan, zoals een uitbetaling.',
+      'In RegelRecht legt de cel ook aanvragen, bezwaren en beroepen vast.',
     ],
     figure: { code: GRAM, label: 'Een besluit in de kroniek van Wilgendaal, ingekort' },
   },
@@ -169,7 +152,7 @@ export const slides = [
     bullets: [
       'Een cel is de plek waar vastleggingen ontstaan en bewaard worden.',
       'Alleen de cel zelf voegt er iets aan toe.',
-      'In RegelRecht heeft elke organisatie een cel: een gemeente, de GGD, een rechtbank.',
+      'In RegelRecht heeft elke organisatie een cel: een gemeente, de Gemeentelijke Gezondheidsdienst (GGD), een rechtbank.',
       'De cel legt vast en beslist via de engine; wat ze controleert, komt uit de wet.',
       'Het is een map met `cel.yaml`. Daarin staat wie de cel is en welke antwoorden ze geeft.',
     ],
@@ -184,12 +167,12 @@ export const slides = [
       'Dat gebeurt altijd in de cel waar die feiten staan.',
       'Hoe een cel reduceert, bepaalt de cel zelf.',
       'RegelRecht biedt één manier: een reductie als regelwerk met een benoemd antwoord.',
-      'In het fragment leest een reductie de besluiten onder één artikel uit de kroniek.',
+      'In het fragment loopt de cel haar besluiten langs en kijkt of er een kaart bij zit voor deze aanvrager.',
     ],
     figure: {
-      code: READS,
-      source: 'corpus/cells/reductions/reductie_algemene_wet_bestuursrecht/2026-01-01.yaml',
-      label: 'Een reductie leest besluiten uit de kroniek, ingekort',
+      code: FOREACH,
+      source: 'corpus/cells/gemeente_wilgendaal/reductions/reductie_geldige_gehandicaptenparkeerkaart/2026-01-01.yaml',
+      label: 'Uit de reductie van de gemeente Wilgendaal, ingekort',
     },
   },
   {
@@ -198,7 +181,6 @@ export const slides = [
     title: 'Synthese',
     bullets: [
       'Een wetsartikel neemt antwoorden van meer cellen samen tot één uitkomst.',
-      'Dat gebeurt bij wie beslist: de afnemer.',
       'Zo blijft elke cel baas over haar eigen feiten.',
       'Elke cel reduceert alleen haar eigen kroniek.',
       'In RegelRecht doet de engine dit als hij een artikel uitvoert met antwoorden van meer cellen.',
@@ -217,55 +199,48 @@ export const slides = [
   {
     kind: 'bullets',
     overline: 'De vraag',
-    title: 'Heeft de aanvrager al een geldige kaart?',
+    title: 'Heeft de aanvrager al een gehandicaptenparkeerkaart van de gemeente?',
     lead: 'Volgens artikel 49 van het BABW kan het college een kaart verstrekken. Hoe het die bevoegdheid gebruikt, laat de wet open.',
     bullets: [
       'Wilgendaal geeft geen tweede kaart aan wie al een geldige kaart van de gemeente heeft.',
       'Zo staat het in het beleid van de gemeente (artikel 1). Het vult de ruimte in die BABW artikel 49 laat.',
       "Of de aanvrager al zo'n kaart heeft, is een nieuw open begrip.",
-      'In het fragment vult artikel 2 van het beleid dat begrip met het antwoord van de cel.',
     ],
-    figure: {
-      code: BINDING,
-      source: 'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal/2026-01-01.yaml',
-      label: 'Artikel 2 van het beleid van Wilgendaal, ingekort',
-    },
   },
   {
     kind: 'bullets',
     overline: 'De keten',
     title: 'Van de wet naar de kroniek',
-    lead: 'De engine volgt de open begrippen tot het antwoord uit de kroniek.',
+    lead: 'Wie vraagt wat aan wie, van het artikel tot de kroniek, en hoe het antwoord terugkomt.',
     bullets: [],
     figure: { diagram: 'keten', label: 'De keten van artikel 49 tot de kroniek van Wilgendaal' },
   },
   {
     kind: 'bullets',
     overline: 'De Awb-reductie',
-    title: 'Welke besluiten gelden nog?',
-    lead: '`reductie_algemene_wet_bestuursrecht` geeft van alle besluiten onder één artikel de `geldende_besluiten`.',
+    title: 'Eén Awb-reductie voor elke wet',
+    lead: 'De reductie van de Awb past de regels van de Awb toe op de besluiten van elke wet.',
     bullets: [
-      'Een besluit dat bij bezwaar is herroepen, telt niet meer (Awb 7:11).',
-      'Een besluit dat de rechter vernietigde, telt ook niet meer (Awb 8:72).',
-      'Wat een vernietigde beslissing op bezwaar in de plaats nam, vervalt mee.',
-      'Een besluit dat bij bezwaar of door de rechter in de plaats kwam, telt wel.',
-      'Deze reductie hoort bij geen cel. Ze leest de kroniek van de cel waarvoor ze draait.',
+      'Wat na bezwaar en beroep nog geldt, staat zo op één plek.',
+      'Elke reductie van een uitvoerder roept haar aan met de grondslag van haar eigen besluiten (`basis`).',
+      'De uitvoerder schrijft alleen zijn eigen vraag. Herroepen en vernietigde besluiten zijn er al uit.',
     ],
+    figure: { diagram: 'awb', label: 'De reducties in de corpus die de Awb-reductie gebruiken' },
   },
   {
     kind: 'bullets',
     overline: 'De gemeente',
     title: 'Wat de gemeente zelf doet',
-    lead: 'De reductie van de gemeente loopt met een FOREACH door de `geldende_besluiten`.',
+    lead: 'De reductie van de gemeente loopt alleen door de `geldende_besluiten`.',
     bullets: [
-      'Een besluit telt als het een kaart verstrekte aan dezelfde aanvrager, en die kaart nog geldig is.',
-      'Of een besluit herroepen of vernietigd is, zocht de Awb-reductie al uit.',
+      'In het fragment haalt ze die bij de Awb-reductie, voor de besluiten onder artikel 49.',
+      'Daarna telt een besluit als het een kaart verstrekte aan dezelfde aanvrager, en die kaart nog geldig is.',
       'Gaf de rechter zelf een kaart, dan zwijgt ze. De einddatum staat niet in haar kroniek.',
     ],
     figure: {
-      code: OWN,
+      code: INPUT,
       source: 'corpus/cells/gemeente_wilgendaal/reductions/reductie_geldige_gehandicaptenparkeerkaart/2026-01-01.yaml',
-      label: 'Uit de reductie van de gemeente, ingekort',
+      label: 'De invoer van de reductie van de gemeente',
     },
   },
   {
@@ -275,7 +250,7 @@ export const slides = [
     lead: 'Het besluit over de kaart (BABW artikel 49) neemt twee antwoorden samen.',
     bullets: [
       'De cel van de GGD antwoordt uit haar kroniek: was er een onderzoek, en wat zegt het advies?',
-      'De cel van Wilgendaal antwoordt uit haar eigen kroniek: heeft de aanvrager al een geldige kaart?',
+      'De cel van Wilgendaal antwoordt uit haar eigen kroniek: heeft de gemeente deze aanvrager al een geldige gehandicaptenparkeerkaart gegeven?',
       'Artikel 49 maakt er één uitkomst van: de kaart wordt verstrekt of geweigerd.',
     ],
     figure: { diagram: 'synthese-kaart', label: 'Het besluit over de kaart neemt de antwoorden van de GGD en Wilgendaal samen' },

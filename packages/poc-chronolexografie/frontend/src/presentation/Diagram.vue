@@ -22,13 +22,21 @@ const kroniek = [
 ];
 
 const keten = [
-  { titel: 'BABW, artikel 49', code: 'bevoegdheid_tot_verstrekken_gebruikt' },
-  { titel: 'Beleid Wilgendaal, artikel 1', code: 'aanvrager_heeft_geldige_gehandicaptenparkeerkaart' },
-  { titel: 'Beleid Wilgendaal, artikel 2', code: 'source.reduction' },
-  { titel: 'Cel gemeente_wilgendaal', code: 'cel.yaml: answers' },
-  { titel: 'Reductie van de gemeente, artikel 1', code: 'reductie_geldige_gehandicaptenparkeerkaart' },
-  { titel: 'Reductie van de Algemene wet bestuursrecht (Awb), artikel 2', code: 'geldende_besluiten (basis BABW#49)' },
+  { titel: 'BABW, artikel 49', code: 'open begrip: bevoegdheid_tot_verstrekken_gebruikt', pijl: 'ingevuld door' },
+  { titel: 'Beleid Wilgendaal, artikel 1 en 2', code: 'aanvrager_heeft_geldige_gehandicaptenparkeerkaart', pijl: 'vraagt de cel' },
+  { titel: 'Cel van de gemeente Wilgendaal', code: 'cel.yaml, answers: welke reductie antwoordt', pijl: 'draait' },
+  { titel: 'Reductie van de gemeente: geldige kaart?', code: 'reductie_geldige_gehandicaptenparkeerkaart', pijl: 'vraagt geldende_besluiten' },
+  { titel: 'Reductie van de Algemene wet bestuursrecht (Awb)', code: 'reductie_algemene_wet_bestuursrecht', pijl: 'leest' },
   { titel: 'Kroniek van Wilgendaal', code: 'de besluiten onder artikel 49', accent: true },
+];
+
+// The reductions in the corpus that call the reduction of the Awb, each
+// with the article its own decisions rest on (`basis`).
+const awb = [
+  { naam: 'OBS De Klimop: al verlof dit schooljaar?', basis: 'basis: leerplichtwet_1969#13a' },
+  { naam: 'Wilgendaal: al een geldige kaart?', basis: 'basis: …babw#49' },
+  { naam: 'Oostmeer: eerder een kaart gegeven?', basis: 'basis: …babw#49' },
+  { naam: 'Centraal Bureau Rijvaardigheidsbewijzen', basis: 'basis: …babw#49' },
 ];
 
 const synthese = {
@@ -43,7 +51,7 @@ const synthese = {
   'synthese-kaart': {
     cellen: [
       { naam: 'GGD Wilgendaal', antwoord: 'onderzoek en advies' },
-      { naam: 'Gemeente Wilgendaal', antwoord: 'al een geldige kaart?', accent: true },
+      { naam: 'Gemeente Wilgendaal', antwoord: 'al een geldige kaart gegeven?', accent: true },
     ],
     artikel: 'BABW artikel 49',
     uitkomst: 'kaart verstrekt of geweigerd',
@@ -65,15 +73,40 @@ const synthese = {
       </g>
     </svg>
 
-    <!-- De keten: van het artikel tot de kroniek, elk blok een stap. -->
-    <svg v-else-if="name === 'keten'" viewBox="0 0 560 532">
+    <!-- De keten: van het artikel tot de kroniek, elk blok een stap. Op
+         elke pijl wat er gebeurt; rechts komt het antwoord terug bij het
+         beleid. -->
+    <svg v-else-if="name === 'keten'" viewBox="0 0 600 534">
       <defs aria-hidden="true"><marker :id="arrowId" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="head" /></marker></defs>
-      <g v-for="(k, i) in keten" :key="i" :transform="`translate(0 ${i * 76})`">
-        <rect x="2" y="2" width="556" height="56" rx="8" :class="k.accent ? 'box accent' : 'box'" />
-        <text x="18" y="25" class="strong">{{ k.titel }}</text>
-        <text x="18" y="46" class="mono">{{ k.code }}</text>
-        <path v-if="i < keten.length - 1" d="M 280 60 L 280 76" class="arrow" :marker-end="arrow" />
+      <g v-for="(k, i) in keten" :key="i" :transform="`translate(0 ${i * 92})`">
+        <rect x="2" y="2" width="500" height="58" rx="8" :class="k.accent ? 'box accent' : 'box'" />
+        <text x="18" y="26" class="strong">{{ k.titel }}</text>
+        <text x="18" y="48" class="mono">{{ k.code }}</text>
+        <template v-if="k.pijl">
+          <path d="M 120 62 L 120 92" class="arrow" :marker-end="arrow" />
+          <text x="132" y="82" class="small">{{ k.pijl }}</text>
+        </template>
       </g>
+      <path d="M 504 307 L 560 307 L 560 123 L 506 123" class="arrow" :marker-end="arrow" />
+      <text x="574" y="215" class="small" text-anchor="middle" transform="rotate(-90 574 215)">antwoord: ja of nee</text>
+    </svg>
+
+    <!-- De Awb-reductie in het midden, de reducties die haar gebruiken
+         eromheen. -->
+    <svg v-else-if="name === 'awb'" viewBox="0 0 700 330">
+      <defs aria-hidden="true"><marker :id="arrowId" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="head" /></marker></defs>
+      <g v-for="(r, i) in awb" :key="i" :transform="`translate(${(i % 2) * 370} ${i < 2 ? 0 : 250})`">
+        <rect x="2" y="2" width="326" height="70" rx="8" class="box" />
+        <text x="165" y="32" class="strong" text-anchor="middle">{{ r.naam }}</text>
+        <text x="165" y="56" class="mono" text-anchor="middle">{{ r.basis }}</text>
+      </g>
+      <path d="M 165 74 L 260 130" class="arrow" :marker-end="arrow" />
+      <path d="M 535 74 L 440 130" class="arrow" :marker-end="arrow" />
+      <path d="M 165 250 L 260 200" class="arrow" :marker-end="arrow" />
+      <path d="M 535 250 L 440 200" class="arrow" :marker-end="arrow" />
+      <rect x="200" y="132" width="300" height="66" rx="33" class="box accent" />
+      <text x="350" y="160" class="strong" text-anchor="middle">Reductie van de Awb</text>
+      <text x="350" y="182" class="mono" text-anchor="middle">geldende_besluiten</text>
     </svg>
 
     <!-- Synthese: two cells each answer from their own chronicle, and the
