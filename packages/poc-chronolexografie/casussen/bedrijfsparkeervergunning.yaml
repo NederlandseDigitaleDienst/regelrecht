@@ -1,0 +1,197 @@
+---
+# Casus: de bedrijfsparkeervergunning bij een fictieve gemeente.
+#
+# Configuratie is alleen wat niet uit de wet volgt. De regelwerken die de cel
+# draait, het artikel van het bezwaar en de naam van wie beslist, leidt de app
+# af uit dit artikel en de cel (src/casus.rs).
+cel: gemeente_wilgendaal
+artikel: fictieve_parkeerverordening_gemeente_wilgendaal#2
+# De uitvoer die zegt of het besluit het gevraagde toewijst. De verordening
+# merkt die niet aan: decision_type TOEKENNING zegt wat voor besluit het is,
+# niet welke van zijn uitvoer de toewijzing is.
+uitkomst: bedrijfsparkeervergunning_verleend
+
+# Wat de bezoeker leest.
+titel: Bedrijfsparkeervergunning
+omschrijving: >-
+  Een bedrijf vraagt de gemeente om een bedrijfsparkeervergunning, onder een
+  fictieve parkeerverordening naar het model van Delft. Het college verleent
+  haar aan een bedrijf dat in een vergunninggebied is gevestigd, tot een
+  maximum per bedrijf. Waar het bedrijf is gevestigd en hoeveel mensen er
+  werken, vraagt de gemeente aan de Kamer van Koophandel, die antwoordt uit
+  haar eigen kroniek van het handelsregister. Hoeveel geldige vergunningen
+  het bedrijf al heeft, leest de gemeente uit haar eigen besluiten, met wat
+  de Awb zegt over herroepen besluiten.
+cel_naam: gemeente Wilgendaal
+speeldatum: 2026-10-13
+
+# Fictieve voorbeeldgegevens, zodat je snel door het proces klikt. Het
+# KvK-nummer is dat van een verzonnen bakkerij in de binnenstad; de
+# KvK-nummers en het kenteken zijn verzonnen. Het formulier vraagt geen
+# bevinding: de Kamer van Koophandel en de cel van de gemeente geven wat de
+# regels vragen.
+voorbeeld:
+  aanvraag:
+    kvk_nummer: '99990011'
+    kenteken: ZZ-001-Z
+    aanvraag_ondertekend: true
+    naam_aanvrager: Bakkerij De Wilg
+    adres_aanvrager: Kerkstraat 1, 7711 AB Wilgendaal
+    dagtekening: '2026-10-05'
+    gevraagde_beschikking: bedrijfsparkeervergunning
+  bezwaar:
+    bezwaar_of_beroepschrift_ondertekend: true
+    naam_indiener: Fietsenmakerij Kade
+    adres_indiener: Kade 3, 7713 AA Wilgendaal
+    omschrijving_bestreden_besluit: weigering van een bedrijfsparkeervergunning
+    gronden_bezwaar_of_beroep: er werken nu twee mensen in het bedrijf
+  # Het beroepschrift (Awb 6:5): dezelfde velden als het bezwaarschrift.
+  beroep:
+    bezwaar_of_beroepschrift_ondertekend: true
+    naam_indiener: Fietsenmakerij Kade
+    adres_indiener: Kade 3, 7713 AA Wilgendaal
+    omschrijving_bestreden_besluit: beslissing op bezwaar over de bedrijfsparkeervergunning
+    gronden_bezwaar_of_beroep: het maximum hoort het aantal werknemers te volgen
+  # Wat de rechter vindt (Awb 8:70): de gemeente schond geen rechtsregel.
+  uitspraak:
+    indiener_is_belanghebbende: true
+    rechtsregel_geschonden: false
+
+# De andere cellen van de sfeer (RFC-052). Het open begrip zegt wie bevoegd
+# is: de Kamer van Koophandel voor wat het handelsregister vermeldt (artikel 2
+# en 3 van het fictieve uitvoeringsbesluit parkeren van Wilgendaal). Elke cel
+# legt bij elke start en reset opnieuw vast wat zij vóór het eerste scenario
+# wist, via de cel zoals elke stap.
+#
+# - De Kamer schreef drie verzonnen bedrijven in, elk met een vestiging: een
+#   bakkerij in de binnenstad (vier werkzame personen), een fietsenmakerij in
+#   de schil (één werkzame persoon) en een adviesbureau buiten de
+#   vergunninggebieden. Executogrammen van het feit dat artikel 1 van het
+#   fictieve beleid van de Kamer vereist; dat artikel zegt ook wat het bevat.
+#   Elk draagt de dag waarop de Kamer de gegevens opnam.
+# - De gemeente zelf kent nog geen vergunning. Haar eigen cel begint vóór de
+#   andere cellen, dus een vergunning die ze al verleende, kan dit bestand
+#   niet geven: het besluit zou de Kamer vragen voordat die iets weet. Een
+#   eerdere vergunning ontstaat daarom in het scenario zelf.
+andere_cellen:
+  - cel: kamer_van_koophandel
+    cel_naam: Kamer van Koophandel
+    begin:
+      datum: 2026-03-02
+      executogrammen:
+        - feit: fictief_beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+          datum: 2026-01-05
+          velden:
+            kvk_nummer: '99990011'
+            postcode: 7711 AB
+            aantal_werkzame_personen: 4
+            datum_inschrijving: '2026-01-05'
+        - feit: fictief_beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+          datum: 2026-02-02
+          velden:
+            kvk_nummer: '99990022'
+            postcode: 7713 AA
+            aantal_werkzame_personen: 1
+            datum_inschrijving: '2026-02-02'
+        - feit: fictief_beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+          datum: 2026-03-02
+          velden:
+            kvk_nummer: '99990033'
+            postcode: 7720 BC
+            aantal_werkzame_personen: 3
+            datum_inschrijving: '2026-03-02'
+  # De bestuursrechter (RFC-053): ook een andere cel, met een eigen kroniek.
+  - cel: rechtbank_wilgendaal
+    cel_naam: Rechtbank Wilgendaal
+
+# The app shows these scenarios step by step in a guide beside the page
+# (frontend/src/scenarioGuides.js), which follows a scenario by its `naam`;
+# change a name or a step in both places.
+scenarios:
+  - naam: Een bedrijf in de binnenstad krijgt een vergunning
+    stappen:
+      - >-
+        Aanvrager, speeldatum 13 oktober 2026: klik op Aanvraag indienen. Het
+        KvK-nummer 99990011 is van een bakkerij in de binnenstad.
+      - >-
+        Bestuursorgaan, speeldatum 20 oktober 2026: het formulier vraagt niets,
+        want de Kamer van Koophandel en de gemeente zelf geven wat de regels
+        vragen. Klik op Besluit nemen.
+    eind: >-
+      Onder Besluiten staat Toegewezen: de vergunning is verleend, geldig tot
+      en met 19 oktober 2027, een jaar vanaf de dag van het besluit (artikel 3
+      van de fictieve verordening). Bij het besluit staat "postcode vestiging
+      volgens handelsregister: 7711 AB", en in het Logboek dat de Kamer van
+      Koophandel dat antwoordde: de gemeente vroeg het aan de cel die het
+      uitvoeringsbesluit daarvoor bevoegd maakt. Bij het besluit staat ook
+      "aantal geldige bedrijfsparkeervergunningen: 0", uit de eigen kroniek
+      van de gemeente. De inschrijving staat in de kroniek van de Kamer, onder
+      Andere cellen.
+  - naam: Het maximum in de schil, en een vergunning na bezwaar
+    stappen:
+      - >-
+        Aanvrager, speeldatum 13 oktober 2026: verander het KvK-nummer in
+        99990022 en klik op Aanvraag indienen. In deze fietsenmakerij in de
+        schil werkt volgens het handelsregister één persoon.
+      - >-
+        Bestuursorgaan, speeldatum 20 oktober 2026: klik op Besluit nemen. De
+        vergunning wordt verleend.
+      - >-
+        Aanvrager, speeldatum 21 oktober 2026: verander het KvK-nummer weer in
+        99990022, zet het kenteken op ZZ-002-Z en klik op Aanvraag indienen.
+      - >-
+        Bestuursorgaan, speeldatum 22 oktober 2026: klik op Besluit nemen.
+        Afgewezen: in de schil krijgt een bedrijf zoveel vergunningen als er
+        mensen werken, en dat is er één.
+      - >-
+        Aanvrager, speeldatum 1 november 2026: klik bij de weigering op Bezwaar
+        maken en dan op Bezwaar indienen.
+      - >-
+        Andere cellen, speeldatum 10 november 2026: de fietsenmakerij heeft
+        iemand aangenomen. Leg bij de Kamer van Koophandel een inschrijving vast
+        voor KvK-nummer 99990022, postcode 7713 AA, twee werkzame personen en
+        datum inschrijving 10 november 2026.
+      - >-
+        Bestuursorgaan, speeldatum 20 november 2026: klik op Ontvankelijkheid
+        toetsen en dan op Beslissen op bezwaar. Gegrond: de weigering is
+        herroepen en een nieuw besluit verleent de vergunning.
+      - >-
+        Aanvrager, speeldatum 1 december 2026: verander het KvK-nummer in
+        99990022, zet het kenteken op ZZ-003-Z en klik op Aanvraag indienen.
+        Bestuursorgaan: klik op Besluit nemen.
+    eind: >-
+      Afgewezen: het bedrijf heeft twee geldige vergunningen, en er werken twee
+      mensen. Bij het besluit staat "aantal geldige bedrijfsparkeervergunningen:
+      2". Onder "Hoe de cel dit beantwoordde" staat wat de reductie van de Awb
+      gaf. Bij "herroepen besluiten" staat de weigering (Awb 7:11, tweede lid).
+      Bij "geldende besluiten" staan de eerste vergunning en het nieuwe besluit
+      uit de beslissing op bezwaar; die twee telde de reductie van de gemeente.
+      Zelf kent die reductie geen bezwaar: ze leest alleen de geldende
+      besluiten.
+  - naam: Buiten het gebied, en na de verhuizing erin
+    stappen:
+      - >-
+        Aanvrager, speeldatum 13 oktober 2026: verander het KvK-nummer in
+        99990033 en klik op Aanvraag indienen. Volgens het handelsregister ligt
+        de vestiging van dit adviesbureau op postcode 7720 BC, in geen van de
+        vergunninggebieden.
+      - >-
+        Bestuursorgaan, speeldatum 20 oktober 2026: klik op Besluit nemen.
+        Afgewezen: uit het handelsregister blijkt niet dat het bedrijf in een
+        vergunninggebied is gevestigd.
+      - >-
+        Andere cellen, speeldatum 1 november 2026: het adviesbureau verhuist
+        naar de binnenstad. Leg bij de Kamer van Koophandel een inschrijving
+        vast voor KvK-nummer 99990033, postcode 7711 AC, drie werkzame personen
+        en datum inschrijving 1 november 2026.
+      - >-
+        Aanvrager, speeldatum 2 november 2026: verander het KvK-nummer in
+        99990033 en klik op Aanvraag indienen. Bestuursorgaan: klik op Besluit
+        nemen.
+    eind: >-
+      Toegewezen. Bij het eerste besluit antwoordde de Kamer met de postcode
+      die op 20 oktober gold, bij het tweede met de inschrijving van 1 november: zij leest
+      de inschrijving die op de dag van het besluit geldt. De oude inschrijving
+      blijft in haar kroniek staan; niets is overschreven. Het eerste besluit
+      blijft een weigering: een nieuwe inschrijving verandert geen besluit dat
+      al genomen is.

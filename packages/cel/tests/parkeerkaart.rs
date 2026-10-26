@@ -44,6 +44,10 @@ const POWER: &str = "bevoegdheid_tot_verstrekken_gebruikt";
 /// municipality's cell, from its reduction.
 const VALID: &str = "aanvrager_heeft_geldige_gehandicaptenparkeerkaart";
 const REDUCTION: &str = "reductie_geldige_gehandicaptenparkeerkaart";
+/// The answer of the same cell for the bedrijfsparkeervergunning, another
+/// case of the municipality: how many valid permits a company holds.
+const PERMITS: &str = "aantal_geldige_bedrijfsparkeervergunningen";
+const PERMITS_REDUCTION: &str = "reductie_geldige_bedrijfsparkeervergunningen";
 
 /// Art. 2 of the Regeling: no card before a medical examination (lid 1),
 /// unless it is left out for someone who had a card before (lid 2, onder a
@@ -545,14 +549,23 @@ fn a_cell_lists_the_answers_it_gives_and_the_terms_they_fill() {
     // The answers of the municipality's reduction: whether the applicant
     // holds a valid card, and whether a card was issued before (Regeling
     // art. 2 lid 2, RFC-052). The examination is the GGD's, in a cell of its
-    // own.
+    // own. The catalogue also gives the count of the bedrijfsparkeervergunning:
+    // a cell's answers are the cell's, whatever case asks. The service here
+    // loads none of the rulework that binds it, so it fills no term.
     let cell = cell();
     let answers: Vec<(&str, &str)> = cell
         .answers()
         .iter()
         .map(|(answer, reduction)| (answer.as_str(), reduction.as_str()))
         .collect();
-    assert_eq!(answers, [(EARLIER, REDUCTION), (VALID, REDUCTION)]);
+    assert_eq!(
+        answers,
+        [
+            (PERMITS, PERMITS_REDUCTION),
+            (EARLIER, REDUCTION),
+            (VALID, REDUCTION)
+        ]
+    );
     let terms: Vec<(String, String)> = cell
         .bound_terms(&service(), day("2026-10-20"))
         .into_iter()
@@ -1634,7 +1647,7 @@ fn a_municipality_that_gives_the_examination_answer_is_not_asked_for_it() {
     let identity = std::fs::read_to_string(cell_dir().join("cel.yaml")).unwrap();
     common::write_identity(dir.path(), &format!("{identity}  {EXAMINED}: {REPORTS}\n"));
     let mut cell = Cell::in_memory(RECORDING_ACTOR, dir.path()).unwrap();
-    assert_eq!(cell.answers().len(), 3);
+    assert_eq!(cell.answers().len(), 4);
     let app = applied(&mut cell, APPLICANT, "2026-10-13");
     let e = cell
         .decide(
@@ -1899,7 +1912,7 @@ fn a_municipality_that_gives_the_advice_answer_is_not_asked_for_it() {
         &format!("{identity}  {}: {ADVICE_REDUCTION}\n", ADVICE[0]),
     );
     let mut cell = Cell::in_memory(RECORDING_ACTOR, dir.path()).unwrap();
-    assert_eq!(cell.answers().len(), 3);
+    assert_eq!(cell.answers().len(), 4);
     let app = applied(&mut cell, APPLICANT, "2026-10-13");
     let mut findings = examined(true);
     findings.insert(EXAMINED_C.into(), json!(true));

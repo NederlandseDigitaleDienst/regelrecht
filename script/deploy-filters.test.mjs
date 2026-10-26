@@ -194,6 +194,11 @@ test('chronolexografie volgt zijn cellen, hun regelwerken, de casussen en zijn f
     'corpus/cells/rechtbank_wilgendaal/cel.yaml',
     'corpus/regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw/2026-01-01.yaml',
     'packages/poc-chronolexografie/casussen/gehandicaptenparkeerkaart.yaml',
+    'corpus/regulation/nl/gemeentelijke_verordening/wilgendaal/fictieve_parkeerverordening_gemeente_wilgendaal/2026-01-01.yaml',
+    'corpus/regulation/nl/uitvoeringsbeleid/fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal/2026-01-01.yaml',
+    'corpus/cells/kamer_van_koophandel/reductions/reductie_vestiging_in_handelsregister/2026-01-01.yaml',
+    'corpus/cells/gemeente_wilgendaal/reductions/reductie_geldige_bedrijfsparkeervergunningen/2026-01-01.yaml',
+    'packages/poc-chronolexografie/casussen/bedrijfsparkeervergunning.yaml',
     'packages/poc-chronolexografie/frontend/src/App.vue',
   ]) {
     const geraakt = namesOf([pad]);

@@ -1,0 +1,104 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$id: reductie_geldige_bedrijfsparkeervergunningen
+regulatory_layer: REDUCTIE
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# Geen regelgeving: een reductie van het college van de (fictieve) gemeente
+# Wilgendaal over zijn eigen kroniek (RFC-022 §4.1, RFC-048). Ze telt de
+# vergunningen die ertoe doen; de geldigheidsduur staat al in elk besluit
+# (artikel 3 van de fictieve parkeerverordening). De cel van de gemeente geeft
+# haar uitvoer als het antwoord aantal_geldige_bedrijfsparkeervergunningen
+# (cel.yaml, answers). Artikel 5 van het fictieve uitvoeringsbesluit parkeren
+# koppelt dat aan het open begrip van artikel 3. Dat geldt ook wanneer Awb
+# 7:11 artikel 2 van de verordening opnieuw aanroept; bij die heroverweging
+# laat de cel het bestreden besluit buiten beschouwing. Eigen keuze: de
+# reductie telt per bedrijf, over beide vergunninggebieden. Artikel 3 van het
+# uitvoeringsbesluit stelt het maximum per gebied vast, maar een vergunning
+# blijft geldig tot zij afloopt of wordt ingetrokken (artikel 5 van de
+# verordening), ook na een verhuizing. Er is geen bekendmaking; de url wijst
+# naar het model van de verordening.
+url: https://lokaleregelgeving.overheid.nl/CVDR642699
+name: Geldige bedrijfsparkeervergunningen bij de gemeente Wilgendaal (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving. Het systeem van het college van de gemeente Wilgendaal
+      telt door middel van een chronolexografische reductie op zijn eigen
+      kroniek hoeveel bedrijfsparkeervergunningen het het bedrijf verleende
+      die op de dag van het besluit nog geldig zijn: verleend in een besluit
+      op een aanvraag (artikel 2 van de fictieve parkeerverordening), niet
+      herroepen en niet door de bestuursrechter vernietigd (Awb 7:11 en 8:72),
+      en geldig tot en met de dag van het besluit of later. Verleende de
+      bestuursrechter zelf een vergunning (Awb 8:72, derde lid, onder b), dan
+      telt het systeem die niet: het kent haar geldigheid niet.
+    url: https://lokaleregelgeving.overheid.nl/CVDR642699
+    machine_readable:
+      execution:
+        # Wat het antwoord vraagt; het beleid dat het koppelt, geeft ze op
+        # naam mee.
+        parameters:
+          - name: kvk_nummer
+            type: string
+            description: Het nummer dat de Kamer van Koophandel het bedrijf toekende.
+          - name: besluit_datum
+            type: date
+            description: De dag waarop het college op de aanvraag besluit.
+        input:
+          # De besluiten onder artikel 2 van de verordening die gelden, één
+          # rij per besluit, met de gegevens en de uitvoer van dat besluit
+          # onder hun eigen naam. Welke besluiten gelden, volgt uit de Awb
+          # (7:11 en 8:72).
+          - name: geldende_besluiten
+            type: array
+            source:
+              regulation: reductie_algemene_wet_bestuursrecht
+              output: geldende_besluiten
+              parameters:
+                basis: fictieve_parkeerverordening_gemeente_wilgendaal#2
+        output:
+          - name: aantal_geldige_bedrijfsparkeervergunningen
+            type: number
+            description: >-
+              Hoeveel vergunningen het college het bedrijf verleende die op de
+              dag van het besluit nog geldig zijn.
+        actions:
+          # Een besluit dat geldt en hetzelfde bedrijf een vergunning
+          # verleende, geldig tot en met de dag van het besluit of later. Een
+          # weigering telt niet. Een vergunning die de bestuursrechter zelf
+          # verleende, draagt geen vergunning_geldig_tot (null): die wordt
+          # alleen bij een besluit van het college afgeleid. Een ingetrokken
+          # vergunning (artikel 5 van de verordening) ziet deze reductie niet:
+          # een intrekking staat niet als besluit in de kroniek. Met `as` is
+          # een besluit alleen als `$besluit.<veld>` te lezen (RFC-049).
+          - output: aantal_geldige_bedrijfsparkeervergunningen
+            value:
+              operation: FOREACH
+              collection: $geldende_besluiten
+              as: besluit
+              filter:
+                operation: AND
+                conditions:
+                  # Deze voorwaarden moeten vóór de DATE_DIFF staan: AND stopt
+                  # bij de eerste onwaar, en een weigering heeft geen
+                  # vergunning_geldig_tot, waarop DATE_DIFF faalt.
+                  - operation: EQUALS
+                    subject: $besluit.bedrijfsparkeervergunning_verleend
+                    value: true
+                  - operation: EQUALS
+                    subject: $besluit.kvk_nummer
+                    value: $kvk_nummer
+                  - operation: NOT
+                    value:
+                      operation: EQUALS
+                      subject: $besluit.vergunning_geldig_tot
+                      value: null
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject:
+                      operation: DATE_DIFF
+                      from: $besluit_datum
+                      to: $besluit.vergunning_geldig_tot
+                      in: days
+                    value: 0
+              body: 1
+              combine: ADD
