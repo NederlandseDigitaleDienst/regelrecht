@@ -59,7 +59,7 @@ A single law can name a different authority per article, because different artic
 
 ## The holder of a policy
 
-Since schema v0.8.9 the schema describes `competent_authority` at the root of a rulework, for every article that names none of its own. On `UITVOERINGSBELEID` and `REDUCTIE` it names whose rulework it is:
+Since schema v0.8.9 the schema describes `competent_authority` at the root of a rulework, for every article that names none of its own. On `UITVOERINGSBELEID` it names whose rulework it is:
 
 ```yaml
 $id: beleid_vergunningen_voorbeeldstad
@@ -68,7 +68,7 @@ competent_authority:
   name: Het college van burgemeester en wethouders van Voorbeeldstad
 ```
 
-A policy that binds an open term to the answer of a cell must name its holder this way, by name; the loader refuses a `#` reference or a list. A reduction names its holder the same way, and a cell refuses to answer from a reduction of another holder.
+A policy that binds an open term to the answer of a cell must name its holder this way, by name; the loader refuses a `#` reference or a list. A reduction names none: since schema v0.8.12 it sits with its cell (`corpus/cells/<cell>/reductions/`), and a cell answers only from the reductions it keeps.
 
 ## Further reading
 

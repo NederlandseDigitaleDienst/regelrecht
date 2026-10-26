@@ -107,7 +107,7 @@ input:
 
 | Field | Holds |
 |---|---|
-| `grondslag` | The article, as `<regulation>#<article>` |
+| `basis` | The article, as `<regulation>#<article>` |
 | `fields` | The parameters it was given that it declares |
 | `findings` | The findings per case it was given: for each open term it leaves to an authority per case (`decided_per_case_by`), what it established under the term's id |
 | `outputs` | The outputs of its decision item, and no others |
@@ -116,9 +116,11 @@ The data the decision item lists under `derived` is computed with the decision b
 
 With `output` the input is that one output of the decision.
 
-A value built from a recorded decision may also hold `taken_on`: the article that established the submission the decision was taken on. A decision given as a parameter at the top of an execution must hold it. There the engine requires exactly the five keys `{grondslag, taken_on, fields, findings, outputs}`. `grondslag` and `taken_on` must be article references (`<law>#<article>`). The engine refuses a value other than null or unknown that is not an object, lacks a key, holds another or has no article reference in one of those two, and the error names the parameter and the key (RFC-045). What `fields`, `findings` and `outputs` hold is checked where the value is read. A parameter that one article passes to another may lack `taken_on`, so a value built by `source.article` can still be passed on. A `taken_on` it does hold must be an article reference.
+A value built from a recorded decision may also hold `taken_on`: the article that established the submission the decision was taken on. A decision given as a parameter at the top of an execution must hold it. There the engine requires exactly the five keys `{basis, taken_on, fields, findings, outputs}`. `basis` and `taken_on` must be article references (`<law>#<article>`). The engine refuses a value other than null or unknown that is not an object, lacks a key, holds another or has no article reference in one of those two, and the error names the parameter and the key (RFC-045). What `fields`, `findings` and `outputs` hold is checked where the value is read. A parameter that one article passes to another may lack `taken_on`, so a value built by `source.article` can still be passed on. A `taken_on` it does hold must be an article reference.
 
-A decision value as the target is called anew: the engine runs its `grondslag` with its own `fields` as parameters and its own `findings`. The law does not spell this out, as in the example; it is a convention of the engine.
+A decision value as the target is called anew: the engine runs its `basis` with its own `fields` as parameters and its own `findings`. The law does not spell this out, as in the example; it is a convention of the engine.
+
+The `basis` of a decision value is the article it was taken under. It is not `legal_basis`, which an element of a rulework carries to cite the provision it rests on ([RFC-039](/rfcs/rfc-039)).
 
 New findings come from the caller of the engine, apart from the parameters, keyed by the id of the open term (`evaluate_law_with_findings`, and the scenario step `the following findings:`). A finding applies to every article in the execution that leaves that term to an authority per case, and wins over the decision value's own finding there. An implementation of the term still wins over both. A finding that no article in the execution asks, or that does not fit the type of its term, is an error that names it. So a misspelt finding fails instead of being dropped, and a finding for a call that does not happen fails too. The result lists under `open_terms` each open term that a finding or a regulation filled. An entry names the article that declares the term and, for a regulation, the article that implements it. That tells a consumer which of the two filled the term, even where both give the same value.
 
