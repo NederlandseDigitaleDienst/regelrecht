@@ -333,6 +333,9 @@ const ASK_CRITERIA =
   'Er is geen advies, dus het formulier vraagt de vier criteria één voor één aan het college. Kies Ja bij "langdurige loopbeperking" en Nee bij de andere drie.';
 const CRITERIA = `${ASK_CRITERIA} Zet "geneeskundig onderzoek achterwege gelaten" en "bekend dat aanvrager nog steeds voldoet" aan. Klik op Besluit nemen.`;
 const NO_ADVICE = '999990068';
+// An applicant the GGD has not examined yet; in the first scenario it
+// examines her after the application.
+const NOT_EXAMINED = '999990032';
 // After an objection, the GGD examines the applicant without a criterion
 // again and now finds a long-term walking limitation.
 const newAdvice = (o = {}) => ({
@@ -349,12 +352,22 @@ const newAdvice = (o = {}) => ({
 const gehandicaptenparkeerkaart = [
   {
     name: 'De kaart wordt verstrekt op het advies van de GGD',
-    summary: 'De GGD adviseert positief, en het college verstrekt de kaart op dat advies.',
+    summary: 'Na de aanvraag onderzoekt de GGD de aanvrager en adviseert positief, en het college verstrekt de kaart op dat advies.',
     steps: [
       apply({
-        todo: 'Klik op Aanvraag indienen. De voorbeeldwaarden vragen een kaart als bestuurder.',
-        seen: 'De aanvraag staat onder Mijn aanvragen op In behandeling, en onder Kroniek als eerste chronolexogram van de gemeente. De GGD onderzocht deze aanvrager op 9 oktober; dat onderzoek en het advies staan in de kroniek van de GGD, onder Andere cellen.',
+        todo: withBsn(NOT_EXAMINED, 'De GGD heeft deze aanvrager nog niet onderzocht.'),
+        seen: 'De aanvraag staat onder Mijn aanvragen op In behandeling, en onder Kroniek als eerste chronolexogram van de gemeente.',
       }),
+      {
+        title: 'Onderzoek en advies van de GGD',
+        tab: 'andere',
+        date: '2026-10-16',
+        todo: `Vul bij GGD Wilgendaal onder "Vastleggen: Geneeskundig onderzoek verricht" BSN ${NOT_EXAMINED}, datum onderzoek 16 oktober 2026 en verricht door "Gemeentelijke Gezondheidsdienst" in, en klik op Vastleggen. Vul daarna onder "Vastleggen: Geneeskundig advies uitgebracht" hetzelfde BSN en dezelfde datum in, zet alleen "langdurige loopbeperking" aan en klik op Vastleggen.`,
+        seen: 'Het onderzoek en het advies staan in de kroniek van de GGD, onder Andere cellen. De wet zegt dat er eerst een onderzoek moet zijn (Regeling gehandicaptenparkeerkaart, artikel 2) en dat de GGD het doet (artikel 3). Hoe de gemeente de GGD daarom vraagt, zegt de wet niet; dat verzoek zie je daarom niet in de PoC.',
+        done: (k) =>
+          k.executogrammen('geneeskundig_onderzoek_verricht', { bsn_aanvrager: NOT_EXAMINED }) >= 1 &&
+          k.executogrammen('geneeskundig_advies_uitgebracht', { bsn_aanvrager: NOT_EXAMINED }) >= 1,
+      },
       pDecide({
         todo: 'Het formulier vraagt de vier criteria niet: het advies van de GGD geeft ze. Klik op Besluit nemen.',
         outcome: 'granted',

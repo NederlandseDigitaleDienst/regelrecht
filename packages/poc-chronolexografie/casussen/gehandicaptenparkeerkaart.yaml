@@ -209,8 +209,15 @@ scenarios:
   - naam: De kaart wordt verstrekt op het advies van de GGD
     stappen:
       - >-
-        Aanvrager, speeldatum 13 oktober 2026: klik op Aanvraag indienen. De
-        voorbeeldwaarden vragen een kaart als bestuurder.
+        Aanvrager, speeldatum 13 oktober 2026: verander het BSN in 999990032
+        en klik op Aanvraag indienen. De GGD heeft deze aanvrager nog niet
+        onderzocht.
+      - >-
+        Andere cellen, speeldatum 16 oktober 2026: leg bij de GGD het
+        geneeskundig onderzoek vast voor BSN 999990032 (datum onderzoek 16
+        oktober 2026), en daarna het advies met alleen een langdurige
+        loopbeperking. Hoe de gemeente de GGD om het onderzoek vraagt, zegt
+        de wet niet; dat verzoek zit niet in de PoC.
       - >-
         Bestuursorgaan, speeldatum 20 oktober 2026: het formulier vraagt de
         vier criteria niet, want het advies van de GGD geeft ze. Klik op

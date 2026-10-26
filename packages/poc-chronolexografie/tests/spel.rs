@@ -543,3 +543,55 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
         .collect();
     assert_eq!(geldend, [nieuw.as_str()]);
 }
+
+#[test]
+fn parkeerkaart_the_ggd_examines_after_the_application_and_the_card_follows() {
+    // The first demo scenario, in the order of the law: the application,
+    // then the examination and the advice of the GGD (Regeling art. 2 and 3),
+    // then the decision.
+    const BSN: &str = "999990032";
+    let mut spel = spel_met("gehandicaptenparkeerkaart");
+    let casus = spel.casus().unwrap();
+    let mut aanvraag = map(&casus["voorbeeld"]["aanvraag"]);
+    aanvraag.insert("bsn_aanvrager".into(), json!(BSN));
+    let bevindingen = map(&casus["voorbeeld"]["bevindingen"]);
+    let uitkomst = casus["uitkomst"].as_str().unwrap().to_string();
+
+    let ingediend = spel.aanvragen(&aanvraag, dag("2026-10-13")).unwrap();
+    spel.vastleggen(
+        "ggd_wilgendaal",
+        "regeling_gehandicaptenparkeerkaart#3#geneeskundig_onderzoek_verricht",
+        &map(&json!({
+            "bsn_aanvrager": BSN,
+            "datum_onderzoek": "2026-10-16",
+            "verricht_door": "Gemeentelijke Gezondheidsdienst",
+        })),
+        dag("2026-10-16"),
+    )
+    .unwrap();
+    spel.vastleggen(
+        "ggd_wilgendaal",
+        "fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht",
+        &map(&json!({
+            "bsn_aanvrager": BSN,
+            "datum_onderzoek": "2026-10-16",
+            "langdurige_loopbeperking": true,
+            "continu_afhankelijk_van_hulp_bestuurder": false,
+            "permanent_rolstoelgebonden": false,
+            "ernstige_beperkingen_andere_dan_loopbeperkingen": false,
+        })),
+        dag("2026-10-16"),
+    )
+    .unwrap();
+    let besluit = spel
+        .besluiten(
+            ingediend["id"].as_str().unwrap(),
+            &bevindingen,
+            dag("2026-10-20"),
+        )
+        .unwrap();
+    assert_eq!(besluit["besluit"]["outputs"][&uitkomst], json!(true));
+    // The decision is in the municipality's chronicle, after the application.
+    let kroniek = spel.kroniek().unwrap();
+    assert_eq!(soorten(&kroniek), ["AANVRAAG", "BESCHIKKING"]);
+}
