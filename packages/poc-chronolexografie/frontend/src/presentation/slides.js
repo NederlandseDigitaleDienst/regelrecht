@@ -114,7 +114,7 @@ export const slides = [
       'Zo staat elk feit op één plek: bij wie het vaststelde.',
       'Een feit wordt nooit gewist, ook niet bij een correctie.',
       'Zo kun je altijd terugzien hoe een rechtstoestand ontstond.',
-      'In RegelRecht herhaalt een vastlegging de wet niet.',
+      'In RegelRecht zegt de wet van die dag wat een vastlegging betekent.',
     ],
   },
   {
@@ -154,9 +154,8 @@ export const slides = [
     bullets: [
       'Een kroniek is de rij vastleggingen in een cel, op volgorde.',
       'Elke kroniek heeft een eigen tijdlijn.',
-      'Tussen twee kronieken bestaat geen volgorde.',
-      'In RegelRecht heeft een cel één kroniek, en er komt alleen iets bij.',
-      'Een herroepen besluit blijft staan; wat erna kwam, zegt wat geldt.',
+      'Een cel kan meer kronieken hebben, om feiten te groeperen.',
+      'Er komt alleen iets bij: een herroepen besluit blijft staan.',
     ],
     figure: { diagram: 'kroniek', label: 'De kroniek van de gemeente Wilgendaal na twee aanvragen' },
   },
@@ -196,7 +195,7 @@ export const slides = [
     title: 'Synthese',
     bullets: [
       'Synthese combineert antwoorden van meer cellen.',
-      'Dat gebeurt bij wie de vraag stelt, en niet bij de bron.',
+      'Dat gebeurt bij wie de vraag stelt.',
       'Elke cel kijkt alleen in haar eigen kroniek.',
       'In RegelRecht gaat het om één open begrip in de wet.',
       'Het begrip zegt wie antwoordt en hoe de antwoorden samengaan (`combine`).',
@@ -219,9 +218,9 @@ export const slides = [
     kind: 'bullets',
     overline: 'Wat volgt',
     title: 'Afschriften tussen cellen',
-    lead: 'In RegelRecht leest een cel nooit de kroniek van een ander.',
+    lead: 'In RegelRecht krijgt een cel van een andere cel alleen een afschrift.',
     bullets: [
-      'Wat tussen cellen gaat, is een afschrift dat de wet voorschrijft.',
+      'Welk afschrift, schrijft de wet voor.',
       'Bij een beroepschrift gaat een afschrift van het besluit mee (Awb 6:5).',
       'De rechtbank stuurt partijen een afschrift van de uitspraak (Awb 8:79).',
       'De gemeente legt de ontvangst vast in haar eigen kroniek.',
