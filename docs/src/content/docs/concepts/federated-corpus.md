@@ -81,13 +81,13 @@ Credentials for private repositories are stored separately from the manifest. Th
 
 ## Editor integration
 
-An authority can work on its ruleworks in the web editor without a development environment. The editor works inside a traject, which has its own branch, and every save is a commit on that branch through the GitHub Contents API. It does not open a pull request.
+An authority can work on its ruleworks in the web editor without a development environment. The editor works inside a traject, a working context with its own members and its own branch. Every save is a commit on that branch through the GitHub Contents API. It does not open a pull request.
 
 A traject can point at the authority's own repository, private if need be, instead of the central corpus. Which token writes there, a service token per repository or the user's own GitHub account, is described on [Private-repo trajects](/operations/private-repo-trajects).
 
 ## What is not built
 
-The checked-in `corpus-registry.yaml` lists one source, the central corpus; further sources come from a local registry during development. No repository of another authority is registered. Scopes are claims the loader warns about; they do not decide which ruleworks apply to a case. That is decided by the execution itself, for example by the `gemeente_code` with which [Inversion of Control](./inversion-of-control) selects a municipal ordinance.
+The checked-in `corpus-registry.yaml` lists one source, the central corpus; further sources come from a local registry during development. No repository of another authority is registered. Selecting ruleworks by a source's scope is not built. The execution decides which ruleworks apply to a case, for example through the `gemeente_code` with which [Inversion of Control](./inversion-of-control) selects a municipal ordinance.
 
 ## Further reading
 

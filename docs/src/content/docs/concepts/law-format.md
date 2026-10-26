@@ -243,7 +243,7 @@ Every output of an article belongs to at most one item, under `outputs` or `deri
 
 ## Values
 
-Every field has a type, and an amount carries a unit such as `eurocent` or `percentage`. A unit is a label that never changes the value, and the engine refuses to add values of different units. Rounding happens only where the law says so, with `ROUND`, `CEIL` or `FLOOR`. [Values](/concepts/values) covers all of this, with the checks `just validate` runs.
+Every field has a type, and an amount can carry a unit such as `eurocent` or `percentage`. A unit is a label that never changes the value, and the engine refuses to add values of different units. Rounding happens only where the law says so, with `ROUND`, `CEIL` or `FLOOR`. [Values](/concepts/values) covers all of this, with the checks `just validate` runs.
 
 ### Absent and unknown values
 
@@ -269,7 +269,7 @@ The Regeling standaardpremie then declares under `implements` that it fills this
 
 A `machine_readable` section can hold more than a calculation. `hooks` let an article react to a decision another law produces, `overrides` let a special provision set aside a general one, and `markings` record where the logic could not follow the text exactly. Each has its own concept page: [Hooks and Reactive Execution](/concepts/hooks-and-reactive-execution) and [Markings](/concepts/markings).
 
-The example on this page is written to schema v0.5.x, like most of the corpus. Ruleworks built or reworked since, such as the Awb and the Leerplichtwet 1969, declare v0.7 or v0.8. Each version validates against the schema it declares. Schema v0.7.0 renamed `untranslatables` to `markings` and added `declares`, `placement` and `voids`, so a rulework on v0.5.x still carries `untranslatables`. The [Schema Reference](/reference/schema) shows the current fields.
+The example on this page is written to schema v0.5.x, like most of the corpus. Ruleworks built or reworked since, such as the Awb and the Leerplichtwet 1969, declare a v0.8 schema. Each version validates against the schema it declares. Schema v0.7.0 renamed `untranslatables` to `markings` and added `declares`, `placement` and `voids`, so a v0.5.x rulework that records such a construct still calls it `untranslatables`. The [Schema Reference](/reference/schema) shows the current fields.
 
 ## Corpus contents
 

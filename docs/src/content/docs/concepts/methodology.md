@@ -1,9 +1,9 @@
 ---
 title: "Execution-First Validation"
-description: "How RegelRecht checks a machine-readable interpretation by running it, from the desk checks in use today to the expert phases that are designed but not yet held."
+description: "How RegelRecht checks a machine-readable interpretation by running it, from the desk checks in use today to the expert phases that are designed and have not yet run."
 ---
 
-RegelRecht validates a machine-readable interpretation by running it. A model is written first, executed against scenarios, and then checked element by element against the text of the law. The desk part of this method is in daily use. The part where legal experts judge a model in a workshop is designed and has its tooling, but no validating workshop has been held yet.
+RegelRecht validates a machine-readable interpretation by running it. A model is written first, executed against scenarios, and then checked element by element against the text of the law. The desk part of this method is in use. The part where legal experts judge a model in a workshop is designed and has its tooling, but no validating workshop is on record.
 
 The steps are carried out by skills in the repository (`.claude/skills/`). A skill is a written procedure that a person or a language model follows. The enrich worker in the [pipeline](/components/pipeline#enrich-worker) uses `law-generate` and `law-reverse-validate` when it enriches a rulework without a person at the keyboard.
 
@@ -69,7 +69,7 @@ The rule that governs all three: **the model describes what the text says, not w
 
 ### The letter leads, the MvT tests
 
-The first version of this method treated worked examples from the Memorie van Toelichting as ground truth: when the engine disagreed with an example, the rulework was wrong. Practice showed that rule to be too strong. An MvT explains the bill as introduced, and Parliament then amends it. The original memorandum of the Wet op de zorgtoeslag works out an example in which an insured person with an uninsured partner receives no allowance at all, an outcome a nota van wijziging rejected and replaced with the rule in the law today. An example is therefore a test to be checked against the enacted text. When the two disagree, the text decides, and the disagreement itself is a finding worth recording.
+A worked example from the Memorie van Toelichting is a test to check against the enacted text. When the two disagree, the text decides, and the disagreement itself is a finding worth recording. An MvT explains the bill as introduced, and Parliament then amends it. The original memorandum of the Wet op de zorgtoeslag works out an example in which an insured person with an uninsured partner receives no allowance at all. A nota van wijziging rejected that outcome and replaced it with the rule in the law today.
 
 ## Checks before an outcome is trusted
 
@@ -106,13 +106,13 @@ flowchart TD
     D --> DONE[Validated rulework]
 ```
 
-**Phase B, preparation.** Before any scenario runs, the expert checks whether all articles with executable logic are covered (B1), assesses each assumption reverse validation flagged (B2), and lists where the law allows more than one reading and which one the model took (B3). B1 is the scope step of Wetsanalyse asked after the fact; B3 is its meaning step asked in reverse, and it is the main defense against automation bias. The desk skills now prepare most of this material: the corpus review reports coverage, reverse validation lists the assumptions, and the letter-fidelity audit lists the places where the letter and the toelichting part ways. The judgement on each item is still the expert's.
+**Phase B, preparation.** Before any scenario runs, the expert checks whether all articles with executable logic are covered (B1), assesses each assumption reverse validation flagged (B2), and lists where the law allows more than one reading and which one the model took (B3). B1 is the scope step of Wetsanalyse asked after the fact; B3 is its meaning step asked in reverse, and it is the main defense against automation bias. The desk skills now prepare most of this material: `regelrecht-stelselanalyse` reports coverage, reverse validation lists the assumptions, and the letter-fidelity audit lists the places where the letter and the toelichting part ways. The judgement on each item is still the expert's.
 
 **Phase C, scenario validation.** The expert validates the behavior of the rulework, not its YAML. The engine runs the scenarios from the parliamentary papers, and the expert checks whether the outcomes follow from the law as enacted. Then the expert writes adversarial scenarios, which is where the expert cannot be replaced: the model has no access to case law, implementation practice or political context. Edge cases from practice, "unless" paths, values just above and below a threshold, and the interaction between laws are run on the engine, and an error sends the rulework back.
 
 **Phase D, wrap-up.** Policy gaps, where the law underspecifies and a choice was made, are written down. Assumptions are accepted or rejected, and the expert's sign-off is recorded.
 
-Two principles shape these phases. The expert reviews reports and outcomes, never the YAML: a traceability report in readable form, scenario outcomes with references to articles, and the list of assumptions and choices. And because the expert did not build the proposal, the method makes the search for errors explicit by asking for adversarial scenarios, where Wetsanalyse validation reviews the team's own work.
+Two principles shape these phases. First, the expert reviews reports and outcomes, never the YAML. Those are a traceability report in readable form, scenario outcomes that cite articles, and the list of assumptions and choices. Second, the expert did not build the proposal, so the method asks for adversarial scenarios to make the search for errors explicit. In Wetsanalyse the team validates its own work.
 
 | Wetsanalyse step | RegelRecht equivalent | Difference |
 |---|---|---|
@@ -123,7 +123,7 @@ Two principles shape these phases. The expert reviews reports and outcomes, neve
 | 5. Flag policy gaps | Phase D | Same |
 | 6. Build knowledge model | Phase A: the rulework | Human to model |
 
-The method keeps the discipline of Wetsanalyse (traceability, scenarios, policy gaps) and adapts it to an expert who judges rather than builds. It is itself meant to develop by Design Science Research: a hypothetical process drawn from Wetsanalyse and from research on working with generative models, put to legal experts, run in workshops on real cases, revised after each round, and published.
+The method keeps the discipline of Wetsanalyse (traceability, scenarios, policy gaps) and adapts it to an expert who judges rather than builds. The method itself is meant to develop by Design Science Research. A first process, drawn from Wetsanalyse and from research on working with generative models, goes to legal experts and is run in workshops on real cases. Each round revises it, and each round is published.
 
 ## Two kinds of scenario
 

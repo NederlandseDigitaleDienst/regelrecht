@@ -1,15 +1,13 @@
 ---
 title: "How RegelRecht Works"
-description: "What RegelRecht is and what it is for, the parts it consists of, and a map of the concept pages that explain each of them."
+description: "The approach behind RegelRecht, and a map of the concept pages that explain it."
 ---
 
-RegelRecht writes Dutch legislation down in a form a computer can execute, and publishes it so that anyone can check how a decision was reached. It is an open-source exploration by the Nederlandse Digitale Dienst. No government agency takes decisions with it today.
-
-This page is the map: what the project tries to do, and which page covers each concept. Which programs do the work is on the [architecture overview](/guide/architecture); the Dutch legal terms and the project's own words are in the [glossary](/reference/glossary).
+This page explains the approach and says which page covers each concept. What the project is and what exists today is on [What is RegelRecht?](/guide/what-is-regelrecht). Which programs do the work is on the [architecture overview](/guide/architecture); the Dutch legal terms and the project's own words are in the [glossary](/reference/glossary).
 
 ## The problem
 
-Dutch law is published as text. An agency that has to carry it out translates the rules into software by hand, and each agency writes its own reading of the same law. Nobody can check whether those programs match the text Parliament adopted, a citizen cannot see how a decision about them was made, and there is no way to test the software against the law itself.
+Dutch law is published as text. An agency that has to carry it out translates the rules into software by hand, and each agency writes its own reading of the same law. Nobody can check whether those programs match the text Parliament adopted. A citizen cannot see how a decision about them was made.
 
 ## The approach
 
@@ -60,4 +58,4 @@ Ask the engine whether someone qualifies on 1 January 2025 and it loads the zorg
 
 ## What is not built
 
-The engine computes everything itself: exchanging signed results between organizations ([RFC-009](/rfcs/rfc-009)) is proposed and not built. The execution receipt exists but is not yet signed or attested ([RFC-013](/rfcs/rfc-013)). Expert workshops that validate a rulework are designed but have not been held. What legal status a rulework could have, and who would adopt it, is a research question on the [roadmap](/roadmap), together with publication infrastructure.
+Organizations do not exchange signed results: [RFC-009](/rfcs/rfc-009) proposes that, and it is not built. The execution receipt exists but is not yet signed or attested ([RFC-013](/rfcs/rfc-013)). Expert workshops that validate a rulework are designed, but none is on record. What legal status a rulework could have, and who would adopt it, is a research question on the [roadmap](/roadmap), together with publication infrastructure.

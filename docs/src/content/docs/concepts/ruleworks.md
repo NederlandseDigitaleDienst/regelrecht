@@ -3,7 +3,7 @@ title: "Ruleworks"
 description: "What a rulework is, how it is made and checked, and how the engine and the editor use it."
 ---
 
-A rulework (Dutch: *regelwerk*) is one regulation as it is recorded in the law format: its legal text, article by article, with the machine-executable interpretation beside it. It is identified by its `$id`. Every other concept page describes some part of a rulework or something done with one; this page follows one from harvest to execution and links to the page that covers each step. The name and its reasons are in [RFC-044](/rfcs/rfc-044).
+A rulework (Dutch: *regelwerk*) is one regulation as it is recorded in the law format: its legal text, article by article, with the machine-executable interpretation beside it. It is identified by its `$id`. Every other concept page describes some part of a rulework or something done with one. This page follows one from harvest to execution and links to the page that covers each step. The name and its reasons are in [RFC-044](/rfcs/rfc-044).
 
 ## What a rulework is
 
@@ -26,11 +26,11 @@ flowchart LR
 
 **Harvest.** The [harvester](/components/harvester) downloads a regulation from the national registers, BWB for national law and CVDR for decentral regulations, at the consolidation in force on a date. It splits the text into articles, leden and list items and writes a version with no `machine_readable` at all. When the register gives a final end date, the harvester sets `valid_to`. In the [pipeline](/components/pipeline#harvest-worker), the harvest worker writes the result to the corpus and queues harvests for the laws the text refers to.
 
-**Enrichment.** The [enrich worker](/components/pipeline#enrich-worker) asks a language model to write the `machine_readable` sections, in windows of up to fifteen articles, and puts the result on a branch or in a review task for a person. Enrichment runs on request, since queueing it after every harvest is off by default, and within an hourly budget; with no budget set, the worker enriches nothing. Four RFCs shape this work, and they are built to different degrees:
+**Enrichment.** The [enrich worker](/components/pipeline#enrich-worker) asks a language model to write the `machine_readable` sections, in windows of up to fifteen articles, and puts the result on a branch or in a review task for a person. Enrichment runs on request: queueing it after every harvest is off by default. It also stays within an hourly budget, and with no budget set the worker enriches nothing. Four RFCs shape this work, and they are built to different degrees:
 
 | RFC | What it decides | Built |
 |---|---|---|
-| [RFC-033](/rfcs/rfc-033) | A window is a layer of articles none of which depends on another, from one scan of the references in the text | Yes, behind `ENRICH_WINDOW_MODE=layers`; the default still takes the next articles in order, and the scan covers references within one law |
+| [RFC-033](/rfcs/rfc-033) | A window is a layer of articles none of which depends on another, from one scan of the references in the text | Yes, behind `ENRICH_WINDOW_MODE=layer`; the default still takes the next articles in order, and the scan covers references within one law |
 | [RFC-027](/rfcs/rfc-027) | Requirements a legal expert can check: the source is intact, context is assembled before writing, doubt is marked, an independent reviewer looks | The deterministic checks, the source-integrity gate, context assembly and markings; not the separate reviewer and arbiter roles |
 | [RFC-026](/rfcs/rfc-026) | The work is a graph of articles, prioritized by the scenarios and laws that need them, with a status per article per version | The dependency closure and single-article enrichment; not the per-article status or the prioritized queue |
 | [RFC-028](/rfcs/rfc-028) | Steps and runtimes as data, with a checked-in profile and typed failures | Not built |
@@ -41,7 +41,7 @@ flowchart LR
 
 `just validate` checks every version in the corpus in two passes. The first is the JSON schema the version declares. The second is the type checker of [RFC-037](/rfcs/rfc-037), which checks operand types and the rules for absent values, and the unit check of [RFC-023](/rfcs/rfc-023); [Values](/concepts/values) explains what each refuses. The engine runs the type check again whenever it loads a rulework.
 
-Scenarios check behavior. A [scenario](/concepts/scenarios) next to a rulework states facts and the outcome the law should give, and the engine runs it, in CI and in the editor's browser. A failing scenario there means the law changed or the scenario is stale, and a person decides which. Synthetic ruleworks in `bdd/conformance/` test the engine itself, and CI blocks on those.
+Scenarios check behavior. A [scenario](/concepts/scenarios) next to a rulework states facts and the outcome the law should give, and the engine runs it, locally and in the editor's browser. CI does not run the scenarios under `corpus/regulation`: a failing one means the law changed or the scenario is stale, and a person decides which. Synthetic ruleworks in `corpus/regulation/nl/wet/test_*` test the engine itself, through the feature files in `bdd/conformance/`. CI blocks on those, and on the scenarios of the demo corpus, whose data is synthetic.
 
 [Conformance](/reference/conformance) is the question whether another engine runs the same rulework the same way. A manifest per schema version and the conformance scenarios exist; the cross-implementation suite of [RFC-014](/rfcs/rfc-014) is designed but not built.
 
@@ -61,7 +61,7 @@ A corpus can be federated: `corpus-registry.yaml` lists repositories, and the co
 
 ## How the engine uses a rulework
 
-The [engine](/components/engine) gets a rulework, the output asked for, a date and some facts about a person. It runs only what that output depends on, and it resolves an input when an operation first reads it ([RFC-043](/rfcs/rfc-043)). An input never read is never fetched, so the order of conditions in a law decides which registers are consulted, never what comes out. That limits the data consulted to what the outcome needs.
+The [engine](/components/engine) gets a rulework, the output asked for, a date and some facts about a person. It runs only what that output depends on, and it resolves an input when an operation first reads it ([RFC-043](/rfcs/rfc-043)). An input never read is never fetched, so the order of conditions in a law decides which registers are consulted. It does not change the outcome, with two exceptions. An absent value read before the test that guards it is an error ([Values](/concepts/values#absent-and-unknown-values)). And an unknown condition in an `IF` makes the result unknown, even when a later case would hold.
 
 Many inputs come from other ruleworks. The engine follows a `source` into the other rulework and executes it ([Cross-Law References](/concepts/cross-law-references)), finds the regulation that fills an open term ([Inversion of Control](/concepts/inversion-of-control)), and fires the hooks of general laws such as the Awb ([Hooks and Reactive Execution](/concepts/hooks-and-reactive-execution)).
 
