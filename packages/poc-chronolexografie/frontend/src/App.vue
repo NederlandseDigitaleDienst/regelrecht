@@ -14,11 +14,15 @@
 // (ScenarioGuide.vue), in the inspector of the split view. Where it does not
 // fit, the split view hides it and shows it as a sheet; the button "Uitleg"
 // brings it back after "Verbergen".
+//
+// The introductory deck (presentation/) covers the page when the choice
+// screen starts it or the URL carries `?presentatie`. Its closing slide, like
+// the choice screen, begins one of the demo scenarios (startDemo).
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { api } from './api.js';
 import { artikelNaam } from './logboek.js';
 import { melding } from './melding.js';
-import { beginScenario, hervatten, naarKeuze, state, stap, verversen } from './state.js';
+import { beginScenario, hervatten, kiezen, naarKeuze, state, stap, verversen } from './state.js';
 import AanvragerTab from './components/AanvragerTab.vue';
 import AndereCellenTab from './components/AndereCellenTab.vue';
 import BestuursorgaanTab from './components/BestuursorgaanTab.vue';
@@ -30,6 +34,9 @@ import ReductieTab from './components/ReductieTab.vue';
 import ScenarioGuide from './components/ScenarioGuide.vue';
 import ScenarioTab from './components/ScenarioTab.vue';
 import { guideFor } from './scenarioGuides.js';
+import PresentationDeck from './presentation/PresentationDeck.vue';
+import { DEMO_CASUS } from './presentation/demo.js';
+import { startIndex, usePresentation } from './presentation/usePresentation.js';
 
 // Het tabblad Andere cellen staat er alleen bij een casus met een sfeer
 // (RFC-052).
@@ -47,6 +54,12 @@ const details = ref(false);
 watch(() => state.fout, () => (details.value = false));
 
 onMounted(hervatten);
+
+const presentation = usePresentation();
+onMounted(() => {
+  const i = startIndex(window.location.search, presentation.total.value);
+  if (i !== null) presentation.start(i);
+});
 watch(() => state.datum, verversen);
 
 const artikel = computed(() => {
@@ -116,6 +129,13 @@ async function started() {
 }
 async function restart() {
   if (await beginScenario(state.scenario)) await started();
+}
+// A demo scenario of the parking card, from the choice screen or the
+// closing slide: choose the case if it is not open, then begin the scenario
+// as its own button does.
+async function startDemo(naam) {
+  if (state.casus?.id !== DEMO_CASUS && !(await kiezen(DEMO_CASUS))) return;
+  if (await beginScenario(naam)) await started();
 }
 function toTab(id) {
   tab.value = id;
@@ -204,7 +224,12 @@ function toTab(id) {
                 </nldd-banner>
               </nldd-simple-section>
 
-              <CasusKeuze v-if="!state.casus" @gekozen="tab = 'scenarios'" />
+              <CasusKeuze
+                v-if="!state.casus"
+                @gekozen="tab = 'scenarios'"
+                @presentatie="presentation.start()"
+                @demo="startDemo"
+              />
               <template v-else-if="state.vormen">
                 <ScenarioTab v-if="tab === 'scenarios'" @start="started" />
                 <AanvragerTab v-else-if="tab === 'aanvrager'" />
@@ -236,4 +261,5 @@ function toTab(id) {
       </nldd-split-view-pane>
     </nldd-bar-split-view>
   </nldd-shell>
+  <PresentationDeck @scenario="startDemo" />
 </template>

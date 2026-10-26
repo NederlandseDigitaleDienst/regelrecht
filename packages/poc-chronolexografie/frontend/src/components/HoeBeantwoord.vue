@@ -26,14 +26,18 @@ const rij = (v) => {
   return `${g ? rol(g).toLowerCase() : 'chronolexogram'} ${kort(v.id)}`;
 };
 
+const isRij = (v) => v && typeof v === 'object' && typeof v.id === 'string';
+
 /**
- * Een uitvoer van de reductie: een lijst ids als besluiten, een rij uit de
- * kroniek (zoals de vestiging) als dat chronolexogram, de rest als ja/nee of
+ * Een uitvoer van de reductie: een lijst ids als besluiten, een lijst rijen
+ * (zoals de geldende besluiten van de Awb-reductie) en een rij uit de kroniek
+ * (zoals de vestiging) als die chronolexogrammen, de rest als ja/nee of
  * waarde.
  */
 const toonWaarde = (v) => {
-  if (Array.isArray(v)) return v.length ? v.map((id) => `besluit ${kort(id)}`).join(', ') : 'geen';
-  if (v && typeof v === 'object' && typeof v.id === 'string') return rij(v);
+  if (Array.isArray(v))
+    return v.length ? v.map((x) => (isRij(x) ? rij(x) : `besluit ${kort(x)}`)).join(', ') : 'geen';
+  if (isRij(v)) return rij(v);
   return toon(v);
 };
 

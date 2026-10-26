@@ -209,8 +209,15 @@ scenarios:
   - naam: De kaart wordt verstrekt op het advies van de GGD
     stappen:
       - >-
-        Aanvrager, speeldatum 13 oktober 2026: klik op Aanvraag indienen. De
-        voorbeeldwaarden vragen een kaart als bestuurder.
+        Aanvrager, speeldatum 13 oktober 2026: verander het BSN in 999990032
+        en klik op Aanvraag indienen. De GGD heeft deze aanvrager nog niet
+        onderzocht.
+      - >-
+        Andere cellen, speeldatum 16 oktober 2026: leg bij de GGD het
+        geneeskundig onderzoek vast voor BSN 999990032 (datum onderzoek 16
+        oktober 2026), en daarna het advies met alleen een langdurige
+        loopbeperking. Hoe de gemeente de GGD om het onderzoek vraagt, zegt
+        de wet niet; dat verzoek zit niet in de PoC.
       - >-
         Bestuursorgaan, speeldatum 20 oktober 2026: het formulier vraagt de
         vier criteria niet, want het advies van de GGD geeft ze. Klik op
@@ -224,7 +231,8 @@ scenarios:
       Wilgendaal het advies gaf en antwoordde dat het onderzoek plaatsvond:
       de gemeente vroeg het aan de cel die de wet en het beleid daarvoor
       bevoegd maken. Het onderzoek en het advies staan in de kroniek van de
-      GGD, onder Andere cellen.
+      GGD, onder Andere cellen. Het besluit zelf staat onder Kroniek, in de
+      kroniek van de gemeente, na de aanvraag waarop het berust.
   - naam: Het advies vindt geen criterium
     stappen:
       - >-
@@ -300,6 +308,36 @@ scenarios:
       kaart, geldig tot en met 19 november 2031, vijf jaar vanaf dat nieuwe
       besluit. Een andere bevinding van het college over de loopbeperking
       had niets veranderd: het advies gaat voor.
+  - naam: Een kaart na bezwaar telt bij de volgende aanvraag
+    stappen:
+      - >-
+        Aanvrager, speeldatum 13 oktober 2026: verander het BSN in 999990068
+        en klik op Aanvraag indienen. Bestuursorgaan, speeldatum 20 oktober
+        2026: klik op Besluit nemen. Het advies vindt geen criterium, en de
+        kaart wordt geweigerd.
+      - >-
+        Aanvrager, speeldatum 1 november 2026: klik bij het besluit op Bezwaar
+        maken en dan op Bezwaar indienen.
+      - >-
+        Andere cellen, speeldatum 10 november 2026: leg bij de GGD een
+        geneeskundig advies vast voor BSN 999990068, met datum onderzoek 10
+        november 2026 en alleen een langdurige loopbeperking.
+      - >-
+        Bestuursorgaan, speeldatum 20 november 2026: klik op Ontvankelijkheid
+        toetsen en dan op Beslissen op bezwaar. Gegrond: de weigering is
+        herroepen en een nieuw besluit verstrekt de kaart.
+      - >-
+        Aanvrager, speeldatum 1 maart 2027: verander het BSN in 999990068 en
+        klik op Aanvraag indienen. Bestuursorgaan: klik op Besluit nemen.
+    eind: >-
+      Afgewezen: het beleid van de gemeente geeft geen tweede kaart naast een
+      geldige. Bij het besluit staat "aanvrager heeft geldige
+      gehandicaptenparkeerkaart: ja". Onder "Hoe de cel dit beantwoordde"
+      staat wat de reductie van de Awb gaf. Bij "herroepen besluiten" staat
+      de weigering (Awb 7:11, tweede lid). Bij "geldende besluiten" staat
+      alleen het nieuwe besluit uit de beslissing op bezwaar. Daarin vond de
+      reductie van de gemeente de kaart. Zelf kent die reductie geen bezwaar:
+      ze leest alleen de geldende besluiten.
   - naam: Zonder advies oordeelt het college, en zonder onderzoek nog geen kaart
     stappen:
       - >-
