@@ -31,7 +31,7 @@ export const CORPUS_NAMES = Object.freeze([
 
 const GRAM = `{
   "kind": "BESCHIKKING",
-  "grondslag": "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49",
+  "basis": "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49",
   "recording_actor": "gemeente_wilgendaal",
   "recorded_on": "2026-10-20",
   "refers_to": "019a…",
@@ -74,7 +74,7 @@ input:
       regulation: reductie_algemene_wet_bestuursrecht
       output: geldende_besluiten
       parameters:
-        grondslag: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
+        basis: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
 # …
 operation: FOREACH
 collection: $geldende_besluiten
@@ -150,7 +150,7 @@ export const slides = [
     lead: 'Een organisatie met een eigen kroniek, zoals een gemeente, de GGD of een rechtbank.',
     bullets: [
       'Ze legt vast en beslist via de engine. De code van de cel noemt geen artikel: alles wat zij controleert, komt uit de wet.',
-      'In RegelRecht is een cel een map met `cel.yaml`. Daarin staat wie zij is en welke antwoorden zij geeft.',
+      'In RegelRecht is een cel een map met `cel.yaml` en haar reducties. In `cel.yaml` staat wie zij is en welke antwoorden zij geeft.',
     ],
     figure: { code: CEL, label: 'De cel van de gemeente Wilgendaal' },
   },
@@ -160,7 +160,7 @@ export const slides = [
     title: 'Reductie',
     lead: 'Een benoemd antwoord uit de eigen kroniek, geschreven als regelwerk.',
     bullets: [
-      'Alleen een reductie leest een kroniek: de besluiten onder een artikel, of de feiten die de cel vastlegde.',
+      'Alleen een reductie leest een kroniek: de besluiten onder een artikel, of de feiten die de cel vastlegde. Ze staat in de map van haar cel; waar ze staat, zegt van wie ze is.',
       'De wet vraagt de cel niets. Het uitvoeringsbeleid van wie beslist, koppelt een open begrip aan het antwoord van de cel.',
     ],
     figure: { code: BINDING, label: 'Het beleid van Wilgendaal koppelt een open begrip aan een antwoord' },
@@ -232,7 +232,7 @@ export const slides = [
       'Een besluit dat bij bezwaar is herroepen (Awb 7:11, tweede lid), telt niet meer.',
       'Vernietigde de bestuursrechter een besluit met zijn rechtsgevolgen (Awb 8:72), dan telt het ook niet. Wat een vernietigde beslissing op bezwaar in de plaats nam, vervalt mee.',
       'Een besluit dat de beslissing op bezwaar of de rechter in de plaats stelde, telt wel.',
-      'Deze reductie heeft geen houder en geen eigen kroniek. Ze leest de kroniek van de cel die haar aanroept.',
+      'Deze reductie hoort bij geen cel en heeft geen eigen kroniek. Ze staat naast de cellen en leest de kroniek van de cel die haar aanroept.',
     ],
   },
   {

@@ -27,7 +27,7 @@ const keten = [
   { titel: 'Beleid Wilgendaal, artikel 2', code: 'source.reduction' },
   { titel: 'Cel gemeente_wilgendaal', code: 'cel.yaml: answers' },
   { titel: 'Reductie van de gemeente, artikel 1', code: 'reductie_geldige_gehandicaptenparkeerkaart' },
-  { titel: 'Reductie van de Awb, artikel 2', code: 'geldende_besluiten (grondslag BABW#49)' },
+  { titel: 'Reductie van de Awb, artikel 2', code: 'geldende_besluiten (basis BABW#49)' },
   { titel: 'Kroniek van Wilgendaal', code: 'de besluiten onder artikel 49', accent: true },
 ];
 
