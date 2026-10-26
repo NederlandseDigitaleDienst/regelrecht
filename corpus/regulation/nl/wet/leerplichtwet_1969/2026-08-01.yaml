@@ -965,6 +965,12 @@ articles:
       [ref3]: https://wetten.overheid.nl/BWBR0002628#Artikel4c
     url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
     machine_readable:
+      # Bevoegd gezag (RFC-002): het hoofd verleent het verlof (lid 1 en 2).
+      # Het beantwoordt ook de open begrippen hieronder die het per aanvraag
+      # oordeelt; geen ervan noemt zelf een ander.
+      competent_authority:
+        name: het hoofd
+        type: CATEGORY
       # Wat het hoofd naast de aanvraag nodig heeft om te beslissen. Geen
       # parameters: die vormen de aanvraag (RFC-045).
       open_terms:
@@ -1002,9 +1008,9 @@ articles:
         # voorjaarsvakantie zelf vast. In de cel van de school koppelt het
         # beleid van het hoofd het begrip aan het antwoord van de cel, die het
         # uit die vakanties haalt (RFC-048, RFC-051), zodat niemand het hoeft
-        # te oordelen; kent de cel een vakantie niet, dan zwijgt zij en
-        # oordeelt het hoofd. Geen default: zonder antwoord en
-        # zonder oordeel faalt het besluit.
+        # te oordelen; kent de cel een vakantie niet, dan zegt dat beleid dat
+        # het hoofd oordeelt. Geen default: zonder antwoord en zonder oordeel
+        # faalt het besluit.
         - id: verlof_valt_buiten_schoolvakanties
           type: boolean
           required: true
@@ -1018,8 +1024,8 @@ articles:
         # besluiten. Hoe het die terugleest, zegt deze wet niet, en het is geen
         # veld van de aanvraag. In de cel van de school koppelt het beleid van
         # het hoofd het begrip aan het antwoord van de cel, uit zijn besluiten
-        # (RFC-048), ook als 7:11 dit artikel opnieuw aanroept; zonder cel
-        # geeft het hoofd het als vaststelling. Geen
+        # (RFC-048), ook als 7:11 dit artikel opnieuw aanroept; zonder
+        # antwoord stelt het hoofd het volgens dat beleid zelf vast. Geen
         # default: een ontbrekend antwoord verleent geen tweede verlof. Eigen
         # keuze: het schooljaar van het verlof is dat van de eerste
         # verlofdag. De eerste lesdag hierboven komt uit het beleid dat geldt

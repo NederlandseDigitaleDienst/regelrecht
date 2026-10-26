@@ -29,9 +29,10 @@ export function stilBegrippen(...oordelen) {
   return { stil, meldStil };
 }
 
-// Wie zwijgt: de cel uit haar kroniek, of een beleid dat het oordeel eerst
-// invult (`beleid`), zoals het advies van de GGD bij de parkeerkaart.
+// Wie het laat afweten: een beleid dat het oordeel voor deze aanvraag aan
+// het bestuursorgaan laat (`beleid`), zoals zonder advies van de GGD bij de
+// parkeerkaart, of de cel uit haar kroniek.
 export const nietGeweten = (v) =>
   v.beleid
-    ? `${v.basis} · Het beleid vult dit voor deze aanvraag niet in; ${state.casus.rol} oordeelt.`
+    ? `${v.basis} · Het beleid laat dit voor deze aanvraag aan ${state.casus.rol} over.`
     : `${v.basis} · ${hoofdletter(state.casus.cel_naam)} weet dit niet voor deze aanvraag; ${state.casus.rol} oordeelt.`;

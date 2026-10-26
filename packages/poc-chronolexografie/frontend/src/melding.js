@@ -35,20 +35,13 @@ const vertalingen = [
     (besluit, begrip) =>
       `Besluit ${kort(besluit)} vroeg de cel niet om "${leesbaar(begrip)}", dus er is geen antwoord om uit te leggen.`,
   ],
-  // De cel beantwoordt het begrip, maar weet het voor deze aanvraag niet
-  // (haar reductie geeft null): dan oordeelt het bestuursorgaan zelf. Dit
-  // zegt de voorvertoning (kern::voorvertonen).
+  // Een oordeel dat een beleid voor deze aanvraag aan het bestuursorgaan
+  // laat, met een eigen open begrip: de parkeerkaart zonder advies van de
+  // GGD, een vakantie die de cel niet kent (kern::voorvertonen).
   [
-    /the cell is silent on '([^']+)' for this case/,
+    /the policy leaves '([^']+)' to the authority for this case/,
     (begrip) =>
-      `${hoofdletter(state.casus?.cel_naam ?? 'de cel')} weet "${leesbaar(begrip)}" niet voor deze aanvraag, dus ${state.casus?.rol ?? 'het bestuursorgaan'} oordeelt. Geef die bevinding.`,
-  ],
-  // Een oordeel dat een beleid eerst invult, maar voor deze aanvraag niet:
-  // de parkeerkaart zonder advies van de GGD (kern::voorvertonen).
-  [
-    /the policy is silent on '([^']+)' for this case/,
-    (begrip) =>
-      `Het beleid vult "${leesbaar(begrip)}" voor deze aanvraag niet in, dus ${state.casus?.rol ?? 'het bestuursorgaan'} oordeelt. Geef die bevinding.`,
+      `Het beleid laat "${leesbaar(begrip)}" voor deze aanvraag aan ${state.casus?.rol ?? 'het bestuursorgaan'} over. Geef die bevinding.`,
   ],
   // Een bevinding die de wet per geval aan het bestuursorgaan laat, en die
   // het nog niet gaf (de engine).

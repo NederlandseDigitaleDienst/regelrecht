@@ -310,6 +310,11 @@ articles:
   - number: '1'
     text: Wat het beleid ontleent aan het antwoord eerder_verstrekt.
     machine_readable:
+      open_terms:
+        - id: eerder_verstrekt_volgens_college
+          type: boolean
+          required: true
+          decided_per_case_by: het college
       implements:
         - {law: wet_verstrekking, article: '1', open_term: eerder_verstrekt}
       execution:
@@ -323,12 +328,23 @@ articles:
               reduction: eerder_verstrekt
               parameters: {bsn: $bsn}
         output:
-          - {name: eerder_verstrekt, type: boolean, nullable: true}
+          - {name: eerder_verstrekt, type: boolean}
         actions:
-          - {output: eerder_verstrekt, value: $antwoord_eerder_verstrekt}
+          - output: eerder_verstrekt
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord_eerder_verstrekt, value: null}
+                  then: $eerder_verstrekt_volgens_college
+              default: $antwoord_eerder_verstrekt
   - number: '2'
     text: Wat het beleid ontleent aan het antwoord ander_feit.
     machine_readable:
+      open_terms:
+        - id: ander_feit_volgens_college
+          type: boolean
+          required: true
+          decided_per_case_by: het college
       implements:
         - {law: wet_verstrekking, article: '2', open_term: ander_feit}
       execution:
@@ -342,12 +358,23 @@ articles:
               reduction: ander_feit
               parameters: {bsn: $bsn}
         output:
-          - {name: ander_feit, type: boolean, nullable: true}
+          - {name: ander_feit, type: boolean}
         actions:
-          - {output: ander_feit, value: $antwoord_ander_feit}
+          - output: ander_feit
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord_ander_feit, value: null}
+                  then: $ander_feit_volgens_college
+              default: $antwoord_ander_feit
   - number: '3'
     text: Wat het beleid ontleent aan het antwoord verwezen_feit.
     machine_readable:
+      open_terms:
+        - id: verwezen_feit_volgens_college
+          type: boolean
+          required: true
+          decided_per_case_by: het college
       implements:
         - {law: wet_verstrekking, article: '3', open_term: verwezen_feit}
       execution:
@@ -361,9 +388,15 @@ articles:
               reduction: verwezen_feit
               parameters: {bsn: $bsn}
         output:
-          - {name: verwezen_feit, type: boolean, nullable: true}
+          - {name: verwezen_feit, type: boolean}
         actions:
-          - {output: verwezen_feit, value: $antwoord_verwezen_feit}
+          - output: verwezen_feit
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord_verwezen_feit, value: null}
+                  then: $verwezen_feit_volgens_college
+              default: $antwoord_verwezen_feit
   - number: '4'
     text: Wat het beleid ontleent aan het antwoord kenmerk.
     machine_readable:
@@ -386,6 +419,11 @@ articles:
   - number: '5'
     text: Wat het beleid ontleent aan het antwoord enig_feit.
     machine_readable:
+      open_terms:
+        - id: enig_feit_volgens_college
+          type: boolean
+          required: true
+          decided_per_case_by: het college
       implements:
         - {law: wet_verstrekking, article: '5', open_term: enig_feit}
       execution:
@@ -399,12 +437,23 @@ articles:
               reduction: enig_feit
               parameters: {bsn: $bsn}
         output:
-          - {name: enig_feit, type: boolean, nullable: true}
+          - {name: enig_feit, type: boolean}
         actions:
-          - {output: enig_feit, value: $antwoord_enig_feit}
+          - output: enig_feit
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord_enig_feit, value: null}
+                  then: $enig_feit_volgens_college
+              default: $antwoord_enig_feit
   - number: '7'
     text: Wat het beleid ontleent aan het antwoord zevende_feit.
     machine_readable:
+      open_terms:
+        - id: zevende_feit_volgens_college
+          type: boolean
+          required: true
+          decided_per_case_by: het college
       implements:
         - {law: wet_verstrekking, article: '7', open_term: zevende_feit}
       execution:
@@ -418,9 +467,15 @@ articles:
               reduction: zevende_feit
               parameters: {bsn: $bsn}
         output:
-          - {name: zevende_feit, type: boolean, nullable: true}
+          - {name: zevende_feit, type: boolean}
         actions:
-          - {output: zevende_feit, value: $antwoord_zevende_feit}
+          - output: zevende_feit
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord_zevende_feit, value: null}
+                  then: $zevende_feit_volgens_college
+              default: $antwoord_zevende_feit
   - number: '8'
     text: Wat het beleid ontleent aan het antwoord aantal_kaarten.
     machine_readable:
@@ -641,11 +696,21 @@ fn a_running_answerer_the_term_does_not_name_is_not_asked() {
     let running = Fake::new("ggd", Some("Gemeentelijke Gezondheidsdienst"))
         .answering("eerder_verstrekt", Value::Bool(true));
     let mut findings = BTreeMap::new();
-    findings.insert("eerder_verstrekt".to_string(), Value::Bool(false));
+    findings.insert(
+        "eerder_verstrekt_volgens_college".to_string(),
+        Value::Bool(false),
+    );
     let result = read("eerder_gelezen", &running, vec![], findings).unwrap();
     assert!(running.asked().is_empty());
     assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(false));
-    assert_eq!(filled_by(&result, "eerder_verstrekt"), FilledBy::Finding);
+    assert_eq!(
+        filled_by(&result, "eerder_verstrekt"),
+        bound("1", "eerder_verstrekt", &[])
+    );
+    assert_eq!(
+        filled_by(&result, "eerder_verstrekt_volgens_college"),
+        FilledBy::Finding
+    );
     let message = input_message(&result, "eerder_verstrekt");
     assert!(
         message.contains(
@@ -768,14 +833,26 @@ fn a_silent_answer_does_not_count() {
 }
 
 #[test]
-fn when_all_are_silent_the_term_falls_back_on_the_finding() {
+fn when_all_are_silent_the_policy_takes_its_own_finding() {
+    // The binding fills the term; where every cell is silent, the policy
+    // says what holds: the finding on its own open term (RFC-048 §2).
     let running = Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Null);
     let other = Fake::college("oostmeer");
     let mut findings = BTreeMap::new();
-    findings.insert("eerder_verstrekt".to_string(), Value::Bool(false));
+    findings.insert(
+        "eerder_verstrekt_volgens_college".to_string(),
+        Value::Bool(false),
+    );
     let result = read("eerder_gelezen", &running, vec![&other], findings).unwrap();
     assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(false));
-    assert_eq!(filled_by(&result, "eerder_verstrekt"), FilledBy::Finding);
+    assert_eq!(
+        filled_by(&result, "eerder_verstrekt"),
+        bound("1", "eerder_verstrekt", &["wilgendaal"])
+    );
+    assert_eq!(
+        filled_by(&result, "eerder_verstrekt_volgens_college"),
+        FilledBy::Finding
+    );
     let message = input_message(&result, "eerder_verstrekt");
     assert!(
         message.contains("silent: oostmeer (no answer 'eerder_verstrekt'), wilgendaal"),
@@ -940,26 +1017,43 @@ fn a_term_is_filled_only_by_the_answers_of_its_own_binding() {
 }
 
 #[test]
-fn without_answerers_the_binding_gives_nothing_and_the_finding_decides() {
+fn without_answerers_the_binding_gives_nothing_and_the_policy_says_what_holds() {
     let result = service()
         .evaluate_law_with_trace_in(
             "wet_lezer",
             &["eerder_gelezen"],
             parameters(),
             Call::with_findings(BTreeMap::from([(
-                "eerder_verstrekt".to_string(),
+                "eerder_verstrekt_volgens_college".to_string(),
                 Value::Bool(true),
             )])),
             DATE,
         )
         .unwrap();
     assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(true));
-    assert_eq!(filled_by(&result, "eerder_verstrekt"), FilledBy::Finding);
-    // Without the finding the required term has no value.
+    assert_eq!(
+        filled_by(&result, "eerder_verstrekt"),
+        bound("1", "eerder_verstrekt", &[])
+    );
+    // Without the finding the policy's own required term has no value.
     let e = service()
         .evaluate_law("wet_lezer", &["eerder_gelezen"], parameters(), DATE)
         .unwrap_err();
-    assert!(e.to_string().contains("eerder_verstrekt"), "{e}");
+    assert!(
+        e.to_string().contains("eerder_verstrekt_volgens_college"),
+        "{e}"
+    );
+}
+
+#[test]
+fn a_finding_on_a_term_the_policy_fills_is_asked_by_none() {
+    // No judgement of the authority steps in where a policy fills the term:
+    // the policy's value is the term's, also null (RFC-048 §2).
+    let running = Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Bool(true));
+    let mut findings = BTreeMap::new();
+    findings.insert("eerder_verstrekt".to_string(), Value::Bool(false));
+    let e = read("eerder_gelezen", &running, vec![], findings).unwrap_err();
+    assert!(e.to_string().contains("is asked by none"), "{e}");
 }
 
 #[test]
@@ -1009,11 +1103,17 @@ fn a_binding_that_passes_a_value_it_does_not_have_fails() {
 
 #[test]
 fn an_answer_a_binding_declares_never_absent_must_be_given() {
-    let never_absent = BINDING.replacen(
-        "          - name: antwoord_eerder_verstrekt\n            type: boolean\n            nullable: true\n",
-        "          - name: antwoord_eerder_verstrekt\n            type: boolean\n",
-        1,
-    );
+    let never_absent = BINDING
+        .replacen(
+            "          - name: antwoord_eerder_verstrekt\n            type: boolean\n            nullable: true\n",
+            "          - name: antwoord_eerder_verstrekt\n            type: boolean\n",
+            1,
+        )
+        .replacen(
+            "          - output: eerder_verstrekt\n            value:\n              operation: IF\n              cases:\n                - when: {operation: EQUALS, subject: $antwoord_eerder_verstrekt, value: null}\n                  then: $eerder_verstrekt_volgens_college\n              default: $antwoord_eerder_verstrekt\n",
+            "          - {output: eerder_verstrekt, value: $antwoord_eerder_verstrekt}\n",
+            1,
+        );
     assert_ne!(never_absent, BINDING);
     let mut service = LawExecutionService::new();
     for law in [ESTABLISHING, READING, never_absent.as_str()] {
@@ -1024,7 +1124,10 @@ fn an_answer_a_binding_declares_never_absent_must_be_given() {
         Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Null),
     ] {
         let call = Call {
-            findings: BTreeMap::from([("eerder_verstrekt".to_string(), Value::Bool(true))]),
+            findings: BTreeMap::from([(
+                "eerder_verstrekt_volgens_college".to_string(),
+                Value::Bool(true),
+            )]),
             answerer: Some(&running),
             chronicle: None,
             sphere: vec![],
@@ -1040,7 +1143,10 @@ fn an_answer_a_binding_declares_never_absent_must_be_given() {
             "wet_lezer",
             &["eerder_gelezen"],
             parameters(),
-            BTreeMap::from([("eerder_verstrekt".to_string(), Value::Bool(true))]),
+            BTreeMap::from([(
+                "eerder_verstrekt_volgens_college".to_string(),
+                Value::Bool(true),
+            )]),
             DATE,
         )
         .unwrap_err();

@@ -29,6 +29,9 @@ const REGELING: &str = "regeling_vaststelling_schoolvakanties_20252030";
 const ROOSTER: &str = "fictief_beleid_vakantierooster_obs_de_klimop";
 const PROFESSION: &str = "specifieke_aard_beroep_ouder";
 const OUTSIDE_HOLIDAYS: &str = "verlof_valt_buiten_schoolvakanties";
+/// The head's judgement on it where the cell is silent: an open term of his
+/// policy (art. 4, RFC-048 §2).
+const OUTSIDE_HOLIDAYS_HEAD: &str = "verlof_valt_buiten_schoolvakanties_volgens_hoofd";
 const HOLIDAYS: &str = "reductie_verlof_valt_buiten_schoolvakanties";
 
 /// The Leerplichtwet, the Awb, the regeling and the school's policies from
@@ -166,12 +169,13 @@ fn decide(cell: &mut Cell, application: &str, on: &str) -> Result<Gram, Error> {
 }
 
 /// The decision asks the head's finding on whether the leave falls outside
-/// the school holidays: the cell was silent.
+/// the school holidays: the cell was silent, and the head's policy leaves
+/// the case to him.
 fn asks_the_head(e: &Error) {
     let text = e.to_string();
     assert!(
         matches!(e, Error::Engine(_))
-            && text.contains(&format!("'{OUTSIDE_HOLIDAYS}'"))
+            && text.contains(&format!("'{OUTSIDE_HOLIDAYS_HEAD}'"))
             && text.contains("no judgement was given for this case"),
         "{e}"
     );
@@ -347,7 +351,7 @@ fn a_school_year_the_policy_does_not_know_leaves_it_to_the_head() {
     let app = applied(&mut cell, "2028-02-07", "2028-02-11", "2027-07-01");
     let e = decide(&mut cell, &app.id, "2027-07-05").unwrap_err();
     asks_the_head(&e);
-    let findings = map(json!({ PROFESSION: true, OUTSIDE_HOLIDAYS: false }));
+    let findings = map(json!({ PROFESSION: true, OUTSIDE_HOLIDAYS_HEAD: false }));
     let gram = cell
         .decide(
             &mut service(),
@@ -363,7 +367,10 @@ fn a_school_year_the_policy_does_not_know_leaves_it_to_the_head() {
         .remove(0);
     assert!(!granted(&gram));
     let found = cell.findings(&mut service(), &[], &gram.id).unwrap();
-    assert!(found.contains(&OUTSIDE_HOLIDAYS.to_string()), "{found:?}");
+    assert!(
+        found.contains(&OUTSIDE_HOLIDAYS_HEAD.to_string()),
+        "{found:?}"
+    );
 }
 
 #[test]

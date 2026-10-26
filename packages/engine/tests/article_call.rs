@@ -1536,14 +1536,17 @@ fn a_judgement_per_case_reaches_the_article_and_the_rest_is_dropped() {
 }
 
 #[test]
-fn an_implementation_of_the_term_wins_over_the_judgement_passed() {
+fn a_judgement_passed_on_a_term_an_implementation_fills_is_not_passed() {
+    // The implementation's value is the term's; no judgement steps in
+    // (RFC-048 §2). One the call passes is not passed on, and the trace
+    // says why.
     let (value, trace) = hoofd(&[HOOFD, HOOFD_BELEID], json!({"grond_aanwezig": true}));
     assert_eq!(
         value.as_object().unwrap()["outputs"],
         Value::from(json!({"verleend": false}))
     );
     assert!(
-        trace.contains("the judgement of het hoofd for this case is set aside by beleid_hoofd"),
+        trace.contains("a regulation in force fills grond_aanwezig, so the finding is not passed"),
         "{trace}"
     );
 }
@@ -1795,20 +1798,17 @@ fn a_finding_of_the_caller_wins_over_that_of_the_decision_value() {
 }
 
 #[test]
-fn an_implementation_still_wins_over_a_finding_of_the_caller() {
+fn a_finding_of_the_caller_on_a_term_an_implementation_fills_is_asked_by_none() {
     let mut service = anew_service();
     service.load_law(HOOFD_BELEID).unwrap();
-    let value = anew(
+    let e = anew(
         &service,
         hoofd_besluit(true),
         json!({"grond_aanwezig": true}),
         "heroverwogen",
     )
-    .unwrap();
-    assert_eq!(
-        value.as_object().unwrap()["outputs"],
-        Value::from(json!({"verleend": false}))
-    );
+    .unwrap_err();
+    assert!(e.to_string().contains("is asked by none"), "{e}");
 }
 
 #[test]
@@ -2205,14 +2205,13 @@ fn the_execution_reports_a_term_a_finding_filled() {
     assert_eq!(found, vec![grond_aanwezig(FilledBy::Finding)]);
 }
 
-/// A regulation that fills the term sets the finding aside, also where it
-/// gives the same value: the report names the regulation, not the finding.
+/// A regulation that fills the term: the report names the regulation.
 #[test]
 fn the_execution_reports_a_term_a_regulation_filled() {
     let gelijk = HOOFD_BELEID.replace("value: false", "value: true");
     assert_ne!(gelijk, HOOFD_BELEID);
     for beleid in [HOOFD_BELEID, gelijk.as_str()] {
-        let found = filled(&[beleid], json!({ "grond_aanwezig": true }));
+        let found = filled(&[beleid], json!({}));
         assert_eq!(
             found,
             vec![grond_aanwezig(FilledBy::Regulation {
@@ -2236,7 +2235,7 @@ fn a_term_a_regulation_filled_serializes_both_articles() {
             "wet_hoofd",
             &["verleend"],
             parameters.clone(),
-            params(json!({"grond_aanwezig": true})),
+            BTreeMap::new(),
             DATE,
         )
         .unwrap();
@@ -2285,5 +2284,176 @@ fn the_execution_reports_a_term_of_an_article_it_calls() {
             "term": "grond_aanwezig",
             "filled_by": "finding",
         })
+    );
+}
+
+// --- A decision called anew, with a policy that judges per case ------------
+
+/// The head grants leave of at most ten days where the ground applies; the
+/// law reads the ground only for such a leave. Article 3 calls a decision
+/// value anew.
+const KORT: &str = r#"
+$id: wet_kort
+regulatory_layer: WET
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: Het hoofd verleent verlof van ten hoogste tien dagen als de grond aanwezig is.
+    machine_readable:
+      open_terms:
+        - id: grond_aanwezig
+          type: boolean
+          required: true
+          decided_per_case_by: het hoofd
+      execution:
+        produces:
+          legal_character: BESCHIKKING
+        parameters:
+          - name: dagen
+            type: number
+        output:
+          - name: verleend
+            type: boolean
+        actions:
+          - output: verleend
+            value:
+              operation: AND
+              conditions:
+                - operation: LESS_THAN_OR_EQUAL
+                  subject: $dagen
+                  value: 10
+                - $grond_aanwezig
+  - number: '3'
+    text: Het besluit opnieuw.
+    machine_readable:
+      execution:
+        parameters:
+          - name: besluit
+            type: decision
+        input:
+          - name: opnieuw
+            type: decision
+            nullable: true
+            source:
+              article: $besluit
+        output:
+          - name: heroverwogen
+            type: decision
+            nullable: true
+        actions:
+          - output: heroverwogen
+            value: $opnieuw
+"#;
+
+/// A policy that fills the ground and leaves it to the head with an open
+/// term of its own (RFC-048 §2).
+const KORT_BELEID: &str = r#"
+$id: beleid_kort
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.invalid/beleid-kort
+articles:
+  - number: '1'
+    text: Over de grond oordeelt het hoofd.
+    machine_readable:
+      open_terms:
+        - id: grond_volgens_hoofd
+          type: boolean
+          required: true
+          decided_per_case_by: het hoofd
+      implements:
+        - {law: wet_kort, article: '1', open_term: grond_aanwezig}
+      execution:
+        output:
+          - {name: grond_aanwezig, type: boolean}
+        actions:
+          - {output: grond_aanwezig, value: $grond_volgens_hoofd}
+"#;
+
+fn kort_besluit(dagen: i64, grond: bool) -> serde_json::Value {
+    json!({
+        "basis": "wet_kort#1",
+        "taken_on": "wet_kort#1",
+        "fields": {"dagen": dagen},
+        "findings": {"grond_volgens_hoofd": grond},
+        "outputs": {"verleend": dagen <= 10 && grond},
+    })
+}
+
+/// Article 3 of [`KORT`] on `besluit`, with the caller's `findings`: the
+/// decision value it gives back, and the trace.
+fn kort_anew(besluit: serde_json::Value, findings: serde_json::Value) -> (Value, String) {
+    let result = kort_anew_result(besluit, findings).unwrap();
+    let trace = result.trace.as_ref().unwrap().render_box_drawing();
+    (result.outputs["heroverwogen"].clone(), trace)
+}
+
+fn kort_anew_result(
+    besluit: serde_json::Value,
+    findings: serde_json::Value,
+) -> regelrecht_engine::Result<regelrecht_engine::ArticleResult> {
+    let mut service = LawExecutionService::new();
+    service.load_law(KORT).unwrap();
+    service.load_law(KORT_BELEID).unwrap();
+    service.evaluate_law_with_trace_and_findings(
+        "wet_kort",
+        &["heroverwogen"],
+        params(json!({ "besluit": besluit })),
+        params(findings),
+        DATE,
+    )
+}
+
+fn findings_of(value: &Value) -> serde_json::Value {
+    serde_json::to_value(value).unwrap()["findings"].clone()
+}
+
+fn verleend(value: &Value) -> serde_json::Value {
+    serde_json::to_value(value).unwrap()["outputs"]["verleend"].clone()
+}
+
+#[test]
+fn a_decision_value_keeps_the_finding_on_its_policys_own_term() {
+    let (value, trace) = kort_anew(kort_besluit(5, true), json!({}));
+    assert_eq!(verleend(&value), json!(true));
+    assert_eq!(findings_of(&value), json!({"grond_volgens_hoofd": true}));
+    assert!(
+        trace.contains("the finding on grond_volgens_hoofd applies to an article the call runs"),
+        "{trace}"
+    );
+}
+
+#[test]
+fn a_finding_of_the_caller_on_a_term_the_policy_fills_fails_a_call_anew() {
+    // Twenty days: the law does not read the ground, yet a finding on it
+    // is applied by no article, since the policy fills it (RFC-048 §2).
+    let e = kort_anew_result(kort_besluit(20, true), json!({"grond_aanwezig": true})).unwrap_err();
+    assert!(e.to_string().contains("'grond_aanwezig'"), "{e}");
+}
+
+#[test]
+fn a_finding_of_the_caller_on_the_policys_own_term_wins_and_is_kept() {
+    let (value, _) = kort_anew(kort_besluit(5, true), json!({"grond_volgens_hoofd": false}));
+    assert_eq!(verleend(&value), json!(false));
+    assert_eq!(findings_of(&value), json!({"grond_volgens_hoofd": false}));
+}
+
+#[test]
+fn a_finding_on_a_policys_own_term_the_call_does_not_reach_is_dropped_quietly() {
+    // Twenty days: the law does not read the ground, so the policy does not
+    // run. Its finding is not part of the new decision value, and is not
+    // traced as one the article does not declare.
+    let (value, trace) = kort_anew(kort_besluit(20, true), json!({}));
+    assert_eq!(verleend(&value), json!(false));
+    assert_eq!(findings_of(&value), json!({}));
+    assert!(
+        !trace.contains("does not declare grond_volgens_hoofd"),
+        "{trace}"
+    );
+    assert!(
+        !trace.contains("applies to an article the call runs"),
+        "{trace}"
     );
 }

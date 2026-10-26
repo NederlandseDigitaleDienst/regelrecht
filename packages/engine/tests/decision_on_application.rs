@@ -113,24 +113,30 @@ articles:
           - {output: grond_aanwezig, value: true}
 "#;
 
-/// A regulation that says nothing for this case: it returns null.
-const SILENT_POLICY: &str = r#"
-$id: beleid_verlof_zwijgt
+/// A regulation that leaves the norm to the head per case, and says so
+/// itself: with an open term of its own (RFC-048 §2).
+const JUDGING_POLICY: &str = r#"
+$id: beleid_verlof_oordeel
 regulatory_layer: UITVOERINGSBELEID
 publication_date: '2026-01-01'
 valid_from: '2026-01-01'
-url: https://example.org/beleid-zwijgt
+url: https://example.org/beleid-oordeel
 articles:
   - number: '1'
-    text: Over de grond zegt dit beleid niets.
+    text: Over de grond oordeelt het hoofd per aanvraag.
     machine_readable:
+      open_terms:
+        - id: grond_aanwezig_volgens_hoofd
+          type: boolean
+          required: true
+          decided_per_case_by: het hoofd
       implements:
         - {law: wet_verlof, article: '1', open_term: grond_aanwezig}
       execution:
         output:
-          - {name: grond_aanwezig, type: boolean, nullable: true}
+          - {name: grond_aanwezig, type: boolean}
         actions:
-          - {output: grond_aanwezig, value: null}
+          - {output: grond_aanwezig, value: $grond_aanwezig_volgens_hoofd}
 "#;
 
 const DAY: &str = "2026-10-13";
@@ -366,9 +372,36 @@ fn a_norm_decided_per_case_without_a_judgement_is_an_error_that_says_so() {
 }
 
 #[test]
-fn a_regulation_that_fills_the_norm_wins_over_the_judgement() {
+fn a_regulation_that_fills_the_norm_takes_no_judgement() {
     let service = service(&[GENERAL_LAW, SPECIAL_LAW, POLICY]);
     let result = service
+        .execute_stage_at(
+            "wet_verlof",
+            "1",
+            "BESLUIT",
+            Some(&["verlof_verleend"]),
+            params(&[("dagen", Value::Int(5)), ("besluit_datum", date(DAY))]),
+            DAY,
+        )
+        .unwrap();
+    assert_eq!(result.outputs["verlof_verleend"], Value::Bool(true));
+    let traced = service
+        .evaluate_law_output_with_trace(
+            "wet_verlof",
+            "verlof_verleend",
+            params(&[("dagen", Value::Int(5))]),
+            DAY,
+        )
+        .unwrap();
+    let trace = traced.trace.as_ref().unwrap().render_box_drawing();
+    assert!(
+        trace.contains("implemented by beleid_verlof article 1"),
+        "{trace}"
+    );
+
+    // A judgement of the head on the norm the regulation fills is asked by
+    // none: the regulation's value is the norm's (RFC-048 §2).
+    let e = service
         .execute_stage_at(
             "wet_verlof",
             "1",
@@ -381,60 +414,24 @@ fn a_regulation_that_fills_the_norm_wins_over_the_judgement() {
             ]),
             DAY,
         )
-        .unwrap();
-    assert_eq!(result.outputs["verlof_verleend"], Value::Bool(true));
-
-    // The judgement is set aside, and the trace says by what.
-    let traced = service
-        .evaluate_law_output_with_trace(
-            "wet_verlof",
-            "verlof_verleend",
-            params(&[
-                ("dagen", Value::Int(5)),
-                ("grond_aanwezig", Value::Bool(false)),
-            ]),
-            DAY,
-        )
-        .unwrap();
-    let trace = traced.trace.as_ref().unwrap().render_box_drawing();
-    assert!(
-        trace.contains(
-            "the judgement of het hoofd for this case is set aside by beleid_verlof article 1"
-        ),
-        "{trace}"
-    );
-
-    // Without a judgement there is nothing to set aside, and the trace does
-    // not claim there was.
-    let traced = service
-        .evaluate_law_output_with_trace(
-            "wet_verlof",
-            "verlof_verleend",
-            params(&[("dagen", Value::Int(5))]),
-            DAY,
-        )
-        .unwrap();
-    let trace = traced.trace.as_ref().unwrap().render_box_drawing();
-    assert!(
-        trace.contains("implemented by beleid_verlof article 1") && !trace.contains("set aside"),
-        "{trace}"
-    );
+        .unwrap_err();
+    assert!(e.to_string().contains("is asked by none"), "{e}");
 }
 
 #[test]
-fn a_regulation_silent_for_the_case_leaves_the_norm_to_the_judgement() {
-    let service = service(&[GENERAL_LAW, SPECIAL_LAW, SILENT_POLICY]);
+fn a_regulation_that_leaves_the_norm_to_the_head_says_so_itself() {
+    let service = service(&[GENERAL_LAW, SPECIAL_LAW, JUDGING_POLICY]);
     let run = |judgement: Option<bool>| {
-        let mut p = params(&[("dagen", Value::Int(5)), ("besluit_datum", date(DAY))]);
-        if let Some(j) = judgement {
-            p.insert("grond_aanwezig".into(), Value::Bool(j));
-        }
-        service.execute_stage_at(
+        let findings = judgement
+            .map(|j| params(&[("grond_aanwezig_volgens_hoofd", Value::Bool(j))]))
+            .unwrap_or_default();
+        service.execute_stage_in(
             "wet_verlof",
             "1",
             "BESLUIT",
             Some(&["verlof_verleend"]),
-            p,
+            params(&[("dagen", Value::Int(5)), ("besluit_datum", date(DAY))]),
+            regelrecht_engine::Call::with_findings(findings),
             DAY,
         )
     };
@@ -531,4 +528,258 @@ fn a_stage_takes_a_finding_apart_from_the_parameters() {
     assert_eq!(result.outputs["verlof_verleend"], Value::Bool(true));
     let e = run(&["grond_aanwezig", "grond_aanwezg"]).unwrap_err();
     assert!(e.to_string().contains("'grond_aanwezg'"), "{e}");
+}
+
+/// A regulation that fills the norm for a short leave and leaves a longer
+/// one to an authority it names by its own term (`competent_authority`),
+/// held by the head of a school it names (root `competent_authority`).
+const SHORT_LEAVE_POLICY: &str = r#"
+$id: beleid_verlof_kort
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.org/beleid-kort
+competent_authority:
+  name: Het hoofd van school Voorbeeld
+articles:
+  - number: '1'
+    text: Bij ten hoogste drie dagen is de grond aanwezig.
+    machine_readable:
+      open_terms:
+        - id: grond_aanwezig_volgens_hoofd
+          type: boolean
+          decided_per_case_by: het hoofd
+        - id: grond_aanwezig_volgens_inspectie
+          type: boolean
+          required: false
+          decided_per_case_by: de inspectie
+          competent_authority:
+            name: inspectie
+            type: CATEGORY
+      implements:
+        - {law: wet_verlof, article: '1', open_term: grond_aanwezig}
+      execution:
+        parameters:
+          - {name: dagen, type: number}
+        output:
+          - {name: grond_aanwezig, type: boolean}
+        actions:
+          - output: grond_aanwezig
+            value:
+              operation: IF
+              cases:
+                - when: {operation: LESS_THAN_OR_EQUAL, subject: $dagen, value: 3}
+                  then: true
+              default: $grond_aanwezig_volgens_hoofd
+"#;
+
+/// Who answers a term (RFC-002): the authority the term names, else the
+/// one its article names, else the holder of its rulework; none of them
+/// named, whoever executes the article. `decided_per_case_by` only marks
+/// the term as judged per case: its words name no one to the engine.
+#[test]
+fn a_term_is_answered_by_its_own_authority_else_the_executing_one() {
+    use regelrecht_engine::Authority;
+    let service = service(&[GENERAL_LAW, SPECIAL_LAW, SHORT_LEAVE_POLICY]);
+    let terms = service
+        .decision_terms("wet_verlof", "1", DAY, &Default::default())
+        .unwrap();
+    let term = |id: &str| terms.iter().find(|t| t.id == id).unwrap();
+    let head = Authority {
+        name: "Het hoofd van school Voorbeeld".into(),
+        category: Some("het hoofd".into()),
+    };
+    let inspection = Authority {
+        name: "Inspectie Voorbeeld".into(),
+        category: Some("inspectie".into()),
+    };
+    // The law names no one: whoever executes it answers.
+    assert!(term("grond_aanwezig").answered_by.is_empty());
+    assert!(!term("grond_aanwezig").asks_finding());
+    // The policy's own term: its holder.
+    let own = term("grond_aanwezig_volgens_hoofd");
+    assert_eq!(own.declared_by(), "beleid_verlof_kort#1");
+    assert_eq!(own.answered_by.len(), 1);
+    assert!(own.is_finding(&head));
+    assert!(!own.is_finding(&inspection));
+    // A term that names its own authority: that one, not the holder.
+    let other = term("grond_aanwezig_volgens_inspectie");
+    assert!(other.is_finding(&inspection));
+    assert!(!other.is_finding(&head));
+    assert!(other.asks_finding());
+}
+
+/// A finding on a policy's own term counts as asked when the case does not
+/// reach it, but its type is checked all the same (RFC-048 §2).
+#[test]
+fn a_finding_on_a_policys_own_term_is_checked_where_the_case_does_not_reach_it() {
+    let service = service(&[GENERAL_LAW, SPECIAL_LAW, SHORT_LEAVE_POLICY]);
+    let run = |dagen: i64, finding: Value| {
+        service.execute_stage_at_with_findings(
+            "wet_verlof",
+            "1",
+            "BESLUIT",
+            Some(&["verlof_verleend"]),
+            params(&[("dagen", Value::Int(dagen)), ("besluit_datum", date(DAY))]),
+            params(&[("grond_aanwezig_volgens_hoofd", finding)]),
+            DAY,
+        )
+    };
+    // Two days: the policy fills the term without the finding.
+    let result = run(2, Value::Bool(false)).unwrap();
+    assert_eq!(result.outputs["verlof_verleend"], Value::Bool(true));
+    // A finding of the wrong type fails, reached or not.
+    let e = run(2, Value::String("ja".into())).unwrap_err();
+    assert!(
+        e.to_string().contains("grond_aanwezig_volgens_hoofd"),
+        "{e}"
+    );
+    let e = run(5, Value::String("ja".into())).unwrap_err();
+    assert!(
+        e.to_string().contains("grond_aanwezig_volgens_hoofd"),
+        "{e}"
+    );
+    // Five days: it reads the finding.
+    let result = run(5, Value::Bool(false)).unwrap();
+    assert_eq!(result.outputs["verlof_verleend"], Value::Bool(false));
+}
+
+/// A regulation scoped by `gemeente_code` fills a term only for a scope
+/// with that code, in what a decision needs as in an execution.
+#[test]
+fn the_terms_of_a_decision_follow_the_scope() {
+    let scoped = POLICY.replace(
+        "$id: beleid_verlof\n",
+        "$id: beleid_verlof_gemeente\ngemeente_code: GM0001\n",
+    );
+    let service = service(&[GENERAL_LAW, SPECIAL_LAW, &scoped]);
+    let filled = |scope: &std::collections::HashMap<String, Value>| {
+        service
+            .decision_terms("wet_verlof", "1", DAY, scope)
+            .unwrap()
+            .into_iter()
+            .find(|t| t.id == "grond_aanwezig")
+            .unwrap()
+            .filled_by
+    };
+    assert!(filled(&Default::default()).is_empty());
+    let scope = [("gemeente_code".to_string(), Value::String("GM0001".into()))]
+        .into_iter()
+        .collect();
+    assert_eq!(filled(&scope), ["beleid_verlof_gemeente#1"]);
+}
+
+/// A law with a default on a term it leaves to the head per case, filled by
+/// a regulation that is silent for a long leave: the default applies, as a
+/// silent regulation leaves it (RFC-036), and a finding on the term is asked
+/// by none (RFC-048 §2).
+#[test]
+fn a_silent_regulation_leaves_a_term_decided_per_case_to_its_default() {
+    let law = SPECIAL_LAW.replace(
+        "          decided_per_case_by: het hoofd\n",
+        "          decided_per_case_by: het hoofd\n          default:\n            actions:\n              - {output: grond_aanwezig, value: false}\n",
+    );
+    assert_ne!(law, SPECIAL_LAW);
+    let silent = r#"
+$id: beleid_verlof_stil
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.org/beleid-stil
+articles:
+  - number: '1'
+    text: Bij ten hoogste drie dagen is de grond aanwezig.
+    machine_readable:
+      implements:
+        - {law: wet_verlof, article: '1', open_term: grond_aanwezig}
+      execution:
+        parameters:
+          - {name: dagen, type: number}
+        output:
+          - {name: grond_aanwezig, type: boolean, nullable: true}
+        actions:
+          - output: grond_aanwezig
+            value:
+              operation: IF
+              cases:
+                - when: {operation: LESS_THAN_OR_EQUAL, subject: $dagen, value: 3}
+                  then: true
+"#;
+    let service = service(&[GENERAL_LAW, &law, silent]);
+    let run = |dagen: i64, findings: BTreeMap<String, Value>| {
+        service.execute_stage_at_with_findings(
+            "wet_verlof",
+            "1",
+            "BESLUIT",
+            Some(&["verlof_verleend"]),
+            params(&[("dagen", Value::Int(dagen)), ("besluit_datum", date(DAY))]),
+            findings,
+            DAY,
+        )
+    };
+    assert_eq!(
+        run(2, BTreeMap::new()).unwrap().outputs["verlof_verleend"],
+        Value::Bool(true)
+    );
+    assert_eq!(
+        run(5, BTreeMap::new()).unwrap().outputs["verlof_verleend"],
+        Value::Bool(false)
+    );
+    let e = run(5, params(&[("grond_aanwezig", Value::Bool(true))])).unwrap_err();
+    assert!(e.to_string().contains("asked by none"), "{e}");
+}
+
+/// The law reads the term only for a leave of at most ten days, so for a
+/// longer one the policy never runs. A finding on the policy's own term is
+/// then not reached, yet counts as asked, and its type is checked.
+#[test]
+fn a_finding_on_a_policys_own_term_counts_where_the_policy_does_not_run() {
+    let law = SPECIAL_LAW.replace(
+        "                - $grond_aanwezig\n                - {operation: LESS_THAN_OR_EQUAL, subject: $dagen, value: 10}\n",
+        "                - {operation: LESS_THAN_OR_EQUAL, subject: $dagen, value: 10}\n                - $grond_aanwezig\n",
+    );
+    assert_ne!(law, SPECIAL_LAW);
+    let service = service(&[GENERAL_LAW, &law, SHORT_LEAVE_POLICY]);
+    let run = |finding: Value| {
+        service.execute_stage_at_with_findings(
+            "wet_verlof",
+            "1",
+            "BESLUIT",
+            Some(&["verlof_verleend"]),
+            params(&[("dagen", Value::Int(20)), ("besluit_datum", date(DAY))]),
+            params(&[("grond_aanwezig_volgens_hoofd", finding)]),
+            DAY,
+        )
+    };
+    let result = run(Value::Bool(true)).unwrap();
+    assert_eq!(result.outputs["verlof_verleend"], Value::Bool(false));
+    let e = run(Value::String("ja".into())).unwrap_err();
+    assert!(
+        e.to_string().contains("grond_aanwezig_volgens_hoofd"),
+        "{e}"
+    );
+}
+
+/// A finding on a term a regulation fills fails the execution also where
+/// the case never reads the term (RFC-048 §2).
+#[test]
+fn a_finding_on_a_filled_term_fails_where_the_case_does_not_read_it() {
+    let law = SPECIAL_LAW.replace(
+        "                - $grond_aanwezig\n                - {operation: LESS_THAN_OR_EQUAL, subject: $dagen, value: 10}\n",
+        "                - {operation: LESS_THAN_OR_EQUAL, subject: $dagen, value: 10}\n                - $grond_aanwezig\n",
+    );
+    assert_ne!(law, SPECIAL_LAW);
+    let service = service(&[GENERAL_LAW, &law, POLICY]);
+    let e = service
+        .execute_stage_at_with_findings(
+            "wet_verlof",
+            "1",
+            "BESLUIT",
+            Some(&["verlof_verleend"]),
+            params(&[("dagen", Value::Int(20)), ("besluit_datum", date(DAY))]),
+            params(&[("grond_aanwezig", Value::Bool(true))]),
+            DAY,
+        )
+        .unwrap_err();
+    assert!(e.to_string().contains("'grond_aanwezig'"), "{e}");
 }
