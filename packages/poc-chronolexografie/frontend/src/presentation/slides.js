@@ -114,7 +114,7 @@ export const slides = [
       'Zo staat elk feit op één plek: bij wie het vaststelde.',
       'Een feit wordt nooit gewist, ook niet bij een correctie.',
       'Zo kun je altijd terugzien hoe een rechtstoestand ontstond.',
-      'In RegelRecht zegt de wet van die dag wat een vastlegging betekent.',
+      'In RegelRecht zegt de wet van die dag welke velden een vastlegging heeft.',
     ],
   },
   {
@@ -165,7 +165,7 @@ export const slides = [
     title: 'Cel',
     bullets: [
       'Een cel is de plek waar vastleggingen ontstaan en bewaard worden.',
-      'Alleen de cel zelf kan ze bewerken.',
+      'Alleen de cel zelf voegt er iets aan toe.',
       'In RegelRecht heeft elke organisatie een cel: een gemeente, de GGD, een rechtbank.',
       'De cel legt vast en beslist via de engine; wat ze controleert, komt uit de wet.',
       'Het is een map met `cel.yaml`: wie de cel is en welke antwoorden ze geeft.',
@@ -179,8 +179,8 @@ export const slides = [
     bullets: [
       'Reductie is feiten van eerder opnieuw gebruiken.',
       'Dat gebeurt altijd in de cel waar die feiten staan.',
-      'De cel zoekt de vastleggingen die ertoe doen, en maakt er één antwoord van.',
-      'In RegelRecht is een reductie een regelwerk met een benoemd antwoord.',
+      'Hoe een cel reduceert, bepaalt de cel zelf.',
+      'RegelRecht biedt één manier: een reductie als regelwerk met een benoemd antwoord.',
       'Beleid koppelt een open begrip in de wet aan dat antwoord.',
     ],
     figure: {
@@ -194,13 +194,13 @@ export const slides = [
     overline: 'Begrip',
     title: 'Synthese',
     bullets: [
-      'Synthese combineert antwoorden van meer cellen.',
-      'Dat gebeurt bij wie de vraag stelt.',
-      'Elke cel kijkt alleen in haar eigen kroniek.',
-      'In RegelRecht gaat het om één open begrip in de wet.',
-      'Het begrip zegt wie antwoordt en hoe de antwoorden samengaan (`combine`).',
+      'Een wetsartikel neemt antwoorden van meer cellen samen tot één uitkomst.',
+      'Dat gebeurt bij wie beslist: de afnemer.',
+      'Zo blijft elke cel baas over haar eigen feiten.',
+      'Elke cel reduceert alleen haar eigen kroniek.',
+      'In RegelRecht doet de engine dit als hij een artikel uitvoert met antwoorden van meer cellen.',
     ],
-    figure: { diagram: 'synthese', label: 'Drie cellen beantwoorden één open begrip' },
+    figure: { diagram: 'synthese', label: 'Een artikel neemt de antwoorden van twee cellen samen' },
   },
   {
     kind: 'bullets',
@@ -220,7 +220,7 @@ export const slides = [
     title: 'Afschriften tussen cellen',
     lead: 'In RegelRecht krijgt een cel van een andere cel alleen een afschrift.',
     bullets: [
-      'Welk afschrift, schrijft de wet voor.',
+      'De paper laat een cel altijd bij de bron kijken. Hier volgen we de wet, die afschriften voorschrijft.',
       'Bij een beroepschrift gaat een afschrift van het besluit mee (Awb 6:5).',
       'De rechtbank stuurt partijen een afschrift van de uitspraak (Awb 8:79).',
       'De gemeente legt de ontvangst vast in haar eigen kroniek.',
@@ -288,20 +288,20 @@ export const slides = [
   {
     kind: 'bullets',
     overline: 'Synthese',
-    title: 'Eerder een kaart gekregen?',
-    lead: 'Dan hoeft de aanvrager soms niet opnieuw gekeurd te worden (Regeling gehandicaptenparkeerkaart, artikel 2).',
+    title: 'Eén besluit, antwoorden van twee cellen',
+    lead: 'Het besluit over de kaart (BABW artikel 49) neemt twee antwoorden samen.',
     bullets: [
-      'Wilgendaal kent alleen haar eigen kaarten.',
-      'Bevoegd voor het antwoord: het college van elke gemeente, en het CBR.',
-      'De engine vraagt Wilgendaal, Oostmeer en het CBR.',
-      'Elk antwoordt uit de eigen kroniek; `combine: OR` maakt er één waarde van.',
+      'De cel van de GGD antwoordt uit haar kroniek: was er een onderzoek, en wat zegt het advies?',
+      'De cel van Wilgendaal antwoordt uit haar eigen kroniek: heeft de aanvrager al een geldige kaart?',
+      'Het beleid van Wilgendaal koppelt elk antwoord aan een open begrip.',
+      'Artikel 49 maakt er één uitkomst van: de kaart wordt verstrekt of geweigerd.',
     ],
-    figure: { diagram: 'synthese-kaart', label: 'Drie verstrekkende instanties beantwoorden één begrip' },
+    figure: { diagram: 'synthese-kaart', label: 'Het besluit over de kaart neemt de antwoorden van de GGD en Wilgendaal samen' },
   },
   {
     kind: 'closing',
     overline: 'Nu live',
     title: 'Speel het na',
-    lines: ["Drie scenario's van de gehandicaptenparkeerkaart, elk met een gids naast de pagina."],
+    lines: ["Twee scenario's van de gehandicaptenparkeerkaart, elk met een gids naast de pagina."],
   },
 ];

@@ -10,8 +10,6 @@
  *   the decision on objection put in place of the revoked refusal, so at the
  *   next application the municipality finds a valid card it did not have
  *   before the objection.
- * - A card of another municipality: synthesis, the answer of a cell in the
- *   sphere.
  */
 import { guides } from '../scenarioGuides.js';
 
@@ -20,7 +18,6 @@ export const DEMO_CASUS = 'gehandicaptenparkeerkaart';
 export const DEMO_SCENARIOS = Object.freeze([
   'Een tweede kaart naast een geldige',
   'Een kaart na bezwaar telt bij de volgende aanvraag',
-  'Een kaart van een andere gemeente telt mee',
 ]);
 
 /** The demo scenarios with their guide, in order. */

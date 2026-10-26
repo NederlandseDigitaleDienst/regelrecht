@@ -42,7 +42,7 @@ async function kies(c) {
   <nldd-simple-section>
     <nldd-title slot="header" size="3" text="Voor de demo">
       <nldd-text slot="supporting-text">
-        Eerst een korte presentatie over chronolexografie, daarna drie scenario's van de
+        Eerst een korte presentatie over chronolexografie, daarna twee scenario's van de
         gehandicaptenparkeerkaart. Elk scenario begint met een lege kroniek en een gids naast de
         pagina.
       </nldd-text>

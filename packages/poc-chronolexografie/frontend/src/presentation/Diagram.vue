@@ -34,21 +34,19 @@ const keten = [
 const synthese = {
   synthese: {
     cellen: [
-      { naam: 'Cel 1', antwoord: 'ja' },
-      { naam: 'Cel 2', antwoord: 'zwijgt' },
-      { naam: 'Cel 3', antwoord: 'nee' },
+      { naam: 'Cel A', antwoord: 'antwoord uit eigen kroniek' },
+      { naam: 'Cel B', antwoord: 'antwoord uit eigen kroniek' },
     ],
-    begrip: 'open begrip',
-    uitkomst: 'combine',
+    artikel: 'wetsartikel',
+    uitkomst: 'één uitkomst',
   },
   'synthese-kaart': {
     cellen: [
-      { naam: 'Wilgendaal', antwoord: 'zwijgt' },
-      { naam: 'Oostmeer', antwoord: 'ja', accent: true },
-      { naam: 'CBR', antwoord: 'zwijgt' },
+      { naam: 'GGD Wilgendaal', antwoord: 'onderzoek en advies' },
+      { naam: 'Gemeente Wilgendaal', antwoord: 'al een geldige kaart?', accent: true },
     ],
-    begrip: 'eerder verstrekt: ja',
-    uitkomst: 'combine: OR',
+    artikel: 'BABW artikel 49',
+    uitkomst: 'kaart verstrekt of geweigerd',
   },
 };
 </script>
@@ -78,21 +76,21 @@ const synthese = {
       </g>
     </svg>
 
-    <!-- Synthese: elke cel antwoordt uit de eigen kroniek, de engine
-         combineert. -->
+    <!-- Synthese: two cells each answer from their own chronicle, and the
+         article that decides takes the answers together. -->
     <svg v-else-if="synthese[name]" viewBox="0 0 480 300">
       <defs aria-hidden="true"><marker :id="arrowId" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="head" /></marker></defs>
-      <g v-for="(c, i) in synthese[name].cellen" :key="i" :transform="`translate(${i * 160} 0)`">
-        <rect x="6" y="4" width="148" height="78" rx="8" :class="c.accent ? 'box accent' : 'box'" />
-        <text x="80" y="34" class="strong" text-anchor="middle">{{ c.naam }}</text>
-        <text x="80" y="62" class="small" text-anchor="middle">{{ c.antwoord }}</text>
-        <path :d="`M 80 84 L ${240 - i * 160} 160`" class="arrow" :marker-end="arrow" />
+      <g v-for="(c, i) in synthese[name].cellen" :key="i" :transform="`translate(${i * 240} 0)`">
+        <rect x="10" y="4" width="220" height="78" rx="8" :class="c.accent ? 'box accent' : 'box'" />
+        <text x="120" y="34" class="strong" text-anchor="middle">{{ c.naam }}</text>
+        <text x="120" y="62" class="small" text-anchor="middle">{{ c.antwoord }}</text>
+        <path :d="`M 120 84 L ${240 - i * 240 + (i ? 20 : -20)} 160`" class="arrow" :marker-end="arrow" />
       </g>
-      <rect x="150" y="160" width="180" height="44" rx="22" class="pill" />
-      <text x="240" y="188" class="mono" text-anchor="middle">{{ synthese[name].uitkomst }}</text>
+      <rect x="120" y="160" width="240" height="44" rx="22" class="pill" />
+      <text x="240" y="188" class="mono" text-anchor="middle">{{ synthese[name].artikel }}</text>
       <path d="M 240 206 L 240 236" class="arrow" :marker-end="arrow" />
-      <rect x="90" y="238" width="300" height="56" rx="8" class="box" />
-      <text x="240" y="272" class="strong" text-anchor="middle">{{ synthese[name].begrip }}</text>
+      <rect x="70" y="238" width="340" height="56" rx="8" class="box" />
+      <text x="240" y="272" class="strong" text-anchor="middle">{{ synthese[name].uitkomst }}</text>
     </svg>
 
     <!-- Afschriften: twee kronieken, en de afschriften die de wet tussen beide voorschrijft. -->
