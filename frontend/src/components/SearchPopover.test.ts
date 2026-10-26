@@ -6,7 +6,7 @@ import { nextTick } from 'vue';
 import SearchPopover from './SearchPopover.vue';
 import { MIN_QUERY_LENGTH } from '../composables/useBwbSearch';
 import type { CorpusLaw } from '../composables/useCorpusLaws';
-import { enrichedOnly } from '../composables/useLawOverview';
+import { enrichedOnly } from '../composables/useEnrichedFilter';
 
 /** The part of a Response apiFetch reads; the stubs return only this. */
 interface StubResponse {
