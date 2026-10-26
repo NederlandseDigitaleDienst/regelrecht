@@ -8,7 +8,7 @@ import { useBwbHarvest } from '../composables/useBwbHarvest';
 import { useAuth } from '../composables/useAuth';
 import { useTrajects } from '../composables/useTrajects';
 import { lawsListUrl } from '../composables/corpusUrls';
-import { enrichedOnly } from '../composables/useLawOverview';
+import { enrichedOnly } from '../composables/useEnrichedFilter';
 import { apiFetchJson } from '../lib/apiFetch';
 import { useLatest } from '../lib/useLatest';
 import { SEARCH_PLACEHOLDER, SEARCH_ACCESSIBLE_LABEL } from '../constants';
@@ -111,7 +111,7 @@ const sortedLaws = computed(() =>
 const claimSearch = useLatest();
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-// The "only enriched" filter (shared with the Corpus juris overview) applies
+// The "only enriched" filter (kept in useEnrichedFilter across openings) applies
 // straight away: with a term it narrows the matches, without one it lists the
 // enriched laws, since there are few and that is what someone ticking it wants.
 // Corpus juris only: a traject lists its laws by path without reading them, so

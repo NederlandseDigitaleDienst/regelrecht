@@ -6,7 +6,7 @@ import { useTrajects } from '../composables/useTrajects';
 import type { TrajectSummary } from '../composables/useTrajects';
 import { useAuth } from '../composables/useAuth';
 import { useLoginToChooser } from '../composables/useLoginToChooser';
-import { trajectSwitchTarget } from '../composables/useLastVisitedRoute';
+import { homeTarget, trajectSwitchTarget } from '../composables/useLastVisitedRoute';
 import TrajectCreateForm from './TrajectCreateForm.vue';
 
 const props = withDefaults(
@@ -58,6 +58,17 @@ function goToTaken(): void {
   router.push({ name: 'taken-traject', params: { trajectRef: activeTrajectRef.value } });
 }
 
+// Switch to the traject-less global corpus ("Corpus juris"): not a real traject,
+// but mutually exclusive with them, so it lives in the same switcher. Carries
+// the open law so you land on the same law, globally (homeTarget's no-traject
+// shapes). Editing from here still routes through the chooser (editorRouteFor).
+function goToCorpusJuris(): void {
+  router.push(homeTarget({
+    lawId: route.params.lawId || undefined,
+    articleNumber: route.params.articleNumber || undefined,
+  }));
+}
+
 /**
  * Navigate to a traject - push the user into the traject-scoped view of the
  * section they are currently in (bibliotheek or editor), at that section's
@@ -74,13 +85,16 @@ async function goToTraject(trajectRef: string): Promise<void> {
 
 // A traject in the URL whose name hasn't resolved yet: the button shows a
 // spinner (see :loading) with the neutral 'Trajecten' label, not a '…'
-// placeholder. Without a traject in the URL there is nothing to load.
+// placeholder. Corpus juris (no ref) is known immediately, so no spinner there.
 const menuLoading = computed(
   () => !!activeTrajectRef.value && loading.value && !activeTraject.value,
 );
 const activeLabel = computed(() => {
   if (activeTraject.value) return activeTraject.value.name;
-  // No traject in the URL (Corpus juris, or still loading): the neutral label.
+  if (menuLoading.value) return 'Trajecten';
+  // Logged in without a traject = the global corpus scope (a peer of the
+  // trajecten). Logged out, the button just invites you to sign in.
+  if (authenticated.value) return 'Corpus juris';
   return 'Trajecten';
 });
 
@@ -190,8 +204,8 @@ async function submitCreate(): Promise<void> {
     :max-width="fullWidth ? undefined : '220px'"
     :horizontal-alignment="fullWidth ? 'left' : undefined"
   >
-    <!-- Logged in: the active traject's actions first, then the trajecten to
-         switch to + create below a divider. -->
+    <!-- Logged in: the active traject's actions first, then the scope switcher
+         (Corpus juris + the trajecten) + create below a divider. -->
     <nldd-menu v-if="authenticated" slot="popup">
       <nldd-menu-item
         v-if="activeTraject"
@@ -225,6 +239,15 @@ async function submitCreate(): Promise<void> {
            first child, i.e. no active-traject actions precede it), so no manual
            nldd-menu-divider here. -->
       <nldd-menu-group text="Trajecten">
+        <!-- "Corpus juris" is the traject-less global scope: not a real traject,
+             but mutually exclusive with them, so it's the default option here
+             (like `main` among the branches). -->
+        <nldd-menu-item
+          type="radio"
+          :selected="!activeTrajectRef || undefined"
+          text="Corpus juris"
+          @select="goToCorpusJuris"
+        ></nldd-menu-item>
         <nldd-menu-item
           v-for="t in trajects"
           :key="t.id"

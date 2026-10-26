@@ -16,30 +16,27 @@ The editor is a Vue 3 single-page app in `frontend/`. It browses the corpus, hol
 
 ## Routes and pages
 
-`src/router.ts` is the map. `App.vue` is only a `<router-view>`; the real structure is one persistent shell, `AppShell.vue`, with the Corpus juris, Traject and Editor sections as its children, plus a handful of top-level pages that carry their own title bar instead of the app chrome.
+`src/router.ts` is the map. `App.vue` is only a `<router-view>`; the real structure is one persistent shell, `AppShell.vue`, with the Home and Editor sections as its children, plus a handful of top-level pages that carry their own title bar instead of the app chrome.
 
 ### The shell
 
-`AppShell.vue` holds the chrome that survives a switch between sections: the tab bar with *Corpus juris*, *Traject* and *Editor*, the search field (a button below the `lg` breakpoint), the "+" menu, the traject menu and the account menu. Switching tabs swaps only the nested `<router-view>`, so the chrome is not rebuilt. In the editor the shell also renders the document tab bar of open articles, and a "PR #N" link to the pull request that the last save in the traject wrote to.
+`AppShell.vue` holds the chrome that survives a switch between sections: the Home/Editor tab bar, the search field (a button below the `lg` breakpoint), the "+" menu, the traject menu and the account menu. Switching tabs swaps only the nested `<router-view>`, so the chrome is not rebuilt. In the editor the shell also renders the document tab bar of open articles, and a "PR #N" link to the pull request that the last save in the traject wrote to.
 
 - **"+" menu**: inside a traject it offers *Regelwerk toevoegen*, *Werkdocument toevoegen* (new or upload) and *Leden uitnodigen*. Logged out, the same button opens a prompt to log in or request an account.
-- **Traject menu** (`TrajectMenu.vue`, `MobileTrajectSheet.vue` on small screens): switch traject or go to the traject chooser. Corpus juris is not in it: it is a tab of its own, not a traject.
+- **Traject menu** (`TrajectMenu.vue`, `MobileTrajectSheet.vue` on small screens): switch traject or go to the traject chooser.
 - **Account menu**: log in or out, *Account aanvragen*, the color scheme (*Weergave*), *Instellingen*, *Harvester* for users with a harvester role, *Over RegelRecht* and *Help*.
 
-Each tab returns to the last page you had open in it. Corpus juris has no traject, so from there the *Traject* and *Editor* tabs go to the last traject you were in, or to the traject chooser when there is none yet.
+The editor tab requires a login. Every route marked `requiresAuth` waits for `/auth/status` before it mounts; a user without a session goes to `/uitgelogd`, which keeps the intended destination in `return_url` for the log-in button.
 
-The *Traject* and *Editor* tabs require a login; logged out, they show a prompt to log in or request an account. Every route marked `requiresAuth` waits for `/auth/status` before it mounts; a user without a session goes to `/uitgelogd`, which keeps the intended destination in `return_url` for the log-in button.
+### Home
 
-### Corpus juris and Traject
-
-Every route of these two tabs renders `LibraryView.vue`, which uses a navigation split view: a primary sidebar, a secondary sidebar and a main pane. What the panes show depends on the route.
+Every Home route renders `LibraryView.vue`, which uses a navigation split view: a primary sidebar, a secondary sidebar and a main pane. What the panes show depends on the route.
 
 | Route | What it shows |
 |-------|---------------|
-| `/` | The public corpus, under the *Corpus juris* tab. The sidebar offers *Alle regelwerken* and lists *Favorieten* and *Recent bekeken*. Favorites of someone not logged in are kept in the browser and move to the account at the first login. |
-| `/alle-regelwerken` | Every law in the public corpus, 25 per page, in the secondary sidebar. *Alleen verrijkte regelwerken* narrows it to laws whose current version has a machine version; the search field has the same checkbox, and the two share it. |
+| `/` | The public corpus (*Corpus juris*). The sidebar lists *Favorieten* and *Recent bekeken*. Favorites of someone not logged in are kept in the browser and move to the account at the first login. |
 | `/corpus-juris/{lawId}/{article?}` | A law from the public corpus: articles in the secondary sidebar, the article in main. A law whose current version is enriched gets *Tekst*, *Machine* and *YAML* tabs under a banner that says the machine version is an example and not established; any other law shows its text only, with a note when another version does have a machine version. |
-| `/trajecten/{ref}` | The traject landing, under the *Traject* tab. The sidebar adds *Instellingen*, *Werkdocumenten* and *Taken*, and the section *In dit traject*. |
+| `/trajecten/{ref}` | The traject landing. The sidebar adds *Instellingen*, *Werkdocumenten* and *Taken*, and the section *In dit traject*. |
 | `/trajecten/{ref}/corpus/{lawId}/{article?}` | A law as the traject has it, read through `/api/trajects/{ref}/corpus/...`. |
 | `/trajecten/{ref}/werkdocumenten/{docPath?}` | The traject's werkdocumenten: the document list in the secondary sidebar, the Markdown editor in main. |
 | `/trajecten/{ref}/instellingen/{details\|leden}` | Traject settings: *Algemeen* (name, description, status, your role; delete or leave) and *Leden* (members, roles, pending invites). |
