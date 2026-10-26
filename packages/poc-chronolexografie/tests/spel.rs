@@ -442,3 +442,95 @@ fn the_ggd_records_an_examination_and_the_card_follows() {
         json!(true)
     );
 }
+
+#[test]
+fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
+    // The scenario "Een kaart na bezwaar telt bij de volgende aanvraag", as
+    // the app plays it. The refusal is revoked on objection and a card takes
+    // its place (Awb 7:11). At the second application the municipality's
+    // reduction finds that card through the reduction of the Awb, which
+    // leaves the revoked refusal out.
+    const BSN: &str = "999990068";
+    let mut spel = spel_met("gehandicaptenparkeerkaart");
+    let casus = spel.casus().unwrap();
+    let voorbeeld = &casus["voorbeeld"];
+    let uitkomst = casus["uitkomst"].as_str().unwrap().to_string();
+    let mut aanvraag = map(&voorbeeld["aanvraag"]);
+    aanvraag.insert("bsn_aanvrager".into(), json!(BSN));
+    let bevindingen = map(&voorbeeld["bevindingen"]);
+
+    let eerste = spel.aanvragen(&aanvraag, dag("2026-10-13")).unwrap();
+    let geweigerd = spel
+        .besluiten(
+            eerste["id"].as_str().unwrap(),
+            &bevindingen,
+            dag("2026-10-20"),
+        )
+        .unwrap();
+    assert_eq!(geweigerd["besluit"]["outputs"][&uitkomst], json!(false));
+
+    let mut bezwaar = voorbeeld["bezwaar"].clone();
+    bezwaar["dagtekening_bezwaar_of_beroepschrift"] = json!("2026-11-01");
+    let bezwaar = spel
+        .bezwaren(
+            geweigerd["besluit"]["id"].as_str().unwrap(),
+            &map(&bezwaar),
+            dag("2026-11-01"),
+        )
+        .unwrap();
+    spel.vastleggen(
+        "ggd_wilgendaal",
+        "fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht",
+        &map(&json!({
+            "bsn_aanvrager": BSN,
+            "datum_onderzoek": "2026-11-10",
+            "langdurige_loopbeperking": true,
+            "continu_afhankelijk_van_hulp_bestuurder": false,
+            "permanent_rolstoelgebonden": false,
+            "ernstige_beperkingen_andere_dan_loopbeperkingen": false,
+        })),
+        dag("2026-11-10"),
+    )
+    .unwrap();
+    let gegrond = spel
+        .beslissen_op_bezwaar(
+            bezwaar["id"].as_str().unwrap(),
+            &Map::new(),
+            dag("2026-11-20"),
+        )
+        .unwrap();
+    assert_eq!(
+        gegrond["beslissing"]["outputs"]["bestreden_besluit_herroepen"],
+        json!(true)
+    );
+    let nieuw = gegrond["beslissing"]["outputs"]["nieuw_besluit"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let tweede = spel.aanvragen(&aanvraag, dag("2027-03-01")).unwrap();
+    let besluit = spel
+        .besluiten(
+            tweede["id"].as_str().unwrap(),
+            &bevindingen,
+            dag("2027-03-01"),
+        )
+        .unwrap();
+    assert_eq!(besluit["besluit"]["outputs"][&uitkomst], json!(false));
+    let antwoord = besluit["waarom"]["antwoorden"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["begrip"] == json!("aanvrager_heeft_geldige_gehandicaptenparkeerkaart"))
+        .unwrap();
+    assert_eq!(antwoord["waarde"], json!(true));
+
+    // The card the cell counted is the one the decision on objection put in
+    // place, not the refusal it revoked.
+    let id = besluit["besluit"]["id"].as_str().unwrap();
+    let hoe = spel
+        .hoe_beantwoord(id, "aanvrager_heeft_geldige_gehandicaptenparkeerkaart")
+        .unwrap();
+    let spoor = hoe["antwoorden"][0]["spoor"].as_str().unwrap();
+    assert!(spoor.contains(&nieuw), "{spoor}");
+}

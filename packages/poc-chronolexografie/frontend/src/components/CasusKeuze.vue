@@ -3,13 +3,18 @@
 // (fictieve) uitvoerder en onder welk artikel. Kiezen begint de cel van die
 // casus met een lege kroniek. Daarboven staat per bron (src/bronnen.js) wat
 // er niet lukte: een bron die er niet is, of een bestand dat niet laadt.
+//
+// Bovenaan staat wat je voor een demo nodig hebt: de presentatie, en de
+// scenario's van de parkeerkaart die erop volgen (presentation/demo.js).
 import { onMounted, ref } from 'vue';
+import { demoGuides } from '../presentation/demo.js';
 import { api } from '../api.js';
 import { bronMeldingen, herkomst } from '../bronnen.js';
 import { artikelNaam } from '../logboek.js';
 import { hoofdletter, kiezen, state } from '../state.js';
 
-const emit = defineEmits(['gekozen']);
+const emit = defineEmits(['gekozen', 'presentatie', 'demo']);
+const demo = demoGuides();
 const casussen = ref([]);
 const bronnen = ref([]);
 
@@ -34,6 +39,33 @@ async function kies(c) {
 </script>
 
 <template>
+  <nldd-simple-section>
+    <nldd-title slot="header" size="3" text="Voor de demo">
+      <nldd-text slot="supporting-text">
+        Eerst een korte presentatie over chronolexografie, daarna drie scenario's van de
+        gehandicaptenparkeerkaart. Elk scenario begint met een lege kroniek en een gids naast de
+        pagina.
+      </nldd-text>
+    </nldd-title>
+    <nldd-container gap="16">
+      <nldd-button-bar>
+        <nldd-button appearance="primary" start-icon="guide" text="Presentatie starten" @click="emit('presentatie')"></nldd-button>
+      </nldd-button-bar>
+      <nldd-collection layout="grid" item-width="320px">
+        <nldd-card v-for="(g, i) in demo" :key="g.name">
+          <nldd-container slot="header" padding="16">
+            <nldd-title size="4" heading-level="2" :overline="`Demo ${i + 1} · gehandicaptenparkeerkaart`" :text="g.name"></nldd-title>
+          </nldd-container>
+          <nldd-container padding="16">
+            <nldd-text>{{ g.summary }}</nldd-text>
+          </nldd-container>
+          <nldd-container slot="footer" padding="16">
+            <nldd-button appearance="secondary" text="Begin dit scenario" @click="emit('demo', g.name)"></nldd-button>
+          </nldd-container>
+        </nldd-card>
+      </nldd-collection>
+    </nldd-container>
+  </nldd-simple-section>
   <nldd-simple-section>
     <nldd-title slot="header" size="3" text="Kies een casus">
       <nldd-text slot="supporting-text">
