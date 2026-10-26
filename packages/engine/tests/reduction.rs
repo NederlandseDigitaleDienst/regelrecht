@@ -579,11 +579,12 @@ fn a_binding_loads_whatever_version_the_file_names() {
 fn executograms_of_v0_8_6_are_refused_with_facts_named() {
     // Also a bare key, which reads as null, is refused rather than dropped.
     for value in ["test_stroom_vestigingen", "~", ""] {
-        let yaml = variant(
-            "decisions: leerplichtwet_1969#13a",
+        let yaml = changed(
+            &corpus("cells/reductions/reductie_algemene_wet_bestuursrecht/2026-01-01.yaml"),
+            "decisions: algemene_wet_bestuursrecht#7:11",
             &format!("executograms: {value}"),
-        )
-        .replace("v0.8.9", "v0.8.6");
+        );
+        let yaml = changed(&yaml, "v0.8.12", "v0.8.6");
         refused(
             &yaml,
             "reads source.executograms, which schema v0.8.7 replaced; use source.facts",
