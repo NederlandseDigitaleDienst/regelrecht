@@ -10,8 +10,13 @@ valid_from: '2026-01-01'
 # (artikel 3 van de fictieve parkeerverordening). De cel van de gemeente geeft
 # haar uitvoer als het antwoord aantal_geldige_bedrijfsparkeervergunningen
 # (cel.yaml, answers). Artikel 5 van het fictieve uitvoeringsbesluit parkeren
-# koppelt dat aan het open begrip van artikel 3; ook als Awb 7:11 artikel 2
-# van de verordening opnieuw aanroept. Er is geen bekendmaking; de url wijst
+# koppelt dat aan het open begrip van artikel 3. Dat geldt ook wanneer Awb
+# 7:11 artikel 2 van de verordening opnieuw aanroept; bij die heroverweging
+# laat de cel het bestreden besluit buiten beschouwing. Eigen keuze: de
+# reductie telt per bedrijf, over beide vergunninggebieden. Artikel 3 van het
+# uitvoeringsbesluit stelt het maximum per gebied vast, maar een vergunning
+# blijft geldig tot zij afloopt of wordt ingetrokken (artikel 5 van de
+# verordening), ook na een verhuizing. Er is geen bekendmaking; de url wijst
 # naar het model van de verordening.
 url: https://lokaleregelgeving.overheid.nl/CVDR642699
 name: Geldige bedrijfsparkeervergunningen bij de gemeente Wilgendaal (reductie)

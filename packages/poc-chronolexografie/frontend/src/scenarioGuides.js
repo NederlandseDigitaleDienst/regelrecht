@@ -681,7 +681,7 @@ const bedrijfsparkeervergunning = [
       apply({
         n: 2,
         date: '2026-11-02',
-        todo: withKvk(OUTSIDE, ', zet de dagtekening op 2 november 2026 en klik op Aanvraag indienen.'),
+        todo: withKvk(OUTSIDE, ' en klik op Aanvraag indienen.'),
       }),
       decide({ n: 2, todo: 'Klik bij de tweede aanvraag op Besluit nemen.', outcome: 'granted' }),
     ],

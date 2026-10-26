@@ -865,3 +865,68 @@ fn bedrijfsparkeervergunning_the_ordinance_sets_a_term_of_four_weeks() {
         json!("2026-12-08")
     );
 }
+
+#[test]
+fn bedrijfsparkeervergunning_an_objection_against_a_permit_at_the_cap_does_not_count_it() {
+    // A company in the city centre holds two permits and objects against
+    // the second. The reconsideration leaves the contested decision out, so
+    // that permit does not count against itself: the objection is unfounded.
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let casus = spel.casus().unwrap();
+    bedrijf_vraagt(
+        &mut spel,
+        "99990011",
+        "ZZ-001-Z",
+        "2026-10-13",
+        "2026-10-13",
+    );
+    let tweede = bedrijf_vraagt(
+        &mut spel,
+        "99990011",
+        "ZZ-002-Z",
+        "2026-10-14",
+        "2026-10-14",
+    );
+    assert_eq!(
+        tweede["besluit"]["outputs"]["bedrijfsparkeervergunning_verleend"],
+        json!(true)
+    );
+    let mut bezwaar = casus["voorbeeld"]["bezwaar"].clone();
+    bezwaar["dagtekening_bezwaar_of_beroepschrift"] = json!("2026-11-01");
+    let bezwaar = spel
+        .bezwaren(
+            tweede["besluit"]["id"].as_str().unwrap(),
+            &map(&bezwaar),
+            dag("2026-11-01"),
+        )
+        .unwrap();
+    let beslissing = spel
+        .beslissen_op_bezwaar(
+            bezwaar["id"].as_str().unwrap(),
+            &Map::new(),
+            dag("2026-11-20"),
+        )
+        .unwrap();
+    assert_eq!(
+        beslissing["beslissing"]["outputs"]["bestreden_besluit_herroepen"],
+        json!(false),
+        "{beslissing}"
+    );
+}
+
+#[test]
+fn bedrijfsparkeervergunning_a_permit_granted_on_29_february_runs_to_28_february() {
+    // Article 3 of the fictitious ordinance: a year from the day of granting.
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let besluit = bedrijf_vraagt(
+        &mut spel,
+        "99990011",
+        "ZZ-001-Z",
+        "2028-02-29",
+        "2028-02-29",
+    );
+    assert_eq!(
+        besluit["besluit"]["outputs"]["vergunning_geldig_tot"],
+        json!("2029-02-28")
+    );
+}

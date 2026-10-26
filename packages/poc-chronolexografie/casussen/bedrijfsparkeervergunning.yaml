@@ -94,6 +94,7 @@ andere_cellen:
             aantal_werkzame_personen: 1
             datum_inschrijving: '2026-02-02'
         - feit: fictief_beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+          datum: 2026-03-02
           velden:
             kvk_nummer: '99990033'
             postcode: 7720 BC
@@ -185,11 +186,11 @@ scenarios:
         en datum inschrijving 1 november 2026.
       - >-
         Aanvrager, speeldatum 2 november 2026: verander het KvK-nummer in
-        99990033, zet de dagtekening op 2 november 2026 en klik op Aanvraag
-        indienen. Bestuursorgaan: klik op Besluit nemen.
+        99990033 en klik op Aanvraag indienen. Bestuursorgaan: klik op Besluit
+        nemen.
     eind: >-
       Toegewezen. Bij het eerste besluit antwoordde de Kamer met de postcode
-      die op 20 oktober gold, bij het tweede met die van 1 november: zij leest
+      die op 20 oktober gold, bij het tweede met de inschrijving van 1 november: zij leest
       de inschrijving die op de dag van het besluit geldt. De oude inschrijving
       blijft in haar kroniek staan; niets is overschreven. Het eerste besluit
       blijft een weigering: een nieuwe inschrijving verandert geen besluit dat

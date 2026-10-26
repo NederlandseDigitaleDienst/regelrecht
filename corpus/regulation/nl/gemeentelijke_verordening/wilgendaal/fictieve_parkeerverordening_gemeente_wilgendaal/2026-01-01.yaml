@@ -6,11 +6,14 @@ publication_date: '2025-12-01'
 valid_from: '2026-01-01'
 # FICTIEF. De gemeente Wilgendaal bestaat niet en dit is geen bekendgemaakte
 # verordening, maar een eigen keuze in de modellering, naar het model van de
-# Verordening parkeerregulering en parkeerbelasting Delft 2020 (CVDR642699):
-# artikel 3 (verlening op aanvraag), artikel 4 (beslistermijn) en artikel 6
-# (intrekking). Er is geen bekendmaking; de url wijst daarom naar die
-# verordening. De gemeentecode bestaat niet: het schema eist er een voor een
-# gemeentelijke verordening, en GM9999 is geen code van het CBS.
+# Verordening parkeerregulering en parkeerbelasting Delft 2020 (CVDR642699,
+# citeertitel Parkeerverordening Delft 2020): artikel 1 (begrippen), artikel
+# 3 (verlening op aanvraag), artikel 4 (beslistermijn), artikel 5
+# (geldigheid) en artikel 6 (intrekking). Het begrip bedrijf komt uit
+# artikel 1, onder d, van de Parkeerverordening Deventer 2026 (CVDR747536).
+# Er is geen bekendmaking; de url wijst daarom naar de Delftse verordening.
+# De gemeentecode bestaat niet: het schema eist er een voor een gemeentelijke
+# verordening, en GM9999 is geen code van het CBS.
 # Alleen de bedrijfsparkeervergunning staat erin; de andere vergunningen van
 # het Delftse model (bewoners, bezoekers, zorgverleners) zijn weggelaten. De
 # raad van Delft verordent "gelet op de artikelen 149 en 225 van de
@@ -103,9 +106,9 @@ articles:
           # De uitkomst is of het college de vergunning verleent. De laatste
           # geldige dag volgt uit de dag van verlening (artikel 3) en is
           # afgeleid (RFC-050): zij staat bij het besluit, maar telt niet als
-          # uitkomst. Een heroverweging op bezwaar (Awb 7:11) valt op een
-          # andere dag; die geeft geen aanleiding alleen omdat de vergunning
-          # dan later zou aflopen.
+          # uitkomst. Een heroverweging op bezwaar (Awb 7:11) valt later, en
+          # dus ook de laatste geldige dag. Omdat die dag afgeleid is, maakt
+          # alleen dat verschil de heroverweging niet tot een ander besluit.
           - type: BESCHIKKING
             decision_type: TOEKENNING
             outputs:

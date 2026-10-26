@@ -12,8 +12,12 @@ valid_from: '2026-01-01'
 # keuze: de laag is UITVOERINGSBELEID, omdat alleen beleid een open begrip aan
 # het antwoord van een cel mag koppelen (source.reduction, RFC-048), en dat
 # doen artikel 4 en 5. Weggelaten uit het model: de wachtlijst (artikel 6), het
-# maximum per gebied (artikel 5), de tijden waarop een vergunning geldt (lid
-# 7) en het parkeren op eigen terrein (lid 10).
+# maximum per gebied (artikel 5), de tijden waarop een vergunning geldt
+# (artikel 8, zevende lid) en het parkeren op eigen terrein (artikel 8,
+# tiende lid).
+# Ongescoped, zoals het fictieve beleid gehandicaptenparkeerkaart van
+# Wilgendaal: een gemeente_code zou dit besluit tot één gemeente beperken,
+# maar de cel van de gemeente geeft de engine geen gemeente_code mee.
 url: https://lokaleregelgeving.overheid.nl/CVDR733452
 name: Uitvoeringsbesluit Parkeren Wilgendaal 2026 (fictief)
 competent_authority:
@@ -183,7 +187,7 @@ articles:
       # is het maximum in de schil nul.
       # Hoeveel geldige vergunningen het bedrijf al heeft, weet het college
       # uit zijn eigen besluiten; artikel 5 koppelt dat begrip aan het
-      # antwoord van de cel van de gemeente. Welke vergunning geldt, zegt
+      # antwoord van de cel van de gemeente. Welke vergunning geldt, zeggen
       # artikel 3 van de verordening (een jaar vanaf de verlening) en de Awb
       # (een herroepen of vernietigd besluit geldt niet).
       open_terms:
