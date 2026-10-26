@@ -4,8 +4,8 @@
 // casus met een lege kroniek. Daarboven staat per bron (src/bronnen.js) wat
 // er niet lukte: een bron die er niet is, of een bestand dat niet laadt.
 //
-// Bovenaan staat wat je voor een demo nodig hebt: de presentatie, en de
-// scenario's van de parkeerkaart die erop volgen (presentation/demo.js).
+// At the top: what a demo needs, the presentation and the parking card
+// scenarios that follow it (presentation/demo.js).
 import { onMounted, ref } from 'vue';
 import { demoGuides } from '../presentation/demo.js';
 import { api } from '../api.js';
