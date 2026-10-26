@@ -1,7 +1,9 @@
 //! PoC: een uitvoeringsproces naspelen op de cel van een fictieve uitvoerder
 //! (chronolexografie, RFC-045 tot en met RFC-050). De bezoeker kiest een
-//! casus: vakantieverlof (Leerplichtwet 1969 art. 13a) bij OBS De Klimop, of
-//! de gehandicaptenparkeerkaart (BABW art. 49) bij de gemeente Wilgendaal.
+//! casus: vakantieverlof (Leerplichtwet 1969 art. 13a) bij OBS De Klimop, de
+//! gehandicaptenparkeerkaart (BABW art. 49) bij de gemeente Wilgendaal, of de
+//! bedrijfsparkeervergunning (een fictieve parkeerverordening, art. 2) bij
+//! diezelfde gemeente.
 //!
 //! De cel zelf staat in `packages/cel`; deze crate zet er het spel van één
 //! bezoeker omheen ([`spel`]) en voegt niets toe aan wat de cel doet

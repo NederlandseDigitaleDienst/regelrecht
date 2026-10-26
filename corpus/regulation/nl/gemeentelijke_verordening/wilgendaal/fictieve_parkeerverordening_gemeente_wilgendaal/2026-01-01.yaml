@@ -1,0 +1,293 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$id: fictieve_parkeerverordening_gemeente_wilgendaal
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# FICTIEF. De gemeente Wilgendaal bestaat niet en dit is geen bekendgemaakte
+# verordening, maar een eigen keuze in de modellering, naar het model van de
+# Verordening parkeerregulering en parkeerbelasting Delft 2020 (CVDR642699):
+# artikel 3 (verlening op aanvraag), artikel 4 (beslistermijn) en artikel 6
+# (intrekking). Er is geen bekendmaking; de url wijst daarom naar die
+# verordening. De gemeentecode bestaat niet: het schema eist er een voor een
+# gemeentelijke verordening, en GM9999 is geen code van het CBS.
+# Alleen de bedrijfsparkeervergunning staat erin; de andere vergunningen van
+# het Delftse model (bewoners, bezoekers, zorgverleners) zijn weggelaten. De
+# raad van Delft verordent "gelet op de artikelen 149 en 225 van de
+# Gemeentewet en artikel 2a van de Wegenverkeerswet 1994"; die staan niet in
+# het corpus, dus er is geen legal_basis.
+gemeente_code: GM9999
+officiele_titel: Parkeerverordening Wilgendaal 2026 (fictief)
+url: https://lokaleregelgeving.overheid.nl/CVDR642699
+name: Parkeerverordening Wilgendaal 2026 (fictief)
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, naar het model van artikel 1 van de Parkeerverordening Delft
+      2020 en artikel 1, onder d, van de Parkeerverordening Deventer 2026.
+      In deze verordening wordt verstaan onder:
+
+      a. bedrijf: een organisatie of zelfstandige die staat ingeschreven in
+      het handelsregister van de Kamer van Koophandel;
+
+      b. bedrijfsparkeervergunning: een door het college verleende
+      vergunning, krachtens welke het is toegestaan een motorvoertuig van het
+      bedrijf te parkeren op de daartoe aangewezen plaatsen in een
+      vergunninggebied;
+
+      c. vergunninggebied: een gebied dat het college op grond van artikel 2,
+      derde lid, als zodanig aanwijst.
+    url: https://lokaleregelgeving.overheid.nl/CVDR642699
+  - number: '2'
+    text: >-
+      FICTIEF, naar het model van artikel 3 van de Parkeerverordening Delft
+      2020.
+
+      1 Het college verleent op aanvraag een bedrijfsparkeervergunning aan een
+      bedrijf dat in een vergunninggebied is gevestigd.
+
+      2 Het college weigert de bedrijfsparkeervergunning als het bedrijf op de
+      dag van het besluit al het maximum aantal geldige
+      bedrijfsparkeervergunningen heeft.
+
+      3 Het college stelt regels over de vergunninggebieden en over de wijze
+      waarop blijkt dat een bedrijf in een vergunninggebied is gevestigd.
+
+      4 Het college stelt het maximum aantal bedrijfsparkeervergunningen per
+      bedrijf vast, per vergunninggebied.
+    url: https://lokaleregelgeving.overheid.nl/CVDR642699
+    machine_readable:
+      # Bevoegd gezag (RFC-002), wie op de aanvraag beslist: het college.
+      # Alleen de categorie, zoals bij artikel 49 van het BABW: de cel van de
+      # gemeente geeft haar eigen naam niet aan de verordening door.
+      competent_authority:
+        name: college van burgemeester en wethouders
+        type: CATEGORY
+      # Eigen keuze: het college "verleent" (lid 1), waar artikel 3, eerste
+      # lid, van het Delftse model zegt dat het college een vergunning "kan"
+      # verlenen. Zo is er geen beleid nodig over hoe het college een
+      # bevoegdheid gebruikt, en blijft de casus bij de twee toetsen die het
+      # uitvoeringsbesluit invult: de vestiging en het maximum.
+      # Beide oordelen laat de verordening aan regels van het college (lid 3
+      # en 4). Het fictieve uitvoeringsbesluit van Wilgendaal vult ze
+      # (fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal, artikel 2
+      # en 3).
+      open_terms:
+        - id: bedrijf_gevestigd_in_vergunninggebied
+          type: boolean
+          required: true
+          decided_per_case_by: het college van burgemeester en wethouders, volgens zijn regels (derde lid)
+          description: >-
+            Of het bedrijf in een vergunninggebied is gevestigd (eerste lid),
+            zoals blijkt op de wijze die de regels van het college voorschrijven
+            (derde lid).
+        - id: maximum_bedrijfsparkeervergunningen_bereikt
+          type: boolean
+          required: true
+          decided_per_case_by: het college van burgemeester en wethouders, volgens zijn regels (vierde lid)
+          description: >-
+            Of het bedrijf op de dag van het besluit al het maximum aantal
+            geldige bedrijfsparkeervergunningen heeft dat het college vaststelt
+            (tweede en vierde lid).
+      execution:
+        # Lid 1: de vergunning wordt verleend op aanvraag van het bedrijf. Dit
+        # artikel brengt twee dingen voort, zoals artikel 49 van het BABW
+        # (RFC-047): de aanvraag, waar de Awb op haakt, en het verlenen of
+        # weigeren, een beschikking die de procedure van de Awb volgt.
+        produces:
+          - type: AANVRAAG
+            requests: fictieve_parkeerverordening_gemeente_wilgendaal#2
+            parameters:
+              - kvk_nummer
+              - kenteken
+          # De uitkomst is of het college de vergunning verleent. De laatste
+          # geldige dag volgt uit de dag van verlening (artikel 3) en is
+          # afgeleid (RFC-050): zij staat bij het besluit, maar telt niet als
+          # uitkomst. Een heroverweging op bezwaar (Awb 7:11) valt op een
+          # andere dag; die geeft geen aanleiding alleen omdat de vergunning
+          # dan later zou aflopen.
+          - type: BESCHIKKING
+            decision_type: TOEKENNING
+            outputs:
+              - bedrijfsparkeervergunning_verleend
+            derived:
+              - vergunning_geldig_tot
+        parameters:
+          # De inhoud van de aanvraag (produces hierboven). Eigen keuze: het
+          # bedrijf noemt zich met het nummer dat de Kamer van Koophandel het
+          # toekende (artikel 9, onder a, van de Handelsregisterwet 2007), en
+          # het kenteken waarop de vergunning staat (artikel 5, tweede lid,
+          # onder c, van het Delftse model).
+          - name: kvk_nummer
+            type: string
+            description: Het nummer dat de Kamer van Koophandel het bedrijf toekende.
+          - name: kenteken
+            type: string
+            description: Het kenteken van het motorvoertuig waarvoor de vergunning wordt gevraagd.
+          # De dag waarop het college het besluit (Awb 1:3) neemt. Eigen
+          # keuze: de vergunning wordt verleend op die dag, en vanaf die dag
+          # loopt haar geldigheidsduur (artikel 3).
+          - name: besluit_datum
+            type: date
+            description: De dag waarop het college op de aanvraag besluit.
+        input:
+          - name: einde_geldigheidsduur_bij_verlening
+            type: date
+            source:
+              regulation: fictieve_parkeerverordening_gemeente_wilgendaal
+              output: einde_geldigheidsduur
+              parameters:
+                datum_verlening: $besluit_datum
+        output:
+          - name: bedrijfsparkeervergunning_verleend
+            type: boolean
+            description: Of het college het bedrijf een bedrijfsparkeervergunning verleent.
+          - name: vergunning_geldig_tot
+            type: date
+            nullable: true
+            description: >-
+              De laatste dag waarop de verleende vergunning geldig is (artikel
+              3); leeg als geen vergunning wordt verleend.
+        actions:
+          # Lid 1 en 2. Eerst de vestiging: AND stopt bij de eerste onwaar, dus
+          # voor een bedrijf buiten de vergunninggebieden vraagt het besluit
+          # het maximum niet.
+          - output: bedrijfsparkeervergunning_verleend
+            value:
+              operation: AND
+              conditions:
+                - $bedrijf_gevestigd_in_vergunninggebied
+                - operation: NOT
+                  value: $maximum_bedrijfsparkeervergunningen_bereikt
+          - output: vergunning_geldig_tot
+            value:
+              operation: IF
+              cases:
+                - when: $bedrijfsparkeervergunning_verleend
+                  then: $einde_geldigheidsduur_bij_verlening
+              default: null
+  - number: '3'
+    text: >-
+      FICTIEF, naar het model van artikel 5 van de Parkeerverordening Delft
+      2020.
+
+      1 Een bedrijfsparkeervergunning is geldig voor de duur van een jaar,
+      gerekend vanaf de dag van verlening.
+
+      2 De vergunning vermeldt het kenteken van het motorvoertuig waarvoor zij
+      is verleend.
+    url: https://lokaleregelgeving.overheid.nl/CVDR642699
+    machine_readable:
+      # Lid 1. Het Delftse model zegt "ten hoogste een jaar"; eigen keuze:
+      # hier precies een jaar, zodat de duur geen oordeel per aanvraag vraagt.
+      # Lid 2 is geen rekenregel: het kenteken staat bij de aanvraag.
+      execution:
+        parameters:
+          - name: datum_verlening
+            type: date
+            description: De dag waarop de bedrijfsparkeervergunning is verleend.
+        output:
+          - name: einde_geldigheidsduur
+            type: date
+            description: >-
+              De laatste dag van het jaar, gerekend vanaf de dag van verlening
+              (lid 1).
+        actions:
+          # "gerekend vanaf de dag van verlening": de dag van verlening is de
+          # eerste dag, dus het jaar eindigt de dag vóór dezelfde dag een jaar
+          # later, zoals artikel 51 van het BABW de vijf jaren telt. Eigen
+          # keuze in de telling. Een vergunning verleend op 29 februari: een
+          # jaar later is er geen 29 februari, dus het jaar loopt tot en met
+          # 28 februari (DATE_ADD rondt af naar het einde van de maand, en daar
+          # gaat geen dag meer af).
+          - output: einde_geldigheidsduur
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject:
+                          operation: DATE_PART
+                          date: $datum_verlening
+                          in: month
+                        value: 2
+                      - operation: EQUALS
+                        subject:
+                          operation: DATE_PART
+                          date: $datum_verlening
+                          in: day
+                        value: 29
+                  then:
+                    operation: DATE_ADD
+                    date: $datum_verlening
+                    years: 1
+              default:
+                operation: DATE_ADD
+                date:
+                  operation: DATE_ADD
+                  date: $datum_verlening
+                  years: 1
+                days: -1
+  - number: '4'
+    text: >-
+      FICTIEF, naar het model van artikel 4 van de Parkeerverordening Delft
+      2020.
+
+      1 Het college beslist binnen vier weken na ontvangst van een aanvraag
+      voor een bedrijfsparkeervergunning.
+
+      2 Het college kan de in het eerste lid genoemde termijn met ten hoogste
+      vier weken verlengen. Van een verlenging van deze termijn wordt de
+      aanvrager schriftelijk in kennis gesteld.
+    url: https://lokaleregelgeving.overheid.nl/CVDR642699
+    machine_readable:
+      # Lid 1 is de termijn "bij wettelijk voorschrift bepaald" van artikel
+      # 4:13, eerste lid, van de Awb, die voorgaat op de redelijke termijn van
+      # acht weken (lid 2 van dat artikel). Zoals de Awb het zegt: een
+      # regeling met een eigen termijn vervangt de uitvoer van 4:13 (lex
+      # specialis, overrides). Die geldt alleen binnen de uitvoering die deze
+      # verordening start (RFC-007), dus bij een aanvraag om een
+      # bedrijfsparkeervergunning en niet bij een andere aanvraag aan het
+      # college. De uitvoer houdt de naam die de Awb haar geeft. Telling als
+      # bij 4:13: de dag van ontvangst telt niet mee. Lid 2 (de verlenging met
+      # vier weken, met een mededeling aan de aanvrager) is niet
+      # gemodelleerd.
+      overrides:
+        - law: algemene_wet_bestuursrecht
+          article: '4:13'
+          output: redelijke_beslistermijn_einddatum
+      execution:
+        parameters:
+          - name: datum_ontvangst
+            type: date
+            required: false
+            description: De dag waarop het college de aanvraag ontving (lid 1).
+        output:
+          - name: redelijke_beslistermijn_einddatum
+            type: date
+            description: De laatste dag van de termijn van vier weken na ontvangst (lid 1).
+        actions:
+          - output: redelijke_beslistermijn_einddatum
+            value:
+              operation: DATE_ADD
+              date: $datum_ontvangst
+              weeks: 4
+  - number: '5'
+    text: >-
+      FICTIEF, naar het model van artikel 6, eerste lid, van de
+      Parkeerverordening Delft 2020.
+
+      Het college kan een bedrijfsparkeervergunning intrekken of wijzigen:
+
+      a. op verzoek van de vergunninghouder;
+
+      b. wanneer de vergunninghouder geen bedrijf meer uitoefent in het
+      vergunninggebied waarvoor de vergunning is verleend.
+    url: https://lokaleregelgeving.overheid.nl/CVDR642699
+    # Niet uitvoerbaar gemaakt. Een intrekking is een besluit van het college
+    # uit eigen beweging (onder b) of op verzoek (onder a), zonder aanvraag om
+    # een vergunning. Hoe zo'n besluit ontstaat en wat het met een eerder
+    # besluit doet, is niet gemodelleerd (zie de open punten van de
+    # chronolexografie).

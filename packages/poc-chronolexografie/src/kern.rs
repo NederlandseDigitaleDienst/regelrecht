@@ -3300,6 +3300,9 @@ mod tests {
         // The parkeerkaart: art. 49 reads the Regeling, the municipality's
         // policy fills its open term and binds the terms to the answers of
         // the cells, and the Awb; the reductions of the cells' catalogues.
+        // The catalogue of the municipality also names the reduction of the
+        // bedrijfsparkeervergunning: a cell's answers are the cell's, not a
+        // case's.
         let kaart = casus("gehandicaptenparkeerkaart");
         let a = &kaart.afleiding;
         assert_eq!(a.objection, "7:11");
@@ -3321,10 +3324,36 @@ mod tests {
                 "reductie_algemene_wet_bestuursrecht",
                 "reductie_eerder_verstrekte_gehandicaptenparkeerkaart_cbr",
                 "reductie_eerder_verstrekte_gehandicaptenparkeerkaart_gemeente_oostmeer",
+                "reductie_geldige_bedrijfsparkeervergunningen",
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_geneeskundig_advies",
                 "reductie_geneeskundig_onderzoek",
                 "regeling_gehandicaptenparkeerkaart",
+            ]
+        );
+
+        // The bedrijfsparkeervergunning: art. 2 of the fictitious ordinance,
+        // its implementing decision that fills its open terms and binds them
+        // to the answers of the cells, and the Awb; the reductions of the
+        // catalogues of the municipality and of the Chamber of Commerce, and
+        // the policy that requires the Chamber's registrations.
+        let vergunning = casus("bedrijfsparkeervergunning");
+        let a = &vergunning.afleiding;
+        assert_eq!(a.objection, "7:11");
+        assert_eq!(a.rol, "het college van burgemeester en wethouders");
+        let mut ids = a.regelwerken.clone();
+        ids.sort();
+        assert_eq!(
+            ids,
+            [
+                "algemene_wet_bestuursrecht",
+                "fictief_beleid_handelsregister_kamer_van_koophandel",
+                "fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal",
+                "fictieve_parkeerverordening_gemeente_wilgendaal",
+                "reductie_algemene_wet_bestuursrecht",
+                "reductie_geldige_bedrijfsparkeervergunningen",
+                "reductie_geldige_gehandicaptenparkeerkaart",
+                "reductie_vestiging_in_handelsregister",
             ]
         );
     }

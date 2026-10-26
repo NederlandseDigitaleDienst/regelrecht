@@ -93,7 +93,14 @@ fn without_a_chosen_case_a_step_is_refused_and_choosing_one_starts_its_cell() {
         .iter()
         .map(|c| c["id"].as_str().unwrap())
         .collect();
-    assert_eq!(ids, ["gehandicaptenparkeerkaart", "vakantieverlof"]);
+    assert_eq!(
+        ids,
+        [
+            "bedrijfsparkeervergunning",
+            "gehandicaptenparkeerkaart",
+            "vakantieverlof"
+        ]
+    );
 
     for e in [spel.kroniek().unwrap_err(), spel.casus().unwrap_err()] {
         assert!(matches!(e, Fout::GeenCasus));
@@ -594,4 +601,267 @@ fn parkeerkaart_the_ggd_examines_after_the_application_and_the_card_follows() {
     // The decision is in the municipality's chronicle, after the application.
     let kroniek = spel.kroniek().unwrap();
     assert_eq!(soorten(&kroniek), ["AANVRAAG", "BESCHIKKING"]);
+}
+
+/// The answer of the cell's sphere to `begrip` in the reasons of `besluit`.
+fn antwoord<'a>(besluit: &'a Value, begrip: &str) -> &'a Value {
+    &besluit["waarom"]["antwoorden"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["begrip"] == json!(begrip))
+        .expect(begrip)["waarde"]
+}
+
+/// Apply for a permit for the company `kvk` with the case's example values,
+/// on `datum`, and decide on `beslist`.
+fn bedrijf_vraagt(spel: &mut Spel, kvk: &str, kenteken: &str, datum: &str, beslist: &str) -> Value {
+    let casus = spel.casus().unwrap();
+    let mut aanvraag = map(&casus["voorbeeld"]["aanvraag"]);
+    aanvraag.insert("kvk_nummer".into(), json!(kvk));
+    aanvraag.insert("kenteken".into(), json!(kenteken));
+    aanvraag.insert("dagtekening".into(), json!(datum));
+    let ingediend = spel.aanvragen(&aanvraag, dag(datum)).unwrap();
+    spel.besluiten(ingediend["id"].as_str().unwrap(), &Map::new(), dag(beslist))
+        .unwrap()
+}
+
+#[test]
+fn bedrijfsparkeervergunning_a_company_in_the_city_centre_gets_a_permit() {
+    // The first scenario: the example values, a company the Chamber of
+    // Commerce registered in the city centre, and a decision a week later.
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let casus = spel.casus().unwrap();
+    assert_eq!(
+        casus["rol"],
+        json!("het college van burgemeester en wethouders")
+    );
+    assert_eq!(casus["rechter"]["cel"], json!("rechtbank_wilgendaal"));
+    let besluit = bedrijf_vraagt(
+        &mut spel,
+        "99990011",
+        "ZZ-001-Z",
+        "2026-10-13",
+        "2026-10-20",
+    );
+    let uit = &besluit["besluit"]["outputs"];
+    assert_eq!(
+        uit["bedrijfsparkeervergunning_verleend"],
+        json!(true),
+        "{besluit}"
+    );
+    assert_eq!(uit["vergunning_geldig_tot"], json!("2027-10-19"));
+    assert_eq!(
+        antwoord(&besluit, "postcode_vestiging_volgens_handelsregister"),
+        &json!("7711 AB")
+    );
+    assert_eq!(
+        antwoord(&besluit, "aantal_geldige_bedrijfsparkeervergunningen"),
+        &json!(0)
+    );
+    // The registration is in the Chamber's own chronicle (RFC-052).
+    let kroniek = spel.kroniek().unwrap();
+    assert_eq!(soorten(&kroniek), ["AANVRAAG", "BESCHIKKING"]);
+    assert_eq!(kroniek["andere"][0]["cel"], json!("kamer_van_koophandel"));
+    assert_eq!(
+        soorten(&kroniek["andere"][0]),
+        ["EXECUTOGRAM", "EXECUTOGRAM", "EXECUTOGRAM"]
+    );
+}
+
+const INSCHRIJVING: &str =
+    "fictief_beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven";
+
+/// The Chamber of Commerce registers the establishment of `kvk` anew on
+/// `datum`.
+fn kvk_schrijft_in(spel: &mut Spel, kvk: &str, postcode: &str, personen: u32, datum: &str) {
+    spel.vastleggen(
+        "kamer_van_koophandel",
+        INSCHRIJVING,
+        &map(&json!({
+            "kvk_nummer": kvk,
+            "postcode": postcode,
+            "aantal_werkzame_personen": personen,
+            "datum_inschrijving": datum,
+        })),
+        dag(datum),
+    )
+    .unwrap();
+}
+
+#[test]
+fn bedrijfsparkeervergunning_the_maximum_in_the_ring_and_a_permit_on_objection() {
+    // The scenario "Het maximum in de schil, en een vergunning na bezwaar":
+    // one person works at the company, so it gets one permit and a second is
+    // refused. After the objection the Chamber registers two, the refusal is
+    // revoked and a permit takes its place (Awb 7:11). At the third
+    // application the municipality counts that permit and the first, among
+    // the decisions the reduction of the Awb gives.
+    const KVK: &str = "99990022";
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let casus = spel.casus().unwrap();
+    let uitkomst = casus["uitkomst"].as_str().unwrap().to_string();
+
+    let eerste = bedrijf_vraagt(&mut spel, KVK, "ZZ-001-Z", "2026-10-13", "2026-10-20");
+    assert_eq!(eerste["besluit"]["outputs"][&uitkomst], json!(true));
+    let geweigerd = bedrijf_vraagt(&mut spel, KVK, "ZZ-002-Z", "2026-10-21", "2026-10-22");
+    assert_eq!(geweigerd["besluit"]["outputs"][&uitkomst], json!(false));
+    assert_eq!(
+        antwoord(
+            &geweigerd,
+            "aantal_werkzame_personen_volgens_handelsregister"
+        ),
+        &json!(1)
+    );
+    assert_eq!(
+        antwoord(&geweigerd, "aantal_geldige_bedrijfsparkeervergunningen"),
+        &json!(1)
+    );
+
+    let mut bezwaar = casus["voorbeeld"]["bezwaar"].clone();
+    bezwaar["dagtekening_bezwaar_of_beroepschrift"] = json!("2026-11-01");
+    let bezwaar = spel
+        .bezwaren(
+            geweigerd["besluit"]["id"].as_str().unwrap(),
+            &map(&bezwaar),
+            dag("2026-11-01"),
+        )
+        .unwrap();
+    kvk_schrijft_in(&mut spel, KVK, "7713 AA", 2, "2026-11-10");
+    let gegrond = spel
+        .beslissen_op_bezwaar(
+            bezwaar["id"].as_str().unwrap(),
+            &Map::new(),
+            dag("2026-11-20"),
+        )
+        .unwrap();
+    assert_eq!(
+        gegrond["beslissing"]["outputs"]["bestreden_besluit_herroepen"],
+        json!(true),
+        "{gegrond}"
+    );
+    let nieuw = gegrond["beslissing"]["outputs"]["nieuw_besluit"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let derde = bedrijf_vraagt(&mut spel, KVK, "ZZ-003-Z", "2026-12-01", "2026-12-01");
+    assert_eq!(derde["besluit"]["outputs"][&uitkomst], json!(false));
+    assert_eq!(
+        antwoord(&derde, "aantal_geldige_bedrijfsparkeervergunningen"),
+        &json!(2)
+    );
+    let hoe = spel
+        .hoe_beantwoord(
+            derde["besluit"]["id"].as_str().unwrap(),
+            "aantal_geldige_bedrijfsparkeervergunningen",
+        )
+        .unwrap();
+    let uitvoer = &hoe["antwoorden"][0]["uitvoer"];
+    let refusal = geweigerd["besluit"]["id"].as_str().unwrap();
+    assert_eq!(uitvoer["herroepen_besluiten"], json!([refusal]));
+    let geldend: Vec<&str> = uitvoer["geldende_besluiten"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| b["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        geldend,
+        [eerste["besluit"]["id"].as_str().unwrap(), nieuw.as_str()]
+    );
+}
+
+#[test]
+fn bedrijfsparkeervergunning_outside_the_area_and_after_the_move_inside() {
+    // The scenario "Buiten het gebied, en na de verhuizing erin": the
+    // Chamber answers with the registration that holds on the day of each
+    // decision, and the old one stays in its chronicle.
+    const KVK: &str = "99990033";
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let buiten = bedrijf_vraagt(&mut spel, KVK, "ZZ-001-Z", "2026-10-13", "2026-10-20");
+    let uit = &buiten["besluit"]["outputs"];
+    assert_eq!(uit["bedrijfsparkeervergunning_verleend"], json!(false));
+    assert_eq!(uit["vergunning_geldig_tot"], json!(null));
+    assert_eq!(
+        antwoord(&buiten, "postcode_vestiging_volgens_handelsregister"),
+        &json!("7720 BC")
+    );
+
+    kvk_schrijft_in(&mut spel, KVK, "7711 AC", 3, "2026-11-01");
+    let binnen = bedrijf_vraagt(&mut spel, KVK, "ZZ-001-Z", "2026-11-02", "2026-11-02");
+    assert_eq!(
+        binnen["besluit"]["outputs"]["bedrijfsparkeervergunning_verleend"],
+        json!(true)
+    );
+    assert_eq!(
+        antwoord(&binnen, "postcode_vestiging_volgens_handelsregister"),
+        &json!("7711 AC")
+    );
+    let kvk = &spel.kroniek().unwrap()["andere"][0];
+    assert_eq!(soorten(kvk).len(), 4);
+}
+
+#[test]
+fn bedrijfsparkeervergunning_a_company_the_register_does_not_know_is_refused() {
+    // Without a registration the Chamber is silent, so it does not appear
+    // from the register that the company is established in an area.
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let besluit = bedrijf_vraagt(
+        &mut spel,
+        "99990099",
+        "ZZ-001-Z",
+        "2026-10-13",
+        "2026-10-20",
+    );
+    assert_eq!(
+        besluit["besluit"]["outputs"]["bedrijfsparkeervergunning_verleend"],
+        json!(false)
+    );
+}
+
+#[test]
+fn bedrijfsparkeervergunning_two_permits_in_the_city_centre_and_no_third() {
+    // Article 3, first paragraph, of the fictitious implementing decision:
+    // at most two in the city centre, whatever the number of people.
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let mut verleend = Vec::new();
+    for (i, datum) in ["2026-10-13", "2026-10-14", "2026-10-15"]
+        .iter()
+        .enumerate()
+    {
+        let besluit = bedrijf_vraagt(
+            &mut spel,
+            "99990011",
+            &format!("ZZ-00{}-Z", i + 1),
+            datum,
+            datum,
+        );
+        verleend.push(besluit["besluit"]["outputs"]["bedrijfsparkeervergunning_verleend"].clone());
+    }
+    assert_eq!(verleend, [json!(true), json!(true), json!(false)]);
+}
+
+#[test]
+fn bedrijfsparkeervergunning_the_ordinance_sets_a_term_of_four_weeks() {
+    // Article 4 of the fictitious ordinance replaces the reasonable term of
+    // Awb 4:13 (eight weeks) with four weeks, only for its own applications.
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let casus = spel.casus().unwrap();
+    let aanvraag = spel
+        .aanvragen(&map(&casus["voorbeeld"]["aanvraag"]), dag("2026-10-13"))
+        .unwrap();
+    assert_eq!(
+        aanvraag["outputs"]["redelijke_beslistermijn_einddatum"],
+        json!("2026-11-10")
+    );
+    let mut kaart = spel_met("gehandicaptenparkeerkaart");
+    let casus = kaart.casus().unwrap();
+    let aanvraag = kaart
+        .aanvragen(&map(&casus["voorbeeld"]["aanvraag"]), dag("2026-10-13"))
+        .unwrap();
+    assert_eq!(
+        aanvraag["outputs"]["redelijke_beslistermijn_einddatum"],
+        json!("2026-12-08")
+    );
 }

@@ -559,8 +559,137 @@ const gehandicaptenparkeerkaart = [
   },
 ];
 
+// Bedrijfsparkeervergunning: the application on 13 October 2026, the
+// decision a week later, unless a step says otherwise. The KvK numbers are
+// those the Chamber of Commerce registered in the case file.
+const RING = '99990022';
+const OUTSIDE = '99990033';
+const withKvk = (number, rest) => `Verander "kvk nummer" in ${number}${rest}`;
+// The Chamber registers the establishment of `kvk` anew on `date`.
+const register = ({ kvk, postcode, people, date, day, why, seen }) => ({
+  title: 'Nieuwe inschrijving bij de Kamer van Koophandel',
+  tab: 'andere',
+  date,
+  todo: `${why} Vul bij Kamer van Koophandel onder "Vastleggen: Vestiging ingeschreven" kvk nummer ${kvk}, postcode ${postcode}, ${people} bij "aantal werkzame personen" en datum inschrijving ${day} in. Klik op Vastleggen.`,
+  seen,
+  done: (k) =>
+    k.executogrammen('vestiging_ingeschreven', {
+      kvk_nummer: kvk,
+      postcode,
+      aantal_werkzame_personen: people,
+    }) >= 1,
+});
+
+const bedrijfsparkeervergunning = [
+  {
+    name: 'Een bedrijf in de binnenstad krijgt een vergunning',
+    summary: 'Een bakkerij in de binnenstad vraagt een vergunning, en het college verleent haar.',
+    steps: [
+      apply({
+        todo: 'Klik op Aanvraag indienen. Het kvk nummer 99990011 is van een bakkerij in de binnenstad.',
+        seen: 'De aanvraag staat onder Mijn aanvragen op In behandeling. De beslistermijn is vier weken (artikel 4 van de fictieve verordening), niet de acht weken van Awb 4:13.',
+      }),
+      decide({
+        date: '2026-10-20',
+        todo: 'Het formulier vraagt niets: de Kamer van Koophandel en de eigen kroniek van de gemeente geven wat de regels vragen. Klik op Besluit nemen.',
+        outcome: 'granted',
+      }),
+    ],
+  },
+  {
+    name: 'Het maximum in de schil, en een vergunning na bezwaar',
+    summary:
+      'In de schil krijgt een bedrijf zoveel vergunningen als er mensen werken, en na een nieuwe inschrijving telt de vergunning uit het bezwaar bij de volgende aanvraag.',
+    steps: [
+      apply({
+        todo: withKvk(RING, ' en klik op Aanvraag indienen. In deze fietsenmakerij in de schil werkt volgens het handelsregister één persoon.'),
+      }),
+      decide({
+        date: '2026-10-20',
+        todo: 'Klik op Besluit nemen.',
+        seen: 'De vergunning is verleend, geldig tot en met 19 oktober 2027.',
+        outcome: 'granted',
+      }),
+      apply({
+        n: 2,
+        date: '2026-10-21',
+        todo: withKvk(RING, ', zet het kenteken op ZZ-002-Z en klik op Aanvraag indienen.'),
+      }),
+      decide({
+        n: 2,
+        date: '2026-10-22',
+        todo: 'Klik bij de tweede aanvraag op Besluit nemen.',
+        seen: 'Afgewezen: het bedrijf heeft al één geldige vergunning, en er werkt één persoon. Bij het besluit staat "aantal werkzame personen volgens handelsregister: 1".',
+        outcome: 'rejected',
+      }),
+      object({
+        date: '2026-11-01',
+        todo: 'Zoek de tweede aanvraag. Klik bij haar besluit op Bezwaar maken en dan op Bezwaar indienen.',
+      }),
+      register({
+        kvk: RING,
+        postcode: '7713 AA',
+        people: 2,
+        date: '2026-11-10',
+        day: '10 november 2026',
+        why: 'De fietsenmakerij heeft iemand aangenomen.',
+        seen: 'De nieuwe inschrijving staat in de kroniek van de Kamer, naast de oude; de gemeente leest haar bij de heroverweging.',
+      }),
+      decideObjection({
+        date: '2026-11-20',
+        todo: 'Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.',
+        seen: 'Gegrond: de weigering is herroepen (Awb 7:11, tweede lid), en een nieuw besluit verleent de vergunning. Onder Kroniek staan nu drie besluiten onder artikel 2 van de verordening; niets is overschreven.',
+        expect: upheld(),
+      }),
+      apply({
+        n: 3,
+        title: 'Een derde aanvraag indienen',
+        date: '2026-12-01',
+        todo: withKvk(RING, ', zet het kenteken op ZZ-003-Z en klik op Aanvraag indienen.'),
+        seen: 'De derde aanvraag staat onder Mijn aanvragen op In behandeling.',
+      }),
+      decide({
+        n: 3,
+        title: 'Besluiten op de derde aanvraag',
+        todo: 'Klik op Besluit nemen. Open daarna bij het besluit "Hoe de cel dit beantwoordde".',
+        outcome: 'rejected',
+      }),
+    ],
+  },
+  {
+    name: 'Buiten het gebied, en na de verhuizing erin',
+    summary: 'Een bedrijf buiten de vergunninggebieden krijgt geen vergunning, en na zijn verhuizing naar de binnenstad wel.',
+    steps: [
+      apply({
+        todo: withKvk(OUTSIDE, ' en klik op Aanvraag indienen. Volgens het handelsregister ligt de vestiging van dit adviesbureau op postcode 7720 BC, in geen van de vergunninggebieden.'),
+      }),
+      decide({
+        date: '2026-10-20',
+        todo: 'Klik op Besluit nemen.',
+        seen: 'Afgewezen: uit het handelsregister blijkt niet dat het bedrijf in een vergunninggebied is gevestigd. Bij het besluit staat "postcode vestiging volgens handelsregister: 7720 BC".',
+        outcome: 'rejected',
+      }),
+      register({
+        kvk: OUTSIDE,
+        postcode: '7711 AC',
+        people: 3,
+        date: '2026-11-01',
+        day: '1 november 2026',
+        why: 'Het adviesbureau verhuist naar de binnenstad.',
+        seen: 'De nieuwe inschrijving staat in de kroniek van de Kamer; de oude staat er nog.',
+      }),
+      apply({
+        n: 2,
+        date: '2026-11-02',
+        todo: withKvk(OUTSIDE, ', zet de dagtekening op 2 november 2026 en klik op Aanvraag indienen.'),
+      }),
+      decide({ n: 2, todo: 'Klik bij de tweede aanvraag op Besluit nemen.', outcome: 'granted' }),
+    ],
+  },
+];
+
 /** The guides per case id. */
-export const guides = { vakantieverlof, gehandicaptenparkeerkaart };
+export const guides = { vakantieverlof, gehandicaptenparkeerkaart, bedrijfsparkeervergunning };
 
 /**
  * The guide for scenario `naam` of `casus`, or null: a case from a source

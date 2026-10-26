@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "PoC: een uitvoeringsproces naspelen op de cel van een fictieve uitvoerder, per casus (vakantieverlof, gehandicaptenparkeerkaart): aanvraag, besluit, bezwaar, kroniek en reductie, als WASM in de browser",
+  "description": "PoC: een uitvoeringsproces naspelen op de cel van een fictieve uitvoerder, per casus (vakantieverlof, gehandicaptenparkeerkaart, bedrijfsparkeervergunning): aanvraag, besluit, bezwaar, kroniek en reductie, als WASM in de browser",
   "scripts": {
     "predev": "node scripts/copy-assets.js",
     "dev": "vite",
