@@ -106,7 +106,7 @@ export const slides = [
     kind: 'bullets',
     overline: 'Waarom',
     title: 'Wetten vragen naar het verleden',
-    lead: 'Heeft de gemeente deze persoon al eens een parkeervergunning gegeven? En geldt dat besluit nog?',
+    lead: 'Heeft de school deze leerling dit schooljaar al extra verlof gegeven? En geldt dat besluit nog?',
     bullets: [
       'Dat antwoord ligt nu verspreid over systemen.',
       'Die bewaren vaak alleen de laatste stand.',
