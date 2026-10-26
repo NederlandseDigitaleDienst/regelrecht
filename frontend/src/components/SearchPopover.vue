@@ -99,6 +99,9 @@ const showSuggestions = computed(
 const claimSuggestions = useLatest();
 async function loadSuggestions() {
   const isCurrent = claimSuggestions();
+  // Drop the previous handful first, so a quick Enter cannot land on a row
+  // that is about to be replaced.
+  suggestions.value = [];
   const ids = pickSuggestions(__SUGGESTED_LAW_IDS__, SUGGESTION_COUNT);
   if (ids.length === 0) return;
   try {
@@ -562,7 +565,7 @@ defineExpose({ show });
             v-else-if="needsLogin && !filterEnriched && searchTerm.length >= MIN_QUERY_LENGTH"
             icon="login"
             text="Log in om externe bronnen te doorzoeken"
-            supporting-text="Inloggen is vereist om wetten op te halen van wetten.overheid.nl"
+            supporting-text="Log in om ook op wetten.overheid.nl te zoeken."
           >
             <nldd-button slot="actions" appearance="primary" text="Inloggen" @click="login()"></nldd-button>
           </nldd-inline-dialog>
