@@ -69,6 +69,13 @@ describe('the slides', () => {
       expect(s.figure.source, s.title).toBeTruthy();
   });
 
+  it('say where a quote comes from', () => {
+    for (const s of slides) {
+      const quotes = texts(s).some((t) => t.includes('„'));
+      expect(!!s.cite, s.title).toBe(quotes);
+    }
+  });
+
   it('give each figure a label', () => {
     for (const s of slides.filter((x) => x.figure)) expect(s.figure.label, s.title).toBeTruthy();
   });

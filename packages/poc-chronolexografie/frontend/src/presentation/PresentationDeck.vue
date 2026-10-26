@@ -131,6 +131,7 @@ function choose(naam) {
               <ul v-if="slide.bullets?.length" class="bullets">
                 <li v-for="(b, j) in slide.bullets" :key="j" v-html="emphasize(b)"></li>
               </ul>
+              <p v-if="slide.cite" class="cite">{{ slide.cite }}</p>
             </template>
           </div>
           <div v-if="slide.figure" class="figure">
@@ -368,6 +369,11 @@ pre {
   font-size: inherit;
 }
 .code figcaption {
+  font-size: max(0.75rem, calc(1.3 * var(--slide-unit)));
+  color: var(--ink-72);
+}
+.cite {
+  margin: 0;
   font-size: max(0.75rem, calc(1.3 * var(--slide-unit)));
   color: var(--ink-72);
 }

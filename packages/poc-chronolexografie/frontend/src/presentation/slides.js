@@ -8,6 +8,11 @@
  * fragment as `code`), and `closing` (title, lines, and the demo scenarios as
  * buttons). In a line, `**bold**` is bold and `` `name` `` is code.
  *
+ * Text between „ and ” is quoted word for word from the position paper
+ * (https://chronolexografie.nl/position-paper/); a slide that quotes says so
+ * in `cite`. Everything else is RegelRecht's own explanation or choice, and
+ * where that could be mistaken for the paper it starts with "In RegelRecht".
+ *
  * The names of reductions, open terms and outputs are copied from the corpus;
  * tests/presentation.test.js checks each one there. A YAML fragment names
  * its `source`, the file it is cut from; the test finds its lines there in
@@ -97,18 +102,19 @@ export const slides = [
   {
     kind: 'title',
     title: 'Chronolexografie',
-    subtitle: 'Rechtsfeiten vastleggen waar ze ontstaan',
+    subtitle: 'Adequaat digitaal vastleggen van de rechtstoestand',
     footer: 'Proof of concept in RegelRecht',
   },
   {
     kind: 'bullets',
     overline: 'Wat is het',
     title: 'Een kroniek per organisatie',
-    lead: 'Elk rechtsfeit dat een organisatie vaststelt, komt als gedateerd stuk in haar eigen kroniek. Latere vragen beantwoordt zij uit die kroniek.',
+    lead: '„Elke actor houdt eigen feiten bij in een eigen cel, wat zorgt voor unieke, canonieke en contextuele vastlegging.”',
     bullets: [
-      'Het stuk herhaalt de wet niet. Wat er in een veld staat en waarom, zegt de wet die op die dag gold.',
-      'Niets wordt overschreven. Een wijziging is een nieuw stuk, en het oude blijft staan.',
+      '„Feiten worden nooit verwijderd, ook niet bij correcties. Dit maakt “tijdreizen” mogelijk: volledige traceerbaarheid van hoe elke rechtstoestand is ontstaan.”',
+      'In RegelRecht herhaalt een vastgelegd stuk de wet niet. Wat er in een veld staat en waarom, zegt de wet die op die dag gold.',
     ],
+    cite: 'Tussen „ en ”: de position paper Chronolexografie (chronolexografie.nl).',
   },
   {
     kind: 'bullets',
@@ -129,29 +135,34 @@ export const slides = [
     kind: 'bullets',
     overline: 'Begrip',
     title: 'Chronolexogram',
-    lead: 'Een gedateerd stuk in de kroniek van wie het rechtsfeit vaststelt.',
+    lead: '„Een chronolexogram is simpelweg de benaming voor een elementair en op zichzelf consistent ‘element van vastlegging’.” „Elk chronolexogram wordt in een specifiek domein gecreëerd (tot feit gemaakt) en daar ook opgeslagen.”',
     bullets: [
-      'Een indiening (aanvraag, bezwaar of beroep), een besluit, of een **executogram**: een ander feit dat een artikel vereist, zoals de ontvangst van een afschrift.',
-      'Het stuk noemt het artikel waarop het berust, de dag, de velden en de uitvoer.',
+      'In RegelRecht is een chronolexogram een indiening (aanvraag, bezwaar of beroep), een besluit, of een **executogram**. Een executogram is hier elk ander feit dat een artikel vereist, zoals de ontvangst van een afschrift.',
+      'Het noemt het artikel waarop het berust, de dag, de velden en de uitvoer.',
     ],
+    cite: 'Tussen „ en ”: de position paper Chronolexografie (chronolexografie.nl).',
     figure: { code: GRAM, label: 'Een besluit in de kroniek van Wilgendaal, ingekort' },
   },
   {
     kind: 'bullets',
     overline: 'Begrip',
     title: 'Kroniek',
-    lead: 'De reeks chronolexogrammen van één cel, op datum. Er komt alleen iets bij: een herroepen besluit blijft staan, en wat er nog geldt, lees je af aan wat erna kwam.',
-    bullets: ['Een stap op een eerdere dag dan de vorige weigert de cel, want de kroniek heeft één klok.'],
+    lead: '„Elke chronolexokroniek heeft een eigen tijdsas. Dat wil zeggen: chronolexogrammen binnen een chronolexokroniek kennen een gedefinieerde ordening, maar die ordening bestaat niet over kronieken heen.”',
+    bullets: [
+      'In RegelRecht heeft een cel één kroniek, en er komt alleen iets bij: een herroepen besluit blijft staan, en wat er nog geldt, lees je af aan wat erna kwam. Een stap op een eerdere dag dan de vorige weigert de cel.',
+    ],
+    cite: 'Tussen „ en ”: de position paper Chronolexografie (chronolexografie.nl).',
     figure: { diagram: 'kroniek', label: 'De kroniek van de gemeente Wilgendaal na twee aanvragen' },
   },
   {
     kind: 'bullets',
     overline: 'Begrip',
     title: 'Cel',
-    lead: 'Een organisatie met een eigen kroniek, zoals een gemeente, de GGD of een rechtbank.',
+    lead: 'Een cel is „een ruimte waarin chronolexogrammen worden gemaakt, bewaard en verwerkt. Op geen enkele wijze is bewerking hiervan buiten de cel mogelijk.”',
+    cite: 'Tussen „ en ”: de position paper Chronolexografie (chronolexografie.nl).',
     bullets: [
-      'Ze legt vast en beslist via de engine. De code van de cel noemt geen artikel: alles wat zij controleert, komt uit de wet.',
-      'In RegelRecht is een cel een map met `cel.yaml` en haar reducties. In `cel.yaml` staat wie zij is en welke antwoorden zij geeft.',
+      'In RegelRecht heeft elke organisatie een eigen cel, zoals een gemeente, de GGD of een rechtbank. De cel legt vast en beslist via de engine. De code van de cel noemt geen artikel: alles wat zij controleert, komt uit de wet.',
+      "Zo'n cel is een map met `cel.yaml` en haar reducties. In `cel.yaml` staat wie zij is en welke antwoorden zij geeft.",
     ],
     figure: { code: CEL, source: 'corpus/cells/gemeente_wilgendaal/cel.yaml', label: 'De cel van de gemeente Wilgendaal' },
   },
@@ -159,9 +170,10 @@ export const slides = [
     kind: 'bullets',
     overline: 'Begrip',
     title: 'Reductie',
-    lead: 'Een benoemd antwoord uit de eigen kroniek, geschreven als regelwerk.',
+    lead: '„de (inherent destructieve) activiteit van het hergebruik van feiten op een later moment in de tijd.” „Reductie vindt altijd plaats ín de cel waar de betreffende chronolexogrammen zijn vastgelegd”.',
+    cite: 'Tussen „ en ”: de position paper Chronolexografie (chronolexografie.nl).',
     bullets: [
-      'Alleen een reductie leest een kroniek: de besluiten onder een artikel, of de feiten die de cel vastlegde. Een reductie staat in de map van haar cel, op één na: die van de Awb hoort bij geen cel.',
+      'In RegelRecht is een reductie een regelwerk dat een benoemd antwoord geeft. Alleen een reductie leest een kroniek: de besluiten onder een artikel, of de feiten die de cel vastlegde. Een reductie staat in de map van haar cel, op één na: die van de Awb hoort bij geen cel.',
       'De wet vraagt de cel niets. Het uitvoeringsbeleid van wie beslist, koppelt een open begrip aan het antwoord van de cel.',
     ],
     figure: {
@@ -174,9 +186,10 @@ export const slides = [
     kind: 'bullets',
     overline: 'Begrip',
     title: 'Synthese',
-    lead: 'Eén open begrip, met antwoorden van meer cellen.',
+    lead: '„het betrekken van meerdere lexostatussen uit meerdere cellen en het combineren, vergelijken en beoordelen daarvan.” „Synthese gebeurt bij de afnemer, niet bij de bron”.',
+    cite: 'Tussen „ en ”: de position paper Chronolexografie (chronolexografie.nl).',
     bullets: [
-      'Het begrip zegt wie bevoegd is en hoe de antwoorden één waarde worden (`combine`). De engine vraagt het aan elke bevoegde cel die bij het besluit hoort, en voegt de antwoorden samen. Elke cel kijkt alleen in haar eigen kroniek.',
+      'In RegelRecht gaat een synthese over één open begrip. Het begrip zegt wie bevoegd is en hoe de antwoorden één waarde worden (`combine`). De engine vraagt het aan elke bevoegde cel die bij het besluit hoort, en voegt de antwoorden samen. Elke cel kijkt alleen in haar eigen kroniek.',
     ],
     figure: { diagram: 'synthese', label: 'Drie cellen beantwoorden één open begrip' },
   },
@@ -184,7 +197,7 @@ export const slides = [
     kind: 'bullets',
     overline: 'Wat volgt',
     title: 'Uitleg zonder opgeslagen redenen',
-    lead: 'De cel bewaart geen redenen. Ze neemt het besluit opnieuw, met de wet en de kroniek van die dag.',
+    lead: 'In RegelRecht bewaart de cel geen redenen. Ze neemt het besluit opnieuw, met de wet en de kroniek van die dag.',
     bullets: [
       'Komt er een andere uitkomst uit, dan faalt de uitleg. Zo blijkt het als de kroniek of de wet niet meer klopt met wat er besloten is.',
       'In de uitleg van het besluit is een antwoord uit een reductie één stap. Wie wil weten hoe de cel eraan kwam, laat haar de reductie opnieuw draaien.',
@@ -194,7 +207,7 @@ export const slides = [
     kind: 'bullets',
     overline: 'Wat volgt',
     title: 'Afschriften tussen cellen',
-    lead: 'Een cel leest nooit de kroniek van een ander. Wat er tussen cellen gaat, is een afschrift dat de wet voorschrijft.',
+    lead: 'In RegelRecht leest een cel nooit de kroniek van een ander. Wat er tussen cellen gaat, is een afschrift dat de wet voorschrijft.',
     bullets: [
       'Bij het beroepschrift gaat een afschrift van het bestreden besluit mee (Awb 6:5, tweede lid).',
       'De rechtbank zendt partijen een afschrift van de uitspraak (Awb 8:79, eerste lid). De gemeente legt de ontvangst vast in haar eigen kroniek.',
