@@ -930,3 +930,69 @@ fn bedrijfsparkeervergunning_a_permit_granted_on_29_february_runs_to_28_february
         json!("2029-02-28")
     );
 }
+
+#[test]
+fn every_case_shows_the_reductions_of_its_cell() {
+    // The tab Reductie lists every reduction the cell's catalogue names,
+    // with the decisions each reads. A reduction can name the article whose
+    // decisions it reads through a parameter of the reduction it calls
+    // (`basis` of the reduction of the Awb). The municipality's catalogue
+    // serves two cases, so in each case one of its reductions reads the
+    // decisions under the other case's article: that article has to be in
+    // the case too.
+    for id in [
+        "bedrijfsparkeervergunning",
+        "gehandicaptenparkeerkaart",
+        "vakantieverlof",
+    ] {
+        let mut spel = spel_met(id);
+        let stand = spel.reducties(dag("2026-12-01"));
+        assert!(stand.is_ok(), "{id}: {}", stand.unwrap_err());
+        let stand = stand.unwrap();
+        assert!(!stand["reducties"].as_array().unwrap().is_empty(), "{id}");
+    }
+}
+
+#[test]
+fn the_log_holds_the_facts_the_other_cells_recorded() {
+    // The registrations of the Chamber of Commerce are facts the decisions
+    // read: the log shows them beside the municipality's own steps, those
+    // from the case file and one recorded during play, merged by day.
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    bedrijf_vraagt(
+        &mut spel,
+        "99990033",
+        "ZZ-001-Z",
+        "2026-10-13",
+        "2026-10-20",
+    );
+    kvk_schrijft_in(&mut spel, "99990033", "7711 AC", 3, "2026-11-01");
+    let logboek = spel.logboek().unwrap();
+    let stappen: Vec<(String, String)> = logboek["handelingen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|h| {
+            (
+                h["gram"]["recording_actor"].as_str().unwrap().to_string(),
+                h["gram"]["kind"].as_str().unwrap().to_string(),
+            )
+        })
+        .collect();
+    let kvk = (
+        "kamer_van_koophandel".to_string(),
+        "EXECUTOGRAM".to_string(),
+    );
+    let eigen = |kind: &str| ("gemeente_wilgendaal".to_string(), kind.to_string());
+    assert_eq!(
+        stappen,
+        [
+            kvk.clone(),
+            eigen("BESCHIKKING"),
+            eigen("AANVRAAG"),
+            kvk.clone(),
+            kvk.clone(),
+            kvk
+        ]
+    );
+}

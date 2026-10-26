@@ -487,6 +487,7 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
             ))
         })?;
         let mut erbij: Vec<String> = leest(werk.artikelen()).into_iter().collect();
+        erbij.extend(leest_via_parameter(regelwerken, werk));
         for ander in &regelwerken.werken {
             if handelt_op(ander, werk) {
                 erbij.push(ander.id().to_string());
@@ -697,6 +698,46 @@ fn leest<'a>(artikelen: impl Iterator<Item = &'a Article>) -> BTreeSet<String> {
                         uit.insert(id.to_string());
                     }
                 }
+            }
+        }
+    }
+    uit
+}
+
+/// The regelwerken whose decisions `werk` has another regelwerk read by
+/// naming the article as a parameter: a call (`source.regulation`) that
+/// passes the literal `<law>#<article>` for a parameter the called
+/// regelwerk reads decisions under (`source.decisions: $<parameter>`), such
+/// as `basis` of the reduction of the Awb. [`leest`] does not see these: the
+/// called regelwerk names the article only when it runs. A cell runs every
+/// reduction its catalogue names, whatever case it plays, and reading the
+/// decisions under an article needs that article's law.
+fn leest_via_parameter(regelwerken: &Regelwerken, werk: &Regelwerk) -> BTreeSet<String> {
+    let mut uit = BTreeSet::new();
+    for source in werk
+        .artikelen()
+        .flat_map(|a| a.get_inputs())
+        .filter_map(|i| i.source.as_ref())
+    {
+        let (Some(id), Some(parameters)) = (&source.regulation, &source.parameters) else {
+            continue;
+        };
+        let Some(called) = regelwerken.get(id) else {
+            continue;
+        };
+        let leest_besluiten = |naam: &str| {
+            called
+                .artikelen()
+                .flat_map(|a| a.get_inputs())
+                .filter_map(|i| i.source.as_ref()?.decisions.as_deref())
+                .any(|d| d.strip_prefix('$') == Some(naam))
+        };
+        for (naam, waarde) in parameters {
+            if waarde.starts_with('$') || !leest_besluiten(naam) {
+                continue;
+            }
+            if let Some((law, _)) = waarde.split_once('#') {
+                uit.insert(law.to_string());
             }
         }
     }

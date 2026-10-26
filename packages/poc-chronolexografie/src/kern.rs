@@ -1167,14 +1167,27 @@ pub struct Handeling {
     pub waarom: Option<Waarom>,
 }
 
-/// The log of the cell, newest first: every chronolexogram as an action
-/// ([`Handeling`]). Nothing of it is stored apart from the chronicle; a
-/// refused step recorded nothing, so it is not in the log.
+/// The log of the case, newest first: every chronolexogram of the case's
+/// cell as an action ([`Handeling`]), and the executograms of the other
+/// cells of the sphere, such as a registration by the Chamber of Commerce
+/// or an examination by the GGD (RFC-051, RFC-052). They are facts the
+/// decisions read through the answers of those cells. The other cells'
+/// decisions stay out: why they came out so, is their own reasoning. Nothing
+/// of it is stored apart from the chronicles; a refused step recorded
+/// nothing, so it is not in the log. The chronicles are merged by the day
+/// each chronolexogram was recorded on, each in its own order.
 pub fn logboek(corpus: &Corpus, cell: &Cellen) -> Result<Vec<Handeling>> {
     let service = corpus.service()?;
     let grams = cell.grams();
+    let mut alle: Vec<&Gram> = grams.iter().collect();
+    for andere in &cell.andere {
+        alle.extend(andere.grams().iter().filter(|g| g.kind == EXECUTOGRAM));
+    }
+    // A stable sort: on one day the case's own cell comes first, and each
+    // cell keeps the order it recorded in.
+    alle.sort_by_key(|g| g.recorded_on);
     let mut uit = Vec::new();
-    for gram in grams.iter().rev() {
+    for gram in alle.into_iter().rev() {
         let leidde_tot = grams
             .iter()
             .filter(|g| {
@@ -3302,7 +3315,9 @@ mod tests {
         // the cells, and the Awb; the reductions of the cells' catalogues.
         // The catalogue of the municipality also names the reduction of the
         // bedrijfsparkeervergunning: a cell's answers are the cell's, not a
-        // case's.
+        // case's. That reduction reads the decisions under article 2 of the
+        // ordinance (the `basis` it passes to the reduction of the Awb), so
+        // the ordinance and what acts on it are in this case too.
         let kaart = casus("gehandicaptenparkeerkaart");
         let a = &kaart.afleiding;
         assert_eq!(a.objection, "7:11");
@@ -3321,6 +3336,8 @@ mod tests {
                 "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw",
                 "fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal",
                 "fictief_beleid_geneeskundig_advies_ggd_wilgendaal",
+                "fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal",
+                "fictieve_parkeerverordening_gemeente_wilgendaal",
                 "reductie_algemene_wet_bestuursrecht",
                 "reductie_eerder_verstrekte_gehandicaptenparkeerkaart_cbr",
                 "reductie_eerder_verstrekte_gehandicaptenparkeerkaart_gemeente_oostmeer",
@@ -3336,7 +3353,10 @@ mod tests {
         // its implementing decision that fills its open terms and binds them
         // to the answers of the cells, and the Awb; the reductions of the
         // catalogues of the municipality and of the Chamber of Commerce, and
-        // the policy that requires the Chamber's registrations.
+        // the policy that requires the Chamber's registrations. The
+        // municipality's reduction for the parking card reads the decisions
+        // under BABW art. 49, so that article and what acts on it are in this
+        // case too.
         let vergunning = casus("bedrijfsparkeervergunning");
         let a = &vergunning.afleiding;
         assert_eq!(a.objection, "7:11");
@@ -3347,6 +3367,8 @@ mod tests {
             ids,
             [
                 "algemene_wet_bestuursrecht",
+                "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw",
+                "fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal",
                 "fictief_beleid_handelsregister_kamer_van_koophandel",
                 "fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal",
                 "fictieve_parkeerverordening_gemeente_wilgendaal",
@@ -3354,6 +3376,7 @@ mod tests {
                 "reductie_geldige_bedrijfsparkeervergunningen",
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_vestiging_in_handelsregister",
+                "regeling_gehandicaptenparkeerkaart",
             ]
         );
     }
@@ -3874,10 +3897,18 @@ mod tests {
         assert!(spoor.contains(&eerste.id), "{spoor}");
 
         // The log, newest first: art. 49 runs, the policy fills its term,
-        // and in it the cell answers. The GGD's examination is in the GGD's
-        // own chronicle.
+        // and in it the cell answers. The GGD's examinations and advice from
+        // the case file are in the GGD's own chronicle; the log shows them
+        // too, as the facts they are: four steps of the municipality and
+        // eight executograms of the GGD.
         let log = serde_json::to_value(logboek(&corpus, &cell).unwrap()).unwrap();
-        assert_eq!(log.as_array().unwrap().len(), 4);
+        let stappen = log.as_array().unwrap();
+        assert_eq!(stappen.len(), 12);
+        let ggd = stappen
+            .iter()
+            .filter(|h| h["gram"]["recording_actor"] == json!("ggd_wilgendaal"))
+            .count();
+        assert_eq!(ggd, 8);
         assert_eq!(log[0]["gram"]["id"], json!(tweede.besluit.id));
         let keten = &log[0]["waarom"]["keten"];
         assert_eq!(keten[0]["artikel"], json!("49"));

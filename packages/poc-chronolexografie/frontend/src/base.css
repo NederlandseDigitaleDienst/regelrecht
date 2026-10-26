@@ -1,11 +1,27 @@
 /*
  * De enige eigen CSS: nldd-shell vult zijn ouder, dus de ketting
- * html → body → #app moet de hoogte van het venster doorgeven. Dezelfde
- * regel als in de andere pocs (frontend-poc-nieuwkomersbekostiging).
+ * html → body → #app moet de hoogte van het venster doorgeven, zoals in de
+ * andere pocs (frontend-poc-nieuwkomersbekostiging).
+ *
+ * Achter het portaal staat de strook met status en voorbehoud vóór #app in
+ * de body (packages/poc-portal, voorbehoud_strip). Met #app op 100% werd het
+ * document dan zo veel hoger als de strook, en scrolde de hele pagina naast
+ * de pagina in de shell. Body is daarom een kolom: de strook neemt wat zij
+ * nodig heeft, #app de rest, en alleen de pagina in de shell scrolt. Zonder
+ * strook (los, op de vite-dev-server) is #app gewoon het hele venster.
  */
 html,
-body,
-#app {
+body {
   margin: 0;
   height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+#app {
+  flex: 1;
+  min-height: 0;
 }
