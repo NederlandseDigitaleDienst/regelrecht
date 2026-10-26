@@ -23,7 +23,7 @@ import {
   clearEditorChrome,
 } from './composables/useAppChrome';
 import { SUPPORT_EMAIL } from './constants';
-import { apiFetch, apiFetchJson } from './lib/apiFetch';
+import { apiFetchJson } from './lib/apiFetch';
 import { RETRY_MIN_SPINNER_MS } from './lib/retryFeedback';
 import { humanizeLawId } from './lib/lawName';
 import { quoteContext } from './lib/quoteContext';
@@ -961,10 +961,7 @@ registerSearchPopover(searchPopoverRef);
 // MachineReadable reads, so an editor mount fires ONE laws-list fetch
 // instead of a private duplicate GET. Traject switches re-scope
 // reactively; fetch failures degrade to the humanized law id.
-const {
-  displayName: corpusDisplayName,
-  refresh: refreshCorpusLaws,
-} = useCorpusLaws(activeTrajectRef);
+const { displayName: corpusDisplayName } = useCorpusLaws(activeTrajectRef);
 
 /**
  * Display name for the failed law on the error inline-dialog. Tries the
@@ -997,19 +994,6 @@ function onSearchSelectLaw(lawIdVal: string) {
   router.push(libraryRouteFor(lawIdVal));
 }
 
-async function onSearchHarvestAvailable(slug: string) {
-  // Best-effort reload - a failure just means the list below may not
-  // include the fresh law yet.
-  await apiFetch('/api/corpus/reload', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ law_ids: [slug] }),
-  }).catch(() => {});
-  // Bust the shared per-scope cache so the fresh law shows up with its
-  // real display name instead of the humanized slug fallback.
-  await refreshCorpusLaws();
-  router.push(libraryRouteFor(slug));
-}
 const resultSheetEl = ref<NLDDSheet | null>(null);
 watch(resultSheetOpen, async (open) => {
   await nextTick();
@@ -3491,7 +3475,6 @@ async function handleActionSave() {
     <SearchPopover
       ref="searchPopoverRef"
       @select-law="onSearchSelectLaw"
-      @harvest-available="onSearchHarvestAvailable"
     />
   </Teleport>
 

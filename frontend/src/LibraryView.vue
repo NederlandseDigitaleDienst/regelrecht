@@ -436,8 +436,7 @@ async function headerAddWerkdoc(kind: 'new' | 'upload') {
   else onDocUpload();
 }
 // Na een geslaagde promote (via de AddLawSheet): index verversen (de wet staat
-// nu in de traject-repo) en de wet openen — dezelfde afronding als een
-// afgeronde harvest in de globale zoeker (onHarvestAvailable).
+// nu in de traject-repo) en de wet openen.
 async function onLawPromoted(lawId: string) {
   await loadIndex();
   selectLaw(lawId);
@@ -2138,19 +2137,6 @@ watch(() => singleParam(route.params.lawId), (lawId) => {
   loadLaw(lawId);
 });
 
-// When a harvested law becomes available, reload the corpus and select it.
-async function onHarvestAvailable(slug: string) {
-  // Best-effort reload - a failure just means the index below may not
-  // include the fresh law yet.
-  await apiFetch('/api/corpus/reload', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ law_ids: [slug] }),
-  }).catch(() => {});
-  await loadIndex();
-  selectLaw(slug);
-}
-
 // Initial load from route
 const initialLawId = singleParam(route.params.lawId);
 if (initialLawId) {
@@ -2882,7 +2868,6 @@ watch(activeTrajectRef, () => {
     <SearchPopover
       ref="searchPopoverRef"
       @select-law="(lawId) => selectLaw(lawId, true)"
-      @harvest-available="onHarvestAvailable"
     />
     <AddLawSheet
       ref="addLawSheetRef"
