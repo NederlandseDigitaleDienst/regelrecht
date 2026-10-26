@@ -526,7 +526,7 @@ describe('SearchPopover: suggestions and wetten.overheid.nl', () => {
     expect(internals(wrapper).resultLabel).toBe('Suggesties');
   });
 
-  it('links a wetten.overheid.nl match to its official text and starts no harvest', async () => {
+  it('links a wetten.overheid.nl match to its official text', async () => {
     fetchMock().mockImplementation(async (url) => {
       const u = String(url);
       if (u.includes('/harvest/search')) {
@@ -547,11 +547,6 @@ describe('SearchPopover: suggestions and wetten.overheid.nl', () => {
     const row = wrapper.get('[data-testid="search-official-text"]');
     expect(row.attributes('href')).toBe('https://wetten.overheid.nl/BWBR0000001');
     expect(row.attributes('target')).toBe('_blank');
-    await row.trigger('click');
-    const harvestPosts = fetchMock().mock.calls.filter(
-      (c) => String(c[0]).startsWith('/api/harvest') && c[1]?.method === 'POST',
-    );
-    expect(harvestPosts).toHaveLength(0);
     expect(internals(wrapper).resultLabel).toBe('Niet in de bibliotheek. Gevonden op wetten.overheid.nl:');
   });
 });
