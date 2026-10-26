@@ -631,7 +631,6 @@ mod tests {
             soort: crate::registry::Soort::Statisch,
             status: crate::registry::Status::Verkenning,
             voorbehoud: r#"Een "demo" & niets meer."#.into(),
-            strook: true,
             bron: Some("b".into()),
             upstream: None,
             corpus: vec![],

@@ -129,7 +129,6 @@ mod tests {
             soort: Soort::Proxy,
             status: crate::registry::Status::Verkenning,
             voorbehoud: "Een demonstratie, geen geldend recht.".into(),
-            strook: true,
             bron: None,
             upstream: Some("napp".into()),
             corpus: vec![],

@@ -21,7 +21,7 @@ A request to `/<slug>/...` belongs to the PoC with that slug. Without a valid co
 
 The index at `/` shows every PoC in the register as a card, plus a card for the [Demo](./demo), which is the one entry that needs no password.
 
-Every HTML page served from inside a PoC gets a strip at the top that the portal splices in after `<body>`. It names the PoC, its status and its `voorbehoud` (the caveat, in the PoC's own words), and links back to the index. The strip is there because a computed amount looks equally convincing whether the rules behind it were checked with lawyers or sketched in an afternoon, and a screenshot or a forwarded deep link skips the index where that would otherwise be said. A PoC can turn the strip off with `strook: false` in the register. Chronolexografie does, because it is presented to an audience with its own deck and the strip covered the top of every slide; its status and `voorbehoud` stay on its card and its login screen.
+Every HTML page served from inside a PoC gets a strip at the top that the portal splices in after `<body>`. It names the PoC, its status and its `voorbehoud` (the caveat, in the PoC's own words), and links back to the index. The strip is there because a computed amount looks equally convincing whether the rules behind it were checked with lawyers or sketched in an afternoon, and a screenshot or a forwarded deep link skips the index where that would otherwise be said.
 
 ## Architecture
 

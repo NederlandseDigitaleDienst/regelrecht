@@ -96,12 +96,6 @@ pub struct Poc {
     /// same reason — and free text, because the house sentence is the one
     /// every reader skips.
     pub voorbehoud: String,
-    /// Whether the portal puts its strip with the status and the voorbehoud
-    /// into this PoC's own pages ([`crate::app`]). On unless the register
-    /// turns it off, for a PoC that is shown in front of an audience and says
-    /// what it is itself; the index and the login screen still carry both.
-    #[serde(default = "strook_default")]
-    pub strook: bool,
     /// npm workspace producing the `dist` — `statisch` only.
     #[serde(default)]
     pub bron: Option<String>,
@@ -118,10 +112,6 @@ pub struct Poc {
     /// password ([`crate::bron`]): `/<slug>/bron/<name>`.
     #[serde(default)]
     pub sources: Vec<Source>,
-}
-
-fn strook_default() -> bool {
-    true
 }
 
 /// A corpus a static PoC loads while it runs: a folder on a branch of a
