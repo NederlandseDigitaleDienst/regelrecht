@@ -92,8 +92,12 @@ function regels(h) {
       toelichting: 'in de plaats van het herroepen besluit',
     });
   }
-  if (h.leidde_tot.length === 0) uit.push({ naam: 'Leidde tot', waarde: 'nog niets' });
-  for (const id of h.leidde_tot) uit.push({ naam: 'Leidde tot', waarde: naam(id), naar: id });
+  // Wat een feit van een andere cel opleverde, leest de cel van de casus
+  // via een reductie; waartoe het leidde, staat dan niet in deze kroniek.
+  if (g.recording_actor === state.casus.cel) {
+    if (h.leidde_tot.length === 0) uit.push({ naam: 'Leidde tot', waarde: 'nog niets' });
+    for (const id of h.leidde_tot) uit.push({ naam: 'Leidde tot', waarde: naam(id), naar: id });
+  }
   for (const f of h.waarom?.bevindingen ?? []) {
     uit.push({ naam: leesbaar(f), waarde: toon(g.fields[f]), toelichting: 'bevinding van het bestuursorgaan' });
   }
@@ -173,42 +177,42 @@ async function uitleg(besluit, knoop) {
         <nldd-cell v-if="herroepen(h.gram)">
           <nldd-badge size="sm" color="warning" text="herroepen"></nldd-badge>
         </nldd-cell>
-        <template v-if="isOpen(h.gram.id)">
-          <nldd-list-item
-            v-for="(r, i) in regels(h)"
-            :key="`${r.naam}-${i}`"
-            slot="children"
-            size="sm"
-            :button="!!r.naar || undefined"
-            @click.stop="r.naar && ga(r.naar)"
-          >
-            <nldd-spacer-cell size="24"></nldd-spacer-cell>
-            <nldd-text-cell :text="r.naam" :supporting-text="r.toelichting"></nldd-text-cell>
-            <nldd-text-cell
-              v-if="r.waarde"
-              width="fit-content"
-              :color="r.naar ? 'accent' : undefined"
-              :text="r.waarde"
-            ></nldd-text-cell>
-          </nldd-list-item>
-          <KetenStap
-            v-for="k in genummerd(h.waarom?.keten ?? [])"
-            :key="k.nummer"
-            slot="children"
-            :knoop="k"
-            :diepte="1"
-            @uitleg="uitleg(h.gram.id, $event)"
-          />
-          <nldd-list-item slot="children" size="sm">
-            <nldd-spacer-cell size="24"></nldd-spacer-cell>
-            <nldd-list-item-segment button @click.stop="emit('kroniek', h.gram.id)">
-              <nldd-text-cell color="accent" :text="`${h.gram.kind} ${kort(h.gram.id)} in de kroniek`"></nldd-text-cell>
-            </nldd-list-item-segment>
-            <nldd-list-item-segment v-if="h.waarom" button @click.stop="spoor = h">
-              <nldd-text-cell color="accent" text="Volledig spoor"></nldd-text-cell>
-            </nldd-list-item-segment>
-          </nldd-list-item>
-        </template>
+        <!-- De regels staan er altijd; `expanded` verbergt ze. Zo blijft
+             elke rij een tak, die pijl-rechts openklapt. -->
+        <nldd-list-item
+          v-for="(r, i) in regels(h)"
+          :key="`${r.naam}-${i}`"
+          slot="children"
+          size="sm"
+          :button="!!r.naar || undefined"
+          @click.stop="r.naar && ga(r.naar)"
+        >
+          <nldd-spacer-cell size="24"></nldd-spacer-cell>
+          <nldd-text-cell :text="r.naam" :supporting-text="r.toelichting"></nldd-text-cell>
+          <nldd-text-cell
+            v-if="r.waarde"
+            width="fit-content"
+            :color="r.naar ? 'accent' : undefined"
+            :text="r.waarde"
+          ></nldd-text-cell>
+        </nldd-list-item>
+        <KetenStap
+          v-for="k in genummerd(h.waarom?.keten ?? [])"
+          :key="k.nummer"
+          slot="children"
+          :knoop="k"
+          :diepte="1"
+          @uitleg="uitleg(h.gram.id, $event)"
+        />
+        <nldd-list-item slot="children" size="sm" @click.stop>
+          <nldd-spacer-cell size="24"></nldd-spacer-cell>
+          <nldd-list-item-segment button @click.stop="emit('kroniek', h.gram.id)">
+            <nldd-text-cell color="accent" :text="`${h.gram.kind} ${kort(h.gram.id)} in de kroniek`"></nldd-text-cell>
+          </nldd-list-item-segment>
+          <nldd-list-item-segment v-if="h.waarom" button @click.stop="spoor = h">
+            <nldd-text-cell color="accent" text="Volledig spoor"></nldd-text-cell>
+          </nldd-list-item-segment>
+        </nldd-list-item>
       </nldd-list-item>
     </nldd-list>
   </nldd-simple-section>

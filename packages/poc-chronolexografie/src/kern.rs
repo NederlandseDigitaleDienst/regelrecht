@@ -1179,12 +1179,16 @@ pub struct Handeling {
 pub fn logboek(corpus: &Corpus, cell: &Cellen) -> Result<Vec<Handeling>> {
     let service = corpus.service()?;
     let grams = cell.grams();
-    let mut alle: Vec<&Gram> = grams.iter().collect();
+    // The other cells' facts first, then the case's own steps, and a
+    // stable sort by day: on one day a fact of another cell counts as
+    // earlier than a step of the case's cell, which may have read it, and
+    // each cell keeps the order it recorded in. Newest first, as the log
+    // shows it, puts the case's own step of that day above the fact.
+    let mut alle: Vec<&Gram> = Vec::new();
     for andere in &cell.andere {
         alle.extend(andere.grams().iter().filter(|g| g.kind == EXECUTOGRAM));
     }
-    // A stable sort: on one day the case's own cell comes first, and each
-    // cell keeps the order it recorded in.
+    alle.extend(grams.iter());
     alle.sort_by_key(|g| g.recorded_on);
     let mut uit = Vec::new();
     for gram in alle.into_iter().rev() {

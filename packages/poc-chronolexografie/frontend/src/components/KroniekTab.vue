@@ -12,7 +12,7 @@
 // uitvoer. Het geheel als JSON, met decimalen als getal, staat in een sheet.
 // Welke bevindingen een besluit gebruikte, staat niet in de kroniek: de cel
 // leidt het af uit het besluit opnieuw genomen (Cell::findings, RFC-050).
-import { computed, nextTick, reactive, ref } from 'vue';
+import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { api } from '../api.js';
 import { beroepApi, herkomst } from '../beroep.js';
 import { celNaam, toon } from '../logboek.js';
@@ -74,9 +74,19 @@ async function ga(id) {
   document.getElementById(`gram-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// Vanuit het logboek: dat chronolexogram staat open.
-if (state.inKroniek) ga(state.inKroniek);
+// Vanuit het logboek: dat chronolexogram staat open, zodra het er is.
+const gevraagd = ref(state.inKroniek);
 state.inKroniek = null;
+watch(
+  [gevraagd, kronieken],
+  ([id]) => {
+    if (id && vind(id)) {
+      gevraagd.value = null;
+      ga(id);
+    }
+  },
+  { immediate: true },
+);
 
 const anker = (id) => {
   const g = vind(id)?.gram;
@@ -92,15 +102,16 @@ function regels(k, g) {
       toelichting: `${g.kind} onder ${g.basis}${g.fact ? `, feit ${leesbaar(g.fact)}` : ''}`,
     },
   ];
-  if (g.refers_to) uit.push({ naam: 'Verwijst naar', waarde: anker(g.refers_to), naar: g.refers_to });
+  const doel = (id) => (vind(id) ? id : null);
+  if (g.refers_to) uit.push({ naam: 'Verwijst naar', waarde: anker(g.refers_to), naar: doel(g.refers_to) });
   if (g.received) {
     uit.push({
       naam: 'Ontvangen van',
       waarde: `${g.received.from} · ${anker(g.received.id)}`,
-      naar: vind(g.received.id) ? g.received.id : null,
+      naar: doel(g.received.id),
     });
   }
-  if (g.after) uit.push({ naam: 'Opnieuw genomen na', waarde: anker(g.after), naar: g.after });
+  if (g.after) uit.push({ naam: 'Opnieuw genomen na', waarde: anker(g.after), naar: doel(g.after) });
   if ((k.eigen || k.rechter) && isBesluit(g)) {
     const wie = k.rechter ? 'de rechter' : 'het bestuursorgaan';
     const lijst = bevindingen[g.id] ?? [];
@@ -163,26 +174,26 @@ const json = ref(null);
           :text="`${g.kind} · ${g.basis}`"
           :supporting-text="[kort(g.id), herkomst(g)].filter(Boolean).join(' · ')"
         ></nldd-text-cell>
-        <template v-if="isOpen(g.id)">
-          <nldd-list-item
-            v-for="r in regels(k, g)"
-            :key="r.naam"
-            slot="children"
-            size="sm"
-            :button="!!r.naar || undefined"
-            @click.stop="r.naar && ga(r.naar)"
-          >
-            <nldd-spacer-cell size="24"></nldd-spacer-cell>
-            <nldd-text-cell :text="r.naam" :supporting-text="r.toelichting"></nldd-text-cell>
-            <nldd-text-cell width="fit-content" :color="r.naar ? 'accent' : undefined" :text="r.waarde"></nldd-text-cell>
-          </nldd-list-item>
-          <nldd-list-item slot="children" size="sm">
-            <nldd-spacer-cell size="24"></nldd-spacer-cell>
-            <nldd-list-item-segment button @click.stop="json = g">
-              <nldd-text-cell color="accent" text="Als JSON bekijken"></nldd-text-cell>
-            </nldd-list-item-segment>
-          </nldd-list-item>
-        </template>
+        <!-- De regels staan er altijd; `expanded` verbergt ze. Zo blijft
+             elke rij een tak, die pijl-rechts openklapt. -->
+        <nldd-list-item
+          v-for="(r, j) in regels(k, g)"
+          :key="`${r.naam}-${j}`"
+          slot="children"
+          size="sm"
+          :button="!!r.naar || undefined"
+          @click.stop="r.naar && ga(r.naar)"
+        >
+          <nldd-spacer-cell size="24"></nldd-spacer-cell>
+          <nldd-text-cell :text="r.naam" :supporting-text="r.toelichting"></nldd-text-cell>
+          <nldd-text-cell width="fit-content" :color="r.naar ? 'accent' : undefined" :text="r.waarde"></nldd-text-cell>
+        </nldd-list-item>
+        <nldd-list-item slot="children" size="sm" @click.stop>
+          <nldd-spacer-cell size="24"></nldd-spacer-cell>
+          <nldd-list-item-segment button @click.stop="json = g">
+            <nldd-text-cell color="accent" text="Als JSON bekijken"></nldd-text-cell>
+          </nldd-list-item-segment>
+        </nldd-list-item>
       </nldd-list-item>
     </nldd-list>
   </nldd-simple-section>

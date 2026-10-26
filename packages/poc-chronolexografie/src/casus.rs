@@ -708,10 +708,11 @@ fn leest<'a>(artikelen: impl Iterator<Item = &'a Article>) -> BTreeSet<String> {
 /// naming the article as a parameter: a call (`source.regulation`) that
 /// passes the literal `<law>#<article>` for a parameter the called
 /// regelwerk reads decisions under (`source.decisions: $<parameter>`), such
-/// as `basis` of the reduction of the Awb. [`leest`] does not see these: the
-/// called regelwerk names the article only when it runs. A cell runs every
-/// reduction its catalogue names, whatever case it plays, and reading the
-/// decisions under an article needs that article's law.
+/// as `basis` of the reduction of the Awb, or passes on to a regelwerk it
+/// calls in turn ([`leest_besluiten_onder`]). [`leest`] does not see these:
+/// the called regelwerk names the article only when it runs. A cell runs
+/// every reduction its catalogue names, whatever case it plays, and reading
+/// the decisions under an article needs that article's law.
 fn leest_via_parameter(regelwerken: &Regelwerken, werk: &Regelwerk) -> BTreeSet<String> {
     let mut uit = BTreeSet::new();
     for source in werk
@@ -722,18 +723,8 @@ fn leest_via_parameter(regelwerken: &Regelwerken, werk: &Regelwerk) -> BTreeSet<
         let (Some(id), Some(parameters)) = (&source.regulation, &source.parameters) else {
             continue;
         };
-        let Some(called) = regelwerken.get(id) else {
-            continue;
-        };
-        let leest_besluiten = |naam: &str| {
-            called
-                .artikelen()
-                .flat_map(|a| a.get_inputs())
-                .filter_map(|i| i.source.as_ref()?.decisions.as_deref())
-                .any(|d| d.strip_prefix('$') == Some(naam))
-        };
         for (naam, waarde) in parameters {
-            if waarde.starts_with('$') || !leest_besluiten(naam) {
+            if waarde.starts_with('$') || !leest_besluiten_onder(regelwerken, id, naam, 0) {
                 continue;
             }
             if let Some((law, _)) = waarde.split_once('#') {
@@ -742,6 +733,36 @@ fn leest_via_parameter(regelwerken: &Regelwerken, werk: &Regelwerk) -> BTreeSet<
         }
     }
     uit
+}
+
+/// Whether the regelwerk `id` reads decisions under the article its
+/// parameter `naam` holds: itself (`source.decisions: $<naam>`), or by
+/// passing it on as `$<naam>` to a regelwerk it calls. `diepte` stops a
+/// chain of calls that comes back to where it began.
+fn leest_besluiten_onder(regelwerken: &Regelwerken, id: &str, naam: &str, diepte: usize) -> bool {
+    const MAX_DIEPTE: usize = 8;
+    let Some(werk) = regelwerken.get(id) else {
+        return false;
+    };
+    if diepte > MAX_DIEPTE {
+        return false;
+    }
+    let verwijzing = format!("${naam}");
+    werk.artikelen()
+        .flat_map(|a| a.get_inputs())
+        .filter_map(|i| i.source.as_ref())
+        .any(|source| {
+            if source.decisions.as_deref() == Some(verwijzing.as_str()) {
+                return true;
+            }
+            let (Some(verder), Some(parameters)) = (&source.regulation, &source.parameters) else {
+                return false;
+            };
+            parameters.iter().any(|(doorgegeven, waarde)| {
+                *waarde == verwijzing
+                    && leest_besluiten_onder(regelwerken, verder, doorgegeven, diepte + 1)
+            })
+        })
 }
 
 /// Whether `ander` acts on `werk`: it implements one of its open terms, or
