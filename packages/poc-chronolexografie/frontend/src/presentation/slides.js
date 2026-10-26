@@ -284,6 +284,6 @@ export const slides = [
     kind: 'closing',
     overline: 'Nu live',
     title: 'Speel het na',
-    lines: ["Twee scenario's van de gehandicaptenparkeerkaart, elk met een gids naast de pagina."],
+    lines: ["Drie scenario's van de gehandicaptenparkeerkaart, elk met een gids naast de pagina."],
   },
 ];

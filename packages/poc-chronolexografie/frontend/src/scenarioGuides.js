@@ -353,7 +353,7 @@ const gehandicaptenparkeerkaart = [
     steps: [
       apply({
         todo: 'Klik op Aanvraag indienen. De voorbeeldwaarden vragen een kaart als bestuurder.',
-        seen: 'De aanvraag staat onder Mijn aanvragen op In behandeling. De GGD onderzocht deze aanvrager op 9 oktober; dat onderzoek en het advies staan in de kroniek van de GGD, onder Andere cellen.',
+        seen: 'De aanvraag staat onder Mijn aanvragen op In behandeling, en onder Kroniek als eerste chronolexogram van de gemeente. De GGD onderzocht deze aanvrager op 9 oktober; dat onderzoek en het advies staan in de kroniek van de GGD, onder Andere cellen.',
       }),
       pDecide({
         todo: 'Het formulier vraagt de vier criteria niet: het advies van de GGD geeft ze. Klik op Besluit nemen.',

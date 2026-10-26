@@ -4,6 +4,8 @@
  * offers them as buttons. Each one names a scenario of the case YAML and its
  * guide (scenarioGuides.js); tests/presentation.test.js keeps them in step.
  *
+ * - A card on the advice of the GGD: the happy flow, one application and a
+ *   decision that lands in the chronicle.
  * - A second card next to a valid one: the reduction finds the first card in
  *   the chronicle.
  * - A card on objection: the reduction of the Awb passes on the decision that
@@ -16,6 +18,7 @@ import { guides } from '../scenarioGuides.js';
 export const DEMO_CASUS = 'gehandicaptenparkeerkaart';
 
 export const DEMO_SCENARIOS = Object.freeze([
+  'De kaart wordt verstrekt op het advies van de GGD',
   'Een tweede kaart naast een geldige',
   'Een kaart na bezwaar telt bij de volgende aanvraag',
 ]);
