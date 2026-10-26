@@ -15,9 +15,9 @@ const arrowId = computed(() => `rr-arrow-${props.name}`);
 const arrow = computed(() => `url(#${arrowId.value})`);
 
 const kroniek = [
-  { dag: '13 okt 2026', soort: 'AANVRAAG', tekst: 'Aanvraag, BSN 999990020' },
+  { dag: '13 okt 2026', soort: 'AANVRAAG', tekst: 'Aanvraag van A. de Vries' },
   { dag: '20 okt 2026', soort: 'BESCHIKKING', tekst: 'Kaart verstrekt, geldig t/m 19 okt 2031', accent: true },
-  { dag: '1 mrt 2027', soort: 'AANVRAAG', tekst: 'Tweede aanvraag, zelfde BSN' },
+  { dag: '1 mrt 2027', soort: 'AANVRAAG', tekst: 'Tweede aanvraag, zelfde aanvrager' },
   { dag: '1 mrt 2027', soort: 'BESCHIKKING', tekst: 'Geweigerd: al een geldige kaart' },
 ];
 
@@ -27,7 +27,7 @@ const keten = [
   { titel: 'Beleid Wilgendaal, artikel 2', code: 'source.reduction' },
   { titel: 'Cel gemeente_wilgendaal', code: 'cel.yaml: answers' },
   { titel: 'Reductie van de gemeente, artikel 1', code: 'reductie_geldige_gehandicaptenparkeerkaart' },
-  { titel: 'Reductie van de Awb, artikel 2', code: 'geldende_besluiten (basis BABW#49)' },
+  { titel: 'Reductie van de Algemene wet bestuursrecht (Awb), artikel 2', code: 'geldende_besluiten (basis BABW#49)' },
   { titel: 'Kroniek van Wilgendaal', code: 'de besluiten onder artikel 49', accent: true },
 ];
 

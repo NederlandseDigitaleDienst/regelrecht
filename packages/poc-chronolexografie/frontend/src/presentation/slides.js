@@ -64,13 +64,15 @@ implements:
 execution:
   input:
     - name: antwoord_geldige_kaart
-      type: boolean
-      nullable: true
       source:
-        reduction: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
-        parameters:
-          bsn_aanvrager: $bsn_aanvrager
-          besluit_datum: $besluit_datum`;
+        reduction: aanvrager_heeft_geldige_gehandicaptenparkeerkaart`;
+
+const READS = `# reductie_algemene_wet_bestuursrecht, artikel 1
+input:
+  - name: besluiten
+    type: array
+    source:
+      decisions: $basis`;
 
 const OWN = `# reductie_geldige_gehandicaptenparkeerkaart, artikel 1
 input:
@@ -143,7 +145,7 @@ export const slides = [
       'Het ontstaat bij de organisatie die het feit vaststelt, en blijft daar.',
       'In RegelRecht is het een aanvraag, bezwaar, beroep, besluit of **executogram**.',
       'Een executogram legt vast dat iets is gedaan.',
-      'Bijvoorbeeld: de GGD heeft onderzocht, of de uitspraak is ontvangen.',
+      'Bijvoorbeeld: de Gemeentelijke Gezondheidsdienst (GGD) heeft onderzocht, of de uitspraak is ontvangen.',
     ],
     figure: { code: GRAM, label: 'Een besluit in de kroniek van Wilgendaal, ingekort' },
   },
@@ -169,7 +171,7 @@ export const slides = [
       'Alleen de cel zelf voegt er iets aan toe.',
       'In RegelRecht heeft elke organisatie een cel: een gemeente, de GGD, een rechtbank.',
       'De cel legt vast en beslist via de engine; wat ze controleert, komt uit de wet.',
-      'Het is een map met `cel.yaml`: wie de cel is en welke antwoorden ze geeft.',
+      'Het is een map met `cel.yaml`. Daarin staat wie de cel is en welke antwoorden ze geeft.',
     ],
     figure: { code: CEL, source: 'corpus/cells/gemeente_wilgendaal/cel.yaml', label: 'De cel van de gemeente Wilgendaal' },
   },
@@ -182,12 +184,12 @@ export const slides = [
       'Dat gebeurt altijd in de cel waar die feiten staan.',
       'Hoe een cel reduceert, bepaalt de cel zelf.',
       'RegelRecht biedt één manier: een reductie als regelwerk met een benoemd antwoord.',
-      'Beleid koppelt een open begrip in de wet aan dat antwoord.',
+      'In het fragment leest een reductie de besluiten onder één artikel uit de kroniek.',
     ],
     figure: {
-      code: BINDING,
-      source: 'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal/2026-01-01.yaml',
-      label: 'Het beleid van Wilgendaal koppelt een open begrip aan een antwoord',
+      code: READS,
+      source: 'corpus/cells/reductions/reductie_algemene_wet_bestuursrecht/2026-01-01.yaml',
+      label: 'Een reductie leest besluiten uit de kroniek, ingekort',
     },
   },
   {
@@ -208,7 +210,7 @@ export const slides = [
     overline: 'Deel 2',
     title: 'Praktijk: de gehandicaptenparkeerkaart',
     lines: [
-      'Een aanvraag bij de fictieve gemeente Wilgendaal, onder artikel 49 van het BABW.',
+      'Een aanvraag bij de fictieve gemeente Wilgendaal, onder artikel 49 van het Besluit administratieve bepalingen inzake het wegverkeer (BABW).',
       'Het beleid van Wilgendaal is verzonnen, als eigen keuze in de modellering.',
     ],
   },
@@ -216,13 +218,18 @@ export const slides = [
     kind: 'bullets',
     overline: 'De vraag',
     title: 'Heeft de aanvrager al een geldige kaart?',
-    lead: 'Artikel 49 van het BABW: het college kan een kaart verstrekken.',
+    lead: 'Volgens artikel 49 van het BABW kan het college een kaart verstrekken. Hoe het die bevoegdheid gebruikt, laat de wet open.',
     bullets: [
-      'Hoe het die bevoegdheid gebruikt, laat de wet open: `bevoegdheid_tot_verstrekken_gebruikt`.',
-      'Het beleid van Wilgendaal (artikel 1): geen kaart naast een geldige kaart.',
-      'Dat is een nieuw open begrip: `aanvrager_heeft_geldige_gehandicaptenparkeerkaart`.',
-      'Artikel 2 van het beleid koppelt het aan het antwoord van de eigen cel.',
+      'Wilgendaal geeft geen tweede kaart aan wie al een geldige kaart van de gemeente heeft.',
+      'Zo staat het in het beleid van de gemeente (artikel 1). Het vult de ruimte in die BABW artikel 49 laat.',
+      "Of de aanvrager al zo'n kaart heeft, is een nieuw open begrip.",
+      'In het fragment vult artikel 2 van het beleid dat begrip met het antwoord van de cel.',
     ],
+    figure: {
+      code: BINDING,
+      source: 'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal/2026-01-01.yaml',
+      label: 'Artikel 2 van het beleid van Wilgendaal, ingekort',
+    },
   },
   {
     kind: 'bullets',
@@ -238,10 +245,10 @@ export const slides = [
     title: 'Welke besluiten gelden nog?',
     lead: '`reductie_algemene_wet_bestuursrecht` geeft van alle besluiten onder één artikel de `geldende_besluiten`.',
     bullets: [
-      'Herroepen bij bezwaar (Awb 7:11): telt niet meer.',
-      'Vernietigd door de rechter (Awb 8:72): telt niet meer.',
+      'Een besluit dat bij bezwaar is herroepen, telt niet meer (Awb 7:11).',
+      'Een besluit dat de rechter vernietigde, telt ook niet meer (Awb 8:72).',
       'Wat een vernietigde beslissing op bezwaar in de plaats nam, vervalt mee.',
-      'In de plaats gesteld bij bezwaar of door de rechter: telt wel.',
+      'Een besluit dat bij bezwaar of door de rechter in de plaats kwam, telt wel.',
       'Deze reductie hoort bij geen cel. Ze leest de kroniek van de cel waarvoor ze draait.',
     ],
   },
@@ -249,10 +256,10 @@ export const slides = [
     kind: 'bullets',
     overline: 'De gemeente',
     title: 'Wat de gemeente zelf doet',
-    lead: 'Een FOREACH over `geldende_besluiten`.',
+    lead: 'De reductie van de gemeente loopt met een FOREACH door de `geldende_besluiten`.',
     bullets: [
-      'Telt: een verstrekte kaart, zelfde aanvrager, nog geldig op de dag van het besluit.',
-      'Herroepen of vernietigd ziet ze niet: dat deed de Awb-reductie al.',
+      'Een besluit telt als het een kaart verstrekte aan dezelfde aanvrager, en die kaart nog geldig is.',
+      'Of een besluit herroepen of vernietigd is, zocht de Awb-reductie al uit.',
       'Gaf de rechter zelf een kaart, dan zwijgt ze. De einddatum staat niet in haar kroniek.',
     ],
     figure: {
@@ -269,7 +276,6 @@ export const slides = [
     bullets: [
       'De cel van de GGD antwoordt uit haar kroniek: was er een onderzoek, en wat zegt het advies?',
       'De cel van Wilgendaal antwoordt uit haar eigen kroniek: heeft de aanvrager al een geldige kaart?',
-      'Het beleid van Wilgendaal koppelt elk antwoord aan een open begrip.',
       'Artikel 49 maakt er één uitkomst van: de kaart wordt verstrekt of geweigerd.',
     ],
     figure: { diagram: 'synthese-kaart', label: 'Het besluit over de kaart neemt de antwoorden van de GGD en Wilgendaal samen' },
