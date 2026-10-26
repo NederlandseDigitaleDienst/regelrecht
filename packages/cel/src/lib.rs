@@ -13,8 +13,8 @@
 //! RFC-047). It refers to the application; where each value comes from
 //! follows from the law and that reference. The cell reads its chronicle
 //! back through its reductions ([`reading`], RFC-048): rulework of the kind
-//! `REDUCTIE` in the corpus under its holder, whose outputs the cell gives as
-//! named answers (`cel.yaml`, [`identity`]). The policy of the deciding
+//! `REDUCTIE` the cell keeps in its directory (`reductions`), whose outputs
+//! it gives as named answers (`cel.yaml`, [`identity`]). The policy of the deciding
 //! authority binds an open term of the law to such an answer.
 //!
 //! A submission may refer to a decision (RFC-050): a field of type

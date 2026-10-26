@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.9/schema/v0.8.9/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
 $id: reductie_geldige_gehandicaptenparkeerkaart
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
@@ -22,8 +22,6 @@ valid_from: '2026-01-01'
 # url wijst naar artikel 49.
 url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
 name: Geldige gehandicaptenparkeerkaart bij de gemeente Wilgendaal (reductie)
-competent_authority:
-  name: Het college van burgemeester en wethouders van de gemeente Wilgendaal
 articles:
   - number: '1'
     text: >-

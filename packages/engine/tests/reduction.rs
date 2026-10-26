@@ -42,7 +42,7 @@ fn corpus(path: &str) -> String {
 /// the corpus.
 fn reduction_yaml() -> String {
     corpus(&format!(
-        "regulation/nl/reducties/{REDUCTION}/2026-08-01.yaml"
+        "cells/obs_de_klimop/reductions/{REDUCTION}/2026-08-01.yaml"
     ))
 }
 
@@ -447,10 +447,10 @@ fn a_reduction_fills_no_open_term() {
     // Schema v0.8.5 to v0.8.8 allowed it, and a file that names one of them
     // loads; the engine gives the declaration no meaning.
     for allowed in ["v0.8.5", "v0.8.8"] {
-        ArticleBasedLaw::from_yaml_str(&acting(implements).replace("v0.8.9", allowed)).unwrap();
+        ArticleBasedLaw::from_yaml_str(&acting(implements).replace("v0.8.12", allowed)).unwrap();
     }
     refused(
-        &acting(implements).replace("v0.8.9", "v0.8.4"),
+        &acting(implements).replace("v0.8.12", "v0.8.4"),
         "a REDUCTIE fills no open term (implements)",
     );
     // Without `$schema` the file is held to the current version.
@@ -1073,9 +1073,7 @@ const LEAVE: &str = "leerplichtwet_1969#13a";
 
 /// The Awb reduction from the corpus.
 fn awb_reduction_yaml() -> String {
-    corpus(&format!(
-        "regulation/nl/reducties/{AWB_REDUCTION}/2026-01-01.yaml"
-    ))
+    corpus(&format!("cells/reductions/{AWB_REDUCTION}/2026-01-01.yaml"))
 }
 
 fn awb_service() -> LawExecutionService {

@@ -17,6 +17,8 @@
 // a failing fixture reports itself.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod common;
+
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
@@ -109,35 +111,27 @@ const NEW: &str = "nieuw_besluit";
 /// The BABW, the Regeling, the Awb and the municipality's policy from the
 /// corpus.
 fn service() -> LawExecutionService {
-    let regulation = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/regulation/nl");
     let mut service = LawExecutionService::new();
-    for law in [
-        format!("amvb/{LAW}"),
-        "ministeriele_regeling/regeling_gehandicaptenparkeerkaart".to_string(),
-        format!("wet/{AWB}"),
-        format!("uitvoeringsbeleid/{POLICY}"),
-        // The reductions of every issuing body and of the GGD, in the corpus
-        // under their holders (RFC-048).
-        format!("reducties/{REDUCTION}"),
-        "reducties/reductie_eerder_verstrekte_gehandicaptenparkeerkaart_gemeente_oostmeer"
-            .to_string(),
-        "reducties/reductie_eerder_verstrekte_gehandicaptenparkeerkaart_cbr".to_string(),
-        format!("reducties/{REPORTS}"),
-        format!("reducties/{ADVICE_REDUCTION}"),
-        format!("uitvoeringsbeleid/{ADVICE_POLICY}"),
+    let laws = [
+        format!("regulation/nl/amvb/{LAW}"),
+        "regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart".to_string(),
+        format!("regulation/nl/wet/{AWB}"),
+        format!("regulation/nl/uitvoeringsbeleid/{POLICY}"),
+        // The reductions of every issuing body and of the GGD, each with
+        // its cell (RFC-048).
+        common::reduction_dir(REDUCTION),
+        common::reduction_dir(
+            "reductie_eerder_verstrekte_gehandicaptenparkeerkaart_gemeente_oostmeer",
+        ),
+        common::reduction_dir("reductie_eerder_verstrekte_gehandicaptenparkeerkaart_cbr"),
+        common::reduction_dir(REPORTS),
+        common::reduction_dir(ADVICE_REDUCTION),
+        format!("regulation/nl/uitvoeringsbeleid/{ADVICE_POLICY}"),
         // Which decisions still stand after objection and appeal: the
         // reduction of the Awb, which the reductions above call.
-        "reducties/reductie_algemene_wet_bestuursrecht".to_string(),
-    ] {
-        for entry in std::fs::read_dir(regulation.join(law)).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().is_some_and(|x| x == "yaml") {
-                service
-                    .load_law(&std::fs::read_to_string(&path).unwrap())
-                    .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            }
-        }
-    }
+        common::reduction_dir("reductie_algemene_wet_bestuursrecht"),
+    ];
+    common::load(&mut service, laws);
     service
 }
 
@@ -1527,11 +1521,7 @@ fn a_municipality_that_gives_the_examination_answer_is_not_asked_for_it() {
     // college finds it.
     let dir = tempfile::tempdir().unwrap();
     let identity = std::fs::read_to_string(cell_dir().join("cel.yaml")).unwrap();
-    std::fs::write(
-        dir.path().join("cel.yaml"),
-        format!("{identity}  {EXAMINED}: {REPORTS}\n"),
-    )
-    .unwrap();
+    common::write_identity(dir.path(), &format!("{identity}  {EXAMINED}: {REPORTS}\n"));
     let mut cell = Cell::in_memory(RECORDING_ACTOR, dir.path()).unwrap();
     assert_eq!(cell.answers().len(), 3);
     let app = applied(&mut cell, APPLICANT, "2026-10-13");
@@ -1782,11 +1772,10 @@ fn a_municipality_that_gives_the_advice_answer_is_not_asked_for_it() {
     // Without the GGD the college judges the criteria itself.
     let dir = tempfile::tempdir().unwrap();
     let identity = std::fs::read_to_string(cell_dir().join("cel.yaml")).unwrap();
-    std::fs::write(
-        dir.path().join("cel.yaml"),
-        format!("{identity}  {}: {ADVICE_REDUCTION}\n", ADVICE[0]),
-    )
-    .unwrap();
+    common::write_identity(
+        dir.path(),
+        &format!("{identity}  {}: {ADVICE_REDUCTION}\n", ADVICE[0]),
+    );
     let mut cell = Cell::in_memory(RECORDING_ACTOR, dir.path()).unwrap();
     assert_eq!(cell.answers().len(), 3);
     let app = applied(&mut cell, APPLICANT, "2026-10-13");

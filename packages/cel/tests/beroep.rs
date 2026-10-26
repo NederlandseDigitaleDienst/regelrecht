@@ -7,6 +7,8 @@
 // a failing fixture reports itself.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod common;
+
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
@@ -49,28 +51,19 @@ std::thread_local! {
 /// The Leerplichtwet, the Awb, the school's policies and its reduction for
 /// lid 2 from the corpus.
 fn service() -> LawExecutionService {
-    let regulation = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/regulation/nl");
     let mut service = LawExecutionService::new();
-    for law in [
-        format!("wet/{LAW}"),
-        format!("wet/{AWB}"),
-        format!("uitvoeringsbeleid/{POLICY}"),
-        format!("uitvoeringsbeleid/{SCHOOL_YEAR}"),
-        format!("uitvoeringsbeleid/{LEAVE_POLICY}"),
-        format!("reducties/{REDUCTION}"),
+    let laws = [
+        format!("regulation/nl/wet/{LAW}"),
+        format!("regulation/nl/wet/{AWB}"),
+        format!("regulation/nl/uitvoeringsbeleid/{POLICY}"),
+        format!("regulation/nl/uitvoeringsbeleid/{SCHOOL_YEAR}"),
+        format!("regulation/nl/uitvoeringsbeleid/{LEAVE_POLICY}"),
+        common::reduction_dir(REDUCTION),
         // Which decisions still stand after objection and appeal: the
         // reduction of the Awb, which the school's reduction calls.
-        "reducties/reductie_algemene_wet_bestuursrecht".to_string(),
-    ] {
-        for entry in std::fs::read_dir(regulation.join(law)).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().is_some_and(|x| x == "yaml") {
-                service
-                    .load_law(&std::fs::read_to_string(&path).unwrap())
-                    .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            }
-        }
-    }
+        common::reduction_dir("reductie_algemene_wet_bestuursrecht"),
+    ];
+    common::load(&mut service, laws);
     service
 }
 
@@ -87,7 +80,7 @@ fn school_dir() -> tempfile::TempDir {
     if !WITHOUT_REDUCTION.get() {
         yaml.push_str(&format!("answers:\n  {ONCE}: {REDUCTION}\n"));
     }
-    std::fs::write(dir.path().join("cel.yaml"), yaml).unwrap();
+    common::write_identity(dir.path(), &yaml);
     dir
 }
 

@@ -5,8 +5,8 @@
 # Fictieve gemeente.
 name: Het college van burgemeester en wethouders van de gemeente Wilgendaal
 category: college van burgemeester en wethouders
-# Welke antwoorden de cel geeft, en uit welke reductie in de corpus
-# (RFC-048). Het tweede geven ook de andere verstrekkende instanties onder
+# Welke antwoorden de cel geeft, en uit welke eigen reductie (reductions/,
+# RFC-048). Het tweede geven ook de andere verstrekkende instanties onder
 # dezelfde naam; het beleid van het college vraagt het hun allemaal.
 answers:
   aanvrager_heeft_geldige_gehandicaptenparkeerkaart: reductie_geldige_gehandicaptenparkeerkaart

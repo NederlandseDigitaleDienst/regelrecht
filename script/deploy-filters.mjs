@@ -114,7 +114,8 @@ export const COMPONENTS = {
   // chronolexografie draait als WASM in de browser: het image bouwt de crate
   // (met de cel, en de casussen en de app in de map van de crate, uit de
   // graaf) en bundelt per casus de
-  // regelwerken die haar cel draait en de cellen zelf. Die mappen staan bij
+  // regelwerken die haar cel draait en de cellen zelf, met hun reducties.
+  // Die mappen staan bij
   // `corpus` in pocs/registry.yaml; een test in
   // packages/poc-chronolexografie (src/bundel.rs) houdt de lijst hieronder
   // daarmee gelijk.
@@ -129,18 +130,10 @@ export const COMPONENTS = {
       'corpus/cells/ggd_wilgendaal/',
       'corpus/cells/obs_de_klimop/',
       'corpus/cells/rechtbank_wilgendaal/',
+      'corpus/cells/reductions/reductie_algemene_wet_bestuursrecht/',
       'corpus/regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw/',
       'corpus/regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart/',
       'corpus/regulation/nl/ministeriele_regeling/regeling_vaststelling_schoolvakanties_20252030/',
-      'corpus/regulation/nl/reducties/reductie_algemene_wet_bestuursrecht/',
-      'corpus/regulation/nl/reducties/reductie_eerder_verstrekte_gehandicaptenparkeerkaart_cbr/',
-      'corpus/regulation/nl/reducties/reductie_eerder_verstrekte_gehandicaptenparkeerkaart_gemeente_oostmeer/',
-      'corpus/regulation/nl/reducties/reductie_geldige_gehandicaptenparkeerkaart/',
-      'corpus/regulation/nl/reducties/reductie_geneeskundig_advies/',
-      'corpus/regulation/nl/reducties/reductie_geneeskundig_onderzoek/',
-      'corpus/regulation/nl/reducties/reductie_plaats_van_vestiging/',
-      'corpus/regulation/nl/reducties/reductie_verlof_al_verleend_in_schooljaar/',
-      'corpus/regulation/nl/reducties/reductie_verlof_valt_buiten_schoolvakanties/',
       'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal/',
       'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_geneeskundig_advies_ggd_wilgendaal/',
       'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaar_obs_de_klimop/',

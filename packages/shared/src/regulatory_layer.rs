@@ -64,8 +64,9 @@ pub enum RegulatoryLayer {
     WaterschapsVerordening,
 
     /// No regulation: a reduction of a cell over its own chronicle (RFC-022
-    /// §4, RFC-048). It sits in the corpus under its holder and fills no
-    /// open term; its cell gives it as a named answer.
+    /// §4, RFC-048). It sits with its cell (`corpus/cells/<cell>/reductions/`)
+    /// or with none (`corpus/cells/reductions/`) and fills no open term; its
+    /// cell gives it as a named answer.
     #[serde(rename = "REDUCTIE")]
     Reductie,
 }

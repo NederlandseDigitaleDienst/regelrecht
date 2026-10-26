@@ -11,7 +11,7 @@
 //! append. The cell knows no article that does this; the law names it with
 //! the type.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use chrono::NaiveDate;
@@ -33,10 +33,11 @@ use regelrecht_law_model::stored;
 /// A cell. It holds who it is, its catalogue of answers and its chronicle,
 /// not the law: every call that needs the law gets the service that
 /// executes it, and the reductions the catalogue names are rulework in that
-/// service, as the corpus holds them under the cell's holder (RFC-048).
+/// service (RFC-048).
 ///
-/// A cell is opened with its directory, which holds `cel.yaml`
-/// ([`crate::identity`]) and nothing else of the law.
+/// A cell is opened with its directory, which holds `cel.yaml` and its own
+/// reductions (`reductions`, [`crate::identity`]). The cell reads which
+/// reductions it keeps from there; the service loads them.
 #[derive(Debug)]
 pub struct Cell {
     recording_actor: String,
@@ -45,6 +46,8 @@ pub struct Cell {
     /// Per answer the cell gives, the `$id` of its reduction (`cel.yaml`,
     /// `answers`, RFC-048).
     answers: BTreeMap<String, String>,
+    /// The `$id`s of the reductions the cell keeps (`reductions`).
+    reductions: BTreeSet<String>,
     chronicle: Chronicle,
 }
 
@@ -60,9 +63,10 @@ pub enum Reference<'a> {
 impl Cell {
     /// The cell of `recording_actor`, with its chronicle in the JSON Lines file
     /// at `path` and its identity and catalogue in its directory `cell_dir`
-    /// (`cel.yaml`). A `cell_dir` that is no directory, or that still holds
-    /// reductions of its own (`reducties`), is an error: a reduction sits in
-    /// the corpus under its holder (RFC-048). A chronolexogram in the
+    /// (`cel.yaml`) and its reductions (`reductions`). A `cell_dir` that is
+    /// no directory, or that is the directory of the reductions of no cell
+    /// ([`identity::REDUCTIONS`] beside the cells), is an error, and so is
+    /// an answer of a reduction the cell does not keep ([`identity::read`]). A chronolexogram in the
     /// chronicle recorded by another actor is an error, and so is an
     /// executogram that refers to a chronolexogram or holds outputs
     /// (RFC-051).
@@ -137,16 +141,18 @@ impl Cell {
                 cell_dir.display()
             )));
         }
-        let own = cell_dir.join("reducties");
-        if files.exists(&own) {
+        if identity::is_shared_reductions(cell_dir) {
             return Err(setup(format!(
-                "{}: a cell keeps no reductions of its own; a reduction sits in the corpus \
-                 under its holder, and the cell names it in {} (answers, RFC-048)",
-                own.display(),
-                identity::FILE
+                "{}: no cell; this directory holds the reductions of no cell, which every cell \
+                 applies to its own chronicle",
+                cell_dir.display()
             )));
         }
-        let identity::Identity { authority, answers } = identity::read(files, cell_dir)?;
+        let identity::Identity {
+            authority,
+            answers,
+            reductions,
+        } = identity::read(files, cell_dir)?;
         if let Some(g) = chronicle
             .grams()
             .iter()
@@ -197,6 +203,7 @@ impl Cell {
             recording_actor,
             authority,
             answers,
+            reductions,
             chronicle,
         })
     }
@@ -208,6 +215,7 @@ impl Cell {
             &self.recording_actor,
             &self.authority,
             &self.answers,
+            &self.reductions,
             grams,
             explain,
         )
@@ -217,6 +225,11 @@ impl Cell {
     /// whose output it is (`cel.yaml`, `answers`, RFC-048).
     pub fn answers(&self) -> &BTreeMap<String, String> {
         &self.answers
+    }
+
+    /// The `$id`s of the reductions the cell keeps (`reductions`).
+    pub fn reductions(&self) -> &BTreeSet<String> {
+        &self.reductions
     }
 
     /// The open terms a policy in force on `on` in `service` binds to an
@@ -261,6 +274,7 @@ impl Cell {
             recording_actor: self.recording_actor.clone(),
             authority: self.authority.clone(),
             answers: self.answers.clone(),
+            reductions: self.reductions.clone(),
             chronicle: self.chronicle.in_memory_copy(),
         }
     }

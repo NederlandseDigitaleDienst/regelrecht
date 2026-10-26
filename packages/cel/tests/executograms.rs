@@ -347,8 +347,6 @@ $id: reductie_plaats_fictief
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
 valid_from: '2026-01-01'
-competent_authority:
-  name: Testcel
 articles:
   - number: '1'
     text: De plaats is die van de stand.
@@ -380,10 +378,12 @@ fn a_reduction_reads_only_a_fact_its_article_requires() {
         category: None,
     };
     let answers = [("plaats".to_string(), "reductie_plaats_fictief".to_string())].into();
+    let reductions = ["reductie_plaats_fictief".to_string()].into();
     let reads = |fact: &str| {
         let mut service = service();
         service.load_law(&reduction(fact)).unwrap();
-        let reader = reading::Reader::new(ACTOR, &authority, &answers, Vec::new(), None);
+        let reader =
+            reading::Reader::new(ACTOR, &authority, &answers, &reductions, Vec::new(), None);
         let request = AnswerRequest {
             name: "plaats",
             parameters: &std::collections::BTreeMap::new(),
@@ -463,8 +463,6 @@ $id: reductie_kring_fictief
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
 valid_from: '2026-01-01'
-competent_authority:
-  name: Testcel
 articles:
   - number: '1'
     text: x is wat artikel 1 zegt.
@@ -480,11 +478,11 @@ articles:
           - {output: x, value: $weer}
 "#;
     let dir = cell_tempdir();
-    std::fs::write(
-        dir.path().join("cel.yaml"),
+    common::write_identity(
+        dir.path(),
         "name: Testcel\nanswers:\n  x: reductie_kring_fictief\n",
-    )
-    .unwrap();
+    );
+    common::keep_reduction(dir.path(), "reductie_kring_fictief", reduction);
     let mut cell = Cell::in_memory(ACTOR, dir.path()).unwrap();
     let mut service = LawExecutionService::new();
     service.load_law(PROCEDURE_LAW).unwrap();

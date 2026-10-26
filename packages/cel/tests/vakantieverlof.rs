@@ -47,33 +47,22 @@ fn service() -> LawExecutionService {
 
 /// As [`service`], without the regelwerken under `without`.
 fn service_without(without: &[&str]) -> LawExecutionService {
-    let regulation = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/regulation/nl");
     let mut service = LawExecutionService::new();
-    for law in [
-        format!("wet/{LAW}"),
-        format!("wet/{AWB}"),
-        format!("uitvoeringsbeleid/{POLICY}"),
-        format!("uitvoeringsbeleid/{SCHOOL_YEAR}"),
-        format!("uitvoeringsbeleid/{LEAVE_POLICY}"),
-        // The school's reduction for lid 2, in the corpus under its holder
-        // (RFC-048).
-        format!("reducties/{REDUCTION}"),
+    let laws = [
+        format!("regulation/nl/wet/{LAW}"),
+        format!("regulation/nl/wet/{AWB}"),
+        format!("regulation/nl/uitvoeringsbeleid/{POLICY}"),
+        format!("regulation/nl/uitvoeringsbeleid/{SCHOOL_YEAR}"),
+        format!("regulation/nl/uitvoeringsbeleid/{LEAVE_POLICY}"),
+        // The school's reduction for lid 2, with its cell (RFC-048).
+        common::reduction_dir(REDUCTION),
         // Which decisions still stand after objection and appeal: the
         // reduction of the Awb, which the school's reduction calls.
-        "reducties/reductie_algemene_wet_bestuursrecht".to_string(),
+        common::reduction_dir("reductie_algemene_wet_bestuursrecht"),
     ]
     .into_iter()
-    .filter(|law| !without.iter().any(|w| law.ends_with(w)))
-    {
-        for entry in std::fs::read_dir(regulation.join(law)).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().is_some_and(|x| x == "yaml") {
-                service
-                    .load_law(&std::fs::read_to_string(&path).unwrap())
-                    .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            }
-        }
-    }
+    .filter(|law| !without.iter().any(|w| law.ends_with(w)));
+    common::load(&mut service, laws);
     service
 }
 
@@ -94,7 +83,7 @@ fn answers_dir(answers: &[(&str, &str)]) -> tempfile::TempDir {
     for (answer, reduction) in answers {
         yaml.push_str(&format!("  {answer}: {reduction}\n"));
     }
-    std::fs::write(dir.path().join("cel.yaml"), yaml).unwrap();
+    common::write_identity(dir.path(), &yaml);
     dir
 }
 
@@ -980,21 +969,70 @@ fn a_cell_directory_that_is_not_there_is_refused() {
 }
 
 #[test]
-fn a_cell_directory_with_reductions_of_its_own_is_refused() {
-    // A reduction sits in the corpus under its holder (RFC-048); a cell
-    // that still keeps one beside it would read a file nobody runs.
+fn a_cell_reads_the_reductions_it_keeps_from_its_directory() {
+    let cell = Cell::in_memory(RECORDING_ACTOR, cell_dir()).unwrap();
+    assert_eq!(
+        cell.reductions()
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        [
+            "reductie_plaats_van_vestiging",
+            REDUCTION,
+            "reductie_verlof_valt_buiten_schoolvakanties"
+        ]
+    );
+}
+
+#[test]
+fn a_cell_keeps_each_reduction_as_a_directory_with_its_versions() {
+    // `reductions/<$id>/<valid_from>.yaml`, and nothing else.
     for make in [
-        |p: &Path| std::fs::create_dir(p).unwrap(),
-        |p: &Path| std::fs::write(p, "").unwrap(),
+        |p: &Path| std::fs::write(p.join("los.yaml"), "").unwrap(),
+        |p: &Path| std::fs::create_dir(p.join("reductie_zonder_versie")).unwrap(),
+        |p: &Path| {
+            std::fs::create_dir(p.join("reductie_x")).unwrap();
+            std::fs::write(p.join("reductie_x/notities.txt"), "").unwrap();
+        },
+        |p: &Path| {
+            std::fs::create_dir(p.join("reductie_x")).unwrap();
+            std::fs::write(p.join("reductie_x/eerste.yaml"), "").unwrap();
+        },
     ] {
         let dir = lid_2_dir();
-        make(&dir.path().join("reducties"));
+        make(&dir.path().join("reductions"));
         let e = Cell::in_memory(RECORDING_ACTOR, dir.path()).unwrap_err();
         assert!(
-            matches!(&e, Error::Setup(m) if m.contains("keeps no reductions of its own")),
+            matches!(&e, Error::Setup(m) if m.contains("a file per version")),
             "{e}"
         );
     }
+}
+
+#[test]
+fn an_answer_from_a_reduction_the_cell_does_not_keep_is_refused() {
+    let dir = cell_tempdir();
+    std::fs::write(
+        dir.path().join("cel.yaml"),
+        format!("name: Het hoofd van OBS De Klimop\nanswers:\n  {ONCE}: {REDUCTION}\n"),
+    )
+    .unwrap();
+    let e = Cell::in_memory(RECORDING_ACTOR, dir.path()).unwrap_err();
+    assert!(
+        matches!(&e, Error::Setup(m) if m.contains(REDUCTION)
+            && m.contains("only the answers of its own reductions")),
+        "{e}"
+    );
+}
+
+#[test]
+fn the_reductions_of_no_cell_are_no_cell() {
+    let shared = common::corpus().join("cells/reductions");
+    let e = Cell::in_memory(RECORDING_ACTOR, shared).unwrap_err();
+    assert!(
+        matches!(&e, Error::Setup(m) if m.contains("reductions of no cell")),
+        "{e}"
+    );
 }
 
 #[test]
@@ -1057,11 +1095,10 @@ fn a_catalogue_that_names_an_empty_answer_or_reduction_is_refused() {
         );
     }
     let dir = lid_2_dir();
-    std::fs::write(
-        dir.path().join("cel.yaml"),
+    common::write_identity(
+        dir.path(),
         "name: Het hoofd van OBS De Klimop\nantwoorden: {}\n",
-    )
-    .unwrap();
+    );
     let e = Cell::in_memory(RECORDING_ACTOR, dir.path()).unwrap_err();
     assert!(
         matches!(&e, Error::Setup(m) if m.contains("antwoorden")),
@@ -1072,9 +1109,11 @@ fn a_catalogue_that_names_an_empty_answer_or_reduction_is_refused() {
 /// The service with the school's reduction for lid 2 in force from `from`.
 fn service_with_reduction_from(from: &str) -> LawExecutionService {
     let mut service = service_without(&[REDUCTION]);
-    let yaml = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
-        "../../corpus/regulation/nl/reducties/{REDUCTION}/2026-08-01.yaml"
-    )))
+    let yaml = std::fs::read_to_string(
+        common::corpus()
+            .join(common::reduction_dir(REDUCTION))
+            .join("2026-08-01.yaml"),
+    )
     .unwrap();
     let later = yaml.replace("valid_from: '2026-08-01'", &format!("valid_from: '{from}'"));
     assert_ne!(later, yaml);
@@ -2144,72 +2183,33 @@ fn a_decision_in_a_sandbox_stays_out_of_the_cell_and_its_file() {
     decide(&mut cell, &app.id, &judgement(true, true), "2026-10-20").unwrap();
 }
 
-/// A cell gives only the reductions of its holder (RFC-048): a cell that is
-/// not the head of OBS De Klimop does not read its chronicle with the head's
-/// reduction, and the head's policy does not ask it either.
+/// The head's policy asks the cell of the head (RFC-048): a cell of another
+/// school with the same reduction is not asked, and the head finds the term.
 #[test]
-fn a_cell_of_another_holder_gives_no_answer_from_the_heads_reduction() {
+fn the_heads_policy_does_not_ask_the_cell_of_another_school() {
     let dir = lid_2_dir();
-    std::fs::write(
-        dir.path().join("cel.yaml"),
-        format!("name: Het hoofd van OBS Het Anker\nanswers:\n  {ONCE}: {REDUCTION}\n"),
-    )
-    .unwrap();
+    common::write_identity(
+        dir.path(),
+        &format!("name: Het hoofd van OBS Het Anker\nanswers:\n  {ONCE}: {REDUCTION}\n"),
+    );
     let mut cell = Cell::in_memory(RECORDING_ACTOR, dir.path()).unwrap();
     let app = applied(&mut cell, "2027-02-01", "2027-02-05", "2026-10-13");
-    // The binding asks the cell of the head; this one is not asked, so the
-    // head finds the term.
     let e = decide(&mut cell, &app.id, &judgement(true, true), "2026-10-20").unwrap_err();
     assert!(e.to_string().contains("no judgement was given"), "{e}");
-    let reader = regelrecht_cel::reading::Reader::new(
-        RECORDING_ACTOR,
-        cell.authority(),
-        cell.answers(),
-        Vec::new(),
-        None,
-    );
-    let request = regelrecht_engine::AnswerRequest {
-        name: ONCE,
-        parameters: &[
-            (
-                "bsn_jongere".to_string(),
-                regelrecht_engine::Value::from(json!("999990019")),
-            ),
-            (
-                "eerste_verlofdag".to_string(),
-                regelrecht_engine::Value::from(json!("2027-02-01")),
-            ),
-        ]
-        .into(),
-        calculation_date: "2026-10-20",
-    };
-    use regelrecht_engine::OpenTermAnswerer;
-    let e = reader.answer(&service(), &request).unwrap_err();
-    assert!(e.to_string().contains("whose holder"), "{e}");
 }
 
-/// The reduction of the Awb has no holder: a reduction calls it, and no
+/// The reduction of the Awb is of no cell: a reduction calls it, and no
 /// cell gives its output as an answer, not even the cell of a body that
-/// applies the Awb.
+/// applies the Awb. A catalogue that names it is refused when the cell
+/// opens.
 #[test]
 fn no_cell_gives_the_reduction_of_the_awb_as_its_answer() {
     const AWB_REDUCTION: &str = "reductie_algemene_wet_bestuursrecht";
     let dir = answers_dir(&[("besluiten_in_stand", AWB_REDUCTION)]);
-    let cell = Cell::in_memory(RECORDING_ACTOR, dir.path()).unwrap();
-    let reader = regelrecht_cel::reading::Reader::new(
-        RECORDING_ACTOR,
-        cell.authority(),
-        cell.answers(),
-        Vec::new(),
-        None,
+    let e = Cell::in_memory(RECORDING_ACTOR, dir.path()).unwrap_err();
+    assert!(
+        matches!(&e, Error::Setup(m) if m.contains(AWB_REDUCTION)
+            && m.contains("only the answers of its own reductions")),
+        "{e}"
     );
-    let request = regelrecht_engine::AnswerRequest {
-        name: "besluiten_in_stand",
-        parameters: &std::collections::BTreeMap::new(),
-        calculation_date: "2026-10-20",
-    };
-    use regelrecht_engine::OpenTermAnswerer;
-    let e = reader.answer(&service(), &request).unwrap_err();
-    assert!(e.to_string().contains("whose holder"), "{e}");
-    assert!(e.to_string().contains(AWB_REDUCTION), "{e}");
 }

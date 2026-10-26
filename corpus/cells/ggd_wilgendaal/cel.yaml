@@ -7,7 +7,8 @@
 # Wilgendaal).
 name: GGD Wilgendaal
 category: Gemeentelijke Gezondheidsdienst
-# Welk antwoord de cel geeft, en uit welke reductie in de corpus (RFC-048).
+# Welk antwoord de cel geeft, en uit welke eigen reductie
+# (reductions/, RFC-048).
 answers:
   geneeskundig_onderzoek_heeft_plaatsgehad: reductie_geneeskundig_onderzoek
   advies_langdurige_loopbeperking: reductie_geneeskundig_advies

@@ -215,8 +215,6 @@ regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
 valid_from: '2026-01-01'
 url: https://example.org/reductie
-competent_authority:
-  name: Testcel
 articles:
   - number: '1'
     text: Fictief.
@@ -278,11 +276,11 @@ fn service() -> LawExecutionService {
 /// catalogue says.
 fn cell() -> (Cell, tempfile::TempDir) {
     let dir = cell_tempdir();
-    std::fs::write(
-        dir.path().join("cel.yaml"),
+    common::write_identity(
+        dir.path(),
         "name: Testcel\nanswers:\n  al_verleend: reductie_al_verleend_fictief\n",
-    )
-    .unwrap();
+    );
+    common::keep_reduction(dir.path(), "reductie_al_verleend_fictief", REDUCTION);
     let cell = Cell::in_memory(ACTOR, dir.path()).unwrap();
     (cell, dir)
 }

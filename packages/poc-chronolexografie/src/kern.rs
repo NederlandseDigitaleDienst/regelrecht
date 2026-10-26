@@ -33,7 +33,7 @@ pub struct Corpus {
     pub casus: Casus,
     pub afleiding: Afleiding,
     /// Per regelwerk the cell runs: its `$id`, its name and its directory
-    /// under `corpus/regulation/nl`.
+    /// under its root ([`crate::casus::Regelwerk::map`]).
     regelwerken: Vec<(String, Option<String>, String)>,
     versies: Vec<String>,
     /// Per `$id` and `valid_from` of a regelwerk the cell runs, that
@@ -335,8 +335,8 @@ impl Corpus {
         Ok(service)
     }
 
-    /// The directories of the regelwerken the cell runs, under
-    /// `corpus/regulation/nl`.
+    /// The directories of the regelwerken the cell runs, under their root
+    /// (`regulation/nl/...`, `cells/.../reductions/...`).
     pub fn mappen(&self) -> impl Iterator<Item = &str> {
         self.regelwerken.iter().map(|(_, _, map)| map.as_str())
     }
@@ -1165,8 +1165,8 @@ fn is_besluit(service: &LawExecutionService, gram: &Gram) -> Result<bool> {
 }
 
 /// The reductions the catalogues of `cells` name, each once, as `law`
-/// finds them by `$id`: the corpus holds them under their holders
-/// (RFC-048). A reduction it does not find is left out.
+/// finds them by `$id`: the corpus holds them with their cells (RFC-048).
+/// A reduction it does not find is left out.
 pub(crate) fn reducties_in<'l>(
     law: &dyn Fn(&str) -> Option<&'l regelrecht_engine::ArticleBasedLaw>,
     cells: &[&Cell],

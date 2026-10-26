@@ -13,10 +13,11 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
-use regelrecht_cel::{Cell, Error, Files};
+use regelrecht_cel::{identity, Cell, Error, Files};
 use regelrecht_engine::LawLoad;
 use regelrecht_law_model::{
     Article, ArticleBasedLaw, AuthorityType, CompetentAuthority, HookFilter, ProcedureDefinition,
+    RegulatoryLayer,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -175,11 +176,16 @@ pub fn casussen(files: &dyn Files, dir: &Path) -> Result<Vec<Casus>> {
 /// YAML and parsed.
 #[derive(Debug, Clone)]
 pub struct Regelwerk {
-    /// Its directory under `regulation/nl` of its root, such as
-    /// `wet/leerplichtwet_1969`.
+    /// Its directory, relative to its root: under `regulation/nl`, such as
+    /// `regulation/nl/wet/leerplichtwet_1969`, or for a reduction with its
+    /// cell (`cells/<cel>/reductions/<$id>`) or with none
+    /// (`cells/reductions/<$id>`).
     pub map: String,
     /// The root it was read from: the repository's `corpus`, or a source.
     pub wortel: PathBuf,
+    /// For a reduction with its cell: that cell, by the name of its
+    /// directory. Where a reduction sits says whose it is.
+    pub houder: Option<String>,
     pub versies: Vec<(String, ArticleBasedLaw)>,
 }
 
@@ -198,14 +204,28 @@ impl Regelwerk {
         &self.versies[self.versies.len() - 1].1
     }
 
-    /// Where it is, for a message: `<root>/regulation/nl/<map>`.
-    fn pad(&self) -> String {
-        format!("{}/regulation/nl/{}", self.wortel.display(), self.map)
+    fn is_reductie(&self) -> bool {
+        self.nieuwste().regulatory_layer == RegulatoryLayer::Reductie
+    }
+
+    /// Where it is, for a message: `<root>/<map>`.
+    pub fn pad(&self) -> String {
+        format!("{}/{}", self.wortel.display(), self.map)
     }
 }
 
-/// Every regelwerk under `regulation/nl` of each root, read once at the
-/// start. The derivation looks across all of them for what acts on a case's
+/// Where in a root a directory of regelwerken is: regulation, or the
+/// reductions of a cell or of none.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Plek {
+    Regelgeving,
+    Reducties(Option<String>),
+}
+
+/// Every regelwerk of each root, read once at the start: the regulation
+/// under `regulation/nl`, and the reductions with their cell
+/// (`cells/<cel>/reductions`) or with none (`cells/reductions`). The
+/// derivation looks across all of them for what acts on a case's
 /// regelwerken, so the whole corpus has to parse, and a new regelwerk that
 /// implements an open term of the Awb, or hooks on every decision, joins
 /// every case, and the tests on the derivation and on the image fail.
@@ -218,22 +238,24 @@ pub struct Regelwerken {
 }
 
 impl Regelwerken {
-    /// Read every directory under `regulation/nl` of each of `roots` that
-    /// holds versions (`<date>.yaml`), through `files`; its `scenarios` are
-    /// no versions. A root without `regulation/nl` adds nothing. Two
-    /// directories of one root with the same `$id` are an error: neither is
-    /// the one the corpus means. Across roots the first wins, such as the
-    /// regelrecht corpus over a source, and [`Regelwerken::meldingen`] says
-    /// which it set aside.
+    /// Read every directory of regelwerken of each of `roots` that holds
+    /// versions (`<date>.yaml`), through `files`; its `scenarios` are no
+    /// versions. A root without them adds nothing. Two directories of one
+    /// root with the same `$id` are an error: neither is the one the corpus
+    /// means. Across roots the first wins, such as the regelrecht corpus
+    /// over a source, and [`Regelwerken::meldingen`] says which it set
+    /// aside.
+    ///
+    /// A `REDUCTIE` sits in a directory of reductions, named by its `$id`,
+    /// and nothing else does; a reduction under `regulation/nl` is an
+    /// error. A reduction of one cell that reads one of another cell is an
+    /// error too: the reduction it calls would read the chronicle of the
+    /// cell that runs it, not of its own.
     pub fn load(files: &dyn Files, roots: &[PathBuf]) -> Result<Self> {
         let mut uit = Self::default();
         for root in roots {
-            let basis = root.join("regulation/nl");
-            if !files.is_dir(&basis) {
-                continue;
-            }
             let mut eigen: Vec<Regelwerk> = Vec::new();
-            for werk in Self::uit_wortel(files, root, &basis)? {
+            for werk in Self::uit_wortel(files, root)? {
                 if let Some(ander) = eigen.iter().find(|w| w.id() == werk.id()) {
                     return Err(Error::Setup(format!(
                         "'{}' is in both {} and {}",
@@ -257,15 +279,45 @@ impl Regelwerken {
                 uit.werken.push(werk);
             }
         }
+        uit.geen_reductie_van_een_andere_cel()?;
         Ok(uit)
     }
 
-    fn uit_wortel(files: &dyn Files, root: &Path, basis: &Path) -> Result<Vec<Regelwerk>> {
-        let mut mappen = Vec::new();
-        verzamel(files, basis, &mut mappen)?;
-        mappen.sort();
+    /// The directories of regelwerken of `root`, each with its place.
+    fn mappen(files: &dyn Files, root: &Path) -> Result<Vec<(PathBuf, Plek)>> {
         let mut uit = Vec::new();
-        for map in mappen {
+        let regulation = root.join("regulation/nl");
+        if files.is_dir(&regulation) {
+            let mut mappen = Vec::new();
+            verzamel(files, &regulation, &mut mappen)?;
+            uit.extend(mappen.into_iter().map(|m| (m, Plek::Regelgeving)));
+        }
+        let cells = root.join("cells");
+        if files.is_dir(&cells) {
+            for cel in files.entries(&cells)? {
+                let (dir, houder) = if identity::is_shared_reductions(&cel) {
+                    (cel.clone(), None)
+                } else {
+                    let naam = cel.file_name().map(|n| n.to_string_lossy().into_owned());
+                    (cel.join(identity::REDUCTIONS), naam)
+                };
+                if !files.is_dir(&dir) {
+                    continue;
+                }
+                for map in files.entries(&dir)? {
+                    if files.is_dir(&map) {
+                        uit.push((map, Plek::Reducties(houder.clone())));
+                    }
+                }
+            }
+        }
+        uit.sort_by(|a, b| a.0.cmp(&b.0));
+        Ok(uit)
+    }
+
+    fn uit_wortel(files: &dyn Files, root: &Path) -> Result<Vec<Regelwerk>> {
+        let mut uit = Vec::new();
+        for (map, plek) in Self::mappen(files, root)? {
             let mut paths: Vec<PathBuf> = files
                 .entries(&map)?
                 .into_iter()
@@ -281,20 +333,70 @@ impl Regelwerken {
                 // Parsed here, so a broken version names its file at the start.
                 let law = ArticleBasedLaw::from_yaml_str(&yaml)
                     .map_err(|e| Error::Setup(format!("{}: {e}", path.display())))?;
+                let reductie = law.regulatory_layer == RegulatoryLayer::Reductie;
+                let waar = match (&plek, reductie) {
+                    (Plek::Regelgeving, true) => Some(
+                        "a REDUCTIE is no regulation: it sits with its cell \
+                         (cells/<cel>/reductions/) or with none (cells/reductions/)",
+                    ),
+                    (Plek::Reducties(_), false) => {
+                        Some("a directory of reductions holds only REDUCTIE")
+                    }
+                    _ => None,
+                };
+                if let Some(waarom) = waar {
+                    return Err(Error::Setup(format!("{}: {waarom}", path.display())));
+                }
+                if matches!(plek, Plek::Reducties(_))
+                    && map.file_name().is_none_or(|n| n != law.id.as_str())
+                {
+                    return Err(Error::Setup(format!(
+                        "{}: the reduction '{}' sits in a directory named by its $id",
+                        path.display(),
+                        law.id
+                    )));
+                }
                 versies.push((yaml, law));
             }
+            let houder = match &plek {
+                Plek::Reducties(houder) => houder.clone(),
+                Plek::Regelgeving => None,
+            };
             let map = map
-                .strip_prefix(basis)
+                .strip_prefix(root)
                 .map_err(|e| Error::Setup(e.to_string()))?
                 .to_string_lossy()
                 .replace('\\', "/");
             uit.push(Regelwerk {
                 map,
                 wortel: root.to_path_buf(),
+                houder,
                 versies,
             });
         }
         Ok(uit)
+    }
+
+    /// Refuse a reduction that reads a reduction of another cell: a
+    /// reduction is applied to the chronicle of the cell that runs it.
+    fn geen_reductie_van_een_andere_cel(&self) -> Result<()> {
+        for werk in self.werken.iter().filter(|w| w.is_reductie()) {
+            for id in leest(werk.artikelen()) {
+                let Some(ander) = self.get(&id).filter(|a| a.is_reductie()) else {
+                    continue;
+                };
+                if ander.houder.is_some() && ander.houder != werk.houder {
+                    return Err(Error::Setup(format!(
+                        "{} reads the reduction '{id}' of the cell '{}' ({}); a reduction reads \
+                         only those of its own cell and those of none",
+                        werk.pad(),
+                        ander.houder.as_deref().unwrap_or_default(),
+                        ander.pad()
+                    )));
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn get(&self, id: &str) -> Option<&Regelwerk> {
