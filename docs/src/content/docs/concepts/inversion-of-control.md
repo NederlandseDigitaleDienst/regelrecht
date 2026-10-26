@@ -3,15 +3,17 @@ title: "Inversion of Control"
 description: "How a law leaves a value to another regulation, by delegation or co-government, and how that regulation declares that it fills it."
 ---
 
-A *wet* (formal law) often leaves specifics to someone else. The Healthcare Allowance Act delegates setting the standard premium to the minister, whose ministerial regulation sits below the act. The Participation Act leaves the reduction of social assistance to municipal ordinances, but that is co-government (*medebewind*): the act calls on the municipality to execute it through its own ordinance. The municipality is not administratively subordinate to the state, but its ordinance is still bound by the act and yields to it (Gemeentewet art. 121-122).
+A *wet* (formal law) often leaves the details to someone else. The Healthcare Allowance Act delegates setting the standard premium to the minister. The minister does so in a ministerial regulation, which ranks below the act.
 
-In RegelRecht, both relationships are modeled through the same two constructs: the law declares an **open term** (a value it needs but does not define), and the regulation that fills it declares that it **implements** that term.
+The Participation Act leaves the reduction of social assistance to municipal ordinances. That is co-government (*medebewind*): the act calls on the municipality to carry it out through an ordinance of its own. The municipality is not administratively subordinate to the state. Its ordinance is still bound by the act and yields to it (Gemeentewet art. 121-122).
+
+RegelRecht models both relationships with the same two constructs. The law declares an **open term**: a value it needs but does not define. The regulation that fills it declares that it **implements** that term.
 
 ## The legal pattern
 
-A Dutch ministerial regulation typically opens with a preamble: *"Gelet op artikel 4 van de Wet op de zorgtoeslag"* ("In consideration of article 4 of the Healthcare Allowance Act"). The preamble records which article the regulation rests on; the power itself comes from that article of the law, not from the preamble. Consolidated texts on wetten.overheid.nl show only the preamble of the original regulation, so a later amendment on a new basis does not show there.
+A Dutch ministerial regulation typically opens with a preamble: *"Gelet op artikel 4 van de Wet op de zorgtoeslag"* ("In consideration of article 4 of the Healthcare Allowance Act"). The preamble records which article the regulation rests on. The power itself comes from that article of the law, not from the preamble. Consolidated texts on wetten.overheid.nl show only the preamble of the original regulation. A later amendment on a new legal basis therefore does not show there.
 
-RegelRecht mirrors the direction. The law does not need to know which regulation fills its open term. The implementing regulation registers itself.
+RegelRecht follows the same direction. The law does not need to know which regulation fills its open term. The implementing regulation registers itself.
 
 ## How it works
 
@@ -35,10 +37,10 @@ machine_readable:
 
 This says: "I need a value called `standaardpremie`. The minister should set it via a ministerial regulation. If nobody has set it, use 211200 (EUR 2,112.00)."
 
-Two optional fields say more about who fills the term, and both are properties of the law rather than of the corpus:
+Two optional fields say more about who fills the term. Both describe the law, not the state of the corpus:
 
-- **`expected_source`** names the regulation the article itself points at, such as `Regeling zorgverzekering`, with a BWB id when the text carries one. Whether that regulation is currently in the corpus is a separate question, because that changes without the law changing.
-- **`decided_per_case_by`** marks a norm that an authority fills in the individual case while no general specification exists. Its text says in words who that authority is, and which article makes it competent. That judgement needs a motivation under Awb 3:46. It forms part of the *besluit* rather than a ground for it, and that separates a discretionary power from a value that is merely missing. The engine does not read the authority from those words: the term's own `competent_authority` names it, or else it is the authority that carries out the article ([Competent Authority](/concepts/competent-authority#who-gives-a-finding)).
+- **`expected_source`** names the regulation that the article itself points at, such as `Regeling zorgverzekering`, with a BWB id when the text gives one. Whether that regulation is in the corpus right now is a separate question, because the corpus changes while the law stays the same.
+- **`decided_per_case_by`** marks a norm that an authority fills in for each individual case, as long as no general rule exists. Its text says in words who that authority is, and which article makes it competent. That finding needs a motivation under Awb 3:46. The finding is part of the *besluit* itself, not a ground for it. That is what separates a discretionary power from a value that is simply missing. The engine does not read the authority from the words in this field. The term's own `competent_authority` names the authority, or else the authority that carries out the article judges ([Competent Authority](/concepts/competent-authority#who-gives-a-finding)).
 
 ### The implementing regulation fills it
 
@@ -63,15 +65,15 @@ machine_readable:
         value: 211200
 ```
 
-The `gelet_op` field matches the real legal preamble text. The `implements` block tells the engine: "I fill in the `standaardpremie` open term from Zorgtoeslagwet article 4."
+The `gelet_op` field holds the text of the real preamble. The `implements` block tells the engine: "I fill in the `standaardpremie` open term from Zorgtoeslagwet article 4."
 
 ### The engine connects them at load time
 
-When the engine loads all ruleworks, it builds an index of all `implements` declarations. When it encounters an `open_term` during execution, it looks up the index, finds the implementing regulation, and executes it to get the value.
+When the engine loads the ruleworks, it builds an index of all `implements` declarations. During execution, when it meets an `open_term`, it looks the term up in the index, finds the implementing regulation and executes it to get the value.
 
 ## Municipal ordinances (co-government)
 
-The Participation Act leaves the reduction of social assistance to municipal ordinances, in co-government. The schema records this with `delegated_to` and `delegation_type`, the same fields it uses for delegation, although legally it is not delegation. Each municipality can set different reduction percentages. The engine uses `gemeente_code` in the execution parameters to select the right municipal ordinance.
+The Participation Act leaves the reduction of social assistance to municipal ordinances, in co-government. The schema records this with `delegated_to` and `delegation_type`. Those are the fields it uses for delegation, although in law co-government is not delegation. Each municipality can set its own reduction percentages. The engine uses `gemeente_code` in the execution parameters to pick the right municipal ordinance.
 
 ### The national law declares open terms with defaults
 
@@ -113,11 +115,15 @@ The scope selects among other regulations only. An ordinance can fill an open te
 
 ## An implementation that reads the law it fills in
 
-An implementation can state its value in terms of the law it fills in. A ministerial regulation indexing an amount is the common case: *"het in artikel 4 genoemde bedrag wordt met ingang van 1 januari verhoogd met 3,2 procent"*, where the law leaves the amount open with a `default`. The implementing article then reads an output of that law, which depends on the very term it fills. That read is the law without this filling: the next implementation, or the `default` when there is none. The filling then applies once, whether the law or the implementing regulation is asked.
+An implementation can state its value in terms of the law it fills in. The common case is a ministerial regulation that indexes an amount: *"het in artikel 4 genoemde bedrag wordt met ingang van 1 januari verhoogd met 3,2 procent"*. Here the law leaves the amount open, with a `default`.
+
+The implementing article then reads an output of that law, and that output depends on the very term the article fills. The engine answers that read as if this implementation did not exist: it uses the next implementation, or the `default` when there is none. So the increase applies once, whether the caller asks the law or the implementing regulation.
 
 ## Policy that fills an open term with a cell's answer
 
-A cell's reduction ([RFC-048](/rfcs/rfc-048)) reads the cell's own decisions back and gives a named answer. It sits with the cell, in `corpus/cells/<cell>/reductions/`. It is no regulation and fills no open term; policy of the authority that decides does that: an article fills the term with `implements` and takes the answer as an input (`source.reduction`, schema v0.8.9). Art. 13a of the Leerplichtwet 1969 leaves `verlof_al_verleend_in_schooljaar` to the head per case (`decided_per_case_by`), and the head's policy binds it:
+A cell is an organization that records its own decisions and facts, and answers later questions from that record. A reduction ([RFC-048](/rfcs/rfc-048)) is the rulework that reads the cell's earlier decisions and gives an answer under a name. It sits with the cell, in `corpus/cells/<cell>/reductions/`. A reduction is not a regulation, and it fills no open term.
+
+The policy of the deciding authority fills the term. One of its articles fills the term with `implements` and takes the cell's answer as an input (`source.reduction`, schema v0.8.9). Art. 13a of the Leerplichtwet 1969 leaves `verlof_al_verleend_in_schooljaar` to the head of the school, case by case (`decided_per_case_by`). The head's policy binds that term to the answer:
 
 ```yaml
 # fictief_beleid_vakantieverlof_obs_de_klimop, article 2
@@ -136,9 +142,17 @@ machine_readable:
           parameters: {bsn_jongere: $bsn_jongere, eerste_verlofdag: $eerste_verlofdag}
 ```
 
-The engine does not run the reduction. A caller can pass an answerer with the execution (`OpenTermAnswerer`, in a `Call`), and the engine asks it for the answer wherever the binding runs, at any depth. That includes an article called anew, as Awb 7:11 does on an objection. During a decision the cell is that answerer: it runs the reduction its catalogue names with the parameters the binding passes, and returns the value with where it came from. The engine records that provenance under `open_terms` (`filled_by: {answer: ...}`, with the binding's article) and as one node per answer in the trace. Why the reduction answered as it did is the cell's to explain (`Cell::explain_answer`); it is not in the trace of the decision. A `REDUCTIE` is never in the engine's implements index, so loading one changes nothing by itself.
+The engine does not run the reduction itself. A caller can pass an answerer with the execution (`OpenTermAnswerer`, in a `Call`). The engine asks that answerer for the answer wherever the binding runs, at any depth. That includes an article that is called again, as Awb 7:11 does on an objection.
 
-A binding fills the term like any other implementation: the term gets the binding's value. That is also true when the value is null, unless the term has a `default`; then the default applies ([RFC-036](/rfcs/rfc-036)). A finding is the authority's own judgement on the term in a single case. It never replaces the value of a policy, not even on a term that the law leaves to the authority per case. If a caller gives a finding for such a term, the engine refuses the execution, even when the case never reads the term. If the policy wants the authority to judge a case that the cell does not answer, it declares an open term of its own with `decided_per_case_by`, and uses that term when the answer is null ([RFC-048](/rfcs/rfc-048) §2). Outside a cell nobody gives answers, so a scenario gives the finding on the policy's own term.
+During a decision, the cell is the answerer. It runs the reduction that its catalogue names, with the parameters that the binding passes. It returns the value together with where the value came from. The engine records that origin under `open_terms` (`filled_by: {answer: ...}`, with the binding's article), and as one node per answer in the trace.
+
+The trace of the decision does not show why the reduction gave its answer. The cell explains that separately (`Cell::explain_answer`). A `REDUCTIE` is never in the engine's index of implementations, so loading one changes nothing by itself.
+
+A binding fills the term like any other implementation: the term gets the binding's value. That holds even when the value is null, unless the term has a `default`. Then a null value gives the default ([RFC-036](/rfcs/rfc-036)).
+
+A finding is what the authority itself decides on the term in a single case. A finding never replaces the value of a policy, not even on a term that the law leaves to the authority case by case. If a caller gives a finding for such a term, the engine refuses the execution, even when the case never reads the term.
+
+Sometimes the policy wants the authority to judge a case that the cell does not answer. The policy then declares an open term of its own with `decided_per_case_by`, and uses that term when the answer is null ([RFC-048](/rfcs/rfc-048) §2). A scenario runs without a cell, so no cell gives an answer there. The scenario gives the finding on the policy's own term instead.
 
 ## Conflict resolution
 
@@ -147,11 +161,11 @@ When multiple regulations implement the same open term, the engine resolves conf
 1. **Lex superior** (higher regulatory layer wins): a *wet* takes precedence over a *ministeriële regeling*, and an ordinance yields to the act it executes
 2. **Lex posterior** (newer wins): between two regulations at the same level, the one with the later `valid_from` date takes precedence
 
-Temporal filtering ensures the right version applies: only regulations where `valid_from <= calculation_date` are considered.
+The engine only considers regulations whose `valid_from` is on or before the calculation date (`valid_from <= calculation_date`). That way the right version applies.
 
 ## Comparison with cross-law references
 
-Cross-law references and IoC both let laws use values from other laws, but they serve different purposes:
+Cross-law references and inversion of control (IoC) both let a law use values from another law. They serve different purposes:
 
 | | Cross-law reference | Inversion of Control |
 |---|---|---|
