@@ -5,7 +5,7 @@
 // (frontend-demo/src/presentation/PresentationDeck.vue); this one has no rail
 // and no slide that opens a tab. The closing slide offers the demo scenarios
 // (demo.js); choosing one closes the deck and begins it (`scenario`).
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { usePresentation } from './usePresentation.js';
 import { demoGuides } from './demo.js';
 import Diagram from './Diagram.vue';
@@ -20,33 +20,15 @@ const progress = computed(() => `${((p.index.value + 1) / p.total.value) * 100}%
 const today = new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' });
 const scenarios = demoGuides();
 
-// Behind the portal a strip with the voorbehoud sits sticky at the top of
-// every page (packages/poc-portal, `data-poc-portaal`), above everything. The
-// deck starts under it, so the strip stays readable and covers no slide.
-const top = ref(0);
-let strip = null;
-const resize = new ResizeObserver(() => {
-  top.value = strip ? Math.max(0, strip.getBoundingClientRect().bottom) : 0;
-});
-function followStrip() {
-  strip = document.querySelector('[data-poc-portaal]');
-  resize.disconnect();
-  if (strip) resize.observe(strip);
-  top.value = strip ? Math.max(0, strip.getBoundingClientRect().bottom) : 0;
-}
-onBeforeUnmount(() => resize.disconnect());
-
 // The deck takes the focus when it opens, so the keys and a screen reader
 // start on the slide, and gives it back to where it was when it closes. The
-// app under it is inert meanwhile: Tab and a screen reader stay on the deck
-// and the portal's strip above it.
+// app under it is inert meanwhile: Tab and a screen reader stay on the deck.
 const app = () => document.getElementById('app');
 let before = null;
 watch(
   () => p.active.value,
   async (open) => {
     if (open) {
-      followStrip();
       before = document.activeElement;
       if (app()) app().inert = true;
       await nextTick();
@@ -84,7 +66,6 @@ function choose(naam) {
       aria-roledescription="presentatie"
       aria-label="Inleiding op chronolexografie"
       tabindex="-1"
-      :style="{ top: `${top}px` }"
     >
       <div class="stage">
         <div class="content" :class="{ 'with-figure': slide.figure }" aria-live="polite">
@@ -131,7 +112,6 @@ function choose(naam) {
               <ul v-if="slide.bullets?.length" class="bullets">
                 <li v-for="(b, j) in slide.bullets" :key="j" v-html="emphasize(b)"></li>
               </ul>
-              <p v-if="slide.cite" class="cite">{{ slide.cite }}</p>
             </template>
           </div>
           <div v-if="slide.figure" class="figure">
@@ -369,11 +349,6 @@ pre {
   font-size: inherit;
 }
 .code figcaption {
-  font-size: max(0.75rem, calc(1.3 * var(--slide-unit)));
-  color: var(--ink-72);
-}
-.cite {
-  margin: 0;
   font-size: max(0.75rem, calc(1.3 * var(--slide-unit)));
   color: var(--ink-72);
 }

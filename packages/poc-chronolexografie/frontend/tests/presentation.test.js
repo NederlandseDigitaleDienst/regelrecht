@@ -69,11 +69,15 @@ describe('the slides', () => {
       expect(s.figure.source, s.title).toBeTruthy();
   });
 
-  it('say where a quote comes from', () => {
+  it('put the paper in words of their own, without quotes', () => {
     for (const s of slides) {
-      const quotes = texts(s).some((t) => t.includes('„'));
-      expect(!!s.cite, s.title).toBe(quotes);
+      for (const t of texts(s)) expect(t, s.title).not.toMatch(/[„”]/);
+      expect(s.cite, s.title).toBeUndefined();
     }
+  });
+
+  it('keep a concept slide to five bullets', () => {
+    for (const s of slides) expect(s.bullets?.length ?? 0, s.title).toBeLessThanOrEqual(5);
   });
 
   it('give each figure a label', () => {

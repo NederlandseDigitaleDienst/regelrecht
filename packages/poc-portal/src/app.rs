@@ -403,7 +403,14 @@ async fn serve_static(static_root: &str, poc: &Poc, rest: &str, request: Request
 /// A body that is not valid UTF-8, or has no `<body...>`, is passed through
 /// untouched. Failing to add the notice is bad; corrupting the page the notice
 /// is about would be worse.
+///
+/// A PoC with `strook: false` in the register gets no strip; its status and
+/// voorbehoud still show on the index and the login screen.
 async fn injecteer_strip(response: Response, poc: &Poc) -> Response {
+    // A PoC whose register entry turns the strip off (`strook: false`).
+    if !poc.strook {
+        return response;
+    }
     let is_html = response
         .headers()
         .get(header::CONTENT_TYPE)
@@ -540,6 +547,29 @@ mod tests {
             .expect("response");
         let out = injecteer_strip(response, &poc()).await;
         assert!(out.headers().get(header::CONTENT_LENGTH).is_none());
+    }
+
+    #[tokio::test]
+    async fn a_poc_without_a_strip_is_left_alone() {
+        let mut p = poc();
+        assert!(p.strook, "the strip is on by default");
+        p.strook = false;
+        let page = "<html><body><h1>Hoi</h1></body></html>";
+        let out = tekst(injecteer_strip(antwoord("text/html", page), &p).await).await;
+        assert_eq!(out, page);
+    }
+
+    #[test]
+    fn the_register_turns_the_strip_off_for_chronolexografie_only() {
+        let registry =
+            crate::registry::Registry::from_yaml(crate::REGISTRY_YAML).expect("registry");
+        let without: Vec<&str> = registry
+            .pocs
+            .iter()
+            .filter(|p| !p.strook)
+            .map(|p| p.slug.as_str())
+            .collect();
+        assert_eq!(without, ["chronolexografie"]);
     }
 
     #[tokio::test]
