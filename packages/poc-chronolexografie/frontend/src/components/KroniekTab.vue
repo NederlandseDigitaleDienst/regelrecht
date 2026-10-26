@@ -52,6 +52,8 @@ async function laadBevindingen(id) {
     const antwoord = await (gevonden.rechter ? beroepApi.waarom(id) : api.waarom(id));
     bevindingen[id] = antwoord.bevindingen;
   } catch (e) {
+    // De regel zegt dat het niet lukte; opnieuw openklappen probeert het weer.
+    bevindingen[id] = false;
     state.fout = e.message;
   }
 }
@@ -114,15 +116,17 @@ function regels(k, g) {
   if (g.after) uit.push({ naam: 'Opnieuw genomen na', waarde: anker(g.after), naar: doel(g.after) });
   if ((k.eigen || k.rechter) && isBesluit(g)) {
     const wie = k.rechter ? 'de rechter' : 'het bestuursorgaan';
-    const lijst = bevindingen[g.id] ?? [];
+    const lijst = bevindingen[g.id] || [];
     if (lijst.length === 0) {
-      uit.push({ naam: `Bevindingen van ${wie}`, waarde: bevindingen[g.id] ? 'geen' : '…' });
+      const stand = bevindingen[g.id];
+      const waarde = stand === false ? 'niet opgehaald, zie de melding' : stand ? 'geen' : '…';
+      uit.push({ naam: `Bevindingen van ${wie}`, waarde });
     }
     for (const f of lijst) {
       uit.push({ naam: leesbaar(f), waarde: toon(g.fields?.[f]), toelichting: `bevinding van ${wie} (RFC-050)` });
     }
   }
-  const gebruikt = new Set(bevindingen[g.id] ?? []);
+  const gebruikt = new Set(bevindingen[g.id] || []);
   for (const [naam, w] of Object.entries(g.fields ?? {})) {
     if (!gebruikt.has(naam)) uit.push({ naam: leesbaar(naam), waarde: toon(w), toelichting: 'gegeven' });
   }
