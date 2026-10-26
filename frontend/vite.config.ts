@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
@@ -17,8 +18,18 @@ const nodeModuleShim = fileURLToPath(
 // coexist on distinct ports.
 const apiTarget = `http://localhost:${process.env.API_PORT || '8000'}`;
 
+// The laws the search popover suggests to someone not logged in. Read at build
+// time from public/favorites.json, the same list the editor-api loads into
+// Corpus juris at startup, so a suggestion always resolves there.
+const suggestedLawIds: string[] = JSON.parse(
+  readFileSync(fileURLToPath(new URL('./public/favorites.json', import.meta.url)), 'utf8'),
+);
+
 export default defineConfig({
   root: '.',
+  define: {
+    __SUGGESTED_LAW_IDS__: JSON.stringify(suggestedLawIds),
+  },
   plugins: [
     vue({
       template: {

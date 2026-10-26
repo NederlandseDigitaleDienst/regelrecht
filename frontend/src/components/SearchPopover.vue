@@ -2,14 +2,13 @@
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import type { NLDDPopover } from '@nldd/design-system/popover';
 import { useBwbSearch, MIN_QUERY_LENGTH } from '../composables/useBwbSearch';
-import type { BwbSearchResult } from '../composables/useBwbSearch';
 import type { CorpusLaw } from '../composables/useCorpusLaws';
-import { useBwbHarvest } from '../composables/useBwbHarvest';
 import { useAuth } from '../composables/useAuth';
 import { useTrajects } from '../composables/useTrajects';
 import { lawsListUrl } from '../composables/corpusUrls';
 import { enrichedOnly } from '../composables/useEnrichedFilter';
 import { apiFetchJson } from '../lib/apiFetch';
+import { firstSourceGroup, pickSuggestions, officialTextUrl } from '../lib/searchResults';
 import { useLatest } from '../lib/useLatest';
 import { SEARCH_PLACEHOLDER, SEARCH_ACCESSIBLE_LABEL } from '../constants';
 
@@ -19,7 +18,6 @@ const listTranslations = { 'components.list.search-placeholder-label': SEARCH_PL
 
 const emit = defineEmits<{
   'select-law': [lawId: string];
-  'harvest-available': [slug: string];
 }>();
 
 /** The listbox's own `input` event: the search value on `detail`. */
@@ -28,11 +26,6 @@ type ValueEvent = Event & { detail?: { value?: string } | null };
 const { activeTrajectRef } = useTrajects();
 
 const { results: bwbResults, loading: bwbLoading, search: searchBwb, clear: clearBwb } = useBwbSearch();
-const {
-  harvestStatus, harvestSlugs, hasActiveHarvests,
-  requestHarvest, isAvailable, isPolling, isTerminal,
-  statusText, statusIcon,
-} = useBwbHarvest();
 const { authenticated, oidcConfigured, login } = useAuth();
 
 const needsLogin = computed(() => oidcConfigured.value && !authenticated.value);
@@ -77,8 +70,7 @@ function displayName(law: CorpusLaw) {
 // Results of the server-side corpus search (`?q=`). The corpus index can
 // hold thousands of laws, so the popover queries the backend rather than
 // filtering a preloaded client-side list - that's the only way the search
-// can reach every law, not just the first page. Ordered private-repo-first
-// by the backend; `sortedLaws` keeps that order as a flat option list.
+// can reach every law, not just the first page.
 const serverLaws = ref<CorpusLaw[]>([]);
 // True while a corpus query is in flight, so the UI shows a spinner instead
 // of briefly flashing "no results" (which would wrongly trigger the external
@@ -89,22 +81,48 @@ const searching = ref(false);
 // silently masquerading as "no match" and cascading to the external fallback.
 const searchFailed = ref(false);
 
-/**
- * Flat option list for the listbox, ordered by source priority (lower =
- * higher priority, so the traject's own writable repo at priority 0 sorts
- * above the seeded central corpus). Array.sort is stable, so laws keep their
- * backend relevance order within a source. The grouping the old popover did
- * with per-source headers is now carried per row: each option shows its
- * `source_name` as supporting-text (see the template). The external
- * wetten.overheid.nl fallback only kicks in when the corpus has no match.
- */
-const sortedLaws = computed(() =>
-  [...serverLaws.value].sort(
-    (a, b) =>
-      (a.source_priority ?? Number.MAX_SAFE_INTEGER) -
-      (b.source_priority ?? Number.MAX_SAFE_INTEGER),
-  ),
+// Search goes through the sources in order and shows the first one with
+// matches, named in the toolbar ("Gevonden in ..."): the traject's own repo,
+// then the example rulework, then the central corpus. Only when none of them
+// has a match does the search go out to wetten.overheid.nl.
+const firstGroup = computed(() => firstSourceGroup(serverLaws.value));
+const shownLaws = computed(() => firstGroup.value?.laws ?? []);
+
+// Suggestions for someone not logged in, with an empty search field: a few
+// laws from Corpus juris (favorites.json, injected at build time), picked
+// anew each time the popover opens.
+const SUGGESTION_COUNT = 5;
+const suggestions = ref<CorpusLaw[]>([]);
+const showSuggestions = computed(
+  () => !authenticated.value && searchTerm.value.length === 0 && !filterEnriched.value,
 );
+const claimSuggestions = useLatest();
+async function loadSuggestions() {
+  const isCurrent = claimSuggestions();
+  const ids = pickSuggestions(__SUGGESTED_LAW_IDS__, SUGGESTION_COUNT);
+  if (ids.length === 0) return;
+  try {
+    const found = await apiFetchJson<CorpusLaw[]>(lawsListUrl(null, `ids=${ids.map(encodeURIComponent).join(',')}`));
+    if (!isCurrent()) return;
+    // Keep the random order; drop an id the corpus does not have (yet).
+    suggestions.value = ids
+      .map((id) => found.find((l) => l.law_id === id))
+      .filter((l): l is CorpusLaw => !!l);
+  } catch {
+    if (isCurrent()) suggestions.value = [];
+  }
+}
+
+// One line under the search field that says what the list below is.
+const resultLabel = computed(() => {
+  if (showSuggestions.value && suggestions.value.length) return 'Suggesties';
+  if (filterEnriched.value && searchTerm.value.length === 0 && shownLaws.value.length) {
+    return 'Verrijkte regelwerken';
+  }
+  if (firstGroup.value) return `Gevonden in ${firstGroup.value.sourceName}`;
+  if (bwbResults.value.length) return 'Niet in de bibliotheek. Gevonden op wetten.overheid.nl:';
+  return '';
+});
 
 // Debounce the corpus query so we don't fire a request per keystroke, and
 // guard against out-of-order responses with a latest-claim.
@@ -175,22 +193,6 @@ async function runCorpusSearch(term: string) {
 
 function onEnrichedChange(event: Event) {
   enrichedOnly.value = !!(event as CustomEvent<{ checked?: boolean } | undefined>).detail?.checked;
-}
-
-function bwbItemClick(result: BwbSearchResult) {
-  if (needsLogin.value) {
-    login();
-    return;
-  }
-  const status = harvestStatus.value[result.bwb_id];
-  if (status === 'loading') return;
-  const slug = harvestSlugs.value[result.bwb_id];
-  if (isAvailable(status) && slug) {
-    emit('harvest-available', slug);
-    close();
-  } else if (!status || isTerminal(status)) {
-    requestHarvest(result.bwb_id);
-  }
 }
 
 function close() {
@@ -411,6 +413,8 @@ function onPopoverOpen() {
     input.focus();
   }
   pendingSearch.value = '';
+  // A fresh handful each time, so a returning visitor sees other laws too.
+  if (!authenticated.value) loadSuggestions();
 }
 
 defineExpose({ show });
@@ -461,14 +465,21 @@ defineExpose({ show });
              blijven staan. Weghalen zodra de listbox zijn zoekveld zelf houdt. -->
         <nldd-list-item hidden></nldd-list-item>
 
-        <nldd-checkbox-field
-          v-if="!activeTrajectRef"
-          slot="toolbar"
-          data-testid="search-enriched-filter"
-          label="Alleen verrijkte regelwerken"
-          :checked="enrichedOnly || undefined"
-          @change="onEnrichedChange"
-        ></nldd-checkbox-field>
+        <!-- Below the search field: the filter (Corpus juris only) and one
+             line that says what the list below is, naming its source. -->
+        <div v-if="!activeTrajectRef || resultLabel" slot="toolbar">
+          <nldd-checkbox-field
+            v-if="!activeTrajectRef"
+            data-testid="search-enriched-filter"
+            label="Alleen verrijkte regelwerken"
+            :checked="enrichedOnly || undefined"
+            @change="onEnrichedChange"
+          ></nldd-checkbox-field>
+          <nldd-spacer v-if="!activeTrajectRef && resultLabel" size="8"></nldd-spacer>
+          <nldd-rich-text v-if="resultLabel" data-testid="search-result-label">
+            <p>{{ resultLabel }}</p>
+          </nldd-rich-text>
+        </div>
 
         <!-- Op md anchort de popover naast de trigger - naast de popover
              klikken sluit 'm. Op sm (full-height sheet) en lg (centered
@@ -481,43 +492,54 @@ defineExpose({ show });
           @click="close"
         ></nldd-button>
 
-        <!-- Interne corpus-treffers: platte lijst, eigen repo eerst (op
-             bron-prioriteit), met de bron als ondertitel per rij. Rijen
-             navigeren alleen naar de wet; promoten naar het traject kan
-             uitsluitend via de "Regelwerk toevoegen"-flow (AddLawSheet). -->
+        <!-- Suggestions: with an empty field and no login, a few laws from
+             Corpus juris to start from. -->
+        <template v-if="showSuggestions">
+          <nldd-list-item
+            v-for="law in suggestions"
+            :key="`suggestion-${law.law_id}`"
+            :data-law-id="law.law_id"
+            data-testid="search-suggestion"
+            size="md"
+            button
+            @click="selectLaw(law.law_id)"
+          >
+            <nldd-text-cell :text="displayName(law)"></nldd-text-cell>
+          </nldd-list-item>
+        </template>
+
+        <!-- Matches from the first source that has any; the toolbar names it.
+             Rows only navigate to the law; adding one to a traject goes
+             through "Regelwerk toevoegen" (AddLawSheet). -->
         <nldd-list-item
-          v-for="law in sortedLaws"
+          v-for="law in shownLaws"
           :key="law.law_id"
           :data-law-id="law.law_id"
           size="md"
           button
           @click="selectLaw(law.law_id)"
         >
-          <nldd-text-cell
-            :text="displayName(law)"
-            :supporting-text="law.source_name || undefined"
-          ></nldd-text-cell>
+          <nldd-text-cell :text="displayName(law)"></nldd-text-cell>
         </nldd-list-item>
 
-        <!-- Externe wetten.overheid.nl-treffers (alleen wanneer de corpus niets
-             vond): één optie per resultaat met z'n harvest-status. -->
+        <!-- wetten.overheid.nl matches (only when no source in the library
+             had one): a link to the official text, in a new tab. A click
+             does not fetch the law into the library. -->
         <nldd-list-item
           v-for="result in bwbResults"
           :key="result.bwb_id"
+          data-testid="search-official-text"
           size="md"
-          button
-          :disabled="harvestStatus[result.bwb_id] === 'loading'
-            || isPolling(harvestStatus[result.bwb_id])
-            || undefined"
-          @click="bwbItemClick(result)"
+          :href="officialTextUrl(result.bwb_id)"
+          target="_blank"
         >
           <nldd-text-cell
             :text="result.title"
-            :supporting-text="statusText(result.bwb_id, `${result.type} - ${result.bwb_id}`)"
+            :supporting-text="`${result.type} · ${result.bwb_id}`"
           ></nldd-text-cell>
           <nldd-spacer-cell size="8"></nldd-spacer-cell>
           <nldd-icon-cell size="20">
-            <nldd-icon :icon="statusIcon(result.bwb_id)"></nldd-icon>
+            <nldd-icon icon="external-link"></nldd-icon>
           </nldd-icon-cell>
         </nldd-list-item>
 
