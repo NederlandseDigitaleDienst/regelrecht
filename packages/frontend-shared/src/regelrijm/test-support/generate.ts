@@ -80,7 +80,7 @@ export function generateAction(rand: () => number, maxDepth = 4): { output: stri
       case 'FOREACH': {
         const n: Operation = { operation: 'FOREACH', collection: value(d), as: pick(['item', 'rij', 'van', 'x1']), body: value(d) };
         if (rand() < 0.5) n.filter = value(d);
-        const c = pick(['ADD', 'OR', 'AND', 'MIN', 'MAX', undefined]);
+        const c = pick(['ADD', 'OR', 'AND', 'MIN', 'MAX', 'ONLY', undefined]);
         if (c) n.combine = c;
         return n;
       }

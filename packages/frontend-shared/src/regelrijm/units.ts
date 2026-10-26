@@ -137,7 +137,7 @@ export function literalUnits(
       case 'FOREACH':
         at('collection', null);
         at('filter', null);
-        at('body', ['ADD', 'MIN', 'MAX', undefined].includes(node.combine as string | undefined) ? unit : null);
+        at('body', ['ADD', 'MIN', 'MAX', 'ONLY', undefined].includes(node.combine as string | undefined) ? unit : null);
         return;
       case 'ROUND': case 'CEIL': case 'FLOOR':
         at('value', unit);

@@ -41,7 +41,7 @@ export function valueKind(node: unknown, unit: Unit | null, declared: ReadonlyMa
     case 'FOREACH':
       if (node.combine === 'AND' || node.combine === 'OR') return 'voorwaarde';
       if (node.combine === undefined) return 'lijst';
-      // A sum, minimum or maximum over rows gives what each row gives.
+      // A sum, minimum, maximum or only value over rows gives what each row gives.
       return valueKind(node.body, unit, declared);
     default:
   }

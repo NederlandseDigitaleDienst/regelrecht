@@ -297,14 +297,14 @@ class Parser {
     return out;
   });
 
-  // FOREACH with ADD/MIN/MAX/no combine: arithmetic level, because its
+  // FOREACH with ADD/MIN/MAX/ONLY/no combine: arithmetic level, because its
   // optional trailing `waarvoor` keeps it from being closed.
   aggregate: Rule = (pos) => {
     const C = this.closed;
     const local = this.localName;
     const filter: Rule = (p) => [[undefined, p], ...this.seq(p, ['waarvoor', C], (f) => f)];
     const out: Result[] = [];
-    const forms: [string, string | undefined][] = [['de som van', 'ADD'], ['de kleinste waarde van', 'MIN'], ['de grootste waarde van', 'MAX'], ['de lijst van', undefined]];
+    const forms: [string, string | undefined][] = [['de som van', 'ADD'], ['de kleinste waarde van', 'MIN'], ['de grootste waarde van', 'MAX'], ['de enige waarde van', 'ONLY'], ['de lijst van', undefined]];
     for (const [w, combine] of forms) {
       out.push(...this.seq(pos, [w, C, 'over elke', local, 'in', C, filter], (b, x, c, f) => {
         const n: Operation = { operation: 'FOREACH', collection: c, as: x, body: b };

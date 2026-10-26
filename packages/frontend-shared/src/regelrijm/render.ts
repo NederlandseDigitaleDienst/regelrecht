@@ -83,7 +83,7 @@ const CMP_WORDS: Record<string, string> = {
   LESS_THAN_OR_EQUAL: 'is ten hoogste',
 };
 const ROUND_WORDS: Record<string, string> = { ROUND: 'afgerond', CEIL: 'naar boven afgerond', FLOOR: 'naar beneden afgerond' };
-const AGGREGATE_WORDS: Record<string, string> = { ADD: 'de som van', MIN: 'de kleinste waarde van', MAX: 'de grootste waarde van' };
+const AGGREGATE_WORDS: Record<string, string> = { ADD: 'de som van', MIN: 'de kleinste waarde van', MAX: 'de grootste waarde van', ONLY: 'de enige waarde van' };
 const DIFF_WORDS: Record<string, string> = { days: 'dagen', months: 'maanden', years: 'jaren' };
 const PART_WORDS: Record<string, string> = { year: 'het jaartal van', month: 'het maandnummer van', day: 'het dagnummer van' };
 const START_WORDS: Record<string, string> = { year: 'de eerste dag van het jaar waarin', month: 'de eerste dag van de maand waarin' };

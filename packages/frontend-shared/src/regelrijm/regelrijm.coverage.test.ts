@@ -117,6 +117,11 @@ describe('RegelRijm covers the schema', () => {
     expect(() => renderFocus(action, ['value'], { ctx, depth: 1 })).not.toThrow();
   });
 
+  it('reads the one row a filter leaves as its only value', () => {
+    const value = { operation: 'FOREACH', collection: '$m', as: 'x', filter: { operation: 'EQUALS', subject: '$x.b', value: '$c' }, body: '$x', combine: 'ONLY' };
+    expect(renderAction({ output: 'u', value }, { ctx }).text).toBe('[u] wordt: de enige waarde van [x] over elke [x] in [m] waarvoor ( [b] van [x] [c] is )');
+  });
+
   it('reads an action without its output as a hole', () => {
     expect(renderAction({ value: '$a' }, { ctx }).text).toBe('⟨ontbreekt: output⟩ wordt: [a]');
   });
