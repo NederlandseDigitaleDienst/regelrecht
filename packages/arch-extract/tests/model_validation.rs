@@ -296,12 +296,12 @@ fn frontend_apps_extracted() {
         "app:frontend",
         "app:frontend-demo",
         "app:frontend-lawmaking",
-        "app:frontend-poc-chronolexografie",
         "app:frontend-poc-napp",
         "app:frontend-poc-nieuwkomersbekostiging",
         "app:frontend-poc-portal",
         "app:frontend-poc-terugbetaalregimes",
         "app:frontend-shared",
+        "app:poc-chronolexografie-frontend",
     ]
     .iter()
     .map(|s| s.to_string())

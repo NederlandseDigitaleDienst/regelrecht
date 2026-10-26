@@ -201,7 +201,7 @@ fn de_termijn_is_een_datum_en_niet_zes_weken() {
 
     // Awb 6:7 als haak op BESLUIT: de termijn zelf.
     assert_eq!(
-        outputs.get("bezwaartermijn_weken"),
+        outputs.get("termijn_weken"),
         Some(&Value::Int(6)),
         "outputs: {outputs:?}"
     );
@@ -214,12 +214,12 @@ fn de_termijn_is_een_datum_en_niet_zes_weken() {
     // Awb 6:8 als haak op BEKENDMAKING: de dag ná de bekendmaking, en de
     // einddatum zes weken ná de bekendmaking (de startdag telt mee).
     assert_eq!(
-        outputs.get("bezwaartermijn_startdatum"),
+        outputs.get("termijn_startdatum"),
         Some(&date("2026-03-13")),
         "outputs: {outputs:?}"
     );
     assert_eq!(
-        outputs.get("bezwaartermijn_einddatum"),
+        outputs.get("termijn_einddatum"),
         Some(&date("2026-04-23")),
         "outputs: {outputs:?}"
     );
@@ -255,13 +255,13 @@ fn een_afwijkende_termijn_werkt_door_in_de_einddatum() {
         "de levensloop bleef wachten op {pending:?}"
     );
     assert_eq!(
-        outputs.get("bezwaartermijn_weken"),
+        outputs.get("termijn_weken"),
         Some(&Value::Int(4)),
         "outputs: {outputs:?}"
     );
     // Vier weken na de bekendmaking, niet zes.
     assert_eq!(
-        outputs.get("bezwaartermijn_einddatum"),
+        outputs.get("termijn_einddatum"),
         Some(&date("2026-04-09")),
         "outputs: {outputs:?}"
     );

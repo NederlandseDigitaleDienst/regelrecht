@@ -36,8 +36,8 @@ mkdirSync(destDir, { recursive: true });
 // the law files: it drives logos, colours and grouping, and values like
 // GEMEENTE_ROTTERDAM follow from no statute. Who is competent to decide is a
 // different question, answered by `competent_authority` on the article.
-// A missing map would give every law `service: null`, and the UI degrades
-// quietly on that: no logo, the code as its own name. Refuse instead.
+// The app counts on every law having an organisation, so a missing map, or a
+// law missing from it (below), is refused rather than written as null.
 const serviceByLawId = yaml.load(readFileSync(join(corpusDir, 'services.yaml'), 'utf8')).laws;
 if (!serviceByLawId || !Object.keys(serviceByLawId).length) {
   throw new Error('services.yaml heeft geen `laws:`-kaart; zie scripts/check-service-map.mjs');
@@ -59,10 +59,14 @@ for (const file of walk(lawsDir, (n) => n.endsWith('.yaml'))) {
     for (const o of ex.output ?? []) outputs.push(o.name);
     for (const i of ex.input ?? []) inputs.push(i.name);
   }
+  // check-service-map.mjs refuses this too, but it runs as a separate step;
+  // the index the app reads must never carry a law without an organisation.
+  const service = serviceByLawId[doc.$id];
+  if (!service) throw new Error(`${doc.$id} staat niet in services.yaml; zie scripts/check-service-map.mjs`);
   laws.push({
     id: doc.$id,
     name: doc.name,
-    service: serviceByLawId[doc.$id] ?? null,
+    service,
     regulatory_layer: doc.regulatory_layer,
     valid_from: doc.valid_from ?? doc.publication_date,
     uuid: doc.uuid ?? null,
@@ -107,7 +111,7 @@ if (existsSync(join(walkthroughDir, 'timeline.json'))) {
 }
 
 // De woordenlijst voor veldnamen wordt een JS-module en geen asset:
-// `format.js` leest hem synchroon en wordt zelf door zijn eigen tests
+// `format.ts` leest hem synchroon en wordt zelf door zijn eigen tests
 // geimporteerd, dus een fetch erin zou die tests van een netwerkaanroep
 // afhankelijk maken. Ontbreekt de lijst, dan is hij leeg en valt elk label
 // terug op het Nederlands: dat is het gedrag van voor de woordenlijst.
@@ -191,7 +195,7 @@ for (const code of translatedLocales) {
 }
 
 // De vertaalde titels van de features en scenario's, en de woordenlijst voor
-// veldnamen. Allebei een JS-module en geen asset: `format.js` en `gherkinNl.js`
+// veldnamen. Allebei een JS-module en geen asset: `format.ts` en `gherkinNl.ts`
 // lezen ze synchroon en worden zelf door hun eigen tests geïmporteerd, dus een
 // fetch erin zou die tests van een netwerkaanroep afhankelijk maken.
 //

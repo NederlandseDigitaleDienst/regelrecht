@@ -22,6 +22,13 @@ frontend-poc-<slug>/                   de app (npm-workspace-member)
 packages/poc-portal/                   portaal: overzicht, poort, proxy
 ```
 
+Een poc waarvan de kern een Rust-crate is die als WASM in de browser draait,
+mag in één map staan: `packages/poc-<slug>/` met de app in `frontend/`. De
+app is dan nog steeds een npm-workspace-member, onder dat pad
+(`npm test -w packages/poc-<slug>/frontend`), en de crate en de app
+veranderen samen. chronolexografie staat zo. Voor een poc zonder eigen crate
+blijft `frontend-poc-<slug>/` de indeling.
+
 Uit het register volgen de kaarten op het overzicht, de env-var-naam van het
 wachtwoord, welke paden geserveerd of doorgestuurd worden, en welke paden het
 poc-image raken. Eén regel toevoegen is daarom een echte toevoeging, geen

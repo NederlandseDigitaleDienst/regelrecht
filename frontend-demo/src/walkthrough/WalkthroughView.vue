@@ -1,8 +1,8 @@
-<script setup>
+<script setup lang="ts">
 /**
  * Where the recorded walkthrough starts.
  *
- * On a wide screen this page hands over to the replay (replay.js): the deck
+ * On a wide screen this page hands over to the replay (replay.ts): the deck
  * comes up with the presenter's voice and from then on the walkthrough moves
  * through the tabs itself, in the live demo. The page has nothing to show of
  * its own; the first slide covers it.
@@ -13,12 +13,12 @@
  */
 import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useDemo } from '../store/demoStore.js';
-import { usePresentation } from '../presentation/usePresentation.js';
+import { useDemo } from '../store/demoStore';
+import { usePresentation } from '../presentation/usePresentation';
 import { useI18n } from '../i18n/index.js';
-import { localeRouteName } from '../router.js';
-import { useWalkthrough } from './useWalkthrough.js';
-import { replay, savedPosition, startReplay } from './replay.js';
+import { localeRouteName } from '../router';
+import { useWalkthrough } from './useWalkthrough';
+import { replay, savedPosition, startReplay } from './replay';
 
 /** Below this the demo and the rail do not fit side by side (the deck's own breakpoint). */
 const WIDE = 1024;
@@ -49,7 +49,9 @@ async function maybeStart() {
   // this page, and starting again would fetch the missing file in a loop.
   if (!timeline.value || narrow.value || replay.active || replay.failed) return;
   if (!here || route.meta?.page !== 'rondleiding') return;
-  await startReplay(timeline.value, { router, demo, presentation }, { at: savedPosition(), faqId: route.params.faqId ?? null });
+  // `:faqId?` is an optional, non-repeatable param: a string or absent, never an array.
+  const faqId = route.params.faqId as string | undefined;
+  await startReplay(timeline.value, { router, demo, presentation }, { at: savedPosition(), faqId: faqId ?? null });
 }
 
 onMounted(maybeStart);

@@ -74,6 +74,23 @@ fn an_objection_is_a_submission_and_the_decision_on_it_the_decision() {
 }
 
 #[test]
+fn an_appeal_is_a_submission_and_the_judgment_on_it_the_decision() {
+    // As Awb 8:70 writes it (schema v0.8.10): the appeal, and the judgment.
+    let law = law("          - type: BEROEP
+            requests: wet_verlof#1
+          - type: UITSPRAAK
+            outputs: [verlof_verleend]")
+    .unwrap();
+    let article = &law.articles[0];
+    let submission = article.get_submission().unwrap();
+    assert_eq!(submission.submission_kind(), Some("BEROEP"));
+    assert_eq!(submission.legal_character(), None);
+    let decision = article.get_decision().unwrap();
+    assert_eq!(decision.legal_character(), Some("UITSPRAAK"));
+    assert_eq!(decision.submission_kind(), None);
+}
+
+#[test]
 fn the_decision_without_outputs_yields_every_output_no_item_lists() {
     let law = law("          - type: AANVRAAG
             requests: wet_verlof#1

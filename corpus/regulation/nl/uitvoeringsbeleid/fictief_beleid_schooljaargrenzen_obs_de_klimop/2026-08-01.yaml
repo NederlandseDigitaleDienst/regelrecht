@@ -14,8 +14,9 @@ competent_authority:
 # Geen legal_basis: geen artikel machtigt dit beleid met zoveel woorden.
 # Artikel 13a, tweede lid, van de Leerplichtwet 1969 laat het hoofd verlof
 # "slechts eenmaal ... per schooljaar" verlenen. In welk schooljaar een dag
-# valt, staat hier; de reductie van de school vraagt het voor de eerste
-# verlofdag (RFC-048). Het beleid neemt geen besluit en kent geen lijst. Het
+# valt, staat hier; het beleid van het hoofd over vakantieverlof vraagt het
+# voor de eerste verlofdag (artikel 1), voor de reductie van de school
+# (RFC-048). Het beleid neemt geen besluit en kent geen lijst. Het
 # formaat kent geen scope voor een school, dus dit fictieve beleid geldt voor
 # elke school.
 articles:
@@ -94,8 +95,8 @@ articles:
           # De jaren van het schooljaar, zoals de Regeling vaststelling
           # schoolvakanties 2025–2030 haar tabellen noemt ("Schooljaar
           # 2026–2027") en haar zomervakanties telt ("voor de jaren 2026,
-          # 2027, ..."). De reductie van de school vraagt ze voor de eerste
-          # verlofdag (RFC-051).
+          # 2027, ..."). De reductie van de school over verlof buiten de
+          # schoolvakanties vraagt ze voor de eerste verlofdag (RFC-051).
           - output: eerste_jaar_schooljaar
             value:
               operation: DATE_PART

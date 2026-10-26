@@ -1,0 +1,26 @@
+{
+  "name": "poc-chronolexografie",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "PoC: een uitvoeringsproces naspelen op de cel van een fictieve uitvoerder, per casus (vakantieverlof, gehandicaptenparkeerkaart): aanvraag, besluit, bezwaar, kroniek en reductie, als WASM in de browser",
+  "scripts": {
+    "predev": "node scripts/copy-assets.js",
+    "dev": "vite",
+    "prebuild": "node scripts/copy-assets.js",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@nldd/design-system": "^0.9.0",
+    "@regelrecht/frontend-shared": "*",
+    "js-yaml": "^5.4.3",
+    "vue": "^3.5.43"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.9",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
+  }
+}

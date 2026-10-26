@@ -1,7 +1,13 @@
 ---
-# Wie deze cel is (RFC-052). Een open begrip of feit noemt wie bevoegd is
+# Wie deze cel is (RFC-046). Een open begrip of feit noemt wie bevoegd is
 # (competent_authority); de engine vraagt een cel alleen als die haar naam
 # of categorie noemt.
 # Fictieve gemeente.
 name: Het college van burgemeester en wethouders van de gemeente Wilgendaal
 category: college van burgemeester en wethouders
+# Welke antwoorden de cel geeft, en uit welke eigen reductie (reductions/,
+# RFC-048). Het tweede geven ook de andere verstrekkende instanties onder
+# dezelfde naam; het beleid van het college vraagt het hun allemaal.
+answers:
+  aanvrager_heeft_geldige_gehandicaptenparkeerkaart: reductie_geldige_gehandicaptenparkeerkaart
+  aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt: reductie_geldige_gehandicaptenparkeerkaart

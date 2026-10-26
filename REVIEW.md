@@ -81,6 +81,14 @@ When `machine_readable` sections are added or changed:
 - SQL injection: all queries must use parameterized statements, sort columns must be allowlisted.
 - No XSS vectors in rendered content (law text may contain special characters).
 - API pagination: no unbounded queries that could OOM on large datasets.
+- A new `any` or non-null `!` without a comment saying why it is safe.
+- A `vi.mock` path that no longer names the module it is meant to mock: the mock
+  silently stops applying and the test runs against the real module.
+
+### Any code change
+
+- Dutch identifiers, comments or test names in new code (Minor), unless they are
+  legal terms or names of concepts without a clear English equivalent.
 
 ## Severity scale
 
@@ -95,7 +103,10 @@ anywhere you are not reporting one.
 
 ## Skip
 
-- `frontend/src/gherkin/grammar.generated.js` — code-generated from `bdd/grammar.yaml`.
-  Review the grammar, not the output; CI fails on a stale copy.
+- `grammar.generated.js` (in `packages/frontend-shared/src/gherkin/` and the PoCs)
+  — code-generated from `bdd/grammar.yaml`. Review the grammar, not the output;
+  CI fails on a stale copy.
+- `nldd-components.js` — generated from the `nldd-*` tags in use; the
+  design-system import check fails on a stale copy.
 - Lock files (`Cargo.lock`, `package-lock.json`) unless dependencies were intentionally changed
 - Formatting-only changes caught by `cargo fmt` or pre-commit hooks

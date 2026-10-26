@@ -18,7 +18,7 @@ CI keeps the list complete, not correct. `docs/scripts/check-rfc-coverage.mjs` f
 | RFC-005 | Stand-off notes | [Notes and Annotations](../concepts/notes-and-annotations) |
 | RFC-006 | Language choice (Rust) | Backlog: the "why Rust" rationale has no prose page |
 | RFC-007 | Cross-law execution | [Cross-Law References](../concepts/cross-law-references), [Hooks and Reactive Execution](../concepts/hooks-and-reactive-execution), [Traceability](../concepts/traceability) |
-| RFC-008 | Awb procedures | [Hooks and Reactive Execution](../concepts/hooks-and-reactive-execution) |
+| RFC-008 | Awb procedures | [Hooks and Reactive Execution](../concepts/hooks-and-reactive-execution), [Applications, Decisions and Objections](../concepts/administrative-procedures) |
 | RFC-010 | Federated corpus | [Federated Corpus](../concepts/federated-corpus) |
 | RFC-011 | Rules language selection | Backlog: the "why custom YAML" rationale has no prose page |
 | RFC-012 | Untranslatables (now `markings`) | [Markings](../concepts/markings) |
@@ -52,14 +52,15 @@ A reader meets these constructs in a rulework or a running service whatever the 
 | RFC-040 | The schema documents itself | [Schema](./schema) |
 | RFC-041 | A void is not scoped like a replacement | [Voiding an output](../concepts/hooks-and-reactive-execution#voiding-an-output) |
 | RFC-044 | Rulework (regelwerk) as the name for a regulation in YAML (partially applied) | [Glossary](./glossary#regelrecht-specific-terms) |
-| RFC-045 | The application as something the Awb hooks onto (`submission`, `moment`) | [Chronolexography](../concepts/chronolexography#the-application-with-the-awb-on-it), [Schema](./schema) |
-| RFC-046 | Chronolexography is an optional layer on RegelRecht (`packages/cel`) | [Chronolexography](../concepts/chronolexography#the-application-in-the-chronicle), [Architecture](../guide/architecture) |
-| RFC-047 | The decision on the application (stages, `decided_per_case_by`, `Cell::decide`) | [Chronolexography](../concepts/chronolexography#the-decision-on-the-application), [Schema](./schema) |
-| RFC-048 | A cell reads its chronicle back through a reduction (`REDUCTIE`, `source: {decisions}`, `reading`) that fills an open term (`implements`, `Cell::explain`) | [Chronolexography](../concepts/chronolexography#once-per-school-year), [Inversion of Control](../concepts/inversion-of-control#a-reduction-that-fills-an-open-term) |
+| RFC-045 | Submissions and decisions in the law format (`produces` as a list, hooks on a submission, `moment`, stages, the type `decision`, `source.article`, the objection) | [Applications, Decisions and Objections](../concepts/administrative-procedures), [Law Format](../concepts/law-format#what-the-article-produces), [Calling the decision of an article](../concepts/cross-law-references#calling-the-decision-of-an-article), [Schema](./schema) |
+| RFC-046 | What a cell records (`packages/cel`, `cel.yaml`, submissions, decisions and executograms, replay) | [Chronolexography](../concepts/chronolexography), [Architecture](../guide/architecture) |
+| RFC-047 | Superseded: merged into RFC-045 and RFC-046 | [Applications, Decisions and Objections](../concepts/administrative-procedures) |
+| RFC-048 | Reduction and synthesis (`REDUCTIE`, `source.decisions`, `source.facts`, `combine: ONLY`, `answers` in `cel.yaml`, the binding with `source.reduction`, the answerer, the sphere, `FilledBy::Answer`) | [Chronolexography](../concepts/chronolexography#answering-from-the-chronicle), [Competent Authority](../concepts/competent-authority#the-holder-of-a-policy), [Inversion of Control](../concepts/inversion-of-control#policy-that-fills-an-open-term-with-a-cells-answer) |
 | RFC-049 | FOREACH with `as` binds only its name | [Collections](../concepts/collections#the-element-binding) |
-| RFC-050 | The objection is a second submission (`BEZWAAR`, Awb 7:11 reconsiders the contested decision by calling its article); calling the decision of an article (`source.article`, `parameters_from`, type `decision`, findings, `derived`) | [Chronolexography](../concepts/chronolexography#the-objection), [Calling the decision of an article](../concepts/cross-law-references#calling-the-decision-of-an-article), [Schema](./schema) |
-| RFC-051 | What a cell records without a submission (`Cell::record_executogram`, a fact in `requires`, `source.facts`, `combine: ONLY`) | [Chronolexography](../concepts/chronolexography#outside-the-school-holidays), [Schema](./schema) |
-| RFC-052 | Synthesis: values of other actors by competence (`competent_authority` on an open term and a fact, `combine` on an open term, `Call::sphere`, `FilledBy::Answers`) | [Competent Authority](../concepts/competent-authority#who-answers-an-open-term), [Schema](./schema) |
+| RFC-050 | Superseded: merged into RFC-045, RFC-046 and RFC-048 | [Applications, Decisions and Objections](../concepts/administrative-procedures), [Calling the decision of an article](../concepts/cross-law-references#calling-the-decision-of-an-article) |
+| RFC-051 | Facts and competence in the law format (a fact in `requires`, `competent_authority` and `combine` on an open term) | [Competent Authority](../concepts/competent-authority#who-answers-an-open-term), [Schema](./schema) |
+| RFC-052 | Superseded: merged into RFC-045, RFC-046, RFC-048 and RFC-051 | [Competent Authority](../concepts/competent-authority#who-answers-an-open-term) |
+| RFC-053 | The appeal to the administrative court (`BEROEP`, `UITSPRAAK`, Awb 8:70 and 8:72) | [Applications, Decisions and Objections](../concepts/administrative-procedures#appeal), [Schema](./schema) |
 | RFC-054 | RegelRijm, a Dutch reading of an action tree (partially built: the reading and the editor pane, not yet the presenter) | [Shared Frontend Package](../components/frontend-shared#regelrijm-regelrijmindex), [Editor](../components/frontend) |
 
 ## Backlog

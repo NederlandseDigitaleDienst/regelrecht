@@ -17,7 +17,7 @@ scenario-runner, simulatie, burger-/ondernemersportaal en zaaksysteem. Opvolger 
   `correcties` met hogere prioriteit bovenop. Dezelfde module gebruikt de
   scenario-converter (`corpus/demo/tools/convert_features.mjs`).
 - **Aanvragen** gebeuren in het portaal (`ApplicationSheet.vue`), just in time zoals de
-  POC: `src/data/askedInputs.js` bepaalt uit de laatste uitvoeringstrace welke input die
+  POC: `src/data/askedInputs.ts` bepaalt uit de laatste uitvoeringstrace welke input die
   alleen de burger kent de engine daadwerkelijk tegenkwam, vraagt die één voor één en
   laat de engine na elk antwoord opnieuw rekenen. Antwoorden worden claims (`selfDeclared`)
   op de wet, gesleuteld op de identiteit van die wet (`kvk_nummer` voor een bedrijfswet), en
@@ -26,7 +26,7 @@ scenario-runner, simulatie, burger-/ondernemersportaal en zaaksysteem. Opvolger 
   uitkomst draagt de ontbrekende feiten (RFC-036), en het portaal vraagt precies die,
   in de volgorde waarin de engine ze tegenkwam. Een nog niet beantwoorde vraag wordt
   niet als `null` meegegeven: `null` zou "er is geen" betekenen.
-- **Toestand** (profiel, aanvragen, correcties) in `src/store/demoStore.js`, bewaard in
+- **Toestand** (profiel, aanvragen, correcties) in `src/store/demoStore.ts`, bewaard in
   `localStorage`; "Demo resetten" in het menu wist het.
 - **Home** (`src/views/HomeView.vue`): de landingspagina op `/`. Wie de demo opent zonder
   te weten wat het is, leest daar in een paar regels wat er te zien valt, start de
@@ -38,7 +38,7 @@ scenario-runner, simulatie, burger-/ondernemersportaal en zaaksysteem. Opvolger 
 - **Presentatie** (`src/presentation/`): de dia's uit `demo-config.yaml` (`slides:`) als
   overlay; een dia met `route` opent dat tabblad, wisselt zo nodig van persona (`profile`)
   en wijst een deel van het scherm aan (`highlight`). Shift+P opent het dek overal.
-- **Graaf** (`src/graph/lawGraph.js`, `src/components/graph/`): per wet een kader met
+- **Graaf** (`src/graph/lawGraph.ts`, `src/components/graph/`): per wet een kader met
   bronnen, invoer en uitvoer, lijnen van invoer naar de leverende uitvoer, de waarden van
   de persona uit een evaluatie plus de trace. Alle wetten worden gelegd, alleen de
   selectie (profiel: `graph_laws`) met haar directe buren is zichtbaar, zodat "Alles"
@@ -46,13 +46,13 @@ scenario-runner, simulatie, burger-/ondernemersportaal en zaaksysteem. Opvolger 
   en zoomt erop in; Regelwerken en Scenario's openen dan `default_law` en `default_feature`. `LawGroupTree.vue` is de lijst per organisatie die Regelwerken en
   Graaf delen; de lijsten zijn zijpanelen (`primary-sidebar-as-sheet`), standaard dicht.
 - **Scenario's** draaien met de gedeelde Gherkin-runner uit
-  `@regelrecht/frontend-shared/gherkin` (canonieke grammar); `src/data/gherkinNl.js`
+  `@regelrecht/frontend-shared/gherkin` (canonieke grammar); `src/data/gherkinNl.ts`
   geeft de stappen in het Nederlands weer.
 - **Simulatie** (`src/simulation/`): een gegenereerde populatie burgers of bedrijven
-  (`population.js`, seeded) in dezelfde tabelvorm als `profiles.yaml`, door de
+  (`population.ts`, seeded) in dezelfde tabelvorm als `profiles.yaml`, door de
   materialiser en de engine gehaald voor elke regeling van het portaal
-  (`runner.js`), samengevat en uitgesplitst (`stats.js`). Constanten uit de
-  `definitions` van een wet zijn per run aan te passen (`lawParameters.js`): de
+  (`runner.ts`), samengevat en uitgesplitst (`stats.ts`). Constanten uit de
+  `definitions` van een wet zijn per run aan te passen (`lawParameters.ts`): de
   wet wordt met gewijzigde waarden herladen en na de run teruggezet. De
   simulatie vervangt tijdelijk de persona-data in de engine en zet die daarna
   terug. Een wet die een andere wet als besloten zaak leest (`kind: cases`,
@@ -92,7 +92,7 @@ afwezige sleutel (het inkomen van een partner die er niet is) is `null`, wat
 `undefined`; de WASM-grens zou dat als `null` lezen.
 
 In de weergave heet `null` "geen" en een onbekende waarde "onbekend", met waar
-ruimte is "ontbreekt: …" (`src/data/format.js`). Een onbekend
+ruimte is "ontbreekt: …" (`src/data/format.ts`). Een onbekend
 `voldoet_aan_voorwaarden` is nooit een ja: de tegel zegt "Nog niet te bepalen",
 een aanvraag met een onbekende uitkomst gaat naar de behandelaar, en in de
 simulatie telt zo'n uitkomst apart ("onbekend") en maakt hij het besteedbaar

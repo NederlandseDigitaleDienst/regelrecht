@@ -99,6 +99,17 @@ pub enum EngineError {
     )]
     NullOutput { law_id: String, output: String },
 
+    /// A finding was given that no article in the execution asks: none of
+    /// them leaves that open term to an authority per case
+    /// (`decided_per_case_by`). `findings` names each such finding, so a
+    /// caller can leave them out and say so.
+    #[error(
+        "no article in this execution leaves {} to an authority per case \
+         (decided_per_case_by), so the finding is asked by none",
+        .findings.iter().map(|id| format!("'{id}'")).collect::<Vec<_>>().join(", ")
+    )]
+    FindingsNotAsked { findings: Vec<String> },
+
     /// Invalid URI format
     #[error("Invalid URI: {0}")]
     InvalidUri(String),
@@ -398,6 +409,11 @@ impl From<EngineError> for ExternalError {
             EngineError::YamlError(_) | EngineError::JsonError(_) => ExternalError::ParseError,
             EngineError::VariableNotFound(name) => ExternalError::VariableNotFound(name),
             EngineError::InvalidOperation(msg) => ExternalError::InvalidOperation(msg),
+            // Outside the engine it stays the operation it was before it got
+            // a variant of its own: the message names the findings.
+            e @ EngineError::FindingsNotAsked { .. } => {
+                ExternalError::InvalidOperation(e.to_string())
+            }
             EngineError::TypeMismatch { expected, actual } => {
                 ExternalError::TypeMismatch { expected, actual }
             }

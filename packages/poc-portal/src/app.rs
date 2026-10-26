@@ -12,6 +12,7 @@ use axum::Router;
 use tower::ServiceExt as _;
 use tower_http::services::{ServeDir, ServeFile};
 
+use crate::bron::{Bron, BronFout};
 use crate::config::{upstream_url, Config};
 use crate::gate;
 use crate::pagina;
@@ -25,6 +26,11 @@ pub struct AppState {
     pub upstreams: Arc<HashMap<String, String>>,
     /// Base URL of the beleidsassistent per slug that has one.
     pub assistenten: Arc<HashMap<String, String>>,
+    /// The sources per PoC, by `(slug, name)` ([`crate::bron`]).
+    pub bronnen: Arc<HashMap<(String, String), Bron>>,
+    /// Fetches a source's tarball; `None` if the client could not be built,
+    /// and then every source on GitHub answers 502.
+    pub github: Option<Arc<regelrecht_github::GithubClient>>,
     pub http: reqwest::Client,
 }
 
@@ -73,10 +79,31 @@ impl AppState {
             }
         }
 
+        // Where each source comes from is read once, here: a local folder
+        // (POC_BRON_<NAME>), the branch with its token, or neither.
+        let mut bronnen = HashMap::new();
+        for poc in &config.registry.pocs {
+            for source in &poc.sources {
+                bronnen.insert(
+                    (poc.slug.clone(), source.name.clone()),
+                    Bron::new(source, |k| std::env::var(k).ok()),
+                );
+            }
+        }
+        let github = match regelrecht_github::GithubClient::new() {
+            Ok(c) => Some(Arc::new(c)),
+            Err(e) => {
+                tracing::error!(error = %e, "no GitHub client; sources on GitHub answer 502");
+                None
+            }
+        };
+
         Self {
             config: Arc::new(config),
             upstreams: Arc::new(upstreams),
             assistenten: Arc::new(assistenten),
+            bronnen: Arc::new(bronnen),
+            github,
             http: reqwest::Client::new(),
         }
     }
@@ -143,6 +170,18 @@ async fn poc_request(State(state): State<AppState>, request: Request) -> Respons
             .into_response();
     }
 
+    // Een bron van deze poc (`sources` in het register), achter hetzelfde
+    // wachtwoord: het portaal haalt haar op met het token, de browser ziet
+    // dat nooit.
+    // Alleen een bron uit het register; elk ander pad blijft van de poc.
+    let bron = rest
+        .strip_prefix("/bron/")
+        .map(|naam| (slug.to_string(), naam.trim_end_matches('/').to_string()))
+        .and_then(|sleutel| state.bronnen.get(&sleutel));
+    if let Some(bron) = bron {
+        return serveer_bron(&state, bron).await;
+    }
+
     // De beleidsassistent draait als eigen proces naast dit portaal (hij spawnt
     // de Claude CLI, wat niet in een request-handler thuishoort). Alleen `/api`
     // van een poc die hem aan heeft staan gaat daarheen; de rest van de poc
@@ -207,6 +246,25 @@ fn heeft_toegang(state: &AppState, poc: &Poc, request: &Request) -> bool {
                     time::OffsetDateTime::now_utc(),
                 )
         })
+}
+
+/// A source as JSON, never cached by the browser: the portal holds the copy
+/// ([`crate::bron::Cache`]). Not configured here is 503, a failed fetch
+/// without a copy 502, each with the reason as text.
+async fn serveer_bron(state: &AppState, bron: &Bron) -> Response {
+    let uitkomst = bron.geef(state.github.as_deref()).await;
+    let no_store = [(header::CACHE_CONTROL, "no-store")];
+    match uitkomst {
+        Ok(o) => (no_store, axum::Json(&*o)).into_response(),
+        Err(e) => {
+            let status = match e {
+                BronFout::NietBeschikbaar(_) => StatusCode::SERVICE_UNAVAILABLE,
+                BronFout::Ophalen(_) => StatusCode::BAD_GATEWAY,
+            };
+            tracing::warn!(source = %bron.naam, error = %e, "source not served");
+            (status, no_store, e.to_string()).into_response()
+        }
+    }
 }
 
 /// Handle the password form.

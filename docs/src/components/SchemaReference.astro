@@ -129,7 +129,18 @@ const others = otherSubStructures();
   A <code>REDUCTIE</code> is no regulation but a cell's reduction over its own
   chronicle (RFC-048). It needs no identifier, and its articles take no
   decision, delegate nothing and do not act on law. It is the only layer that
-  may read the decisions taken under an article (<code>source.decisions</code>).
+  may read the decisions taken under an article (<code>source.decisions</code>)
+  and the recorded facts an article requires (<code>source.facts</code>). Its
+  cell gives it as a named answer.
+</p>
+
+<p>
+  Since v0.8.9 an article of <code>UITVOERINGSBELEID</code> binds an open term
+  to such an answer: it fills the term with <code>implements</code> and takes
+  the answer as an input through <code>source.reduction</code>, with its
+  <code>parameters</code> and an optional <code>combine</code> (RFC-048).
+  No other layer may take an answer. Such a policy names its holder by name in
+  a top-level <code>competent_authority</code>.
 </p>
 
 <div class="rr-schema-nested rr-schema-row" data-zoek="legal_basis law_id article grondslag">

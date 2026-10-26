@@ -61,12 +61,12 @@ pub enum OutputProvenance {
 
 /// Who filled an open term in an execution: a finding of the authority
 /// that decides it per case, a regulation that implements it (RFC-050), or
-/// the caller's answerer (RFC-048). A consumer reads here which the outcome
-/// rests on, instead of guessing from the value: a regulation can give what
-/// the authority found. Serialized as `"finding"`, as `{"regulation":
-/// {"law_id", "article"}}`, so the regulation's article does not collide
-/// with the declaring one, as `{"answer": {...}}` with the
-/// [`AnswerProvenance`], or as `{"answers": [...]}` for several combined.
+/// a policy article that binds it to the answer of one or more cells
+/// (RFC-048). A consumer reads here which the outcome rests on, instead of
+/// guessing from the value: a regulation can give what the authority found.
+/// Serialized as `"finding"`, as `{"regulation": {"law_id", "article"}}`, so
+/// the regulation's article does not collide with the declaring one, or as
+/// `{"answer": {"law_id", "article", "answers": [...]}}`.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FilledBy {
@@ -75,13 +75,17 @@ pub enum FilledBy {
     Finding,
     /// An article of a regulation that implements the term (`implements`).
     Regulation { law_id: String, article: String },
-    /// The caller's answerer ([`crate::answer::OpenTermAnswerer`]), with what
-    /// it says it answered from.
-    Answer(AnswerProvenance),
-    /// Several competent answerers whose answers the term's `combine` made
-    /// one value of (RFC-052), in the order of their names. Serialized as
-    /// `{"answers": [...]}`.
-    Answers(Vec<AnswerProvenance>),
+    /// An article of a policy that implements the term and takes the named
+    /// answer of a cell (`source.reduction`): the binding, and every answer
+    /// it took that was not null, with what each cell says it answered
+    /// from, in the order of the names of their cells; several were
+    /// combined (RFC-052). Where every cell was silent and nothing falls
+    /// back, the null answers; where no cell answered, none.
+    Answer {
+        law_id: String,
+        article: String,
+        answers: Vec<AnswerProvenance>,
+    },
 }
 
 /// One open term of one article that was filled in an execution, and by

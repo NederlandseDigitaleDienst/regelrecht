@@ -80,6 +80,8 @@ export const PACKAGES = [
   'regelrecht-demo',
   'regelrecht-poc',
   'regelrecht-poc-napp',
+  // Geen image meer sinds chronolexografie in de browser draait (in het
+  // poc-image). Blijft hier staan zodat de oude versies worden opgeruimd.
   'regelrecht-poc-chronolexografie',
 ];
 

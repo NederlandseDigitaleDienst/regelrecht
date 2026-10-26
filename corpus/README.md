@@ -19,8 +19,12 @@ corpus/
 │       ├── ministeriele_regeling/        # Ministerial regulations
 │       └── gemeentelijke_verordening/    # Municipal ordinances
 ├── cells/
-│   └── <cell>/reducties/<id>/            # A cell's reductions (REDUCTIE, RFC-048):
-│       └── <valid_from>.yaml             # no regulation, loaded only by the cell
+│   ├── <cell>/
+│   │   ├── cel.yaml                      # Who a cell is and which answers it gives
+│   │   └── reductions/<id>/              # Its reductions (REDUCTIE, RFC-048): no regulation,
+│   │       └── <valid_from>.yaml         # the cell gives their outputs as named answers
+│   └── reductions/<id>/                  # Reductions of no cell, such as that of the Awb:
+│       └── <valid_from>.yaml             # every cell applies them to its own chronicle
 ├── annotations/
 │   ├── <law_id>/annotations.yaml         # Note sidecars (RFC-018)
 │   └── _vocabulary/                      # Shared ambiguity tag vocabulary

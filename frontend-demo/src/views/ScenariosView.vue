@@ -1,16 +1,18 @@
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { parseFeature, dispatch, quotedValue, bareValue, traceRoot, ExecutionContext } from '@regelrecht/frontend-shared/gherkin';
-import { matchStep, featureKeywords, scenarioTitle } from '../data/gherkinNl.js';
-import { serviceInfo } from '../data/loadCorpus.js';
-import { loadFailureFor, loadFailures, prepareScenarioEngine } from '../engine/useDemoEngine.js';
-import { useDemo } from '../store/demoStore.js';
-import { useLocalePath } from '../i18n/useLocalePath.js';
+import { parseFeature, dispatch, quotedValue, bareValue, traceRoot, ExecutionContext, type ParsedFeature } from '@regelrecht/frontend-shared/gherkin';
+import type { NLDDNavigationSplitView } from '@nldd/design-system/navigation-split-view';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
+import { matchStep, featureKeywords, scenarioTitle } from '../data/gherkinNl';
+import { serviceInfo, type ScenarioEntry } from '../data/loadCorpus';
+import { loadFailureFor, loadFailures, prepareScenarioEngine, type DemoEngine, type TraceNode } from '../engine/useDemoEngine';
+import { useDemo } from '../store/demoStore';
+import { useLocalePath } from '../i18n/useLocalePath';
 import { useI18n } from '../i18n/index.js';
 import TraceView from '../components/TraceView.vue';
 import ScenarioSteps from '../components/ScenarioSteps.vue';
-import { splitRunResults } from '../data/scenarioSteps.js';
+import { splitRunResults, type StepResult } from '../data/scenarioSteps';
 
 // Naar een ander tabblad op naam, niet op pad: onder `/en/` leidt een
 // letterlijk Nederlands pad de bezoeker ongemerkt het Nederlandse tabblad in.
@@ -27,18 +29,36 @@ const route = useRoute();
 const router = useRouter();
 const { corpus, profile, profileKey } = useDemo();
 
+/** One scenario's run, as the card and the trace sheet read it. */
+interface ScenarioRun {
+  status: 'running' | 'pass' | 'fail';
+  steps: StepResult[];
+  trace: TraceNode | null;
+  traceText: string;
+  outputs: Record<string, unknown> | null;
+  error: string | null;
+  wip: boolean;
+}
+
+/**
+ * Whatever a step or the engine threw: an `Error`, an object `{error, trace}`,
+ * or a string. Reading a property of a string gives undefined, so the
+ * fallbacks below behave the same for all three.
+ */
+type Thrown = { error?: unknown; message?: unknown; trace?: unknown } | null | undefined;
+
 const features = computed(() => corpus.value?.scenarios ?? []);
 // The list of test files is a sheet, closed until asked for.
-const splitView = ref(null);
-const selectedPath = ref(null);
-const parsed = ref(null);
+const splitView = ref<NLDDNavigationSplitView | null>(null);
+const selectedPath = ref<string | null>(null);
+const parsed = ref<ParsedFeature | null>(null);
 const rawText = ref('');
-const loadError = ref(null);
-const runs = reactive({}); // scenario index -> { status, steps: [{status, error}], trace, outputs }
+const loadError = ref<unknown>(null);
+const runs = reactive<Record<string, ScenarioRun>>({}); // scenario index -> { status, steps: [{status, error}], trace, outputs }
 // Scenarios start collapsed: a feature with a dozen scenarios is otherwise a
 // wall of steps. Each card opens on its own; a failed run opens itself so the
 // failing step is in view.
-const open = reactive({}); // scenario index -> boolean
+const open = reactive<Record<string, boolean>>({}); // scenario index -> boolean
 const runningAll = ref(false);
 const anyRunning = computed(() => runningAll.value || Object.values(runs).some((r) => r.status === 'running'));
 const query = ref('');
@@ -51,11 +71,11 @@ const filtered = computed(() => {
   return [...list].sort((a, b) => scenarioTitle(a.title).localeCompare(scenarioTitle(b.title)));
 });
 
-function lawFor(feature) {
+function lawFor(feature: Pick<ScenarioEntry, 'law_path'>) {
   return corpus.value?.laws.find((l) => l.law_path === feature.law_path) ?? null;
 }
 
-async function select(path, { replaceRoute = false } = {}) {
+async function select(path: string, { replaceRoute = false }: { replaceRoute?: boolean } = {}) {
   if (!path) return;
   selectedPath.value = path;
   splitView.value?.hidePrimarySidebarSheet?.();
@@ -113,7 +133,7 @@ const selectedLoadFailure = computed(() => (selectedLaw.value ? loadFailureFor(s
 const showText = ref(false);
 
 /** Scenario steps with the background prepended. */
-function stepsOf(scenario) {
+function stepsOf(scenario: ParsedFeature['scenarios'][number]) {
   return [...(parsed.value?.background ?? []), ...scenario.steps];
 }
 
@@ -122,27 +142,27 @@ function stepsOf(scenario) {
  * there; the sources are cleared before every run so scenarios never see each
  * other's rows. The portal's engine and its persona data are never touched.
  */
-async function run(index) {
+async function run(index: number) {
   const scenario = parsed.value?.scenarios[index];
   if (!scenario || !corpus.value || runs[index]?.status === 'running') return;
   const wip = scenario.tags.includes('@wip');
   // Reactive on purpose: the run mutates this object step by step, and the card
   // has to follow. A plain object assigned into `runs` would only be tracked
   // through `runs[index]`, not through this reference.
-  const state = reactive({ status: 'running', steps: [], trace: null, traceText: '', outputs: null, error: null, wip });
+  const state = reactive<ScenarioRun>({ status: 'running', steps: [], trace: null, traceText: '', outputs: null, error: null, wip });
   runs[index] = state;
   // Let the card repaint (status icon, loading button) before the engine work.
   await new Promise((resolve) => setTimeout(resolve));
   const ctx = new ExecutionContext();
   const t0 = performance.now();
-  const timings = [];
-  const lap = (label, from) => timings.push(`${label} ${(performance.now() - from).toFixed(1)}ms`);
+  const timings: string[] = [];
+  const lap = (label: string, from: number) => timings.push(`${label} ${(performance.now() - from).toFixed(1)}ms`);
   let startedAt = performance.now();
-  let e;
+  let e: DemoEngine;
   try {
     e = await prepareScenarioEngine(corpus.value);
   } catch (err) {
-    state.error = `Engine niet beschikbaar: ${err?.message ?? err}`;
+    state.error = `Engine niet beschikbaar: ${(err as Thrown)?.message ?? err}`;
     state.status = 'fail';
     open[index] = true;
     return;
@@ -162,7 +182,7 @@ async function run(index) {
     for (const step of stepsOf(scenario)) {
       startedAt = performance.now();
       const match = matchStep(step.text);
-      const record = { status: 'pending', error: null };
+      const record: StepResult = { status: 'pending', error: null };
       state.steps.push(record);
       if (!match) {
         record.status = 'fail';
@@ -175,9 +195,12 @@ async function run(index) {
       try {
         if (entry.action === 'evaluate_outputs') {
           const outputs = String(typed[0]).split(',').map((s) => s.trim());
-          evaluateWithTrace(ctx, e, typed[1], outputs, state);
+          // Quoted captures are typed by value_typing (inferred), so a law id
+          // or output name that reads as a number arrives as one; the engine
+          // takes text, as the shared dispatcher's `text()` hands it over.
+          evaluateWithTrace(ctx, e, String(typed[1]), outputs, state);
         } else if (entry.action === 'evaluate') {
-          evaluateWithTrace(ctx, e, typed[1], [typed[0]], state);
+          evaluateWithTrace(ctx, e, String(typed[1]), [String(typed[0])], state);
         } else {
           await dispatch(ctx, e, entry.action, [...typed, ...entry.literals], table, { loadDependency: async () => {} });
         }
@@ -185,7 +208,7 @@ async function run(index) {
         lap(`step:${entry.action}`, startedAt);
       } catch (err) {
         record.status = 'fail';
-        record.error = String(err?.message ?? err?.error ?? err);
+        record.error = String((err as Thrown)?.message ?? (err as Thrown)?.error ?? err);
         break;
       }
     }
@@ -201,7 +224,7 @@ async function run(index) {
 }
 
 /** The 1-based number of the failing step within the scenario's own steps, or 0 when it is a background step. */
-function failedStepNumber(index) {
+function failedStepNumber(index: number) {
   const r = runs[index];
   const at = r?.steps?.findIndex((s) => s.status === 'fail') ?? -1;
   if (at < 0) return null;
@@ -209,7 +232,7 @@ function failedStepNumber(index) {
   return at < bg ? 0 : at - bg + 1;
 }
 
-function resultTag(index) {
+function resultTag(index: number) {
   const r = runs[index];
   if (r?.status === 'pass') return { color: 'success', text: t('scenario.passed') };
   if (r?.status === 'fail') {
@@ -222,7 +245,7 @@ function resultTag(index) {
   return null;
 }
 
-function statusIcon(index) {
+function statusIcon(index: number) {
   const s = runs[index]?.status;
   return s === 'pass' ? 'check-mark-circle' : s === 'fail' ? 'dismiss-circle' : s === 'running' ? 'clock' : 'circle-dashed';
 }
@@ -230,32 +253,33 @@ function statusIcon(index) {
 // An `nldd-icon` colour, not an icon-cell one: the status icon sits inside the
 // row's disclosure segment, and that segment turns every icon *cell* in it a
 // quarter as the scenario opens. Only the chevron is meant to turn.
-function statusColor(index) {
+function statusColor(index: number) {
   const r = runs[index];
   return r?.status === 'pass' ? 'success' : r?.status === 'fail' ? (r.wip ? 'warning' : 'critical') : 'secondary-content';
 }
 
-function evaluateWithTrace(ctx, e, lawId, outputs, state) {
+function evaluateWithTrace(ctx: ExecutionContext, e: DemoEngine, lawId: string, outputs: string[], state: ScenarioRun) {
   if (!ctx.calculationDate) throw new Error(t('scenario.error.no_reference_date'));
   try {
     const result = e.executeMultipleWithTrace(lawId, outputs, ctx.parameters, ctx.calculationDate);
     ctx.result = result;
     ctx.executed = true;
     ctx.error = null;
-    state.trace = traceRoot(result.trace);
+    state.trace = traceRoot<TraceNode>(result.trace);
     state.traceText = result.trace_text ?? '';
     state.outputs = result.outputs ?? {};
   } catch (err) {
     ctx.error = err;
     ctx.executed = true;
     ctx.result = null;
-    state.traceText = err?.trace ? renderTraceFallback(err) : '';
-    state.error = String(err?.error ?? err?.message ?? err);
+    const thrown = err as Thrown;
+    state.traceText = thrown?.trace ? renderTraceFallback(thrown) : '';
+    state.error = String(thrown?.error ?? thrown?.message ?? err);
     // Assertions after a failed run report the failure themselves.
   }
 }
 
-function renderTraceFallback(err) {
+function renderTraceFallback(err: { error?: unknown; message?: unknown }) {
   return `Uitvoering mislukt: ${err.error ?? err.message ?? err}`;
 }
 
@@ -265,7 +289,7 @@ function renderTraceFallback(err) {
  * presenter clicks through next. "Run all" does not, it would open one sheet
  * after the other.
  */
-async function runAndShow(index) {
+async function runAndShow(index: number) {
   await run(index);
   if (runs[index]?.traceText) activeTrace.value = index;
 }
@@ -288,9 +312,9 @@ const summary = computed(() => {
   return { total: parsed.value?.scenarios.length ?? 0, pass: all.filter((r) => r.status === 'pass').length, fail: all.filter((r) => r.status === 'fail').length };
 });
 
-const activeTrace = ref(null); // scenario index whose trace is shown
+const activeTrace = ref<number | null>(null); // scenario index whose trace is shown
 const traceScenario = computed(() => (activeTrace.value === null ? null : runs[activeTrace.value] ?? null));
-const traceSheet = ref(null);
+const traceSheet = ref<NLDDSheet | null>(null);
 watch(activeTrace, async (index) => {
   if (index === null) return traceSheet.value?.hide?.();
   await nextTick();
@@ -298,17 +322,17 @@ watch(activeTrace, async (index) => {
 });
 
 /** A scenario's run results, split at the background (see splitRunResults). */
-function runResults(index) {
+function runResults(index: number) {
   return splitRunResults(runs[index]?.steps, parsed.value?.background?.length ?? 0);
 }
 
 /** The run status of the scenario's own steps, without the background's. */
-function scenarioResults(index) {
+function scenarioResults(index: number) {
   return runResults(index).scenario;
 }
 
 /** The error of a failed background step in this scenario's run, if any. */
-function backgroundError(index) {
+function backgroundError(index: number) {
   return runResults(index).backgroundError;
 }
 
@@ -325,8 +349,9 @@ const fileName = computed(() => selectedPath.value?.split('/').pop() ?? '');
         </nldd-container>
         <nldd-container padding-inline="8" padding-bottom="16">
           <nldd-list type="navigation" :accessible-label="t('scenario.files.label')">
+            <!-- A law found for `f` means the corpus is loaded, and `lawFor(f)` is checked just before. -->
             <nldd-list-item v-for="f in filtered" :key="f.path" size="sm" button :selected="f.path === selectedPath || undefined" @click="select(f.path)">
-              <nldd-text-cell size="sm" :text="scenarioTitle(f.title)" :supporting-text="lawFor(f) ? serviceInfo(corpus, lawFor(f).service).name : f.law_path"></nldd-text-cell>
+              <nldd-text-cell size="sm" :text="scenarioTitle(f.title)" :supporting-text="lawFor(f) ? serviceInfo(corpus!, lawFor(f)!.service).name : f.law_path"></nldd-text-cell>
             </nldd-list-item>
             <nldd-inline-dialog slot="empty" :text="t('scenario.none_found')" :supporting-text="t('scenario.none_found.hint')"></nldd-inline-dialog>
           </nldd-list>
@@ -413,7 +438,8 @@ const fileName = computed(() => selectedPath.value?.split('/').pop() ?? '');
                     <nldd-title-cell size="5" :text="scenarioTitle(scenario.name)" :supporting-text="scenario.tags.join(' ') || undefined"></nldd-title-cell>
                     <!-- One height across the action row: an md tag and xs buttons are both
                          24px; no tag size matches an sm button. -->
-                    <nldd-cell v-if="resultTag(index)"><nldd-tag :color="resultTag(index).color" :text="resultTag(index).text"></nldd-tag></nldd-cell>
+                    <!-- `?.` only for the type checker: the v-if guarantees the tag. -->
+                    <nldd-cell v-if="resultTag(index)"><nldd-tag :color="resultTag(index)?.color" :text="resultTag(index)?.text"></nldd-tag></nldd-cell>
                   </nldd-list-item-segment>
                   <!-- Spacer cells, as the other list rows in the demo space their
                        cells: the segment stops at the result tag, and without
@@ -445,9 +471,10 @@ const fileName = computed(() => selectedPath.value?.split('/').pop() ?? '');
          as a hall screen allows: the sheet clamps it to the viewport. -->
     <Teleport to="body">
       <nldd-sheet ref="traceSheet" placement="right" width="1400px" :accessible-label="t('scenario.trace.label')" @close="activeTrace = null">
+        <!-- A trace scenario means `activeTrace` is set. -->
         <nldd-page v-if="traceScenario">
           <nldd-container slot="header" padding="12">
-            <nldd-top-title-bar :text="t('scenario.trace.label')" :supporting-text="parsed?.scenarios[activeTrace]?.name" :dismiss-text="t('scenario.close')" @dismiss="activeTrace = null"></nldd-top-title-bar>
+            <nldd-top-title-bar :text="t('scenario.trace.label')" :supporting-text="parsed?.scenarios[activeTrace!]?.name" :dismiss-text="t('scenario.close')" @dismiss="activeTrace = null"></nldd-top-title-bar>
           </nldd-container>
           <nldd-container padding="16" gap="16">
             <nldd-banner v-if="traceScenario.error" variant="critical" :text="t('scenario.run_failed')" :supporting-text="traceScenario.error"></nldd-banner>

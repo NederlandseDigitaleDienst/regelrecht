@@ -1,22 +1,25 @@
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
-import { renderStep, stepKeywords } from '../data/gherkinNl.js';
-import { displayCell, emphasiseArguments, hasHeaderRow, isExpectation, keywordColumnWidth, stepMark } from '../data/scenarioSteps.js';
+import { renderStep, stepKeywords } from '../data/gherkinNl';
+import { displayCell, emphasiseArguments, hasHeaderRow, isExpectation, keywordColumnWidth, stepMark, type StepResult } from '../data/scenarioSteps';
+import type { Step } from '@regelrecht/frontend-shared/gherkin';
 import { activeLocale, useI18n } from '../i18n/index.js';
 
 // The steps of a scenario (or of the background) as Gherkin: in order, keyword
 // first, data tables as tables. It shows what the file says and nothing it
 // would take the engine to know; the only marks from a run are pass/fail on
 // the expectations, a fail mark on whichever step failed, and its error.
-const props = defineProps({
-  steps: { type: Array, required: true },
+const props = withDefaults(defineProps<{
+  steps: Step[];
   // Run status per step, aligned with `steps`: `{ status, error }` or nothing.
-  results: { type: Array, default: () => [] },
+  results?: (StepResult | null | undefined)[];
+}>(), {
+  results: () => [],
 });
 
 const { t } = useI18n();
 
-const result = (index) => props.results[index] ?? null;
+const result = (index: number) => props.results[index] ?? null;
 
 // Sized to the longest keyword of the language that is on, so it is the same
 // in the background and in every scenario, and follows a language switch.
@@ -26,15 +29,15 @@ const keywordWidth = computed(() => {
   return keywordColumnWidth(stepKeywords());
 });
 
-const mark = (step, index) => stepMark(step, result(index));
+const mark = (step: Step, index: number) => stepMark(step, result(index));
 
 /** The supporting text as lines: engine errors carry line breaks worth keeping. */
-function supportingLines(step, index) {
+function supportingLines(step: Step, index: number) {
   const text = supporting(step, index);
   return text ? String(text).split('\n') : [];
 }
 
-function supporting(step, index) {
+function supporting(step: Step, index: number) {
   const r = result(index);
   if (r?.error) return r.error;
   // The icon is decorative to a screen reader; a passed expectation says so in words.
@@ -45,7 +48,7 @@ function supporting(step, index) {
 // One track per column, sized to its content, plus a trailing filler track so
 // the row dividers run to the edge of the box. The table scrolls sideways on
 // its own when it is wider than the card.
-function columns(table) {
+function columns(table: string[][]) {
   const width = Math.max(...table.map((row) => row.length));
   return `repeat(${width}, max-content) 1fr`;
 }
@@ -58,7 +61,7 @@ function columns(table) {
            as the language's longest keyword, so the step texts line up the way
            a feature file does. -->
       <nldd-container layout="row" gap="8" vertical-alignment="top">
-        <nldd-icon-cell v-if="mark(step, i)" :icon="mark(step, i).icon" :color="mark(step, i).color" size="16" vertical-alignment="top"></nldd-icon-cell>
+        <nldd-icon-cell v-if="mark(step, i)" :icon="mark(step, i)?.icon" :color="mark(step, i)?.color" size="16" vertical-alignment="top"></nldd-icon-cell>
         <nldd-spacer-cell v-else size="16"></nldd-spacer-cell>
         <nldd-text-cell :width="keywordWidth" vertical-alignment="top" color="accent" :text="`**${renderStep(step).keyword}**`"></nldd-text-cell>
         <!-- The supporting text goes through the slot, line by line: the

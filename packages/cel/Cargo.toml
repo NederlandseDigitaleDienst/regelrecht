@@ -19,6 +19,11 @@ serde_yaml_ng.workspace = true
 thiserror.workspace = true
 uuid = { workspace = true, features = ["v7"] }
 
+# A chronolexogram's id is a uuid v7, from the clock and random bits. In a
+# browser both come from JavaScript.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+uuid = { workspace = true, features = ["v7", "js"] }
+
 [dev-dependencies]
 tempfile.workspace = true
 

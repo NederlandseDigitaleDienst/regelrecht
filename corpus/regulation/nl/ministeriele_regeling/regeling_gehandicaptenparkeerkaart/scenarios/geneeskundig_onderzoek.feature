@@ -2,8 +2,9 @@ Feature: Geen kaart voordat het geneeskundig onderzoek heeft plaatsgehad
   Artikel 2, eerste lid: een gehandicaptenparkeerkaart wordt niet afgegeven
   alvorens een geneeskundig onderzoek heeft plaatsgehad. Dat stelt de
   verstrekkende instantie vast op het rapport van de GGD of de aangewezen
-  deskundige (artikel 3, eerste lid); in een cel van de GGD leest haar
-  reductie het uit de onderzoeken die zij vastlegde. Of eerder een kaart is
+  deskundige (artikel 3, eerste lid); in een cel van de GGD haalt haar
+  reductie het uit de onderzoeken die zij vastlegde, en het beleid van het
+  college koppelt het begrip aan dat antwoord (RFC-048). Of eerder een kaart is
   verstrekt, zegt de verstrekkende instantie (lid 2, onder a en b). Het tweede lid laat het
   onderzoek achterwege bij wie eerder een kaart kreeg, als de verstrekkende
   instantie weet dat hij nog steeds voldoet (onder a) of de keurende

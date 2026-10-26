@@ -228,7 +228,7 @@ xmlns:bwb="http://www.overheid.nl/2011/BWB"
 
 **Target Structure:**
 ```yaml
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.8/schema/v0.8.8/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
 $id: "{LAW_SLUG}"
 name: "{LAW_TITLE}"
 regulatory_layer: "{MAPPED_LAYER}"

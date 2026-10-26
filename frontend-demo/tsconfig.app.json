@@ -1,0 +1,16 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+  "include": ["env.d.ts", "src/**/*", "src/**/*.vue"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.js"],
+  "compilerOptions": {
+    // JavaScript stays where plain Node loads it (src/i18n, data/materialize.js)
+    // and where a file is generated; the app imports those with their types
+    // inferred, without checking them.
+    "allowJs": true,
+    // `arr[i]` may be undefined; the type says so.
+    "noUncheckedIndexedAccess": true,
+
+    // `vue-tsc --build` keeps an incremental cache; out of the app directory.
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo"
+  }
+}

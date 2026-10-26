@@ -61,8 +61,9 @@ const PRUNED_DIRS: &[&str] = &[
 
 /// A discovered npm-workspace frontend.
 pub struct FrontendApp {
-    /// Short label used in node ids (the app directory's basename), e.g.
-    /// `frontend`, `frontend-lawmaking`, `frontend-shared`.
+    /// Short label used in node ids: the app directory's path under the
+    /// repository, without `packages/` and with `-` for `/`, e.g. `frontend`,
+    /// `frontend-shared`, `poc-chronolexografie-frontend`.
     pub short: String,
     /// Stable node id, `app:<short>`.
     pub node_id: String,
@@ -131,9 +132,23 @@ fn discover_apps(repo_root: &Path) -> Vec<FrontendApp> {
         let Some(pkg) = read_json(&dir.join("package.json")) else {
             continue;
         };
-        let Some(short) = dir.file_name().and_then(|s| s.to_str()) else {
+        // The directory's path under the repository, without `packages/` and
+        // with `-` for `/`: `frontend`, `frontend-shared`, and for a frontend
+        // inside a crate `poc-chronolexografie-frontend`. The name of the
+        // directory alone is not unique: that one is called `frontend` too.
+        let Some(short) = dir
+            .strip_prefix(repo_root)
+            .ok()
+            .and_then(|rel| rel.to_str())
+            .map(|rel| {
+                rel.strip_prefix("packages/")
+                    .unwrap_or(rel)
+                    .replace('/', "-")
+            })
+        else {
             continue;
         };
+        let short = short.as_str();
         let package_name = pkg
             .get("name")
             .and_then(Value::as_str)

@@ -1,0 +1,15 @@
+// The config files, which run in Node.
+{
+  "extends": "@tsconfig/node24/tsconfig.json",
+  "include": ["vite.config.*", "vitest.config.*"],
+  "compilerOptions": {
+    // Vite loads its config through a bundler, not Node's own type stripping.
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    // vite.config.ts imports the walkthrough dev server, a plain Node script.
+    "allowJs": true,
+    "types": ["node"],
+    "noEmit": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo"
+  }
+}

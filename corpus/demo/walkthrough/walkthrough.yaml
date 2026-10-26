@@ -17,7 +17,7 @@ presenter:
 
 # De GitHub-release waar de video's als assets in staan. Zonder release haalt
 # de Docker-build niets op, en een timeline.json zonder release komt niet door
-# de tests (frontend-demo/src/walkthrough/corpus.test.js).
+# de tests (frontend-demo/src/walkthrough/corpus.test.ts).
 release: walkthrough-2026-10-03
 
 # Woorden die de transcriptie goed moet spellen.

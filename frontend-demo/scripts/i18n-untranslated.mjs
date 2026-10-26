@@ -29,7 +29,7 @@ function walk(dir, out = []) {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) walk(full, out);
-    else if (/\.(vue|js)$/.test(full) && !full.endsWith('.test.js')) out.push(full);
+    else if (/\.(vue|js|ts)$/.test(full) && !/\.test\.(js|ts)$/.test(full)) out.push(full);
   }
   return out;
 }

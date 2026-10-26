@@ -1,0 +1,254 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.9/schema/v0.8.9/schema.json
+$id: fictief_beleid_vakantieverlof_obs_de_klimop
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-07-01'
+valid_from: '2026-08-01'
+# FICTIEF beleid van het hoofd van OBS De Klimop, eigen keuze in de
+# modellering: geen bekendgemaakt beleid, maar een aanname namens de houder
+# (RFC-048). Er is geen bekendmaking; de url wijst naar artikel 13a.
+# Artikel 1 is een norm die het hoofd hanteert bij artikel 13a, tweede lid
+# ("slechts eenmaal per schooljaar"): welk schooljaar dat van het verlof is.
+# De reductie van de school (reductie_verlof_al_verleend_in_schooljaar) leest
+# de besluiten en past deze norm toe; welke besluiten nog gelden, volgt uit de
+# Awb (reductie_algemene_wet_bestuursrecht). Dit beleid leest zelf geen
+# besluiten.
+# Artikel 2 tot en met 6 koppelen open begrippen aan de antwoorden van de cel
+# van de school (source.reduction, RFC-048): zo ontleent het hoofd wat hij
+# anders per aanvraag vaststelt aan wat zijn eigen cel uit de kroniek haalt.
+# Buiten de cel geeft een koppeling niets en stelt het hoofd het zelf vast,
+# of zwijgt de regeling.
+url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+name: Vakantieverlof bij OBS De Klimop (fictief beleid)
+competent_authority:
+  name: Het hoofd van OBS De Klimop
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Het
+      schooljaar van het gevraagde verlof is het schooljaar van de eerste
+      verlofdag.
+    url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+    machine_readable:
+      execution:
+        parameters:
+          - name: eerste_verlofdag
+            type: date
+            description: Eerste dag van het gevraagde verlof.
+        input:
+          - name: begin_schooljaar
+            type: date
+            source:
+              regulation: fictief_beleid_schooljaargrenzen_obs_de_klimop
+              output: begin_schooljaar
+              parameters:
+                datum: $eerste_verlofdag
+          - name: einde_schooljaar
+            type: date
+            source:
+              regulation: fictief_beleid_schooljaargrenzen_obs_de_klimop
+              output: einde_schooljaar
+              parameters:
+                datum: $eerste_verlofdag
+        output:
+          - name: begin_schooljaar_van_verlof
+            type: date
+            description: De eerste dag van het schooljaar van het gevraagde verlof.
+          - name: einde_schooljaar_van_verlof
+            type: date
+            description: De laatste dag van het schooljaar van het gevraagde verlof.
+        actions:
+          - output: begin_schooljaar_van_verlof
+            value: $begin_schooljaar
+          - output: einde_schooljaar_van_verlof
+            value: $einde_schooljaar
+  - number: '2'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Of
+      het hoofd de jongere in het schooljaar van het gevraagde verlof al
+      verlof verleende, ontleent het hoofd aan het antwoord van zijn eigen
+      cel over zijn eerdere besluiten.
+    url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+    machine_readable:
+      # Ook als Awb 7:11 artikel 13a opnieuw aanroept. Zonder antwoord stelt
+      # het hoofd het vast (decided_per_case_by).
+      implements:
+        - law: leerplichtwet_1969
+          article: 13a
+          open_term: verlof_al_verleend_in_schooljaar
+      execution:
+        parameters:
+          - name: bsn_jongere
+            type: string
+            description: Burgerservicenummer van de jongere voor wie verlof wordt gevraagd.
+          - name: eerste_verlofdag
+            type: date
+            description: Eerste dag van het gevraagde verlof.
+        input:
+          - name: antwoord_verlof_al_verleend
+            type: boolean
+            nullable: true
+            source:
+              reduction: verlof_al_verleend_in_schooljaar
+              parameters:
+                bsn_jongere: $bsn_jongere
+                eerste_verlofdag: $eerste_verlofdag
+        output:
+          - name: verlof_al_verleend_in_schooljaar
+            type: boolean
+            nullable: true
+            description: >-
+              Of het hoofd de jongere in het schooljaar van het gevraagde verlof
+              al verlof verleende; afwezig zonder antwoord van de cel.
+        actions:
+          - output: verlof_al_verleend_in_schooljaar
+            value: $antwoord_verlof_al_verleend
+  - number: '3'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Of
+      het gevraagde verlof buiten de schoolvakanties valt, ontleent het hoofd
+      aan het antwoord van zijn eigen cel.
+    url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel11
+    machine_readable:
+      # Kent de cel een vakantie niet, dan zwijgt zij en oordeelt het hoofd
+      # (decided_per_case_by).
+      implements:
+        - law: leerplichtwet_1969
+          article: 13a
+          open_term: verlof_valt_buiten_schoolvakanties
+      execution:
+        parameters:
+          - name: eerste_verlofdag
+            type: date
+            description: Eerste dag van het gevraagde verlof.
+          - name: laatste_verlofdag
+            type: date
+            description: Laatste dag van het gevraagde verlof.
+        input:
+          - name: antwoord_buiten_schoolvakanties
+            type: boolean
+            nullable: true
+            source:
+              reduction: verlof_valt_buiten_schoolvakanties
+              parameters:
+                eerste_verlofdag: $eerste_verlofdag
+                laatste_verlofdag: $laatste_verlofdag
+        output:
+          - name: verlof_valt_buiten_schoolvakanties
+            type: boolean
+            nullable: true
+            description: >-
+              Of het gevraagde verlof buiten de schoolvakanties valt; afwezig
+              zonder antwoord van de cel.
+        actions:
+          - output: verlof_valt_buiten_schoolvakanties
+            value: $antwoord_buiten_schoolvakanties
+  - number: '4'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. De
+      gemeente waarin de school gevestigd is, ontleent het hoofd aan het
+      antwoord van zijn eigen cel over de vastgelegde vestiging op de
+      verlofdagen.
+    url: https://wetten.overheid.nl/BWBR0049811/2025-08-01#Artikel2
+    machine_readable:
+      # De verlofdagen geeft wie de regio voor een verlof vraagt mee aan
+      # artikel 2 van de regeling, dat ze niet declareert; zonder hen faalt
+      # het antwoord in de cel.
+      implements:
+        - law: regeling_vaststelling_schoolvakanties_20252030
+          article: '2'
+          open_term: gemeente_van_vestiging
+      execution:
+        parameters:
+          - name: eerste_verlofdag
+            type: date
+            description: Eerste dag van het gevraagde verlof.
+          - name: laatste_verlofdag
+            type: date
+            description: Laatste dag van het gevraagde verlof.
+        input:
+          - name: antwoord_gemeente
+            type: string
+            nullable: true
+            source:
+              reduction: gemeente_van_vestiging
+              parameters:
+                eerste_verlofdag: $eerste_verlofdag
+                laatste_verlofdag: $laatste_verlofdag
+        output:
+          - name: gemeente_van_vestiging
+            type: string
+            nullable: true
+        actions:
+          - output: gemeente_van_vestiging
+            value: $antwoord_gemeente
+  - number: '5'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. De
+      provincie waarin de school gevestigd is, ontleent het hoofd aan het
+      antwoord van zijn eigen cel, zoals de gemeente (artikel 4).
+    url: https://wetten.overheid.nl/BWBR0049811/2025-08-01#Artikel2
+    machine_readable:
+      implements:
+        - law: regeling_vaststelling_schoolvakanties_20252030
+          article: '2'
+          open_term: provincie_van_vestiging
+      execution:
+        parameters:
+          - name: eerste_verlofdag
+            type: date
+            description: Eerste dag van het gevraagde verlof.
+          - name: laatste_verlofdag
+            type: date
+            description: Laatste dag van het gevraagde verlof.
+        input:
+          - name: antwoord_provincie
+            type: string
+            nullable: true
+            source:
+              reduction: provincie_van_vestiging
+              parameters:
+                eerste_verlofdag: $eerste_verlofdag
+                laatste_verlofdag: $laatste_verlofdag
+        output:
+          - name: provincie_van_vestiging
+            type: string
+            nullable: true
+        actions:
+          - output: provincie_van_vestiging
+            value: $antwoord_provincie
+  - number: '6'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Het
+      deel van de gemeente waarin de school gevestigd is, ontleent het hoofd
+      aan het antwoord van zijn eigen cel, zoals de gemeente (artikel 4).
+    url: https://wetten.overheid.nl/BWBR0049811/2025-08-01#Artikel2
+    machine_readable:
+      implements:
+        - law: regeling_vaststelling_schoolvakanties_20252030
+          article: '2'
+          open_term: deel_van_gemeente_van_vestiging
+      execution:
+        parameters:
+          - name: eerste_verlofdag
+            type: date
+            description: Eerste dag van het gevraagde verlof.
+          - name: laatste_verlofdag
+            type: date
+            description: Laatste dag van het gevraagde verlof.
+        input:
+          - name: antwoord_deel_van_gemeente
+            type: string
+            nullable: true
+            source:
+              reduction: deel_van_gemeente_van_vestiging
+              parameters:
+                eerste_verlofdag: $eerste_verlofdag
+                laatste_verlofdag: $laatste_verlofdag
+        output:
+          - name: deel_van_gemeente_van_vestiging
+            type: string
+            nullable: true
+        actions:
+          - output: deel_van_gemeente_van_vestiging
+            value: $antwoord_deel_van_gemeente

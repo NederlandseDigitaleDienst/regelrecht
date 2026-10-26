@@ -1,11 +1,12 @@
-<script setup>
+<script setup lang="ts">
 import { computed, onActivated, onMounted, watch } from 'vue';
-import { deckFor, usePresentation } from '../presentation/usePresentation.js';
-import { useDemo } from '../store/demoStore.js';
+import { deckFor, usePresentation } from '../presentation/usePresentation';
+import { useDemo } from '../store/demoStore';
 import { useI18n } from '../i18n/index.js';
 import { useRouter } from 'vue-router';
-import { localeRouteName } from '../router.js';
-import { useWalkthrough } from '../walkthrough/useWalkthrough.js';
+import { localeRouteName } from '../router';
+import type { SlideConfig } from '../data/loadCorpus';
+import { useWalkthrough } from '../walkthrough/useWalkthrough';
 
 // The Presentatie tab starts the deck. The deck itself is an overlay
 // (PresentationDeck.vue, mounted by App.vue) that covers the screen for the
@@ -50,7 +51,7 @@ watch(ready, startWhenReady);
 // Een dia zonder eigen soort is er een die de demo opent; die heet naar de demo
 // zelf, dezelfde sleutel als het menu in de werkbalk.
 const SLIDE_KINDS = new Set(['title', 'statement', 'closing', 'section']);
-function kindLabel(s) {
+function kindLabel(s: SlideConfig) {
   return SLIDE_KINDS.has(s.kind) ? t(`home.presentation.kind.${s.kind}`) : t('app.demo.label');
 }
 </script>

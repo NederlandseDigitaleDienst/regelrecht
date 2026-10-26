@@ -134,6 +134,7 @@ mod tests {
             corpus: vec![],
             assistent: false,
             tags: vec![],
+            sources: vec![],
         }
     }
 

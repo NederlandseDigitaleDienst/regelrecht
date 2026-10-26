@@ -19,7 +19,11 @@ path = "src/main.rs"
 axum.workspace = true
 regelrecht-auth = { path = "../auth" }
 regelrecht-shared = { path = "../shared", features = ["telemetry"] }
-regelrecht-corpus = { path = "../corpus", default-features = false }
+# `github`: the tarball walk for a source (src/bron.rs); the portal also uses
+# deployment_from_hostname.
+regelrecht-corpus = { path = "../corpus", default-features = false, features = ["github"] }
+# The tarball of a source's branch, with its token (src/bron.rs).
+regelrecht-github = { path = "../github" }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tower-http = { workspace = true, features = ["fs", "trace"] }
 serde.workspace = true
@@ -50,6 +54,11 @@ tower.workspace = true
 
 [dev-dependencies]
 tower.workspace = true
+# A GitHub tarball and a GitHub API for the source tests (src/bron.rs).
+flate2 = "1"
+tar = "0.4"
+wiremock.workspace = true
+serde_json.workspace = true
 http-body-util.workspace = true
 pretty_assertions.workspace = true
 

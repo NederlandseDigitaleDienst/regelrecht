@@ -174,35 +174,41 @@ test('het poc-portaal volgt zijn register, zijn corpus en zijn frontends', () =>
 });
 
 test('chronolexografie volgt zijn cellen, hun regelwerken, de casussen en zijn frontend', () => {
-  // De cellen van de casussen en de regelwerken die zij draaien, zitten
-  // alleen in het chronolexografie-image, niet in het portaal.
+  // chronolexografie draait als WASM in de browser en zit in het poc-image:
+  // de cellen van de casussen en de regelwerken die zij draaien raken dat
+  // image, en er is geen eigen component meer.
+  assert.equal('poc-chronolexografie' in COMPONENTS, false);
   for (const pad of [
-    'corpus/cells/obs_de_klimop/reducties/reductie_verlof_al_verleend_in_schooljaar/2026-08-01.yaml',
+    'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantieverlof_obs_de_klimop/2026-08-01.yaml',
+    'corpus/cells/obs_de_klimop/reductions/reductie_verlof_al_verleend_in_schooljaar/2026-08-01.yaml',
+    'corpus/cells/reductions/reductie_algemene_wet_bestuursrecht/2026-01-01.yaml',
+    'corpus/cells/obs_de_klimop/cel.yaml',
     'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vestiging_obs_de_klimop/2026-08-01.yaml',
     'corpus/regulation/nl/ministeriele_regeling/regeling_vaststelling_schoolvakanties_20252030/2025-08-01.yaml',
     'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantierooster_obs_de_klimop/2026-08-01.yaml',
     'corpus/regulation/nl/wet/leerplichtwet_1969/2026-08-01.yaml',
-    'corpus/cells/gemeente_wilgendaal/reducties/reductie_geldige_gehandicaptenparkeerkaart/2026-01-01.yaml',
-    'corpus/cells/ggd_wilgendaal/reducties/reductie_geneeskundig_onderzoek/2026-01-01.yaml',
+    'corpus/cells/gemeente_wilgendaal/reductions/reductie_geldige_gehandicaptenparkeerkaart/2026-01-01.yaml',
+    'corpus/cells/ggd_wilgendaal/reductions/reductie_geneeskundig_onderzoek/2026-01-01.yaml',
     'corpus/cells/gemeente_oostmeer/cel.yaml',
     'corpus/cells/cbr/cel.yaml',
+    'corpus/cells/rechtbank_wilgendaal/cel.yaml',
     'corpus/regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw/2026-01-01.yaml',
     'packages/poc-chronolexografie/casussen/gehandicaptenparkeerkaart.yaml',
-    'frontend-poc-chronolexografie/src/App.vue',
+    'packages/poc-chronolexografie/frontend/src/App.vue',
   ]) {
     const geraakt = namesOf([pad]);
-    assert.equal(geraakt['poc-chronolexografie'], true, pad);
-    assert.equal(geraakt.poc, false, pad);
+    assert.equal(geraakt.poc, true, pad);
+    assert.equal(geraakt['poc-napp'], false, pad);
   }
 
-  // De crate van de cel volgt uit de graaf.
-  assert.equal(namesOf(['packages/cel/src/cell.rs'])['poc-chronolexografie'], true);
+  // De crate en de cel volgen uit de graaf.
+  assert.equal(namesOf(['packages/poc-chronolexografie/src/kern.rs']).poc, true);
+  assert.equal(namesOf(['packages/cel/src/cell.rs']).poc, true);
 
-  // Een wet die de cel niet draait, raakt het niet.
-  assert.equal(
-    namesOf(['corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml'])['poc-chronolexografie'],
-    false,
-  );
+  // Een wet die de cel niet draait, raakt het niet, en een reductie van geen
+  // cel die geen casus draait ook niet.
+  assert.equal(namesOf(['corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml']).poc, false);
+  assert.equal(namesOf(['corpus/cells/reductions/reductie_elders/2026-01-01.yaml']).poc, false);
 });
 
 test('een engine-wijziging bouwt het poc-image, want dat bakt de engine als WASM', () => {

@@ -108,6 +108,43 @@ pub struct Poc {
     pub assistent: bool,
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Corpora the portal fetches for this PoC while it runs, behind its
+    /// password ([`crate::bron`]): `/<slug>/bron/<name>`.
+    #[serde(default)]
+    pub sources: Vec<Source>,
+}
+
+/// A corpus a static PoC loads while it runs: a folder on a branch of a
+/// GitHub repository, fetched with the token in `token_env`. The browser
+/// never sees the token; the portal serves the files at
+/// `/<slug>/bron/<name>`. Locally `POC_BRON_<NAME>` names a folder that
+/// takes its place, without a token.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct Source {
+    pub name: String,
+    pub github: GithubSource,
+    /// The environment variable holding the token; its name, never its value.
+    pub token_env: String,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct GithubSource {
+    pub owner: String,
+    pub repo: String,
+    pub branch: String,
+    /// The folder of the branch that holds the source; its files are served
+    /// by their path under it.
+    pub path: String,
+}
+
+impl Source {
+    /// The environment variable naming a local folder that replaces the
+    /// GitHub fetch: `napp` -> `POC_BRON_NAPP`.
+    pub fn local_env(&self) -> String {
+        format!("POC_BRON_{}", self.name.to_uppercase().replace('-', "_"))
+    }
 }
 
 impl Poc {
@@ -159,6 +196,13 @@ pub enum RegistryError {
          words — a visitor cannot tell a sketch from a checked model by looking at it."
     )]
     VoorbehoudTeKort(String),
+    #[error(
+        "PoC {0:?} names source {1:?} twice, with a name outside a-z, 0-9 and '-', or without a \
+         folder (`github.path`)"
+    )]
+    BadSource(String, String),
+    #[error("PoC {0:?} is `proxy`; a source is served to a static PoC only")]
+    ProxyWithSource(String),
 }
 
 /// Shortest `voorbehoud` that can say anything. Not a quality bar — it only
@@ -218,6 +262,19 @@ impl Registry {
                     return Err(RegistryError::ProxyWithAssistent(poc.slug.clone()))
                 }
                 _ => {}
+            }
+            if poc.soort == Soort::Proxy && !poc.sources.is_empty() {
+                return Err(RegistryError::ProxyWithSource(poc.slug.clone()));
+            }
+            let mut namen = HashSet::new();
+            for source in &poc.sources {
+                let geen_map = source.github.path.trim_matches('/').is_empty();
+                if !slug_is_valid(&source.name) || !namen.insert(&source.name) || geen_map {
+                    return Err(RegistryError::BadSource(
+                        poc.slug.clone(),
+                        source.name.clone(),
+                    ));
+                }
             }
         }
         Ok(())
@@ -357,6 +414,27 @@ mod tests {
             Registry::from_yaml(&yaml).is_err(),
             "a PoC is never 'productie'"
         );
+    }
+
+    #[test]
+    fn a_source_is_read_with_its_branch_and_token_name() {
+        let yaml = format!(
+            "{}    sources:\n      - name: voorbeeld\n        github:\n          owner: example-org\n          \
+             repo: regelrecht-corpus-example\n          branch: poc/x\n          path: x\n        \
+             token_env: EXAMPLE_TOKEN\n",
+            statisch("a")
+        );
+        let registry = Registry::from_yaml(&yaml).expect("valid");
+        let source = &registry.pocs[0].sources[0];
+        assert_eq!(source.github.branch, "poc/x");
+        assert_eq!(source.local_env(), "POC_BRON_VOORBEELD");
+        let twice = yaml.replace(
+            "    sources:\n",
+            "    sources:\n      - name: voorbeeld\n        github: {owner: o, repo: r, branch: b, path: p}\n        token_env: T\n",
+        );
+        assert!(Registry::from_yaml(&twice).is_err());
+        let zonder_map = yaml.replace("path: x", "path: /");
+        assert!(Registry::from_yaml(&zonder_map).is_err());
     }
 
     #[test]

@@ -1,28 +1,43 @@
-<script setup>
+<script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { childPath as pathOf, initiallyOpen, scalarHint } from './yamlExpand.js';
+import { childPath as pathOf, initiallyOpen, scalarHint, type OpenQuery } from './yamlExpand';
 
 // One node of a parsed YAML document rendered as a collapsible tree. Mappings
 // and sequences fold; scalars show typed. A `source.regulation: <law>` value
 // becomes a link that opens that law in a new law tab.
 
-const props = defineProps({
-  name: { type: [String, Number], default: null },
-  value: { default: null },
-  path: { type: String, default: '' },
-  depth: { type: Number, default: 0 },
+/** The prepared open state the whole tree shares; `version` changes to re-apply it. */
+type ExpandState = Pick<OpenQuery, 'all' | 'paths' | 'folded'> & { version: number };
+
+const props = withDefaults(defineProps<{
+  name?: string | number | null;
+  value?: unknown;
+  path?: string;
+  depth?: number;
   /** Dotted paths that start expanded, together with the nodes above them; '*' matches any segment. */
-  expanded: { type: Object, default: () => ({ paths: [], folded: [], version: 0, all: null }) },
-  lawIds: { type: Object, default: () => new Set() },
-  parentKey: { type: String, default: '' },
+  expanded?: ExpandState;
+  // Only `has` is read; a `Pick` also keeps the runtime prop type `Object`.
+  lawIds?: Pick<ReadonlySet<string>, 'has'>;
+  parentKey?: string;
+}>(), {
+  name: null,
+  // withDefaults only types a factory for an `unknown` prop, and that factory
+  // must return `{}`; the cast keeps the plain `default: null` it had.
+  value: null as never,
+  path: '',
+  depth: 0,
+  expanded: () => ({ paths: [], folded: [], version: 0, all: null }),
+  lawIds: () => new Set(),
+  parentKey: '',
 });
-const emit = defineEmits(['open-law']);
+// `isLawLink` guarantees the value is a string where the template emits it.
+const emit = defineEmits<{ 'open-law': [lawId: string] }>();
 
 const isMap = computed(() => props.value !== null && typeof props.value === 'object' && !Array.isArray(props.value));
 const isList = computed(() => Array.isArray(props.value));
 const isContainer = computed(() => isMap.value || isList.value);
 
-/** De voorbereide stand: zie yamlExpand.js voor waarom die zo staat. */
+/** De voorbereide stand: zie yamlExpand.ts voor waarom die zo staat. */
 function openHere() {
   return initiallyOpen({ path: props.path, depth: props.depth, all: props.expanded.all, paths: props.expanded.paths, folded: props.expanded.folded });
 }
@@ -32,19 +47,20 @@ watch(() => props.expanded.version, () => {
   open.value = openHere();
 });
 
-const entries = computed(() => {
-  if (isMap.value) return Object.entries(props.value);
-  if (isList.value) return props.value.map((v, i) => [i, v]);
+const entries = computed((): [string | number, unknown][] => {
+  if (isMap.value) return Object.entries(props.value as Record<string, unknown>);
+  if (isList.value) return (props.value as unknown[]).map((v, i) => [i, v]);
   return [];
 });
 
-function childPath(key, child) {
+function childPath(key: string | number, child: unknown) {
   return pathOf(props.path, key, child, isList.value);
 }
 
 function summary() {
-  if (isList.value) return `${props.value.length} ${props.value.length === 1 ? 'item' : 'items'}`;
-  const v = props.value;
+  if (isList.value) return `${(props.value as unknown[]).length} ${(props.value as unknown[]).length === 1 ? 'item' : 'items'}`;
+  // Only called for a container, so what is not a list is a mapping.
+  const v = props.value as Record<string, unknown>;
   if (v.number !== undefined && v.text !== undefined) return `artikel ${v.number}`;
   const hint = scalarHint(v) ?? [v.operation, v.regulation].find((h) => typeof h === 'string');
   return hint !== undefined ? String(hint) : `${Object.keys(v).length} velden`;
@@ -102,7 +118,7 @@ function scalarText() {
     </template>
     <template v-else>
       <span class="yaml-key">{{ isList || typeof name === 'number' ? '-' : name }}</span><span v-if="!(isList || typeof name === 'number')">:</span>
-      <button v-if="isLawLink && lawIds.has(value)" type="button" class="yaml-link" :title="`Open ${value}`" @click="emit('open-law', value)">
+      <button v-if="isLawLink && lawIds.has(value as string)" type="button" class="yaml-link" :title="`Open ${value}`" @click="emit('open-law', value as string)">
         {{ value }}
       </button>
       <span v-else :class="scalarClass" style="white-space: pre-wrap"> {{ scalarText() }}</span>

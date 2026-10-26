@@ -1,7 +1,7 @@
 Feature: Begin en einde van het schooljaar bij OBS De Klimop
   Het fictieve beleid van de school zegt in welk schooljaar een dag valt: een
-  schooljaar loopt van 1 augustus tot en met 31 juli van het jaar erna. De
-  reductie van de school vraagt het voor de eerste verlofdag, om te weten of
+  schooljaar loopt van 1 augustus tot en met 31 juli van het jaar erna. Het
+  beleid van het hoofd vraagt het voor de eerste verlofdag, om te weten of
   het hoofd de jongere in dat schooljaar al verlof verleende (artikel 13a,
   tweede lid, van de Leerplichtwet 1969: slechts eenmaal per schooljaar).
 

@@ -33,11 +33,17 @@ fn esc(s: &str) -> String {
 
 /// The page shell.
 ///
-/// `nldd-app-view` is the design system's required root and is not optional
-/// chrome: it is the element carrying `min-height: 100dvh`. `nldd-page` only
-/// has `height: 100%`, which resolves to nothing without a parent that has a
-/// height — so leaving app-view out ends the page background wherever the
-/// content happens to stop, with the viewport bare underneath.
+/// `nldd-shell` is the design system's required root and is not optional
+/// chrome. With no split view inside it, the shell puts the app in root-scroll
+/// mode: it grows with its content from `min-height: 100dvh`, and the
+/// `nldd-page` in it stops being a scroll container of its own, so the document
+/// scrolls. Without a working shell the page keeps `overflow-y: auto` and
+/// `overscroll-behavior: contain` at full content height, and the mouse wheel
+/// does nothing.
+///
+/// Before design system 0.8.100 this element was called `nldd-app-view`. The
+/// old tag is not an error, only an element that never upgrades — which is how
+/// the wheel broke after the bump to 0.9.0.
 fn omhulsel(titel: &str, inhoud: &str) -> String {
     format!(
         r#"<!doctype html>
@@ -50,12 +56,12 @@ fn omhulsel(titel: &str, inhoud: &str) -> String {
 <script type="module" src="/_assets/nldd.js"></script>
 </head>
 <body>
-<nldd-app-view>
+<nldd-shell>
 <nldd-page>
 {thema}
 {inhoud}
 </nldd-page>
-</nldd-app-view>
+</nldd-shell>
 </body>
 </html>
 "#,
@@ -362,6 +368,22 @@ mod tests {
         Registry::from_yaml(include_str!("../../../pocs/registry.yaml")).expect("valid")
     }
 
+    /// Every `nldd-*` tag the two pages render, without the `nldd-` prefix.
+    /// The failed login renders the most: it adds the error banner.
+    fn rendered_nldd_tags() -> std::collections::BTreeSet<String> {
+        let r = registry();
+        let mut html = index(&r);
+        html.push_str(&inloggen(r.get("napp").expect("napp"), "/napp/", true));
+        html.match_indices("<nldd-")
+            .map(|(i, _)| {
+                html[i + "<nldd-".len()..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_lowercase() || *c == '-')
+                    .collect()
+            })
+            .collect()
+    }
+
     #[test]
     fn the_index_lists_every_poc_in_the_register() {
         let r = registry();
@@ -372,22 +394,59 @@ mod tests {
         }
     }
 
-    /// Both pages open with the design system's required root.
+    /// Both pages open with the design system's required root, with the page
+    /// as its direct child.
     ///
-    /// Not a style rule: `nldd-app-view` carries `min-height: 100dvh`, and
-    /// `nldd-page` inside it only has `height: 100%`. Without the wrapper the
-    /// page background ends wherever the content ends and the rest of the
-    /// viewport is bare — which is exactly how this shipped the first time.
+    /// Not a style rule: the shell is what switches the app to root-scroll
+    /// mode. Without it the page background ends wherever the content ends
+    /// (how this shipped the first time), or the page is a scroll container
+    /// that never overflows and swallows the mouse wheel (how it broke when
+    /// `nldd-app-view` was renamed).
     #[test]
-    fn every_page_is_wrapped_in_the_app_view_root() {
+    fn every_page_is_wrapped_in_the_shell_root() {
         let r = registry();
         for html in [
             index(&r),
             inloggen(r.get("napp").expect("napp"), "/napp/", false),
         ] {
-            let app_view = html.find("<nldd-app-view").expect("app-view is the root");
-            let page = html.find("<nldd-page").expect("page");
-            assert!(app_view < page, "nldd-page must sit inside nldd-app-view");
+            let body = html.find("<body>\n").expect("body") + "<body>\n".len();
+            assert!(
+                html[body..].starts_with("<nldd-shell>\n<nldd-page>"),
+                "nldd-shell is the root and nldd-page its direct child",
+            );
+            assert!(html.contains("</nldd-page>\n</nldd-shell>\n</body>"));
+            assert!(
+                !html.contains("nldd-app-view"),
+                "the pre-0.8.100 name never upgrades"
+            );
+        }
+    }
+
+    /// Every tag the pages render is a component the bundle defines.
+    ///
+    /// The Rust pages are outside what `check-nldd-imports.mjs` scans, so
+    /// nothing else ties them to `frontend-poc-portal/nldd-components.js`.
+    /// A tag without its import renders as an unknown element without a word
+    /// of complaint; for the root that cost the mouse wheel.
+    #[test]
+    fn every_tag_on_the_pages_is_imported_by_the_bundle() {
+        const BUNDLE: &str = include_str!("../../../frontend-poc-portal/nldd-components.js");
+        // Components that come in through another component's entry point.
+        // An explicit table rather than the prefix rule of
+        // `script/nldd-imports.mjs`: that rule needs the package's own entry
+        // list to know `page-footer` is not shipped by `page`, and this test
+        // cannot see it.
+        const SHIPPED_WITH: &[(&str, &str)] = &[("menu-item", "menu")];
+
+        for tag in rendered_nldd_tags() {
+            let entry = SHIPPED_WITH
+                .iter()
+                .find(|(sub, _)| *sub == tag)
+                .map_or(tag.as_str(), |(_, parent)| parent);
+            assert!(
+                BUNDLE.contains(&format!("import '@nldd/design-system/{entry}';")),
+                "nldd-{tag} is rendered but frontend-poc-portal/nldd-components.js does not import it",
+            );
         }
     }
 
@@ -512,13 +571,14 @@ mod tests {
     /// `nldd-form-field` has no `for`), so it is worth pinning what survived
     /// that check.
     ///
-    /// `nldd-app-view` is in the list for a second reason: it is the required
+    /// `nldd-shell` is in the list for a second reason: it is the required
     /// root, and dropping it is not a missing decoration but a page whose
-    /// background stops halfway down the viewport.
+    /// background stops halfway down the viewport, or that no longer scrolls
+    /// with the mouse wheel.
     #[test]
     fn only_elements_that_exist_in_the_design_system_are_used() {
         const BESTAAT: &[&str] = &[
-            "nldd-app-view",
+            "nldd-shell",
             "nldd-page",
             "nldd-simple-section",
             "nldd-collection",
@@ -541,15 +601,8 @@ mod tests {
             "nldd-menu",
             "nldd-menu-item",
         ];
-        let r = registry();
-        let mut html = index(&r);
-        html.push_str(&inloggen(r.get("napp").expect("napp"), "/napp/", true));
-
-        for (i, _) in html.match_indices("<nldd-") {
-            let naam: String = html[i + 1..]
-                .chars()
-                .take_while(|c| c.is_ascii_lowercase() || *c == '-')
-                .collect();
+        for tag in rendered_nldd_tags() {
+            let naam = format!("nldd-{tag}");
             assert!(
                 BESTAAT.contains(&naam.as_str()),
                 "{naam} is not in the design system — check its .d.ts before using it",
@@ -583,6 +636,7 @@ mod tests {
             corpus: vec![],
             assistent: false,
             tags: vec!["<script>".into()],
+            sources: vec![],
         };
         let html = kaart(&poc);
         assert!(!html.contains("<b>title</b>"));

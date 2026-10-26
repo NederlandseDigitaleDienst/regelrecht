@@ -1,13 +1,17 @@
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
 import DataLineage from './DataLineage.vue';
-import { fieldSpec, formatDateTime, formatMissing, formatValue, humanize, verdictOf } from '../data/format.js';
-import { lineageFromTrace, leafValues } from '../data/lineage.js';
-import { askedInputsFor, claimKeyFor, evaluationParamsFor, inputKind, nextQuestions, parseAnswer } from '../data/askedInputs.js';
-import { caseReason, eventText, useDemo } from '../store/demoStore.js';
+import { type FieldSpec, fieldSpec, formatDateTime, formatMissing, formatValue, humanize, verdictOf } from '../data/format';
+import { type LineageNode, lineageFromTrace, leafValues } from '../data/lineage';
+import { type AskedInput, askedInputsFor, claimKeyFor, evaluationParamsFor, inputKind, nextQuestions, parseAnswer } from '../data/askedInputs';
+import type { DeclaredClaim } from '../data/declarations';
+import type { LawEntry } from '../data/loadCorpus';
+import type { EvaluateResult } from '../engine/useDemoEngine';
+import { type CaseEvent, type DemoClaim, caseReason, eventText, useDemo } from '../store/demoStore';
 import { t } from '../i18n/index.js';
-import { awbOutcomes, canBeApplied, objectionOpen, statusOf } from '../data/lifecycle.js';
-import { driftRows, driftSentence } from '../data/caseDrift.js';
+import { awbOutcomes, canBeApplied, objectionOpen, statusOf } from '../data/lifecycle';
+import { driftRows, driftSentence } from '../data/caseDrift';
 
 // The citizen's side of an application, inside the portal. The flow the POC
 // generated per regeling: first the questions only the citizen can answer
@@ -16,28 +20,55 @@ import { driftRows, driftSentence } from '../data/caseDrift.js';
 // application with, once decided, the possibility to object. The caseworker's
 // side lives in the Zaaksysteem tab; nothing here jumps there.
 
-const props = defineProps({
-  open: { type: Boolean, default: false },
-  law: { type: Object, default: null },
+const props = withDefaults(defineProps<{
+  open?: boolean;
+  law?: LawEntry | null;
   /** The tile's latest evaluation of this law (re-evaluated as data changes). */
-  evaluation: { type: Object, default: null },
+  evaluation?: EvaluateResult | null;
+}>(), {
+  open: false,
+  law: null,
+  evaluation: null,
 });
 // `edit-value` carries `{ node, law }`, the shape LawTile emits, so the portal
 // opens the same correction sheet for a value corrected from inside the application.
-const emit = defineEmits(['close', 'edit-value']);
-const demo = useDemo();
-const { corpus, profile, personaParams, claimFor, findCase, caseDrift, dataVersion } = demo;
+const emit = defineEmits<{
+  close: [];
+  'edit-value': [payload: { node: LineageNode; law: LawEntry }];
+}>();
 
-const sheet = ref(null);
-const step = ref('gegevens'); // gegevens | controleren | status
-const answers = reactive({});
+/**
+ * A question's field, as `fieldSpec` returns it: the declared field from the
+ * law, which also carries its description and, for a choice, its options.
+ */
+type QuestionSpec = FieldSpec & {
+  description?: string;
+  type_spec?: (FieldSpec['type_spec'] & { enum?: (string | number)[]; enum_labels?: Record<string, string> }) | null;
+};
+/** One question, with the citizen's earlier answer or the profile's declaration. */
+type Question = AskedInput<DemoClaim | DeclaredClaim> & { spec: QuestionSpec | null };
+/** The evaluation when it ran. */
+type OkEvaluation = Extract<EvaluateResult, { ok: true }>;
+/** The banner for the case's status. */
+interface StatusView {
+  variant: string;
+  icon: string;
+  text: string;
+  supporting: string | null;
+}
+const demo = useDemo();
+const { corpus, personaParams, claimFor, findCase, caseDrift, dataVersion } = demo;
+
+const sheet = ref<NLDDSheet | null>(null);
+const step = ref<'gegevens' | 'controleren' | 'status'>('gegevens'); // gegevens | controleren | status
+const answers = reactive<Record<string, unknown>>({});
 const declared = ref(false);
 const error = ref('');
 const objectionReason = ref('');
 const justSubmitted = ref(false);
 
 const service = computed(() => (props.law ? corpus.value?.services?.[props.law.service]?.name ?? props.law.service : ''));
-const asked = computed(() => {
+const asked = computed((): Question[] => {
   void dataVersion.value;
   return props.law && corpus.value ? askedInputsFor(corpus.value, props.law, claimFor) : [];
 });
@@ -61,8 +92,9 @@ const verdict = computed(() => {
   return v === null ? true : v;
 });
 const requirementsMet = computed(() => verdict.value === true);
-const lawName = (id) => corpus.value?.lawById(id)?.name ?? id;
-const verdictMissing = computed(() => (verdict.value === 'unknown' ? formatMissing(props.evaluation.outputs.voldoet_aan_voorwaarden, { ownLaw: props.law?.id, lawName }) : ''));
+const lawName = (id: string) => corpus.value?.lawById(id)?.name ?? id;
+// An 'unknown' verdict comes from an evaluation that ran.
+const verdictMissing = computed(() => (verdict.value === 'unknown' ? formatMissing((props.evaluation as OkEvaluation).outputs.voldoet_aan_voorwaarden, { ownLaw: props.law?.id, lawName }) : ''));
 const primaryName = computed(() => corpus.value?.config?.dashboard_outputs?.[`${props.law?.service}/${props.law?.law_path}`] ?? null);
 const outcomeRows = computed(() => {
   const o = props.evaluation?.ok ? props.evaluation.outputs : {};
@@ -73,8 +105,8 @@ const outcomeRows = computed(() => {
   // zonder te zeggen waarom. Een lege tekst is geen grond en blijft weg.
   const wanted = corpus.value?.config?.tile_details?.[`${props.law?.service}/${props.law?.law_path}`];
   if (wanted) {
-    const pick = (name) => rows.find(([k, v]) => k === name && v !== '');
-    return [primaryName.value, ...wanted].map(pick).filter(Boolean);
+    const pick = (name: string | null) => rows.find(([k, v]) => k === name && v !== '');
+    return [primaryName.value, ...wanted].map(pick).filter((row): row is [string, unknown] => Boolean(row));
   }
   rows.sort(([a], [b]) => (a === primaryName.value ? -1 : b === primaryName.value ? 1 : 0));
   return rows.slice(0, 6);
@@ -108,24 +140,31 @@ watch(
 );
 
 // ---- step 1: the questions ----------------------------------------------------
-function kindOf(a) {
+function kindOf(a: Question) {
   if (Array.isArray(a.spec?.type_spec?.enum)) return 'enum';
   return inputKind(a.spec, a.claim?.newValue ?? null);
 }
-function enumOptions(a) {
+function enumOptions(a: Question) {
   const labels = a.spec?.type_spec?.enum_labels ?? {};
   return (a.spec?.type_spec?.enum ?? []).map((v) => ({ value: String(v), label: labels[v] ?? labels[String(v)] ?? String(v) }));
 }
-function placeholderFor(a) {
+function placeholderFor(a: Question) {
   const k = kindOf(a);
   return k === 'amount' ? t('sheet.application.placeholder.amount') : k === 'date' ? t('sheet.application.placeholder.date') : k === 'number' ? t('sheet.application.placeholder.number') : '';
 }
-function labelFor(a) {
+function labelFor(a: Question) {
   const k = kindOf(a);
   return k === 'amount' ? t('sheet.application.label.amount', { field: humanize(a.name) }) : humanize(a.name);
 }
-function setAnswer(a, e) {
-  answers[a.name] = e.detail?.value ?? e.target?.value ?? '';
+function setAnswer(a: Question, e: Event) {
+  answers[a.name] = (e as CustomEvent<{ value?: unknown } | null | undefined>).detail?.value ?? (e.target as (EventTarget & { value?: unknown }) | null)?.value ?? '';
+}
+/** What an nldd field's event carries: the value in `detail`, or on the field itself. */
+function inputValue(e: Event): string {
+  return (e as CustomEvent<{ value?: string } | null | undefined>).detail?.value ?? (e.target as EventTarget & { value: string }).value;
+}
+function onDeclaredChange(e: Event) {
+  declared.value = !!((e as CustomEvent<{ checked?: boolean } | null | undefined>).detail?.checked ?? (e.target as (EventTarget & { checked?: boolean }) | null)?.checked);
 }
 const canContinue = computed(() => !!question.value && parseAnswer(kindOf(question.value), answers[question.value.name]) !== undefined);
 
@@ -140,11 +179,13 @@ function submitAnswer() {
     error.value = t('sheet.application.fill_in', { field: humanize(a.name).toLowerCase() });
     return;
   }
+  // The question form only renders inside `v-if="law"`.
+  const law = props.law!;
   demo.submitClaim({
-    lawId: props.law.id,
-    tileLawId: props.law.id,
+    lawId: law.id,
+    tileLawId: law.id,
     input: a.name,
-    ...claimKeyFor(props.law, personaParams()),
+    ...claimKeyFor(law, personaParams()),
     oldValue: null,
     newValue: value,
     reason: t('sheet.application.claim_reason'),
@@ -172,9 +213,9 @@ watch([missing, step], ([m, st]) => {
  * hebben een eigen `focus()` die het schaduw-DOM afhandelt. Dat is stabieler
  * dan hier een lijst met tagnamen bijhouden.
  */
-const questionField = ref(null);
-function isFormInput(el) {
-  return el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el.constructor?.isFormInput === true;
+const questionField = ref<HTMLElement | null>(null);
+function isFormInput(el: Element) {
+  return el instanceof HTMLInputElement || el instanceof HTMLSelectElement || (el.constructor as { isFormInput?: boolean } | undefined)?.isFormInput === true;
 }
 watch(
   [question, () => props.open],
@@ -182,7 +223,8 @@ watch(
     if (!q || !open) return;
     await nextTick();
     const control = [...(questionField.value?.querySelectorAll?.('*') ?? [])].find(isFormInput);
-    control?.focus?.();
+    // A form input (native or nldd) has `focus()`.
+    (control as HTMLElement | undefined)?.focus?.();
   },
   { immediate: true },
 );
@@ -193,7 +235,8 @@ watch(
 const applicable = computed(() => canBeApplied((props.law?.doc?.articles ?? []).map((a) => a.machine_readable?.execution?.produces).find(Boolean) ?? null));
 const canSubmit = computed(() => applicable.value && props.evaluation?.ok && verdict.value === true && declared.value && missing.value.length === 0);
 function submitApplication() {
-  const c = demo.submitCase(props.law, props.evaluation, evaluationParamsFor(personaParams(), asked.value));
+  // The button is inside `v-if="law"` and disabled until `canSubmit`, which needs an evaluation.
+  const c = demo.submitCase(props.law!, props.evaluation!, evaluationParamsFor(personaParams(), asked.value));
   if (c) {
     justSubmitted.value = true;
     step.value = 'status';
@@ -206,11 +249,11 @@ function submitApplication() {
 // statuses that used it rendered without an icon at all — an empty column to
 // the left of the text. `accent` is the neutral-but-noticed one. The icons
 // mirror the tile's status tag, so the same case looks the same in both.
-const statusView = computed(() => {
+const statusView = computed((): StatusView | null => {
   const c = currentCase.value;
   if (!c) return null;
   if (c.objection?.status === 'PENDING') return { variant: 'warning', icon: 'flag', text: t('sheet.application.status.objection'), supporting: t('sheet.application.status.objection.supporting') };
-  // Uit de fase, niet uit het opgeslagen veld (zie lifecycle.js).
+  // Uit de fase, niet uit het opgeslagen veld (zie lifecycle.ts).
   const status = statusOf(c);
   if (status === 'DECIDED') {
     if (c.objection) return c.approved ? { variant: 'success', icon: 'check-mark-circle', text: t('sheet.application.status.granted_after_objection'), supporting: caseReason(c) } : { variant: 'critical', icon: 'dismiss-circle', text: t('sheet.application.status.refused_objection_dismissed'), supporting: caseReason(c) };
@@ -220,14 +263,14 @@ const statusView = computed(() => {
   return { variant: 'accent', icon: 'paper-plane', text: t('sheet.application.status.submitted'), supporting: t('sheet.application.status.submitted.supporting') };
 });
 /** Toegekend of afgewezen, gelezen van de gebeurtenis en niet van haar tekst. */
-function decidedText(e) {
+function decidedText(e: CaseEvent) {
   if (e.approved !== undefined) return e.approved ? t('citizen.event.granted') : t('citizen.event.refused');
   if (e.key) return e.key.includes('granted') ? t('citizen.event.granted') : t('citizen.event.refused');
   return String(e.text ?? '').includes('oegekend') ? t('citizen.event.granted') : t('citizen.event.refused');
 }
 
 /** Bezwaar gegrond of ongegrond, op dezelfde manier. */
-function objectionText(e) {
+function objectionText(e: CaseEvent) {
   if (e.upheld !== undefined) return e.upheld ? t('citizen.event.objection_upheld') : t('citizen.event.objection_dismissed');
   if (e.key) return e.key.includes('upheld') ? t('citizen.event.objection_upheld') : t('citizen.event.objection_dismissed');
   const text = String(e.text ?? '');
@@ -268,11 +311,12 @@ const drift = computed(() => {
 });
 const rows = computed(() => driftRows(drift.value, doc.value));
 const driftText = computed(() => driftSentence(drift.value, doc.value));
+// Both buttons are inside `v-else-if="currentCase"`.
 function resubmit() {
-  demo.resubmitCase(currentCase.value.id, props.evaluation, evaluationParamsFor(personaParams(), asked.value));
+  demo.resubmitCase(currentCase.value!.id, props.evaluation, evaluationParamsFor(personaParams(), asked.value));
 }
 function fileObjection() {
-  demo.objectToCase(currentCase.value.id, objectionReason.value.trim() || t('sheet.application.objection.default_reason'));
+  demo.objectToCase(currentCase.value!.id, objectionReason.value.trim() || t('sheet.application.objection.default_reason'));
   objectionReason.value = '';
 }
 const claimedPrimary = computed(() => {
@@ -288,10 +332,10 @@ const caseClaims = computed(() => {
   if (!c) return [];
   return demo.state.claims.filter((cl) => cl.caseId === c.id || (cl.bsn === (c.claimsBsn ?? c.bsn) && cl.tileLawId === c.lawId));
 });
-function claimSpec(cl) {
+function claimSpec(cl: DemoClaim) {
   return fieldSpec(corpus.value?.lawById(cl.lawId)?.doc, cl.input);
 }
-function claimStatus(cl) {
+function claimStatus(cl: DemoClaim) {
   if (cl.status === 'APPROVED') return { color: 'success', text: cl.claimant === 'BEHANDELAAR' ? t('sheet.application.claim.applied') : t('sheet.application.claim.approved') };
   if (cl.status === 'REJECTED') return { color: 'critical', text: t('sheet.application.claim.rejected') };
   return { color: 'neutral', text: t('sheet.application.claim.pending') };
@@ -357,7 +401,7 @@ function claimStatus(cl) {
                 <nldd-icon-cell icon="checked" size="16" color="success"></nldd-icon-cell>
                 <nldd-spacer-cell size="8"></nldd-spacer-cell>
                 <nldd-text-cell size="sm" :text="humanize(a.name)" :supporting-text="t('sheet.application.declared.by_you')"></nldd-text-cell>
-                <nldd-text-cell size="sm" width="fit-content" horizontal-alignment="right" :text="formatValue(a.claim.newValue, a.spec)"></nldd-text-cell>
+                <nldd-text-cell size="sm" width="fit-content" horizontal-alignment="right" :text="formatValue(a.claim?.newValue, a.spec)"></nldd-text-cell>
               </nldd-list-item>
             </nldd-list>
           </template>
@@ -394,7 +438,7 @@ function claimStatus(cl) {
               <nldd-rich-text spacing="tight"><p><small>{{ t('sheet.application.basis.hint') }}</small></p></nldd-rich-text>
 
               <template v-if="requirementsMet && applicable">
-                <nldd-checkbox-field :label="t('sheet.application.declaration')" :checked="declared || undefined" @change="declared = !!($event.detail?.checked ?? $event.target?.checked)"></nldd-checkbox-field>
+                <nldd-checkbox-field :label="t('sheet.application.declaration')" :checked="declared || undefined" @change="onDeclaredChange"></nldd-checkbox-field>
                 <nldd-form-actions>
                   <nldd-button appearance="primary" start-icon="paper-plane" :text="t('sheet.application.submit')" :disabled="!canSubmit || undefined" @click="submitApplication"></nldd-button>
                 </nldd-form-actions>
@@ -405,7 +449,7 @@ function claimStatus(cl) {
 
           <!-- Status of the application -->
           <template v-else-if="currentCase">
-            <nldd-banner :variant="statusView.variant" :icon="statusView.icon" :text="statusView.text" :supporting-text="statusView.supporting"></nldd-banner>
+            <nldd-banner :variant="statusView?.variant" :icon="statusView?.icon" :text="statusView?.text" :supporting-text="statusView?.supporting"></nldd-banner>
             <nldd-rich-text v-if="justSubmitted" spacing="tight"><p>{{ t('sheet.application.submitted', { service }) }}</p></nldd-rich-text>
 
             <!-- Wat er ligt klopt niet meer met wat de wet nu zegt. De demo
@@ -476,7 +520,7 @@ function claimStatus(cl) {
             </nldd-list>
             <template v-if="canObject">
               <nldd-form-field :label="t('sheet.application.objection.field')" optional>
-                <nldd-multi-line-text-field :value="objectionReason" rows="3" :placeholder="t('sheet.application.objection.placeholder')" @input="objectionReason = $event.detail?.value ?? $event.target.value"></nldd-multi-line-text-field>
+                <nldd-multi-line-text-field :value="objectionReason" rows="3" :placeholder="t('sheet.application.objection.placeholder')" @input="objectionReason = inputValue($event)"></nldd-multi-line-text-field>
               </nldd-form-field>
               <nldd-form-actions>
                 <nldd-button appearance="secondary" start-icon="flag" :text="t('sheet.application.objection.submit')" @click="fileObjection"></nldd-button>

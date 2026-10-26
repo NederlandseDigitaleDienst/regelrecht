@@ -3,36 +3,33 @@ name = "regelrecht-poc-chronolexografie"
 version = "0.1.0"
 edition = "2021"
 authors = ["MinBZK <noreply@minbzk.nl>"]
-description = "PoC: een uitvoeringsproces naspelen op de cel van een fictieve uitvoerder, per casus (vakantieverlof, gehandicaptenparkeerkaart)"
+description = "PoC: een uitvoeringsproces naspelen op de cel van een fictieve uitvoerder, per casus (vakantieverlof, gehandicaptenparkeerkaart), als WASM in de browser"
 license = "EUPL-1.2"
 repository = "https://github.com/NederlandseDigitaleDienst/regelrecht"
 publish = false
 
-[[bin]]
-name = "regelrecht-poc-chronolexografie"
-path = "src/main.rs"
-
 [lib]
 name = "regelrecht_poc_chronolexografie"
 path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 regelrecht-cel = { path = "../cel" }
 regelrecht-engine = { path = "../engine" }
 regelrecht-law-model = { path = "../law-model" }
-axum.workspace = true
 chrono.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml_ng.workspace = true
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-tower-http = { workspace = true, features = ["fs", "trace"] }
-tracing.workspace = true
-tracing-subscriber.workspace = true
 
-[dev-dependencies]
-http-body-util.workspace = true
-tower.workspace = true
+[dependencies.wasm-bindgen]
+version = "0.2"
+optional = true
+
+[features]
+# The game behind wasm-bindgen, for the browser (src/wasm.rs). `just
+# poc-chronolexografie-wasm` builds it for wasm32-unknown-unknown.
+wasm = ["dep:wasm-bindgen"]
 
 [lints]
 workspace = true

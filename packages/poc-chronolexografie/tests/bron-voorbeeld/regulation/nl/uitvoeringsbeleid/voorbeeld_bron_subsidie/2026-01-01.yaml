@@ -1,0 +1,55 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.8/schema/v0.8.8/schema.json
+$id: voorbeeld_bron_subsidie
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+# FICTIEF. Een testbron voor src/bundel.rs: een regeling, een cel en een
+# casus zoals een bron ze levert (pocs/registry.yaml, sources). Geen
+# bekendgemaakt beleid.
+url: https://example.invalid/voorbeeld_bron_subsidie
+name: Voorbeeldsubsidie (fictieve testbron)
+competent_authority:
+  name: Voorbeeldautoriteit
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. De
+      Voorbeeldautoriteit verleent op aanvraag van een
+      vereniging subsidie voor een subsidiejaar, indien de vereniging
+      geregistreerd is.
+    url: https://example.invalid/voorbeeld_bron_subsidie#1
+    machine_readable:
+      open_terms:
+        # Of de vereniging geregistreerd is, beoordeelt de autoriteit per
+        # aanvraag; het is geen veld van de aanvraag.
+        - id: partij_geregistreerd
+          type: boolean
+          required: true
+          decided_per_case_by: de Voorbeeldautoriteit (artikel 1)
+          description: Of de aanvragende vereniging geregistreerd is.
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: voorbeeld_bron_subsidie#1
+            parameters:
+              - naam_partij
+              - subsidiejaar
+          - type: BESCHIKKING
+            decision_type: TOEKENNING
+            outputs:
+              - subsidie_verleend
+        parameters:
+          - name: naam_partij
+            type: string
+            description: De naam van de vereniging die subsidie aanvraagt.
+          - name: subsidiejaar
+            type: number
+            description: Het jaar waarvoor subsidie wordt gevraagd.
+        output:
+          - name: subsidie_verleend
+            type: boolean
+            description: Of de autoriteit de subsidie verleent.
+        actions:
+          - output: subsidie_verleend
+            value: $partij_geregistreerd

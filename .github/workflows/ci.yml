@@ -64,13 +64,14 @@ jobs:
               - frontend-poc-terugbetaalregimes/**
               - frontend-poc-nieuwkomersbekostiging/**
               - frontend-poc-napp/**
-              - frontend-poc-chronolexografie/**
               - corpus-poc/**
               - pocs/**
               - packages/frontend-shared/**
               - bdd/**
               - corpus/regulation/**
-              # De reducties van de cellen (RFC-048): gevalideerd en gelezen door de celtests.
+              # De cellen met hun catalogus (cel.yaml) en hun reducties, en de
+              # reducties van geen cel (RFC-048): gevalideerd en gelezen door de
+              # celtests.
               - corpus/cells/**
               # De demo-wetten en -scenario's: gevalideerd en gedraaid als bucket demo.
               - corpus/demo/**
@@ -99,6 +100,8 @@ jobs:
               - Justfile
               - .pre-commit-config.yaml
               - .yamllint
+              # The pinned mold version and sha256 that the Rust jobs install.
+              - .github/actions/setup-mold/**
               - .github/workflows/ci.yml
             docs:
               - docs/**
@@ -112,6 +115,8 @@ jobs:
               - corpus/annotations/**
               - packages/frontend-shared/**
               - script/landing-laws.sh
+              # What the gate installs in the Playwright image.
+              - script/install-a11y-debs.sh
               - .github/workflows/ci.yml
             # De broncontroles op de documentatie (geciteerde paden, proza,
             # RFC-dekking, schemaversie) hebben geen astro-build nodig en
@@ -125,6 +130,7 @@ jobs:
               - bdd/**
               - schema/**
               - corpus/regulation/**
+              - corpus/cells/**
               - Justfile
               - .claude/skills/docs-writing/**
               - .github/workflows/ci.yml
@@ -266,8 +272,9 @@ jobs:
           # Every $schema URL in corpus YAML must reference a known schema version
           KNOWN_VERSIONS=$(ls -d schema/v*/ | xargs -n1 basename)
           FAILED=false
-          # A cell holds rulework only under reducties (RFC-048).
-          for file in $(find corpus/regulation -name "*.yaml"; find corpus/cells -path "*/reducties/*" -name "*.yaml"); do
+          # A reduction sits with its cell, or with none, under corpus/cells
+          # (RFC-048).
+          for file in $(find corpus/regulation -name "*.yaml"; find corpus/cells -path "*/reductions/*" -name "*.yaml"); do
             SCHEMA_URL=$(grep '^\$schema:' "$file" | head -1 | sed 's/\$schema: *//')
             # Handle multi-line $schema with >-
             if [ -z "$SCHEMA_URL" ] || [ "$SCHEMA_URL" = ">-" ]; then
@@ -282,7 +289,7 @@ jobs:
             fi
             FOUND=false
             for ver in $KNOWN_VERSIONS; do
-              if echo "$SCHEMA_URL" | grep -q "$ver"; then
+              if echo "$SCHEMA_URL" | grep -qF "/$ver/"; then
                 FOUND=true
                 break
               fi
@@ -318,7 +325,7 @@ jobs:
       # it tracks schema/latest so a schema bump can't leave the docs behind.
       # Node-only, reads source files (no astro build).
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v6
         with:
           node-version: '24'
 
@@ -375,7 +382,7 @@ jobs:
       # are all modelling errors. The script exits non-zero on any finding.
       - name: Check cross-law binding integrity
         run: |
-          python3 script/cross-law-integriteit.py corpus/regulation
+          python3 script/cross-law-integriteit.py corpus/regulation corpus/cells
 
   pre-commit:
     name: Pre-commit
@@ -410,12 +417,9 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Install mold linker
-        run: |
-          # De runner-image draagt een Google Chrome-apt-bron mee die geregeld een
-          # kapotte index geeft ("Hash Sum mismatch") en dan elke apt-get update laat
-          # falen; wij gebruiken die bron niet, dus weg ermee vóór apt-get update.
-          sudo rm -f /etc/apt/sources.list.d/google-chrome*.list
-          sudo apt-get update && sudo apt-get install -y mold
+        # Checksum-verified release binary, not apt; why, and how to bump the
+        # version and its sha256: .github/actions/setup-mold/action.yml.
+        uses: ./.github/actions/setup-mold
 
       - name: Run sccache
         uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba  # v0.0.11
@@ -438,7 +442,7 @@ jobs:
       # onder het `ci`-filter vallen. Gegate zou hij precies de wijzigingen
       # missen waarvoor hij bestaat.
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v6
         with:
           node-version: '24'
 
@@ -543,12 +547,7 @@ jobs:
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7  # stable
 
       - name: Install mold linker
-        run: |
-          # De runner-image draagt een Google Chrome-apt-bron mee die geregeld een
-          # kapotte index geeft ("Hash Sum mismatch") en dan elke apt-get update laat
-          # falen; wij gebruiken die bron niet, dus weg ermee vóór apt-get update.
-          sudo rm -f /etc/apt/sources.list.d/google-chrome*.list
-          sudo apt-get update && sudo apt-get install -y mold
+        uses: ./.github/actions/setup-mold
 
       - name: Run sccache
         uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba  # v0.0.11
@@ -582,12 +581,7 @@ jobs:
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7  # stable
 
       - name: Install mold linker
-        run: |
-          # De runner-image draagt een Google Chrome-apt-bron mee die geregeld een
-          # kapotte index geeft ("Hash Sum mismatch") en dan elke apt-get update laat
-          # falen; wij gebruiken die bron niet, dus weg ermee vóór apt-get update.
-          sudo rm -f /etc/apt/sources.list.d/google-chrome*.list
-          sudo apt-get update && sudo apt-get install -y mold
+        uses: ./.github/actions/setup-mold
 
       - name: Run sccache
         uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba  # v0.0.11
@@ -635,11 +629,23 @@ jobs:
   # is een echte fout (een wet, een binding of de engine) en geen oordeel van
   # een mens.
   bdd-demo:
-    name: BDD demo
+    name: BDD demo (${{ matrix.leg }})
     needs: changes
     if: needs.changes.outputs.ci == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # Each leg runs one action order of the demo bucket on its own runner.
+        # The demo-law validation and the Awb lifecycle run only in the
+        # `forward` leg, which is the shorter of the two. The `Test` gate
+        # reads `needs.bdd-demo.result`, which fails when either leg fails.
+        include:
+          - leg: forward
+            reverse: ''
+          - leg: reversed
+            reverse: '1'
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
@@ -651,12 +657,7 @@ jobs:
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7  # stable
 
       - name: Install mold linker
-        run: |
-          # De runner-image draagt een Google Chrome-apt-bron mee die geregeld een
-          # kapotte index geeft ("Hash Sum mismatch") en dan elke apt-get update laat
-          # falen; wij gebruiken die bron niet, dus weg ermee vóór apt-get update.
-          sudo rm -f /etc/apt/sources.list.d/google-chrome*.list
-          sudo apt-get update && sudo apt-get install -y mold
+        uses: ./.github/actions/setup-mold
 
       - name: Run sccache
         uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba  # v0.0.11
@@ -673,25 +674,20 @@ jobs:
       # De pre-commit-hook valideert corpus/demo ook, maar alleen de bestanden
       # in de commit; hier het hele demo-corpus tegen schema/latest.
       - name: Validate demo laws
+        if: matrix.leg == 'forward'
         env:
           RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
         run: |
           find corpus/demo/regulation -name '*.yaml' ! -name '.*' -print0 | sort -z \
             | xargs -0 script/validate.sh
 
-      - name: Run demo bucket
+      # An empty BDD_REVERSE_ACTIONS keeps the file order; "1" reverses the
+      # actions of every article (packages/engine/tests/common/reverse_actions.rs).
+      - name: Run demo bucket (${{ matrix.leg }} actions)
         working-directory: packages/engine
         env:
           BDD_BUCKET: corpus
-          REGULATION_PATH: ${{ github.workspace }}/corpus/demo/regulation
-          RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
-        run: cargo test --test bdd -- --nocapture
-
-      - name: Run demo bucket with reversed actions
-        working-directory: packages/engine
-        env:
-          BDD_BUCKET: corpus
-          BDD_REVERSE_ACTIONS: "1"
+          BDD_REVERSE_ACTIONS: ${{ matrix.reverse }}
           REGULATION_PATH: ${{ github.workspace }}/corpus/demo/regulation
           RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
         run: cargo test --test bdd -- --nocapture
@@ -699,6 +695,7 @@ jobs:
       # Zoals `just bdd-demo`: de Awb-levensloop over hetzelfde democorpus.
       # De unit-baan draait deze test alleen tegen corpus/regulation.
       - name: Run Awb lifecycle over demo corpus
+        if: matrix.leg == 'forward'
         working-directory: packages/engine
         env:
           REGULATION_PATH: ${{ github.workspace }}/corpus/demo/regulation
@@ -720,7 +717,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v6
         with:
           node-version: '24'
           registry-url: https://npm.pkg.github.com
@@ -754,7 +751,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v6
         with:
           node-version: '24'
           registry-url: https://npm.pkg.github.com
@@ -810,8 +807,11 @@ jobs:
       - name: Run demo tests
         run: npm test -w frontend-demo
 
+      - name: Type check demo
+        run: npm run typecheck -w frontend-demo
+
       - name: Run chronolexografie poc tests
-        run: npm test -w frontend-poc-chronolexografie
+        run: npm test -w packages/poc-chronolexografie/frontend
 
       # De rekenkunde van de opgenomen rondleiding (knippen, hoofdstukken,
       # ondertitels): pure Python zonder ffmpeg, dus hier in een paar seconden.
@@ -888,6 +888,10 @@ jobs:
       - docs-source
       - rust-image
       - walkthrough-replay
+      # A required check of its own as well. It is listed here because e2e and
+      # walkthrough-replay need its artifact: when it fails they are skipped,
+      # and this gate would read those two as passed.
+      - wasm
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -930,8 +934,16 @@ jobs:
           check docs-source "${{ needs.docs-source.result }}"
           check rust-image "${{ needs.rust-image.result }}"
           check walkthrough-replay "${{ needs.walkthrough-replay.result }}"
+          check wasm "${{ needs.wasm.result }}"
           exit "$status"
 
+  # Besides proving that the engine builds for wasm32, this job builds the
+  # browser engine once for every job that runs it in Chromium: e2e and
+  # walkthrough-replay download the artifact instead of compiling it inside
+  # the Playwright image, which has no C compiler and would need apt for one.
+  # It builds whenever either of them runs; `walkthrough` is a subset of `ci`
+  # today, and BUILD names both so that narrowing `ci` cannot leave the
+  # replay without an engine.
   wasm:
     name: WASM Build
     needs: changes
@@ -941,22 +953,27 @@ jobs:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
       CARGO_INCREMENTAL: "0"
+      BUILD: ${{ needs.changes.outputs.ci == 'true' || needs.changes.outputs.walkthrough == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        if: needs.changes.outputs.ci == 'true'
+        if: env.BUILD == 'true'
+
+      - name: Install just
+        if: env.BUILD == 'true'
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3  # v4.0.0
 
       - name: Install Rust toolchain
-        if: needs.changes.outputs.ci == 'true'
+        if: env.BUILD == 'true'
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7  # stable
         with:
           targets: wasm32-unknown-unknown
 
       - name: Run sccache
-        if: needs.changes.outputs.ci == 'true'
+        if: env.BUILD == 'true'
         uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba  # v0.0.11
 
       - name: Cache cargo registry (shared)
-        if: needs.changes.outputs.ci == 'true'
+        if: env.BUILD == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
@@ -965,14 +982,45 @@ jobs:
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('packages/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-registry-
 
-      # wasm32 links with rust-lld, not mold — so no mold here; the default
-      # RUSTFLAGS (-Dwarnings, no mold link-arg) is correct for this target.
+      # `just wasm-build` expects `wasm-bindgen` on PATH; the script reads
+      # version and checksum from frontend/Dockerfile.
+      - name: Install wasm-bindgen-cli
+        if: env.BUILD == 'true'
+        run: script/install-wasm-bindgen.sh
+
+      # The same recipe the jobs below used to run themselves: a release build
+      # with the `wasm` feature, wasm-bindgen `--target web`, and the copies
+      # for the demo and the docs. wasm32 links with rust-lld, not mold, so
+      # the default RUSTFLAGS (-Dwarnings, no mold link-arg) is correct here.
       - name: Build for WASM
-        if: needs.changes.outputs.ci == 'true'
-        run: cd packages/engine && cargo build --target wasm32-unknown-unknown --features wasm
+        if: env.BUILD == 'true'
+        run: just wasm-build
+
+      # Every path `just wasm-build` writes, so a download at the repository
+      # root puts the engine exactly where a local build would. Only jobs in
+      # this run read it; a week leaves room for "Re-run failed jobs" on e2e
+      # or the replay without re-running this job.
+      - name: Upload WASM engine
+        if: env.BUILD == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
+        with:
+          name: wasm-engine
+          path: |
+            frontend/public/wasm/pkg
+            frontend-demo/public/wasm/pkg
+            docs/public/wasm/pkg
+          if-no-files-found: error
+          retention-days: 7
+
+      # The chronolexografie poc runs the cel and the engine in the visitor's
+      # browser (packages/poc-chronolexografie); a dependency that does not
+      # build for wasm32 would otherwise only show in the poc image on main.
+      - name: Build chronolexografie for WASM
+        if: env.BUILD == 'true'
+        run: cargo build --manifest-path packages/Cargo.toml -p regelrecht-poc-chronolexografie --target wasm32-unknown-unknown --features wasm
 
       - name: Skip (no relevant changes)
-        if: needs.changes.outputs.ci != 'true'
+        if: env.BUILD != 'true'
         run: echo "No relevant changes, skipping WASM build"
 
   # Sinds de previews opt-in werden (#1204) bouwt een PR geen images meer, dus
@@ -1039,7 +1087,9 @@ jobs:
           # om het artefact. Ook geen cache-to, want alleen main schrijft cache.
           push: false
           load: false
-          cache-from: type=registry,ref=ghcr.io/${{ steps.ns.outputs.owner }}/regelrecht-buildcache:pipeline-api
+          cache-from: |
+            type=registry,ref=ghcr.io/${{ steps.ns.outputs.owner }}/regelrecht-buildcache:pipeline-api
+            type=registry,ref=ghcr.io/${{ steps.ns.outputs.owner }}/regelrecht-buildcache:pipeline-deps
 
       - name: Skip (no relevant changes)
         if: needs.changes.outputs.rust-image != 'true'
@@ -1056,55 +1106,55 @@ jobs:
   # credentials en hoort niet in de PR-gate.
   e2e:
     name: E2E (mocked)
-    needs: changes
+    # The engine comes from the wasm job. If that job fails, this one is
+    # skipped, so the `Test` gate reads `wasm` too.
+    needs: [changes, wasm]
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # The official Playwright image: Chromium and every system library it
+    # needs are already in it (under /ms-playwright, PLAYWRIGHT_BROWSERS_PATH),
+    # so the job skips `playwright install --with-deps`, whose apt round-trip
+    # on the runner took anywhere from 10 s to over 9 minutes. The tag has to
+    # be the Playwright version both lockfiles resolve (package-lock.json and
+    # docs/package-lock.json), or the package looks for a browser revision the
+    # image does not have; script/playwright-image.test.mjs fails when they
+    # drift. Pinned by the digest of the multi-arch index:
+    #   curl -sI -H 'Accept: application/vnd.oci.image.index.v1+json' \
+    #     https://mcr.microsoft.com/v2/playwright/manifests/v<version>-noble \
+    #     | grep -i docker-content-digest
+    # The same image runs walkthrough-replay and docs-a11y. It runs as root, without sudo.
+    # --ipc=host is what Playwright recommends for Chromium in Docker: the
+    # default 64 MB /dev/shm makes it crash on large pages.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:7852dc5a7d72f5fe458a597d690f6c42fbc8e9e26ddfa95f8e6ef552558d9bbf
+      options: --ipc=host
+    # A step without `shell:` runs under `bash -e` on the runner but under
+    # `sh -e` in a container job, and the steps are written for bash.
+    # `shell: bash` gives `bash -e -o pipefail`, which is also stricter than
+    # the runner's default.
+    defaults:
+      run:
+        shell: bash
     permissions:
       contents: read
       # Parity met de andere npm-jobs: de workspace kan @nldd-pakketten van
       # npm.pkg.github.com halen.
       packages: read
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      CARGO_INCREMENTAL: "0"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         if: needs.changes.outputs.ci == 'true'
 
-      - name: Install just
+      # Built by the wasm job, on the runner. Building it here needs a C
+      # compiler the image lacks, and its apt install once took 22 minutes.
+      - name: Download WASM engine
         if: needs.changes.outputs.ci == 'true'
-        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3  # v4.0.0
-
-      - name: Install Rust toolchain
-        if: needs.changes.outputs.ci == 'true'
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7  # stable
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
-          targets: wasm32-unknown-unknown
-
-      - name: Run sccache
-        if: needs.changes.outputs.ci == 'true'
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba  # v0.0.11
-
-      - name: Cache cargo registry (shared)
-        if: needs.changes.outputs.ci == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('packages/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-registry-
-
-      # `just test-e2e` hangt aan `wasm-build`, dat `wasm-bindgen` op PATH
-      # verwacht; het script leest versie en checksum uit frontend/Dockerfile.
-      - name: Install wasm-bindgen-cli
-        if: needs.changes.outputs.ci == 'true'
-        run: script/install-wasm-bindgen.sh
+          name: wasm-engine
 
       - name: Setup Node.js
         if: needs.changes.outputs.ci == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v6
         with:
           node-version: '24'
           registry-url: https://npm.pkg.github.com
@@ -1115,42 +1165,17 @@ jobs:
         if: needs.changes.outputs.ci == 'true'
         run: npm ci --ignore-scripts
 
-      # De browserdownload (~150 MB) is de duurste stap; cache hem op de
-      # playwright-versie uit de lockfile. De apt-kant van `--with-deps` is niet
-      # cachebaar en draait hieronder sowieso.
-      - name: Cache Playwright browsers
-        if: needs.changes.outputs.ci == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
-          restore-keys: ${{ runner.os }}-playwright-
-
-      # `--with-deps` is niet optioneel: het trekt naast de Chromium-libs ook
-      # fontconfig en een lettertypepakket binnen. Zonder fontconfig sterft
-      # Chromium bij het eerste renderen op
-      # `SkFontMgr_FontConfigInterface.cpp:163 Not implemented`. Zelfde aanpak
-      # als docs/Dockerfile en de docs-a11y-job.
-      - name: Install Playwright Chromium
-        if: needs.changes.outputs.ci == 'true'
-        working-directory: frontend
-        run: |
-          # De runner-image draagt een Google Chrome-apt-bron mee die geregeld een
-          # kapotte index geeft ("Hash Sum mismatch") en dan elke apt-get update laat
-          # falen; wij gebruiken die bron niet, dus weg ermee vóór apt-get update.
-          sudo rm -f /etc/apt/sources.list.d/google-chrome*.list
-          npx playwright install --with-deps chromium
-
-      # Bouwt eerst het WASM-artefact (frontend/public/wasm/pkg) en start dan de
-      # vite-dev-server via playwright's webServer-config.
+      # What `just test-e2e` runs after its `wasm-build` dependency, which the
+      # download above replaces. Playwright's webServer config starts the vite
+      # dev server.
       - name: Run mocked e2e suite
         if: needs.changes.outputs.ci == 'true'
-        run: just test-e2e
+        run: npm run test:e2e -w frontend
 
       # De poc-tests draaien de echte WASM-engine tegen het casus-corpus
       # (Gherkin-scenario's incluis), dus ze horen in deze baan en niet bij de
-      # gewone frontend-tests: daar is geen wasm-artefact. `just test-e2e`
-      # hierboven heeft het al gebouwd.
+      # gewone frontend-tests: daar is geen wasm-artefact. Hier staat het
+      # klaar uit de download hierboven.
       - name: Run poc tests
         if: needs.changes.outputs.ci == 'true'
         run: |
@@ -1163,7 +1188,7 @@ jobs:
 
       - name: Upload Playwright report
         if: failure() && needs.changes.outputs.ci == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
         with:
           name: playwright-report
           path: frontend/playwright-report
@@ -1179,49 +1204,50 @@ jobs:
   # (een hernoemde knop, een verplaatst paneel, een wet die weg is), en dan
   # laat de rondleiding iets anders zien dan de stem zegt. Deze baan speelt
   # elk hoofdstuk terug in twee vensterformaten en faalt op elke handeling
-  # die zijn element niet meer vindt. Hetzelfde commando als lokaal:
-  # `just walkthrough verify`. Zonder timeline.json slaagt hij meteen.
+  # die zijn element niet meer vindt. Hetzelfde commando als lokaal, met
+  # `--shard` erbij: `just walkthrough verify`. Zonder timeline.json slaagt
+  # hij meteen.
+  #
+  # With the runs one after another, the replay took over ten minutes, longer
+  # than any other job in CI. The matrix spreads the (window size, language)
+  # runs over three runners with `--shard`; the script counts the runs itself,
+  # so a new language lands in one of the three without a change here.
   walkthrough-replay:
-    name: Rondleiding speelt terug
-    needs: changes
+    name: Rondleiding speelt terug (${{ matrix.shard }})
+    # The engine comes from the wasm job; see e2e.
+    needs: [changes, wasm]
     if: needs.changes.outputs.walkthrough == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # See the e2e job for the image and why its tag is pinned to the lockfiles.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:7852dc5a7d72f5fe458a597d690f6c42fbc8e9e26ddfa95f8e6ef552558d9bbf
+      options: --ipc=host
+    # bash, not the container's `sh`; see the e2e job.
+    defaults:
+      run:
+        shell: bash
     permissions:
       contents: read
       packages: read
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      CARGO_INCREMENTAL: "0"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Install just
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3  # v4.0.0
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7  # stable
+      # Built by the wasm job; see e2e.
+      - name: Download WASM engine
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
-          targets: wasm32-unknown-unknown
-
-      - name: Run sccache
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba  # v0.0.11
-
-      - name: Cache cargo registry (shared)
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('packages/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-registry-
-
-      - name: Install wasm-bindgen-cli
-        run: script/install-wasm-bindgen.sh
+          name: wasm-engine
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v6
         with:
           node-version: '24'
           registry-url: https://npm.pkg.github.com
@@ -1231,26 +1257,10 @@ jobs:
       - name: Install workspace dependencies
         run: npm ci --ignore-scripts
 
-      - name: Cache Playwright browsers
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
-          restore-keys: ${{ runner.os }}-playwright-
-
-      # Zie de e2e-baan voor waarom --with-deps en waarom de Chrome-bron weg moet.
-      - name: Install Playwright Chromium
-        run: |
-          sudo rm -f /etc/apt/sources.list.d/google-chrome*.list
-          npx playwright install --with-deps chromium
-
-      - name: Build WASM engine
-        run: just wasm-build
-
       # Start zelf een dev-server (de testhaak van de replay bestaat alleen in
       # een dev-build) en haalt alleen de stem uit de release.
       - name: Replay every chapter
-        run: just walkthrough verify
+        run: just walkthrough verify --shard ${{ matrix.shard }}/${{ strategy.job-total }}
 
   # Security audit
   audit:
@@ -1287,7 +1297,7 @@ jobs:
             "cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny"
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v6
         with:
           node-version: '24'
           registry-url: https://npm.pkg.github.com
@@ -1329,7 +1339,7 @@ jobs:
 
       - name: Setup Node.js
         if: needs.changes.outputs.docs-source == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v6
         with:
           node-version: '24'
 
@@ -1341,10 +1351,29 @@ jobs:
         run: npm run check:source
 
   docs-a11y:
-    name: Docs accessibility gate
+    name: Docs accessibility gate (${{ matrix.shard }})
     needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # See the e2e job for the image and why its tag is pinned to the lockfiles.
+    # The docs build renders mermaid diagrams with the image's Chromium.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:7852dc5a7d72f5fe458a597d690f6c42fbc8e9e26ddfa95f8e6ef552558d9bbf
+      options: --ipc=host
+    # bash, not the container's `sh`; see the e2e job.
+    defaults:
+      run:
+        shell: bash
+    # pa11y checks about 2.5 s per page and the full site has some 200, so
+    # the pages are split over three runners, each with its own Chromium.
+    # gen-pa11yci.mjs takes every third page for its shard. Without docs
+    # changes there is nothing to split and one shard reports the skip. Not a
+    # required check by name: the `Test` gate reads `needs.docs-a11y.result`,
+    # which fails when any shard fails.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.changes.outputs.docs == 'true' && '[1, 2, 3]' || '[1]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -1352,13 +1381,19 @@ jobs:
           # en daarvoor is de diff tegen de base nodig.
           fetch-depth: 0
 
+      # The checkout belongs to the runner's user and the container runs as
+      # root, so git refuses the repository ("dubious ownership") for the
+      # `git diff` and `git worktree` below unless it is marked safe.
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Install just
         if: needs.changes.outputs.docs == 'true'
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3  # v4.0.0
 
       - name: Setup Node.js
         if: needs.changes.outputs.docs == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v6
         with:
           node-version: '24'
           cache: 'npm'
@@ -1369,18 +1404,14 @@ jobs:
         working-directory: docs
         run: npm ci --ignore-scripts
 
-      # rehype-mermaid rendert diagrammen met een headless Chromium tijdens de
-      # build — installeer die (met systeemdeps) op dezelfde manier als
-      # docs/Dockerfile.
-      - name: Install Playwright Chromium
+      # Two packages the image lacks: `unzip` for Puppeteer's Chrome download,
+      # and the DejaVu fonts the runner image renders code blocks in. The
+      # script installs the exact .debs apt would pick, pinned by checksum,
+      # without going through the image's apt mirror; why, and how to refresh
+      # them, is in the script.
+      - name: Install unzip and fonts
         if: needs.changes.outputs.docs == 'true'
-        working-directory: docs
-        run: |
-          # De runner-image draagt een Google Chrome-apt-bron mee die geregeld een
-          # kapotte index geeft ("Hash Sum mismatch") en dan elke apt-get update laat
-          # falen; wij gebruiken die bron niet, dus weg ermee vóór apt-get update.
-          sudo rm -f /etc/apt/sources.list.d/google-chrome*.list
-          npx playwright install --with-deps chromium
+        run: script/install-a11y-debs.sh
 
       # pa11y draait niet op playwright maar op puppeteer, met een eigen
       # browsercache (~/.cache/puppeteer). Die download zat in puppeteers
@@ -1388,17 +1419,16 @@ jobs:
       # daarom expliciet te staan. Zonder deze stap faalt de gate met
       # "Could not find Chrome".
       #
-      # Deze stap haalt alleen de browser zelf binnen. De gedeelde libraries
-      # (libnss3, libgbm, libasound2, …) die pa11y straks nodig heeft om deze
-      # Chrome te starten komen van `playwright install --with-deps` hierboven;
-      # die stap moet dus blijven staan. `browsers install` heeft daar zelf wel
-      # een --install-deps voor, maar dat vereist root en dat is de runner niet.
+      # This step fetches only the browser itself. The shared libraries it
+      # needs to start (libnss3, libgbm, libasound2, ...) come with the
+      # Playwright image, which carries everything Chromium links against.
+      # pa11y starts it with --no-sandbox (docs/scripts/gen-pa11yci.mjs),
+      # which running as root in the container requires.
       #
       # `--no` houdt npx bij de puppeteer uit docs/package-lock.json. Zonder
       # die vlag zou npx bij een resolutiewijziging stilletjes puppeteer@latest
       # van de registry halen — inclusief de postinstall die we hierboven net
-      # hebben uitgezet. De playwright-regel hierboven staat nog zonder --no;
-      # playwright heeft geen install-hook, dus daar valt niets uit te voeren.
+      # hebben uitgezet.
       - name: Install Puppeteer Chrome
         if: needs.changes.outputs.docs == 'true'
         working-directory: docs
@@ -1443,6 +1473,8 @@ jobs:
         if: needs.changes.outputs.docs == 'true'
         env:
           A11Y_CHANGED_FILES: ${{ steps.changed.outputs.files }}
+          # Expressions have no arithmetic, so N comes from the matrix itself.
+          A11Y_SHARD: ${{ matrix.shard }}/${{ strategy.job-total }}
         run: just docs-a11y
 
       # Een gepubliceerd adres blijft bereikbaar. Een documentatiepagina wordt
@@ -1457,8 +1489,10 @@ jobs:
       #
       # Alleen op een pull request: bij een push naar main is er geen "ervoor"
       # om tegen te vergelijken.
+      #
+      # It compares whole builds, not pages, so one shard is enough.
       - name: Check no published URL disappeared
-        if: needs.changes.outputs.docs == 'true' && github.event_name == 'pull_request'
+        if: needs.changes.outputs.docs == 'true' && github.event_name == 'pull_request' && matrix.shard == 1
         run: |
           set -euo pipefail
           base="$(mktemp -d)"

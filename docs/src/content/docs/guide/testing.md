@@ -61,7 +61,7 @@ Test scenarios are derived from the **Memorie van Toelichting** (MvT), the expla
 
 ## Everything at once
 
-`just check` runs what CI runs: formatting, lints, a build check, schema and annotation validation, the script test suites, and the full Rust test suite. Run it before pushing.
+`just check` runs formatting, lints, a build check, schema and annotation validation, the script test suites, and the full Rust test suite. It needs no npm dependencies. Run it before pushing, and after a frontend change also `just frontend-test`: the frontend unit tests and type checks, as CI runs them. The Playwright suite is `just test-e2e`.
 
 The first three also run on their own, and the pre-commit hooks call them the same way:
 

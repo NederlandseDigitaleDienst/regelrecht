@@ -39,11 +39,28 @@ voorbeeld:
   bevindingen:
     specifieke_aard_beroep_ouder: true
   bezwaar:
-    bezwaarschrift_ondertekend: true
+    bezwaar_of_beroepschrift_ondertekend: true
     naam_indiener: J. Jansen
     adres_indiener: Voorbeeldstraat 1
     omschrijving_bestreden_besluit: weigering vakantieverlof
-    gronden_bezwaar: 'verklaring van de werkgever: geen verlof in de schoolvakanties'
+    gronden_bezwaar_of_beroep: 'verklaring van de werkgever: geen verlof in de schoolvakanties'
+  # Het beroepschrift (Awb 6:5): dezelfde velden als het bezwaarschrift.
+  beroep:
+    bezwaar_of_beroepschrift_ondertekend: true
+    naam_indiener: J. Jansen
+    adres_indiener: Voorbeeldstraat 1
+    omschrijving_bestreden_besluit: beslissing op bezwaar tegen de weigering van vakantieverlof
+    gronden_bezwaar_of_beroep: de beslissing is niet deugdelijk gemotiveerd
+  # Wat de rechter vindt (Awb 8:70 en 8:72): het beroep is gegrond, de
+  # rechtsgevolgen blijven niet in stand, de rechter voorziet niet zelf in
+  # de zaak en de school krijgt twee weken.
+  uitspraak:
+    indiener_is_belanghebbende: true
+    rechtsregel_geschonden: true
+    geschonden_rechtsregel: artikel 7:12, eerste lid, van de Algemene wet bestuursrecht
+    rechtsgevolgen_in_stand: false
+    uitspraak_treedt_in_de_plaats: false
+    termijn_nieuw_besluit: '2027-01-25'
 
 # Wat de school vastlegde vóór het eerste scenario (RFC-051), bij elke start
 # en reset opnieuw, via de cel zoals elke stap. De regeling vaststelling
@@ -64,6 +81,19 @@ begin:
         provincie: Utrecht
         sinds: '2020-08-01'
 
+# De andere cellen van de sfeer (RFC-052).
+andere_cellen:
+  # De bestuursrechter (RFC-053): ook een andere cel, met een eigen kroniek.
+  # Dat zij de rechter is, zegt haar cel.yaml (categorie "de
+  # bestuursrechter", wie volgens Awb 8:70 beslist). Het artikel van het
+  # beroep en het feit waarin de school de ontvangst van een uitspraak
+  # vastlegt (Awb 8:79), leidt de app af uit de wet.
+  - cel: rechtbank_wilgendaal
+    cel_naam: Rechtbank Wilgendaal
+
+# The app shows these scenarios step by step in a guide beside the page
+# (frontend/src/scenarioGuides.js), which follows a scenario by its `naam`;
+# change a name or a step in both places.
 scenarios:
   - naam: Aanvraag wordt verleend
     stappen:
@@ -174,10 +204,10 @@ scenarios:
     eind: >-
       Gegrond: B is herroepen, en het nieuwe besluit verleent het verlof. Bij
       het besluit staat "verlof al verleend in schooljaar: nee", ingevuld door
-      de cel. Onder "Hoe de cel dit beantwoordde" staat A bij de herroepen
-      besluiten, en het spoor laat zien dat het filter twee besluiten onder
-      artikel 13a oversloeg. Dat zijn A en de weigering die ervoor in de
-      plaats kwam.
+      het beleid van het hoofd met het antwoord van de cel. Onder "Hoe de cel
+      dit beantwoordde" staat A bij de herroepen besluiten, en het
+      spoor laat zien dat het filter twee besluiten onder artikel 13a
+      oversloeg. Dat zijn A en de weigering die ervoor in de plaats kwam.
   - naam: 'Verlof in de kerstvakantie: geweigerd zonder oordeel van het hoofd'
     stappen:
       - >-
@@ -190,12 +220,13 @@ scenarios:
     eind: >-
       Het verlof wordt geweigerd. Het hoofd oordeelde niet over de
       schoolvakanties: bij het besluit staat "verlof valt buiten
-      schoolvakanties: nee", ingevuld door de cel. Onder "Hoe de cel dit
-      beantwoordde" staat dat haar reductie de regio Midden en de kerstvakantie
-      van 19 december 2026 tot en met 3 januari 2027 uit de regeling las, en
+      schoolvakanties: nee", ingevuld door het beleid van het hoofd met het
+      antwoord van de cel. Onder "Hoe de cel dit beantwoordde" staat dat haar
+      reductie de regio Midden en de kerstvakantie van 19 december 2026 tot en
+      met 3 januari 2027 uit de regeling las, en
       de herfst- en voorjaarsvakantie uit het beleid van de school. De
       regio volgt uit de plaats van vestiging, Utrecht, die de cel binnen die
-      reductie zelf beantwoordde; klik daar nog eens op "Hoe de cel dit
+      reductie zelf gaf; klik daar nog eens op "Hoe de cel dit
       beantwoordde" voor haar vestiging. In het Logboek staat het besluit met
       dezelfde keten, en onderaan het executogram van de vestiging.
   - naam: 'Verlof in een schooljaar dat de school nog niet kent: het hoofd oordeelt'
@@ -214,3 +245,40 @@ scenarios:
       Het verlof wordt geweigerd. Bij het besluit staat "verlof valt buiten
       schoolvakanties: nee" als bevinding van het bestuursorgaan, niet als
       antwoord van de school.
+  - naam: Bezwaar ongegrond, beroep gegrond, nieuw besluit op bezwaar
+    stappen:
+      - >-
+        Aanvrager, speeldatum 14 oktober 2026: klik op Aanvraag indienen.
+        Bestuursorgaan: zet "specifieke aard beroep ouder" uit en klik op
+        Besluit nemen. Het verlof wordt geweigerd.
+      - >-
+        Aanvrager, speeldatum 1 november 2026: klik bij het besluit op Bezwaar
+        maken en dan op Bezwaar indienen.
+      - >-
+        Bestuursorgaan, speeldatum 15 november 2026: klik op Ontvankelijkheid
+        toetsen. Laat de bevinding staan en klik op Beslissen op bezwaar.
+        Ongegrond: de weigering blijft.
+      - >-
+        Aanvrager, speeldatum 1 december 2026: klik bij de beslissing op
+        bezwaar op Beroep instellen en dan op Beroepschrift indienen. De
+        school maakt een afschrift van haar beslissing, en de rechtbank legt
+        het beroep vast met wat zij ontving.
+      - >-
+        Andere cellen, Rechtbank Wilgendaal, speeldatum 11 januari 2027: de
+        voorbeeldbevindingen zeggen
+        dat de beslissing artikel 7:12, eerste lid, Awb schendt (geen
+        deugdelijke motivering), dat de rechtsgevolgen niet in stand blijven
+        en dat de school tot en met 25 januari 2027 heeft. Klik op Uitspraak
+        doen en dan op Toezenden.
+      - >-
+        Bestuursorgaan, speeldatum 18 januari 2027: klik onder "Na een
+        uitspraak" op Heroverwegen, kies bij "specifieke aard beroep ouder" Ja
+        en klik op Opnieuw beslissen op bezwaar.
+    eind: >-
+      Gegrond: de weigering is herroepen, en het nieuwe besluit verleent het
+      verlof van 1 tot en met 5 februari 2027, binnen de termijn van de
+      rechter. De Kroniek toont twee kronieken. In die van de school staan de
+      ontvangst van de uitspraak, ontvangen van de rechtbank, en twee
+      beslissingen op hetzelfde bezwaar; de tweede is genomen na die
+      ontvangst. In die van de rechtbank staan het beroep, met het afschrift
+      dat zij van de school ontving, en de uitspraak.

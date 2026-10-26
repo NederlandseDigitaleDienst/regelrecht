@@ -1,19 +1,20 @@
-<script setup>
+<script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import type { NLDDModalDialog } from '@nldd/design-system/modal-dialog';
 import { useColorScheme } from '@regelrecht/frontend-shared';
-import { FEATURES, useDemo } from './store/demoStore.js';
-import { delegationLabel } from './data/delegation.js';
+import { FEATURES, useDemo } from './store/demoStore';
+import { delegationLabel } from './data/delegation';
 import { LOCALES, useI18n } from './i18n/index.js';
-import { localeRouteName } from './router.js';
+import { localeRouteName } from './router';
 import PresentationDeck from './presentation/PresentationDeck.vue';
-import { usePresentation } from './presentation/usePresentation.js';
-import { replay } from './walkthrough/replay.js';
-import { viewEpoch } from './walkthrough/viewEpoch.js';
+import { usePresentation } from './presentation/usePresentation';
+import { replay } from './walkthrough/replay';
+import { viewEpoch } from './walkthrough/viewEpoch';
 import ReplayAside from './walkthrough/ReplayAside.vue';
 import ReplayControls from './walkthrough/ReplayControls.vue';
 import ReplayOverlay from './walkthrough/ReplayOverlay.vue';
-import { lockWhy, probeWhy, unlockWhy, whyAvailable, whyUnlocked } from './why/why.js';
+import { lockWhy, probeWhy, unlockWhy, whyAvailable, whyUnlocked } from './why/why';
 
 // The workspace shell: one bar with the tab bar and the presenter menu, and
 // the active tab below it. Every tab is a route; <keep-alive> keeps the tabs
@@ -33,7 +34,7 @@ const { ready, loadError, profile, profileKey, corpus, state, delegations, deleg
  * current route's params along would put `/regelwerken/:lawId` on the Graph tab.
  * The views restore their own last position when they mount.
  */
-function pathFor(page) {
+function pathFor(page: string) {
   return router.resolve({ name: localeRouteName(page, locale.value) }).path;
 }
 
@@ -45,7 +46,9 @@ const hasFeatureOverrides = computed(() => Object.keys(state.featureOverrides ??
 // lazy routes), so the shell settles on "document scrolls" and the pane
 // headers stop sticking. Re-deriving after every route change puts it right;
 // it is a design-system timing gap, not something the demo should own.
-const appView = ref(null);
+// `_evaluateScrollMode` and `_derivedMode` are private on NLDDShell, so the
+// ref is typed by just the two members read here.
+const appView = ref<{ _evaluateScrollMode?: () => void; _derivedMode?: string } | null>(null);
 function refreshScrollMode(attempt = 0) {
   nextTick(() => {
     const view = appView.value;
@@ -60,7 +63,9 @@ onMounted(() => {
   probeWhy();
   refreshScrollMode();
 });
-router.afterEach(refreshScrollMode);
+// Not `afterEach(refreshScrollMode)`: the hook passes the route, which would
+// land in `attempt` and stop the retries after a tab switch.
+router.afterEach(() => refreshScrollMode());
 
 // The presentation deck drives the tabs; it needs the router, the store (to
 // switch persona) and the slides from the demo config once that has loaded.
@@ -80,11 +85,11 @@ watch(corpus, (c) => replay.active || presentation.init({ slides: c?.config?.sli
 // De modus staat in de store (en dus in localStorage); het dek houdt er zijn
 // eigen ref voor, zodat de store niet om de presentatiemodule heen cirkelt.
 watch(() => state.presentationMode, (m) => presentation.setMode(m), { immediate: true });
-function onGlobalKey(e) {
+function onGlobalKey(e: KeyboardEvent) {
   // While the recorded walkthrough runs it drives the deck; Shift+P would
   // pull the deck out from under it.
   if (replay.active) return;
-  if (e.key === 'P' && e.shiftKey && !e.target?.closest?.('input, textarea, select, [contenteditable]')) {
+  if (e.key === 'P' && e.shiftKey && !(e.target as Element | null)?.closest?.('input, textarea, select, [contenteditable]')) {
     e.preventDefault();
     // Een schakelaar, ook als het dek uit beeld staat. `start()` navigeert naar
     // de dia, en dat is precies wat je níet wilt van iemand die zelf naar een
@@ -123,7 +128,7 @@ const tabs = computed(() => [
   { name: 'zaaksysteem', text: t('app.tabs.zaaksysteem'), icon: 'inbox', to: pathFor('zaaksysteem') },
 ]);
 
-function isActive(tab) {
+function isActive(tab: { name: string }) {
   // On the page, not on the route name: the same page has one route name per
   // language (`wetten` and `wetten:en`), and `meta.page` is what the two share.
   return (route.meta?.page ?? route.name) === tab.name;
@@ -153,10 +158,10 @@ onUnmounted(() => window.removeEventListener('resize', onResize));
  * we er vóór het menu-item bij zijn. Een klik met een modifier laten we staan,
  * want dat is iemand die bewust een nieuw tabblad of venster wil.
  */
-function onOverflowMenuClick(event) {
+function onOverflowMenuClick(event: MouseEvent) {
   if (event.defaultPrevented) return;
   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
-  const item = event.composedPath?.().find((n) => n?.tagName?.toLowerCase?.() === 'nldd-menu-item');
+  const item = event.composedPath?.().find((n) => (n as Element | null)?.tagName?.toLowerCase?.() === 'nldd-menu-item') as Element | undefined;
   const to = item?.getAttribute?.('href');
   // `tab`, niet `t`: `t` is hier de vertaalfunctie, en die naam nog eens als
   // lusvariabele gebruiken werkt wel maar leest als een fout.
@@ -179,8 +184,8 @@ const tabVariant = computed(() => {
 
 const profileOptions = computed(() => Object.entries(corpus.value?.config?.profiles ?? {}));
 
-function onProfileSelect(e) {
-  const value = e.target?.getAttribute?.('value');
+function onProfileSelect(e: Event) {
+  const value = (e.target as Element | null)?.getAttribute?.('value');
   if (value) demo.setProfile(value);
 }
 
@@ -194,10 +199,10 @@ const showDelegation = computed(() => delegationEnabled.value && delegations.val
 /** Wat er in de knop staat: 'Mezelf' of degene namens wie gehandeld wordt. */
 const delegationButtonText = computed(() => activeDelegation.value?.subjectName ?? t('app.delegation.self'));
 
-const DELEGATION_ICONS = { SELF: 'person', CITIZEN: 'person', BUSINESS: 'building' };
+const DELEGATION_ICONS: Record<string, string> = { SELF: 'person', CITIZEN: 'person', BUSINESS: 'building' };
 
-function onDelegationSelect(e) {
-  const value = e.target?.getAttribute?.('value');
+function onDelegationSelect(e: Event) {
+  const value = (e.target as Element | null)?.getAttribute?.('value');
   if (!value) return;
   demo.setDelegation(delegations.value.find((d) => `${d.subjectType}:${d.subjectId}` === value) ?? null);
 }
@@ -219,11 +224,12 @@ const colorSchemeOptions = computed(() => [
 // zichzelf in de eigen taal ('Nederlands', 'English'), in wélke taal de demo ook
 // staat. Als sleutel zou hij in elk woordenboek dezelfde waarde hebben, en dat
 // is precies wat de pariteitstest als onvertaald aanmerkt.
-const languageOptions = computed(() => LOCALES.map((l) => [l.code, l.label]));
+const languageOptions = computed(() => LOCALES.map((l): [string, string] => [l.code, l.label]));
 
-function switchLocale(next) {
+function switchLocale(next: string) {
   if (!next || next === locale.value) return;
-  const page = route.meta?.page ?? route.name;
+  // Every route of this app is named with a string (router.ts), never a symbol.
+  const page = (route.meta?.page ?? route.name) as string | undefined;
   // Het staartstuk van het huidige pad (`/zorgtoeslagwet`, of een heel
   // bestandspad op het scenario-tabblad) wordt letterlijk overgenomen, vóór
   // `setLocale` het pad onder ons verandert.
@@ -252,21 +258,17 @@ function switchLocale(next) {
     hash: route.hash,
   });
 }
-function onColorSchemeSelect(e) {
-  const value = e.target?.getAttribute?.('value');
-  if (value) setColorScheme(value);
-}
 
 function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen?.();
   else document.documentElement.requestFullscreen?.();
 }
 
-// Unlocking the "why" explanation (why/why.js). The password is checked by the
+// Unlocking the "why" explanation (why/why.ts). The password is checked by the
 // server; the dialog only passes it on and says whether it was accepted.
-const whyDialog = ref(null);
+const whyDialog = ref<NLDDModalDialog | null>(null);
 const whyInput = ref('');
-const whyStatus = ref(null); // null | 'wrong' | 'unavailable'
+const whyStatus = ref<'wrong' | 'unavailable' | null>(null); // null | 'wrong' | 'unavailable'
 const whyBusy = ref(false);
 function askWhyPassword() {
   whyInput.value = '';
@@ -285,7 +287,7 @@ async function confirmWhyPassword() {
   }
 }
 
-const resetDialog = ref(null);
+const resetDialog = ref<NLDDModalDialog | null>(null);
 function askReset() {
   resetDialog.value?.show?.();
 }
@@ -293,6 +295,11 @@ function confirmReset() {
   resetDialog.value?.hide?.();
   demo.resetState();
   router.push(pathFor('home'));
+}
+
+function onWhyInput(e: Event) {
+  whyInput.value = (e as CustomEvent<{ value?: string } | null | undefined>).detail?.value ?? (e.target as EventTarget & { value: string }).value;
+  whyStatus.value = null;
 }
 
 function toggleManualReview() {
@@ -554,7 +561,7 @@ const openCases = computed(() => state.cases.filter((c) => c.status === 'IN_REVI
         </nldd-page>
         <router-view v-else v-slot="{ Component }">
           <!-- Keyed so the walkthrough can drop every cached tab when it
-               jumps (walkthrough/viewEpoch.js). -->
+               jumps (walkthrough/viewEpoch.ts). -->
           <keep-alive :key="viewEpoch">
             <component :is="Component" />
           </keep-alive>
@@ -578,7 +585,7 @@ const openCases = computed(() => state.cases.filter((c) => c.status === 'IN_REVI
           :hide-button-text="t('app.why.dialog.hide')"
           :show-button-accessible-label="t('app.why.dialog.show_label')"
           :hide-button-accessible-label="t('app.why.dialog.hide_label')"
-          @input="whyInput = $event.detail?.value ?? $event.target.value; whyStatus = null"
+          @input="onWhyInput"
         ></nldd-password-field>
         <nldd-form-field-help-text v-if="whyStatus">{{ t(`app.why.dialog.${whyStatus}`) }}</nldd-form-field-help-text>
       </nldd-form-field>

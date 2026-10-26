@@ -28,6 +28,7 @@ on:
       - 'packages/engine/**'
       - 'packages/pipeline/**'
       - '.github/workflows/mutation-diff.yml'
+      - '.github/actions/setup-mold/**'
 
 permissions:
   contents: read
@@ -155,12 +156,9 @@ jobs:
 
       - name: Install mold linker
         # Required by packages/.cargo/config.toml (mold linker on x86_64-linux).
-        run: |
-          # De runner-image draagt een Google Chrome-apt-bron mee die geregeld een
-          # kapotte index geeft ("Hash Sum mismatch") en dan elke apt-get update laat
-          # falen; wij gebruiken die bron niet, dus weg ermee vóór apt-get update.
-          sudo rm -f /etc/apt/sources.list.d/google-chrome*.list
-          sudo apt-get update && sudo apt-get install -y mold
+        # Checksum-verified release binary, not apt; why, and how to bump the
+        # version and its sha256: .github/actions/setup-mold/action.yml.
+        uses: ./.github/actions/setup-mold
 
       - name: Restore cargo registry (shared met CI)
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
@@ -244,7 +242,7 @@ jobs:
 
       - name: Upload rapport
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
         with:
           name: mutation-report-diff-shard-${{ matrix.shard }}
           # cargo-mutants schrijft naar de workspace-root (packages/), ook als

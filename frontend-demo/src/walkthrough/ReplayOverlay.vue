@@ -1,15 +1,16 @@
-<script setup>
+<script setup lang="ts">
 /**
  * What lies over the live demo while a walkthrough runs: the presenter in a
  * circle, the captions, the cursor that shows where the presenter clicks, and
  * the transcript panel. Also the player's keys.
  */
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
 import { useViewerI18n } from '../i18n/index.js';
-import { usePresentation } from '../presentation/usePresentation.js';
-import { PLAYER_KEYS, audioTime, backToMain, chapterSlide, currentTrack, questionOf, replay, seek, togglePlay } from './replay.js';
-import { MEDIA_BASE, camVisible, cueAt, followerCorrection, formatTime, nextChapterStart, previousChapterStart } from './timeline.js';
-import { camSlot, transcript } from './chrome.js';
+import { usePresentation } from '../presentation/usePresentation';
+import { PLAYER_KEYS, audioTime, backToMain, chapterSlide, currentTrack, questionOf, replay, seek, togglePlay } from './replay';
+import { MEDIA_BASE, camVisible, cueAt, followerCorrection, formatTime, nextChapterStart, previousChapterStart } from './timeline';
+import { camSlot, transcript } from './chrome';
 
 const { t, locale } = useViewerI18n();
 const p = usePresentation();
@@ -33,8 +34,8 @@ onUnmounted(() => document.documentElement.classList.remove('rr-face'));
 
 // ---- the bubble -------------------------------------------------------------------
 
-const cam = ref(null);
-const camStyle = ref({});
+const cam = ref<HTMLVideoElement | null>(null);
+const camStyle = ref<Record<string, string>>({});
 
 /** Lay the bubble over its spot in the rail; on a full slide the stylesheet places it. */
 function placeCam() {
@@ -61,7 +62,7 @@ function loop() {
 
 // ---- the top layer ---------------------------------------------------------------------
 
-const pointerLayer = ref(null);
+const pointerLayer = ref<HTMLElement | null>(null);
 function raise() {
   const el = pointerLayer.value;
   if (!el?.showPopover) return;
@@ -78,7 +79,7 @@ onMounted(raise);
 // The cover while a jump restores the demo: a layer of its own, because the
 // pointer layer is aria-hidden and its status message has to be heard. Raised
 // again as the restore goes on, above a sheet or dialog it opens.
-const restoreLayer = ref(null);
+const restoreLayer = ref<HTMLElement | null>(null);
 function raiseCover() {
   const el = restoreLayer.value;
   if (!el?.showPopover) return;
@@ -101,7 +102,7 @@ watch(
 
 // ---- the transcript ------------------------------------------------------------------
 
-const sheet = ref(null);
+const sheet = ref<NLDDSheet | null>(null);
 watch(
   () => transcript.open,
   (open) => (open ? sheet.value?.show?.() : sheet.value?.hide?.()),
@@ -119,18 +120,19 @@ const chapters = computed(() =>
     };
   }),
 );
-function playFrom(at) {
+function playFrom(at: number) {
   transcript.open = false;
   seek(at, { play: true });
 }
 
 // ---- keys ------------------------------------------------------------------------------
 
-function pathHas(e, selector) {
-  return (e.composedPath?.() ?? []).some((n) => n?.matches?.(selector));
+function pathHas(e: Event, selector: string) {
+  // The path also holds the document and the window, which have no `matches`.
+  return (e.composedPath?.() ?? []).some((n) => (n as Partial<Element> | null)?.matches?.(selector));
 }
 
-function onKey(e) {
+function onKey(e: KeyboardEvent) {
   if (!replay.active || e.metaKey || e.ctrlKey || e.altKey || transcript.open) return;
   if (!PLAYER_KEYS.has(e.key)) return;
   // A menu keeps its keys.

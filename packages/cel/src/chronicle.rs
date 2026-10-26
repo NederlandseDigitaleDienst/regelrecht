@@ -39,18 +39,33 @@ pub struct Gram {
     /// `BESCHIKKING`, or [`EXECUTOGRAM`] for an executogram.
     pub kind: String,
     /// The article that establishes it or decides, `<regulation>#<article>`
-    /// (RFC-022 `grondslag`); for an executogram, the article that requires
+    /// (RFC-022 `basis`); for an executogram, the article that requires
     /// the fact it records (RFC-051).
-    pub grondslag: String,
+    pub basis: String,
     /// For an executogram, the fact it records, by the name the article
     /// gives it in `requires` (schema v0.8.7, RFC-051). Absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fact: Option<String>,
     /// The chronolexogram it refers to: for a decision, the application or
     /// objection it is taken on (RFC-047, RFC-050); for an objection, the
-    /// decision it contests. Absent for an executogram (RFC-051).
+    /// decision it contests; for the receipt of a copy, the decision of this
+    /// cell the copy concerns (RFC-053). Absent for any other executogram
+    /// (RFC-051), and for a submission that refers to a copy: that one
+    /// holds `received`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub refers_to: Option<String>,
+    /// What came in from another cell (RFC-053): for a submission that
+    /// contests a decision of another cell, the decision of which it holds
+    /// a copy; for the receipt of a copy, the chronolexogram the copy is
+    /// of. The cell keeps what it received, not a live link.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub received: Option<Received>,
+    /// For a decision taken again on a submission already decided on, the
+    /// later chronolexogram that refers to the earlier decision and lets
+    /// the cell decide again, such as the receipt of a judgment that
+    /// annulled it (RFC-053).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after: Option<String>,
     /// The cell that recorded it (RFC-022 `recording_actor`).
     pub recording_actor: String,
     /// The day the cell recorded it.
@@ -80,6 +95,38 @@ impl Gram {
     pub fn held(&self, name: &str) -> Option<&Value> {
         self.fields.get(name).or_else(|| self.outputs.get(name))
     }
+}
+
+/// A chronolexogram of another cell, as a cell that received a copy of it
+/// names it (RFC-053).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Received {
+    /// The cell that recorded it (its `recording_actor`).
+    pub from: String,
+    /// Its id in the chronicle of that cell.
+    pub id: String,
+}
+
+/// A copy of a decision that a cell hands to another (RFC-053): the
+/// chronolexogram as the source recorded it, its decision value as the
+/// source builds it from a replay in its own cell, and what the
+/// submission it was taken on had received, if anything. Only the source
+/// makes one ([`crate::Cell::afschrift`]); the receiving cell cannot replay
+/// the decision and keeps the copy as the document it got.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Afschrift {
+    /// The cell that made the copy, which recorded the decision.
+    pub from: String,
+    /// The decision as recorded.
+    pub gram: Gram,
+    /// Its decision value `{basis, taken_on, fields, findings,
+    /// outputs}` (RFC-050).
+    pub value: Value,
+    /// The decision of another cell that the submission it was taken on
+    /// contests, as that submission received it: for a judgment, the
+    /// decision of the administrative body the appeal was against.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub about: Option<Received>,
 }
 
 /// The moment that counts for a chronolexogram, as recorded.
@@ -144,6 +191,19 @@ impl Chronicle {
             chronicle.grams.push(gram);
         }
         chronicle.path = Some(path);
+        Ok(chronicle)
+    }
+
+    /// A chronicle in memory that holds `grams`, in order. They must keep
+    /// the rules of [`Chronicle::append`], and their values read back as
+    /// [`Chronicle::open`] reads them.
+    pub fn in_memory_with(grams: Vec<Gram>) -> Result<Self> {
+        let mut chronicle = Self::in_memory();
+        for gram in grams {
+            readable(&gram)?;
+            chronicle.check(&gram)?;
+            chronicle.grams.push(gram);
+        }
         Ok(chronicle)
     }
 

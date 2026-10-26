@@ -140,6 +140,6 @@ wet_op_de_zorgtoeslag (2025-01-01 {bsn: 999993653} hoogte_zorgtoeslag)
 ║   ║   │                   └──DEFAULT: 0
 ║   ║   └──Result: hoogte_zorgtoeslag = 157731
 ║   ╙──HOOK: Hook PostActions on BESCHIKKING stage BESLUIT → algemene_wet_bestuursrecht:6:7
-║       ╙──Computing bezwaartermijn_weken
-║           └──Result: bezwaartermijn_weken = 6
+║       ╙──Computing termijn_weken
+║           └──Result: termijn_weken = 6
 ╙──Result: hoogte_zorgtoeslag = 157731

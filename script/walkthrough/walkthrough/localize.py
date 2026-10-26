@@ -4,7 +4,7 @@ The voice stays Dutch. What a viewer reads is translated: the captions, the
 slides, the questions, and what the presenter typed into a form. The demo
 itself runs in the viewer's language too; the replay finds what the presenter
 clicked through the demo's own translations (frontend-demo/src/walkthrough/
-translateText.js), so nothing about the clicks is stored here.
+translateText.ts), so nothing about the clicks is stored here.
 
 The translations live in `corpus/demo/i18n/walkthrough.<code>.yaml`, next to
 the deck's own overlay, for anyone to correct by hand:

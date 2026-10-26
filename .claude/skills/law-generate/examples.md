@@ -552,29 +552,29 @@ machine_readable:
         required: true
         description: Datum waarop het besluit is bekendgemaakt
     input:
-      - name: bezwaartermijn_weken
+      - name: termijn_weken
         type: number
         source:
           regulation: algemene_wet_bestuursrecht
-          output: bezwaartermijn_weken
+          output: termijn_weken
     output:
-      - name: bezwaartermijn_startdatum
+      - name: termijn_startdatum
         type: date
-      - name: bezwaartermijn_einddatum
+      - name: termijn_einddatum
         type: date
     actions:
       # "met ingang van de dag na die waarop het besluit is bekendgemaakt"
-      - output: bezwaartermijn_startdatum
+      - output: termijn_startdatum
         value:
           operation: DATE_ADD
           date: $bekendmaking_datum
           days: 1
       # einddatum = bekendmaking + termijn in weken
-      - output: bezwaartermijn_einddatum
+      - output: termijn_einddatum
         value:
           operation: DATE_ADD
           date: $bekendmaking_datum
-          weeks: $bezwaartermijn_weken
+          weeks: $termijn_weken
 ```
 
 **Key points:**
@@ -623,13 +623,13 @@ machine_readable:
   overrides:
     - law: algemene_wet_bestuursrecht
       article: '6:7'
-      output: bezwaartermijn_weken
+      output: termijn_weken
   execution:
     output:
-      - name: bezwaartermijn_weken
+      - name: termijn_weken
         type: number
     actions:
-      - output: bezwaartermijn_weken
+      - output: termijn_weken
         value: 4
 ```
 

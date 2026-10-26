@@ -269,26 +269,47 @@ fn group_best_versions(
 }
 
 /// Stream a gzipped tar produced by GitHub's tarball endpoint and return
-/// `(repo-relative path, implements list)` for every `.yaml`/`.yml` file. The
-/// archive nests everything under a single top-level `{owner}-{repo}-{sha}/`
-/// directory; that first component is stripped. Directories, non-YAML files,
-/// and non-UTF-8 bodies are skipped rather than failing the whole scan.
+/// `(repo-relative path, implements list)` for every `.yaml`/`.yml` file
+/// ([`each_yaml_in_tar_gz`]).
 ///
-/// Each body is read into a scratch `String`, parsed for `implements`, and
-/// dropped before the next entry — so peak memory is one law body plus the
-/// (tiny) implements result, never the whole decompressed corpus.
+/// Each body is parsed for `implements` and dropped before the next entry —
+/// so peak memory is one law body plus the (tiny) implements result, never
+/// the whole decompressed corpus.
 fn extract_implements_from_tar_gz(bytes: &[u8]) -> Result<Vec<(String, Vec<String>)>> {
+    let mut out = Vec::new();
+    each_yaml_in_tar_gz(bytes, |rel, content| {
+        let implements = crate::source_map::collect_law_implements(&content);
+        out.push((rel.to_string(), implements));
+        // `content` dropped here — bodies never accumulate.
+    })?;
+    Ok(out)
+}
+
+/// Walk a gzipped tar produced by GitHub's tarball endpoint and hand every
+/// `.yaml`/`.yml` file to `each`, as `(repo-relative path, text)`, one at a
+/// time. The archive nests everything under a single top-level
+/// `{owner}-{repo}-{sha}/` directory; that first component is stripped.
+/// Directories, non-YAML files, and non-UTF-8 bodies are skipped rather
+/// than failing the whole walk. Returns that top-level directory's name,
+/// which ends in the short sha of the commit, if the archive had an entry.
+pub fn each_yaml_in_tar_gz(
+    bytes: &[u8],
+    mut each: impl FnMut(&str, String),
+) -> Result<Option<String>> {
     use std::io::Read;
     let gz = flate2::read::GzDecoder::new(bytes);
     let mut archive = tar::Archive::new(gz);
-    let mut out = Vec::new();
     let entries = archive
         .entries()
         .map_err(|e| CorpusError::Git(format!("failed to read archive entries: {e}")))?;
+    let mut top = None;
     for entry in entries {
         let mut entry =
             entry.map_err(|e| CorpusError::Git(format!("failed to read archive entry: {e}")))?;
-        if entry.header().entry_type() != tar::EntryType::Regular {
+        let kind = entry.header().entry_type();
+        // GitHub's archive opens with a `pax_global_header` entry (the commit
+        // sha as a pax comment), which is not the top-level directory.
+        if !(kind.is_dir() || kind == tar::EntryType::Regular) {
             continue;
         }
         let path = entry
@@ -296,6 +317,12 @@ fn extract_implements_from_tar_gz(bytes: &[u8]) -> Result<Vec<(String, Vec<Strin
             .map_err(|e| CorpusError::Git(format!("archive entry has no path: {e}")))?
             .to_string_lossy()
             .replace('\\', "/");
+        if top.is_none() {
+            top = path.split('/').next().map(str::to_string);
+        }
+        if kind.is_dir() {
+            continue;
+        }
         // Strip the archive's single top-level directory component.
         let Some((_, rel)) = path.split_once('/') else {
             continue;
@@ -308,11 +335,9 @@ fn extract_implements_from_tar_gz(bytes: &[u8]) -> Result<Vec<(String, Vec<Strin
             tracing::debug!(path = %rel, "archive entry is not valid UTF-8; skipping");
             continue;
         }
-        let implements = crate::source_map::collect_law_implements(&content);
-        out.push((rel.to_string(), implements));
-        // `content` dropped here — bodies never accumulate.
+        each(rel, content);
     }
-    Ok(out)
+    Ok(top)
 }
 
 #[cfg(test)]

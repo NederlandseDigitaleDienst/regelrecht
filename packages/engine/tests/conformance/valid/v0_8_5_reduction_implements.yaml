@@ -1,7 +1,8 @@
 ---
-# Tier C: a reduction that fills an open term (schema v0.8.5, RFC-048). The
-# engine runs it for that term like any implementation; it reads the
-# decisions under an article with `source.decisions`.
+# A reduction that fills an open term: schema v0.8.5 to v0.8.8 allow it
+# (RFC-048), v0.8.9 forbids it again, since a cell gives its reduction as a
+# named answer that a policy binds to the term. The engine still loads such
+# a file and gives the declaration no meaning.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.8/schema/v0.8.8/schema.json
 $id: test_conformance_reduction_implements
 regulatory_layer: REDUCTIE

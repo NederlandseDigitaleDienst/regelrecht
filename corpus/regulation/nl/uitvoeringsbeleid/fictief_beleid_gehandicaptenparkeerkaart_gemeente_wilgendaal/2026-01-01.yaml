@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.3/schema/v0.8.3/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.9/schema/v0.8.9/schema.json
 $id: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
 regulatory_layer: UITVOERINGSBELEID
 publication_date: '2025-12-01'
@@ -7,6 +7,12 @@ valid_from: '2026-01-01'
 # FICTIEF. De gemeente Wilgendaal bestaat niet en dit is geen bekendgemaakt
 # beleid, maar een eigen keuze in de modellering. Er is geen bekendmaking; de
 # url wijst daarom naar het artikel dat dit beleid uitwerkt.
+# Artikel 2 tot en met 4 en artikel 7 koppelen open begrippen aan de
+# antwoorden van cellen (source.reduction, RFC-048): het college ontleent wat
+# het anders per aanvraag vaststelt aan wat zijn eigen cel, de cellen van
+# andere verstrekkende instanties of de cel van de GGD uit hun kroniek halen.
+# Buiten de cellen geeft een koppeling niets en stelt het college het zelf
+# vast. Artikel 5 en 6 gaan over het geneeskundig advies.
 url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
 name: Gehandicaptenparkeerkaart in de gemeente Wilgendaal (fictief beleid)
 competent_authority:
@@ -34,11 +40,12 @@ articles:
     machine_readable:
       # Of de aanvrager al een geldige kaart heeft, weet het college uit zijn
       # eigen besluiten; het stelt het per aanvraag vast. Hoe het die
-      # terugleest, zegt dit beleid niet, en het is geen veld van de aanvraag.
-      # In de cel van de gemeente vult haar reductie het begrip (implements,
-      # RFC-048), ook als Awb 7:11 artikel 49 opnieuw aanroept; zonder
-      # reductie geeft het college het als vaststelling. Geen default: een
-      # ontbrekend antwoord verstrekt geen kaart naast een geldige.
+      # terugleest, zegt dit artikel niet, en het is geen veld van de
+      # aanvraag. Artikel 2 koppelt het begrip aan het antwoord van de cel
+      # van de gemeente (RFC-048), ook als Awb 7:11 artikel 49 opnieuw
+      # aanroept; zonder antwoord geeft het college het als vaststelling.
+      # Geen default: een ontbrekend antwoord verstrekt geen kaart naast een
+      # geldige.
       open_terms:
         - id: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
           type: boolean
@@ -72,3 +79,603 @@ articles:
             value:
               operation: NOT
               value: $aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+  - number: '2'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Of
+      de aanvrager al een geldige gehandicaptenparkeerkaart van het college
+      heeft (artikel 1), ontleent het college aan het antwoord van zijn eigen
+      cel over zijn eerdere besluiten.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      implements:
+        - law: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+          article: '1'
+          open_term: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de gehandicapte die de kaart aanvraagt.
+          - name: besluit_datum
+            type: date
+            description: De dag waarop het college op de aanvraag besluit.
+        input:
+          - name: antwoord_geldige_kaart
+            type: boolean
+            nullable: true
+            source:
+              reduction: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                besluit_datum: $besluit_datum
+        output:
+          - name: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+            type: boolean
+            nullable: true
+            description: >-
+              Of de aanvrager een geldige kaart van het college heeft; afwezig
+              zonder antwoord van de cel.
+        actions:
+          - output: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+            value: $antwoord_geldige_kaart
+  - number: '3'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Of
+      aan de aanvrager eerder een gehandicaptenparkeerkaart is verstrekt
+      (artikel 2, tweede lid, onder a en b, van de Regeling
+      gehandicaptenparkeerkaart), ontleent het college aan de antwoorden van
+      de cellen van de verstrekkende instanties die de regeling daarvoor
+      bevoegd maakt: zijn eigen cel, die van de colleges van andere gemeenten
+      en die van het CBR.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel2
+    machine_readable:
+      # Synthese bij de afnemer (RFC-052): het begrip noemt wie bevoegd is
+      # (competent_authority) en hoe hun antwoorden één waarde worden
+      # (combine: OR). De engine vraagt elke bevoegde cel van de sfeer om dit
+      # antwoord; een cel die het niet geeft, zwijgt.
+      implements:
+        - law: regeling_gehandicaptenparkeerkaart
+          article: '2'
+          open_term: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager.
+        input:
+          - name: antwoord_eerder_verstrekt
+            type: boolean
+            nullable: true
+            source:
+              reduction: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+        output:
+          - name: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
+            type: boolean
+            nullable: true
+            description: >-
+              Waar, als een verstrekkende instantie de aanvrager eerder een
+              kaart verstrekte; afwezig zonder antwoord.
+        actions:
+          - output: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
+            value: $antwoord_eerder_verstrekt
+  - number: '4'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Of
+      voor de aanvraag een geneeskundig onderzoek heeft plaatsgehad (artikel
+      3, eerste lid, van de Regeling gehandicaptenparkeerkaart), ontleent het
+      college aan het antwoord van de cel van de GGD die het onderzoek
+      verricht.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    machine_readable:
+      # Het begrip noemt wie bevoegd is: de GGD of de aangewezen deskundige
+      # (competent_authority, RFC-052). Zwijgt de GGD, dan stelt het college
+      # het vast op het rapport dat het kreeg.
+      implements:
+        - law: regeling_gehandicaptenparkeerkaart
+          article: '3'
+          open_term: geneeskundig_onderzoek_heeft_plaatsgehad
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager.
+          - name: dagtekening_aanvraag
+            type: date
+            nullable: true
+            description: De dagtekening van de aanvraag.
+          - name: datum_afgifte
+            type: date
+            description: De dag waarop de kaart zou worden afgegeven.
+        input:
+          - name: antwoord_onderzoek
+            type: boolean
+            nullable: true
+            source:
+              reduction: geneeskundig_onderzoek_heeft_plaatsgehad
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening_aanvraag: $dagtekening_aanvraag
+                datum_afgifte: $datum_afgifte
+        output:
+          - name: geneeskundig_onderzoek_heeft_plaatsgehad
+            type: boolean
+            nullable: true
+            description: >-
+              Of voor de aanvraag een geneeskundig onderzoek heeft
+              plaatsgehad; afwezig zonder antwoord van de GGD.
+        actions:
+          - output: geneeskundig_onderzoek_heeft_plaatsgehad
+            value: $antwoord_onderzoek
+  - number: '5'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid.
+
+      1 Wie het geneeskundig onderzoek verricht (artikel 3, eerste lid, van
+      de Regeling gehandicaptenparkeerkaart), brengt het college daarover een
+      schriftelijk geneeskundig advies uit.
+
+      2 Het advies vermeldt de aanvrager, de dag van het onderzoek en, voor
+      elk gegeven dat artikel 1, eerste lid, onder a tot en met d, van de
+      regeling vraagt, of het voor de aanvrager geldt: een langdurige
+      loopbeperking, continue afhankelijkheid van de hulp van de bestuurder,
+      permanente rolstoelgebondenheid en ernstige beperkingen andere dan
+      loopbeperkingen.
+
+      3 Voor een aanvraag telt het advies van het laatste onderzoek van de
+      aanvrager op of na de dagtekening van de aanvraag en uiterlijk op de dag
+      van het besluit. Zijn er van dat onderzoek meer adviezen, dan zegt dit
+      beleid niet welk telt.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    machine_readable:
+      # Wat het onderzoek oplevert, zegt de regeling niet: artikel 3, eerste
+      # lid, zegt alleen wie het verricht. Dit beleid geeft de uitkomst een
+      # vorm, het advies, en daarmee een plek waar het college haar leest.
+      # Eigen keuze: het advies staat in het beleid van het college en niet in
+      # een protocol van de GGD. Het college wijst de deskundige aan (artikel
+      # 3, eerste lid: "een vanwege het gemeentelijk gezag aangewezen
+      # deskundige") en beslist op het advies; wat het advies moet bevatten,
+      # bepaalt dus wie het vraagt. Een protocol van de GGD bindt het college
+      # niet, en de GGD vult geen begrip van artikel 49 in.
+      # Het advies is een feit (requires, fact), dat vastlegt wie het
+      # onderzoek verricht (competent_authority, RFC-051), zoals het feit van
+      # het onderzoek zelf bij artikel 3 van de regeling. De parameters heten
+      # naar de oordelen van artikel 49 van het BABW. De oordelen uit het
+      # advies zijn open begrippen van dit artikel, met dezelfde bevoegden;
+      # alleen zij antwoorden erop. Hun namen beginnen met advies_, omdat een
+      # begrip niet zo mag heten als een parameter van hetzelfde artikel.
+      # Niet verplicht: zonder advies is er geen oordeel uit het advies, en
+      # oordeelt het college zelf (artikel 6).
+      # Eigen keuze: een advies telt niet als bewijs van het onderzoek zelf.
+      # Of het onderzoek plaatsvond, blijft het feit van artikel 3 van de
+      # regeling; de GGD legt beide vast.
+      # Welk advies telt (lid 3), voert de GGD uit met haar fictieve beleid
+      # fictief_beleid_geneeskundig_advies_ggd_wilgendaal, dat haar reductie
+      # aanroept. Dat beleid volgt lid 3 en stelt zelf geen norm.
+      open_terms:
+        - id: advies_langdurige_loopbeperking
+          competent_authority:
+            - name: Gemeentelijke Gezondheidsdienst
+              type: CATEGORY
+            - name: vanwege het gemeentelijk gezag aangewezen deskundige
+              type: CATEGORY
+          type: boolean
+          required: false
+          decided_per_case_by: >-
+            wie het geneeskundig onderzoek verricht: de Gemeentelijke
+            Gezondheidsdienst of de aangewezen deskundige (artikel 3, eerste
+            lid, van de Regeling gehandicaptenparkeerkaart), in het advies
+          description: >-
+            Of de aanvrager volgens het advies dat voor de aanvraag telt een
+            langdurige loopbeperking heeft (artikel 1, eerste lid, onder a en
+            b, van de regeling).
+        - id: advies_continu_afhankelijk_van_hulp_bestuurder
+          competent_authority:
+            - name: Gemeentelijke Gezondheidsdienst
+              type: CATEGORY
+            - name: vanwege het gemeentelijk gezag aangewezen deskundige
+              type: CATEGORY
+          type: boolean
+          required: false
+          decided_per_case_by: >-
+            wie het geneeskundig onderzoek verricht: de Gemeentelijke
+            Gezondheidsdienst of de aangewezen deskundige (artikel 3, eerste
+            lid, van de Regeling gehandicaptenparkeerkaart), in het advies
+          description: >-
+            Of de aanvrager volgens het advies voor het vervoer van deur tot
+            deur continu afhankelijk is van de hulp van de bestuurder (artikel
+            1, eerste lid, onder b, van de regeling).
+        - id: advies_permanent_rolstoelgebonden
+          competent_authority:
+            - name: Gemeentelijke Gezondheidsdienst
+              type: CATEGORY
+            - name: vanwege het gemeentelijk gezag aangewezen deskundige
+              type: CATEGORY
+          type: boolean
+          required: false
+          decided_per_case_by: >-
+            wie het geneeskundig onderzoek verricht: de Gemeentelijke
+            Gezondheidsdienst of de aangewezen deskundige (artikel 3, eerste
+            lid, van de Regeling gehandicaptenparkeerkaart), in het advies
+          description: >-
+            Of de aanvrager volgens het advies permanent rolstoelgebonden is
+            (artikel 1, eerste lid, onder c, van de regeling).
+        - id: advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+          competent_authority:
+            - name: Gemeentelijke Gezondheidsdienst
+              type: CATEGORY
+            - name: vanwege het gemeentelijk gezag aangewezen deskundige
+              type: CATEGORY
+          type: boolean
+          required: false
+          decided_per_case_by: >-
+            wie het geneeskundig onderzoek verricht: de Gemeentelijke
+            Gezondheidsdienst of de aangewezen deskundige (artikel 3, eerste
+            lid, van de Regeling gehandicaptenparkeerkaart), in het advies
+          description: >-
+            Of de aanvrager volgens het advies aantoonbare ernstige
+            beperkingen heeft, andere dan loopbeperkingen (artikel 1, eerste
+            lid, onder d, van de regeling).
+      requires:
+        - fact: geneeskundig_advies_uitgebracht
+          description: >-
+            Dat wie het geneeskundig onderzoek verrichtte het college een
+            advies uitbracht: over wie, van een onderzoek op welke dag, en
+            per gegeven dat artikel 1, eerste lid, onder a tot en met d, van
+            de regeling vraagt of het voor de aanvrager geldt (lid 2).
+          competent_authority:
+            - name: Gemeentelijke Gezondheidsdienst
+              type: CATEGORY
+            - name: vanwege het gemeentelijk gezag aangewezen deskundige
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - datum_onderzoek
+            - langdurige_loopbeperking
+            - continu_afhankelijk_van_hulp_bestuurder
+            - permanent_rolstoelgebonden
+            - ernstige_beperkingen_andere_dan_loopbeperkingen
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager over wie het advies gaat.
+          - name: datum_onderzoek
+            type: date
+            description: De dag van het onderzoek waarop het advies berust.
+          - name: langdurige_loopbeperking
+            type: boolean
+            description: >-
+              Of de aanvrager volgens het advies een langdurige loopbeperking
+              heeft (artikel 1, eerste lid, onder a en b, van de regeling).
+          - name: continu_afhankelijk_van_hulp_bestuurder
+            type: boolean
+            description: >-
+              Of de aanvrager volgens het advies continu afhankelijk is van de
+              hulp van de bestuurder (onder b).
+          - name: permanent_rolstoelgebonden
+            type: boolean
+            description: Of de aanvrager volgens het advies permanent rolstoelgebonden is (onder c).
+          - name: ernstige_beperkingen_andere_dan_loopbeperkingen
+            type: boolean
+            description: >-
+              Of de aanvrager volgens het advies ernstige beperkingen heeft,
+              andere dan loopbeperkingen (onder d).
+          # Waarvoor artikel 6 het advies vraagt (lid 3): de aanvraag en de
+          # dag van het besluit. Geen gegeven van het advies zelf. De naam
+          # datum_afgifte volgt het onderzoek (artikel 3 van de regeling),
+          # ook als het besluit een weigering is.
+          - name: dagtekening_aanvraag
+            type: date
+            required: false
+            nullable: true
+            description: De dagtekening van de aanvraag.
+          - name: datum_afgifte
+            type: date
+            required: false
+            description: De dag waarop het college op de aanvraag besluit.
+        # De uitvoer heet naar het oordeel van artikel 49, met _volgens_advies:
+        # artikel 7 geeft de begrippen advies_* al als uitvoer, en een naam
+        # wijst binnen dit beleid maar één artikel aan.
+        output:
+          - name: langdurige_loopbeperking_volgens_advies
+            type: boolean
+            nullable: true
+            description: Wat het advies zegt over een langdurige loopbeperking; afwezig zonder advies.
+          - name: continu_afhankelijk_van_hulp_bestuurder_volgens_advies
+            type: boolean
+            nullable: true
+            description: Wat het advies zegt over de hulp van de bestuurder; afwezig zonder advies.
+          - name: permanent_rolstoelgebonden_volgens_advies
+            type: boolean
+            nullable: true
+            description: Wat het advies zegt over rolstoelgebondenheid; afwezig zonder advies.
+          - name: ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_advies
+            type: boolean
+            nullable: true
+            description: Wat het advies zegt over andere ernstige beperkingen; afwezig zonder advies.
+        actions:
+          - output: langdurige_loopbeperking_volgens_advies
+            value: $advies_langdurige_loopbeperking
+          - output: continu_afhankelijk_van_hulp_bestuurder_volgens_advies
+            value: $advies_continu_afhankelijk_van_hulp_bestuurder
+          - output: permanent_rolstoelgebonden_volgens_advies
+            value: $advies_permanent_rolstoelgebonden
+          - output: ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_advies
+            value: $advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+  - number: '6'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid.
+
+      1 Het college oordeelt over de gegevens die artikel 1, eerste lid,
+      onder a tot en met d, van de Regeling gehandicaptenparkeerkaart vraagt
+      zoals het advies dat voor de aanvraag telt (artikel 5).
+
+      2 Is er voor de aanvraag geen advies, dan oordeelt het college zelf.
+
+      3 Het advies geeft een medische grond voor een kaart als de aanvrager
+      volgens het advies als bestuurder of als passagier voor een kaart in
+      aanmerking komt.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      # Lid 1 vult de vier oordelen die artikel 49 van het BABW per geval aan
+      # het college laat (implements, RFC-045), uit het advies van artikel 5.
+      # Dat advies leest dit artikel bij artikel 5 (source.regulation), zodat
+      # de engine de begrippen daar vraagt aan wie ze mag beantwoorden: de
+      # GGD of de aangewezen deskundige (RFC-051).
+      # Lid 2: zonder advies geeft dit artikel niets (null). Dan zwijgt het
+      # beleid, en geldt het oordeel van het college zelf, zoals artikel 49
+      # het vraagt (decided_per_case_by). Is er een advies, dan wint dit
+      # beleid van een oordeel van het college: een regeling die een begrip
+      # invult gaat voor (RFC-045). Afwijken van het advies kan het college
+      # dus niet. Artikel 4:84 van de Awb laat een bestuursorgaan per geval
+      # afwijken van een beleidsregel bij onevenredige gevolgen; dat is niet
+      # gebouwd en staat open.
+      # Lid 3 (medische_grond_voor_kaart) is geen deel van het besluit:
+      # artikel 49 leest de vier oordelen zelf, met wat de aanvrager vraagt.
+      # Het zegt in één waarde of het advies een kaart draagt, los van de
+      # gevraagde letter, voor wie het advies leest (source.regulation, een
+      # scenario). De engine rekent het alleen als iemand erom vraagt.
+      implements:
+        - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+          article: '49'
+          open_term: langdurige_loopbeperking
+        - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+          article: '49'
+          open_term: continu_afhankelijk_van_hulp_bestuurder
+        - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+          article: '49'
+          open_term: permanent_rolstoelgebonden
+        - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+          article: '49'
+          open_term: ernstige_beperkingen_andere_dan_loopbeperkingen
+      execution:
+        # Uit artikel 49: wie aanvraagt, de dagtekening en de dag van het
+        # besluit, waarmee artikel 5 het advies kiest.
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de gehandicapte die de kaart aanvraagt.
+          - name: dagtekening
+            type: date
+            nullable: true
+            description: De dagtekening van de aanvraag.
+          - name: besluit_datum
+            type: date
+            description: De dag waarop het college op de aanvraag besluit.
+        input:
+          - name: advies_langdurige_loopbeperking
+            type: boolean
+            nullable: true
+            source:
+              regulation: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+              output: langdurige_loopbeperking_volgens_advies
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening_aanvraag: $dagtekening
+                datum_afgifte: $besluit_datum
+          - name: advies_continu_afhankelijk_van_hulp_bestuurder
+            type: boolean
+            nullable: true
+            source:
+              regulation: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+              output: continu_afhankelijk_van_hulp_bestuurder_volgens_advies
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening_aanvraag: $dagtekening
+                datum_afgifte: $besluit_datum
+          - name: advies_permanent_rolstoelgebonden
+            type: boolean
+            nullable: true
+            source:
+              regulation: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+              output: permanent_rolstoelgebonden_volgens_advies
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening_aanvraag: $dagtekening
+                datum_afgifte: $besluit_datum
+          - name: advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+            type: boolean
+            nullable: true
+            source:
+              regulation: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+              output: ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_advies
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening_aanvraag: $dagtekening
+                datum_afgifte: $besluit_datum
+          # Lid 3: artikel 1 van de regeling, met de oordelen uit het advies.
+          # Zonder advies vraagt de engine de regeling niet (een parameter is
+          # dan afwezig), en is er geen uitkomst.
+          - name: komt_in_aanmerking_als_bestuurder
+            type: boolean
+            nullable: true
+            source:
+              regulation: regeling_gehandicaptenparkeerkaart
+              output: komt_in_aanmerking_als_bestuurder
+              parameters:
+                langdurige_loopbeperking: $advies_langdurige_loopbeperking
+                continu_afhankelijk_van_hulp_bestuurder: $advies_continu_afhankelijk_van_hulp_bestuurder
+                permanent_rolstoelgebonden: $advies_permanent_rolstoelgebonden
+                ernstige_beperkingen_andere_dan_loopbeperkingen: $advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+          - name: komt_in_aanmerking_als_passagier
+            type: boolean
+            nullable: true
+            source:
+              regulation: regeling_gehandicaptenparkeerkaart
+              output: komt_in_aanmerking_als_passagier
+              parameters:
+                langdurige_loopbeperking: $advies_langdurige_loopbeperking
+                continu_afhankelijk_van_hulp_bestuurder: $advies_continu_afhankelijk_van_hulp_bestuurder
+                permanent_rolstoelgebonden: $advies_permanent_rolstoelgebonden
+                ernstige_beperkingen_andere_dan_loopbeperkingen: $advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+        output:
+          - name: langdurige_loopbeperking
+            type: boolean
+            nullable: true
+            description: Het oordeel uit het advies (onder a en b); afwezig zonder advies.
+          - name: continu_afhankelijk_van_hulp_bestuurder
+            type: boolean
+            nullable: true
+            description: Het oordeel uit het advies (onder b); afwezig zonder advies.
+          - name: permanent_rolstoelgebonden
+            type: boolean
+            nullable: true
+            description: Het oordeel uit het advies (onder c); afwezig zonder advies.
+          - name: ernstige_beperkingen_andere_dan_loopbeperkingen
+            type: boolean
+            nullable: true
+            description: Het oordeel uit het advies (onder d); afwezig zonder advies.
+          - name: medische_grond_voor_kaart
+            type: boolean
+            nullable: true
+            description: >-
+              Of het advies een medische grond geeft voor een kaart, als
+              bestuurder of als passagier (lid 3); afwezig zonder advies.
+        actions:
+          - output: langdurige_loopbeperking
+            value: $advies_langdurige_loopbeperking
+          - output: continu_afhankelijk_van_hulp_bestuurder
+            value: $advies_continu_afhankelijk_van_hulp_bestuurder
+          - output: permanent_rolstoelgebonden
+            value: $advies_permanent_rolstoelgebonden
+          - output: ernstige_beperkingen_andere_dan_loopbeperkingen
+            value: $advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+          # Zonder advies vroeg de engine de regeling niet: dan is er geen
+          # medische grond (null).
+          - output: medische_grond_voor_kaart
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $komt_in_aanmerking_als_bestuurder
+                    value: null
+                  then: null
+                - when:
+                    operation: EQUALS
+                    subject: $komt_in_aanmerking_als_passagier
+                    value: null
+                  then: null
+              default:
+                operation: OR
+                conditions:
+                  - $komt_in_aanmerking_als_bestuurder
+                  - $komt_in_aanmerking_als_passagier
+  - number: '7'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Wat
+      het advies dat voor de aanvraag telt over elk gegeven zegt (artikel 5),
+      ontleent het college aan het antwoord van de cel van de GGD die het
+      onderzoek verricht.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    machine_readable:
+      # De begrippen van artikel 5 noemen wie bevoegd is: de GGD of de
+      # aangewezen deskundige (competent_authority). Zwijgt de GGD, dan is er
+      # geen advies en oordeelt het college zelf (artikel 6, tweede lid).
+      implements:
+        - law: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+          article: '5'
+          open_term: advies_langdurige_loopbeperking
+        - law: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+          article: '5'
+          open_term: advies_continu_afhankelijk_van_hulp_bestuurder
+        - law: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+          article: '5'
+          open_term: advies_permanent_rolstoelgebonden
+        - law: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+          article: '5'
+          open_term: advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+      execution:
+        # De parameters van artikel 5, onder hun eigen naam.
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager.
+          - name: dagtekening_aanvraag
+            type: date
+            nullable: true
+            description: De dagtekening van de aanvraag.
+          - name: datum_afgifte
+            type: date
+            description: De dag waarop het college op de aanvraag besluit.
+        input:
+          - name: antwoord_langdurige_loopbeperking
+            type: boolean
+            nullable: true
+            source:
+              reduction: advies_langdurige_loopbeperking
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening_aanvraag: $dagtekening_aanvraag
+                datum_afgifte: $datum_afgifte
+          - name: antwoord_continu_afhankelijk_van_hulp_bestuurder
+            type: boolean
+            nullable: true
+            source:
+              reduction: advies_continu_afhankelijk_van_hulp_bestuurder
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening_aanvraag: $dagtekening_aanvraag
+                datum_afgifte: $datum_afgifte
+          - name: antwoord_permanent_rolstoelgebonden
+            type: boolean
+            nullable: true
+            source:
+              reduction: advies_permanent_rolstoelgebonden
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening_aanvraag: $dagtekening_aanvraag
+                datum_afgifte: $datum_afgifte
+          - name: antwoord_ernstige_beperkingen_andere_dan_loopbeperkingen
+            type: boolean
+            nullable: true
+            source:
+              reduction: advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening_aanvraag: $dagtekening_aanvraag
+                datum_afgifte: $datum_afgifte
+        output:
+          - name: advies_langdurige_loopbeperking
+            type: boolean
+            nullable: true
+          - name: advies_continu_afhankelijk_van_hulp_bestuurder
+            type: boolean
+            nullable: true
+          - name: advies_permanent_rolstoelgebonden
+            type: boolean
+            nullable: true
+          - name: advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+            type: boolean
+            nullable: true
+        actions:
+          - output: advies_langdurige_loopbeperking
+            value: $antwoord_langdurige_loopbeperking
+          - output: advies_continu_afhankelijk_van_hulp_bestuurder
+            value: $antwoord_continu_afhankelijk_van_hulp_bestuurder
+          - output: advies_permanent_rolstoelgebonden
+            value: $antwoord_permanent_rolstoelgebonden
+          - output: advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+            value: $antwoord_ernstige_beperkingen_andere_dan_loopbeperkingen

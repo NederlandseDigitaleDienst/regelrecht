@@ -1,0 +1,16 @@
+---
+# Testcasus van de testbron (src/bundel.rs).
+cel: voorbeeld_autoriteit
+artikel: voorbeeld_bron_subsidie#1
+uitkomst: subsidie_verleend
+titel: Voorbeeldsubsidie
+omschrijving: Een casus uit een testbron.
+cel_naam: Voorbeeldautoriteit
+speeldatum: 2026-10-21
+voorbeeld:
+  aanvraag:
+    naam_partij: Voorbeeldvereniging
+    subsidiejaar: 2027
+  bevindingen:
+    partij_geregistreerd: true
+scenarios: []

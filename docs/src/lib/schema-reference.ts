@@ -788,11 +788,16 @@ export function actionFields(): Field[] {
 /**
  * The conditional layer rules, read out of the top-level `allOf`.
  *
- * In the schema these are seven if/then blocks keyed on `regulatory_layer`.
- * Six require an identifier. The seventh, for `REDUCTIE`, is structural: it
- * requires no identifier but forbids keys on every article's
- * `machine_readable` (a `not`/`anyOf` of `required`), and its `else` keeps
- * `source.decisions` to that layer. Rendering them as JSON Schema would be
+ * In the schema these are if/then blocks keyed on `regulatory_layer`. Six
+ * require an identifier. The one for `REDUCTIE` is structural: it requires no
+ * identifier but forbids keys on every article's `machine_readable` (a
+ * `not`/`anyOf` of `required`), and its `else` keeps `source.decisions` and
+ * `source.facts` to that layer. Two more yield no row (RFC-048), both keyed on
+ * `UITVOERINGSBELEID`: one has only an `else`, which keeps `source.reduction`
+ * to that layer, and one nests its rules (an article that takes an answer
+ * fills an open term; the policy then needs a named root
+ * `competent_authority`) one level deeper. The component states those in
+ * prose. Rendering them as JSON Schema would be
  * unreadable; the content is a plain table of "this kind of instrument needs
  * this identifier" or "may not carry these keys", so that is what this
  * returns.

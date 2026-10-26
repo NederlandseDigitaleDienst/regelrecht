@@ -15,7 +15,7 @@
  * Fries. De vertaling hoort van een vertaler te komen (Afûk of de Fryske
  * Akademy doen dit voor overheden); tot die er is blijft dit staan.
  *
- * `i18n.test.js` telt hoeveel sleutels nog gelijk zijn aan het Nederlands en
+ * `i18n.test.ts` telt hoeveel sleutels nog gelijk zijn aan het Nederlands en
  * bewaakt dat dat aandeel daalt en niet stijgt.
  */
 export default {
@@ -474,7 +474,6 @@ export default {
   "sheet.edit.error.amount": "Folje in bedrach yn, bygelyks 1.250,00.",
   "sheet.edit.error.number": "Folje in getal yn.",
   "sheet.edit.error.date": "Folje in datum yn as JJJJ-MM-DD.",
-  "sheet.edit.error.json": "Dit is gjin jildige JSON.",
   "sheet.edit.error.reason.officer": "Jou in reden op; dy komt yn it dossier fan de saak.",
   "sheet.edit.error.reason.citizen": "Jou in reden op; dy sjocht de behanneler.",
   "sheet.change.label": "Wiziging trochjaan",
@@ -745,6 +744,10 @@ export default {
   "harm.feature.is_hospitality": "Is horeka",
   "harm.feature.prepares_food": "Makket iten klear",
   "harm.feature.has_terrace": "Hat terras",
+  "harm.group.yes": "ja",
+  "harm.group.no": "nee",
+  "harm.group.rest": "Oare kombinaasjes",
+  "harm.group.everyone": "Elkenien",
   "harm.error.too_little_data": "Te min gegevens om in model te learen; draai in gruttere simulaasje.",
   "harm.error.no_numeric_feature": "Gjin numeryk skaaimerk om op te staffeljen.",
   "scenario.error.unknown_step": "Ûnbekende stap (net yn bdd/grammar.yaml)",

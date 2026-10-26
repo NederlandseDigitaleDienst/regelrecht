@@ -1,53 +1,59 @@
-//! The cell reads its chronicle back through its reductions (RFC-048).
+//! The cell reads its chronicle back through its reductions (RFC-048), and
+//! gives what they find as named answers.
 //!
 //! A reduction is rulework of its own kind (`regulatory_layer: REDUCTIE`,
 //! the chronolexoreductie of RFC-022 §4.1), in the law format and run by the
-//! engine, but no regulation. It is kept with the cell
-//! (`corpus/cells/<cell>/reducties/<id>/<valid_from>.yaml`) and only the cell
-//! loads it. It asks for the decisions taken under an article with
-//! `source: {decisions: <regulation>#<article>}`; the cell answers that input
-//! with one row per decision in its chronicle ([`rows`]). It asks for the
-//! recorded instances of a fact an article requires with
+//! engine, but no regulation. It sits with its cell
+//! (`<cell_dir>/reductions/`, [`crate::identity`]), and it is the only
+//! rulework that reads a chronicle. It asks for the decisions taken under an
+//! article with `source: {decisions: <regulation>#<article>}`, or names the
+//! article by a parameter (`decisions: $<name>`, schema v0.8.11); the cell
+//! answers that input with one row per decision in its chronicle ([`rows`]).
+//! It asks for the recorded instances of a fact an article requires with
 //! `source: {facts: <regulation>#<article>#<fact>}` (schema v0.8.7,
 //! RFC-051), one row per executogram ([`executogram_rows`]); the article's
-//! `requires` entry for that fact says what each holds. For the logic
-//! it calls law or policy like any rulework (`source.regulation`); where
-//! that rulework reads an open term the cell answers, the cell answers it
-//! there too.
+//! `requires` entry for that fact says what each holds. For a norm or a
+//! calculation it calls law or policy like any rulework
+//! (`source.regulation`), and passes what it found in the chronicle as
+//! parameters. It may also call a reduction of no cell, such as that of the
+//! Awb: that one has no chronicle of its own, and the cell gives it the rows
+//! of its own chronicle, as for every reduction the execution runs
+//! (`Call::chronicle`, [`Reader::chronicle_rows`]). That a reduction calls
+//! none of another cell, the loader of the corpus checks: the service does
+//! not know where a reduction sits.
 //!
-//! What a reduction yields is the answer to an open term of a law, which
-//! it names with `implements` (schema v0.8.5): the lexostatus the cell
-//! answers. Reduction takes place in the cell, and the cell hands the
-//! lexostatus to the process that asks for it (RFC-022). So the engine does
-//! not run the reduction: where an article reads the term, at any depth of
-//! the execution, the engine asks the cell ([`Reader`], an
-//! [`OpenTermAnswerer`]), and records who answered, from which reduction
-//! and how far into the chronicle. The cell runs its reduction itself and
-//! explains its answer on request ([`crate::Cell::explain_answer`]). The law
-//! names no reduction and no cell: without one, the term is what it is
-//! without an answer, such as a finding of the deciding authority. So a
-//! scenario or another system can supply the same value.
+//! A reduction fills no open term. The cell gives its outputs as named
+//! answers: its catalogue (`cel.yaml`, `answers`, [`crate::identity`]) names
+//! per answer the reduction whose output of that name it is. The policy of
+//! the authority that decides binds an open term to an answer
+//! (`source.reduction`, RFC-048), and the engine asks the cell for it with
+//! the parameters the binding passes ([`Reader`], an [`OpenTermAnswerer`]).
+//! The cell runs the reduction itself, on its chronicle, and gives the
+//! engine the value with where it comes from: the cell, the answer, the
+//! reduction and its article and version, and how far it read the
+//! chronicle. The engine does not see the reduction run; the cell explains
+//! its answer on request ([`crate::Cell::explain_answer`]). Without the cell,
+//! the binding gives nothing, and the term is what it is without one, such
+//! as a finding of the deciding authority. So a scenario or another system
+//! can supply the same value.
 //!
-//! Each row carries the decision's `id`, and a field of type `decision`
-//! holds the id of the decision it names, as the chronolexogram keeps it.
+//! Each row carries the decision's `id` and `basis`, and a field of type
+//! `decision` holds the id of the decision it names, as the chronolexogram
+//! keeps it. A decision value a row holds, such as the decision a judgment
+//! set in place, is a row in turn.
 //! So a reduction can link a decision to another that refers to it, such as
 //! a decision on an objection to the decision it contests (RFC-050). A row
 //! holds only what its own chronolexogram holds: whether another decision
 //! revoked it, a reduction reads from the rows of that other decision.
-//!
-//! The reductions are loaded into the service for the length of one
-//! decision ([`load`]), so the cell can run them there; they go when the
-//! [`Loaded`] guard drops, so an error or a panic during the decision leaves
-//! nothing behind.
 
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::NaiveDate;
 use regelrecht_engine::{
-    Answer as EngineAnswer, AnswerProvenance, Article, ArticleBasedLaw, ArticleResult, Authority,
-    Call, EngineError, LawExecutionService, LawLoad, OpenTermAnswerer, Question, RegulatoryLayer,
-    Value,
+    Answer as EngineAnswer, AnswerProvenance, AnswerRequest, ArticleBasedLaw, ArticleResult,
+    Authority, Call, Chronicle as ChronicleSource, ChronicleRead, EngineError, LawExecutionService,
+    OpenTermAnswerer, RegulatoryLayer, Value,
 };
 use serde::Serialize;
 use serde_json::Map;
@@ -55,37 +61,15 @@ use serde_json::Map;
 use crate::chronicle::Gram;
 use crate::chronicle::EXECUTOGRAM;
 use crate::error::{refused, setup, Result};
-use crate::shape::article_on;
-use regelrecht_law_model::stored;
+use crate::shape::{self, article_on};
+use regelrecht_law_model::{stored, CompetentAuthority};
 
-/// One version of a reduction of the cell, as written.
-#[derive(Debug, Clone)]
-pub struct Reduction {
-    id: String,
-    yaml: String,
-    law: ArticleBasedLaw,
-    terms: Vec<Term>,
-    valid_from: NaiveDate,
-}
-
-/// An open term a reduction fills: its id and the article that declares it.
+/// An open term of a law article, by the law, the article and its id.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Term {
     pub law: String,
     pub article: String,
     pub open_term: String,
-}
-
-/// A lexostatus the cell can answer: the open term that a version of one
-/// of its reductions fills, from the day that version is valid.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct Answer {
-    /// The open term, as the reduction's `implements` names it.
-    pub term: Term,
-    /// The reduction, by `$id`.
-    pub reduction: String,
-    /// The `valid_from` of the version.
-    pub valid_from: NaiveDate,
 }
 
 impl std::fmt::Display for Term {
@@ -94,358 +78,286 @@ impl std::fmt::Display for Term {
     }
 }
 
-/// The open terms the articles of `law` fill (`implements`).
-fn terms_of(law: &ArticleBasedLaw) -> Vec<Term> {
-    law.articles.iter().flat_map(terms_of_article).collect()
+/// An open term a policy binds to a named answer (`source.reduction`,
+/// RFC-048): the term, the policy article that fills it, and the answer it
+/// takes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Binding {
+    pub term: Term,
+    pub law_id: String,
+    pub article: String,
+    pub answer: String,
 }
 
-/// The open terms `article` fills (`implements`).
-fn terms_of_article(article: &Article) -> Vec<Term> {
-    article
-        .get_implements()
-        .into_iter()
-        .flatten()
-        .map(|i| Term {
-            law: i.law.clone(),
-            article: i.article.clone(),
-            open_term: i.open_term.clone(),
-        })
-        .collect()
-}
-
-impl Reduction {
-    /// Read a version of a reduction. Rulework of another kind than
-    /// `REDUCTIE` is refused: a regulation belongs in the corpus, not with
-    /// the cell. So is a reduction that fills no open term (`implements`):
-    /// nothing would ask its answer. So is one without a `valid_from` the
-    /// cell can read as a day: it decides from which day the reduction
-    /// fills its terms.
-    pub fn parse(yaml: impl Into<String>) -> Result<Self> {
-        let yaml = yaml.into();
-        let law = ArticleBasedLaw::from_yaml_str(&yaml)?;
-        if law.regulatory_layer != RegulatoryLayer::Reductie {
-            return Err(setup(format!(
-                "'{}' is {}, not a REDUCTIE; a cell keeps only its reductions",
-                law.id,
-                law.regulatory_layer.as_str()
-            )));
+/// Every binding of an open term to an answer in the policies in force on
+/// `day` in `service`: per article of a `UITVOERINGSBELEID` that fills a
+/// term (`implements`), each answer it takes as an input. In the order of
+/// the laws and their articles.
+pub fn bindings(service: &LawExecutionService, day: NaiveDate) -> Vec<Binding> {
+    let mut ids: Vec<&str> = service.list_laws();
+    ids.sort_unstable();
+    let mut uit = Vec::new();
+    for id in ids {
+        let Some(law) = service.resolver().get_law_for_date(id, Some(day)) else {
+            continue;
+        };
+        if law.regulatory_layer != RegulatoryLayer::Uitvoeringsbeleid {
+            continue;
         }
-        let terms = terms_of(&law);
-        if terms.is_empty() {
-            return Err(setup(format!(
-                "reduction '{}' fills no open term (implements), so nothing asks its answer",
-                law.id
-            )));
+        for article in &law.articles {
+            let taken = article
+                .get_inputs()
+                .iter()
+                .filter_map(|input| input.source.as_ref()?.reduction.as_ref());
+            for answer in taken {
+                for decl in article.get_implements().into_iter().flatten() {
+                    uit.push(Binding {
+                        term: Term {
+                            law: decl.law.clone(),
+                            article: decl.article.clone(),
+                            open_term: decl.open_term.clone(),
+                        },
+                        law_id: law.id.clone(),
+                        article: article.number.clone(),
+                        answer: answer.clone(),
+                    });
+                }
+            }
         }
-        let valid_from = law
-            .valid_from
-            .as_deref()
-            .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())
-            .ok_or_else(|| {
-                setup(format!(
-                    "reduction '{}' has valid_from {:?}, not a day written YYYY-MM-DD",
-                    law.id, law.valid_from
-                ))
-            })?;
-        Ok(Self {
-            id: law.id.clone(),
-            yaml,
-            law,
-            terms,
-            valid_from,
-        })
     }
-
-    /// The reduction, by `$id`.
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-
-    /// The day this version is valid from.
-    pub fn valid_from(&self) -> NaiveDate {
-        self.valid_from
-    }
-
-    /// The open terms this version fills, each as an [`Answer`].
-    pub fn answers(&self) -> impl Iterator<Item = Answer> + '_ {
-        self.terms.iter().map(|term| Answer {
-            term: term.clone(),
-            reduction: self.id.clone(),
-            valid_from: self.valid_from,
-        })
-    }
-
-    /// The reduction as written.
-    pub fn yaml(&self) -> &str {
-        &self.yaml
-    }
-
-    /// The reduction as parsed.
-    pub fn law(&self) -> &ArticleBasedLaw {
-        &self.law
-    }
+    uit
 }
 
-/// The decisions in `grams` taken under `grondslag` (`<regulation>#<article>`),
-/// whose legal character is `kind`, as rows ([`rows_of`]).
-pub fn rows(grams: &[Gram], grondslag: &str, kind: &str) -> Result<Value> {
+/// The open terms a policy in force on `day` binds to one of `answers`
+/// ([`bindings`]) and asks the cell `authority` for. As the engine routes
+/// the binding, that cell is one named by the first term the binding
+/// article fills that names its `competent_authority`, or else the
+/// policy's holder (RFC-048, RFC-052). Where the cell runs, its answer
+/// fills such a term; elsewhere the term is what it is without one.
+/// Each term once, in the order of the laws and their articles.
+pub fn bound_terms(
+    service: &LawExecutionService,
+    authority: &Authority,
+    answers: &BTreeMap<String, String>,
+    day: NaiveDate,
+) -> Vec<Term> {
+    let mut terms: Vec<Term> = Vec::new();
+    for binding in bindings(service, day) {
+        if !answers.contains_key(&binding.answer) || terms.contains(&binding.term) {
+            continue;
+        }
+        // As the engine: the first term the binding article fills that
+        // names its competent authorities routes the whole binding.
+        let competent = article_on(service, &binding.law_id, &binding.article, day)
+            .and_then(|article| article.get_implements())
+            .into_iter()
+            .flatten()
+            .find_map(|decl| {
+                article_on(service, &decl.law, &decl.article, day)?
+                    .get_open_terms()?
+                    .iter()
+                    .find(|t| t.id == decl.open_term)?
+                    .competent_authority
+                    .as_ref()
+                    .and_then(CompetentAuthority::named)
+            })
+            .map(<[_]>::to_vec);
+        let holder = || {
+            service
+                .resolver()
+                .get_law_for_date(&binding.law_id, Some(day))
+                .and_then(|law| law.competent_authority.as_ref())
+                .and_then(CompetentAuthority::named)
+                .map(<[_]>::to_vec)
+        };
+        if competent
+            .or_else(holder)
+            .is_some_and(|named| authority.is_named_by(&named))
+        {
+            terms.push(binding.term);
+        }
+    }
+    terms
+}
+
+/// The decisions in `grams` taken under `basis` (`<regulation>#<article>`),
+/// whose legal character is `kind`, as rows (`row`).
+pub fn rows(
+    service: &LawExecutionService,
+    grams: &[Gram],
+    basis: &str,
+    kind: &str,
+) -> Result<Value> {
     rows_of(
+        service,
         grams
             .iter()
-            .filter(|g| g.refers_to.is_some() && g.kind == kind && g.grondslag == grondslag),
+            .filter(|g| g.refers_to.is_some() && g.kind == kind && g.basis == basis),
     )
 }
 
 /// The executograms in `grams` of the fact `fact`
-/// (`<regulation>#<article>#<fact>`, RFC-051), as rows ([`rows_of`]), in the
-/// order the cell recorded them.
-pub fn executogram_rows(grams: &[Gram], fact: &str) -> Result<Value> {
-    let (grondslag, name) = crate::shape::split_fact(fact)?;
-    rows_of(grams.iter().filter(|g| {
-        g.kind == EXECUTOGRAM && g.grondslag == grondslag && g.fact.as_deref() == Some(name)
-    }))
+/// (`<regulation>#<article>#<fact>`, RFC-051), as rows (`row`), in the
+/// order the cell recorded them. The row of the receipt of a copy (RFC-053)
+/// also gives the decision of the cell it concerns, under
+/// [`ROW_REFERS_TO`]; another row holds null there.
+pub fn executogram_rows(
+    service: &LawExecutionService,
+    grams: &[Gram],
+    fact: &str,
+) -> Result<Value> {
+    let (basis, name) = crate::shape::split_fact(fact)?;
+    let grams: Vec<Gram> = grams
+        .iter()
+        .filter(|g| g.kind == EXECUTOGRAM && g.basis == basis && g.fact.as_deref() == Some(name))
+        .map(|g| {
+            let mut row = g.clone();
+            row.fields.insert(
+                ROW_REFERS_TO.to_string(),
+                g.refers_to
+                    .clone()
+                    .map_or(serde_json::Value::Null, serde_json::Value::String),
+            );
+            row
+        })
+        .collect();
+    rows_of(service, grams.iter())
 }
 
-/// `grams` as rows: the fields, then the outputs, then the chronolexogram's
-/// `id`. A field or output named `id` is refused. A name that is both a
-/// field and an output with another value is refused: the row would hide
-/// one.
-fn rows_of<'g>(grams: impl Iterator<Item = &'g Gram>) -> Result<Value> {
+/// The name under which the row of an executogram gives the chronolexogram
+/// it refers to (RFC-053). A fact holds no parameter of this name.
+pub const ROW_REFERS_TO: &str = "refers_to";
+
+/// `grams` as rows (`row`), each with the id of its chronolexogram.
+fn rows_of<'g>(
+    service: &LawExecutionService,
+    grams: impl Iterator<Item = &'g Gram>,
+) -> Result<Value> {
     let mut rows = Vec::new();
     for gram in grams {
-        let mut row: Map<String, serde_json::Value> = gram.fields.clone().into_iter().collect();
-        for (name, value) in &gram.outputs {
-            match row.get(name) {
-                Some(field)
-                    if !stored::same(field, value).map_err(|e| {
-                        setup(format!(
-                            "chronolexogram '{}' holds '{name}' as a field and as an output: {e}",
-                            gram.id
-                        ))
-                    })? =>
-                {
-                    return Err(setup(format!(
-                        "chronolexogram '{}' holds '{name}' as a field ({field}) and as an output \
-                         ({value})",
-                        gram.id
-                    )))
-                }
-                _ => {
-                    row.insert(name.clone(), value.clone());
-                }
-            }
-        }
-        if row.contains_key(ROW_ID) {
-            return Err(setup(format!(
-                "chronolexogram '{}' holds '{ROW_ID}' itself; its row gives its id under that name",
-                gram.id
-            )));
-        }
-        row.insert(
-            ROW_ID.to_string(),
-            serde_json::Value::String(gram.id.clone()),
-        );
+        let label = format!("chronolexogram '{}'", gram.id);
+        let parts = Parts {
+            fields: &gram.fields.clone().into_iter().collect(),
+            findings: None,
+            outputs: &gram.outputs.clone().into_iter().collect(),
+        };
+        let row = row(service, gram, parts, &gram.basis, &label)?;
         rows.push(serde_json::Value::Object(row));
     }
     Ok(stored::from_stored(&serde_json::Value::Array(rows))?)
 }
 
+/// What a row is made of: the fields, the findings and the outputs of a
+/// chronolexogram or of a decision value.
+struct Parts<'p> {
+    fields: &'p Map<String, serde_json::Value>,
+    findings: Option<&'p Map<String, serde_json::Value>>,
+    outputs: &'p Map<String, serde_json::Value>,
+}
+
+/// One row: the fields, the findings and the outputs under their own
+/// names, then the article it was taken under ([`ROW_BASIS`]) and the
+/// id of the chronolexogram `gram` that holds it ([`ROW_ID`]). A decision
+/// value in a field or output (`{basis, fields, findings, outputs}`,
+/// RFC-050), such as the decision a judgment sets in place, is a row in
+/// turn, with the id of `gram`; such a row holds every output its article
+/// declares, null where the value has none (RFC-036). `label` names what
+/// the row is of, for an error.
+///
+/// A name of its own `id` or `basis` is refused, and so is a name that
+/// two of the parts hold with another value: the row would hide one.
+fn row(
+    service: &LawExecutionService,
+    gram: &Gram,
+    parts: Parts<'_>,
+    basis: &str,
+    label: &str,
+) -> Result<Map<String, serde_json::Value>> {
+    let mut row = Map::new();
+    let named = [Some(parts.fields), parts.findings, Some(parts.outputs)];
+    for (name, value) in named.into_iter().flatten().flatten() {
+        let decision = value
+            .as_object()
+            .filter(|o| shape::is_decision_value(o))
+            .and_then(|o| Some((o, o.get("basis")?.as_str()?)));
+        let value = match decision {
+            Some((decision, basis)) => {
+                serde_json::Value::Object(decision_row(service, gram, decision, basis)?)
+            }
+            None => value.clone(),
+        };
+        if [ROW_ID, ROW_BASIS].contains(&name.as_str()) {
+            return Err(setup(format!(
+                "{label} holds '{name}' itself; its row gives its {} under that name",
+                if name == ROW_ID { "id" } else { "article" }
+            )));
+        }
+        match row.get(name) {
+            Some(held)
+                if !stored::same(held, &value)
+                    .map_err(|e| setup(format!("{label} holds '{name}' twice: {e}")))? =>
+            {
+                return Err(setup(format!(
+                    "{label} holds '{name}' twice, as {held} and as {value}"
+                )))
+            }
+            _ => {
+                row.insert(name.clone(), value);
+            }
+        }
+    }
+    row.insert(
+        ROW_BASIS.to_string(),
+        serde_json::Value::String(basis.to_string()),
+    );
+    row.insert(
+        ROW_ID.to_string(),
+        serde_json::Value::String(gram.id.clone()),
+    );
+    Ok(row)
+}
+
+/// The row of the decision value `decision` under `basis` that `gram`
+/// holds (`row`): every output the article of its `basis` declares in
+/// the version in force when `gram` was recorded, null where the value has
+/// none.
+fn decision_row(
+    service: &LawExecutionService,
+    gram: &Gram,
+    decision: &Map<String, serde_json::Value>,
+    basis: &str,
+) -> Result<Map<String, serde_json::Value>> {
+    let label = format!("the decision under {basis} in chronolexogram '{}'", gram.id);
+    let part = |key: &str| decision.get(key).and_then(serde_json::Value::as_object);
+    let empty = Map::new();
+    let parts = Parts {
+        fields: part("fields").unwrap_or(&empty),
+        findings: part("findings"),
+        outputs: part("outputs").unwrap_or(&empty),
+    };
+    let mut row = row(service, gram, parts, basis, &label)?;
+    let declared = basis
+        .split_once('#')
+        .and_then(|(law_id, article)| article_on(service, law_id, article, gram.recorded_on))
+        .ok_or_else(|| {
+            setup(format!(
+                "{label}: {basis} has no version in force on {}",
+                gram.recorded_on
+            ))
+        })?;
+    for output in declared.get_outputs() {
+        row.entry(output.name.clone())
+            .or_insert(serde_json::Value::Null);
+    }
+    Ok(row)
+}
+
 /// The name under which a row gives the id of its chronolexogram.
 pub const ROW_ID: &str = "id";
 
-/// The version of each reduction in `reductions` in force on `day`: the one
-/// with the latest `valid_from` on or before it.
-fn in_force(reductions: &[Reduction], day: NaiveDate) -> Vec<&Reduction> {
-    let mut latest: BTreeMap<&str, &Reduction> = BTreeMap::new();
-    for version in reductions.iter().filter(|r| r.valid_from <= day) {
-        latest
-            .entry(version.id.as_str())
-            .and_modify(|entry| *entry = std::cmp::max_by_key(*entry, version, |r| r.valid_from))
-            .or_insert(version);
-    }
-    latest.into_values().collect()
-}
-
-/// The open terms the reductions in force on `day` fill: the lexostatussen
-/// the cell answers that day.
-pub fn terms_on(reductions: &[Reduction], day: NaiveDate) -> Vec<Term> {
-    in_force(reductions, day)
-        .into_iter()
-        .flat_map(|r| r.terms.iter().cloned())
-        .collect()
-}
-
-/// The first open term that two reductions in force on `day` both fill: the
-/// cell would have two answers to one question, so it refuses to decide.
-pub fn filled_twice(reductions: &[Reduction], day: NaiveDate) -> Option<Term> {
-    let terms = terms_on(reductions, day);
-    terms
-        .iter()
-        .enumerate()
-        .find(|(i, term)| terms[i + 1..].contains(term))
-        .map(|(_, term)| term.clone())
-}
-
-/// The first open term that a version of one of `reductions` fills but no
-/// reduction in force on `day` fills (RFC-048), from the first day a version
-/// fills it: before that day the term was the deciding authority's, so a
-/// decision taken then still replays. The cell refuses to decide then:
-/// without the reduction the term would be the deciding authority's
-/// finding, or its default, where the cell's own reading of its chronicle
-/// is expected.
-pub fn unfilled(reductions: &[Reduction], day: NaiveDate) -> Option<&Term> {
-    let filled = terms_on(reductions, day);
-    let since = |term: &Term| {
-        reductions
-            .iter()
-            .filter(|r| r.terms.contains(term))
-            .map(|r| r.valid_from)
-            .min()
-    };
-    reductions
-        .iter()
-        .flat_map(|r| &r.terms)
-        .filter(|term| since(term).is_none_or(|first| first <= day))
-        .find(|term| !filled.contains(term))
-}
-
-/// Each term a reduction in force on `day` fills must be an open term its
-/// article declares on that day: the engine would never ask it, and the
-/// term would be left to what fills it without one.
-pub fn refuse_undeclared_terms(
-    service: &LawExecutionService,
-    reductions: &[Reduction],
-    day: NaiveDate,
-) -> Result<()> {
-    for reduction in in_force(reductions, day) {
-        for term in &reduction.terms {
-            let declared = article_on(service, &term.law, &term.article, day)
-                .and_then(|article| article.get_open_terms())
-                .is_some_and(|terms| terms.iter().any(|t| t.id == term.open_term));
-            if !declared {
-                return Err(setup(format!(
-                    "reduction '{}' fills open term {term}, which that article does not declare \
-                     on {day}",
-                    reduction.id
-                )));
-            }
-        }
-    }
-    Ok(())
-}
-
-/// Each term a reduction in force on `day` fills must be one the cell is
-/// competent for (RFC-052): where the open term names who may answer it
-/// (its own `competent_authority`), the cell's identity `authority` must be
-/// among them. The article's `competent_authority` says who decides and
-/// plays no part here. Otherwise the cell would answer for an actor the law does not name;
-/// an answer from a cell the law does not make competent is an error, never
-/// silently dropped.
-pub fn refuse_incompetent(
-    service: &LawExecutionService,
-    reductions: &[Reduction],
-    day: NaiveDate,
-    recording_actor: &str,
-    authority: &Authority,
-) -> Result<()> {
-    for reduction in in_force(reductions, day) {
-        for term in &reduction.terms {
-            let Some(named) = article_on(service, &term.law, &term.article, day)
-                .and_then(|article| article.machine_readable.as_ref())
-                .and_then(|mr| mr.open_terms.as_ref())
-                .and_then(|terms| terms.iter().find(|t| t.id == term.open_term))
-                .and_then(|open_term| open_term.competent_authority.as_ref())
-                .and_then(|authority| authority.named())
-            else {
-                continue;
-            };
-            if !authority.is_named_by(named) {
-                let names: Vec<String> = named.iter().map(|n| format!("'{}'", n.name)).collect();
-                return Err(refused(format!(
-                    "reduction '{}' of the cell of '{recording_actor}' fills open term {term}, \
-                     but that term makes {} competent on {day}, and the cell is '{}'{}",
-                    reduction.id,
-                    names.join(" or "),
-                    authority.name,
-                    authority
-                        .category
-                        .as_deref()
-                        .map(|c| format!(" ({c})"))
-                        .unwrap_or_default()
-                )));
-            }
-        }
-    }
-    Ok(())
-}
-
-/// Each fact a reduction in force on `day` reads (`source.facts`, RFC-051)
-/// must be one its article requires on that day: otherwise the reduction
-/// would read no executograms where the cell never records any.
-pub fn refuse_unrequired_facts(
-    service: &LawExecutionService,
-    reductions: &[Reduction],
-    day: NaiveDate,
-) -> Result<()> {
-    for reduction in in_force(reductions, day) {
-        for article in &reduction.law.articles {
-            for input in article.get_inputs() {
-                let Some(fact) = input.source.as_ref().and_then(|s| s.facts.as_ref()) else {
-                    continue;
-                };
-                crate::shape::fact_fields(service, fact, day, None).map_err(|e| {
-                    setup(format!(
-                        "reduction '{}' reads the facts {fact}: {e}",
-                        reduction.id
-                    ))
-                })?;
-            }
-        }
-    }
-    Ok(())
-}
-
-/// Load `reductions` into the service until the returned guard drops, so
-/// the cell can run them there ([`Reader`]). The engine does not run a
-/// reduction for the term it fills by itself: a reduction's `implements`
-/// is no implementation to the engine, only the cell's declaration of the
-/// term it answers. Refused when a law is already loaded under a
-/// reduction's `$id`. They go when the guard drops, so an error or a panic
-/// during the decision leaves nothing behind.
-pub fn load<'a>(
-    service: &'a mut LawExecutionService,
-    cells: &[(&str, &[Reduction])],
-) -> Result<Loaded<'a>> {
-    let mut loaded = Loaded {
-        service,
-        laws: Vec::new(),
-    };
-    for (recording_actor, reductions) in cells {
-        let mut own = Vec::new();
-        for reduction in *reductions {
-            if !own.contains(&reduction.id) {
-                if loaded.laws.contains(&reduction.id) {
-                    return Err(setup(format!(
-                        "two cells of this decision have a reduction '{}'; the cell of \
-                         '{recording_actor}' cannot load it beside the other",
-                        reduction.id
-                    )));
-                }
-                if loaded.service.has_law(&reduction.id) {
-                    return Err(setup(format!(
-                        "a law '{}' is already loaded; the cell of '{recording_actor}' loads \
-                         its reduction by that id itself",
-                        reduction.id
-                    )));
-                }
-                own.push(reduction.id.clone());
-                loaded.laws.push(reduction.id.clone());
-            }
-            loaded.service.load_law(&reduction.yaml)?;
-        }
-    }
-    Ok(loaded)
-}
+/// The name under which a row gives the article its decision or fact was
+/// taken or recorded under, `<regulation>#<article>`.
+pub const ROW_BASIS: &str = "basis";
 
 /// The legal character of the decision of article `reference` on `day`.
 pub fn decision_kind(
@@ -462,87 +374,81 @@ pub fn decision_kind(
         .ok_or_else(|| setup(format!("{reference} takes no decision in force on {day}")))
 }
 
-/// The service with the cell's reductions loaded; dropping it unloads them.
-pub struct Loaded<'a> {
-    service: &'a mut LawExecutionService,
-    laws: Vec<String>,
-}
-
-impl std::ops::Deref for Loaded<'_> {
-    type Target = LawExecutionService;
-    fn deref(&self) -> &LawExecutionService {
-        self.service
-    }
-}
-
-impl Drop for Loaded<'_> {
-    fn drop(&mut self) {
-        for id in &self.laws {
-            self.service.unload_law(id);
-        }
-    }
-}
-
 /// One answer the cell gave the engine ([`Reader`]).
 #[derive(Debug, Clone)]
 pub struct Asked {
-    pub term: Term,
+    /// The name of the answer.
+    pub name: String,
     pub value: Value,
     pub provenance: AnswerProvenance,
-    /// The reduction's own execution with its trace, for the term the
+    /// The reduction's own execution with its trace, for the answer the
     /// reader explains.
     pub explained: Option<ArticleResult>,
 }
 
-/// The cell as answerer of the engine (RFC-048): for an open term one of
-/// its reductions in force on the day fills, the cell runs that reduction
-/// itself, on its chronicle as `grams` holds it, and gives the engine the
-/// lexostatus with where it comes from: the cell, the reduction and its
-/// version, and how far it read the chronicle. The engine does not see the
-/// reduction run; the cell explains its answer on request
-/// ([`crate::Cell::explain_answer`]).
+/// The cell as answerer of the engine (RFC-048): for an answer its
+/// catalogue gives, the cell runs the reduction the catalogue names, in the
+/// version in force on the day, on its chronicle as `grams` holds it, and
+/// gives the engine the value with where it comes from: the cell, the
+/// answer, the reduction, its article and version, and how far it read the
+/// chronicle. The engine does not see the reduction run; the cell explains
+/// its answer on request ([`crate::Cell::explain_answer`]).
 ///
-/// The reduction gets, by name, the parameters it declares from the article
-/// that asks the term, and for each input that reads decisions
-/// (`source.decisions`) the decisions in `grams` as rows ([`rows`]), passed
-/// in under the input's name. A term none of its reductions fills on the
-/// day is not the cell's: the engine goes on without an answer.
+/// The reduction is the rulework the service holds under that `$id`: a
+/// `REDUCTIE` the cell keeps (`reductions`). The answer
+/// is its output of the answer's name. The article that gives it gets, by
+/// name, the parameters the binding passes: each it declares, and none
+/// other. An input that reads decisions (`source.decisions`) or facts
+/// (`source.facts`), of this reduction or of one it calls, gets the rows of
+/// the chronicle from the reader as the chronicle of the call
+/// ([`Reader::chronicle_rows`]). An answer the
+/// catalogue does not give is not the cell's, and before the reduction's
+/// first version is in force it gives nothing: the engine counts the cell
+/// silent. A reduction the service does not hold is an error.
 pub struct Reader<'c> {
     recording_actor: &'c str,
     /// Who the cell is, for the engine's routing on competence (RFC-052).
     authority: &'c Authority,
-    reductions: &'c [Reduction],
+    /// The catalogue: per answer, the `$id` of the reduction.
+    answers: &'c BTreeMap<String, String>,
+    /// The `$id`s of the reductions the cell keeps.
+    reductions: &'c BTreeSet<String>,
     grams: Vec<Gram>,
     explain: Option<&'c str>,
     asked: RefCell<Vec<Asked>>,
-    /// The terms the cell is answering now, outermost first, each with the
-    /// parameters of the article that asked it. A reduction whose rulework
-    /// asks one of them again would answer itself without end; the cell
-    /// refuses that instead. A reduction asked inside another one gets a
-    /// parameter it declares from the questions around it when the article
-    /// that asks it has none of that name (RFC-051).
-    answering: RefCell<Vec<(Term, BTreeMap<String, Value>)>>,
+    /// The answers the cell is giving now, outermost first. A reduction
+    /// whose rulework asks one of them again would answer itself without
+    /// end; the cell refuses that instead.
+    answering: RefCell<Vec<String>>,
+    /// The rows the reader gave, per read (whether decisions, and the
+    /// article or fact) and day: the chronicle does not change while it
+    /// reads.
+    read: RefCell<BTreeMap<(bool, String, NaiveDate), Value>>,
 }
 
 impl<'c> Reader<'c> {
-    /// The cell of `recording_actor`, who is `authority`, with
-    /// `reductions`, reading `grams`. The reader runs the reduction for the
-    /// term `explain` with its trace.
+    /// The cell of `recording_actor`, who is `authority`, with the
+    /// catalogue `answers` and the reductions `reductions`, reading `grams`.
+    /// The reader runs the reduction for the answer `explain` with its
+    /// trace.
     pub fn new(
         recording_actor: &'c str,
         authority: &'c Authority,
-        reductions: &'c [Reduction],
+        answers: &'c BTreeMap<String, String>,
+        reductions: &'c BTreeSet<String>,
         grams: Vec<Gram>,
         explain: Option<&'c str>,
     ) -> Self {
         Self {
             recording_actor,
             authority,
+            answers,
             reductions,
             grams,
             explain,
             asked: RefCell::new(Vec::new()),
             answering: RefCell::new(Vec::new()),
+            read: RefCell::new(BTreeMap::new()),
         }
     }
 
@@ -551,75 +457,175 @@ impl<'c> Reader<'c> {
         self.asked.into_inner()
     }
 
+    /// Run the reduction `reduction` for the answer of `request`, on `day`:
+    /// the provenance of the answer, and the reduction's execution. `None`
+    /// before the first version of the reduction is in force.
     fn run(
         &self,
         service: &LawExecutionService,
-        reduction: &Reduction,
-        question: &Question<'_>,
-        term: &Term,
+        reduction: &str,
+        request: &AnswerRequest<'_>,
         day: NaiveDate,
-    ) -> Result<ArticleResult> {
-        // The article whose `implements` names this term.
-        let article = reduction
-            .law
-            .articles
-            .iter()
-            .find(|article| terms_of_article(article).contains(term))
-            .ok_or_else(|| {
-                setup(format!(
-                    "reduction '{}' has no article that fills '{}'",
-                    reduction.id, question.term
-                ))
-            })?;
-        let mut parameters = BTreeMap::new();
-        for p in article
-            .get_execution_spec()
-            .and_then(|execution| execution.parameters.as_ref())
-            .into_iter()
-            .flatten()
+    ) -> Result<Option<(AnswerProvenance, ArticleResult)>> {
+        let name = request.name;
+        if !service.has_law(reduction) {
+            return Err(setup(format!(
+                "the answer '{name}' comes from the reduction '{reduction}', which is not loaded"
+            )));
+        }
+        // Before its first version the reduction gives nothing: the cell is
+        // silent, and the term is the deciding authority's, as it was then
+        // (a decision taken then still replays).
+        let Some(law) = service.resolver().get_law_for_date(reduction, Some(day)) else {
+            return Ok(None);
+        };
+        if law.regulatory_layer != RegulatoryLayer::Reductie {
+            return Err(setup(format!(
+                "the answer '{name}' comes from '{reduction}', which is {}, not a REDUCTIE",
+                law.regulatory_layer.as_str()
+            )));
+        }
+        // A cell gives only the answers of its own reductions. Opening the
+        // cell checks its catalogue against them; a reader made otherwise
+        // is held to the same.
+        if !self.reductions.contains(reduction) {
+            return Err(refused(format!(
+                "the answer '{name}' comes from the reduction '{reduction}', which the cell of \
+                 '{}' does not keep; a cell gives only the answers of its own reductions",
+                self.recording_actor
+            )));
+        }
+        let article = law.find_article_by_output(name).ok_or_else(|| {
+            setup(format!(
+                "the answer '{name}' comes from the reduction '{reduction}', which has no output \
+                 '{name}'"
+            ))
+        })?;
+        let declared = article.get_parameters();
+        if let Some(extra) = request
+            .parameters
+            .keys()
+            .find(|given| !declared.iter().any(|p| &p.name == *given))
         {
-            // From the article that asks, else from the nearest question
-            // around this one that has it, such as the leave days of art.
-            // 13a for a regulation the reduction for art. 13a calls.
-            let around = self.answering.borrow();
-            let value = question.parameters.get(&p.name).cloned().or_else(|| {
-                around
-                    .iter()
-                    .rev()
-                    .find_map(|(_, asked)| asked.get(&p.name).cloned())
-            });
-            if let Some(value) = value {
-                parameters.insert(p.name.clone(), value);
+            return Err(refused(format!(
+                "the binding passes '{extra}' for the answer '{name}', which reduction \
+                 '{reduction}' article {} does not take",
+                article.number
+            )));
+        }
+        let mut parameters = BTreeMap::new();
+        for p in declared {
+            match request.parameters.get(&p.name) {
+                Some(value) => {
+                    parameters.insert(p.name.clone(), value.clone());
+                }
+                None if p.required == Some(false) => {}
+                None => {
+                    return Err(refused(format!(
+                        "the answer '{name}' takes '{}' (reduction '{reduction}' article {}), \
+                         which the binding does not pass",
+                        p.name, article.number
+                    )))
+                }
             }
         }
-        for input in article.get_inputs() {
-            let Some(source) = input.source.as_ref() else {
-                continue;
-            };
-            if let Some(decisions) = &source.decisions {
-                let kind = decision_kind(service, decisions, day)?;
-                parameters.insert(input.name.clone(), rows(&self.grams, decisions, &kind)?);
-            } else if let Some(fact) = &source.facts {
-                parameters.insert(input.name.clone(), executogram_rows(&self.grams, fact)?);
-            }
-        }
-        let outputs = [question.term];
-        let date = question.calculation_date;
-        // The reduction may call rulework that reads an open term the cell
-        // answers too, such as a regulation that asks where the school is
-        // established (RFC-051): the cell answers it there as well.
-        // Inside a reduction the cell asks only itself (RFC-052): synthesis
-        // happens in the process, never in a cell.
+        // The reduction may call rulework that binds a term to an answer of
+        // this cell too, such as a regulation that asks where the school is
+        // established (RFC-051): the cell answers it there as well. Inside a
+        // reduction the cell asks only itself (RFC-052): synthesis happens
+        // at the consumer, never in a cell.
+        // The reduction reads the cell's chronicle, and so does every
+        // reduction it calls ([`ChronicleSource`]).
         let call = Call {
             findings: BTreeMap::new(),
             answerer: Some(self),
+            chronicle: Some(self),
             sphere: Vec::new(),
         };
-        Ok(if self.explain == Some(question.term) {
-            service.evaluate_law_with_trace_in(&reduction.id, &outputs, parameters, call, date)?
+        let outputs = [name];
+        let date = request.calculation_date;
+        let result = if self.explain == Some(name) {
+            service.evaluate_law_with_trace_in(reduction, &outputs, parameters, call, date)?
         } else {
-            service.evaluate_law_in(&reduction.id, &outputs, parameters, call, date)?
-        })
+            service.evaluate_law_in(reduction, &outputs, parameters, call, date)?
+        };
+        let provenance = AnswerProvenance {
+            answerer: self.recording_actor.to_string(),
+            answer: name.to_string(),
+            law_id: reduction.to_string(),
+            article: article.number.clone(),
+            valid_from: law.valid_from.clone().unwrap_or_default(),
+            records_read: self.grams.len(),
+            last_record: self.grams.last().map(|g| g.id.clone()),
+        };
+        Ok(Some((provenance, result)))
+    }
+}
+
+impl Reader<'_> {
+    /// The rows `read` gives for an input of the reduction `law` on `day`,
+    /// from the cell's chronicle ([`rows`], [`executogram_rows`]). Every
+    /// reduction the execution runs is applied to this chronicle: one of the
+    /// cell, or one of no cell, such as that of the Awb, which reads from
+    /// the chronicle of the cell that executes it.
+    pub fn chronicle_rows(
+        &self,
+        service: &LawExecutionService,
+        law: &ArticleBasedLaw,
+        read: ChronicleRead<'_>,
+        day: NaiveDate,
+    ) -> Result<Value> {
+        let key = match read {
+            ChronicleRead::Decisions(basis) => (true, basis.to_string(), day),
+            ChronicleRead::Facts(fact) => (false, fact.to_string(), day),
+        };
+        if let Some(rows) = self.read.borrow().get(&key) {
+            return Ok(rows.clone());
+        }
+        let rows = match read {
+            ChronicleRead::Decisions(basis) => {
+                let kind = decision_kind(service, basis, day)?;
+                rows(service, &self.grams, basis, &kind)?
+            }
+            ChronicleRead::Facts(fact) => {
+                // A fact its article does not require, the cell never records.
+                crate::shape::fact_fields(service, fact, day, None).map_err(|e| {
+                    setup(format!(
+                        "reduction '{}' reads the facts {fact}: {e}",
+                        law.id
+                    ))
+                })?;
+                executogram_rows(service, &self.grams, fact)?
+            }
+        };
+        self.read.borrow_mut().insert(key, rows.clone());
+        Ok(rows)
+    }
+}
+
+impl ChronicleSource for Reader<'_> {
+    fn keeper(&self) -> &str {
+        self.recording_actor
+    }
+
+    fn rows(
+        &self,
+        service: &LawExecutionService,
+        law: &ArticleBasedLaw,
+        read: ChronicleRead<'_>,
+        calculation_date: &str,
+    ) -> regelrecht_engine::Result<Option<Value>> {
+        let day = NaiveDate::parse_from_str(calculation_date, "%Y-%m-%d")
+            .map_err(|e| EngineError::InvalidDate(format!("{calculation_date}: {e}")))?;
+        self.chronicle_rows(service, law, read, day)
+            .map(Some)
+            .map_err(|e| match e {
+                crate::Error::Engine(e) => e,
+                other => EngineError::ResolutionError(format!(
+                    "the cell of '{}' reading {read} for reduction '{}': {other}",
+                    self.recording_actor, law.id
+                )),
+            })
     }
 }
 
@@ -631,65 +637,44 @@ impl OpenTermAnswerer for Reader<'_> {
     fn answer(
         &self,
         service: &LawExecutionService,
-        question: &Question<'_>,
+        request: &AnswerRequest<'_>,
     ) -> regelrecht_engine::Result<Option<EngineAnswer>> {
-        let term = Term {
-            law: question.law_id.to_string(),
-            article: question.article.to_string(),
-            open_term: question.term.to_string(),
+        let name = request.name;
+        let Some(reduction) = self.answers.get(name) else {
+            return Ok(None);
         };
-        let day = NaiveDate::parse_from_str(question.calculation_date, "%Y-%m-%d")
-            .map_err(|e| EngineError::InvalidDate(format!("{}: {e}", question.calculation_date)))?;
-        let Some(reduction) = in_force(self.reductions, day)
-            .into_iter()
-            .find(|r| r.terms.contains(&term))
+        let day = NaiveDate::parse_from_str(request.calculation_date, "%Y-%m-%d")
+            .map_err(|e| EngineError::InvalidDate(format!("{}: {e}", request.calculation_date)))?;
+        if self.answering.borrow().iter().any(|a| a == name) {
+            let chain = self.answering.borrow().join(" -> ");
+            return Err(EngineError::CircularReference(format!(
+                "the cell of '{}' is asked the answer '{name}' while giving it ({chain}): its \
+                 reduction '{reduction}' asks its own answer",
+                self.recording_actor
+            )));
+        }
+        self.answering.borrow_mut().push(name.to_string());
+        let ran = self.run(service, reduction, request, day);
+        self.answering.borrow_mut().pop();
+        let Some((provenance, result)) = ran.map_err(|e| match e {
+            crate::Error::Engine(e) => e,
+            other => EngineError::ResolutionError(format!(
+                "the cell of '{}' giving the answer '{name}': {other}",
+                self.recording_actor
+            )),
+        })?
         else {
             return Ok(None);
         };
-        let in_cell = |e: crate::Error| match e {
-            crate::Error::Engine(e) => e,
-            other => EngineError::ResolutionError(format!(
-                "the cell of '{}' answering {term}: {other}",
-                self.recording_actor
-            )),
-        };
-        if self.answering.borrow().iter().any(|(t, _)| *t == term) {
-            let chain: Vec<String> = self
-                .answering
-                .borrow()
-                .iter()
-                .map(|(t, _)| t.to_string())
-                .collect();
-            return Err(EngineError::CircularReference(format!(
-                "the cell of '{}' is asked {term} while answering it ({}): its reduction \
-                 '{}' asks its own answer",
-                self.recording_actor,
-                chain.join(" -> "),
-                reduction.id
-            )));
-        }
-        self.answering
-            .borrow_mut()
-            .push((term.clone(), question.parameters.clone()));
-        let ran = self.run(service, reduction, question, &term, day);
-        self.answering.borrow_mut().pop();
-        let result = ran.map_err(in_cell)?;
-        let value = result.outputs.get(question.term).cloned().ok_or_else(|| {
+        let value = result.outputs.get(name).cloned().ok_or_else(|| {
             EngineError::ResolutionError(format!(
-                "reduction '{}' of the cell of '{}' gave no '{}'",
-                reduction.id, self.recording_actor, question.term
+                "reduction '{reduction}' of the cell of '{}' gave no '{name}'",
+                self.recording_actor
             ))
         })?;
-        let provenance = AnswerProvenance {
-            answerer: self.recording_actor.to_string(),
-            law_id: reduction.id.clone(),
-            valid_from: reduction.valid_from.format("%Y-%m-%d").to_string(),
-            records_read: self.grams.len(),
-            last_record: self.grams.last().map(|g| g.id.clone()),
-        };
-        let explained = (self.explain == Some(question.term)).then_some(result);
+        let explained = (self.explain == Some(name)).then_some(result);
         self.asked.borrow_mut().push(Asked {
-            term,
+            name: name.to_string(),
             value: value.clone(),
             provenance: provenance.clone(),
             explained,
@@ -705,15 +690,17 @@ mod tests {
     use serde_json::json;
 
     const ACTOR: &str = "obs_de_klimop";
-    const GRONDSLAG: &str = "leerplichtwet_1969#13a";
+    const BASIS: &str = "leerplichtwet_1969#13a";
 
-    fn gram(kind: &str, grondslag: &str, refers_to: Option<&str>) -> Gram {
+    fn gram(kind: &str, basis: &str, refers_to: Option<&str>) -> Gram {
         Gram {
-            id: format!("{kind}-{grondslag}"),
+            id: format!("{kind}-{basis}"),
             kind: kind.into(),
-            grondslag: grondslag.into(),
+            basis: basis.into(),
             fact: None,
             refers_to: refers_to.map(str::to_string),
+            received: None,
+            after: None,
             recording_actor: ACTOR.into(),
             recorded_on: NaiveDate::from_ymd_opt(2026, 10, 20).unwrap(),
             moment: None,
@@ -726,16 +713,20 @@ mod tests {
     #[test]
     fn rows_are_the_decisions_under_the_article_with_fields_and_outputs() {
         let grams = [
-            gram("AANVRAAG", GRONDSLAG, None),
-            gram("BESCHIKKING", GRONDSLAG, Some("a")),
+            gram("AANVRAAG", BASIS, None),
+            gram("BESCHIKKING", BASIS, Some("a")),
             gram("BESCHIKKING", "leerplichtwet_1969#11", Some("b")),
-            gram("TOETS", GRONDSLAG, Some("c")),
+            gram("TOETS", BASIS, Some("c")),
         ];
-        let rows = serde_json::to_value(rows(&grams, GRONDSLAG, "BESCHIKKING").unwrap()).unwrap();
+        let rows = serde_json::to_value(
+            rows(&LawExecutionService::new(), &grams, BASIS, "BESCHIKKING").unwrap(),
+        )
+        .unwrap();
         assert_eq!(
             rows,
             json!([{
                 "id": "BESCHIKKING-leerplichtwet_1969#13a",
+                "basis": BASIS,
                 "eerste_verlofdag": "2027-02-01",
                 "verlof_verleend": true,
             }])
@@ -743,45 +734,118 @@ mod tests {
     }
 
     #[test]
+    fn a_name_basis_on_the_decision_is_refused() {
+        let mut decision = gram("BESCHIKKING", BASIS, Some("a"));
+        decision.outputs.insert("basis".into(), json!("x#1"));
+        let e = rows(
+            &LawExecutionService::new(),
+            &[decision],
+            BASIS,
+            "BESCHIKKING",
+        )
+        .unwrap_err();
+        assert!(e.to_string().contains("holds 'basis' itself"), "{e}");
+    }
+
+    #[test]
+    fn a_decision_value_in_a_row_is_a_row_with_every_output_its_article_declares() {
+        // A judgment's receipt that holds the decision the court set in
+        // place: that decision is a row, flat, with the receipt's id, its
+        // article, and null for an output the value does not hold.
+        let mut receipt = gram(EXECUTOGRAM, "wet_fictief#2", None);
+        receipt.fact = Some("afschrift".into());
+        receipt.outputs.clear();
+        receipt.fields = [(
+            "in_de_plaats".to_string(),
+            json!({
+                "basis": "wet_fictief#1",
+                "taken_on": "wet_fictief#0",
+                "fields": { "bsn": "999990019" },
+                "findings": { "al_verleend": false },
+                "outputs": {},
+            }),
+        )]
+        .into();
+        let rows = serde_json::to_value(
+            executogram_rows(&service(), &[receipt.clone()], "wet_fictief#2#afschrift").unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            rows[0]["in_de_plaats"],
+            json!({
+                "id": receipt.id,
+                "basis": "wet_fictief#1",
+                "bsn": "999990019",
+                "al_verleend": false,
+                "verleend": null,
+            })
+        );
+    }
+
+    #[test]
     fn a_name_id_on_the_decision_is_refused() {
-        let mut decision = gram("BESCHIKKING", GRONDSLAG, Some("a"));
+        let mut decision = gram("BESCHIKKING", BASIS, Some("a"));
         decision.fields.insert("id".into(), json!("x"));
-        let e = rows(&[decision], GRONDSLAG, "BESCHIKKING").unwrap_err();
+        let e = rows(
+            &LawExecutionService::new(),
+            &[decision],
+            BASIS,
+            "BESCHIKKING",
+        )
+        .unwrap_err();
         assert!(e.to_string().contains("holds 'id' itself"), "{e}");
     }
 
     #[test]
     fn a_name_that_is_a_field_and_another_output_is_refused() {
-        let mut decision = gram("BESCHIKKING", GRONDSLAG, Some("a"));
+        let mut decision = gram("BESCHIKKING", BASIS, Some("a"));
         decision
             .outputs
             .insert("eerste_verlofdag".into(), json!("2027-03-01"));
-        assert!(rows(&[decision], GRONDSLAG, "BESCHIKKING").is_err());
+        assert!(rows(
+            &LawExecutionService::new(),
+            &[decision],
+            BASIS,
+            "BESCHIKKING"
+        )
+        .is_err());
     }
 
     #[test]
     fn a_name_that_is_a_field_and_the_same_output_is_one_value() {
         // The same decimal in another scale is the same value.
-        let mut decision = gram("BESCHIKKING", GRONDSLAG, Some("a"));
+        let mut decision = gram("BESCHIKKING", BASIS, Some("a"));
         decision
             .fields
             .insert("aandeel".into(), json!({"__decimal": "5.0"}));
         decision
             .outputs
             .insert("aandeel".into(), json!({"__decimal": "5.00"}));
-        assert!(rows(&[decision], GRONDSLAG, "BESCHIKKING").is_ok());
+        assert!(rows(
+            &LawExecutionService::new(),
+            &[decision],
+            BASIS,
+            "BESCHIKKING"
+        )
+        .is_ok());
     }
 
     #[test]
     fn a_name_that_is_an_integer_field_and_the_same_decimal_output_is_an_error() {
         // 5 and 5.0: the cell does not decide on its own that they are one
         // value, nor that they differ; it follows the engine's EQUALS.
-        let mut decision = gram("BESCHIKKING", GRONDSLAG, Some("a"));
+        let mut decision = gram("BESCHIKKING", BASIS, Some("a"));
         decision.fields.insert("aandeel".into(), json!(5));
         decision
             .outputs
             .insert("aandeel".into(), json!({"__decimal": "5.0"}));
-        let err = rows(&[decision], GRONDSLAG, "BESCHIKKING").unwrap_err();
+        let err = rows(
+            &LawExecutionService::new(),
+            &[decision],
+            BASIS,
+            "BESCHIKKING",
+        )
+        .unwrap_err();
         assert!(
             matches!(&err, crate::error::Error::Setup(m)
                 if m.contains("'aandeel'") && m.contains("numbers written alike")),
@@ -790,8 +854,7 @@ mod tests {
     }
 
     /// A deciding law whose article 1 is a BESCHIKKING with the open term
-    /// `al_verleend`, which the authority decides per case, and a reduction
-    /// `id` that fills it from its decisions, with the parameter `bsn`.
+    /// `al_verleend`, which the authority decides per case.
     const DECIDING: &str = r#"
 $id: wet_fictief
 regulatory_layer: WET
@@ -825,23 +888,61 @@ articles:
               value: $al_verleend
 "#;
 
-    fn reduction(id: &str) -> Reduction {
-        Reduction::parse(format!(
+    /// The policy of the cell's holder that binds `al_verleend` to the
+    /// answer `al_verleend`, passing `bsn`.
+    const BINDING: &str = r#"
+$id: beleid_fictief
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.org/beleid
+competent_authority:
+  name: obs_de_klimop
+articles:
+  - number: '1'
+    text: Fictief.
+    url: https://example.org/beleid#1
+    machine_readable:
+      implements:
+        - law: wet_fictief
+          article: '1'
+          open_term: al_verleend
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+        input:
+          - name: antwoord
+            type: boolean
+            nullable: true
+            source:
+              reduction: al_verleend
+              parameters:
+                bsn: $bsn
+        output:
+          - name: al_verleend
+            type: boolean
+            nullable: true
+        actions:
+          - output: al_verleend
+            value: $antwoord
+"#;
+
+    /// A reduction `id` whose output `al_verleend` says whether a decision
+    /// in the chronicle granted leave.
+    fn reduction(id: &str, valid_from: &str) -> String {
+        format!(
             r#"
 $id: {id}
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
-valid_from: '2026-01-01'
+valid_from: '{valid_from}'
 url: https://example.org/reductie
 articles:
   - number: '1'
     text: Fictief.
     url: https://example.org/reductie#1
     machine_readable:
-      implements:
-        - law: wet_fictief
-          article: '1'
-          open_term: al_verleend
       execution:
         parameters:
           - name: bsn
@@ -867,8 +968,7 @@ articles:
               body: true
               combine: OR
 "#
-        ))
-        .unwrap()
+        )
     }
 
     /// Who the cell of these tests is.
@@ -880,9 +980,28 @@ articles:
         })
     }
 
+    /// The reductions the cell keeps: `reductie_a`.
+    fn reductions() -> &'static BTreeSet<String> {
+        static REDUCTIONS: std::sync::OnceLock<BTreeSet<String>> = std::sync::OnceLock::new();
+        REDUCTIONS.get_or_init(|| ["reductie_a".to_string()].into())
+    }
+
+    /// The catalogue of the cell: `al_verleend` from `reductie_a`.
+    fn answers() -> &'static BTreeMap<String, String> {
+        static ANSWERS: std::sync::OnceLock<BTreeMap<String, String>> = std::sync::OnceLock::new();
+        ANSWERS.get_or_init(|| [("al_verleend".to_string(), "reductie_a".to_string())].into())
+    }
+
+    /// The deciding law, the binding and `reductie_a` of the cell.
     fn service() -> LawExecutionService {
+        service_with(&reduction("reductie_a", "2026-01-01"))
+    }
+
+    fn service_with(reduction: &str) -> LawExecutionService {
         let mut service = LawExecutionService::new();
         service.load_law(DECIDING).unwrap();
+        service.load_law(BINDING).unwrap();
+        service.load_law(reduction).unwrap();
         service
     }
 
@@ -907,6 +1026,7 @@ articles:
         let call = regelrecht_engine::Call {
             findings: BTreeMap::new(),
             answerer: Some(reader),
+            chronicle: None,
             sphere: Vec::new(),
         };
         service.evaluate_law_with_trace_in(
@@ -918,21 +1038,145 @@ articles:
         )
     }
 
+    /// A reduction of no cell, which reads the decisions under the
+    /// article its parameter names (schema v0.8.11), such as that of the
+    /// Awb.
+    const WITHOUT_HOLDER: &str = r#"
+$id: reductie_zonder_houder
+regulatory_layer: REDUCTIE
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.org/reductie
+articles:
+  - number: '1'
+    text: Fictief.
+    url: https://example.org/reductie#1
+    machine_readable:
+      execution:
+        parameters:
+          - name: basis
+            type: string
+        input:
+          - name: besluiten
+            type: array
+            source:
+              decisions: $basis
+        output:
+          - name: verleend
+            type: array
+        actions:
+          - output: verleend
+            value:
+              operation: FOREACH
+              collection: $besluiten
+              as: besluit
+              body: $besluit.id
+"#;
+
+    /// A reduction of the cell that calls [`WITHOUT_HOLDER`] for the
+    /// decisions under `wet_fictief#1`.
+    const CALLING: &str = r#"
+$id: reductie_a
+regulatory_layer: REDUCTIE
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.org/reductie
+articles:
+  - number: '1'
+    text: Fictief.
+    url: https://example.org/reductie#1
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+        input:
+          - name: verleend
+            type: array
+            source:
+              regulation: reductie_zonder_houder
+              output: verleend
+              parameters:
+                basis: wet_fictief#1
+        output:
+          - name: al_verleend
+            type: boolean
+        actions:
+          - output: al_verleend
+            value:
+              operation: FOREACH
+              collection: $verleend
+              as: id
+              body: true
+              combine: OR
+"#;
+
     #[test]
-    fn the_cell_answers_the_term_it_fills_and_the_engine_records_who_answered() {
-        let mut service = service();
-        let reductions = [reduction("reductie_a")];
-        let loaded = load(&mut service, &[(ACTOR, &reductions)]).unwrap();
-        let reader = Reader::new(ACTOR, authority(), &reductions, decisions(), None);
-        let result = granted(&loaded, &reader).unwrap();
+    fn a_called_reduction_of_no_cell_reads_the_executing_cell() {
+        let mut service = service_with(CALLING);
+        service.load_law(WITHOUT_HOLDER).unwrap();
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
+        let result = granted(&service, &reader).unwrap();
+        // The reduction of the Awb kind found the grant in this cell's
+        // chronicle: leave is already granted.
+        assert_eq!(result.outputs["verleend"], Value::Bool(false));
+        // Read straight, it reads the same chronicle.
+        let law = service
+            .resolver()
+            .get_law_for_date("reductie_zonder_houder", Some(day()))
+            .unwrap();
+        let rows = reader
+            .chronicle_rows(
+                &service,
+                law,
+                ChronicleRead::Decisions("wet_fictief#1"),
+                day(),
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(&rows).unwrap()[0]["id"],
+            json!("BESCHIKKING-wet_fictief#1")
+        );
+    }
+
+    #[test]
+    fn the_cell_gives_the_answer_the_binding_names_and_the_engine_records_who() {
+        let service = service();
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
+        let result = granted(&service, &reader).unwrap();
         // One grant in the chronicle: leave is already granted.
         assert_eq!(result.outputs["verleend"], Value::Bool(false));
         let filled = &result.open_terms[0];
-        let regelrecht_engine::FilledBy::Answer(provenance) = &filled.filled_by else {
+        let regelrecht_engine::FilledBy::Answer {
+            law_id,
+            article,
+            answers,
+        } = &filled.filled_by
+        else {
             panic!("{filled:?}");
         };
+        assert_eq!((law_id.as_str(), article.as_str()), ("beleid_fictief", "1"));
+        let [provenance] = answers.as_slice() else {
+            panic!("{answers:?}");
+        };
         assert_eq!(provenance.answerer, ACTOR);
+        assert_eq!(provenance.answer, "al_verleend");
         assert_eq!(provenance.law_id, "reductie_a");
+        assert_eq!(provenance.article, "1");
         assert_eq!(provenance.valid_from, "2026-01-01");
         assert_eq!(provenance.records_read, 1);
         assert_eq!(
@@ -941,179 +1185,358 @@ articles:
         );
         // The reduction's FOREACH is not in the trace of the execution.
         let trace = result.trace.unwrap().render_box_drawing();
-        assert!(trace.contains("answered by obs_de_klimop"), "{trace}");
+        assert!(
+            trace.contains("Answered by answer 'al_verleend' of obs_de_klimop"),
+            "{trace}"
+        );
         assert!(!trace.contains("FOREACH"), "{trace}");
         let asked = reader.asked();
         assert_eq!(asked.len(), 1);
+        assert_eq!(asked[0].name, "al_verleend");
         assert!(asked[0].explained.is_none());
-        drop(loaded);
-        assert!(!service.has_law("reductie_a"));
     }
 
     #[test]
     fn the_reduction_the_cell_explains_runs_with_its_trace() {
-        let mut service = service();
-        let reductions = [reduction("reductie_a")];
-        let loaded = load(&mut service, &[(ACTOR, &reductions)]).unwrap();
+        let service = service();
         let reader = Reader::new(
             ACTOR,
             authority(),
-            &reductions,
+            answers(),
+            reductions(),
             decisions(),
             Some("al_verleend"),
         );
-        granted(&loaded, &reader).unwrap();
+        granted(&service, &reader).unwrap();
         let asked = reader.asked();
         let trace = asked[0].explained.as_ref().unwrap().trace.as_ref().unwrap();
         assert!(trace.render_box_drawing().contains("FOREACH"));
     }
 
     #[test]
-    fn the_engine_does_not_run_a_loaded_reduction_itself() {
-        // Without the cell as answerer, the loaded reduction fills nothing:
-        // its implements is the cell's declaration, no implementation.
-        let mut service = service();
-        let reductions = [reduction("reductie_a")];
-        let loaded = load(&mut service, &[(ACTOR, &reductions)]).unwrap();
-        let e = loaded
+    fn without_the_cell_the_binding_gives_nothing_and_the_finding_decides() {
+        // The reduction is loaded, but nothing runs it: the binding asks a
+        // cell, and there is none.
+        let service = service();
+        let e = service
             .evaluate_law("wet_fictief", &["verleend"], parameters(), "2026-10-20")
             .unwrap_err();
         assert!(e.to_string().contains("al_verleend"), "{e}");
+        let findings = [("al_verleend".to_string(), Value::Bool(false))].into();
+        let result = service
+            .evaluate_law_with_findings(
+                "wet_fictief",
+                &["verleend"],
+                parameters(),
+                findings,
+                "2026-10-20",
+            )
+            .unwrap();
+        assert_eq!(result.outputs["verleend"], Value::Bool(true));
+        assert_eq!(
+            result.open_terms[0].filled_by,
+            regelrecht_engine::FilledBy::Finding
+        );
     }
 
     #[test]
     fn without_the_decision_the_reduction_reads_an_empty_chronicle() {
-        let mut service = service();
-        let reductions = [reduction("reductie_a")];
-        let loaded = load(&mut service, &[(ACTOR, &reductions)]).unwrap();
-        let reader = Reader::new(ACTOR, authority(), &reductions, Vec::new(), None);
-        let result = granted(&loaded, &reader).unwrap();
+        let service = service();
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            Vec::new(),
+            None,
+        );
+        let result = granted(&service, &reader).unwrap();
         assert_eq!(result.outputs["verleend"], Value::Bool(true));
-        let regelrecht_engine::FilledBy::Answer(provenance) = &result.open_terms[0].filled_by
+        let regelrecht_engine::FilledBy::Answer { answers, .. } = &result.open_terms[0].filled_by
         else {
             panic!("{:?}", result.open_terms);
         };
         assert_eq!(
-            (provenance.records_read, provenance.last_record.as_deref()),
+            (answers[0].records_read, answers[0].last_record.as_deref()),
             (0, None)
         );
     }
 
     #[test]
-    fn a_reduction_not_in_force_on_the_day_answers_nothing() {
-        let later = Reduction::parse(
-            reduction("reductie_a")
-                .yaml
-                .replace("valid_from: '2026-01-01'", "valid_from: '2026-12-01'"),
-        )
-        .unwrap();
-        let reductions = [later];
-        assert!(terms_on(&reductions, day()).is_empty());
-        let mut service = service();
-        let loaded = load(&mut service, &[(ACTOR, &reductions)]).unwrap();
-        let reader = Reader::new(ACTOR, authority(), &reductions, decisions(), None);
-        assert!(granted(&loaded, &reader).is_err());
+    fn before_its_reduction_is_in_force_the_cell_is_silent() {
+        // The term is then the deciding authority's, as it was when a
+        // decision of that day was taken.
+        let service = service_with(&reduction("reductie_a", "2026-12-01"));
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
+        let e = granted(&service, &reader).unwrap_err();
+        assert!(e.to_string().contains("al_verleend"), "{e}");
         assert!(reader.asked().is_empty());
     }
 
     #[test]
-    fn a_term_a_reduction_filled_before_but_not_on_the_day_is_unfilled() {
-        let first = reduction("reductie_a");
-        let later = Reduction::parse(
-            reduction("reductie_a")
-                .yaml
-                .replace("valid_from: '2026-01-01'", "valid_from: '2026-06-01'")
-                .replace("open_term: al_verleend", "open_term: iets_anders"),
-        )
-        .unwrap();
-        let reductions = [first, later];
-        assert!(unfilled(&reductions, NaiveDate::from_ymd_opt(2026, 3, 1).unwrap()).is_none());
-        assert_eq!(
-            unfilled(&reductions, day()).map(|t| t.open_term.as_str()),
-            Some("al_verleend")
-        );
-        assert!(unfilled(&reductions, NaiveDate::from_ymd_opt(2025, 3, 1).unwrap()).is_none());
-    }
-
-    #[test]
-    fn a_term_two_reductions_in_force_fill_is_filled_twice() {
-        let reductions = [reduction("reductie_a"), reduction("reductie_b")];
-        assert_eq!(
-            filled_twice(&reductions, day()).map(|t| t.open_term),
-            Some("al_verleend".to_string())
-        );
-        assert!(filled_twice(&reductions[..1], day()).is_none());
-    }
-
-    #[test]
-    fn a_law_already_loaded_under_the_id_is_not_replaced() {
-        let mut service = service();
-        let reductions = [reduction("wet_fictief")];
-        let e = load(&mut service, &[(ACTOR, &reductions)]).err().unwrap();
-        assert!(e.to_string().contains("already loaded"), "{e}");
-        assert!(service.has_law("wet_fictief"));
-    }
-
-    #[test]
-    fn a_reduction_that_fills_a_term_its_article_does_not_declare_is_refused() {
+    fn an_answer_whose_reduction_is_not_loaded_is_an_error() {
+        // Never silently the finding: the cell gives this answer, and cannot.
         let service = service();
-        let typo = Reduction::parse(
-            reduction("reductie_a")
-                .yaml
-                .replace("open_term: al_verleend", "open_term: al_verleent"),
-        )
-        .unwrap();
-        let e = refuse_undeclared_terms(&service, &[typo], day()).unwrap_err();
+        let elsewhere: BTreeMap<String, String> =
+            [("al_verleend".to_string(), "reductie_b".to_string())].into();
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            &elsewhere,
+            reductions(),
+            decisions(),
+            None,
+        );
+        let e = granted(&service, &reader).unwrap_err();
         assert!(
-            e.to_string().contains("'al_verleent' of wet_fictief#1")
-                && e.to_string().contains("does not declare"),
+            e.to_string().contains("'reductie_b', which is not loaded"),
             "{e}"
         );
     }
 
     #[test]
-    fn a_reduction_without_a_readable_valid_from_is_refused() {
-        for from in ["valid_from: '2026-13-01'\n", ""] {
-            let yaml = reduction("reductie_a")
-                .yaml
-                .replace("valid_from: '2026-01-01'\n", from);
-            let e = Reduction::parse(yaml).unwrap_err();
-            assert!(e.to_string().contains("valid_from"), "{e}");
-        }
+    fn an_answer_the_catalogue_does_not_give_leaves_the_cell_silent() {
+        let service = service();
+        let none = BTreeMap::new();
+        let reader = Reader::new(ACTOR, authority(), &none, reductions(), decisions(), None);
+        let findings = [("al_verleend".to_string(), Value::Bool(false))].into();
+        let call = regelrecht_engine::Call {
+            findings,
+            answerer: Some(&reader),
+            chronicle: None,
+            sphere: Vec::new(),
+        };
+        let result = service
+            .evaluate_law_in(
+                "wet_fictief",
+                &["verleend"],
+                parameters(),
+                call,
+                "2026-10-20",
+            )
+            .unwrap();
+        assert_eq!(
+            result.open_terms[0].filled_by,
+            regelrecht_engine::FilledBy::Finding
+        );
+        assert!(reader.asked().is_empty());
     }
 
     #[test]
-    fn rulework_other_than_a_reduction_is_not_one() {
-        let e = Reduction::parse(DECIDING).unwrap_err();
+    fn a_parameter_the_binding_does_not_pass_fails_the_answer() {
+        let service = service();
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
+        let request = AnswerRequest {
+            name: "al_verleend",
+            parameters: &BTreeMap::new(),
+            calculation_date: "2026-10-20",
+        };
+        let e = reader.answer(&service, &request).unwrap_err();
+        assert!(
+            e.to_string().contains("takes 'bsn'") && e.to_string().contains("does not pass"),
+            "{e}"
+        );
+    }
+
+    #[test]
+    fn a_parameter_the_reduction_may_go_without_need_not_be_passed() {
+        let optional = reduction("reductie_a", "2026-01-01").replace(
+            "          - name: bsn\n            type: string\n        input:",
+            "          - name: bsn\n            type: string\n            required: false\n        input:",
+        );
+        let service = service_with(&optional);
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
+        let request = AnswerRequest {
+            name: "al_verleend",
+            parameters: &BTreeMap::new(),
+            calculation_date: "2026-10-20",
+        };
+        let answer = reader.answer(&service, &request).unwrap().unwrap();
+        assert_eq!(answer.value, Value::Bool(true));
+    }
+
+    #[test]
+    fn a_parameter_the_reduction_does_not_take_fails_the_answer() {
+        let service = service();
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
+        let mut given = parameters();
+        given.insert("bsn_jongere".into(), Value::String("x".into()));
+        let request = AnswerRequest {
+            name: "al_verleend",
+            parameters: &given,
+            calculation_date: "2026-10-20",
+        };
+        let e = reader.answer(&service, &request).unwrap_err();
+        assert!(e.to_string().contains("'bsn_jongere'"), "{e}");
+    }
+
+    #[test]
+    fn an_answer_of_a_reduction_the_cell_does_not_keep_is_refused() {
+        let service = service();
+        let none = BTreeSet::new();
+        let reader = Reader::new(ACTOR, authority(), answers(), &none, decisions(), None);
+        let e = granted(&service, &reader).unwrap_err();
+        assert!(e.to_string().contains("does not keep"), "{e}");
+    }
+
+    #[test]
+    fn rulework_other_than_a_reduction_gives_no_answer() {
+        let service = service();
+        let policy: BTreeMap<String, String> =
+            [("al_verleend".to_string(), "beleid_fictief".to_string())].into();
+        let reader = Reader::new(ACTOR, authority(), &policy, reductions(), decisions(), None);
+        let e = granted(&service, &reader).unwrap_err();
         assert!(e.to_string().contains("not a REDUCTIE"), "{e}");
     }
 
     #[test]
-    fn a_reduction_that_fills_no_open_term_is_refused() {
-        let yaml = reduction("reductie_a").yaml;
-        let start = yaml.find("      implements:").unwrap();
-        let end = yaml.find("      execution:").unwrap();
-        let without = format!("{}{}", &yaml[..start], &yaml[end..]);
-        let e = Reduction::parse(without).unwrap_err();
-        assert!(e.to_string().contains("fills no open term"), "{e}");
+    fn a_reduction_without_the_output_of_the_answer_is_an_error() {
+        let service = service_with(
+            &reduction("reductie_a", "2026-01-01")
+                .replace("- name: al_verleend", "- name: iets_anders")
+                .replace("- output: al_verleend", "- output: iets_anders"),
+        );
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
+        let e = granted(&service, &reader).unwrap_err();
+        assert!(e.to_string().contains("has no output 'al_verleend'"), "{e}");
     }
 
     #[test]
-    fn an_error_or_a_panic_after_load_leaves_nothing_behind() {
-        let reductions = [reduction("reductie_a")];
-        let mut service = service();
-        let early = |service: &mut LawExecutionService| -> Result<()> {
-            let _loaded = load(service, &[(ACTOR, &reductions)])?;
-            Err(setup("the decision failed"))
-        };
-        assert!(early(&mut service).is_err());
-        assert!(!service.has_law("reductie_a"));
+    fn a_reduction_that_asks_its_own_answer_is_refused() {
+        // The reduction reads the deciding law, whose term the binding
+        // binds to this very answer.
+        let looping = reduction("reductie_a", "2026-01-01").replace(
+            "          - name: besluiten\n            type: array\n            source:\n              \
+             decisions: wet_fictief#1\n",
+            "          - name: besluiten\n            type: array\n            source:\n              \
+             decisions: wet_fictief#1\n          - name: verleend\n            type: boolean\n            \
+             source:\n              regulation: wet_fictief\n              output: verleend\n              \
+             parameters:\n                bsn: $bsn\n",
+        );
+        let looping = looping.replace(
+            "value: true\n              body: true",
+            "value: $verleend\n              body: true",
+        );
+        let service = service_with(&looping);
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
+        let e = granted(&service, &reader).unwrap_err();
+        assert!(e.to_string().contains("while giving it"), "{e}");
+    }
 
-        let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _loaded = load(&mut service, &[(ACTOR, &reductions)]).unwrap();
-            panic!("the decision panicked");
-        }));
-        assert!(panicked.is_err());
-        assert!(!service.has_law("reductie_a"));
+    #[test]
+    fn a_binding_names_the_term_the_policy_article_and_the_answer() {
+        let service = service();
+        assert_eq!(
+            bindings(&service, day()),
+            [Binding {
+                term: Term {
+                    law: "wet_fictief".into(),
+                    article: "1".into(),
+                    open_term: "al_verleend".into(),
+                },
+                law_id: "beleid_fictief".into(),
+                article: "1".into(),
+                answer: "al_verleend".into(),
+            }]
+        );
+    }
+
+    #[test]
+    fn the_terms_a_policy_binds_to_an_answer_of_the_cell_are_listed() {
+        let service = service();
+        let terms = bound_terms(&service, authority(), answers(), day());
+        assert_eq!(
+            terms,
+            [Term {
+                law: "wet_fictief".into(),
+                article: "1".into(),
+                open_term: "al_verleend".into(),
+            }]
+        );
+        assert!(bound_terms(&service, authority(), &BTreeMap::new(), day()).is_empty());
+        // A cell the policy does not ask has the term not as its own.
+        let other = Authority {
+            name: "een ander".into(),
+            category: None,
+        };
+        assert!(bound_terms(&service, &other, answers(), day()).is_empty());
+        let before = NaiveDate::from_ymd_opt(2025, 1, 1).unwrap();
+        assert!(bound_terms(&service, authority(), answers(), before).is_empty());
+    }
+
+    #[test]
+    fn a_term_that_names_its_competent_routes_the_whole_binding() {
+        // The binding fills two terms; only the second names who may
+        // answer it. The engine asks that one for both, so neither term is
+        // the holder's.
+        let deciding = DECIDING.replace(
+            "          decided_per_case_by: het hoofd\n",
+            "          decided_per_case_by: het hoofd\n        - id: ook_verleend\n          \
+             type: boolean\n          required: false\n          competent_authority:\n            \
+             name: een ander\n",
+        );
+        let binding = BINDING.replace(
+            "          open_term: al_verleend\n",
+            "          open_term: al_verleend\n        - law: wet_fictief\n          article: '1'\n          \
+             open_term: ook_verleend\n",
+        );
+        let mut service = LawExecutionService::new();
+        service.load_law(&deciding).unwrap();
+        service.load_law(&binding).unwrap();
+        service
+            .load_law(&reduction("reductie_a", "2026-01-01"))
+            .unwrap();
+        assert!(bound_terms(&service, authority(), answers(), day()).is_empty());
+        let other = Authority {
+            name: "een ander".into(),
+            category: None,
+        };
+        let terms: Vec<String> = bound_terms(&service, &other, answers(), day())
+            .into_iter()
+            .map(|t| t.open_term)
+            .collect();
+        assert_eq!(terms, ["al_verleend", "ook_verleend"]);
     }
 }

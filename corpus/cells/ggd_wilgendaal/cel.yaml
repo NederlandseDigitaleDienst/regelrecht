@@ -1,7 +1,17 @@
 ---
-# Wie deze cel is (RFC-052). Fictief: de GGD die voor de gemeente Wilgendaal
+# Wie deze cel is (RFC-046). Fictief: de GGD die voor de gemeente Wilgendaal
 # het geneeskundig onderzoek verricht (Regeling gehandicaptenparkeerkaart,
-# artikel 3, eerste lid). Zij legt haar onderzoeken vast in haar eigen
-# kroniek en antwoordt of er een plaatsvond.
+# artikel 3, eerste lid). Zij legt haar onderzoeken en haar adviezen vast in
+# haar eigen kroniek, en antwoordt of er een onderzoek plaatsvond en wat het
+# advies per gegeven zegt (artikel 5 van het fictieve beleid van
+# Wilgendaal).
 name: GGD Wilgendaal
 category: Gemeentelijke Gezondheidsdienst
+# Welk antwoord de cel geeft, en uit welke eigen reductie
+# (reductions/, RFC-048).
+answers:
+  geneeskundig_onderzoek_heeft_plaatsgehad: reductie_geneeskundig_onderzoek
+  advies_langdurige_loopbeperking: reductie_geneeskundig_advies
+  advies_continu_afhankelijk_van_hulp_bestuurder: reductie_geneeskundig_advies
+  advies_permanent_rolstoelgebonden: reductie_geneeskundig_advies
+  advies_ernstige_beperkingen_andere_dan_loopbeperkingen: reductie_geneeskundig_advies

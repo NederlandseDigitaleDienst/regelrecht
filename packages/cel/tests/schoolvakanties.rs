@@ -5,12 +5,15 @@
 //! zomervakantie, the last per region; the region follows from where the
 //! school is established, an executogram in its own chronicle; the herfst-
 //! and voorjaarsvakantie are a rule of the school, in its own policy, one
-//! version per school year. The cell of OBS De Klimop answers the open term
-//! with its reduction.
+//! version per school year. The head's policy binds the open term to the
+//! answer of the cell of OBS De Klimop, which gives it with its reduction
+//! (RFC-048).
 
 // Test helpers outside a `#[test]` fn may unwrap and panic too; that is how
 // a failing fixture reports itself.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+mod common;
 
 use std::path::Path;
 
@@ -36,26 +39,27 @@ fn service() -> LawExecutionService {
 
 /// [`service`], with the versions `extra` loaded as well.
 fn service_with(extra: &[String]) -> LawExecutionService {
-    let regulation = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/regulation/nl");
     let mut service = LawExecutionService::new();
-    for law in [
-        format!("wet/{LAW}"),
-        "wet/algemene_wet_bestuursrecht".to_string(),
-        format!("ministeriele_regeling/{REGELING}"),
-        "uitvoeringsbeleid/fictief_beleid_schooljaar_obs_de_klimop".to_string(),
-        "uitvoeringsbeleid/fictief_beleid_schooljaargrenzen_obs_de_klimop".to_string(),
-        format!("uitvoeringsbeleid/{ROOSTER}"),
-        "uitvoeringsbeleid/fictief_beleid_vestiging_obs_de_klimop".to_string(),
-    ] {
-        for entry in std::fs::read_dir(regulation.join(law)).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().is_some_and(|x| x == "yaml") {
-                service
-                    .load_law(&std::fs::read_to_string(&path).unwrap())
-                    .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            }
-        }
-    }
+    let laws = [
+        format!("regulation/nl/wet/{LAW}"),
+        "regulation/nl/wet/algemene_wet_bestuursrecht".to_string(),
+        format!("regulation/nl/ministeriele_regeling/{REGELING}"),
+        "regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaar_obs_de_klimop".to_string(),
+        "regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaargrenzen_obs_de_klimop"
+            .to_string(),
+        format!("regulation/nl/uitvoeringsbeleid/{ROOSTER}"),
+        "regulation/nl/uitvoeringsbeleid/fictief_beleid_vestiging_obs_de_klimop".to_string(),
+        // The head's policy, which binds the terms to the answers of the
+        // school's cell, and the reductions of that cell (RFC-048).
+        "regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantieverlof_obs_de_klimop".to_string(),
+        common::reduction_dir("reductie_plaats_van_vestiging"),
+        common::reduction_dir("reductie_verlof_al_verleend_in_schooljaar"),
+        common::reduction_dir(HOLIDAYS),
+        // Which decisions still stand after objection and appeal: the
+        // reduction of the Awb, which the school's reduction calls.
+        common::reduction_dir("reductie_algemene_wet_bestuursrecht"),
+    ];
+    common::load(&mut service, laws);
     for yaml in extra {
         service.load_law(yaml).unwrap();
     }
@@ -65,10 +69,9 @@ fn service_with(extra: &[String]) -> LawExecutionService {
 /// A fictional next version of the school's policy, for the school year
 /// 2027–2028, from 1 August 2027.
 fn rooster_2027() -> String {
-    let regulation = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/regulation/nl");
-    let current = std::fs::read_to_string(
-        regulation.join(format!("uitvoeringsbeleid/{ROOSTER}/2026-08-01.yaml")),
-    )
+    let current = std::fs::read_to_string(common::corpus().join(format!(
+        "regulation/nl/uitvoeringsbeleid/{ROOSTER}/2026-08-01.yaml"
+    )))
     .unwrap();
     let next = [
         (
@@ -198,8 +201,9 @@ fn leave_in_the_christmas_holiday_is_refused_and_nobody_judged_it() {
     let found = cell.findings(&mut service(), &[], &gram.id).unwrap();
     assert_eq!(found, vec![PROFESSION.to_string()]);
 
-    // In the trace of the decision, the term is one node, filled in by the
-    // school: its cell, with the reduction and its version.
+    // In the trace of the decision, the answer is one node, given by the
+    // school: its cell, with the reduction and its version; the head's
+    // policy filled the term with it.
     let explained = cell.explain(&mut service(), &[], &gram.id).unwrap();
     let trace = explained.trace.as_ref().unwrap();
     let nodes = answered(trace);
@@ -213,7 +217,7 @@ fn leave_in_the_christmas_holiday_is_refused_and_nobody_judged_it() {
     assert_eq!(answer.valid_from, "2026-08-01");
     let rendered = trace.render_box_drawing();
     assert!(
-        rendered.contains(&format!("answered by {RECORDING_ACTOR}")),
+        rendered.contains(&format!("with the answer of {RECORDING_ACTOR}")),
         "{rendered}"
     );
 
@@ -297,7 +301,9 @@ fn a_school_that_moves_before_the_leave_is_judged_on_the_leave_days() {
         "Maastricht"
     );
     let rendered = why[0].trace.as_ref().unwrap().render_box_drawing();
-    assert!(rendered.contains("vestigingen"), "{rendered}");
+    // The policy of the head read the executograms, inside the reduction
+    // (RFC-048).
+    assert!(rendered.contains("$VESTIGINGEN"), "{rendered}");
 
     // Leave that ends before the move is judged on Utrecht.
     let early = applied(&mut cell, "2027-04-19", "2027-04-23", "2027-04-15");

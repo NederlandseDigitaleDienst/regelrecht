@@ -21,6 +21,14 @@ set -uo pipefail
 
 MAX_WAIT_SECONDS="${MAX_WAIT_SECONDS:-2100}"
 POLL_SECONDS="${POLL_SECONDS:-20}"
+# How long to keep looking once it is established that this run's own review
+# will not deliver, before blocking. Long enough for a manual run started just
+# before a rerun of this job to show up; a PR can only shorten it to its own
+# disadvantage.
+NO_REVIEW_GRACE_SECONDS="${NO_REVIEW_GRACE_SECONDS:-120}"
+# How long a draft must stay a draft before the gate calls the review not
+# applicable; see the draft check below.
+DRAFT_SETTLE_SECONDS="${DRAFT_SETTLE_SECONDS:-30}"
 GITHUB_STEP_SUMMARY="${GITHUB_STEP_SUMMARY:-/dev/null}"
 
 # Vaste namen, bewust geen env-variabelen: ze staan in het workflowbestand dat de
@@ -29,6 +37,10 @@ GITHUB_STEP_SUMMARY="${GITHUB_STEP_SUMMARY:-/dev/null}"
 readonly JOB_NAME='claude-review'
 readonly PROOF_STEP='Record that the review ran'
 readonly WORKFLOW_FILE='.github/workflows/claude-code-review.yml'
+# The job that decides, before `claude-review`, whether there is anything to
+# review. Once it is done, a missing `claude-review` is not coming any more.
+readonly TARGET_JOB='Resolve the commit to review'
+readonly WORKFLOW_NAME='Claude Code Review'
 # Letterlijk zoals de prompt in ${WORKFLOW_FILE} hem voorschrijft; de testsuite
 # bindt de twee. Alleen Critical blokkeert: Significant zegt zelf al
 # "waarschijnlijk".
@@ -89,8 +101,30 @@ if [ "$(pr_field '.head.repo.full_name')" != "$REPO" ]; then
   not_applicable "Deze PR komt uit een andere repository (een fork). Zulke PR's krijgen geen secrets, dus \`CLAUDE_CODE_OAUTH_TOKEN\` ontbreekt en \`${JOB_NAME}\` draait daar niet. Review deze wijziging met de hand voordat je merget."
 fi
 
+# A draft is not mergeable and needs no review yet. But the flag is read at one
+# moment, and "ready for review" can follow a push within seconds. The run for
+# that push then skips its review, and the ready_for_review run can carry the
+# commit from before the push (PR 1801). A green "not applicable" here would
+# then be the only verdict on the head commit, without any review. So the flag
+# has to hold for DRAFT_SETTLE_SECONDS; if the PR turns ready meanwhile, the
+# gate judges it like any other.
 if [ "$(pr_field '.draft')" = "true" ]; then
-  not_applicable "Deze PR staat op draft. \`${JOB_NAME}\` draait pas bij \"ready for review\", en een draft is niet mergebaar."
+  settle_until=$(($(date +%s) + DRAFT_SETTLE_SECONDS))
+  while [ "$(pr_field '.draft')" = "true" ] && [ "$(date +%s)" -lt "$settle_until" ]; do
+    sleep "$((POLL_SECONDS < 1 ? 1 : POLL_SECONDS < 5 ? POLL_SECONDS : 5))"
+    # A failed read keeps the last answer: that is what the gate knew anyway.
+    if refetched=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" 2>/dev/null) &&
+      jq -e '.head.sha' <<<"$refetched" >/dev/null 2>&1; then
+      pr="$refetched"
+    fi
+  done
+  if [ "$(pr_field '.draft')" = "true" ]; then
+    not_applicable "Deze PR staat op draft. \`${JOB_NAME}\` draait pas bij \"ready for review\", en een draft is niet mergebaar."
+  fi
+  if [ "$(pr_field '.head.sha')" != "$head_sha" ]; then
+    blocked "Pull request ${PR_NUMBER} is intussen ready for review, maar staat nu op commit \`$(pr_field '.head.sha')\`, terwijl deze run over \`${head_sha}\` gaat. Deze poort rapporteert alleen over \`${head_sha}\`; de poort op de nieuwe commit beoordeelt die."
+  fi
+  echo "Pull request ${PR_NUMBER} is intussen ready for review; de poort beoordeelt commit ${head_sha}."
 fi
 
 if [ "$(pr_field '.user.login')" = "dependabot[bot]" ]; then
@@ -144,11 +178,198 @@ if [ "$run_workflow" != "$base_workflow" ]; then
   blocked "\`${WORKFLOW_FILE}\` is in deze run een andere versie dan die op \`${default_branch}\`: de blob op \`${merge_ref}\` is \`${run_workflow}\`, die op \`${default_branch}\` is \`${base_workflow}\`. De review-actie valideert het workflowbestand tegen de default branch en stapt bij een verschil uit zonder te reviewen, dus deze PR krijgt geen automatische review en de poort kan er niet voor instaan. Wijzigt deze PR dat bestand, dan moet een mens de wijziging nalopen."
 fi
 
-echo "Wachten op job '${JOB_NAME}' in workflow-run ${RUN_ID} (commit ${head_sha}, max ${MAX_WAIT_SECONDS}s)."
+# A manual run (workflow_dispatch) reviews this PR from the default branch, so
+# its own head_sha is a commit on that branch and not ${head_sha}. What it
+# reviewed is recorded in the name of its review job; see find_dispatch_review.
+readonly dispatch_title="${WORKFLOW_NAME}: PR #${PR_NUMBER}"
+readonly dispatch_job_name="${JOB_NAME} (PR #${PR_NUMBER} @ ${head_sha})"
+readonly retrigger="Start een review van deze commit met \`gh workflow run \"${WORKFLOW_NAME}\" -f pr=${PR_NUMBER}\` en draai daarna deze job opnieuw met \`gh run rerun ${RUN_ID} --failed\`: de poort neemt die review dan over. Of zet de PR op draft en daarna weer op ready for review."
+
+# Fills `dispatch_job` and `dispatch_run_url` with the review job of the newest
+# manual run that reviewed ${head_sha} for this PR, and leaves them empty if
+# there is none.
+#
+# Why such a job may stand in for this run's own. A run is only considered if
+# its event is workflow_dispatch and it ran ${WORKFLOW_FILE} from
+# ${default_branch} in this repository; GitHub sets those fields, not the
+# workflow. On top of that, the file at the run's own head_sha must be the very
+# blob that is on ${default_branch} now. Then the code that ran is the reviewed
+# default-branch copy, whatever ref name it was started with. That code takes
+# the commit to review from the API, never from the dispatch input, and writes
+# it into the name of its review job. A job name comes from the workflow file
+# alone: neither the PR, the person who started the run, nor the review itself
+# can set it. A job called ${dispatch_job_name} in such a run is therefore a
+# review of exactly ${head_sha}, and from there the same proof step and the same
+# Critical check apply as to this run's own job. The run title is matched too,
+# but only to keep the number of API calls down; it proves nothing.
+dispatch_job=''
+dispatch_run_url=''
+dispatch_note=''
+trusted_dispatch_heads=' '
+find_dispatch_review() {
+  local runs candidates id sha html jobs found blob
+  dispatch_job=''
+  dispatch_run_url=''
+  dispatch_note=''
+  if ! runs=$(gh api "repos/${REPO}/actions/workflows/${WORKFLOW_FILE##*/}/runs?event=workflow_dispatch&branch=${default_branch}&per_page=100" 2>/dev/null) ||
+    ! candidates=$(jq -er --arg wf "$WORKFLOW_FILE" --arg branch "$default_branch" \
+      --arg repo "$REPO" --arg title "$dispatch_title" '
+        [.workflow_runs[]
+         | select(.event == "workflow_dispatch" and .path == $wf
+                  and .head_branch == $branch
+                  and .head_repository.full_name == $repo
+                  and .display_title == $title)]
+        | sort_by(.id) | reverse | .[:5] | map("\(.id) \(.head_sha) \(.html_url)") | join("\n")' <<<"$runs" 2>/dev/null); then
+    last_error="de handmatig gestarte runs van \`${WORKFLOW_FILE}\` waren niet op te halen of niet te lezen"
+    return
+  fi
+
+  while read -r id sha html; do
+    [ -n "$id" ] || continue
+    if ! jobs=$(gh api "repos/${REPO}/actions/runs/${id}/jobs?filter=all&per_page=100" 2>/dev/null); then
+      last_error="de jobs van handmatige run ${id} waren niet op te halen"
+      return
+    fi
+    found=$(jq -c --arg name "$dispatch_job_name" '[.jobs[] | select(.name == $name)] | max_by(.id) // empty' <<<"$jobs" 2>/dev/null)
+    [ -n "$found" ] || continue
+
+    case "$trusted_dispatch_heads" in
+    *" ${sha} "*) ;;
+    *)
+      if ! blob=$(blob_sha "$sha"); then
+        last_error="\`${WORKFLOW_FILE}\` op commit ${sha} van handmatige run ${id} was niet op te halen"
+        continue
+      fi
+      if [ "$blob" != "$base_workflow" ]; then
+        dispatch_note=" Handmatige run ${html} reviewde deze commit wel, maar met een andere versie van \`${WORKFLOW_FILE}\` dan die nu op \`${default_branch}\` staat, dus die telt niet."
+        continue
+      fi
+      trusted_dispatch_heads="${trusted_dispatch_heads}${sha} "
+      ;;
+    esac
+
+    # A manual review that ended without a usable result is not taken over,
+    # and neither is an older one behind it: keep looking within the grace
+    # period, since a newer manual run may be about to replace it.
+    if [ "$(jq -r '.status // ""' <<<"$found")" = completed ]; then
+      case "$(jq -r '.conclusion // ""' <<<"$found")" in
+      success | neutral | '') ;;
+      *)
+        dispatch_note=" Handmatige run ${html} reviewde deze commit, maar eindigde op \`$(jq -r '.conclusion' <<<"$found")\`."
+        return
+        ;;
+      esac
+    fi
+    dispatch_job="$found"
+    dispatch_run_url="$html"
+    return
+  done <<<"$candidates"
+}
+
+# Fills `sibling_job` and `sibling_run_url` with the review job of the newest
+# other pull_request run of this workflow on ${head_sha}, if one is queued,
+# running or done with a usable result.
+#
+# The common case: a push to a draft and "ready for review" seconds later. The
+# push run skips its review, and the ready_for_review run reviews the same
+# commit. Without this, the push run's gate would block while that review runs.
+#
+# Why such a job may stand in. A pull_request run executes the workflow file as
+# it stands in the test merge of the PR and its base at that moment, not the
+# copy this gate compared. That copy is only known to be trusted when the PR
+# does not touch the file: then every test merge with ${default_branch} holds a
+# default-branch version of it, and the action validates that version against
+# the default branch itself. So a sibling counts only when the PR's base is
+# ${default_branch} and the file at ${head_sha} is the same blob as at the merge
+# base of the PR. A PR that changes the file already blocked above, unless its
+# change equals what the default branch has now; this rule turns that case down
+# too. A sibling for another PR on the same commit is not ruled out here, but
+# its comments land on that PR, and the gate only counts what is written on
+# this one.
+sibling_job=''
+sibling_run_url=''
+sibling_trust=''
+find_sibling_review() {
+  local runs candidates id html jobs found compare merge_base head_blob base_blob
+  sibling_job=''
+  sibling_run_url=''
+
+  if [ -z "$sibling_trust" ]; then
+    if [ "$(pr_field '.base.ref')" != "$default_branch" ]; then
+      sibling_trust=no
+    elif ! compare=$(gh api "repos/${REPO}/compare/${default_branch}...${head_sha}?per_page=1" 2>/dev/null) ||
+      ! merge_base=$(jq -er '.merge_base_commit.sha' <<<"$compare" 2>/dev/null) ||
+      ! head_blob=$(blob_sha "$head_sha") || ! base_blob=$(blob_sha "$merge_base"); then
+      # Not knowing only means no sibling is used this poll, which can make
+      # the gate red but never green; try again on the next poll.
+      return
+    elif [ "$head_blob" = "$base_blob" ]; then
+      sibling_trust=yes
+    else
+      sibling_trust=no
+    fi
+  fi
+  [ "$sibling_trust" = yes ] || return
+
+  if ! runs=$(gh api "repos/${REPO}/actions/workflows/${WORKFLOW_FILE##*/}/runs?event=pull_request&head_sha=${head_sha}&per_page=100" 2>/dev/null) ||
+    ! candidates=$(jq -er --arg wf "$WORKFLOW_FILE" --arg sha "$head_sha" \
+      --arg repo "$REPO" --argjson self "$RUN_ID" '
+        [.workflow_runs[]
+         | select(.event == "pull_request" and .path == $wf
+                  and .head_sha == $sha
+                  and .head_repository.full_name == $repo
+                  and .id != $self)]
+        | sort_by(.id) | reverse | .[:5] | map("\(.id) \(.html_url)") | join("\n")' <<<"$runs" 2>/dev/null); then
+    last_error="de andere runs van \`${WORKFLOW_FILE}\` op commit ${head_sha} waren niet op te halen of niet te lezen"
+    return
+  fi
+
+  while read -r id html; do
+    [ -n "$id" ] || continue
+    if ! jobs=$(gh api "repos/${REPO}/actions/runs/${id}/jobs?filter=all&per_page=100" 2>/dev/null); then
+      last_error="de jobs van run ${id} waren niet op te halen"
+      return
+    fi
+    found=$(jq -c --arg name "$JOB_NAME" '[.jobs[] | select(.name == $name)] | max_by(.id) // empty' <<<"$jobs" 2>/dev/null)
+    [ -n "$found" ] || continue
+    # A sibling that skipped or ended without a result is no help; an older
+    # one may still be.
+    if [ "$(jq -r '.status // ""' <<<"$found")" = completed ]; then
+      case "$(jq -r '.conclusion // ""' <<<"$found")" in
+      success | neutral | '') ;;
+      *) continue ;;
+      esac
+    fi
+    sibling_job="$found"
+    sibling_run_url="$html"
+    return
+  done <<<"$candidates"
+}
+
+echo "Wachten op de review van commit ${head_sha} in workflow-run ${RUN_ID} (max ${MAX_WAIT_SECONDS}s)."
 deadline=$(($(date +%s) + MAX_WAIT_SECONDS))
 job=''
 status=''
 last_error=''
+# Set once it is established that this run's own review will not deliver:
+# `absent`, or the conclusion it ended on.
+own_gone=''
+own_url=''
+no_review_since=''
+review_run="workflow-run ${RUN_ID}"
+
+# There is no review to wait for: this run's own will not deliver, and no
+# manual run reviewed this commit. Block now with what to do, rather than after
+# the long wait that is meant for a review that is still running.
+no_review() {
+  local why
+  case "$own_gone" in
+  absent) why="\`${JOB_NAME}\` is in workflow-run ${RUN_ID} niet gestart, en \`${TARGET_JOB}\` is al klaar" ;;
+  skipped) why="\`${JOB_NAME}\` is overgeslagen in workflow-run ${RUN_ID}; de reden staat in de job \`${TARGET_JOB}\`" ;;
+  *) why="\`${JOB_NAME}\` eindigde op \`${own_gone}\` in workflow-run ${RUN_ID}" ;;
+  esac
+  blocked "${why}. Er is ook geen andere run en geen handmatig gestarte run die commit \`${head_sha}\` reviewt, dus er komt geen review waar de poort op kan wachten.${dispatch_note} ${retrigger} ${own_url}"
+}
 
 # `filter=all` is essentieel: het run-id blijft gelijk over attempts heen, dus na
 # "Re-run this job" op alleen de poort zit `claude-review` niet in de joblijst van
@@ -163,15 +384,57 @@ while :; do
     response='{"jobs":[]}'
   fi
 
-  job=$(jq -c --arg name "$JOB_NAME" '[.jobs[] | select(.name == $name)] | max_by(.id) // empty' <<<"$response" 2>/dev/null)
+  own=$(jq -c --arg name "$JOB_NAME" '[.jobs[] | select(.name == $name)] | max_by(.id) // empty' <<<"$response" 2>/dev/null)
+  own_gone=''
+  if [ -n "$own" ]; then
+    own_url=$(jq -r '.html_url // ""' <<<"$own" 2>/dev/null)
+    if [ "$(jq -r '.status // ""' <<<"$own" 2>/dev/null)" = completed ]; then
+      case "$(jq -r '.conclusion // ""' <<<"$own" 2>/dev/null)" in
+      success | neutral | '') ;;
+      *) own_gone=$(jq -r '.conclusion' <<<"$own") ;;
+      esac
+    fi
+  elif [ -z "$last_error" ] &&
+    [ "$(jq -r --arg name "$TARGET_JOB" '[.jobs[] | select(.name == $name)] | max_by(.id) | .status // ""' <<<"$response" 2>/dev/null)" = completed ]; then
+    own_gone=absent
+  fi
+
+  if [ -z "$own_gone" ]; then
+    job="$own"
+    review_run="workflow-run ${RUN_ID}"
+    no_review_since=''
+  else
+    find_sibling_review
+    job="$sibling_job"
+    if [ -n "$job" ]; then
+      review_run="run ${sibling_run_url} op dezelfde commit"
+    else
+      find_dispatch_review
+      job="$dispatch_job"
+      [ -n "$job" ] && review_run="handmatige run ${dispatch_run_url}"
+    fi
+    if [ -n "$job" ]; then
+      no_review_since=''
+    elif [ -z "$last_error" ]; then
+      # Only on established facts: a failed API call proves nothing either way.
+      now=$(date +%s)
+      no_review_since="${no_review_since:-$now}"
+      if [ "$now" -ge $((no_review_since + NO_REVIEW_GRACE_SECONDS)) ] || [ "$now" -ge "$deadline" ]; then
+        no_review
+      fi
+    fi
+  fi
+
   status=''
   [ -n "$job" ] && status=$(jq -r '.status // ""' <<<"$job" 2>/dev/null)
 
   # Vlak na het afronden geeft de jobs-API een job soms nog zonder stappen;
   # een paar seconden later staan ze er wel. Zonder stappen is het bewijs nog
   # niet te lezen, dus dat telt als nog niet klaar en niet als een job zonder
-  # bewijsstap.
+  # bewijsstap. A skipped job never gets steps, so waiting for them would last
+  # until the deadline (PR 1801).
   if [ "$status" = "completed" ]; then
+    [ "$(jq -r '.conclusion // ""' <<<"$job" 2>/dev/null)" = skipped ] && break
     steps_pending=$(jq -r '(has("steps") | not) or (.steps == [])' <<<"$job" 2>/dev/null)
     [ "$steps_pending" != "true" ] && break
     status='completed, nog zonder stappen'
@@ -187,10 +450,10 @@ while :; do
     if [ "$status" = 'completed, nog zonder stappen' ]; then
       blocked "\`${JOB_NAME}\` is afgerond, maar na ${MAX_WAIT_SECONDS}s geeft de jobs-API nog geen stappen, dus het bewijs dat er gereviewd is valt niet te lezen. Dat is geen uitspraak over de review zelf; draai deze job opnieuw. $(jq -r '.html_url // ""' <<<"$job")"
     fi
-    blocked "Na ${MAX_WAIT_SECONDS}s is \`${JOB_NAME}\` nog niet klaar (status \`${status}\`). Draai deze job opnieuw zodra de review af is."
+    blocked "Na ${MAX_WAIT_SECONDS}s is \`${JOB_NAME}\` in ${review_run} nog niet klaar (status \`${status}\`). Draai deze job opnieuw zodra de review af is."
   fi
 
-  echo "Nog niet klaar (status '${status:-geen job gevonden}'). Volgende poging over ${POLL_SECONDS}s."
+  echo "Nog niet klaar (status '${status:-geen job gevonden}' in ${review_run}). Volgende poging over ${POLL_SECONDS}s."
   sleep "$POLL_SECONDS"
 done
 
@@ -257,6 +520,18 @@ assert_review_ran() {
 # Het resultaat gaat via een globale en niet via `$(...)`: daarin zou `blocked`
 # alleen de subshell beëindigen.
 critical_at=''
+# How many tagged items `claude[bot]` wrote since the job started, over all
+# three places. A review that ran but wrote nothing is not a review anyone can
+# read; see assert_no_critical_finding.
+review_items=0
+# A rerun of this whole run reviews again in this run; a review taken over
+# from another run is redone the way it was started.
+no_output_remedy() {
+  case "$review_run" in
+  "workflow-run ${RUN_ID}") echo "Draai de hele run opnieuw met \`gh run rerun ${RUN_ID}\`, of zet de PR op draft en daarna weer op ready for review." ;;
+  *) echo "$retrigger" ;;
+  esac
+}
 collect_critical() {
   local what="$1" path="$2" stamp="$3" payload found
   # `--slurp` bundelt de pagina's tot één array van arrays; zonder dat levert
@@ -295,6 +570,17 @@ collect_critical() {
     blocked "De ${what} van pull request ${PR_NUMBER} zijn niet te doorzoeken op \`${CRITICAL_MARKER}\`, dus of de review een kritieke bevinding heeft achtergelaten is niet vastgesteld. Draai deze job opnieuw."
   fi
   [ -n "$found" ] && critical_at="${critical_at}${found}"$'\n'
+
+  local written
+  if ! written=$(jq -r --arg author "$REVIEW_AUTHOR" --arg since "$job_started" \
+    --arg stamp "$stamp" --arg tag "$REVIEW_TAG" '
+      [.[][]
+       | select(.user.login == $author)
+       | select((.body // "") | contains($tag))
+       | select((.[$stamp] // "") >= $since)] | length' <<<"$payload" 2>/dev/null); then
+    blocked "De ${what} van pull request ${PR_NUMBER} zijn niet te tellen, dus of de review iets heeft achtergelaten is niet vastgesteld. Draai deze job opnieuw."
+  fi
+  review_items=$((review_items + written))
   return 0
 }
 
@@ -318,6 +604,14 @@ assert_no_critical_finding() {
   collect_critical "ingediende reviews" "pulls/${PR_NUMBER}/reviews" submitted_at
 
   if [ -z "$critical_at" ]; then
+    # The proof step only says the CLI ran. Whether the review was posted is
+    # up to the model: the action posts nothing itself in this mode, and on
+    # 23 October several runs ended green after 15 seconds without a word on
+    # the PR (PR 1779). The prompt demands a summary comment even when there
+    # is nothing to report, so its absence means the review is not there.
+    if [ "$review_items" -eq 0 ]; then
+      blocked "\`${JOB_NAME}\` is afgerond en de review-actie heeft gedraaid, maar \`${REVIEW_AUTHOR}\` heeft sinds de start van die job (\`${job_started}\`) niets op pull request ${PR_NUMBER} gezet met de regel \`${REVIEW_TAG}\`, in samenvatting, inline comments of ingediende reviews; een comment zonder die regel telt niet. De prompt vraagt die samenvatting ook als er niets te melden is, dus er is geen review om op af te gaan. $(no_output_remedy) ${url}"
+    fi
     return
   fi
   waar=$(printf '%s' "$critical_at" | paste -sd' ' -)
@@ -332,17 +626,20 @@ success | neutral)
   echo "::notice title=Claude review gate::review afgerond (${conclusion})"
   summary "### Claude review gate: groen"
   summary ""
-  summary "\`${JOB_NAME}\` is afgerond voor commit \`${head_sha}\` met conclusie \`${conclusion}\`."
+  summary "\`${JOB_NAME}\` is afgerond voor commit \`${head_sha}\` met conclusie \`${conclusion}\`, in ${review_run}."
   summary ""
-  summary "Wat deze check bewijst: \`${WORKFLOW_FILE}\` is gelijk aan de versie op \`${default_branch}\`, de job \`${JOB_NAME}\` is in deze run afgerond met conclusie \`${conclusion}\`, de stap \`${PROOF_STEP}\` is in die job gedraaid, dus de review-actie heeft werkelijk gereviewd, en in wat \`${REVIEW_AUTHOR}\` sinds de start van die job schreef staat geen \`${CRITICAL_MARKER}\`. Wat hij niet bewijst: dat de bevindingen deugen, dat ze zijn verwerkt, of dat een bevinding van lagere ernst er niet toe doet — daar kijkt de poort niet naar. Dat blijft mensenwerk."
+  summary "Wat deze check bewijst: \`${WORKFLOW_FILE}\` is gelijk aan de versie op \`${default_branch}\`, de job \`${JOB_NAME}\` is in ${review_run} afgerond met conclusie \`${conclusion}\`, de stap \`${PROOF_STEP}\` is in die job gedraaid, dus de review-actie heeft werkelijk gereviewd, \`${REVIEW_AUTHOR}\` heeft sinds de start van die job ${review_items} keer iets met \`${REVIEW_TAG}\` geschreven, en daarin staat geen \`${CRITICAL_MARKER}\`. Wat hij niet bewijst: dat de bevindingen deugen, dat ze zijn verwerkt, of dat een bevinding van lagere ernst er niet toe doet — daar kijkt de poort niet naar. Dat blijft mensenwerk."
   summary ""
   summary "[Bekijk de review-run](${url})"
   exit 0
   ;;
+# Not expected: a skipped own job sends the loop looking elsewhere, and a job
+# taken over from another run is never a skipped one. Kept as a guard, so an
+# unforeseen path blocks instead of reaching the green branch.
 skipped)
-  blocked "\`${JOB_NAME}\` is overgeslagen, terwijl deze PR geen fork, geen draft en niet van dependabot is. Er is dus geen review. Zoek uit waarom de job is overgeslagen: ${url}"
+  blocked "\`${JOB_NAME}\` is overgeslagen in ${review_run}, terwijl deze PR geen fork, geen draft en niet van dependabot is. Er is dus geen review. ${retrigger} ${url}"
   ;;
 *)
-  blocked "\`${JOB_NAME}\` eindigde op \`${conclusion}\`. Er is geen bruikbare review. Draai hem opnieuw: ${url}"
+  blocked "\`${JOB_NAME}\` eindigde op \`${conclusion}\` in ${review_run}. Er is geen bruikbare review. ${retrigger} ${url}"
   ;;
 esac

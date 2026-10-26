@@ -6,8 +6,8 @@ Feature: Het besluit op de aanvraag om vakantieverlof
   de school; de twee gegevens van artikel 11, onder f (het beroep van een ouder
   en verlof buiten de schoolvakanties), oordeelt het hoofd. Of het hoofd de
   jongere dit schooljaar al verlof verleende, stelt het hoofd ook vast; in de
-  cel van de school vult haar reductie dat open begrip uit haar besluiten
-  (implements, RFC-048). Het besluit is een
+  cel van de school koppelt zijn beleid dat open begrip aan het antwoord van
+  de cel, uit haar besluiten (RFC-048). Het besluit is een
   beschikking: de Awb vraagt een motivering (3:46) en opent een bezwaartermijn
   van zes weken (6:7).
 
@@ -30,8 +30,8 @@ Feature: Het besluit op de aanvraag om vakantieverlof
     Then output "verlof_raakt_eerste_twee_lesweken" is false
     Then output "motivering_vereist" is true
     Then output "motivering_vereist" has reactive provenance
-    Then output "bezwaartermijn_weken" equals 6
-    Then output "bezwaartermijn_weken" has reactive provenance
+    Then output "termijn_weken" equals 6
+    Then output "termijn_weken" has reactive provenance
 
   Scenario: Twee weken met het weekend ertussen zijn tien schooldagen
     Given the following parameters:
@@ -123,7 +123,7 @@ Feature: Het besluit op de aanvraag om vakantieverlof
 
   Scenario: Een tweede verlof in hetzelfde schooljaar wordt geweigerd
     # Het hoofd verleende deze jongere dit schooljaar al verlof. In de cel
-    # van de school vult de reductie dat in (RFC-048); hier geeft het
+    # van de school geeft de cel dat antwoord (RFC-048); hier geeft het
     # scenario de vaststelling van het hoofd, op de id van het begrip.
     Given the following parameters:
       | bsn_jongere       | 999990020  |

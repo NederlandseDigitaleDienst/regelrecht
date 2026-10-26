@@ -1,12 +1,13 @@
-<script setup>
+<script setup lang="ts">
 import { Handle, Position } from '@vue-flow/core';
-import { humanize } from '../../data/format.js';
+import { humanize } from '../../data/format';
+import type { ItemNodeData } from '../../graph/lawGraph';
 
 // One source, input or output of a law, with the persona's value when the
 // engine produced one. De lijn loopt van leverancier naar afnemer, mee met de
 // layout: de uitvoer draagt het handle waar hij vertrekt (rechts), de invoer
 // dat waar hij aankomt (links).
-const props = defineProps({ data: { type: Object, required: true } });
+const props = defineProps<{ data: ItemNodeData }>();
 </script>
 
 <template>

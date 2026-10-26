@@ -1,8 +1,9 @@
-<script setup>
+<script setup lang="ts">
 import { computed, reactive } from 'vue';
 import OrgLogo from './OrgLogo.vue';
-import { fieldSpec, formatMissing, formatValue, humanize, isUnknown } from '../data/format.js';
-import { useDemo } from '../store/demoStore.js';
+import { fieldSpec, formatMissing, formatValue, humanize, isUnknown } from '../data/format';
+import { useDemo } from '../store/demoStore';
+import type { LineageNode } from '../data/lineage';
 import { useI18n } from '../i18n/index.js';
 
 const { t } = useI18n();
@@ -17,31 +18,35 @@ const { t } = useI18n();
 // so someone who corrects their income immediately sees what it would mean.
 // Nothing is granted by it — the case still goes to a caseworker.
 
-const props = defineProps({
-  nodes: { type: Array, required: true },
-  depth: { type: Number, default: 0 },
+const props = withDefaults(defineProps<{
+  nodes: LineageNode[];
+  depth?: number;
   /** True when these rows are the children of a branch row (slot="children"). */
-  nested: { type: Boolean, default: false },
+  nested?: boolean;
+}>(), {
+  depth: 0,
+  nested: false,
 });
-const emit = defineEmits(['edit']);
+const emit = defineEmits<{ edit: [node: LineageNode] }>();
 // `canSubmitClaims` is false wanneer iemand namens een ander handelt met
 // alleen leesrecht: dan is een waarde te zien maar niet te corrigeren, en
 // hoort de rij ook niet als knop te reageren.
 const { corpus, claimFor, canSubmitClaims } = useDemo();
 
-function specFor(node) {
+function specFor(node: LineageNode) {
   return fieldSpec(corpus.value?.lawById(node.law)?.doc, node.name);
 }
-function lawName(id) {
+function lawName(id: string) {
   return corpus.value?.lawById(id)?.name ?? id;
 }
-function lawService(id) {
+// The template's `lawService(node.law)!` sits under a `v-if` on the same call.
+function lawService(id: string) {
   return corpus.value?.lawById(id)?.service ?? null;
 }
 const values = computed(() => props.nodes.filter((n) => n.kind === 'value'));
 const laws = computed(() => props.nodes.filter((n) => n.kind === 'law'));
 
-function pending(node) {
+function pending(node: LineageNode) {
   const c = claimFor(node.law, node.name);
   return c && c.status === 'PENDING' ? c : null;
 }
@@ -51,7 +56,7 @@ function pending(node) {
  * what is missing (RFC-036). A value that is only missing itself is simply
  * "Nog niet bekend"; an unknown that misses other facts names them.
  */
-function supportingText(node) {
+function supportingText(node: LineageNode) {
   if (node.corrected) return t('wet.lineage.corrected_by_you');
   if (isUnknown(node.value)) {
     const missing = formatMissing(node.value, { ownLaw: node.law, lawName, group: false });
@@ -64,8 +69,8 @@ function supportingText(node) {
   return node.service ? undefined : t('wet.lineage.not_yet_known');
 }
 
-const open = reactive({});
-function keyOf(node) {
+const open = reactive<Record<string, boolean>>({});
+function keyOf(node: LineageNode) {
   return `${node.law}#${node.name}`;
 }
 const slotName = computed(() => (props.nested ? 'children' : undefined));
@@ -85,7 +90,7 @@ const slotName = computed(() => (props.nested ? 'children' : undefined));
            openstaande correcties al mee (`claimsForEngine`), dus dat ís de
            nieuwe waarde en er stond tweemaal hetzelfde bedrag. -->
       <template v-if="pending(node)">
-        <s>{{ formatValue(pending(node).oldValue, specFor(node)) }}</s> → {{ formatValue(pending(node).newValue, specFor(node)) }}
+        <s>{{ formatValue(pending(node)?.oldValue, specFor(node)) }}</s> → {{ formatValue(pending(node)?.newValue, specFor(node)) }}
       </template>
       <template v-else>{{ formatValue(node.value, specFor(node)) }}</template>
     </nldd-text-cell>
@@ -116,7 +121,7 @@ const slotName = computed(() => (props.nested ? 'children' : undefined));
     @click.stop="node.children?.length && (open[keyOf(node)] = !open[keyOf(node)])"
   >
     <nldd-spacer-cell v-for="i in depth" :key="i" size="20"></nldd-spacer-cell>
-    <nldd-cell v-if="lawService(node.law)"><OrgLogo :service="lawService(node.law)" size="sm" /></nldd-cell>
+    <nldd-cell v-if="lawService(node.law)"><OrgLogo :service="lawService(node.law)!" size="sm" /></nldd-cell>
     <nldd-spacer-cell v-if="lawService(node.law)" size="8"></nldd-spacer-cell>
     <nldd-text-cell size="sm" :text="humanize(node.name)" :supporting-text="isUnknown(node.value) ? t('wet.lineage.computed_by_missing', { law: lawName(node.law), missing: formatMissing(node.value, { ownLaw: node.law, lawName, group: false }) }) : t('wet.lineage.computed_by', { law: lawName(node.law) })"></nldd-text-cell>
     <nldd-text-cell size="sm" width="fit-content" horizontal-alignment="right" :color="isUnknown(node.value) ? 'secondary' : 'content'" :text="formatValue(node.value, specFor(node))"></nldd-text-cell>

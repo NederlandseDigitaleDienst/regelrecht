@@ -7,7 +7,7 @@ The demo shows in one workspace what RegelRecht does: the machine-readable law, 
 
 ## Overview
 
-- **Language**: Vue 3 / Vite, `@nldd/design-system`
+- **Language**: Vue 3 / Vite with TypeScript, `@nldd/design-system`
 - **Location**: `frontend-demo/`
 - **Corpus**: `corpus/demo/`
 - **Production URL**: `demo.regelrecht.rijks.app` (ZAD component `demo`; see [Deployment](/operations/deployment))
@@ -81,9 +81,9 @@ Answers come in two kinds. A judgement (how open norms are handled, what the leg
 
 How the replay holds up:
 
-- **Finding elements.** A data attribute that holds an id made up at run time (the id of a simulation run or of a case) or a passing state (the menu item that had focus) is left out of the description. A click is stored as a description of the element, not a position: per scope (the document, then each shadow root of a design-system component on the way) the element's tag and what names it to a person, such as its text, label or link. The replay looks that up in the live page. Links are stored without their origin, and when an exact match fails, numbers in labels ("Wetten, 79") are ignored. A recording made at one window width replays at another; this was checked between 1100 and 1920 pixels wide, with the rail next to the demo (`src/walkthrough/locator.js`).
+- **Finding elements.** A data attribute that holds an id made up at run time (the id of a simulation run or of a case) or a passing state (the menu item that had focus) is left out of the description. A click is stored as a description of the element, not a position: per scope (the document, then each shadow root of a design-system component on the way) the element's tag and what names it to a person, such as its text, label or link. The replay looks that up in the live page. Links are stored without their origin, and when an exact match fails, numbers in labels ("Wetten, 79") are ignored. A recording made at one window width replays at another; this was checked between 1100 and 1920 pixels wide, with the rail next to the demo (`src/walkthrough/locator.ts`).
 - **Waiting.** An element that is not there yet, because a tab is still loading or the engine is computing, is waited for, and the voice pauses with it.
-- **The date.** While a replay runs, `Date` answers with the moment of the recording plus the time into it (`clock.js`), so amounts and deadlines are those of the recording day.
+- **The date.** While a replay runs, `Date` answers with the moment of the recording plus the time into it (`clock.ts`), so amounts and deadlines are those of the recording day.
 - **Jumping.** Every chapter carries the demo state as it was when its slide came up. A jump restores that state, mounts the tabs fresh and replays the chapter's actions up to the target, fast.
 - **The viewer's own session.** The replay drives the same store, but does not write it to `localStorage`, and leaving the walkthrough puts the viewer's own state back.
 
@@ -99,7 +99,7 @@ On a screen narrower than 1024 pixels the demo and the rail do not fit side by s
 
 The player's layer over the demo (the bubble, the cursor and its ripple, the captions) is custom CSS in `src/walkthrough/Replay*.vue`, because the design system has no video or pointer components. The cursor and the captions are placed in the browser's top layer, so they stay visible over a sheet or dialog the replay opens.
 
-A sheet that opens on the left (the law list on the Laws tab, an `nldd-sheet` with `placement="left"`) is placed by the design system against the window edge, which with the deck as a rail is behind the slides. Until the design system has a hook for that edge, `src/presentation/sheetOffset.js` adds a rule to those components' shadow roots that moves the sheet, and its slide-in, to the edge of the demo while the rail is on screen. It depends on internal class names; `sheetOffset.test.js` fails when they change. This also applies to the live presentation in zelfstandig mode.
+A sheet that opens on the left (the law list on the Laws tab, an `nldd-sheet` with `placement="left"`) is placed by the design system against the window edge, which with the deck as a rail is behind the slides. Until the design system has a hook for that edge, `src/presentation/sheetOffset.ts` adds a rule to those components' shadow roots that moves the sheet, and its slide-in, to the edge of the demo while the rail is on screen. It depends on internal class names; `sheetOffset.test.ts` fails when they change. This also applies to the live presentation in zelfstandig mode.
 
 ### Recording
 
@@ -111,8 +111,8 @@ The recorder is a panel in the top left corner, present only in the dev server a
 
 - the microphone (echo cancellation, noise suppression and automatic gain off);
 - the webcam, optionally;
-- the actions (`capture.js`): clicks, typing with its value after every keystroke, selects and checkboxes, Enter and Escape, scrolling, and the deck's slide changes and the routes;
-- in the graph, where the camera looks and every law dragged aside, the latter as an offset from where the layout put it (`graphBridge.js`), so a take still replays after the layout shifts;
+- the actions (`capture.ts`): clicks, typing with its value after every keystroke, selects and checkboxes, Enter and Escape, scrolling, and the deck's slide changes and the routes;
+- in the graph, where the camera looks and every law dragged aside, the latter as an offset from where the layout put it (`graphBridge.ts`), so a take still replays after the layout shifts;
 - the whole window as video, which the correction step takes its stills from.
 
 What is typed is recorded, because the replay has to type it again. It is demo input with fictitious personas, said aloud in the same take. The state of the demo is stored with every slide change, which is what a jump restores and what lets one chapter be recorded again from its own starting point.

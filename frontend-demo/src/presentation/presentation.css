@@ -46,7 +46,7 @@ html.rr-presenting.rr-presenting-full body {
 }
 
 /* While the rail is on screen, a left sheet starts where the demo starts.
- * Read by the rule sheetOffset.js puts in every nldd-sheet (a temporary
+ * Read by the rule sheetOffset.ts puts in every nldd-sheet (a temporary
  * workaround until the design system has a hook for this). */
 html.rr-presenting:not(.rr-presenting-full):not(.rr-deck-hidden) {
   --rr-sheet-offset: 36vw;
@@ -56,7 +56,7 @@ html.rr-presenting:not(.rr-presenting-full):not(.rr-deck-hidden) {
 }
 
 /* The recorded walkthrough in a window narrower than the one it was recorded
- * in (walkthrough/replay.js sets the factor): the demo is scaled down so its
+ * in (walkthrough/replay.ts sets the factor): the demo is scaled down so its
  * lines break where they did for the presenter. The rail keeps its size.
  * Percentages and viewport units are not scaled by `zoom`, so the demo still
  * fills the height and the sheet offset still ends at the rail. */

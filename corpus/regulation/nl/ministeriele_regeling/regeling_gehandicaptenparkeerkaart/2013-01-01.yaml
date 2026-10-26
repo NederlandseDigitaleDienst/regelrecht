@@ -313,8 +313,8 @@ articles:
       # het feit, RFC-052), en alleen die antwoordt op de vraag of het
       # plaatsvond (competent_authority op het begrip). Eigen keuze: het
       # begrip noemt zelf dezelfde twee, in plaats van ze af te leiden uit
-      # het feit dat zijn reductie leest; dat vraagt geen koppeling tussen
-      # begrip en feit in de engine. Eigen keuze: alleen de categorie is
+      # het feit dat de reductie leest die het antwoord geeft (RFC-048); dat
+      # vraagt geen koppeling tussen begrip en feit in de engine. Eigen keuze: alleen de categorie is
       # gemodelleerd; of het de GGD van de gemeente is die de kaart afgeeft,
       # is open. Dit artikel beslist niets en noemt dus geen bevoegd gezag
       # (RFC-002).

@@ -43,6 +43,11 @@ frontend-poc-*/dist/
 frontend-poc-*/public/laws/
 frontend-poc-*/public/data/
 frontend-poc-*/public/wasm/
+# chronolexografie: de app staat naast haar crate, in één map.
+packages/poc-chronolexografie/frontend/dist/
+packages/poc-chronolexografie/frontend/public/wasm/
+packages/poc-chronolexografie/frontend/public/bundel.json
+packages/poc-chronolexografie/frontend/public/bronnen.json
 
 # De opgenomen rondleiding: ruwe opnames en tussenbestanden blijven lokaal,
 # de video's gaan via een GitHub-release (zie script/walkthrough/).

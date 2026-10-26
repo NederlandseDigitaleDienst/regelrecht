@@ -1,325 +1,139 @@
 ---
 title: "Chronolexography"
-description: "Recording what follows from a law as dated facts in a chronicle, built up step by step on vakantieverlof (Leerplichtwet 1969, art. 13a)."
+description: "How RegelRecht records legal facts as dated entries in the chronicle of the organization that establishes them, and answers later questions from that chronicle."
 ---
 
-Chronolexography records each legal fact (an application, a decision, an objection) as a dated entry in the chronicle (*kroniek*) of the organization that establishes it. [RFC-022](/rfcs/rfc-022) describes the model. This page lists what works today, one feature per section.
+A cell is an organization that records each legal fact it establishes as a dated entry, a chronolexogram, in its own chronicle (*kroniek*). The cell answers later questions from that chronicle. The vocabulary comes from the [Chronolexografie position paper](https://chronolexografie.nl/position-paper/) and [RFC-022](/rfcs/rfc-022).
 
-The running example is vakantieverlof: a parent asks the head of a school for leave outside the school holidays (Leerplichtwet 1969, art. 13a).
+This page shows how RegelRecht implements it. The design is in [RFC-046](/rfcs/rfc-046) and [RFC-048](/rfcs/rfc-048); what is still open is in [Open Points in Chronolexography](/concepts/chronolexography-open-points).
 
-## How the parts fit together
+Recording is an optional layer ([RFC-046](/rfcs/rfc-046)). The procedure a cell plays is modeled in the law itself ([Applications, Decisions and Objections](/concepts/administrative-procedures)).
 
-| Part | What it is | Where |
+| Part | Role | Where |
 |---|---|---|
-| Law | Art. 13a (the application, the decision and its test); Awb 4:2, 4:13, 3:46, 6:7 and 6:8 as hooks; Awb 7:11 (the objection and the decision on it) with 6:5, 6:9 and 7:10; the Regeling vaststelling schoolvakanties 2025–2030 | `corpus/regulation/` |
-| Policy | Fictitious school policy: the first school day (`implements`), the bounds of a school year, and the school's own autumn and spring holidays | `corpus/regulation/nl/uitvoeringsbeleid/` |
-| Reduction | "Did the head already grant leave this school year?", "Does the leave fall outside the school holidays?" and "Where is the school established?", over the school's own chronicle | `corpus/cells/obs_de_klimop/reducties/` |
-| Required fact | What an executogram holds, as the article that requires the fact says it (`requires` with `fact`, schema v0.8.7): where the school is established and since when, or the GGD's examination | the rulework of that article |
-| Engine | Executes articles: hooks per stage, cross-law sources, open terms, data sources. Stores nothing | `packages/engine` |
-| Cell | The school: keeps the chronicle, derives what it records, executes through the engine | `packages/cel` |
+| Cell | Keeps its chronicle; records and decides through the engine | `corpus/cells/<cell>/`, `packages/cel` |
+| Reduction | Gives a named answer from the chronicle | `corpus/cells/<cell>/reductions/`, or `corpus/cells/reductions/` for one of no cell |
+| Policy | Binds an open term of the law to a cell's answer | `corpus/regulation/nl/uitvoeringsbeleid/` |
+| Engine | Executes the law, asks the cells, combines their answers. Stores nothing | `packages/engine` |
 
-**Recording the application** (`Cell::record_submission`):
+## A cell
 
-1. The parent supplies the fields: the child, the leave days, name and address.
-2. The cell takes the fields from the law: the parameters of the `AANVRAAG` item and of the Awb hooks on it.
-3. The engine runs art. 13a at stage AANVRAAG. Awb 4:2 says whether the application is complete, Awb 4:13 gives the decision period.
-4. The cell appends one chronolexogram of kind `AANVRAAG`.
-
-A submission may refer to a decision in the chronicle (`refers_to`, RFC-050). The cell then fills fields from that decision. A field of type `decision` gets the decision's id. Every other field that the decision holds under the same name gets its value, which must fit the field. The submitter supplies neither.
-
-**Taking the decision** (`Cell::decide`):
-
-1. The cell finds the application through `requests: leerplichtwet_1969#13a`.
-2. It answers the engine for the whole decision. When an article reads an open term that one of its reductions fills, the engine asks the cell. The cell runs that reduction on its own chronicle, with its own decisions as the rows of each `source: {decisions: ...}` input, and returns the value with its provenance.
-3. It gathers each input of the decision by name: from the application, or from the head. The engine resolves what policy fills (`implements`), and asks the cell for what its reduction fills. The head supplies what a hook asks for. Its findings come separately (`findings`), keyed by the id of the open term the law leaves to it (`decided_per_case_by`). Here these are the two judgements under art. 11 onder f and whether leave was already granted this school year. In the cell, the reduction fills that last one. The engine also gets the findings separately from the parameters, so a finding applies to every article in the decision that leaves the term to the head.
-4. The engine runs art. 13a at stages BESLUIT and BEKENDMAKING: the test, and Awb 3:46, 6:7 and 6:8.
-5. The cell appends a chronolexogram of kind `BESCHIKKING` that refers to the application. The head's findings are among its fields. The chronolexogram does not store which findings the decision used. `Cell::findings` replays the decision and reads that from the engine's report; a finding that a policy or the cell's answer set aside is not among them.
-
-`Cell::explain` takes a recorded decision again with tracing, on its day and with the chronicle as it stood before it, and fails when the outcome differs. In its trace the cell's answer within art. 13a is one node: the value, the reduction and its version, and how far the cell read its chronicle. `Cell::explain_answer` gives the cell's own account of that answer: the reduction run again with tracing, with the decisions it counted and those its filter skipped. That trace is not stored.
-
-`decide` returns a list of chronolexograms (`Vec<Gram>`). The decision comes first. After it comes each decision that the deciding article takes in turn: every output of type `decision` that is not null. They land in the chronicle together, or none do.
-
-**Recording without a submission** ([RFC-051](/rfcs/rfc-051)): `Cell::record_executogram` records an instance of a fact an article requires, such as where the school is established. The article's `requires` entry for that fact says what it holds. It refers to nothing, and records nothing when a value is missing or malformed.
-
-**Objecting**: the same two steps under Awb 7:11, with `record_submission` and `decide`. The objection refers to the contested decision. The decision on it calls art. 13a anew. On revocation 7:11 gives the new decision, and the cell records that in the same append.
-
-Law and policy say what is needed and how to compute it; they know no chronicle. A reduction is the only place that reads decisions, and it computes through law and policy again. Reduction takes place in the cell, as the [position paper](https://chronolexografie.nl/position-paper/) has it ("Reductie vindt altijd plaats ín de cel waar de betreffende chronolexogrammen zijn vastgelegd"). How the cell and the engine divide that work is in [RFC-048](/rfcs/rfc-048) §3.
-
-## What works
-
-| Feature | Rulework | RFC |
-|---|---|---|
-| [The application, with the Awb on it](#the-application-with-the-awb-on-it) | Leerplichtwet 1969 art. 13a, Awb 4:2 and 4:13 | [RFC-045](/rfcs/rfc-045) |
-| [The application in the chronicle](#the-application-in-the-chronicle) | Leerplichtwet 1969 art. 13a, Awb 4:2 and 4:13 | [RFC-046](/rfcs/rfc-046): chronolexography as a layer |
-| [The decision on the application](#the-decision-on-the-application) | Leerplichtwet 1969 art. 13a, Awb 3:46, 6:7 and 6:8, fictitious school policy | [RFC-047](/rfcs/rfc-047) |
-| [Once per school year](#once-per-school-year) | Leerplichtwet 1969 art. 13a lid 2, fictitious school policy, the school's reduction | [RFC-048](/rfcs/rfc-048) |
-| [The objection](#the-objection) | Awb 6:5, 6:9, 7:10 and 7:11, Leerplichtwet 1969 art. 13a, the school's reduction | [RFC-050](/rfcs/rfc-050) |
-| [A second case: the parking card](#a-second-case-the-parking-card) | BABW art. 49 and 51, Regeling gehandicaptenparkeerkaart art. 1, the Awb, fictitious municipal policy, the municipality's reduction | [RFC-045](/rfcs/rfc-045) to [RFC-050](/rfcs/rfc-050) |
-| [Outside the school holidays](#outside-the-school-holidays) | Leerplichtwet 1969 art. 11 onder f and 13a, the Regeling vaststelling schoolvakanties 2025–2030, the school's holiday and vestiging policies, two reductions | [RFC-051](/rfcs/rfc-051) |
-
-## The application, with the Awb on it
-
-Article 13a says it establishes an application (`AANVRAAG`), what the application contains, and which decision it asks for. The Awb hooks onto every application, so submitting one also runs Awb 4:2 and 4:13. The fields of the application are the parameters its item lists plus those of the hooks. One exception: the parameter a hook names in `produces.moment`, here `datum_ontvangst` from Awb 4:13, is the moment of receipt and no field of the application.
+A cell is a directory with `cel.yaml` and its reductions, one directory per `$id` under `reductions/`. `Cell::open` opens it with its chronicle on file, `Cell::in_memory` with an empty chronicle.
 
 ```yaml
-# Leerplichtwet 1969, art. 13a
-produces:
-  - type: AANVRAAG
-    requests: leerplichtwet_1969#13a
-    parameters: [bsn_jongere, eerste_verlofdag, laatste_verlofdag]
-  - type: BESCHIKKING
-    # ... the decision, below
-parameters:
-  - name: eerste_verlofdag
-    type: date
-
-# Awb 4:13
-hooks:
-  - hook_point: post_actions
-    applies_to:
-      submission: AANVRAAG
+# corpus/cells/<cell>/cel.yaml
+name: Het college van burgemeester en wethouders van Voorbeeldstad
+category: college van burgemeester en wethouders
+answers:
+  eerder_vergunning_verleend: reductie_eerder_vergunning_verleend
 ```
 
-- Awb 4:2 adds what every application contains: a signature, name and address, date, the decision asked for.
-- Awb 4:13 adds the last day of the decision period when no law sets one: eight weeks after receipt.
-- `produces.moment` on Awb 4:13 marks receipt as the moment that counts.
-- `established_by: <regulation>#<article>` limits a hook to the application of one article.
-- What the head needs to decide, such as the judgements under art. 11 onder f, is not part of the application. It belongs to the decision.
+The law names a role ([Competent Authority](/concepts/competent-authority)). The engine matches an `INSTANCE` to `name` and a `CATEGORY` to `category`. `answers` is the cell's catalogue: which answers it gives, and from which of its own reductions. It holds no logic, and nothing else about a cell is configured. A catalogue that names a reduction the cell does not keep is refused when the cell opens.
 
-**Try it:** `just bdd`, which runs `corpus/regulation/nl/wet/leerplichtwet_1969/scenarios/vakantieverlof_aanvraag.feature`
+## What a chronicle holds
 
-## The application in the chronicle
-
-A cell, here a school, records the application as one chronolexogram in its chronicle. Chronolexography is an optional layer: it lives in `packages/cel`, and the law and the engine do not know it. The law names no fields for the record; the cell derives them from the keys above.
+| Kind | Recorded by | Fields come from |
+|---|---|---|
+| Submission (`AANVRAAG`, `BEZWAAR`, `BEROEP`) | `Cell::record_submission` | The article's submission item and the hooks on it |
+| Decision (`BESCHIKKING`, `UITSPRAAK`) | `Cell::decide`, `Cell::decide_after` | The deciding article's inputs, findings included |
+| Executogram (`EXECUTOGRAM`) | `Cell::record_executogram` | A fact an article `requires` ([RFC-051](/rfcs/rfc-051)) |
 
 ```json
 {
-  "kind": "AANVRAAG",
-  "grondslag": "leerplichtwet_1969#13a",
-  "recording_actor": "obs_de_klimop",
-  "recorded_on": "2026-10-13",
-  "moment": {
-    "parameter": "datum_ontvangst",
-    "on": "2026-10-13",
-    "declared_by": "algemene_wet_bestuursrecht#4:13"
-  },
-  "fields": { "eerste_verlofdag": "2027-02-01", "adres_aanvrager": null },
-  "outputs": { "redelijke_beslistermijn_einddatum": "2026-12-08" }
-}
-```
-
-- The fields are the parameters the item of art. 13a lists and those of its Awb hooks, minus the moment. The cell refuses an unknown field and a value of the wrong type.
-- A field left out is `null` when it can be absent. Otherwise it goes under `missing`, and the application is still recorded (Awb 4:5).
-- `moment` holds the day of receipt. The cell fills it with the day of recording; that the two are the same day is the cell's assumption.
-- Recording runs the stage AANVRAAG of art. 13a: the Awb hooks on the application run, and their outputs go in `outputs`. The outputs of art. 13a belong to the decision.
-- The chronolexogram does not repeat the law. Which article asks a field follows from the law version in force on `recorded_on`.
-- A number the engine computes is stored without loss: an integer as a JSON integer, a decimal as `{"__decimal": "0.3333333333333333333333333333"}` with every digit, so it reads back as the same decimal and not as a float or an integer. The cell takes this encoding from the law model (`regelrecht_law_model::stored`, see [law-model](/components/law-model)), so every store keeps and compares a value the same way. A supplied value may not hold that key; a supplied number is stored as the JSON it came in, and read back as the engine reads JSON: a whole number such as `5.0` as the integer `5`. When the cell compares two stored values, for example a decision taken in turn against the decision value it came from, it uses the rule of the engine's `EQUALS` on records. That rule lives in the same module. `5.0` and `5.00` are one value; an integer against a decimal of the same value is an error.
-
-The chronicle refuses a chronolexogram dated before the last one.
-
-**Try it:** `cargo test --manifest-path packages/cel/Cargo.toml`
-
-## The decision on the application
-
-The head of the school decides on the application. Art. 13a is also that decision, a `BESCHIKKING`, and follows the Awb procedure. `produces` lists the application and the decision, each its own item. The application asks for this decision with `requests`, and the decision names its outputs:
-
-```yaml
-# Leerplichtwet 1969, art. 13a
-produces:
-  - type: AANVRAAG
-    requests: leerplichtwet_1969#13a
-    parameters: [bsn_jongere, eerste_verlofdag, laatste_verlofdag]
-  - type: BESCHIKKING
-    decision_type: TOEKENNING
-    outputs: [verlofdagen, verlof_raakt_eerste_twee_lesweken, verlof_verleend]
-```
-
-The cell records the decision as a second chronolexogram that refers to the application.
-
-```json
-{
+  "id": "019a1b2d-…",
   "kind": "BESCHIKKING",
-  "grondslag": "leerplichtwet_1969#13a",
-  "refers_to": "019a1b2c-…",
+  "basis": "wet_voorbeeld#3",
+  "recording_actor": "gemeente_voorbeeldstad",
   "recorded_on": "2026-10-20",
-  "fields": {
-    "eerste_verlofdag": "2027-02-01",
-    "eerste_lesdag_schooljaar": "2026-08-31",
-    "specifieke_aard_beroep_ouder": true,
-    "verlof_valt_buiten_schoolvakanties": true
-  },
-  "findings": ["specifieke_aard_beroep_ouder", "verlof_valt_buiten_schoolvakanties"],
-  "outputs": { "verlofdagen": 5, "verlof_verleend": true, "bezwaartermijn_weken": 6 }
+  "refers_to": "019a1b2c-…",
+  "fields": { "bsn_aanvrager": "999993653", "medische_beoordeling": true },
+  "outputs": { "vergunning_verleend": true, "bezwaartermijn_einddatum": "2026-12-01" }
 }
 ```
 
-- Each produced thing has its own stage: the application with Awb 4:2 and 4:13 at AANVRAAG, the decision with Awb 3:46 and 6:7 at BESLUIT, Awb 6:8 at BEKENDMAKING.
-- What the decision needs comes from the application first, then from the school's policy (`implements`), then from the head when deciding (`decided_per_case_by`). `findings` lists the fields that hold a finding of the head. The chronolexogram repeats neither the basis nor the source of a field or output: both follow from the law on `recorded_on` and from `refers_to`.
-- The test: at most ten school days (Monday to Friday), not in the first two lesweken, and the two facts of art. 11 onder f: a parent's profession of a specific nature, and leave outside the school holidays. The head judges both. A refusal is `verlof_verleend: false`.
-- The cell refuses a second decision on one application, and a decision dated before it. It makes the decision known on the day it takes it, so Awb 6:8 counts the objection period from there; that is the cell's assumption.
-- Not modeled yet: the proportional share for a young person who is kwalificatieplichtig (lid 2, second sentence).
+A chronolexogram repeats nothing the law says. The law in force on `recorded_on` gives each field's sources and basis; a replay shows which fields held a finding. The chronicle is append-only, in date order.
 
-**Try it:** `just bdd`, which runs `vakantieverlof_besluit.feature`, or `cargo test --manifest-path packages/cel/Cargo.toml`
+## Recording and deciding
 
-## Once per school year
+- `Cell::record_submission` runs the establishing article at the stage named after the submission's kind, so the hooks on it run. A missing required field goes under `missing`: an incomplete application is still one (Awb 4:5). The moment the law counts from is the day of recording. A submission may refer to a decision (`refers_to`), as an objection does.
+- `Cell::decide` takes the id of a submission in the chronicle that requests this decision, and runs the later stages. Findings travel apart from the parameters. Each non-null output of type `decision`, such as a new decision on objection, becomes its own chronolexogram in the same append.
+- `Cell::record_executogram` records a fact whole or not at all. The fact refers to nothing. A change is a new executogram; the old one stays.
 
-The head grants leave "slechts eenmaal ... per schooljaar" (art. 13a lid 2). Art. 13a declares the open term `verlof_al_verleend_in_schooljaar`, which is no field of the application. The head decides it per case (`decided_per_case_by`), and it has no default. How the head reads its own decisions back, the law does not say.
+The cell's code names no article of any law; everything it checks comes from the law. It refuses:
 
-In a cell, a reduction fills the term with `implements`: rulework of the kind `REDUCTIE`, kept with the cell at `corpus/cells/obs_de_klimop/reducties/`. It finds the decisions taken under art. 13a and asks the school's fictitious policy in which school year the asked leave falls.
+- any field the law does not give, and a wrong type;
+- a `moment` supplied by the submitter;
+- a decision on an id that is not a submission requesting it, a second decision on one submission, and replacing a decision twice;
+- in a decision, a value from the caller that comes from elsewhere, and a finding of the wrong type on a term of the deciding article;
+- a fact the article does not require, or under an article not in force that day;
+- a fact with a field named `id` (rows use `id` for the executogram itself);
+- a fact whose `competent_authority` does not name the cell.
+
+The engine refuses a finding that no article in the decision asks for, or one of the wrong type.
+
+A decision output of another legal character than the deciding article's own stays a value of the decision: a judgment can hold the decision the court sets in the place of the annulled one, and the court's cell does not record it as a decision of its own.
+
+## Answering from the chronicle
+
+A reduction gives a named answer from what the cell recorded earlier, such as "was this permit granted before?". It is the only rulework that reads a chronicle.
 
 ```yaml
-# reductie_verlof_al_verleend_in_schooljaar, article 1
+# corpus/cells/gemeente_voorbeeldstad/reductions/reductie_eerder_vergunning_verleend/<valid_from>.yaml
+regulatory_layer: REDUCTIE
+execution:                         # shortened
+  parameters: [bsn_aanvrager]
+  input:
+    - name: besluiten
+      type: array
+      source:
+        decisions: wet_voorbeeld#3      # one row per decision under art. 3
+  output:
+    - name: eerder_vergunning_verleend
+```
+
+The law does not ask the cell. The policy of the authority that decides binds the open term to the answer:
+
+```yaml
+# beleid_vergunningen_voorbeeldstad, art. 1 (UITVOERINGSBELEID)
 implements:
-  - {law: leerplichtwet_1969, article: 13a, open_term: verlof_al_verleend_in_schooljaar}
-parameters:
-  - {name: bsn_jongere, type: string}
-  - {name: eerste_verlofdag, type: date}
-input:
-  - name: besluiten
-    type: array
-    source:
-      decisions: leerplichtwet_1969#13a
-  - name: begin_schooljaar
-    type: date
-    source:
-      regulation: fictief_beleid_schooljaargrenzen_obs_de_klimop
-      parameters: {datum: $eerste_verlofdag}
-output:
-  - name: verlof_al_verleend_in_schooljaar
-    type: boolean
+  - {law: wet_voorbeeld, article: '3', open_term: eerder_vergunning_verleend}
+execution:
+  input:
+    - name: antwoord
+      nullable: true
+      source:
+        reduction: eerder_vergunning_verleend
+        parameters: {bsn_aanvrager: $bsn_aanvrager}
 ```
 
-- Each decision is a row with its fields and outputs, such as `bsn_jongere`, `eerste_verlofdag` and `verlof_verleend`, and its `id`. A refusal does not count, nor a decision revoked on objection (see [the objection](#the-objection)).
-- The policy says only that a school year runs from 1 August to 31 July. It reads no decisions.
-- The engine asks the cell for the term, and the cell runs its reduction with the parameters it declares, taken from art. 13a by name. The answer wins over a finding of the head, as an implementation would. The engine never runs a reduction by itself. Outside a cell nothing fills the term, so a scenario gives the head's finding; without one the execution fails.
-- A cell opens with its directory (`Cell::open`, `Cell::in_memory`) and loads its reductions from `reducties/` there, so it cannot be without them. A term that a reduction in that directory implements is the cell's. On a day on which no reduction in force fills it, the cell refuses the decision. A school without reductions opens with a directory that has none.
-- The directory also says who the cell is, in `cel.yaml`: a `name` and, where it has one, the `category` of authorities it belongs to (`college van burgemeester en wethouders`, `het hoofd`). A cell without it does not open. The law names who may answer an open term in the term's own `competent_authority`, and the cell refuses to decide while one of its reductions fills a term that names other authorities ([RFC-052](/rfcs/rfc-052)). It checks the cells of the sphere the same way. A fact that names who establishes it is recorded only by a cell it names.
-- A decision may take other cells along, its sphere (`Cell::decide(service, sphere, ...)`). For an open term of an article that the decision reads through `source.regulation`, every competent cell of the sphere answers from what it recorded up to the day of the decision. The decision keeps only that day, and a replay asks them as of the same day. A record they make later with a date up to that day enters the replay: it fails where an outcome changes, and passes where only the one who filled a term changes ([RFC-052](/rfcs/rfc-052)).
-- `Cell::answers` lists what the cell can answer: per version of each reduction, the open term it fills, the reduction's `$id` and its `valid_from`. This list is a RegelRecht addition. In the [Chronolexografie position paper](https://chronolexografie.nl/position-paper/) a cell reduces its chronicle on request into a lexostatus, the answer that the cell's facts give. The paper does not have a cell declare which lexostatussen it can answer; that idea comes from [RFC-022](/rfcs/rfc-022) §4.1.
-- Only a reduction reads `decisions`. Since schema v0.8.5 it may fill an open term (`implements`); it still has no `hooks`, `overrides`, `execution.produces` or `open_terms`. The corpus loaders leave it out; `just validate` checks it.
-- The decision records the answer in `fields`. It is not a finding of the head, so a decision value leaves it out.
+- How a cell reduces is up to the cell; the engine only asks it for an answer by name. The cell in `packages/cel` uses what the engine offers: rulework of its own kind (`REDUCTIE`) in the cell's directory. The directory names its cell, so the reduction names no `competent_authority`. It reads decisions (`source.decisions`, by an article or by a parameter that names one) or facts (`source.facts`), and may call policy for a norm. It may also call a reduction of no cell, in `corpus/cells/reductions/`. Such a reduction has no chronicle of its own and no cell gives it as an answer; it reads the chronicle of the cell that runs its caller. The reduction of the Awb is one: given an article, it gives the decisions under it that hold after objection and appeal. A reduction never calls a reduction of another cell, because that one would read the wrong chronicle. The corpus loader of the PoC refuses such a call, and its tests hold the whole corpus to it.
+- Wherever the binding runs, the engine asks the cell, which runs the reduction its catalogue names. The binding is policy, so the answer sets a finding aside ([order of precedence](/concepts/inversion-of-control#policy-that-fills-an-open-term-with-a-cells-answer)). Null on a term with a default or `decided_per_case_by` is silence, and the term falls back; on any other term null is the value.
+- The loader refuses `source.decisions` and `source.facts` outside a `REDUCTIE`, and `source.reduction` outside such a binding.
 
-**Try it:** `just bdd`, which runs `vakantieverlof_besluit.feature` with the head's finding and `schooljaargrenzen.feature` next to the policy, or `cargo test --manifest-path packages/cel/Cargo.toml`
+## Documents between cells
 
-## The objection
+Each actor keeps its own chronicle, and the law sends documents between them: the copy of the contested decision with the beroepschrift (Awb 6:5 lid 2), and the copy of the judgment to the parties (Awb 8:79 lid 1). A cell takes in another cell's document as a copy, never by reading that cell's chronicle.
 
-The parent objects to the decision. Awb 7:11 establishes the objection and decides on it, as art. 13a does for the application. The objection names the contested decision. The decision on it reconsiders that decision by calling its article again:
+- `Cell::afschrift` makes a copy of one of the cell's own decisions: the chronolexogram, its decision value from a replay in that cell, and `about`, what the submission it was taken on had received. Where a field of type `decision` holds an id, the copy holds that decision's value instead, nested the same way. Only the cell that took the decision makes a copy.
+- `record_submission` with `Reference::Received(&copy)` records a submission on a decision of another cell. The chronolexogram holds `received: {from, id}` instead of `refers_to`, and its field of type `decision` holds the decision value itself, because this cell cannot replay it.
+- `Cell::record_receipt` records that the cell received a copy, as an executogram of the fact the law requires for it. The receipt is the one executogram that refers to a decision: the cell's own decision that the copy concerns.
+- `Cell::decide_after` decides on a submission again after a later chronolexogram that refers to the last decision on it, such as a receipt. The new decision holds that chronolexogram as `after`. The rule names no article; whether the earlier decision still counts is for whoever reads the chronicle.
 
-```yaml
-# Awb 7:11
-produces:
-  - type: BEZWAAR
-    requests: algemene_wet_bestuursrecht#7:11
-    parameters: [bestreden_besluit]
-  - type: BESCHIKKING
-    outputs: [bezwaar_ontvankelijk, heroverweging_geeft_aanleiding,
-              bestreden_besluit_herroepen, nieuw_besluit]
-parameters:
-  - {name: bestreden_besluit, type: decision}
-input:
-  - name: heroverweging
-    type: decision
-    nullable: true
-    source:
-      article: $bestreden_besluit
-```
+The cell refuses a copy of what is no decision, a copy of its own decision offered back to it, a receipt for a decision the copy does not concern or dated before it, and a decision taken again without such a later chronolexogram. Opening a chronicle checks `after` and every receipt the same way. A reduction reads the receipts as it reads any recorded fact; the row of a receipt also gives the decision it concerns, under `refers_to`. [RFC-053](/rfcs/rfc-053) gives the design, for the appeal to the administrative court.
 
-In a procedure, the article that decides gets the earlier steps as context: the objection and the decision it refers to, with their fields and findings. When 7:11 calls that decision anew (`article: $bestreden_besluit`), the call uses the decision's own fields and findings. New findings come in from the top, and an article in the call must ask for them.
+## Answers of other cells
 
-The cell records the objection with `record_submission`, referring to the contested decision. It fills `bestreden_besluit` from that reference and keeps it by its id:
+A decision may take other cells along: its sphere. When a binding fills an open term with `competent_authority`, the engine asks every competent cell of the call, the deciding cell and its sphere, for the answer and merges their answers with the term's `combine`, or else the binding's ([Competent Authority](/concepts/competent-authority#who-answers-an-open-term)). A cell without that answer in its catalogue is silent. Without competence on the term, the engine asks the cell of the policy's holder. This is the paper's synthesis. It happens in the asking process, and each cell reduces only its own chronicle.
 
-```json
-{
-  "kind": "BEZWAAR",
-  "grondslag": "algemene_wet_bestuursrecht#7:11",
-  "refers_to": "019a1b2d-…",
-  "recorded_on": "2026-11-01",
-  "fields": {
-    "bestreden_besluit": "019a1b2d-…",
-    "gronden_bezwaar": "verklaring van de werkgever: geen verlof in de schoolvakanties",
-    "bezwaartermijn_einddatum": "2026-12-01"
-  },
-  "outputs": { "bezwaarschrift_tijdig_ingediend": true, "beslistermijn_bezwaar_einddatum": "2027-01-12" }
-}
-```
+## Explaining a decision
 
-- The fields are the contested decision and those of Awb 6:5, plus the end of the objection period, which the cell takes from the contested decision. An objection does not change the application: Awb 7:11 lid 1 reconsiders the decision "op grondslag van het bezwaar", and 6:5 asks only for the grounds. A smaller request is a new application.
-- Awb 6:9 makes the receipt the moment that counts and says whether it came in on time. A late objection is recorded. 7:11 then declares it not admissible, and does not read the heroverweging (lid 1). An objection against a decision taken on objection is not admissible either (Awb 7:1 lid 1 onder a). That covers the decision on the objection and the new decision it took. The decision value names the article of the submission a decision was taken on (`taken_on`). For both, that is 7:11.
-- The head decides with `decide`. The engine gets the contested decision as a decision value. For an admissible objection, 7:11 calls the decision anew: art. 13a runs with that decision's fields and findings, under the law and policy of that day. `decide` passes what the head finds anew to the engine, separately from the parameters. A new finding wins over the decision's own. A finding that no article asks for, such as one on a late objection, is an error. The engine asks the cell in that call, and the cell answers from the chronicle of that day without the contested decision. When an outcome of the decision item of art. 13a comes out different, the heroverweging gives cause, and 7:11 revokes the decision.
-- On revocation, `nieuw_besluit` holds the decision that art. 13a gave. The cell records it as a chronolexogram of its own under art. 13a, with its own period (Awb 6:7 and 6:8; for a decision on objection that is the period for appeal). The decision on the objection holds it by id. A second objection against the revoked decision is reconsidered, but the cell refuses to replace a decision twice. The revoked decision stays in the chronicle. The school's reduction reads the decisions under 7:11 as a second input, and leaves out a grant that one of them revoked.
+The cell stores no reasons. It replays.
 
-The cell contains no Awb article. [RFC-050](/rfcs/rfc-050) describes the design and what is still open.
+- `Cell::explain` retakes the decision on its own day, with the law and chronicle of that moment. It fails if the outcome differs.
+- `Cell::findings` reads from the replay which findings counted.
+- `Cell::explain_answer` reruns a reduction to show its reasoning. In the decision's trace the answer is one step.
 
-**Try it:** `just bdd`, which runs `corpus/regulation/nl/wet/algemene_wet_bestuursrecht/scenarios/bezwaar.feature`, or `cargo test --manifest-path packages/cel/Cargo.toml`
+## Try it
 
-## A second case: the parking card
-
-The college of a municipality grants a gehandicaptenparkeerkaart on application (Besluit administratieve bepalingen inzake het wegverkeer, BABW, art. 49). The case runs on a cell of its own, built from the same `packages/cel`. The case itself needs rulework, the cell's reductions, the PoC case file and tests, and no code of its own.
-
-```yaml
-# BABW, art. 49
-produces:
-  - type: AANVRAAG
-    requests: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
-    parameters: [bsn_aanvrager, kaart_als_bestuurder, kaart_als_passagier]
-  - type: BESCHIKKING
-    decision_type: TOEKENNING
-    outputs: [gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier]
-    derived: [kaart_geldig_tot]
-```
-
-What is the same:
-
-- The application gets Awb 4:2 and 4:13, the decision Awb 3:46, 6:7 and 6:8, and the objection Awb 6:5, 6:9, 7:10 and 7:11. No hook names the BABW.
-- The college judges the criteria after the medical examination, as the head judges Leerplichtwet 1969 art. 11 onder f. These are four open terms with `decided_per_case_by` on art. 49.
-- A reduction of the municipality, `reductie_geldige_gehandicaptenparkeerkaart`, reads the college's own decisions and fills an open term with `implements`. A refusal does not count, and neither does a decision that a decision on objection revoked.
-- On objection, 7:11 calls art. 49 anew. A new medical judgement revokes a refusal and grants the card, with a validity of its own.
-
-What differs:
-
-- The criteria sit in another regulation, the Regeling gehandicaptenparkeerkaart (art. 1). Art. 49 reads them through a cross-law `source` and passes the college's judgements as parameters.
-- Art. 49 says the college "kan" grant the card, and nothing about an applicant who already holds one. Art. 53 lid 1 onder b even counts on a new card replacing the old. The rule "no card next to a valid one" is the municipality's fictitious policy. The policy fills the open term of art. 49 on how the college uses its power. It also declares an open term of its own, `aanvrager_heeft_geldige_gehandicaptenparkeerkaart`. The college decides it per case, and it has no default. The reduction implements that term, so the engine asks the cell inside the policy. Because the term belongs to the policy and not to art. 49, the cell's answer is no field of the decision. A replay reports it (`Cell::explain`), and `Cell::explain_answer` shows which card the reduction counted.
-- The validity comes from the law: five years from the day of issue (BABW art. 51 lid 1). The reduction compares that date in each decision with the day of the new decision, so unlike the school year for vakantieverlof, no policy has to set the period.
-- The last day of validity is derived data (`derived`, [RFC-050](/rfcs/rfc-050)). A heroverweging falls on a later day and would give a card that runs longer. That alone gives no cause, so an objection without merit against a grant leaves the grant and its date as they were.
-
-An applicant who fails the criteria is refused before art. 49 reads the college's power, so the engine does not ask the cell. Asked to explain its answer for such a decision (`Cell::explain_answer`), the cell says it was not asked.
-
-The card is not issued before a medical examination (Regeling art. 2 lid 1). The GGD examines (art. 3 lid 1) and records the examination in a cell of its own, `ggd_wilgendaal`, as an executogram of the fact `geneeskundig_onderzoek_verricht`, which art. 3 names and describes ([RFC-051](/rfcs/rfc-051) §3). Art. 3 names the GGD and the designated expert in the `competent_authority` of the fact and of the open term `geneeskundig_onderzoek_heeft_plaatsgehad`, through which it gives the fact as an output; art. 2 reads that through `source.regulation`. Only a cell the fact names records it. The municipality's decision takes the GGD's cell along as its sphere, and only that cell answers ([RFC-052](/rfcs/rfc-052)). An examination counts from the date of the application up to the day of issue. Without a recorded examination and without a finding of the college, the decision fails, because lid 1 makes the college wait and gives no ground to refuse. A finding `false` of the college refuses the card: that is a decision of the college, not of lid 1 (own choice, RFC-051 §3). A refusal on another ground does not wait. Under lid 2 onder a and b the college may leave the examination out for someone who had a card before. The power and the two judgements are open terms on art. 49. Whether a card was issued before is an open term on Regeling art. 2 lid 2 itself, which asks it of "de verstrekkende instantie". The term names those in its `competent_authority`: every college and the CBR, the bodies art. 49 lets issue a card. Art. 49 names only the college that decides. Each issuing cell of the sphere answers from its own decisions (the fictitious `gemeente_oostmeer`, `cbr` and Wilgendaal itself), and `combine: OR` makes one value of their answers.
-
-Not modeled: competence by place of residence (lid 1), the CBR's own grounds (lid 3: the CBR and the fictitious Oostmeer decide on the model of lid 1, with Wilgendaal's policy, which is unscoped), the institution (lid 2), the shorter validity of art. 51 lid 2 and 3, and Regeling art. 2 lid 2 onder c and lid 3, which belong to the CBR and the institution.
-
-What the cell cannot do yet:
-
-- The medical judgements belong in the Regeling with the criteria of art. 1, and those of lid 2 in its art. 2. The engine applies a finding to every article in the decision. The cell, however, derives the inputs of a decision only from the deciding article, and a decision value carries only that article's findings. At a heroverweging the college would have to give judgements on the Regeling anew. So they sit on art. 49 and go to the Regeling as parameters.
-- The cell does not pass its own identity to the law. Competence by place of residence cannot be checked, and a policy scoped by `gemeente_code` is not found, so the municipality's policy is unscoped.
-
-**Try it:** `just bdd`, which runs the scenarios next to the BABW and the Regeling, or `cargo test --manifest-path packages/cel/Cargo.toml --test parkeerkaart`, or play it in the PoC app, where the visitor picks this case or vakantieverlof at the start ([PoC portal](/components/poc-portal))
-
-## Outside the school holidays
-
-Art. 11, onder f, exempts a child whose parent, by the specific nature of their profession, can go on holiday with the child "slechts buiten de schoolvakanties". Art. 13a reads that as the open term `verlof_valt_buiten_schoolvakanties`, which the head decides per case. In the school's cell no one has to: a reduction answers it from the law and from what the school recorded.
-
-- The Regeling vaststelling schoolvakanties 2025–2030 fixes the Christmas and May holidays of every school (art. 5) and the summer holiday per region (art. 6). The region follows from the place of establishment (art. 2), divided by province and municipality (art. 3). The regeling does not say where a school is, so art. 2 declares that as open terms.
-- The school has been established in Utrecht since 1 August 2020. That is an executogram in its chronicle. No article in the corpus requires that fact, so a fictitious policy of the school does (`fictief_beleid_vestiging_obs_de_klimop`, art. 1). A move is a new executogram, and the region changes from its day.
-- The autumn and spring holidays are a rule of the school, set out per school year in its fictitious policy, much as a school guide would. Each school year gets a version from 1 August; the one in the corpus holds 2026–2027.
-
-```json
-{
-  "kind": "EXECUTOGRAM",
-  "grondslag": "fictief_beleid_vestiging_obs_de_klimop#1",
-  "fact": "vestiging",
-  "recorded_on": "2026-08-01",
-  "fields": { "gemeente": "Utrecht", "provincie": "Utrecht", "deel_van_gemeente": null, "sinds": "2020-08-01" },
-  "outputs": {}
-}
-```
-
-`reductie_plaats_van_vestiging` reads those executograms (`source: {facts: fictief_beleid_vestiging_obs_de_klimop#1#vestiging}`) and fills the open terms of art. 2 with the establishment in force on the leave days. It picks that one with `combine: ONLY`, which refuses two, so leave during which the school moves fails the decision. Art. 2 names no day; the cell passes on the leave days of art. 13a. `reductie_verlof_valt_buiten_schoolvakanties` asks the regeling for the region and the periods, asks the school's policy for its own holidays (`source: {regulation: ...}`), and answers whether a leave day falls in any of the six holidays. When the regeling calls for the place of establishment inside that reduction, the cell answers there too.
-
-- Leave from 21 to 23 December 2026 is refused. The trace of the decision shows the term as one node, answered by obs_de_klimop, and `Cell::explain_answer` shows the Christmas holiday the reduction read.
-- From 12 to 16 July 2027 a school in regio Noord is on summer holiday and one in regio Zuid is not.
-- When the cell does not know a holiday, because the regeling fixes none for the year or the school's policy in force does not hold that school year, it is silent, and the head judges as before.
-
-Not modeled: art. 7 and 8 of the regeling (the school's extension of the summer by up to two days, the Wadden islands, the exemption by the minister) and a school with establishments in several regions.
-
-**Try it:** `just bdd`, which runs `regio_en_vakanties.feature` next to the regeling and `vakantierooster.feature` next to the policy, or `cargo test --manifest-path packages/cel/Cargo.toml --test schoolvakanties`
+- `cargo test --manifest-path packages/cel/Cargo.toml` runs the cases in `corpus/cells/`.
+- The [PoC portal](/components/poc-portal#chronolexografie) plays them in a browser.

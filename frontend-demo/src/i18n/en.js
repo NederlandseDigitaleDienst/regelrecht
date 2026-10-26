@@ -90,7 +90,7 @@ export default {
   'format.missing_from_law': 'details from {law}',
 
   // ---- simulation: dimensions and groups ----------------------------------
-  // The group names themselves are keys in stats.js and stay Dutch; this is
+  // The group names themselves are keys in stats.ts and stay Dutch; this is
   // only what they are called on screen.
   'sim.dimension.age': 'Age',
   'sim.dimension.income': 'Income',
@@ -540,7 +540,6 @@ export default {
   'sheet.edit.error.amount': 'Enter an amount, for example 1,250.00.',
   'sheet.edit.error.number': 'Enter a number.',
   'sheet.edit.error.date': 'Enter a date as YYYY-MM-DD.',
-  'sheet.edit.error.json': 'This is not valid JSON.',
   'sheet.edit.error.reason.officer': 'Give a reason; it goes into the case file.',
   'sheet.edit.error.reason.citizen': 'Give a reason; the case officer reads it.',
 
@@ -572,7 +571,7 @@ export default {
   'sheet.change.done.to_portal': 'To my schemes',
   'sheet.change.done.another': 'Report another change',
 
-  // the kinds of change and their fields (data/changeWizard.js)
+  // the kinds of change and their fields (data/changeWizard.ts)
   'sheet.change.type.inkomen': 'My income or assets',
   'sheet.change.type.inkomen.description': 'Pay, profit, benefit, savings or debts',
   'sheet.change.group.box1': 'Box 1 — work and home',
@@ -841,6 +840,10 @@ export default {
   'harm.feature.is_hospitality': 'Is a hospitality business',
   'harm.feature.prepares_food': 'Prepares food',
   'harm.feature.has_terrace': 'Has a terrace',
+  'harm.group.yes': 'yes',
+  'harm.group.no': 'no',
+  'harm.group.rest': 'Other combinations',
+  'harm.group.everyone': 'Everyone',
   'harm.error.too_little_data': 'Too little data to learn a model; run a larger simulation.',
   'harm.error.no_numeric_feature': 'No numeric feature to build brackets on.',
 

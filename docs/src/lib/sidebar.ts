@@ -41,6 +41,7 @@ export const sidebar: Record<string, SidebarGroup[]> = {
       items: [
         { text: 'Development Environment', link: '/guide/dev-environment' },
         { text: 'Testing', link: '/guide/testing' },
+        { text: 'Frontend Code', link: '/guide/frontend-code' },
       ],
     },
   ],
@@ -62,7 +63,9 @@ export const sidebar: Record<string, SidebarGroup[]> = {
         { text: 'Cross-Law References', link: '/concepts/cross-law-references' },
         { text: 'Inversion of Control', link: '/concepts/inversion-of-control' },
         { text: 'Hooks and Reactive Execution', link: '/concepts/hooks-and-reactive-execution' },
+        { text: 'Applications, Decisions and Objections', link: '/concepts/administrative-procedures' },
         { text: 'Chronolexography', link: '/concepts/chronolexography' },
+        { text: 'Open Points in Chronolexography', link: '/concepts/chronolexography-open-points' },
         { text: 'Competent Authority', link: '/concepts/competent-authority' },
       ],
     },

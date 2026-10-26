@@ -36,6 +36,6 @@ Feature: Multi-output evaluation
     # AWB hooks fire on BESCHIKKING — their outputs are causally entailed
     Then output "motivering_vereist" is true
     Then output "motivering_vereist" has reactive provenance
-    Then output "bezwaartermijn_weken" equals 4
+    Then output "termijn_weken" equals 4
     # Vw art. 69 overrides Awb 6:7 inside the hook; the value's ground is the override
-    Then output "bezwaartermijn_weken" has override provenance
+    Then output "termijn_weken" has override provenance

@@ -8,7 +8,7 @@ The editor is a Vue 3 single-page app in `frontend/`. It browses the corpus, hol
 ## Overview
 
 - **Framework**: Vue 3 (Composition API), Vue Router
-- **Language**: TypeScript, on the setup the [Lawmaking Frontend](./lawmaking#typescript-setup) describes; `npm run typecheck` runs `vue-tsc`
+- **Language**: TypeScript, on the setup [Frontend Code](/guide/frontend-code) describes; `npm run typecheck` runs `vue-tsc`
 - **Build tool**: Vite 8
 - **Design system**: [@nldd/design-system](https://www.npmjs.com/package/@nldd/design-system) web components
 - **Backend**: [editor-api](./editor-api), which also serves the built app

@@ -73,15 +73,7 @@ works; Vite then uses the port from `vite.config.ts`, 3000.
 
 ## TypeScript setup
 
-The layout follows what `create-vue` generates for a TypeScript project. `tsconfig.json` references three programs, one per environment:
-
-| Config | Checks | Environment |
-|--------|--------|-------------|
-| `tsconfig.app.json` | `src/` without the tests, and `env.d.ts` | the browser, through `@vue/tsconfig/tsconfig.dom.json` |
-| `tsconfig.node.json` | `vite.config.ts`, `vitest.config.ts` | Node, through `@tsconfig/node24` |
-| `tsconfig.vitest.json` | `src/**/*.test.ts` | Vitest |
-
-`npm run typecheck` runs `vue-tsc --build` over all three, and CI runs it in the frontend job. The app config sets `noUncheckedIndexedAccess`, so an `arr[i]` lookup is typed as possibly `undefined`. `vitest.config.ts` builds on `vite.config.ts`, so a test that imports a component gets the same template compiler options as the app. The tests run in Node; a test that mounts a component will need a DOM environment such as happy-dom. The [Shared Frontend Package](/components/frontend-shared#typescript) page explains the conventions all frontends share: TypeScript 6, imports without an extension, and no compile step.
+The app uses the setup that [Frontend Code](/guide/frontend-code) describes; `npm run typecheck` runs `vue-tsc --build`.
 
 ## Further reading
 

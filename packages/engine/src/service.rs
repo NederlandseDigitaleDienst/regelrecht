@@ -25,7 +25,9 @@
 //! )?;
 //! ```
 
-use crate::answer::{Answer, AnswerProvenance, Call, OpenTermAnswerer, Question};
+use crate::answer::{
+    Answer, AnswerProvenance, AnswerRequest, Call, Chronicle, ChronicleRead, OpenTermAnswerer,
+};
 use crate::article::{
     Article, ArticleBasedLaw, Execution, HookPoint, Input, MachineReadable, ProcedureDefinition,
     Stage, StageRequirement,
@@ -73,10 +75,6 @@ struct CacheEntry {
     outputs: BTreeMap<String, Value>,
     output_provenance: BTreeMap<String, OutputProvenance>,
     parameters: BTreeMap<String, Value>,
-    /// Whether a `source.regulation` read evaluated it: the engine then
-    /// routes the article's open terms on competence (RFC-052), so its
-    /// value is not that of the same output read otherwise.
-    by_reference: bool,
 }
 
 impl CacheEntry {
@@ -84,19 +82,15 @@ impl CacheEntry {
     ///
     /// Cache keys are `u64` hashes, so two different evaluations can in theory
     /// land on the same key. For legally binding decisions a wrong hit is never
-    /// acceptable, so every read re-checks the full identity: all four fields
+    /// acceptable, so every read re-checks the full identity: all three fields
     /// must match, a difference in any one of them means "not this entry".
     fn matches(
         &self,
         law_id: &str,
         output_name: &str,
         parameters: &BTreeMap<String, Value>,
-        by_reference: bool,
     ) -> bool {
-        self.law_id == law_id
-            && self.output_name == output_name
-            && self.parameters == *parameters
-            && self.by_reference == by_reference
+        self.law_id == law_id && self.output_name == output_name && self.parameters == *parameters
     }
 }
 
@@ -153,24 +147,32 @@ struct ResolutionContext<'a> {
     findings: BTreeMap<String, Value>,
     /// The ids of [`Self::findings`] that an article in the execution asked.
     findings_asked: BTreeSet<String>,
-    /// The open terms a finding, a regulation or the answerer filled in this
+    /// The open terms a finding, a regulation or a binding filled in this
     /// execution ([`ArticleResult::open_terms`]).
     open_terms: Vec<OpenTermFilled>,
-    /// What the caller supplies to answer open terms (RFC-048), asked before
-    /// a regulation or a finding at every depth of the execution.
+    /// The cell that runs the execution, asked for the answers a binding
+    /// takes (`source.reduction`, RFC-048).
     answerer: Option<&'a dyn OpenTermAnswerer>,
-    /// The other answerers of the call (RFC-052), asked with
-    /// [`Self::answerer`] for an open term of an article reached through
-    /// `source.regulation` that names them in `competent_authority`.
+    /// The other cells of the call (RFC-052), asked with [`Self::answerer`]
+    /// where a binding names them.
     sphere: Vec<&'a dyn OpenTermAnswerer>,
-    /// The articles being evaluated because a `source.regulation` read an
-    /// output of them, as `(law_id, article_number)`, innermost last. Only
-    /// for the open terms of the innermost one does the engine route on
-    /// competence (RFC-052).
-    by_reference: Vec<(String, String)>,
-    /// Set by a `source.regulation` read just before it evaluates its
-    /// target, and taken by that evaluation (RFC-052).
-    reference_pending: bool,
+    /// The chronicle a reduction in this execution is applied to: that of
+    /// the cell that runs it (RFC-048).
+    chronicle: Option<&'a dyn Chronicle>,
+    /// The answers each binding took, in the order the engine asked them
+    /// ([`Bound`]): how an open term the binding fills came to its value
+    /// ([`FilledBy::Answer`]).
+    bound: Vec<Bound>,
+}
+
+/// The answers one input of a binding took (`source.reduction`, RFC-048):
+/// the policy article, and who answered from what. The answers that were
+/// not null; where there were none, the null ones; where no cell answered,
+/// none.
+struct Bound {
+    law_id: String,
+    article: String,
+    answers: Vec<AnswerProvenance>,
 }
 
 /// The outputs `article` computes at stage `stage` of its procedure
@@ -288,8 +290,8 @@ impl<'a> ResolutionContext<'a> {
             open_terms: Vec::new(),
             answerer: None,
             sphere: Vec::new(),
-            by_reference: Vec::new(),
-            reference_pending: false,
+            chronicle: None,
+            bound: Vec::new(),
         })
     }
 
@@ -298,14 +300,7 @@ impl<'a> ResolutionContext<'a> {
         self.findings = call.findings;
         self.answerer = call.answerer;
         self.sphere = call.sphere;
-    }
-
-    /// Whether `article` of `law` is the article a `source.regulation` read
-    /// is evaluating right now (RFC-052).
-    fn reached_by_reference(&self, law: &str, article: &str) -> bool {
-        self.by_reference
-            .last()
-            .is_some_and(|(l, a)| l == law && a == article)
+        self.chronicle = call.chronicle;
     }
 
     /// The caller's findings (RFC-050) that apply to `article` of `law`: one
@@ -355,24 +350,16 @@ impl<'a> ResolutionContext<'a> {
     /// Every finding the caller gave was asked by an article in the
     /// execution (RFC-050); otherwise an error naming those that were not.
     fn check_findings_asked(&self) -> Result<()> {
-        let unasked: Vec<&str> = self
+        let findings: Vec<String> = self
             .findings
             .keys()
             .filter(|id| !self.findings_asked.contains(*id))
-            .map(String::as_str)
+            .cloned()
             .collect();
-        if unasked.is_empty() {
+        if findings.is_empty() {
             return Ok(());
         }
-        Err(EngineError::InvalidOperation(format!(
-            "no article in this execution leaves {} to an authority per case \
-             (decided_per_case_by), so the finding is asked by none",
-            unasked
-                .iter()
-                .map(|id| format!("'{id}'"))
-                .collect::<Vec<_>>()
-                .join(", ")
-        )))
+        Err(EngineError::FindingsNotAsked { findings })
     }
 
     /// Record that `filled_by` filled the open term `term` of `article` of
@@ -573,18 +560,6 @@ impl Drop for TraceGuard {
     }
 }
 
-/// What the answerers of a call said for an open term
-/// ([`LawExecutionService::ask_answerers`]).
-enum Asked {
-    /// The term's value, filled by one answer or by several combined.
-    Filled(Value),
-    /// Every answer was silent (null) where the term falls back on its
-    /// default or a finding: who was silent, for the trace.
-    Silent(Vec<String>),
-    /// No answerer was asked, or none answers the term.
-    Nobody,
-}
-
 /// The authorities `named`, for a message: "'a' or 'b'".
 fn authorities(named: &[crate::article::NamedAuthority]) -> String {
     named
@@ -614,16 +589,10 @@ fn answerers(answers: &[Answer]) -> String {
 /// BTreeMap guarantees sorted key order for deterministic hashing.
 /// Note: `DefaultHasher` is randomly seeded per process, so keys are only
 /// valid for per-execution memoization (not persisted across runs).
-fn cache_key(
-    law_id: &str,
-    output_name: &str,
-    params: &BTreeMap<String, Value>,
-    by_reference: bool,
-) -> u64 {
+fn cache_key(law_id: &str, output_name: &str, params: &BTreeMap<String, Value>) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     law_id.hash(&mut hasher);
     output_name.hash(&mut hasher);
-    by_reference.hash(&mut hasher);
     // BTreeMap iterates in sorted key order — no explicit sort needed
     for (key, value) in params {
         key.hash(&mut hasher);
@@ -685,12 +654,12 @@ fn required_parameter_for_nobody(
 }
 
 /// The keys of a decision value (schema v0.8.4, RFC-050).
-const DECISION_KEYS: [&str; 5] = ["grondslag", "taken_on", "fields", "findings", "outputs"];
+const DECISION_KEYS: [&str; 5] = ["basis", "taken_on", "fields", "findings", "outputs"];
 
 /// Every parameter of `article` of type `decision` that `parameters` carries
-/// is an object that holds the keys of a decision value `{grondslag,
+/// is an object that holds the keys of a decision value `{basis,
 /// taken_on, fields, findings, outputs}`, and no other (RFC-050), and its
-/// `grondslag` and `taken_on` are article references (`<law>#<article>`).
+/// `basis` and `taken_on` are article references (`<law>#<article>`).
 /// Otherwise an error naming the parameter and the key, or the type the
 /// value has instead. Null and unknown are left to
 /// `required_parameter_for_nobody`, and an untranslatable value propagates
@@ -707,7 +676,7 @@ const DECISION_KEYS: [&str; 5] = ["grondslag", "taken_on", "fields", "findings",
 /// All of this holds at the top (`at_top`, depth 0). In a nested call,
 /// across laws or within one, a parameter is what the calling article passes
 /// on, which may be such a value without `taken_on`, so there only a
-/// `taken_on` the value holds must be an article reference. `grondslag` is
+/// `taken_on` the value holds must be an article reference. `basis` is
 /// checked where the call reads it.
 fn check_decision_parameters(
     law: &ArticleBasedLaw,
@@ -756,7 +725,7 @@ fn check_decision_parameters(
                         .map(|key| format!("holds the unknown key '{key}'"))
                 })
                 .or_else(|| {
-                    ["grondslag", "taken_on"]
+                    ["basis", "taken_on"]
                         .into_iter()
                         .find(|key| !reference(value, key))
                         .map(|key| format!("holds no article reference in '{key}'"))
@@ -785,7 +754,7 @@ fn decision_parameter_error(
     flaw: &str,
 ) -> EngineError {
     EngineError::InvalidOperation(format!(
-        "parameter '{name}' of {}#{} is no decision value {{grondslag, taken_on, fields, \
+        "parameter '{name}' of {}#{} is no decision value {{basis, taken_on, fields, \
          findings, outputs}}: it {flaw}",
         law.id, article.number
     ))
@@ -1342,7 +1311,7 @@ impl LazyInputs for LazyArticleInputs<'_, '_, '_> {
 type Values = BTreeMap<String, Value>;
 
 /// The parts of the decision value `value` that `named_by` holds, for
-/// `caller` to call anew (RFC-050): its `grondslag`, an article reference,
+/// `caller` to call anew (RFC-050): its `basis`, an article reference,
 /// and its `fields` and `findings`, two objects. Anything else is an error.
 fn decision_parts(
     mut value: BTreeMap<String, Value>,
@@ -1351,21 +1320,19 @@ fn decision_parts(
 ) -> Result<(String, Values, Values)> {
     let shown = Value::Object(value.clone()).to_string();
     let parts = (
-        value.remove("grondslag"),
+        value.remove("basis"),
         value.remove("fields"),
         value.remove("findings"),
     );
     match parts {
         (
-            Some(Value::String(grondslag)),
+            Some(Value::String(basis)),
             Some(Value::Object(fields)),
             Some(Value::Object(findings)),
-        ) if regelrecht_law_model::is_article_reference(&grondslag) => {
-            Ok((grondslag, fields, findings))
-        }
+        ) if regelrecht_law_model::is_article_reference(&basis) => Ok((basis, fields, findings)),
         _ => Err(EngineError::TypeMismatch {
             expected: format!(
-                "a decision value {{grondslag, fields, findings, outputs}} in {named_by} for \
+                "a decision value {{basis, fields, findings, outputs}} in {named_by} for \
                  {caller}"
             ),
             actual: shown,
@@ -1978,8 +1945,9 @@ impl LawExecutionService {
     }
 
     /// [`Self::evaluate_law_with_findings`] with what `call` gives: the
-    /// findings, and an answerer the engine asks first for each open term
-    /// it reads (RFC-048), also in an article the execution calls.
+    /// findings, and the cells the engine asks for the answers a binding
+    /// takes (`source.reduction`, RFC-048), also in an article the execution
+    /// calls.
     pub fn evaluate_law_in<'a>(
         &self,
         law_id: &str,
@@ -2067,8 +2035,8 @@ impl LawExecutionService {
         )
     }
 
-    /// [`Self::evaluate_law_in`] with tracing enabled. An open term the
-    /// answerer filled is one node, with who answered and from what.
+    /// [`Self::evaluate_law_in`] with tracing enabled. An answer a binding
+    /// took is one node, with who answered and from what.
     pub fn evaluate_law_with_trace_in<'a>(
         &self,
         law_id: &str,
@@ -3014,16 +2982,13 @@ impl LawExecutionService {
         // A value computed with an override held back is not the value of
         // that output, so it neither comes from nor goes into the cache.
         let cacheable = output_names.len() == 1 && res_ctx.held_back.is_empty();
-        // A `source.regulation` read asked for this evaluation (RFC-052).
-        let by_reference = std::mem::take(&mut res_ctx.reference_pending);
-
         // --- Cache check (before depth check: cached results don't increase depth) ---
-        let key = cache_key(law_id, output_name, &parameters, by_reference);
+        let key = cache_key(law_id, output_name, &parameters);
         if let Some(cached) = res_ctx.cache.get(&key).filter(|_| cacheable) {
             // Runtime collision check: hash keys are u64 so collisions are
             // theoretically possible. For legally binding decisions, we must
             // never silently return wrong results.
-            if !cached.matches(law_id, output_name, &parameters, by_reference) {
+            if !cached.matches(law_id, output_name, &parameters) {
                 tracing::warn!(
                     cached_law = cached.law_id,
                     cached_output = cached.output_name,
@@ -3116,13 +3081,6 @@ impl LawExecutionService {
         // Execute with service provider (default stage BESLUIT for cross-law
         // calls). The anchor is entered and restored by
         // `evaluate_article_with_service` itself, for every path into it.
-        // An article a `source.regulation` read reaches has its open terms
-        // routed on competence while it runs (RFC-052).
-        if by_reference {
-            res_ctx
-                .by_reference
-                .push((law.id.clone(), article.number.clone()));
-        }
         let result = self.evaluate_article_with_service(
             article,
             law,
@@ -3130,11 +3088,7 @@ impl LawExecutionService {
             Some(output_names),
             "BESLUIT",
             res_ctx,
-        );
-        if by_reference {
-            res_ctx.by_reference.pop();
-        }
-        let result = result?;
+        )?;
         if !cacheable {
             return Ok(result);
         }
@@ -3152,7 +3106,6 @@ impl LawExecutionService {
                 outputs: result.outputs.clone(),
                 output_provenance: result.output_provenance.clone(),
                 parameters: params_for_cache,
-                by_reference,
             },
         );
 
@@ -4328,195 +4281,246 @@ impl LawExecutionService {
         Ok(result)
     }
 
-    /// Ask the answerers of the call for `term` of `article` (RFC-048,
-    /// RFC-052). Without routing only the caller's answerer is asked. A term
-    /// that names its own `competent_authority`, of an article a
-    /// `source.regulation` read reaches, routes on competence: every
-    /// answerer of the call whose [`Authority`](crate::answer::Authority)
-    /// the term names is asked, in the order of their names, and none other.
-    /// A `null` answer is silence where the term has a default or is decided
-    /// per case; otherwise it is the value. Several answers that are not
-    /// `null` make one value with the term's `combine`, and are an error
-    /// without it.
-    fn ask_answerers<'c>(
+    /// Resolve an input that takes the named answer of a cell
+    /// (`source.reduction`, RFC-048): ask the answerers of the call for
+    /// `answer`, with the parameters the binding passes.
+    ///
+    /// The binding is `article` of the policy `law`, which fills an open
+    /// term (`implements`, the loader holds to that). Where a term it fills
+    /// names its competent authorities (RFC-052), every answerer of the call
+    /// whose [`Authority`](crate::answer::Authority) they name is asked, in
+    /// the order of their names, and none other; otherwise those the policy
+    /// names as its holder. An answerer without an answer of that name, or
+    /// with a null one, is silent. Several answers that are not null make one
+    /// value with the `combine` of the filled term, or else that of the
+    /// binding, and are an error without one. Without an answer the input is
+    /// null: the binding then fills nothing, as an implementation that is
+    /// silent for the case (RFC-036).
+    #[allow(clippy::too_many_arguments)]
+    fn resolve_answer<'c>(
         &self,
         article: &Article,
         law: &ArticleBasedLaw,
-        term: &crate::article::OpenTerm,
-        parameters: &BTreeMap<String, Value>,
+        input: &Input,
+        source: &crate::article::Source,
+        answer: &str,
+        context: &RuleContext,
         res_ctx: &mut ResolutionContext<'c>,
-    ) -> Result<Asked> {
-        // The competence of the term itself (RFC-052): who may answer it.
-        // The article's own competent_authority says who decides (RFC-002).
-        let routed = if res_ctx.reached_by_reference(&law.id, &article.number) {
+    ) -> Result<Option<Value>> {
+        let _guard = res_ctx.trace_guard(&input.name, PathNodeType::Resolve);
+        let refuse = |res_ctx: &mut ResolutionContext<'c>, message: String| {
+            res_ctx.trace_set_message(message.clone());
+            Err(EngineError::InvalidOperation(message))
+        };
+        // The terms the binding fills, as the laws that declare them say on
+        // the calculation date.
+        let terms: Vec<&crate::article::OpenTerm> = article
+            .get_implements()
+            .into_iter()
+            .flatten()
+            .filter_map(|decl| {
+                let (_, declaring) = self
+                    .article_in_force(&decl.law, &decl.article, res_ctx.calculation_date)
+                    .ok()?;
+                declaring
+                    .get_open_terms()?
+                    .iter()
+                    .find(|term| term.id == decl.open_term)
+            })
+            .collect();
+        let competent = terms.iter().find_map(|term| {
             term.competent_authority
                 .as_ref()
                 .and_then(|authority| authority.named())
-        } else {
-            None
+        });
+        let Some(named) = competent.or_else(|| {
+            law.competent_authority
+                .as_ref()
+                .and_then(|authority| authority.named())
+        }) else {
+            return refuse(
+                res_ctx,
+                format!(
+                    "input '{}' of {} takes the answer '{answer}', but the policy names no \
+                     holder (competent_authority) whose cell gives it (RFC-048)",
+                    input.name, law.id
+                ),
+            );
         };
-        let askees: Vec<&'c dyn OpenTermAnswerer> = match routed {
-            None => res_ctx.answerer.into_iter().collect(),
-            Some(named) => {
-                let mut competent: Vec<&'c dyn OpenTermAnswerer> = res_ctx
-                    .answerer
-                    .into_iter()
-                    .chain(res_ctx.sphere.iter().copied())
-                    .filter(|answerer| answerer.authority().is_named_by(named))
-                    .collect();
-                competent.sort_by(|a, b| a.authority().name.cmp(&b.authority().name));
-                if let Some(pair) = competent
-                    .windows(2)
-                    .find(|pair| pair[0].authority().name == pair[1].authority().name)
-                {
-                    let message = format!(
-                        "open term '{}' on {}#{}: two answerers of the call are named '{}'",
-                        term.id,
-                        law.id,
-                        article.number,
-                        pair[0].authority().name
-                    );
-                    res_ctx.trace_set_message(message.clone());
-                    return Err(EngineError::InvalidOperation(message));
-                }
-                let any = res_ctx.answerer.is_some() || !res_ctx.sphere.is_empty();
-                if competent.is_empty() && any {
-                    let _guard = res_ctx.trace_guard(&term.id, PathNodeType::OpenTermResolution);
-                    res_ctx.trace_set_message(format!(
-                        "No competent answerer in the sphere for {}",
-                        authorities(named)
-                    ));
-                }
-                competent
-            }
+        let combine = terms
+            .iter()
+            .find_map(|term| term.combine)
+            .or(source.combine);
+        let mut askees: Vec<&'c dyn OpenTermAnswerer> = res_ctx
+            .answerer
+            .into_iter()
+            .chain(res_ctx.sphere.iter().copied())
+            .filter(|answerer| answerer.authority().is_named_by(named))
+            .collect();
+        askees.sort_by(|a, b| a.authority().name.cmp(&b.authority().name));
+        if let Some(pair) = askees
+            .windows(2)
+            .find(|pair| pair[0].authority().name == pair[1].authority().name)
+        {
+            return refuse(
+                res_ctx,
+                format!(
+                    "input '{}' of {} takes the answer '{answer}': two answerers of the call \
+                     are named '{}'",
+                    input.name,
+                    law.id,
+                    pair[0].authority().name
+                ),
+            );
+        }
+        // Without a cell to ask, the binding gives nothing; the parameters it
+        // passes are not needed then, and may be absent (RFC-048).
+        if askees.is_empty() {
+            let message = format!(
+                "No cell of this execution gives the answer '{answer}' for {}",
+                authorities(named)
+            );
+            return Self::no_answer(article, law, input, message, Vec::new(), res_ctx);
+        }
+        let parameters = self.build_target_parameters(source.parameters.as_ref(), context)?;
+        let request = AnswerRequest {
+            name: answer,
+            parameters: &parameters,
+            calculation_date: res_ctx.calculation_date,
         };
-
         let mut answers: Vec<Answer> = Vec::new();
-        let mut silent: Vec<Answer> = Vec::new();
+        // Who was silent, for the trace, and the null answers among them.
+        let mut silent: Vec<String> = Vec::new();
+        let mut nulls: Vec<AnswerProvenance> = Vec::new();
         for askee in askees {
-            let question = Question {
-                law_id: &law.id,
-                article: &article.number,
-                term: &term.id,
-                calculation_date: res_ctx.calculation_date,
-                parameters,
-            };
-            let answer = match askee.answer(self, &question) {
-                Ok(Some(answer)) => answer,
-                Ok(None) => continue,
+            let given = match askee.answer(self, &request) {
+                Ok(Some(given)) => given,
+                Ok(None) => {
+                    silent.push(format!("{} (no answer '{answer}')", askee.authority().name));
+                    continue;
+                }
                 Err(e) => {
                     res_ctx.trace_set_message(format!(
-                        "Open term '{}': the answerer failed: {e}",
-                        term.id
+                        "Answer '{answer}': {} failed: {e}",
+                        askee.authority().name
                     ));
                     return Err(e);
                 }
             };
-            if routed.is_some() {
-                // One node per competent answerer that answered, under the
-                // node of the term and named after it (RFC-052); its
-                // `answer` says who.
-                let _guard = res_ctx.trace_guard(&term.id, PathNodeType::OpenTermResolution);
-                res_ctx.trace_set_result(answer.value.clone());
-                res_ctx.trace_set_answer(answer.provenance.clone());
-                res_ctx.trace_set_message(if answer.value.is_null() {
-                    format!("{} is silent (null)", answer.provenance)
-                } else {
-                    format!("Answered by {}", answer.provenance)
-                });
-            }
-            if answer.value.is_null() {
-                silent.push(answer);
+            // One node per answer, named after it; its `answer` says who
+            // gave it from what.
+            let _answered = res_ctx.trace_guard(answer, PathNodeType::Resolve);
+            res_ctx.trace_set_result(given.value.clone());
+            res_ctx.trace_set_answer(given.provenance.clone());
+            if given.value.is_null() {
+                res_ctx.trace_set_message(format!("{} is silent (null)", given.provenance));
+                silent.push(given.provenance.answerer.clone());
+                nulls.push(given.provenance);
             } else {
-                answers.push(answer);
+                res_ctx.trace_set_message(format!("Answered by {}", given.provenance));
+                answers.push(given);
             }
         }
-        let fallback = term.default.is_some() || term.decided_per_case_by.is_some();
-        let (value, given) = match answers.len() {
-            0 if fallback || silent.is_empty() => {
-                return Ok(if silent.is_empty() {
-                    Asked::Nobody
-                } else {
-                    Asked::Silent(silent.iter().map(|a| a.provenance.to_string()).collect())
-                });
-            }
-            // Nothing to fall back on: null is the answer (RFC-048).
-            0 => (Value::Null, silent),
-            1 => (answers[0].value.clone(), answers),
-            n => {
-                let Some(op) = term.combine else {
-                    let message = format!(
-                        "open term '{}' on {}#{} has {n} answers, from {}, and no combine to \
-                         make one value of them (RFC-052)",
-                        term.id,
-                        law.id,
-                        article.number,
-                        answerers(&answers)
-                    );
-                    res_ctx.trace_set_message(message.clone());
-                    return Err(EngineError::InvalidOperation(message));
-                };
-                let values = answers.iter().map(|a| a.value.clone()).collect();
-                // The aggregation is that of FOREACH; the error says where it
-                // was used here.
-                let value = crate::operations::combine_with(op, values).map_err(|e| {
-                    let message = format!(
-                        "open term '{}' on {}#{}: combining the answers of {} with {} failed: \
-                         {e}",
-                        term.id,
-                        law.id,
-                        article.number,
-                        answerers(&answers),
-                        op.as_str()
-                    );
-                    res_ctx.trace_set_message(message.clone());
-                    EngineError::InvalidOperation(message)
-                })?;
-                (value, answers)
-            }
+        let silent_note = if silent.is_empty() {
+            String::new()
+        } else {
+            format!("; silent: {}", silent.join(", "))
         };
-
-        res_ctx.trace_set_result(value.clone());
-        let set_aside = match &term.decided_per_case_by {
-            Some(by) if parameters.contains_key(&term.id) => {
-                format!("; the judgement of {by} for this case is set aside")
+        let value = match answers.as_slice() {
+            [] => {
+                let message = format!(
+                    "No cell gives the answer '{answer}' for {}{silent_note}",
+                    authorities(named)
+                );
+                return Self::no_answer(article, law, input, message, nulls, res_ctx);
             }
-            _ => String::new(),
-        };
-        let filled_by = match given.as_slice() {
             [one] => {
                 res_ctx.trace_set_message(format!(
-                    "Open term '{}' answered by {}{set_aside}",
-                    term.id, one.provenance
+                    "Answer '{answer}' given by {}{silent_note}",
+                    one.provenance.answerer
                 ));
-                // Routed, the answer is on the node of the answerer below;
-                // otherwise on this one, as before (RFC-048).
-                if routed.is_none() {
-                    res_ctx.trace_set_answer(one.provenance.clone());
-                }
-                FilledBy::Answer(one.provenance.clone())
+                one.value.clone()
             }
             several => {
-                res_ctx.trace_set_message(match term.combine {
-                    Some(op) if !value.is_null() => format!(
-                        "Open term '{}' answered by {}, combined with {}{set_aside}",
-                        term.id,
-                        answerers(several),
-                        op.as_str()
-                    ),
-                    // All silent, and nothing to fall back on: null is the
-                    // answer (RFC-048).
-                    _ => format!(
-                        "Open term '{}': {} are silent (null)",
-                        term.id,
-                        answerers(several)
-                    ),
-                });
-                FilledBy::Answers(several.iter().map(|a| a.provenance.clone()).collect())
+                let Some(op) = combine else {
+                    return refuse(
+                        res_ctx,
+                        format!(
+                            "input '{}' of {} has {} answers '{answer}', from {}, and no \
+                             combine to make one value of them (RFC-052)",
+                            input.name,
+                            law.id,
+                            several.len(),
+                            answerers(several)
+                        ),
+                    );
+                };
+                let values = several.iter().map(|a| a.value.clone()).collect();
+                // The aggregation is that of FOREACH; the error says where it
+                // was used here.
+                let value = match crate::operations::combine_with(op, values) {
+                    Ok(value) => value,
+                    Err(e) => {
+                        return refuse(
+                            res_ctx,
+                            format!(
+                                "input '{}' of {}: combining the answers '{answer}' of {} with \
+                                 {} failed: {e}",
+                                input.name,
+                                law.id,
+                                answerers(several),
+                                op.as_str()
+                            ),
+                        )
+                    }
+                };
+                res_ctx.trace_set_message(format!(
+                    "Answer '{answer}' given by {}, combined with {}{silent_note}",
+                    answerers(several),
+                    op.as_str()
+                ));
+                value
             }
         };
-        res_ctx.note_open_term(&law.id, &article.number, &term.id, filled_by);
-        Ok(Asked::Filled(value))
+        res_ctx.trace_set_result(value.clone());
+        res_ctx.bound.push(Bound {
+            law_id: law.id.clone(),
+            article: article.number.clone(),
+            answers: answers.into_iter().map(|a| a.provenance).collect(),
+        });
+        Ok(Some(value))
+    }
+
+    /// The value of an input of `article` that got no answer
+    /// (`source.reduction`): null, where the input may be absent, and the
+    /// binding then fills nothing, unless nothing falls back on it. The null
+    /// answers among those asked, `nulls`, are recorded for the report.
+    /// Declared never absent, the input is an error: without a cell that
+    /// answers, the decision fails (RFC-036, RFC-048).
+    fn no_answer(
+        article: &Article,
+        law: &ArticleBasedLaw,
+        input: &Input,
+        message: String,
+        nulls: Vec<AnswerProvenance>,
+        res_ctx: &mut ResolutionContext<'_>,
+    ) -> Result<Option<Value>> {
+        if !input.is_nullable() {
+            let message = format!(
+                "{message}; input '{}' of {} takes it and is declared never absent",
+                input.name, law.id
+            );
+            res_ctx.trace_set_message(message.clone());
+            return Err(EngineError::InvalidOperation(message));
+        }
+        res_ctx.trace_set_message(message);
+        res_ctx.trace_set_result(Value::Null);
+        res_ctx.bound.push(Bound {
+            law_id: law.id.clone(),
+            article: article.number.clone(),
+            answers: nulls,
+        });
+        Ok(Some(Value::Null))
     }
 
     /// Resolve one open term declared on an article via IoC (implements index),
@@ -4646,28 +4650,8 @@ impl LawExecutionService {
             res_ctx.note_not_in_force(note);
         }
 
-        // Implementations that are silent for this case (null), the
-        // answerer's first.
+        // Implementations that are silent for this case (null).
         let mut silent: Vec<String> = Vec::new();
-
-        // The caller's answerer goes first (RFC-048), after the refusals and
-        // skips of the lookup are recorded; a lookup that fails fails before
-        // the answerer is asked. The answerer fills the term like a
-        // regulation, so its answer wins over a finding for the case. The
-        // engine records who answered; how is the answerer's own business,
-        // so the answer is this one node of the trace.
-        match self.ask_answerers(article, law, term, parameters, res_ctx) {
-            Err(e) => {
-                res_ctx.leave(&ot_key);
-                return Err(e);
-            }
-            Ok(Asked::Filled(value)) => {
-                res_ctx.leave(&ot_key);
-                return Ok(value);
-            }
-            Ok(Asked::Silent(names)) => silent.extend(names),
-            Ok(Asked::Nobody) => {}
-        }
 
         // Every candidate that survives `find_implementations` is competent:
         // the resolver drops implementations whose regulatory_layer is not
@@ -4705,6 +4689,8 @@ impl LawExecutionService {
             // Only forward parameters that the implementing article declares
             // in its execution.parameters — principle of least privilege.
             let impl_params = Self::filter_parameters_for_article(impl_article, parameters);
+            // The answers a binding takes while it runs (`source.reduction`).
+            let bound_from = res_ctx.bound.len();
             let result = match self.evaluate_article_with_service(
                 impl_article,
                 impl_law,
@@ -4750,15 +4736,45 @@ impl LawExecutionService {
                         ),
                         _ => String::new(),
                     };
+                    // A binding that took the answer of a cell fills the
+                    // term with it: who answered is part of who filled it
+                    // (RFC-048).
+                    let taken: Vec<&Bound> = res_ctx.bound[bound_from..]
+                        .iter()
+                        .filter(|b| b.law_id == impl_law.id && b.article == impl_article.number)
+                        .collect();
+                    let answers: Vec<AnswerProvenance> = taken
+                        .iter()
+                        .flat_map(|b| b.answers.iter().cloned())
+                        .collect();
+                    let by = if answers.is_empty() {
+                        String::new()
+                    } else {
+                        format!(
+                            ", with the answer of {}",
+                            answers
+                                .iter()
+                                .map(|a| a.answerer.as_str())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        )
+                    };
                     res_ctx.trace_set_message(format!(
-                        "Open term '{}' implemented by {} article {}{set_aside}",
+                        "Open term '{}' implemented by {} article {}{by}{set_aside}",
                         term.id, impl_law.id, impl_article.number
                     ));
+                    let law_id = impl_law.id.clone();
+                    let article = impl_article.number.clone();
                     filled = Some((
                         value.clone(),
-                        FilledBy::Regulation {
-                            law_id: impl_law.id.clone(),
-                            article: impl_article.number.clone(),
+                        if taken.is_empty() {
+                            FilledBy::Regulation { law_id, article }
+                        } else {
+                            FilledBy::Answer {
+                                law_id,
+                                article,
+                                answers,
+                            }
                         },
                     ));
                     break;
@@ -4992,6 +5008,98 @@ impl LawExecutionService {
         }
     }
 
+    /// Refuse a call from `caller` to the rulework `target` when `target`
+    /// is a `REDUCTIE` and `caller` is not: a reduction reads the chronicle
+    /// of the cell that runs it, so only a reduction calls one (RFC-048), on
+    /// that same chronicle. Each in the version in force on the reference
+    /// date, or else its newest. A call to the decision of an article
+    /// (`source.article`) needs none: a reduction takes no decision.
+    fn refuse_reduction_call(
+        &self,
+        caller: &str,
+        target: &str,
+        res_ctx: &ResolutionContext<'_>,
+    ) -> Result<()> {
+        let layer = |id: &str| {
+            self.resolver
+                .get_law_for_date(id, res_ctx.reference_date())
+                .or_else(|| self.get_law(id))
+                .map(|law| law.regulatory_layer)
+        };
+        if layer(target) == Some(RegulatoryLayer::Reductie)
+            && layer(caller) != Some(RegulatoryLayer::Reductie)
+        {
+            return Err(EngineError::ResolutionError(format!(
+                "{caller} calls the reduction {target}; only a REDUCTIE calls a REDUCTIE (RFC-048)"
+            )));
+        }
+        Ok(())
+    }
+
+    /// Resolve an input that reads a chronicle (`source.decisions`,
+    /// `source.facts`, RFC-048) from the chronicle of the call. The article
+    /// of `decisions: $<parameter>` is the value of that parameter, an
+    /// article reference (schema v0.8.11); any other value, null and
+    /// unknown included, is an error, since a read of no article would say
+    /// that no decision was taken. Without a chronicle that answers, the
+    /// input is an error too.
+    fn resolve_chronicle_read(
+        &self,
+        law: &ArticleBasedLaw,
+        input: &Input,
+        read: ChronicleRead<'_>,
+        context: &RuleContext,
+        res_ctx: &mut ResolutionContext<'_>,
+    ) -> Result<Value> {
+        let _guard = res_ctx.trace_guard(&input.name, PathNodeType::Resolve);
+        let named;
+        let read = match read {
+            ChronicleRead::Decisions(reference) => match reference.strip_prefix('$') {
+                None => read,
+                Some(path) => match context.resolve(path)? {
+                    Value::String(s) if regelrecht_law_model::is_article_reference(&s) => {
+                        named = s;
+                        ChronicleRead::Decisions(&named)
+                    }
+                    other => {
+                        let error = EngineError::TypeMismatch {
+                            expected: format!(
+                                "an article reference in {reference} for input '{}' of {}",
+                                input.name, law.id
+                            ),
+                            actual: other.to_string(),
+                        };
+                        res_ctx.trace_set_message(error.to_string());
+                        return Err(error);
+                    }
+                },
+            },
+            ChronicleRead::Facts(_) => read,
+        };
+        if let Some(chronicle) = res_ctx.chronicle {
+            let rows = chronicle.rows(self, law, read, res_ctx.calculation_date);
+            if let Some(rows) = rows.inspect_err(|e| res_ctx.trace_set_message(e.to_string()))? {
+                let keeper = chronicle.keeper().to_string();
+                res_ctx.trace_set_resolve_type(ResolveType::DataSource);
+                res_ctx.trace_set_result(rows.clone());
+                res_ctx.trace_set_source(ValueSource {
+                    kind: ResolveType::DataSource,
+                    provider: Some(keeper.clone()),
+                    scope: Some(law.id.clone()),
+                });
+                res_ctx
+                    .trace_set_message(format!("Resolving from the chronicle of {keeper}: {read}"));
+                return Ok(rows);
+            }
+        }
+        let message = format!(
+            "input '{}' of {} reads {read}, and no data source supplies them",
+            input.name, law.id
+        );
+        res_ctx.trace_set_message(message.clone());
+        Err(EngineError::DataSourceError(message))
+    }
+
     /// Whether resolving `input` calls another law: it names a regulation or
     /// an article (RFC-050) and no data source answers for it first, the
     /// order [`Self::resolve_input`] follows.
@@ -5086,20 +5194,21 @@ impl LawExecutionService {
         }
 
         // The decisions taken under an article (RFC-048): only a data source
-        // answers them, or a value passed under the input's name, as the
-        // cell passes its own decisions to its reduction.
-        // No regulation is executed for them, and no source is no empty
-        // list: a reduction over decisions nobody supplied would say that
-        // none were taken.
+        // answers them, a value passed under the input's name, or the
+        // chronicle of the call, that of the cell that runs the reduction.
+        // A reduction it calls reads that chronicle too. No regulation is
+        // executed for them, and no source is no empty list: a reduction
+        // over decisions nobody supplied would say that none were taken.
         // The recorded facts an article requires (RFC-051) likewise.
         if let Some(read) = crate::load_check::chronicle_read(source) {
-            let _guard = res_ctx.trace_guard(&input.name, PathNodeType::Resolve);
-            let message = format!(
-                "input '{}' of {} reads {read}, and no data source supplies them",
-                input.name, law.id
-            );
-            res_ctx.trace_set_message(message.clone());
-            return Err(EngineError::DataSourceError(message));
+            return self
+                .resolve_chronicle_read(law, input, read, context, res_ctx)
+                .map(Some);
+        }
+
+        // The named answer of a cell, which a binding takes (RFC-048).
+        if let Some(answer) = &source.reduction {
+            return self.resolve_answer(article, law, input, source, answer, context, res_ctx);
         }
 
         // A call to an article, named in the law or in data (RFC-050).
@@ -5470,6 +5579,11 @@ impl LawExecutionService {
             PathNodeType::CrossLawReference,
         );
 
+        if let Err(e) = self.refuse_reduction_call(context.law_id(), regulation, res_ctx) {
+            res_ctx.trace_set_message(e.to_string());
+            return Err(e);
+        }
+
         // Build parameters for the target article
         let target_params = match self.build_target_parameters(source_parameters, context) {
             Ok(p) => p,
@@ -5518,11 +5632,8 @@ impl LawExecutionService {
             .filter(|held| res_ctx.held_back.insert((*held).clone()))
             .collect();
 
-        // Execute the target article, as an article a `source.regulation`
-        // read reaches (RFC-052).
-        res_ctx.reference_pending = true;
+        // Execute the target article
         let result = self.evaluate_law_output_internal(regulation, output, target_params, res_ctx);
-        res_ctx.reference_pending = false;
 
         // Leave scope (even on error, for correct cycle tracking)
         for held in newly_held {
@@ -5557,7 +5668,7 @@ impl LawExecutionService {
     /// Resolve an input that calls the decision of an article (RFC-050).
     /// `target` is an article reference, or a `$`-reference to a value that
     /// holds one or that is a decision value. A decision value is called
-    /// anew (RFC-050): its `grondslag` with its own `fields` and `findings`.
+    /// anew (RFC-050): its `basis` with its own `fields` and `findings`.
     ///
     /// The parameters are those `fields`, then the objects of
     /// `parameters_from`, merged in order, with `parameters` on top; a name
@@ -5571,7 +5682,7 @@ impl LawExecutionService {
     /// both (RFC-050). The article runs in the version in force on the calculation
     /// date, at stage BESLUIT, as a cross-law call does, and computes the
     /// outputs of its decision item. Without `output` the input is the
-    /// decision value `{grondslag, fields, findings, outputs}`; with it,
+    /// decision value `{basis, fields, findings, outputs}`; with it,
     /// that one output.
     ///
     /// Refused at run time: a target that is no article reference, an
@@ -5608,10 +5719,10 @@ impl LawExecutionService {
             Some(path) => match context.resolve(path)? {
                 Value::String(s) if regelrecht_law_model::is_article_reference(&s) => s,
                 Value::Object(value) => {
-                    let (grondslag, fields, findings) = decision_parts(value, named_by, &caller)?;
+                    let (basis, fields, findings) = decision_parts(value, named_by, &caller)?;
                     passed = fields;
                     given_findings = findings;
-                    grondslag
+                    basis
                 }
                 value @ (Value::Null | Value::Unknown(_)) => {
                     let _guard = res_ctx.trace_guard(named_by, PathNodeType::CrossLawReference);
@@ -5872,7 +5983,7 @@ impl LawExecutionService {
                     .map(|name| Ok((name.to_string(), pick(name)?)))
                     .collect::<Result<BTreeMap<_, _>>>()?;
                 Value::Object(BTreeMap::from([
-                    ("grondslag".to_string(), Value::String(target.clone())),
+                    ("basis".to_string(), Value::String(target.clone())),
                     ("fields".to_string(), Value::Object(declared)),
                     ("findings".to_string(), Value::Object(findings)),
                     ("outputs".to_string(), Value::Object(outputs)),
@@ -10904,7 +11015,7 @@ articles:
         let key_of = |value: Value| {
             let mut params = BTreeMap::new();
             params.insert("bsn".to_string(), value);
-            cache_key("zorgtoeslag", "recht_op_zorgtoeslag", &params, false)
+            cache_key("zorgtoeslag", "recht_op_zorgtoeslag", &params)
         };
 
         assert_ne!(key_of(Value::Int(1)), key_of(Value::Int(2)));
@@ -10933,12 +11044,12 @@ articles:
         // Law and output are part of the identity too.
         let empty = BTreeMap::new();
         assert_ne!(
-            cache_key("law_a", "output", &empty, false),
-            cache_key("law_b", "output", &empty, false)
+            cache_key("law_a", "output", &empty),
+            cache_key("law_b", "output", &empty)
         );
         assert_ne!(
-            cache_key("law_a", "output_x", &empty, false),
-            cache_key("law_a", "output_y", &empty, false)
+            cache_key("law_a", "output_x", &empty),
+            cache_key("law_a", "output_y", &empty)
         );
     }
 
@@ -10957,27 +11068,22 @@ articles:
             outputs: BTreeMap::new(),
             output_provenance: BTreeMap::new(),
             parameters: params.clone(),
-            by_reference: false,
         };
 
-        assert!(entry.matches("law_a", "output_x", &params, false));
+        assert!(entry.matches("law_a", "output_x", &params));
         assert!(
-            !entry.matches("law_b", "output_x", &params, false),
+            !entry.matches("law_b", "output_x", &params),
             "another law must never reuse this entry"
         );
         assert!(
-            !entry.matches("law_a", "output_y", &params, false),
+            !entry.matches("law_a", "output_y", &params),
             "another output must never reuse this entry"
-        );
-        assert!(
-            !entry.matches("law_a", "output_x", &params, true),
-            "a read through source.regulation must never reuse this entry"
         );
 
         let mut other_params = params.clone();
         other_params.insert("bsn".to_string(), Value::String("222".to_string()));
         assert!(
-            !entry.matches("law_a", "output_x", &other_params, false),
+            !entry.matches("law_a", "output_x", &other_params),
             "other parameters must never reuse this entry"
         );
     }

@@ -51,17 +51,31 @@ open_terms:
     combine: OR
 ```
 
-Where one law reads such a term, it reads the output of the establishing article with `source.regulation`. The engine then asks only the answerers the term names, and combines their answers with the term's `combine` ([RFC-052](/rfcs/rfc-052)). A cell the term does not name is not asked. For a term without `competent_authority`, only the cell that runs the decision is asked, as before. The article's own `competent_authority` routes nothing.
+A cell's answer reaches such a term through the policy of the authority that decides, which binds the term to the answer (`source.reduction`, [RFC-048](/rfcs/rfc-048)). Wherever that binding runs, the engine asks only the answerers the term names and combines their answers with the term's `combine`. A cell the term does not name is not asked. For a term without `competent_authority`, the engine asks the cell of the policy's holder. The article's own `competent_authority` routes nothing.
 
 ## One law, several authorities
 
-A single law can name a different authority per article, because different articles describe different acts. In the Wet langdurige zorg the indication decision is the CIZ's, while later articles assign other steps to the Zorgkantoor (3.3.3, 4.2.4). Each article that grants a power has its own `competent_authority`. An article that establishes a body (Wlz 6.1.1 for the CAK, 7.1.1 for the CIZ) or imposes a duty (the *zorgplicht* of 4.2.1) grants no power, and carries none. The authority is a property of the act described in the article. A law as a whole has no single competent authority.
+A single law can name a different authority per article, because different articles describe different acts. In the Wet langdurige zorg the indication decision is the CIZ's, while later articles assign other steps to the Zorgkantoor (3.3.3, 4.2.4). Each article that grants a power has its own `competent_authority`. An article that establishes a body (Wlz 6.1.1 for the CAK, 7.1.1 for the CIZ) or imposes a duty (the *zorgplicht* of 4.2.1) grants no power, and carries none. The authority is a property of the act described in the article. A law as a whole has no single competent authority. A policy can have one, as the next section shows.
+
+## The holder of a policy
+
+Since schema v0.8.9 the schema describes `competent_authority` at the root of a rulework, for every article that names none of its own. On `UITVOERINGSBELEID` it names whose rulework it is:
+
+```yaml
+$id: beleid_vergunningen_voorbeeldstad
+regulatory_layer: UITVOERINGSBELEID
+competent_authority:
+  name: Het college van burgemeester en wethouders van Voorbeeldstad
+```
+
+A policy that binds an open term to the answer of a cell must name its holder this way, by name; the loader refuses a `#` reference or a list. A reduction names none: since schema v0.8.12 it sits with its cell (`corpus/cells/<cell>/reductions/`), and a cell answers only from the reductions it keeps.
 
 ## Further reading
 
 - [Multi-Org Execution](./multi-org-execution) - how the competent authority decides execute-vs-accept
 - [Notes and Annotations](./notes-and-annotations) - how note authority is derived from the competent authority
 - [RFC-002: Bevoegdheid](/rfcs/rfc-002) - full specification
-- [RFC-052: Synthesis](/rfcs/rfc-052) - asking the competent cells for a value of another actor
+- [RFC-051: Facts and Competence](/rfcs/rfc-051) - competence on an open term and a fact
+- [RFC-048: Reduction and Synthesis](/rfcs/rfc-048) - binding a cell's answer, and asking the competent cells for it
 - [Rules as Executed, section 4.3](/research/rules-as-executed#sec:whochooses) - the position paper on which authority chooses and publishes an encoding
 - [Rules as Executed, section 4.6](/research/rules-as-executed#sec:overrides) - the position paper on overrides and discretion

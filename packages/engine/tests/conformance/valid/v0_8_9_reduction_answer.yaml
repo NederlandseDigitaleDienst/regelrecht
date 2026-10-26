@@ -1,0 +1,41 @@
+---
+# Tier C: a reduction as the named answer of a cell (schema v0.8.9, RFC-048).
+# It fills no open term; it reads the decisions in the chronicle of its cell
+# and passes what it found to the policy of that cell's authority as a
+# parameter. It names no holder (schema v0.8.12): it sits with its cell.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$id: test_conformance_reduction_answer
+regulatory_layer: REDUCTIE
+publication_date: '2026-10-22'
+valid_from: '2026-10-22'
+name: Testreductie eerder verleend verlof
+url: https://example.invalid/reduction-answer
+articles:
+  - number: '1'
+    url: https://example.invalid/reduction-answer/1
+    text: >-
+      Het systeem van het hoofd kijkt door een chronolexografische reductie op
+      zijn eigen kroniek welke besluiten de jongere verlof verleenden.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn_jongere
+            type: string
+        input:
+          - name: besluiten
+            type: array
+            source:
+              decisions: test_conformance_produces_list#1
+          - name: al_verleend_volgens_beleid
+            type: boolean
+            source:
+              regulation: test_conformance_policy_binds_answer
+              output: al_verleend_volgens_beleid
+              parameters:
+                besluiten: $besluiten
+        output:
+          - name: verlof_al_verleend
+            type: boolean
+        actions:
+          - output: verlof_al_verleend
+            value: $al_verleend_volgens_beleid

@@ -1,0 +1,71 @@
+---
+# Tier C: the policy of the authority that decides binds an open term to the
+# named answer of a cell (schema v0.8.9, RFC-048): an article that fills the
+# term takes the answer with `source.reduction`, passing the parameters the
+# answer takes under its own names; `combine` makes one value of the answers
+# of several cells. The policy names its holder. A second article holds a
+# norm that the reduction calls.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$id: test_conformance_policy_binds_answer
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-10-22'
+valid_from: '2026-10-22'
+name: Testbeleid eerder verleend verlof
+url: https://example.invalid/policy-binds
+competent_authority:
+  name: Het hoofd van een testschool
+articles:
+  - number: '1'
+    url: https://example.invalid/policy-binds/1
+    text: >-
+      Of de jongere al verlof kreeg, ontleent het hoofd aan het antwoord van
+      zijn eigen cel over zijn eerdere besluiten.
+    machine_readable:
+      implements:
+        - law: test_conformance_produces_list
+          article: '1'
+          open_term: al_verleend
+      execution:
+        parameters:
+          - name: bsn_jongere
+            type: string
+        input:
+          - name: verlof_al_verleend
+            type: boolean
+            nullable: true
+            source:
+              reduction: verlof_al_verleend
+              parameters:
+                bsn_jongere: $bsn_jongere
+              combine: OR
+              description: Het antwoord van de cel van het hoofd.
+        output:
+          - name: al_verleend
+            type: boolean
+            nullable: true
+        actions:
+          - output: al_verleend
+            value: $verlof_al_verleend
+  - number: '2'
+    url: https://example.invalid/policy-binds/2
+    text: Verlof telt als verleend als een besluit het verleende.
+    machine_readable:
+      execution:
+        parameters:
+          - name: besluiten
+            type: array
+        output:
+          - name: al_verleend_volgens_beleid
+            type: boolean
+        actions:
+          - output: al_verleend_volgens_beleid
+            value:
+              operation: FOREACH
+              collection: $besluiten
+              as: besluit
+              filter:
+                operation: EQUALS
+                subject: $besluit.verlof_verleend
+                value: true
+              body: true
+              combine: OR

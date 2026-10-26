@@ -42,10 +42,8 @@ The package root (`src/index.ts`) exports only the small primitives. Everything 
 
 The package is written in TypeScript. As in the editor, `tsconfig.json` references two programs: `tsconfig.app.json` for the package code, and `tsconfig.node.json` for the tests, their support code and the scripts, which run under Node and get its types. The app config extends `@vue/tsconfig/tsconfig.dom.json` (strict mode) and sets `allowJs`, which lets the TypeScript modules import `grammar.generated.js`; that file stays JavaScript because `bdd/codegen/gen-js.mjs` writes it and `docs/scripts/check-gherkin-steps.mjs` loads it with plain Node. `steps.ts` checks its entries against the `GrammarEntry` type.
 
-- Nothing is compiled ahead of time. The apps' Vite builds and Vitest strip the types when they bundle or test the source, as they do for the JavaScript.
-- An import of a TypeScript module leaves out the extension (`'./values'`), also from a JavaScript file in an app. Vite and Vitest resolve it, and the code only runs through them. Plain Node does not resolve an import without an extension, so a script run with `node` cannot load these modules.
+- Nothing is compiled ahead of time: the apps' Vite builds and Vitest strip the types when they bundle or test the source. Imports leave out the extension, so a script run with plain `node` cannot load these modules. The other conventions all frontends share are in [Frontend Code](/guide/frontend-code).
 - The Gherkin runner names the engine methods it calls in a small `GherkinEngine` interface. The engine's own generated `.d.ts` is part of each app's WASM build output, which this package cannot reach.
-- The check runs `vue-tsc`, not `tsc`, because only `vue-tsc` reads the script blocks in `.vue` files. The workspace pins TypeScript 6 through an `overrides` entry in the root `package.json`: `vue-tsc` builds on the JavaScript compiler API that TypeScript 7 no longer ships. The docs site has its own lockfile and stays on TypeScript 7.
 
 ### The Gherkin runner (`./gherkin`)
 

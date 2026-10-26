@@ -41,13 +41,18 @@ the synthetic `test_*` laws) as `BDD_BUCKET=conformance cargo test --test bdd`.
 It hangs on the `Test` gate, so it blocks a merge. That bucket proves the engine
 speaks the whole feature language and depends on nothing outside the repo.
 
-The **BDD demo** job validates every law in `corpus/demo/regulation` against the
-schema and then runs bucket A over that corpus, with `REGULATION_PATH` pointing
-at it, once more with the actions in reverse order, and finally the Awb lifecycle
-test over the same corpus. Apart from the reversed run, that is what `just bdd-demo`
-does locally. The demo corpus and
-its synthetic persona data live entirely in the repository, so this job also
-hangs on the `Test` gate and blocks a merge.
+The **BDD demo** job runs bucket A over `corpus/demo/regulation`, with
+`REGULATION_PATH` pointing at it. It runs as a matrix of two legs, each on its
+own runner. The `forward` leg first validates every law in that corpus against
+the schema. It then runs the scenarios with the actions in file order, followed
+by the Awb lifecycle test over the same corpus. The `reversed` leg runs the same
+scenarios with the actions of every article in reverse order
+(`BDD_REVERSE_ACTIONS=1`). The order in the file must never change an outcome.
+Locally, `just validate-demo` and `just bdd-demo` do what the `forward` leg
+does. `just bdd-reversed` first runs both buckets over `corpus/regulation` in
+reverse, then the `reversed` leg. The demo corpus and its synthetic persona data
+live entirely in the repository, so this job also hangs on the `Test` gate and
+blocks a merge when either leg fails.
 
 Bucket A over the live corpus (`corpus/regulation/**/scenarios/*.feature`) stays out of CI. It asserts
 what the live laws currently produce, so a failure there means a law changed or a
@@ -63,19 +68,99 @@ presenter clicked, typed and scrolled; a change to the demo can leave one of tho
 with nothing to act on (a renamed button, a moved panel, a law that is gone), and
 the walkthrough would then show something other than what the voice says.
 
-The job builds the engine for the browser, starts the demo's dev server, fetches
-only the voice from the walkthrough's release, and replays every chapter in a
-headless Chromium in two window sizes. An action whose element is not found
+The job downloads the browser engine from the **WASM Build** job, starts the
+demo's dev server, fetches only the voice from the walkthrough's release, and
+replays every chapter in a headless Chromium in two window sizes. Dutch plays in
+both sizes, every other language only in the first. CI spreads these runs over
+three parallel jobs with `--shard K/3`. An action whose element is not found
 fails the job, with an annotation naming the chapter; an action that only finds
 its element with the numbers in its description masked is reported as a
 warning, since it may now point at something else. It runs when `frontend-demo/`,
 `corpus/demo/`, the engine or the schema changes, hangs on the `Test` gate, and
-is the same command as locally: `just walkthrough verify`. A failure is fixed in
-the demo, or by recording that chapter again.
+is the command you run locally, `just walkthrough verify`, with `--shard` added.
+A failure is fixed in the demo, or by recording that chapter again.
+
+### The browser jobs run in the Playwright image
+
+**E2E (mocked)**, **Rondleiding speelt terug** and the **Docs accessibility
+gate** run inside the
+[official Playwright image](https://mcr.microsoft.com/en-us/artifact/mar/playwright),
+not directly on the runner. The image ships
+Chromium with every system library it needs, so these jobs no longer run
+`playwright install --with-deps`. That step spent its time in `apt-get update`
+on the runner and varied from ten seconds to more than nine minutes.
+
+The image's apt sources point at the same Azure Ubuntu mirror the runners use.
+On a bad day that mirror serves packages at a few kilobytes a second, and
+installing a C compiler once took 22 minutes in the merge queue, past the
+queue's check timeout. The engine is therefore not built in the image at all.
+E2E and the walkthrough replay download it from the **WASM Build** job (see
+[below](#wasm-build-on-engine-changes)), so neither needs Rust or a C compiler.
+The accessibility gate installs its two packages from pinned `.deb` files, as
+described below. No job in `ci.yml` runs `apt-get`, and the `playwright-image`
+pre-commit hook fails when one does.
+
+The image is pinned by tag and digest in `ci.yml`. A Playwright release looks
+for exactly the browser build it shipped with, so the tag must equal the
+Playwright version that both `package-lock.json` and `docs/package-lock.json`
+resolve. Dependabot bumps the lockfiles and not the image, so after a
+Playwright bump the `playwright-image` pre-commit hook
+(`script/playwright-image.test.mjs`) turns the **Pre-commit** check red until
+someone moves the tag and the digest along. The digest is the
+`Docker-Content-Digest` header of the image index:
+
+```bash
+curl -sI -H 'Accept: application/vnd.oci.image.index.v1+json' \
+  https://mcr.microsoft.com/v2/playwright/manifests/v<version>-noble \
+  | grep -i docker-content-digest
+```
+
+Without that `Accept` header the registry answers 404.
+
+A step without a `shell:` runs under `bash -e` on the runner, but under `sh -e`
+in a container. The three jobs set `shell: bash` as their default, which also
+turns on `pipefail`.
+
+The container runs as root, and Git refuses a checkout owned by another user.
+The accessibility gate marks the workspace as a safe directory before its
+`git diff`. pa11y starts its Chrome with `--no-sandbox`, which Chrome needs when
+it runs as root.
+
+The gate installs two packages the image lacks. Puppeteer needs `unzip` to
+unpack pa11y's Chrome. Without the DejaVu fonts, `monospace` resolves to a CJK
+font with wider glyphs. Code blocks then overflow, and axe reports them as
+scrollable regions without keyboard access.
+
+It installs them without apt, to stay off the mirror described above.
+`script/install-a11y-debs.sh` downloads the three `.deb` files apt would pick
+(`unzip`, `fonts-dejavu-core` and its dependency `fonts-dejavu-mono`) from
+Launchpad, which keeps every published version. It checks each file against a
+SHA-256 in the script, stops on a mismatch, and installs them with `dpkg -i`.
+The result is the same files as `apt-get install`, fontconfig configuration
+included, in about two seconds. A newer Playwright image may need newer
+versions; the script says how to look them up.
+
+The preview server that pa11y reads from binds to `127.0.0.1` (`npm run a11y`
+in `docs/package.json`), and the gate's page list uses the same address. Left
+at `localhost`, the server listened on `::1` in the container while `wait-on`
+polled `127.0.0.1`, and the gate timed out before it checked a page.
 
 ### WASM build (on engine changes)
 
-Builds the engine for the WebAssembly target to catch compilation issues early.
+The **WASM Build** job runs `just wasm-build` on the runner: a release build of
+the engine with the `wasm` feature, `wasm-bindgen --target web`, and the copies
+for the demo and the docs. It uploads the result as the `wasm-engine`
+artifact, with the same paths a local build writes. E2E and the walkthrough
+replay need this job and download the artifact into their checkout, so the
+engine they run is the one built here. The job also builds the chronolexografie
+poc for wasm32, without uploading it.
+
+It builds whenever the `ci` or the `walkthrough` change group matches (see
+[change detection](#change-detection)); `walkthrough` covers the demo, its
+corpus, the engine, the schema and the shared frontend code. When it fails, the
+two jobs that need it are skipped rather than failed, and the `Test` gate would
+read that skip as a pass. The gate therefore waits for **WASM Build** as well,
+even though it is a required check of its own.
 
 ### Licence and supply-chain audit (always runs)
 
@@ -90,20 +175,43 @@ Neither scans for known vulnerabilities. That is `just audit-advisories` (RustSe
 
 ### Schema protection (on PRs)
 
-Released schema versions in `schema/v*.*.*` are immutable. CI fails if a PR tries to modify or delete a released schema. `schema/latest` is a symlink to the highest released version (currently `v0.8.8`), not a directory to edit; a schema change goes into a new version directory.
+Released schema versions in `schema/v*.*.*` are immutable. CI fails if a PR tries to modify or delete a released schema. `schema/latest` is a symlink to the highest released version (currently `v0.8.12`), not a directory to edit; a schema change goes into a new version directory.
 
 ### Provenance checks (on corpus/engine changes)
 
-Among other checks, the `provenance-checks` job verifies that every `$schema` URL in `corpus/regulation` and in the reductions under `corpus/cells` names a schema version that exists under `schema/`, that every version directory under `schema/` is registered in `packages/engine/src/schema.rs`, and that `schema/latest` points at the highest version (currently `v0.8.8`). It does not check the form of the URL: a tag-based `refs/tags/schema-vX.Y.Z` reference is the convention, but a branch-based URL that names a known version passes. On a pull request that changes engine source it also compares the version in `packages/engine/Cargo.toml` with `main`; an unchanged version only prints a warning. See [RFC-013](/rfcs/rfc-013) for context.
+Among other checks, the `provenance-checks` job verifies that every `$schema` URL in `corpus/regulation` and in the reductions under `corpus/cells` names a schema version that exists under `schema/`, that every version directory under `schema/` is registered in `packages/engine/src/schema.rs`, and that `schema/latest` points at the highest version (currently `v0.8.12`). It does not check the form of the URL: a tag-based `refs/tags/schema-vX.Y.Z` reference is the convention, but a branch-based URL that names a known version passes. On a pull request that changes engine source it also compares the version in `packages/engine/Cargo.toml` with `main`; an unchanged version only prints a warning. See [RFC-013](/rfcs/rfc-013) for context.
+
+### Docs accessibility gate (on docs changes)
+
+The **Docs accessibility gate** builds the docs site and runs pa11y-ci, with
+HTML_CodeSniffer and axe-core, over the pages it produced (`just docs-a11y`). At
+about 2.5 seconds a page the full site takes several minutes on one runner, so
+the job is a matrix of three shards. Each shard runs on its own runner, in the
+Playwright image described above, with its own Chromium.
+`scripts/gen-pa11yci.mjs` reads `A11Y_SHARD=K/N` and keeps every N-th page
+starting at the K-th. Running the pages in parallel inside one job was tried and
+dropped: pa11y-ci then shares one Chromium, and most pages failed on a protocol
+error instead of on a finding.
+
+On a pull request and in the merge queue the gate checks only the pages a
+change touches, plus the index pages above them. That holds only while every
+changed file is a page under `docs/src/content/docs/` or
+`docs/src/content/rfcs/`. Any other file in the diff, a layout or a workflow
+file for instance, sends the gate over the whole site, because it may change
+every page. A push to `main` always checks the whole site.
+
+Every shard builds the site and repeats the source checks in `npm run a11y`.
+Only the pa11y run is split. The check that no published URL disappeared runs
+in the first shard only.
 
 ### Other jobs behind the `Test` check
 
 The required `Test` check is a gate job that fails when any job it depends on fails. Besides the Rust tests, the BDD jobs, the provenance checks and the docs accessibility gate, it waits for:
 
 - **Cross-law integrity** - `script/cross-law-integriteit.py` over the corpus: misplaced, dangling or plain-param source bindings and broken `implements` declarations
-- **Frontend tests** - unit tests for the editor, lawmaking, demo, arch-explorer and shared packages, type checks of the shared package, lawmaking and the editor, bundle builds for the editor, lawmaking and demo, a check that the BDD grammar codegen is in sync, and the design-system slot guard (`just nldd-slots`), which fails the job when the design system is missing instead of skipping
+- **Frontend tests** - unit tests for the editor, lawmaking, demo, arch-explorer and shared packages, type checks of the shared package, lawmaking, the editor and the demo, bundle builds for the editor, lawmaking and demo, a check that the BDD grammar codegen is in sync, and the design-system slot guard (`just nldd-slots`), which fails the job when the design system is missing instead of skipping
 - **Ontwerpsysteem-imports** - checks that the design-system imports match the tags in use
-- **E2E (mocked)** - `just test-e2e`, the Playwright suite against mocked backends
+- **E2E (mocked)** - the Playwright suite against mocked backends (`npm run test:e2e -w frontend`, which is what `just test-e2e` runs after building the engine), plus the poc tests that run the engine
 - **Rust image build** - builds the `pipeline-api` image to catch Dockerfile breakage
 - **Docs source checks** - `npm run check:source` in `docs/`: cited paths, Gherkin steps, prose style, RFC coverage and numbering, the schema version and declared imports, without an Astro build
 
@@ -137,13 +245,19 @@ The full list of required checks on `main` is `Pre-commit`, `WASM Build`, `Prote
 
 ### The Claude review gate
 
-`claude-code-review.yml` posts its findings as review comments and takes about ten minutes, roughly twice as long as the other required checks. Merging on green used to be possible before the review had said anything. The `review-gate` job (check name **Claude review completed**) closes that window. It waits for the `claude-review` job inside its own workflow run and passes only once that job is `completed` with `success` or `neutral`.
+`claude-code-review.yml` posts its findings as review comments and takes about ten minutes, roughly twice as long as the other required checks. Merging on green used to be possible before the review had said anything. The `review-gate` job (check name **Claude review completed**) closes that window. It waits for the `claude-review` job inside its own workflow run and passes only once that job is `completed` with `success` or `neutral`. When that job will not deliver, the gate can take over a review started by hand instead (see [Starting a review by hand](#starting-a-review-by-hand)).
 
 It looks the job up by run id rather than by head SHA. `ready_for_review` and `reopened` keep the same SHA, and a SHA lookup can then read a leftover check-run from the previous run. It also queries with `filter=all`: the run id survives a "Re-run this job", and `claude-review` is then absent from the newest attempt's job list.
 
 The wait is driven by the job's `status`, never by the number of review comments. Zero comments fits "still running" as well as "the review had nothing to report". The gate does read the comments, but only for what they say, and only after it has established that the review ran to completion. That order is enforced: `assert_no_critical_finding` blocks with an internal-error message if it is reached before `assert_review_ran` has set `review_proven`, and the test suite asserts that the comment endpoints stay untouched on every path where the review is unproven.
 
 #### When the review does not apply
+
+Whether a run reviews at all is decided by the job **Resolve the commit to review** (`target`), from the pull request as the API describes it when the run starts. The event payload is not good enough for that. On PR 1801 a push and "ready for review" came ten seconds apart. The `synchronize` payload still said `draft: true`, so that run skipped the review. The `ready_for_review` payload still carried the commit from before the push. That run reviewed the old commit until the other run cancelled it. `target` skips a run whose commit is no longer the head of the PR; that run's gate reports on the old commit, and the gate on the new head judges the new one. When `target` cannot read the PR it fails rather than skips, so an API error does not pass for a draft.
+
+The gate no longer calls a draft "not applicable" on one reading. The flag has to hold for 30 seconds (`DRAFT_SETTLE_SECONDS`), and a PR that turns ready in that time is judged like any other. Usually the `ready_for_review` run then reviews the same commit, and the push run's gate waits for that review and takes it over (see [When no review is coming](#when-no-review-is-coming)). In the order in which 1801 went wrong, the `ready_for_review` run carries the old commit and nothing reviews the head. The gate then blocks with instructions, where a single reading would have reported a green "not applicable" on an unreviewed commit.
+
+Concurrency sits on the `claude-review` job alone, one group per pull request, and only a run that has something to review joins it. A newer push or a manual run replaces the review in progress; a run that skips cannot cancel anything. There is no concurrency on the workflow as a whole any more, because cancelling a whole run also cancelled its gate.
 
 `claude-review` itself cannot be a required check. It does not run on cross-repo (fork) PRs, which have no secrets and therefore no `CLAUDE_CODE_OAUTH_TOKEN`, and a required check that never reports blocks such a PR forever. `review-gate` always runs and always reports. It derives "not applicable" from the PR as the API describes it (cross-repo, draft, Dependabot) rather than from the conclusion of `claude-review`, so a failed or skipped review can never pass as an inapplicable one.
 
@@ -159,6 +273,41 @@ The comparison uses `refs/pull/N/merge`, not the head commit. A `pull_request` r
 
 Second, it reads the proof out of the review job. The step **Record that the review ran** carries `if: steps.claude-review.outputs.execution_file != ''`, and that output is only set once the Claude CLI has actually run. On a self-skip the step is `skipped`. The gate reads that step's conclusion from the `steps[]` array of the job it already looked up, so the proof is bound to this run and this attempt, and it exists just as well when the review had no findings. Right after a job completes, the jobs API can still return it without steps; the gate then keeps polling until the steps are there, rather than concluding that the proof step is missing. The gate insists on exactly one step by that name, because two would let an added decoy outvote the real one. Renaming the step means changing `PROOF_STEP` in the gate as well; the test suite asserts that the workflow still carries the step under that name with that `if:`, and the pre-commit hook runs on the workflow file for that reason.
 
+#### A review that posted nothing
+
+The proof step says the Claude CLI ran, not that anything reached the pull request. With a prompt set, the review action runs in its agent mode and posts nothing itself; whether a review appears is up to the model. On 23 October that went wrong on PRs 1778, 1779, 1798 and 1803. The review job was green within a minute, the proof step had run, and no comment by `claude[bot]` existed on the PR, while the gate reported "review afgerond". The cleanup step cannot have removed it: it deletes only what the snapshot recorded before the review started, so never a comment written during the run.
+
+The prompt now says that the final answer goes nowhere and that the review must post a summary comment with `gh pr comment`, also when there is nothing to report. The gate holds it to that. After the proof step it counts the comments `claude[bot]` wrote with the line `<!-- claude-review -->` since the review job started, in the same three places it searches for Critical findings. With none, it blocks and asks you to rerun the whole run, or to set the PR to draft and back. A review without findings is still green, as long as it says so on the PR. The count has the same edge as the Critical check: anything tagged that `claude[bot]` wrote in the window counts, including a comment from a review that was being cancelled.
+
+#### When no review is coming
+
+A skipped job is `completed` and has no steps, ever. The gate used to read "no steps yet" as "just finished, steps still on their way" and waited out the full 35 minutes for them. It now tells the cases apart. The gate gives up on its own run's review when `claude-review` was skipped, failed or was cancelled, or is still missing after `target` has finished. It then looks for another review of the same commit: first another `pull_request` run of this workflow on that commit, then a manual run (next section). With neither, it blocks after two minutes (`NO_REVIEW_GRACE_SECONDS`). The message says what to do: start a review by hand and rerun the gate, or set the PR to draft and back to ready. The long wait stays for the normal case, where a review is queued or running. A failed API call does not count as "no review": the gate cannot tell that apart from a review it failed to see, so it keeps polling until the deadline.
+
+Another `pull_request` run counts only when the PR's base is the default branch and the PR does not change the workflow file: its copy at the head commit must be the same blob as at the merge base. A `pull_request` run executes the workflow file from the test merge of that moment, which the gate cannot read back. When the PR leaves the file alone, every such test merge holds a default-branch version of it, and that is what makes the other run's proof step worth something.
+
+#### Starting a review by hand
+
+A rerun of a `pull_request` run keeps its original payload, and with it the commit it was started for. To review the current head of a PR, start the workflow by hand:
+
+```bash
+gh workflow run "Claude Code Review" -R NederlandseDigitaleDienst/regelrecht -f pr=<number>
+gh run rerun <run id of the gate> --failed
+```
+
+The run executes the workflow file from the default branch. `target` looks up the PR's head commit through the API and refuses, with an error, a PR that is closed, in draft, from a fork, or from Dependabot. Those are the same rules as on a `pull_request` run, taken from the API and not from the input. The review job checks out that commit and restores `.claude/`, `CLAUDE.md` and the other configuration the CLI reads at startup from the default branch, which the review action itself only does on PR events. It also restores `AGENTS.md`, which `CLAUDE.md` imports, and `script/claude-review-comments.sh`, which the next steps execute.
+
+A manual run runs on the default branch, so it has that branch's cache scope and OIDC subject, and the workflow must not execute code from the PR there. What it cannot stop is the review's own Bash tool working in a tree that holds the PR's files; that exposure is the same as on a `pull_request` run, but with the default branch's scope instead of the PR's.
+
+The manual run joins the PR's concurrency group, so it replaces a review in progress and is replaced by the next push.
+
+Such a run has no pull request in its payload, so its checks land on the default branch and its head SHA is a commit there. The gate of the PR therefore looks for it, but only when its own run's review will not deliver. It accepts a review job from a manual run only when all of the following hold:
+
+- GitHub records the run as `workflow_dispatch` of `.github/workflows/claude-code-review.yml`, on the default branch of this repository.
+- The workflow file at the run's own head SHA is the same blob as on the default branch now. The code that ran is then the reviewed copy, whatever ref name was used to start it.
+- The review job is named `claude-review (PR #<number> @ <head SHA>)`, with this PR's number and the commit under review.
+
+That name is the record of what the run reviewed. It comes from the workflow file alone, and the default-branch copy builds it from what `target` read from the API. Neither the PR, the person who started the run, nor the review itself can set a job name. From there the same proof step and the same Critical check apply as to the gate's own job, with the window measured from that job's `started_at`. Only the newest matching run counts. If its review failed or was cancelled, or its jobs cannot be read, the gate does not fall back on an older one. It keeps looking for two minutes, since a newer manual run may be replacing it. The run title (`Claude Code Review: PR #<number>`) is matched as well, but only to limit the number of API calls; it is set from the input and proves nothing.
+
 #### What the gate trusts
 
 The gate fetches the facts it relies on itself. The workflow that invokes it lives in the pull request, so anything that workflow passes in is written by the author of the change under review. Setting `IS_DRAFT: true` in the env block used to be enough to declare the review inapplicable. Draft status, fork status, author and the workflow file now all come from the API. The env block carries only the coordinates of the run (repository, run id, PR number), and the gate checks that the run and the PR describe the same commit, so pointing it at another PR's run yields a red.
@@ -173,7 +322,7 @@ Every red outcome states what was established and names no cause it has not test
 
 A finished review is not the same as an acceptable one. On 8 August 2026 the review put a Critical finding on PR 1234 at 10:11:31 and the PR merged at 10:11:54, green throughout, because the gate only asked whether a review had happened. It now searches what `claude[bot]` wrote for the exact string `🔴 **Critical**` and turns red on a hit, naming the comments it found it in. Three places count: the sticky comment, the inline comments, and the body of the submitted review. The last one is easy to forget, and in practice it carries findings that appear nowhere else.
 
-Only what this run wrote counts, measured against the review job's `started_at`. An item by `claude[bot]` without a usable timestamp blocks rather than silently falling outside the window; a `PENDING` review is the exception, since it was never submitted. Anything older came from an earlier run. Cleanup removes those comments, but a submitted review cannot be deleted at all, and a cleanup that fails would otherwise keep blocking a finding that has long been fixed. Without a readable `started_at` the gate blocks, because it cannot tell the two apart. One edge the window does not cover: `cancel-in-progress` does not stop a run instantly, so a comment written by the run being cancelled can land inside its successor's window and turn that one red. The next push clears it.
+Only what this run wrote counts, measured against the review job's `started_at`. An item by `claude[bot]` without a usable timestamp blocks rather than silently falling outside the window; a `PENDING` review is the exception, since it was never submitted. Anything older came from an earlier run. Cleanup removes those comments, but a submitted review cannot be deleted at all, and a cleanup that fails would otherwise keep blocking a finding that has long been fixed. Without a readable `started_at` the gate blocks, because it cannot tell the two apart. One edge the window does not cover: `cancel-in-progress` does not stop a review instantly, so a comment written by the review being cancelled can land inside its successor's window and turn that one red. The next push clears it.
 
 Only Critical blocks. Significant carries "likely" in its own definition and would often be a false positive, and an exception that becomes routine stops holding anything back. There is no override: fix the finding and push again. Since the review rewrites its comment on every run, a finding that is gone is gone from the gate too. An escape hatch (a label, a magic comment, an environment variable) is something an agent operates as easily as a person, while it reads as a human judgement, so there is none; if a case ever arises that needs one, it gets decided then.
 

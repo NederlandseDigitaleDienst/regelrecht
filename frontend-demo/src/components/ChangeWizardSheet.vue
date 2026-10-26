@@ -1,34 +1,40 @@
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import { CHANGE_TYPES, claimsFromAnswers, eventLabel, eventUnsupported, fieldLabel, groupLabel, typeDescription, typeLabel } from '../data/changeWizard.js';
-import { formatValue } from '../data/format.js';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
+import { type ChangeAnswers, type ChangeClaim, CHANGE_TYPES, claimsFromAnswers, eventLabel, eventUnsupported, fieldLabel, groupLabel, typeDescription, typeLabel } from '../data/changeWizard';
+import { formatValue } from '../data/format';
 import { useI18n } from '../i18n/index.js';
-import { useDemo } from '../store/demoStore.js';
+import { useDemo } from '../store/demoStore';
 
 // Wijziging doorgeven: iemand meldt een verandering in zijn leven (verhuisd,
 // ander inkomen, uit elkaar) in plaats van per regeling een waarde te
 // corrigeren. Elke melding wordt vertaald naar correcties op de wet die het
-// gegeven bezit (zie data/changeWizard.js), en daarna rekent elke regeling die
+// gegeven bezit (zie data/changeWizard.ts), en daarna rekent elke regeling die
 // ervan afhangt opnieuw.
 //
 // Drie stappen: wat wil je doorgeven, wat verandert er, en een bevestiging die
 // laat zien wat er precies ingaat en naar welke wet.
 
-const props = defineProps({
-  open: { type: Boolean, default: false },
+const props = withDefaults(defineProps<{
+  open?: boolean;
+}>(), {
+  open: false,
 });
-const emit = defineEmits(['close', 'submitted']);
+const emit = defineEmits<{
+  close: [];
+  submitted: [payload: { type: string; claims: ChangeClaim[] }];
+}>();
 const { t } = useI18n();
-const { corpus, submitClaim, profile, subjectBsn, features } = useDemo();
+const { corpus, submitClaim, subjectBsn, features } = useDemo();
 
-const sheet = ref(null);
+const sheet = ref<NLDDSheet | null>(null);
 const step = ref(0);
-const typeId = ref(null);
-const answers = ref({});
+const typeId = ref<string | null>(null);
+const answers = ref<ChangeAnswers>({});
 const reason = ref('');
 const error = ref('');
 /** Wat er is ingediend, voor de slotstap. */
-const submitted = ref(null);
+const submitted = ref<{ count: number; label: string; law: string | null } | null>(null);
 
 const type = computed(() => CHANGE_TYPES.find((t) => t.id === typeId.value) ?? null);
 const claims = computed(() => claimsFromAnswers(type.value, answers.value));
@@ -58,16 +64,21 @@ watch(
   },
 );
 
-function chooseType(id) {
+function chooseType(id: string) {
   typeId.value = id;
   answers.value = {};
   error.value = '';
   step.value = 1;
 }
 
-function setAnswer(name, value) {
+function setAnswer(name: string, value: unknown) {
   answers.value = { ...answers.value, [name]: value };
   error.value = '';
+}
+
+/** What an nldd field's input event carries: the value in `detail`, or on the field itself. */
+function inputValue(event: Event): string {
+  return (event as CustomEvent<{ value?: string } | null | undefined>).detail?.value ?? (event.target as EventTarget & { value: string }).value;
 }
 
 function back() {
@@ -94,6 +105,8 @@ function toConfirm() {
  * beoordeelt haar, tenzij het profiel automatisch goedkeurt.
  */
 function submit() {
+  // Submit is only reachable from step 2, which needs a chosen type.
+  const chosen = type.value!;
   const bsn = subjectBsn();
   const list = claims.value;
   const label = typeLabel(type.value);
@@ -102,7 +115,7 @@ function submit() {
       lawId: c.law,
       tileLawId: null,
       input: c.input,
-      keyField: type.value.keyField,
+      keyField: chosen.keyField,
       keyValue: bsn,
       oldValue: null,
       newValue: c.value,
@@ -110,12 +123,12 @@ function submit() {
     });
   }
   submitted.value = { count: list.length, label, law: lawName.value };
-  emit('submitted', { type: type.value.id, claims: list });
+  emit('submitted', { type: chosen.id, claims: list });
   step.value = 3;
 }
 
 /** Hoe een waarde in de bevestiging leest: een bedrag als bedrag, een adres als regel. */
-function show(claim) {
+function show(claim: ChangeClaim) {
   if (claim.value === null) return t('sheet.change.not_applicable');
   if (typeof claim.value === 'object') {
     return Object.entries(claim.value)
@@ -193,7 +206,7 @@ function show(claim) {
                     width="full"
                     :keyboard="f.kind === 'text' ? undefined : 'numeric'"
                     :prefix="f.scale ? '€' : undefined"
-                    @input="setAnswer(f.name, $event.detail?.value ?? $event.target.value)"
+                    @input="setAnswer(f.name, inputValue($event))"
                   ></nldd-text-field>
                 </nldd-form-field>
               </template>
@@ -227,7 +240,7 @@ function show(claim) {
                 :value="reason"
                 rows="3"
                 :placeholder="t('sheet.change.note.placeholder')"
-                @input="reason = $event.detail?.value ?? $event.target.value"
+                @input="reason = inputValue($event)"
               ></nldd-multi-line-text-field>
               <nldd-form-field-help-text>
                 {{ features.AUTO_APPROVE_CLAIMS ? t('sheet.change.note.help.immediate') : t('sheet.change.note.help.pending') }}

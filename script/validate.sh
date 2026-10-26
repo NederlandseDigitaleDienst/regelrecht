@@ -8,9 +8,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-# If no files given, validate all regulation YAML files, and the reductions
-# kept with each cell (corpus/cells/*/reducties, RFC-048): rulework in the
-# same format, but no regulation, so the corpus loaders leave them out.
+# If no files given, validate all regulation YAML files and the reductions,
+# which sit with their cell or with none under corpus/cells (RFC-048).
 if [ $# -eq 0 ]; then
     FILES=()
     while IFS= read -r -d '' f; do
@@ -18,7 +17,10 @@ if [ $# -eq 0 ]; then
     # Exclude dot-prefixed sidecars (e.g. .enrichment.yaml, .enrichment-result.yaml)
     # — enrichment metadata/result envelopes, not law files. `find -name '*.yaml'`
     # matches leading-dot names, so filter them out explicitly.
-    done < <( { find "$REPO_ROOT/corpus/regulation" -name '*.yaml' ! -name '.*' -print0; find "$REPO_ROOT/corpus/cells" -path '*/reducties/*' -name '*.yaml' ! -name '.*' -print0; } | sort -z)
+    done < <({
+        find "$REPO_ROOT/corpus/regulation" -name '*.yaml' ! -name '.*' -print0
+        find "$REPO_ROOT/corpus/cells" -path '*/reductions/*' -name '*.yaml' -print0
+    } | sort -z)
     set -- "${FILES[@]}"
 fi
 

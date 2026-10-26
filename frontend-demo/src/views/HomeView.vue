@@ -1,11 +1,11 @@
-<script setup>
+<script setup lang="ts">
 import { computed, onActivated, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { useDemo } from '../store/demoStore.js';
+import { useDemo } from '../store/demoStore';
 import QrCode from '../components/QrCode.vue';
 import { useI18n } from '../i18n/index.js';
-import { localeRouteName } from '../router.js';
-import { useWalkthrough } from '../walkthrough/useWalkthrough.js';
+import { localeRouteName } from '../router';
+import { useWalkthrough } from '../walkthrough/useWalkthrough';
 
 // De landingspagina op `/`. Wie de demo opent zonder te weten wat het is, leest
 // hier in een paar regels wat er te zien valt, start de presentatie met één
@@ -18,7 +18,7 @@ const router = useRouter();
 const { t, locale } = useI18n();
 
 /** Het pad van een tabblad in de taal die aan staat. */
-function pathFor(page) {
+function pathFor(page: string) {
   return router.resolve({ name: localeRouteName(page, locale.value) }).path;
 }
 const { ready } = useDemo();
@@ -100,7 +100,7 @@ const ways = computed(() => [
 // De scrollpositie van een keep-alive-view blijft staan. Voor een pagina waar
 // iemand op landt is dat verkeerd: wie via het tabblad terugkomt hoort weer
 // bovenaan te beginnen.
-const page = ref(null);
+const page = ref<HTMLElement | null>(null);
 onActivated(() => {
   page.value?.scrollTo?.({ top: 0 });
 });

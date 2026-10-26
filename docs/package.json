@@ -18,7 +18,7 @@
     "check:prose": "node ../.claude/skills/docs-writing/check-prose-style.mjs docs/src/content/docs && node ../.claude/skills/docs-writing/check-prose-style.mjs --only=rulework-compound,instance-term && node --test ../.claude/skills/docs-writing/check-prose-style.test.mjs",
     "check:source": "npm run check:cited-paths && npm run check:gherkin && npm run check:basiswerk && npm run check:prose && npm run check:rfc-coverage && npm run check:rfc-numbering && npm run check:schema-version && npm run check:imports",
     "sync:schema": "node scripts/sync-schema.mjs",
-    "a11y": "npm run build && node scripts/check-rfc-coverage.mjs && node scripts/check-roadmap-rfcs.mjs && node scripts/check-roadmap-belegging.mjs && node scripts/check-mermaid-alt.mjs && node scripts/check-heading-order.mjs && node scripts/check-links.mjs && node scripts/gen-pa11yci.mjs && ASTRO_PREVIEW_BACKGROUND=0 start-server-and-test 'astro preview --port 4173' http://localhost:4173 'pa11y-ci'",
+    "a11y": "npm run build && node scripts/check-rfc-coverage.mjs && node scripts/check-roadmap-rfcs.mjs && node scripts/check-roadmap-belegging.mjs && node scripts/check-mermaid-alt.mjs && node scripts/check-heading-order.mjs && node scripts/check-links.mjs && node scripts/gen-pa11yci.mjs && ASTRO_PREVIEW_BACKGROUND=0 start-server-and-test 'astro preview --port 4173 --host 127.0.0.1' http://127.0.0.1:4173 'pa11y-ci'",
     "nldd:imports": "node ../script/check-nldd-imports.mjs src src/nldd-components.js --write",
     "nldd:check": "node ../script/check-nldd-imports.mjs src src/nldd-components.js"
   },

@@ -1,20 +1,30 @@
-<script setup>
+<script setup lang="ts">
 import { computed, reactive, ref, shallowRef, watch } from 'vue';
 import OrgLogo from '../components/OrgLogo.vue';
 import SimBarChart from '../components/SimBarChart.vue';
-import { fieldSpec, formatValue, humanize, intlLocale } from '../data/format.js';
-import { serviceInfo } from '../data/loadCorpus.js';
-import { BUSINESS_DEFAULTS, CITIZEN_DEFAULTS, MAX_POPULATION } from '../simulation/population.js';
-import { definitionKind, overridableDefinitions } from '../simulation/lawParameters.js';
-import { NEUTRAL, paletteColor } from '../data/palette.js';
-import { runSimulation, simulationLaws, supportingLaws } from '../simulation/runner.js';
-import { BUSINESS_DIMENSIONS, CITIZEN_DIMENSIONS, breakdown, dimensionLabel, flattenResults, toCsv } from '../simulation/stats.js';
-import { disposableIncomeBreakdown, summariseDisposableIncome } from '../simulation/income.js';
-import { describeModel, featureLabel, featuresFor, taxLawIds, trainBracketModel, trainingData } from '../simulation/harmonize.js';
-import { useDemo } from '../store/demoStore.js';
-import { useNarrow } from '../useNarrow.js';
+import { fieldSpec, formatValue, humanize, intlLocale } from '../data/format';
+import { serviceInfo } from '../data/loadCorpus';
+import { BUSINESS_DEFAULTS, CITIZEN_DEFAULTS, MAX_POPULATION } from '../simulation/population';
+import { definitionKind, overridableDefinitions } from '../simulation/lawParameters';
+import { NEUTRAL, paletteColor } from '../data/palette';
+import { runSimulation, simulationLaws, supportingLaws } from '../simulation/runner';
+import { BUSINESS_DIMENSIONS, CITIZEN_DIMENSIONS, breakdown, dimensionLabel, flattenResults, groupLabel, toCsv } from '../simulation/stats';
+import { disposableIncomeBreakdown, summariseDisposableIncome } from '../simulation/income';
+import { describeModel, featureLabel, featuresFor, taxLawIds, trainBracketModel, trainingData } from '../simulation/harmonize';
+import { useDemo } from '../store/demoStore';
+import { useNarrow } from '../useNarrow';
 import { useI18n } from '../i18n/index.js';
-import { useLocalePath } from '../i18n/useLocalePath.js';
+import { useLocalePath } from '../i18n/useLocalePath';
+import type { NLDDNavigationSplitView } from '@nldd/design-system/navigation-split-view';
+import type { NLDDTabBarItem } from '@nldd/design-system/tab-bar';
+import type { LawEntry } from '../data/loadCorpus';
+import type { BusinessParams, CitizenParams, CitizenSubject, SimulationSubject } from '../simulation/population';
+import type { OverridableDefinition } from '../simulation/lawParameters';
+import type { SimulatedLaw, SimulationKind, SimulationRun } from '../simulation/runner';
+import type { BusinessPopulationSummary, CitizenPopulationSummary, LawSummary, SimulationDimension } from '../simulation/stats';
+import type { IncomeComponentSummary, IncomeResult } from '../simulation/income';
+import type { BracketModel } from '../simulation/harmonize';
+import type { BarSeries } from '../components/SimBarChart.vue';
 
 const { t } = useI18n();
 
@@ -31,22 +41,22 @@ const { goTo } = useLocalePath();
 const demo = useDemo();
 const { corpus, engine, ready, state, profile, features } = demo;
 
-const kind = ref('burgers');
+const kind = ref<SimulationKind>('burgers');
 // Een ondernemer opent op de bedrijven: wie naar Claudia wisselt wil haar
 // soort populatie zien, niet die van Merijn. Daarna blijft de keuze vrij.
 watch(() => profile.value?.type, (type) => {
   if (type) kind.value = type === 'ondernemer' ? 'ondernemers' : 'burgers';
 }, { immediate: true });
-const citizenParams = reactive(JSON.parse(JSON.stringify(CITIZEN_DEFAULTS)));
-const businessParams = reactive(JSON.parse(JSON.stringify(BUSINESS_DEFAULTS)));
-const params = computed(() => (kind.value === 'ondernemers' ? businessParams : citizenParams));
+const citizenParams = reactive<CitizenParams>(JSON.parse(JSON.stringify(CITIZEN_DEFAULTS)));
+const businessParams = reactive<BusinessParams>(JSON.parse(JSON.stringify(BUSINESS_DEFAULTS)));
+const params = computed((): CitizenParams | BusinessParams => (kind.value === 'ondernemers' ? businessParams : citizenParams));
 const referenceDate = ref(state.referenceDate);
 /** law id -> definition key -> value (only the ones the presenter touched). */
-const overrides = reactive({});
+const overrides = reactive<Record<string, Record<string, number>>>({});
 
 // The simulation runs every law of the audience that the demo shows at all;
 // a profile's own `disabled_laws` (what Merijn's portal hides) does not apply.
-function notHidden(law) {
+function notHidden(law: LawEntry) {
   const hidden = corpus.value?.config?.hidden_laws ?? {};
   return !(hidden[law.service] ?? []).some((p) => law.law_path === p || law.law_path.startsWith(`${p}/`));
 }
@@ -57,7 +67,7 @@ const lawSet = computed(() => (corpus.value ? simulationLaws(corpus.value, kind.
 const supporting = computed(() => (corpus.value ? supportingLaws(corpus.value, lawSet.value.runnable, overridableDefinitions, notHidden) : []));
 const tunable = computed(() => [...lawSet.value.runnable, ...supporting.value]);
 const definitionsByLaw = computed(() => Object.fromEntries(tunable.value.map((law) => [law.id, overridableDefinitions(law.doc)])));
-function overrideCount(lawId) {
+function overrideCount(lawId: string) {
   const own = Object.fromEntries((definitionsByLaw.value[lawId] ?? []).map((d) => [d.key, d.value]));
   return Object.entries(overrides[lawId] ?? {}).filter(([k, v]) => k in own && v !== own[k]).length;
 }
@@ -68,14 +78,19 @@ const open = reactive({ populatie: false, wetgeving: false });
 
 // De knoppen dragen sleutels, geen zinnen: ze worden hier één keer opgebouwd,
 // en een letterlijk label zou na een taalwissel in de oude taal blijven staan.
-const CITIZEN_KNOBS = [
+/** A group of population knobs; `path` leads into the population parameters. */
+interface KnobGroup {
+  groupKey: string;
+  fields: { path: string[]; labelKey: string; vars?: Record<string, string> }[];
+}
+const CITIZEN_KNOBS: KnobGroup[] = [
   { groupKey: 'sim.knobs.age_distribution', fields: ['18-30', '30-45', '45-67', '67-85', '85+'].map((k) => ({ path: ['ageDistribution', k], labelKey: 'sim.knobs.age_band', vars: { band: k } })) },
-  { groupKey: 'sim.knobs.income_distribution', fields: [['low', 'sim.knobs.income.low'], ['middle', 'sim.knobs.income.middle'], ['high', 'sim.knobs.income.high']].map(([k, labelKey]) => ({ path: ['incomeDistribution', k], labelKey })) },
+  { groupKey: 'sim.knobs.income_distribution', fields: ([['low', 'sim.knobs.income.low'], ['middle', 'sim.knobs.income.middle'], ['high', 'sim.knobs.income.high']] satisfies [string, string][]).map(([k, labelKey]) => ({ path: ['incomeDistribution', k], labelKey })) },
   { groupKey: 'sim.knobs.household', fields: [{ path: ['zeroIncomePct'], labelKey: 'sim.knobs.no_income' }, { path: ['renterPct'], labelKey: 'sim.knobs.renters' }, { path: ['studentPct'], labelKey: 'sim.knobs.students' }] },
 ];
-const BUSINESS_KNOBS = [
+const BUSINESS_KNOBS: KnobGroup[] = [
   { groupKey: 'sim.knobs.business_type', fields: [{ path: ['horecaPct'], labelKey: 'sim.knobs.hospitality' }, { path: ['foodPct'], labelKey: 'sim.knobs.food' }, { path: ['terracePct'], labelKey: 'sim.knobs.terrace' }, { path: ['employeesPct'], labelKey: 'sim.knobs.employees' }] },
-  { groupKey: 'sim.knobs.floor_area', fields: [['small', 'sim.knobs.size.small'], ['medium', 'sim.knobs.size.medium'], ['large', 'sim.knobs.size.large']].map(([k, labelKey]) => ({ path: ['sizeDistribution', k], labelKey })) },
+  { groupKey: 'sim.knobs.floor_area', fields: ([['small', 'sim.knobs.size.small'], ['medium', 'sim.knobs.size.medium'], ['large', 'sim.knobs.size.large']] satisfies [string, string][]).map(([k, labelKey]) => ({ path: ['sizeDistribution', k], labelKey })) },
 ];
 const knobs = computed(() =>
   (kind.value === 'ondernemers' ? BUSINESS_KNOBS : CITIZEN_KNOBS).map((g) => ({
@@ -84,34 +99,45 @@ const knobs = computed(() =>
     fields: g.fields.map((f) => ({ ...f, label: t(f.labelKey, f.vars) })),
   })),
 );
-function getKnob(path) {
-  return path.reduce((o, k) => o?.[k], params.value);
+/** The parameters walked by a knob path: nested records of numbers. */
+type KnobTree = { [key: string]: KnobTree | number | undefined };
+function getKnob(path: string[]) {
+  // The parameter objects are nested records of numbers (see CitizenParams, BusinessParams).
+  return path.reduce<KnobTree | number | undefined>((o, k) => (o as KnobTree | undefined)?.[k], params.value as unknown as KnobTree);
 }
-function setKnob(path, value) {
+function setKnob(path: string[], value: unknown) {
   const n = Number(value);
   if (!Number.isFinite(n)) return;
-  const target = path.slice(0, -1).reduce((o, k) => o[k], params.value);
-  target[path[path.length - 1]] = n;
+  // Every knob path ends in a number inside the parameters (CITIZEN_KNOBS, BUSINESS_KNOBS).
+  const target = path.slice(0, -1).reduce((o, k) => o[k] as KnobTree, params.value as unknown as KnobTree);
+  target[path[path.length - 1]!] = n;
 }
-function numberFrom(e) {
-  const v = e.detail?.value ?? e.target?.value;
+function numberFrom(e: Event) {
+  const v = (e as CustomEvent<{ value?: unknown } | null | undefined>).detail?.value ?? (e.target as (EventTarget & { value?: unknown }) | null)?.value;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
 
 // ---- runs ---------------------------------------------------------------------
-const runs = shallowRef([]);
-const activeTab = ref(null); // run id or 'vergelijking'
+/** A run as the view keeps it: the runner's result plus its tab number and colour. */
+interface ShownRun extends SimulationRun {
+  number: number;
+  /** palette index, or -1 for a run on the standard law */
+  colorIndex: number;
+}
+const runs = shallowRef<ShownRun[]>([]);
+const activeTab = ref<string | null>(null); // run id or 'vergelijking'
 const running = ref(false);
 const progress = reactive({ done: 0, total: 0 });
-const runError = ref(null);
+const runError = ref<string | null>(null);
 const signal = reactive({ cancelled: false });
 const mainView = ref('overzicht');
-const dimensionId = ref(null);
+const dimensionId = ref<string | null>(null);
 
 const activeRun = computed(() => runs.value.find((r) => r.id === activeTab.value) ?? null);
-const dimensions = computed(() => (activeRun.value?.kind === 'ondernemers' ? BUSINESS_DIMENSIONS : CITIZEN_DIMENSIONS));
-const dimension = computed(() => dimensions.value.find((d) => d.id === dimensionId.value) ?? dimensions.value[0]);
+const dimensions = computed((): SimulationDimension[] => (activeRun.value?.kind === 'ondernemers' ? BUSINESS_DIMENSIONS : CITIZEN_DIMENSIONS));
+// Both dimension lists are non-empty constants (stats.ts), so `[0]` exists.
+const dimension = computed((): SimulationDimension => dimensions.value.find((d) => d.id === dimensionId.value) ?? dimensions.value[0]!);
 watch(activeRun, () => {
   if (!dimensions.value.some((d) => d.id === dimensionId.value)) dimensionId.value = dimensions.value[0]?.id ?? null;
 });
@@ -128,8 +154,10 @@ async function run() {
   progress.total = Number(params.value.count) || 0;
   try {
     const result = await runSimulation({
-      engine: engine.value,
-      corpus: corpus.value,
+      // `run()` returns above unless `ready`, and the store sets `ready` only
+      // once the corpus and the engine are loaded.
+      engine: engine.value!,
+      corpus: corpus.value!,
       kind: kind.value,
       params: JSON.parse(JSON.stringify(params.value)),
       overrides: JSON.parse(JSON.stringify(overrides)),
@@ -145,13 +173,17 @@ async function run() {
     // and a colour only for a run that changed something: runs on the
     // standard law are the baseline and stay neutral.
     runNumber += 1;
-    result.number = runNumber;
-    result.colorIndex = Object.keys(result.overrides ?? {}).length ? variantNumber++ : -1;
-    runs.value = [...runs.value, result];
-    activeTab.value = result.id;
+    const shown: ShownRun = Object.assign(result, {
+      number: runNumber,
+      colorIndex: Object.keys(result.overrides ?? {}).length ? variantNumber++ : -1,
+    });
+    runs.value = [...runs.value, shown];
+    activeTab.value = shown.id;
     mainView.value = 'overzicht';
   } catch (e) {
-    runError.value = String(e?.message ?? e?.error ?? e);
+    // Whatever was thrown: an Error, an engine error object, or a value.
+    const err = e as { message?: unknown; error?: unknown } | null | undefined;
+    runError.value = String(err?.message ?? err?.error ?? e);
   } finally {
     running.value = false;
     // The simulation replaced the personas' data; give the portal its data back.
@@ -168,27 +200,28 @@ let variantNumber = 0;
  * What a run is called: its number and what it changed. "Burgers (50)" said
  * the same thing on every tab; the difference between runs is the point.
  */
-function runLabel(r) {
+function runLabel(r: ShownRun) {
   const changes = Object.values(r.overrides ?? {}).flatMap((byKey) => Object.entries(byKey));
   if (!changes.length) return `${r.number} · ${t('sim.run.label.default')}`;
-  const [key, value] = changes[0];
+  // `changes` is not empty here (checked above).
+  const [key, value] = changes[0]!;
   const kindOf = definitionKind(key, value);
   const shown = kindOf === 'eurocent' ? formatValue(value, { type: 'amount' }) : kindOf === 'percentage' ? `${num(value * 100, 3)}%` : num(value, 3);
   const more = changes.length > 1 ? ` +${changes.length - 1}` : '';
   return `${r.number} · ${humanize(key)} ${shown}${more}`;
 }
 /** The run's colour as a CSS expression: neutral for a baseline, else its own. */
-function runColor(r) {
+function runColor(r: ShownRun) {
   return r.colorIndex >= 0 ? paletteColor(r.colorIndex) : NEUTRAL;
 }
 
-function removeRun(id) {
+function removeRun(id: string) {
   runs.value = runs.value.filter((r) => r.id !== id);
   if (activeTab.value === id) activeTab.value = runs.value.at(-1)?.id ?? null;
   if (activeTab.value === 'vergelijking' && runs.value.length < 2) activeTab.value = runs.value.at(-1)?.id ?? null;
 }
-function onTab(e) {
-  const id = e.detail?.item?.dataset?.run;
+function onTab(e: Event) {
+  const id = (e as CustomEvent<{ item?: NLDDTabBarItem } | null | undefined>).detail?.item?.dataset?.run;
   if (id) activeTab.value = id;
 }
 
@@ -198,17 +231,17 @@ function onTab(e) {
 // per profiel (de POC's FEATURE_HARMONIZE).
 const harmonizeEnabled = computed(() => features.value.HARMONIZE);
 /** De wetten die samengenomen worden; standaard alles met een bedrag. */
-const harmonizeLaws = ref([]);
+const harmonizeLaws = ref<string[]>([]);
 const harmonizePrimary = ref('inkomen');
 const harmonizeBrackets = ref(5);
-const harmonizeModel = shallowRef(null);
+const harmonizeModel = shallowRef<BracketModel | null>(null);
 const harmonizeError = ref('');
 
 /** Alleen wetten die geld opleveren zijn te harmoniseren. */
 const harmonizableLaws = computed(() => {
   const run = activeRun.value;
   if (!run) return [];
-  return run.laws.filter((law) => run.summary[law.id]?.withAmount > 0);
+  return run.laws.filter((law) => (run.summary[law.id]?.withAmount ?? 0) > 0);
 });
 const harmonizeFeatures = computed(() => featuresFor(activeRun.value?.kind ?? 'burgers'));
 const harmonizeNumericFeatures = computed(() => harmonizeFeatures.value.filter((f) => f.kind === 'number'));
@@ -224,7 +257,7 @@ watch(activeRun, (run) => {
   if (run?.kind === 'ondernemers' && harmonizePrimary.value === 'inkomen') harmonizePrimary.value = numeric[0]?.key ?? 'oppervlakte';
 });
 
-function toggleHarmonizeLaw(id) {
+function toggleHarmonizeLaw(id: string) {
   harmonizeLaws.value = harmonizeLaws.value.includes(id)
     ? harmonizeLaws.value.filter((x) => x !== id)
     : [...harmonizeLaws.value, id];
@@ -236,13 +269,14 @@ function harmonize() {
   try {
     if (!harmonizeLaws.value.length) throw new Error(t('sim.harmonise.choose_law'));
     // Een belasting telt negatief mee: wat de burger overhoudt is het saldo.
-    const data = trainingData(activeRun.value, harmonizeLaws.value, taxLawIds(corpus.value));
+    // The harmonisation panel renders only inside `v-else-if="activeRun"`.
+    const data = trainingData(activeRun.value!, harmonizeLaws.value, taxLawIds(corpus.value));
     harmonizeModel.value = trainBracketModel(data, {
       primary: harmonizePrimary.value,
       brackets: Number(harmonizeBrackets.value) || 5,
     });
   } catch (e) {
-    harmonizeError.value = String(e?.message ?? e);
+    harmonizeError.value = String((e as { message?: unknown } | null | undefined)?.message ?? e);
   }
 }
 
@@ -267,26 +301,36 @@ const harmonizeNetCost = computed(() => (harmonizeModel.value?.metrics?.meanAmou
 // een run moet die dicht, anders bedekt hij de uitkomst waar het om gaat.
 // Op een breed scherm blijft het paneel gewoon staan (zie de split view in de
 // template), dus daar is de knop overbodig.
-const splitView = ref(null);
+const splitView = ref<NLDDNavigationSplitView | null>(null);
 const narrow = useNarrow();
 
-const inspector = ref(null); // { type: 'params', lawId } | { type: 'law', lawId }
-function editParameters(law) {
+const inspector = ref<{ type: 'params' | 'law'; lawId: string } | null>(null);
+function editParameters(law: { id: string }) {
   inspector.value = { type: 'params', lawId: law.id };
 }
-function showLaw(lawId) {
+function showLaw(lawId: string) {
   inspector.value = { type: 'law', lawId };
 }
 const inspectorLaw = computed(() => (inspector.value ? corpus.value?.lawById(inspector.value.lawId) : null));
-function setOverride(lawId, key, value) {
+function setOverride(lawId: string, key: string, value: unknown) {
   overrides[lawId] ??= {};
   const n = Number(value);
-  if (Number.isFinite(n)) overrides[lawId][key] = n;
+  // Set on the line above when it was missing.
+  if (Number.isFinite(n)) overrides[lawId]![key] = n;
 }
-function resetOverrides(lawId) {
+function resetOverrides(lawId: string) {
   delete overrides[lawId];
 }
-function definitionHint(def) {
+/** The value of a native `<select>` that fired `change`. */
+function selectValue(e: Event) {
+  return (e.target as HTMLSelectElement).value;
+}
+/** The first error of a law in a run, for the inspector. */
+function firstError(run: ShownRun, lawId: string) {
+  // The law is in the result `find` returned.
+  return run.results.find((r) => r.laws[lawId] && !r.laws[lawId].ok)?.laws[lawId]!.error;
+}
+function definitionHint(def: OverridableDefinition) {
   const k = definitionKind(def.key, def.value);
   if (k === 'eurocent') return t('sim.inspector.hint.eurocent', { amount: formatValue(def.value, { type: 'amount' }) });
   if (k === 'percentage') {
@@ -298,38 +342,39 @@ function definitionHint(def) {
 }
 
 // ---- presentation helpers -----------------------------------------------------
-const euro = { format: (v) => new Intl.NumberFormat(intlLocale(), { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v) };
-const pct = (v) => (v === null || v === undefined ? '–' : `${Math.round(v)}%`);
-const money = (v) => (v === null || v === undefined ? '–' : euro.format(v));
-const num = (v, digits = 0) => (v === null || v === undefined ? '–' : new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: digits }).format(v));
+const euro = { format: (v: number) => new Intl.NumberFormat(intlLocale(), { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v) };
+const pct = (v: number | null | undefined) => (v === null || v === undefined ? '–' : `${Math.round(v)}%`);
+const money = (v: number | null | undefined) => (v === null || v === undefined ? '–' : euro.format(v));
+const num = (v: number | null | undefined, digits = 0) => (v === null || v === undefined ? '–' : new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: digits }).format(v));
 
-function amountLabel(run, lawId) {
+function amountLabel(run: ShownRun, lawId: string) {
   const law = run.laws.find((l) => l.id === lawId);
   const name = run.results.find((r) => r.laws[lawId]?.amountName)?.laws[lawId]?.amountName ?? law?.primaryName;
   return name ? humanize(name) : t('sim.amount.fallback');
 }
-function amountIsMoney(run, lawId) {
+function amountIsMoney(run: ShownRun, lawId: string) {
   const doc = corpus.value?.lawById(lawId)?.doc;
   const name = run.results.find((r) => r.laws[lawId]?.amountName)?.laws[lawId]?.amountName;
   if (!name || !doc) return false;
   const spec = fieldSpec(doc, name);
   return spec?.type === 'amount' || spec?.type_spec?.unit === 'eurocent';
 }
-const fmtAmount = (run, lawId, v) => (amountIsMoney(run, lawId) ? money(v) : num(v, 1));
+const fmtAmount = (run: ShownRun, lawId: string, v: number | null | undefined) => (amountIsMoney(run, lawId) ? money(v) : num(v, 1));
 
 const lawRows = computed(() => {
   const run = activeRun.value;
   if (!run) return [];
   return run.laws
-    .map((law) => ({ ...law, s: run.summary[law.id], info: serviceInfo(corpus.value, law.service) }))
+    // The runner summarises every law of the run, and the run exists only once the corpus is loaded.
+    .map((law) => ({ ...law, s: run.summary[law.id]!, info: serviceInfo(corpus.value!, law.service) }))
     .sort((a, b) => b.s.eligiblePct - a.s.eligiblePct);
 });
 const eligibleRows = computed(() => lawRows.value.filter((l) => l.s.hasEligibility));
-const eligibleChart = computed(() => ({
+const eligibleChart = computed((): { categories: string[]; series: BarSeries[] } => ({
   categories: eligibleRows.value.map((l) => l.name),
   series: [{ name: t('sim.eligible.short'), values: eligibleRows.value.map((l) => l.s.eligiblePct) }],
 }));
-function outcomeLine(run, law) {
+function outcomeLine(run: ShownRun, law: { id: string; s: LawSummary }) {
   const s = law.s;
   const head = s.hasEligibility
     ? t('sim.outcome.eligible', { eligible: s.eligible, evaluated: s.evaluated })
@@ -339,18 +384,28 @@ function outcomeLine(run, law) {
   const errors = s.errors ? t('sim.outcome.errors', { n: s.errors }) : '';
   return head + amount + undecided + errors;
 }
-const amountChart = computed(() => {
-  const rows = lawRows.value.filter((l) => l.s.withAmount > 0 && amountIsMoney(activeRun.value, l.id));
+const amountChart = computed((): { categories: string[]; series: BarSeries[] } => {
+  // `lawRows` is empty without an active run.
+  const rows = lawRows.value.filter((l) => l.s.withAmount > 0 && amountIsMoney(activeRun.value!, l.id));
   return { categories: rows.map((l) => l.name), series: [{ name: t('sim.amount.title'), values: rows.map((l) => l.s.avgAmount) }] };
 });
-function breakdownFor(lawId) {
-  return breakdown(activeRun.value.results, lawId, dimension.value.groupOf, dimension.value.order);
+/**
+ * The current dimension's grouping, for the active run's subjects: `dimensions`
+ * follows the run's kind, so a citizen dimension only ever sees citizens.
+ */
+function groupOfSubject(): (subject: SimulationSubject) => string {
+  return dimension.value.groupOf as (subject: SimulationSubject) => string;
+}
+function breakdownFor(lawId: string) {
+  // Called only where the template has an active run.
+  return breakdown(activeRun.value!.results, lawId, groupOfSubject(), dimension.value.order);
 }
 const populationFacts = computed(() => {
   const run = activeRun.value;
   if (!run) return [];
-  const p = run.population;
   if (run.kind === 'ondernemers') {
+    // `describePopulation` summarises by the run's kind.
+    const p = run.population as BusinessPopulationSummary;
     return [
       [t('sim.population.businesses_count'), num(p.count)],
       [t('sim.population.hospitality'), pct(p.horecaPct)],
@@ -360,6 +415,7 @@ const populationFacts = computed(() => {
       [t('sim.population.with_employees'), pct(p.metWerknemersPct)],
     ];
   }
+  const p = run.population as CitizenPopulationSummary;
   return [
     [t('sim.population.persons'), num(p.count)],
     [t('sim.population.avg_age'), t('format.years', { n: num(p.gemLeeftijd) })],
@@ -380,30 +436,38 @@ const subjectColumns = computed(() => {
     ? [['kvk_nummer', humanize('kvk_nummer')], ['type', humanize('type')], ['oppervlakte', 'm²'], ['rechtsvorm', humanize('rechtsvorm')], ['werknemers', humanize('werknemers')], ['terras_m2', `${humanize('terras')} m²`], ['voedsel', humanize('voedsel')]]
     : [['bsn', humanize('bsn')], ['leeftijd', humanize('leeftijd')], ['inkomen', humanize('inkomen')], ['partner', humanize('partner')], ['kinderen', humanize('kinderen')], ['huurder', t('sim.subjects.renter')], ['student', humanize('student')]];
 });
-function subjectCell(subject, key) {
-  const v = subject[key];
-  if (key === 'inkomen') return money(v);
+function subjectCell(subject: SimulationSubject, key: string) {
+  const v = (subject as unknown as Record<string, unknown>)[key];
+  // `inkomen` is a citizen's income, a number (CitizenSubject).
+  if (key === 'inkomen') return money(v as number);
   return formatValue(v);
 }
-function eligibleCount(result) {
+function eligibleCount(result: ShownRun['results'][number]) {
   return Object.values(result.laws).filter((l) => l.ok && (l.met === true || l.met === null)).length;
 }
 
 // ---- disposable income (citizens) --------------------------------------------------
 // The POC's closing figure: what a person keeps per month after taxes and
 // benefits, and after housing. Which outputs count is demo configuration.
-const incomeComponents = computed(() => (corpus.value?.config?.simulation?.disposable_income ?? []).filter((c) => corpus.value.latestById.has(c.law)));
-const disposable = computed(() => (activeRun.value?.kind === 'burgers' && incomeComponents.value.length ? summariseDisposableIncome(activeRun.value.results, incomeComponents.value) : null));
-const disposableRows = computed(() => (disposable.value ? disposableIncomeBreakdown(activeRun.value.results, incomeComponents.value, dimension.value.groupOf, dimension.value.order) : []));
+// Without a corpus the list is empty, so the filter never reads a null corpus.
+const incomeComponents = computed(() => (corpus.value?.config?.simulation?.disposable_income ?? []).filter((c) => corpus.value!.latestById.has(c.law)));
+/** The results of a citizen run; the income calculation reads citizen fields. */
+function citizenResults(run: ShownRun): IncomeResult<CitizenSubject>[] {
+  // Only called for a 'burgers' run (see the callers), whose subjects are citizens.
+  return run.results as IncomeResult<CitizenSubject>[];
+}
+const disposable = computed(() => (activeRun.value?.kind === 'burgers' && incomeComponents.value.length ? summariseDisposableIncome(citizenResults(activeRun.value), incomeComponents.value) : null));
+// `disposable` is set only for an active citizen run, and `dimensions` follows its kind.
+const disposableRows = computed(() => (disposable.value ? disposableIncomeBreakdown(citizenResults(activeRun.value!), incomeComponents.value, dimension.value.groupOf as (subject: CitizenSubject) => string, dimension.value.order) : []));
 const componentRows = computed(() => (disposable.value ? disposable.value.components.filter((c) => c.withValue > 0) : []));
-function componentLabel(c) {
+function componentLabel(c: IncomeComponentSummary) {
   return c.component.label ?? corpus.value?.lawById(c.component.law)?.name ?? c.component.law;
 }
 
 // ---- comparison ---------------------------------------------------------------
 const comparable = computed(() => runs.value.filter((r) => r.kind === (runs.value.find((x) => x.id === activeTab.value)?.kind ?? runs.value[0]?.kind)));
 const comparisonLaws = computed(() => {
-  const ids = new Map();
+  const ids = new Map<string, SimulatedLaw>();
   for (const r of comparable.value) for (const law of r.laws) ids.set(law.id, law);
   return [...ids.values()].sort((a, b) => a.name.localeCompare(b.name));
 });
@@ -415,8 +479,9 @@ const comparisonLaws = computed(() => {
  */
 const comparisonIncome = computed(() => {
   if (!incomeComponents.value.length || comparable.value[0]?.kind !== 'burgers') return null;
-  const per = comparable.value.map((r) => summariseDisposableIncome(r.results, incomeComponents.value));
-  const rows = [
+  // Every comparable run has the kind of the first: 'burgers' here.
+  const per = comparable.value.map((r) => summariseDisposableIncome(citizenResults(r), incomeComponents.value));
+  const rows: [string, 'avgDisposable' | 'medianDisposable' | 'avgAfterHousing'][] = [
     ['sim.disposable.avg', 'avgDisposable'],
     ['sim.disposable.median', 'medianDisposable'],
     ['sim.disposable.after_housing', 'avgAfterHousing'],
@@ -432,7 +497,7 @@ const comparisonIncome = computed(() => {
   }));
 });
 /** "+ € 31" or "− € 12" against the first run; nothing when there is no change. */
-function signedMoney(delta) {
+function signedMoney(delta: number | null) {
   if (delta === null || Math.round(delta) === 0) return '';
   return `${delta > 0 ? '+' : '−'} ${money(Math.abs(delta))}`;
 }
@@ -442,13 +507,14 @@ function signedMoney(delta) {
  * average amount, and what moved. A changed cell is set in bold and accent,
  * so the one row a changed constant moved stands out among the unchanged.
  */
-function lawCell(run, i, lawId) {
+function lawCell(run: ShownRun, i: number, lawId: string) {
   const s = run.summary[lawId];
   const base = comparable.value[0]?.summary[lawId];
   const amount = s?.withAmount ? fmtAmount(run, lawId, s.avgAmount) : '';
   if (i === 0 || !s || !base) return { text: pct(s?.eligiblePct), supporting: amount, changed: false };
   const points = Math.round(s.eligiblePct ?? 0) - Math.round(base.eligiblePct ?? 0);
-  const delta = s.withAmount && base.withAmount ? s.avgAmount - base.avgAmount : 0;
+  // A summary with amounts has an average (`summariseLaw`).
+  const delta = s.withAmount && base.withAmount ? s.avgAmount! - base.avgAmount! : 0;
   // Compare what is shown: a money amount in whole euros, anything else to one decimal.
   const shownDelta = fmtAmount(run, lawId, Math.abs(delta));
   const amountMoved = shownDelta !== fmtAmount(run, lawId, 0);
@@ -459,13 +525,13 @@ function lawCell(run, i, lawId) {
 }
 const comparisonLawRows = computed(() => comparisonLaws.value.map((law) => ({ law, cells: comparable.value.map((r, i) => lawCell(r, i, law.id)) })));
 
-const comparisonChart = computed(() => ({
+const comparisonChart = computed((): { categories: string[]; series: BarSeries[] } => ({
   categories: comparisonLaws.value.map((l) => l.name),
   series: comparable.value.map((r) => ({ name: runLabel(r), color: runColor(r), values: comparisonLaws.value.map((l) => r.summary[l.id]?.eligiblePct ?? null) })),
 }));
 
 // ---- export -------------------------------------------------------------------
-function download(name, text, type) {
+function download(name: string, text: string, type: string) {
   const blob = new Blob([text], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -475,11 +541,13 @@ function download(name, text, type) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 function exportCsv() {
-  const run = activeRun.value;
+  // The export menu renders only with an active run.
+  const run = activeRun.value!;
   download(`simulatie-${run.kind}-${run.subjects.length}.csv`, toCsv(flattenResults(run.results, run.laws.map((l) => l.id))), 'text/csv;charset=utf-8');
 }
 function exportJson() {
-  const run = activeRun.value;
+  // The export menu renders only with an active run.
+  const run = activeRun.value!;
   const { results, ...rest } = run;
   download(`simulatie-${run.kind}-${run.subjects.length}.json`, JSON.stringify({ ...rest, results: flattenResults(results, run.laws.map((l) => l.id)) }, null, 2), 'application/json');
 }
@@ -535,13 +603,15 @@ function exportJson() {
           </template>
 
           <nldd-button width="full" appearance="neutral-transparent" horizontal-alignment="left" :end-icon="open.wetgeving ? 'chevron-up' : 'chevron-down'" :text="totalOverrides ? t('sim.params.title_changed', { n: totalOverrides }) : t('sim.params.title')" :expanded="open.wetgeving || undefined" @click="open.wetgeving = !open.wetgeving"></nldd-button>
+          <!-- `definitionsByLaw` has an entry for every law in `lawSet.runnable`
+               and `supporting` (they make up `tunable`), hence the `!`. -->
           <nldd-list v-if="open.wetgeving" appearance="box-tinted" :accessible-label="t('sim.params.list_label')">
-            <nldd-list-item v-for="law in lawSet.runnable" :key="law.id" size="sm" button :disabled="definitionsByLaw[law.id].length === 0 || undefined" @click="editParameters(law)">
+            <nldd-list-item v-for="law in lawSet.runnable" :key="law.id" size="sm" button :disabled="definitionsByLaw[law.id]!.length === 0 || undefined" @click="editParameters(law)">
               <nldd-cell><OrgLogo :service="law.service" size="sm" /></nldd-cell>
               <nldd-spacer-cell size="8"></nldd-spacer-cell>
-              <nldd-text-cell size="sm" :text="law.name" :supporting-text="t('sim.params.count', { n: definitionsByLaw[law.id].length })"></nldd-text-cell>
+              <nldd-text-cell size="sm" :text="law.name" :supporting-text="t('sim.params.count', { n: definitionsByLaw[law.id]!.length })"></nldd-text-cell>
               <nldd-cell v-if="overrideCount(law.id)"><nldd-tag size="sm" color="warning" :text="t('sim.params.changed', { n: overrideCount(law.id) })"></nldd-tag></nldd-cell>
-              <nldd-icon-cell v-else-if="definitionsByLaw[law.id].length" icon="chevron-right" color="secondary"></nldd-icon-cell>
+              <nldd-icon-cell v-else-if="definitionsByLaw[law.id]!.length" icon="chevron-right" color="secondary"></nldd-icon-cell>
             </nldd-list-item>
           </nldd-list>
           <template v-if="open.wetgeving && supporting.length">
@@ -552,7 +622,7 @@ function exportJson() {
               <nldd-list-item v-for="law in supporting" :key="law.id" size="sm" button @click="editParameters(law)">
                 <nldd-cell><OrgLogo :service="law.service" size="sm" /></nldd-cell>
                 <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                <nldd-text-cell size="sm" :text="law.name" :supporting-text="t('sim.params.count', { n: definitionsByLaw[law.id].length })"></nldd-text-cell>
+                <nldd-text-cell size="sm" :text="law.name" :supporting-text="t('sim.params.count', { n: definitionsByLaw[law.id]!.length })"></nldd-text-cell>
                 <nldd-cell v-if="overrideCount(law.id)"><nldd-tag size="sm" color="warning" :text="t('sim.params.changed', { n: overrideCount(law.id) })"></nldd-tag></nldd-cell>
                 <nldd-icon-cell v-else icon="chevron-right" color="secondary"></nldd-icon-cell>
               </nldd-list-item>
@@ -637,7 +707,8 @@ function exportJson() {
           <nldd-simple-section v-if="mainView === 'overzicht'" width="full">
             <nldd-container gap="16">
               <nldd-banner v-if="activeRun.cancelled" variant="warning" :text="t('sim.cancelled')" :supporting-text="t('sim.cancelled.body', { done: activeRun.results.length, total: activeRun.subjects.length })"></nldd-banner>
-              <nldd-banner v-if="Object.keys(activeRun.overrides).length" variant="accent" :text="t('sim.overrides.title')" :supporting-text="Object.entries(activeRun.overrides).map(([id, o]) => `${corpus.lawById(id)?.name ?? id}: ${Object.entries(o).map(([k, v]) => `${k} = ${v}`).join(', ')}`).join(' · ')"></nldd-banner>
+              <!-- A run exists only once the corpus has loaded; `?.` only satisfies the type. -->
+              <nldd-banner v-if="Object.keys(activeRun.overrides).length" variant="accent" :text="t('sim.overrides.title')" :supporting-text="Object.entries(activeRun.overrides).map(([id, o]) => `${corpus?.lawById(id)?.name ?? id}: ${Object.entries(o).map(([k, v]) => `${k} = ${v}`).join(', ')}`).join(' · ')"></nldd-banner>
 
               <nldd-card :accessible-label="t('sim.population.title')">
                 <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="5" :text="t('sim.population.title')" :supporting-text="t('sim.population.meta', { date: formatValue(activeRun.referenceDate), seed: activeRun.params.seed, seconds: (activeRun.durationMs / 1000).toFixed(1) })"></nldd-title-cell></nldd-container>
@@ -728,7 +799,7 @@ function exportJson() {
                       <nldd-text-cell size="sm" :text="t('sim.breakdown.after_housing')" horizontal-alignment="right"></nldd-text-cell>
                     </nldd-table-row>
                     <nldd-table-row v-for="row in disposableRows" :key="row.group">
-                      <nldd-text-cell size="sm" :text="humanize(row.group)"></nldd-text-cell>
+                      <nldd-text-cell size="sm" :text="groupLabel(row.group)"></nldd-text-cell>
                       <nldd-text-cell size="sm" :text="num(row.count)" horizontal-alignment="right"></nldd-text-cell>
                       <nldd-text-cell size="sm" :text="money(row.avgDisposable)" horizontal-alignment="right"></nldd-text-cell>
                       <nldd-text-cell size="sm" :text="money(row.medianDisposable)" horizontal-alignment="right"></nldd-text-cell>
@@ -751,7 +822,7 @@ function exportJson() {
                     <nldd-text-cell size="sm" :text="amountLabel(activeRun, law.id)" horizontal-alignment="right"></nldd-text-cell>
                   </nldd-table-row>
                   <nldd-table-row v-for="row in breakdownFor(law.id)" :key="row.group">
-                    <nldd-text-cell size="sm" :text="humanize(row.group)"></nldd-text-cell>
+                    <nldd-text-cell size="sm" :text="groupLabel(row.group)"></nldd-text-cell>
                     <nldd-text-cell size="sm" :text="`${row.eligible} / ${row.evaluated}`" horizontal-alignment="right"></nldd-text-cell>
                     <nldd-text-cell size="sm" :text="pct(row.eligiblePct)" horizontal-alignment="right"></nldd-text-cell>
                     <nldd-text-cell size="sm" :text="row.withAmount ? fmtAmount(activeRun, law.id, row.avgAmount) : '–'" horizontal-alignment="right"></nldd-text-cell>
@@ -806,7 +877,7 @@ function exportJson() {
                   <nldd-container layout="row" gap="12" layout-wrap>
                     <nldd-form-field :label="t('sim.harmonise.primary')">
                       <nldd-dropdown>
-                        <select :value="harmonizePrimary" @change="harmonizePrimary = $event.target.value">
+                        <select :value="harmonizePrimary" @change="harmonizePrimary = selectValue($event)">
                           <option v-for="f in harmonizeNumericFeatures" :key="f.key" :value="f.key">{{ featureLabel(f) }}</option>
                         </select>
                       </nldd-dropdown>
@@ -888,6 +959,7 @@ function exportJson() {
         <!-- Comparison -->
         <nldd-simple-section v-else width="full">
           <nldd-container gap="16">
+            <!-- `row.cells` is one cell per comparable run, so `comparable[i]` exists. -->
             <nldd-table v-if="comparisonIncome" :columns="`minmax(160px, 1fr) repeat(${comparable.length}, 150px)`" :accessible-label="t('sim.comparison.income')">
               <nldd-table-row slot="header">
                 <nldd-text-cell size="sm" :text="t('sim.comparison.income')"></nldd-text-cell>
@@ -895,7 +967,7 @@ function exportJson() {
               </nldd-table-row>
               <nldd-table-row v-for="row in comparisonIncome" :key="row.label">
                 <nldd-text-cell size="sm" :text="t(row.label)"></nldd-text-cell>
-                <nldd-text-cell v-for="(cell, i) in row.cells" :key="comparable[i].id" size="sm" :text="signedMoney(cell.delta) ? `**${money(cell.value)}**` : money(cell.value)" :supporting-text="signedMoney(cell.delta)" :color="signedMoney(cell.delta) ? 'accent' : undefined" horizontal-alignment="right"></nldd-text-cell>
+                <nldd-text-cell v-for="(cell, i) in row.cells" :key="comparable[i]!.id" size="sm" :text="signedMoney(cell.delta) ? `**${money(cell.value)}**` : money(cell.value)" :supporting-text="signedMoney(cell.delta)" :color="signedMoney(cell.delta) ? 'accent' : undefined" horizontal-alignment="right"></nldd-text-cell>
               </nldd-table-row>
             </nldd-table>
             <nldd-table :columns="`minmax(160px, 1fr) repeat(${comparable.length}, 150px)`" :accessible-label="t('sim.comparison.table_label')">
@@ -905,7 +977,7 @@ function exportJson() {
               </nldd-table-row>
               <nldd-table-row v-for="row in comparisonLawRows" :key="row.law.id">
                 <nldd-text-cell size="sm" :text="row.law.name"></nldd-text-cell>
-                <nldd-text-cell v-for="(cell, i) in row.cells" :key="comparable[i].id" size="sm" :text="cell.text" :supporting-text="cell.supporting" :color="cell.changed ? 'accent' : undefined" horizontal-alignment="right"></nldd-text-cell>
+                <nldd-text-cell v-for="(cell, i) in row.cells" :key="comparable[i]!.id" size="sm" :text="cell.text" :supporting-text="cell.supporting" :color="cell.changed ? 'accent' : undefined" horizontal-alignment="right"></nldd-text-cell>
               </nldd-table-row>
             </nldd-table>
             <nldd-card :accessible-label="t('sim.comparison.label')">
@@ -922,7 +994,8 @@ function exportJson() {
     <nldd-split-view-pane v-if="inspector && inspectorLaw" slot="inspector" has-content>
       <nldd-page>
         <nldd-container slot="header" padding="12">
-          <nldd-top-title-bar :text="inspectorLaw.name" :supporting-text="inspector.type === 'params' ? t('sim.inspector.params') : serviceInfo(corpus, inspectorLaw.service).name" :dismiss-text="t('sim.inspector.close')" @dismiss="inspector = null"></nldd-top-title-bar>
+          <!-- `inspectorLaw` comes from the corpus, so the corpus is loaded here. -->
+          <nldd-top-title-bar :text="inspectorLaw.name" :supporting-text="inspector.type === 'params' ? t('sim.inspector.params') : serviceInfo(corpus!, inspectorLaw.service).name" :dismiss-text="t('sim.inspector.close')" @dismiss="inspector = null"></nldd-top-title-bar>
         </nldd-container>
 
         <!-- Law parameters -->
@@ -943,23 +1016,24 @@ function exportJson() {
         </nldd-container>
 
         <!-- One law in the active run -->
+        <!-- The condition below guarantees the summary, hence the `!` inside. -->
         <nldd-container v-else-if="activeRun && activeRun.summary[inspector.lawId]" padding="12" gap="12">
           <nldd-list appearance="box-tinted" :accessible-label="t('sim.inspector.outcome')">
-            <nldd-list-item size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.evaluated')"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="num(activeRun.summary[inspector.lawId].evaluated)"></nldd-text-cell></nldd-list-item>
-            <nldd-list-item v-if="activeRun.summary[inspector.lawId].hasEligibility" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.eligible')"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="`${num(activeRun.summary[inspector.lawId].eligible)} (${pct(activeRun.summary[inspector.lawId].eligiblePct)})`"></nldd-text-cell></nldd-list-item>
-            <nldd-list-item v-if="activeRun.summary[inspector.lawId].withAmount" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.average', { name: amountLabel(activeRun, inspector.lawId) })"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="fmtAmount(activeRun, inspector.lawId, activeRun.summary[inspector.lawId].avgAmount)"></nldd-text-cell></nldd-list-item>
-            <nldd-list-item v-if="activeRun.summary[inspector.lawId].withAmount && amountIsMoney(activeRun, inspector.lawId)" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.total')"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="money(activeRun.summary[inspector.lawId].totalAmount)"></nldd-text-cell></nldd-list-item>
-            <nldd-list-item v-if="activeRun.summary[inspector.lawId].errors" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.not_computed')"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="num(activeRun.summary[inspector.lawId].errors)"></nldd-text-cell></nldd-list-item>
+            <nldd-list-item size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.evaluated')"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="num(activeRun.summary[inspector.lawId]!.evaluated)"></nldd-text-cell></nldd-list-item>
+            <nldd-list-item v-if="activeRun.summary[inspector.lawId]!.hasEligibility" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.eligible')"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="`${num(activeRun.summary[inspector.lawId]!.eligible)} (${pct(activeRun.summary[inspector.lawId]!.eligiblePct)})`"></nldd-text-cell></nldd-list-item>
+            <nldd-list-item v-if="activeRun.summary[inspector.lawId]!.withAmount" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.average', { name: amountLabel(activeRun, inspector.lawId) })"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="fmtAmount(activeRun, inspector.lawId, activeRun.summary[inspector.lawId]!.avgAmount)"></nldd-text-cell></nldd-list-item>
+            <nldd-list-item v-if="activeRun.summary[inspector.lawId]!.withAmount && amountIsMoney(activeRun, inspector.lawId)" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.total')"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="money(activeRun.summary[inspector.lawId]!.totalAmount)"></nldd-text-cell></nldd-list-item>
+            <nldd-list-item v-if="activeRun.summary[inspector.lawId]!.errors" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.not_computed')"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="num(activeRun.summary[inspector.lawId]!.errors)"></nldd-text-cell></nldd-list-item>
           </nldd-list>
-          <nldd-banner v-if="activeRun.summary[inspector.lawId].errors" variant="warning" :text="t('sim.inspector.first_error')" :supporting-text="activeRun.results.find((r) => r.laws[inspector.lawId] && !r.laws[inspector.lawId].ok)?.laws[inspector.lawId].error"></nldd-banner>
+          <nldd-banner v-if="activeRun.summary[inspector.lawId]!.errors" variant="warning" :text="t('sim.inspector.first_error')" :supporting-text="firstError(activeRun, inspector.lawId)"></nldd-banner>
           <nldd-form-field :label="t('sim.inspector.split_by')">
             <nldd-dropdown width="full">
-              <select :value="dimension.id" @change="dimensionId = $event.target.value">
+              <select :value="dimension.id" @change="dimensionId = selectValue($event)">
                 <option v-for="d in dimensions" :key="d.id" :value="d.id">{{ dimensionLabel(d) }}</option>
               </select>
             </nldd-dropdown>
           </nldd-form-field>
-          <SimBarChart :categories="breakdownFor(inspector.lawId).map((r) => humanize(r.group))" :series="[{ name: t('sim.inspector.meets'), values: breakdownFor(inspector.lawId).map((r) => r.eligiblePct) }]" unit="percent" height="220px" />
+          <SimBarChart :categories="breakdownFor(inspector.lawId).map((r) => groupLabel(r.group))" :series="[{ name: t('sim.inspector.meets'), values: breakdownFor(inspector.lawId).map((r) => r.eligiblePct) }]" unit="percent" height="220px" />
           <nldd-button appearance="secondary" start-icon="book" :text="t('sim.inspector.law_text')" @click="goTo('wetten', { lawId: inspector.lawId })"></nldd-button>
         </nldd-container>
       </nldd-page>

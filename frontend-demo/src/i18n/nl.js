@@ -91,7 +91,7 @@ export default {
   'format.missing_from_law': 'gegevens uit {law}',
 
   // ---- simulatie: dimensies en groepen ------------------------------------
-  // De groepsnamen zelf zijn sleutels in stats.js en blijven Nederlands; dit
+  // De groepsnamen zelf zijn sleutels in stats.ts en blijven Nederlands; dit
   // is alleen hoe ze op het scherm heten.
   'sim.dimension.age': 'Leeftijd',
   'sim.dimension.income': 'Inkomen',
@@ -543,7 +543,6 @@ export default {
   'sheet.edit.error.amount': 'Vul een bedrag in, bijvoorbeeld 1.250,00.',
   'sheet.edit.error.number': 'Vul een getal in.',
   'sheet.edit.error.date': 'Vul een datum in als JJJJ-MM-DD.',
-  'sheet.edit.error.json': 'Dit is geen geldige JSON.',
   'sheet.edit.error.reason.officer': 'Geef een reden op; die komt in het dossier van de zaak.',
   'sheet.edit.error.reason.citizen': 'Geef een reden op; die ziet de behandelaar.',
 
@@ -575,7 +574,7 @@ export default {
   'sheet.change.done.to_portal': 'Naar mijn regelingen',
   'sheet.change.done.another': 'Nog een wijziging',
 
-  // de soorten wijziging en hun velden (data/changeWizard.js)
+  // de soorten wijziging en hun velden (data/changeWizard.ts)
   'sheet.change.type.inkomen': 'Mijn inkomen of vermogen',
   'sheet.change.type.inkomen.description': 'Loon, winst, uitkering, spaargeld of schulden',
   'sheet.change.group.box1': 'Box 1 — werk en woning',
@@ -844,6 +843,10 @@ export default {
   'harm.feature.is_hospitality': 'Is horeca',
   'harm.feature.prepares_food': 'Bereidt voedsel',
   'harm.feature.has_terrace': 'Heeft terras',
+  'harm.group.yes': 'ja',
+  'harm.group.no': 'nee',
+  'harm.group.rest': 'Overige combinaties',
+  'harm.group.everyone': 'Iedereen',
   'harm.error.too_little_data': 'Te weinig gegevens om een model te leren; draai een grotere simulatie.',
   'harm.error.no_numeric_feature': 'Geen numeriek kenmerk om op te staffelen.',
 
@@ -877,7 +880,7 @@ export default {
   'deck.close': 'Sluiten',
   // De toetsen staan als `{prev}`, `{esc}` enzovoort in de zin en worden in het
   // dek tot `nldd-keyboard-shortcut` gevuld, zodat een taal ze elders in de zin
-  // kan zetten (zie `keyHints.js`).
+  // kan zetten (zie `keyHints.ts`).
   'deck.hint.browse': '{prev} {next} of {space} bladeren',
   'deck.hint.close': '{esc} sluit',
   'deck.hint.fullscreen': '{f} volledig scherm',

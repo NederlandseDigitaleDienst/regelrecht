@@ -2,13 +2,17 @@
 //! establishes whether a card was issued to the applicant before, and its
 //! open term makes a college or the national issuer competent for it; art.
 //! 1 decides on an application and reads that fact through
-//! `source.regulation`. Art. 2 also requires a fact only a GGD establishes. Each cell
-//! answers from its own decisions, the deciding cell asks every competent
-//! cell of its sphere, and the answers combine with `OR`.
+//! `source.regulation`. Art. 2 also requires a fact only a GGD establishes.
+//! A policy binds the term to the answer `eerder_verstrekt` (RFC-048). Each
+//! cell gives that answer from its own decisions, the deciding cell asks
+//! every competent cell of its sphere for it, and the answers combine with
+//! `OR`.
 
 // Test helpers outside a `#[test]` fn may unwrap and panic too; that is how
 // a failing fixture reports itself.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+mod common;
 
 use chrono::NaiveDate;
 use regelrecht_cel::{Cell, Error, Gram};
@@ -98,6 +102,41 @@ articles:
             value: $eerder_verstrekt
 "#;
 
+/// The policy that binds the term of art. 2 to the answer of the competent
+/// cells (RFC-048). Its holder is one college; since the term names who is
+/// competent, the engine asks those and not the holder, so the fiction lets
+/// every college of these tests decide under it.
+const BINDING: &str = r#"
+$id: beleid_eerder_fictief
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.org/beleid
+competent_authority:
+  name: wilgendaal
+articles:
+  - number: '1'
+    text: Of eerder een kaart is verstrekt, zeggen de verstrekkende instanties.
+    machine_readable:
+      implements:
+        - {law: wet_kaart_fictief, article: '2', open_term: eerder_verstrekt}
+      execution:
+        parameters:
+          - {name: bsn, type: string}
+        input:
+          - name: antwoord
+            type: boolean
+            nullable: true
+            source:
+              reduction: eerder_verstrekt
+              parameters:
+                bsn: $bsn
+        output:
+          - {name: eerder_verstrekt, type: boolean, nullable: true}
+        actions:
+          - {output: eerder_verstrekt, value: $antwoord}
+"#;
+
 /// The reduction of the cell `actor`: true when it issued `bsn` a card
 /// before, otherwise silent.
 fn reduction(actor: &str) -> String {
@@ -112,8 +151,6 @@ articles:
   - number: '1'
     text: Eerder een kaart verstrekt door deze cel.
     machine_readable:
-      implements:
-        - {{law: wet_kaart_fictief, article: '2', open_term: eerder_verstrekt}}
       execution:
         parameters:
           - {{name: bsn, type: string}}
@@ -150,10 +187,17 @@ const LAW: &str = "wet_kaart_fictief";
 const BSN: &str = "999990019";
 const COLLEGE: &str = "college van burgemeester en wethouders";
 
+/// The actors of the cells of these tests, each with its reduction.
+const CELLS: [&str; 4] = ["oostmeer", "wilgendaal", "landelijk", "ggd"];
+
 fn service() -> LawExecutionService {
     let mut service = LawExecutionService::new();
     service.load_law(GENERAL_LAW).unwrap();
     service.load_law(SPECIAL_LAW).unwrap();
+    service.load_law(BINDING).unwrap();
+    for actor in CELLS {
+        service.load_law(&reduction(actor)).unwrap();
+    }
     service
 }
 
@@ -162,19 +206,29 @@ fn day(s: &str) -> NaiveDate {
 }
 
 /// The cell `actor`, named `name` in its `cel.yaml` (`category`
-/// optional), with its reduction.
+/// optional), that gives the answer `eerder_verstrekt` from its reduction.
 fn cell(actor: &str, name: &str, category: Option<&str>) -> Cell {
+    cell_answering(actor, name, category, true)
+}
+
+/// [`cell`], giving the answer or not.
+fn cell_answering(actor: &str, name: &str, category: Option<&str>, answers: bool) -> Cell {
     let dir = tempfile::tempdir().unwrap();
     let mut identity = format!("name: {name}\n");
     if let Some(category) = category {
         identity.push_str(&format!("category: {category}\n"));
     }
-    std::fs::write(dir.path().join("cel.yaml"), identity).unwrap();
-    let here = dir
-        .path()
-        .join(format!("reducties/reductie_eerder_{actor}"));
-    std::fs::create_dir_all(&here).unwrap();
-    std::fs::write(here.join("2026-01-01.yaml"), reduction(actor)).unwrap();
+    if answers {
+        identity.push_str(&format!(
+            "answers:\n  eerder_verstrekt: reductie_eerder_{actor}\n"
+        ));
+        common::keep_reduction(
+            dir.path(),
+            &format!("reductie_eerder_{actor}"),
+            &reduction(actor),
+        );
+    }
+    common::write_identity(dir.path(), &identity);
     Cell::in_memory(actor, dir.path()).unwrap()
 }
 
@@ -274,10 +328,25 @@ fn a_card_of_another_college_counts() {
         .iter()
         .find(|f| f.term == "eerder_verstrekt")
         .unwrap();
-    let FilledBy::Answer(provenance) = &filled.filled_by else {
+    // The binding filled it, with the one answer that was not silent.
+    let FilledBy::Answer {
+        law_id,
+        article,
+        answers,
+    } = &filled.filled_by
+    else {
         panic!("one answer: {:?}", filled.filled_by)
     };
+    assert_eq!(
+        (law_id.as_str(), article.as_str()),
+        ("beleid_eerder_fictief", "1")
+    );
+    let [provenance] = answers.as_slice() else {
+        panic!("one answer: {answers:?}")
+    };
     assert_eq!(provenance.answerer, "oostmeer");
+    assert_eq!(provenance.answer, "eerder_verstrekt");
+    assert_eq!(provenance.law_id, "reductie_eerder_oostmeer");
 }
 
 #[test]
@@ -354,7 +423,7 @@ fn two_cards_combine_with_or() {
         .iter()
         .find(|f| f.term == "eerder_verstrekt")
         .unwrap();
-    let FilledBy::Answers(all) = &filled.filled_by else {
+    let FilledBy::Answer { answers: all, .. } = &filled.filled_by else {
         panic!("two answers: {:?}", filled.filled_by)
     };
     let names: Vec<&str> = all.iter().map(|p| p.answerer.as_str()).collect();
@@ -362,24 +431,40 @@ fn two_cards_combine_with_or() {
 }
 
 #[test]
-fn a_reduction_for_a_term_the_cell_is_not_competent_for_is_refused() {
+fn a_cell_the_term_does_not_name_is_not_asked() {
+    // The GGD issued a card before and its reduction would say so; the term
+    // makes no GGD competent, so the binding does not ask it, and the
+    // finding of the issuing body decides.
     let mut service = service();
     let mut ggd = ggd();
+    first(&mut service, &mut ggd, &[], "2026-03-01").unwrap();
     let e = issue(&mut service, &mut ggd, &[], "2026-10-05").unwrap_err();
-    assert!(
-        matches!(&e, Error::Refused(m) if m.contains("that term makes 'college van burgemeester en wethouders' or 'Landelijke uitgever' competent")),
-        "{e}"
-    );
     assert!(e.to_string().contains("eerder_verstrekt"), "{e}");
+    assert!(e.to_string().contains("no judgement was given"), "{e}");
 }
 
 #[test]
-fn an_incompetent_cell_of_the_sphere_is_refused_too() {
+fn a_cell_of_the_sphere_the_term_does_not_name_is_not_asked_either() {
     let mut service = service();
-    let ggd = ggd();
+    let mut ggd = ggd();
+    first(&mut service, &mut ggd, &[], "2026-03-01").unwrap();
     let mut wilgendaal = college("wilgendaal");
     let e = issue(&mut service, &mut wilgendaal, &[&ggd], "2026-10-05").unwrap_err();
-    assert!(e.to_string().contains("of the cell of 'ggd'"), "{e}");
+    assert!(e.to_string().contains("no judgement was given"), "{e}");
+}
+
+#[test]
+fn a_competent_cell_without_the_answer_is_silent() {
+    // Oostmeer issued a card, but its catalogue does not give the answer:
+    // it says nothing, and the finding decides.
+    let mut service = service();
+    let mut oostmeer = cell_answering("oostmeer", "oostmeer", Some(COLLEGE), false);
+    first(&mut service, &mut oostmeer, &[], "2026-03-01").unwrap();
+    let mut wilgendaal = college("wilgendaal");
+    let e = issue(&mut service, &mut wilgendaal, &[&oostmeer], "2026-10-05").unwrap_err();
+    assert!(e.to_string().contains("no judgement was given"), "{e}");
+    let decision = first(&mut service, &mut wilgendaal, &[&oostmeer], "2026-10-06").unwrap();
+    assert!(issued(&decision));
 }
 
 #[test]
@@ -449,7 +534,7 @@ fn the_cell_is_known_by_its_identity() {
 fn a_blank_name_or_category_is_an_error() {
     for identity in ["name: ' '\ncategory: c\n", "name: n\ncategory: ''\n"] {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("cel.yaml"), identity).unwrap();
+        common::write_identity(dir.path(), identity);
         let e = Cell::in_memory("x", dir.path()).unwrap_err();
         assert!(
             matches!(&e, Error::Setup(m) if m.contains("may not be empty")),

@@ -66,11 +66,16 @@ RUN cargo chef prepare --recipe-path recipe.json
 # Stage 3: Build (deps cached separately from source). Everything up to the
 # final `cargo build` layer is identical for all BIN variants, so the
 # expensive `cargo chef cook` layer is shared between the three images.
-FROM chef AS builder
+FROM chef AS deps
 COPY packages/Cargo.lock ./
 COPY --from=planner /build/Cargo.toml ./Cargo.toml
 COPY --from=planner /build/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
+
+# Up to here only the dependencies, as a stage of its own: warm-buildcache.yml
+# builds just this stage on every push to main, so the cook layer is in the
+# cache before the next PR needs it, whether or not main deploys.
+FROM deps AS builder
 # `cargo chef cook` rewrites the workspace Cargo.toml without
 # `[workspace.lints]`, which breaks members that declare `[lints] workspace
 # = true`. Re-COPY the real workspace manifest before the final build.

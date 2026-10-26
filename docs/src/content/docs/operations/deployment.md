@@ -35,6 +35,10 @@ When a PR merges to main, production deployment runs:
 
 `deploy-preview` and `deploy-production` each deploy all components in a single ZAD task. ZAD lets a task give way to a newer task that covers the same deployment, so two tasks for one deployment side by side would push each other aside.
 
+### The build cache
+
+Image builds read their layer cache from tags in `regelrecht-buildcache` on GHCR, and only builds on main write them. The slow layer of a Rust image is `cargo chef cook`, which compiles every dependency. When only the deploy wrote that layer, a deploy that did not go ahead left it on an old `Cargo.lock`, and every PR compiled all dependencies again. `warm-buildcache.yml` therefore builds just the `deps` stage of each Rust Dockerfile on every push to main. It writes the result to a tag of its own, such as `editor-deps` or `pipeline-deps`, and the image builds read that tag next to their own cache tag.
+
 ### On PR close, or when the label is removed
 
 The `cleanup-preview` job in `deploy.yml` deletes the `pr{N}` deployment on ZAD with its GitHub environment and deployments, and asks the ZAD cleanup action to remove the PR's `pr-{N}` image tags. No preview keeps running that nobody looks at. Fork PRs are skipped, since they never built anything. All other image cleanup happens nightly, as described below.
@@ -83,7 +87,6 @@ One failure is harmless: `Could not extract URL from result` with `"status": "su
 | Docs | `regelrecht-docs` | `docs.regelrecht.rijks.app` + `regelrecht.rijks.app` (landing) |
 | PoC portal | `regelrecht-poc` | `poc.regelrecht.rijks.app` |
 | PoC napp | `regelrecht-poc-napp` | (internal; reached through the portal at `/napp/`) |
-| PoC chronolexografie | `regelrecht-poc-chronolexografie` | (internal; reached through the portal at `/chronolexografie/`) |
 | Grafana | `regelrecht-grafana` | `grafana.regelrecht.rijks.app` (built on `main` only; not part of a preview) |
 
 The docs image also serves `/roadmap`, a read-only rendering of the werkpakketten in `docs/src/content/roadmap/` and the JSON file in `docs/src/data/`. It is not a component of its own and has no write path: changing the roadmap means editing those files through a pull request, and every werkpakket page links to its own source on GitHub. The landing page links to it from the footer, next to the documentation and research links; it stays out of the main navigation, which covers the landing page's own sections.

@@ -3,45 +3,19 @@
 //! casus: vakantieverlof (Leerplichtwet 1969 art. 13a) bij OBS De Klimop, of
 //! de gehandicaptenparkeerkaart (BABW art. 49) bij de gemeente Wilgendaal.
 //!
-//! De cel zelf staat in `packages/cel`; deze crate zet er een kleine API voor
-//! een app omheen ([`api`]) en voegt niets toe aan wat de cel doet ([`kern`]).
-//! Een casus noemt alleen de cel en het artikel dat de aanvraag vestigt; de
-//! rest leidt [`casus`] af uit de wet.
+//! De cel zelf staat in `packages/cel`; deze crate zet er het spel van één
+//! bezoeker omheen ([`spel`]) en voegt niets toe aan wat de cel doet
+//! ([`kern`]). Een casus noemt alleen de cel en het artikel dat de aanvraag
+//! vestigt; de rest leidt [`casus`] af uit de wet.
+//!
+//! Het spel draait in de browser van de bezoeker, als WebAssembly
+//! ([`wasm`], feature `wasm`), op de bestanden die de pagina meekrijgt
+//! ([`bundel`]). Er is geen server met gedeelde toestand: elk tabblad speelt
+//! zijn eigen casus.
 
-pub mod api;
+pub mod bundel;
 pub mod casus;
 pub mod kern;
-
-use axum::response::Redirect;
-use axum::routing::get;
-use axum::Router;
-use tower_http::services::{ServeDir, ServeFile};
-
-/// The app under `base` (`/` or `/<prefix>/`): the API, and the built
-/// frontend in `static_dir` with its single-page fallback.
-///
-/// The prefix goes in the router, not in a layer that rewrites the URI: axum
-/// matches the path before a layer runs (see the `poc-add` skill). `nest`
-/// does not route the bare `/<prefix>/` to the nested root, so that one
-/// redirects to `/<prefix>`.
-pub fn router(state: api::AppState, base: &str, static_dir: &str) -> Router {
-    let index = format!("{static_dir}/index.html");
-    let inner = Router::new()
-        .route_service("/", ServeFile::new(&index))
-        .route("/health", get(|| async { "OK" }))
-        .merge(api::routes())
-        .with_state(state)
-        .fallback_service(ServeDir::new(static_dir).not_found_service(ServeFile::new(&index)));
-    let prefix = base.trim_matches('/');
-    if prefix.is_empty() {
-        return inner;
-    }
-    let prefix = format!("/{prefix}");
-    let naar = prefix.clone();
-    Router::new()
-        .route(
-            &format!("{prefix}/"),
-            get(move || async move { Redirect::permanent(&naar) }),
-        )
-        .nest(&prefix, inner)
-}
+pub mod spel;
+#[cfg(feature = "wasm")]
+pub mod wasm;

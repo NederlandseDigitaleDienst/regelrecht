@@ -25,6 +25,7 @@ macro_rules! with_schema_versions {
             "v0.5.1", "v0.5.2", "v0.5.3", "v0.5.4", "v0.5.5", "v0.5.6",
             "v0.5.7", "v0.5.8", "v0.5.9", "v0.6.0", "v0.7.0", "v0.7.1",
             "v0.8.0", "v0.8.1", "v0.8.2", "v0.8.3", "v0.8.4", "v0.8.5", "v0.8.6", "v0.8.7", "v0.8.8",
+            "v0.8.9", "v0.8.10", "v0.8.11", "v0.8.12",
         }
     };
 }
@@ -70,10 +71,12 @@ pub fn detect_version(value: &serde_json::Value) -> Option<&'static str> {
     let schema_url = value.get("$schema")?.as_str()?;
     macro_rules! detect {
         ($($version:literal),* $(,)?) => {
-            // Version strings are mutually non-substring, so match order is
-            // irrelevant to correctness.
+            // A version is a whole path segment (`/v0.8.10/`): `v0.8.1` is a
+            // substring of `v0.8.10`, so a bare `contains` would match the
+            // wrong one. As segments, the versions are mutually
+            // non-substring, so match order is irrelevant to correctness.
             $(
-                if schema_url.contains($version) {
+                if schema_url.contains(concat!("/", $version, "/")) {
                     return Some($version);
                 }
             )*
@@ -182,7 +185,7 @@ mod tests {
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or_else(|| panic!("schema {version} has no $id"));
             assert!(
-                id.contains(version),
+                id.contains(&format!("/{version}/")),
                 "schema {version} embedded under the wrong key: $id is {id}"
             );
         }
@@ -199,6 +202,13 @@ mod tests {
         // An older version resolves to itself, not to the newest entry.
         let older = serde_json::json!({ "$schema": "schema/v0.3.1/schema.json" });
         assert_eq!(detect_version(&older), Some("v0.3.1"));
+
+        // A two-digit patch is not read as the version it starts with.
+        let two_digits = serde_json::json!({
+            "$schema": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/\
+                        refs/tags/schema-v0.8.10/schema/v0.8.10/schema.json"
+        });
+        assert_eq!(detect_version(&two_digits), Some("v0.8.10"));
     }
 
     #[test]

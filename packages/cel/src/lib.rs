@@ -10,11 +10,12 @@
 //! run, and appends one chronolexogram to the chronicle ([`chronicle`]).
 //!
 //! The decision on an application is a second chronolexogram ([`decision`],
-//! RFC-047). It refers to the application; where each value comes from
-//! follows from the law and that reference. The cell reads its chronicle
-//! back through its reductions ([`reading`], RFC-048): rulework of the kind
-//! `REDUCTIE` that it keeps itself, each filling an open term of the law
-//! (`implements`).
+//! RFC-047). It refers to the application; where each value comes from follows
+//! from the law and that reference. The cell reads its chronicle back through
+//! its reductions ([`reading`], RFC-048): rulework of the kind `REDUCTIE` the
+//! cell keeps in its directory (`reductions`), whose outputs it gives as named
+//! answers (`cel.yaml`, [`identity`]). The policy of the deciding authority
+//! binds an open term of the law to such an answer.
 //!
 //! A submission may refer to a decision (RFC-050): a field of type
 //! `decision` holds it, and the deciding article gets its decision value.
@@ -28,13 +29,15 @@ pub mod cell;
 pub mod chronicle;
 pub mod decision;
 pub mod error;
+pub mod files;
 pub mod identity;
 pub mod reading;
 pub mod shape;
 
-pub use cell::Cell;
-pub use chronicle::{Chronicle, Gram, GramMoment, EXECUTOGRAM};
+pub use cell::{Cell, Reference};
+pub use chronicle::{Afschrift, Chronicle, Gram, GramMoment, Received, EXECUTOGRAM};
 pub use decision::{DecisionShape, Input, Source};
 pub use error::{Error, Result};
-pub use reading::{Answer, Reduction, Term};
+pub use files::{Bundle, Disk, Files};
+pub use reading::{Binding, Term};
 pub use shape::{Field, Moment, Shape};

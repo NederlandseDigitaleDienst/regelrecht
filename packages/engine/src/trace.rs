@@ -168,9 +168,9 @@ pub struct PathNode {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub type_spec: Option<ValueTypeSpec>,
 
-    /// On an open term the caller's answerer filled: who answered and from
-    /// what (RFC-048). How the answer came about is not in this trace; the
-    /// answerer explains it on request.
+    /// On the node of a named answer a binding took (`source.reduction`,
+    /// RFC-048): who answered and from what. How the answer came about is
+    /// not in this trace; the answerer explains it on request.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub answer: Option<AnswerProvenance>,
 }
@@ -1052,11 +1052,16 @@ impl Default for TraceBuilder {
 
 impl TraceBuilder {
     /// Create a new TraceBuilder with tracing enabled and timing.
+    ///
+    /// Under WebAssembly it times nothing, as [`TraceBuilder::new_untimed`]:
+    /// `Instant::now()` panics on `wasm32-unknown-unknown`, which has no
+    /// clock, so a traced evaluation there would abort. `duration_us` is
+    /// absent under WebAssembly either way (RFC-039).
     pub fn new() -> Self {
         Self {
             stack: Vec::new(),
             enabled: true,
-            timed: true,
+            timed: !cfg!(target_arch = "wasm32"),
         }
     }
 

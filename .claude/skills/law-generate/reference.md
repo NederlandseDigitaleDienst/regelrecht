@@ -61,7 +61,7 @@ machine_readable:
   overrides:                    # Lex specialis declarations (optional, RFC-007)
     - law: algemene_wet_bestuursrecht   # omit for an article of this same law
       article: '6:7'            # the producing entry's number as this file writes it
-      output: bezwaartermijn_weken
+      output: termijn_weken
       voids: false              # true: the output does not arise at all
       legal_text_excerpt: In afwijking van artikel 6:7 ...
 
@@ -337,7 +337,7 @@ operation: DATE_ADD
 date: $bekendmaking_datum          # Base date (operationValue)
 years: 1                           # optional (operationValue)
 months: 3                          # optional (operationValue)
-weeks: $bezwaartermijn_weken       # optional (operationValue)
+weeks: $termijn_weken              # optional (operationValue)
 days: 1                            # optional (operationValue)
 ```
 
@@ -557,13 +557,13 @@ machine_readable:
   overrides:
     - law: algemene_wet_bestuursrecht   # $id of the law being overridden
       article: '6:7'                     # Article number being overridden
-      output: bezwaartermijn_weken       # Specific output being replaced
+      output: termijn_weken              # Specific output being replaced
   execution:
     output:
-      - name: bezwaartermijn_weken
+      - name: termijn_weken
         type: number
     actions:
-      - output: bezwaartermijn_weken
+      - output: termijn_weken
         value: 4
 ```
 

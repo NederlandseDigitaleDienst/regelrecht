@@ -9,7 +9,7 @@
  */
 
 /** The submission kinds a list item's `type` can name; any other is a legal character. */
-export const SUBMISSION_KINDS: readonly string[] = ['AANVRAAG', 'BEZWAAR'];
+export const SUBMISSION_KINDS: readonly string[] = ['AANVRAAG', 'BEZWAAR', 'BEROEP'];
 
 /**
  * One produced item, in either form. The list form names what it is with

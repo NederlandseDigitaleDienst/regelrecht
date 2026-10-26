@@ -161,10 +161,14 @@ pub struct TypeSpec {
 /// - Simple regulation reference: `regulation: "other_law"` + `output: "field_name"`
 /// - Same-law reference: `output: "field_name"` (resolved within the same law)
 /// - The decisions taken under an article: `decisions: "<regulation>#<article>"`
-///   (schema v0.8.2, RFC-048), only in a `REDUCTIE`
+///   (schema v0.8.2, RFC-048), or a `$`-reference to a parameter that holds
+///   one (schema v0.8.11), only in a `REDUCTIE`
 /// - The recorded instances of a fact an article requires: `facts:
 ///   "<regulation>#<article>#<fact>"` (schema v0.8.7, RFC-051), only in a
 ///   `REDUCTIE`
+/// - The named answer of a cell: `reduction: "<answer>"` with `parameters`
+///   (schema v0.8.9, RFC-048), only in a policy article that fills an open
+///   term (`implements`)
 /// - The decision of an article: `article: "<regulation>#<article>"` or a
 ///   `$`-reference that holds one, with `parameters_from` (schema v0.8.4,
 ///   RFC-050)
@@ -187,15 +191,16 @@ pub struct Source {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// The decisions taken under this article, `<regulation>#<article>`
-    /// (schema v0.8.2, RFC-048): a list with one row per decision. Only a
-    /// data source answers it, such as the cell that holds the decisions in
-    /// its chronicle, or the caller with a parameter of that name; no
-    /// regulation is executed for it. Only a rulework
-    /// with `regulatory_layer: REDUCTIE` may read it.
+    /// (schema v0.8.2, RFC-048), or a `$`-reference to a parameter of the
+    /// reading article that holds one (schema v0.8.11): a list with one row
+    /// per decision. Only a data source answers it, such as the cell on
+    /// whose chronicle the reduction is applied, or the caller with a
+    /// parameter of that name; no regulation is executed for it. Only a
+    /// rulework with `regulatory_layer: REDUCTIE` may read it.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_article_reference"
+        deserialize_with = "optional_article_target"
     )]
     pub decisions: Option<String>,
     /// The recorded instances of a fact an article requires,
@@ -212,9 +217,24 @@ pub struct Source {
         deserialize_with = "optional_fact_reference"
     )]
     pub facts: Option<String>,
+    /// The named answer of a cell this input takes (schema v0.8.9,
+    /// RFC-048): the name under which a cell gives it in its catalogue
+    /// (`cel.yaml`, `answers`), with `parameters` as the values the cell's
+    /// reduction gets under its own names. Only a policy article that fills
+    /// an open term (`implements`) takes one: it binds the term to the
+    /// answer. The engine asks the cells of the call for it: those the
+    /// filled term names in its `competent_authority`, or else the cell of
+    /// the policy's holder. Without a cell that answers, the value is null.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reduction: Option<String>,
+    /// With `reduction`: how the answers of several cells make one value,
+    /// with the aggregations of FOREACH (schema v0.8.9, RFC-052), where the
+    /// filled term itself names no `combine`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub combine: Option<CombineOp>,
     /// The article whose decision this input takes (schema v0.8.4, RFC-050):
     /// an article reference `<regulation>#<article>`, or a `$`-reference to
-    /// a value that holds one, such as the `grondslag` of a `decision`
+    /// a value that holds one, such as the `basis` of a `decision`
     /// value. Without `output` the input is the decision value of that
     /// article; with `output`, that one output of its decision item. Stands
     /// apart from `regulation`, `decisions` and `endpoint`.
@@ -399,7 +419,7 @@ impl From<Produces> for ProducesList {
 
 /// The kinds of submission a produced item's `type` can name (RFC-045). Any
 /// other `type` is a legal character.
-pub const SUBMISSION_KINDS: &[&str] = &["AANVRAAG", "BEZWAAR"];
+pub const SUBMISSION_KINDS: &[&str] = &["AANVRAAG", "BEZWAAR", "BEROEP"];
 
 /// One item of `produces` in the list form (schema v0.8.1, RFC-047): a
 /// submission, such as an application, or a decision, each with what it
@@ -576,8 +596,8 @@ pub struct Produces {
 #[serde(deny_unknown_fields)]
 pub struct Submission {
     /// The kind of submission, as the law names it: one of
-    /// [`SUBMISSION_KINDS`], `AANVRAAG` (Awb 1:3 lid 3) or `BEZWAAR` (Awb 1:5
-    /// lid 1).
+    /// [`SUBMISSION_KINDS`], `AANVRAAG` (Awb 1:3 lid 3), `BEZWAAR` (Awb 1:5
+    /// lid 1) or `BEROEP` (Awb 8:1, schema v0.8.10).
     pub kind: String,
 }
 

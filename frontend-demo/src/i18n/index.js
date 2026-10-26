@@ -5,13 +5,13 @@
  * a translation of it, and `en.sources.js` records which Dutch string each
  * translation was made from, so a changed original shows up as a stale
  * translation instead of silently keeping an old English sentence. See
- * `i18n.test.js` for what that buys.
+ * `i18n.test.ts` for what that buys.
  *
  * Shaped after `useColorScheme()` from @regelrecht/frontend-shared, which this
  * app already consumes: a module-level ref, a readonly accessor, and writes
  * that go through one setter. The locale deliberately is NOT a component-scoped
  * value, because the strings are needed in plain modules that have no setup()
- * — `format.js` (imported by its own tests), `delegation.js`, `stats.js`.
+ * — `format.ts` (imported by its own tests), `delegation.ts`, `stats.ts`.
  * That is also the reason this is not vue-i18n: its `useI18n()` only works
  * inside a component, so every one of those modules would need the parallel
  * `global.t` API instead.

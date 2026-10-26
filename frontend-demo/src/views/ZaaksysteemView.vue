@@ -1,16 +1,20 @@
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import CorrectionRows from '../components/CorrectionRows.vue';
 import DataLineage from '../components/DataLineage.vue';
 import EditValueSheet from '../components/EditValueSheet.vue';
-import { fieldSpec, formatDateTime, formatValue, humanize } from '../data/format.js';
-import { lineageFromTrace } from '../data/lineage.js';
-import { caseReason, eventText, useDemo } from '../store/demoStore.js';
-import { isDelegationProvider, producesBeschikking, subjectOf } from '../data/entrypoints.js';
-import { awbOutcomes, statusOf } from '../data/lifecycle.js';
+import { fieldSpec, formatDateTime, formatValue, humanize } from '../data/format';
+import { lineageFromTrace } from '../data/lineage';
+import { caseReason, eventText, useDemo } from '../store/demoStore';
+import { isDelegationProvider, producesBeschikking, subjectOf } from '../data/entrypoints';
+import { awbOutcomes, statusOf } from '../data/lifecycle';
 import { useI18n } from '../i18n/index.js';
-import { useLocalePath } from '../i18n/useLocalePath.js';
+import { useLocalePath } from '../i18n/useLocalePath';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
+import type { DemoCase, DemoClaim } from '../store/demoStore';
+import type { LawEntry } from '../data/loadCorpus';
+import type { LineageNode } from '../data/lineage';
 
 // Naar een ander tabblad op naam, niet op pad: onder `/en/` leidt een
 // letterlijk Nederlands pad de bezoeker ongemerkt het Nederlandse tabblad in.
@@ -27,16 +31,25 @@ const route = useRoute();
 const demo = useDemo();
 const { corpus, profile, state, dataVersion } = demo;
 
-const service = ref(null);
+const service = ref<string | null>(null);
 watch(() => profile.value?.zaaksysteem_service, (s) => { if (s && !service.value) service.value = s; }, { immediate: true });
 
 // Every organisation that executes a law in the demo has a case system; the
 // presenter can step into any of them. The profile picks the one to start in.
 const services = computed(() => {
   if (!corpus.value) return [];
-  const set = new Set([...corpus.value.latestById.values()].map((l) => l.service).filter(Boolean));
-  return [...set].sort((a, b) => (corpus.value.services[a]?.name ?? a).localeCompare(corpus.value.services[b]?.name ?? b));
+  const set = new Set([...corpus.value.latestById.values()].map((l) => l.service).filter((s): s is string => Boolean(s)));
+  // `corpus.value!`: checked at the top; the sort runs synchronously within.
+  return [...set].sort((a, b) => (corpus.value!.services[a]?.name ?? a).localeCompare(corpus.value!.services[b]?.name ?? b));
 });
+/**
+ * A service's display name, for the template. The view renders only once the
+ * corpus has loaded (App.vue). A null code used to index the key "null", which
+ * no service has; the result is the same.
+ */
+function serviceName(code: string | null): string | null {
+  return (code === null ? undefined : corpus.value?.services[code]?.name) ?? code;
+}
 /** The regelingen this organisation executes, with the number of cases per regeling. */
 const orgLaws = computed(() => {
   if (!corpus.value || !service.value) return [];
@@ -67,7 +80,7 @@ watch(selected, (c) => { if (c && c.service !== service.value) service.value = c
 // into a column too thin to read. It also matches the citizen's side, where an
 // application opens the same way (ApplicationSheet), so the same case looks the
 // same from both ends.
-const caseSheet = ref(null);
+const caseSheet = ref<NLDDSheet | null>(null);
 watch(
   selected,
   async (c) => {
@@ -78,27 +91,28 @@ watch(
   { immediate: true },
 );
 
-function open(c) {
+function open(c: DemoCase) {
   goTo('zaaksysteem', { caseId: c.id });
 }
 function close() {
   goTo('zaaksysteem');
 }
 
-function personaName(bsn) {
+function personaName(bsn: string | undefined) {
   // A BSN without a persona (e.g. a case persisted before profiles.yaml
   // changed) is stated as a fact, not passed off as a name.
-  return corpus.value?.profiles?.profiles?.[bsn]?.name ?? t('zaak.unknown_person', { bsn });
+  // An undefined BSN indexes the key "undefined", which no persona has.
+  return corpus.value?.profiles?.profiles?.[bsn as string]?.name ?? t('zaak.unknown_person', { bsn });
 }
 // Wie de zaak betreft. Een aanvraag namens een onderneming gaat over die
 // onderneming en heeft geen BSN; dan staat haar naam er, of haar KvK-nummer.
-function subjectName(c) {
+function subjectName(c: DemoCase) {
   if (c.acting?.subjectType === 'BUSINESS') return c.acting.subjectName;
   if (c.bsn) return personaName(c.bsn);
   if (c.kvk) return t('zaak.portaal.kvk', { number: c.kvk });
   return personaName(c.bsn);
 }
-function lawOf(c) {
+function lawOf(c: DemoCase) {
   return corpus.value?.lawById(c.lawId) ?? null;
 }
 
@@ -120,9 +134,9 @@ const lineage = computed(() => {
   return lineageFromTrace(verified.value.trace, c.lawId, c.parameters ?? {});
 });
 /** The lineage value node the caseworker is correcting; null = sheet closed. */
-const editing = ref(null);
+const editing = ref<LineageNode | null>(null);
 
-function outputRows(c) {
+function outputRows(c: DemoCase) {
   const law = lawOf(c);
   const claimed = c.claimedResult ?? {};
   // A failed recomputation has no "now" value to compare against: show the
@@ -139,11 +153,14 @@ function outputRows(c) {
   }));
 }
 
-const caseClaims = computed(() => (selected.value ? state.claims.filter((cl) => cl.caseId === selected.value.id || (cl.bsn === (selected.value.claimsBsn ?? selected.value.bsn) && cl.tileLawId === selected.value.lawId)) : []));
-const serviceClaims = computed(() => state.claims.filter((cl) => cl.status === 'PENDING' && (corpus.value?.lawById(cl.tileLawId)?.service === service.value || corpus.value?.lawById(cl.lawId)?.service === service.value)));
+// `selected.value!` inside the filter: the ternary checked it, and the computed
+// cannot change while the filter runs.
+const caseClaims = computed(() => (selected.value ? state.claims.filter((cl) => cl.caseId === selected.value!.id || (cl.bsn === (selected.value!.claimsBsn ?? selected.value!.bsn) && cl.tileLawId === selected.value!.lawId)) : []));
+// A claim without `tileLawId` looks up `undefined`/`null`, which finds no law.
+const serviceClaims = computed(() => state.claims.filter((cl) => cl.status === 'PENDING' && (corpus.value?.lawById(cl.tileLawId as string)?.service === service.value || corpus.value?.lawById(cl.lawId)?.service === service.value)));
 
 const reason = ref('');
-function decide(approved) {
+function decide(approved: boolean) {
   if (!selected.value) return;
   // Without a typed reason, say who decided — not what the law says. A
   // caseworker can approve or reject against the engine's own outcome, and
@@ -163,7 +180,7 @@ function publish() {
 /** Wat de Awb aan dit besluit heeft toegevoegd. */
 const awb = computed(() => awbOutcomes(selected.value));
 
-function decideObjection(upheld) {
+function decideObjection(upheld: boolean) {
   if (!selected.value) return;
   demo.decideObjection(selected.value.id, upheld, reason.value.trim() || t(upheld ? 'zaak.objection.upheld_default' : 'zaak.objection.dismissed_default'));
   reason.value = '';
@@ -179,7 +196,7 @@ function decideObjection(upheld) {
  */
 const driftedIds = computed(() => {
   void dataVersion.value;
-  const ids = new Set();
+  const ids = new Set<string>();
   for (const c of cases.value) {
     const law = lawOf(c);
     if (!law) continue;
@@ -189,17 +206,24 @@ const driftedIds = computed(() => {
   return ids;
 });
 
-function laneTag(c) {
+function laneTag(c: DemoCase) {
   if (c.objection?.status === 'PENDING') return { color: 'warning', text: t('zaak.tag.objection') };
   if (statusOf(c) === 'DECIDED') return c.approved ? { color: 'success', text: t('zaak.tag.granted') } : { color: 'critical', text: t('zaak.tag.refused') };
   return { color: 'neutral', text: t('zaak.tag.in_review') };
 }
 /** Voor wie deze regeling is, afgeleid uit de wet zelf (RFC-038). */
-function lawAudience(law) {
+function lawAudience(law: LawEntry) {
   if (isDelegationProvider(law.doc) || !producesBeschikking(law.doc)) return t('zaak.audience.provider');
   return subjectOf(law.doc) === 'BUSINESS' ? t('zaak.audience.business') : t('zaak.audience.citizen');
 }
-function claimLawName(cl) {
+/** The text of a text field's `input` event, from the web component or a native field. */
+function inputValue(e: Event): string {
+  return (e as CustomEvent<{ value?: string } | null | undefined>).detail?.value ?? (e.target as EventTarget & { value: string }).value;
+}
+function onServiceChange(e: Event) {
+  service.value = (e.target as HTMLSelectElement).value;
+}
+function claimLawName(cl: DemoClaim) {
   return corpus.value?.lawById(cl.lawId)?.name ?? cl.lawId;
 }
 </script>
@@ -209,10 +233,10 @@ function claimLawName(cl) {
     <nldd-split-view-pane slot="main" has-content>
       <nldd-page landmarks="page" sticky-header>
         <nldd-container slot="header" padding="12">
-          <nldd-top-title-bar :text="t('zaak.title')" :supporting-text="corpus.services[service]?.name ?? service ?? ''">
+          <nldd-top-title-bar :text="t('zaak.title')" :supporting-text="serviceName(service) ?? ''">
             <nldd-dropdown slot="toolbar" size="sm" :accessible-label="t('zaak.organisation')">
-              <select :value="service" @change="service = $event.target.value">
-                <option v-for="s in services" :key="s" :value="s">{{ corpus.services[s]?.name ?? s }}</option>
+              <select :value="service" @change="onServiceChange">
+                <option v-for="s in services" :key="s" :value="s">{{ serviceName(s) }}</option>
               </select>
             </nldd-dropdown>
           </nldd-top-title-bar>
@@ -250,7 +274,7 @@ function claimLawName(cl) {
 
         <nldd-simple-section width="full" padding-top="0">
           <nldd-container gap="4">
-            <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('zaak.laws.heading', { service: corpus.services[service]?.name ?? service }) }}</nldd-text></nldd-container>
+            <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('zaak.laws.heading', { service: serviceName(service) }) }}</nldd-text></nldd-container>
             <nldd-list appearance="box-tinted" :accessible-label="t('zaak.laws.label')">
               <nldd-list-item v-if="orgLaws.length === 0" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('zaak.laws.empty')"></nldd-text-cell></nldd-list-item>
               <nldd-list-item v-for="{ law, count } in orgLaws" :key="law.id" size="sm" button @click="goTo('wetten', { lawId: law.id })">
@@ -323,7 +347,7 @@ function claimLawName(cl) {
 
           <template v-if="selected.status !== 'DECIDED' && !selected.objection">
             <nldd-form-field :label="t('zaak.motivation')">
-              <nldd-multi-line-text-field :value="reason" rows="2" :placeholder="t('zaak.motivation.placeholder')" @input="reason = $event.detail?.value ?? $event.target.value"></nldd-multi-line-text-field>
+              <nldd-multi-line-text-field :value="reason" rows="2" :placeholder="t('zaak.motivation.placeholder')" @input="reason = inputValue($event)"></nldd-multi-line-text-field>
             </nldd-form-field>
             <nldd-button-group orientation="horizontal">
               <nldd-button appearance="primary" start-icon="checked" :text="t('zaak.grant')" @click="decide(true)"></nldd-button>
@@ -333,7 +357,7 @@ function claimLawName(cl) {
           <template v-else-if="selected.objection?.status === 'PENDING'">
             <nldd-rich-text spacing="tight"><p><strong>{{ t('zaak.objection.prefix') }}</strong> {{ selected.objection.reason }}</p></nldd-rich-text>
             <nldd-form-field :label="t('zaak.motivation')">
-              <nldd-multi-line-text-field :value="reason" rows="2" @input="reason = $event.detail?.value ?? $event.target.value"></nldd-multi-line-text-field>
+              <nldd-multi-line-text-field :value="reason" rows="2" @input="reason = inputValue($event)"></nldd-multi-line-text-field>
             </nldd-form-field>
             <nldd-button-group orientation="horizontal">
               <nldd-button appearance="primary" :text="t('zaak.objection.uphold')" @click="decideObjection(true)"></nldd-button>

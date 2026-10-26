@@ -1483,10 +1483,11 @@ impl RuleResolver {
                         }
                     }
 
-                    // Implements index (IoC). A reduction's `implements`
-                    // declares the term its keeper answers (RFC-048): the
-                    // caller's answerer runs it and gives the answer, so
-                    // the engine never runs it as an implementation.
+                    // Implements index (IoC). A reduction fills no term: its
+                    // cell gives it as a named answer (RFC-048). The
+                    // `implements` that schema v0.8.5 to v0.8.8 allowed on
+                    // one is a declaration of the cell, never an
+                    // implementation the engine runs.
                     let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
                     if let Some(impl_decls) = article.get_implements().filter(|_| !reduction) {
                         for decl in impl_decls {

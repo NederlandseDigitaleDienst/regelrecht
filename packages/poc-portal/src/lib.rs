@@ -9,9 +9,12 @@
 //! Two kinds of PoC live behind it. A `statisch` one is built into this image
 //! and served from disk. A `proxy` one runs as its own (unpublished) component
 //! and is forwarded to in-cluster, the way `editor-api` already forwards to
-//! `pipelineapi`.
+//! `pipelineapi`. A static PoC may also load a source while it runs, a
+//! corpus the portal fetches from a branch behind the same password
+//! ([`bron`]).
 
 pub mod app;
+pub mod bron;
 pub mod config;
 pub mod gate;
 pub mod pagina;

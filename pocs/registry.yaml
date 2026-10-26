@@ -42,11 +42,21 @@
 #                het echte onderwerp, achter het wachtwoord. Optioneel.
 #   soort        `statisch` (uit dit image geserveerd) of `proxy` (doorgestuurd
 #                naar een ander ZAD-component).
-#   bron         bij `statisch`: de npm-workspace die de dist bouwt.
+#   bron         bij `statisch`: de npm-workspace die de dist bouwt. Meestal
+#                in frontend-poc-<slug>/; een poc met een eigen WASM-crate
+#                heeft zijn app in packages/poc-<slug>/frontend/.
 #   upstream     bij `proxy`: de ZAD-componentnaam, bereikt op
 #                http://{deployment}-{upstream}:8000
 #   corpus       de mappen met casus-regelgeving die dit image meeneemt.
 #   assistent    true als de beleidsassistent voor deze casus aanstaat.
+#   sources      bij `statisch`: corpora die de poc laadt terwijl hij draait,
+#                niet in de build. Het portaal haalt per bron de map `path`
+#                van `branch` op met het token in de env-var `token_env` (de
+#                naam, nooit de waarde) en serveert haar achter het
+#                wachtwoord op /<slug>/bron/<name>. Een nieuwe commit op die
+#                branch staat er na hooguit een minuut, zonder build. Lokaal
+#                neemt de map in POC_BRON_<NAME> de plaats van de branch in,
+#                zonder token. Zie de pagina van het poc-portaal in de docs.
 #   tags         INTERN. Korte labels: departement, uitvoerder, het beleidsveld.
 #                Samen wijzen ze het dossier aan, ook waar de publieke helft
 #                dat bewust niet doet.
@@ -146,7 +156,7 @@ pocs:
       ertegen, om te zien hoe een uitvoerder vastlegt wat er gebeurde en dat
       bij een volgend besluit weer terugleest. Je kiest een van twee
       processen om na te spelen.
-    titel_intern: Chronolexografie in twee casussen
+    titel_intern: Chronolexografie in casussen
     samenvatting_intern: >-
       Een uitvoeringsproces bij een fictieve uitvoerder, uitgevoerd door de
       cel uit packages/cel: aanvraag met de Awb-haken, besluit met het
@@ -154,17 +164,55 @@ pocs:
       die de cel erover draait (RFC-045 tot en met RFC-050). De bezoeker
       kiest de casus: vakantieverlof (Leerplichtwet 1969 artikel 13a) bij een
       school, of de gehandicaptenparkeerkaart (BABW artikel 49) bij een
-      gemeente. Per casus noemt de app de cel en het artikel; de rest leidt
-      zij zo veel mogelijk af uit de wet.
-    soort: proxy
-    upstream: chronolexografie
-    corpus: []
+      gemeente. Een derde casus, een fictieve subsidie bij de Napp, komt
+      uit de NAPP-bron (sources hieronder) en verschijnt alleen waar het
+      portaal die bron kan ophalen. Per casus noemt de app de cel en het
+      artikel; de rest leidt zij zo veel mogelijk af uit de wet.
+    soort: statisch
+    bron: poc-chronolexografie
+    # De bundel die de app in de browser draait: de casussen, en per casus de
+    # regelwerken die haar cel draait en de cellen zelf, met hun reducties.
+    # Volgt uit de casussen en de wet; de test
+    # the_register_lists_what_every_case_needs in
+    # packages/poc-chronolexografie/src/bundel.rs houdt deze lijst gelijk.
+    corpus:
+      - corpus/cells/cbr
+      - corpus/cells/gemeente_oostmeer
+      - corpus/cells/gemeente_wilgendaal
+      - corpus/cells/ggd_wilgendaal
+      - corpus/cells/obs_de_klimop
+      - corpus/cells/rechtbank_wilgendaal
+      - corpus/cells/reductions/reductie_algemene_wet_bestuursrecht
+      - corpus/regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+      - corpus/regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart
+      - corpus/regulation/nl/ministeriele_regeling/regeling_vaststelling_schoolvakanties_20252030
+      - corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+      - corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_geneeskundig_advies_ggd_wilgendaal
+      - corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaar_obs_de_klimop
+      - corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaargrenzen_obs_de_klimop
+      - corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantierooster_obs_de_klimop
+      - corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantieverlof_obs_de_klimop
+      - corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vestiging_obs_de_klimop
+      - corpus/regulation/nl/wet/algemene_wet_bestuursrecht
+      - corpus/regulation/nl/wet/leerplichtwet_1969
+      - packages/poc-chronolexografie/casussen
+    # De NAPP-casus staat met haar regeling en cel in deze bron, niet in
+    # deze repository; zij draait op de bron en het regelrecht-corpus
+    # hierboven (src/bundel.rs, met_bronnen).
+    sources:
+      - name: napp
+        github:
+          owner: NederlandseDigitaleDienst
+          repo: regelrecht-corpus-NAPP
+          branch: poc/chronolexografie
+          path: chronolexografie
+        token_env: NAPP_CORPUS_TOKEN
     assistent: false
     tags: [Leerplichtwet, BABW, AWB, chronolexografie]
     status: verkenning
     voorbehoud: >-
       De school, de gemeente, hun beleid en alle gegevens zijn verzonnen. De
       modellen van artikel 13a van de Leerplichtwet 1969 en artikel 49 van het
-      BABW zijn niet met juristen of uitvoerders nagelopen. De gekozen casus
-      en de kroniek zijn voor alle bezoekers dezelfde en verdwijnen bij een
-      herstart.
+      BABW zijn niet met juristen of uitvoerders nagelopen. Het spel draait
+      in je eigen browser: elk tabblad speelt zijn eigen casus, en wat je
+      vastlegt verdwijnt als je het tabblad sluit.

@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 /**
  * A bar chart for simulation results: categories on one axis, one or more
  * series of numbers. ECharts (as in the editor's harvester dashboards), with
@@ -11,23 +11,35 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
-import { resolveChartColors, resolveCssColor, SERIES_KEYS } from '../simulation/chartColors.js';
-import { intlLocale } from '../data/format.js';
+import { resolveChartColors, resolveCssColor, SERIES_KEYS, type ChartColors } from '../simulation/chartColors';
+import { intlLocale } from '../data/format';
 
 use([CanvasRenderer, BarChart, GridComponent, LegendComponent, TooltipComponent]);
 
-const props = defineProps({
-  categories: { type: Array, required: true },
-  /** [{ name, values: number[], color?: string }]; `color` is a CSS expression, such as a design token. */
-  series: { type: Array, required: true },
-  /** 'percent' | 'euro' | 'number' */
-  unit: { type: String, default: 'number' },
-  horizontal: { type: Boolean, default: false },
-  height: { type: String, default: '280px' },
-});
+/** One series of bars; `color` is a CSS expression, such as a design token. */
+export interface BarSeries {
+  name: string;
+  values: (number | null | undefined)[];
+  color?: string;
+}
 
-const colors = shallowRef(null);
-let retry = null;
+const props = withDefaults(
+  defineProps<{
+    categories: string[];
+    series: BarSeries[];
+    unit?: 'percent' | 'euro' | 'number';
+    horizontal?: boolean;
+    height?: string;
+  }>(),
+  {
+    unit: 'number',
+    horizontal: false,
+    height: '280px',
+  },
+);
+
+const colors = shallowRef<ChartColors | null>(null);
+let retry: number | null = null;
 function refreshColors(attempts = 30) {
   if (retry) cancelAnimationFrame(retry);
   retry = null;
@@ -36,8 +48,8 @@ function refreshColors(attempts = 30) {
   else if (attempts > 0) retry = requestAnimationFrame(() => refreshColors(attempts - 1));
 }
 
-let observer = null;
-let media = null;
+let observer: MutationObserver | null = null;
+let media: MediaQueryList | null = null;
 const onMedia = () => refreshColors();
 onMounted(() => {
   refreshColors();
@@ -55,7 +67,7 @@ onUnmounted(() => {
 // Per aanroep opgebouwd en niet eenmalig op moduleniveau: een `Intl`-formatter
 // legt zijn taal vast bij het maken, en de grafiek hoort na een taalwissel mee
 // te veranderen.
-function fmt(v) {
+function fmt(v: number | null | undefined): string {
   if (v === null || v === undefined) return '–';
   if (props.unit === 'percent') return `${Math.round(v)}%`;
   if (props.unit === 'euro') return new Intl.NumberFormat(intlLocale(), { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
@@ -68,7 +80,7 @@ const option = computed(() => {
   const valueAxis = {
     type: 'value',
     max: props.unit === 'percent' ? 100 : undefined,
-    axisLabel: { color: c.textSecondary, formatter: (v) => fmt(v) },
+    axisLabel: { color: c.textSecondary, formatter: (v: number) => fmt(v) },
     splitLine: { lineStyle: { color: c.grid } },
   };
   const categoryAxis = {
@@ -83,16 +95,17 @@ const option = computed(() => {
     animationDuration: 300,
     grid: { left: props.horizontal ? 220 : 56, right: 56, top: props.series.length > 1 ? 36 : 12, bottom: props.horizontal ? 28 : 56 },
     legend: props.series.length > 1 ? { top: 0, textStyle: { color: c.text } } : undefined,
-    tooltip: { trigger: 'axis', valueFormatter: (v) => fmt(v) },
+    tooltip: { trigger: 'axis', valueFormatter: (v: number | null | undefined) => fmt(v) },
     xAxis: props.horizontal ? valueAxis : categoryAxis,
     yAxis: props.horizontal ? categoryAxis : valueAxis,
+    // `i % length` is always a valid index into SERIES_KEYS.
     series: props.series.map((s, i) => ({
       name: s.name,
       type: 'bar',
       data: s.values.map((v) => (v === null || v === undefined ? null : Math.round(v * 100) / 100)),
-      itemStyle: { color: (s.color && resolveCssColor(s.color)) || c[SERIES_KEYS[i % SERIES_KEYS.length]], borderRadius: 3 },
+      itemStyle: { color: (s.color && resolveCssColor(s.color)) || c[SERIES_KEYS[i % SERIES_KEYS.length]!], borderRadius: 3 },
       barMaxWidth: 28,
-      label: props.series.length === 1 ? { show: true, position: props.horizontal ? 'right' : 'top', color: c.textSecondary, formatter: (p) => fmt(p.value) } : undefined,
+      label: props.series.length === 1 ? { show: true, position: props.horizontal ? 'right' : 'top', color: c.textSecondary, formatter: (p: { value: number | null }) => fmt(p.value) } : undefined,
     })),
   };
 });

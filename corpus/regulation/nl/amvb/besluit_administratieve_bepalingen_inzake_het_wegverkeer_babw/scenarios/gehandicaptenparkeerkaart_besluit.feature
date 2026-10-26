@@ -7,14 +7,15 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
   college zijn bevoegdheid gebruikt, zegt het (fictieve) beleid van de
   gemeente: geen kaart naast een geldige. Of de aanvrager er al een heeft,
   stelt het college vast. Hier is dat een vaststelling; in de cel van de
-  gemeente vult haar reductie dat open begrip van het beleid uit haar
-  besluiten (implements, RFC-048). Bij een weigering op de criteria vraagt
-  de engine het niet. Het besluit is een beschikking: de Awb vraagt een
+  gemeente koppelt het beleid dat open begrip aan het antwoord van de cel,
+  dat haar reductie uit haar besluiten haalt (RFC-048). Bij een weigering op
+  de criteria vraagt de engine het niet. Het besluit is een beschikking: de Awb vraagt een
   motivering (3:46) en opent een bezwaartermijn van zes weken (6:7).
   Een kaart wordt niet afgegeven voordat een geneeskundig onderzoek heeft
   plaatsgehad (artikel 2, eerste lid, van de regeling). Hier stelt het
-  college dat vast; in de cel van de gemeente leest haar reductie het uit de
-  rapporten die zij ontving. Weet niemand het, dan faalt het besluit.
+  college dat vast; in de cel van de gemeente vraagt het beleid het aan de
+  cel van de GGD, die het uit de onderzoeken haalt die zij vastlegde. Weet
+  niemand het, dan faalt het besluit.
 
   Background:
     Given the calculation date is "2026-10-20"
@@ -42,8 +43,8 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
     Then output "kaart_geldig_tot" equals "2031-10-19"
     Then output "motivering_vereist" is true
     Then output "motivering_vereist" has reactive provenance
-    Then output "bezwaartermijn_weken" equals 6
-    Then output "bezwaartermijn_weken" has reactive provenance
+    Then output "termijn_weken" equals 6
+    Then output "termijn_weken" has reactive provenance
 
   Scenario: Zonder loopbeperking of andere ernstige beperking wordt de kaart geweigerd
     # Het geneeskundig onderzoek toont geen beperking die artikel 1 van de

@@ -105,7 +105,7 @@ niet.
 
 - **Een gemiste klik** (`verify` meldt hem): kijk in `events.json` naar
   het `target`. Een id met een uuid erin of een teller wordt al genegeerd
-  (`generatedId` in `locator.js`); een tekst die per corpus verschilt
+  (`generatedId` in `locator.ts`); een tekst die per corpus verschilt
   wordt na de halve wachttijd losser gezocht. Is het iets anders, repareer
   dan de locator, niet de opname.
 - **Een scroll die op de verkeerde plek landt**: een scroll draagt een

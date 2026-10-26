@@ -90,7 +90,7 @@ regelrecht/
 │   ├── frontend-shared/  # Code shared by the Vue frontends
 │   ├── poc-portal/       # Password-gated portal for the PoCs
 │   ├── poc-napp/         # Backend of the napp PoC
-│   ├── poc-chronolexografie/ # Backend of the chronolexography PoC (the cell as an app, per case)
+│   ├── poc-chronolexografie/ # The chronolexography PoC: the cell as an app per case, as WASM, with its frontend in frontend/
 │   ├── poc-assistent/    # Policy assistant for the PoCs (Node package)
 │   ├── arch-extract/     # Architecture explorer (developer tool)
 │   └── grafana/          # Provisioned dashboards

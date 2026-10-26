@@ -1,0 +1,28 @@
+---
+# Since schema v0.8.9 too, only a REDUCTIE reads decisions: a policy calls
+# no chronicle; a reduction passes what it read as parameters (RFC-048).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.9/schema/v0.8.9/schema.json
+$id: test_conformance_decisions_in_policy
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-10-22'
+valid_from: '2026-10-22'
+url: https://example.invalid/policy
+competent_authority:
+  name: Het hoofd van een testschool
+articles:
+  - number: '1'
+    text: De verleende verloven zijn de besluiten waarin verlof is verleend.
+    url: https://example.invalid/policy/1
+    machine_readable:
+      execution:
+        input:
+          - name: besluiten
+            type: array
+            source:
+              decisions: wet_fictief#1
+        output:
+          - name: verleende_verloven
+            type: array
+        actions:
+          - output: verleende_verloven
+            value: $besluiten

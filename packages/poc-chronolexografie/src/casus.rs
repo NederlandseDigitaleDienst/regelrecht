@@ -13,10 +13,11 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
-use regelrecht_cel::{Cell, Error};
+use regelrecht_cel::{identity, Cell, Error, Files};
 use regelrecht_engine::LawLoad;
 use regelrecht_law_model::{
     Article, ArticleBasedLaw, AuthorityType, CompetentAuthority, HookFilter, ProcedureDefinition,
+    RegulatoryLayer,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -31,6 +32,11 @@ pub struct Casus {
     /// From the file name, never from the file.
     #[serde(skip_deserializing)]
     pub id: String,
+    /// The source the case file came from (`pocs/registry.yaml`, `sources`
+    /// of chronolexografie), or none for a case of this crate. From where the
+    /// file is, never from the file.
+    #[serde(skip_deserializing)]
+    pub bron: Option<String>,
     /// The cell that plays the case: its directory under `corpus/cells`, and
     /// the actor it records as.
     pub cel: String,
@@ -55,6 +61,8 @@ pub struct Casus {
     /// The other cells of the sphere (RFC-052): those the engine may ask
     /// for a value another actor establishes, where the law makes them
     /// competent. Each records what it knows before the first scenario.
+    /// The court is one of them, for a case that plays the appeal
+    /// ([`Beroep::rechter`]); without one the case ends at the objection.
     #[serde(default)]
     pub andere_cellen: Vec<AndereCel>,
     pub scenarios: Vec<Scenario>,
@@ -120,6 +128,12 @@ pub struct Voorbeeld {
     pub bevindingen: Map<String, Value>,
     #[serde(default)]
     pub bezwaar: Map<String, Value>,
+    /// The beroepschrift (Awb 6:5).
+    #[serde(default)]
+    pub beroep: Map<String, Value>,
+    /// The court's findings the form starts with.
+    #[serde(default)]
+    pub uitspraak: Map<String, Value>,
 }
 
 /// A scenario as instruction text: the steps in order, and what the visitor
@@ -132,16 +146,18 @@ pub struct Scenario {
     pub eind: String,
 }
 
-/// The cases in `dir`, one per `<id>.yaml`, in the order of their ids.
-pub fn casussen(dir: &Path) -> Result<Vec<Casus>> {
-    let mut paths: Vec<PathBuf> = std::fs::read_dir(dir)?
-        .filter_map(|e| e.ok().map(|e| e.path()))
+/// The cases in `dir`, one per `<id>.yaml`, in the order of their ids, read
+/// through `files`.
+pub fn casussen(files: &dyn Files, dir: &Path) -> Result<Vec<Casus>> {
+    let mut paths: Vec<PathBuf> = files
+        .entries(dir)?
+        .into_iter()
         .filter(|p| p.extension().is_some_and(|x| x == "yaml"))
         .collect();
     paths.sort();
     let mut uit = Vec::new();
     for path in paths {
-        let mut casus: Casus = serde_yaml_ng::from_str(&std::fs::read_to_string(&path)?)
+        let mut casus: Casus = serde_yaml_ng::from_str(&files.read(&path)?)
             .map_err(|e| Error::Setup(format!("{}: {e}", path.display())))?;
         casus.id = path
             .file_stem()
@@ -160,9 +176,16 @@ pub fn casussen(dir: &Path) -> Result<Vec<Casus>> {
 /// YAML and parsed.
 #[derive(Debug, Clone)]
 pub struct Regelwerk {
-    /// Its directory under `corpus/regulation/nl`, such as
-    /// `wet/leerplichtwet_1969`.
+    /// Its directory, relative to its root: under `regulation/nl`, such as
+    /// `regulation/nl/wet/leerplichtwet_1969`, or for a reduction with its
+    /// cell (`cells/<cel>/reductions/<$id>`) or with none
+    /// (`cells/reductions/<$id>`).
     pub map: String,
+    /// The root it was read from: the repository's `corpus`, or a source.
+    pub wortel: PathBuf,
+    /// For a reduction with its cell: that cell, by the name of its
+    /// directory. Where a reduction sits says whose it is.
+    pub houder: Option<String>,
     pub versies: Vec<(String, ArticleBasedLaw)>,
 }
 
@@ -180,28 +203,119 @@ impl Regelwerk {
     fn nieuwste(&self) -> &ArticleBasedLaw {
         &self.versies[self.versies.len() - 1].1
     }
+
+    fn is_reductie(&self) -> bool {
+        self.nieuwste().regulatory_layer == RegulatoryLayer::Reductie
+    }
+
+    /// Where it is, for a message: `<root>/<map>`.
+    pub fn pad(&self) -> String {
+        format!("{}/{}", self.wortel.display(), self.map)
+    }
 }
 
-/// Every regelwerk under `root/regulation/nl`, read once at startup. The
+/// Where in a root a directory of regelwerken is: regulation, or the
+/// reductions of a cell or of none.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Plek {
+    Regelgeving,
+    Reducties(Option<String>),
+}
+
+/// Every regelwerk of each root, read once at the start: the regulation
+/// under `regulation/nl`, and the reductions with their cell
+/// (`cells/<cel>/reductions`) or with none (`cells/reductions`). The
 /// derivation looks across all of them for what acts on a case's
 /// regelwerken, so the whole corpus has to parse, and a new regelwerk that
 /// implements an open term of the Awb, or hooks on every decision, joins
 /// every case, and the tests on the derivation and on the image fail.
-#[derive(Debug, Clone)]
-pub struct Regelwerken(Vec<Regelwerk>);
+#[derive(Debug, Clone, Default)]
+pub struct Regelwerken {
+    werken: Vec<Regelwerk>,
+    /// What loading set aside: a `$id` of a later root that an earlier one
+    /// already holds.
+    pub meldingen: Vec<String>,
+}
 
 impl Regelwerken {
-    /// Read every directory under `root/regulation/nl` that holds versions
-    /// (`<date>.yaml`); its `scenarios` are no versions.
-    pub fn load(root: &Path) -> Result<Self> {
-        let basis = root.join("regulation/nl");
-        let mut mappen = Vec::new();
-        verzamel(&basis, &mut mappen)?;
-        mappen.sort();
-        let mut uit: Vec<Regelwerk> = Vec::new();
-        for map in mappen {
-            let mut paths: Vec<PathBuf> = std::fs::read_dir(&map)?
-                .filter_map(|e| e.ok().map(|e| e.path()))
+    /// Read every directory of regelwerken of each of `roots` that holds
+    /// versions (`<date>.yaml`), through `files`; its `scenarios` are no
+    /// versions. A root without them adds nothing. Two directories of one
+    /// root with the same `$id` are an error: neither is the one the corpus
+    /// means. Across roots the first wins, such as the regelrecht corpus
+    /// over a source, and [`Regelwerken::meldingen`] says which it set
+    /// aside.
+    ///
+    /// A `REDUCTIE` sits in a directory of reductions, named by its `$id`,
+    /// and nothing else does; a reduction under `regulation/nl` is an
+    /// error. A reduction of one cell that reads one of another cell is an
+    /// error too: the reduction it calls would read the chronicle of the
+    /// cell that runs it, not of its own.
+    pub fn load(files: &dyn Files, roots: &[PathBuf]) -> Result<Self> {
+        let mut uit = Self::default();
+        for root in roots {
+            let mut eigen: Vec<Regelwerk> = Vec::new();
+            for werk in Self::uit_wortel(files, root)? {
+                if let Some(ander) = eigen.iter().find(|w| w.id() == werk.id()) {
+                    return Err(Error::Setup(format!(
+                        "'{}' is in both {} and {}",
+                        werk.id(),
+                        ander.pad(),
+                        werk.pad()
+                    )));
+                }
+                eigen.push(werk);
+            }
+            for werk in eigen {
+                if let Some(ander) = uit.get(werk.id()) {
+                    uit.meldingen.push(format!(
+                        "'{}' in {} is also in {}; the app runs the latter",
+                        werk.id(),
+                        werk.pad(),
+                        ander.pad()
+                    ));
+                    continue;
+                }
+                uit.werken.push(werk);
+            }
+        }
+        uit.geen_reductie_van_een_andere_cel()?;
+        Ok(uit)
+    }
+
+    /// The directories of regelwerken of `root`, each with its place.
+    fn mappen(files: &dyn Files, root: &Path) -> Result<Vec<(PathBuf, Plek)>> {
+        let mut uit = Vec::new();
+        let regulation = root.join("regulation/nl");
+        if files.is_dir(&regulation) {
+            let mut mappen = Vec::new();
+            verzamel(files, &regulation, &mut mappen)?;
+            uit.extend(mappen.into_iter().map(|m| (m, Plek::Regelgeving)));
+        }
+        let cells = root.join("cells");
+        if files.is_dir(&cells) {
+            for cel in files.entries(&cells)? {
+                let (dir, houder) = if identity::is_shared_reductions(&cel) {
+                    (cel.clone(), None)
+                } else {
+                    let naam = cel.file_name().map(|n| n.to_string_lossy().into_owned());
+                    (cel.join(identity::REDUCTIONS), naam)
+                };
+                for id in identity::reductions(files, &dir)? {
+                    uit.push((dir.join(id), Plek::Reducties(houder.clone())));
+                }
+            }
+        }
+        uit.sort_by(|a, b| a.0.cmp(&b.0));
+        Ok(uit)
+    }
+
+    fn uit_wortel(files: &dyn Files, root: &Path) -> Result<Vec<Regelwerk>> {
+        let mut uit = Vec::new();
+        for (map, plek) in Self::mappen(files, root)? {
+            let mut paths: Vec<PathBuf> = files
+                .entries(&map)?
+                .into_iter()
                 .filter(|p| p.extension().is_some_and(|x| x == "yaml"))
                 .collect();
             if paths.is_empty() {
@@ -210,33 +324,86 @@ impl Regelwerken {
             paths.sort();
             let mut versies = Vec::new();
             for path in paths {
-                let yaml = std::fs::read_to_string(&path)?;
-                // Parsed here, so a broken version names its file at startup.
+                let yaml = files.read(&path)?;
+                // Parsed here, so a broken version names its file at the start.
                 let law = ArticleBasedLaw::from_yaml_str(&yaml)
                     .map_err(|e| Error::Setup(format!("{}: {e}", path.display())))?;
+                let reductie = law.regulatory_layer == RegulatoryLayer::Reductie;
+                let waar = match (&plek, reductie) {
+                    (Plek::Regelgeving, true) => Some(
+                        "a REDUCTIE is no regulation: it sits with its cell \
+                         (cells/<cel>/reductions/) or with none (cells/reductions/)",
+                    ),
+                    (Plek::Reducties(_), false) => {
+                        Some("a directory of reductions holds only REDUCTIE")
+                    }
+                    _ => None,
+                };
+                if let Some(waarom) = waar {
+                    return Err(Error::Setup(format!("{}: {waarom}", path.display())));
+                }
+                if matches!(plek, Plek::Reducties(_))
+                    && map.file_name().is_none_or(|n| n != law.id.as_str())
+                {
+                    return Err(Error::Setup(format!(
+                        "{}: the reduction '{}' sits in a directory named by its $id",
+                        path.display(),
+                        law.id
+                    )));
+                }
                 versies.push((yaml, law));
             }
+            let houder = match &plek {
+                Plek::Reducties(houder) => houder.clone(),
+                Plek::Regelgeving => None,
+            };
             let map = map
-                .strip_prefix(&basis)
+                .strip_prefix(root)
                 .map_err(|e| Error::Setup(e.to_string()))?
                 .to_string_lossy()
                 .replace('\\', "/");
-            uit.push(Regelwerk { map, versies });
+            uit.push(Regelwerk {
+                map,
+                wortel: root.to_path_buf(),
+                houder,
+                versies,
+            });
         }
-        Ok(Self(uit))
+        Ok(uit)
+    }
+
+    /// Refuse a reduction that reads a reduction of another cell: a
+    /// reduction is applied to the chronicle of the cell that runs it.
+    fn geen_reductie_van_een_andere_cel(&self) -> Result<()> {
+        for werk in self.werken.iter().filter(|w| w.is_reductie()) {
+            for id in leest(werk.artikelen()) {
+                let Some(ander) = self.get(&id).filter(|a| a.is_reductie()) else {
+                    continue;
+                };
+                if ander.houder.is_some() && ander.houder != werk.houder {
+                    return Err(Error::Setup(format!(
+                        "{} reads the reduction '{id}' of the cell '{}' ({}); a reduction reads \
+                         only those of its own cell and those of none",
+                        werk.pad(),
+                        ander.houder.as_deref().unwrap_or_default(),
+                        ander.pad()
+                    )));
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn get(&self, id: &str) -> Option<&Regelwerk> {
-        self.0.iter().find(|r| r.id() == id)
+        self.werken.iter().find(|r| r.id() == id)
     }
 }
 
-fn verzamel(dir: &Path, uit: &mut Vec<PathBuf>) -> Result<()> {
-    for entry in std::fs::read_dir(dir)? {
-        let path = entry?.path();
-        if path.is_dir() && path.file_name().is_none_or(|n| n != "scenarios") {
+fn verzamel(files: &dyn Files, dir: &Path, uit: &mut Vec<PathBuf>) -> Result<()> {
+    for path in files.entries(dir)? {
+        if files.is_dir(&path) && path.file_name().is_none_or(|n| n != "scenarios") {
             uit.push(path.clone());
-            verzamel(&path, uit)?;
+            verzamel(files, &path, uit)?;
         }
     }
     Ok(())
@@ -252,6 +419,10 @@ pub struct Afleiding {
     /// decides on it: Awb 7:11 for both cases.
     pub objection_law: String,
     pub objection: String,
+    /// For a case with a court: the article that establishes the appeal
+    /// (`type: BEROEP`) and decides on it, Awb 8:70, and the fact in which
+    /// the cell records the receipt of a judgment ([`Beroep`]).
+    pub beroep: Option<Beroep>,
     /// Who decides: the competent authority of the article or its law, or
     /// else the law's own words in `decided_per_case_by` on the article's
     /// open terms ("het hoofd", "het college van burgemeester en
@@ -261,17 +432,33 @@ pub struct Afleiding {
     pub regelwerken: Vec<String>,
 }
 
+/// What follows from the law and the cell for an appeal.
+#[derive(Debug, Clone, Serialize)]
+pub struct Beroep {
+    pub law: String,
+    pub article: String,
+    /// The fact the law requires whose parameters are all outputs of the
+    /// judgment, `<law>#<article>#<fact>`: what the cell records when it
+    /// receives a copy of one (`Cell::record_receipt`).
+    pub ontvangst: String,
+    /// The court: the other cell of the case whose name or category is who
+    /// decides on the appeal, as the law says it ("de bestuursrechter",
+    /// from `decided_per_case_by` on Awb 8:70, as [`Afleiding::rol`]).
+    pub rechter: String,
+}
+
 /// Derive from the law what `casus` needs, with its `cells`: its own and the
 /// other cells of its sphere, whose reductions read regelwerken of their
 /// own.
 ///
-/// The regelwerken are those the article's law reaches, and what the cell's
-/// reductions reach. A regelwerk reaches another when it reads from it
+/// The regelwerken are those the article's law reaches, and the reductions
+/// the catalogues of the cells name (`cel.yaml`, `answers`, RFC-048), with
+/// what they reach. A regelwerk reaches another when it reads from it
 /// (`source.regulation`, `source.article`, `source.decisions`), and when the
 /// other is in the corpus to act on it: it implements one of its open terms,
-/// or has a hook or a procedure that applies to what it produces (the Awb on
-/// every application and decision). A reduction
-/// reaches the regelwerk whose open term it fills, too.
+/// such as the policy that binds a term to an answer of a cell, or has a
+/// hook or a procedure that applies to what it produces (the Awb on every
+/// application and decision).
 pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Result<Afleiding> {
     let (law, article) = casus.artikel.split_once('#').ok_or_else(|| {
         Error::Setup(format!(
@@ -281,22 +468,9 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
     })?;
 
     let mut gevonden: Vec<String> = vec![law.to_string()];
-    for reduction in cells.iter().flat_map(|cell| cell.reductions()) {
-        for id in leest(reduction.law().articles.iter()) {
-            if !gevonden.contains(&id) {
-                gevonden.push(id);
-            }
-        }
-        let gevuld = reduction
-            .law()
-            .articles
-            .iter()
-            .flat_map(|a| a.get_implements().into_iter().flatten())
-            .map(|i| i.law.clone());
-        for id in gevuld {
-            if !gevonden.contains(&id) {
-                gevonden.push(id);
-            }
+    for id in cells.iter().flat_map(|cell| cell.answers().values()) {
+        if !gevonden.contains(id) {
+            gevonden.push(id.clone());
         }
     }
 
@@ -309,7 +483,7 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
             ))
         })?;
         let mut erbij: Vec<String> = leest(werk.artikelen()).into_iter().collect();
-        for ander in &regelwerken.0 {
+        for ander in &regelwerken.werken {
             if handelt_op(ander, werk) {
                 erbij.push(ander.id().to_string());
             }
@@ -322,35 +496,13 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
         i += 1;
     }
 
-    let mut bezwaren = BTreeSet::new();
-    for id in &gevonden {
-        if let Some(werk) = regelwerken.get(id) {
-            for a in werk.artikelen() {
-                if a.get_produced()
-                    .into_iter()
-                    .any(|p| p.submission_kind() == Some("BEZWAAR"))
-                {
-                    bezwaren.insert((id.clone(), a.number.clone()));
-                }
-            }
-        }
-    }
-    let mut bezwaren = bezwaren.into_iter();
-    let (objection_law, objection) = match (bezwaren.next(), bezwaren.next()) {
-        (Some(b), None) => b,
-        (None, _) => {
-            return Err(Error::Setup(format!(
-                "case '{}': no regelwerk it runs establishes an objection",
-                casus.id
-            )))
-        }
-        (Some(a), Some(b)) => {
-            return Err(Error::Setup(format!(
-                "case '{}': both {}#{} and {}#{} establish an objection",
-                casus.id, a.0, a.1, b.0, b.1
-            )))
-        }
-    };
+    let (objection_law, objection) = vestigt(regelwerken, &casus.id, &gevonden, "BEZWAAR")?;
+    let beroep = beroep(
+        regelwerken,
+        &casus.id,
+        &gevonden,
+        cells.get(1..).unwrap_or_default(),
+    )?;
 
     let werk = regelwerken
         .get(law)
@@ -367,9 +519,159 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
         article: article.to_string(),
         objection_law,
         objection,
+        beroep,
         rol,
         regelwerken: gevonden,
     })
+}
+
+/// The appeal, for a case with a court among its `andere` cells: the
+/// article that establishes it, the fact of its receipt, and the court, the
+/// one cell whose name or category is who decides on the appeal. A case
+/// plays no appeal without other cells, without an article among its
+/// regelwerken that establishes an appeal (who the court is follows from
+/// that article), or when none of the other cells is the court.
+fn beroep(
+    regelwerken: &Regelwerken,
+    casus: &str,
+    gevonden: &[String],
+    andere: &[&Cell],
+) -> Result<Option<Beroep>> {
+    if andere.is_empty() {
+        return Ok(None);
+    }
+    // Without an article that establishes the appeal there is no appeal to
+    // play, whatever the other cells are.
+    let Some((law, article)) = vestigend(regelwerken, casus, gevonden, "BEROEP")? else {
+        return Ok(None);
+    };
+    let werk = regelwerken
+        .get(&law)
+        .ok_or_else(|| Error::Setup(format!("'{law}' is not in the corpus")))?;
+    let wie = rol(werk.nieuwste(), &article).ok_or_else(|| {
+        Error::Setup(format!(
+            "case '{casus}': {law}#{article} names no one who decides on the appeal"
+        ))
+    })?;
+    let mut rechters = andere.iter().filter(|c| {
+        let a = c.authority();
+        a.name == wie || a.category.as_deref() == Some(wie.as_str())
+    });
+    let rechter = match (rechters.next(), rechters.next()) {
+        (None, _) => return Ok(None),
+        (Some(r), None) => r.recording_actor().to_string(),
+        (Some(a), Some(b)) => {
+            return Err(Error::Setup(format!(
+                "case '{casus}': both '{}' and '{}' are {wie}",
+                a.recording_actor(),
+                b.recording_actor()
+            )))
+        }
+    };
+    let ontvangst = ontvangst(regelwerken, casus, gevonden, &law, &article)?;
+    Ok(Some(Beroep {
+        law,
+        article,
+        ontvangst,
+        rechter,
+    }))
+}
+
+/// The one article among the regelwerken `gevonden` whose `produces` lists a
+/// submission of the kind `soort`: the objection (`BEZWAAR`) or the appeal
+/// (`BEROEP`), each established by the article that decides on it.
+fn vestigt(
+    regelwerken: &Regelwerken,
+    casus: &str,
+    gevonden: &[String],
+    soort: &str,
+) -> Result<(String, String)> {
+    vestigend(regelwerken, casus, gevonden, soort)?.ok_or_else(|| {
+        Error::Setup(format!(
+            "case '{casus}': no regelwerk it runs establishes a submission {soort}"
+        ))
+    })
+}
+
+/// The one article among the regelwerken in `gevonden` that establishes a
+/// submission of the kind `soort`, if any; two are an error.
+fn vestigend(
+    regelwerken: &Regelwerken,
+    casus: &str,
+    gevonden: &[String],
+    soort: &str,
+) -> Result<Option<(String, String)>> {
+    let mut artikelen = BTreeSet::new();
+    for id in gevonden {
+        if let Some(werk) = regelwerken.get(id) {
+            for a in werk.artikelen() {
+                if a.get_produced()
+                    .into_iter()
+                    .any(|p| p.submission_kind() == Some(soort))
+                {
+                    artikelen.insert((id.clone(), a.number.clone()));
+                }
+            }
+        }
+    }
+    let mut artikelen = artikelen.into_iter();
+    match (artikelen.next(), artikelen.next()) {
+        (Some(b), None) => Ok(Some(b)),
+        (None, _) => Ok(None),
+        (Some(a), Some(b)) => Err(Error::Setup(format!(
+            "case '{casus}': both {}#{} and {}#{} establish a submission {soort}",
+            a.0, a.1, b.0, b.1
+        ))),
+    }
+}
+
+/// The fact in which a cell records the receipt of a judgment under
+/// `law#article`, as `<law>#<article>#<fact>`: the one fact an article of
+/// the regelwerken `gevonden` requires whose parameters are all outputs of
+/// that decision, so a copy of the judgment holds each by name (Awb 8:79,
+/// `afschrift_van_de_uitspraak`).
+fn ontvangst(
+    regelwerken: &Regelwerken,
+    casus: &str,
+    gevonden: &[String],
+    law: &str,
+    article: &str,
+) -> Result<String> {
+    let uitvoer: BTreeSet<&str> = regelwerken
+        .get(law)
+        .into_iter()
+        .flat_map(|w| w.artikelen())
+        .filter(|a| a.number == article)
+        .flat_map(|a| {
+            a.get_decision()
+                .map(|d| a.outputs_of(d))
+                .unwrap_or_default()
+        })
+        .collect();
+    let mut feiten = BTreeSet::new();
+    for id in gevonden {
+        for a in regelwerken.get(id).into_iter().flat_map(|w| w.artikelen()) {
+            for r in a.get_requires() {
+                let (Some(feit), Some(parameters)) = (&r.fact, &r.parameters) else {
+                    continue;
+                };
+                if !parameters.is_empty() && parameters.iter().all(|p| uitvoer.contains(p.as_str()))
+                {
+                    feiten.insert(format!("{id}#{}#{feit}", a.number));
+                }
+            }
+        }
+    }
+    let mut feiten = feiten.into_iter();
+    match (feiten.next(), feiten.next()) {
+        (Some(f), None) => Ok(f),
+        (None, _) => Err(Error::Setup(format!(
+            "case '{casus}': no regelwerk it runs requires a fact that holds the judgment of {law}#{article}"
+        ))),
+        (Some(a), Some(b)) => Err(Error::Setup(format!(
+            "case '{casus}': both {a} and {b} hold the judgment of {law}#{article}"
+        ))),
+    }
 }
 
 /// The regelwerken `artikelen` read from: `source.regulation`, and the law of

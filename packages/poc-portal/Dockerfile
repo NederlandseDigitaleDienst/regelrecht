@@ -10,7 +10,8 @@
 # manier te doen. Wijzigt de ene, dan de andere ook —
 # script/dockerfile-consistency.test.mjs bewaakt de workspace-kant daarvan.
 
-# Stage 1a: WASM-engine voor de browser-pocs.
+# Stage 1a: WASM voor de browser-pocs: de engine, en chronolexografie (de cel,
+# de engine en het spel, packages/poc-chronolexografie).
 # Rust version: keep in sync with rust-toolchain.toml (source of truth).
 FROM rust:1.96-alpine@sha256:a41f7740f8b45d45795624eec13a8b42263cc700f19f7e4e86e04d3dda08a479 AS wasm-builder
 RUN apk add --no-cache musl-dev curl
@@ -48,13 +49,18 @@ RUN set -eu; \
       exit 1; \
     fi
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"auth"/d; /"corpus"/d; /"editor-api"/d; /"github"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"poc-chronolexografie"/d; /"tui"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"auth"/d; /"corpus"/d; /"editor-api"/d; /"github"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d' Cargo.toml
+COPY packages/cel/ cel/
 COPY packages/engine/ engine/
 COPY packages/law-model/ law-model/
+COPY packages/poc-chronolexografie/ poc-chronolexografie/
 COPY packages/shared/ shared/
 RUN cargo build --target wasm32-unknown-unknown --release --features wasm -p regelrecht-engine && \
     wasm-bindgen --target web --out-dir /wasm-pkg \
       target/wasm32-unknown-unknown/release/regelrecht_engine.wasm
+RUN cargo build --target wasm32-unknown-unknown --release --features wasm -p regelrecht-poc-chronolexografie && \
+    wasm-bindgen --target web --out-dir /wasm-chronolexografie \
+      target/wasm32-unknown-unknown/release/regelrecht_poc_chronolexografie.wasm
 
 # Stage 1b: de frontends — het portaal zelf plus elke statische poc.
 FROM node:26-alpine@sha256:2d984a15c9b54fd0aeb608b8e0d0d83529eb34d2966db27a1fb4f1edc3d298a3 AS frontend-builder
@@ -66,6 +72,7 @@ COPY frontend-lawmaking/package.json frontend-lawmaking/
 COPY frontend-poc-portal/package.json frontend-poc-portal/
 COPY frontend-poc-terugbetaalregimes/package.json frontend-poc-terugbetaalregimes/
 COPY frontend-poc-nieuwkomersbekostiging/package.json frontend-poc-nieuwkomersbekostiging/
+COPY packages/poc-chronolexografie/frontend/package.json packages/poc-chronolexografie/frontend/
 RUN npm ci --ignore-scripts
 
 # De bron van het gedeelde pakket. npm ci hierboven legt alleen de symlink in
@@ -86,6 +93,18 @@ COPY frontend-poc-nieuwkomersbekostiging/ frontend-poc-nieuwkomersbekostiging/
 COPY --from=wasm-builder /wasm-pkg/ frontend/public/wasm/pkg/
 RUN POC_BASE=/terugbetaalregimes/ npm run build -w poc-terugbetaalregimes
 RUN POC_BASE=/nieuwkomersbekostiging/ npm run build -w poc-nieuwkomersbekostiging
+
+# chronolexografie draait helemaal in de browser. De bundel die de app
+# meekrijgt, zijn de mappen bij `corpus` in pocs/registry.yaml
+# (scripts/copy-assets.js); hier gaan het register, het corpus en de casussen
+# mee, en kiest het script daaruit.
+COPY pocs/ pocs/
+COPY corpus/regulation/ corpus/regulation/
+COPY corpus/cells/ corpus/cells/
+COPY packages/poc-chronolexografie/casussen/ packages/poc-chronolexografie/casussen/
+COPY packages/poc-chronolexografie/frontend/ packages/poc-chronolexografie/frontend/
+COPY --from=wasm-builder /wasm-chronolexografie/ packages/poc-chronolexografie/frontend/public/wasm/pkg/
+RUN POC_BASE=/chronolexografie/ npm run build -w poc-chronolexografie
 
 # De enige runtime-dependency van de beleidsassistent. Los geïnstalleerd en niet
 # als workspace-member: hij draait naast het portaal in de runtime-trap, niet in
@@ -138,11 +157,16 @@ COPY pocs/ /pocs/
 RUN cargo chef prepare --recipe-path recipe.json
 
 # Stage 4: de binary.
-FROM chef AS builder
+FROM chef AS deps
 COPY packages/Cargo.lock ./
 COPY --from=planner /build/Cargo.toml ./Cargo.toml
 COPY --from=planner /build/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
+
+# Up to here only the dependencies, as a stage of its own: warm-buildcache.yml
+# builds just this stage on every push to main, so the cook layer is in the
+# cache before the next PR needs it, whether or not main deploys.
+FROM deps AS builder
 # `cargo chef cook` schrijft de workspace-Cargo.toml zonder
 # `[workspace.lints]`, wat members met `[lints] workspace = true` breekt.
 COPY --from=planner /build/Cargo.toml ./Cargo.toml
@@ -198,6 +222,7 @@ COPY --from=frontend-builder /app/frontend-poc-portal/dist /app/static/_assets
 # vite uitspuugt.
 COPY --from=frontend-builder /app/frontend-poc-terugbetaalregimes/dist /app/static/terugbetaalregimes
 COPY --from=frontend-builder /app/frontend-poc-nieuwkomersbekostiging/dist /app/static/nieuwkomersbekostiging
+COPY --from=frontend-builder /app/packages/poc-chronolexografie/frontend/dist /app/static/chronolexografie
 
 # De beleidsassistent: één server, per casus zijn eigen MCP-tools en prompt.
 COPY packages/poc-assistent/ /app/assistent/

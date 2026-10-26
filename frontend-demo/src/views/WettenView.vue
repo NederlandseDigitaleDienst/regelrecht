@@ -1,13 +1,14 @@
-<script setup>
+<script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useLocalePath } from '../i18n/useLocalePath.js';
+import { useLocalePath } from '../i18n/useLocalePath';
 import { useI18n } from '../i18n/index.js';
 import YamlNode from '../components/YamlNode.vue';
 import OrgLogo from '../components/OrgLogo.vue';
 import LawGroupTree from '../components/LawGroupTree.vue';
-import { useDemo } from '../store/demoStore.js';
-import { serviceInfo } from '../data/loadCorpus.js';
+import { useDemo } from '../store/demoStore';
+import { serviceInfo, type LawEntry } from '../data/loadCorpus';
+import type { NLDDNavigationSplitView } from '@nldd/design-system/navigation-split-view';
 
 // The law browser: every demo law in the sidebar, grouped by the organisation
 // that executes it; the selected law as a collapsible YAML tree in which every
@@ -25,15 +26,15 @@ const { t, locale } = useI18n();
 const { corpus, profile, profileKey } = useDemo();
 // The law list is a sheet (primary-sidebar-as-sheet): closed by default so the
 // law itself has the room, opened from the toolbar.
-const splitView = ref(null);
+const splitView = ref<NLDDNavigationSplitView | null>(null);
 
 // The laws walked through in this tab, in order; the back button in the
 // header retraces them (zorgtoeslag → BRP → penitentiaire beginselenwet).
-const trail = reactive([]); // law ids
-const activeId = ref(null);
+const trail = reactive<string[]>([]); // law ids
+const activeId = ref<string | null>(null);
 const showRaw = ref(false);
 const query = ref('');
-const expandState = reactive({ paths: [], folded: [], version: 0, all: null });
+const expandState = reactive<{ paths: string[]; folded: string[]; version: number; all: boolean | null }>({ paths: [], folded: [], version: 0, all: null });
 
 const lawIds = computed(() => new Set(corpus.value?.latestById.keys() ?? []));
 
@@ -48,30 +49,32 @@ const sidebarLaws = computed(() => {
 });
 
 const groups = computed(() => {
-  const byService = new Map();
+  const byService = new Map<string, LawEntry[]>();
   for (const law of sidebarLaws.value) {
-    const key = law.service ?? 'Overig';
+    const key = law.service;
     if (!byService.has(key)) byService.set(key, []);
-    byService.get(key).push(law);
+    byService.get(key)!.push(law); // set on the line above
   }
   return [...byService.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([service, laws]) => ({ service, info: serviceInfo(corpus.value, service), laws: laws.sort((a, b) => a.name.localeCompare(b.name)) }));
+    // `sidebarLaws` is empty without a corpus, so there is one here.
+    .map(([service, laws]) => ({ service, info: serviceInfo(corpus.value!, service), laws: laws.sort((a, b) => a.name.localeCompare(b.name)) }));
 });
 
 const activeLaw = computed(() => (activeId.value ? corpus.value?.lawById(activeId.value) : null));
 
-function configFor(key, law) {
+function configFor(key: 'expanded_paths' | 'folded_paths', law: LawEntry): string[] {
   const cfg = corpus.value?.config?.[key] ?? {};
   return cfg[law.id] ?? cfg[law.law_path] ?? [];
 }
 
-function openLaw(lawId, { replaceRoute = false } = {}) {
+function openLaw(lawId: string, { replaceRoute = false }: { replaceRoute?: boolean } = {}) {
   if (!lawIds.value.has(lawId)) return;
   if (trail.at(-1) !== lawId) trail.push(lawId);
   activeId.value = lawId;
   splitView.value?.hidePrimarySidebarSheet?.();
-  const law = corpus.value.lawById(lawId);
+  // `lawIds` holds only ids of the loaded corpus, so both are there.
+  const law = corpus.value!.lawById(lawId)!;
   expandState.paths = configFor('expanded_paths', law);
   expandState.folded = configFor('folded_paths', law);
   expandState.all = null;
@@ -83,7 +86,7 @@ function openLaw(lawId, { replaceRoute = false } = {}) {
 function goBack() {
   if (trail.length < 2) return;
   trail.pop();
-  const previous = trail.pop();
+  const previous = trail.pop()!; // at least one entry left after the first pop
   openLaw(previous, { replaceRoute: true });
 }
 
@@ -135,7 +138,7 @@ watch(
   { immediate: true },
 );
 
-function tabInfo(lawId) {
+function tabInfo(lawId: string) {
   return corpus.value?.lawById(lawId);
 }
 
@@ -143,22 +146,25 @@ const references = computed(() => {
   // Laws this law depends on, for the inspector column.
   const law = activeLaw.value;
   if (!law) return [];
-  const ids = new Set();
-  const walk = (node) => {
+  const ids = new Set<string>();
+  const walk = (node: unknown): void => {
     if (Array.isArray(node)) node.forEach(walk);
     else if (node && typeof node === 'object') {
-      if (typeof node.regulation === 'string') ids.add(node.regulation);
+      const regulation = (node as { regulation?: unknown }).regulation;
+      if (typeof regulation === 'string') ids.add(regulation);
       Object.values(node).forEach(walk);
     }
   };
   walk(law.doc.articles);
-  return [...ids].map((id) => corpus.value.lawById(id)).filter(Boolean);
+  // An active law means the corpus is loaded.
+  return [...ids].map((id) => corpus.value!.lawById(id)).filter((l): l is LawEntry => Boolean(l));
 });
 
 const referencedBy = computed(() => {
   const law = activeLaw.value;
   if (!law) return [];
-  return [...corpus.value.latestById.values()].filter((other) => other.id !== law.id && other.text.includes(`regulation: ${law.id}\n`));
+  // An active law means the corpus is loaded.
+  return [...corpus.value!.latestById.values()].filter((other) => other.id !== law.id && other.text.includes(`regulation: ${law.id}\n`));
 });
 </script>
 
@@ -185,9 +191,10 @@ const referencedBy = computed(() => {
             </nldd-toolbar-item>
             <template v-if="activeLaw">
               <nldd-toolbar-item slot="start" v-if="trail.length > 1">
-                <nldd-icon-button size="sm" appearance="neutral-transparent" icon="chevron-left" :text="t('wet.back', { name: tabInfo(trail.at(-2))?.name ?? t('wet.back.fallback') })" @click="goBack"></nldd-icon-button>
+                <!-- `trail.length > 1` guarantees `trail.at(-2)`; an active law guarantees the corpus. -->
+                <nldd-icon-button size="sm" appearance="neutral-transparent" icon="chevron-left" :text="t('wet.back', { name: tabInfo(trail.at(-2)!)?.name ?? t('wet.back.fallback') })" @click="goBack"></nldd-icon-button>
               </nldd-toolbar-item>
-              <nldd-toolbar-title slot="start" :text="activeLaw.name" :supporting-text="t('wet.valid_from', { service: serviceInfo(corpus, activeLaw.service).name, date: activeLaw.valid_from })" max-width="480px"></nldd-toolbar-title>
+              <nldd-toolbar-title slot="start" :text="activeLaw.name" :supporting-text="t('wet.valid_from', { service: serviceInfo(corpus!, activeLaw.service).name, date: activeLaw.valid_from })" max-width="480px"></nldd-toolbar-title>
               <nldd-toolbar-item slot="end">
                 <nldd-segmented-control size="sm" width="fit-content" :value="showRaw ? 'raw' : 'tree'" @change="showRaw = $event.detail?.value === 'raw'">
                   <nldd-segmented-control-item value="tree" :text="t('wet.view.tree')"></nldd-segmented-control-item>
@@ -254,9 +261,10 @@ const referencedBy = computed(() => {
         <nldd-container padding="12" gap="16">
           <nldd-list appearance="box-base" :accessible-label="t('wet.executed_by')">
             <nldd-list-item size="md">
+              <!-- An active law means the corpus is loaded. -->
               <nldd-cell><OrgLogo :service="activeLaw.service" /></nldd-cell>
               <nldd-spacer-cell size="12"></nldd-spacer-cell>
-              <nldd-text-cell :overline="t('wet.executed_by')" :text="serviceInfo(corpus, activeLaw.service).name"></nldd-text-cell>
+              <nldd-text-cell :overline="t('wet.executed_by')" :text="serviceInfo(corpus!, activeLaw.service).name"></nldd-text-cell>
             </nldd-list-item>
           </nldd-list>
           <nldd-container gap="4">

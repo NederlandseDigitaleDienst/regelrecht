@@ -204,10 +204,10 @@ const hasDecision = computed(() => {
 //
 // That is not hypothetical: RECHTSPOSITIE was added to legal_character in
 // schema v0.5.9 (RFC-038) and this list was not updated, so the editor could
-// not set it on a law for the whole of that release. Current as of v0.6.0.
+// not set it on a law for the whole of that release. Current as of v0.8.12.
 const LEGAL_CHARACTERS = [
   'BESCHIKKING', 'TOETS', 'WAARDEBEPALING', 'BESLUIT_VAN_ALGEMENE_STREKKING', 'INFORMATIEF',
-  'RECHTSPOSITIE',
+  'RECHTSPOSITIE', 'UITSPRAAK',
 ];
 const DECISION_TYPES = [
   'TOEKENNING', 'AFWIJZING', 'GOEDKEURING', 'GEEN_BESLUIT',

@@ -345,3 +345,76 @@ async fn a_config_without_a_password_refuses_to_start() {
         Err(e) => assert!(e.to_string().contains("POC_PW_GAMMA"), "{e}"),
     }
 }
+
+/// A portal in which alfa has two sources: `poortlokaal` from a local folder
+/// (`POC_BRON_POORTLOKAAL`) and `poortzonder` with neither a folder nor a
+/// token. The names are this test's own, so no other test sets their
+/// variables.
+fn app_met_bronnen(dir: &std::path::Path) -> axum::Router {
+    let bron = |naam: &str| {
+        format!(
+            "      - name: {naam}\n        github:\n          owner: example-org\n          \
+             repo: regelrecht-corpus-example\n          branch: poc/x\n          path: x\n        \
+             token_env: POORT_{}_TOKEN_NOOIT_GEZET\n",
+            naam.to_uppercase()
+        )
+    };
+    let register = REGISTER.replace(
+        "    bron: poc-alfa\n",
+        &format!(
+            "    bron: poc-alfa\n    sources:\n{}{}",
+            bron("poortlokaal"),
+            bron("poortzonder")
+        ),
+    );
+    std::env::set_var("POC_COOKIE_SECRET", SECRET);
+    std::env::set_var("POC_PW_ALFA", "alfa-geheim");
+    std::env::set_var("POC_PW_BETA", "beta-geheim");
+    std::env::set_var("POC_BRON_POORTLOKAAL", dir);
+    let config = Config::from_env(&register)
+        .expect("config")
+        .met_static_root("/nonexistent");
+    router(AppState::new(config))
+}
+
+#[tokio::test]
+async fn a_source_is_served_behind_the_password_of_its_poc() {
+    let dir = std::env::temp_dir().join(format!("poc-poort-bron-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("casussen")).expect("dir");
+    std::fs::write(dir.join("casussen/c.yaml"), "cel: c").expect("file");
+    let app = app_met_bronnen(&dir);
+
+    // Without the password, the login page; with another PoC's, too.
+    let (status, _) = get(&app, "/alfa/bron/poortlokaal", None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, _) = get(&app, "/alfa/bron/poortlokaal", Some(&cookie_voor("beta"))).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    // With it, the files of the local folder, by their path under it.
+    let (status, body) = get(&app, "/alfa/bron/poortlokaal", Some(&cookie_voor("alfa"))).await;
+    std::fs::remove_dir_all(&dir).expect("cleanup");
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let json: serde_json::Value = serde_json::from_str(&body).expect("json");
+    assert_eq!(json["naam"], "poortlokaal");
+    assert_eq!(json["versie"], "lokaal");
+    assert_eq!(json["bestanden"]["casussen/c.yaml"], "cel: c");
+
+    // A source without a folder or a token says so. A path for a source not
+    // in the register stays the PoC's own (here the static root, which is
+    // empty), and so does a source of another PoC.
+    let (status, body) = get(&app, "/alfa/bron/poortzonder", Some(&cookie_voor("alfa"))).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert!(body.starts_with("bron niet beschikbaar"), "{body}");
+    assert!(
+        body.contains("POORT_POORTZONDER_TOKEN_NOOIT_GEZET"),
+        "{body}"
+    );
+    for (pad, poc) in [
+        ("/alfa/bron/onbekend", "alfa"),
+        ("/beta/bron/poortlokaal", "beta"),
+    ] {
+        let (status, body) = get(&app, pad, Some(&cookie_voor(poc))).await;
+        assert_ne!(status, StatusCode::OK, "{pad}");
+        assert!(!body.contains("bestanden"), "{pad}: {body}");
+    }
+}

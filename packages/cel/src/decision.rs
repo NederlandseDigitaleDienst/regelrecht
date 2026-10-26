@@ -19,11 +19,12 @@
 //!    judgement where it is silent;
 //! 4. the cell: a date the stage requires, which is the day of the decision.
 //!
-//! The cell answers an open term one of its reductions fills like a
-//! regulation fills it (`implements`, [`crate::reading`], RFC-048). The
-//! cell derives the shape with the terms it answers ([`derive_with`]), so
-//! such a term counts as filled; derived without them ([`derive`]), the
-//! term is what the law leaves it to.
+//! The policy of the deciding authority binds an open term to the answer of
+//! a cell (`source.reduction`, [`crate::reading`], RFC-048). Such a binding
+//! fills the term like any regulation (`implements`), so the term counts as
+//! filled by policy; where the law leaves it to the authority too, the
+//! authority may still supply its judgement for a case the cell is silent
+//! on.
 
 use chrono::NaiveDate;
 use regelrecht_engine::{LawExecutionService, ParameterType, ProcedureStage};
@@ -31,14 +32,16 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::error::{refused, setup, Result};
-use crate::reading::Term;
 use crate::shape::{self, add_field, article_on, Field};
 
-/// The stages a decision runs, in order: the decision itself (Awb 1:3), and
-/// the announcement without which it has no effect (Awb 3:40). Both are
-/// stages of the Awb procedure for a beschikking. The cell announces the
-/// decision on the day it takes it: that is its assumption, not the law's.
-pub const STAGES: [&str; 2] = ["BESLUIT", "BEKENDMAKING"];
+/// The stages a decision runs, in order: the first of these pairs that the
+/// procedure of its article holds. For a beschikking the decision itself
+/// (Awb 1:3) and the announcement without which it has no effect (Awb 3:40);
+/// for the judgment of an administrative court the judgment (Awb 8:70) and
+/// the copy that the clerk makes available to the parties (Awb 8:79, RFC-053).
+/// The cell announces or sends the decision on the day it takes it: that is
+/// its assumption, not the law's.
+pub const STAGES: [[&str; 2]; 2] = [["BESLUIT", "BEKENDMAKING"], ["UITSPRAAK", "TOEZENDING"]];
 
 /// Where the value of a field of a decision comes from.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -85,7 +88,8 @@ pub struct DecisionShape {
     /// the one whose submission asks for this decision (`requests`), or this
     /// article in the object form.
     pub application: String,
-    /// The stages of [`STAGES`], as the engine names them.
+    /// The stages of [`STAGES`] that its procedure holds, as the engine names
+    /// them.
     pub stages: Vec<ProcedureStage>,
     /// Everything the stages ask, the deciding article first.
     pub inputs: Vec<Input>,
@@ -98,7 +102,7 @@ pub struct DecisionShape {
 
 impl DecisionShape {
     /// The deciding article, `<regulation>#<article>`.
-    pub fn grondslag(&self) -> String {
+    pub fn basis(&self) -> String {
         format!("{}#{}", self.law_id, self.article)
     }
 
@@ -114,18 +118,6 @@ pub fn derive(
     law_id: &str,
     article: &str,
     day: NaiveDate,
-) -> Result<DecisionShape> {
-    derive_with(service, law_id, article, day, &[])
-}
-
-/// [`derive`] for a cell that answers the open terms `answered`: such a
-/// term of the deciding article is filled as a regulation fills it.
-pub fn derive_with(
-    service: &LawExecutionService,
-    law_id: &str,
-    article: &str,
-    day: NaiveDate,
-    answered: &[Term],
 ) -> Result<DecisionShape> {
     let reference = format!("{law_id}#{article}");
     let deciding = article_on(service, law_id, article, day)
@@ -159,7 +151,15 @@ pub fn derive_with(
         .ok_or_else(|| setup(format!("'{application_reference}' is no article reference")))?;
     let application = shape::derive(service, application_law, application_article, day)?;
     let submission_kind = application.kind.clone();
-    let stages = STAGES
+    let held: Vec<&str> = service
+        .procedure_of(law_id, deciding)?
+        .map(|procedure| procedure.stages.iter().map(|s| s.name.as_str()).collect())
+        .unwrap_or_default();
+    let pair = STAGES
+        .iter()
+        .find(|pair| pair.iter().all(|stage| held.contains(stage)))
+        .unwrap_or(&STAGES[0]);
+    let stages = pair
         .iter()
         .map(|stage| service.procedure_stage(law_id, article, stage, &date))
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -241,14 +241,11 @@ pub fn derive_with(
     let mut policy_first: Vec<String> = Vec::new();
     let mut judgements: Vec<String> = Vec::new();
     for term in deciding.get_open_terms().into_iter().flatten() {
-        let filled = answered
-            .iter()
-            .any(|t| t.law == law_id && t.article == article && t.open_term == term.id)
-            || !service
-                .resolver()
-                .find_implementations(law_id, article, term, Some(day), &HashMap::new())?
-                .implementations
-                .is_empty();
+        let filled = !service
+            .resolver()
+            .find_implementations(law_id, article, term, Some(day), &HashMap::new())?
+            .implementations
+            .is_empty();
         let source = match (filled, &term.decided_per_case_by) {
             (true, Some(_)) => {
                 policy_first.push(term.id.clone());

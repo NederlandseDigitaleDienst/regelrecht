@@ -1,32 +1,62 @@
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, ref, shallowRef, watch } from 'vue';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
 import OrgLogo from './OrgLogo.vue';
-import { fieldSpec, formatValue, humanize, isUnknown } from '../data/format.js';
-import { columnKind as columnKindOf, decimalsFor, editKind, emptyRow, parseCell, parseDutchNumber, stepFor, tableColumns, unitLabel, valueKind } from '../data/editKinds.js';
+import { type DeclaredField, fieldSpec, formatValue, humanize, isUnknown } from '../data/format';
+import { type EditKind, type TableRow, columnKind as columnKindOf, decimalsFor, editKind, emptyRow, parseCell, parseDutchNumber, stepFor, tableColumns, unitLabel, valueKind } from '../data/editKinds';
 import { useI18n } from '../i18n/index.js';
-import { useDemo } from '../store/demoStore.js';
+import { type Claimant, type DemoClaim, useDemo } from '../store/demoStore';
 
 // The citizen corrects one register value. The correction becomes a claim on
 // the law that owns the input; once approved (by the caseworker, or at once
 // for a profile with AUTO_APPROVE_CLAIMS) the engine uses it instead of the
 // register value. Opens as a sheet, mirrors `open` onto show()/hide().
 
-const props = defineProps({
-  open: { type: Boolean, default: false },
+/**
+ * The value being corrected, as far as this sheet reads it. A `LineageNode`
+ * from `data/lineage` fits.
+ */
+export interface EditValueNode {
+  /** The law that owns the input. */
+  law: string;
+  /** The input name. */
+  name: string;
+  value: unknown;
+  /** The organisation whose register holds the value. */
+  service?: string | null;
+  keyField?: string;
+  keyValue?: string;
+  /** The value shown already comes from an approved claim. */
+  corrected?: boolean;
+}
+
+const props = withDefaults(defineProps<{
+  open?: boolean;
   /** Lineage value node: { law, name, value, service, keyField, keyValue } */
-  node: { type: Object, default: null },
+  node?: EditValueNode | null;
   /** The tile's law id, so the case for that law knows about this claim. */
-  tileLawId: { type: String, default: null },
+  tileLawId?: string | null;
   /** A value only the citizen can know (no register): applies at once. */
-  selfDeclared: { type: Boolean, default: false },
+  selfDeclared?: boolean;
   /** Who corrects: the citizen from the portal, or the caseworker from a case. */
-  claimant: { type: String, default: 'BURGER' },
+  claimant?: Claimant;
   /** The person the correction is about; null = the active profile. */
-  bsn: { type: String, default: null },
+  bsn?: string | null;
   /** The case the caseworker corrects from; null from the portal. */
-  caseId: { type: String, default: null },
+  caseId?: string | null;
+}>(), {
+  open: false,
+  node: null,
+  tileLawId: null,
+  selfDeclared: false,
+  claimant: 'BURGER',
+  bsn: null,
+  caseId: null,
 });
-const emit = defineEmits(['close', 'submitted']);
+const emit = defineEmits<{
+  close: [];
+  submitted: [claim: DemoClaim];
+}>();
 const { t } = useI18n();
 const { corpus, submitClaim, profile, features } = useDemo();
 
@@ -48,51 +78,61 @@ const HARDSHIP_CLAUSES = [
 /** Above this the file is not kept in localStorage; only its name, type and size are. */
 const EVIDENCE_INLINE_LIMIT = 400 * 1024;
 
-const sheet = ref(null);
+/** The chosen document; `dataUrl` stays null for a file too large to keep. */
+interface EvidenceDraft {
+  name: string;
+  type: string;
+  size: number;
+  dataUrl: string | null;
+}
+
+const sheet = ref<NLDDSheet | null>(null);
 const newValue = ref('');
 /** Working copies for the structured kinds: a table, a list, a single record. */
-const rows = ref([]);
-const list = ref([]);
-const record = ref({});
+const rows = ref<TableRow[]>([]);
+const list = ref<unknown[]>([]);
+const record = ref<Record<string, unknown>>({});
 const reason = ref('');
 const hardship = ref('');
 // Shallow so the identity check in onEvidenceChange sees the object it stored.
-const evidence = shallowRef(null);
+const evidence = shallowRef<EvidenceDraft | null>(null);
 const error = ref('');
 const caseworker = computed(() => props.claimant === 'BEHANDELAAR');
 
-const spec = computed(() => (props.node ? fieldSpec(corpus.value?.lawById(props.node.law)?.doc, props.node.name) : null));
+// `fieldSpec` returns the field as the law declares it, so its description is there too.
+const spec = computed((): (DeclaredField & { description?: string }) | null => (props.node ? fieldSpec(corpus.value?.lawById(props.node.law)?.doc, props.node.name) : null));
 const law = computed(() => (props.node ? corpus.value?.lawById(props.node.law) : null));
 // One definition of which editor a value deserves, shared with the tests
-// (src/data/editKinds.js): the declared type decides, the value fills in.
-const kind = computed(() => editKind(props.node?.value, spec.value));
+// (src/data/editKinds.ts): the declared type decides, the value fills in.
+const kind = computed((): EditKind => editKind(props.node?.value, spec.value));
 // What the law says about this number: how it is counted, and how precise.
 const unit = computed(() => unitLabel(spec.value));
 const step = computed(() => stepFor(spec.value));
 
 /** The columns of a table-valued correction, in the order they appear. */
 const columns = computed(() => tableColumns(rows.value));
-function columnKind(col) {
+function columnKind(col: string) {
   return columnKindOf(rows.value, col);
 }
-function setCell(i, col, raw, kindOfCol) {
+function setCell(i: number, col: string, raw: unknown, kindOfCol: string) {
   const next = rows.value.map((r) => ({ ...r }));
-  next[i][col] = parseCell(raw, kindOfCol);
+  // `i` is the index of a rendered row.
+  next[i]![col] = parseCell(raw, kindOfCol);
   rows.value = next;
 }
 function addRow() {
   rows.value = [...rows.value, emptyRow(columns.value)];
 }
-function removeRow(i) {
+function removeRow(i: number) {
   rows.value = rows.value.filter((_, j) => j !== i);
 }
 
 /** Fields of a single record, in the order they appear. */
 const recordKeys = computed(() => Object.keys(record.value ?? {}));
-function setField(key, raw, k) {
+function setField(key: string, raw: unknown, k: string) {
   record.value = { ...record.value, [key]: parseCell(raw, k) };
 }
-function setListItem(i, raw, k) {
+function setListItem(i: number, raw: unknown, k: string) {
   const next = [...list.value];
   next[i] = parseCell(raw, k);
   list.value = next;
@@ -101,7 +141,7 @@ function addListItem() {
   // A new item copies the kind of the ones already there, empty.
   list.value = [...list.value, list.value.length && typeof list.value[0] === 'number' ? null : ''];
 }
-function removeListItem(i) {
+function removeListItem(i: number) {
   list.value = list.value.filter((_, j) => j !== i);
 }
 
@@ -126,10 +166,10 @@ watch(
     const v = isUnknown(raw) ? null : raw;
     if (kind.value === 'amount' && typeof v === 'number') newValue.value = (v / 100).toFixed(2).replace('.', ',');
     else if (kind.value === 'boolean') newValue.value = v ? 'true' : 'false';
-    else if (kind.value === 'rows') rows.value = (v ?? []).map((r) => ({ ...r }));
-    else if (kind.value === 'list') list.value = [...(v ?? [])];
-    else if (kind.value === 'record') record.value = { ...(v ?? {}) };
-    else if (kind.value === 'json') newValue.value = JSON.stringify(v ?? null, null, 2);
+    // `editKind` picked these kinds from the value's shape (or the declared type).
+    else if (kind.value === 'rows') rows.value = ((v as TableRow[] | null | undefined) ?? []).map((r) => ({ ...r }));
+    else if (kind.value === 'list') list.value = [...((v as unknown[] | null | undefined) ?? [])];
+    else if (kind.value === 'record') record.value = { ...((v as Record<string, unknown> | null | undefined) ?? {}) };
     else newValue.value = v === null || v === undefined ? '' : String(v);
     await nextTick();
     sheet.value?.show?.();
@@ -166,12 +206,6 @@ function parse() {
       return list.value;
     case 'record':
       return record.value;
-    case 'json':
-      try {
-        return JSON.parse(raw);
-      } catch {
-        throw new Error(t('sheet.edit.error.json'));
-      }
     default:
       return raw === '' ? null : raw;
   }
@@ -179,20 +213,34 @@ function parse() {
 
 // The chosen document. Small files travel along as a data URL so the caseworker
 // can open them; larger ones keep only name, type and size (localStorage budget).
-function onEvidenceChange(e) {
-  const file = e.detail?.files?.[0] ?? null;
+function onEvidenceChange(e: Event) {
+  const file = (e as CustomEvent<{ files?: File[] } | null | undefined>).detail?.files?.[0] ?? null;
   if (!file) {
     evidence.value = null;
     return;
   }
-  const meta = { name: file.name, type: file.type, size: file.size, dataUrl: null };
+  const meta: EvidenceDraft = { name: file.name, type: file.type, size: file.size, dataUrl: null };
   evidence.value = meta;
   if (file.size > EVIDENCE_INLINE_LIMIT) return;
   const reader = new FileReader();
   reader.onload = () => {
-    if (evidence.value === meta) evidence.value = { ...meta, dataUrl: reader.result };
+    // readAsDataURL yields a string.
+    if (evidence.value === meta) evidence.value = { ...meta, dataUrl: reader.result as string };
   };
   reader.readAsDataURL(file);
+}
+
+/** The value of a native `<select>` after a change. */
+function selectValue(e: Event): string {
+  return (e.target as HTMLSelectElement).value;
+}
+/** What an nldd field's event carries: the value in `detail`, or on the field itself. */
+function inputValue(e: Event): string {
+  return (e as CustomEvent<{ value?: string } | null | undefined>).detail?.value ?? (e.target as EventTarget & { value: string }).value;
+}
+/** The value in an nldd field's `detail`, if any. */
+function detailValue(e: Event): unknown {
+  return (e as CustomEvent<{ value?: unknown } | null | undefined>).detail?.value;
 }
 
 function submit() {
@@ -201,7 +249,8 @@ function submit() {
   try {
     value = parse();
   } catch (e) {
-    error.value = e.message;
+    // parse() only throws the Errors it creates.
+    error.value = (e as Error).message;
     return;
   }
   if (!reason.value.trim() && !props.selfDeclared) {
@@ -250,14 +299,14 @@ function submit() {
               <nldd-text-cell
                 :overline="selfDeclared ? t('sheet.edit.overline.self') : t('sheet.edit.overline.registered')"
                 :text="formatValue(node.value, spec)"
-                :supporting-text="node.service ? t('sheet.edit.source', { service: corpus.services[node.service]?.name ?? node.service }) : t('sheet.edit.no_register')"
+                :supporting-text="node.service ? t('sheet.edit.source', { service: corpus?.services[node.service]?.name ?? node.service }) : t('sheet.edit.no_register')"
               ></nldd-text-cell>
             </nldd-list-item>
           </nldd-list>
           <nldd-rich-text v-if="spec?.description"><p>{{ spec.description }}</p></nldd-rich-text>
           <nldd-form-field :label="unit ? t('sheet.edit.new_value.unit', { unit }) : t('sheet.edit.new_value')">
             <nldd-dropdown v-if="kind === 'boolean'">
-              <select :value="newValue" @change="newValue = $event.target.value">
+              <select :value="newValue" @change="newValue = selectValue($event)">
                 <option value="true">{{ t('sheet.edit.yes') }}</option>
                 <option value="false">{{ t('sheet.edit.no') }}</option>
               </select>
@@ -274,13 +323,13 @@ function submit() {
                 <nldd-table-row v-for="(row, i) in rows" :key="i">
                   <nldd-cell v-for="c in columns" :key="c">
                     <nldd-dropdown v-if="columnKind(c) === 'boolean'">
-                      <select :value="String(row[c])" @change="setCell(i, c, $event.target.value, 'boolean')">
+                      <select :value="String(row[c])" @change="setCell(i, c, selectValue($event), 'boolean')">
                         <option value="true">{{ t('sheet.edit.yes') }}</option>
                         <option value="false">{{ t('sheet.edit.no') }}</option>
                       </select>
                     </nldd-dropdown>
-                    <nldd-date-field v-else-if="columnKind(c) === 'date'" :value="row[c] ?? ''" width="full" @change="setCell(i, c, $event.detail?.value ?? '', 'date')"></nldd-date-field>
-                    <nldd-text-field v-else :value="row[c] ?? ''" width="full" :keyboard="columnKind(c) === 'number' ? 'numeric' : undefined" @input="setCell(i, c, $event.detail?.value ?? $event.target.value, columnKind(c))"></nldd-text-field>
+                    <nldd-date-field v-else-if="columnKind(c) === 'date'" :value="row[c] ?? ''" width="full" @change="setCell(i, c, detailValue($event) ?? '', 'date')"></nldd-date-field>
+                    <nldd-text-field v-else :value="row[c] ?? ''" width="full" :keyboard="columnKind(c) === 'number' ? 'numeric' : undefined" @input="setCell(i, c, inputValue($event), columnKind(c))"></nldd-text-field>
                   </nldd-cell>
                   <nldd-cell>
                     <nldd-icon-button size="xs" appearance="neutral-transparent" icon="trash" :accessible-label="t('sheet.edit.rows.remove')" @click="removeRow(i)"></nldd-icon-button>
@@ -297,13 +346,13 @@ function submit() {
                 <nldd-list-item v-for="(item, i) in list" :key="i" size="sm">
                   <nldd-cell width="full">
                     <nldd-dropdown v-if="valueKind(item) === 'boolean'">
-                      <select :value="String(item)" @change="setListItem(i, $event.target.value, 'boolean')">
+                      <select :value="String(item)" @change="setListItem(i, selectValue($event), 'boolean')">
                         <option value="true">{{ t('sheet.edit.yes') }}</option>
                         <option value="false">{{ t('sheet.edit.no') }}</option>
                       </select>
                     </nldd-dropdown>
-                    <nldd-date-field v-else-if="valueKind(item) === 'date'" :value="item ?? ''" width="full" @change="setListItem(i, $event.detail?.value ?? '', 'date')"></nldd-date-field>
-                    <nldd-text-field v-else :value="item ?? ''" width="full" :keyboard="valueKind(item) === 'number' ? 'numeric' : undefined" @input="setListItem(i, $event.detail?.value ?? $event.target.value, valueKind(item))"></nldd-text-field>
+                    <nldd-date-field v-else-if="valueKind(item) === 'date'" :value="item ?? ''" width="full" @change="setListItem(i, detailValue($event) ?? '', 'date')"></nldd-date-field>
+                    <nldd-text-field v-else :value="item ?? ''" width="full" :keyboard="valueKind(item) === 'number' ? 'numeric' : undefined" @input="setListItem(i, inputValue($event), valueKind(item))"></nldd-text-field>
                   </nldd-cell>
                   <nldd-spacer-cell size="8"></nldd-spacer-cell>
                   <nldd-cell><nldd-icon-button size="xs" appearance="neutral-transparent" icon="trash" :accessible-label="t('sheet.edit.list.remove')" @click="removeListItem(i)"></nldd-icon-button></nldd-cell>
@@ -319,33 +368,32 @@ function submit() {
                   <nldd-text-cell size="sm" min-width="120px" :text="humanize(key)"></nldd-text-cell>
                   <nldd-cell width="full">
                     <nldd-dropdown v-if="valueKind(record[key]) === 'boolean'">
-                      <select :value="String(record[key])" @change="setField(key, $event.target.value, 'boolean')">
+                      <select :value="String(record[key])" @change="setField(key, selectValue($event), 'boolean')">
                         <option value="true">{{ t('sheet.edit.yes') }}</option>
                         <option value="false">{{ t('sheet.edit.no') }}</option>
                       </select>
                     </nldd-dropdown>
-                    <nldd-date-field v-else-if="valueKind(record[key]) === 'date'" :value="record[key] ?? ''" width="full" @change="setField(key, $event.detail?.value ?? '', 'date')"></nldd-date-field>
-                    <nldd-text-field v-else :value="record[key] ?? ''" width="full" :keyboard="valueKind(record[key]) === 'number' ? 'numeric' : undefined" @input="setField(key, $event.detail?.value ?? $event.target.value, valueKind(record[key]))"></nldd-text-field>
+                    <nldd-date-field v-else-if="valueKind(record[key]) === 'date'" :value="record[key] ?? ''" width="full" @change="setField(key, detailValue($event) ?? '', 'date')"></nldd-date-field>
+                    <nldd-text-field v-else :value="record[key] ?? ''" width="full" :keyboard="valueKind(record[key]) === 'number' ? 'numeric' : undefined" @input="setField(key, inputValue($event), valueKind(record[key]))"></nldd-text-field>
                   </nldd-cell>
                 </nldd-list-item>
               </nldd-list>
             </template>
-            <nldd-code-editor v-else-if="kind === 'json'" :value="newValue" rows="6" @input="newValue = $event.target.value"></nldd-code-editor>
             <!-- Typed input, as the POC had it: a date gets a date picker and a
                  number a number field, so the value a citizen enters is of the
                  kind the law expects. An amount stays a text field: the number
                  field has no empty state and shows the Dutch comma badly. -->
-            <nldd-date-field v-else-if="kind === 'date'" :value="newValue" width="full" @change="newValue = $event.detail?.value ?? newValue"></nldd-date-field>
-            <nldd-number-field v-else-if="kind === 'number'" :value="newValue" width="full" hide-spin-buttons :step="step" @input="newValue = String($event.detail?.value ?? newValue)" @change="newValue = String($event.detail?.value ?? newValue)"></nldd-number-field>
-            <nldd-text-field v-else :value="newValue" @input="newValue = $event.detail?.value ?? $event.target.value"></nldd-text-field>
+            <nldd-date-field v-else-if="kind === 'date'" :value="newValue" width="full" @change="newValue = (detailValue($event) as string | undefined) ?? newValue"></nldd-date-field>
+            <nldd-number-field v-else-if="kind === 'number'" :value="newValue" width="full" hide-spin-buttons :step="step" @input="newValue = String(detailValue($event) ?? newValue)" @change="newValue = String(detailValue($event) ?? newValue)"></nldd-number-field>
+            <nldd-text-field v-else :value="newValue" @input="newValue = inputValue($event)"></nldd-text-field>
           </nldd-form-field>
           <nldd-form-field :label="selfDeclared ? t('sheet.edit.reason.self') : t('sheet.edit.reason.correction')" :optional="selfDeclared || undefined">
-            <nldd-multi-line-text-field :value="reason" rows="3" :placeholder="caseworker ? t('sheet.edit.reason.placeholder.officer') : t('sheet.edit.reason.placeholder.citizen')" @input="reason = $event.detail?.value ?? $event.target.value"></nldd-multi-line-text-field>
+            <nldd-multi-line-text-field :value="reason" rows="3" :placeholder="caseworker ? t('sheet.edit.reason.placeholder.officer') : t('sheet.edit.reason.placeholder.citizen')" @input="reason = inputValue($event)"></nldd-multi-line-text-field>
             <nldd-form-field-help-text>{{ caseworker ? t('sheet.edit.reason.help.officer') : hardship ? t('sheet.edit.reason.help.hardship') : selfDeclared || features.AUTO_APPROVE_CLAIMS ? t('sheet.edit.reason.help.immediate') : t('sheet.edit.reason.help.pending') }}</nldd-form-field-help-text>
           </nldd-form-field>
           <nldd-form-field :label="t('sheet.edit.hardship.label')" optional>
             <nldd-dropdown width="full">
-              <select :value="hardship" @change="hardship = $event.target.value">
+              <select :value="hardship" @change="hardship = selectValue($event)">
                 <option v-for="o in HARDSHIP_CLAUSES" :key="o.value" :value="o.value">{{ t(o.labelKey) }}</option>
               </select>
             </nldd-dropdown>

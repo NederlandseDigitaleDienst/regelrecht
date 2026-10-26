@@ -89,7 +89,7 @@ pub struct Shape {
 
 impl Shape {
     /// The establishing article, `<regulation>#<article>`.
-    pub fn grondslag(&self) -> String {
+    pub fn basis(&self) -> String {
         format!("{}#{}", self.law_id, self.article)
     }
 
@@ -274,7 +274,7 @@ pub fn fact_fields(
     day: NaiveDate,
     recorder: Option<&Authority>,
 ) -> Result<Vec<Field>> {
-    let (grondslag, _) = split_fact(fact)?;
+    let (basis, _) = split_fact(fact)?;
     let (article, required) = required_fact(service, fact, day)?;
     if let Some(authority) = recorder {
         refuse_incompetent_fact(required, fact, authority)?;
@@ -284,10 +284,16 @@ pub fn fact_fields(
         .iter()
         .flatten()
         .map(|field| {
-            if field == crate::reading::ROW_ID {
+            if [
+                crate::reading::ROW_ID,
+                crate::reading::ROW_BASIS,
+                crate::reading::ROW_REFERS_TO,
+            ]
+            .contains(&field.as_str())
+            {
                 return Err(setup(format!(
                     "{fact}: the fact holds a field '{field}'; its row gives the executogram's \
-                     own id under that name"
+                     own id, its article or what it refers to under that name"
                 )));
             }
             let p = article
@@ -303,7 +309,7 @@ pub fn fact_fields(
                 name: field.clone(),
                 type_: p.param_type,
                 nullable: p.is_nullable(),
-                declared_by: vec![grondslag.to_string()],
+                declared_by: vec![basis.to_string()],
             })
         })
         .collect()
@@ -317,15 +323,15 @@ fn required_fact<'s>(
     fact: &str,
     day: NaiveDate,
 ) -> Result<(&'s Article, &'s ArticleRequirement)> {
-    let (grondslag, name) = split_fact(fact)?;
-    let (law_id, number) = grondslag
+    let (basis, name) = split_fact(fact)?;
+    let (law_id, number) = basis
         .split_once('#')
-        .ok_or_else(|| refused(format!("'{grondslag}' is no <regulation>#<article>")))?;
+        .ok_or_else(|| refused(format!("'{basis}' is no <regulation>#<article>")))?;
     let article = article_on(service, law_id, number, day)
-        .ok_or_else(|| refused(format!("{grondslag} has no version in force on {day}")))?;
+        .ok_or_else(|| refused(format!("{basis} has no version in force on {day}")))?;
     let required = article.required_fact(name).ok_or_else(|| {
         refused(format!(
-            "{grondslag} requires no fact '{name}' (requires, fact) on {day}"
+            "{basis} requires no fact '{name}' (requires, fact) on {day}"
         ))
     })?;
     Ok((article, required))
@@ -377,7 +383,7 @@ pub(crate) fn article_on<'s>(
 /// be absent (RFC-036): an application may leave it empty (Awb 4:5 asks to
 /// complete it; it is still an application). An amount is in whole
 /// eurocents. A date is written `YYYY-MM-DD`, and only so. A decision is a
-/// decision value `{grondslag, fields, findings, outputs}` (schema
+/// decision value `{basis, fields, findings, outputs}` (schema
 /// v0.8.4): an article reference and three objects, with `taken_on` where
 /// the cell gave it ([`is_decision_value`]), and nothing else.
 pub fn fits(field: &Field, value: &serde_json::Value) -> bool {
@@ -404,7 +410,7 @@ pub fn fits(field: &Field, value: &serde_json::Value) -> bool {
     }
 }
 
-/// Whether `value` is a decision value `{grondslag, fields, findings,
+/// Whether `value` is a decision value `{basis, fields, findings,
 /// outputs}`: the article that decided (`<regulation>#<article>`), and
 /// three objects. A decision the cell gives from its chronicle also holds
 /// `taken_on`: the article of the submission it was taken on, also
@@ -420,7 +426,7 @@ pub(crate) fn is_decision_value(value: &serde_json::Map<String, serde_json::Valu
     };
     let taken_on = !value.contains_key("taken_on") || reference("taken_on");
     value.len() == 4 + usize::from(value.contains_key("taken_on"))
-        && reference("grondslag")
+        && reference("basis")
         && taken_on
         && ["fields", "findings", "outputs"]
             .iter()

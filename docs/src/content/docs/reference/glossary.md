@@ -22,11 +22,11 @@ Note that *verordening* names four different things in this list. An EU-verorden
 | `EU_VERORDENING` | EU-verordening | EU Regulation | Directly applicable in every member state, without transposition |
 | `EU_RICHTLIJN` | EU-richtlijn | EU Directive | Binding as to the result, transposed into national law by the member state |
 | `VERDRAG` | Verdrag | Treaty | International agreement binding on the Netherlands |
-| `UITVOERINGSBELEID` | Uitvoeringsbeleid | Implementation policy | Published practice of an executing body, below the level of a beleidsregel |
+| `UITVOERINGSBELEID` | Uitvoeringsbeleid | Implementation policy | Published practice of an executing body, below the level of a beleidsregel. Since schema v0.8.9 it may bind an open term to the named answer of a cell (`source.reduction`); it then names its holder in `competent_authority` ([RFC-048](/rfcs/rfc-048)) |
 | `GEMEENTELIJKE_VERORDENING` | Gemeentelijke verordening | Municipal ordinance | Local regulation by a municipality |
 | `PROVINCIALE_VERORDENING` | Provinciale verordening | Provincial ordinance | Regional regulation by a province |
 | `WATERSCHAPS_VERORDENING` | Waterschapsverordening | Water authority ordinance | Regulation by a waterschap, the regional water authority |
-| `REDUCTIE` | Reductie | Reduction | No regulation: a cell's reduction over its own chronicle (RFC-022 §4). Kept with the cell, it alone reads the cell's chronicle: decisions (`source.decisions`) and the facts it recorded (`source.facts`, [RFC-051](/rfcs/rfc-051)). It may fill an open term (`implements`), and does not act on law otherwise (no `hooks`, `overrides`, `execution.produces` or `open_terms`) ([RFC-048](/rfcs/rfc-048)) |
+| `REDUCTIE` | Reductie | Reduction | No regulation: a cell's reduction over its own chronicle (RFC-022 §4), in the cell's directory (`corpus/cells/<cell>/reductions/`); it names no `competent_authority` (schema v0.8.12). It alone reads a chronicle: decisions (`source.decisions`) and the facts the cell recorded (`source.facts`, [RFC-051](/rfcs/rfc-051)). Each gives one row per record, with its `basis` and `id`. Since schema v0.8.11 a parameter may name the article whose decisions it reads. Its cell gives it as a named answer (`cel.yaml`), which policy binds to an open term. A reduction of no cell (`corpus/cells/reductions/`), such as that of the Awb, is called by other reductions and reads from the chronicle of the cell that runs them. It does not act on law (no `implements` since schema v0.8.9, no `hooks`, `overrides`, `execution.produces` or `open_terms`) ([RFC-048](/rfcs/rfc-048)) |
 
 ## Administrative Law (Bestuursrecht)
 
@@ -39,7 +39,8 @@ Note that *verordening* names four different things in this list. An EU-verorden
 | **Bekendmaking** | Notification | Making a decision known to the addressee (Awb art. 3:41). The bezwaar period runs from this moment, not from the decision itself |
 | **Bezwaar** | Objection | First recourse, filed with the body that decided |
 | **Bezwaartermijn** | Objection period | Six weeks from bekendmaking (Awb art. 6:7 and 6:8) |
-| **Beroep** | Appeal | Court appeal against a decision on bezwaar |
+| **Beroep** | Appeal | Court appeal against a decision on bezwaar (Awb art. 8:1 with 7:1) |
+| **Uitspraak** | Judgment | What the administrative court decides on a beroep (Awb art. 8:70). No besluit: a court is not a bestuursorgaan (Awb art. 1:1 lid 2 onder c) |
 | **Belanghebbende** | Interested party | A person whose interest is directly affected by a besluit (Awb art. 1:2) |
 | **Motivering** | Statement of reasons | The obligation to state the grounds a decision rests on (Awb art. 3:46) |
 
@@ -55,6 +56,7 @@ The values of `legal_character`, the schema field saying what kind of thing an o
 | `TOETS` | An assessment against a norm that is not itself a decision |
 | `WAARDEBEPALING` | A determination of a value that other rules then use |
 | `INFORMATIEF` | Informative output, carrying no legal consequence of its own |
+| `UITSPRAAK` | The judgment of an administrative court on an appeal (Awb art. 8:70), which is not a besluit (schema v0.8.10) |
 
 ### Decision type
 
@@ -123,6 +125,7 @@ The values of `decision_type`, saying what kind of decision an output is within 
 | **Data source** | Gegevensbron | Where an input with `source: {}` comes from: a register, the caller or the person, anything outside the corpus. The empty block says that no law in the corpus computes the value |
 | **Nullable** | - | `nullable: true` on a parameter, input or output: absence (`null`) is a legitimate value of that field. Defaults to `false`, and the type checker and the engine hold a law to it. See [Absent and unknown values](/concepts/law-format#absent-and-unknown-values) |
 | **Legal basis** | Grondslag | `legal_basis`: the provision an element cites for itself, such as the article that creates a delegation on an open term, or the lid an action carries out. A trace reports it next to the place the engine actually was ([RFC-039](/rfcs/rfc-039)) |
+| **Basis** | - | `basis`: the article a decision was taken under, as `<regulation>#<article>`, in a decision value and in a chronolexogram. Not the same thing as `legal_basis` |
 | **Produces** | - | The annotation stating what an article yields in legal terms, its `legal_character` and `decision_type`. Hooks fire on it. See [The produces annotation](/concepts/hooks-and-reactive-execution#the-produces-annotation) |
 | **Override** | Lex specialis | `overrides`: a specific provision that replaces a value set by a general one, as article 69 Vreemdelingenwet 2000 sets a four-week objection period in departure from article 6:7 Awb. Declared by the overriding law alone. See [Overrides](/concepts/hooks-and-reactive-execution#overrides-lex-specialis) |
 | **Marking** | Markering | A construct the format cannot yet express, flagged on the article. Called `untranslatables` before schema v0.7.0. See [Markings](/concepts/markings) |
@@ -131,6 +134,11 @@ The values of `decision_type`, saying what kind of decision an output is within 
 | **Trace** | Spoor | The tree showing how each value in an execution was computed, published as a `{trace_version, root}` document whose nodes carry an address and the provision they came from ([RFC-039](/rfcs/rfc-039)). See [Traceability](/concepts/traceability) |
 | **Execution Receipt** | Uitvoeringsbewijs | The sealed record of one execution: engine, schema, law version and hash, so the result can be reproduced. See [Execution Provenance](/concepts/execution-provenance) |
 | **Traject** | Traject | A working context in the editor, with its own members, roles and branch, optionally backed by its own repository |
+| **Chronolexogram** | Chronolexogram | A dated recording of a legal fact in the chronicle of the organization that establishes it: a submission, a decision or an executogram. The term comes from the [Chronolexografie position paper](https://chronolexografie.nl/position-paper/). See [Chronolexography](/concepts/chronolexography) |
+| **Chronicle** | Kroniek | The append-only, dated sequence of chronolexograms a cell keeps ([RFC-046](/rfcs/rfc-046)) |
+| **Cell** | Cel | An organization that keeps its own chronicle and answers from it, such as a school or a municipality. In RegelRecht a directory with `cel.yaml`, which says who it is and which answers it gives, run by `packages/cel` ([RFC-046](/rfcs/rfc-046)) |
+| **Executogram** | Executogram | A chronolexogram of a fact that is neither a submission nor a decision, such as where a school is established. Its shape is the fact an article `requires` ([RFC-051](/rfcs/rfc-051)) |
+| **Synthesis** | Synthese | Combining the answers of several cells for one open term, in the process that asks and never in a cell ([RFC-048](/rfcs/rfc-048)). The cells asked are the decision's sphere (*chronolexosfeer*) |
 | **Bevoegd gezag** | Bevoegd gezag | The body competent to take a decision under a given article. See [Competent Authority](/concepts/competent-authority) |
 | **Absent vs. unknown** | Afwezig versus onbekend | A value that does not exist, against a value nobody has. The engine keeps them apart rather than treating both as empty |
 | **Collection** | Verzameling | A group of values whose size is not known in advance, such as the medebewoners in a household. `FOREACH` iterates over one, filters it and can combine the results into one value. See [Collections](/concepts/collections) |

@@ -999,10 +999,11 @@ articles:
         # Regeling vaststelling schoolvakanties 2025–2030 stelt de kerst-,
         # mei- en zomervakantie vast (artikel 15, tweede lid, van de Wet op
         # het primair onderwijs), en de school stelt haar herfst- en
-        # voorjaarsvakantie zelf vast. In de cel van de school vult haar
-        # reductie het begrip uit die vakanties (implements, RFC-051), zodat
-        # niemand het hoeft te oordelen; kent de cel een vakantie niet, dan
-        # zwijgt zij en oordeelt het hoofd. Geen default: zonder antwoord en
+        # voorjaarsvakantie zelf vast. In de cel van de school koppelt het
+        # beleid van het hoofd het begrip aan het antwoord van de cel, die het
+        # uit die vakanties haalt (RFC-048, RFC-051), zodat niemand het hoeft
+        # te oordelen; kent de cel een vakantie niet, dan zwijgt zij en
+        # oordeelt het hoofd. Geen default: zonder antwoord en
         # zonder oordeel faalt het besluit.
         - id: verlof_valt_buiten_schoolvakanties
           type: boolean
@@ -1015,9 +1016,10 @@ articles:
         # verleend". Of het hoofd de jongere dit schooljaar al verlof
         # verleende, stelt het hoofd vast; het weet het uit zijn eigen
         # besluiten. Hoe het die terugleest, zegt deze wet niet, en het is geen
-        # veld van de aanvraag. In de cel van de school vult haar reductie het
-        # begrip (implements, RFC-048), ook als 7:11 dit artikel opnieuw
-        # aanroept; zonder reductie geeft het hoofd het als vaststelling. Geen
+        # veld van de aanvraag. In de cel van de school koppelt het beleid van
+        # het hoofd het begrip aan het antwoord van de cel, uit zijn besluiten
+        # (RFC-048), ook als 7:11 dit artikel opnieuw aanroept; zonder cel
+        # geeft het hoofd het als vaststelling. Geen
         # default: een ontbrekend antwoord verleent geen tweede verlof. Eigen
         # keuze: het schooljaar van het verlof is dat van de eerste
         # verlofdag. De eerste lesdag hierboven komt uit het beleid dat geldt

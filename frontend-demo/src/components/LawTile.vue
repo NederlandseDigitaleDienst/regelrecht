@@ -1,20 +1,24 @@
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
 import OrgLogo from './OrgLogo.vue';
 import DataLineage from './DataLineage.vue';
 import TraceView from './TraceView.vue';
 import WhySheet from './WhySheet.vue';
-import { whyUnlocked } from '../why/why.js';
-import { fieldSpec, formatMissing, formatValue, humanize, isUnknown, verdictOf } from '../data/format.js';
-import { lineageFromTrace, leafValues } from '../data/lineage.js';
-import { askedInputsFor, claimKeyFor, evaluationParamsFor, nextQuestions } from '../data/askedInputs.js';
-import { dateInputFor, phraseOutcome, phrasingFor } from '../data/outcomePhrasing.js';
-import { driftSentence } from '../data/caseDrift.js';
-import { useDemo } from '../store/demoStore.js';
-import { canBeApplied, objectionOpen, statusOf } from '../data/lifecycle.js';
+import { whyUnlocked } from '../why/why';
+import { fieldSpec, formatMissing, formatValue, humanize, isUnknown, verdictOf } from '../data/format';
+import { lineageFromTrace, leafValues, type LineageNode } from '../data/lineage';
+import { askedInputsFor, claimKeyFor, evaluationParamsFor, nextQuestions, type AskedInput } from '../data/askedInputs';
+import { dateInputFor, phraseOutcome, phrasingFor } from '../data/outcomePhrasing';
+import { driftSentence } from '../data/caseDrift';
+import { useDemo } from '../store/demoStore';
+import { canBeApplied, objectionOpen, statusOf } from '../data/lifecycle';
 import { decisionOf } from '@regelrecht/frontend-shared/produces';
-import { useLocalePath } from '../i18n/useLocalePath.js';
+import { useLocalePath } from '../i18n/useLocalePath';
 import { activeLocale, useI18n } from '../i18n/index.js';
+import type { LawEntry } from '../data/loadCorpus';
+import type { EvaluateResult } from '../engine/useDemoEngine';
+import type { Produces } from '@regelrecht/frontend-shared/produces';
 
 // Naar een ander tabblad op naam, niet op pad: onder `/en/` leidt een
 // letterlijk Nederlands pad de bezoeker ongemerkt het Nederlandse tabblad in.
@@ -25,16 +29,35 @@ const { t } = useI18n();
 // values it used (expandable, each correctable), the application button and
 // the state of a submitted case. Re-evaluates whenever registered data changes.
 
-const props = defineProps({
-  law: { type: Object, required: true },
-});
-const emit = defineEmits(['edit-value', 'evaluated', 'apply']);
-const demo = useDemo();
-const { corpus, dataVersion, profile, personaParams, findCase, caseDrift, canSubmitClaims, activeDelegation } = demo;
+/** A value the citizen wants to correct or supply: what `edit-value` carries. */
+interface EditValueRequest {
+  law: LawEntry;
+  /** Set when the citizen supplies a value no register holds. */
+  selfDeclared?: boolean;
+  node: LineageNode;
+}
+/** The tile's law with its latest evaluation: what `evaluated` and `apply` carry. */
+interface TileEvaluation {
+  law: LawEntry;
+  evaluation: EvaluateResult | null;
+}
 
-const evaluation = ref(null);
+// In the template: `corpus!`, because the portal renders tiles from the loaded
+// corpus only.
+const props = defineProps<{
+  law: LawEntry;
+}>();
+const emit = defineEmits<{
+  'edit-value': [request: EditValueRequest];
+  evaluated: [result: TileEvaluation];
+  apply: [result: TileEvaluation];
+}>();
+const demo = useDemo();
+const { corpus, dataVersion, profile, personaParams, findCase, caseDrift, canSubmitClaims } = demo;
+
+const evaluation = ref<EvaluateResult | null>(null);
 const showData = ref(false);
-const traceSheet = ref(null);
+const traceSheet = ref<NLDDSheet | null>(null);
 const showTrace = ref(false);
 const showWhy = ref(false);
 
@@ -61,9 +84,10 @@ const verdict = computed(() => {
   return v === null ? true : v;
 });
 const requirementsMet = computed(() => verdict.value === true);
-const lawName = (id) => corpus.value?.lawById(id)?.name ?? id;
+const lawName = (id: string) => corpus.value?.lawById(id)?.name ?? id;
 // What the verdict lacks, when it is unknown.
-const verdictMissing = computed(() => (verdict.value === 'unknown' ? formatMissing(evaluation.value.outputs.voldoet_aan_voorwaarden, { ownLaw: props.law.id, lawName }) : ''));
+// An 'unknown' verdict implies an ok evaluation; the second test only narrows the type.
+const verdictMissing = computed(() => (verdict.value === 'unknown' && evaluation.value?.ok ? formatMissing(evaluation.value.outputs.voldoet_aan_voorwaarden, { ownLaw: props.law.id, lawName }) : ''));
 const primary = computed(() => {
   if (!evaluation.value?.ok) return null;
   const name = primaryOutputName.value && evaluation.value.outputs[primaryOutputName.value] !== undefined
@@ -91,10 +115,10 @@ const secondary = computed(() => {
   const rest = outputs.value.filter(([k, v]) => k !== primary.value?.name && v !== '');
   const wanted = corpus.value?.config?.tile_details?.[`${props.law.service}/${props.law.law_path}`];
   if (!wanted) return rest.slice(0, 6);
-  return wanted.map((name) => rest.find(([k]) => k === name)).filter(Boolean);
+  return wanted.map((name) => rest.find(([k]) => k === name)).filter((e): e is [string, unknown] => Boolean(e));
 });
 
-// The tile's sentence (see outcomePhrasing.js): a lead, the outcome big, and
+// The tile's sentence (see outcomePhrasing.ts): a lead, the outcome big, and
 // the unit after it — "Je huurtoeslag is waarschijnlijk € 302,96 per jaar".
 // Null for a law nobody wrote wording for, and then the general rendering
 // below stands unchanged.
@@ -137,7 +161,7 @@ const currentCase = computed(() => findCase(props.law));
 const drift = computed(() => caseDrift(props.law, evaluation.value));
 const driftText = computed(() => driftSentence(drift.value, doc.value));
 
-// The questions this regeling has for the citizen (see askedInputs.js): the
+// The questions this regeling has for the citizen (see askedInputs.ts): the
 // inputs no register holds and the application-form parameters. Until
 // answered they are unknown; the tile asks for them instead of showing an
 // error, and the answers are passed as parameters where the law wants them.
@@ -146,6 +170,7 @@ const askedInputs = computed(() => {
   return corpus.value ? askedInputsFor(corpus.value, props.law, demo.claimFor) : [];
 });
 // What the engine ran into that only the citizen can answer (just in time).
+// The template reads `missingInputs[0]!` only under `v-else-if="missingInputs.length"`.
 const missingInputs = computed(() => nextQuestions(askedInputs.value, evaluation.value, props.law.id));
 /**
  * The self-supplied values this tile shows: the ones already answered, plus the
@@ -171,7 +196,7 @@ function evaluationParams() {
 // After the computeds it reads: the immediate run needs `askedInputs`.
 watch([dataVersion, () => profile.value?.bsn], run, { immediate: true });
 
-function supply(input) {
+function supply(input: AskedInput) {
   const params = personaParams();
   emit('edit-value', {
     law: props.law,
@@ -184,7 +209,7 @@ function supply(input) {
  * amount and the secondary rows) are claims like any other value, so citizen
  * and caseworker can both dispute them, as they could in the POC.
  */
-function correctOutcome(name, value) {
+function correctOutcome(name: string, value: unknown) {
   const params = personaParams();
   emit('edit-value', {
     law: props.law,
@@ -204,7 +229,9 @@ const produces = computed(() => {
 // dan verdwijnen de knoppen, niet alleen hun werking. Een aanslag vraag je niet
 // aan (`canBeApplied`): de precariotegel bood Claudia eerst aan om haar eigen
 // belasting aan te vragen.
-const canApply = computed(() => canSubmitClaims.value && evaluation.value?.ok && verdict.value === true && !currentCase.value && canBeApplied(produces.value));
+// A `Decision` is the object form of `produces`; it only lacks ProducedItem's
+// index signature, hence the cast for `canBeApplied`.
+const canApply = computed(() => canSubmitClaims.value && evaluation.value?.ok && verdict.value === true && !currentCase.value && canBeApplied(produces.value as Produces));
 /** A decided-and-rejected case the citizen has not objected to yet (Awb art. 6:5). */
 // Bezwaar pas als de termijn loopt: die begint de dag ná de bekendmaking
 // (Awb 6:8), dus een besluit dat nog niet is verstuurd geeft nog geen knop.
@@ -244,7 +271,7 @@ const statusTag = computed(() => {
   const c = currentCase.value;
   if (!c) return null;
   // Uit de fase en niet uit het opgeslagen veld: die twee horen hetzelfde te
-  // zeggen, en als er ooit één achterloopt is de fase de bron (zie lifecycle.js).
+  // zeggen, en als er ooit één achterloopt is de fase de bron (zie lifecycle.ts).
   const status = statusOf(c);
   if (status === 'DECIDED') return c.approved ? { color: 'success', text: t('wet.tile.status.granted'), icon: 'checked' } : { color: 'critical', text: t('wet.tile.status.refused'), icon: 'dismiss-circle' };
   if (status === 'IN_REVIEW') return { color: 'warning', text: t('wet.tile.status.in_review'), icon: 'clock' };
@@ -256,7 +283,7 @@ const statusTag = computed(() => {
   <nldd-card :accessible-label="law.name">
     <nldd-container slot="header" padding="20" layout="row" gap="12" vertical-alignment="top">
       <OrgLogo :service="law.service" />
-      <nldd-title-cell size="5" :text="law.name" :supporting-text="corpus.services[law.service]?.name ?? law.service"></nldd-title-cell>
+      <nldd-title-cell size="5" :text="law.name" :supporting-text="corpus!.services[law.service]?.name ?? law.service"></nldd-title-cell>
       <nldd-tag v-if="statusTag" :color="statusTag.color" :text="statusTag.text" :icon="statusTag.icon" size="sm"></nldd-tag>
     </nldd-container>
 
@@ -265,7 +292,7 @@ const statusTag = computed(() => {
         <nldd-activity-indicator timing="instant" size="24"></nldd-activity-indicator>
       </template>
       <template v-else-if="missingInputs.length">
-        <nldd-inline-dialog icon="edit" :text="t('wet.tile.need_fact.title')" :supporting-text="t('wet.tile.need_fact.body', { field: humanize(missingInputs[0].name).toLowerCase() })"></nldd-inline-dialog>
+        <nldd-inline-dialog icon="edit" :text="t('wet.tile.need_fact.title')" :supporting-text="t('wet.tile.need_fact.body', { field: humanize(missingInputs[0]!.name).toLowerCase() })"></nldd-inline-dialog>
       </template>
       <template v-else-if="!evaluation.ok">
         <nldd-inline-dialog variant="alert" :text="t('wet.tile.error.title')" :supporting-text="evaluation.error"></nldd-inline-dialog>
@@ -395,7 +422,7 @@ const statusTag = computed(() => {
            `highlight:`). It selected on the label once, `[text="Gegevens aanvullen"]`,
            and went dark without a sound when the label was shortened, and in every
            language but Dutch from the start. An attribute nobody translates or
-           relabels does not have that failure; `slides.test.js` checks it exists. -->
+           relabels does not have that failure; `slides.test.ts` checks it exists. -->
       <nldd-button v-else-if="canSubmitClaims && evaluation && missingInputs.length && produces?.legal_character === 'BESCHIKKING'" data-highlight="complete-data" appearance="primary" size="sm" start-icon="edit" :text="t('wet.tile.action.complete')" @click="apply"></nldd-button>
       <nldd-button v-else-if="canApply" appearance="primary" size="sm" start-icon="paper-plane" :text="t('wet.tile.action.apply')" @click="apply"></nldd-button>
       <nldd-button v-if="evaluation?.ok" appearance="neutral-transparent" size="sm" start-icon="list" :text="t('wet.tile.action.calculation')" @click="showTrace = true"></nldd-button>
@@ -412,7 +439,7 @@ const statusTag = computed(() => {
           <nldd-container padding="16">
             <nldd-rich-text spacing="tight"><p>{{ t('wet.tile.trace.intro') }}</p></nldd-rich-text>
             <nldd-spacer size="12"></nldd-spacer>
-            <TraceView v-if="showTrace" :text="evaluation?.traceText" />
+            <TraceView v-if="showTrace" :text="evaluation?.ok ? evaluation.traceText : undefined" />
           </nldd-container>
         </nldd-page>
       </nldd-sheet>

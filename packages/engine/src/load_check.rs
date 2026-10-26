@@ -16,18 +16,30 @@
 //! requests a decision this law does not take (RFC-047).
 //!
 //! A reduction (`regulatory_layer: REDUCTIE`, schema v0.8.2) is no
-//! regulation: a cell's reading of its own chronicle (RFC-048). Only a
-//! reduction reads the decisions taken under an article
-//! (`source.decisions`). A reduction may name the open term it answers
-//! (`implements`) from schema v0.8.5; a file that names an older version is
-//! held to the schema of that version, which forbids it. The engine does not
-//! run a reduction for that term itself: whoever keeps it answers the term
-//! through the caller's answerer ([`crate::answer`]). Otherwise a reduction does not
-//! act on law: it hooks onto
-//! nothing (`hooks`), replaces no output (`overrides`), takes no decision
-//! (`execution.produces`) and delegates nothing (`open_terms`). The loader
-//! refuses either the other way round, and a `decisions` beside another way
-//! to the value.
+//! regulation: a cell's reading of its own chronicle (RFC-048), which the
+//! cell gives as a named answer. Only a reduction reads the decisions taken
+//! under an article (`source.decisions`) or the recorded facts an article
+//! requires (`source.facts`); policy and law never do. A reduction does not
+//! act on law: it fills no open term (`implements`), hooks onto nothing
+//! (`hooks`), replaces no output (`overrides`), takes no decision
+//! (`execution.produces`) and delegates nothing (`open_terms`). It names no
+//! holder (`competent_authority`): it sits with its cell, or with none. Schema
+//! v0.8.5 to v0.8.8 allowed `implements` on a reduction; a file that names
+//! one of them is held to that schema, and the engine gives the declaration
+//! no meaning ([`crate::resolver`]).
+//!
+//! The policy of the authority that decides binds an open term to an answer
+//! (schema v0.8.9, RFC-048): a policy article that fills the term
+//! (`implements`) and takes the answer as an input, `source: {reduction:
+//! <answer>, parameters: {...}}`. Only such an article takes one, in a
+//! policy that names its holder (`competent_authority`), whose cell the
+//! engine asks where the term names no competent authorities. The answer
+//! stands apart from every other way to a value (`regulation`, `output`,
+//! `endpoint`, `decisions`, `facts`, `article`), and only an answer takes a
+//! `combine`, which fits the type of the input as on an open term.
+//!
+//! The loader refuses any of these the other way round, and a `decisions`
+//! beside another way to the value.
 //!
 //! A call to an article (`source.article`, schema v0.8.4, RFC-050) stands
 //! apart from `regulation`, `decisions` and `endpoint`, and only such a call
@@ -43,6 +55,7 @@
 //! needs none, and two without a rule are an error already. It sits only on
 //! a term that names its competent authorities.
 
+use crate::answer::ChronicleRead;
 use crate::article::ArticleBasedLaw;
 use crate::error::{EngineError, Result};
 use regelrecht_law_model::{
@@ -50,93 +63,228 @@ use regelrecht_law_model::{
     MachineReadable, ParameterType, RegulatoryLayer,
 };
 
-/// The first schema version in which a `REDUCTIE` may have `implements`.
+/// The schema versions in which a `REDUCTIE` may have `implements`: from
+/// v0.8.5, until v0.8.9 made the reduction a named answer.
 const REDUCTION_IMPLEMENTS: (u32, u32, u32) = (0, 8, 5);
+const REDUCTION_ANSWERS: (u32, u32, u32) = (0, 8, 9);
 
-/// Refuse `source.decisions` outside a `REDUCTIE`, and `hooks`, `overrides`,
-/// `execution.produces` or `open_terms` in a `REDUCTIE` (RFC-048). A
-/// `REDUCTIE` may have `implements` from schema v0.8.5; one whose `$schema`
-/// names an older version may not.
+/// Refuse a reading of a chronicle (`source.decisions`, `source.facts`)
+/// outside a `REDUCTIE`, the keys that act on law and a holder
+/// (`competent_authority`) in a `REDUCTIE`, and a misplaced answer of a
+/// cell (`source.reduction`, RFC-048). A `REDUCTIE`
+/// may have `implements` only under a `$schema` from v0.8.5 to v0.8.8. An
+/// answer is taken only in a `UITVOERINGSBELEID` that names its holder, by
+/// an article that fills an open term, from schema v0.8.9; it stands apart
+/// from every other way to a value, and only it takes a `combine`.
 pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
+    let refuse = |why: String| Err(EngineError::LoadError(format!("law '{}' {why}", law.id)));
     let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
-    let older = law
-        .schema_version()
-        .and_then(parse_schema_version)
-        .filter(|version| *version < REDUCTION_IMPLEMENTS);
+    let policy = law.regulatory_layer == RegulatoryLayer::Uitvoeringsbeleid;
+    let version = law.schema_version().and_then(parse_schema_version);
+    // A file without `$schema` is held to the current version.
+    let implements_allowed =
+        version.is_some_and(|v| (REDUCTION_IMPLEMENTS..REDUCTION_ANSWERS).contains(&v));
+    let answers_allowed = version.is_none_or(|v| v >= REDUCTION_ANSWERS);
     for (where_, section) in sections(law) {
         if reduction {
-            if let Some((major, minor, patch)) = older.filter(|_| section.implements.is_some()) {
-                return Err(EngineError::LoadError(format!(
-                    "law '{}' {where_}: a REDUCTIE fills an open term (implements) only from \
-                     schema v0.8.5; this one names v{major}.{minor}.{patch}",
-                    law.id
-                )));
+            if section.implements.is_some() && !implements_allowed {
+                return refuse(format!(
+                    "{where_}: a REDUCTIE fills no open term (implements); its cell gives it as \
+                     a named answer, which a policy binds to the term (RFC-048)"
+                ));
             }
-            let acts_on_law = [
-                ("hooks", section.hooks.is_some()),
-                ("overrides", section.overrides.is_some()),
-                (
-                    "produces",
-                    section
-                        .execution
-                        .as_ref()
-                        .is_some_and(|e| e.produces.is_some()),
-                ),
-                ("open_terms", section.open_terms.is_some()),
-            ];
-            if let Some((key, _)) = acts_on_law.iter().find(|(_, present)| *present) {
-                return Err(EngineError::LoadError(format!(
-                    "law '{}' {where_}: a REDUCTIE is no regulation and does not act on law \
-                     ({key})",
-                    law.id
-                )));
+            if let Some(key) = acts_on_law(section) {
+                return refuse(format!(
+                    "{where_}: a REDUCTIE is no regulation and does not act on law ({key})"
+                ));
             }
         }
         for input in inputs(section) {
             let Some(source) = input.source.as_ref() else {
                 continue;
             };
+            if let Some(answer) = &source.reduction {
+                let beside = [
+                    ("regulation", source.regulation.is_some()),
+                    ("output", source.output.is_some()),
+                    ("endpoint", source.endpoint.is_some()),
+                    ("decisions", source.decisions.is_some()),
+                    ("facts", source.facts.is_some()),
+                    ("article", source.article.is_some()),
+                ];
+                if let Some((key, _)) = beside.iter().find(|(_, present)| *present) {
+                    return refuse(format!(
+                        "{where_}: input '{}' takes the answer '{answer}' of a cell, which no \
+                         {key} can stand beside",
+                        input.name
+                    ));
+                }
+                if !policy {
+                    return refuse(format!(
+                        "{where_}: input '{}' takes the answer '{answer}' of a cell; only the \
+                         UITVOERINGSBELEID of the authority that decides binds a term to an \
+                         answer (RFC-048)",
+                        input.name
+                    ));
+                }
+                if !answers_allowed {
+                    return refuse(format!(
+                        "{where_}: input '{}' takes the answer '{answer}' of a cell, which a \
+                         policy does only from schema v0.8.9",
+                        input.name
+                    ));
+                }
+                if section.implements.is_none() {
+                    return refuse(format!(
+                        "{where_}: input '{}' takes the answer '{answer}' of a cell, but the \
+                         article fills no open term (implements); a policy binds a term to an \
+                         answer (RFC-048)",
+                        input.name
+                    ));
+                }
+                if !matches!(
+                    law.competent_authority,
+                    Some(CompetentAuthority::Structured(_))
+                ) {
+                    return refuse(format!(
+                        "{where_}: input '{}' takes the answer '{answer}' of a cell, but the \
+                         policy names no holder by name (competent_authority, one authority), \
+                         whose cell gives it (RFC-048)",
+                        input.name
+                    ));
+                }
+                if let Some(op) = source.combine {
+                    if let Some(why) = combine_misfit(op, input.input_type) {
+                        return refuse(format!(
+                            "{where_}: input '{}' combines the answers of '{answer}' with {} \
+                             (combine), {why}",
+                            input.name,
+                            op.as_str()
+                        ));
+                    }
+                }
+            } else if let Some(op) = source.combine {
+                return refuse(format!(
+                    "{where_}: input '{}' has combine {} without the answer of a cell \
+                     (reduction) whose answers it combines",
+                    input.name,
+                    op.as_str()
+                ));
+            }
             let Some(read) = chronicle_read(source) else {
                 continue;
             };
             if source.decisions.is_some() && source.facts.is_some() {
-                return Err(EngineError::LoadError(format!(
-                    "law '{}' {where_}: input '{}' reads {read} and facts besides; \
-                     an input reads one of them",
-                    law.id, input.name
-                )));
+                return refuse(format!(
+                    "{where_}: input '{}' reads {read} and facts besides; an input reads one \
+                     of them",
+                    input.name
+                ));
             }
             if source.regulation.is_some()
                 || source.output.is_some()
                 || source.parameters.is_some()
                 || source.endpoint.is_some()
             {
-                return Err(EngineError::LoadError(format!(
-                    "law '{}' {where_}: input '{}' reads {read}, which no regulation, output, \
-                     parameters or endpoint can narrow",
-                    law.id, input.name
-                )));
+                return refuse(format!(
+                    "{where_}: input '{}' reads {read}, which no regulation, output, parameters \
+                     or endpoint can narrow",
+                    input.name
+                ));
             }
             if !reduction {
-                return Err(EngineError::LoadError(format!(
-                    "law '{}' {where_}: input '{}' reads {read}; only a REDUCTIE reads decisions \
-                     or facts (RFC-048, RFC-051)",
-                    law.id, input.name
-                )));
+                return refuse(format!(
+                    "{where_}: input '{}' reads {read}; only a REDUCTIE reads decisions or \
+                     facts (RFC-048, RFC-051)",
+                    input.name
+                ));
+            }
+            // The article whose decisions it reads may be the value of a
+            // parameter (schema v0.8.11): one the article declares itself.
+            if let Some(name) = source
+                .decisions
+                .as_deref()
+                .and_then(|d| d.strip_prefix('$'))
+            {
+                let declared = section
+                    .execution
+                    .as_ref()
+                    .and_then(|e| e.parameters.as_ref())
+                    .is_some_and(|ps| ps.iter().any(|p| p.name == name));
+                if !declared {
+                    return refuse(format!(
+                        "{where_}: input '{}' reads {read}, but '{name}' is no parameter of the \
+                         article; the decisions are named by a parameter it declares",
+                        input.name
+                    ));
+                }
             }
         }
+    }
+    if reduction && law.competent_authority.is_some() {
+        return refuse(
+            "is a REDUCTIE and names no competent_authority: it sits with its cell, or with \
+             none (schema v0.8.12)"
+                .to_string(),
+        );
     }
     Ok(())
 }
 
-/// What an input reads from the chronicle of a cell, in words: the
-/// decisions taken under an article (RFC-048) or the recorded instances of a
-/// fact an article requires (schema v0.8.7, RFC-051). `None` for an input
-/// that reads neither.
-pub(crate) fn chronicle_read(source: &regelrecht_law_model::Source) -> Option<String> {
+/// Why `op` does not combine values of type `kind`, or `None` when it
+/// does: `OR` and `AND` a boolean, `ADD`, `MIN` and `MAX` a number or an
+/// amount, and `ONLY` nothing, since one answer needs no rule and two
+/// without one are an error already.
+fn combine_misfit(op: CombineOp, kind: ParameterType) -> Option<String> {
+    let fits = match op {
+        CombineOp::Or | CombineOp::And => kind == ParameterType::Boolean,
+        CombineOp::Add | CombineOp::Min | CombineOp::Max => {
+            matches!(kind, ParameterType::Number | ParameterType::Amount)
+        }
+        CombineOp::Only => {
+            return Some(
+                "which is no rule for answers: one needs none, and two without one are an \
+                 error"
+                    .to_string(),
+            )
+        }
+    };
+    (!fits).then(|| {
+        format!(
+            "which does not fit its type {}",
+            format!("{kind:?}").to_lowercase()
+        )
+    })
+}
+
+/// The first key of `section` that acts on law: a hook, an override, a
+/// decision or a delegated term.
+fn acts_on_law(section: &MachineReadable) -> Option<&'static str> {
+    [
+        ("hooks", section.hooks.is_some()),
+        ("overrides", section.overrides.is_some()),
+        (
+            "produces",
+            section
+                .execution
+                .as_ref()
+                .is_some_and(|e| e.produces.is_some()),
+        ),
+        ("open_terms", section.open_terms.is_some()),
+    ]
+    .into_iter()
+    .find(|(_, present)| *present)
+    .map(|(key, _)| key)
+}
+
+/// What an input reads from the chronicle of a cell: the decisions taken
+/// under an article (RFC-048), named in the law or by a parameter (schema
+/// v0.8.11), or the recorded instances of a fact an article requires
+/// (schema v0.8.7, RFC-051). `None` for an input that reads neither.
+pub(crate) fn chronicle_read(source: &regelrecht_law_model::Source) -> Option<ChronicleRead<'_>> {
     match (&source.decisions, &source.facts) {
-        (Some(decisions), _) => Some(format!("the decisions taken under {decisions}")),
-        (None, Some(fact)) => Some(format!("the recorded facts {fact}")),
+        (Some(decisions), _) => Some(ChronicleRead::Decisions(decisions)),
+        (None, Some(fact)) => Some(ChronicleRead::Facts(fact)),
         (None, None) => None,
     }
 }
@@ -252,24 +400,8 @@ pub(crate) fn reject_misplaced_competence(law: &ArticleBasedLaw) -> Result<()> {
                      answer it",
                 );
             }
-            let fits = match op {
-                CombineOp::Or | CombineOp::And => term.term_type == ParameterType::Boolean,
-                CombineOp::Add | CombineOp::Min | CombineOp::Max => matches!(
-                    term.term_type,
-                    ParameterType::Number | ParameterType::Amount
-                ),
-                CombineOp::Only => {
-                    return combines(
-                        "which is no rule for answers: one needs none, and two without one \
-                         are an error",
-                    )
-                }
-            };
-            if !fits {
-                return combines(&format!(
-                    "which does not fit its type {}",
-                    format!("{:?}", term.term_type).to_lowercase()
-                ));
+            if let Some(why) = combine_misfit(op, term.term_type) {
+                return combines(&why);
             }
         }
     }

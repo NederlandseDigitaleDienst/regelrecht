@@ -1,0 +1,76 @@
+---
+# Tier C: an appeal to the administrative court as a kind of submission, and
+# the judgment on it as a legal character (schema v0.8.10, RFC-053). The
+# article that decides on the appeal establishes it, as a list item of type
+# BEROEP, and the judgment is an item of type UITSPRAAK. A hook applies to
+# every appeal, and a procedure governs the judgment.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$id: test_conformance_appeal
+regulatory_layer: WET
+publication_date: '2026-10-20'
+valid_from: '2026-10-20'
+bwb_id: BWBR0099994
+name: Testwet beroep
+url: https://example.invalid/appeal
+procedure:
+  - id: beroep
+    applies_to:
+      legal_character: UITSPRAAK
+    stages:
+      - name: BEROEP
+      - name: UITSPRAAK
+        requires:
+          - name: uitspraak_datum
+            type: date
+articles:
+  - number: '1'
+    url: https://example.invalid/appeal/1
+    text: De bestuursrechter doet uitspraak op het beroep.
+    machine_readable:
+      execution:
+        produces:
+          - type: BEROEP
+            requests: test_conformance_appeal#1
+          - type: UITSPRAAK
+            outputs:
+              - beroep_gegrond
+        output:
+          - name: beroep_gegrond
+            type: boolean
+        actions:
+          - output: beroep_gegrond
+            value: false
+  - number: '2'
+    url: https://example.invalid/appeal/2
+    text: Het beroepschrift wordt ondertekend.
+    machine_readable:
+      hooks:
+        - hook_point: pre_actions
+          applies_to:
+            submission: BEROEP
+      execution:
+        parameters:
+          - name: ondertekend
+            type: boolean
+        output:
+          - name: beroepschrift_ondertekend
+            type: boolean
+        actions:
+          - output: beroepschrift_ondertekend
+            value: $ondertekend
+  - number: '3'
+    url: https://example.invalid/appeal/3
+    text: De uitspraak vermeldt de geschonden rechtsregel.
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            legal_character: UITSPRAAK
+            stage: UITSPRAAK
+      execution:
+        output:
+          - name: rechtsregel_vermeld
+            type: boolean
+        actions:
+          - output: rechtsregel_vermeld
+            value: true

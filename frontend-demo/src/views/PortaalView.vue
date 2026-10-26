@@ -1,15 +1,18 @@
-<script setup>
+<script setup lang="ts">
 import { computed, reactive, ref, shallowReactive } from 'vue';
 import LawTile from '../components/LawTile.vue';
 import EditValueSheet from '../components/EditValueSheet.vue';
 import ApplicationSheet from '../components/ApplicationSheet.vue';
 import ChangeWizardSheet from '../components/ChangeWizardSheet.vue';
-import { fieldSpec, numericImpact } from '../data/format.js';
-import { loadFailures } from '../engine/useDemoEngine.js';
-import { delegationLabel, permissionLabel } from '../data/delegation.js';
-import { useDemo } from '../store/demoStore.js';
+import { fieldSpec, numericImpact } from '../data/format';
+import { loadFailures } from '../engine/useDemoEngine';
+import { delegationLabel, permissionLabel } from '../data/delegation';
+import { useDemo } from '../store/demoStore';
 import { useI18n } from '../i18n/index.js';
-import { useNarrow } from '../useNarrow.js';
+import { useNarrow } from '../useNarrow';
+import type { LawEntry } from '../data/loadCorpus';
+import type { EvaluateResult } from '../engine/useDemoEngine';
+import type { LineageNode } from '../data/lineage';
 
 // The citizen's (or entrepreneur's) portal: every regeling the persona can
 // discover, evaluated live, ordered by financial impact. This is where the
@@ -24,10 +27,10 @@ const narrow = useNarrow();
 const { profile, persona, portalLaws, corpus, state, activeDelegation, canSubmitClaims, features } = demo;
 
 // Impact per law (from the tiles' evaluations) drives the ordering.
-const impact = reactive({});
+const impact = reactive<Record<string, number>>({});
 /** Latest evaluation per law, so the application sheet follows the tile. */
-const evaluations = shallowReactive({});
-function onEvaluated({ law, evaluation }) {
+const evaluations = shallowReactive<Record<string, EvaluateResult | null>>({});
+function onEvaluated({ law, evaluation }: { law: LawEntry; evaluation: EvaluateResult | null }) {
   evaluations[law.id] = evaluation;
   if (!evaluation?.ok) {
     impact[law.id] = -1;
@@ -60,12 +63,18 @@ const showWizard = computed(
   () => features.value.CHANGE_WIZARD && canSubmitClaims.value && activeDelegation.value?.subjectType !== 'BUSINESS' && profile.value?.type !== 'ondernemer',
 );
 
-const editing = ref(null); // { node, law }
-function onEditValue(payload) {
+/** What LawTile and ApplicationSheet emit with `edit-value`. */
+interface EditRequest {
+  node: LineageNode;
+  law: LawEntry;
+  selfDeclared?: boolean;
+}
+const editing = ref<EditRequest | null>(null); // { node, law }
+function onEditValue(payload: EditRequest) {
   editing.value = payload;
 }
-const applying = ref(null); // the law being applied for
-function onApply({ law }) {
+const applying = ref<LawEntry | null>(null); // the law being applied for
+function onApply({ law }: { law: LawEntry }) {
   applying.value = law;
 }
 
@@ -165,7 +174,9 @@ const loadFailureText = computed(() => loadFailures.value.map((f) => `${f.id} ($
       <nldd-container v-if="!narrow || activeDelegation" slot="header" padding-top="12">
         <nldd-rich-text spacing="tight">
           <p>
-            <template v-if="narrow">{{ t('zaak.portaal.overline.acting_narrow', { name: activeDelegation.subjectName }) }}</template>
+            <!-- `?.` for the type checker only: narrow, this container renders
+                 only with an activeDelegation (its v-if). -->
+            <template v-if="narrow">{{ t('zaak.portaal.overline.acting_narrow', { name: activeDelegation?.subjectName }) }}</template>
             <template v-else>{{ t('zaak.portaal.signed_in.lead') }} <strong>{{ persona?.name ?? profile?.name }}</strong><template v-if="activeDelegation"> · {{ t('zaak.portaal.overline.acting', { name: activeDelegation.subjectName }) }}</template> · {{ t('zaak.portaal.overline.disclaimer') }}</template>
           </p>
           <!-- Namens een ander zegt de beschrijving van de gemachtigde niets. -->
