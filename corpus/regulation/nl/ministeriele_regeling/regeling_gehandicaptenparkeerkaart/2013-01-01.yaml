@@ -324,11 +324,12 @@ articles:
         # dagtekening van de aanvraag plaatsvond, en uiterlijk op de dag van
         # afgifte; lid 2 onder a en b laten het onderzoek achterwege bij wie
         # eerder een kaart kreeg, dat veronderstelt een onderzoek per
-        # aanvraag. Zwijgt wie het onderzoek verricht, dan stelt het college
-        # het vast op het rapport dat het daarvan kreeg. Eigen keuze: stelt
-        # het college vast dat er geen onderzoek plaatsvond (false),
-        # bijvoorbeeld omdat de aanvrager niet verschijnt, dan wordt de kaart
-        # geweigerd.
+        # aanvraag. Wie het onderzoek verricht, beantwoordt het
+        # (competent_authority); vult het beleid van het college het begrip,
+        # dan zegt dat beleid ook wat geldt als die zwijgt, zoals een
+        # vaststelling van het college op het rapport. Eigen keuze: is er
+        # geen onderzoek (false), bijvoorbeeld omdat de aanvrager niet
+        # verschijnt, dan wordt de kaart geweigerd.
         - id: geneeskundig_onderzoek_heeft_plaatsgehad
           competent_authority:
             - name: Gemeentelijke Gezondheidsdienst
@@ -338,9 +339,9 @@ articles:
           type: boolean
           required: true
           decided_per_case_by: >-
-            het college van burgemeester en wethouders, op het rapport van de
-            Gemeentelijke Gezondheidsdienst of de aangewezen deskundige
-            (artikel 3, eerste lid)
+            wie het geneeskundig onderzoek verricht: de Gemeentelijke
+            Gezondheidsdienst of de aangewezen deskundige (artikel 3, eerste
+            lid)
           description: >-
             Of op of na de dagtekening van de aanvraag en uiterlijk op de dag
             van afgifte een geneeskundig onderzoek heeft plaatsgehad met

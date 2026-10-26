@@ -39,6 +39,9 @@ const LEAVE_POLICY: &str = "fictief_beleid_vakantieverlof_obs_de_klimop";
 /// of art. 13a that the head's policy binds to it.
 const REDUCTION: &str = "reductie_verlof_al_verleend_in_schooljaar";
 const ONCE: &str = "verlof_al_verleend_in_schooljaar";
+/// What the head finds on it where his cell gives no answer: an open term of
+/// his policy (art. 3, RFC-048 §2).
+const ONCE_HEAD: &str = "verlof_al_verleend_in_schooljaar_volgens_hoofd";
 
 /// The Leerplichtwet, the Awb and the school's policies from the corpus.
 fn service() -> LawExecutionService {
@@ -369,6 +372,9 @@ fn a_left_out_field_that_cannot_be_absent_is_named_as_missing() {
 /// The two facts of art. 11, onder f, both judged by the head.
 const PROFESSION: &str = "specifieke_aard_beroep_ouder";
 const OUTSIDE_HOLIDAYS: &str = "verlof_valt_buiten_schoolvakanties";
+/// The head's judgement on it where his cell gives no answer: an open term
+/// of his policy (art. 4, RFC-048 §2).
+const OUTSIDE_HOLIDAYS_HEAD: &str = "verlof_valt_buiten_schoolvakanties_volgens_hoofd";
 
 /// An application for leave from `first` to `last`, recorded on `on`.
 fn applied(cell: &mut Cell, first: &str, last: &str, on: &str) -> Gram {
@@ -379,9 +385,10 @@ fn applied(cell: &mut Cell, first: &str, last: &str, on: &str) -> Gram {
 }
 
 /// The head's judgements under art. 11, onder f: the profession of a parent,
-/// and leave outside the school holidays.
+/// and leave outside the school holidays, which his policy leaves to him
+/// where his cell gives no answer.
 fn judgement(profession: bool, outside_holidays: bool) -> Map<String, Value> {
-    json!({ PROFESSION: profession, OUTSIDE_HOLIDAYS: outside_holidays })
+    json!({ PROFESSION: profession, OUTSIDE_HOLIDAYS_HEAD: outside_holidays })
         .as_object()
         .unwrap()
         .clone()
@@ -395,10 +402,17 @@ fn decide(
     given: &Map<String, Value>,
     on: &str,
 ) -> Result<Gram, Error> {
-    let (findings, supplied): (Map<String, Value>, Map<String, Value>) = given
-        .clone()
-        .into_iter()
-        .partition(|(name, _)| [PROFESSION, OUTSIDE_HOLIDAYS, ONCE].contains(&name.as_str()));
+    let (findings, supplied): (Map<String, Value>, Map<String, Value>) =
+        given.clone().into_iter().partition(|(name, _)| {
+            [
+                PROFESSION,
+                OUTSIDE_HOLIDAYS,
+                OUTSIDE_HOLIDAYS_HEAD,
+                ONCE,
+                ONCE_HEAD,
+            ]
+            .contains(&name.as_str())
+        });
     cell.decide(
         &mut service(),
         &[],
@@ -413,7 +427,7 @@ fn decide(
 }
 
 #[test]
-fn the_decision_asks_from_the_application_the_policy_the_head_and_the_cell() {
+fn the_decision_takes_the_application_and_the_cell_and_the_policy_says_what_the_head_finds() {
     let shape = decision::derive(&service(), LAW, ARTICLE, day("2026-10-20")).unwrap();
     assert_eq!(shape.kind, "BESCHIKKING");
     assert_eq!(shape.submission_kind, "AANVRAAG");
@@ -422,7 +436,6 @@ fn the_decision_asks_from_the_application_the_policy_the_head_and_the_cell() {
         .iter()
         .map(|i| (i.field.name.as_str(), &i.source))
         .collect();
-    let policy = Source::Policy;
     assert_eq!(
         asked,
         vec![
@@ -431,19 +444,31 @@ fn the_decision_asks_from_the_application_the_policy_the_head_and_the_cell() {
             ("laatste_verlofdag", &Source::Application),
             ("besluit_datum", &Source::Cell),
             ("bekendmaking_datum", &Source::Cell),
-            ("eerste_lesdag_schooljaar", &policy),
-            (PROFESSION, &Source::Caller),
-            // Findings of the head (art. 11 onder f, lid 2) that his policy
-            // binds to an answer of his cell (RFC-048): where the cell gives
-            // it, the binding fills the term and sets the finding aside;
-            // where it is silent, or there is no cell, the head finds it.
-            (OUTSIDE_HOLIDAYS, &Source::Caller),
-            (ONCE, &Source::Caller),
         ]
     );
-    let first = |name: &str| shape.input(name).unwrap().policy_first;
-    assert!(first(ONCE) && first(OUTSIDE_HOLIDAYS) && !first(PROFESSION));
-    assert_eq!(shape.judgements, [PROFESSION]);
+    // The school's policy fills the first school day, and binds two
+    // findings of the head (art. 11 onder f, lid 2) to an answer of his
+    // cell (RFC-048): it fills them, so no finding takes their place.
+    for name in ["eerste_lesdag_schooljaar", OUTSIDE_HOLIDAYS, ONCE] {
+        assert!(shape.filled(name), "{name}");
+    }
+    // Where the cell gives no answer, the policy lets the head judge, with
+    // an open term of its own (policy art. 2 and 3).
+    let head = cell();
+    let findings: Vec<&str> = shape
+        .terms
+        .iter()
+        .filter(|t| t.is_finding(head.authority()))
+        .map(|t| t.id.as_str())
+        .collect();
+    assert_eq!(
+        findings,
+        [
+            PROFESSION,
+            "verlof_valt_buiten_schoolvakanties_volgens_hoofd",
+            "verlof_al_verleend_in_schooljaar_volgens_hoofd",
+        ]
+    );
 }
 
 #[test]
@@ -590,12 +615,21 @@ fn leave_within_the_school_holidays_is_refused() {
 fn a_decision_needs_both_judgements_of_the_head() {
     let mut cell = cell();
     let app = applied(&mut cell, "2027-02-01", "2027-02-05", "2026-10-13");
-    // The cell asks the head for the profession itself; whether the leave
+    // The law asks the head for the profession itself; whether the leave
     // falls outside the holidays the policy binds to an answer this cell
-    // does not give, so the engine says the judgement is missing.
-    for (judged, other) in [
-        (PROFESSION, OUTSIDE_HOLIDAYS),
-        (OUTSIDE_HOLIDAYS, PROFESSION),
+    // does not give, and then leaves to the head (policy art. 3): the
+    // engine says that judgement is missing.
+    for (judged, on, other) in [
+        (
+            PROFESSION,
+            format!("{LAW}#{ARTICLE}"),
+            OUTSIDE_HOLIDAYS_HEAD,
+        ),
+        (
+            OUTSIDE_HOLIDAYS_HEAD,
+            format!("{LEAVE_POLICY}#3"),
+            PROFESSION,
+        ),
     ] {
         let mut supplied = judgement(true, true);
         supplied.remove(judged);
@@ -603,7 +637,7 @@ fn a_decision_needs_both_judgements_of_the_head() {
         let says = e.to_string();
         assert!(
             (says.contains(&format!("asks '{judged}'"))
-                || says.contains(&format!("'{judged}' on {LAW}#{ARTICLE}"))
+                || says.contains(&format!("'{judged}' on {on}"))
                     && says.contains("no judgement was given"))
                 && !says.contains(&format!("'{other}'")),
             "{e}"
@@ -856,20 +890,23 @@ fn the_school_year_ends_on_31_july_and_the_next_begins_on_1_august() {
 }
 
 #[test]
-fn the_reduction_sets_a_finding_of_the_head_aside() {
-    // The reduction fills the term (implements), so it wins over what the
-    // head finds (RFC-047): leave was granted already this school year.
+fn a_finding_of_the_head_on_the_term_his_policy_fills_is_refused() {
+    // The policy fills the term with the cell's answer: no finding of the
+    // head takes its place (RFC-048 §2).
     let mut cell = cell();
     apply_and_decide(&mut cell, "2026-10-05", "2026-10-09", "2026-09-21");
     let app = applied(&mut cell, "2027-02-01", "2027-02-05", "2026-10-13");
     let mut given = judgement(true, true);
     given.insert(ONCE.into(), json!(false));
-    let gram = decide(&mut cell, &app.id, &given, "2026-10-20").unwrap();
+    let e = decide(&mut cell, &app.id, &given, "2026-10-20").unwrap_err();
+    assert!(
+        matches!(&e, Error::Refused(m) if m.contains("is filled by the policy")),
+        "{e}"
+    );
+    // Leave was granted already this school year: the cell says so.
+    let gram = decide(&mut cell, &app.id, &judgement(true, true), "2026-10-20").unwrap();
     assert_eq!(gram.fields[ONCE], json!(true));
     assert_eq!(gram.outputs["verlof_verleend"], json!(false));
-    // The finding set aside is no finding the decision used.
-    let found = cell.findings(&mut service(), &[], &gram.id).unwrap();
-    assert!(!found.contains(&ONCE.to_string()), "{found:?}");
 }
 
 #[test]
@@ -940,7 +977,7 @@ fn without_the_answer_the_head_finds_it() {
     let mut cell = without_reductions();
     let app = applied(&mut cell, "2027-05-10", "2027-05-14", "2027-03-01");
     let mut supplied = judgement(true, true);
-    supplied.insert(ONCE.into(), json!(true));
+    supplied.insert(ONCE_HEAD.into(), json!(true));
     let gram = decide(&mut cell, &app.id, &supplied, "2027-03-01").unwrap();
     assert_eq!(gram.fields[ONCE], json!(true));
     assert_eq!(gram.outputs["verlof_verleend"], json!(false));
@@ -953,7 +990,7 @@ fn without_the_answer_or_the_head_it_is_not_known() {
     let e = decide(&mut cell, &app.id, &judgement(true, true), "2026-10-20").unwrap_err();
     assert!(
         e.to_string()
-            .contains(&format!("'{ONCE}' on {LAW}#{ARTICLE}"))
+            .contains(&format!("'{ONCE_HEAD}' on {LEAVE_POLICY}#2"))
             && e.to_string().contains("no judgement was given"),
         "{e}"
     );
@@ -1130,7 +1167,7 @@ fn a_decision_from_before_the_reduction_is_the_heads_and_replays() {
     let mut cell = Cell::open(RECORDING_ACTOR, &path, dir.path()).unwrap();
     let app = applied(&mut cell, "2027-05-10", "2027-05-14", "2027-03-01");
     let mut supplied = judgement(true, true);
-    supplied.insert(ONCE.into(), json!(false));
+    supplied.insert(ONCE_HEAD.into(), json!(false));
     let gram = cell
         .decide(
             &mut service_with_reduction_from("2027-08-01"),
@@ -1148,7 +1185,7 @@ fn a_decision_from_before_the_reduction_is_the_heads_and_replays() {
     let mut later = service_with_reduction_from("2027-08-01");
     cell.explain(&mut later, &[], &gram.id).unwrap();
     let found = cell.findings(&mut later, &[], &gram.id).unwrap();
-    assert!(found.contains(&ONCE.to_string()), "{found:?}");
+    assert!(found.contains(&ONCE_HEAD.to_string()), "{found:?}");
 }
 
 #[test]
@@ -1157,7 +1194,7 @@ fn an_answer_whose_reduction_the_service_does_not_hold_is_refused() {
     let mut cell = cell();
     let app = applied(&mut cell, "2027-02-01", "2027-02-05", "2026-10-13");
     let mut supplied = judgement(true, true);
-    supplied.insert(ONCE.into(), json!(false));
+    supplied.insert(ONCE_HEAD.into(), json!(false));
     let e = cell
         .decide(
             &mut service_without(&[REDUCTION]),
@@ -1865,11 +1902,17 @@ fn the_heroverweging_runs_only_for_an_admissible_objection() {
     let mut cell = cell();
     let refused = refused_on_profession(&mut cell);
     // The head's findings per case under art. 13a are no fields.
-    let (findings, fields): (Map<String, Value>, Map<String, Value>) = refused
-        .fields
-        .clone()
-        .into_iter()
-        .partition(|(name, _)| [PROFESSION, OUTSIDE_HOLIDAYS, ONCE].contains(&name.as_str()));
+    let (findings, fields): (Map<String, Value>, Map<String, Value>) =
+        refused.fields.clone().into_iter().partition(|(name, _)| {
+            [
+                PROFESSION,
+                OUTSIDE_HOLIDAYS,
+                OUTSIDE_HOLIDAYS_HEAD,
+                ONCE,
+                ONCE_HEAD,
+            ]
+            .contains(&name.as_str())
+        });
     let contested = json!({
         "basis": refused.basis,
         "taken_on": "leerplichtwet_1969#13a",
@@ -2190,12 +2233,24 @@ fn the_heads_policy_does_not_ask_the_cell_of_another_school() {
     let dir = lid_2_dir();
     common::write_identity(
         dir.path(),
-        &format!("name: Het hoofd van OBS Het Anker\nanswers:\n  {ONCE}: {REDUCTION}\n"),
+        &format!(
+            "name: Het hoofd van OBS Het Anker\ncategory: het hoofd\nanswers:\n  {ONCE}: {REDUCTION}\n"
+        ),
     );
     let mut cell = Cell::in_memory(RECORDING_ACTOR, dir.path()).unwrap();
     let app = applied(&mut cell, "2027-02-01", "2027-02-05", "2026-10-13");
-    let e = decide(&mut cell, &app.id, &judgement(true, true), "2026-10-20").unwrap_err();
+    // The binding asks the cell of the head of De Klimop; this one is not
+    // asked, so the policy's own term is reached. That term is the finding
+    // of the policy's holder, not of this head: it gives none.
+    let profession = json!({ PROFESSION: true }).as_object().unwrap().clone();
+    let e = decide(&mut cell, &app.id, &profession, "2026-10-20").unwrap_err();
     assert!(e.to_string().contains("no judgement was given"), "{e}");
+    let e = decide(&mut cell, &app.id, &judgement(true, true), "2026-10-20").unwrap_err();
+    assert!(
+        e.to_string()
+            .contains("answered by 'Het hoofd van OBS De Klimop'"),
+        "{e}"
+    );
 }
 
 /// The reduction of the Awb is of no cell: a reduction calls it, and no

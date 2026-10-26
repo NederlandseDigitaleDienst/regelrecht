@@ -225,8 +225,8 @@ impl Spel {
 
     /// A preview ([`kern::voorvertoning_besluit`]): `{ voorlopig }` or, when
     /// the cell refuses (a finding not given yet), `{ geweigerd }`, and in
-    /// both the terms the authority judges because the cell is silent
-    /// (`stil`). Any other error fails as in any step.
+    /// both the terms the authority judges because a policy leaves them to
+    /// it for this case (`stil`). Any other error fails as in any step.
     pub fn voorvertoning_besluit(
         &mut self,
         op: &str,

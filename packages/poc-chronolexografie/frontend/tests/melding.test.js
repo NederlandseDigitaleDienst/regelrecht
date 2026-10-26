@@ -29,34 +29,32 @@ describe('melding', () => {
     expect(melding(fout)).toContain('vóór de laatste stap in de kroniek (2026-11-01)');
   });
 
-  it('zegt dat de cel een begrip voor deze aanvraag niet weet, en wie dan oordeelt', () => {
+  it('zegt welke bevinding het bestuursorgaan nog niet gaf', () => {
     // De melding van de engine (packages/engine/src/service.rs).
     const engine =
       "engine: Resolution error: Required open term 'verlof_valt_buiten_schoolvakanties' on leerplichtwet_1969#13a " +
       'is decided per case by het hoofd (artikel 13a, eerste lid), and no judgement was given for this case';
     state.casus = { cel_naam: 'OBS De Klimop', rol: 'het hoofd' };
-    // Zo zegt de voorvertoning het (kern::voorvertonen).
-    expect(
-      melding(`the cell is silent on 'verlof_valt_buiten_schoolvakanties' for this case: ${engine}`),
-    ).toBe(
-      'OBS De Klimop weet "verlof valt buiten schoolvakanties" niet voor deze aanvraag, dus het hoofd oordeelt. Geef die bevinding.',
-    );
-    // De engine alleen: geen woord over de cel.
     expect(melding(engine)).toBe(
       'Het hoofd heeft "verlof valt buiten schoolvakanties" nog niet beoordeeld, en het besluit heeft die bevinding nodig.',
     );
     state.casus = null;
   });
 
-  it('zegt dat het beleid een oordeel voor deze aanvraag niet invult, en wie dan oordeelt', () => {
-    // De parkeerkaart zonder advies van de GGD: het beleid zwijgt.
+  it('zegt dat het beleid een oordeel voor deze aanvraag aan het bestuursorgaan laat', () => {
+    // De parkeerkaart zonder advies van de GGD: het beleid laat het oordeel
+    // aan het college, met een eigen open begrip.
     const engine =
-      "engine: Resolution error: Required open term 'langdurige_loopbeperking' on " +
-      'besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49 is decided per case by het college ' +
-      'van burgemeester en wethouders, na geneeskundig onderzoek, and no judgement was given for this case';
+      "engine: Resolution error: Required open term 'langdurige_loopbeperking_volgens_college' on " +
+      'fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#6 is decided per case by het college ' +
+      'van burgemeester en wethouders van de gemeente Wilgendaal, and no judgement was given for this case';
     state.casus = { cel_naam: 'gemeente Wilgendaal', rol: 'het college van burgemeester en wethouders' };
-    expect(melding(`the policy is silent on 'langdurige_loopbeperking' for this case: ${engine}`)).toBe(
-      'Het beleid vult "langdurige loopbeperking" voor deze aanvraag niet in, dus het college van burgemeester en wethouders oordeelt. Geef die bevinding.',
+    expect(
+      melding(
+        `the policy leaves 'langdurige_loopbeperking_volgens_college' to the authority for this case: ${engine}`,
+      ),
+    ).toBe(
+      'Het beleid laat "langdurige loopbeperking volgens college" voor deze aanvraag aan het college van burgemeester en wethouders over. Geef die bevinding.',
     );
     state.casus = null;
   });

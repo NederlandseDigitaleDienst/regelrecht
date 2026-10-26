@@ -1140,7 +1140,10 @@ pub struct OpenTerm {
     /// The regulation the article itself names as the one that fills this term
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expected_source: Option<String>,
-    /// The authority that decides this term per individual case (Awb 3:46)
+    /// Marks the term as judged per individual case (Awb 3:46), with in
+    /// words who judges it. Who gives the finding is not read from these
+    /// words: it is [`Self::competent_authority`], or else the authority
+    /// that executes the article (RFC-048 §2).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub decided_per_case_by: Option<String>,
     /// Legal basis text
@@ -1152,7 +1155,8 @@ pub struct OpenTerm {
     /// Who may answer this term for a reader that reaches the article
     /// through `source.regulation` (schema v0.8.8, RFC-052): one named
     /// authority or a list. The article's own `competent_authority` says
-    /// who decides (RFC-002), which is another question.
+    /// who decides (RFC-002), which is another question. On a term judged
+    /// per case it also says who gives the finding (RFC-048 §2).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub competent_authority: Option<CompetentAuthority>,
     /// How the answers of several competent answerers make one value, with
@@ -1160,6 +1164,17 @@ pub struct OpenTerm {
     /// answers are an error.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub combine: Option<CombineOp>,
+}
+
+impl OpenTerm {
+    /// Whether the term carries a default the engine can run. `default: {}`
+    /// or `default: {actions: []}` resolves to `null` ("using empty
+    /// default"), and counts as no default.
+    pub fn has_default(&self) -> bool {
+        self.default
+            .as_ref()
+            .is_some_and(|d| d.actions.as_ref().is_some_and(|a| !a.is_empty()))
+    }
 }
 
 fn default_true() -> bool {

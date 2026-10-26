@@ -37,9 +37,9 @@ describe('nietGeweten', () => {
     );
   });
 
-  it('zegt dat het beleid het niet invult als het beleid zwijgt', () => {
+  it('zegt dat het beleid het oordeel voor deze aanvraag aan het bestuursorgaan laat', () => {
     expect(nietGeweten({ ...veld, beleid: true })).toBe(
-      'leerplichtwet_1969#13a · Het beleid vult dit voor deze aanvraag niet in; het hoofd oordeelt.',
+      'leerplichtwet_1969#13a · Het beleid laat dit voor deze aanvraag aan het hoofd over.',
     );
   });
 });

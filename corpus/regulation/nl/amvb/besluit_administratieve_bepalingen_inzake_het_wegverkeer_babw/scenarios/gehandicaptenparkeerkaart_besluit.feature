@@ -28,13 +28,13 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | kaart_als_passagier                               | false |
       | besluit_datum                                     | 2026-10-20 |
       | dagtekening                                       | 2026-10-12 |
-      | langdurige_loopbeperking                          | true |
-      | continu_afhankelijk_van_hulp_bestuurder           | false |
-      | permanent_rolstoelgebonden                        | false |
-      | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
     Given the following findings:
-      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | false |
-      | geneeskundig_onderzoek_heeft_plaatsgehad          | true  |
+      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college | false |
+      | geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college          | true  |
+      | langdurige_loopbeperking_volgens_college                          | true |
+      | continu_afhankelijk_van_hulp_bestuurder_volgens_college           | false |
+      | permanent_rolstoelgebonden_volgens_college                        | false |
+      | ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college   | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_verstrekt" is true
@@ -55,10 +55,11 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | kaart_als_passagier                               | false |
       | besluit_datum                                     | 2026-10-20 |
       | dagtekening                                       | 2026-10-12 |
-      | langdurige_loopbeperking                          | false |
-      | continu_afhankelijk_van_hulp_bestuurder           | false |
-      | permanent_rolstoelgebonden                        | false |
-      | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
+    Given the following findings:
+      | langdurige_loopbeperking_volgens_college                          | false |
+      | continu_afhankelijk_van_hulp_bestuurder_volgens_college           | false |
+      | permanent_rolstoelgebonden_volgens_college                        | false |
+      | ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college   | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_verstrekt" is false
@@ -73,10 +74,11 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | kaart_als_passagier                               | true |
       | besluit_datum                                     | 2026-10-20 |
       | dagtekening                                       | 2026-10-12 |
-      | langdurige_loopbeperking                          | true |
-      | continu_afhankelijk_van_hulp_bestuurder           | false |
-      | permanent_rolstoelgebonden                        | false |
-      | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
+    Given the following findings:
+      | langdurige_loopbeperking_volgens_college                          | true |
+      | continu_afhankelijk_van_hulp_bestuurder_volgens_college           | false |
+      | permanent_rolstoelgebonden_volgens_college                        | false |
+      | ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college   | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_verstrekt" is false
@@ -89,13 +91,13 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | kaart_als_passagier                               | true |
       | besluit_datum                                     | 2026-10-20 |
       | dagtekening                                       | 2026-10-12 |
-      | langdurige_loopbeperking                          | false |
-      | continu_afhankelijk_van_hulp_bestuurder           | false |
-      | permanent_rolstoelgebonden                        | true |
-      | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
     Given the following findings:
-      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | false |
-      | geneeskundig_onderzoek_heeft_plaatsgehad          | true  |
+      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college | false |
+      | geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college          | true  |
+      | langdurige_loopbeperking_volgens_college                          | false |
+      | continu_afhankelijk_van_hulp_bestuurder_volgens_college           | false |
+      | permanent_rolstoelgebonden_volgens_college                        | true |
+      | ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college   | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_verstrekt" is true
@@ -110,12 +112,12 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | kaart_als_passagier                               | false |
       | besluit_datum                                     | 2026-10-20 |
       | dagtekening                                       | 2026-10-12 |
-      | langdurige_loopbeperking                          | true |
-      | continu_afhankelijk_van_hulp_bestuurder           | false |
-      | permanent_rolstoelgebonden                        | false |
-      | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
     Given the following findings:
-      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | true |
+      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college | true |
+      | langdurige_loopbeperking_volgens_college                          | true |
+      | continu_afhankelijk_van_hulp_bestuurder_volgens_college           | false |
+      | permanent_rolstoelgebonden_volgens_college                        | false |
+      | ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college   | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_verstrekt" is false
@@ -128,13 +130,13 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | kaart_als_passagier                               | false |
       | besluit_datum                                     | 2027-03-01 |
       | dagtekening                                       | 2026-10-12 |
-      | langdurige_loopbeperking                          | true |
-      | continu_afhankelijk_van_hulp_bestuurder           | false |
-      | permanent_rolstoelgebonden                        | false |
-      | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
     Given the following findings:
-      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | false |
-      | geneeskundig_onderzoek_heeft_plaatsgehad          | true  |
+      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college | false |
+      | geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college          | true  |
+      | langdurige_loopbeperking_volgens_college                          | true |
+      | continu_afhankelijk_van_hulp_bestuurder_volgens_college           | false |
+      | permanent_rolstoelgebonden_volgens_college                        | false |
+      | ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college   | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
     Then output "kaart_geldig_tot" equals "2032-02-29"
@@ -146,13 +148,13 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | kaart_als_passagier                               | false |
       | besluit_datum                                     | 2028-02-29 |
       | dagtekening                                       | 2026-10-12 |
-      | langdurige_loopbeperking                          | true |
-      | continu_afhankelijk_van_hulp_bestuurder           | false |
-      | permanent_rolstoelgebonden                        | false |
-      | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
     Given the following findings:
-      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | false |
-      | geneeskundig_onderzoek_heeft_plaatsgehad          | true  |
+      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college | false |
+      | geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college          | true  |
+      | langdurige_loopbeperking_volgens_college                          | true |
+      | continu_afhankelijk_van_hulp_bestuurder_volgens_college           | false |
+      | permanent_rolstoelgebonden_volgens_college                        | false |
+      | ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college   | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
     Then output "kaart_geldig_tot" equals "2033-02-28"
@@ -164,13 +166,13 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | kaart_als_passagier                               | true |
       | besluit_datum                                     | 2026-10-20 |
       | dagtekening                                       | 2026-10-12 |
-      | langdurige_loopbeperking                          | true |
-      | continu_afhankelijk_van_hulp_bestuurder           | false |
-      | permanent_rolstoelgebonden                        | false |
-      | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
     Given the following findings:
-      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart | false |
-      | geneeskundig_onderzoek_heeft_plaatsgehad          | true  |
+      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college | false |
+      | geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college          | true  |
+      | langdurige_loopbeperking_volgens_college                          | true |
+      | continu_afhankelijk_van_hulp_bestuurder_volgens_college           | false |
+      | permanent_rolstoelgebonden_volgens_college                        | false |
+      | ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college   | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_verstrekt" is true
@@ -188,12 +190,12 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | kaart_als_passagier                               | false |
       | besluit_datum                                     | 2031-10-20 |
       | dagtekening                                       | 2031-10-14 |
-      | langdurige_loopbeperking                          | true |
-      | continu_afhankelijk_van_hulp_bestuurder           | false |
-      | permanent_rolstoelgebonden                        | false |
-      | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
     Given the following findings:
-      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart   | false |
+      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college   | false |
+      | langdurige_loopbeperking_volgens_college                          | true |
+      | continu_afhankelijk_van_hulp_bestuurder_volgens_college           | false |
+      | permanent_rolstoelgebonden_volgens_college                        | false |
+      | ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college   | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution fails with "geneeskundig_onderzoek_heeft_plaatsgehad"
 
@@ -207,15 +209,15 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | kaart_als_passagier                               | false |
       | besluit_datum                                     | 2031-10-20 |
       | dagtekening                                       | 2031-10-14 |
-      | langdurige_loopbeperking                          | true |
-      | continu_afhankelijk_van_hulp_bestuurder           | false |
-      | permanent_rolstoelgebonden                        | false |
-      | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
       | geneeskundig_onderzoek_achterwege_gelaten         | true |
       | bekend_dat_aanvrager_nog_steeds_voldoet           | true |
     Given the following findings:
-      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart   | false |
-      | aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt | true |
+      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college   | false |
+      | aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt_volgens_college | true |
+      | langdurige_loopbeperking_volgens_college                          | true |
+      | continu_afhankelijk_van_hulp_bestuurder_volgens_college           | false |
+      | permanent_rolstoelgebonden_volgens_college                        | false |
+      | ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college   | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_verstrekt" is true
@@ -229,15 +231,15 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | kaart_als_passagier                               | false |
       | besluit_datum                                     | 2031-10-20 |
       | dagtekening                                       | 2031-10-14 |
-      | langdurige_loopbeperking                          | true |
-      | continu_afhankelijk_van_hulp_bestuurder           | false |
-      | permanent_rolstoelgebonden                        | false |
-      | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
       | geneeskundig_onderzoek_achterwege_gelaten         | true |
       | keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet | true |
     Given the following findings:
-      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart   | false |
-      | aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt | true |
+      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college   | false |
+      | aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt_volgens_college | true |
+      | langdurige_loopbeperking_volgens_college                          | true |
+      | continu_afhankelijk_van_hulp_bestuurder_volgens_college           | false |
+      | permanent_rolstoelgebonden_volgens_college                        | false |
+      | ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college   | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_verstrekt" is true
@@ -251,14 +253,14 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | kaart_als_passagier                               | false |
       | besluit_datum                                     | 2031-10-20 |
       | dagtekening                                       | 2031-10-14 |
-      | langdurige_loopbeperking                          | true |
-      | continu_afhankelijk_van_hulp_bestuurder           | false |
-      | permanent_rolstoelgebonden                        | false |
-      | ernstige_beperkingen_andere_dan_loopbeperkingen   | false |
       | geneeskundig_onderzoek_achterwege_gelaten         | true |
       | bekend_dat_aanvrager_nog_steeds_voldoet           | true |
     Given the following findings:
-      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart   | false |
-      | aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt | false |
+      | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college   | false |
+      | aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt_volgens_college | false |
+      | langdurige_loopbeperking_volgens_college                          | true |
+      | continu_afhankelijk_van_hulp_bestuurder_volgens_college           | false |
+      | permanent_rolstoelgebonden_volgens_college                        | false |
+      | ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college   | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
     Then the execution fails with "geneeskundig_onderzoek_heeft_plaatsgehad"

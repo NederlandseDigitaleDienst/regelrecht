@@ -48,8 +48,9 @@
 //!   parameters are known only at run time, any reference under
 //!   `parameters` that may be null, and any `parameters_from`, counts so.
 //!   An article that implements a required open term without a
-//!   default may not declare its output for the term nullable, unless the
-//!   law leaves the term to an authority per case (`decided_per_case_by`).
+//!   default may not declare its output for the term nullable, also where
+//!   the law leaves the term to an authority per case
+//!   (`decided_per_case_by`): the implementation's value is the term's.
 //! - **T1** Arithmetic and ordering operands are numbers (or amounts); `ADD`
 //!   also concatenates strings and arrays, ordering also compares dates.
 //! - **T2** Logical operands and `IF` conditions are booleans.
@@ -503,11 +504,12 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
     /// open term without a default promises the delegating law a value. The
     /// engine takes the implementation's output as the term's value, and the
     /// delegating law reads the term as never absent, so the output may not
-    /// be declared nullable. A term with a default is filled by the default
-    /// when the implementation is silent, a term the law leaves to an
-    /// authority per case (`decided_per_case_by`) by that authority's
-    /// judgement (RFC-047), and an optional term without one is nullable
-    /// itself; none of them needs this.
+    /// be declared nullable. That holds for a term the law leaves to an
+    /// authority per case (`decided_per_case_by`) too: where a regulation
+    /// fills it, no finding takes the place of a null (RFC-048 §2). A term
+    /// with a default is filled by the default when the implementation is
+    /// silent, and an optional term without one is nullable itself; neither
+    /// needs this.
     fn check_implements(&mut self) {
         let Some(implements) = self.article.get_implements() else {
             return;
@@ -527,7 +529,7 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
             else {
                 continue;
             };
-            if term.required && !term_has_default(term) && term.decided_per_case_by.is_none() {
+            if term.required && !term.has_default() {
                 self.location = format!("output '{}'", output.name);
                 self.report(
                     Rule::N5,
@@ -1629,15 +1631,6 @@ fn is_literal_shaped(expr: &ActionValue) -> bool {
     matches!(expr, ActionValue::Literal(value) if Ty::of_literal(value).is_some())
 }
 
-/// Whether an open term carries a default the engine can run. `default: {}`
-/// or `default: {actions: []}` resolves to `null` ("using empty default"),
-/// and counts as no default here.
-fn term_has_default(term: &crate::article::OpenTerm) -> bool {
-    term.default
-        .as_ref()
-        .is_some_and(|d| d.actions.as_ref().is_some_and(|a| !a.is_empty()))
-}
-
 /// The reference an `EQUALS`/`NOT_EQUALS` tests against a literal `null`.
 fn null_tested<'v>(subject: &'v ActionValue, value: &'v ActionValue) -> Option<&'v str> {
     if is_null_literal(value) {
@@ -1700,7 +1693,7 @@ fn environment(article: &Article) -> BTreeMap<String, Symbol> {
             declare(
                 &term.id,
                 Some(Ty::of(term.term_type)),
-                !term.required && !term_has_default(term),
+                !term.required && !term.has_default(),
             );
         }
     }

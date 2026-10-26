@@ -51,7 +51,18 @@ open_terms:
     combine: OR
 ```
 
-A cell's answer reaches such a term through the policy of the authority that decides, which binds the term to the answer (`source.reduction`, [RFC-048](/rfcs/rfc-048)). Wherever that binding runs, the engine asks only the answerers the term names and combines their answers with the term's `combine`. A cell the term does not name is not asked. For a term without `competent_authority`, the engine asks the cell of the policy's holder. The article's own `competent_authority` routes nothing.
+A cell's answer reaches such a term through the policy of the deciding authority. That policy binds the term to the answer (`source.reduction`, [RFC-048](/rfcs/rfc-048)). Wherever that binding runs, the engine asks only the answerers that the term names, and combines their answers with the term's `combine`. A cell that the term does not name is not asked. For a term without `competent_authority`, the engine asks the cell of the policy's holder. The article's own `competent_authority` plays no part in which cell the engine asks.
+
+## Who gives a finding
+
+A finding is the authority's own judgement on an open norm in a single case. An open term with `decided_per_case_by` needs a finding when no regulation fills it. The field also names the authority in words, but the engine reads it only as a marker that the term is judged per case. Who gives the finding follows from competence:
+
+1. The authority that the term itself names in its `competent_authority`.
+2. If the term names none: the authority that carries out the article. That is the article's `competent_authority`, or else the holder named at the root of the rulework.
+
+If none of these names an authority, whoever carries out the article gives the finding.
+
+Art. 13a of the Leerplichtwet 1969 says that the head grants the leave, so the head gives the findings on its terms. The fictitious policy of Wilgendaal lets the college judge the four medical criteria when the GGD has given no advice. No law makes the GGD the judge there, and the terms name no authority. So the college gives those findings, as the holder of the policy. A cell gives findings only on the terms it answers, and refuses a finding on a term that another authority answers. [RFC-048](/rfcs/rfc-048) §2 sets out the rule.
 
 ## One law, several authorities
 

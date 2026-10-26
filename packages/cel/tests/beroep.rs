@@ -39,7 +39,9 @@ const REDUCTION: &str = "reductie_verlof_al_verleend_in_schooljaar";
 const ONCE: &str = "verlof_al_verleend_in_schooljaar";
 
 const PROFESSION: &str = "specifieke_aard_beroep_ouder";
-const OUTSIDE_HOLIDAYS: &str = "verlof_valt_buiten_schoolvakanties";
+/// The head's judgement on the holidays where his cell is silent: an open
+/// term of his policy (art. 4, RFC-048 §2).
+const OUTSIDE_HOLIDAYS: &str = "verlof_valt_buiten_schoolvakanties_volgens_hoofd";
 
 std::thread_local! {
     /// Whether the school's cell opens without its answer for lid 2, for a
@@ -942,7 +944,7 @@ fn grant() -> Value {
     json!({
         PROFESSION: true,
         OUTSIDE_HOLIDAYS: true,
-        "verlof_al_verleend_in_schooljaar": false,
+        "verlof_al_verleend_in_schooljaar_volgens_hoofd": false,
     })
 }
 
@@ -1067,7 +1069,10 @@ fn decided_by_the_court() -> Map<String, Value> {
     findings.remove("termijn_nieuw_besluit");
     findings.insert("uitspraak_treedt_in_de_plaats".into(), json!(true));
     findings.insert(PROFESSION.into(), json!(true));
-    findings.insert("verlof_al_verleend_in_schooljaar".into(), json!(false));
+    findings.insert(
+        "verlof_al_verleend_in_schooljaar_volgens_hoofd".into(),
+        json!(false),
+    );
     findings
 }
 
@@ -1170,7 +1175,7 @@ fn a_court_that_decides_itself_without_the_fact_the_school_would_give_fails() {
         .unwrap();
     let appeal = appealed(&mut court, &copy).unwrap();
     let mut findings = decided_by_the_court();
-    findings.remove("verlof_al_verleend_in_schooljaar");
+    findings.remove("verlof_al_verleend_in_schooljaar_volgens_hoofd");
     let err = court
         .decide(
             &mut service(),
@@ -1184,7 +1189,8 @@ fn a_court_that_decides_itself_without_the_fact_the_school_would_give_fails() {
         )
         .unwrap_err();
     assert!(
-        err.to_string().contains("verlof_al_verleend_in_schooljaar"),
+        err.to_string()
+            .contains("verlof_al_verleend_in_schooljaar_volgens_hoofd"),
         "{err}"
     );
     assert_eq!(court.grams().len(), 1);
