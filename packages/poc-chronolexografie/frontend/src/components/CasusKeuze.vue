@@ -51,6 +51,9 @@ async function kies(c) {
       <nldd-button-bar>
         <nldd-button appearance="primary" start-icon="guide" text="Presentatie starten" @click="emit('presentatie')"></nldd-button>
       </nldd-button-bar>
+      <!-- `item-min-width`, not `item-width`: @nldd/design-system 0.9.0 renamed
+           the attribute (collection.d.ts, @migration), and the old name now
+           does nothing. -->
       <nldd-collection layout="grid" item-min-width="320px">
         <nldd-card v-for="(g, i) in demo" :key="g.name">
           <nldd-container slot="header" padding="16">
