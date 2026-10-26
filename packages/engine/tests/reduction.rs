@@ -1063,7 +1063,7 @@ fn in_the_call_anew_without_an_answerer_the_finding_is_missing() {
 // ---------------------------------------------------------------------------
 // The Awb reduction: which decisions still stand after objection and appeal
 // (Awb 7:11, 8:72), and the decisions the court set in place (8:72 lid 3
-// onder b). It has no holder, so it is no answer of a cell; another
+// onder b). It is of no cell, so it is no answer of a cell; another
 // reduction calls it and passes the rows it read.
 // ---------------------------------------------------------------------------
 
@@ -1360,7 +1360,7 @@ fn a_decision_the_court_set_in_place_under_another_article_revokes_nothing() {
 // ---------------------------------------------------------------------------
 // The chronicle of the call (RFC-048): the cell that runs a reduction gives
 // the rows every reduction in the execution reads, also one it calls, such
-// as that of the Awb, which has no holder and reads from the chronicle of
+// as that of the Awb, which is of no cell and reads from the chronicle of
 // the executing cell.
 // ---------------------------------------------------------------------------
 

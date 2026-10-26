@@ -125,8 +125,10 @@ pub fn read(files: &dyn Files, dir: &Path) -> Result<Identity> {
 /// The `$id`s of the reductions in `dir`: the name of each directory in
 /// it, which holds the versions of that reduction (`<valid_from>.yaml`).
 /// No `dir` is no reductions. An entry that is no directory, and a
-/// directory without a version, is an error.
-fn reductions(files: &dyn Files, dir: &Path) -> Result<BTreeSet<String>> {
+/// directory without a version or with anything else, is an error. The
+/// same holds for the reductions of a cell and for those of no cell
+/// beside the cells.
+pub fn reductions(files: &dyn Files, dir: &Path) -> Result<BTreeSet<String>> {
     if !files.exists(dir) {
         return Ok(BTreeSet::new());
     }
@@ -157,8 +159,8 @@ fn reductions(files: &dyn Files, dir: &Path) -> Result<BTreeSet<String>> {
             }
             _ => {
                 return Err(setup(format!(
-                    "{}: a cell keeps each reduction as a directory named by its $id, with \
-                     a file per version (<valid_from>.yaml) and nothing else",
+                    "{}: a directory of reductions holds one directory per reduction, named \
+                     by its $id, with a file per version (<valid_from>.yaml) and nothing else",
                     entry.display()
                 )))
             }

@@ -301,13 +301,8 @@ impl Regelwerken {
                     let naam = cel.file_name().map(|n| n.to_string_lossy().into_owned());
                     (cel.join(identity::REDUCTIONS), naam)
                 };
-                if !files.is_dir(&dir) {
-                    continue;
-                }
-                for map in files.entries(&dir)? {
-                    if files.is_dir(&map) {
-                        uit.push((map, Plek::Reducties(houder.clone())));
-                    }
+                for id in identity::reductions(files, &dir)? {
+                    uit.push((dir.join(id), Plek::Reducties(houder.clone())));
                 }
             }
         }

@@ -1198,8 +1198,8 @@ fn leest_uit(reduction: &regelrecht_engine::ArticleBasedLaw) -> Vec<(String, Str
 /// The articles that `reduction` calls for a norm (RFC-048): per regelwerk of
 /// `UITVOERINGSBELEID` or `REDUCTIE` it reads with `source.regulation`, the
 /// articles that give the output it reads ([`artikelen_voor`]), with that
-/// regelwerk. Any called reduction counts, with or without a holder; the
-/// one of the Awb has none. Each article once.
+/// regelwerk. Any called reduction counts, of the cell or of no cell, such
+/// as that of the Awb. Each article once.
 pub(crate) fn beleid_van<'s>(
     service: &'s LawExecutionService,
     reduction: &regelrecht_engine::ArticleBasedLaw,

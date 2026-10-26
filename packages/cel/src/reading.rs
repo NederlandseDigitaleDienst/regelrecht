@@ -734,7 +734,7 @@ mod tests {
     }
 
     #[test]
-    fn a_name_grondslag_on_the_decision_is_refused() {
+    fn a_name_basis_on_the_decision_is_refused() {
         let mut decision = gram("BESCHIKKING", BASIS, Some("a"));
         decision.outputs.insert("basis".into(), json!("x#1"));
         let e = rows(

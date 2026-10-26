@@ -112,13 +112,11 @@ export const COMPONENTS = {
   // staan — precies de fout die dit script hoort uit te bannen.
   //
   // chronolexografie draait als WASM in de browser: het image bouwt de crate
-  // (met de cel, en de casussen en de app in de map van de crate, uit de
-  // graaf) en bundelt per casus de
-  // regelwerken die haar cel draait en de cellen zelf, met hun reducties.
-  // Die mappen staan bij
-  // `corpus` in pocs/registry.yaml; een test in
-  // packages/poc-chronolexografie (src/bundel.rs) houdt de lijst hieronder
-  // daarmee gelijk.
+  // (met de cel, en de casussen en de app in de map van de crate, uit de graaf)
+  // en bundelt per casus de regelwerken die haar cel draait en de cellen zelf,
+  // met hun reducties. Die mappen staan bij `corpus` in pocs/registry.yaml; een
+  // test in packages/poc-chronolexografie (src/bundel.rs) houdt de lijst
+  // hieronder daarmee gelijk.
   poc: {
     crate: ['regelrecht-poc-portal', 'regelrecht-engine', 'regelrecht-poc-chronolexografie'],
     paths: [

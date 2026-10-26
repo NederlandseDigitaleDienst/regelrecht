@@ -641,6 +641,14 @@ mod tests {
     }
 
     #[test]
+    fn a_loose_file_beside_the_reductions_of_no_cell_is_refused() {
+        let mut files = gebundeld();
+        files.insert("corpus/cells/reductions/los.yaml".into(), String::new());
+        let e = casussen(files).unwrap_err().to_string();
+        assert!(e.contains("a file per version"), "{e}");
+    }
+
+    #[test]
     fn a_reduction_that_reads_one_of_another_cell_is_refused() {
         // The school's reduction asks the CBR's: that one would read the
         // school's chronicle, not the CBR's.

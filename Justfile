@@ -112,10 +112,11 @@ validate *FILES:
 
 # Validate the demo corpus (schema + type check, RFC-036/RFC-037)
 #
-# `validate` without arguments walks corpus/regulation only, so the eighty demo
-# laws would be seen by the pre-commit hook and by nothing else. This recipe
-# hands them to the same binary, so a law that stops type-checking is caught by
-# `just demo` and not first by a red scenario run.
+# `validate` without arguments walks corpus/regulation and the reductions in
+# corpus/cells only, so the eighty demo laws would be seen by the pre-commit
+# hook and by nothing else. This recipe hands them to the same binary, so a law
+# that stops type-checking is caught by `just demo` and not first by a red
+# scenario run.
 [doc("Validate the demo corpus (schema + type check)")]
 validate-demo:
     find corpus/demo/regulation -name '*.yaml' ! -name '.*' -print0 \

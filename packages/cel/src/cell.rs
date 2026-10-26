@@ -63,13 +63,13 @@ pub enum Reference<'a> {
 impl Cell {
     /// The cell of `recording_actor`, with its chronicle in the JSON Lines file
     /// at `path` and its identity and catalogue in its directory `cell_dir`
-    /// (`cel.yaml`) and its reductions (`reductions`). A `cell_dir` that is
-    /// no directory, or that is the directory of the reductions of no cell
-    /// ([`identity::REDUCTIONS`] beside the cells), is an error, and so is
-    /// an answer of a reduction the cell does not keep ([`identity::read`]). A chronolexogram in the
-    /// chronicle recorded by another actor is an error, and so is an
-    /// executogram that refers to a chronolexogram or holds outputs
-    /// (RFC-051).
+    /// (`cel.yaml`) and its reductions (`reductions`). A `cell_dir` that is no
+    /// directory, or that is the directory of the reductions of no cell
+    /// ([`identity::REDUCTIONS`] beside the cells), is an error, and so is an
+    /// answer of a reduction the cell does not keep ([`identity::read`]). A
+    /// chronolexogram in the chronicle recorded by another actor is an error,
+    /// and so is an executogram that refers to a chronolexogram or holds
+    /// outputs (RFC-051).
     pub fn open(
         recording_actor: impl Into<String>,
         path: impl AsRef<Path>,
