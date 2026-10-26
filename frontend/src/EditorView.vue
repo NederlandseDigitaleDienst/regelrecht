@@ -27,6 +27,9 @@ import { apiFetch, apiFetchJson } from './lib/apiFetch';
 import { RETRY_MIN_SPINNER_MS } from './lib/retryFeedback';
 import { humanizeLawId } from './lib/lawName';
 import { quoteContext } from './lib/quoteContext';
+import { linkedOutput, linksByOutput, type LinkedFragment } from './regelrijm/regelrijmLinks';
+import type { Path } from '@regelrecht/frontend-shared/regelrijm/index';
+import { humanize } from './utils/outputFormat';
 import { useLatest } from './lib/useLatest';
 import { useOpenTabs } from './composables/useOpenTabs';
 import { createTabRestore } from './composables/useTabRestore';
@@ -515,6 +518,32 @@ const editorAnnotations = computed(() => {
   return out;
 });
 
+// RegelRijm (flag panel.regelrijm): per output, the fragments of the saved
+// article text that a linking note ties to that rule, for the Machine pane.
+// Same resolved notes as the highlights, so both show the same fragments.
+const regelrijmLinks = computed(() => {
+  if (!isEnabled('panel.regelrijm')) return new Map<string, LinkedFragment[]>();
+  return linksByOutput(notesForArticle.value, {
+    lawId: [law.value?.$id, lawId.value],
+    text: selectedArticle.value?.text || '',
+  });
+});
+
+// The action a linking note points at in this article, for "Actie openen" in
+// the note popover; null for any other note or with the flag off.
+function linkedAction(note: Note): ExecutionAction | null {
+  if (!isEnabled('panel.regelrijm')) return null;
+  const output = linkedOutput(note, [law.value?.$id, lawId.value]);
+  return output ? (machineReadable.value?.execution?.actions?.find((a) => a?.output === output) ?? null) : null;
+}
+
+function openLinkedAction(note: Note) {
+  const action = linkedAction(note);
+  if (!action) return;
+  annotationPopEl.value?.hide?.();
+  handleOpenAction(action);
+}
+
 // NoteCreator (authoring popover) state, opened by the toolbar comment button
 // on the current editor selection.
 const noteCreator = reactive<{
@@ -784,6 +813,15 @@ function noteText(note: Note) {
   const noteBody = note?.body as NoteBody | NoteBody[] | null | undefined;
   const body = Array.isArray(noteBody) ? noteBody[0] : noteBody;
   return body?.value || body?.source || '';
+}
+// The comment of a note that also links to a rule: its commenting body (or an
+// untagged text body), not a tag and not the link, wherever it stands.
+function noteComment(note: Note): string {
+  type Body = { type?: string; purpose?: string; value?: unknown };
+  const raw = (note as { body?: Body | Body[] } | null)?.body;
+  const bodies: (Body | undefined)[] = Array.isArray(raw) ? raw : [raw];
+  const c = bodies.find((b) => b?.type === 'TextualBody' && (b.purpose ? b.purpose === 'commenting' : true) && typeof b.value === 'string' && b.value.trim());
+  return (c?.value as string | undefined) ?? '';
 }
 function noteAuthor(note: Note) {
   // The { id, name } shape or a legacy plain string, as in NoteCard; not validated.
@@ -1352,6 +1390,8 @@ watch(lawId, () => {
 
 // --- Editor state ---
 const activeAction = ref<ExecutionAction | null>(null);
+// From a RegelRijm reading: the path of the part of the action to open at.
+const activeActionPath = ref<Path | null>(null);
 // True while the open action sheet is for a freshly added action, so its
 // Save button is always offered (no edit required to create it).
 const activeActionIsNew = ref(false);
@@ -2519,12 +2559,40 @@ function handleAddAction() {
   yamlSource.value = yaml.dump(machineReadable.value, dumpOpts);
   parseError.value = null;
   activeActionIsNew.value = true;
+  activeActionPath.value = null;
   activeAction.value = newAction;
 }
 
-function handleOpenAction(action: ExecutionAction) {
+// A name in a RegelRijm reading that another article computes: go there, the
+// way a deep link does (the route watcher switches law or article).
+function handleRegelRijmNavigate({
+  lawId: targetLaw,
+  articleNumber,
+}: {
+  lawId: string;
+  articleNumber: string;
+}) {
+  router.push(editorRouteFor(targetLaw, articleNumber));
+}
+
+// From a RegelRijm reading in the action sheet: a name leads to the rule that
+// computes it. The sheet only follows a name when it has no unsaved edits.
+function handleSheetNavigate(target: { lawId: string; articleNumber: string }) {
+  handleActionClose();
+  handleRegelRijmNavigate(target);
+}
+
+function handleSheetOpenOutput(output: string) {
+  handleActionClose();
+  const next = machineReadable.value?.execution?.actions?.find((a) => a?.output === output);
+  if (next) handleOpenAction(next);
+}
+
+// `path`: from a RegelRijm reading, the part of the action to open at.
+function handleOpenAction(action: ExecutionAction, path: Path | null = null) {
   actionSnapshot = JSON.stringify(machineReadable.value);
   activeActionIsNew.value = false;
+  activeActionPath.value = Array.isArray(path) ? path : null;
   activeAction.value = action;
   // Clear any stale parse error from a previous failed save
   parseError.value = null;
@@ -3216,11 +3284,18 @@ async function handleActionSave() {
                     <template v-for="(note, i) in activeNotes" :key="i">
                       <nldd-spacer v-if="i > 0" size="16"></nldd-spacer>
                       <nldd-rich-text>
-                        <p>{{ noteText(note) || '-' }}</p>
+                        <p v-if="!linkedAction(note)">{{ noteText(note) || '-' }}</p>
+                        <p v-else-if="noteComment(note)">{{ noteComment(note) }}</p>
+                        <p v-if="linkedAction(note)">Gekoppeld aan de rekenregel {{ humanize(linkedAction(note)?.output ?? '') }}</p>
                       </nldd-rich-text>
                       <template v-if="noteAuthor(note)">
                         <nldd-spacer size="4"></nldd-spacer>
                         <nldd-identity :text="noteAuthor(note)"></nldd-identity>
+                      </template>
+                      <!-- RegelRijm: a linking note leads to its rule. -->
+                      <template v-if="linkedAction(note)">
+                        <nldd-spacer size="8"></nldd-spacer>
+                        <nldd-button size="sm" text="Actie openen" data-testid="note-open-linked-action" @click="openLinkedAction(note)"></nldd-button>
                       </template>
                     </template>
                     <nldd-spacer size="16"></nldd-spacer>
@@ -3248,7 +3323,12 @@ async function handleActionSave() {
                   :dirty="isMachineReadableDirty"
                   :saving="lawSaving"
                   :traject-ref="activeTrajectRef"
+                  regelrijm
+                  :law="law"
+                  :law-id="lawId"
+                  :links="regelrijmLinks"
                   @open-action="handleOpenAction"
+                  @navigate="handleRegelRijmNavigate"
                   @open-edit="activeEditItem = $event"
                   @init-mr="handleInitMr"
                   @enrich="enrichLaw"
@@ -3406,7 +3486,7 @@ async function handleActionSave() {
        would be slotted into the main pane and pick up its ::slotted flex-grow,
        stealing height from the pane content. -->
   <Teleport to="body">
-    <ActionSheet :action="activeAction" :article="editedArticle" :editable="canEdit" :is-new="activeActionIsNew" @close="handleActionClose" @save="handleActionSave" />
+    <ActionSheet regelrijm :action="activeAction" :article="editedArticle" :editable="canEdit" :is-new="activeActionIsNew" :law="law" :law-id="lawId" :traject-ref="activeTrajectRef" :focus-path="activeActionPath" @close="handleActionClose" @save="handleActionSave" @navigate="handleSheetNavigate" @open-output="handleSheetOpenOutput" />
     <EditSheet :item="activeEditItem" :article="editedArticle" :traject-ref="activeTrajectRef" @save="handleSave" @close="activeEditItem = null" />
     <SearchPopover
       ref="searchPopoverRef"
