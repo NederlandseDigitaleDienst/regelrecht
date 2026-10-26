@@ -448,8 +448,8 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
     // The scenario "Een kaart na bezwaar telt bij de volgende aanvraag", as
     // the app plays it. The refusal is revoked on objection and a card takes
     // its place (Awb 7:11). At the second application the municipality's
-    // reduction finds that card through the reduction of the Awb, which
-    // leaves the revoked refusal out.
+    // reduction finds that card among the decisions that hold, which the
+    // reduction of the Awb gives.
     const BSN: &str = "999990068";
     let mut spel = spel_met("gehandicaptenparkeerkaart");
     let casus = spel.casus().unwrap();
@@ -525,12 +525,21 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
         .unwrap();
     assert_eq!(antwoord["waarde"], json!(true));
 
-    // The card the cell counted is the one the decision on objection put in
-    // place, not the refusal it revoked.
+    // The reduction of the Awb gives the refusal as revoked. The only decision
+    // that holds is the one the decision on objection put in its place, and
+    // that one holds the card the cell counted.
+    let refusal = geweigerd["besluit"]["id"].as_str().unwrap();
     let id = besluit["besluit"]["id"].as_str().unwrap();
     let hoe = spel
         .hoe_beantwoord(id, "aanvrager_heeft_geldige_gehandicaptenparkeerkaart")
         .unwrap();
-    let spoor = hoe["antwoorden"][0]["spoor"].as_str().unwrap();
-    assert!(spoor.contains(&nieuw), "{spoor}");
+    let uitvoer = &hoe["antwoorden"][0]["uitvoer"];
+    assert_eq!(uitvoer["herroepen_besluiten"], json!([refusal]));
+    let geldend: Vec<&str> = uitvoer["geldende_besluiten"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| b["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(geldend, [nieuw.as_str()]);
 }

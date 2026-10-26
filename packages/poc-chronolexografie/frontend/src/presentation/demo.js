@@ -6,8 +6,10 @@
  *
  * - A second card next to a valid one: the reduction finds the first card in
  *   the chronicle.
- * - A card on objection: the reduction of the Awb drops the revoked refusal
- *   and counts the decision put in its place, so the answer changes.
+ * - A card on objection: the reduction of the Awb passes on the decision that
+ *   the decision on objection put in place of the revoked refusal, so at the
+ *   next application the municipality finds a valid card it did not have
+ *   before the objection.
  * - A card of another municipality: synthesis, the answer of a cell in the
  *   sphere.
  */

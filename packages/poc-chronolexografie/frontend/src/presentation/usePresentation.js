@@ -40,11 +40,16 @@ function pathMatches(e, selector) {
 
 /**
  * What a key does on the deck: 'next', 'prev', 'first', 'last', 'stop',
- * 'fullscreen', or null. Typing in a field does nothing, and Space on a
- * button presses the button rather than turning the page.
+ * 'fullscreen', or null. Typing in a field does nothing, a key with a
+ * modifier is the browser's, and Space on a button presses the button
+ * rather than turning the page.
  */
 export function keyAction(e) {
+  // Alt+← is the browser's back, Ctrl+F its search: those stay the browser's.
+  if (e.altKey || e.ctrlKey || e.metaKey) return null;
   if (pathMatches(e, 'input, textarea, select, [contenteditable]')) return null;
+  // An open dialog or popover takes its own Escape.
+  if (e.key === 'Escape' && pathMatches(e, 'dialog[open], [popover]')) return null;
   if (e.key === ' ' && pathMatches(e, 'button, [role="button"], a[href], nldd-button, nldd-icon-button'))
     return null;
   switch (e.key) {
@@ -62,6 +67,7 @@ export function keyAction(e) {
     case 'Escape':
       return 'stop';
     case 'f':
+    case 'F':
       return 'fullscreen';
     default:
       return null;

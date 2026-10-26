@@ -54,9 +54,11 @@ const synthese = {
 </script>
 
 <template>
+  <!-- No role="img": the text in the SVG is the content, and a screen
+       reader reads it in order. The caption names the figure. -->
   <figure class="diagram">
     <!-- De kroniek: een tijdlijn van boven naar beneden. -->
-    <svg v-if="name === 'kroniek'" viewBox="0 0 420 300" role="img" :aria-label="label">
+    <svg v-if="name === 'kroniek'" viewBox="0 0 420 300">
       <line x1="20" y1="24" x2="20" y2="276" class="line" />
       <g v-for="(g, i) in kroniek" :key="i" :transform="`translate(0 ${30 + i * 72})`">
         <circle cx="20" cy="0" r="7" :class="g.accent ? 'dot accent' : 'dot'" />
@@ -66,8 +68,8 @@ const synthese = {
     </svg>
 
     <!-- De keten: van het artikel tot de kroniek, elk blok een stap. -->
-    <svg v-else-if="name === 'keten'" viewBox="0 0 560 532" role="img" :aria-label="label">
-      <defs><marker :id="arrowId" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="head" /></marker></defs>
+    <svg v-else-if="name === 'keten'" viewBox="0 0 560 532">
+      <defs aria-hidden="true"><marker :id="arrowId" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="head" /></marker></defs>
       <g v-for="(k, i) in keten" :key="i" :transform="`translate(0 ${i * 76})`">
         <rect x="2" y="2" width="556" height="56" rx="8" :class="k.accent ? 'box accent' : 'box'" />
         <text x="18" y="25" class="strong">{{ k.titel }}</text>
@@ -78,8 +80,8 @@ const synthese = {
 
     <!-- Synthese: elke cel antwoordt uit de eigen kroniek, de engine
          combineert. -->
-    <svg v-else-if="synthese[name]" viewBox="0 0 480 300" role="img" :aria-label="label">
-      <defs><marker :id="arrowId" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="head" /></marker></defs>
+    <svg v-else-if="synthese[name]" viewBox="0 0 480 300">
+      <defs aria-hidden="true"><marker :id="arrowId" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="head" /></marker></defs>
       <g v-for="(c, i) in synthese[name].cellen" :key="i" :transform="`translate(${i * 160} 0)`">
         <rect x="6" y="4" width="148" height="78" rx="8" :class="c.accent ? 'box accent' : 'box'" />
         <text x="80" y="34" class="strong" text-anchor="middle">{{ c.naam }}</text>
@@ -93,9 +95,9 @@ const synthese = {
       <text x="240" y="272" class="strong" text-anchor="middle">{{ synthese[name].begrip }}</text>
     </svg>
 
-    <!-- Afschriften: twee kronieken, en wat de wet tussen beide stuurt. -->
-    <svg v-else-if="name === 'afschrift'" viewBox="0 0 520 300" role="img" :aria-label="label">
-      <defs><marker :id="arrowId" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="head" /></marker></defs>
+    <!-- Afschriften: twee kronieken, en de afschriften die de wet tussen beide voorschrijft. -->
+    <svg v-else-if="name === 'afschrift'" viewBox="0 0 520 300">
+      <defs aria-hidden="true"><marker :id="arrowId" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="head" /></marker></defs>
       <rect x="4" y="4" width="200" height="292" rx="8" class="box" />
       <text x="104" y="34" class="strong" text-anchor="middle">Gemeente</text>
       <text x="104" y="54" class="small" text-anchor="middle">eigen kroniek</text>

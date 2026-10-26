@@ -45,16 +45,28 @@ describe('the slides', () => {
     for (const n of named) expect(corpus, n).toContain(n);
   });
 
-  it('quotes the corpus YAML line by line, shortened only where marked', () => {
-    const fragments = slides.map((s) => s.figure?.code).filter((c) => c && !c.trimStart().startsWith('{'));
+  it('quotes each YAML fragment from the file it names, in order', () => {
+    const repo = fileURLToPath(new URL('../../../../', import.meta.url));
+    const fragments = slides.map((s) => s.figure).filter((f) => f?.source);
     expect(fragments.length).toBeGreaterThan(0);
-    for (const code of fragments) {
+    for (const { code, source } of fragments) {
+      const file = readFileSync(join(repo, source), 'utf8')
+        .split('\n')
+        .map((l) => l.trim());
+      let at = 0;
       for (const line of code.split('\n')) {
         const t = line.trim();
         if (!t || t.startsWith('#')) continue;
-        expect(corpus, t).toContain(t);
+        const found = file.indexOf(t, at);
+        expect(found, `${source}: ${t}`).toBeGreaterThanOrEqual(0);
+        at = found + 1;
       }
     }
+  });
+
+  it('names a source for every YAML fragment', () => {
+    for (const s of slides.filter((x) => x.figure?.code && !x.figure.code.trimStart().startsWith('{')))
+      expect(s.figure.source, s.title).toBeTruthy();
   });
 
   it('give each figure a label', () => {
@@ -90,6 +102,7 @@ describe('keyAction', () => {
   const el = (selector) => ({ matches: (s) => s.split(', ').includes(selector) });
 
   it('turns the page with the arrows, Space and Page keys', () => {
+    expect(keyAction(key('F'))).toBe('fullscreen');
     expect(keyAction(key('ArrowRight'))).toBe('next');
     expect(keyAction(key(' '))).toBe('next');
     expect(keyAction(key('PageUp'))).toBe('prev');
@@ -104,6 +117,16 @@ describe('keyAction', () => {
     expect(keyAction(key(' ', el('nldd-button')))).toBeNull();
     // An arrow does nothing on a button, so it still turns the page.
     expect(keyAction(key('ArrowRight', el('nldd-button')))).toBe('next');
+  });
+
+  it('leaves a key with a modifier to the browser', () => {
+    expect(keyAction({ ...key('ArrowLeft'), altKey: true })).toBeNull();
+    expect(keyAction({ ...key('f'), ctrlKey: true })).toBeNull();
+    expect(keyAction({ ...key('ArrowRight'), metaKey: true })).toBeNull();
+  });
+
+  it('leaves Escape to an open dialog or popover', () => {
+    expect(keyAction(key('Escape', el('dialog[open]')))).toBeNull();
   });
 });
 

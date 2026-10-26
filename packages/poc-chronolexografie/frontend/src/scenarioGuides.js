@@ -428,7 +428,7 @@ const gehandicaptenparkeerkaart = [
   {
     name: 'Een kaart na bezwaar telt bij de volgende aanvraag',
     summary:
-      'Een weigering wordt bij bezwaar herroepen en de kaart komt alsnog, en bij de volgende aanvraag ziet de gemeente die kaart.',
+      'Na bezwaar komt de kaart er alsnog, en bij de volgende aanvraag weigert de gemeente een tweede.',
     steps: [
       apply({ todo: withBsn(NO_ADVICE, 'Het advies van de GGD vindt geen criterium.') }),
       pDecide({

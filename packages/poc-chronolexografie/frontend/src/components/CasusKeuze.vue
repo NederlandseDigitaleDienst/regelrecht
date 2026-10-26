@@ -51,7 +51,7 @@ async function kies(c) {
       <nldd-button-bar>
         <nldd-button appearance="primary" start-icon="guide" text="Presentatie starten" @click="emit('presentatie')"></nldd-button>
       </nldd-button-bar>
-      <nldd-collection layout="grid" item-width="320px">
+      <nldd-collection layout="grid" item-min-width="320px">
         <nldd-card v-for="(g, i) in demo" :key="g.name">
           <nldd-container slot="header" padding="16">
             <nldd-title size="4" heading-level="2" :overline="`Demo ${i + 1} · gehandicaptenparkeerkaart`" :text="g.name"></nldd-title>
@@ -85,7 +85,7 @@ async function kies(c) {
         <nldd-text v-for="r in m.regels" :key="r" size="sm" color="secondary" lang="en">{{ r }}</nldd-text>
       </nldd-banner>
     </nldd-container>
-    <nldd-collection layout="grid" item-width="320px">
+    <nldd-collection layout="grid" item-min-width="320px">
       <nldd-card v-for="c in casussen" :key="c.id">
         <nldd-container slot="header" padding="16">
           <nldd-title

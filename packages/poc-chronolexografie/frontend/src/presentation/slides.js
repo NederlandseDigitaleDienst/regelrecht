@@ -9,8 +9,9 @@
  * buttons). In a line, `**bold**` is bold and `` `name` `` is code.
  *
  * The names of reductions, open terms and outputs are copied from the corpus;
- * tests/presentation.test.js checks each one there. The fragments are cut
- * from the corpus YAML and only shortened, marked with `# …`.
+ * tests/presentation.test.js checks each one there. A YAML fragment names
+ * its `source`, the file it is cut from; the test finds its lines there in
+ * order. Lines left out are marked with `# …`.
  */
 
 export const KINDS = Object.freeze(['title', 'statement', 'section', 'bullets', 'closing']);
@@ -103,7 +104,7 @@ export const slides = [
     kind: 'bullets',
     overline: 'Wat is het',
     title: 'Een kroniek per organisatie',
-    lead: 'Een organisatie legt elk rechtsfeit dat zij vaststelt vast als gedateerd stuk in haar eigen kroniek. Latere vragen beantwoordt zij uit die kroniek.',
+    lead: 'Elk rechtsfeit dat een organisatie vaststelt, komt als gedateerd stuk in haar eigen kroniek. Latere vragen beantwoordt zij uit die kroniek.',
     bullets: [
       'Het stuk herhaalt de wet niet. Wat er in een veld staat en waarom, zegt de wet die op die dag gold.',
       'Niets wordt overschreven. Een wijziging is een nieuw stuk, en het oude blijft staan.',
@@ -152,7 +153,7 @@ export const slides = [
       'Ze legt vast en beslist via de engine. De code van de cel noemt geen artikel: alles wat zij controleert, komt uit de wet.',
       'In RegelRecht is een cel een map met `cel.yaml` en haar reducties. In `cel.yaml` staat wie zij is en welke antwoorden zij geeft.',
     ],
-    figure: { code: CEL, label: 'De cel van de gemeente Wilgendaal' },
+    figure: { code: CEL, source: 'corpus/cells/gemeente_wilgendaal/cel.yaml', label: 'De cel van de gemeente Wilgendaal' },
   },
   {
     kind: 'bullets',
@@ -160,10 +161,14 @@ export const slides = [
     title: 'Reductie',
     lead: 'Een benoemd antwoord uit de eigen kroniek, geschreven als regelwerk.',
     bullets: [
-      'Alleen een reductie leest een kroniek: de besluiten onder een artikel, of de feiten die de cel vastlegde. Ze staat in de map van haar cel; waar ze staat, zegt van wie ze is.',
+      'Alleen een reductie leest een kroniek: de besluiten onder een artikel, of de feiten die de cel vastlegde. Een reductie staat in de map van haar cel, op één na: die van de Awb hoort bij geen cel.',
       'De wet vraagt de cel niets. Het uitvoeringsbeleid van wie beslist, koppelt een open begrip aan het antwoord van de cel.',
     ],
-    figure: { code: BINDING, label: 'Het beleid van Wilgendaal koppelt een open begrip aan een antwoord' },
+    figure: {
+      code: BINDING,
+      source: 'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal/2026-01-01.yaml',
+      label: 'Het beleid van Wilgendaal koppelt een open begrip aan een antwoord',
+    },
   },
   {
     kind: 'bullets',
@@ -171,7 +176,7 @@ export const slides = [
     title: 'Synthese',
     lead: 'Eén open begrip, met antwoorden van meer cellen.',
     bullets: [
-      'Het begrip zegt wie bevoegd is en hoe de antwoorden één waarde worden (`combine`). De engine vraagt elke bevoegde cel van de sfeer en combineert in het proces dat vraagt; een cel reduceert alleen haar eigen kroniek.',
+      'Het begrip zegt wie bevoegd is en hoe de antwoorden één waarde worden (`combine`). De engine vraagt het aan elke bevoegde cel die bij het besluit hoort, en voegt de antwoorden samen. Elke cel kijkt alleen in haar eigen kroniek.',
     ],
     figure: { diagram: 'synthese', label: 'Drie cellen beantwoorden één open begrip' },
   },
@@ -182,14 +187,14 @@ export const slides = [
     lead: 'De cel bewaart geen redenen. Ze neemt het besluit opnieuw, met de wet en de kroniek van die dag.',
     bullets: [
       'Komt er een andere uitkomst uit, dan faalt de uitleg. Zo blijkt het als de kroniek of de wet niet meer klopt met wat er besloten is.',
-      'Een antwoord uit een reductie is in dat spoor één stap. Wie wil weten hoe de cel eraan kwam, laat haar de reductie opnieuw draaien.',
+      'In de uitleg van het besluit is een antwoord uit een reductie één stap. Wie wil weten hoe de cel eraan kwam, laat haar de reductie opnieuw draaien.',
     ],
   },
   {
     kind: 'bullets',
     overline: 'Wat volgt',
     title: 'Afschriften tussen cellen',
-    lead: 'Een cel leest nooit de kroniek van een ander. De wet stuurt stukken.',
+    lead: 'Een cel leest nooit de kroniek van een ander. Wat er tussen cellen gaat, is een afschrift dat de wet voorschrijft.',
     bullets: [
       'Bij het beroepschrift gaat een afschrift van het bestreden besluit mee (Awb 6:5, tweede lid).',
       'De rechtbank zendt partijen een afschrift van de uitspraak (Awb 8:79, eerste lid). De gemeente legt de ontvangst vast in haar eigen kroniek.',
@@ -232,18 +237,23 @@ export const slides = [
       'Een besluit dat bij bezwaar is herroepen (Awb 7:11, tweede lid), telt niet meer.',
       'Vernietigde de bestuursrechter een besluit met zijn rechtsgevolgen (Awb 8:72), dan telt het ook niet. Wat een vernietigde beslissing op bezwaar in de plaats nam, vervalt mee.',
       'Een besluit dat de beslissing op bezwaar of de rechter in de plaats stelde, telt wel.',
-      'Deze reductie hoort bij geen cel en heeft geen eigen kroniek. Ze staat naast de cellen en leest de kroniek van de cel die haar aanroept.',
+      'Deze reductie hoort bij geen cel en heeft geen eigen kroniek. Ze staat naast de cellen en leest de kroniek van de cel die de aanroepende reductie draait.',
     ],
   },
   {
     kind: 'bullets',
     overline: 'De gemeente',
     title: 'Wat de gemeente zelf doet',
-    lead: 'Eén FOREACH over `geldende_besluiten`. Van bezwaar of beroep weet de reductie van de gemeente niets.',
+    lead: 'Een FOREACH over `geldende_besluiten`. Of een besluit herroepen of vernietigd is, ziet de reductie van de gemeente niet: dat zoekt de Awb-reductie uit.',
     bullets: [
       'Een besluit telt als het de kaart verstrekte aan dezelfde aanvrager, en de kaart op de dag van het nieuwe besluit nog geldig is.',
+      'Verstrekte de rechter zelf een kaart, dan zwijgt de reductie. Hoe lang die kaart geldt, staat niet in de kroniek van de gemeente.',
     ],
-    figure: { code: OWN, label: 'Uit de reductie van de gemeente, ingekort' },
+    figure: {
+      code: OWN,
+      source: 'corpus/cells/gemeente_wilgendaal/reductions/reductie_geldige_gehandicaptenparkeerkaart/2026-01-01.yaml',
+      label: 'Uit de reductie van de gemeente, ingekort',
+    },
   },
   {
     kind: 'bullets',
@@ -252,7 +262,7 @@ export const slides = [
     lead: 'Wie eerder een kaart kreeg, hoeft soms niet opnieuw gekeurd te worden (Regeling gehandicaptenparkeerkaart, artikel 2, tweede lid). Wilgendaal kent alleen haar eigen kaarten.',
     bullets: [
       'Bevoegd voor `aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt` is elke verstrekkende instantie: het college van een gemeente, en het CBR.',
-      'Wilgendaal vraagt het zichzelf, de gemeente Oostmeer en het CBR. Elk antwoordt uit de eigen kroniek, en `combine: OR` maakt er één waarde van.',
+      'Bij een besluit van Wilgendaal vraagt de engine het aan Wilgendaal zelf, de gemeente Oostmeer en het CBR. Elk antwoordt uit de eigen kroniek, en `combine: OR` maakt er één waarde van.',
     ],
     figure: { diagram: 'synthese-kaart', label: 'Drie verstrekkende instanties beantwoorden één begrip' },
   },

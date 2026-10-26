@@ -325,11 +325,11 @@ scenarios:
       Afgewezen: het beleid van de gemeente geeft geen tweede kaart naast een
       geldige. Bij het besluit staat "aanvrager heeft geldige
       gehandicaptenparkeerkaart: ja". Onder "Hoe de cel dit beantwoordde"
-      staat wat de reductie van de Awb gaf: bij herroepen besluiten de
-      weigering (Awb 7:11, tweede lid), bij geldende besluiten alleen het
-      nieuwe besluit dat de beslissing op bezwaar in de plaats nam. Daarin
-      vond de reductie van de gemeente de kaart. Zelf kent die reductie geen
-      bezwaar: ze leest alleen de geldende besluiten.
+      staat wat de reductie van de Awb gaf. Bij "herroepen besluiten" staat
+      de weigering (Awb 7:11, tweede lid). Bij "geldende besluiten" staat
+      alleen het nieuwe besluit uit de beslissing op bezwaar. Daarin vond de
+      reductie van de gemeente de kaart. Zelf kent die reductie geen bezwaar:
+      ze leest alleen de geldende besluiten.
   - naam: Zonder advies oordeelt het college, en zonder onderzoek nog geen kaart
     stappen:
       - >-
