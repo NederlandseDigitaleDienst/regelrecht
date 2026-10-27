@@ -12,6 +12,7 @@ import { enrichedOnly } from '../composables/useEnrichedFilter';
 interface StubResponse {
   ok: boolean;
   status?: number;
+  headers?: Headers;
   json?: () => Promise<unknown>;
 }
 type FetchStub = (url: string | URL | Request, init?: RequestInit) => Promise<StubResponse>;
@@ -109,6 +110,68 @@ describe('SearchPopover server-side search', () => {
     expect(internals(wrapper).resultLabel).toBe(
       'Gevonden in example-org/regelrecht-corpus-example',
     );
+  });
+
+  it('offers the matches of the other sources in a row, and switches to them', async () => {
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'zorgverzekering';
+    await nextTick();
+    await settle();
+    await nextTick();
+
+    const row = wrapper.find('[data-testid="search-other-source"]');
+    expect(row.find('nldd-text-cell').attributes('text')).toBe(
+      'Ook 1 treffer in Centrale Regelrecht Corpus',
+    );
+
+    await row.trigger('click');
+    expect(internals(wrapper).shownLaws.map((l) => l.law_id)).toEqual(['besluit_zorgverzekering']);
+    expect(internals(wrapper).resultLabel).toBe('Gevonden in Centrale Regelrecht Corpus');
+    // And back: the first source now has the row.
+    expect(
+      wrapper.find('[data-testid="search-other-source"] nldd-text-cell').attributes('text'),
+    ).toBe('Ook 1 treffer in example-org/regelrecht-corpus-example');
+  });
+
+  it('starts over at the first source for a new query', async () => {
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'zorgverzekering';
+    await nextTick();
+    await settle();
+    await nextTick();
+    await wrapper.find('[data-testid="search-other-source"]').trigger('click');
+    expect(internals(wrapper).resultLabel).toBe('Gevonden in Centrale Regelrecht Corpus');
+
+    internals(wrapper).search = 'zorgverzekeringen';
+    await nextTick();
+    await settle();
+    await nextTick();
+    expect(internals(wrapper).resultLabel).toBe(
+      'Gevonden in example-org/regelrecht-corpus-example',
+    );
+  });
+
+  it('marks the last source count as a lower bound when the backend capped the list', async () => {
+    fetchMock().mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.includes('/corpus/laws') && u.includes('q=')) {
+        return {
+          ok: true,
+          headers: new Headers({ 'X-Total-Count': '80' }),
+          json: async () => LAWS,
+        };
+      }
+      return { ok: true, json: async () => [] };
+    });
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'zorgverzekering';
+    await nextTick();
+    await settle();
+    await nextTick();
+
+    expect(
+      wrapper.find('[data-testid="search-other-source"] nldd-text-cell').attributes('text'),
+    ).toBe('Ook 1+ treffers in Centrale Regelrecht Corpus');
   });
 
   it('falls through to the next source when the first has no match', async () => {
