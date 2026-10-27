@@ -129,3 +129,9 @@ describe('korteUitleg with references', () => {
     );
   });
 });
+
+describe('korteUitleg on one long word', () => {
+  it('keeps every character before the cut', () => {
+    expect(korteUitleg('a'.repeat(40), 30)).toBe(`${'a'.repeat(30)} …`);
+  });
+});

@@ -12,13 +12,18 @@ import { bestandPad, korteUitleg, laagNaam } from '../keten.js';
 import KetenSchakel from './KetenSchakel.vue';
 
 const keten = ref(null);
+const mislukt = ref(false);
 const yaml = ref(null);
 
-// Only fetch, no step: an error of the last step stays where it is.
+// Only fetch, no step: an error of the last step stays where it is. A chain
+// that does not load leaves no tree of another day behind.
 async function laden() {
   try {
     keten.value = await api.keten(state.datum);
+    mislukt.value = false;
   } catch (e) {
+    keten.value = null;
+    mislukt.value = true;
     state.fout = e.message;
   }
 }
@@ -42,6 +47,12 @@ watch(() => state.datum, laden);
     <nldd-list v-if="keten" type="tree" appearance="box-base" accessible-label="Keten van de casus">
       <KetenSchakel :schakel="keten" open @yaml="yaml = $event" />
     </nldd-list>
+    <nldd-inline-dialog
+      v-else-if="mislukt"
+      icon="info"
+      text="De keten kon niet worden opgebouwd"
+      supporting-text="De melding staat bovenaan de pagina. Kies een andere speeldatum om het opnieuw te proberen."
+    ></nldd-inline-dialog>
     <nldd-text v-else size="sm" color="secondary">Even geduld…</nldd-text>
   </nldd-simple-section>
 

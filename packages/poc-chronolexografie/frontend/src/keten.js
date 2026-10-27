@@ -52,8 +52,15 @@ export function korteUitleg(tekst, max = 180) {
   const kaal = zin.replace(/^\d+[a-z]?\s+/, '');
   if (kaal.length <= max) return kaal;
   const knip = kaal.slice(0, max);
-  return `${knip.slice(0, knip.lastIndexOf(' '))} …`;
+  const spatie = knip.lastIndexOf(' ');
+  return `${spatie > 0 ? knip.slice(0, spatie) : knip} …`;
 }
+
+/** A key for a step among its siblings that stays with the step when the tree changes. */
+export const schakelSleutel = (s, i) =>
+  [s.soort, s.wet, s.artikel, s.id, s.cel, s.antwoord, s.besluiten_onder, s.executogrammen_van, i]
+    .filter((x) => x != null)
+    .join('|');
 
 /** Whether a step has steps under it to open. */
 export const heeftKinderen = (s) => (s.kinderen?.length ?? 0) > 0;

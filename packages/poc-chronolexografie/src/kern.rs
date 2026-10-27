@@ -39,6 +39,9 @@ pub struct Corpus {
     /// Per `$id` and `valid_from` of a regelwerk the cell runs, that
     /// version as written.
     geschreven: BTreeMap<(String, Option<String>), String>,
+    /// Per `$id` and `valid_from` of a regelwerk the cell runs, the file of
+    /// that version under its root (`<map>/<file>.yaml`).
+    bestanden: BTreeMap<(String, Option<String>), String>,
     cell_dir: PathBuf,
     /// The directories of the other cells of the sphere, in the order of
     /// the case file.
@@ -168,14 +171,17 @@ impl Corpus {
         let afleiding = afleiden(regelwerken, &casus, &cells)?;
         let mut versies = Vec::new();
         let mut geschreven = BTreeMap::new();
+        let mut bestanden = BTreeMap::new();
         let mut gelezen = Vec::new();
         for id in &afleiding.regelwerken {
             let werk = regelwerken
                 .get(id)
                 .ok_or_else(|| Error::Setup(format!("'{id}' is not in the corpus")))?;
             versies.extend(werk.versies.iter().map(|(yaml, _)| yaml.clone()));
-            for (yaml, law) in &werk.versies {
-                geschreven.insert((law.id.clone(), law.valid_from.clone()), yaml.clone());
+            for ((yaml, law), bestand) in werk.versies.iter().zip(&werk.bestanden) {
+                let sleutel = (law.id.clone(), law.valid_from.clone());
+                bestanden.insert(sleutel.clone(), format!("{}/{bestand}", werk.map));
+                geschreven.insert(sleutel, yaml.clone());
             }
             let naam = werk.versies.last().and_then(|(_, law)| law.name.clone());
             gelezen.push((id.clone(), naam, werk.map.clone()));
@@ -186,6 +192,7 @@ impl Corpus {
             regelwerken: gelezen,
             versies,
             geschreven,
+            bestanden,
             cell_dir,
             andere_dirs,
             files,
@@ -352,13 +359,12 @@ impl Corpus {
         self.regelwerken.iter().map(|(_, _, map)| map.as_str())
     }
 
-    /// The directory of the regelwerk `id` the cell runs, under its root
-    /// ([`crate::casus::Regelwerk::map`]).
-    pub(crate) fn map_van(&self, id: &str) -> Option<&str> {
-        self.regelwerken
-            .iter()
-            .find(|(i, _, _)| i == id)
-            .map(|(_, _, map)| map.as_str())
+    /// The file of the version of the regelwerk `id` the cell runs that is
+    /// valid from `valid_from`, under its root.
+    pub(crate) fn bestand_van(&self, id: &str, valid_from: &Option<String>) -> Option<&str> {
+        self.bestanden
+            .get(&(id.to_string(), valid_from.clone()))
+            .map(String::as_str)
     }
 
     fn law(&self) -> &str {

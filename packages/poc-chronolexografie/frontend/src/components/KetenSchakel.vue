@@ -7,7 +7,7 @@
 // to. The YAML opens in a sheet (KetenTab.vue), as the Kroniek shows JSON.
 import { computed, ref } from 'vue';
 import { state } from '../state.js';
-import { bestandPad, heeftKinderen, korteUitleg, laagNaam, schakelTekst } from '../keten.js';
+import { bestandPad, heeftKinderen, korteUitleg, laagNaam, schakelSleutel, schakelTekst } from '../keten.js';
 
 defineOptions({ name: 'KetenSchakel' });
 
@@ -66,7 +66,7 @@ const pad = computed(() => bestandPad(s.value.bestand, state.casus?.bron));
             :supporting-text="pad"
           ></nldd-text-cell>
         </nldd-list-item>
-        <nldd-list-item slot="children" size="sm" @click.stop>
+        <nldd-list-item v-if="s.yaml || s.url" slot="children" size="sm" @click.stop>
           <nldd-spacer-cell v-for="n in diepte + 1" :key="n" size="24"></nldd-spacer-cell>
           <nldd-spacer-cell size="24"></nldd-spacer-cell>
           <nldd-list-item-segment v-if="s.yaml" button @click.stop="emit('yaml', s)">
@@ -79,7 +79,7 @@ const pad = computed(() => bestandPad(s.value.bestand, state.casus?.bron));
       </template>
       <KetenSchakel
         v-for="(k, i) in s.kinderen ?? []"
-        :key="i"
+        :key="schakelSleutel(k, i)"
         slot="children"
         :schakel="k"
         :diepte="diepte + 1"

@@ -18,7 +18,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use chrono::NaiveDate;
-use regelrecht_cel::{Cell, Term};
+use regelrecht_cel::{reading, Cell, Term};
 use regelrecht_engine::{Article, ArticleBasedLaw, LawExecutionService, RegulatoryLayer};
 use serde::Serialize;
 
@@ -110,10 +110,10 @@ pub fn van_de_casus(corpus: &Corpus, cellen: &Cellen, on: NaiveDate) -> Result<S
             &BTreeMap::new(),
             &corpus.casus.cel,
             Vec::new(),
-        )
+        )?
         .ok_or_else(|| {
             regelrecht_cel::Error::Setup(format!(
-                "case '{}': {}#{} is not in force on {on}",
+                "case '{}': no version of {}#{} in force on {on} has that article",
                 corpus.casus.id, a.law, a.article
             ))
         })
@@ -126,7 +126,7 @@ struct Keten<'a> {
     on: NaiveDate,
     /// Per article shown: its law, number, parameters and the cell whose
     /// chronicle it reads.
-    gezien: BTreeSet<(String, String, String, String)>,
+    gezien: BTreeSet<(String, String, BTreeMap<String, String>, String)>,
 }
 
 /// Where an input of an article leads, before it becomes a step: the steps
@@ -147,8 +147,9 @@ impl<'a> Keten<'a> {
     }
 
     /// The step of `wet#artikel`, reached with the literal parameters
-    /// `given`, on the chronicle of `cel`, read for `leest`; none for an
-    /// article not in force on the day.
+    /// `given`, on the chronicle of `cel`, read for `leest`; none for a
+    /// regelwerk without a version in force on the day, or a version without
+    /// that article.
     fn artikel(
         &mut self,
         wet: &str,
@@ -156,32 +157,36 @@ impl<'a> Keten<'a> {
         given: &BTreeMap<String, String>,
         cel: &str,
         leest: Vec<String>,
-    ) -> Option<Schakel> {
-        let law = self.law(wet)?;
-        let article = law.find_article_by_number(artikel)?;
+    ) -> Result<Option<Schakel>> {
+        let Some(law) = self.law(wet) else {
+            return Ok(None);
+        };
+        let Some(article) = law.find_article_by_number(artikel) else {
+            return Ok(None);
+        };
         let sleutel = (
             wet.to_string(),
             artikel.to_string(),
-            serde_json::to_string(given).unwrap_or_default(),
+            given.clone(),
             cel.to_string(),
         );
         if !self.gezien.insert(sleutel) {
-            return Some(Schakel::Eerder {
+            return Ok(Some(Schakel::Eerder {
                 wet: wet.to_string(),
                 artikel: artikel.to_string(),
-            });
+            }));
         }
-        let mut kinderen = self.begrippen(law, article, cel);
-        kinderen.extend(self.bronnen(law, article, given, cel));
+        let mut kinderen = self.begrippen(law, article, cel)?;
+        kinderen.extend(self.bronnen(law, article, given, cel)?);
         let yaml = self
             .corpus
             .yaml_van(&law.id, &law.valid_from)
             .and_then(|y| machine_readable(y, artikel));
         let bestand = self
             .corpus
-            .map_van(&law.id)
-            .map(|map| format!("{map}/{}.yaml", law.valid_from.as_deref().unwrap_or("")));
-        Some(Schakel::Artikel(Artikel {
+            .bestand_van(&law.id, &law.valid_from)
+            .map(str::to_string);
+        Ok(Some(Schakel::Artikel(Artikel {
             wet: law.id.clone(),
             artikel: artikel.to_string(),
             naam: law.name.clone(),
@@ -194,12 +199,17 @@ impl<'a> Keten<'a> {
             leest,
             parameters: given.clone(),
             kinderen,
-        }))
+        })))
     }
 
     /// The open terms of `article`, each with the articles that fill it on
     /// the day, the engine's winner first.
-    fn begrippen(&mut self, law: &ArticleBasedLaw, article: &Article, cel: &str) -> Vec<Schakel> {
+    fn begrippen(
+        &mut self,
+        law: &ArticleBasedLaw,
+        article: &Article,
+        cel: &str,
+    ) -> Result<Vec<Schakel>> {
         let mut uit = Vec::new();
         for term in article.get_open_terms().into_iter().flatten() {
             let vullers: Vec<(String, String)> = self
@@ -218,12 +228,11 @@ impl<'a> Keten<'a> {
                         .iter()
                         .map(|(l, a)| (l.id.clone(), a.number.clone()))
                         .collect()
-                })
-                .unwrap_or_default();
-            let kinderen = vullers
-                .iter()
-                .filter_map(|(w, a)| self.artikel(w, a, &BTreeMap::new(), cel, Vec::new()))
-                .collect();
+                })?;
+            let mut kinderen = Vec::new();
+            for (w, a) in &vullers {
+                kinderen.extend(self.artikel(w, a, &BTreeMap::new(), cel, Vec::new())?);
+            }
             uit.push(Schakel::Begrip {
                 wet: law.id.clone(),
                 artikel: article.number.clone(),
@@ -233,7 +242,7 @@ impl<'a> Keten<'a> {
                 kinderen,
             });
         }
-        uit
+        Ok(uit)
     }
 
     /// What the inputs of `article` read, in their order: another article
@@ -245,7 +254,7 @@ impl<'a> Keten<'a> {
         article: &Article,
         given: &BTreeMap<String, String>,
         cel: &str,
-    ) -> Vec<Schakel> {
+    ) -> Result<Vec<Schakel>> {
         let mut doelen: Vec<Doel> = Vec::new();
         for source in article
             .get_inputs()
@@ -267,7 +276,7 @@ impl<'a> Keten<'a> {
             if let Some(antwoord) = &source.reduction {
                 let parameters = kern::doorgegeven(source, given);
                 doelen.extend(
-                    self.cellen_voor(article, antwoord, &parameters)
+                    self.cellen_voor(law, article, antwoord, &parameters)?
                         .into_iter()
                         .map(Doel::Schakel),
                 );
@@ -337,39 +346,37 @@ impl<'a> Keten<'a> {
                 }),
             }
         }
-        doelen
-            .into_iter()
-            .filter_map(|d| match d {
+        let mut uit = Vec::new();
+        for d in doelen {
+            match d {
                 Doel::Artikel {
                     wet,
                     artikel,
                     leest,
                     parameters,
-                } => self.artikel(&wet, &artikel, &parameters, cel, leest),
-                Doel::Schakel(s) => Some(s),
-            })
-            .collect()
+                } => uit.extend(self.artikel(&wet, &artikel, &parameters, cel, leest)?),
+                Doel::Schakel(s) => uit.push(s),
+            }
+        }
+        Ok(uit)
     }
 
-    /// The cells that give `antwoord` to the policy `article`: those whose
-    /// catalogue gives it and to which the engine routes a term the article
-    /// fills ([`Cell::bound_terms`]), each with the article of its reduction
-    /// that gives the answer.
+    /// The cells that give `antwoord` to the policy `law#article`: those whose
+    /// catalogue gives it and to which the engine routes a term that this
+    /// article binds to this answer ([`reading::bindings`],
+    /// [`Cell::bound_terms`]), each with the article of its reduction that
+    /// gives the answer.
     fn cellen_voor(
         &mut self,
+        law: &ArticleBasedLaw,
         article: &Article,
         antwoord: &str,
         parameters: &BTreeMap<String, String>,
-    ) -> Vec<Schakel> {
-        let vult: Vec<Term> = article
-            .get_implements()
+    ) -> Result<Vec<Schakel>> {
+        let vult: Vec<Term> = reading::bindings(self.service, self.on)
             .into_iter()
-            .flatten()
-            .map(|i| Term {
-                law: i.law.clone(),
-                article: i.article.clone(),
-                open_term: i.open_term.clone(),
-            })
+            .filter(|b| b.law_id == law.id && b.article == article.number && b.answer == antwoord)
+            .map(|b| b.term)
             .collect();
         let mut uit = Vec::new();
         for cell in self.cellen.clone() {
@@ -384,22 +391,21 @@ impl<'a> Keten<'a> {
                 continue;
             }
             let actor = cell.recording_actor().to_string();
-            let kinderen = self
+            let nummer = self
                 .service
                 .resolver()
                 .get_article_by_output(reductie, antwoord, Some(self.on))
-                .map(|a| a.number.clone())
-                .and_then(|nummer| {
-                    self.artikel(
-                        reductie,
-                        &nummer,
-                        parameters,
-                        &actor,
-                        vec![antwoord.to_string()],
-                    )
-                })
-                .into_iter()
-                .collect();
+                .map(|a| a.number.clone());
+            let mut kinderen = Vec::new();
+            if let Some(nummer) = nummer {
+                kinderen.extend(self.artikel(
+                    reductie,
+                    &nummer,
+                    parameters,
+                    &actor,
+                    vec![antwoord.to_string()],
+                )?);
+            }
             uit.push(Schakel::Cel {
                 cel: Some(actor),
                 antwoord: antwoord.to_string(),
@@ -415,7 +421,7 @@ impl<'a> Keten<'a> {
                 kinderen: Vec::new(),
             });
         }
-        uit
+        Ok(uit)
     }
 }
 
