@@ -26,7 +26,7 @@ The editor is a Vue 3 single-page app in `frontend/`. It browses the corpus, hol
 - **Traject menu** (`TrajectMenu.vue`, `MobileTrajectSheet.vue` on small screens): switch traject or go to the traject chooser.
 - **Account menu**: log in or out, *Account aanvragen*, the color scheme (*Weergave*), *Instellingen*, *Harvester* for users with a harvester role, *Over RegelRecht* and *Help*.
 
-**Search** (`SearchPopover.vue`) goes through the sources in order: the traject's own repository, the example rulework, then the central corpus. It shows the matches of the first source that has any, and a line under the search field names that source. Only when no source matches does it search wetten.overheid.nl, after login; each match there is a link to the official text, and opening it does not fetch the law into the library. Outside a traject, *Alleen verrijkte regelwerken* narrows the search to laws whose current version has a machine version. With an empty field and no login, the popover suggests five laws picked at random from `public/favorites.json`, which the build reads in (`vite.config.ts`).
+**Search** (`SearchPopover.vue`) goes through the sources in order: the traject's own repository, the example rulework, then the central corpus. It shows the matches of the first source that has any, and a line under the search field names that source. Every other source with matches gets a row (*Ook 3 treffers in …*) that switches the list to that source; the backend caps a search at 60 matches, ordered by source, so the count of the last source can be short and is then shown with a plus. Only when no source matches does it search wetten.overheid.nl, after login; each match there is a link to the official text, and opening it does not fetch the law into the library. Outside a traject, *Alleen verrijkte regelwerken* narrows the search to laws whose current version has a machine version. With an empty field and no login, the popover suggests five laws picked at random from `public/favorites.json`, which the build reads in (`vite.config.ts`).
 
 The editor tab requires a login. Every route marked `requiresAuth` waits for `/auth/status` before it mounts; a user without a session goes to `/uitgelogd`, which keeps the intended destination in `return_url` for the log-in button.
 
@@ -36,7 +36,7 @@ Every Home route renders `LibraryView.vue`, which uses a navigation split view: 
 
 | Route | What it shows |
 |-------|---------------|
-| `/` | The public corpus (*Corpus juris*). The sidebar lists *Favorieten* and *Recent bekeken*. Favorites of someone not logged in are kept in the browser and move to the account at the first login. |
+| `/` | The public corpus (*Corpus juris*). The sidebar lists *Favorieten* and *Recent bekeken*. Favorites need a login; without one the star is not shown. |
 | `/corpus-juris/{lawId}/{article?}` | A law from the public corpus: articles in the secondary sidebar, the article in main. A law whose current version is enriched gets *Tekst*, *Machine* and *YAML* tabs under a banner that says the machine version is an example and not established; any other law shows its text only, with a note when another version does have a machine version. |
 | `/trajecten/{ref}` | The traject landing. The sidebar adds *Instellingen*, *Werkdocumenten* and *Taken*, and the section *In dit traject*. |
 | `/trajecten/{ref}/corpus/{lawId}/{article?}` | A law as the traject has it, read through `/api/trajects/{ref}/corpus/...`. |

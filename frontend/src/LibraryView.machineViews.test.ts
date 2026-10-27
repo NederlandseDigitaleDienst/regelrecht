@@ -28,8 +28,10 @@ vi.mock('vue-router', () => ({
   onBeforeRouteLeave: vi.fn(),
 }));
 
+// Logged in by default; the favorites test logs out.
+const authenticated = ref(true);
 vi.mock('./composables/useAuth', () => ({
-  useAuth: () => ({ authenticated: ref(true), loading: ref(false), login: vi.fn() }),
+  useAuth: () => ({ authenticated, login: vi.fn() }),
 }));
 
 // No traject: Corpus juris. A test that needs a traject sets this ref.
@@ -45,7 +47,13 @@ vi.mock('./composables/useTrajects', () => ({
 // The open law's list entry: what the test sets here is what `?ids=` answers.
 const entries = vi.hoisted(() => ({ list: [] as Record<string, unknown>[] }));
 vi.mock('./lib/apiFetch', () => ({
-  apiFetch: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [] }),
+  // A minimal law, so the law pane (and its toolbar with the star) renders.
+  apiFetch: vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => [],
+    text: async () => '$id: wet_a\narticles: []\n',
+  }),
   apiFetchJson: vi.fn(async (url: string) => (url.includes('ids=') ? entries.list : [])),
   ApiError: class ApiError extends Error {},
 }));
@@ -114,6 +122,7 @@ async function settle() {
 }
 
 beforeEach(() => {
+  authenticated.value = true;
   activeTrajectRef.value = null;
   routeState.params = { lawId: 'wet_a' };
   entries.list = [];
@@ -159,5 +168,23 @@ describe('LibraryView machine views in Corpus juris', () => {
     await settle();
     expect(wrapper.vm.showMachineViews).toBe(true);
     expect(wrapper.vm.otherEnrichedVersion).toBeNull();
+  });
+});
+
+describe('LibraryView favorite button', () => {
+  const star = (wrapper: Wrapper) =>
+    wrapper.findAll('nldd-icon-button').filter((b) => b.attributes('text') === 'Voeg toe aan favorieten');
+
+  it('offers the star when logged in', async () => {
+    const wrapper = mountLibrary();
+    await settle();
+    expect(star(wrapper)).toHaveLength(1);
+  });
+
+  it('hides the star without a login: favorites are stored on the account', async () => {
+    authenticated.value = false;
+    const wrapper = mountLibrary();
+    await settle();
+    expect(star(wrapper)).toHaveLength(0);
   });
 });

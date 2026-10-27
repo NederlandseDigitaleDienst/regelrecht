@@ -23,12 +23,7 @@ import TasksCategoriesPane from './components/TasksCategoriesPane.vue';
 import TasksListPane from './components/TasksListPane.vue';
 import TasksSidebarItem from './components/TasksSidebarItem.vue';
 import UploadConfirmDialog from './components/UploadConfirmDialog.vue';
-import { useAuth, ensureAuthReady } from './composables/useAuth';
-import {
-  readLocalFavorites,
-  toggleLocalFavorite,
-  moveLocalFavoritesToAccount,
-} from './composables/useLocalFavorites';
+import { useAuth } from './composables/useAuth';
 import { useCorpusLaws } from './composables/useCorpusLaws';
 // useEnrichState (bovenop useTaskActions), niet useTasks: LibraryView heeft
 // alleen gerichte refreshes nodig - na een geannuleerde job, na een eigen
@@ -97,7 +92,7 @@ type PendingLeave =
   | { type: 'inview'; run: () => void }
   | { type: 'route'; resolve: (proceed: boolean) => void };
 
-const { authenticated, loading: authLoading } = useAuth();
+const { authenticated } = useAuth();
 
 // Provided by AppShell: shows the login-warning popover anchored to an element,
 // so "Bewerken" gates on login the same way the Editor tab does.
@@ -1511,28 +1506,14 @@ function articleDescription(article: LawArticle): string {
 // controle overschrijft een traag antwoord van het vórige traject dat van het
 // huidige.
 async function loadFavorites(trajectRef: string | null | undefined, isCurrent: () => boolean) {
-  // Settle the login state first: before /auth/status answers, `authenticated`
-  // reads false, and a logged-in user would briefly see the browser's set.
-  if (authLoading.value) {
-    await ensureAuthReady();
-    if (!isCurrent()) return;
-  }
-  // Not logged in: Corpus juris favorites live in this browser.
-  if (!authenticated.value) {
-    favorites.value = trajectRef ? new Set() : readLocalFavorites();
-    return;
-  }
   try {
-    // Logged in: whatever was starred before logging in moves to the account
-    // first, so the list below already contains it.
-    if (!trajectRef) await moveLocalFavoritesToAccount();
     const favIds = await apiFetchJson<string[]>(favoritesUrl(trajectRef), {
       errorMessage: (status) => `Failed to load favorites: ${status}`,
     });
     if (!isCurrent()) return;
     favorites.value = new Set(favIds);
   } catch (e) {
-    // Endpoint unavailable (403, or 503 without a database) - no favorites.
+    // Not authenticated (401/403) or endpoint unavailable - no favorites.
     // Only server errors are worth a console trace.
     if (e instanceof ApiError && e.status >= 500) console.warn(e.message);
   }
@@ -1584,14 +1565,8 @@ function onFavoriteClick() {
 }
 
 async function toggleFavorite(lawId: string | null) {
-  if (!lawId) return;
-  // Not logged in: star in this browser (see useLocalFavorites), then refresh
-  // the sidebar so the law appears under Favorieten.
-  if (!authenticated.value) {
-    favorites.value = toggleLocalFavorite(lawId);
-    loadIndex();
-    return;
-  }
+  // Favorites are stored on the account; the star is hidden without a login.
+  if (!authenticated.value || !lawId) return;
   if (togglingFavorites.value.has(lawId)) return;
 
   togglingFavorites.value.add(lawId);
@@ -2474,13 +2449,12 @@ watch(activeTrajectRef, () => {
                 <nldd-toolbar v-if="paneChromeVisible(selectedLawLoading)" accessible-label="Regelwerkacties">
                   <!-- priority: hoger blijft langer staan, lager verdwijnt als
                        eerste in het overflow-menu. -->
-                  <nldd-toolbar-item slot="start" :priority="2">
+                  <nldd-toolbar-item v-if="authenticated" slot="start" :priority="2">
                     <nldd-icon-button
                       :icon="favorites?.has(selectedLawId) ? 'star-filled' : 'star'"
                       :text="favorites?.has(selectedLawId) ? 'Verwijder uit favorieten' : 'Voeg toe aan favorieten'"
                       @click="onFavoriteClick"
-                    >
-                    </nldd-icon-button>
+                    ></nldd-icon-button>
                   </nldd-toolbar-item>
                   <nldd-toolbar-item v-if="canShare" slot="start" :priority="1">
                     <nldd-icon-button icon="share" text="Delen" @click="shareLaw"></nldd-icon-button>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { firstSourceGroup, pickSuggestions, officialTextUrl } from './searchResults';
+import { groupBySource, otherSourceLabel, pickSuggestions, officialTextUrl } from './searchResults';
 
 const law = (law_id: string, source_id: string, source_priority: number, source_name = source_id) => ({
   law_id,
@@ -8,24 +8,41 @@ const law = (law_id: string, source_id: string, source_priority: number, source_
   source_priority,
 });
 
-describe('firstSourceGroup', () => {
-  it('returns only the matches of the highest-priority source, named', () => {
-    const group = firstSourceGroup([
+describe('groupBySource', () => {
+  it('orders the sources by priority and keeps the order within each', () => {
+    const groups = groupBySource([
       law('central_a', 'central', 2, 'Centrale Regelrecht Corpus'),
       law('own_a', 'traject-own', 0, 'example-org/regelrecht-corpus-example'),
+      law('central_b', 'central', 2, 'Centrale Regelrecht Corpus'),
       law('own_b', 'traject-own', 0, 'example-org/regelrecht-corpus-example'),
     ]);
-    expect(group?.sourceName).toBe('example-org/regelrecht-corpus-example');
-    expect(group?.laws.map((l) => l.law_id)).toEqual(['own_a', 'own_b']);
+    expect(groups.map((g) => g.sourceName)).toEqual([
+      'example-org/regelrecht-corpus-example',
+      'Centrale Regelrecht Corpus',
+    ]);
+    expect(groups[0]?.laws.map((l) => l.law_id)).toEqual(['own_a', 'own_b']);
+    expect(groups[1]?.laws.map((l) => l.law_id)).toEqual(['central_a', 'central_b']);
   });
 
-  it('falls through to the next source when the first has no matches', () => {
-    const group = firstSourceGroup([law('central_a', 'central', 2, 'Centraal')]);
-    expect(group?.sourceName).toBe('Centraal');
+  it('is empty without matches', () => {
+    expect(groupBySource([])).toEqual([]);
+  });
+});
+
+describe('otherSourceLabel', () => {
+  const group = (n: number) => ({
+    sourceId: 'central',
+    sourceName: 'Centraal',
+    laws: Array.from({ length: n }, (_, i) => law(`l${i}`, 'central', 2)),
   });
 
-  it('is null without matches', () => {
-    expect(firstSourceGroup([])).toBeNull();
+  it('counts the matches, singular for one', () => {
+    expect(otherSourceLabel(group(1))).toBe('Ook 1 treffer in Centraal');
+    expect(otherSourceLabel(group(3))).toBe('Ook 3 treffers in Centraal');
+  });
+
+  it('marks a count the result cap may have cut short', () => {
+    expect(otherSourceLabel(group(1), true)).toBe('Ook 1+ treffers in Centraal');
   });
 });
 

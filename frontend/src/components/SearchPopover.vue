@@ -7,8 +7,8 @@ import { useAuth } from '../composables/useAuth';
 import { useTrajects } from '../composables/useTrajects';
 import { lawsListUrl } from '../composables/corpusUrls';
 import { enrichedOnly } from '../composables/useEnrichedFilter';
-import { apiFetchJson } from '../lib/apiFetch';
-import { firstSourceGroup, pickSuggestions, officialTextUrl } from '../lib/searchResults';
+import { apiFetch, apiFetchJson } from '../lib/apiFetch';
+import { groupBySource, otherSourceLabel, pickSuggestions, officialTextUrl } from '../lib/searchResults';
 import { useLatest } from '../lib/useLatest';
 import { SEARCH_PLACEHOLDER, SEARCH_ACCESSIBLE_LABEL } from '../constants';
 
@@ -80,13 +80,35 @@ const searching = ref(false);
 // distinct from "0 results" so a backend failure surfaces an error instead of
 // silently masquerading as "no match" and cascading to the external fallback.
 const searchFailed = ref(false);
+// How many laws matched in all, from X-Total-Count. The backend sorts by
+// source priority and caps the list, so when this exceeds what came back, the
+// last source's count may be short (and a source past the cap is missing).
+const totalMatches = ref(0);
 
 // Search goes through the sources in order and shows the first one with
 // matches, named in the toolbar ("Gevonden in ..."): the traject's own repo,
-// then the example rulework, then the central corpus. Only when none of them
-// has a match does the search go out to wetten.overheid.nl.
-const firstGroup = computed(() => firstSourceGroup(serverLaws.value));
-const shownLaws = computed(() => firstGroup.value?.laws ?? []);
+// then the example rulework, then the central corpus. Each other source with
+// matches gets a row ("Ook 3 treffers in ...") that switches to it, so a hit
+// in a higher source never hides the rest. Only when no source has a match
+// does the search go out to wetten.overheid.nl.
+const sourceGroups = computed(() => groupBySource(serverLaws.value));
+// The source picked through one of those rows; runQuery clears it, so a new
+// query starts over at the first source.
+const chosenSourceId = ref<string | null>(null);
+const shownGroup = computed(
+  () => sourceGroups.value.find((g) => g.sourceId === chosenSourceId.value) ?? sourceGroups.value[0] ?? null,
+);
+const shownLaws = computed(() => shownGroup.value?.laws ?? []);
+const resultsCapped = computed(() => totalMatches.value > serverLaws.value.length);
+const otherSources = computed(() => {
+  const last = sourceGroups.value[sourceGroups.value.length - 1];
+  return sourceGroups.value
+    .filter((g) => g !== shownGroup.value)
+    .map((g) => ({ ...g, label: otherSourceLabel(g, resultsCapped.value && g === last) }));
+});
+function chooseSource(sourceId: string) {
+  chosenSourceId.value = sourceId;
+}
 
 // Suggestions for someone not logged in, with an empty search field: a few
 // laws from Corpus juris (favorites.json, injected at build time), picked
@@ -120,9 +142,9 @@ async function loadSuggestions() {
 const resultLabel = computed(() => {
   if (showSuggestions.value && suggestions.value.length) return 'Suggesties';
   if (filterEnriched.value && searchTerm.value.length === 0 && shownLaws.value.length) {
-    return 'Verrijkte regelwerken';
+    return `Verrijkte regelwerken in ${shownGroup.value?.sourceName}`;
   }
-  if (firstGroup.value) return `Gevonden in ${firstGroup.value.sourceName}`;
+  if (shownGroup.value) return `Gevonden in ${shownGroup.value.sourceName}`;
   if (bwbResults.value.length) return 'Niet in de bibliotheek. Gevonden op wetten.overheid.nl:';
   return '';
 });
@@ -142,6 +164,7 @@ watch(filterEnriched, () => runQuery(search.value));
 watch(search, runQuery);
 
 function runQuery(q: string) {
+  chosenSourceId.value = null;
   clearBwb();
   searchFailed.value = false;
   if (debounceTimer) clearTimeout(debounceTimer);
@@ -158,6 +181,7 @@ function runQuery(q: string) {
     // fire a spurious BWB search.
     claimSearch();
     serverLaws.value = [];
+    totalMatches.value = 0;
     searching.value = false;
     return;
   }
@@ -172,9 +196,11 @@ async function runCorpusSearch(term: string) {
       .filter(Boolean)
       .join('&');
     const url = lawsListUrl(activeTrajectRef.value, query);
-    const laws = await apiFetchJson<CorpusLaw[]>(url);
+    const res = await apiFetch(url);
+    const laws = (await res.json()) as CorpusLaw[];
     if (!isCurrent()) return; // a newer query superseded this one
     serverLaws.value = laws;
+    totalMatches.value = Number(res.headers?.get('X-Total-Count')) || laws.length;
     searchFailed.value = false;
     // No match anywhere in the corpus → offer the external wetten.overheid.nl
     // search (unless the user must log in first to reach it).
@@ -187,6 +213,7 @@ async function runCorpusSearch(term: string) {
     // fallback, which would mask the failure with unrelated results.
     if (isCurrent()) {
       serverLaws.value = [];
+      totalMatches.value = 0;
       searchFailed.value = true;
     }
   } finally {
@@ -523,6 +550,22 @@ defineExpose({ show });
           @click="selectLaw(law.law_id)"
         >
           <nldd-text-cell :text="displayName(law)"></nldd-text-cell>
+        </nldd-list-item>
+
+        <!-- The other sources with matches, one row each; a click shows that
+             source's matches instead. -->
+        <nldd-list-item
+          v-for="group in otherSources"
+          :key="`source-${group.sourceId}`"
+          data-testid="search-other-source"
+          size="md"
+          button
+          @click="chooseSource(group.sourceId)"
+        >
+          <nldd-text-cell :text="group.label"></nldd-text-cell>
+          <nldd-icon-cell size="20">
+            <nldd-icon icon="chevron-right"></nldd-icon>
+          </nldd-icon-cell>
         </nldd-list-item>
 
         <!-- wetten.overheid.nl matches (only when no source in the library
