@@ -138,15 +138,22 @@ async function loadSuggestions() {
   }
 }
 
-// One line under the search field that says what the list below is.
-const resultLabel = computed(() => {
-  if (showSuggestions.value && suggestions.value.length) return 'Suggesties';
-  if (filterEnriched.value && searchTerm.value.length === 0 && shownLaws.value.length) {
-    return `Verrijkte regelwerken in ${shownGroup.value?.sourceName}`;
+// The heading above the list, saying what the rows below are: the source
+// they come from in title type, with a small line above it ("Gevonden in").
+interface ResultHeading {
+  overline?: string;
+  text: string;
+}
+const resultHeading = computed<ResultHeading | null>(() => {
+  if (showSuggestions.value && suggestions.value.length) return { text: 'Suggesties' };
+  if (filterEnriched.value && searchTerm.value.length === 0 && shownGroup.value) {
+    return { overline: 'Verrijkte regelwerken in', text: shownGroup.value.sourceName };
   }
-  if (shownGroup.value) return `Gevonden in ${shownGroup.value.sourceName}`;
-  if (bwbResults.value.length) return 'Niet in de bibliotheek. Gevonden op wetten.overheid.nl:';
-  return '';
+  if (shownGroup.value) return { overline: 'Gevonden in', text: shownGroup.value.sourceName };
+  if (bwbResults.value.length) {
+    return { overline: 'Niet in de bibliotheek, wel op', text: 'wetten.overheid.nl' };
+  }
+  return null;
 });
 
 // Debounce the corpus query so we don't fire a request per keystroke, and
@@ -495,9 +502,9 @@ defineExpose({ show });
              blijven staan. Weghalen zodra de listbox zijn zoekveld zelf houdt. -->
         <nldd-list-item hidden></nldd-list-item>
 
-        <!-- Below the search field: the filter (Corpus juris only) and one
-             line that says what the list below is, naming its source. -->
-        <div v-if="!activeTrajectRef || resultLabel" slot="toolbar">
+        <!-- Below the search field: the filter (Corpus juris only) and the
+             heading of the list below, naming its source. -->
+        <div v-if="!activeTrajectRef || resultHeading" slot="toolbar">
           <nldd-checkbox-field
             v-if="!activeTrajectRef"
             data-testid="search-enriched-filter"
@@ -505,10 +512,17 @@ defineExpose({ show });
             :checked="enrichedOnly || undefined"
             @change="onEnrichedChange"
           ></nldd-checkbox-field>
-          <nldd-spacer v-if="!activeTrajectRef && resultLabel" size="8"></nldd-spacer>
-          <nldd-rich-text v-if="resultLabel" data-testid="search-result-label">
-            <p>{{ resultLabel }}</p>
-          </nldd-rich-text>
+          <nldd-spacer v-if="!activeTrajectRef && resultHeading" size="16"></nldd-spacer>
+          <!-- A title rather than rich text: nldd-rich-text is a prose
+               container with inline-size containment, so in this flex row it
+               took no width of its own and the line got cut off. -->
+          <nldd-title
+            v-if="resultHeading"
+            data-testid="search-result-label"
+            size="6"
+            :overline="resultHeading.overline"
+            :text="resultHeading.text"
+          ></nldd-title>
         </div>
 
         <!-- Op md anchort de popover naast de trigger - naast de popover

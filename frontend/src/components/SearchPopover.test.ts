@@ -27,7 +27,7 @@ const fetchMock = () => vi.mocked(fetch) as unknown as Mock<FetchStub>;
 interface SearchPopoverInternals {
   search: string;
   shownLaws: CorpusLaw[];
-  resultLabel: string;
+  resultHeading: { overline?: string; text: string } | null;
   searchFailed: boolean;
   useCenteredPosition: boolean;
   isAnchored: boolean;
@@ -107,9 +107,10 @@ describe('SearchPopover server-side search', () => {
     expect(internals(wrapper).shownLaws.map((l) => l.law_id)).toEqual([
       'besluit_zorgverzekering_example',
     ]);
-    expect(internals(wrapper).resultLabel).toBe(
-      'Gevonden in example-org/regelrecht-corpus-example',
-    );
+    expect(internals(wrapper).resultHeading).toEqual({
+      overline: 'Gevonden in',
+      text: 'example-org/regelrecht-corpus-example',
+    });
   });
 
   it('offers the matches of the other sources in a row, and switches to them', async () => {
@@ -126,7 +127,10 @@ describe('SearchPopover server-side search', () => {
 
     await row.trigger('click');
     expect(internals(wrapper).shownLaws.map((l) => l.law_id)).toEqual(['besluit_zorgverzekering']);
-    expect(internals(wrapper).resultLabel).toBe('Gevonden in Centrale Regelrecht Corpus');
+    expect(internals(wrapper).resultHeading).toEqual({
+      overline: 'Gevonden in',
+      text: 'Centrale Regelrecht Corpus',
+    });
     // And back: the first source now has the row.
     expect(
       wrapper.find('[data-testid="search-other-source"] nldd-text-cell').attributes('text'),
@@ -140,15 +144,19 @@ describe('SearchPopover server-side search', () => {
     await settle();
     await nextTick();
     await wrapper.find('[data-testid="search-other-source"]').trigger('click');
-    expect(internals(wrapper).resultLabel).toBe('Gevonden in Centrale Regelrecht Corpus');
+    expect(internals(wrapper).resultHeading).toEqual({
+      overline: 'Gevonden in',
+      text: 'Centrale Regelrecht Corpus',
+    });
 
     internals(wrapper).search = 'zorgverzekeringen';
     await nextTick();
     await settle();
     await nextTick();
-    expect(internals(wrapper).resultLabel).toBe(
-      'Gevonden in example-org/regelrecht-corpus-example',
-    );
+    expect(internals(wrapper).resultHeading).toEqual({
+      overline: 'Gevonden in',
+      text: 'example-org/regelrecht-corpus-example',
+    });
   });
 
   it('marks the last source count as a lower bound when the backend capped the list', async () => {
@@ -186,7 +194,10 @@ describe('SearchPopover server-side search', () => {
     await searchFor(wrapper, 'zorgverzekering');
 
     expect(internals(wrapper).shownLaws.map((l) => l.law_id)).toEqual(['besluit_zorgverzekering']);
-    expect(internals(wrapper).resultLabel).toBe('Gevonden in Centrale Regelrecht Corpus');
+    expect(internals(wrapper).resultHeading).toEqual({
+      overline: 'Gevonden in',
+      text: 'Centrale Regelrecht Corpus',
+    });
   });
 
   it('queries the backend with the q parameter (not a client-side filter)', async () => {
@@ -316,9 +327,9 @@ describe('SearchPopover zonder "Toevoegen aan traject" in zoekresultaten', () =>
     const rows = wrapper.findAll('nldd-list-item[data-law-id]');
     expect(rows.map((r) => r.attributes('data-law-id'))).toEqual(['besluit_zorgverzekering_example']);
     expect(promoteButtons(wrapper)).toHaveLength(0);
-    expect(wrapper.get('[data-testid="search-result-label"]').text()).toBe(
-      'Gevonden in example-org/regelrecht-corpus-example',
-    );
+    const heading = wrapper.get('[data-testid="search-result-label"]');
+    expect(heading.attributes('overline')).toBe('Gevonden in');
+    expect(heading.attributes('text')).toBe('example-org/regelrecht-corpus-example');
   });
 
   it('a row click only navigates (select-law), nothing is promoted', async () => {
@@ -586,7 +597,7 @@ describe('SearchPopover: suggestions and wetten.overheid.nl', () => {
     expect(rows).toHaveLength(5);
     const ids = rows.map((r) => r.attributes('data-law-id'));
     expect(ids.every((id) => __SUGGESTED_LAW_IDS__.includes(id as string))).toBe(true);
-    expect(internals(wrapper).resultLabel).toBe('Suggesties');
+    expect(internals(wrapper).resultHeading).toEqual({ text: 'Suggesties' });
   });
 
   it('links a wetten.overheid.nl match to its official text', async () => {
@@ -610,6 +621,9 @@ describe('SearchPopover: suggestions and wetten.overheid.nl', () => {
     const row = wrapper.get('[data-testid="search-official-text"]');
     expect(row.attributes('href')).toBe('https://wetten.overheid.nl/BWBR0000001');
     expect(row.attributes('target')).toBe('_blank');
-    expect(internals(wrapper).resultLabel).toBe('Niet in de bibliotheek. Gevonden op wetten.overheid.nl:');
+    expect(internals(wrapper).resultHeading).toEqual({
+      overline: 'Niet in de bibliotheek, wel op',
+      text: 'wetten.overheid.nl',
+    });
   });
 });
