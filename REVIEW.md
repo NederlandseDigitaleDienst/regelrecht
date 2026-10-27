@@ -85,6 +85,38 @@ When `machine_readable` sections are added or changed:
 - A `vi.mock` path that no longer names the module it is meant to mock: the mock
   silently stops applying and the test runs against the real module.
 
+### Tests (any change that adds or edits a test)
+
+A test that cannot fail is worse than no test: it reports coverage that is not
+there. Each point below is a pattern that has slipped through review before.
+
+- Does the test call the real code? A function, rule or response builder that is
+  copied into the test file and then tested proves only that the copy works. The
+  production code can drift without the test noticing. Flag it (Significant) and
+  ask for the logic to be exported or extracted so the test can import it.
+- Can every assertion fail? Look for `is_err()` without checking which error,
+  `assert_ne!(status, OK)` where one specific status is expected,
+  `toBeTruthy()` or `toBeDefined()` on a value that is always an object,
+  `expect(true)`, and asserts on a mock that the test itself filled. Each of these
+  passes for the wrong reason as easily as for the right one.
+- Does the name promise what the asserts check? A test or scenario called "rejects
+  a late appeal" that only checks the response is not empty is a finding (Minor),
+  and so is a comment describing a check the code no longer makes.
+- Does the BDD scenario depend on what it claims to test? If the outcome follows
+  from an input that the regulation hard-codes (a `definitions` value or an
+  output that is always `true`), the scenario passes whatever the case data says.
+  Flag the scenario, and flag the law if the hard-coded value is not in the text.
+- Is there a test for the other side? A new rule or condition with only a
+  happy-path test leaves the condition itself untested: delete it and every test
+  still passes. Ask for at least one case where the condition decides the outcome.
+- Will the new test actually run? A new `*.test.ts`, `*.test.sh` or `features/`
+  directory runs only if a CI job picks it up; check `.github/workflows/ci.yml`
+  and the `Justfile`. A Rust test behind `#[ignore]`, or a scenario tagged `@wip`,
+  needs a comment saying why and what would let it run again.
+- Is the setup copied? When `tests/common/` (Rust) or `src/test-utils/`
+  (frontend) already offers a helper for a temp directory, a corpus loader or a
+  fetch stub, a fresh copy in the new test is a finding (Minor).
+
 ### Any code change
 
 - Dutch identifiers, comments or test names in new code (Minor), unless they are
