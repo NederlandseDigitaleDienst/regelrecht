@@ -65,6 +65,7 @@ async function bewaar() {
     sessionStorage.setItem(
       SLEUTEL,
       JSON.stringify({
+        casus: state.casus?.id,
         spel: bewaard,
         datum: state.datum,
         scenario: state.scenario,
@@ -93,23 +94,35 @@ const bewaard = () => {
 };
 
 /**
- * Bij het openen: ga verder met het spel dat dit tabblad bewaarde. Neemt de
+ * Bij het openen: ga verder met het spel dat dit tabblad bewaarde, als het
+ * adres de casus `casusId` van dat spel noemt (navigation.js). Op het
+ * startscherm of bij een andere casus blijft het spel bewaard, maar gaat de
+ * app er niet heen: anders sprong het startscherm, na een demo vanaf de
+ * slotdia van het dek, bij elk volgend bezoek door naar die casus. Neemt de
  * cel het niet terug (de wet of de casus veranderde sinds), dan staat dat in
  * de banner en blijft het keuzescherm staan.
+ *
+ * Returns 'resumed', 'none' (nothing saved, or a game the cell refused and
+ * that is gone now) or 'kept' (the cell did not load; the game stays saved
+ * for the next reload, and nothing may overwrite it).
  */
-export async function hervatten() {
+export async function hervatten(casusId) {
   const spelTotNu = bewaard();
-  if (!spelTotNu) return;
+  if (!spelTotNu) return 'none';
   try {
-    const { spel: bewaardSpel, datum, scenario, refusals } = JSON.parse(spelTotNu);
+    const { casus, spel: bewaardSpel, datum, scenario, refusals } = JSON.parse(spelTotNu);
+    if (!casusId || casus !== casusId) return 'none';
     await openen(await api.herstellen(bewaardSpel), datum, { scenario, refusals });
+    return 'resumed';
   } catch (e) {
     // Laadde de cel niet (het netwerk, een deploy), dan blijft het spel
     // bewaard voor de volgende herlaad; alleen een spel dat de cel weigert,
     // gaat weg.
-    if (!CELL_NOT_LOADED.test(e.message)) vergeet();
+    const kept = CELL_NOT_LOADED.test(e.message);
+    if (!kept) vergeet();
     state.casus = null;
     state.fout = e.message;
+    return kept ? 'kept' : 'none';
   }
 }
 

@@ -157,3 +157,35 @@ describe('createPresentation', () => {
     expect(p.active.value).toBe(false);
   });
 });
+
+describe('back to the deck from a scenario', () => {
+  it('returns to the slide the scenario was chosen on', () => {
+    const p = createPresentation(slides);
+    p.start(slides.length - 1, { keys: false });
+    p.leave();
+    expect(p.active.value).toBe(false);
+    p.resume();
+    expect(p.active.value).toBe(true);
+    expect(p.index.value).toBe(slides.length - 1);
+    p.stop();
+  });
+
+  it('starts at the first slide when the visitor did not come from the deck', () => {
+    const p = createPresentation(slides);
+    p.resume();
+    expect(p.index.value).toBe(0);
+    p.stop();
+  });
+
+  it('forgets nothing when the deck closes another way', () => {
+    const p = createPresentation(slides);
+    p.start(slides.length - 1, { keys: false });
+    p.leave();
+    p.resume();
+    p.goTo(2);
+    p.stop();
+    p.resume();
+    expect(p.index.value).toBe(slides.length - 1);
+    p.stop();
+  });
+});

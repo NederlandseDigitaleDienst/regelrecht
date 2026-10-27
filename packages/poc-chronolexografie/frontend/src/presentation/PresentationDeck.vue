@@ -4,7 +4,8 @@
 // buttons underneath. The form follows the deck of the demo
 // (frontend-demo/src/presentation/PresentationDeck.vue); this one has no rail
 // and no slide that opens a tab. The closing slide offers the demo scenarios
-// (demo.js); choosing one closes the deck and begins it (`scenario`).
+// (demo.js); choosing one closes the deck and begins it (`scenario`). The
+// button "Presentatie" on the page brings the deck back on that slide.
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { usePresentation } from './usePresentation.js';
 import { demoGuides } from './demo.js';
@@ -69,7 +70,7 @@ function emphasize(line) {
 
 function choose(naam) {
   before = null;
-  p.stop();
+  p.leave();
   emit('scenario', naam);
 }
 </script>

@@ -80,6 +80,9 @@ export function createPresentation(slides = SLIDES) {
   const total = computed(() => slides.length);
   const current = computed(() => slides[index.value] ?? null);
   const isLast = computed(() => index.value === slides.length - 1);
+  // The slide a scenario was chosen on (`leave`), where `resume` goes back
+  // to; null while the visitor never left the deck for a scenario.
+  const cameFrom = ref(null);
   let listening = false;
 
   const goTo = (i) => {
@@ -130,7 +133,16 @@ export function createPresentation(slides = SLIDES) {
     }
   }
 
-  return { active, index, total, current, isLast, start, stop, next, prev, goTo, onKey };
+  /** Close the deck for a scenario, remembering the slide it was chosen on. */
+  function leave() {
+    cameFrom.value = index.value;
+    stop();
+  }
+
+  /** Back to the deck: the slide a scenario was last chosen on, or else the first. */
+  const resume = () => start(cameFrom.value ?? 0);
+
+  return { active, index, total, current, isLast, cameFrom, start, stop, leave, resume, next, prev, goTo, onKey };
 }
 
 let shared = null;
