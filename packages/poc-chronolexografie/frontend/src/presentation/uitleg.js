@@ -36,14 +36,14 @@ export const intro = {
   overline: 'Uitleg',
   title: 'Hoe het in elkaar zit',
   lead:
-    'Een bedrijf vraagt de fictieve gemeente Wilgendaal om een parkeervergunning. Deze pagina volgt die aanvraag van de regel tot de kroniek. ' +
-    'Bij elke stap staat eerst de tekst van de regel en dan de YAML die de regel uitvoerbaar maakt, letterlijk uit het corpus.',
+    'Een bedrijf vraagt de fictieve gemeente Wilgendaal om een parkeervergunning. Deze pagina volgt die aanvraag van de regel tot de kroniek: het overzicht waarin de gemeente al haar besluiten bewaart. ' +
+    'Waar een stap op een artikel rust, staat eerst de tekst van dat artikel. Daarna volgt de YAML die het uitvoerbaar maakt, letterlijk uit de bestanden.',
 };
 
 export const steps = [
   {
     overline: 'Verordening',
-    title: 'Verordening art. 2',
+    title: 'Recht op een vergunning',
     quote: {
       source: VERORDENING,
       artikel: '2',
@@ -55,8 +55,8 @@ export const steps = [
       ],
     },
     text: [
-      'Een bedrijf krijgt de vergunning als het in een vergunninggebied zit en nog niet het maximum aantal vergunningen heeft.',
-      'Wat een vergunninggebied is en hoe hoog het maximum is, regelt dit artikel niet zelf. Zulke vragen heten open begrippen: een andere regel vult ze in.',
+      'Een bedrijf krijgt de vergunning als het in een vergunninggebied zit en nog niet het maximum aantal vergunningen heeft. Wat een vergunninggebied is en hoe hoog het maximum is, laat dit artikel open; zulke open begrippen vult een andere regel in.',
+      'Met een uitzonderingsregel, de hardheidsclausule (artikel 6), kan het college het maximum loslaten; dat laat scenario 4 zien.',
     ],
     panels: [
       {
@@ -75,8 +75,7 @@ export const steps = [
     # …`,
       },
       {
-        label:
-          'De uitkomst van dit besluit: krijgt het bedrijf nu een vergunning? De hardheidsclausule (artikel 6) kan het maximum opzij zetten; dat laat scenario 4 zien.',
+        label: 'De uitkomst: krijgt het bedrijf de vergunning?',
         source: VERORDENING,
         code: `- output: bedrijfsparkeervergunning_verleend
   value:
@@ -106,12 +105,12 @@ export const steps = [
       ],
     },
     text: [
-      'Dit artikel vult het maximum uit de verordening in: twee vergunningen in de binnenstad, en in de schil zoveel als er mensen in het bedrijf werken.',
+      'Dit artikel vult het maximum uit de verordening in: twee vergunningen in de binnenstad, en in de schil, de wijken rond de binnenstad, zoveel als er mensen in het bedrijf werken.',
       'Hoeveel geldige vergunningen het bedrijf al heeft, is een nieuw open begrip: `aantal_geldige_bedrijfsparkeervergunningen`.',
     ],
     panels: [
       {
-        label: 'Welk begrip het vult, en welk begrip het openlaat',
+        label: 'Artikel 3 laat een nieuw begrip open en vult het maximum',
         source: BESLUIT,
         code: `open_terms:
   # …
@@ -162,12 +161,12 @@ implements:
         'Hoeveel geldige bedrijfsparkeervergunningen het bedrijf op de dag van het besluit heeft (artikel 3), ontleent het college aan het antwoord van zijn eigen cel over zijn eerdere besluiten. Geeft de cel geen antwoord, dan stelt het college het zelf vast.',
     },
     text: [
-      'De gemeente telt haar vergunningen niet met de hand. Ze vraagt het aantal aan haar cel: het systeem dat al haar besluiten bewaart in een kroniek.',
-      'In de YAML staat die vraag als `source.reduction`.',
+      'De gemeente telt haar vergunningen niet met de hand. Ze vraagt het aantal aan haar cel: het systeem dat haar kroniek bijhoudt.',
+      'In de YAML staat die vraag als `source.reduction`: de cel rekent het antwoord uit met een reductie, een rekenregel die de kroniek terugleest.',
     ],
     panels: [
       {
-        label: 'Welk begrip het vult',
+        label: 'Artikel 5 vult het aantal uit artikel 3',
         source: BESLUIT,
         code: `implements:
   - law: fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal
@@ -206,8 +205,8 @@ implements:
     overline: 'Cel',
     title: 'Cel geeft het antwoord',
     text: [
-      'Elke cel weet welke vragen zij kan beantwoorden. In haar `cel.yaml` staat welke reductie het antwoord uitrekent.',
-      'Een reductie is een rekenregel die de kroniek van de cel terugleest.',
+      'Elke cel weet welke vragen zij kan beantwoorden.',
+      'In haar `cel.yaml` staat per vraag welke reductie het antwoord uitrekent.',
     ],
     panels: [
       {
@@ -223,8 +222,8 @@ implements:
     overline: 'Reductie',
     title: 'Reductie telt de vergunningen',
     text: [
-      'De reductie vraagt eerst welke besluiten onder artikel 2 van de verordening nog gelden, en geeft daarvoor `basis` mee.',
-      'Van elk van die besluiten leest ze `bedrijfsparkeervergunning_verleend`, de uitkomst van toen. Zo telt ze de vergunningen van dit bedrijf die vandaag nog geldig zijn.',
+      'De reductie vraagt eerst welke besluiten nog gelden. Dat vraagt ze aan de Awb-reductie (stap 6), en in `basis` noemt ze het artikel: artikel 2 van de verordening.',
+      'Van elk van die besluiten leest ze `bedrijfsparkeervergunning_verleend`, de uitkomst van toen, en zo telt ze de vergunningen van dit bedrijf die op de dag van het besluit nog geldig zijn.',
     ],
     panels: [
       {
@@ -263,12 +262,12 @@ combine: ADD`,
     overline: 'Reductie zonder cel',
     title: 'Awb-reductie: wat nog geldt',
     text: [
-      'Deze reductie hoort bij geen enkele cel en werkt voor elk artikel. Ze leest de besluiten onder het artikel dat `basis` noemt, de beslissingen op bezwaar en de uitspraken van de rechter.',
-      'Een besluit dat na bezwaar is herroepen (Awb 7:11) of dat de rechter heeft vernietigd (Awb 8:72), telt niet meer mee; een besluit dat ervoor in de plaats kwam wel.',
+      'De Algemene wet bestuursrecht (Awb) heeft regels voor elk besluit van de overheid. Deze reductie past die toe op de kroniek van de cel die haar aanroept.',
+      'Een besluit telt niet meer mee als de gemeente het na bezwaar zelf terugdraaide (herroepen, Awb 7:11) of als de rechter het vernietigde (Awb 8:72); een besluit dat ervoor in de plaats kwam telt wel.',
     ],
     panels: [
       {
-        label: 'Uit de kroniek: besluiten, bezwaar en uitspraken',
+        label: 'Uit de kroniek van de cel die haar aanroept: besluiten, bezwaar en uitspraken',
         source: AWB,
         code: `- name: besluiten
   type: array
@@ -284,7 +283,7 @@ combine: ADD`,
     facts: algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak`,
       },
       {
-        label: 'Wat geldt: de besluiten die bleven staan en die ervoor in de plaats kwamen',
+        label: 'Wat geldt: de besluiten die bleven staan, en die de rechter ervoor in de plaats stelde',
         source: AWB,
         code: `- output: geldende_besluiten
   value:
@@ -304,10 +303,10 @@ combine: ADD`,
       fictief: true,
       label: 'Uitvoeringsbesluit parkeren Wilgendaal, artikel 2',
       tekst:
-        'Uit het handelsregister van de Kamer van Koophandel moet blijken dat het bedrijf in een vergunninggebied is gevestigd.',
+        'Uit het handelsregister van de Kamer van Koophandel moet blijken dat het bedrijf in een vergunninggebied is gevestigd. Het bedrijf is gevestigd in het vergunninggebied waarin het bezoekadres van zijn vestiging ligt, zoals het handelsregister dat op de dag van het besluit vermeldt.',
     },
     text: [
-      'Of het bedrijf in een vergunninggebied zit, blijkt uit het handelsregister. Artikel 4 vraagt daarom de postcode van de vestiging aan de cel van de Kamer van Koophandel.',
+      'Of het bedrijf in een vergunninggebied zit, blijkt uit het handelsregister. Artikel 4 vraagt daarom de postcode van de vestiging, en het aantal mensen dat er werkt, aan de cel van de Kamer van Koophandel.',
       'Die cel leest haar eigen inschrijvingen terug.',
     ],
     panels: [

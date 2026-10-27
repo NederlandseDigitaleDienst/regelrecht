@@ -79,16 +79,11 @@ onMounted(async () => {
 
 const presentation = usePresentation();
 const uitleg = useUitleg();
-// The page belongs to the choice screen: a chosen case leaves it, also when
-// the address that chose the case asked for it (`/<casus>?uitleg`).
-watch(
-  () => [state.casus?.id, uitleg.active.value],
-  ([id, open]) => id && open && uitleg.verlaat(),
-);
 onMounted(() => {
   const i = startIndex(window.location.search, presentation.total.value);
   if (i !== null) presentation.start(i);
-  uitleg.follow();
+  // The page belongs to the choice screen; on a case's address it gives way.
+  uitleg.follow({ opCasus: !!parseRoute(window.location.pathname, import.meta.env.BASE_URL).casus });
 });
 watch(() => state.datum, verversen);
 
@@ -294,7 +289,7 @@ function toTab(id) {
               <UitlegPagina
                 v-else-if="uitleg.active.value && !state.casus"
                 @terug="uitleg.close()"
-                @casus="(id) => navigate(() => kiezen(id))"
+                @casus="(id) => uitleg.naarCasus(() => navigate(() => kiezen(id)))"
               />
               <CasusKeuze
                 v-else-if="!state.casus"

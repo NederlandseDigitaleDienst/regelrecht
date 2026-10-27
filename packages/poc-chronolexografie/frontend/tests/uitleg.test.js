@@ -117,7 +117,7 @@ describe('the explanation page', () => {
   });
 
   it('follows one case, the business parking permit, from the rule to the chronicle', () => {
-    expect(steps[0].title).toBe('Verordening art. 2');
+    expect(steps[0].title).toBe('Recht op een vergunning');
     expect(existsSync(join(repo, 'packages/poc-chronolexografie/casussen', `${casus}.yaml`))).toBe(true);
     const sources = steps.flatMap((s) => s.panels.map((p) => p.source)).join('\n');
     expect(sources).toContain('gemeente_wilgendaal/cel.yaml');
@@ -257,6 +257,29 @@ describe('the history of the page', () => {
     const u = createUitleg();
     u.follow();
     u.verlaat();
+    expect(u.active.value).toBe(false);
+    expect(w.location.href).toBe('https://x.example/c/vakantieverlof');
+  });
+
+  it('goes to the case on a new entry, and back returns to the page', async () => {
+    const w = (globalThis.window = fakeWindow('https://x.example/c/'));
+    const u = createUitleg();
+    u.open();
+    await u.naarCasus(async () => {
+      // As navigation.js writes it: the case's path with the search as it is.
+      w.history.pushState(null, '', 'https://x.example/c/bedrijfsparkeervergunning' + w.location.search);
+    });
+    expect(w.location.href).toBe('https://x.example/c/bedrijfsparkeervergunning');
+    expect(u.active.value).toBe(false);
+    w.history.back();
+    expect(w.location.search).toBe('?uitleg');
+    expect(u.active.value).toBe(true);
+  });
+
+  it('gives way to a case named in the address', () => {
+    const w = (globalThis.window = fakeWindow('https://x.example/c/vakantieverlof?uitleg'));
+    const u = createUitleg();
+    u.follow({ opCasus: true });
     expect(u.active.value).toBe(false);
     expect(w.location.href).toBe('https://x.example/c/vakantieverlof');
   });

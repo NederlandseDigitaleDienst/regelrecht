@@ -75,9 +75,8 @@ export function createUitleg() {
   }
 
   /**
-   * Leave the page without going back: a case was chosen, and the address
-   * keeps that case. The parameter goes, so the choice screen does not come
-   * back as this page.
+   * Leave the page without going back, on an address that names a case: the
+   * parameter goes, so the choice screen does not come back as this page.
    */
   function verlaat() {
     active.value = false;
@@ -93,13 +92,31 @@ export function createUitleg() {
     return ja;
   }
 
-  /** Open the page when the address asks for it, as on a shared link. */
-  function follow() {
+  /**
+   * Open the page when the address asks for it, as on a shared link. An
+   * address that also names a case (`opCasus`, `/<casus>?uitleg`) shows the
+   * case: the page belongs to the choice screen, so the parameter goes.
+   */
+  function follow({ opCasus = false } = {}) {
     listen();
-    if (typeof window !== 'undefined' && asked(window.location.search)) open({ push: false });
+    if (typeof window === 'undefined' || !asked(window.location.search)) return;
+    if (opCasus) verlaat();
+    else open({ push: false });
   }
 
-  return { active, terug, open, close, verlaat, neemFocus, follow, onPop };
+  /**
+   * Leave the page for the case `naar` opens, which returns once the case is
+   * chosen and its address written (navigation.js). The page's own entry
+   * stays in the history, so back returns to it; the case's entry loses the
+   * parameter afterwards.
+   */
+  async function naarCasus(naar) {
+    active.value = false;
+    await naar();
+    verlaat();
+  }
+
+  return { active, terug, open, close, verlaat, naarCasus, neemFocus, follow, onPop };
 }
 
 let shared = null;
