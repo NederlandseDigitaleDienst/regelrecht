@@ -90,8 +90,8 @@ When `machine_readable` sections are added or changed:
 A test that cannot fail is worse than no test: it reports coverage that is not
 there. Each point below is a pattern that has slipped through review before.
 
-- Does the test call the real code? A function, rule or response builder that is
-  copied into the test file and then tested proves only that the copy works. The
+- Does the test call the real code? A function or response builder copied into
+  the test file and tested there proves only that the copy works, and the
   production code can drift without the test noticing. Flag it (Significant) and
   ask for the logic to be exported or extracted so the test can import it.
 - Can every assertion fail? Look for `is_err()` without checking which error,
@@ -99,23 +99,26 @@ there. Each point below is a pattern that has slipped through review before.
   `toBeTruthy()` or `toBeDefined()` on a value that is always an object,
   `expect(true)`, and asserts on a mock that the test itself filled. Each of these
   passes for the wrong reason as easily as for the right one.
-- Does the name promise what the asserts check? A test or scenario called "rejects
-  a late appeal" that only checks the response is not empty is a finding (Minor),
-  and so is a comment describing a check the code no longer makes.
+- A test or scenario called "rejects a late appeal" that only checks the
+  response is not empty promises more than it asserts. That is a finding
+  (Minor), and so is a comment describing a check the code no longer makes.
 - Does the BDD scenario depend on what it claims to test? If the outcome follows
   from an input that the regulation hard-codes (a `definitions` value or an
   output that is always `true`), the scenario passes whatever the case data says.
   Flag the scenario, and flag the law if the hard-coded value is not in the text.
-- Is there a test for the other side? A new rule or condition with only a
-  happy-path test leaves the condition itself untested: delete it and every test
-  still passes. Ask for at least one case where the condition decides the outcome.
-- Will the new test actually run? A new `*.test.ts`, `*.test.sh` or `features/`
-  directory runs only if a CI job picks it up; check `.github/workflows/ci.yml`
-  and the `Justfile`. A Rust test behind `#[ignore]`, or a scenario tagged `@wip`,
-  needs a comment saying why and what would let it run again.
-- Is the setup copied? When `tests/common/` (Rust) or `src/test-utils/`
-  (frontend) already offers a helper for a temp directory, a corpus loader or a
-  fetch stub, a fresh copy in the new test is a finding (Minor).
+- A new rule or condition with only a happy-path test leaves the condition
+  itself untested: delete it and every test still passes. Ask for at least one
+  case where the condition decides the outcome.
+- Will the new test actually run? A new `*.test.ts` or `*.test.sh` file, or a
+  `.feature` file in a directory no BDD runner scans, runs only if something
+  picks it up. Look for it in `.github/workflows/ci.yml`, the `Justfile` and
+  `.pre-commit-config.yaml` (CI runs the pre-commit hooks). A Rust test behind
+  `#[ignore]`, or a scenario tagged `@wip`, needs a comment saying why and what
+  would let it run again.
+- Is the setup copied? Rust integration tests share helpers through the crate's
+  `tests/common/` (`packages/engine/tests/common/` is one). When such a helper
+  already does what the new test sets up by hand, or a frontend's
+  `src/test-utils/` does, the copy is a finding (Minor).
 
 ### Any code change
 
