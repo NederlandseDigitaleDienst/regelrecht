@@ -2,7 +2,7 @@
 // the libs (DOM, ESNext) come from the app config.
 {
   "extends": "./tsconfig.app.json",
-  "include": ["env.d.ts", "src/**/*.test.ts"],
+  "include": ["env.d.ts", "src/**/*.test.ts", "src/test-utils/**/*.ts"],
   "exclude": [],
   "compilerOptions": {
     "types": ["node"],

@@ -7,7 +7,7 @@
 
 mod common;
 
-use common::{app_state, empty_state, local_traject, seed_account};
+use common::{app_state, empty_state, local_traject, seed_account, traject_ref};
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -16,7 +16,6 @@ use axum::extract::{Extension, Path, State};
 use tokio::sync::{Mutex, RwLock};
 use tower_sessions::Session;
 use tower_sessions_memory_store::MemoryStore;
-use uuid::Uuid;
 
 use regelrecht_auth::handlers::SESSION_KEY_SUB;
 use regelrecht_editor_api::accounts::AccountRecord;
@@ -28,9 +27,8 @@ use regelrecht_pipeline::test_utils::TestDb;
 const LAW_ID: &str = "wet_op_de_zorgtoeslag";
 
 // ---------------------------------------------------------------------------
-// Helpers — the rest comes from `common`; `sub_only_session` and `traject_ref`
-// stay local on purpose: a sub-only session (no verified identity) and a
-// `t-` slug ref.
+// Helpers — the rest comes from `common`; `sub_only_session` stays local on
+// purpose: a session without a verified identity.
 // ---------------------------------------------------------------------------
 
 /// Write a minimal but schema-valid law file and a `scenarios/` directory
@@ -72,13 +70,6 @@ async fn sub_only_session(sub: &str) -> Session {
     let session = Session::new(None, Arc::new(MemoryStore::default()), None);
     session.insert(SESSION_KEY_SUB, sub).await.unwrap();
     session
-}
-
-/// Build the URL-form traject ref used in path parameters.
-/// The resolver matches on `left(id::text, 8)` (first 8 hex chars of the
-/// hyphenated UUID), so `t-{8hex}` is a valid ref (slug="t", suffix=8hex).
-fn traject_ref(id: Uuid) -> String {
-    format!("t-{}", &id.to_string()[..8])
 }
 
 // ---------------------------------------------------------------------------
