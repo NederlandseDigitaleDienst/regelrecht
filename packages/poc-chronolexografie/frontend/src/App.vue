@@ -79,6 +79,12 @@ onMounted(async () => {
 
 const presentation = usePresentation();
 const uitleg = useUitleg();
+// The page belongs to the choice screen: a chosen case leaves it, also when
+// the address that chose the case asked for it (`/<casus>?uitleg`).
+watch(
+  () => [state.casus?.id, uitleg.active.value],
+  ([id, open]) => id && open && uitleg.verlaat(),
+);
 onMounted(() => {
   const i = startIndex(window.location.search, presentation.total.value);
   if (i !== null) presentation.start(i);

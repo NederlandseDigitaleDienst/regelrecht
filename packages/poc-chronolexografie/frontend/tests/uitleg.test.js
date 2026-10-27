@@ -210,4 +210,27 @@ describe('the history of the page', () => {
     expect(w.location.search).toBe('');
     expect(u.terug.value).toBe(true);
   });
+
+  it('gives the focus back after browser back, and takes it only after a click', () => {
+    const w = (globalThis.window = fakeWindow('https://x.example/c/'));
+    const u = createUitleg();
+    u.open();
+    expect(u.neemFocus()).toBe(true);
+    expect(u.neemFocus()).toBe(false);
+    w.history.back();
+    expect(u.terug.value).toBe(true);
+    const v = createUitleg();
+    globalThis.window = fakeWindow('https://x.example/c/?uitleg');
+    v.follow();
+    expect(v.neemFocus()).toBe(false);
+  });
+
+  it('leaves without going back when a case is chosen', () => {
+    const w = (globalThis.window = fakeWindow('https://x.example/c/vakantieverlof?uitleg'));
+    const u = createUitleg();
+    u.follow();
+    u.verlaat();
+    expect(u.active.value).toBe(false);
+    expect(w.location.href).toBe('https://x.example/c/vakantieverlof');
+  });
 });

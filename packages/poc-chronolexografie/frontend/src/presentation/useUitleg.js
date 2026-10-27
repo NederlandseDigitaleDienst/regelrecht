@@ -34,10 +34,15 @@ export function createUitleg() {
   // Whether the choice screen should take the focus back when it returns:
   // its button that opened the page is gone while the page shows.
   const terug = ref(false);
+  // Whether the page opened from a click, so it takes the focus; a page
+  // opened from a link or a reload starts at the top as any page.
+  let geklikt = false;
 
   // Back and forward open and close it along with the address.
   const onPop = () => {
+    const was = active.value;
     active.value = asked(window.location.search);
+    if (was && !active.value) terug.value = true;
   };
 
   let listening = false;
@@ -55,6 +60,7 @@ export function createUitleg() {
   function open({ push = true } = {}) {
     listen();
     active.value = true;
+    geklikt = push;
     if (push && typeof window !== 'undefined' && !asked(window.location.search)) {
       window.history.pushState({ ...window.history.state, uitleg: true }, '', withParam(window.location.href, true));
     }
@@ -68,13 +74,32 @@ export function createUitleg() {
     else window.history.replaceState(window.history.state, '', withParam(window.location.href, false));
   }
 
+  /**
+   * Leave the page without going back: a case was chosen, and the address
+   * keeps that case. The parameter goes, so the choice screen does not come
+   * back as this page.
+   */
+  function verlaat() {
+    active.value = false;
+    if (typeof window !== 'undefined' && asked(window.location.search)) {
+      window.history.replaceState(window.history.state, '', withParam(window.location.href, false));
+    }
+  }
+
+  /** Whether the page should take the focus: once, after a click. */
+  function neemFocus() {
+    const ja = geklikt;
+    geklikt = false;
+    return ja;
+  }
+
   /** Open the page when the address asks for it, as on a shared link. */
   function follow() {
     listen();
     if (typeof window !== 'undefined' && asked(window.location.search)) open({ push: false });
   }
 
-  return { active, terug, open, close, follow, onPop };
+  return { active, terug, open, close, verlaat, neemFocus, follow, onPop };
 }
 
 let shared = null;

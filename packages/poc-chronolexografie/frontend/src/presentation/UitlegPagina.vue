@@ -8,11 +8,15 @@
 // (useUitleg.js); the button at the top goes back to the choice screen.
 import { nextTick, onMounted, ref } from 'vue';
 import { intro, steps } from './uitleg.js';
+import { useUitleg } from './useUitleg.js';
 
 const emit = defineEmits(['terug']);
-// The button that opened the page is gone; the focus starts on the way back.
+// Opened by a click, the button that opened the page is gone; the focus
+// starts on the way back.
 const terugKnop = ref(null);
+const uitleg = useUitleg();
 onMounted(async () => {
+  if (!uitleg.neemFocus()) return;
   await nextTick();
   terugKnop.value?.focus();
 });
