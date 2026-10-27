@@ -28,6 +28,9 @@ const reductie = {
   yaml: 'machine_readable:\n  execution: {}',
   fictief: true,
   leest: ['geldende_besluiten'],
+  vult: null,
+  vraagt: [],
+  fragment: '- name: geldende_besluiten\n  source:\n    parameters:\n      basis: fictieve_verordening#2',
   parameters: { basis: 'fictieve_verordening#2' },
   kinderen: [
     { soort: 'kroniek', besluiten_onder: 'fictieve_verordening#2', executogrammen_van: null, cel: 'gemeente_wilgendaal' },
@@ -83,7 +86,7 @@ describe('keten.js', () => {
 
   it('puts each step in words', () => {
     expect(schakelTekst(keten).tekst).toBe('Verordening (fictief) artikel 2');
-    expect(schakelTekst(reductie).toelichting).toBe('geeft geldende besluiten · basis: Verordening (fictief) artikel 2');
+    expect(schakelTekst(reductie).toelichting).toBe('geeft geldende_besluiten · basis: Verordening (fictief) artikel 2');
     expect(schakelTekst(keten.kinderen[0]).toelichting).toBe('ingevuld door het artikel hieronder');
     expect(schakelTekst(keten.kinderen[0].kinderen[0]).tekst).toBe('gemeente Wilgendaal: aantal geldig');
     expect(schakelTekst(keten.kinderen[1]).toelichting).toContain('blijft het leeg');
@@ -111,15 +114,10 @@ describe('KetenSchakel', () => {
     expect(html).toContain('Het college verleent op aanvraag een vergunning.');
     expect(html.match(/Het college verleent/g)).toHaveLength(1);
     expect(html).toContain('corpus/regulation/nl/gemeentelijke_verordening/fictieve_verordening/2026-01-01.yaml');
-    expect(html).toContain('YAML bekijken');
+    expect(html).toContain('Volledig artikel');
     expect(html).toContain('href="https://example.org/verordening"');
   });
 
-  it('starts closed below the root', async () => {
-    const html = await render(reductie);
-    expect(html).not.toMatch(/expanded=""/);
-    expect(html).toContain('button');
-  });
 });
 
 describe('korteUitleg with references', () => {
@@ -141,5 +139,21 @@ describe('korteUitleg on abbreviations', () => {
     expect(korteUitleg('Het hoofd beslist, bedoeld in art. 13a van de wet. Meer.')).toBe(
       'Het hoofd beslist, bedoeld in art. 13a van de wet.',
     );
+  });
+});
+
+describe('the fragment of a step', () => {
+  const render = (schakel) =>
+    renderToString(createSSRApp({ render: () => h(KetenSchakel, { schakel }) }));
+
+  it('shows under the step without a click, as YAML', async () => {
+    const html = await render(reductie);
+    expect(html).toMatch(/<nldd-code-viewer[^>]*language="yaml"/);
+    expect(html).toContain('basis: fictieve_verordening#2');
+  });
+
+  it('names in the heading what leads to the next step, as the YAML writes it', () => {
+    const t = schakelTekst({ ...reductie, leest: [], parameters: {}, vult: 'maximum_bereikt', vraagt: ['aantal_geldig'] });
+    expect(t.toelichting).toBe('vult maximum_bereikt · vraagt antwoord aantal_geldig');
   });
 });

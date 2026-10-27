@@ -68,13 +68,17 @@ export const heeftKinderen = (s) => (s.kinderen?.length ?? 0) > 0;
 
 /**
  * A step of the chain in words: a label above it (`overline`), a line of text
- * and an explanation.
+ * and an explanation. The names that lead to the next step (the open term an
+ * article fills, the answer it asks, the output read from it) stay as the
+ * YAML writes them, so the eye finds them in the fragment below.
  */
 export function schakelTekst(s) {
   switch (s.soort) {
     case 'artikel': {
       const toelichting = [
-        s.leest?.length ? `geeft ${opsomming(s.leest.map(leesbaar))}` : '',
+        s.vult ? `vult ${s.vult}` : '',
+        s.vraagt?.length ? `vraagt antwoord ${opsomming(s.vraagt)}` : '',
+        s.leest?.length ? `geeft ${opsomming(s.leest)}` : '',
         ...Object.entries(s.parameters ?? {}).map(
           ([k, v]) => `${leesbaar(k)}: ${String(v).includes('#') ? verwijzing(v) : v}`,
         ),
@@ -100,7 +104,7 @@ export function schakelTekst(s) {
         ? {
             overline: 'antwoord van een cel',
             tekst: `${celNaam(s.cel)}: ${leesbaar(s.antwoord)}`,
-            toelichting: `uit de reductie ${leesbaar(s.reductie)}`,
+            toelichting: `uit ${leesbaar(s.reductie)}`,
           }
         : {
             overline: 'antwoord van een cel',

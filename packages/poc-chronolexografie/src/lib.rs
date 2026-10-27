@@ -17,6 +17,7 @@
 
 pub mod bundel;
 pub mod casus;
+pub mod fragment;
 pub mod kern;
 pub mod keten;
 pub mod spel;

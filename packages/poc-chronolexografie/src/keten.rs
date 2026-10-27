@@ -22,6 +22,7 @@ use regelrecht_cel::{reading, Cell, Term};
 use regelrecht_engine::{Article, ArticleBasedLaw, LawExecutionService, RegulatoryLayer};
 use serde::Serialize;
 
+use crate::fragment::{self, Keuze};
 use crate::kern::{self, Bron, Cellen, Corpus, Result};
 
 /// One step of the chain.
@@ -40,6 +41,8 @@ pub enum Schakel {
         /// Who judges it per case, in the words of the article
         /// (`decided_per_case_by`).
         ingevuld_door: Option<String>,
+        /// Its entry under `open_terms`, as written.
+        fragment: Option<String>,
         kinderen: Vec<Schakel>,
     },
     /// The cell that gives the answer `antwoord` a policy takes
@@ -51,6 +54,9 @@ pub enum Schakel {
         cel: Option<String>,
         antwoord: String,
         reductie: Option<String>,
+        /// The line of `answers` in the cell's `cel.yaml` that names the
+        /// reduction, as written.
+        fragment: Option<String>,
         kinderen: Vec<Schakel>,
     },
     /// What a reduction reads from the chronicle of the cell `cel`: the
@@ -83,8 +89,19 @@ pub struct Artikel {
     /// Invented for the PoC: a reduction, a regelwerk whose `$id` or name
     /// says it is fictional, or an article whose text says so.
     pub fictief: bool,
-    /// The outputs the step above reads from it.
+    /// The blocks of `yaml` that make the link to the steps around it
+    /// ([`fragment::van_artikel`]): its `implements`, the inputs that take
+    /// an answer of a cell, read the chronicle or pass a literal parameter,
+    /// and the actions that set what the step above reads or the open term
+    /// it fills.
+    pub fragment: Option<String>,
+    /// The outputs the step above reads from it; for the root, the outcome
+    /// of the case.
     pub leest: Vec<String>,
+    /// The open term of the step above that it fills.
+    pub vult: Option<String>,
+    /// The answers of a cell it takes (`source.reduction`).
+    pub vraagt: Vec<String>,
     /// The literal parameters the step above passes, such as `basis`.
     pub parameters: BTreeMap<String, String>,
     pub kinderen: Vec<Schakel>,
@@ -110,7 +127,8 @@ pub fn van_de_casus(corpus: &Corpus, cellen: &Cellen, on: NaiveDate) -> Result<S
             &a.article,
             &BTreeMap::new(),
             &corpus.casus.cel,
-            Vec::new(),
+            vec![corpus.casus.uitkomst.clone()],
+            None,
         )?
         .ok_or_else(|| {
             regelrecht_cel::Error::Setup(format!(
@@ -139,7 +157,7 @@ enum Doel {
         leest: Vec<String>,
         parameters: BTreeMap<String, String>,
     },
-    Schakel(Schakel),
+    Schakel(Box<Schakel>),
 }
 
 impl<'a> Keten<'a> {
@@ -148,7 +166,8 @@ impl<'a> Keten<'a> {
     }
 
     /// The step of `wet#artikel`, reached with the literal parameters
-    /// `given`, on the chronicle of `cel`, read for `leest`; none for a
+    /// `given`, on the chronicle of `cel`, read for `leest` or filling the
+    /// open term `vult`; none for a
     /// regelwerk without a version in force on the day, or a version without
     /// that article.
     fn artikel(
@@ -158,6 +177,7 @@ impl<'a> Keten<'a> {
         given: &BTreeMap<String, String>,
         cel: &str,
         leest: Vec<String>,
+        vult: Option<&str>,
     ) -> Result<Option<Schakel>> {
         let Some(law) = self.law(wet) else {
             return Ok(None);
@@ -179,10 +199,26 @@ impl<'a> Keten<'a> {
         }
         let mut kinderen = self.begrippen(law, article, cel)?;
         kinderen.extend(self.bronnen(law, article, given, cel)?);
-        let yaml = self
-            .corpus
-            .yaml_van(&law.id, &law.valid_from)
-            .and_then(|y| machine_readable(y, artikel));
+        let geschreven = self.corpus.yaml_van(&law.id, &law.valid_from);
+        let yaml = geschreven.and_then(|y| fragment::machine_readable(y, artikel));
+        let invoer = schakelende_invoer(article);
+        let uitvoer: Vec<String> = leest
+            .iter()
+            .cloned()
+            .chain(vult.map(str::to_string))
+            .collect();
+        let keuze = Keuze {
+            implements: vult.is_some(),
+            invoer: &invoer,
+            begrip: None,
+            uitvoer: &uitvoer,
+        };
+        let fragment = geschreven.and_then(|y| fragment::van_artikel(y, artikel, &keuze));
+        let vraagt = article
+            .get_inputs()
+            .iter()
+            .filter_map(|i| i.source.as_ref()?.reduction.clone())
+            .collect();
         let bestand = self
             .corpus
             .bestand_van(&law.id, &law.valid_from)
@@ -196,8 +232,11 @@ impl<'a> Keten<'a> {
             url: article.url.clone().or_else(|| law.url.clone()),
             tekst: Some(article.text.clone()).filter(|t| !t.trim().is_empty()),
             yaml,
+            fragment,
             fictief: fictief(law, article),
             leest,
+            vult: vult.map(str::to_string),
+            vraagt,
             parameters: given.clone(),
             kinderen,
         })))
@@ -232,14 +271,32 @@ impl<'a> Keten<'a> {
                 })?;
             let mut kinderen = Vec::new();
             for (w, a) in &vullers {
-                kinderen.extend(self.artikel(w, a, &BTreeMap::new(), cel, Vec::new())?);
+                kinderen.extend(self.artikel(
+                    w,
+                    a,
+                    &BTreeMap::new(),
+                    cel,
+                    Vec::new(),
+                    Some(&term.id),
+                )?);
             }
+            let fragment = self
+                .corpus
+                .yaml_van(&law.id, &law.valid_from)
+                .and_then(|y| {
+                    let keuze = Keuze {
+                        begrip: Some(&term.id),
+                        ..Keuze::default()
+                    };
+                    fragment::van_artikel(y, &article.number, &keuze)
+                });
             uit.push(Schakel::Begrip {
                 wet: law.id.clone(),
                 artikel: article.number.clone(),
                 id: term.id.clone(),
                 beschrijving: term.description.clone(),
                 ingevuld_door: term.decided_per_case_by.clone(),
+                fragment,
                 kinderen,
             });
         }
@@ -267,11 +324,11 @@ impl<'a> Keten<'a> {
                     Bron::Besluiten(b) => (Some(b), None),
                     Bron::Feiten(f) => (None, Some(f)),
                 };
-                doelen.push(Doel::Schakel(Schakel::Kroniek {
+                doelen.push(Doel::Schakel(Box::new(Schakel::Kroniek {
                     besluiten_onder,
                     executogrammen_van,
                     cel: cel.to_string(),
-                }));
+                })));
                 continue;
             }
             if let Some(antwoord) = &source.reduction {
@@ -279,7 +336,7 @@ impl<'a> Keten<'a> {
                 doelen.extend(
                     self.cellen_voor(law, article, antwoord, &parameters)?
                         .into_iter()
-                        .map(Doel::Schakel),
+                        .map(|s| Doel::Schakel(Box::new(s))),
                 );
                 continue;
             }
@@ -355,8 +412,8 @@ impl<'a> Keten<'a> {
                     artikel,
                     leest,
                     parameters,
-                } => uit.extend(self.artikel(&wet, &artikel, &parameters, cel, leest)?),
-                Doel::Schakel(s) => uit.push(s),
+                } => uit.extend(self.artikel(&wet, &artikel, &parameters, cel, leest, None)?),
+                Doel::Schakel(s) => uit.push(*s),
             }
         }
         Ok(uit)
@@ -405,12 +462,18 @@ impl<'a> Keten<'a> {
                     parameters,
                     &actor,
                     vec![antwoord.to_string()],
+                    None,
                 )?);
             }
+            let fragment = self
+                .corpus
+                .cel_yaml(&actor)
+                .and_then(|y| fragment::van_catalogus(&y, antwoord));
             uit.push(Schakel::Cel {
                 cel: Some(actor),
                 antwoord: antwoord.to_string(),
                 reductie: Some(reductie.clone()),
+                fragment,
                 kinderen,
             });
         }
@@ -419,6 +482,7 @@ impl<'a> Keten<'a> {
                 cel: None,
                 antwoord: antwoord.to_string(),
                 reductie: None,
+                fragment: None,
                 kinderen: Vec::new(),
             });
         }
@@ -439,89 +503,24 @@ fn fictief(law: &ArticleBasedLaw, article: &Article) -> bool {
         || article.text.contains("FICTIEF")
 }
 
-/// The `machine_readable` block of the article `number` in `yaml`, as
-/// written there (comments included), without its indentation.
-pub fn machine_readable(yaml: &str, number: &str) -> Option<String> {
-    let lines: Vec<&str> = yaml.lines().collect();
-    let indent = |l: &str| l.len() - l.trim_start().len();
-    let is_number = |l: &str| {
-        let t = l.trim_start().strip_prefix("- number:")?.trim();
-        Some(t.trim_matches(|c| c == '\'' || c == '"') == number)
-    };
-    let begin = lines.iter().position(|l| is_number(l) == Some(true))?;
-    let item = indent(lines[begin]);
-    let end = lines[begin + 1..]
+/// The inputs of `article` that link it to a step below in a way its
+/// outputs do not show: those that take an answer of a cell, read the
+/// chronicle, or pass a literal parameter such as `basis`.
+fn schakelende_invoer(article: &Article) -> Vec<String> {
+    article
+        .get_inputs()
         .iter()
-        .position(|l| !l.trim().is_empty() && indent(l) <= item)
-        .map_or(lines.len(), |i| begin + 1 + i);
-    let article = &lines[begin + 1..end];
-    let mr = article
-        .iter()
-        .position(|l| l.trim() == "machine_readable:")?;
-    let eigen = indent(article[mr]);
-    let mut block: Vec<&str> = vec![article[mr]];
-    block.extend(
-        article[mr + 1..]
-            .iter()
-            .take_while(|l| l.trim().is_empty() || indent(l) > eigen),
-    );
-    while block.last().is_some_and(|l| l.trim().is_empty()) {
-        block.pop();
-    }
-    Some(
-        block
-            .iter()
-            .map(|l| l.get(eigen..).unwrap_or("").trim_end())
-            .collect::<Vec<_>>()
-            .join("\n"),
-    )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::machine_readable;
-
-    const YAML: &str = "\
-$id: test
-articles:
-  - number: '1'
-    text: een
-    machine_readable:
-      # a comment
-      execution:
-        output:
-          - name: a
-
-  - number: 2
-    text: twee
-    machine_readable:
-      open_terms:
-        - id: b
-    url: https://example.org
-";
-
-    #[test]
-    fn takes_the_block_of_the_article_as_written() {
-        assert_eq!(
-            machine_readable(YAML, "1").unwrap(),
-            "machine_readable:\n  # a comment\n  execution:\n    output:\n      - name: a"
-        );
-    }
-
-    #[test]
-    fn stops_at_the_next_key_of_the_article_and_reads_an_unquoted_number() {
-        assert_eq!(
-            machine_readable(YAML, "2").unwrap(),
-            "machine_readable:\n  open_terms:\n    - id: b"
-        );
-    }
-
-    #[test]
-    fn an_article_without_one_has_none() {
-        assert_eq!(machine_readable(YAML, "3"), None);
-        assert_eq!(
-            machine_readable("articles:\n  - number: '4'\n    text: x\n", "4"),
-            None
-        );
-    }
+        .filter(|i| {
+            i.source.as_ref().is_some_and(|s| {
+                s.reduction.is_some()
+                    || s.decisions.is_some()
+                    || s.facts.is_some()
+                    || s.parameters
+                        .iter()
+                        .flatten()
+                        .any(|(_, v)| !v.starts_with('$'))
+            })
+        })
+        .map(|i| i.name.clone())
+        .collect()
 }

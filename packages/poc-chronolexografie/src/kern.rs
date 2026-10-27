@@ -359,6 +359,19 @@ impl Corpus {
         self.regelwerken.iter().map(|(_, _, map)| map.as_str())
     }
 
+    /// The catalogue (`cel.yaml`) of the cell `cel` of the case, as written.
+    pub(crate) fn cel_yaml(&self, cel: &str) -> Option<String> {
+        let dir = if cel == self.casus.cel {
+            &self.cell_dir
+        } else {
+            let i = self.casus.andere_cellen.iter().position(|a| a.cel == cel)?;
+            self.andere_dirs.get(i)?
+        };
+        self.files
+            .read(&dir.join(regelrecht_cel::identity::FILE))
+            .ok()
+    }
+
     /// The file of the version of the regelwerk `id` the cell runs that is
     /// valid from `valid_from`, under its root.
     pub(crate) fn bestand_van(&self, id: &str, valid_from: &Option<String>) -> Option<&str> {
