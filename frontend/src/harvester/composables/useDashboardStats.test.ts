@@ -1,13 +1,8 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { jsonResponse, stubFetch } from '../../test-utils/fetchStubs';
 
 // useDashboardStats calls apiFetch, which ultimately calls the global fetch.
-// Stub that (as useFeatureFlags.test.js does) rather than mocking the module.
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
-}
+// Stub that rather than mocking the module.
 
 const PAYLOAD = {
   jobs: {
@@ -24,14 +19,9 @@ const PAYLOAD = {
   recent_failures: [],
 };
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
-});
-
 describe('useDashboardStats', () => {
   it('loads and exposes the stats payload', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(jsonResponse(PAYLOAD))));
+    stubFetch(() => Promise.resolve(jsonResponse(PAYLOAD)));
     const { useDashboardStats } = await import('./useDashboardStats');
     const { stats, loading, error, stopPolling } = useDashboardStats();
 
@@ -46,10 +36,7 @@ describe('useDashboardStats', () => {
   });
 
   it('handles a 401 without throwing or setting stats', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => Promise.resolve(new Response('unauthorized', { status: 401 }))),
-    );
+    stubFetch(() => Promise.resolve(new Response('unauthorized', { status: 401 })));
     const { useDashboardStats } = await import('./useDashboardStats');
     const { stats, loading, error, stopPolling } = useDashboardStats();
 

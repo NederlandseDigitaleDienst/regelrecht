@@ -14,13 +14,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use chrono::NaiveDate;
+mod common;
+
+use common::{bare_cell, cell_tempdir, day, object_map};
+
 use regelrecht_cel::{reading, Cell, Error, Gram, Reference};
 use regelrecht_engine::LawExecutionService;
 use serde_json::{json, Map, Value};
-
-mod common;
-use common::cell_tempdir;
 
 /// A procedure for a beschikking, a period that runs from the
 /// announcement, and whether an objection came in within it.
@@ -296,21 +296,6 @@ fn cell() -> (Cell, tempfile::TempDir) {
     (cell, dir)
 }
 
-/// A cell that gives no answers: the binding then fills nothing, and the
-/// term is the deciding authority's finding.
-fn bare(actor: &str) -> Cell {
-    let dir = cell_tempdir();
-    Cell::in_memory(actor, dir.path()).unwrap()
-}
-
-fn day(on: &str) -> NaiveDate {
-    NaiveDate::parse_from_str(on, "%Y-%m-%d").unwrap()
-}
-
-fn object(value: Value) -> Map<String, Value> {
-    value.as_object().unwrap().clone()
-}
-
 fn apply(cell: &mut Cell, service: &mut LawExecutionService, dagen: i64, on: &str) -> Gram {
     cell.record_submission(
         service,
@@ -318,7 +303,7 @@ fn apply(cell: &mut Cell, service: &mut LawExecutionService, dagen: i64, on: &st
         VERLOF_LAW,
         "1",
         None,
-        &object(json!({"bsn": BSN, "dagen": dagen})),
+        &object_map(json!({"bsn": BSN, "dagen": dagen})),
         day(on),
     )
     .unwrap()
@@ -356,7 +341,7 @@ fn object_to(
         BEZWAAR_LAW,
         "1",
         Some(Reference::Local(contested)),
-        &object(supplied),
+        &object_map(supplied),
         day(on),
     )
 }
@@ -437,7 +422,7 @@ fn what_comes_from_the_decision_the_submitter_does_not_supply() {
             BEZWAAR_LAW,
             "1",
             None,
-            &object(json!({"bestreden_besluit": granted.id})),
+            &object_map(json!({"bestreden_besluit": granted.id})),
             day("2026-03-10"),
         )
         .unwrap_err();
@@ -883,15 +868,12 @@ fn heroverweging_with_findings() -> String {
 /// objection. One that no article asks is refused.
 #[test]
 fn the_decision_value_holds_the_findings_apart() {
-    let mut service = LawExecutionService::new();
-    for law in [
+    let mut service = common::service_of(&[
         PROCEDURE,
         &verlof_with_finding(),
         &heroverweging_with_findings(),
-    ] {
-        service.load_law(law).unwrap();
-    }
-    let mut cell = bare(ACTOR);
+    ]);
+    let mut cell = bare_cell(ACTOR);
     let applied = apply(&mut cell, &mut service, 2, "2026-03-02");
     let refused = cell
         .decide(
@@ -901,7 +883,7 @@ fn the_decision_value_holds_the_findings_apart() {
             "1",
             &applied.id,
             &Map::new(),
-            &object(json!({"al_verleend": false, "reden_gewichtig": false})),
+            &object_map(json!({"al_verleend": false, "reden_gewichtig": false})),
             day("2026-03-03"),
         )
         .unwrap()
@@ -927,7 +909,7 @@ fn the_decision_value_holds_the_findings_apart() {
                 "1",
                 &bezwaar.id,
                 &Map::new(),
-                &object(anew.clone()),
+                &object_map(anew.clone()),
                 day(decided_on),
             )
             .unwrap();
@@ -972,7 +954,7 @@ fn the_decision_value_holds_the_findings_apart() {
             "1",
             &bezwaar.id,
             &Map::new(),
-            &object(json!({"reden_gewichtg": true})),
+            &object_map(json!({"reden_gewichtg": true})),
             day("2026-03-15"),
         )
         .unwrap_err();
@@ -1006,8 +988,8 @@ fn the_decision_value_holds_the_findings_apart() {
                 VERLOF_LAW,
                 "1",
                 &applied.id,
-                &object(supplied),
-                &object(findings),
+                &object_map(supplied),
+                &object_map(findings),
                 day("2026-03-16"),
             )
             .unwrap_err();
@@ -1051,11 +1033,7 @@ articles:
 
 /// `laws`, with the binding and the reduction of the cell.
 fn service_of(laws: &[&str]) -> LawExecutionService {
-    let mut service = LawExecutionService::new();
-    for law in laws.iter().chain([&BINDING, &REDUCTION]) {
-        service.load_law(law).unwrap();
-    }
-    service
+    common::service_of(&[laws, &[BINDING, REDUCTION]].concat())
 }
 
 /// Record an application for two days on 2026-03-02 and decide on it on
@@ -1063,7 +1041,7 @@ fn service_of(laws: &[&str]) -> LawExecutionService {
 /// finds that no leave was granted before.
 fn decided_with(cell: &mut Cell, service: &mut LawExecutionService, findings: Value) -> Gram {
     let applied = apply(cell, service, 2, "2026-03-02");
-    let mut findings = object(findings);
+    let mut findings = object_map(findings);
     findings.insert("al_verleend_volgens_hoofd".into(), json!(false));
     cell.decide(
         service,
@@ -1094,7 +1072,7 @@ fn decide_objection(
         "1",
         bezwaar,
         &Map::new(),
-        &object(findings),
+        &object_map(findings),
         day(on),
     )
 }
@@ -1111,7 +1089,7 @@ fn a_term_a_regulation_filled_is_no_finding_of_the_decision() {
         &reden_policy("2026-01-01", "true"),
         &reden_policy("2026-03-05", "null"),
     ]);
-    let mut cell = bare(ACTOR);
+    let mut cell = bare_cell(ACTOR);
     let granted = decided_with(&mut cell, &mut service, json!({}));
     assert_eq!(granted.fields["reden_gewichtig"], json!(true));
     // Only the head's finding that no leave was granted before.
@@ -1173,7 +1151,7 @@ fn a_regulation_in_force_at_the_call_anew_sets_the_old_finding_aside() {
         &heroverweging_with_findings(),
         &reden_policy("2026-03-05", "true"),
     ]);
-    let mut cell = bare(ACTOR);
+    let mut cell = bare_cell(ACTOR);
     let refused = decided_with(&mut cell, &mut service, json!({"reden_gewichtig": false}));
     assert_eq!(refused.outputs["verleend"], json!(false));
     assert_eq!(
@@ -1223,7 +1201,7 @@ fn a_finding_on_a_term_both_articles_name_reaches_the_call_anew() {
     );
     assert_ne!(heroverweging, heroverweging_with_findings());
     let mut service = service_of(&[PROCEDURE, &verlof_with_finding(), &heroverweging]);
-    let mut cell = bare(ACTOR);
+    let mut cell = bare_cell(ACTOR);
     let refused = decided_with(&mut cell, &mut service, json!({"reden_gewichtig": false}));
     let bezwaar = object_to(
         &mut cell,
@@ -1312,7 +1290,7 @@ fn a_finding_for_a_call_anew_that_does_not_happen_is_refused() {
         &verlof_with_finding(),
         &heroverweging_with_findings(),
     ]);
-    let mut cell = bare(ACTOR);
+    let mut cell = bare_cell(ACTOR);
     let refused = decided_with(&mut cell, &mut service, json!({"reden_gewichtig": false}));
     // Six weeks after its announcement on 2026-03-03 the period is over.
     let late = object_to(
@@ -1426,7 +1404,7 @@ fn a_new_decision_that_takes_a_decision_in_turn_is_refused() {
             "wet_nest_fictief",
             "1",
             None,
-            &object(json!({"bsn": BSN, "dagen": 2})),
+            &object_map(json!({"bsn": BSN, "dagen": 2})),
             day("2026-03-02"),
         )
         .unwrap();
@@ -1530,7 +1508,7 @@ fn the_deciding_authority_supplies_no_decision() {
             BEZWAAR_LAW,
             "1",
             &bezwaar.id,
-            &object(json!({"ander_besluit": refused.id})),
+            &object_map(json!({"ander_besluit": refused.id})),
             &Map::new(),
             day("2026-03-11"),
         )
@@ -1650,7 +1628,7 @@ fn a_reference_without_a_decision_field_fills_what_the_decision_holds() {
             VERLOF_LAW,
             "1",
             Some(Reference::Local(&granted.id)),
-            &object(json!({"dagen": 3})),
+            &object_map(json!({"dagen": 3})),
             day("2026-03-10"),
         )
         .unwrap_err();
@@ -1677,16 +1655,13 @@ fn a_term_only_a_reduction_fills_is_no_finding_and_replays() {
         "          - {output: al_verleend, value: $antwoord}\n",
     );
     assert!(!never_absent.contains("nullable"));
-    let mut service = LawExecutionService::new();
-    for law in [
+    let mut service = common::service_of(&[
         PROCEDURE,
         &policy_only,
         HEROVERWEGING,
         &never_absent,
         REDUCTION,
-    ] {
-        service.load_law(law).unwrap();
-    }
+    ]);
     let (mut cell, _dir) = cell();
     let application = apply(&mut cell, &mut service, 2, "2026-03-02");
     let granted = decide(

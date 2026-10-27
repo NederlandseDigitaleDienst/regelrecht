@@ -6,15 +6,15 @@
 // a failing fixture reports itself.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod common;
+
+use common::{answered, cell_tempdir, day, object_map};
+
 use std::path::Path;
 
-use chrono::NaiveDate;
 use regelrecht_cel::{decision, shape, Cell, Error, Gram, Reference, Source};
 use regelrecht_engine::LawExecutionService;
 use serde_json::{json, Map, Value};
-
-mod common;
-use common::cell_tempdir;
 
 const LAW: &str = "leerplichtwet_1969";
 const ARTICLE: &str = "13a";
@@ -103,10 +103,6 @@ fn lid_2_dir() -> tempfile::TempDir {
 /// directory may go after.
 fn cell() -> Cell {
     Cell::in_memory(RECORDING_ACTOR, lid_2_dir().path()).unwrap()
-}
-
-fn day(s: &str) -> NaiveDate {
-    NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
 }
 
 /// A complete application, with fictional data (BSNs from the test range).
@@ -1298,7 +1294,7 @@ fn refused_on_profession(cell: &mut Cell) -> Gram {
 /// The head's finding on the profession of a parent, given anew at the
 /// heroverweging, apart from the parameters.
 fn profession(judged: bool) -> Map<String, Value> {
-    json!({ PROFESSION: judged }).as_object().unwrap().clone()
+    object_map(json!({ PROFESSION: judged }))
 }
 
 #[test]
@@ -1830,8 +1826,8 @@ fn the_heroverweging_does_not_count_the_contested_grant() {
 /// then on. A decision taken before still replays under the version of its
 /// own day.
 fn service_with_policy_lapsed() -> LawExecutionService {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
-        "../../corpus/regulation/nl/uitvoeringsbeleid/{POLICY}/2026-08-01.yaml"
+    let path = common::corpus().join(format!(
+        "regulation/nl/uitvoeringsbeleid/{POLICY}/2026-08-01.yaml"
     ));
     let yaml = std::fs::read_to_string(path).unwrap();
     // The article keeps its text and loses its machine-readable part.
@@ -1976,7 +1972,7 @@ fn the_head_gives_at_the_decision_on_objection_only_findings_an_article_asks() {
             "a boolean for the finding 'specifieke_aard_beroep_ouder'",
         ),
     ] {
-        let given = given.as_object().unwrap().clone();
+        let given = object_map(given);
         let e = reconsider(&mut cell, &bezwaar.id, &given, "2026-11-15").unwrap_err();
         assert!(e.to_string().contains(says), "{says}: {e}");
     }
@@ -2007,15 +2003,6 @@ fn a_reduction_reads_the_decisions_on_objection_with_their_own_outcome() {
     assert_eq!(rows[0][REVOKED], json!(true));
     assert_eq!(rows[0][ADMISSIBLE], json!(true));
     assert_eq!(rows[0][NEW], json!(decided[1].id));
-}
-
-/// The nodes of `node` and below where the cell answered an open term.
-fn answered(node: &regelrecht_engine::PathNode) -> Vec<&regelrecht_engine::PathNode> {
-    let mut found: Vec<_> = node.children.iter().flat_map(answered).collect();
-    if node.answer.is_some() {
-        found.insert(0, node);
-    }
-    found
 }
 
 /// The owner's case (slice 4c): leave A is granted, leave B in the same
@@ -2242,7 +2229,7 @@ fn the_heads_policy_does_not_ask_the_cell_of_another_school() {
     // The binding asks the cell of the head of De Klimop; this one is not
     // asked, so the policy's own term is reached. That term is the finding
     // of the policy's holder, not of this head: it gives none.
-    let profession = json!({ PROFESSION: true }).as_object().unwrap().clone();
+    let profession = object_map(json!({ PROFESSION: true }));
     let e = decide(&mut cell, &app.id, &profession, "2026-10-20").unwrap_err();
     assert!(e.to_string().contains("no judgement was given"), "{e}");
     let e = decide(&mut cell, &app.id, &judgement(true, true), "2026-10-20").unwrap_err();

@@ -15,12 +15,13 @@
 
 mod common;
 
+use common::{answered, day, object_map};
+
 use std::path::Path;
 
-use chrono::NaiveDate;
 use regelrecht_cel::{Cell, Error, Gram};
-use regelrecht_engine::{LawExecutionService, PathNode};
-use serde_json::{json, Map, Value};
+use regelrecht_engine::LawExecutionService;
+use serde_json::{json, Map};
 
 const LAW: &str = "leerplichtwet_1969";
 const ARTICLE: &str = "13a";
@@ -97,14 +98,6 @@ fn rooster_2027() -> String {
     next
 }
 
-fn day(s: &str) -> NaiveDate {
-    NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
-}
-
-fn map(value: Value) -> Map<String, Value> {
-    value.as_object().unwrap().clone()
-}
-
 /// The school's own cell, with all its reductions, and an empty chronicle.
 fn school() -> Cell {
     let dir =
@@ -115,7 +108,7 @@ fn school() -> Cell {
 /// Record that the school is established in `gemeente` of `provincie` since
 /// `sinds`, on `on` (an executogram).
 fn established(cell: &mut Cell, gemeente: &str, provincie: &str, sinds: &str, on: &str) -> Gram {
-    let fact = map(json!({ "gemeente": gemeente, "provincie": provincie, "sinds": sinds }));
+    let fact = object_map(json!({ "gemeente": gemeente, "provincie": provincie, "sinds": sinds }));
     cell.record_executogram(
         &service(),
         "fictief_beleid_vestiging_obs_de_klimop#1#vestiging",
@@ -136,7 +129,7 @@ fn school_in(gemeente: &str, provincie: &str) -> Cell {
 /// An application for leave from `first` to `last`, recorded on `on`, with
 /// fictional data.
 fn applied(cell: &mut Cell, first: &str, last: &str, on: &str) -> Gram {
-    let supplied = map(json!({
+    let supplied = object_map(json!({
         "bsn_jongere": "999990019",
         "eerste_verlofdag": first,
         "laatste_verlofdag": last,
@@ -154,7 +147,7 @@ fn applied(cell: &mut Cell, first: &str, last: &str, on: &str) -> Gram {
 /// of a parent: whether the leave falls outside the school holidays, and
 /// whether it already had leave this school year, the cell answers.
 fn decide(cell: &mut Cell, application: &str, on: &str) -> Result<Gram, Error> {
-    let findings = map(json!({ PROFESSION: true }));
+    let findings = object_map(json!({ PROFESSION: true }));
     cell.decide(
         &mut service(),
         &[],
@@ -183,15 +176,6 @@ fn asks_the_head(e: &Error) {
 
 fn granted(gram: &Gram) -> bool {
     gram.outputs["verlof_verleend"] == json!(true)
-}
-
-/// The nodes of a trace where an answerer filled an open term.
-fn answered(node: &PathNode) -> Vec<&PathNode> {
-    let mut found: Vec<&PathNode> = node.children.iter().flat_map(answered).collect();
-    if node.answer.is_some() {
-        found.insert(0, node);
-    }
-    found
 }
 
 #[test]
@@ -351,7 +335,7 @@ fn a_school_year_the_policy_does_not_know_leaves_it_to_the_head() {
     let app = applied(&mut cell, "2028-02-07", "2028-02-11", "2027-07-01");
     let e = decide(&mut cell, &app.id, "2027-07-05").unwrap_err();
     asks_the_head(&e);
-    let findings = map(json!({ PROFESSION: true, OUTSIDE_HOLIDAYS_HEAD: false }));
+    let findings = object_map(json!({ PROFESSION: true, OUTSIDE_HOLIDAYS_HEAD: false }));
     let gram = cell
         .decide(
             &mut service(),
@@ -418,7 +402,7 @@ fn the_summer_of_the_school_year_before_runs_into_the_next() {
     let outside = |gemeente: &str, provincie: &str| {
         let mut cell = school_in(gemeente, provincie);
         let app = applied(&mut cell, "2027-08-30", "2027-09-03", "2027-08-02");
-        let findings = map(json!({ PROFESSION: true }));
+        let findings = object_map(json!({ PROFESSION: true }));
         let gram = cell
             .decide(
                 &mut service_with(&next),
@@ -445,7 +429,7 @@ fn the_next_version_of_the_policy_holds_the_herfstvakantie_of_its_year() {
     let next = [rooster_2027()];
     let mut cell = school_in("Utrecht", "Utrecht");
     let app = applied(&mut cell, "2027-10-18", "2027-10-22", "2027-09-01");
-    let findings = map(json!({ PROFESSION: true }));
+    let findings = object_map(json!({ PROFESSION: true }));
     let gram = cell
         .decide(
             &mut service_with(&next),

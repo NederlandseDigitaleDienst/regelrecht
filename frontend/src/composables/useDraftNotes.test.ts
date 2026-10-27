@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { Mock } from 'vitest';
 import { ref } from 'vue';
 import * as yaml from 'js-yaml';
 import { useDraftNotes } from './useDraftNotes';
 import { lastSavedPr } from './useSavedPr';
 import type { Note } from './useNotes';
+import { stubFetch } from '../test-utils/fetchStubs';
 
 interface TestBody {
   type: string;
@@ -32,19 +32,13 @@ interface SentInit {
   body: string;
 }
 
-// Install a fetch stub. The stubs return partial Response objects, so the
-// mock is cast to `typeof fetch` once here.
-function installFetch(mock: Mock): void {
-  globalThis.fetch = mock as unknown as typeof fetch;
-}
-
 function fetchCalls(): [string, SentInit][] {
   return vi.mocked(globalThis.fetch).mock.calls as unknown as [string, SentInit][];
 }
 
 /** Stub the sidecar fetch exportYaml does. `committed` is the file's notes. */
 function stubSidecar(committed: Note[] | null) {
-  installFetch(vi.fn().mockResolvedValue(
+  stubFetch(vi.fn().mockResolvedValue(
     committed == null
       ? { ok: false, status: 404 }
       : {
@@ -171,7 +165,7 @@ describe('useDraftNotes', () => {
 // new drafts. No /data GET - the backend reads the base from the session
 // branch and appends. Single stub for the PUT.
 function stubSave(putResponse: unknown) {
-  installFetch(vi.fn(() => Promise.resolve(putResponse)));
+  stubFetch(vi.fn(() => Promise.resolve(putResponse)));
 }
 
 describe('useDraftNotes.saveToRepo', () => {
@@ -314,7 +308,7 @@ describe('useDraftNotes.saveToRepo', () => {
     // Regression for the hostile-review finding: a law switch during the
     // PUT must not wipe the new law's drafts nor leave the saved law's.
     let resolvePut: ((value: unknown) => void) | undefined;
-    installFetch(vi.fn(
+    stubFetch(vi.fn(
       () => new Promise((r) => { resolvePut = r; }),
     ));
     const lawId = ref('lawA');

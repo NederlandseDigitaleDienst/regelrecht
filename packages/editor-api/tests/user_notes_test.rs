@@ -7,20 +7,18 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::sync::Arc;
+mod common;
+
+use common::{empty_state, seed_account_record};
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::{Extension, Json};
 use pretty_assertions::assert_eq;
-use sqlx::PgPool;
-use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
 use regelrecht_editor_api::accounts::AccountRecord;
-use regelrecht_editor_api::config::AppConfig;
-use regelrecht_editor_api::state::{AppState, CorpusState};
-use regelrecht_editor_api::traject_corpus::TrajectCorpusCache;
+use regelrecht_editor_api::state::AppState;
 use regelrecht_editor_api::user_notes::{self, NoteRequest, UserNote};
 
 use regelrecht_pipeline::test_utils::TestDb;
@@ -28,46 +26,6 @@ use regelrecht_pipeline::test_utils::TestDb;
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-fn empty_state(pool: PgPool) -> AppState {
-    AppState {
-        corpus: Arc::new(RwLock::new(CorpusState::empty())),
-        oidc_client: None,
-        end_session_url: None,
-        config: Arc::new(AppConfig {
-            oidc: None,
-            base_url: None,
-            github_oauth: None,
-            task_enrich_provider: "claude".to_string(),
-        }),
-        http_client: regelrecht_auth::http_client(),
-        pool: Some(pool),
-        pipeline_api_url: None,
-        harvest_admin_url: None,
-        reload_lock: Arc::new(Mutex::new(())),
-        integrity: Default::default(),
-        trajects: Arc::new(TrajectCorpusCache::new()),
-    }
-}
-
-async fn seed_account(pool: &PgPool, email: &str, name: &str) -> AccountRecord {
-    let sub = format!("sub-{email}");
-    let row: (Uuid,) = sqlx::query_as(
-        "INSERT INTO accounts (person_sub, email, name) VALUES ($1, $2, $3) RETURNING id",
-    )
-    .bind(&sub)
-    .bind(email)
-    .bind(name)
-    .fetch_one(pool)
-    .await
-    .unwrap();
-    AccountRecord {
-        id: row.0,
-        person_sub: sub,
-        email: email.to_string(),
-        name: name.to_string(),
-    }
-}
 
 fn note_req(value: &str) -> NoteRequest {
     NoteRequest {
@@ -134,7 +92,7 @@ fn note_request_distinguishes_absent_and_null_selector() {
 async fn create_returns_w3c_annotation_shape_with_markdown_default() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@example.org", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@example.org", "Alice").await;
 
     let note = create_note(&state, &alice, "test_wet", "**belangrijk**: zie artikel 2").await;
 
@@ -151,7 +109,7 @@ async fn create_returns_w3c_annotation_shape_with_markdown_default() {
 async fn list_returns_own_notes_oldest_first() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@example.org", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@example.org", "Alice").await;
 
     create_note(&state, &alice, "test_wet", "eerste").await;
     create_note(&state, &alice, "test_wet", "tweede").await;
@@ -166,8 +124,8 @@ async fn list_returns_own_notes_oldest_first() {
 async fn notes_are_private_per_account() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@example.org", "Alice").await;
-    let bob = seed_account(&db.pool, "bob@example.org", "Bob").await;
+    let alice = seed_account_record(&db.pool, "alice@example.org", "Alice").await;
+    let bob = seed_account_record(&db.pool, "bob@example.org", "Bob").await;
 
     let note = create_note(&state, &alice, "test_wet", "alleen van alice").await;
 
@@ -205,7 +163,7 @@ async fn notes_are_private_per_account() {
 async fn update_changes_body_and_bumps_modified() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@example.org", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@example.org", "Alice").await;
 
     let note = create_note(&state, &alice, "test_wet", "oud").await;
 
@@ -250,7 +208,7 @@ async fn update_changes_body_and_bumps_modified() {
 async fn selector_roundtrips_and_is_kept_on_value_only_update() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@example.org", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@example.org", "Alice").await;
 
     let selector = serde_json::json!({
         "type": "TextQuoteSelector",
@@ -351,7 +309,7 @@ async fn selector_roundtrips_and_is_kept_on_value_only_update() {
 async fn create_rejects_beyond_per_law_cap() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@example.org", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@example.org", "Alice").await;
 
     // Fill up to the cap (200) directly, then the next create must 409.
     sqlx::query(
@@ -381,7 +339,7 @@ async fn create_rejects_beyond_per_law_cap() {
 async fn delete_removes_note() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@example.org", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@example.org", "Alice").await;
 
     let note = create_note(&state, &alice, "test_wet", "weg ermee").await;
 
@@ -411,7 +369,7 @@ async fn delete_removes_note() {
 async fn rejects_invalid_input() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@example.org", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@example.org", "Alice").await;
 
     // Empty / whitespace-only body.
     for value in ["", "   \n\t"] {
@@ -563,7 +521,7 @@ fn annotation_to_request_rejects_unsupported_shapes() {
 #[tokio::test]
 async fn insert_note_dedupes_identical_notes_for_unified_save() {
     let db = TestDb::new().await;
-    let alice = seed_account(&db.pool, "alice@example.org", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@example.org", "Alice").await;
 
     let first = user_notes::insert_note(&db.pool, alice.id, "test_wet", note_req("zelfde"), true)
         .await
@@ -590,7 +548,7 @@ async fn insert_note_dedupes_identical_notes_for_unified_save() {
 async fn personal_annotation_values_carry_the_visibility_marker() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
-    let alice = seed_account(&db.pool, "alice@example.org", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@example.org", "Alice").await;
     create_note(&state, &alice, "test_wet", "prive context").await;
 
     let values = user_notes::personal_annotation_values(&db.pool, alice.id, "test_wet")
@@ -616,7 +574,7 @@ async fn personal_annotation_values_carry_the_visibility_marker() {
 #[tokio::test]
 async fn insert_notes_batch_is_all_or_nothing() {
     let db = TestDb::new().await;
-    let alice = seed_account(&db.pool, "alice@example.org", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@example.org", "Alice").await;
 
     // A batch with an invalid note stores nothing at all.
     let err = user_notes::insert_notes(

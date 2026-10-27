@@ -1,10 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useDependencies, extractRegulationRefs } from './useDependencies';
-
-// Minimal Response-like stub.
-function res(json: unknown, ok = true, status = 200) {
-  return { ok, status, async json() { return json; }, async text() { return ''; } };
-}
+import { res, stubFetch } from '../test-utils/fetchStubs';
 
 // Fake WASM engine: tracks which law ids are loaded, plus every body handed to
 // `loadLaw` so multi-version loading can be asserted (the real engine keys
@@ -52,11 +48,6 @@ const DEP_VERSIONS: Record<string, string[]> = {
 // as the untyped lookup did before.
 function depVersions(id: string): string[] {
   return DEP_VERSIONS[id] as string[];
-}
-
-// Install a fetch stub; the spies return a Response-like stub, not a Response.
-function stubFetch(spy: unknown) {
-  globalThis.fetch = spy as typeof fetch;
 }
 
 // Test laws are plain literals with extra keys (`number`, `name`, ...).
@@ -160,8 +151,8 @@ describe('useDependencies.loadAllDependencies', () => {
     // not silently succeed; it routes the id to the harvest request like a
     // fetch failure. The harvest call is the only network request.
     const fetchSpy = vi.fn(async (url: string) => {
-      if (String(url).includes('/harvest')) return res({ results: [] });
-      return res([], false, 404);
+      if (String(url).includes('/harvest')) return res({ json: { results: [] } });
+      return res({ ok: false, status: 404, json: [] });
     });
     stubFetch(fetchSpy);
     const engine = fakeEngine();
@@ -217,8 +208,8 @@ describe('useDependencies.loadAllDependencies', () => {
       '              output: y',
     ].join('\n') + '\n';
     const fetchSpy = vi.fn(async (url: string) => {
-      if (String(url).includes('/harvest')) return res({ results: [] });
-      return res([], false, 404);
+      if (String(url).includes('/harvest')) return res({ json: { results: [] } });
+      return res({ ok: false, status: 404, json: [] });
     });
     stubFetch(fetchSpy);
     const engine = fakeEngine();
@@ -240,8 +231,8 @@ describe('useDependencies.loadAllDependencies', () => {
 describe('useDependencies.loadImplementors', () => {
   it('resolves implementors with a single request and loads them', async () => {
     const fetchSpy = vi.fn().mockImplementation(async (url: string) => {
-      if (url.endsWith('/implementors')) return res(['regeling_standaardpremie']);
-      return res([], false, 404);
+      if (url.endsWith('/implementors')) return res({ json: ['regeling_standaardpremie'] });
+      return res({ ok: false, status: 404, json: [] });
     });
     stubFetch(fetchSpy);
     const engine = fakeEngine();
@@ -259,7 +250,7 @@ describe('useDependencies.loadImplementors', () => {
   });
 
   it('runs at most once per (trajectRef, lawId)', async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(res(['regeling_standaardpremie']));
+    const fetchSpy = vi.fn().mockResolvedValue(res({ json: ['regeling_standaardpremie'] }));
     stubFetch(fetchSpy);
     const engine = fakeEngine();
     const fetchLawVersions = vi.fn(async (id: string) => depVersions(id));
@@ -272,7 +263,7 @@ describe('useDependencies.loadImplementors', () => {
   });
 
   it('is best-effort: a failed scan resolves without throwing and can be retried', async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(res(null, false, 500));
+    const fetchSpy = vi.fn().mockResolvedValue(res({ ok: false, status: 500 }));
     stubFetch(fetchSpy);
     const engine = fakeEngine();
     const { loadImplementors } = useDependencies();

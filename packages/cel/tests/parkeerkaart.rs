@@ -19,9 +19,10 @@
 
 mod common;
 
+use common::{day, object_map};
+
 use std::path::{Path, PathBuf};
 
-use chrono::NaiveDate;
 use regelrecht_cel::{decision, shape, Cell, Error, Gram, Reference, Source};
 use regelrecht_engine::LawExecutionService;
 use serde_json::{json, Map, Value};
@@ -164,14 +165,6 @@ fn cell() -> Cell {
 /// A cell of Wilgendaal, for a helper whose own `cell` names another.
 fn cell_of_wilgendaal() -> Cell {
     cell()
-}
-
-fn day(s: &str) -> NaiveDate {
-    NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
-}
-
-fn object_map(value: Value) -> Map<String, Value> {
-    value.as_object().unwrap().clone()
 }
 
 /// A complete application of `bsn` for a card as a driver, dated
@@ -951,11 +944,10 @@ fn an_unfounded_objection_against_a_grant_leaves_the_decision_standing() {
 /// its advice (policy art. 5 and 6); the tests below are about the other
 /// terms, and the advice has tests of its own.
 fn answered(node: &regelrecht_engine::PathNode) -> Vec<&regelrecht_engine::PathNode> {
-    let mut found: Vec<_> = node.children.iter().flat_map(answered).collect();
-    if node.answer.is_some() && !ADVICE.contains(&node.name.as_str()) {
-        found.insert(0, node);
-    }
-    found
+    common::answered(node)
+        .into_iter()
+        .filter(|n| !ADVICE.contains(&n.name.as_str()))
+        .collect()
 }
 
 #[test]

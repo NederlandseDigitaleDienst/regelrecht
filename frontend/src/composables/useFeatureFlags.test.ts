@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { jsonResponse } from '../test-utils/fetchStubs';
 
 // useFeatureFlags is a module singleton; reset modules per test for a clean
 // store, and stub the global fetch that apiFetch ultimately calls.
@@ -16,7 +17,7 @@ function stubFetch(putResponse: () => Response) {
       if (method === 'PUT') return Promise.resolve(putResponse());
       // GET /api/feature-flags - empty server set, so DEFAULTS apply.
       return Promise.resolve(
-        new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
+        jsonResponse({}),
       );
     }),
   );
@@ -60,14 +61,11 @@ describe('useFeatureFlags', () => {
         if (method === 'PUT') return Promise.resolve(new Response('unauthorized', { status: 401 }));
         if (url.includes('/auth/status')) {
           return Promise.resolve(
-            new Response(JSON.stringify({ authenticated: true, oidc_configured: true }), {
-              status: 200,
-              headers: { 'content-type': 'application/json' },
-            }),
+            jsonResponse({ authenticated: true, oidc_configured: true }),
           );
         }
         return Promise.resolve(
-          new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
+          jsonResponse({}),
         );
       }),
     );
@@ -98,10 +96,7 @@ describe('useFeatureFlags', () => {
         const method = init?.method ?? 'GET';
         if (method === 'PUT') return Promise.resolve(new Response('{}', { status: 200 }));
         return Promise.resolve(
-          new Response(JSON.stringify({ [KEY]: true }), {
-            status: 200,
-            headers: { 'content-type': 'application/json' },
-          }),
+          jsonResponse({ [KEY]: true }),
         );
       }),
     );
@@ -125,10 +120,7 @@ describe('useFeatureFlags', () => {
   it('clears the local override when the server write succeeds', async () => {
     stubFetch(
       () =>
-        new Response(JSON.stringify({ [KEY]: false }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        }),
+        jsonResponse({ [KEY]: false }),
     );
     const { isEnabled, toggle, loaded } = await freshFlags();
     await vi.waitFor(() => expect(loaded.value).toBe(true));

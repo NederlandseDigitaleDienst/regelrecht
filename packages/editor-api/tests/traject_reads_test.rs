@@ -12,6 +12,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+mod common;
+
+use common::{
+    app_state, empty_state, insert_traject, local_traject, seed_account, session_for,
+    state_with_user_token_mode, traject_ref,
+};
+
 use std::sync::Arc;
 
 use axum::extract::{Extension, Path, State};
@@ -19,62 +26,21 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::Json;
 use pretty_assertions::assert_eq;
 use sqlx::PgPool;
-use tokio::sync::{Mutex, RwLock};
 use tower_sessions::Session;
-use tower_sessions_memory_store::MemoryStore;
 use uuid::Uuid;
 
-use regelrecht_auth::handlers::{
-    SESSION_KEY_EMAIL, SESSION_KEY_EMAIL_VERIFIED, SESSION_KEY_NAME, SESSION_KEY_SUB,
-};
 use regelrecht_editor_api::accounts::AccountRecord;
-use regelrecht_editor_api::config::AppConfig;
 use regelrecht_editor_api::corpus_handlers::{
     get_corpus_law, get_traject_corpus_law, get_traject_scenario, list_traject_corpus_laws,
     list_traject_scenarios, save_law, save_scenario,
 };
 use regelrecht_editor_api::github_oauth::GithubOAuth;
-use regelrecht_editor_api::state::{AppState, CorpusState};
+use regelrecht_editor_api::state::AppState;
 use regelrecht_editor_api::traject_corpus::TrajectCorpusCache;
 
 use regelrecht_pipeline::test_utils::TestDb;
 
 const LAW_ID: &str = "wet_op_de_zorgtoeslag";
-
-fn empty_state(pool: PgPool) -> AppState {
-    AppState {
-        corpus: Arc::new(RwLock::new(CorpusState::empty())),
-        oidc_client: None,
-        end_session_url: None,
-        config: Arc::new(AppConfig {
-            oidc: None,
-            base_url: None,
-            github_oauth: None,
-            task_enrich_provider: "claude".to_string(),
-        }),
-        http_client: regelrecht_auth::http_client(),
-        pool: Some(pool),
-        pipeline_api_url: None,
-        harvest_admin_url: None,
-        reload_lock: Arc::new(Mutex::new(())),
-        integrity: Default::default(),
-        trajects: Arc::new(TrajectCorpusCache::new()),
-    }
-}
-
-async fn seed_account(pool: &PgPool, email: &str) -> (Uuid, String) {
-    let sub = format!("sub-{email}");
-    let (id,): (Uuid,) = sqlx::query_as(
-        "INSERT INTO accounts (person_sub, email, name) VALUES ($1, $2, $3) RETURNING id",
-    )
-    .bind(&sub)
-    .bind(email)
-    .bind("Test User")
-    .fetch_one(pool)
-    .await
-    .unwrap();
-    (id, sub)
-}
 
 /// Write a minimal but schema-valid law file under `corpus_dir/wet/{law_id}/2025-01-01.yaml`
 /// with a single distinguishing `name:` so we can verify which copy a
@@ -95,65 +61,6 @@ fn write_scenario(corpus_dir: &std::path::Path, filename: &str, content: &str) {
     let dir = corpus_dir.join("wet").join(LAW_ID).join("scenarios");
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join(filename), content).unwrap();
-}
-
-/// Create a traject with one local writable-own source pointing at
-/// `corpus_dir`. Returns the traject id. `owner_id` is added as an
-/// `owner` so the membership re-check on reads/writes passes.
-async fn local_traject(pool: &PgPool, owner_id: Uuid, corpus_dir: &std::path::Path) -> Uuid {
-    let (traject_id,): (Uuid,) = sqlx::query_as(
-        "INSERT INTO trajects (name, description, scope, created_by)
-         VALUES ('Test', '', '', $1) RETURNING id",
-    )
-    .bind(owner_id)
-    .fetch_one(pool)
-    .await
-    .unwrap();
-    sqlx::query(
-        "INSERT INTO traject_members (traject_id, account_id, role)
-         VALUES ($1, $2, 'owner')",
-    )
-    .bind(traject_id)
-    .bind(owner_id)
-    .execute(pool)
-    .await
-    .unwrap();
-    sqlx::query(
-        "INSERT INTO traject_corpus_sources
-         (traject_id, source_id, name, source_type, local_path,
-          priority, scopes, is_writable_own)
-         VALUES ($1, 'local', 'Local', 'local'::corpus_source_type, $2,
-                 0, '[]'::jsonb, TRUE)",
-    )
-    .bind(traject_id)
-    .bind(corpus_dir.to_string_lossy().to_string())
-    .execute(pool)
-    .await
-    .unwrap();
-    traject_id
-}
-
-/// URL form of a traject reference: `{slug}-{first 8 hex of the UUID}`
-/// (see `trajects::resolve_traject_ref`).
-fn traject_ref(traject_id: Uuid) -> String {
-    format!("test-{}", &traject_id.to_string()[..8])
-}
-
-/// A session with a verified editor identity — the save handlers
-/// require name + email + `email_verified=true` for commit attribution.
-async fn session_for(sub: &str) -> Session {
-    let session = Session::new(None, Arc::new(MemoryStore::default()), None);
-    session.insert(SESSION_KEY_SUB, sub).await.unwrap();
-    session.insert(SESSION_KEY_NAME, "Test User").await.unwrap();
-    session
-        .insert(SESSION_KEY_EMAIL, "alice@test.local")
-        .await
-        .unwrap();
-    session
-        .insert(SESSION_KEY_EMAIL_VERIFIED, true)
-        .await
-        .unwrap();
-    session
 }
 
 fn if_match_headers(etag: &str) -> HeaderMap {
@@ -483,8 +390,8 @@ async fn ttl_refresh_picks_up_upstream_laws_and_reconciles_saves() {
 
 #[tokio::test]
 async fn global_get_404s_when_law_not_in_global_corpus() {
-    let db = TestDb::new().await;
-    let state = empty_state(db.pool.clone());
+    // No database: the global read never touches the pool.
+    let state = app_state(None, None);
 
     // The global `state.corpus` is `CorpusState::empty()`, so the
     // non-traject GET should 404.
@@ -541,23 +448,7 @@ async fn seeded_traject(
     seed_dir: &std::path::Path,
     writable_own_dir: &std::path::Path,
 ) -> Uuid {
-    let (traject_id,): (Uuid,) = sqlx::query_as(
-        "INSERT INTO trajects (name, description, scope, created_by)
-         VALUES ('Test', '', '', $1) RETURNING id",
-    )
-    .bind(owner_id)
-    .fetch_one(pool)
-    .await
-    .unwrap();
-    sqlx::query(
-        "INSERT INTO traject_members (traject_id, account_id, role)
-         VALUES ($1, $2, 'owner')",
-    )
-    .bind(traject_id)
-    .bind(owner_id)
-    .execute(pool)
-    .await
-    .unwrap();
+    let traject_id = insert_traject(pool, owner_id).await;
 
     // Seed source — read-only logically (we treat it as such; the
     // LocalBackend's write_path is what makes the test crisp).
@@ -959,13 +850,7 @@ async fn user_token_enforcement_skips_local_backed_trajects() {
     // satisfy the requirement there. This pins the requiredness decision
     // to the *resolved* backend, not the deployment switch alone.
     let db = TestDb::new().await;
-    let mut state = empty_state(db.pool.clone());
-    state.config = Arc::new(AppConfig {
-        oidc: None,
-        base_url: None,
-        github_oauth: Some(GithubOAuth::for_tests(true)),
-        task_enrich_provider: "claude".to_string(),
-    });
+    let state = state_with_user_token_mode(db.pool.clone(), GithubOAuth::for_tests(true));
     let (owner, sub) = seed_account(&db.pool, "alice@test.local").await;
 
     let corpus = tempfile::tempdir().unwrap();
@@ -1007,13 +892,7 @@ async fn feature_flag_row_drives_user_token_requirement() {
     // through the "Functies" menu. Drive the requirement through that DB row:
     // the env switch stays OFF, so any 428 below can only come from the flag.
     let db = TestDb::new().await;
-    let mut state = empty_state(db.pool.clone());
-    state.config = Arc::new(AppConfig {
-        oidc: None,
-        base_url: None,
-        github_oauth: Some(GithubOAuth::for_tests(false)),
-        task_enrich_provider: "claude".to_string(),
-    });
+    let state = app_state(Some(db.pool.clone()), Some(GithubOAuth::for_tests(false)));
     let account_id = Uuid::new_v4();
 
     // Flag row absent (default off): pre-spike behaviour, no override demanded.

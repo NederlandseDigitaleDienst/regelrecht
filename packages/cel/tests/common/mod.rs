@@ -1,11 +1,20 @@
-//! Helpers the cell's tests share.
-// Each test crate includes this module and uses part of it.
-#![allow(dead_code)]
+//! Helpers the cell's integration tests share: a cell directory with its
+//! identity, the corpus and the reductions its cells keep, dates and JSON
+//! objects for fixtures, a service loaded from inline YAML, a cell without
+//! reductions, and the answered nodes of a trace.
+//!
+//! Every test binary compiles this module on its own and uses a subset of it,
+//! hence the `dead_code` allowance.
+
+#![allow(dead_code, clippy::unwrap_used, clippy::panic)]
 
 use std::path::{Path, PathBuf};
 
+use chrono::NaiveDate;
 use regelrecht_cel::identity::REDUCTIONS;
-use regelrecht_engine::LawExecutionService;
+use regelrecht_cel::Cell;
+use regelrecht_engine::{LawExecutionService, PathNode};
+use serde_json::{Map, Value};
 
 /// An empty directory for a cell, with only its identity (`cel.yaml`,
 /// RFC-052).
@@ -13,6 +22,25 @@ pub fn cell_tempdir() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("cel.yaml"), "name: Testcel\n").unwrap();
     dir
+}
+
+/// A `YYYY-MM-DD` date.
+pub fn day(on: &str) -> NaiveDate {
+    NaiveDate::parse_from_str(on, "%Y-%m-%d").unwrap()
+}
+
+/// The object inside a `json!({...})`.
+pub fn object_map(value: Value) -> Map<String, Value> {
+    value.as_object().unwrap().clone()
+}
+
+/// A service with the given regelwerken, as YAML.
+pub fn service_of(laws: &[&str]) -> LawExecutionService {
+    let mut service = LawExecutionService::new();
+    for law in laws {
+        service.load_law(law).unwrap();
+    }
+    service
 }
 
 /// The corpus of the repository.
@@ -99,4 +127,19 @@ pub fn keep_corpus_reduction(dir: &Path, id: &str) {
             &std::fs::read_to_string(entry.unwrap().path()).unwrap(),
         );
     }
+}
+
+/// A cell of `actor` whose directory holds no reductions.
+pub fn bare_cell(actor: &str) -> Cell {
+    let dir = cell_tempdir();
+    Cell::in_memory(actor, dir.path()).unwrap()
+}
+
+/// The nodes of `node` and below where the cell answered an open term.
+pub fn answered(node: &PathNode) -> Vec<&PathNode> {
+    let mut found: Vec<_> = node.children.iter().flat_map(answered).collect();
+    if node.answer.is_some() {
+        found.insert(0, node);
+    }
+    found
 }
