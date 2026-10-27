@@ -2,6 +2,8 @@ FROM grafana/grafana-oss:12.4.0@sha256:b0ae311af06228bcfd4a620504b653db80f5b91e9
 
 # Published as ghcr.io/<repo owner>/regelrecht-grafana; deploy.yml rebuilds it
 # only on a push to main that changes something under packages/grafana/.
+# There is no manual trigger, so a build skipped by a red CI waits for the next
+# change in this directory.
 
 # ZAD requires port 8000 for liveprobe
 ENV GF_SERVER_HTTP_PORT=8000
