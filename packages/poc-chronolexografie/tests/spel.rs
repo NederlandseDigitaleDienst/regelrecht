@@ -858,7 +858,10 @@ fn bedrijfsparkeervergunning_a_company_the_register_does_not_know_is_refused() {
 #[test]
 fn bedrijfsparkeervergunning_two_permits_in_the_city_centre_and_no_third() {
     // Article 3, first paragraph, of the fictitious implementing decision:
-    // at most two in the city centre, whatever the number of people.
+    // at most two in the city centre, whatever the number of people. Every
+    // decision gets the college's judgement under the hardship clause; only
+    // the third reaches the maximum and uses it, and an unasked finding
+    // changes nothing.
     let mut spel = spel_met("bedrijfsparkeervergunning");
     let mut verleend = Vec::new();
     for (i, datum) in ["2026-10-13", "2026-10-14", "2026-10-15"]

@@ -728,7 +728,7 @@ const bedrijfsparkeervergunning = [
         n: 3,
         title: 'Besluiten op de derde aanvraag',
         date: '2026-10-27',
-        todo: `Het bedrijf heeft twee geldige vergunningen, het maximum in de binnenstad. Nu vraagt het formulier het oordeel van het college over de hardheidsclausule (artikel 6 van de fictieve verordening); de engine kan dat niet uitrekenen. Er is nog niets aangevoerd, dus kies Nee bij ${CLAUSE} en klik op Besluit nemen.`,
+        todo: `Het bedrijf heeft twee geldige vergunningen, het maximum in de binnenstad. Nu vraagt het formulier het oordeel van het college over de hardheidsclausule (artikel 6 van de fictieve verordening). De engine kan dat oordeel niet uitrekenen, en het bedrijf heeft nog geen bijzondere omstandigheden aangevoerd. Kies Nee bij ${CLAUSE} en klik op Besluit nemen.`,
         seen: `Afgewezen. Bij het besluit staat ${CLAUSE}: Nee. Dat oordeel staat als gegeven bij het besluit in de kroniek, naast wat de Kamer van Koophandel en de eigen kroniek antwoordden.`,
         outcome: 'rejected',
       }),
