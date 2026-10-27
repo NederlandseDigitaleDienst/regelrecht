@@ -378,7 +378,7 @@ fn an_appeal_received_after_the_period_is_inadmissible() {
     );
     // The cell still asks whether a rule was breached; even with a breach,
     // lateness alone keeps the decision standing.
-    let findings = map(json!({
+    let findings = object_map(json!({
         "indiener_is_belanghebbende": true,
         "rechtsregel_geschonden": true,
     }));
