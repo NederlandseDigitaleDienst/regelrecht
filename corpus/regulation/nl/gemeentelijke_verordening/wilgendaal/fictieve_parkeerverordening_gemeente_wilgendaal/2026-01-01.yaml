@@ -349,7 +349,7 @@ articles:
         - id: toepassing_leidt_tot_onaanvaardbare_gevolgen
           type: boolean
           required: true
-          decided_per_case_by: het college van burgemeester en wethouders, naar het oordeel van het college
+          decided_per_case_by: het college van burgemeester en wethouders
           description: >-
             Of toepassing van artikel 2, tweede lid, naar het oordeel van het
             college in dit geval leidt tot onaanvaardbare gevolgen voor
