@@ -90,6 +90,8 @@ Feature: Bepalen recht op Alcoholwetvergunning horeca Rotterdam
   # bewijst dat dezelfde gegevens zonder afwijzingsgrond wel slagen.
   # NB: alcoholwet/vergunning zet voldoet_aan_nationale_eisen op een constante
   # true, dus een weigeringsgrond uit artikel 8 of 10 bereikt deze wet niet.
+  # @wip gaat eraf zodra die wet voldoet_aan_nationale_eisen uit artikel 8 en
+  # 10 afleidt.
   # Vroeger wees dit scenario af omdat de SVH-registratie ontbrak; nu de andere
   # voorwaarden vervuld zijn, legt het de gewenste uitkomst vast.
   @wip
@@ -120,6 +122,8 @@ Feature: Bepalen recht op Alcoholwetvergunning horeca Rotterdam
 
   # NB: alcoholwet/vergunning zet voldoet_aan_nationale_eisen op een constante
   # true, dus een weigeringsgrond uit artikel 8 of 10 bereikt deze wet niet.
+  # @wip gaat eraf zodra die wet voldoet_aan_nationale_eisen uit artikel 8 en
+  # 10 afleidt.
   # Vroeger wees dit scenario af omdat de SVH-registratie ontbrak; nu de andere
   # voorwaarden vervuld zijn, legt het de gewenste uitkomst vast.
   @wip
@@ -150,6 +154,8 @@ Feature: Bepalen recht op Alcoholwetvergunning horeca Rotterdam
 
   # NB: alcoholwet/vergunning zet voldoet_aan_nationale_eisen op een constante
   # true, dus een weigeringsgrond uit artikel 8 of 10 bereikt deze wet niet.
+  # @wip gaat eraf zodra die wet voldoet_aan_nationale_eisen uit artikel 8 en
+  # 10 afleidt.
   # Vroeger wees dit scenario af omdat de SVH-registratie ontbrak; nu de andere
   # voorwaarden vervuld zijn, legt het de gewenste uitkomst vast.
   @wip
@@ -180,6 +186,8 @@ Feature: Bepalen recht op Alcoholwetvergunning horeca Rotterdam
 
   # NB: alcoholwet/vergunning zet voldoet_aan_nationale_eisen op een constante
   # true, dus een weigeringsgrond uit artikel 8 of 10 bereikt deze wet niet.
+  # @wip gaat eraf zodra die wet voldoet_aan_nationale_eisen uit artikel 8 en
+  # 10 afleidt.
   # Vroeger wees dit scenario af omdat de SVH-registratie ontbrak; nu de andere
   # voorwaarden vervuld zijn, legt het de gewenste uitkomst vast.
   @wip
@@ -210,6 +218,8 @@ Feature: Bepalen recht op Alcoholwetvergunning horeca Rotterdam
 
   # NB: alcoholwet/vergunning zet voldoet_aan_nationale_eisen op een constante
   # true, dus een weigeringsgrond uit artikel 8 of 10 bereikt deze wet niet.
+  # @wip gaat eraf zodra die wet voldoet_aan_nationale_eisen uit artikel 8 en
+  # 10 afleidt.
   # Vroeger wees dit scenario af omdat de SVH-registratie ontbrak; nu de andere
   # voorwaarden vervuld zijn, legt het de gewenste uitkomst vast.
   @wip

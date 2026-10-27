@@ -63,7 +63,7 @@ const HANDELINGEN = {
  * per peildatum over.
  */
 describe('persona-tijdlijn', () => {
-  it('loopt de peildata af en neemt per peildatum telt, jaar en bedrag over (C1)', () => {
+  it('loopt de peildata af en neemt per peildatum de velden telt, jaar en bedrag van de engine over (C1)', () => {
     const engine = createStubEngine();
     const tl = evaluateLeerlingTimeline(engine, C1, peildataTussen('2024-04-01', '2026-10-01'));
     const tellend = tl.filter((t) => t.telt).map((t) => t.peildatum);

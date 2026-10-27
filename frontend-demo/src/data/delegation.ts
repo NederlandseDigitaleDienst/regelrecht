@@ -397,9 +397,9 @@ export type SubjectIds = {
  * The parameters a law is asked about the subject with.
  *
  * Acting on behalf of someone else, the parameters are about that other: a
- * business is asked about by its KvK number, a child by its BSN. Whoever acts
- * for themselves is a citizen, even when she has a business: she reaches that
- * through the delegation.
+ * business is asked about by its KvK number, a child by its BSN. Acting for
+ * oneself is acting as a citizen, even with a business; the business is
+ * reached through the delegation.
  */
 export function subjectParams(
   delegation: DelegationLike | null | undefined,

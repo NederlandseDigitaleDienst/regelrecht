@@ -1325,7 +1325,56 @@ articles:
 
         // That every corpus file parses is held by tests/typecheck_corpus.rs,
         // which loads all of them. What stays here is what a parse alone does
-        // not show: the fields of a municipal regulation.
+        // not show: which id and layer a file carries, and the fields of a
+        // municipal regulation.
+        #[test]
+        fn test_corpus_files_carry_their_id_and_layer() {
+            use RegulatoryLayer::*;
+            let files = [
+                ("nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml", "wet_op_de_zorgtoeslag", Wet),
+                ("nl/wet/zorgverzekeringswet/2025-01-01.yaml", "zorgverzekeringswet", Wet),
+                (
+                    "nl/wet/algemene_wet_inkomensafhankelijke_regelingen/2025-01-01.yaml",
+                    "algemene_wet_inkomensafhankelijke_regelingen",
+                    Wet,
+                ),
+                ("nl/wet/kieswet/2025-01-01.yaml", "kieswet", Wet),
+                ("nl/wet/wet_langdurige_zorg/2025-07-05.yaml", "wet_langdurige_zorg", Wet),
+                (
+                    "nl/wet/burgerlijk_wetboek_boek_5/2024-01-01.yaml",
+                    "burgerlijk_wetboek_boek_5",
+                    Wet,
+                ),
+                ("nl/wet/participatiewet/2022-03-15.yaml", "participatiewet", Wet),
+                (
+                    "nl/wet/wet_basisregistratie_personen/2025-02-12.yaml",
+                    "wet_basisregistratie_personen",
+                    Wet,
+                ),
+                (
+                    "nl/wet/wet_inkomstenbelasting_2001/2025-01-01.yaml",
+                    "wet_inkomstenbelasting_2001",
+                    Wet,
+                ),
+                (
+                    "nl/ministeriele_regeling/regeling_standaardpremie/2025-01-01.yaml",
+                    "regeling_standaardpremie",
+                    MinisterieleRegeling,
+                ),
+                (
+                    "nl/gemeentelijke_verordening/diemen/afstemmingsverordening_participatiewet/2015-01-01.yaml",
+                    "afstemmingsverordening_participatiewet_diemen",
+                    GemeentelijkeVerordening,
+                ),
+            ];
+            for (file, id, layer) in files {
+                let law = ArticleBasedLaw::from_yaml_file(get_regulation_path().join(file))
+                    .unwrap_or_else(|e| panic!("Failed to load {file}: {e}"));
+                assert_eq!(law.id, id, "{file}");
+                assert_eq!(law.regulatory_layer, layer, "{file}");
+            }
+        }
+
         #[test]
         fn test_apv_erfgrens_amsterdam_is_a_municipal_regulation() {
             let path = get_regulation_path()
