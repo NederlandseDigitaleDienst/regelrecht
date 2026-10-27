@@ -68,9 +68,9 @@ pub async fn download_law_with_max_size(
 /// the downloads. It is public so the pipeline can be tested on fixture files.
 ///
 /// Callers must pass a `bwb_id` and `date` that already passed
-/// [`validate_bwb_id`] and [`validate_date`], and `bwb_id` must equal
-/// `wti_result.metadata.bwb_id`; both feed the generated article URLs.
-/// [`download_law_with_max_size`] guarantees this.
+/// [`validate_bwb_id`] and [`validate_date`]; both feed the generated article
+/// URLs. `bwb_id` should be the id the WTI was fetched for, which normally
+/// equals `wti_result.metadata.bwb_id`; this function does not check that.
 ///
 /// # Errors
 /// Returns an error if the content XML cannot be parsed.

@@ -1279,8 +1279,9 @@ mod tests {
             assert!(text.contains("second item"), "{mode}: {text}");
         }
 
-        // Article-level folds the list into the lid as one block: the dashes
-        // are not onderdelen, so they get no block of their own.
+        // Article-level keeps the whole dash list as one block after the lid
+        // intro: the dashes are not onderdelen, so the items get no block of
+        // their own.
         let text = &split_article(xml)[0].text;
         assert_eq!(text.matches("\n\n").count(), 1, "got:\n{text}");
     }
@@ -1313,6 +1314,8 @@ mod tests {
             assert!(text.contains("requirement two"), "{mode}: {text}");
         }
 
+        // Article-level keeps the whole bullet list as one block after the
+        // lid intro, like the dash list above.
         let text = &split_article(xml)[0].text;
         assert_eq!(text.matches("\n\n").count(), 1, "got:\n{text}");
     }
