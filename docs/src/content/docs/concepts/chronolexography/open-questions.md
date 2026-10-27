@@ -1,25 +1,25 @@
 ---
-title: "Open Points in Chronolexography"
+title: "Open Questions in Chronolexography"
 description: "The choices in the chronolexography implementation that are still open, and the parts that need investigation or a large change."
 ---
 
-What is open in [chronolexography](/concepts/chronolexography), one row per point. RFCs link here instead of keeping their own list, and a closed point loses its row.
+What is open in [chronolexography](/concepts/chronolexography), one row per question. RFCs link here instead of keeping their own list, and a settled question loses its row.
 
-A point is listed when a choice is still to be made, when it needs investigation first, or when it needs a large refactor or a breaking change to the schema. Missing functionality that only needs building is not listed; it gets built when a case needs it. Neither is a limitation of the proof of concept that does not affect how chronolexography works.
+A question is listed when a choice is still to be made, when it needs investigation first, or when it needs a large refactor or a breaking change to the schema. Missing functionality that only needs building is not listed; it gets built when a case needs it. Neither is a limitation of the proof of concept that does not affect how chronolexography works.
 
 Elsewhere:
 
-- the Awb procedure in the law format: [Applications, Decisions and Objections](/concepts/administrative-procedures#open-points);
+- the Awb procedure in the law format: [Applications, Decisions and Objections](/concepts/administrative-procedures#open-questions);
 - the [open questions of RFC-022](/rfcs/rfc-022#open-questions), still with its authors: cell roles, security-context binding, update cadence, and whether Blauwe Knop and FSC are one mechanism.
 
 The impact column says how far an answer reaches:
 
 - **Foundational**: the answer decides whether chronolexography works between real organizations and with real registers.
-- **High**: the point touches every new case, or it needs a schema change or a large refactor.
+- **High**: the question touches every new case, or it needs a schema change or a large refactor.
 - **Medium**: it limits a case, or needs a small change to the engine or the schema.
 - **Low**: a local choice, or a matter of documentation.
 
-| Point | Why open | Impact | RFC |
+| Question | Why open | Impact | RFC |
 |---|---|---|---|
 | Should `REDUCTIE`, `source.decisions`, `source.facts` and `combine: ONLY` leave the law format for a profile of their own? They serve a cell, not the law. Today only `cel.yaml` says which answers a cell gives. A profile would also decide whether picking a record needs operations of its own, such as the latest one or the first that matches (`LATEST`, `FIND`), beside `combine: ONLY`. | Choice; breaking schema change | High | [048](/rfcs/rfc-048) |
 | A cell that receives a copy of another cell's decision keeps the decision value as it came in. It cannot check that value against the other cell's chronicle, and trusts it as a court trusts the documents a party submits. Should a receiving cell be able to check a copy at its source? | Choice; investigation | Foundational | [053](/rfcs/rfc-053) |
@@ -57,8 +57,8 @@ In order of impact, as of 27 October 2026:
 1. Time and corrections in the chronicle: a second date for the moment that counts in law, and whether a later record replaces an earlier one. One design covers both, since both decide what a replay sees. It needs investigation first and then an RFC.
 2. A source that keeps only its current state. Try a facade on one real register before more cases assume one.
 3. Checking a received copy at its source.
-4. A policy that fills an open term is final. `policy_first` and the fallback to a finding go, and a departure in a single case is the Awb 4:84 point. In progress; it changes [RFC-048](/rfcs/rfc-048) §2.
+4. A policy that fills an open term is final. `policy_first` and the fallback to a finding go, and a departure in a single case is the Awb 4:84 question. In progress; it changes [RFC-048](/rfcs/rfc-048) §2.
 5. Decisions without an application, such as a revocation, and inputs that belong in a regulation other than the deciding article. Both widen what a cell can decide, and every case after the PoC needs them.
 6. The Awb rules out of the reduction and into the Awb, and the sphere mechanism removed, before more cases copy either.
 
-After that: one trace for a decision and the cell's answer, release notes for the schema, Awb 4:1 with 4:5 and the motivation requirements ([open points of the Awb procedure](/concepts/administrative-procedures#open-points)), and building out the NAPP case. Later: several instances of one category, and a profile of its own for what serves a cell.
+After that: one trace for a decision and the cell's answer, release notes for the schema, Awb 4:1 with 4:5 and the motivation requirements ([open questions of the Awb procedure](/concepts/administrative-procedures#open-questions)), and building out the NAPP case. Later: several instances of one category, and a profile of its own for what serves a cell.
