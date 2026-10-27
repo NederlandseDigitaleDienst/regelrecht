@@ -8,8 +8,8 @@
  * de melding van de cel.
  *
  * Naast de bundel krijgt de cel de bronnen die de pagina bij het laden
- * ophaalt (src/bronnen.js): een casus uit een bron draait op die bron en het
- * regelrecht-corpus. Een bron die er niet is, houdt de app niet tegen.
+ * ophaalt (src/bronnen.js): een casus uit een bron draait alleen op die
+ * bron. Een bron die er niet is, houdt de app niet tegen.
  *
  * Elk pad gaat langs `b()`: achter het poc-portaal staat de app onder
  * /chronolexografie/. De JS-lijm van wasm-bindgen komt via een blob-URL
