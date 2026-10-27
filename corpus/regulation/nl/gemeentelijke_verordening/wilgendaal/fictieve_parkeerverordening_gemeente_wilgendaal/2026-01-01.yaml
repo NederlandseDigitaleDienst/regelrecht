@@ -10,7 +10,8 @@ valid_from: '2026-01-01'
 # citeertitel Parkeerverordening Delft 2020): artikel 1 (begrippen), artikel
 # 3 (verlening op aanvraag), artikel 4 (beslistermijn), artikel 5
 # (geldigheid) en artikel 6 (intrekking). Het begrip bedrijf komt uit
-# artikel 1, onder d, van de Parkeerverordening Deventer 2026 (CVDR747536).
+# artikel 1, onder d, van de Parkeerverordening Deventer 2026 (CVDR747536),
+# de hardheidsclausule (artikel 6) uit artikel 13 van die verordening.
 # Er is geen bekendmaking; de url wijst daarom naar de Delftse verordening.
 # De gemeentecode bestaat niet: het schema eist er een voor een gemeentelijke
 # verordening, en GM9999 is geen code van het CBS.
@@ -74,7 +75,8 @@ articles:
       # Beide oordelen laat de verordening aan regels van het college (lid 3
       # en 4). Het fictieve uitvoeringsbesluit van Wilgendaal vult ze
       # (fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal, artikel 2
-      # en 3).
+      # en 3). Of het college lid 2 buiten toepassing laat, volgt uit de
+      # hardheidsclausule (artikel 6), die het derde begrip vult.
       open_terms:
         - id: bedrijf_gevestigd_in_vergunninggebied
           type: boolean
@@ -92,6 +94,13 @@ articles:
             Of het bedrijf op de dag van het besluit al het maximum aantal
             geldige bedrijfsparkeervergunningen heeft dat het college vaststelt
             (tweede en vierde lid).
+        - id: weigeringsgrond_buiten_toepassing_gelaten
+          type: boolean
+          required: true
+          decided_per_case_by: het college van burgemeester en wethouders, met toepassing van artikel 6
+          description: >-
+            Of het college het tweede lid buiten toepassing laat op grond van
+            de hardheidsclausule (artikel 6).
       execution:
         # Lid 1: de vergunning wordt verleend op aanvraag van het bedrijf. Dit
         # artikel brengt twee dingen voort, zoals artikel 49 van het BABW
@@ -152,16 +161,22 @@ articles:
               De laatste dag waarop de verleende vergunning geldig is (artikel
               3); leeg als geen vergunning wordt verleend.
         actions:
-          # Lid 1 en 2. Eerst de vestiging: AND stopt bij de eerste onwaar, dus
-          # voor een bedrijf buiten de vergunninggebieden vraagt het besluit
-          # het maximum niet.
+          # Lid 1 en 2, met artikel 6. Eerst de vestiging: AND stopt bij de
+          # eerste onwaar, dus voor een bedrijf buiten de vergunninggebieden
+          # vraagt het besluit het maximum niet. Dan het maximum: OR stopt bij
+          # de eerste waar, dus alleen een bedrijf dat het maximum heeft
+          # bereikt, komt bij de hardheidsclausule. Bij een gewone aanvraag
+          # vraagt het besluit het oordeel van het college daarom niet.
           - output: bedrijfsparkeervergunning_verleend
             value:
               operation: AND
               conditions:
                 - $bedrijf_gevestigd_in_vergunninggebied
-                - operation: NOT
-                  value: $maximum_bedrijfsparkeervergunningen_bereikt
+                - operation: OR
+                  conditions:
+                    - operation: NOT
+                      value: $maximum_bedrijfsparkeervergunningen_bereikt
+                    - $weigeringsgrond_buiten_toepassing_gelaten
           - output: vergunning_geldig_tot
             value:
               operation: IF
@@ -294,3 +309,60 @@ articles:
     # een vergunning. Hoe zo'n besluit ontstaat en wat het met een eerder
     # besluit doet, is niet gemodelleerd (zie de open punten van de
     # chronolexografie).
+  - number: '6'
+    text: >-
+      FICTIEF, naar het model van artikel 13 van de Parkeerverordening
+      Deventer 2026.
+
+      Het college kan een of meerdere artikelen van deze verordening buiten
+      toepassing laten of daarvan afwijken, in gevallen waarin toepassing van
+      deze verordening naar haar oordeel leidt tot onaanvaardbare gevolgen
+      voor betrokkenen.
+    url: https://lokaleregelgeving.overheid.nl/CVDR747536
+    machine_readable:
+      # Eigen keuze, en een afwijking van het Delftse model, dat geen
+      # hardheidsclausule heeft. De tekst is die van artikel 13 van de
+      # Parkeerverordening Deventer 2026; artikel 9 van de Parkeerverordening
+      # Apeldoorn (CVDR650948) doet hetzelfde bij "een onbillijkheid van
+      # overwegende aard". De clausule staat in de verordening en niet in het
+      # uitvoeringsbesluit. Het Delftse uitvoeringsbesluit stelt nadere regels
+      # krachtens de verordening, en Awb 4:84 ("Het bestuursorgaan handelt
+      # overeenkomstig de beleidsregel, tenzij ...") geldt alleen voor
+      # beleidsregels (4:81). Een afwijking in een bijzonder geval vraagt
+      # daarom een bevoegdheid in de verordening zelf.
+      # Alleen het buiten toepassing laten van artikel 2, tweede lid (de
+      # weigering op het maximum), is uitvoerbaar gemaakt: dat is het geval
+      # waarin deze verordening een bedrijf iets onthoudt. Afwijken van een
+      # ander artikel is niet gemodelleerd.
+      # Eigen keuze: het college laat lid 2 buiten toepassing als het oordeelt
+      # dat toepassing tot onaanvaardbare gevolgen leidt. De tekst zegt dat
+      # het college dat "kan"; hier vallen het oordeel en het gebruik van de
+      # bevoegdheid samen, zoals artikel 2 "verleent" zegt waar het Delftse
+      # model "kan verlenen" zegt.
+      competent_authority:
+        name: college van burgemeester en wethouders
+        type: CATEGORY
+      # Het oordeel is aan het college, per geval ("naar haar oordeel").
+      # Geen regel vult het, dus de engine vraagt het aan het college zodra
+      # een besluit het nodig heeft.
+      open_terms:
+        - id: toepassing_leidt_tot_onaanvaardbare_gevolgen
+          type: boolean
+          required: true
+          decided_per_case_by: het college van burgemeester en wethouders, naar zijn oordeel
+          description: >-
+            Of toepassing van artikel 2, tweede lid, naar het oordeel van het
+            college in dit geval leidt tot onaanvaardbare gevolgen voor
+            betrokkenen.
+      implements:
+        - law: fictieve_parkeerverordening_gemeente_wilgendaal
+          article: '2'
+          open_term: weigeringsgrond_buiten_toepassing_gelaten
+      execution:
+        output:
+          - name: weigeringsgrond_buiten_toepassing_gelaten
+            type: boolean
+            description: Of het college artikel 2, tweede lid, buiten toepassing laat.
+        actions:
+          - output: weigeringsgrond_buiten_toepassing_gelaten
+            value: $toepassing_leidt_tot_onaanvaardbare_gevolgen

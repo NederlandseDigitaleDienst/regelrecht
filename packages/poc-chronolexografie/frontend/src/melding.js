@@ -35,13 +35,14 @@ const vertalingen = [
     (besluit, begrip) =>
       `Besluit ${kort(besluit)} vroeg de cel niet om "${leesbaar(begrip)}", dus er is geen antwoord om uit te leggen.`,
   ],
-  // Een oordeel dat een beleid voor deze aanvraag aan het bestuursorgaan
+  // Een oordeel dat een artikel voor deze aanvraag aan het bestuursorgaan
   // laat, met een eigen open begrip: de parkeerkaart zonder advies van de
-  // GGD, een vakantie die de cel niet kent (kern::voorvertonen).
+  // GGD, een vakantie die de cel niet kent, de hardheidsclausule bij het
+  // maximum (kern::voorvertonen).
   [
     /the policy leaves '([^']+)' to the authority for this case/,
     (begrip) =>
-      `Het beleid laat "${leesbaar(begrip)}" voor deze aanvraag aan ${state.casus?.rol ?? 'het bestuursorgaan'} over. Geef die bevinding.`,
+      `De regels laten "${leesbaar(begrip)}" voor deze aanvraag aan ${state.casus?.rol ?? 'het bestuursorgaan'} over. Geef die bevinding.`,
   ],
   // Een bevinding die de wet per geval aan het bestuursorgaan laat, en die
   // het nog niet gaf (de engine).
