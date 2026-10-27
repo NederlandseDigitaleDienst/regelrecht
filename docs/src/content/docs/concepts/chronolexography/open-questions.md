@@ -57,7 +57,7 @@ In order of impact, as of 27 October 2026. Step 6 is a cleanup and comes earlier
 1. Time and corrections in the chronicle: a second date for the moment that counts in law, and whether a later record replaces an earlier one. One design covers both, since both decide what a replay sees. It needs investigation first and then an RFC.
 2. A source that keeps only its current state. Try a facade on one real register before more cases assume one.
 3. Checking a received copy at its source.
-4. A policy that fills an open term is final. `policy_first` and the fallback to a finding are removed; a departure in a single case is the Awb 4:84 question. In progress; it changes [RFC-048](/rfcs/rfc-048) §2.
+4. A policy that fills an open term is final. `policy_first` and the fallback to a finding are removed; a departure in a single case is the Awb 4:84 question. Working out what is asked of whom moves out of the cell. In progress; it changes [RFC-048](/rfcs/rfc-048) §2.
 5. Decisions without an application, such as a revocation, and inputs that belong in a regulation other than the deciding article. Both widen what a cell can decide, and every case after the PoC needs them.
 6. Move the Awb rules out of the reduction and into the Awb, and remove the sphere mechanism.
 
