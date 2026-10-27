@@ -2229,7 +2229,7 @@ fn the_heads_policy_does_not_ask_the_cell_of_another_school() {
     // The binding asks the cell of the head of De Klimop; this one is not
     // asked, so the policy's own term is reached. That term is the finding
     // of the policy's holder, not of this head: it gives none.
-    let profession = json!({ PROFESSION: true }).as_object().unwrap().clone();
+    let profession = object_map(json!({ PROFESSION: true }));
     let e = decide(&mut cell, &app.id, &profession, "2026-10-20").unwrap_err();
     assert!(e.to_string().contains("no judgement was given"), "{e}");
     let e = decide(&mut cell, &app.id, &judgement(true, true), "2026-10-20").unwrap_err();
