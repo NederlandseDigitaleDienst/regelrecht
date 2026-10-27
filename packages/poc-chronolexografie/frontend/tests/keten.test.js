@@ -30,7 +30,8 @@ const reductie = {
   leest: ['geldende_besluiten'],
   vult: null,
   vraagt: [],
-  fragment: '- name: geldende_besluiten\n  source:\n    parameters:\n      basis: fictieve_verordening#2',
+  cel: 'gemeente_wilgendaal',
+  fragmenten: ['- name: geldende_besluiten\n  source:\n    parameters:\n      basis: fictieve_verordening#2', '- output: geldende_besluiten'],
   parameters: { basis: 'fictieve_verordening#2' },
   kinderen: [
     { soort: 'kroniek', besluiten_onder: 'fictieve_verordening#2', executogrammen_van: null, cel: 'gemeente_wilgendaal' },
@@ -47,7 +48,7 @@ const keten = {
   tekst: 'FICTIEF, naar het model van een andere verordening. 1 Het college verleent op aanvraag een vergunning.',
   yaml: 'machine_readable:\n  open_terms: []',
   fictief: true,
-  leest: [],
+  leest: ['verleend'],
   parameters: {},
   kinderen: [
     {
@@ -84,14 +85,34 @@ describe('keten.js', () => {
     expect(korteUitleg(`${'woord '.repeat(60)}eind.`, 30)).toMatch(/^woord( woord)* …$/);
   });
 
-  it('puts each step in words', () => {
-    expect(schakelTekst(keten).tekst).toBe('Verordening (fictief) artikel 2');
-    expect(schakelTekst(reductie).toelichting).toBe('geeft geldende_besluiten · basis: Verordening (fictief) artikel 2');
-    expect(schakelTekst(keten.kinderen[0]).toelichting).toBe('ingevuld door het artikel hieronder');
-    expect(schakelTekst(keten.kinderen[0].kinderen[0]).tekst).toBe('gemeente Wilgendaal: aantal geldig');
-    expect(schakelTekst(keten.kinderen[1]).toelichting).toContain('blijft het leeg');
-    expect(schakelTekst(reductie.kinderen[0]).tekst).toBe('leest de besluiten onder Verordening (fictief) artikel 2');
+  it('gives each step a short heading', () => {
+    expect(schakelTekst(keten, { wortel: true }).tekst).toBe('Verordening art. 2');
+    expect(schakelTekst(reductie).tekst).toBe('Reductie geldende_besluiten');
+    expect(schakelTekst(keten.kinderen[0]).tekst).toBe('Open begrip maximum_bereikt');
+    expect(schakelTekst(keten.kinderen[0].kinderen[0]).tekst).toBe('Antwoord van gemeente Wilgendaal');
+    expect(schakelTekst(reductie.kinderen[0]).tekst).toBe('Kroniek van gemeente Wilgendaal');
     expect(verwijzing('x#5#feit_a')).toBe('feit a (X artikel 5)');
+  });
+
+  it('explains each step by the pattern of its kind, with the names from the YAML', () => {
+    expect(schakelTekst(keten, { wortel: true }).uitleg).toBe(
+      'Dit artikel beslist over de aanvraag en bepaalt verleend. Het college verleent op aanvraag een vergunning. ' +
+        'Het laat één open begrip over aan andere regels: maximum_bereikt.',
+    );
+    expect(schakelTekst(reductie).uitleg).toBe(
+      'Deze reductie leest de kroniek van gemeente Wilgendaal en geeft geldende_besluiten. ' +
+        'De stap erboven geeft basis = Verordening (fictief) artikel 2 mee. Het systeem leest de geldende besluiten.',
+    );
+    expect(schakelTekst(keten.kinderen[0]).uitleg).toBe(
+      'Verordening (fictief) artikel 2 laat dit begrip open. Of het maximum is bereikt. Het artikel hieronder vult het in.',
+    );
+    expect(schakelTekst(keten.kinderen[0].kinderen[0]).uitleg).toContain('geeft het antwoord aantal_geldig uit haar reductie reductie_geldig');
+    expect(schakelTekst(keten.kinderen[1]).uitleg).toContain('blijft het leeg');
+    const vult = { ...reductie, laag: 'UITVOERINGSBELEID', leest: [], parameters: {}, vult: 'maximum_bereikt', vult_in: 'fictieve_verordening#2', vraagt: ['aantal_geldig'], kinderen: [keten.kinderen[0].kinderen[0]] };
+    expect(schakelTekst(vult).uitleg).toBe(
+      'Dit artikel vult het open begrip maximum_bereikt van Verordening (fictief) artikel 2. ' +
+        'Het neemt daarvoor het antwoord aantal_geldig van gemeente Wilgendaal.',
+    );
   });
 });
 
@@ -101,9 +122,9 @@ describe('KetenSchakel', () => {
 
   it('shows every step as a row of the tree, the fictional ones marked', async () => {
     const html = await render(keten, { open: true });
-    expect(html).toContain('Verordening (fictief) artikel 2');
-    expect(html).toContain('maximum bereikt');
-    expect(html).toContain('gemeente Wilgendaal: aantal geldig');
+    expect(html).toContain('Verordening art. 2');
+    expect(html).toContain('Open begrip maximum_bereikt');
+    expect(html).toContain('Antwoord van gemeente Wilgendaal');
     expect(html).toContain('uit de kroniek van gemeente Wilgendaal');
     expect(html.match(/text="fictief"/g)).toHaveLength(2);
     expect(html).toContain('slot="children"');
@@ -112,7 +133,6 @@ describe('KetenSchakel', () => {
   it('opens an article onto its explanation, its file, its YAML and its source', async () => {
     const html = await render(keten, { open: true });
     expect(html).toContain('Het college verleent op aanvraag een vergunning.');
-    expect(html.match(/Het college verleent/g)).toHaveLength(1);
     expect(html).toContain('corpus/regulation/nl/gemeentelijke_verordening/fictieve_verordening/2026-01-01.yaml');
     expect(html).toContain('Volledig artikel');
     expect(html).toContain('href="https://example.org/verordening"');
@@ -146,9 +166,9 @@ describe('the fragment of a step', () => {
   const render = (schakel) =>
     renderToString(createSSRApp({ render: () => h(KetenSchakel, { schakel }) }));
 
-  it('shows under the step without a click, as YAML', async () => {
+  it('shows one YAML panel per block under the step, without a click', async () => {
     const html = await render(reductie);
-    expect(html).toMatch(/<nldd-code-viewer[^>]*language="yaml"/);
+    expect(html.match(/<nldd-code-viewer[^>]*language="yaml"/g)).toHaveLength(2);
     expect(html).toContain('basis: fictieve_verordening#2');
   });
 

@@ -245,12 +245,23 @@ fn stappen(s: &Value) -> Vec<&Value> {
     uit
 }
 
-/// The fragment of the first step of `soort` whose `key` is `waarde`.
-fn fragment<'a>(boom: &'a Value, soort: &str, velden: &[(&str, &str)]) -> &'a str {
+/// The panels of a step, as they stand.
+fn panelen(s: &Value) -> Vec<&str> {
+    s["fragmenten"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect()
+}
+
+/// The panels of the first step of `soort` with the fields `velden`, one
+/// after the other.
+fn fragment(boom: &Value, soort: &str, velden: &[(&str, &str)]) -> String {
     stappen(boom)
         .into_iter()
         .find(|s| s["soort"] == soort && velden.iter().all(|(k, v)| s[*k] == *v))
-        .and_then(|s| s["fragment"].as_str())
+        .map(|s| panelen(s).join("\n"))
         .unwrap_or_default()
 }
 
@@ -281,10 +292,10 @@ fn every_fragment_is_lines_of_its_file_in_order() {
             })
             .collect();
         let mut gezien = 0;
-        for s in stappen(&boom) {
-            let Some(f) = s["fragment"].as_str() else {
-                continue;
-            };
+        for (s, f) in stappen(&boom)
+            .into_iter()
+            .flat_map(|s| panelen(s).into_iter().map(move |f| (s, f)))
+        {
             let bestand = match s["soort"].as_str().unwrap() {
                 "cel" => format!("cells/{}/cel.yaml", s["cel"].as_str().unwrap()),
                 _ => bestanden[&format!(
@@ -349,6 +360,19 @@ fn bedrijfsparkeervergunning_fragments_show_each_link() {
     ] {
         assert!(art5.contains(key), "{key}: {art5}");
     }
+    // One panel per link: what it fills, what it asks, how it sets the term.
+    let panelen_art5: Vec<String> = stappen(&boom)
+        .into_iter()
+        .find(|s| {
+            s["wet"] == "fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal"
+                && s["artikel"] == "5"
+        })
+        .map(|s| panelen(s).into_iter().map(str::to_string).collect())
+        .unwrap();
+    assert_eq!(panelen_art5.len(), 3, "{panelen_art5:#?}");
+    assert!(panelen_art5[0].starts_with("implements:"));
+    assert!(panelen_art5[1].starts_with("- name: antwoord_aantal_geldig"));
+    assert!(panelen_art5[2].starts_with("- output: aantal_geldige_bedrijfsparkeervergunningen"));
     assert_eq!(
         fragment(&boom, "cel", &[("cel", "gemeente_wilgendaal")]),
         "aantal_geldige_bedrijfsparkeervergunningen: reductie_geldige_bedrijfsparkeervergunningen"

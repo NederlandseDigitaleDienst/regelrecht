@@ -66,67 +66,155 @@ export const schakelSleutel = (s, i) =>
 /** Whether a step has steps under it to open. */
 export const heeftKinderen = (s) => (s.kinderen?.length ?? 0) > 0;
 
+/** `tekst` with a capital letter. */
+const hoofd = (tekst) => (tekst ? tekst.charAt(0).toUpperCase() + tekst.slice(1) : '');
+
+/** Sentences as one text: the empty ones left out, each ending in a full stop. */
+const zinnen = (...delen) =>
+  delen
+    .filter(Boolean)
+    .map((z) => (/[.!?…]$/.test(z) ? z : `${z}.`))
+    .join(' ');
+
+/** A parameter value as text: an article reference in words, another as written. */
+const parameterWaarde = (v) => (String(v).includes('#') ? verwijzing(v) : String(v));
+
 /**
- * A step of the chain in words: a label above it (`overline`), a line of text
- * and an explanation. The names that lead to the next step (the open term an
- * article fills, the answer it asks, the output read from it) stay as the
- * YAML writes them, so the eye finds them in the fragment below.
+ * A short heading for an article: a law or AMvB by its name, another layer
+ * by the layer ("Verordening art. 2", "Beleid art. 5"), a reduction by what
+ * it gives.
  */
-export function schakelTekst(s) {
+function artikelKop(s) {
+  if (s.laag === 'REDUCTIE') return `Reductie ${opsomming(s.leest ?? [])}`.trim();
+  const wet = ['WET', 'AMVB'].includes(s.laag) ? wetNaam(s.wet, s.naam) : hoofd(laagNaam(s.laag));
+  return `${wet} art. ${s.artikel}`;
+}
+
+/** The cells under a step that give `antwoord`, by name. */
+const cellenVoor = (s, antwoord) =>
+  (s.kinderen ?? []).filter((k) => k.soort === 'cel' && k.cel && k.antwoord === antwoord).map((k) => celNaam(k.cel));
+
+/** The open terms a step leaves open itself, with who judges them. */
+const eigenBegrippen = (s) => (s.kinderen ?? []).filter((k) => k.soort === 'begrip');
+
+/**
+ * What an article does in the chain, in two or three short sentences, by a
+ * fixed pattern per kind: the article that decides the case, an article that
+ * fills an open term, a reduction, or an article whose output a step above
+ * reads. Only names and text from the YAML fill the pattern.
+ */
+function artikelUitleg(s, wortel) {
+  const eigen = eigenBegrippen(s);
+  if (wortel) {
+    return zinnen(
+      `Dit artikel beslist over de aanvraag en bepaalt ${opsomming(s.leest ?? [])}`,
+      korteUitleg(s.tekst),
+      eigen.length && `Het laat ${eigen.length === 1 ? 'één open begrip' : `${eigen.length} open begrippen`} over aan andere regels: ${opsomming(eigen.map((b) => b.id))}`,
+    );
+  }
+  if (s.laag === 'REDUCTIE') {
+    const mee = Object.entries(s.parameters ?? {}).map(([k, v]) => `${k} = ${parameterWaarde(v)}`);
+    return zinnen(
+      `Deze reductie leest de kroniek van ${celNaam(s.cel)} en geeft ${opsomming(s.leest ?? [])}`,
+      mee.length && `De stap erboven geeft ${opsomming(mee)} mee`,
+      korteUitleg(s.tekst),
+    );
+  }
+  if (s.vult) {
+    const antwoorden = (s.vraagt ?? []).map((a) => {
+      const cellen = cellenVoor(s, a);
+      return `het antwoord ${a}${cellen.length ? ` van ${opsomming(cellen)}` : ''}`;
+    });
+    const zelf = eigen.filter((b) => b.ingevuld_door);
+    return zinnen(
+      `Dit artikel vult het open begrip ${s.vult} van ${verwijzing(s.vult_in)}`,
+      antwoorden.length ? `Het neemt daarvoor ${opsomming(antwoorden)}` : korteUitleg(s.tekst),
+      zelf.length && `Daarnaast laat het ${opsomming(zelf.map((b) => b.id))} open, dat ${zelf[0].ingevuld_door} per geval beoordeelt`,
+    );
+  }
+  return zinnen(
+    s.leest?.length && `Dit artikel geeft ${opsomming(s.leest)}, dat de stap erboven gebruikt`,
+    korteUitleg(s.tekst),
+  );
+}
+
+/**
+ * A step of the chain in words: a label above it (`overline`), a short
+ * heading (`tekst`), the names that lead to the next step (`toelichting`)
+ * and an explanation of two or three sentences (`uitleg`). The names stay as
+ * the YAML writes them, so the eye finds them in the panels below.
+ */
+export function schakelTekst(s, { wortel = false } = {}) {
   switch (s.soort) {
     case 'artikel': {
-      const toelichting = [
+      const namen = [
         s.vult ? `vult ${s.vult}` : '',
         s.vraagt?.length ? `vraagt antwoord ${opsomming(s.vraagt)}` : '',
         s.leest?.length ? `geeft ${opsomming(s.leest)}` : '',
-        ...Object.entries(s.parameters ?? {}).map(
-          ([k, v]) => `${leesbaar(k)}: ${String(v).includes('#') ? verwijzing(v) : v}`,
-        ),
+        ...Object.entries(s.parameters ?? {}).map(([k, v]) => `${leesbaar(k)}: ${parameterWaarde(v)}`),
       ].filter(Boolean);
       return {
-        overline: laagNaam(s.laag),
-        // The name of the version in force, which a later version may change.
-        tekst: `${wetNaam(s.wet, s.naam)} artikel ${s.artikel}`,
-        toelichting: toelichting.join(' · ') || korteUitleg(s.tekst),
+        overline: wortel ? 'besluit op de aanvraag' : laagNaam(s.laag),
+        tekst: artikelKop(s),
+        toelichting: namen.join(' · '),
+        uitleg: artikelUitleg(s, wortel),
       };
     }
     case 'begrip': {
       const n = s.kinderen.length;
-      const toelichting = n
-        ? `ingevuld door ${n === 1 ? 'het artikel' : `${n} artikelen`} hieronder`
-        : s.ingevuld_door
-          ? `per geval beoordeeld door ${s.ingevuld_door}`
-          : 'geen regelwerk van deze casus vult het in';
-      return { overline: 'open begrip', tekst: leesbaar(s.id), toelichting };
+      return {
+        overline: 'open begrip',
+        tekst: `Open begrip ${s.id}`,
+        toelichting: n ? `ingevuld door ${n === 1 ? 'het artikel' : `${n} artikelen`} hieronder` : '',
+        uitleg: zinnen(
+          `${artikelNaam(s.wet, s.artikel)} laat dit begrip open`,
+          s.beschrijving,
+          n
+            ? `${n === 1 ? 'Het artikel' : 'De artikelen'} hieronder ${n === 1 ? 'vult' : 'vullen'} het in`
+            : s.ingevuld_door
+              ? `Geen regel vult het in, dus ${s.ingevuld_door} beoordeelt het per geval`
+              : 'Geen regelwerk van deze casus vult het in',
+        ),
+      };
     }
     case 'cel':
       return s.cel
         ? {
             overline: 'antwoord van een cel',
-            tekst: `${celNaam(s.cel)}: ${leesbaar(s.antwoord)}`,
-            toelichting: `uit ${leesbaar(s.reductie)}`,
+            tekst: `Antwoord van ${celNaam(s.cel)}`,
+            toelichting: `geeft ${s.antwoord}`,
+            uitleg: zinnen(
+              `${hoofd(celNaam(s.cel))} geeft het antwoord ${s.antwoord} uit haar reductie ${s.reductie}`,
+              'Die reductie leest de kroniek van deze cel; welke reductie bij welk antwoord hoort, staat onder answers in haar cel.yaml',
+            ),
           }
         : {
             overline: 'antwoord van een cel',
-            tekst: leesbaar(s.antwoord),
-            toelichting: 'geen cel van deze casus geeft dit antwoord: zonder antwoord blijft het leeg, of neemt de cel het besluit niet',
+            tekst: `Geen cel voor ${s.antwoord}`,
+            toelichting: '',
+            uitleg: zinnen(
+              `Geen cel van deze casus geeft het antwoord ${s.antwoord}`,
+              'Zonder antwoord blijft het leeg, of neemt de cel het besluit niet',
+            ),
           };
     case 'kroniek':
       return {
         overline: 'uit de kroniek',
-        tekst: s.besluiten_onder
-          ? `leest de besluiten onder ${verwijzing(s.besluiten_onder)}`
-          : `leest de executogrammen van ${verwijzing(s.executogrammen_van)}`,
-        toelichting: `uit de kroniek van ${celNaam(s.cel)}`,
+        tekst: `Kroniek van ${celNaam(s.cel)}`,
+        toelichting: '',
+        uitleg: s.besluiten_onder
+          ? zinnen(`De reductie leest de besluiten onder ${verwijzing(s.besluiten_onder)} uit de kroniek van ${celNaam(s.cel)}`)
+          : zinnen(`De reductie leest de vastgelegde feiten ${verwijzing(s.executogrammen_van)} uit de kroniek van ${celNaam(s.cel)}`),
       };
     case 'eerder':
       return {
         overline: 'zie eerder',
         tekst: artikelNaam(s.wet, s.artikel),
-        toelichting: 'dit artikel staat al eerder in de keten; daar staan de stappen eronder',
+        toelichting: '',
+        uitleg: 'Dit artikel staat al eerder in de keten. Daar staan ook de stappen eronder.',
       };
     default:
-      return { overline: '', tekst: s.soort, toelichting: '' };
+      return { overline: '', tekst: s.soort, toelichting: '', uitleg: '' };
   }
 }
 

@@ -30,7 +30,7 @@ use crate::kern::{self, Bron, Cellen, Corpus, Result};
 #[serde(tag = "soort", rename_all = "snake_case")]
 pub enum Schakel {
     /// An article, as the case runs it on the day of the chain.
-    Artikel(Artikel),
+    Artikel(Box<Artikel>),
     /// An open term of the article above it, with the articles that fill it.
     Begrip {
         /// The law and article that declare it.
@@ -42,7 +42,7 @@ pub enum Schakel {
         /// (`decided_per_case_by`).
         ingevuld_door: Option<String>,
         /// Its entry under `open_terms`, as written.
-        fragment: Option<String>,
+        fragmenten: Vec<String>,
         kinderen: Vec<Schakel>,
     },
     /// The cell that gives the answer `antwoord` a policy takes
@@ -56,7 +56,7 @@ pub enum Schakel {
         reductie: Option<String>,
         /// The line of `answers` in the cell's `cel.yaml` that names the
         /// reduction, as written.
-        fragment: Option<String>,
+        fragmenten: Vec<String>,
         kinderen: Vec<Schakel>,
     },
     /// What a reduction reads from the chronicle of the cell `cel`: the
@@ -94,14 +94,19 @@ pub struct Artikel {
     /// an answer of a cell, read the chronicle or pass a literal parameter,
     /// and the actions that set what the step above reads or the open term
     /// it fills.
-    pub fragment: Option<String>,
+    pub fragmenten: Vec<String>,
     /// The outputs the step above reads from it; for the root, the outcome
     /// of the case.
     pub leest: Vec<String>,
-    /// The open term of the step above that it fills.
+    /// The open term of the step above that it fills, and the article that
+    /// declares it (`<law>#<article>`).
     pub vult: Option<String>,
+    pub vult_in: Option<String>,
     /// The answers of a cell it takes (`source.reduction`).
     pub vraagt: Vec<String>,
+    /// The cell on whose chronicle it runs: the case's own, or the cell
+    /// that answers through the reduction above it.
+    pub cel: String,
     /// The literal parameters the step above passes, such as `basis`.
     pub parameters: BTreeMap<String, String>,
     pub kinderen: Vec<Schakel>,
@@ -177,7 +182,7 @@ impl<'a> Keten<'a> {
         given: &BTreeMap<String, String>,
         cel: &str,
         leest: Vec<String>,
-        vult: Option<&str>,
+        vult: Option<(&str, &str)>,
     ) -> Result<Option<Schakel>> {
         let Some(law) = self.law(wet) else {
             return Ok(None);
@@ -205,7 +210,7 @@ impl<'a> Keten<'a> {
         let uitvoer: Vec<String> = leest
             .iter()
             .cloned()
-            .chain(vult.map(str::to_string))
+            .chain(vult.map(|(term, _)| term.to_string()))
             .collect();
         let keuze = Keuze {
             implements: vult.is_some(),
@@ -213,7 +218,9 @@ impl<'a> Keten<'a> {
             begrip: None,
             uitvoer: &uitvoer,
         };
-        let fragment = geschreven.and_then(|y| fragment::van_artikel(y, artikel, &keuze));
+        let fragmenten = geschreven
+            .map(|y| fragment::van_artikel(y, artikel, &keuze))
+            .unwrap_or_default();
         let vraagt = article
             .get_inputs()
             .iter()
@@ -223,7 +230,7 @@ impl<'a> Keten<'a> {
             .corpus
             .bestand_van(&law.id, &law.valid_from)
             .map(str::to_string);
-        Ok(Some(Schakel::Artikel(Artikel {
+        Ok(Some(Schakel::Artikel(Box::new(Artikel {
             wet: law.id.clone(),
             artikel: artikel.to_string(),
             naam: law.name.clone(),
@@ -232,14 +239,16 @@ impl<'a> Keten<'a> {
             url: article.url.clone().or_else(|| law.url.clone()),
             tekst: Some(article.text.clone()).filter(|t| !t.trim().is_empty()),
             yaml,
-            fragment,
+            fragmenten,
             fictief: fictief(law, article),
             leest,
-            vult: vult.map(str::to_string),
+            vult: vult.map(|(term, _)| term.to_string()),
+            vult_in: vult.map(|(_, in_)| in_.to_string()),
+            cel: cel.to_string(),
             vraagt,
             parameters: given.clone(),
             kinderen,
-        })))
+        }))))
     }
 
     /// The open terms of `article`, each with the articles that fill it on
@@ -269,6 +278,7 @@ impl<'a> Keten<'a> {
                         .map(|(l, a)| (l.id.clone(), a.number.clone()))
                         .collect()
                 })?;
+            let waar = format!("{}#{}", law.id, article.number);
             let mut kinderen = Vec::new();
             for (w, a) in &vullers {
                 kinderen.extend(self.artikel(
@@ -277,26 +287,27 @@ impl<'a> Keten<'a> {
                     &BTreeMap::new(),
                     cel,
                     Vec::new(),
-                    Some(&term.id),
+                    Some((&term.id, &waar)),
                 )?);
             }
-            let fragment = self
+            let fragmenten = self
                 .corpus
                 .yaml_van(&law.id, &law.valid_from)
-                .and_then(|y| {
+                .map(|y| {
                     let keuze = Keuze {
                         begrip: Some(&term.id),
                         ..Keuze::default()
                     };
                     fragment::van_artikel(y, &article.number, &keuze)
-                });
+                })
+                .unwrap_or_default();
             uit.push(Schakel::Begrip {
                 wet: law.id.clone(),
                 artikel: article.number.clone(),
                 id: term.id.clone(),
                 beschrijving: term.description.clone(),
                 ingevuld_door: term.decided_per_case_by.clone(),
-                fragment,
+                fragmenten,
                 kinderen,
             });
         }
@@ -465,15 +476,17 @@ impl<'a> Keten<'a> {
                     None,
                 )?);
             }
-            let fragment = self
+            let fragmenten = self
                 .corpus
                 .cel_yaml(&actor)
-                .and_then(|y| fragment::van_catalogus(&y, antwoord));
+                .and_then(|y| fragment::van_catalogus(&y, antwoord))
+                .into_iter()
+                .collect();
             uit.push(Schakel::Cel {
                 cel: Some(actor),
                 antwoord: antwoord.to_string(),
                 reductie: Some(reductie.clone()),
-                fragment,
+                fragmenten,
                 kinderen,
             });
         }
@@ -482,7 +495,7 @@ impl<'a> Keten<'a> {
                 cel: None,
                 antwoord: antwoord.to_string(),
                 reductie: None,
-                fragment: None,
+                fragmenten: Vec::new(),
                 kinderen: Vec::new(),
             });
         }

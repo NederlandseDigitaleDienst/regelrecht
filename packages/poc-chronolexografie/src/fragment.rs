@@ -8,9 +8,9 @@
 //! blank lines are left out of a fragment, and each block loses its own
 //! indentation; every other line is a line of the file.
 
-/// The longest fragment of an article, in lines. A longer one ends with
+/// The longest block of a fragment, in lines. A longer one ends with
 /// [`AFGEKAPT`], and the full article is one click away.
-pub const MAX_REGELS: usize = 40;
+pub const MAX_REGELS: usize = 30;
 
 /// The last line of a fragment that was cut at [`MAX_REGELS`].
 pub const AFGEKAPT: &str = "# … (zie het volledige artikel)";
@@ -126,10 +126,12 @@ pub struct Keuze<'a> {
 
 /// The blocks of the article `number` in `yaml` that `keuze` names, in the
 /// order of [`Keuze`], each as written (an open term without its
-/// `description`); none when it has none of them.
-pub fn van_artikel(yaml: &str, number: &str, keuze: &Keuze<'_>) -> Option<String> {
+/// `description`) and each one panel.
+pub fn van_artikel(yaml: &str, number: &str, keuze: &Keuze<'_>) -> Vec<String> {
     let regels: Vec<&str> = yaml.lines().collect();
-    let (begin, eind) = artikel(&regels, number)?;
+    let Some((begin, eind)) = artikel(&regels, number) else {
+        return Vec::new();
+    };
     let binnen = begin + 1..eind;
     let mut blokken: Vec<Vec<String>> = Vec::new();
     let blok = |i: usize| snede(&regels, i, einde(&regels, i));
@@ -161,15 +163,16 @@ pub fn van_artikel(yaml: &str, number: &str, keuze: &Keuze<'_>) -> Option<String
             blokken.push(blok(i));
         }
     }
-    let mut uit: Vec<String> = blokken.into_iter().flatten().collect();
-    if uit.is_empty() {
-        return None;
-    }
-    if uit.len() > MAX_REGELS {
-        uit.truncate(MAX_REGELS - 1);
-        uit.push(AFGEKAPT.to_string());
-    }
-    Some(uit.join("\n"))
+    blokken
+        .into_iter()
+        .map(|mut blok| {
+            if blok.len() > MAX_REGELS {
+                blok.truncate(MAX_REGELS - 1);
+                blok.push(AFGEKAPT.to_string());
+            }
+            blok.join("\n")
+        })
+        .collect()
 }
 
 /// `blok` without its `description` and what belongs to it: the text
@@ -280,10 +283,12 @@ articles:
             uitvoer: &uitvoer,
         };
         assert_eq!(
-            van_artikel(YAML, "1", &keuze).unwrap(),
-            "implements:\n- law: wet\n  article: '2'\n  open_term: a\n\
-             - name: x\n  type: number\n  source:\n    reduction: antwoord_x\n    parameters:\n      y: $y\n\
-             - output: a\n  value:\n    operation: NOT\n    value: $b"
+            van_artikel(YAML, "1", &keuze),
+            [
+                "implements:\n- law: wet\n  article: '2'\n  open_term: a",
+                "- name: x\n  type: number\n  source:\n    reduction: antwoord_x\n    parameters:\n      y: $y",
+                "- output: a\n  value:\n    operation: NOT\n    value: $b",
+            ]
         );
     }
 
@@ -293,11 +298,8 @@ articles:
             begrip: Some("b"),
             ..Keuze::default()
         };
-        assert_eq!(
-            van_artikel(YAML, "1", &keuze).unwrap(),
-            "- id: b\n  type: boolean"
-        );
-        assert_eq!(van_artikel(YAML, "1", &Keuze::default()), None);
+        assert_eq!(van_artikel(YAML, "1", &keuze), ["- id: b\n  type: boolean"]);
+        assert!(van_artikel(YAML, "1", &Keuze::default()).is_empty());
     }
 
     #[test]
@@ -311,7 +313,7 @@ articles:
             uitvoer: &uitvoer,
             ..Keuze::default()
         };
-        let f = van_artikel(&yaml, "1", &keuze).unwrap();
+        let f = van_artikel(&yaml, "1", &keuze).remove(0);
         assert_eq!(f.lines().count(), MAX_REGELS);
         assert_eq!(f.lines().last(), Some(AFGEKAPT));
     }
