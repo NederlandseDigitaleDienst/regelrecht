@@ -68,7 +68,7 @@ describe('the explanation page', () => {
 
   it.each(steps.filter((s) => s.quote).map((s) => [s.title, s.quote]))(
     '%s quotes the text of its article word for word',
-    (_, { source, artikel, tekst, fictief }) => {
+    (_, { source, artikel, tekst }) => {
       const law = load(readFileSync(join(repo, source), 'utf8'));
       const article = law.articles.find((a) => String(a.number) === artikel);
       // As a reader sees it: one space between words, a link as its text.
@@ -84,7 +84,6 @@ describe('the explanation page', () => {
         expect(found, `${source} art. ${artikel}: ${part}`).toBeGreaterThanOrEqual(0);
         at = found + part.length;
       }
-      expect(text.startsWith('FICTIEF'), `${source} art. ${artikel}`).toBe(!!fictief);
     },
   );
 
@@ -128,6 +127,17 @@ describe('the explanation page', () => {
   });
 });
 
+describe('the text of the page', () => {
+  it('has no em dash or en dash as punctuation, in the data or the component', () => {
+    const quoteLabels = steps.filter((s) => s.quote).map((s) => s.quote.label);
+    const own = [...texts, ...panels.map(([, p]) => p.label), ...quoteLabels];
+    for (const t of own) expect(t, t).not.toMatch(/[—–]/);
+    const template = readFileSync(join(repo, 'packages/poc-chronolexografie/frontend/src/presentation/UitlegPagina.vue'), 'utf8')
+      .split('<template>')[1];
+    expect(template).not.toMatch(/[—–]/);
+  });
+});
+
 describe('the address of the page', () => {
   it('is the page with ?uitleg, beside the paths of the cases', () => {
     expect(asked('?uitleg')).toBe(true);
@@ -157,7 +167,10 @@ describe('the page', () => {
     expect(html).toContain('Naar de casuskeuze');
     expect(html).toContain('<code>aantal_geldige_bedrijfsparkeervergunningen</code>');
     expect(html.match(/<nldd-blockquote lang="nl"/g)).toHaveLength(steps.filter((s) => s.quote).length);
-    expect(html).toContain('verzonnen voor deze PoC');
+    // The portal's strip says the regulation is invented; the page does not repeat it.
+    expect(html).not.toMatch(/verzonnen/i);
+    for (const t of [...texts, ...steps.filter((x) => x.quote).map((x) => x.quote.label)]) expect(t, t).not.toMatch(/fictie/i);
+    expect(html).not.toContain('slot="attribution"');
   });
 });
 

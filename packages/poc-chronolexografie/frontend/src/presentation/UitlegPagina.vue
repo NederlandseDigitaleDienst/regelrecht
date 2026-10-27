@@ -3,7 +3,7 @@
 // (CasusKeuze.vue), that shows with small pieces of YAML how law, policy,
 // cell, reduction and the reduction of the Awb hang together, on one case
 // (uitleg.js). Each step is a section with a heading, the text of the
-// article its open term comes from where there is one, two or three
+// article it rests on where there is one, two or three
 // sentences, and a code viewer per panel. It scrolls; nothing on it opens or closes.
 // The choice screen opens it, and so does an address with `?uitleg`
 // (useUitleg.js); the button at the top goes back to the choice screen, the
@@ -50,12 +50,15 @@ const kortPad = (source) => source.split('/').slice(-3).join('/');
   <nldd-simple-section v-for="(s, i) in steps" :key="s.title">
     <nldd-title slot="header" size="3" heading-level="2" :overline="`Stap ${i + 1} · ${s.overline}`" :text="s.title"></nldd-title>
     <nldd-container gap="12">
-      <!-- The text of the article the open term comes from: law, or the
-           fictional policy, which says so. Text, not YAML, and Dutch. -->
-      <nldd-blockquote v-if="s.quote" lang="nl">
-        <p v-for="(lid, j) in [].concat(s.quote.tekst)" :key="j">{{ lid }}</p>
-        <span slot="attribution">{{ s.quote.label }}{{ s.quote.fictief ? ' (verzonnen voor deze PoC)' : '' }}</span>
-      </nldd-blockquote>
+      <!-- The text of the article the step rests on: text, not YAML, and
+           Dutch. Its source is a plain caption under it; the quote's own
+           attribution slot would put a dash in front. -->
+      <nldd-container v-if="s.quote" gap="4">
+        <nldd-blockquote lang="nl">
+          <p v-for="(lid, j) in [].concat(s.quote.tekst)" :key="j">{{ lid }}</p>
+        </nldd-blockquote>
+        <nldd-text size="sm" color="secondary">{{ s.quote.label }}</nldd-text>
+      </nldd-container>
       <nldd-text v-for="(t, j) in s.text" :key="j">
         <template v-for="(st, k) in stukken(t)" :key="k"><code v-if="st.code">{{ st.code }}</code><template v-else>{{ st.tekst }}</template></template>
       </nldd-text>

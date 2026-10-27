@@ -7,8 +7,9 @@
  *
  * A step that rests on the text of an article starts with that text
  * (`quote`): from `text` of the article `artikel` in `source`, a paragraph
- * or a list of them (one per lid), with `…` where words are left out; a
- * fictional article says so (`fictief`).
+ * or a list of them (one per lid), with `…` where words are left out. That
+ * the regulation is invented, the strip of the portal above every page
+ * says, so the page does not say it again.
  *
  * A panel quotes the corpus: its lines are lines of the file it names under
  * `source`, in order, without comments; `# …` marks lines left out.
@@ -36,7 +37,7 @@ export const intro = {
   overline: 'Uitleg',
   title: 'Hoe het in elkaar zit',
   lead:
-    'Een bedrijf vraagt de fictieve gemeente Wilgendaal om een parkeervergunning. Deze pagina volgt die aanvraag van de regel tot de kroniek: het overzicht waarin de gemeente al haar besluiten bewaart. ' +
+    'Een bedrijf vraagt de gemeente Wilgendaal om een parkeervergunning. Deze pagina volgt die aanvraag van de regel tot de kroniek, het overzicht waarin de gemeente al haar besluiten bewaart. ' +
     'Waar een stap op een artikel rust, staat eerst de tekst van dat artikel. Daarna volgt de YAML die het uitvoerbaar maakt, letterlijk uit de bestanden.',
 };
 
@@ -47,7 +48,6 @@ export const steps = [
     quote: {
       source: VERORDENING,
       artikel: '2',
-      fictief: true,
       label: 'Parkeerverordening Wilgendaal, artikel 2, eerste en tweede lid',
       tekst: [
         '1 Het college verleent op aanvraag een bedrijfsparkeervergunning aan een bedrijf dat in een vergunninggebied is gevestigd.',
@@ -55,8 +55,8 @@ export const steps = [
       ],
     },
     text: [
-      'Een bedrijf krijgt de vergunning als het in een vergunninggebied zit en nog niet het maximum aantal vergunningen heeft. Wat een vergunninggebied is en hoe hoog het maximum is, laat dit artikel open; zulke open begrippen vult een andere regel in.',
-      'Met een uitzonderingsregel, de hardheidsclausule (artikel 6), kan het college het maximum loslaten; dat laat scenario 4 zien.',
+      'Een bedrijf krijgt de vergunning als het in een vergunninggebied zit en nog niet het maximum heeft. Wat een vergunninggebied is en hoe hoog het maximum ligt, zijn open begrippen die een andere regel invult.',
+      'Met de hardheidsclausule, een uitzonderingsregel in artikel 6, kan het college het maximum loslaten, zoals scenario 4 laat zien.',
     ],
     panels: [
       {
@@ -96,7 +96,6 @@ export const steps = [
     quote: {
       source: BESLUIT,
       artikel: '3',
-      fictief: true,
       label: 'Uitvoeringsbesluit parkeren Wilgendaal, artikel 3',
       tekst: [
         '1 Een bedrijf dat in de binnenstad is gevestigd, krijgt ten hoogste twee bedrijfsparkeervergunningen.',
@@ -155,14 +154,13 @@ implements:
     quote: {
       source: BESLUIT,
       artikel: '5',
-      fictief: true,
       label: 'Uitvoeringsbesluit parkeren Wilgendaal, artikel 5',
       tekst:
         'Hoeveel geldige bedrijfsparkeervergunningen het bedrijf op de dag van het besluit heeft (artikel 3), ontleent het college aan het antwoord van zijn eigen cel over zijn eerdere besluiten. Geeft de cel geen antwoord, dan stelt het college het zelf vast.',
     },
     text: [
-      'De gemeente telt haar vergunningen niet met de hand. Ze vraagt het aantal aan haar cel: het systeem dat haar kroniek bijhoudt.',
-      'In de YAML staat die vraag als `source.reduction`: de cel rekent het antwoord uit met een reductie, een rekenregel die de kroniek terugleest.',
+      'Het aantal vraagt de gemeente aan haar cel, het systeem dat haar kroniek bijhoudt.',
+      'In de YAML is dat `source.reduction`. De cel rekent het antwoord uit met een reductie, een rekenregel die de kroniek terugleest.',
     ],
     panels: [
       {
@@ -222,8 +220,8 @@ implements:
     overline: 'Reductie',
     title: 'Reductie telt de vergunningen',
     text: [
-      'De reductie vraagt eerst welke besluiten nog gelden. Dat vraagt ze aan de Awb-reductie (stap 6), en in `basis` noemt ze het artikel: artikel 2 van de verordening.',
-      'Van elk van die besluiten leest ze `bedrijfsparkeervergunning_verleend`, de uitkomst van toen, en zo telt ze de vergunningen van dit bedrijf die op de dag van het besluit nog geldig zijn.',
+      'Eerst vraagt de reductie aan de Awb-reductie uit stap 6 welke besluiten onder artikel 2 van de verordening nog gelden, met dat artikel in `basis`.',
+      'Van elk besluit leest ze `bedrijfsparkeervergunning_verleend`, de uitkomst van toen. Zo telt ze de vergunningen van dit bedrijf die op de dag van het besluit nog gelden.',
     ],
     panels: [
       {
@@ -262,8 +260,8 @@ combine: ADD`,
     overline: 'Reductie zonder cel',
     title: 'Awb-reductie: wat nog geldt',
     text: [
-      'De Algemene wet bestuursrecht (Awb) heeft regels voor elk besluit van de overheid. Deze reductie past die toe op de kroniek van de cel die haar aanroept.',
-      'Een besluit telt niet meer mee als de gemeente het na bezwaar zelf terugdraaide (herroepen, Awb 7:11) of als de rechter het vernietigde (Awb 8:72); een besluit dat ervoor in de plaats kwam telt wel.',
+      'De Algemene wet bestuursrecht (Awb) heeft regels voor elk besluit van de overheid, en deze reductie past die toe op de kroniek van de cel die haar aanroept.',
+      'Een besluit telt niet meer mee als de gemeente het na bezwaar zelf terugdraaide (herroepen, Awb 7:11) of als de rechter het vernietigde (Awb 8:72). Een besluit dat ervoor in de plaats kwam, telt wel.',
     ],
     panels: [
       {
@@ -300,13 +298,12 @@ combine: ADD`,
     quote: {
       source: BESLUIT,
       artikel: '2',
-      fictief: true,
       label: 'Uitvoeringsbesluit parkeren Wilgendaal, artikel 2',
       tekst:
         'Uit het handelsregister van de Kamer van Koophandel moet blijken dat het bedrijf in een vergunninggebied is gevestigd. Het bedrijf is gevestigd in het vergunninggebied waarin het bezoekadres van zijn vestiging ligt, zoals het handelsregister dat op de dag van het besluit vermeldt.',
     },
     text: [
-      'Of het bedrijf in een vergunninggebied zit, blijkt uit het handelsregister. Artikel 4 vraagt daarom de postcode van de vestiging, en het aantal mensen dat er werkt, aan de cel van de Kamer van Koophandel.',
+      'Of het bedrijf in een vergunninggebied zit, blijkt uit het handelsregister. Daarom vraagt artikel 4 de postcode van de vestiging en het aantal mensen dat er werkt aan de cel van de Kamer van Koophandel.',
       'Die cel leest haar eigen inschrijvingen terug.',
     ],
     panels: [
