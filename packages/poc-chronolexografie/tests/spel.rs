@@ -616,13 +616,34 @@ fn antwoord<'a>(besluit: &'a Value, begrip: &str) -> &'a Value {
 /// Apply for a permit for the company `kvk` with the case's example values,
 /// on `datum`, and decide on `beslist`.
 fn bedrijf_vraagt(spel: &mut Spel, kvk: &str, kenteken: &str, datum: &str, beslist: &str) -> Value {
+    bedrijf_vraagt_met(spel, kvk, kenteken, datum, beslist, &Map::new())
+}
+
+/// The college's judgement under the hardship clause (article 6 of the
+/// fictitious ordinance), which the decision asks only at the maximum.
+const HARDHEID: &str = "toepassing_leidt_tot_onaanvaardbare_gevolgen";
+
+/// The college's findings with its judgement under the hardship clause.
+fn hardheid(oordeel: bool) -> Map<String, Value> {
+    map(&json!({ HARDHEID: oordeel }))
+}
+
+/// As [`bedrijf_vraagt`], with the college's `bevindingen`.
+fn bedrijf_vraagt_met(
+    spel: &mut Spel,
+    kvk: &str,
+    kenteken: &str,
+    datum: &str,
+    beslist: &str,
+    bevindingen: &Map<String, Value>,
+) -> Value {
     let casus = spel.casus().unwrap();
     let mut aanvraag = map(&casus["voorbeeld"]["aanvraag"]);
     aanvraag.insert("kvk_nummer".into(), json!(kvk));
     aanvraag.insert("kenteken".into(), json!(kenteken));
     aanvraag.insert("dagtekening".into(), json!(datum));
     let ingediend = spel.aanvragen(&aanvraag, dag(datum)).unwrap();
-    spel.besluiten(ingediend["id"].as_str().unwrap(), &Map::new(), dag(beslist))
+    spel.besluiten(ingediend["id"].as_str().unwrap(), bevindingen, dag(beslist))
         .unwrap()
 }
 
@@ -665,7 +686,7 @@ fn bedrijfsparkeervergunning_a_company_in_the_city_centre_gets_a_permit() {
     assert_eq!(kroniek["andere"][0]["cel"], json!("kamer_van_koophandel"));
     assert_eq!(
         soorten(&kroniek["andere"][0]),
-        ["EXECUTOGRAM", "EXECUTOGRAM", "EXECUTOGRAM"]
+        ["EXECUTOGRAM", "EXECUTOGRAM", "EXECUTOGRAM", "EXECUTOGRAM"]
     );
 }
 
@@ -704,7 +725,14 @@ fn bedrijfsparkeervergunning_the_maximum_in_the_ring_and_a_permit_on_objection()
 
     let eerste = bedrijf_vraagt(&mut spel, KVK, "ZZ-001-Z", "2026-10-13", "2026-10-20");
     assert_eq!(eerste["besluit"]["outputs"][&uitkomst], json!(true));
-    let geweigerd = bedrijf_vraagt(&mut spel, KVK, "ZZ-002-Z", "2026-10-21", "2026-10-22");
+    let geweigerd = bedrijf_vraagt_met(
+        &mut spel,
+        KVK,
+        "ZZ-002-Z",
+        "2026-10-21",
+        "2026-10-22",
+        &hardheid(false),
+    );
     assert_eq!(geweigerd["besluit"]["outputs"][&uitkomst], json!(false));
     assert_eq!(
         antwoord(
@@ -745,7 +773,14 @@ fn bedrijfsparkeervergunning_the_maximum_in_the_ring_and_a_permit_on_objection()
         .unwrap()
         .to_string();
 
-    let derde = bedrijf_vraagt(&mut spel, KVK, "ZZ-003-Z", "2026-12-01", "2026-12-01");
+    let derde = bedrijf_vraagt_met(
+        &mut spel,
+        KVK,
+        "ZZ-003-Z",
+        "2026-12-01",
+        "2026-12-01",
+        &hardheid(false),
+    );
     assert_eq!(derde["besluit"]["outputs"][&uitkomst], json!(false));
     assert_eq!(
         antwoord(&derde, "aantal_geldige_bedrijfsparkeervergunningen"),
@@ -799,7 +834,7 @@ fn bedrijfsparkeervergunning_outside_the_area_and_after_the_move_inside() {
         &json!("7711 AC")
     );
     let kvk = &spel.kroniek().unwrap()["andere"][0];
-    assert_eq!(soorten(kvk).len(), 4);
+    assert_eq!(soorten(kvk).len(), 5);
 }
 
 #[test]
@@ -823,23 +858,213 @@ fn bedrijfsparkeervergunning_a_company_the_register_does_not_know_is_refused() {
 #[test]
 fn bedrijfsparkeervergunning_two_permits_in_the_city_centre_and_no_third() {
     // Article 3, first paragraph, of the fictitious implementing decision:
-    // at most two in the city centre, whatever the number of people.
+    // at most two in the city centre, whatever the number of people. Every
+    // decision gets the college's judgement under the hardship clause; only
+    // the third reaches the maximum and uses it, and an unasked finding
+    // changes nothing.
     let mut spel = spel_met("bedrijfsparkeervergunning");
     let mut verleend = Vec::new();
     for (i, datum) in ["2026-10-13", "2026-10-14", "2026-10-15"]
         .iter()
         .enumerate()
     {
-        let besluit = bedrijf_vraagt(
+        let besluit = bedrijf_vraagt_met(
             &mut spel,
             "99990011",
             &format!("ZZ-00{}-Z", i + 1),
             datum,
             datum,
+            &hardheid(false),
         );
         verleend.push(besluit["besluit"]["outputs"]["bedrijfsparkeervergunning_verleend"].clone());
     }
     assert_eq!(verleend, [json!(true), json!(true), json!(false)]);
+}
+
+/// The home care company in the city centre, which drives to its clients.
+const THUISZORG: &str = "99990044";
+
+/// The first steps of the scenario "Het maximum in de binnenstad, en de
+/// hardheidsclausule na bezwaar": two permits, a third refused at the
+/// maximum, and an objection that names the special circumstance. Gives
+/// the refusal and the objection.
+fn thuiszorg_tot_bezwaar(spel: &mut Spel) -> (Value, Value) {
+    let casus = spel.casus().unwrap();
+    let uitkomst = casus["uitkomst"].as_str().unwrap().to_string();
+    for (kenteken, datum, beslist) in [
+        ("ZZ-001-Z", "2026-10-13", "2026-10-20"),
+        ("ZZ-002-Z", "2026-10-21", "2026-10-22"),
+    ] {
+        let besluit = bedrijf_vraagt(spel, THUISZORG, kenteken, datum, beslist);
+        assert_eq!(
+            besluit["besluit"]["outputs"][&uitkomst],
+            json!(true),
+            "{besluit}"
+        );
+        // Below the maximum the decision asks no judgement under the
+        // hardship clause: the condition stops at the first true.
+        assert!(
+            besluit["besluit"]["fields"].get(HARDHEID).is_none(),
+            "{besluit}"
+        );
+    }
+
+    // The third application reaches the maximum. Only now the preview
+    // shows that the decision asks the college's judgement.
+    let mut aanvraag = map(&casus["voorbeeld"]["aanvraag"]);
+    aanvraag.insert("kvk_nummer".into(), json!(THUISZORG));
+    aanvraag.insert("kenteken".into(), json!("ZZ-003-Z"));
+    aanvraag.insert("dagtekening".into(), json!("2026-10-23"));
+    let derde = spel.aanvragen(&aanvraag, dag("2026-10-23")).unwrap();
+    let derde = derde["id"].as_str().unwrap().to_string();
+    let vooraf = spel
+        .voorvertoning_besluit(&derde, &Map::new(), dag("2026-10-27"))
+        .unwrap();
+    let gevraagd: Vec<&str> = vooraf["stil"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v["naam"].as_str().unwrap())
+        .collect();
+    assert_eq!(gevraagd, [HARDHEID], "{vooraf}");
+    assert_eq!(
+        vooraf["stil"][0]["basis"],
+        json!("fictieve_parkeerverordening_gemeente_wilgendaal#6")
+    );
+    let geweigerd = spel
+        .besluiten(&derde, &hardheid(false), dag("2026-10-27"))
+        .unwrap();
+    assert_eq!(geweigerd["besluit"]["outputs"][&uitkomst], json!(false));
+    assert_eq!(
+        antwoord(&geweigerd, "aantal_geldige_bedrijfsparkeervergunningen"),
+        &json!(2)
+    );
+    // The decision records the college's judgement as a given.
+    assert_eq!(geweigerd["besluit"]["fields"][HARDHEID], json!(false));
+
+    let mut bezwaar = casus["voorbeeld"]["bezwaar"].clone();
+    bezwaar["dagtekening_bezwaar_of_beroepschrift"] = json!("2026-11-01");
+    bezwaar["gronden_bezwaar_of_beroep"] =
+        json!("de wijkverpleging rijdt dagelijks met drie auto's naar cliënten");
+    let bezwaar = spel
+        .bezwaren(
+            geweigerd["besluit"]["id"].as_str().unwrap(),
+            &map(&bezwaar),
+            dag("2026-11-01"),
+        )
+        .unwrap();
+    // At the reconsideration the college judges anew; the form gives what
+    // it judged before.
+    let toets = spel
+        .heroverweging(bezwaar["id"].as_str().unwrap(), dag("2026-11-20"))
+        .unwrap();
+    assert_eq!(toets["ontvankelijk"], json!(true), "{toets}");
+    let opnieuw: Vec<(&str, &Value)> = toets["bevindingen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| (v["naam"].as_str().unwrap(), &v["eerder"]))
+        .collect();
+    assert_eq!(opnieuw, [(HARDHEID, &json!(false))], "{toets}");
+    (geweigerd, bezwaar)
+}
+
+#[test]
+fn bedrijfsparkeervergunning_the_hardship_clause_on_objection_grants_a_third_permit() {
+    // The scenario "Het maximum in de binnenstad, en de hardheidsclausule na
+    // bezwaar". The facts stay the same; on reconsideration (Awb 7:11) the
+    // college judges that the maximum leads to unacceptable consequences
+    // (article 6 of the fictitious ordinance, after article 13 of the
+    // Deventer ordinance). The refusal is revoked, a new decision grants the
+    // permit, and the next application counts three permits.
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let (geweigerd, bezwaar) = thuiszorg_tot_bezwaar(&mut spel);
+    let gegrond = spel
+        .beslissen_op_bezwaar(
+            bezwaar["id"].as_str().unwrap(),
+            &hardheid(true),
+            dag("2026-11-20"),
+        )
+        .unwrap();
+    assert_eq!(
+        gegrond["beslissing"]["outputs"]["bestreden_besluit_herroepen"],
+        json!(true),
+        "{gegrond}"
+    );
+    let nieuw = &gegrond["nieuw_besluit"];
+    assert_eq!(
+        nieuw["outputs"]["bedrijfsparkeervergunning_verleend"],
+        json!(true),
+        "{gegrond}"
+    );
+    assert_eq!(
+        nieuw["outputs"]["vergunning_geldig_tot"],
+        json!("2027-11-19")
+    );
+    // The new decision records the judgement that carries it.
+    assert_eq!(nieuw["fields"][HARDHEID], json!(true), "{nieuw}");
+
+    let vierde = bedrijf_vraagt_met(
+        &mut spel,
+        THUISZORG,
+        "ZZ-004-Z",
+        "2026-12-01",
+        "2026-12-01",
+        &hardheid(false),
+    );
+    assert_eq!(
+        vierde["besluit"]["outputs"]["bedrijfsparkeervergunning_verleend"],
+        json!(false)
+    );
+    assert_eq!(
+        antwoord(&vierde, "aantal_geldige_bedrijfsparkeervergunningen"),
+        &json!(3)
+    );
+    let hoe = spel
+        .hoe_beantwoord(
+            vierde["besluit"]["id"].as_str().unwrap(),
+            "aantal_geldige_bedrijfsparkeervergunningen",
+        )
+        .unwrap();
+    let uitvoer = &hoe["antwoorden"][0]["uitvoer"];
+    assert_eq!(
+        uitvoer["herroepen_besluiten"],
+        json!([geweigerd["besluit"]["id"]])
+    );
+}
+
+#[test]
+fn bedrijfsparkeervergunning_the_hardship_clause_not_applied_leaves_the_refusal() {
+    // The same objection, and the college judges again that the maximum
+    // leads to no unacceptable consequences: unfounded, no new decision, and
+    // the next application counts two permits.
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let (_, bezwaar) = thuiszorg_tot_bezwaar(&mut spel);
+    let ongegrond = spel
+        .beslissen_op_bezwaar(
+            bezwaar["id"].as_str().unwrap(),
+            &hardheid(false),
+            dag("2026-11-20"),
+        )
+        .unwrap();
+    assert_eq!(
+        ongegrond["beslissing"]["outputs"]["bestreden_besluit_herroepen"],
+        json!(false),
+        "{ongegrond}"
+    );
+    assert_eq!(ongegrond["nieuw_besluit"], json!(null));
+    let vierde = bedrijf_vraagt_met(
+        &mut spel,
+        THUISZORG,
+        "ZZ-004-Z",
+        "2026-12-01",
+        "2026-12-01",
+        &hardheid(false),
+    );
+    assert_eq!(
+        antwoord(&vierde, "aantal_geldige_bedrijfsparkeervergunningen"),
+        &json!(2)
+    );
 }
 
 #[test]
@@ -990,6 +1215,7 @@ fn the_log_holds_the_facts_the_other_cells_recorded() {
             kvk.clone(),
             eigen("BESCHIKKING"),
             eigen("AANVRAAG"),
+            kvk.clone(),
             kvk.clone(),
             kvk.clone(),
             kvk

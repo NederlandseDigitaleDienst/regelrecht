@@ -564,6 +564,11 @@ const gehandicaptenparkeerkaart = [
 // those the Chamber of Commerce registered in the case file.
 const RING = '99990022';
 const OUTSIDE = '99990033';
+const HOME_CARE = '99990044';
+// At the maximum the decision asks the college's judgement under the
+// hardship clause (article 6 of the fictitious ordinance); below it, never.
+const CLAUSE = '"toepassing leidt tot onaanvaardbare gevolgen"';
+const NO_HARDSHIP = `Het bedrijf zit op het maximum, dus het formulier vraagt het oordeel van het college over de hardheidsclausule (artikel 6 van de fictieve verordening). Kies Nee bij ${CLAUSE} en klik op Besluit nemen.`;
 const withKvk = (number, rest) => `Verander "kvk nummer" in ${number}${rest}`;
 // The Chamber registers the establishment of `kvk` anew on `date`.
 const register = ({ kvk, postcode, people, date, day, why, seen }) => ({
@@ -618,7 +623,7 @@ const bedrijfsparkeervergunning = [
       decide({
         n: 2,
         date: '2026-10-22',
-        todo: 'Klik bij de tweede aanvraag op Besluit nemen.',
+        todo: `Klik bij de tweede aanvraag op Besluit nemen. ${NO_HARDSHIP}`,
         seen: 'Afgewezen: het bedrijf heeft al één geldige vergunning, en er werkt één persoon. Bij het besluit staat "aantal werkzame personen volgens handelsregister: 1".',
         outcome: 'rejected',
       }),
@@ -651,7 +656,7 @@ const bedrijfsparkeervergunning = [
       decide({
         n: 3,
         title: 'Besluiten op de derde aanvraag',
-        todo: 'Klik op Besluit nemen. Open daarna bij het besluit "Hoe de cel dit beantwoordde".',
+        todo: `${NO_HARDSHIP} Open daarna bij het besluit "Hoe de cel dit beantwoordde".`,
         outcome: 'rejected',
       }),
     ],
@@ -684,6 +689,72 @@ const bedrijfsparkeervergunning = [
         todo: withKvk(OUTSIDE, ' en klik op Aanvraag indienen.'),
       }),
       decide({ n: 2, todo: 'Klik bij de tweede aanvraag op Besluit nemen.', outcome: 'granted' }),
+    ],
+  },
+  {
+    name: 'Het maximum in de binnenstad, en de hardheidsclausule na bezwaar',
+    summary:
+      'Een thuiszorgbedrijf in de binnenstad zit op het maximum, en na bezwaar past het college de hardheidsclausule toe: een oordeel van een mens, dat het nieuwe besluit vastlegt.',
+    steps: [
+      apply({
+        todo: withKvk(HOME_CARE, ' en klik op Aanvraag indienen. Dit thuiszorgbedrijf in de binnenstad rijdt met zijn wijkverpleging naar cliënten.'),
+      }),
+      decide({
+        date: '2026-10-20',
+        todo: 'Klik op Besluit nemen.',
+        seen: 'De vergunning is verleend. Het formulier vroeg geen oordeel: het bedrijf had nog geen vergunning.',
+        outcome: 'granted',
+      }),
+      apply({
+        n: 2,
+        date: '2026-10-21',
+        todo: withKvk(HOME_CARE, ', zet het kenteken op ZZ-002-Z en klik op Aanvraag indienen.'),
+      }),
+      decide({
+        n: 2,
+        date: '2026-10-22',
+        todo: 'Klik bij de tweede aanvraag op Besluit nemen.',
+        seen: 'Ook deze vergunning is verleend. Bij een bedrijf onder het maximum vraagt het formulier niets over de hardheidsclausule: de regel komt daar niet aan toe.',
+        outcome: 'granted',
+      }),
+      apply({
+        n: 3,
+        title: 'Een derde aanvraag indienen',
+        date: '2026-10-23',
+        todo: withKvk(HOME_CARE, ', zet het kenteken op ZZ-003-Z en klik op Aanvraag indienen.'),
+        seen: 'De derde aanvraag staat onder Mijn aanvragen op In behandeling.',
+      }),
+      decide({
+        n: 3,
+        title: 'Besluiten op de derde aanvraag',
+        date: '2026-10-27',
+        todo: `Het bedrijf heeft twee geldige vergunningen, het maximum in de binnenstad. Nu vraagt het formulier het oordeel van het college over de hardheidsclausule (artikel 6 van de fictieve verordening). De engine kan dat oordeel niet uitrekenen, en het bedrijf heeft nog geen bijzondere omstandigheden aangevoerd. Kies Nee bij ${CLAUSE} en klik op Besluit nemen.`,
+        seen: `Afgewezen. Bij het besluit staat ${CLAUSE}: Nee. Dat oordeel staat als gegeven bij het besluit in de kroniek, naast wat de Kamer van Koophandel en de eigen kroniek antwoordden.`,
+        outcome: 'rejected',
+      }),
+      object({
+        date: '2026-11-01',
+        todo: "Zoek de derde aanvraag en klik bij haar besluit op Bezwaar maken. Vul bij \"gronden bezwaar of beroep\" in dat de wijkverpleging dagelijks met drie auto's naar cliënten rijdt, en klik op Bezwaar indienen.",
+      }),
+      decideObjection({
+        date: '2026-11-20',
+        todo: `Klik onder Open bezwaren op Ontvankelijkheid toetsen. Het formulier toont bij ${CLAUSE} wat het college eerder oordeelde: Nee. Bij de heroverweging (Awb 7:11) weegt het college opnieuw af, met de gronden van het bezwaar. Kies Ja en klik op Beslissen op bezwaar.`,
+        seen: 'Gegrond: de weigering is herroepen (Awb 7:11, tweede lid), en een nieuw besluit verleent de vergunning. De feiten zijn dezelfde als bij de weigering. Het nieuwe besluit rust op het oordeel van het college, en legt dat vast.',
+        expect: upheld(),
+      }),
+      apply({
+        n: 4,
+        title: 'Een vierde aanvraag indienen',
+        date: '2026-12-01',
+        todo: withKvk(HOME_CARE, ', zet het kenteken op ZZ-004-Z en klik op Aanvraag indienen.'),
+        seen: 'De vierde aanvraag staat onder Mijn aanvragen op In behandeling.',
+      }),
+      decide({
+        n: 4,
+        title: 'Besluiten op de vierde aanvraag',
+        todo: `Het formulier vraagt het oordeel opnieuw, want het geldt per geval. Kies Nee bij ${CLAUSE} en klik op Besluit nemen. Open daarna bij het besluit "Hoe de cel dit beantwoordde".`,
+        outcome: 'rejected',
+      }),
     ],
   },
 ];

@@ -54,7 +54,7 @@ describe('melding', () => {
         `the policy leaves 'langdurige_loopbeperking_volgens_college' to the authority for this case: ${engine}`,
       ),
     ).toBe(
-      'Het beleid laat "langdurige loopbeperking volgens college" voor deze aanvraag aan het college van burgemeester en wethouders over. Geef die bevinding.',
+      'De regels laten "langdurige loopbeperking volgens college" voor deze aanvraag aan het college van burgemeester en wethouders over. Geef die bevinding.',
     );
     state.casus = null;
   });

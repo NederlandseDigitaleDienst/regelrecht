@@ -1133,8 +1133,10 @@ impl RuleResolver {
             // Scope filtering: check all scope fields on the candidate law against
             // the execution parameters. A scoped regulation (e.g., with gemeente_code
             // or provincie_code) only matches when the execution scope contains the
-            // same value. Unscoped regulations (national) always match.
-            if !Self::matches_scope(law, scope) {
+            // same value. Unscoped regulations (national) always match. The
+            // regulation that declares the term matches too: the scope picks
+            // which regulation applies to a case, and that one already does.
+            if law.id != law_id && !Self::matches_scope(law, scope) {
                 tracing::debug!(
                     candidate = %entry.law_id,
                     "Skipping: scope fields do not match execution parameters"
@@ -3788,6 +3790,77 @@ articles:
         let mut scope = HashMap::new();
         scope.insert(field.to_string(), Value::String(code.to_string()));
         scope
+    }
+
+    /// A scoped regulation fills an open term of its own whatever the scope:
+    /// the scope picks which municipality's regulation applies to a case,
+    /// and a regulation whose article declares the term already applies. A
+    /// hardship clause in a verordening that sets aside one of its own
+    /// articles is such a case.
+    #[test]
+    fn test_find_implementations_a_scoped_law_fills_its_own_term() {
+        let mut resolver = RuleResolver::new();
+        resolver
+            .load_from_yaml(
+                r#"
+$id: verordening_met_hardheidsclausule
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+gemeente_code: 'GM0363'
+articles:
+  - number: '1'
+    text: Het college weigert, tenzij artikel 2 anders bepaalt.
+    machine_readable:
+      open_terms:
+        - id: buiten_toepassing
+          type: boolean
+          required: true
+      execution:
+        output:
+          - name: geweigerd
+            type: boolean
+        actions:
+          - output: geweigerd
+            value:
+              operation: NOT
+              value: $buiten_toepassing
+  - number: '2'
+    text: Het college kan artikel 1 buiten toepassing laten.
+    machine_readable:
+      implements:
+        - law: verordening_met_hardheidsclausule
+          article: '1'
+          open_term: buiten_toepassing
+      execution:
+        output:
+          - name: buiten_toepassing
+            type: boolean
+        actions:
+          - output: buiten_toepassing
+            value: true
+"#,
+            )
+            .unwrap();
+        for scope in [HashMap::new(), scope_of("gemeente_code", "GM0599")] {
+            let found = resolver
+                .find_implementations(
+                    "verordening_met_hardheidsclausule",
+                    "1",
+                    open_term(
+                        &resolver,
+                        "verordening_met_hardheidsclausule",
+                        "1",
+                        "buiten_toepassing",
+                    ),
+                    None,
+                    &scope,
+                )
+                .unwrap()
+                .implementations;
+            assert_eq!(found.len(), 1, "scope {scope:?}");
+            assert_eq!(found[0].1.number, "2");
+        }
     }
 
     /// A waterschapsverordening only implements an open term for its own

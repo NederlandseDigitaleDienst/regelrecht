@@ -63,9 +63,10 @@ voorbeeld:
 # legt bij elke start en reset opnieuw vast wat zij vóór het eerste scenario
 # wist, via de cel zoals elke stap.
 #
-# - De Kamer schreef drie verzonnen bedrijven in, elk met een vestiging: een
+# - De Kamer schreef vier verzonnen bedrijven in, elk met een vestiging: een
 #   bakkerij in de binnenstad (vier werkzame personen), een fietsenmakerij in
-#   de schil (één werkzame persoon) en een adviesbureau buiten de
+#   de schil (één werkzame persoon), een thuiszorgbedrijf in de binnenstad
+#   (twaalf werkzame personen) en een adviesbureau buiten de
 #   vergunninggebieden. Executogrammen van het feit dat artikel 1 van het
 #   fictieve beleid van de Kamer vereist; dat artikel zegt ook wat het bevat.
 #   Elk draagt de dag waarop de Kamer de gegevens opnam.
@@ -93,6 +94,13 @@ andere_cellen:
             postcode: 7713 AA
             aantal_werkzame_personen: 1
             datum_inschrijving: '2026-02-02'
+        - feit: fictief_beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+          datum: 2026-02-16
+          velden:
+            kvk_nummer: '99990044'
+            postcode: 7711 AA
+            aantal_werkzame_personen: 12
+            datum_inschrijving: '2026-02-16'
         - feit: fictief_beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
           datum: 2026-03-02
           velden:
@@ -140,9 +148,12 @@ scenarios:
         Aanvrager, speeldatum 21 oktober 2026: verander het KvK-nummer weer in
         99990022, zet het kenteken op ZZ-002-Z en klik op Aanvraag indienen.
       - >-
-        Bestuursorgaan, speeldatum 22 oktober 2026: klik op Besluit nemen.
-        Afgewezen: in de schil krijgt een bedrijf zoveel vergunningen als er
-        mensen werken, en dat is er één.
+        Bestuursorgaan, speeldatum 22 oktober 2026: het bedrijf zit op het
+        maximum, dus het formulier vraagt het oordeel van het college over de
+        hardheidsclausule (artikel 6). Kies Nee bij "toepassing leidt tot
+        onaanvaardbare gevolgen" en klik op Besluit nemen. Afgewezen: in de
+        schil krijgt een bedrijf zoveel vergunningen als er mensen werken, en
+        dat is er één.
       - >-
         Aanvrager, speeldatum 1 november 2026: klik bij de weigering op Bezwaar
         maken en dan op Bezwaar indienen.
@@ -158,7 +169,8 @@ scenarios:
       - >-
         Aanvrager, speeldatum 1 december 2026: verander het KvK-nummer in
         99990022, zet het kenteken op ZZ-003-Z en klik op Aanvraag indienen.
-        Bestuursorgaan: klik op Besluit nemen.
+        Bestuursorgaan: kies Nee bij "toepassing leidt tot onaanvaardbare
+        gevolgen" en klik op Besluit nemen.
     eind: >-
       Afgewezen: het bedrijf heeft twee geldige vergunningen, en er werken twee
       mensen. Bij het besluit staat "aantal geldige bedrijfsparkeervergunningen:
@@ -195,3 +207,52 @@ scenarios:
       blijft in haar kroniek staan; niets is overschreven. Het eerste besluit
       blijft een weigering: een nieuwe inschrijving verandert geen besluit dat
       al genomen is.
+  - naam: Het maximum in de binnenstad, en de hardheidsclausule na bezwaar
+    stappen:
+      - >-
+        Aanvrager, speeldatum 13 oktober 2026: verander het KvK-nummer in
+        99990044 en klik op Aanvraag indienen. Dit thuiszorgbedrijf in de
+        binnenstad rijdt met zijn wijkverpleging naar cliënten.
+      - >-
+        Bestuursorgaan, speeldatum 20 oktober 2026: klik op Besluit nemen. De
+        vergunning wordt verleend.
+      - >-
+        Aanvrager, speeldatum 21 oktober 2026: verander het KvK-nummer weer in
+        99990044, zet het kenteken op ZZ-002-Z en klik op Aanvraag indienen.
+        Bestuursorgaan, speeldatum 22 oktober 2026: klik op Besluit nemen. Ook
+        deze vergunning wordt verleend, en het formulier vraagt geen oordeel:
+        het bedrijf zit nog onder het maximum.
+      - >-
+        Aanvrager, speeldatum 23 oktober 2026: verander het KvK-nummer in
+        99990044, zet het kenteken op ZZ-003-Z en klik op Aanvraag indienen.
+      - >-
+        Bestuursorgaan, speeldatum 27 oktober 2026: het bedrijf heeft twee
+        geldige vergunningen, het maximum in de binnenstad. Het formulier
+        vraagt nu het oordeel van het college over de hardheidsclausule
+        (artikel 6). Kies Nee bij "toepassing leidt tot onaanvaardbare
+        gevolgen" en klik op Besluit nemen. Afgewezen.
+      - >-
+        Aanvrager, speeldatum 1 november 2026: klik bij de weigering op Bezwaar
+        maken. Vul bij "gronden bezwaar of beroep" in dat de wijkverpleging
+        dagelijks met drie auto's naar cliënten rijdt, en klik op Bezwaar
+        indienen.
+      - >-
+        Bestuursorgaan, speeldatum 20 november 2026: klik op Ontvankelijkheid
+        toetsen. Het formulier toont het oordeel van het primaire besluit
+        (Nee). Het college weegt opnieuw af: kies Ja en klik op Beslissen op
+        bezwaar. Gegrond: de weigering is herroepen en een nieuw besluit
+        verleent de vergunning.
+      - >-
+        Aanvrager, speeldatum 1 december 2026: verander het KvK-nummer in
+        99990044, zet het kenteken op ZZ-004-Z en klik op Aanvraag indienen.
+        Bestuursorgaan: kies Nee bij "toepassing leidt tot onaanvaardbare
+        gevolgen" en klik op Besluit nemen.
+    eind: >-
+      Afgewezen, en bij het besluit staat "aantal geldige
+      bedrijfsparkeervergunningen: 3": de twee eerste vergunningen en het
+      nieuwe besluit uit de beslissing op bezwaar. Onder "Hoe de cel dit
+      beantwoordde" staat de weigering bij "herroepen besluiten" (Awb 7:11,
+      tweede lid). De feiten zijn niet veranderd; het nieuwe besluit rust op
+      het oordeel van het college, en dat staat als gegeven bij het besluit in
+      de kroniek. Een volgende aanvraag vraagt dat oordeel opnieuw: het geldt
+      per geval.

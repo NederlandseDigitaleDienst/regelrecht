@@ -29,10 +29,11 @@ export function stilBegrippen(...oordelen) {
   return { stil, meldStil };
 }
 
-// Wie het laat afweten: een beleid dat het oordeel voor deze aanvraag aan
-// het bestuursorgaan laat (`beleid`), zoals zonder advies van de GGD bij de
-// parkeerkaart, of de cel uit haar kroniek.
+// Wie het laat afweten: een artikel dat het oordeel voor deze aanvraag aan
+// het bestuursorgaan laat (`beleid`), zoals het beleid zonder advies van de
+// GGD bij de parkeerkaart of de hardheidsclausule van de parkeerverordening,
+// of de cel uit haar kroniek.
 export const nietGeweten = (v) =>
   v.beleid
-    ? `${v.basis} · Het beleid laat dit voor deze aanvraag aan ${state.casus.rol} over.`
+    ? `${v.basis} · Dit artikel laat het oordeel voor deze aanvraag aan ${state.casus.rol} over.`
     : `${v.basis} · ${hoofdletter(state.casus.cel_naam)} weet dit niet voor deze aanvraag; ${state.casus.rol} oordeelt.`;
