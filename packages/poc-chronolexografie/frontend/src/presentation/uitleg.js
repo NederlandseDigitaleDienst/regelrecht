@@ -1,144 +1,204 @@
 /**
  * The explanation page (UitlegPagina.vue), as data: one application for a
- * parking card for the disabled at the fictional municipality of Wilgendaal,
- * from the law to the chronicle, step by step. Each step has a short heading,
- * two or three sentences, and one or more panels of YAML.
+ * business parking permit at the fictional municipality of Wilgendaal, from
+ * the rule to the chronicle, step by step, written for a reader who does not
+ * know the law format. Each step has a short heading, two or three
+ * sentences, and one or more panels of YAML.
+ *
+ * A step that rests on the text of an article starts with that text
+ * (`quote`): from `text` of the article `artikel` in `source`, a paragraph
+ * or a list of them (one per lid), with `…` where words are left out; a
+ * fictional article says so (`fictief`).
  *
  * A panel quotes the corpus: its lines are lines of the file it names under
  * `source`, in order, without comments; `# …` marks lines left out.
- * tests/uitleg.test.js checks each one there, so a change in the corpus that
- * this page no longer matches makes the test fail. In a sentence, `name` is
- * code, as in the deck (slides.js).
+ * tests/uitleg.test.js checks the panels and the quotes there, so a change in
+ * the corpus that this page no longer matches makes the test fail. In a
+ * sentence, `name` is code, as in the deck (slides.js).
  */
 
-const BABW = 'corpus/regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw/2026-01-01.yaml';
-const BELEID =
-  'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal/2026-01-01.yaml';
+const VERORDENING =
+  'corpus/regulation/nl/gemeentelijke_verordening/wilgendaal/fictieve_parkeerverordening_gemeente_wilgendaal/2026-01-01.yaml';
+const BESLUIT =
+  'corpus/regulation/nl/uitvoeringsbeleid/fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal/2026-01-01.yaml';
 const CEL = 'corpus/cells/gemeente_wilgendaal/cel.yaml';
 const REDUCTIE =
-  'corpus/cells/gemeente_wilgendaal/reductions/reductie_geldige_gehandicaptenparkeerkaart/2026-01-01.yaml';
+  'corpus/cells/gemeente_wilgendaal/reductions/reductie_geldige_bedrijfsparkeervergunningen/2026-01-01.yaml';
 const AWB = 'corpus/cells/reductions/reductie_algemene_wet_bestuursrecht/2026-01-01.yaml';
-const GGD_CEL = 'corpus/cells/ggd_wilgendaal/cel.yaml';
-const GGD_REDUCTIE = 'corpus/cells/ggd_wilgendaal/reductions/reductie_geneeskundig_advies/2026-01-01.yaml';
+const KVK_CEL = 'corpus/cells/kamer_van_koophandel/cel.yaml';
+const KVK_REDUCTIE =
+  'corpus/cells/kamer_van_koophandel/reductions/reductie_vestiging_in_handelsregister/2026-01-01.yaml';
+
+/** The case the page follows, which the button at the bottom opens. */
+export const casus = 'bedrijfsparkeervergunning';
 
 export const intro = {
   overline: 'Uitleg',
   title: 'Hoe het in elkaar zit',
   lead:
-    'Eén aanvraag voor een gehandicaptenparkeerkaart bij de fictieve gemeente Wilgendaal, van de wet tot de kroniek. ' +
-    'Bij elke stap staat de YAML die de schakel legt, letterlijk uit het corpus.',
+    'Een bedrijf vraagt de fictieve gemeente Wilgendaal om een parkeervergunning. Deze pagina volgt die aanvraag van de regel tot de kroniek. ' +
+    'Bij elke stap staat eerst de tekst van de regel en dan de YAML die de regel uitvoerbaar maakt, letterlijk uit het corpus.',
 };
 
 export const steps = [
   {
-    overline: 'Wet',
-    title: 'BABW art. 49',
+    overline: 'Verordening',
+    title: 'Verordening art. 2',
+    quote: {
+      source: VERORDENING,
+      artikel: '2',
+      fictief: true,
+      label: 'Parkeerverordening Wilgendaal, artikel 2, eerste en tweede lid',
+      tekst: [
+        '1 Het college verleent op aanvraag een bedrijfsparkeervergunning aan een bedrijf dat in een vergunninggebied is gevestigd.',
+        '2 Het college weigert de bedrijfsparkeervergunning als het bedrijf op de dag van het besluit al het maximum aantal geldige bedrijfsparkeervergunningen heeft.',
+      ],
+    },
     text: [
-      'Artikel 49 van het BABW regelt de gehandicaptenparkeerkaart. Het zegt wat een aanvraag bevat en welke uitkomst het besluit vastlegt.',
-      'Het college verstrekt de kaart alleen als het zijn bevoegdheid gebruikt. Wanneer het dat doet, zegt de wet niet: dat is het open begrip `bevoegdheid_tot_verstrekken_gebruikt`.',
+      'Een bedrijf krijgt de vergunning als het in een vergunninggebied zit en nog niet het maximum aantal vergunningen heeft.',
+      'Wat een vergunninggebied is en hoe hoog het maximum is, regelt dit artikel niet zelf. Zulke vragen heten open begrippen: een andere regel vult ze in.',
     ],
     panels: [
       {
-        label: 'De aanvraag en het besluit',
-        source: BABW,
+        label: 'Wat het bedrijf vraagt, en wat het besluit vastlegt',
+        source: VERORDENING,
         code: `produces:
   - type: AANVRAAG
-    requests: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
+    requests: fictieve_parkeerverordening_gemeente_wilgendaal#2
     parameters:
-      - bsn_aanvrager
-      - kaart_als_bestuurder
-      - kaart_als_passagier
+      - kvk_nummer
+      - kenteken
   - type: BESCHIKKING
     decision_type: TOEKENNING
     outputs:
-      - gehandicaptenparkeerkaart_verstrekt
-      - kaart_vermeldt_bestuurder
-      - kaart_vermeldt_passagier
+      - bedrijfsparkeervergunning_verleend
     # …`,
       },
       {
-        label: 'De uitkomst hangt af van het open begrip',
-        source: BABW,
-        code: `- output: gehandicaptenparkeerkaart_verstrekt
+        label:
+          'De uitkomst van dit besluit: krijgt het bedrijf nu een vergunning? De hardheidsclausule (artikel 6) kan het maximum opzij zetten; dat laat scenario 4 zien.',
+        source: VERORDENING,
+        code: `- output: bedrijfsparkeervergunning_verleend
   value:
     operation: AND
     conditions:
-      # …
-      - $bevoegdheid_tot_verstrekken_gebruikt
-      - $gehandicaptenparkeerkaart_mag_worden_afgegeven`,
+      - $bedrijf_gevestigd_in_vergunninggebied
+      - operation: OR
+        conditions:
+          - operation: NOT
+            value: $maximum_bedrijfsparkeervergunningen_bereikt
+          - $weigeringsgrond_buiten_toepassing_gelaten`,
       },
     ],
   },
   {
-    overline: 'Beleid',
-    title: 'Beleid vult de bevoegdheid',
+    overline: 'Uitvoeringsbesluit',
+    title: 'Het maximum per bedrijf',
+    quote: {
+      source: BESLUIT,
+      artikel: '3',
+      fictief: true,
+      label: 'Uitvoeringsbesluit parkeren Wilgendaal, artikel 3',
+      tekst: [
+        '1 Een bedrijf dat in de binnenstad is gevestigd, krijgt ten hoogste twee bedrijfsparkeervergunningen.',
+        '2 Een bedrijf dat in de schil is gevestigd, krijgt er ten hoogste zoveel als het aantal personen dat volgens het handelsregister in het bedrijf werkzaam is.',
+        '3 Het maximum is bereikt als het bedrijf op de dag van het besluit al zoveel geldige bedrijfsparkeervergunningen heeft.',
+      ],
+    },
     text: [
-      'Het fictieve beleid van Wilgendaal vult dat open begrip in artikel 1. Het college gebruikt zijn bevoegdheid niet als de aanvrager al een geldige kaart van het college heeft.',
-      'Of dat zo is, laat ook dit artikel open, als `aanvrager_heeft_geldige_gehandicaptenparkeerkaart`.',
+      'Dit artikel vult het maximum uit de verordening in: twee vergunningen in de binnenstad, en in de schil zoveel als er mensen in het bedrijf werken.',
+      'Hoeveel geldige vergunningen het bedrijf al heeft, is een nieuw open begrip: `aantal_geldige_bedrijfsparkeervergunningen`.',
     ],
     panels: [
       {
-        label: 'Beleid artikel 1: welk begrip het vult, en wat het openlaat',
-        source: BELEID,
+        label: 'Welk begrip het vult, en welk begrip het openlaat',
+        source: BESLUIT,
         code: `open_terms:
-  - id: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+  # …
+  - id: aantal_geldige_bedrijfsparkeervergunningen
+    type: number
+    required: true
     # …
 implements:
-  - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
-    article: '49'
-    open_term: bevoegdheid_tot_verstrekken_gebruikt`,
+  - law: fictieve_parkeerverordening_gemeente_wilgendaal
+    article: '2'
+    open_term: maximum_bedrijfsparkeervergunningen_bereikt`,
       },
       {
-        label: 'Geen kaart als er al een geldige is',
-        source: BELEID,
-        code: `- output: bevoegdheid_tot_verstrekken_gebruikt
-  value:
-    operation: NOT
-    value: $aanvrager_heeft_geldige_gehandicaptenparkeerkaart`,
-      },
-    ],
-  },
-  {
-    overline: 'Beleid',
-    title: 'Beleid vraagt de cel',
-    text: [
-      'Artikel 2 van het beleid vult dat begrip met een antwoord van de cel van de gemeente. Het vraagt dat antwoord met `source.reduction`.',
-      'Geeft de cel geen antwoord, dan stelt het college het zelf vast.',
-    ],
-    panels: [
-      {
-        label: 'Beleid artikel 2: welk begrip het vult',
-        source: BELEID,
-        code: `implements:
-  - law: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
-    article: '1'
-    open_term: aanvrager_heeft_geldige_gehandicaptenparkeerkaart`,
-      },
-      {
-        label: 'Het antwoord van de cel als invoer',
-        source: BELEID,
-        code: `- name: antwoord_geldige_kaart
-  type: boolean
-  nullable: true
-  source:
-    reduction: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
-    parameters:
-      bsn_aanvrager: $bsn_aanvrager
-      besluit_datum: $besluit_datum`,
-      },
-      {
-        label: 'Zonder antwoord beslist het college',
-        source: BELEID,
-        code: `- output: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+        label: 'Het maximum: twee in de binnenstad',
+        source: BESLUIT,
+        code: `- output: maximum_bedrijfsparkeervergunningen
   value:
     operation: IF
     cases:
       - when:
           operation: EQUALS
-          subject: $antwoord_geldige_kaart
+          subject: $vergunninggebied
+          value: binnenstad
+        then: 2
+      # …
+    default: 0`,
+      },
+      {
+        label: 'Bereikt als het bedrijf er al zoveel heeft',
+        source: BESLUIT,
+        code: `- output: maximum_bedrijfsparkeervergunningen_bereikt
+  value:
+    operation: GREATER_THAN_OR_EQUAL
+    subject: $aantal_geldige_bedrijfsparkeervergunningen
+    value: $maximum_bedrijfsparkeervergunningen`,
+      },
+    ],
+  },
+  {
+    overline: 'Uitvoeringsbesluit',
+    title: 'Gemeente vraagt de cel',
+    quote: {
+      source: BESLUIT,
+      artikel: '5',
+      fictief: true,
+      label: 'Uitvoeringsbesluit parkeren Wilgendaal, artikel 5',
+      tekst:
+        'Hoeveel geldige bedrijfsparkeervergunningen het bedrijf op de dag van het besluit heeft (artikel 3), ontleent het college aan het antwoord van zijn eigen cel over zijn eerdere besluiten. Geeft de cel geen antwoord, dan stelt het college het zelf vast.',
+    },
+    text: [
+      'De gemeente telt haar vergunningen niet met de hand. Ze vraagt het aantal aan haar cel: het systeem dat al haar besluiten bewaart in een kroniek.',
+      'In de YAML staat die vraag als `source.reduction`.',
+    ],
+    panels: [
+      {
+        label: 'Welk begrip het vult',
+        source: BESLUIT,
+        code: `implements:
+  - law: fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal
+    article: '3'
+    open_term: aantal_geldige_bedrijfsparkeervergunningen`,
+      },
+      {
+        label: 'De vraag aan de cel',
+        source: BESLUIT,
+        code: `- name: antwoord_aantal_geldig
+  type: number
+  nullable: true
+  source:
+    reduction: aantal_geldige_bedrijfsparkeervergunningen
+    parameters:
+      kvk_nummer: $kvk_nummer
+      besluit_datum: $besluit_datum`,
+      },
+      {
+        label: 'Zonder antwoord van de cel beslist het college',
+        source: BESLUIT,
+        code: `- output: aantal_geldige_bedrijfsparkeervergunningen
+  value:
+    operation: IF
+    cases:
+      - when:
+          operation: EQUALS
+          subject: $antwoord_aantal_geldig
           value: null
-        then: $aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college
-    default: $antwoord_geldige_kaart`,
+        then: $aantal_geldige_bedrijfsparkeervergunningen_volgens_college
+    default: $antwoord_aantal_geldig`,
       },
     ],
   },
@@ -146,30 +206,29 @@ implements:
     overline: 'Cel',
     title: 'Cel geeft het antwoord',
     text: [
-      'De cel is het systeem van de gemeente, met haar eigen kroniek van aanvragen en besluiten.',
-      'In haar `cel.yaml` staat welke reductie dit antwoord geeft.',
+      'Elke cel weet welke vragen zij kan beantwoorden. In haar `cel.yaml` staat welke reductie het antwoord uitrekent.',
+      'Een reductie is een rekenregel die de kroniek van de cel terugleest.',
     ],
     panels: [
       {
         label: 'cel.yaml van de gemeente Wilgendaal',
         source: CEL,
         code: `answers:
-  aanvrager_heeft_geldige_gehandicaptenparkeerkaart: reductie_geldige_gehandicaptenparkeerkaart
-  aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt: reductie_geldige_gehandicaptenparkeerkaart
-  # …`,
+  # …
+  aantal_geldige_bedrijfsparkeervergunningen: reductie_geldige_bedrijfsparkeervergunningen`,
       },
     ],
   },
   {
     overline: 'Reductie',
-    title: 'Reductie zoekt geldige kaart',
+    title: 'Reductie telt de vergunningen',
     text: [
-      'De reductie leest de kroniek van de gemeente terug. Ze vraagt eerst de reductie van de Awb welke besluiten onder BABW art. 49 nog gelden, en geeft daarvoor `basis` mee.',
-      'Onder die besluiten zoekt ze een kaart voor deze aanvrager die op de dag van het besluit nog geldig is.',
+      'De reductie vraagt eerst welke besluiten onder artikel 2 van de verordening nog gelden, en geeft daarvoor `basis` mee.',
+      'Van elk van die besluiten leest ze `bedrijfsparkeervergunning_verleend`, de uitkomst van toen. Zo telt ze de vergunningen van dit bedrijf die vandaag nog geldig zijn.',
     ],
     panels: [
       {
-        label: 'De geldende besluiten onder BABW art. 49',
+        label: 'De besluiten die nog gelden onder verordening artikel 2',
         source: REDUCTIE,
         code: `- name: geldende_besluiten
   type: array
@@ -177,10 +236,10 @@ implements:
     regulation: reductie_algemene_wet_bestuursrecht
     output: geldende_besluiten
     parameters:
-      basis: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49`,
+      basis: fictieve_parkeerverordening_gemeente_wilgendaal#2`,
       },
       {
-        label: 'Een verstrekte kaart voor deze aanvrager',
+        label: 'Tel de eerdere besluiten die dit bedrijf een vergunning gaven',
         source: REDUCTIE,
         code: `operation: FOREACH
 collection: $geldende_besluiten
@@ -189,14 +248,14 @@ filter:
   operation: AND
   conditions:
     - operation: EQUALS
-      subject: $besluit.gehandicaptenparkeerkaart_verstrekt
+      subject: $besluit.bedrijfsparkeervergunning_verleend
       value: true
     - operation: EQUALS
-      subject: $besluit.bsn_aanvrager
-      value: $bsn_aanvrager
+      subject: $besluit.kvk_nummer
+      value: $kvk_nummer
     # …
-body: true
-combine: OR`,
+body: 1
+combine: ADD`,
       },
     ],
   },
@@ -204,8 +263,8 @@ combine: OR`,
     overline: 'Reductie zonder cel',
     title: 'Awb-reductie: wat nog geldt',
     text: [
-      'Deze reductie hoort bij geen cel en werkt voor elk artikel. Ze leest de besluiten onder het artikel dat `basis` noemt, de beslissingen op bezwaar en de uitspraken van de rechter.',
-      'Een besluit dat bij bezwaar is herroepen (Awb 7:11) of door de rechter vernietigd (Awb 8:72), telt niet mee; een besluit dat ervoor in de plaats kwam wel.',
+      'Deze reductie hoort bij geen enkele cel en werkt voor elk artikel. Ze leest de besluiten onder het artikel dat `basis` noemt, de beslissingen op bezwaar en de uitspraken van de rechter.',
+      'Een besluit dat na bezwaar is herroepen (Awb 7:11) of dat de rechter heeft vernietigd (Awb 8:72), telt niet meer mee; een besluit dat ervoor in de plaats kwam wel.',
     ],
     panels: [
       {
@@ -225,7 +284,7 @@ combine: OR`,
     facts: algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak`,
       },
       {
-        label: 'Wat geldt',
+        label: 'Wat geldt: de besluiten die bleven staan en die ervoor in de plaats kwamen',
         source: AWB,
         code: `- output: geldende_besluiten
   value:
@@ -238,40 +297,46 @@ combine: OR`,
   },
   {
     overline: 'Zijtak',
-    title: 'Advies van de GGD',
+    title: 'Vestiging bij de KvK',
+    quote: {
+      source: BESLUIT,
+      artikel: '2',
+      fictief: true,
+      label: 'Uitvoeringsbesluit parkeren Wilgendaal, artikel 2',
+      tekst:
+        'Uit het handelsregister van de Kamer van Koophandel moet blijken dat het bedrijf in een vergunninggebied is gevestigd.',
+    },
     text: [
-      'Of de aanvrager voor een kaart in aanmerking komt, hangt af van een geneeskundig advies. Artikel 7 van het beleid neemt dat advies als antwoord van de cel van de GGD.',
-      'Dat antwoord komt uit een reductie van de GGD, die de vastgelegde adviezen uit haar eigen kroniek leest.',
+      'Of het bedrijf in een vergunninggebied zit, blijkt uit het handelsregister. Artikel 4 vraagt daarom de postcode van de vestiging aan de cel van de Kamer van Koophandel.',
+      'Die cel leest haar eigen inschrijvingen terug.',
     ],
     panels: [
       {
-        label: 'Beleid artikel 7 vraagt de GGD',
-        source: BELEID,
-        code: `- name: antwoord_langdurige_loopbeperking
-  type: boolean
+        label: 'Uitvoeringsbesluit artikel 4: de vraag aan de KvK',
+        source: BESLUIT,
+        code: `- name: antwoord_postcode
+  type: string
   nullable: true
   source:
-    reduction: advies_langdurige_loopbeperking
+    reduction: postcode_vestiging
     parameters:
-      bsn_aanvrager: $bsn_aanvrager
-      dagtekening_aanvraag: $dagtekening_aanvraag
-      datum_afgifte: $datum_afgifte`,
+      kvk_nummer: $kvk_nummer
+      peildatum: $besluit_datum`,
       },
       {
-        label: 'cel.yaml van de GGD Wilgendaal',
-        source: GGD_CEL,
+        label: 'cel.yaml van de Kamer van Koophandel',
+        source: KVK_CEL,
         code: `answers:
-  # …
-  advies_langdurige_loopbeperking: reductie_geneeskundig_advies
+  postcode_vestiging: reductie_vestiging_in_handelsregister
   # …`,
       },
       {
-        label: 'De reductie leest de adviezen',
-        source: GGD_REDUCTIE,
-        code: `- name: adviezen
+        label: 'De reductie leest de inschrijvingen',
+        source: KVK_REDUCTIE,
+        code: `- name: inschrijvingen
   type: array
   source:
-    facts: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht`,
+    facts: fictief_beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven`,
       },
     ],
   },

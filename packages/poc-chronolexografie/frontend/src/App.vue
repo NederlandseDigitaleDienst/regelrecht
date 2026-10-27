@@ -291,7 +291,11 @@ function toTab(id) {
                   ></nldd-button>
                 </nldd-banner>
               </nldd-simple-section>
-              <UitlegPagina v-else-if="uitleg.active.value && !state.casus" @terug="uitleg.close()" />
+              <UitlegPagina
+                v-else-if="uitleg.active.value && !state.casus"
+                @terug="uitleg.close()"
+                @casus="(id) => navigate(() => kiezen(id))"
+              />
               <CasusKeuze
                 v-else-if="!state.casus"
                 @presentatie="presentation.start()"

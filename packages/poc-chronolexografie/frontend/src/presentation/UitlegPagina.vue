@@ -2,15 +2,17 @@
 // The explanation page: a page of the app, built like the choice screen
 // (CasusKeuze.vue), that shows with small pieces of YAML how law, policy,
 // cell, reduction and the reduction of the Awb hang together, on one case
-// (uitleg.js). Each step is a section with a heading, two or three sentences
-// and a code viewer per panel. It scrolls; nothing on it opens or closes.
+// (uitleg.js). Each step is a section with a heading, the text of the
+// article its open term comes from where there is one, two or three
+// sentences, and a code viewer per panel. It scrolls; nothing on it opens or closes.
 // The choice screen opens it, and so does an address with `?uitleg`
-// (useUitleg.js); the button at the top goes back to the choice screen.
+// (useUitleg.js); the button at the top goes back to the choice screen, the
+// one at the bottom opens the case the page follows.
 import { nextTick, onMounted, ref } from 'vue';
-import { intro, steps } from './uitleg.js';
+import { casus, intro, steps } from './uitleg.js';
 import { useUitleg } from './useUitleg.js';
 
-const emit = defineEmits(['terug']);
+const emit = defineEmits(['terug', 'casus']);
 // Opened by a click, the button that opened the page is gone; the focus
 // starts on the way back.
 const terugKnop = ref(null);
@@ -48,6 +50,12 @@ const kortPad = (source) => source.split('/').slice(-3).join('/');
   <nldd-simple-section v-for="(s, i) in steps" :key="s.title">
     <nldd-title slot="header" size="3" heading-level="2" :overline="`Stap ${i + 1} · ${s.overline}`" :text="s.title"></nldd-title>
     <nldd-container gap="12">
+      <!-- The text of the article the open term comes from: law, or the
+           fictional policy, which says so. Text, not YAML, and Dutch. -->
+      <nldd-blockquote v-if="s.quote" lang="nl">
+        <p v-for="(lid, j) in [].concat(s.quote.tekst)" :key="j">{{ lid }}</p>
+        <span slot="attribution">{{ s.quote.label }}{{ s.quote.fictief ? ' (verzonnen voor deze PoC)' : '' }}</span>
+      </nldd-blockquote>
       <nldd-text v-for="(t, j) in s.text" :key="j">
         <template v-for="(st, k) in stukken(t)" :key="k"><code v-if="st.code">{{ st.code }}</code><template v-else>{{ st.tekst }}</template></template>
       </nldd-text>
@@ -58,5 +66,10 @@ const kortPad = (source) => source.split('/').slice(-3).join('/');
         <nldd-code-viewer language="yaml" appearance="box-tinted">{{ p.code }}</nldd-code-viewer>
       </nldd-container>
     </nldd-container>
+  </nldd-simple-section>
+  <nldd-simple-section>
+    <nldd-button-bar>
+      <nldd-button appearance="primary" text="Naar de casus" @click="emit('casus', casus)"></nldd-button>
+    </nldd-button-bar>
   </nldd-simple-section>
 </template>

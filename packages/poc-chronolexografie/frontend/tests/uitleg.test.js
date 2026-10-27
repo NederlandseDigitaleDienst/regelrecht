@@ -1,11 +1,12 @@
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
+import { load } from 'js-yaml';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createSSRApp, h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import UitlegPagina from '../src/presentation/UitlegPagina.vue';
-import { intro, steps } from '../src/presentation/uitleg.js';
+import { casus, intro, steps } from '../src/presentation/uitleg.js';
 import { asked, createUitleg, withParam } from '../src/presentation/useUitleg.js';
 
 const repo = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -65,6 +66,28 @@ describe('the explanation page', () => {
     if (next && indent(next) > startIndent) expect(isMark(code.split('\n').at(-1)), `${source}: ends before ${next.trim()}`).toBe(true);
   });
 
+  it.each(steps.filter((s) => s.quote).map((s) => [s.title, s.quote]))(
+    '%s quotes the text of its article word for word',
+    (_, { source, artikel, tekst, fictief }) => {
+      const law = load(readFileSync(join(repo, source), 'utf8'));
+      const article = law.articles.find((a) => String(a.number) === artikel);
+      // As a reader sees it: one space between words, a link as its text.
+      const plain = (t) =>
+        String(t)
+          .replace(/\[([^\]]+)\]\[[^\]]*\]/g, '$1')
+          .replace(/\s+/g, ' ')
+          .trim();
+      const text = plain(article.text);
+      let at = 0;
+      for (const part of [].concat(tekst).join(' ').split('…').map(plain).filter(Boolean)) {
+        const found = text.indexOf(part, at);
+        expect(found, `${source} art. ${artikel}: ${part}`).toBeGreaterThanOrEqual(0);
+        at = found + part.length;
+      }
+      expect(text.startsWith('FICTIEF'), `${source} art. ${artikel}`).toBe(!!fictief);
+    },
+  );
+
   it.each(panels)('%s is a small piece: 3 to 15 lines, without comments', (_, { code }) => {
     const n = code.split('\n').length;
     expect(n).toBeGreaterThanOrEqual(3);
@@ -93,14 +116,15 @@ describe('the explanation page', () => {
     for (const n of named) expect(all, n).toContain(n.replace(/^source\./, ''));
   });
 
-  it('follows one case, the parking card, from the law to the chronicle', () => {
-    expect(steps[0].title).toBe('BABW art. 49');
+  it('follows one case, the business parking permit, from the rule to the chronicle', () => {
+    expect(steps[0].title).toBe('Verordening art. 2');
+    expect(existsSync(join(repo, 'packages/poc-chronolexografie/casussen', `${casus}.yaml`))).toBe(true);
     const sources = steps.flatMap((s) => s.panels.map((p) => p.source)).join('\n');
     expect(sources).toContain('gemeente_wilgendaal/cel.yaml');
-    expect(sources).toContain('reductie_geldige_gehandicaptenparkeerkaart');
+    expect(sources).toContain('reductie_geldige_bedrijfsparkeervergunningen');
     expect(sources).toContain('reductie_algemene_wet_bestuursrecht');
-    expect(sources).toContain('ggd_wilgendaal');
-    expect(`${texts.join(' ')} ${sources}`).not.toMatch(/oostmeer|cbr|bedrijfsparkeer/i);
+    expect(sources).toContain('kamer_van_koophandel');
+    expect(`${texts.join(' ')} ${sources}`).not.toMatch(/oostmeer|cbr|gehandicapt/i);
   });
 });
 
@@ -127,10 +151,13 @@ describe('the address of the page', () => {
 describe('the page', () => {
   it('is a page of the app: a section per step, a code viewer per panel', async () => {
     const html = await renderToString(createSSRApp({ render: () => h(UitlegPagina) }));
-    expect(html.match(/<nldd-simple-section/g)).toHaveLength(steps.length + 1);
+    expect(html.match(/<nldd-simple-section/g)).toHaveLength(steps.length + 2);
+    expect(html).toContain('Naar de casus');
     expect(html.match(/<nldd-code-viewer[^>]*language="yaml"/g)).toHaveLength(panels.length);
     expect(html).toContain('Naar de casuskeuze');
-    expect(html).toContain('<code>bevoegdheid_tot_verstrekken_gebruikt</code>');
+    expect(html).toContain('<code>aantal_geldige_bedrijfsparkeervergunningen</code>');
+    expect(html.match(/<nldd-blockquote lang="nl"/g)).toHaveLength(steps.filter((s) => s.quote).length);
+    expect(html).toContain('verzonnen voor deze PoC');
   });
 });
 
