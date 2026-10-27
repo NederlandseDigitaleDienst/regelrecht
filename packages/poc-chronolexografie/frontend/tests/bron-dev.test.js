@@ -16,6 +16,30 @@ describe('bronAntwoord', () => {
     expect(JSON.parse(tekst)).toEqual({ naam: 'napp', versie: 'lokaal', bestanden: { 'casussen/c.yaml': 'cel: c' } });
   });
 
+  it('maakt de bron uit een manifest, met de langste map per bestand', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bron-dev-'));
+    const schrijf = (pad, tekst) => {
+      mkdirSync(join(dir, pad, '..'), { recursive: true });
+      writeFileSync(join(dir, pad), tekst);
+    };
+    schrijf(
+      'werk/m/bron.yaml',
+      'wortel: ../..\nmappen:\n  regulation/nl/w: regulation/nl/w\n  cells/c: werk/m/cellen/c\n  cells/c/reductions: werk/m/cellen/c/reducties\n',
+    );
+    schrijf('regulation/nl/w/2026-01-01.yaml', '$id: w');
+    schrijf('werk/m/cellen/c/cel.yaml', 'name: C');
+    schrijf('werk/m/cellen/c/reducties/r/2026-01-01.yaml', '$id: r');
+    schrijf('werk/groot/niet.yaml', 'niet genoemd');
+    const [status, , tekst] = bronAntwoord('napp', { [lokaleEnv('napp')]: join(dir, 'werk/m/bron.yaml') });
+    rmSync(dir, { recursive: true });
+    expect(status).toBe(200);
+    expect(Object.keys(JSON.parse(tekst).bestanden).sort()).toEqual([
+      'cells/c/cel.yaml',
+      'cells/c/reductions/r/2026-01-01.yaml',
+      'regulation/nl/w/2026-01-01.yaml',
+    ]);
+  });
+
   it('zegt zonder POC_BRON_<NAAM> dat de bron niet beschikbaar is', () => {
     expect(lokaleEnv('mijn-bron')).toBe('POC_BRON_MIJN_BRON');
     const [status, , tekst] = bronAntwoord('napp', {});

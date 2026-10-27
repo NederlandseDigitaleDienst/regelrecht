@@ -4170,6 +4170,7 @@ dependencies = [
  "regelrecht-cel",
  "regelrecht-engine",
  "regelrecht-law-model",
+ "regelrecht-poc-portal",
  "serde",
  "serde_json",
  "serde_yaml_ng",

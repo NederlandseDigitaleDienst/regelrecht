@@ -313,24 +313,10 @@ mod tests {
         files
     }
 
-    /// Every YAML file under `dir`, by its path under `dir`, as the portal
-    /// gives a source (packages/poc-portal/src/bron.rs).
-    fn uit_map(dir: &Path) -> BTreeMap<String, String> {
-        fn loop_door(dir: &Path, rel: &Path, uit: &mut BTreeMap<String, String>) {
-            for entry in std::fs::read_dir(dir.join(rel)).unwrap() {
-                let path = entry.unwrap().path();
-                let rel = rel.join(path.file_name().unwrap());
-                if path.is_dir() {
-                    loop_door(dir, &rel, uit);
-                } else if path.extension().is_some_and(|x| x == "yaml" || x == "yml") {
-                    let text = std::fs::read_to_string(&path).unwrap();
-                    uit.insert(rel.to_string_lossy().replace('\\', "/"), text);
-                }
-            }
-        }
-        let mut uit = BTreeMap::new();
-        loop_door(dir, Path::new(""), &mut uit);
-        uit
+    /// A source on disk as the portal gives it: a folder, or a manifest
+    /// (packages/poc-portal/src/bron.rs).
+    fn uit_map(pad: &Path) -> BTreeMap<String, String> {
+        regelrecht_poc_portal::bron::lokaal(pad).unwrap()
     }
 
     /// The Awb of the regelrecht corpus and the reductions of no cell, by
@@ -389,7 +375,7 @@ mod tests {
         assert_eq!(outputs["subsidie_verleend"], serde_json::json!(true));
     }
 
-    /// With `POC_BRON_NAPP` set to a local source folder (as for `just
+    /// With `POC_BRON_NAPP` set to a local source folder or manifest (as for `just
     /// poc-chronolexografie`), every case in it loads and plays its example to
     /// a decision. Without it there is nothing to check.
     #[test]

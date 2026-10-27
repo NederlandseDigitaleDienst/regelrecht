@@ -22,6 +22,11 @@ serde.workspace = true
 serde_json.workspace = true
 serde_yaml_ng.workspace = true
 
+[dev-dependencies]
+# A source as the portal serves it, from a folder or a manifest (the tests in
+# src/bundel.rs).
+regelrecht-poc-portal = { path = "../poc-portal" }
+
 [dependencies.wasm-bindgen]
 version = "0.2"
 optional = true

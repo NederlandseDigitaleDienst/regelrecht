@@ -53,9 +53,13 @@
 #                niet in de build. Het portaal haalt per bron de map `path`
 #                van `branch` op met het token in de env-var `token_env` (de
 #                naam, nooit de waarde) en serveert haar achter het
-#                wachtwoord op /<slug>/bron/<name>. Een nieuwe commit op die
+#                wachtwoord op /<slug>/bron/<name>. `path` mag ook een
+#                manifest zijn (een .yaml-bestand) dat de bron maakt uit
+#                mappen elders op de branch (Manifest in
+#                packages/poc-portal/src/bron.rs). Een nieuwe commit op die
 #                branch staat er na hooguit een minuut, zonder build. Lokaal
-#                neemt de map in POC_BRON_<NAME> de plaats van de branch in,
+#                neemt de map of het manifest in POC_BRON_<NAME> de plaats
+#                van de branch in,
 #                zonder token. Zie de pagina van het poc-portaal in de docs.
 #   tags         INTERN. Korte labels: departement, uitvoerder, het beleidsveld.
 #                Samen wijzen ze het dossier aan, ook waar de publieke helft
@@ -209,8 +213,8 @@ pocs:
         github:
           owner: NederlandseDigitaleDienst
           repo: regelrecht-corpus-NAPP
-          branch: poc/chronolexografie
-          path: chronolexografie
+          branch: integratie/analistenportaal
+          path: werkbank/chronolex/napp/bron.yaml
         token_env: NAPP_CORPUS_TOKEN
     assistent: false
     tags: [Leerplichtwet, BABW, parkeerverordening, AWB, chronolexografie]
