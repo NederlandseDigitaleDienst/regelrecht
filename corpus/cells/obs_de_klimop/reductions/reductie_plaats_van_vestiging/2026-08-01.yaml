@@ -24,7 +24,7 @@ valid_from: '2026-08-01'
 # naar de regio zonder verlofdagen; buiten de cel geeft niemand dit antwoord.
 # Later kan een cel van DUO, met het register van instellingen, dit antwoord
 # geven in plaats van de school; dat is hier niet gebouwd (zie
-# docs/src/content/docs/concepts/chronolexography-open-points.md).
+# docs/src/content/docs/concepts/chronolexography/open-points.md).
 url: https://wetten.overheid.nl/BWBR0049811/2025-08-01#Artikel2
 name: Plaats van vestiging van OBS De Klimop (reductie)
 articles:

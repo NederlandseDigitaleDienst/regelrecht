@@ -65,7 +65,7 @@ export const sidebar: Record<string, SidebarGroup[]> = {
         { text: 'Hooks and Reactive Execution', link: '/concepts/hooks-and-reactive-execution' },
         { text: 'Applications, Decisions and Objections', link: '/concepts/administrative-procedures' },
         { text: 'Chronolexography', link: '/concepts/chronolexography' },
-        { text: 'Open Points in Chronolexography', link: '/concepts/chronolexography-open-points' },
+        { text: 'Open Points in Chronolexography', link: '/concepts/chronolexography/open-points' },
         { text: 'Competent Authority', link: '/concepts/competent-authority' },
       ],
     },
