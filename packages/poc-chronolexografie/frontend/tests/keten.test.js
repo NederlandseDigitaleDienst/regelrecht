@@ -83,10 +83,10 @@ describe('keten.js', () => {
 
   it('puts each step in words', () => {
     expect(schakelTekst(keten).tekst).toBe('Verordening (fictief) artikel 2');
-    expect(schakelTekst(reductie).toelichting).toBe('geeft geldende besluiten · basis: fictieve_verordening#2');
+    expect(schakelTekst(reductie).toelichting).toBe('geeft geldende besluiten · basis: Verordening (fictief) artikel 2');
     expect(schakelTekst(keten.kinderen[0]).toelichting).toBe('ingevuld door het artikel hieronder');
     expect(schakelTekst(keten.kinderen[0].kinderen[0]).tekst).toBe('gemeente Wilgendaal: aantal geldig');
-    expect(schakelTekst(keten.kinderen[1]).toelichting).toContain('lege waarde');
+    expect(schakelTekst(keten.kinderen[1]).toelichting).toContain('blijft het leeg');
     expect(schakelTekst(reductie.kinderen[0]).tekst).toBe('leest de besluiten onder Verordening (fictief) artikel 2');
     expect(verwijzing('x#5#feit_a')).toBe('feit a (X artikel 5)');
   });
@@ -133,5 +133,13 @@ describe('korteUitleg with references', () => {
 describe('korteUitleg on one long word', () => {
   it('keeps every character before the cut', () => {
     expect(korteUitleg('a'.repeat(40), 30)).toBe(`${'a'.repeat(30)} …`);
+  });
+});
+
+describe('korteUitleg on abbreviations', () => {
+  it('keeps "art. 13a" in its sentence', () => {
+    expect(korteUitleg('Het hoofd beslist, bedoeld in art. 13a van de wet. Meer.')).toBe(
+      'Het hoofd beslist, bedoeld in art. 13a van de wet.',
+    );
   });
 });

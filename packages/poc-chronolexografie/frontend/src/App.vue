@@ -4,8 +4,8 @@
 // de reductie, het logboek en de keten van wetten, beleid en reducties, en
 // bij een casus met andere cellen (RFC-052) een achtste voor die cellen, de
 // rechtbank daaronder (RFC-053). Bovenaan de speeldatum, die voor elke stap
-// geldt, een knop die de kroniek terugzet op wat de cel vooraf vastlegde (meestal niets) en een knop terug naar de
-// keuze. Een weigering van de cel
+// geldt, een knop die de kroniek terugzet op wat de cel vooraf vastlegde
+// (meestal niets) en een knop terug naar de keuze. Een weigering van de cel
 // staat in een banner, in het Nederlands; de melding van de cel zelf onder
 // Details. Wat bij de casus hoort (de wet, de cel, wie beslist), komt uit
 // `api.casus`.

@@ -47,7 +47,8 @@ export function korteUitleg(tekst, max = 180) {
     .replace(/\[([^\]]+)\](\[[^\]]*\]|\([^)]*\))/g, '$1')
     .replace(/\s+/g, ' ')
     .trim()
-    .split(/(?<=[.:;])\s+(?=[A-Z0-9])/);
+    // Not after an abbreviation such as "art. 13a" or "nr. 5".
+    .split(/(?<!\b(?:art|nr|jo|bijv|o\.a|lid|onderdeel)\.)(?<=[.:;])\s+(?=[A-Z0-9])/);
   const zin = zinnen.find((z) => !/^FICTIEF\b/.test(z) && z !== 'Geen regelgeving.') ?? '';
   const kaal = zin.replace(/^\d+[a-z]?\s+/, '');
   if (kaal.length <= max) return kaal;
@@ -74,7 +75,9 @@ export function schakelTekst(s) {
     case 'artikel': {
       const toelichting = [
         s.leest?.length ? `geeft ${opsomming(s.leest.map(leesbaar))}` : '',
-        ...Object.entries(s.parameters ?? {}).map(([k, v]) => `${leesbaar(k)}: ${v}`),
+        ...Object.entries(s.parameters ?? {}).map(
+          ([k, v]) => `${leesbaar(k)}: ${String(v).includes('#') ? verwijzing(v) : v}`,
+        ),
       ].filter(Boolean);
       return {
         overline: laagNaam(s.laag),
@@ -88,7 +91,7 @@ export function schakelTekst(s) {
       const toelichting = n
         ? `ingevuld door ${n === 1 ? 'het artikel' : `${n} artikelen`} hieronder`
         : s.ingevuld_door
-          ? `wie beslist vult het in: ${s.ingevuld_door}`
+          ? `per geval beoordeeld door ${s.ingevuld_door}`
           : 'geen regelwerk van deze casus vult het in';
       return { overline: 'open begrip', tekst: leesbaar(s.id), toelichting };
     }
@@ -97,12 +100,12 @@ export function schakelTekst(s) {
         ? {
             overline: 'antwoord van een cel',
             tekst: `${celNaam(s.cel)}: ${leesbaar(s.antwoord)}`,
-            toelichting: `uit de reductie ${s.reductie} (cel.yaml, answers)`,
+            toelichting: `uit de reductie ${leesbaar(s.reductie)}`,
           }
         : {
             overline: 'antwoord van een cel',
             tekst: leesbaar(s.antwoord),
-            toelichting: 'geen cel van deze casus geeft dit antwoord, dus het beleid krijgt een lege waarde',
+            toelichting: 'geen cel van deze casus geeft dit antwoord: zonder antwoord blijft het leeg, of neemt de cel het besluit niet',
           };
     case 'kroniek':
       return {
@@ -114,9 +117,9 @@ export function schakelTekst(s) {
       };
     case 'eerder':
       return {
-        overline: 'zie hierboven',
+        overline: 'zie eerder',
         tekst: artikelNaam(s.wet, s.artikel),
-        toelichting: 'dit artikel staat al hoger in de keten, met de stappen eronder',
+        toelichting: 'dit artikel staat al eerder in de keten; daar staan de stappen eronder',
       };
     default:
       return { overline: '', tekst: s.soort, toelichting: '' };

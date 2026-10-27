@@ -45,7 +45,8 @@ pub enum Schakel {
     /// The cell that gives the answer `antwoord` a policy takes
     /// (`source.reduction`), from its reduction `reductie` (`cel.yaml`,
     /// `answers`). Without a cell of the case that answers, `cel` is none:
-    /// the value is then empty.
+    /// the engine then leaves an input that may be absent empty, and refuses
+    /// the decision for one that may not.
     Cel {
         cel: Option<String>,
         antwoord: String,

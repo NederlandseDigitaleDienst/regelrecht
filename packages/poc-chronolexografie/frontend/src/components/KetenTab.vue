@@ -7,21 +7,26 @@
 import { onMounted, ref, watch } from 'vue';
 import { api } from '../api.js';
 import { state } from '../state.js';
-import { artikelNaam } from '../logboek.js';
-import { bestandPad, korteUitleg, laagNaam } from '../keten.js';
+import { bestandPad, korteUitleg, laagNaam, schakelTekst } from '../keten.js';
 import KetenSchakel from './KetenSchakel.vue';
 
 const keten = ref(null);
 const mislukt = ref(false);
+// Each load counts; a slower load of an earlier date drops its result.
+let verzoek = 0;
 const yaml = ref(null);
 
 // Only fetch, no step: an error of the last step stays where it is. A chain
 // that does not load leaves no tree of another day behind.
 async function laden() {
+  const n = ++verzoek;
   try {
-    keten.value = await api.keten(state.datum);
+    const nieuw = await api.keten(state.datum);
+    if (n !== verzoek) return;
+    keten.value = nieuw;
     mislukt.value = false;
   } catch (e) {
+    if (n !== verzoek) return;
     keten.value = null;
     mislukt.value = true;
     state.fout = e.message;
@@ -38,10 +43,11 @@ watch(() => state.datum, laden);
       <nldd-text slot="supporting-text">
         Van het artikel dat over de aanvraag beslist naar wat de cellen uit hun kroniek lezen. Het
         spel leidt deze keten af uit de regelwerken die de casus laadt, op de speeldatum. Een open
-        begrip staat onder het artikel dat het openlaat, met het beleid dat het invult. Neemt dat
+        begrip staat onder het artikel dat het openlaat, met de regels die het invullen. Neemt
         beleid een antwoord van een cel, dan volgen de cel en haar reductie. Klap een stap open voor
-        uitleg en klik op YAML bekijken voor het artikel zoals het in de corpus staat. Wat de PoC
-        verzon, zoals de verordening, het beleid en de reducties, draagt het label fictief.
+        uitleg en klik op YAML bekijken voor de machine-leesbare uitwerking van het artikel, zoals
+        die in het corpus staat. Elk artikel dat de PoC verzon, zoals elke reductie, draagt het
+        label fictief.
       </nldd-text>
     </nldd-title>
     <nldd-list v-if="keten" type="tree" appearance="box-base" accessible-label="Keten van de casus">
@@ -49,11 +55,11 @@ watch(() => state.datum, laden);
     </nldd-list>
     <nldd-inline-dialog
       v-else-if="mislukt"
-      icon="info"
-      text="De keten kon niet worden opgebouwd"
+      variant="alert"
+      text="Het spel kon de keten niet opbouwen"
       supporting-text="De melding staat bovenaan de pagina. Kies een andere speeldatum om het opnieuw te proberen."
     ></nldd-inline-dialog>
-    <nldd-text v-else size="sm" color="secondary">Even geduld…</nldd-text>
+    <nldd-inline-dialog v-else variant="loading" text="Keten laden"></nldd-inline-dialog>
   </nldd-simple-section>
 
   <Teleport to="body">
@@ -62,7 +68,7 @@ watch(() => state.datum, laden);
         <nldd-container slot="header" padding="16">
           <nldd-top-title-bar
             heading-level="2"
-            :text="yaml ? artikelNaam(yaml.wet, yaml.artikel) : ''"
+            :text="yaml ? schakelTekst(yaml).tekst : ''"
             :supporting-text="yaml ? `${laagNaam(yaml.laag)} · ${bestandPad(yaml.bestand, state.casus?.bron)}` : ''"
             dismiss-text="Sluiten"
           ></nldd-top-title-bar>
