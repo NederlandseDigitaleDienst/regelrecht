@@ -143,8 +143,8 @@ impl Corpus {
     /// The case `casus` on the corpus at `roots` (the repository's
     /// `corpus/`, and for a case from a source that source too) in `files`,
     /// whose regelwerken are `regelwerken`: its cell at `<root>/cells/<cel>`
-    /// of the first root that has it, and what follows from the law
-    /// ([`afleiden`]).
+    /// of the first root that has it, and what follows from the law within
+    /// its corpus ([`afleiden`], [`Regelwerken::voor`]).
     pub fn load(
         files: Arc<dyn Files>,
         roots: &[PathBuf],
@@ -165,6 +165,7 @@ impl Corpus {
             .map(|(a, dir)| Cell::in_memory_from(&*files, &a.cel, dir))
             .collect::<Result<Vec<_>>>()?;
         let cells: Vec<&Cell> = std::iter::once(&cell).chain(&andere).collect();
+        let regelwerken = &regelwerken.voor(&casus)?;
         let afleiding = afleiden(regelwerken, &casus, &cells)?;
         let mut versies = Vec::new();
         let mut geschreven = BTreeMap::new();

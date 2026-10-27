@@ -25,6 +25,8 @@ use std::sync::Arc;
 use regelrecht_cel::{Bundle, Error};
 use serde::{Deserialize, Serialize};
 
+#[cfg(doc)]
+use crate::casus::Casus;
 use crate::casus::{casussen as lees_casussen, Regelwerken};
 use crate::kern::{Corpus, Result};
 
@@ -168,13 +170,13 @@ fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
 }
 
 /// The directories, under the repository root, that the bundle of `alle`
-/// holds: the case files, and per case the directories of the regelwerken
-/// its cell runs and of its own cell and the other cells of its sphere
+/// holds: the case files, and per case its corpus ([`Casus::corpus`]) and
+/// the directories of its own cell and the other cells of its sphere
 /// (RFC-052).
 pub fn mappen(alle: &[Corpus]) -> BTreeSet<String> {
     let mut uit = BTreeSet::from([CASUSSEN.to_string()]);
     for c in alle {
-        uit.extend(c.mappen().map(|m| format!("{CORPUS}/{m}")));
+        uit.extend(c.casus.corpus.iter().map(|m| format!("{CORPUS}/{m}")));
         let cellen =
             std::iter::once(&c.casus.cel).chain(c.casus.andere_cellen.iter().map(|a| &a.cel));
         uit.extend(cellen.map(|cel| format!("{CORPUS}/cells/{cel}")));
@@ -522,9 +524,47 @@ mod tests {
         let tekst = bron.bestanden.remove(awb).unwrap();
         bron.bestanden
             .insert("regulation/nl/wet/awb_kopie/1994-01-01.yaml".into(), tekst);
+        let casus = "casussen/voorbeeld_subsidie.yaml";
+        let tekst = bron.bestanden[casus].replace(
+            "regulation/nl/wet/algemene_wet_bestuursrecht",
+            "regulation/nl/wet/awb_kopie",
+        );
+        bron.bestanden.insert(casus.into(), tekst);
         let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
         assert!(alle.iter().any(|c| c.casus.id == "voorbeeld_subsidie"));
         assert!(standen[0].meldingen.is_empty(), "{:?}", standen[0]);
+    }
+
+    /// The case `voorbeeld_subsidie` of the test source with `wijzig`
+    /// applied to its file: why it did not load.
+    fn fout_van_voorbeeld(wijzig: impl Fn(&str) -> String) -> String {
+        let mut bron = voorbeeld();
+        let casus = "casussen/voorbeeld_subsidie.yaml";
+        let tekst = wijzig(&bron.bestanden[casus]);
+        bron.bestanden.insert(casus.into(), tekst);
+        let (_, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        assert!(standen[0].casussen.is_empty(), "{:?}", standen[0]);
+        standen[0].fouten.join("\n")
+    }
+
+    #[test]
+    fn a_regelwerk_outside_the_corpus_of_a_case_does_not_count() {
+        // The Awb is in the source, but not in the corpus of the case.
+        let fout = fout_van_voorbeeld(|t| {
+            t.replace("  - regulation/nl/wet/algemene_wet_bestuursrecht\n", "")
+        });
+        assert!(fout.contains("BEZWAAR"), "{fout}");
+    }
+
+    #[test]
+    fn an_entry_of_the_corpus_without_a_regelwerk_is_named() {
+        let fout = fout_van_voorbeeld(|t| {
+            t.replace("corpus:\n", "corpus:\n  - regulation/nl/wet/bestaat_niet\n")
+        });
+        assert!(
+            fout.contains("names 'regulation/nl/wet/bestaat_niet', which holds no regelwerk"),
+            "{fout}"
+        );
     }
 
     #[test]
