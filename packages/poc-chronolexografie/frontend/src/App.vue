@@ -28,6 +28,7 @@ import { api } from './api.js';
 import { artikelNaam } from './logboek.js';
 import { melding } from './melding.js';
 import { current, followAddress, navigate, toChoice, unknown } from './navigation.js';
+import { parseRoute } from './route.js';
 import { beginScenario, hervatten, kiezen, state, stap, verversen } from './state.js';
 import AanvragerTab from './components/AanvragerTab.vue';
 import AndereCellenTab from './components/AndereCellenTab.vue';
@@ -69,7 +70,7 @@ watch(() => state.fout, () => (details.value = false));
 onMounted(async () => {
   // A saved game that waits for the cell to load is not overwritten by the
   // address the page opened on; the next reload plays both.
-  const resumed = await hervatten();
+  const resumed = await hervatten(parseRoute(window.location.pathname, import.meta.env.BASE_URL).casus);
   await followAddress(started, { first: resumed !== 'kept' });
 });
 

@@ -31,7 +31,7 @@ describe('saving the game of this tab', () => {
     Object.assign(state, { casus, datum: '2026-11-16', scenario: 'Tweede bezwaar', refusals: ['already replaces'] });
     await verversen();
     Object.assign(state, { casus: null, scenario: null, refusals: [], datum: '' });
-    expect(await hervatten()).toBe('resumed');
+    expect(await hervatten('vakantieverlof')).toBe('resumed');
     expect(state).toMatchObject({
       casus,
       datum: '2026-11-16',
@@ -41,16 +41,30 @@ describe('saving the game of this tab', () => {
   });
 
   it('opens a save from before the guide in free play', async () => {
-    storage.set('poc-spel', JSON.stringify({ spel: {}, datum: '2026-10-20' }));
+    storage.set('poc-spel', JSON.stringify({ casus: 'vakantieverlof', spel: {}, datum: '2026-10-20' }));
     Object.assign(state, { scenario: 'over', refusals: ['over'] });
-    await hervatten();
+    await hervatten('vakantieverlof');
     expect(state).toMatchObject({ casus, datum: '2026-10-20', scenario: null, refusals: [] });
+  });
+
+  it('goes on only at the address of the case it saved, not at the start screen', async () => {
+    // After the closing slide of the deck began a demo scenario, the start
+    // address showed that case again instead of the start screen.
+    Object.assign(state, { casus, datum: '2026-10-20', scenario: 'A' });
+    await verversen();
+    Object.assign(state, { casus: null, scenario: null, datum: '' });
+    expect(await hervatten(null)).toBe('none');
+    expect(state.casus).toBeNull();
+    expect(await hervatten('gehandicaptenparkeerkaart')).toBe('none');
+    expect(state.casus).toBeNull();
+    expect(await hervatten('vakantieverlof')).toBe('resumed');
+    expect(state).toMatchObject({ casus, scenario: 'A' });
   });
 
   it('says whether a game came back, stays saved for the next reload, or is gone', async () => {
     expect(await hervatten()).toBe('none');
     storage.set('poc-spel', '{not json');
-    expect(await hervatten()).toBe('none');
+    expect(await hervatten('vakantieverlof')).toBe('none');
     expect(storage.has('poc-spel')).toBe(false);
   });
 });

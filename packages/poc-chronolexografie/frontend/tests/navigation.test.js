@@ -63,25 +63,7 @@ const flush = async () => {
 // Follow the address once for the whole file, as App.vue does on mounting;
 // the page opens on the choice screen.
 const started = vi.fn();
-beforeAll(async () => {
-  // A tab that was playing, opened on the PoC's root: the game goes on
-  // under its own address.
-  Object.assign(state, { casus, scenario: 'Aanvraag wordt verleend' });
-  await followAddress(started);
-  opened = { calls: [...calls], casus: state.casus, path: location.pathname, entries: [...entries] };
-});
-let opened;
-
-describe('opening the root in a tab that was playing', () => {
-  it('goes on with the game, under its address', () => {
-    expect(opened).toEqual({
-      calls: [],
-      casus,
-      path: '/vakantieverlof/aanvraag-wordt-verleend',
-      entries: [],
-    });
-  });
-});
+beforeAll(() => followAddress(started));
 
 beforeEach(() => {
   unknown.value = null;

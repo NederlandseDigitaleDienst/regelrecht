@@ -84,14 +84,11 @@ function notFound(what) {
  * Returns false when the cell refused a step or a later navigation took
  * over.
  */
-async function follow(started, mine, first) {
+async function follow(started, mine) {
   const route = parseRoute(window.location.pathname, BASE);
   if (route.unknown) return notFound({});
   if (!route.casus) {
-    // The PoC's own root, on opening a tab that was playing (the portal links
-    // there): go on with the game, under its own address. Going back to the
-    // root is going back to the choice screen.
-    if (state.casus && !first) naarKeuze();
+    if (state.casus) naarKeuze();
     return true;
   }
   if (state.casus?.id !== route.casus) {
@@ -120,14 +117,14 @@ async function follow(started, mine, first) {
  * the game is not overwritten.
  */
 export async function followAddress(started, { first = true } = {}) {
-  const play = (opening = false) =>
-    navigate((mine) => follow(started, mine, opening), { replace: true }).catch((e) => {
+  const play = () =>
+    navigate((mine) => follow(started, mine), { replace: true }).catch((e) => {
       state.fout = e.message;
     });
-  window.addEventListener('popstate', () => play());
+  window.addEventListener('popstate', play);
   watch(
     () => [state.casus?.id, state.scenario],
     () => write(),
   );
-  if (first) await play(true);
+  if (first) await play();
 }

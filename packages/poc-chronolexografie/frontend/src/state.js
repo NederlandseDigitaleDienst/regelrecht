@@ -65,6 +65,7 @@ async function bewaar() {
     sessionStorage.setItem(
       SLEUTEL,
       JSON.stringify({
+        casus: state.casus?.id,
         spel: bewaard,
         datum: state.datum,
         scenario: state.scenario,
@@ -93,7 +94,11 @@ const bewaard = () => {
 };
 
 /**
- * Bij het openen: ga verder met het spel dat dit tabblad bewaarde. Neemt de
+ * Bij het openen: ga verder met het spel dat dit tabblad bewaarde, als het
+ * adres de casus `casusId` van dat spel noemt (navigation.js). Op het
+ * startscherm of bij een andere casus blijft het spel bewaard, maar gaat de
+ * app er niet heen: anders sprong het startscherm, na een demo vanaf de
+ * slotdia van het dek, bij elk volgend bezoek door naar die casus. Neemt de
  * cel het niet terug (de wet of de casus veranderde sinds), dan staat dat in
  * de banner en blijft het keuzescherm staan.
  *
@@ -101,11 +106,12 @@ const bewaard = () => {
  * that is gone now) or 'kept' (the cell did not load; the game stays saved
  * for the next reload, and nothing may overwrite it).
  */
-export async function hervatten() {
+export async function hervatten(casusId) {
   const spelTotNu = bewaard();
   if (!spelTotNu) return 'none';
   try {
-    const { spel: bewaardSpel, datum, scenario, refusals } = JSON.parse(spelTotNu);
+    const { casus, spel: bewaardSpel, datum, scenario, refusals } = JSON.parse(spelTotNu);
+    if (!casusId || casus !== casusId) return 'none';
     await openen(await api.herstellen(bewaardSpel), datum, { scenario, refusals });
     return 'resumed';
   } catch (e) {
