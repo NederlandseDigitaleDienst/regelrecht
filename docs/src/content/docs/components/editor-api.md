@@ -234,7 +234,7 @@ just editor-api       # cargo run -p regelrecht-editor-api, no login
 just editor-sso       # same, with a real Keycloak login from .env.sso-local
 ```
 
-`STATIC_DIR` defaults to `static`, relative to `packages/`. For frontend work, `just dev editor` starts this API with a Vite dev server in front of it, logged in against the central Keycloak (it needs `.env.sso-local`). `just dev all` adds a local harvester-admin on port 8001 and points `HARVEST_ADMIN_URL` at it; without it the Corpusinwinning screens answer 503. See [Editor](./frontend).
+`STATIC_DIR` defaults to `static`, relative to `packages/`. The `just` recipes that run this API locally (`editor-api`, `editor-sso`, `dev`) set `CORPUS_REGISTRY_PATH` to the repository's `corpus-registry.yaml` and `STATIC_DIR` to `frontend/public`, where `favorites.json` lives, so a local run loads the same sources and favorites as the image. For frontend work, `just dev editor` starts this API with a Vite dev server in front of it, logged in against the central Keycloak (it needs `.env.sso-local`). `just dev all` adds a local harvester-admin on port 8001 and points `HARVEST_ADMIN_URL` at it; without it the Corpusinwinning screens answer 503. See [Editor](./frontend).
 
 ## Further reading
 

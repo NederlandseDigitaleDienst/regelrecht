@@ -614,9 +614,15 @@ admin-test:
 
 # --- Editor API ---
 
+# The editor-api runs from packages/, where its defaults find no corpus
+# registry and no favorites.json, so a local run started with an empty corpus.
+# Point it at the repository's own files, as the Docker image does
+# (frontend/Dockerfile copies the same two to /app).
+editor_api_paths := "CORPUS_REGISTRY_PATH=../corpus-registry.yaml STATIC_DIR=../frontend/public"
+
 # Run editor API locally
 editor-api:
-    cd packages && cargo run --package regelrecht-editor-api
+    cd packages && {{ editor_api_paths }} cargo run --package regelrecht-editor-api
 
 # Run editor API with real SSO Rijk login (loads .env.sso-local; see auth-and-roles.md)
 editor-sso:
@@ -627,7 +633,7 @@ editor-sso:
         exit 1
     fi
     set -a; . ./.env.sso-local; set +a
-    cd packages && cargo run --package regelrecht-editor-api
+    cd packages && {{ editor_api_paths }} cargo run --package regelrecht-editor-api
 
 # Check editor API Rust code
 editor-api-check:
@@ -836,7 +842,7 @@ dev APP="all":
             # .env.sso-local inside the backgrounded shell so the OIDC /
             # DATABASE_URL / BASE_URL it sets scope to editor-api only.
             dev_start "editor-api (:8000, OIDC)" .dev-editor-api.log \
-              "set -a; . ./.env.sso-local; set +a; cd packages && ${harvest_admin_env}cargo run --package regelrecht-editor-api"
+              "set -a; . ./.env.sso-local; set +a; cd packages && {{ editor_api_paths }} ${harvest_admin_env}cargo run --package regelrecht-editor-api"
             dev_start "editor vite (:${editor_port})" .dev-editor.log \
               "cd frontend && API_PORT=8000 npx vite --port ${editor_port} --strictPort --host 0.0.0.0"
         fi
