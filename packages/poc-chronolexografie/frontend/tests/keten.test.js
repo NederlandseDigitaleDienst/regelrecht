@@ -125,11 +125,14 @@ describe('keten.js', () => {
       ],
     };
     expect(schakelTekst(metEigen).uitleg).toContain(
-      'Daarnaast laat het a_volgens_college en b_volgens_college open; dat beoordeelt per geval het college.',
+      'Daarnaast laat het a_volgens_college en b_volgens_college open. Het college beoordeelt die per geval.',
     );
     expect(schakelTekst(metEigen).uitleg).not.toContain('gevuld open');
     expect(schakelTekst({ soort: 'eerder', wet: 'x', artikel: '4', laag: 'UITVOERINGSBELEID', naam: 'Uitvoeringsbesluit X' }).tekst).toBe(
       'Uitvoeringsbesluit art. 4',
+    );
+    expect(schakelTekst({ ...reductie, laag: 'UITVOERINGSBELEID', naam: 'Begin en einde van het schooljaar (fictief beleid)', artikel: '1' }).tekst).toBe(
+      'Beleid art. 1',
     );
   });
 });

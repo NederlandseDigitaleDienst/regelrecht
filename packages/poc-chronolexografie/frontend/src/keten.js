@@ -87,10 +87,14 @@ const parameterWaarde = (v) => (String(v).includes('#') ? verwijzing(v) : String
 function artikelKop(s) {
   if (s.laag === 'REDUCTIE') return `Reductie ${opsomming(s.leest ?? [])}`.trim();
   // The first word of a lower regelwerk's name tells two of one layer apart
-  // ("Uitvoeringsbesluit art. 2", "Parkeerverordening art. 2").
+  // when it names the kind of regulation ("Uitvoeringsbesluit art. 2",
+  // "Parkeerverordening art. 2"); else the layer does ("Beleid art. 1").
+  const eerste = s.naam?.split(/\s+/)[0] ?? '';
   const wet = ['WET', 'AMVB'].includes(s.laag)
     ? wetNaam(s.wet, s.naam)
-    : (s.naam?.split(/\s+/)[0] ?? hoofd(laagNaam(s.laag)));
+    : /(besluit|verordening|regeling|beleid|regels?)$/i.test(eerste)
+      ? eerste
+      : hoofd(laagNaam(s.laag));
   return `${wet} art. ${s.artikel}`;
 }
 
@@ -140,7 +144,8 @@ function artikelUitleg(s, wortel) {
       `Dit artikel vult het open begrip ${s.vult} van ${verwijzing(s.vult_in)}`,
       antwoorden.length ? `Het neemt daarvoor ${opsomming(antwoorden)}` : korteUitleg(s.tekst, 120),
       ...[...perRechter].map(
-        ([wie, ids]) => `Daarnaast laat het ${opsomming(ids)} open; dat beoordeelt per geval ${wie}`,
+        ([wie, ids]) =>
+          `Daarnaast laat het ${opsomming(ids)} open. ${hoofd(wie)} beoordeelt ${ids.length > 1 ? 'die' : 'dat'} per geval`,
       ),
     );
   }
@@ -184,7 +189,7 @@ export function schakelTekst(s, { wortel = false } = {}) {
           n
             ? `${n === 1 ? 'Het artikel' : 'De artikelen'} hieronder ${n === 1 ? 'vult' : 'vullen'} het in`
             : s.ingevuld_door
-              ? `Geen regel vult het in; dat doet per geval ${s.ingevuld_door}`
+              ? `Geen regel vult het in. ${hoofd(s.ingevuld_door)} beoordeelt het per geval`
               : 'Geen regelwerk van deze casus vult het in',
         ),
       };
@@ -206,7 +211,7 @@ export function schakelTekst(s, { wortel = false } = {}) {
             toelichting: '',
             uitleg: zinnen(
               `Geen cel van deze casus geeft het antwoord ${s.antwoord}`,
-              'Zonder dit antwoord blijft de invoer leeg, of weigert de beslissende cel het besluit',
+              'Zonder dit antwoord blijft de invoer leeg, of kan de cel het besluit niet nemen',
             ),
           };
     case 'kroniek':
