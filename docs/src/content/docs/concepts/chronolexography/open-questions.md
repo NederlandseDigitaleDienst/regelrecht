@@ -15,7 +15,7 @@ Elsewhere:
 The impact column says how far an answer reaches:
 
 - **Foundational**: the answer decides whether chronolexography works between real organizations and with real registers.
-- **High**: the question touches every new case, or it needs a schema change or a large refactor.
+- **High**: the question touches every new case, or it needs a breaking schema change or a large refactor.
 - **Medium**: it limits a case, or needs a small change to the engine or the schema.
 - **Low**: a local choice, or a matter of documentation.
 
@@ -52,13 +52,13 @@ The impact column says how far an answer reaches:
 
 ## Next steps
 
-In order of impact, as of 27 October 2026:
+In order of impact, as of 27 October 2026. Step 6 is a cleanup and comes earlier than its impact suggests, because it stops more cases from copying a pattern. A question that waits for a case to need it comes last.
 
 1. Time and corrections in the chronicle: a second date for the moment that counts in law, and whether a later record replaces an earlier one. One design covers both, since both decide what a replay sees. It needs investigation first and then an RFC.
 2. A source that keeps only its current state. Try a facade on one real register before more cases assume one.
 3. Checking a received copy at its source.
-4. A policy that fills an open term is final. `policy_first` and the fallback to a finding go, and a departure in a single case is the Awb 4:84 question. In progress; it changes [RFC-048](/rfcs/rfc-048) §2.
+4. A policy that fills an open term is final. `policy_first` and the fallback to a finding are removed; a departure in a single case is the Awb 4:84 question. In progress; it changes [RFC-048](/rfcs/rfc-048) §2.
 5. Decisions without an application, such as a revocation, and inputs that belong in a regulation other than the deciding article. Both widen what a cell can decide, and every case after the PoC needs them.
-6. The Awb rules out of the reduction and into the Awb, and the sphere mechanism removed, before more cases copy either.
+6. Move the Awb rules out of the reduction and into the Awb, and remove the sphere mechanism.
 
-After that: one trace for a decision and the cell's answer, release notes for the schema, Awb 4:1 with 4:5 and the motivation requirements ([open questions of the Awb procedure](/concepts/administrative-procedures#open-questions)), and building out the NAPP case. Later: several instances of one category, and a profile of its own for what serves a cell.
+After that: one trace for a decision and the cell's answer, release notes for the schema, and building out the NAPP case. The Awb questions on 4:1 with 4:5 and on the motivation requirements belong there too ([open questions of the Awb procedure](/concepts/administrative-procedures#open-questions)). Later: several instances of one category, and a profile of its own for what serves a cell.
