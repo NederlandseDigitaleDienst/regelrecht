@@ -18,7 +18,6 @@
  * The texts name the buttons and fields as the components label them;
  * change them together.
  */
-import { refused } from './scenarioProgress.js';
 import { hoofdletter, jaNee, leesbaar, longDate } from './state.js';
 
 // What the scenario expects of a step, as warning text.
@@ -152,6 +151,9 @@ export function invoerZin(invoer) {
 export function bouwGids(scenario, casus = null) {
   const geteld = {};
   const feiten = {};
+  // Per kind, the steps the cell decided on and the steps it refused.
+  const besloten = {};
+  const geweigerd = {};
   const uitkomsten = {};
   const steps = scenario.stappen.map((stap) => {
     const kind = KINDS[stap.stap];
@@ -161,7 +163,9 @@ export function bouwGids(scenario, casus = null) {
     // objection count the application and the objection it decides on.
     let doel = stap.op ?? n;
     if (stap.stap === 'bezwaar') doel = stap.op ?? geteld.aanvraag ?? 1;
-    if (stap.stap === 'beroep') doel = stap.op ?? geteld.beslissing_op_bezwaar ?? 1;
+    if (stap.stap === 'beroep') doel = stap.op ?? besloten.beslissing_op_bezwaar ?? 1;
+    if (stap.uitkomst === 'geweigerd') geweigerd[stap.stap] = (geweigerd[stap.stap] ?? 0) + 1;
+    else besloten[stap.stap] = (besloten[stap.stap] ?? 0) + 1;
     const keer = stap.uitkomst ? (uitkomsten[stap.uitkomst] = (uitkomsten[stap.uitkomst] ?? 0) + 1) : 0;
     const keerFeit = stap.feit ? (feiten[feitNaam(stap.feit)] = (feiten[feitNaam(stap.feit)] ?? 0) + 1) : 0;
     let done =
@@ -190,8 +194,9 @@ export function bouwGids(scenario, casus = null) {
         // refused as the step expects, and a decision taken after all
         // departs from the scenario.
         const genomen = done;
-        const weigerde = refused(kind.weigering ?? /$^/);
-        done = (k) => weigerde(k) || genomen(k);
+        const re = kind.weigering ?? /$^/;
+        const keerGeweigerd = geweigerd[stap.stap];
+        done = (k) => k.refusals.filter((m) => re.test(m)).length >= keerGeweigerd || genomen(k);
         expect =
           stap.stap === 'besluit'
             ? expectation((k) => !genomen(k), 'hier hoort de cel de stap te weigeren, zonder besluit')

@@ -36,7 +36,9 @@ const nu = computed(() => {
 export const huidigeStap = () => nu.value;
 
 const bezwaren = () => state.grammen.filter((g) => g.kind === 'BEZWAAR');
-const beslissingen = () => state.grammen.filter((g) => isBesluit(g) && g.basis === bezwaarBasis());
+// The decisions on objection, without those taken again after a judgment.
+const beslissingen = () =>
+  state.grammen.filter((g) => isBesluit(g) && g.basis === bezwaarBasis() && !g.after);
 
 /**
  * Whether `step` acts on `doel`: the application a decision decides, the

@@ -54,10 +54,11 @@ const openBezwaren = computed(() =>
 );
 
 // Per aanvraag de oordelen van het bestuursorgaan. Een schakelaar die uit
-// staat, zegt nee; een begrip dat de cel niet weet, blijft leeg tot het
-// bestuursorgaan oordeelt. Een casus uit een bron speelt haar scenario's als
-// tekst: daar zegt een bevinding zonder voorbeeldwaarde ja, zoals de
-// voorbeeldwaarden altijd deden.
+// staat, zegt nee, behalve bij een bevinding die leeg mag: daar zegt een
+// onaangeraakte schakelaar niets. Een begrip dat de cel niet weet, blijft leeg
+// tot het bestuursorgaan oordeelt. Een casus uit een bron speelt haar
+// scenario's als tekst: daar zegt een bevinding zonder voorbeeldwaarde ja,
+// zoals de voorbeeldwaarden altijd deden.
 const besluitVorm = formulier((id) => scenarioWaarden('besluit', { aanvraag: id }));
 const oordeel = besluitVorm.eigen;
 const uit = () => {
