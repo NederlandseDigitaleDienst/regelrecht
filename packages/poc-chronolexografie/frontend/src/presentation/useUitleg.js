@@ -5,8 +5,9 @@
  * (usePresentation.js): a query parameter leaves the paths of the cases and
  * scenarios (route.js) as they are. Opening adds the parameter, so the
  * address can be shared and back closes the page. Closing goes back when
- * opening added an entry to the history, so back after closing does not land
- * on the same page twice; otherwise it takes the parameter off.
+ * opening added the entry, so back after closing does not land on the same
+ * page twice; otherwise it takes the parameter off. The page shows only on
+ * the choice screen (App.vue).
  *
  * `createUitleg` makes one, for the tests; the app shares one through
  * `useUitleg`.
@@ -30,13 +31,13 @@ export function withParam(href, on) {
 
 export function createUitleg() {
   const active = ref(false);
-  // Whether opening pushed an entry that closing should go back over.
-  let pushed = false;
+  // Whether the choice screen should take the focus back when it returns:
+  // its button that opened the page is gone while the page shows.
+  const terug = ref(false);
 
   // Back and forward open and close it along with the address.
   const onPop = () => {
     active.value = asked(window.location.search);
-    if (!active.value) pushed = false;
   };
 
   let listening = false;
@@ -46,25 +47,25 @@ export function createUitleg() {
     listening = true;
   }
 
-  /** Open the page; from a click it gets an address of its own. */
+  /**
+   * Open the page; from a click it gets an address of its own, an entry
+   * marked as the page's (`uitleg` in its state), so closing can go back over
+   * it, also after back and forward or a reload.
+   */
   function open({ push = true } = {}) {
     listen();
     active.value = true;
     if (push && typeof window !== 'undefined' && !asked(window.location.search)) {
-      window.history.pushState(window.history.state, '', withParam(window.location.href, true));
-      pushed = true;
+      window.history.pushState({ ...window.history.state, uitleg: true }, '', withParam(window.location.href, true));
     }
   }
 
   function close() {
     active.value = false;
+    terug.value = true;
     if (typeof window === 'undefined' || !asked(window.location.search)) return;
-    if (pushed) {
-      pushed = false;
-      window.history.back();
-    } else {
-      window.history.replaceState(window.history.state, '', withParam(window.location.href, false));
-    }
+    if (window.history.state?.uitleg) window.history.back();
+    else window.history.replaceState(window.history.state, '', withParam(window.location.href, false));
   }
 
   /** Open the page when the address asks for it, as on a shared link. */
@@ -73,7 +74,7 @@ export function createUitleg() {
     if (typeof window !== 'undefined' && asked(window.location.search)) open({ push: false });
   }
 
-  return { active, open, close, follow };
+  return { active, terug, open, close, follow, onPop };
 }
 
 let shared = null;

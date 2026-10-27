@@ -6,9 +6,16 @@
 // and a code viewer per panel. It scrolls; nothing on it opens or closes.
 // The choice screen opens it, and so does an address with `?uitleg`
 // (useUitleg.js); the button at the top goes back to the choice screen.
+import { nextTick, onMounted, ref } from 'vue';
 import { intro, steps } from './uitleg.js';
 
 const emit = defineEmits(['terug']);
+// The button that opened the page is gone; the focus starts on the way back.
+const terugKnop = ref(null);
+onMounted(async () => {
+  await nextTick();
+  terugKnop.value?.focus();
+});
 
 /** A sentence in pieces: plain text, and `name` as code. */
 const stukken = (zin) =>
@@ -25,7 +32,7 @@ const kortPad = (source) => source.split('/').slice(-3).join('/');
   <nldd-simple-section>
     <nldd-container gap="16">
       <nldd-button-bar>
-        <nldd-button appearance="neutral-tinted" start-icon="back" text="Naar de casuskeuze" @click="emit('terug')"></nldd-button>
+        <nldd-button ref="terugKnop" appearance="neutral-tinted" start-icon="back" text="Naar de casuskeuze" @click="emit('terug')"></nldd-button>
       </nldd-button-bar>
       <nldd-title size="2" heading-level="1" :overline="intro.overline" :text="intro.title">
         <nldd-text slot="supporting-text">
@@ -41,8 +48,10 @@ const kortPad = (source) => source.split('/').slice(-3).join('/');
         <template v-for="(st, k) in stukken(t)" :key="k"><code v-if="st.code">{{ st.code }}</code><template v-else>{{ st.tekst }}</template></template>
       </nldd-text>
       <nldd-container v-for="p in s.panels" :key="p.label" gap="4">
-        <nldd-code-viewer language="yaml" appearance="box-tinted" :aria-label="p.label">{{ p.code }}</nldd-code-viewer>
-        <nldd-text size="sm" color="secondary">{{ p.label }} · {{ kortPad(p.source) }}</nldd-text>
+        <!-- The caption comes first, so it is read before the code. A file
+             name has no place to break, hence overflow-wrap. -->
+        <nldd-text size="sm" color="secondary" style="overflow-wrap: anywhere">{{ p.label }} · {{ kortPad(p.source) }}</nldd-text>
+        <nldd-code-viewer language="yaml" appearance="box-tinted">{{ p.code }}</nldd-code-viewer>
       </nldd-container>
     </nldd-container>
   </nldd-simple-section>

@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { createSSRApp, h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import UitlegPagina from '../src/presentation/UitlegPagina.vue';
@@ -131,5 +131,83 @@ describe('the page', () => {
     expect(html.match(/<nldd-code-viewer[^>]*language="yaml"/g)).toHaveLength(panels.length);
     expect(html).toContain('Naar de casuskeuze');
     expect(html).toContain('<code>bevoegdheid_tot_verstrekken_gebruikt</code>');
+  });
+});
+
+// A browser history of addresses, enough for useUitleg.js.
+function fakeWindow(start) {
+  const entries = [{ url: start, state: null }];
+  let at = 0;
+  const listeners = [];
+  const w = {
+    get location() {
+      const u = new URL(entries[at].url);
+      return { href: u.href, search: u.search };
+    },
+    history: {
+      get state() {
+        return entries[at].state;
+      },
+      pushState(state, _, url) {
+        entries.splice(at + 1);
+        entries.push({ url, state });
+        at += 1;
+      },
+      replaceState(state, _, url) {
+        entries[at] = { url, state };
+      },
+      back() {
+        at -= 1;
+        listeners.forEach((f) => f());
+      },
+      forward() {
+        at += 1;
+        listeners.forEach((f) => f());
+      },
+    },
+    addEventListener: (type, f) => type === 'popstate' && listeners.push(f),
+    entries,
+  };
+  return w;
+}
+
+describe('the history of the page', () => {
+  afterEach(() => {
+    delete globalThis.window;
+  });
+
+  it('opens on an entry of its own and closes by going back over it', () => {
+    const w = (globalThis.window = fakeWindow('https://x.example/c/'));
+    const u = createUitleg();
+    u.open();
+    expect(w.location.search).toBe('?uitleg');
+    u.close();
+    expect(w.location.search).toBe('');
+    expect(w.entries).toHaveLength(2);
+    expect(u.active.value).toBe(false);
+  });
+
+  it('closes by going back also after back and forward', () => {
+    const w = (globalThis.window = fakeWindow('https://x.example/c/'));
+    const u = createUitleg();
+    u.open();
+    w.history.back();
+    expect(u.active.value).toBe(false);
+    w.history.forward();
+    expect(u.active.value).toBe(true);
+    u.close();
+    expect(w.location.search).toBe('');
+    expect(w.entries[1].url).toContain('?uitleg');
+  });
+
+  it('takes the parameter off when the page opened from a shared link', () => {
+    const w = (globalThis.window = fakeWindow('https://x.example/c/?uitleg'));
+    const u = createUitleg();
+    u.follow();
+    expect(u.active.value).toBe(true);
+    u.close();
+    expect(w.entries).toHaveLength(1);
+    expect(w.location.search).toBe('');
+    expect(u.terug.value).toBe(true);
   });
 });

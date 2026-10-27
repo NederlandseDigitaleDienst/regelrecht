@@ -204,12 +204,12 @@ combine: OR`,
     overline: 'Reductie zonder cel',
     title: 'Awb-reductie: wat nog geldt',
     text: [
-      'Deze reductie hoort bij geen cel en werkt voor elk artikel. Ze leest de besluiten onder het artikel dat `basis` noemt, en de beslissingen op bezwaar.',
+      'Deze reductie hoort bij geen cel en werkt voor elk artikel. Ze leest de besluiten onder het artikel dat `basis` noemt, de beslissingen op bezwaar en de uitspraken van de rechter.',
       'Een besluit dat bij bezwaar is herroepen (Awb 7:11) of door de rechter vernietigd (Awb 8:72), telt niet mee; een besluit dat ervoor in de plaats kwam wel.',
     ],
     panels: [
       {
-        label: 'Uit de kroniek: de besluiten onder basis',
+        label: 'Uit de kroniek: besluiten, bezwaar en uitspraken',
         source: AWB,
         code: `- name: besluiten
   type: array
@@ -218,7 +218,11 @@ combine: OR`,
 - name: beslissingen_op_bezwaar
   type: array
   source:
-    decisions: algemene_wet_bestuursrecht#7:11`,
+    decisions: algemene_wet_bestuursrecht#7:11
+- name: uitspraken
+  type: array
+  source:
+    facts: algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak`,
       },
       {
         label: 'Wat geldt',
