@@ -322,6 +322,11 @@ impl Spel {
         ok(self.met(|c, cell| kern::reducties(c, cell, datum))?)
     }
 
+    /// The chain of the chosen case on `datum` ([`crate::keten`]).
+    pub fn keten(&mut self, datum: NaiveDate) -> Antwoord {
+        ok(self.met(|c, cell| crate::keten::van_de_casus(c, cell, datum))?)
+    }
+
     pub fn logboek(&mut self) -> Antwoord {
         ok(self.met(|c, cell| Ok(json!({ "handelingen": kern::logboek(c, cell)? })))?)
     }

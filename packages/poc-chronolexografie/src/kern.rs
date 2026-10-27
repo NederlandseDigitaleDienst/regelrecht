@@ -316,7 +316,7 @@ impl Corpus {
 
     /// The version of the regelwerk `id` the cell runs that is valid from
     /// `valid_from`, as written.
-    fn yaml_van(&self, id: &str, valid_from: &Option<String>) -> Option<&str> {
+    pub(crate) fn yaml_van(&self, id: &str, valid_from: &Option<String>) -> Option<&str> {
         self.geschreven
             .get(&(id.to_string(), valid_from.clone()))
             .map(String::as_str)
@@ -350,6 +350,15 @@ impl Corpus {
     /// (`regulation/nl/...`, `cells/.../reductions/...`).
     pub fn mappen(&self) -> impl Iterator<Item = &str> {
         self.regelwerken.iter().map(|(_, _, map)| map.as_str())
+    }
+
+    /// The directory of the regelwerk `id` the cell runs, under its root
+    /// ([`crate::casus::Regelwerk::map`]).
+    pub(crate) fn map_van(&self, id: &str) -> Option<&str> {
+        self.regelwerken
+            .iter()
+            .find(|(i, _, _)| i == id)
+            .map(|(_, _, map)| map.as_str())
     }
 
     fn law(&self) -> &str {
@@ -1905,9 +1914,48 @@ pub fn voorvertoning_op_bezwaar(
 /// What an input reads from the chronicle: the decisions under an article,
 /// or the executograms of a fact.
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum Bron {
+pub(crate) enum Bron {
     Besluiten(String),
     Feiten(String),
+}
+
+/// What `source` reads from the chronicle, if anything: a `decisions:
+/// $<parameter>` names the article that `given`, the literal parameters of
+/// the caller, holds under that name; one it does not hold reads nothing the
+/// PoC can name.
+pub(crate) fn bron_van(
+    source: &regelrecht_engine::Source,
+    given: &BTreeMap<String, String>,
+) -> Option<Bron> {
+    match (&source.decisions, &source.facts) {
+        (Some(basis), _) => match basis.strip_prefix('$') {
+            None => Some(Bron::Besluiten(basis.clone())),
+            Some(naam) => given.get(naam).cloned().map(Bron::Besluiten),
+        },
+        (None, Some(feit)) => Some(Bron::Feiten(feit.clone())),
+        (None, None) => None,
+    }
+}
+
+/// The literal parameters `source` passes to what it calls: as written, or a
+/// `$<name>` that `given`, the literal parameters of the caller, holds. A
+/// value only known when the article runs (`$kvk_nummer`) is left out.
+pub(crate) fn doorgegeven(
+    source: &regelrecht_engine::Source,
+    given: &BTreeMap<String, String>,
+) -> BTreeMap<String, String> {
+    source
+        .parameters
+        .iter()
+        .flatten()
+        .filter_map(|(naam, waarde)| {
+            let waarde = match waarde.strip_prefix('$') {
+                None => waarde.clone(),
+                Some(van) => given.get(van)?.clone(),
+            };
+            Some((naam.clone(), waarde))
+        })
+        .collect()
 }
 
 /// One input of a reduction that reads the chronicle: its name, the
@@ -1962,15 +2010,7 @@ fn lezingen_van(
         let Some(source) = input.source.as_ref() else {
             continue;
         };
-        let bron = match (&source.decisions, &source.facts) {
-            (Some(basis), _) => match basis.strip_prefix('$') {
-                None => Some(Bron::Besluiten(basis.clone())),
-                Some(naam) => given.get(naam).cloned().map(Bron::Besluiten),
-            },
-            (None, Some(feit)) => Some(Bron::Feiten(feit.clone())),
-            (None, None) => None,
-        };
-        if let Some(bron) = bron {
+        if let Some(bron) = bron_van(source, given) {
             let lezing = Lezing {
                 naam: input.name.clone(),
                 reductie: reduction.id.clone(),
@@ -1994,19 +2034,12 @@ fn lezingen_van(
         else {
             continue;
         };
-        let letterlijk: BTreeMap<String, String> = source
-            .parameters
-            .iter()
-            .flatten()
-            .filter(|(_, waarde)| !waarde.starts_with('$'))
-            .map(|(naam, waarde)| (naam.clone(), waarde.clone()))
-            .collect();
         bezig.push(called.id.clone());
         lezingen_van(
             service,
             called,
             &artikelen_voor(called, output),
-            &letterlijk,
+            &doorgegeven(source, given),
             bezig,
             on,
             uit,

@@ -1,10 +1,10 @@
 <script setup>
-// Eerst de keuze van een casus (CasusKeuze.vue). Daarna één pagina met zes
+// Eerst de keuze van een casus (CasusKeuze.vue). Daarna één pagina met zeven
 // tabbladen: de scenario's, de aanvrager, het bestuursorgaan, de kroniek,
-// de reductie en het logboek, en bij een casus met andere cellen (RFC-052)
-// een zevende voor die cellen, de rechtbank daaronder (RFC-053). Bovenaan
-// de speeldatum, die voor elke stap geldt, een knop die de kroniek terugzet
-// op wat de cel vooraf vastlegde (meestal niets) en een knop terug naar de
+// de reductie, het logboek en de keten van wetten, beleid en reducties, en
+// bij een casus met andere cellen (RFC-052) een achtste voor die cellen, de
+// rechtbank daaronder (RFC-053). Bovenaan de speeldatum, die voor elke stap
+// geldt, een knop die de kroniek terugzet op wat de cel vooraf vastlegde (meestal niets) en een knop terug naar de
 // keuze. Een weigering van de cel
 // staat in een banner, in het Nederlands; de melding van de cel zelf onder
 // Details. Wat bij de casus hoort (de wet, de cel, wie beslist), komt uit
@@ -34,6 +34,7 @@ import AanvragerTab from './components/AanvragerTab.vue';
 import AndereCellenTab from './components/AndereCellenTab.vue';
 import BestuursorgaanTab from './components/BestuursorgaanTab.vue';
 import CasusKeuze from './components/CasusKeuze.vue';
+import KetenTab from './components/KetenTab.vue';
 import KroniekTab from './components/KroniekTab.vue';
 import LogboekTab from './components/LogboekTab.vue';
 import NaUitspraak from './components/NaUitspraak.vue';
@@ -55,6 +56,7 @@ const tabs = computed(() => [
   { id: 'kroniek', tekst: 'Kroniek' },
   { id: 'reductie', tekst: 'Reductie' },
   { id: 'logboek', tekst: 'Logboek' },
+  { id: 'keten', tekst: 'Keten' },
 ]);
 const tab = ref('scenarios');
 // A newly chosen case opens on its scenarios, whichever way it was chosen.
@@ -295,6 +297,7 @@ function toTab(id) {
                 <AndereCellenTab v-else-if="tab === 'andere'" />
                 <KroniekTab v-else-if="tab === 'kroniek'" />
                 <ReductieTab v-else-if="tab === 'reductie'" />
+                <KetenTab v-else-if="tab === 'keten'" />
                 <LogboekTab v-else @kroniek="naarKroniek" />
               </template>
             </nldd-page>

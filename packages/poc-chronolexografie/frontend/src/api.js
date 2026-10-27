@@ -113,6 +113,7 @@ export const api = {
   voorvertoningNaUitspraak: (ontvangst, bevindingen, datum) =>
     roep((p) => p.voorvertoningNaUitspraak(ontvangst, json(bevindingen), datum)),
   reducties: (datum) => roep((p) => p.reducties(datum)),
+  keten: (datum) => roep((p) => p.keten(datum)),
   logboek: () => roep((p) => p.logboek()),
   reset: () => roep((p) => p.reset()),
   // Het spel tot nu toe (de casus en de kroniek van elke cel), om een
