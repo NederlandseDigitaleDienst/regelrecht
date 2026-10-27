@@ -1089,8 +1089,8 @@ pub async fn dashboard_stats(
     .await
     .map_err(db_err("dashboard recent-failures query failed"))?;
 
-    // 5. Daily series. The moment comes from Postgres, like every other block
-    //    here, so all of them agree on what "today" is.
+    // 5. Daily series. The moment comes from the Postgres clock, like every
+    //    other block here, not from the app server's clock.
     let as_of: chrono::DateTime<chrono::Utc> = sqlx::query_scalar("SELECT now()")
         .fetch_one(pool)
         .await
@@ -1119,8 +1119,8 @@ pub async fn daily_series(
     // so the frontend never fills gaps. Pre-aggregate per (day, type, kind)
     // first — a day-skeleton joined directly against the jobs rows degrades into
     // an O(days × rows) nested loop. The 15-day cutoffs give slack for the
-    // UTC↔Amsterdam offset; at most 6 aggregate rows join per day, so the
-    // SUM FILTER never double-counts.
+    // UTC↔Amsterdam offset; at most one aggregate row per (type, kind) joins
+    // per day, so the SUM never double-counts.
     // The pivot used to sit in the SQL as six hardcoded `FILTER (WHERE job_type
     // = 'harvest' | 'enrich')` columns, which is where three of the five types
     // fell out of the chart. The query now returns one row per (day, type,

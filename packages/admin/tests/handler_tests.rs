@@ -2045,12 +2045,12 @@ async fn dashboard_stats_daily_series_fourteen_days() {
     let db = TestDb::new().await;
     let pool = db.pool.clone();
 
-    // A fixed moment where the UTC date and the Amsterdam date already differ in
-    // the evening: 22:17 UTC on the Monday after the switch to winter time is
-    // 23:17 in Amsterdam, and the 14-day window (13 to 26 October) spans that
-    // switch. The CI failure this replaces came from this hour: fixtures built as
-    // `now() - interval '5 days'` are 120 hours back, which crosses the switch
-    // and lands one Amsterdam day off. Every timestamp below is pinned instead.
+    // A fixed moment late in the Amsterdam evening: 22:17 UTC on the Monday
+    // after the switch to winter time is 23:17 in Amsterdam, and the 14-day
+    // window (13 to 26 October) spans that switch. The CI failure this replaces
+    // came from this hour: fixtures built as `now() - interval '5 days'` are 120
+    // hours back, which crosses the switch and lands one Amsterdam day off.
+    // Every timestamp below is pinned instead.
     let as_of: chrono::DateTime<chrono::Utc> = "2026-10-26T22:17:00Z".parse().unwrap();
 
     // Today (index 13). 23:30 UTC on the 25th is 00:30 on the 26th in Amsterdam:
