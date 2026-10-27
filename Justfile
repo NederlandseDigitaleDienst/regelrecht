@@ -298,7 +298,7 @@ frontend-test:
     npm run typecheck -w frontend-lawmaking
     npm test -w frontend-demo
     npm run typecheck -w frontend-demo
-    npm test -w frontend-poc-chronolexografie
+    npm test -w packages/poc-chronolexografie/frontend
 
 # Every test that needs no external services: the workspace minus the
 # container-backed crates. For a machine without a Docker daemon, and the
