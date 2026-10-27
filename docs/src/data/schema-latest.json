@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json",
   "title": "Machine-Readable Dutch Law Schema v0.8.12",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
@@ -1212,18 +1212,7 @@
                 "reduction": {
                   "type": "string",
                   "pattern": "^[a-z][a-z0-9_]*$",
-                  "description": "Since v0.8.9 (RFC-048): the named answer of a cell this input takes, by the name under which cells give it (the catalogue `answers` in `cel.yaml`). Only an article of `UITVOERINGSBELEID` that fills an open term (`implements`) takes one: it binds the term to the answer, and its policy names its holder (`competent_authority`). `parameters` gives the values the answer takes, under the names the cell's reduction declares; one it declares and the binding does not pass is an error. The engine asks the cells of the execution: every cell the filled term names in its `competent_authority` (RFC-052), or else the cell of the policy's holder. A cell without an answer of that name, or with a null one, is silent; several answers make one value with `combine`. Without an answer the input is null, so the binding fills nothing and the term is what it is without it, such as the finding of the deciding authority; an input that takes an answer is therefore declared `nullable: true`, and one that is not is an error at run time when no cell answers. It stands alone, without `regulation`, `output`, `endpoint`, `decisions`, `facts` or `article`."
-                },
-                "combine": {
-                  "type": "string",
-                  "enum": [
-                    "ADD",
-                    "OR",
-                    "AND",
-                    "MIN",
-                    "MAX"
-                  ],
-                  "description": "Since v0.8.9, only with `reduction`: how the answers of several cells make one value, with the aggregations of FOREACH (RFC-052), where the open term the article fills names no `combine` itself; the law's rule wins. Without one, two answers that are not null are an error at run time. `OR` and `AND` take a boolean, `ADD`, `MIN` and `MAX` a number or an amount. `ONLY` is no rule for answers and is not allowed here."
+                  "description": "Since v0.8.9 (RFC-048): the named answer of a cell this input takes, by the name under which cells give it (the catalogue `answers` in `cel.yaml`). Only an article of `UITVOERINGSBELEID` that fills an open term (`implements`) takes one: it binds the term to the answer, and its policy names its holder (`competent_authority`). `parameters` gives the values the answer takes, under the names the cell's reduction declares; one it declares and the binding does not pass is an error. The engine asks one cell of the execution: the cell the filled term names in its `competent_authority` (RFC-052), or else the cell of the policy's holder. Where the execution holds more than one cell the term names, the input is an error at run time: one question goes to one cell, and the engine merges no answers. A cell without an answer of that name, or with a null one, is silent. Without an answer the input is null, so the binding fills nothing and the term is what it is without it, such as the finding of the deciding authority; an input that takes an answer is therefore declared `nullable: true`, and one that is not is an error at run time when no cell answers. It stands alone, without `regulation`, `output`, `endpoint`, `decisions`, `facts` or `article`."
                 },
                 "article": {
                   "oneOf": [
@@ -1370,11 +1359,6 @@
                       }
                     ]
                   }
-                },
-                "combine": {
-                  "required": [
-                    "reduction"
-                  ]
                 }
               },
               "examples": [
@@ -2562,17 +2546,6 @@
                     }
                   }
                 ]
-              },
-              "combine": {
-                "type": "string",
-                "enum": [
-                  "ADD",
-                  "OR",
-                  "AND",
-                  "MIN",
-                  "MAX"
-                ],
-                "description": "How the answers of several competent answerers make one value (since v0.8.8, RFC-052), with the aggregations of FOREACH. Only on a term that names its `competent_authority`, where more than one answerer may give it, such as a fact several issuing bodies record. Without it, two answers that are not null are an error at run time. `OR` and `AND` take a boolean, `ADD`, `MIN` and `MAX` a number or an amount. `ONLY` is no rule for answers and is not allowed here."
               }
             },
             "additionalProperties": false

@@ -48,10 +48,9 @@ open_terms:
       - name: college van burgemeester en wethouders
         type: CATEGORY
       - name: CBR
-    combine: OR
 ```
 
-A cell's answer reaches such a term through the policy of the deciding authority. That policy binds the term to the answer (`source.reduction`, [RFC-048](/rfcs/rfc-048)). Wherever that binding runs, the engine asks only the answerers that the term names, and combines their answers with the term's `combine`. A cell that the term does not name is not asked. For a term without `competent_authority`, the engine asks the cell of the policy's holder. The article's own `competent_authority` plays no part in which cell the engine asks.
+A cell's answer reaches such a term through the policy of the deciding authority. That policy binds the term to the answer (`source.reduction`, [RFC-048](/rfcs/rfc-048)). Wherever that binding runs, the engine asks the one answerer of the call that the term names. A cell that the term does not name is not asked. Two answerers that the term names make the decision fail: the engine merges no answers, and which cell of a category answers is an [open question](/concepts/chronolexography/open-questions). For a term without `competent_authority`, the engine asks the cell of the policy's holder. The article's own `competent_authority` plays no part in which cell the engine asks.
 
 ## Who gives a finding
 
@@ -87,6 +86,6 @@ A policy that binds an open term to the answer of a cell must name its holder th
 - [Notes and Annotations](./notes-and-annotations) - how note authority is derived from the competent authority
 - [RFC-002: Bevoegdheid](/rfcs/rfc-002) - full specification
 - [RFC-051: Facts and Competence](/rfcs/rfc-051) - competence on an open term and a fact
-- [RFC-048: Reduction and Synthesis](/rfcs/rfc-048) - binding a cell's answer, and asking the competent cells for it
+- [RFC-048: Reduction and Synthesis](/rfcs/rfc-048) - binding a cell's answer, and asking the competent cell for it
 - [Rules as Executed, section 4.3](/research/rules-as-executed#sec:whochooses) - the position paper on which authority chooses and publishes an encoding
 - [Rules as Executed, section 4.6](/research/rules-as-executed#sec:overrides) - the position paper on overrides and discretion
