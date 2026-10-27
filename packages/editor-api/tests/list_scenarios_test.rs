@@ -153,12 +153,12 @@ async fn list_scenarios_global_returns_target_law_ids() {
     }
 
     let mut state = app_state(None, None);
-    state.corpus = Arc::new(RwLock::new(CorpusState {
-        registry,
-        source_map,
-        backends,
-        auth_file: None,
-        index_failures: std::collections::HashMap::new(),
+    state.corpus = Arc::new(RwLock::new({
+        let mut corpus = CorpusState::empty();
+        corpus.registry = registry;
+        corpus.source_map = source_map;
+        corpus.backends = backends;
+        corpus
     }));
 
     let axum::Json(entries) = list_scenarios(State(state), Path(LAW_ID.to_string()))

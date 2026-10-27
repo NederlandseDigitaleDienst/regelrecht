@@ -72,6 +72,13 @@ pub struct PaginationParams {
     /// the library's overview can page through the enriched laws.
     #[serde(default)]
     pub enriched: bool,
+    /// Only laws whose body is loaded in the index, leaving out the ones held
+    /// by path until someone opens them. Those carry no name, so a caller that
+    /// lists laws for their display names sends this and gets the few that
+    /// have one, instead of a page of the whole corpus. Narrows like
+    /// [`enriched`](Self::enriched).
+    #[serde(default)]
+    pub loaded: bool,
 }
 
 impl PaginationParams {
