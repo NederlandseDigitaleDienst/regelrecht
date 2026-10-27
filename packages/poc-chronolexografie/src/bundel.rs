@@ -494,6 +494,122 @@ mod tests {
         );
     }
 
+    /// The test regulation with the application in article 1 and the
+    /// decision it asks for in article 2, as Wpp 102 asks the decision of
+    /// 107.
+    const AANVRAAG_EN_BESLUIT_APART: &str = r#"---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.8/schema/v0.8.8/schema.json
+$id: voorbeeld_bron_subsidie
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.invalid/voorbeeld_bron_subsidie
+name: Voorbeeldsubsidie (fictieve testbron)
+competent_authority:
+  name: Voorbeeldautoriteit
+articles:
+  - number: '1'
+    text: FICTIEF. Een vereniging kan subsidie aanvragen voor een subsidiejaar.
+    url: https://example.invalid/voorbeeld_bron_subsidie#1
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: voorbeeld_bron_subsidie#2
+            parameters:
+              - naam_partij
+              - subsidiejaar
+            outputs:
+              - aanvraag_ontvangen
+        parameters:
+          - name: naam_partij
+            type: string
+            description: De naam van de vereniging die subsidie aanvraagt.
+          - name: subsidiejaar
+            type: number
+            description: Het jaar waarvoor subsidie wordt gevraagd.
+        output:
+          - name: aanvraag_ontvangen
+            type: boolean
+            description: Dat de aanvraag is ontvangen.
+        actions:
+          - output: aanvraag_ontvangen
+            value: true
+  - number: '2'
+    text: >-
+      FICTIEF. De Voorbeeldautoriteit besluit op de aanvraag, en verleent de
+      subsidie indien de vereniging geregistreerd is.
+    url: https://example.invalid/voorbeeld_bron_subsidie#2
+    machine_readable:
+      open_terms:
+        - id: partij_geregistreerd
+          type: boolean
+          required: true
+          decided_per_case_by: de Voorbeeldautoriteit (artikel 2)
+          description: Of de aanvragende vereniging geregistreerd is.
+      execution:
+        produces:
+          - type: BESCHIKKING
+            decision_type: TOEKENNING
+            outputs:
+              - subsidie_verleend
+        parameters:
+          - name: naam_partij
+            type: string
+            description: De naam van de vereniging die subsidie aanvraagt.
+          - name: subsidiejaar
+            type: number
+            description: Het jaar waarvoor subsidie wordt gevraagd.
+        output:
+          - name: subsidie_verleend
+            type: boolean
+            description: Of de autoriteit de subsidie verleent.
+        actions:
+          - output: subsidie_verleend
+            value: $partij_geregistreerd
+"#;
+
+    #[test]
+    fn a_case_decides_on_the_article_its_application_asks_for() {
+        let mut bron = voorbeeld();
+        bron.bestanden.insert(
+            "regulation/nl/uitvoeringsbeleid/voorbeeld_bron_subsidie/2026-01-01.yaml".into(),
+            AANVRAAG_EN_BESLUIT_APART.into(),
+        );
+        let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        assert!(standen[0].fouten.is_empty(), "{:?}", standen[0]);
+        let c = alle
+            .iter()
+            .find(|c| c.casus.id == "voorbeeld_subsidie")
+            .unwrap();
+        assert_eq!(
+            (c.afleiding.article.as_str(), c.afleiding.decision.as_str()),
+            ("1", "2")
+        );
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        let outputs = speel(&mut spel, "voorbeeld_subsidie");
+        assert_eq!(outputs["subsidie_verleend"], serde_json::json!(true));
+    }
+
+    #[test]
+    fn an_application_that_asks_for_no_decision_is_named() {
+        let fout = {
+            let mut bron = voorbeeld();
+            let pad = "regulation/nl/uitvoeringsbeleid/voorbeeld_bron_subsidie/2026-01-01.yaml";
+            let tekst = AANVRAAG_EN_BESLUIT_APART.replace(
+                "requests: voorbeeld_bron_subsidie#2",
+                "requests: voorbeeld_bron_subsidie#9",
+            );
+            bron.bestanden.insert(pad.into(), tekst);
+            let (_, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+            standen[0].fouten.join("\n")
+        };
+        assert!(
+            fout.contains("asks for the decision of voorbeeld_bron_subsidie#9"),
+            "{fout}"
+        );
+    }
+
     #[test]
     fn a_source_without_the_awb_does_not_get_the_regelrecht_one() {
         let mut bron = voorbeeld();

@@ -1947,6 +1947,21 @@ impl Article {
             .find(|p| p.submission_kind().is_some())
     }
 
+    /// The article whose decision the submission of this article asks for,
+    /// `<regulation>#<article>`: the one its item names with `requests`
+    /// (RFC-047), or `own`, this article, in the object form when that also
+    /// takes a decision. `None` when it establishes no submission or its
+    /// submission names no decision. Whether that article is there and takes
+    /// a decision, only the corpus it runs in can say.
+    pub fn requested_decision(&self, own: &str) -> Option<String> {
+        let submission = self.get_submission()?;
+        match submission.requests() {
+            Some(target) => Some(target.to_string()),
+            None if !self.produces_list() && self.get_decision().is_some() => Some(own.to_string()),
+            None => None,
+        }
+    }
+
     /// The names of the outputs that belong to `item`, one of
     /// [`Self::get_produced`]: those it lists under `outputs`. An item that
     /// lists none yields nothing if it is a submission, and if it is the

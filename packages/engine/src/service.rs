@@ -2352,15 +2352,9 @@ impl LawExecutionService {
         calculation_date: &str,
     ) -> Result<Option<String>> {
         let (_, article) = self.article_in_force(law_id, article_number, calculation_date)?;
-        let Some(submission) = article.get_submission() else {
+        let own = format!("{law_id}#{article_number}");
+        let Some(target) = article.requested_decision(&own) else {
             return Ok(None);
-        };
-        let target = match submission.requests() {
-            Some(target) => target.to_string(),
-            None if !article.produces_list() && article.get_decision().is_some() => {
-                return Ok(Some(format!("{law_id}#{article_number}")));
-            }
-            None => return Ok(None),
         };
         let (regulation, number) = target.split_once('#').ok_or_else(|| {
             EngineError::InvalidOperation(format!(
