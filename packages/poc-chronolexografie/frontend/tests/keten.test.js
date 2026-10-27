@@ -125,7 +125,7 @@ describe('keten.js', () => {
       ],
     };
     expect(schakelTekst(metEigen).uitleg).toContain(
-      'Daarnaast laat het a_volgens_college en b_volgens_college open. Het college beoordeelt die per geval.',
+      'Daarnaast laat het a_volgens_college en b_volgens_college open, per geval in te vullen door het college.',
     );
     expect(schakelTekst(metEigen).uitleg).not.toContain('gevuld open');
     expect(schakelTekst({ soort: 'eerder', wet: 'x', artikel: '4', laag: 'UITVOERINGSBELEID', naam: 'Uitvoeringsbesluit X' }).tekst).toBe(

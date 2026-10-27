@@ -144,8 +144,7 @@ function artikelUitleg(s, wortel) {
       `Dit artikel vult het open begrip ${s.vult} van ${verwijzing(s.vult_in)}`,
       antwoorden.length ? `Het neemt daarvoor ${opsomming(antwoorden)}` : korteUitleg(s.tekst, 120),
       ...[...perRechter].map(
-        ([wie, ids]) =>
-          `Daarnaast laat het ${opsomming(ids)} open. ${hoofd(wie)} beoordeelt ${ids.length > 1 ? 'die' : 'dat'} per geval`,
+        ([wie, ids]) => `Daarnaast laat het ${opsomming(ids)} open, per geval in te vullen door ${wie}`,
       ),
     );
   }
@@ -189,7 +188,7 @@ export function schakelTekst(s, { wortel = false } = {}) {
           n
             ? `${n === 1 ? 'Het artikel' : 'De artikelen'} hieronder ${n === 1 ? 'vult' : 'vullen'} het in`
             : s.ingevuld_door
-              ? `Geen regel vult het in. ${hoofd(s.ingevuld_door)} beoordeelt het per geval`
+              ? `Geen regel vult het in; dat gebeurt per geval door ${s.ingevuld_door}`
               : 'Geen regelwerk van deze casus vult het in',
         ),
       };
@@ -211,7 +210,7 @@ export function schakelTekst(s, { wortel = false } = {}) {
             toelichting: '',
             uitleg: zinnen(
               `Geen cel van deze casus geeft het antwoord ${s.antwoord}`,
-              'Zonder dit antwoord blijft de invoer leeg, of kan de cel het besluit niet nemen',
+              'Zonder dit antwoord blijft de invoer leeg, of kan de beslissende cel het besluit niet nemen',
             ),
           };
     case 'kroniek':
