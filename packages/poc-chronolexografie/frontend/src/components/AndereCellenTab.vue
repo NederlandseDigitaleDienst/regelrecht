@@ -6,18 +6,24 @@
 // RFC-051), krijgt hier een formulier; welke velden, zegt het artikel dat het
 // feit vereist. Wat een andere cel vóór het eerste scenario wist, komt
 // uit de casus. De rechtbank is ook een andere cel (RFC-053): zij krijgt
-// hier de beroepen en de uitspraken (RechterCel.vue).
-import { reactive } from 'vue';
+// hier de beroepen en de uitspraken (RechterCel.vue). Volg je een scenario,
+// dan staat het formulier van de stap ingevuld (scenarioInvoer.js).
 import { api } from '../api.js';
 import { artikelNaam } from '../logboek.js';
 import { hoofdletter, leesbaar, state, stap } from '../state.js';
+import { formulier, ingevuld, scenarioWaarden, uitScenario } from '../scenarioInvoer.js';
 import RechterCel from './RechterCel.vue';
+import UitScenario from './UitScenario.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
 // Per cel en handeling de ingevulde velden.
-const invoer = reactive({});
 const sleutel = (cel, basis) => `${cel} ${basis}`;
-const velden = (cel, basis) => (invoer[sleutel(cel, basis)] ??= {});
+const doel = (cel, feit) => ({ cel, feit });
+const vorm = formulier((k) => {
+  const [cel, feit] = k.split(' ');
+  return scenarioWaarden('vastleggen', doel(cel, feit));
+});
+const velden = (cel, basis) => vorm.waarden(sleutel(cel, basis));
 
 // `regeling_x#3#geneeskundig_onderzoek_verricht` → `Geneeskundig onderzoek verricht (… artikel 3)`.
 const naam = (feit) => {
@@ -38,7 +44,7 @@ async function vastleggen(cel, handeling) {
       .filter(([, v]) => v !== undefined),
   );
   const ok = await stap(() => api.vastleggen(cel, basis, gegeven, state.datum));
-  if (ok) invoer[sleutel(cel, basis)] = {};
+  if (ok) vorm.wis(sleutel(cel, basis));
 }
 </script>
 
@@ -56,11 +62,16 @@ async function vastleggen(cel, handeling) {
         <nldd-card v-for="h in c.handelingen" :key="h.feit">
           <nldd-container padding="16" gap="12">
             <nldd-title size="5" :text="`Vastleggen: ${naam(h.feit)}`"></nldd-title>
+            <UitScenario
+              v-if="ingevuld('vastleggen', doel(c.cel, h.feit))"
+              :namen="uitScenario('vastleggen', doel(c.cel, h.feit))"
+            />
             <VeldInvoer
               v-for="veld in h.velden"
               :key="veld.naam"
-              v-model="velden(c.cel, h.feit)[veld.naam]"
+              :model-value="velden(c.cel, h.feit)[veld.naam]"
               :veld="veld"
+              @update:model-value="vorm.zet(sleutel(c.cel, h.feit), veld.naam, $event)"
             />
             <nldd-button appearance="primary" text="Vastleggen" @click="vastleggen(c.cel, h)"></nldd-button>
           </nldd-container>

@@ -1,8 +1,9 @@
 /**
  * The scenarios to play right after the deck, all of the parking card case.
  * The choice screen lists them under "Voor de demo" and the closing slide
- * offers them as buttons. Each one names a scenario of the case YAML and its
- * guide (scenarioGuides.js); tests/presentation.test.js keeps them in step.
+ * offers them as buttons. Each one names a scenario of the case YAML, whose
+ * guide scenarioGuides.js builds; tests/presentation.test.js keeps them in
+ * step.
  *
  * - A card on the advice of the GGD: the happy flow, one application and a
  *   decision that lands in the chronicle.
@@ -13,7 +14,9 @@
  *   next application the municipality finds a valid card it did not have
  *   before the objection.
  */
-import { guides } from '../scenarioGuides.js';
+import { load } from 'js-yaml';
+import yaml from '../../../casussen/gehandicaptenparkeerkaart.yaml?raw';
+import { guideFor } from '../scenarioGuides.js';
 
 export const DEMO_CASUS = 'gehandicaptenparkeerkaart';
 
@@ -23,6 +26,9 @@ export const DEMO_SCENARIOS = Object.freeze([
   'Een kaart na bezwaar telt bij de volgende aanvraag',
 ]);
 
+// The case as its YAML has it: the choice screen and the deck show these
+// scenarios before any case is loaded.
+const casus = { id: DEMO_CASUS, ...load(yaml) };
+
 /** The demo scenarios with their guide, in order. */
-export const demoGuides = () =>
-  DEMO_SCENARIOS.map((naam) => guides[DEMO_CASUS].find((g) => g.name === naam));
+export const demoGuides = () => DEMO_SCENARIOS.map((naam) => guideFor(casus, naam));

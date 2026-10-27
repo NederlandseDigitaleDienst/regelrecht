@@ -10,8 +10,8 @@
 // het voor deze aanvraag niet weet: dat meldt de voorvertoning (`stil`), en
 // dan oordeelt het bestuursorgaan zelf (RFC-051). Bij een
 // bezwaar komen ze uit het bestreden besluit: de bevindingen die het
-// gebruikte, met wat het bestuursorgaan toen vond. De voorbeeldwaarden van de
-// bevindingen komen uit de casus.
+// gebruikte, met wat het bestuursorgaan toen vond. Volg je een scenario, dan
+// staan de bevindingen ingevuld zoals de stap ze geeft (scenarioInvoer.js).
 import { computed, reactive } from 'vue';
 import { api } from '../api.js';
 import { artikelNaam } from '../logboek.js';
@@ -29,7 +29,9 @@ import {
   stap,
   zonderLeeg,
 } from '../state.js';
+import { formulier, ingevuld, scenarioWaarden, uitScenario } from '../scenarioInvoer.js';
 import Uitkomst from './Uitkomst.vue';
+import UitScenario from './UitScenario.vue';
 import OordeelKeuze from './OordeelKeuze.vue';
 import StilOordeel from './StilOordeel.vue';
 import Voorvertoning from './Voorvertoning.vue';
@@ -37,8 +39,6 @@ import Waarom from './Waarom.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
 const oordelen = () => state.vormen?.besluit.bevindingen ?? [];
-const voorbeeld = (naam) => state.casus.voorbeeld.bevindingen[naam] ?? true;
-const standaard = () => Object.fromEntries(oordelen().map((o) => [o.naam, voorbeeld(o.naam)]));
 
 const artikel = computed(() => {
   const [wet, nummer] = besluitBasis().split('#');
@@ -53,19 +53,21 @@ const openBezwaren = computed(() =>
   state.grammen.filter((g) => g.kind === 'BEZWAAR' && !beslissingOp(g.id)),
 );
 
-// Per aanvraag de oordelen van het bestuursorgaan.
-const oordeel = reactive({});
-const oordeelVoor = (id) => (oordeel[id] ??= standaard());
-// Een oordeel op een begrip dat de cel niet weet: leeg is nog niet gegeven.
-function zetOordeel(id, naam, waarde) {
-  if (waarde === undefined) delete oordeelVoor(id)[naam];
-  else oordeelVoor(id)[naam] = waarde;
-}
+// Per aanvraag de oordelen van het bestuursorgaan. Een schakelaar die uit
+// staat, zegt nee; een begrip dat de cel niet weet, blijft leeg tot het
+// bestuursorgaan oordeelt.
+const besluitVorm = formulier((id) => scenarioWaarden('besluit', { aanvraag: id }));
+const oordeel = besluitVorm.eigen;
+const uit = (id) =>
+  Object.fromEntries(oordelen().filter((o) => o.type === 'boolean').map((o) => [o.naam, false]));
+const oordeelVoor = (id) => ({ ...uit(id), ...zonderLeeg(besluitVorm.waarden(id)) });
+const zetOordeel = (id, naam, waarde) => besluitVorm.zet(id, naam, waarde);
 
 const uitkomsten = reactive({});
 
 async function besluit(a) {
   const antwoord = await stap(() => api.besluiten(a.id, oordeelVoor(a.id), state.datum));
+  if (antwoord) besluitVorm.wis(a.id);
   if (antwoord) uitkomsten[antwoord.besluit.id] = antwoord;
 }
 
@@ -81,7 +83,8 @@ async function waarom(b) {
 // bevindingen van het bestreden besluit; 'Laat staan' houdt wat het toen
 // vond.
 const toetsen = reactive({});
-const opnieuw = reactive({});
+const opnieuwVorm = formulier((id) => scenarioWaarden('beslissing_op_bezwaar', { bezwaar: id }));
+const opnieuw = opnieuwVorm.eigen;
 // Wat het bestuursorgaan oordeelt over begrippen die de cel niet weet (stil.js).
 const { stil, meldStil } = stilBegrippen(oordeel, opnieuw);
 const beslissingen = reactive({});
@@ -90,14 +93,14 @@ async function toets(bz) {
   const antwoord = await stap(() => api.heroverweging(bz.id, state.datum));
   if (antwoord) {
     toetsen[bz.id] = antwoord;
-    opnieuw[bz.id] = {};
+    opnieuwVorm.wis(bz.id);
   }
 }
 
 // Wat het bestuursorgaan bij de heroverweging opnieuw vindt; 'Laat staan'
 // geeft niets.
 const gegevenOpBezwaar = (bz) =>
-  zonderLeeg(toetsen[bz.id]?.ontvankelijk ? (opnieuw[bz.id] ?? {}) : {});
+  zonderLeeg(toetsen[bz.id]?.ontvankelijk ? opnieuwVorm.waarden(bz.id) : {});
 // De begrippen die de cel bij dit bezwaar niet weet en die niet al onder de
 // bevindingen van het bestreden besluit staan.
 const stilBijBezwaar = (bz) =>
@@ -145,25 +148,29 @@ const uitkomstOpBezwaar = (uit) =>
         ></nldd-title>
         <nldd-container layout="grid" gap="16">
           <nldd-container gap="12">
+            <UitScenario
+              v-if="ingevuld('besluit', { aanvraag: a.id })"
+              :namen="uitScenario('besluit', { aanvraag: a.id })"
+            />
             <VeldInvoer
               v-for="o in oordelen()"
               :key="o.naam"
-              :model-value="oordeel[a.id]?.[o.naam] ?? voorbeeld(o.naam)"
+              :model-value="besluitVorm.waarden(a.id)[o.naam]"
               :veld="o"
-              @update:model-value="oordeelVoor(a.id)[o.naam] = $event"
+              @update:model-value="zetOordeel(a.id, o.naam, $event)"
             />
             <StilOordeel
               v-for="v in stil[a.id] ?? []"
               :key="v.naam"
               :veld="v"
-              :model-value="oordeel[a.id]?.[v.naam]"
+              :model-value="besluitVorm.waarden(a.id)[v.naam]"
               @update:model-value="zetOordeel(a.id, v.naam, $event)"
             />
             <nldd-button appearance="primary" text="Besluit nemen" @click="besluit(a)"></nldd-button>
           </nldd-container>
           <Voorvertoning
             :op="a.id"
-            :bevindingen="oordeel[a.id] ?? standaard()"
+            :bevindingen="oordeelVoor(a.id)"
             @stil="meldStil(a.id, $event)"
           />
         </nldd-container>
@@ -223,21 +230,25 @@ const uitkomstOpBezwaar = (uit) =>
           ></nldd-inline-dialog>
           <nldd-container layout="grid" gap="16">
             <nldd-container gap="12">
+              <UitScenario
+                v-if="ingevuld('beslissing_op_bezwaar', { bezwaar: bz.id })"
+                :namen="uitScenario('beslissing_op_bezwaar', { bezwaar: bz.id })"
+              />
               <OordeelKeuze
                 v-for="o in toetsen[bz.id].bevindingen"
                 :key="o.naam"
                 :veld="o"
-                :model-value="opnieuw[bz.id][o.naam]"
+                :model-value="opnieuwVorm.waarden(bz.id)[o.naam]"
                 :leeg="`Laat staan (${jaNee(o.eerder)})`"
                 :toelichting="`${o.basis} · eerder: ${jaNee(o.eerder)}`"
-                @update:model-value="opnieuw[bz.id][o.naam] = $event"
+                @update:model-value="opnieuwVorm.zet(bz.id, o.naam, $event)"
               />
               <StilOordeel
                 v-for="v in stilBijBezwaar(bz)"
                 :key="v.naam"
                 :veld="v"
-                :model-value="opnieuw[bz.id][v.naam]"
-                @update:model-value="opnieuw[bz.id][v.naam] = $event"
+                :model-value="opnieuwVorm.waarden(bz.id)[v.naam]"
+                @update:model-value="opnieuwVorm.zet(bz.id, v.naam, $event)"
               />
               <nldd-button appearance="primary" text="Beslissen op bezwaar" @click="beslisOpBezwaar(bz)"></nldd-button>
             </nldd-container>

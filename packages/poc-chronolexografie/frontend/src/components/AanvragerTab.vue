@@ -5,9 +5,9 @@
 // 4:2 en, voor bezwaar en beroep, 6:5 via 7:11 en 8:70). Een bezwaar is een
 // indiening onder Awb 7:11 die naar het bestreden besluit verwijst; een
 // beroep een indiening bij de rechtbank met een afschrift ervan (RFC-053).
-// Of ze ontvankelijk zijn, beslist de wet, niet deze pagina. De
-// voorbeeldwaarden komen uit de casus.
-import { computed, reactive, ref } from 'vue';
+// Of ze ontvankelijk zijn, beslist de wet, niet deze pagina. Een formulier
+// staat ingevuld zolang je een scenario volgt (scenarioInvoer.js).
+import { computed, ref } from 'vue';
 import { api } from '../api.js';
 import { beroepApi } from '../beroep.js';
 import { artikelNaam } from '../logboek.js';
@@ -25,9 +25,12 @@ import {
   toegewezen,
   zonderLeeg,
 } from '../state.js';
+import { formulier, ingevuld, scenarioWaarden, uitScenario } from '../scenarioInvoer.js';
+import UitScenario from './UitScenario.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
-const aanvraag = reactive({ ...state.casus.voorbeeld.aanvraag });
+const aanvraagVorm = formulier(() => scenarioWaarden('aanvraag'));
+const aanvraag = computed(() => aanvraagVorm.waarden('aanvraag'));
 
 const artikel = computed(() => {
   const [wet, nummer] = state.casus.besluit.split('#');
@@ -35,13 +38,22 @@ const artikel = computed(() => {
 });
 
 async function indienen() {
-  await stap(() => api.aanvragen(zonderLeeg(aanvraag), state.datum));
+  if (await stap(() => api.aanvragen(zonderLeeg(aanvraag.value), state.datum))) {
+    aanvraagVorm.wis('aanvraag');
+  }
 }
 
 // Het bezwaar of beroep tegen één besluit tegelijk: `soort` is de sleutel
-// van zijn vorm en zijn voorbeeldwaarden ('bezwaar' of 'beroep').
+// van zijn vorm en zijn voorbeeldwaarden ('bezwaar' of 'beroep'). Volg je
+// een scenario, dan is de dagtekening de speeldatum.
 const tegen = ref(null);
-const indiening = reactive({});
+const scenarioIndiening = () => {
+  const t = tegen.value;
+  const w = t && scenarioWaarden(t.soort, { besluit: t.besluit.id });
+  return w && { dagtekening_bezwaar_of_beroepschrift: state.datum, ...w };
+};
+const indieningVorm = formulier(scenarioIndiening);
+const indiening = computed(() => indieningVorm.waarden(tegen.value?.besluit.id));
 
 const indieningVelden = computed(() => {
   const t = tegen.value;
@@ -54,11 +66,8 @@ const indieningVelden = computed(() => {
 });
 
 function start(soort, besluit) {
+  indieningVorm.wis(besluit.id);
   tegen.value = { soort, besluit };
-  for (const k of Object.keys(indiening)) delete indiening[k];
-  Object.assign(indiening, state.casus.voorbeeld[soort], {
-    dagtekening_bezwaar_of_beroepschrift: state.datum,
-  });
 }
 
 const beroepArtikel = computed(() =>
@@ -79,13 +88,16 @@ function stand(a) {
 
 async function indienenTegen() {
   const { soort, besluit } = tegen.value;
-  const velden = zonderLeeg(indiening);
+  const velden = zonderLeeg(indiening.value);
   const ok = await stap(() =>
     soort === 'beroep'
       ? beroepApi.instellen(besluit.id, velden, state.datum)
       : api.bezwaren(besluit.id, velden, state.datum),
   );
-  if (ok) tegen.value = null;
+  if (ok) {
+    indieningVorm.wis(besluit.id);
+    tegen.value = null;
+  }
 }
 
 </script>
@@ -101,11 +113,13 @@ async function indienenTegen() {
       </nldd-text>
     </nldd-title>
     <nldd-container gap="16" max-width="560px">
+      <UitScenario v-if="ingevuld('aanvraag')" :namen="uitScenario('aanvraag')" />
       <VeldInvoer
         v-for="veld in state.vormen.aanvraag.velden"
         :key="veld.naam"
-        v-model="aanvraag[veld.naam]"
+        :model-value="aanvraag[veld.naam]"
         :veld="veld"
+        @update:model-value="aanvraagVorm.zet('aanvraag', veld.naam, $event)"
       />
       <nldd-button appearance="primary" text="Aanvraag indienen" @click="indienen"></nldd-button>
     </nldd-container>
@@ -171,7 +185,17 @@ async function indienenTegen() {
       </nldd-text>
     </nldd-title>
     <nldd-container gap="16" max-width="560px">
-      <VeldInvoer v-for="veld in indieningVelden" :key="veld.naam" v-model="indiening[veld.naam]" :veld="veld" />
+      <UitScenario
+        v-if="ingevuld(tegen.soort, { besluit: tegen.besluit.id })"
+        :namen="uitScenario(tegen.soort, { besluit: tegen.besluit.id })"
+      />
+      <VeldInvoer
+        v-for="veld in indieningVelden"
+        :key="veld.naam"
+        :model-value="indiening[veld.naam]"
+        :veld="veld"
+        @update:model-value="indieningVorm.zet(tegen.besluit.id, veld.naam, $event)"
+      />
       <nldd-button-group>
         <nldd-button appearance="primary" text="Bezwaar indienen" @click="indienenTegen"></nldd-button>
         <nldd-button appearance="neutral-transparent" text="Annuleren" @click="tegen = null"></nldd-button>
@@ -189,7 +213,17 @@ async function indienenTegen() {
       </nldd-text>
     </nldd-title>
     <nldd-container gap="16" max-width="560px">
-      <VeldInvoer v-for="veld in indieningVelden" :key="veld.naam" v-model="indiening[veld.naam]" :veld="veld" />
+      <UitScenario
+        v-if="ingevuld(tegen.soort, { besluit: tegen.besluit.id })"
+        :namen="uitScenario(tegen.soort, { besluit: tegen.besluit.id })"
+      />
+      <VeldInvoer
+        v-for="veld in indieningVelden"
+        :key="veld.naam"
+        :model-value="indiening[veld.naam]"
+        :veld="veld"
+        @update:model-value="indieningVorm.zet(tegen.besluit.id, veld.naam, $event)"
+      />
       <nldd-button-group>
         <nldd-button appearance="primary" text="Beroepschrift indienen" @click="indienenTegen"></nldd-button>
         <nldd-button appearance="neutral-transparent" text="Annuleren" @click="tegen = null"></nldd-button>

@@ -1,0 +1,148 @@
+[
+ {
+  "name": "Een bedrijf in de binnenstad krijgt een vergunning",
+  "summary": "Een bakkerij in de binnenstad vraagt een vergunning, en het college verleent haar.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "todo": "Klik op Aanvraag indienen. Het kvk nummer in het voorbeeld is van een bakkerij in de binnenstad.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De beslistermijn is vier weken (artikel 4 van de fictieve verordening), niet de acht weken van Awb 4:13.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-20",
+    "todo": "Het formulier vraagt niets: de Kamer van Koophandel en de eigen kroniek van de gemeente geven wat de regels vragen. Klik op Besluit nemen.",
+    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   }
+  ]
+ },
+ {
+  "name": "Het maximum in de schil, en een vergunning na bezwaar",
+  "summary": "In de schil krijgt een bedrijf zoveel vergunningen als er mensen werken, en na een nieuwe inschrijving telt de vergunning uit het bezwaar bij de volgende aanvraag.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "todo": "Het formulier staat ingevuld uit het scenario: \"kvk nummer\" 99990022. Klik op Aanvraag indienen. In deze fietsenmakerij in de schil werkt volgens het handelsregister één persoon.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-20",
+    "todo": "Klik op Besluit nemen.",
+    "seen": "De vergunning is verleend, geldig tot en met 19 oktober 2027.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   },
+   {
+    "title": "Nog een aanvraag indienen",
+    "tab": "aanvrager",
+    "date": "2026-10-21",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"kvk nummer\" 99990022 en \"kenteken\" ZZ-002-Z. Klik op Aanvraag indienen.",
+    "seen": "De tweede aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluiten op de tweede aanvraag",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-22",
+    "todo": "Klik bij de tweede aanvraag op Besluit nemen.",
+    "seen": "Afgewezen: het bedrijf heeft al één geldige vergunning, en er werkt één persoon. Bij het besluit staat \"aantal werkzame personen volgens handelsregister: 1\".",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   },
+   {
+    "title": "Bezwaar maken",
+    "tab": "aanvrager",
+    "date": "2026-11-01",
+    "todo": "Zoek de tweede aanvraag. Klik bij haar besluit op Bezwaar maken en dan op Bezwaar indienen.",
+    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "expect": null
+   },
+   {
+    "title": "Nieuwe inschrijving bij de Kamer van Koophandel",
+    "tab": "andere",
+    "date": "2026-11-10",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"kvk nummer\" 99990022, \"postcode\" 7713 AA, \"aantal werkzame personen\" 2 en \"datum inschrijving\" 10 november 2026. De fietsenmakerij heeft iemand aangenomen. Klik bij Kamer van Koophandel onder \"Vastleggen: Vestiging ingeschreven\" op Vastleggen.",
+    "seen": "De nieuwe inschrijving staat in de kroniek van de Kamer, naast de oude; de gemeente leest haar bij de heroverweging.",
+    "expect": null
+   },
+   {
+    "title": "Beslissen op bezwaar",
+    "tab": "bestuursorgaan",
+    "date": "2026-11-20",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "seen": "Gegrond: de weigering is herroepen (Awb 7:11, tweede lid), en een nieuw besluit verleent de vergunning. Onder Kroniek staan nu drie besluiten onder artikel 2 van de verordening; niets is overschreven.",
+    "expect": "hier hoort het bezwaar gegrond te zijn"
+   },
+   {
+    "title": "Een derde aanvraag indienen",
+    "tab": "aanvrager",
+    "date": "2026-12-01",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"kvk nummer\" 99990022 en \"kenteken\" ZZ-003-Z. Klik op Aanvraag indienen.",
+    "seen": "De derde aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluiten op de derde aanvraag",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "todo": "Klik op Besluit nemen. Open daarna bij het besluit \"Hoe de cel dit beantwoordde\".",
+    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   }
+  ]
+ },
+ {
+  "name": "Buiten het gebied, en na de verhuizing erin",
+  "summary": "Een bedrijf buiten de vergunninggebieden krijgt geen vergunning, en na zijn verhuizing naar de binnenstad wel.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "todo": "Het formulier staat ingevuld uit het scenario: \"kvk nummer\" 99990033. Klik op Aanvraag indienen. Volgens het handelsregister ligt de vestiging van dit adviesbureau op postcode 7720 BC, in geen van de vergunninggebieden.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-20",
+    "todo": "Klik op Besluit nemen.",
+    "seen": "Afgewezen: uit het handelsregister blijkt niet dat het bedrijf in een vergunninggebied is gevestigd. Bij het besluit staat \"postcode vestiging volgens handelsregister: 7720 BC\".",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   },
+   {
+    "title": "Nieuwe inschrijving bij de Kamer van Koophandel",
+    "tab": "andere",
+    "date": "2026-11-01",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"kvk nummer\" 99990033, \"postcode\" 7711 AC, \"aantal werkzame personen\" 3 en \"datum inschrijving\" 1 november 2026. Het adviesbureau verhuist naar de binnenstad. Klik bij Kamer van Koophandel onder \"Vastleggen: Vestiging ingeschreven\" op Vastleggen.",
+    "seen": "De nieuwe inschrijving staat in de kroniek van de Kamer; de oude staat er nog.",
+    "expect": null
+   },
+   {
+    "title": "Nog een aanvraag indienen",
+    "tab": "aanvrager",
+    "date": "2026-11-02",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"kvk nummer\" 99990033. Klik op Aanvraag indienen.",
+    "seen": "De tweede aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluiten op de tweede aanvraag",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "todo": "Klik bij de tweede aanvraag op Besluit nemen.",
+    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   }
+  ]
+ }
+]

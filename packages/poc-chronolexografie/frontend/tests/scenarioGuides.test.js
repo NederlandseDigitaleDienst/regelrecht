@@ -1,20 +1,23 @@
 import { readFileSync } from 'fs';
 import { load } from 'js-yaml';
 import { describe, expect, it } from 'vitest';
-import { guideFor, guides } from '../src/scenarioGuides.js';
+import { bouwGids, guideFor, invoerZin } from '../src/scenarioGuides.js';
 
-// The guides follow the scenarios of the case YAML by name; these tests keep
-// the two in step.
-const casus = (id) =>
-  load(readFileSync(new URL(`../../casussen/${id}.yaml`, import.meta.url), 'utf8'));
+// The guides are built from the scenarios of the case YAML; these tests
+// check that every scenario of every case gives a guide the panel can show.
+const casus = (id) => ({
+  id,
+  ...load(readFileSync(new URL(`../../casussen/${id}.yaml`, import.meta.url), 'utf8')),
+});
+const CASUSSEN = ['vakantieverlof', 'gehandicaptenparkeerkaart', 'bedrijfsparkeervergunning'];
 const TABS = ['aanvrager', 'bestuursorgaan', 'andere'];
 
-describe.each(Object.keys(guides))('the guides of %s', (id) => {
-  const yaml = casus(id);
-  const list = guides[id];
+describe.each(CASUSSEN)('the guides of %s', (id) => {
+  const c = casus(id);
+  const list = c.scenarios.map((s) => guideFor(c, s.naam));
 
-  it('has a guide for every scenario of the YAML, in its order', () => {
-    expect(list.map((g) => g.name)).toEqual(yaml.scenarios.map((s) => s.naam));
+  it('has a guide for every scenario, by its name', () => {
+    expect(list.map((g) => g?.name)).toEqual(c.scenarios.map((s) => s.naam));
   });
 
   it('sums up each scenario in one sentence', () => {
@@ -30,32 +33,84 @@ describe.each(Object.keys(guides))('the guides of %s', (id) => {
         expect(s.todo, at).toBeTruthy();
         expect(typeof s.done, at).toBe('function');
         if (s.expect) expect(typeof s.expect.check, at).toBe('function');
-        // The last step shows the `eind` of the YAML instead.
         if (i < g.steps.length - 1) expect(s.seen, at).toBeTruthy();
       });
     }
   });
 
-  it('only moves the play date forward, from the first day of the case', () => {
-    const first = new Date(yaml.speeldatum).toISOString().slice(0, 10);
+  it('names in the text every value a step fills in', () => {
     for (const g of list) {
-      const dates = g.steps.map((s) => s.date).filter(Boolean);
+      for (const s of g.steps) {
+        for (const naam of Object.keys(s.stap.invoer ?? {})) {
+          expect(s.todo, `${g.name}: ${s.title}`).toContain(`"${naam.replaceAll('_', ' ')}"`);
+        }
+      }
+    }
+  });
+
+  it('only moves the play date forward, from the first day of the case', () => {
+    const first = String(c.speeldatum);
+    for (const g of list) {
+      const dates = g.steps.map((s) => s.date).filter(Boolean).map(String);
       expect(dates, g.name).toEqual([...dates].sort());
       if (dates.length) expect(dates[0] >= first, g.name).toBe(true);
     }
   });
+
+  it('shows the guide on screen as recorded', async () => {
+    const shown = list.map((g) => ({
+      name: g.name,
+      summary: g.summary,
+      steps: g.steps.map((s) => ({
+        title: s.title,
+        tab: s.tab,
+        date: s.date ?? null,
+        todo: s.todo,
+        seen: s.seen,
+        expect: s.expect?.text ?? null,
+      })),
+    }));
+    await expect(`${JSON.stringify(shown, null, 1)}\n`).toMatchFileSnapshot(`./__snapshots__/gids-${id}.json`);
+  });
+});
+
+describe('invoerZin', () => {
+  it('names each value, with yes or no and a date as the page writes them', () => {
+    expect(invoerZin({ kvk_nummer: '99990022', kenteken: 'ZZ-002-Z' })).toBe(
+      'Het formulier staat ingevuld uit het scenario: "kvk nummer" 99990022 en "kenteken" ZZ-002-Z.',
+    );
+    expect(invoerZin({ specifieke_aard_beroep_ouder: false })).toBe(
+      'Het formulier staat ingevuld uit het scenario: "specifieke aard beroep ouder" Nee.',
+    );
+    expect(invoerZin({ eerste_verlofdag: '2027-05-10' })).toContain('10 mei 2027');
+    expect(invoerZin({})).toBe('');
+  });
+});
+
+describe('bouwGids', () => {
+  it('expects of a refused step a refusal, not a decision', () => {
+    const g = bouwGids({
+      naam: 'x',
+      stappen: [{ stap: 'aanvraag' }, { stap: 'besluit', uitkomst: 'geweigerd' }],
+    });
+    const besluit = g.steps[1];
+    expect(besluit.done({ refusals: ['nee'], decided: [] })).toBe(true);
+    expect(besluit.expect.check({ decided: [true] })).toBe(false);
+  });
 });
 
 describe('guideFor', () => {
-  it('finds a guide by case and scenario name', () => {
-    const naam = guides.vakantieverlof[0].name;
-    expect(guideFor({ id: 'vakantieverlof' }, naam)).toBe(guides.vakantieverlof[0]);
+  const c = casus('vakantieverlof');
+  const naam = c.scenarios[0].naam;
+
+  it('builds a guide once per scenario', () => {
+    expect(guideFor(c, naam)).toBe(guideFor(c, naam));
   });
 
-  it('has none for a case from a source, an unknown scenario or no case', () => {
-    const naam = guides.vakantieverlof[0].name;
-    expect(guideFor({ id: 'vakantieverlof', bron: 'napp' }, naam)).toBeNull();
-    expect(guideFor({ id: 'vakantieverlof' }, 'Bestaat niet')).toBeNull();
+  it('has none for a case from a source, plain-text steps, an unknown scenario or no case', () => {
+    expect(guideFor({ ...c, bron: 'napp' }, naam)).toBeNull();
+    expect(guideFor({ id: 'x', scenarios: [{ naam, stappen: ['Klik op Aanvraag indienen.'] }] }, naam)).toBeNull();
+    expect(guideFor(c, 'Bestaat niet')).toBeNull();
     expect(guideFor(null, naam)).toBeNull();
   });
 });

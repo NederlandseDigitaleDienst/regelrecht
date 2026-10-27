@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { load } from 'js-yaml';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { guideFor } from '../src/scenarioGuides.js';
 import { counts, progress } from '../src/scenarioProgress.js';
@@ -23,7 +25,9 @@ const casus = {
   ontvangst: 'awb#8:79#afschrift_van_de_uitspraak',
   uitkomst: 'verlof_verleend',
   rechter: { cel: 'rechtbank', cel_naam: 'Rechtbank' },
-  scenarios: [],
+  // The scenarios of the case YAML, with their steps.
+  scenarios: load(readFileSync(new URL('../../casussen/vakantieverlof.yaml', import.meta.url), 'utf8'))
+    .scenarios,
 };
 const aanvraag = { id: id('0000aaaa'), kind: 'AANVRAAG', basis: 'wet#13a' };
 const weigering = { id: id('0000bbbb'), kind: 'BESCHIKKING', basis: 'wet#13a', refers_to: aanvraag.id, outputs: { verlof_verleend: false } };
