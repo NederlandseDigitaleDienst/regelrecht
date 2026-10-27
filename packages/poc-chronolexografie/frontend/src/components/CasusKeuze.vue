@@ -11,6 +11,7 @@ import { demoGuides } from '../presentation/demo.js';
 import { api } from '../api.js';
 import { bronMeldingen, herkomst } from '../bronnen.js';
 import { artikelNaam } from '../logboek.js';
+import { navigate } from '../navigation.js';
 import { hoofdletter, kiezen, state } from '../state.js';
 
 const emit = defineEmits(['presentatie', 'demo']);
@@ -33,7 +34,9 @@ const artikel = (c) => {
   return artikelNaam(wet, nummer);
 };
 
-const kies = (c) => kiezen(c.id);
+// A navigation (navigation.js), so the address follows and a click overtakes
+// an address that is still loading.
+const kies = (c) => navigate(() => kiezen(c.id));
 </script>
 
 <template>

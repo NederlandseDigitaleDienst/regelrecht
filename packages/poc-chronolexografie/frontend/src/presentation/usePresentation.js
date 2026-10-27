@@ -139,7 +139,7 @@ export function createPresentation(slides = SLIDES) {
     stop();
   }
 
-  /** Back to the deck: the slide the visitor left it on, or else the first. */
+  /** Back to the deck: the slide a scenario was last chosen on, or else the first. */
   const resume = () => start(cameFrom.value ?? 0);
 
   return { active, index, total, current, isLast, cameFrom, start, stop, leave, resume, next, prev, goTo, onKey };

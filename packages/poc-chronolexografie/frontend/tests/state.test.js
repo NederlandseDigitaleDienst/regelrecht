@@ -31,7 +31,7 @@ describe('saving the game of this tab', () => {
     Object.assign(state, { casus, datum: '2026-11-16', scenario: 'Tweede bezwaar', refusals: ['already replaces'] });
     await verversen();
     Object.assign(state, { casus: null, scenario: null, refusals: [], datum: '' });
-    await hervatten();
+    expect(await hervatten()).toBe('resumed');
     expect(state).toMatchObject({
       casus,
       datum: '2026-11-16',
@@ -45,6 +45,13 @@ describe('saving the game of this tab', () => {
     Object.assign(state, { scenario: 'over', refusals: ['over'] });
     await hervatten();
     expect(state).toMatchObject({ casus, datum: '2026-10-20', scenario: null, refusals: [] });
+  });
+
+  it('says whether a game came back, stays saved for the next reload, or is gone', async () => {
+    expect(await hervatten()).toBe('none');
+    storage.set('poc-spel', '{not json');
+    expect(await hervatten()).toBe('none');
+    expect(storage.has('poc-spel')).toBe(false);
   });
 });
 

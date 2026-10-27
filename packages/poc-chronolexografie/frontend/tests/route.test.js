@@ -37,24 +37,24 @@ describe('routePath and parseRoute', () => {
     for (const c of casussen) {
       for (const s of c.scenarios) {
         const route = parseRoute(routePath(base, c.id, s.naam), base);
-        expect(route).toEqual({ casus: c.id, scenario: scenarioSlug(s.naam), onbekend: false });
+        expect(route).toEqual({ casus: c.id, scenario: scenarioSlug(s.naam), unknown: false });
         expect(findScenario(c, route.scenario)).toBe(s);
       }
     }
   });
 
   it('read the base with and without its slash, and a trailing slash', () => {
-    const leeg = { casus: null, scenario: null, onbekend: false };
-    expect(parseRoute('/chronolexografie/', base)).toEqual(leeg);
-    expect(parseRoute('/chronolexografie', base)).toEqual(leeg);
+    const empty = { casus: null, scenario: null, unknown: false };
+    expect(parseRoute('/chronolexografie/', base)).toEqual(empty);
+    expect(parseRoute('/chronolexografie', base)).toEqual(empty);
     expect(parseRoute('/chronolexografie/vakantieverlof/', base).casus).toBe('vakantieverlof');
-    expect(parseRoute('/', '/')).toEqual(leeg);
+    expect(parseRoute('/', '/')).toEqual(empty);
   });
 
   it('name nothing for a path that is deeper or outside the base', () => {
-    expect(parseRoute('/chronolexografie/a/b/c', base).onbekend).toBe(true);
-    expect(parseRoute('/elders/', base).onbekend).toBe(true);
-    expect(parseRoute('/chronolexografie/%E0', base).onbekend).toBe(true);
+    expect(parseRoute('/chronolexografie/a/b/c', base).unknown).toBe(true);
+    expect(parseRoute('/elders/', base).unknown).toBe(true);
+    expect(parseRoute('/chronolexografie/%E0', base).unknown).toBe(true);
   });
 
   it('find no scenario for an unknown slug', () => {

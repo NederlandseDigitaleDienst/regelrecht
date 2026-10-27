@@ -28,10 +28,13 @@ export const unknown = ref(null);
 // While a navigation runs, its steps leave the address alone; it is written
 // once, at the end (`navigate`). Only the latest navigation writes: one the
 // visitor overtook (back pressed while a case still loads) stops at its next
-// step (`current`).
+// step (`current`). A step already under way still lands: a case that was
+// loading when the visitor went back opens anyway. That window is only open
+// while the cell itself loads; after that, choosing a case does not wait.
 let busy = 0;
 let latest = 0;
-const current = (mine) => mine === latest;
+/** Whether navigation `mine` is still the latest one. */
+export const current = (mine) => mine === latest;
 
 function write(replace = false) {
   if (busy || unknown.value) return;
@@ -61,46 +64,48 @@ export async function navigate(fn, { replace = false } = {}) {
   }
 }
 
-/** Back to the choice screen, from the notice about an unknown address. */
+/** Back to the choice screen, from the toolbar or the notice about an unknown address. */
 export const toChoice = () => navigate(naarKeuze);
+
+/**
+ * Show the notice about an unknown address over an empty page. The saved
+ * game of this tab stays (unlike `naarKeuze`): a mistyped link should not
+ * cost a game; going on to the choice screen forgets it.
+ */
+function notFound(what) {
+  state.casus = null;
+  state.scenario = null;
+  unknown.value = what;
+  return true;
+}
 
 /**
  * Play what the address names; `started` opens a scenario that began.
  * Returns false when the cell refused a step or a later navigation took
  * over.
  */
-async function follow(started, mine) {
+async function follow(started, mine, first) {
   const route = parseRoute(window.location.pathname, BASE);
-  if (route.onbekend) {
-    naarKeuze();
-    unknown.value = {};
-    return;
-  }
+  if (route.unknown) return notFound({});
   if (!route.casus) {
-    if (state.casus) naarKeuze();
-    return;
+    // The PoC's own root, on opening a tab that was playing (the portal links
+    // there): go on with the game, under its own address. Going back to the
+    // root is going back to the choice screen.
+    if (state.casus && !first) naarKeuze();
+    return true;
   }
   if (state.casus?.id !== route.casus) {
     const { casussen } = await api.casussen();
     if (!current(mine)) return false;
-    if (!casussen.some((c) => c.id === route.casus)) {
-      naarKeuze();
-      unknown.value = { casus: route.casus };
-      return;
-    }
+    if (!casussen.some((c) => c.id === route.casus)) return notFound({ casus: route.casus });
     if (!(await kiezen(route.casus)) || !current(mine)) return false;
   }
   if (!route.scenario) {
     state.scenario = null;
-    return;
+    return true;
   }
   const scenario = findScenario(state.casus, route.scenario);
-  if (!scenario) {
-    const casus = state.casus.titel;
-    naarKeuze();
-    unknown.value = { casus, scenario: route.scenario };
-    return;
-  }
+  if (!scenario) return notFound({ casus: state.casus.titel, scenario: route.scenario });
   if (state.scenario === scenario.naam) return true;
   if (!(await beginScenario(scenario.naam)) || !current(mine)) return false;
   await started();
@@ -111,18 +116,18 @@ async function follow(started, mine) {
  * Start following the address: play every one the browser goes back or
  * forward to, and write a new one after each choice on the page. `first`
  * plays the address the page opened on too; App.vue leaves it out when the
- * game of this tab did not come back, so its banner stays and the saved game
- * is not overwritten.
+ * saved game of this tab waits for the cell to load, so its banner stays and
+ * the game is not overwritten.
  */
 export async function followAddress(started, { first = true } = {}) {
-  const play = () =>
-    navigate((mine) => follow(started, mine), { replace: true }).catch((e) => {
+  const play = (opening = false) =>
+    navigate((mine) => follow(started, mine, opening), { replace: true }).catch((e) => {
       state.fout = e.message;
     });
-  window.addEventListener('popstate', play);
+  window.addEventListener('popstate', () => play());
   watch(
     () => [state.casus?.id, state.scenario],
     () => write(),
   );
-  if (first) await play();
+  if (first) await play(true);
 }

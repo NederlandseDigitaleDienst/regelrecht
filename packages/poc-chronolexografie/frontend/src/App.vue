@@ -18,7 +18,8 @@
 // The introductory deck (presentation/) covers the page when the choice
 // screen starts it or the URL carries `?presentatie`. Its closing slide, like
 // the choice screen, begins one of the demo scenarios (startDemo). The button
-// "Presentatie" brings it back, on the slide the visitor left it on.
+// "Presentatie" brings it back, on the slide a scenario was last chosen on,
+// or else on the first.
 //
 // The address names the case and the scenario (navigation.js), so a link
 // opens a scenario and the browser's back and forward walk the choices.
@@ -26,7 +27,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { api } from './api.js';
 import { artikelNaam } from './logboek.js';
 import { melding } from './melding.js';
-import { followAddress, navigate, toChoice, unknown } from './navigation.js';
+import { current, followAddress, navigate, toChoice, unknown } from './navigation.js';
 import { beginScenario, hervatten, kiezen, state, stap, verversen } from './state.js';
 import AanvragerTab from './components/AanvragerTab.vue';
 import AndereCellenTab from './components/AndereCellenTab.vue';
@@ -66,8 +67,10 @@ const details = ref(false);
 watch(() => state.fout, () => (details.value = false));
 
 onMounted(async () => {
-  await hervatten();
-  await followAddress(started, { first: !state.fout });
+  // A saved game that waits for the cell to load is not overwritten by the
+  // address the page opened on; the next reload plays both.
+  const resumed = await hervatten();
+  await followAddress(started, { first: resumed !== 'kept' });
 });
 
 const presentation = usePresentation();
@@ -84,7 +87,12 @@ const artikel = computed(() => {
 // The notice for an address that names a case or scenario this app does not
 // have (navigation.js).
 const base = import.meta.env.BASE_URL;
-const onbekendTekst = computed(() => {
+const unknownTitle = computed(() => {
+  if (unknown.value?.scenario) return 'Dit scenario bestaat niet';
+  if (unknown.value?.casus) return 'Deze casus bestaat niet';
+  return 'Dit adres bestaat niet';
+});
+const unknownText = computed(() => {
   const u = unknown.value;
   if (u?.scenario) return `De casus ${u.casus} heeft geen scenario met het adres “${u.scenario}”.`;
   if (u?.casus) return `Er is geen casus met het adres “${u.casus}”.`;
@@ -158,9 +166,9 @@ async function restart() {
 // closing slide: choose the case if it is not open, then begin the scenario
 // as its own button does.
 function startDemo(naam) {
-  return navigate(async () => {
+  return navigate(async (mine) => {
     if (state.casus?.id !== DEMO_CASUS && !(await kiezen(DEMO_CASUS))) return false;
-    if (!(await beginScenario(naam))) return false;
+    if (!current(mine) || !(await beginScenario(naam)) || !current(mine)) return false;
     await started();
   });
 }
@@ -258,8 +266,8 @@ function toTab(id) {
               <nldd-simple-section v-if="unknown" padding-block="16">
                 <nldd-banner
                   variant="warning"
-                  :text="unknown.scenario ? 'Dit scenario bestaat niet' : 'Deze casus bestaat niet'"
-                  :supporting-text="onbekendTekst"
+                  :text="unknownTitle"
+                  :supporting-text="unknownText"
                 >
                   <nldd-button
                     slot="actions"

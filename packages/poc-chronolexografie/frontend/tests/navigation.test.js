@@ -1,5 +1,5 @@
 import { nextTick, reactive } from 'vue';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // The game itself is not played here: choosing a case and beginning a
 // scenario only set `state`, as state.js does once the cell agrees.
@@ -60,7 +60,32 @@ const flush = async () => {
   for (let i = 0; i < 5; i++) await nextTick();
 };
 
+// Follow the address once for the whole file, as App.vue does on mounting;
+// the page opens on the choice screen.
+const started = vi.fn();
+beforeAll(async () => {
+  // A tab that was playing, opened on the PoC's root: the game goes on
+  // under its own address.
+  Object.assign(state, { casus, scenario: 'Aanvraag wordt verleend' });
+  await followAddress(started);
+  opened = { calls: [...calls], casus: state.casus, path: location.pathname, entries: [...entries] };
+});
+let opened;
+
+describe('opening the root in a tab that was playing', () => {
+  it('goes on with the game, under its address', () => {
+    expect(opened).toEqual({
+      calls: [],
+      casus,
+      path: '/vakantieverlof/aanvraag-wordt-verleend',
+      entries: [],
+    });
+  });
+});
+
 beforeEach(() => {
+  unknown.value = null;
+  started.mockClear();
   calls.length = 0;
   entries.length = 0;
   refuse = false;
@@ -70,8 +95,7 @@ beforeEach(() => {
 describe('the address', () => {
   it('opens the scenario a link names, and writes each choice after that', async () => {
     go('/vakantieverlof/bezwaar-te-laat-niet-ontvankelijk');
-    const started = vi.fn();
-    await followAddress(started);
+    await listeners.popstate();
     expect(calls).toEqual([
       ['kiezen', 'vakantieverlof'],
       ['beginScenario', 'Bezwaar te laat: niet-ontvankelijk'],
@@ -115,6 +139,8 @@ describe('the address', () => {
     await listeners.popstate();
     expect(unknown.value).toEqual({ casus: 'Vakantieverlof', scenario: 'bestaat-niet' });
     expect(location.pathname).toBe('/vakantieverlof/bestaat-niet');
+    // A mistyped link costs no saved game; the choice screen forgets it.
+    expect(calls).not.toContainEqual(['naarKeuze']);
 
     await toChoice();
     expect(unknown.value).toBeNull();

@@ -96,20 +96,27 @@ const bewaard = () => {
  * Bij het openen: ga verder met het spel dat dit tabblad bewaarde. Neemt de
  * cel het niet terug (de wet of de casus veranderde sinds), dan staat dat in
  * de banner en blijft het keuzescherm staan.
+ *
+ * Returns 'resumed', 'none' (nothing saved, or a game the cell refused and
+ * that is gone now) or 'kept' (the cell did not load; the game stays saved
+ * for the next reload, and nothing may overwrite it).
  */
 export async function hervatten() {
   const spelTotNu = bewaard();
-  if (!spelTotNu) return;
+  if (!spelTotNu) return 'none';
   try {
     const { spel: bewaardSpel, datum, scenario, refusals } = JSON.parse(spelTotNu);
     await openen(await api.herstellen(bewaardSpel), datum, { scenario, refusals });
+    return 'resumed';
   } catch (e) {
     // Laadde de cel niet (het netwerk, een deploy), dan blijft het spel
     // bewaard voor de volgende herlaad; alleen een spel dat de cel weigert,
     // gaat weg.
-    if (!CELL_NOT_LOADED.test(e.message)) vergeet();
+    const kept = CELL_NOT_LOADED.test(e.message);
+    if (!kept) vergeet();
     state.casus = null;
     state.fout = e.message;
+    return kept ? 'kept' : 'none';
   }
 }
 
