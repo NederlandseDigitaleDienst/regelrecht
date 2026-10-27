@@ -53,7 +53,7 @@
     "title": "Besluiten op de tweede aanvraag",
     "tab": "bestuursorgaan",
     "date": "2026-10-22",
-    "todo": "Klik bij de tweede aanvraag op Besluit nemen.",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"toepassing leidt tot onaanvaardbare gevolgen\" Nee. Het bedrijf zit op het maximum, dus het formulier vraagt het oordeel van het college over de hardheidsclausule (artikel 6 van de fictieve verordening). Klik bij de tweede aanvraag op Besluit nemen.",
     "seen": "Afgewezen: het bedrijf heeft al één geldige vergunning, en er werkt één persoon. Bij het besluit staat \"aantal werkzame personen volgens handelsregister: 1\".",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
@@ -93,7 +93,7 @@
     "title": "Besluiten op de derde aanvraag",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Klik op Besluit nemen. Open daarna bij het besluit \"Hoe de cel dit beantwoordde\".",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"toepassing leidt tot onaanvaardbare gevolgen\" Nee. Het bedrijf zit op het maximum, dus het formulier vraagt het oordeel van het college over de hardheidsclausule (artikel 6 van de fictieve verordening). Klik op Besluit nemen. Open daarna bij het besluit \"Hoe de cel dit beantwoordde\".",
     "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
@@ -142,6 +142,92 @@
     "todo": "Klik bij de tweede aanvraag op Besluit nemen.",
     "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   }
+  ]
+ },
+ {
+  "name": "Het maximum in de binnenstad, en de hardheidsclausule na bezwaar",
+  "summary": "Een thuiszorgbedrijf in de binnenstad zit op het maximum, en na bezwaar past het college de hardheidsclausule toe: een oordeel van een mens, dat het nieuwe besluit vastlegt.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "todo": "Het formulier staat ingevuld uit het scenario: \"kvk nummer\" 99990044. Klik op Aanvraag indienen. Dit thuiszorgbedrijf in de binnenstad rijdt met zijn wijkverpleging naar cliënten.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-20",
+    "todo": "Klik op Besluit nemen.",
+    "seen": "De vergunning is verleend. Het formulier vroeg geen oordeel: het bedrijf had nog geen vergunning.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   },
+   {
+    "title": "Nog een aanvraag indienen",
+    "tab": "aanvrager",
+    "date": "2026-10-21",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"kvk nummer\" 99990044 en \"kenteken\" ZZ-002-Z. Klik op Aanvraag indienen.",
+    "seen": "De tweede aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluiten op de tweede aanvraag",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-22",
+    "todo": "Klik bij de tweede aanvraag op Besluit nemen.",
+    "seen": "Ook deze vergunning is verleend. Bij een bedrijf onder het maximum vraagt het formulier niets over de hardheidsclausule: de regel komt daar niet aan toe.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   },
+   {
+    "title": "Een derde aanvraag indienen",
+    "tab": "aanvrager",
+    "date": "2026-10-23",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"kvk nummer\" 99990044 en \"kenteken\" ZZ-003-Z. Klik op Aanvraag indienen.",
+    "seen": "De derde aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluiten op de derde aanvraag",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-27",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"toepassing leidt tot onaanvaardbare gevolgen\" Nee. Het bedrijf heeft twee geldige vergunningen, het maximum in de binnenstad. Nu vraagt het formulier het oordeel van het college over de hardheidsclausule (artikel 6 van de fictieve verordening). De engine kan dat oordeel niet uitrekenen, en het bedrijf heeft nog geen bijzondere omstandigheden aangevoerd. Klik op Besluit nemen.",
+    "seen": "Afgewezen. Bij het besluit staat \"toepassing leidt tot onaanvaardbare gevolgen\": Nee. Dat oordeel staat als gegeven bij het besluit in de kroniek, naast wat de Kamer van Koophandel en de eigen kroniek antwoordden.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   },
+   {
+    "title": "Bezwaar maken",
+    "tab": "aanvrager",
+    "date": "2026-11-01",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"gronden bezwaar of beroep\" de wijkverpleging rijdt dagelijks met drie auto's naar cliënten. Zoek de derde aanvraag en klik bij haar besluit op Bezwaar maken en dan op Bezwaar indienen.",
+    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "expect": null
+   },
+   {
+    "title": "Beslissen op bezwaar",
+    "tab": "bestuursorgaan",
+    "date": "2026-11-20",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"toepassing leidt tot onaanvaardbare gevolgen\" Ja. Klik onder Open bezwaren op Ontvankelijkheid toetsen. Het college oordeelde eerder Nee. Bij de heroverweging (Awb 7:11) weegt het college opnieuw af, met de gronden van het bezwaar. Klik op Beslissen op bezwaar.",
+    "seen": "Gegrond: de weigering is herroepen (Awb 7:11, tweede lid), en een nieuw besluit verleent de vergunning. De feiten zijn dezelfde als bij de weigering. Het nieuwe besluit rust op het oordeel van het college, en legt dat vast.",
+    "expect": "hier hoort het bezwaar gegrond te zijn"
+   },
+   {
+    "title": "Een vierde aanvraag indienen",
+    "tab": "aanvrager",
+    "date": "2026-12-01",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"kvk nummer\" 99990044 en \"kenteken\" ZZ-004-Z. Klik op Aanvraag indienen.",
+    "seen": "De vierde aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluiten op de vierde aanvraag",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "todo": "Het formulier staat ingevuld uit het scenario: \"toepassing leidt tot onaanvaardbare gevolgen\" Nee. Het formulier vraagt het oordeel opnieuw, want het geldt per geval. Klik op Besluit nemen. Open daarna bij het besluit \"Hoe de cel dit beantwoordde\".",
+    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]
  }
