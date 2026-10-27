@@ -33,7 +33,13 @@ export function parseRoute(pathname, base) {
   // `/chronolexografie` without its slash is the base too.
   if (`${pathname}/` === base) return leeg;
   if (!pathname.startsWith(base)) return { ...leeg, onbekend: true };
-  const delen = pathname.slice(base.length).split('/').filter(Boolean).map(decodeURIComponent);
+  let delen;
+  try {
+    delen = pathname.slice(base.length).split('/').filter(Boolean).map(decodeURIComponent);
+  } catch {
+    // A broken escape (`%E0`) names nothing either.
+    return { ...leeg, onbekend: true };
+  }
   if (delen.length > 2) return { ...leeg, onbekend: true };
   return { casus: delen[0] ?? null, scenario: delen[1] ?? null, onbekend: false };
 }

@@ -27,7 +27,7 @@ import { api } from './api.js';
 import { artikelNaam } from './logboek.js';
 import { melding } from './melding.js';
 import { followAddress, navigate, toChoice, unknown } from './navigation.js';
-import { beginScenario, hervatten, kiezen, naarKeuze, state, stap, verversen } from './state.js';
+import { beginScenario, hervatten, kiezen, state, stap, verversen } from './state.js';
 import AanvragerTab from './components/AanvragerTab.vue';
 import AndereCellenTab from './components/AndereCellenTab.vue';
 import BestuursorgaanTab from './components/BestuursorgaanTab.vue';
@@ -67,7 +67,7 @@ watch(() => state.fout, () => (details.value = false));
 
 onMounted(async () => {
   await hervatten();
-  await followAddress(started);
+  await followAddress(started, { first: !state.fout });
 });
 
 const presentation = usePresentation();
@@ -159,8 +159,9 @@ async function restart() {
 // as its own button does.
 function startDemo(naam) {
   return navigate(async () => {
-    if (state.casus?.id !== DEMO_CASUS && !(await kiezen(DEMO_CASUS))) return;
-    if (await beginScenario(naam)) await started();
+    if (state.casus?.id !== DEMO_CASUS && !(await kiezen(DEMO_CASUS))) return false;
+    if (!(await beginScenario(naam))) return false;
+    await started();
   });
 }
 function toTab(id) {
@@ -195,8 +196,8 @@ function toTab(id) {
                 <nldd-menu-item slot="overflow" text="Presentatie" @select="presentation.resume()"></nldd-menu-item>
               </nldd-toolbar-item>
               <nldd-toolbar-item slot="end" :priority="1">
-                <nldd-button appearance="neutral-tinted" text="Andere casus" @click="naarKeuze"></nldd-button>
-                <nldd-menu-item slot="overflow" text="Andere casus" @select="naarKeuze"></nldd-menu-item>
+                <nldd-button appearance="neutral-tinted" text="Andere casus" @click="toChoice"></nldd-button>
+                <nldd-menu-item slot="overflow" text="Andere casus" @select="toChoice"></nldd-menu-item>
               </nldd-toolbar-item>
               <nldd-toolbar-item slot="end" :priority="1">
                 <nldd-button appearance="neutral-tinted" text="Opnieuw beginnen" @click="opnieuw"></nldd-button>

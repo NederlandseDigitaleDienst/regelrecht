@@ -26,8 +26,12 @@ const BASE = import.meta.env.BASE_URL;
 export const unknown = ref(null);
 
 // While a navigation runs, its steps leave the address alone; it is written
-// once, at the end (`navigate`).
+// once, at the end (`navigate`). Only the latest navigation writes: one the
+// visitor overtook (back pressed while a case still loads) stops at its next
+// step (`current`).
 let busy = 0;
+let latest = 0;
+const current = (mine) => mine === latest;
 
 function write(replace = false) {
   if (busy || unknown.value) return;
@@ -38,23 +42,34 @@ function write(replace = false) {
   else window.history.pushState(null, '', url);
 }
 
-/** Run `fn` as one navigation: the address changes once, after it. */
+/**
+ * Run `fn` as one navigation: the address changes once, after it. `fn` gets
+ * the navigation's number for `current`; when it returns false, or throws,
+ * the address stays as it is, so a reload tries the same address again.
+ */
 export async function navigate(fn, { replace = false } = {}) {
   unknown.value = null;
+  const mine = ++latest;
   busy++;
+  let ok = false;
   try {
-    return await fn();
+    ok = (await fn(mine)) !== false;
+    return ok;
   } finally {
     busy--;
-    write(replace);
+    if (ok && current(mine)) write(replace);
   }
 }
 
 /** Back to the choice screen, from the notice about an unknown address. */
 export const toChoice = () => navigate(naarKeuze);
 
-/** Play what the address names; `started` opens a scenario that began. */
-async function follow(started) {
+/**
+ * Play what the address names; `started` opens a scenario that began.
+ * Returns false when the cell refused a step or a later navigation took
+ * over.
+ */
+async function follow(started, mine) {
   const route = parseRoute(window.location.pathname, BASE);
   if (route.onbekend) {
     naarKeuze();
@@ -67,12 +82,13 @@ async function follow(started) {
   }
   if (state.casus?.id !== route.casus) {
     const { casussen } = await api.casussen();
+    if (!current(mine)) return false;
     if (!casussen.some((c) => c.id === route.casus)) {
       naarKeuze();
       unknown.value = { casus: route.casus };
       return;
     }
-    if (!(await kiezen(route.casus))) return;
+    if (!(await kiezen(route.casus)) || !current(mine)) return false;
   }
   if (!route.scenario) {
     state.scenario = null;
@@ -85,17 +101,22 @@ async function follow(started) {
     unknown.value = { casus, scenario: route.scenario };
     return;
   }
-  if (state.scenario !== scenario.naam && (await beginScenario(scenario.naam))) await started();
+  if (state.scenario === scenario.naam) return true;
+  if (!(await beginScenario(scenario.naam)) || !current(mine)) return false;
+  await started();
+  return true;
 }
 
 /**
- * Start following the address: play the one the page opened on, then every
- * one the browser goes back or forward to, and write a new one after each
- * choice on the page.
+ * Start following the address: play every one the browser goes back or
+ * forward to, and write a new one after each choice on the page. `first`
+ * plays the address the page opened on too; App.vue leaves it out when the
+ * game of this tab did not come back, so its banner stays and the saved game
+ * is not overwritten.
  */
-export async function followAddress(started) {
+export async function followAddress(started, { first = true } = {}) {
   const play = () =>
-    navigate(() => follow(started), { replace: true }).catch((e) => {
+    navigate((mine) => follow(started, mine), { replace: true }).catch((e) => {
       state.fout = e.message;
     });
   window.addEventListener('popstate', play);
@@ -103,5 +124,5 @@ export async function followAddress(started) {
     () => [state.casus?.id, state.scenario],
     () => write(),
   );
-  await play();
+  if (first) await play();
 }

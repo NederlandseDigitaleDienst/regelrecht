@@ -54,6 +54,7 @@ describe('routePath and parseRoute', () => {
   it('name nothing for a path that is deeper or outside the base', () => {
     expect(parseRoute('/chronolexografie/a/b/c', base).onbekend).toBe(true);
     expect(parseRoute('/elders/', base).onbekend).toBe(true);
+    expect(parseRoute('/chronolexografie/%E0', base).onbekend).toBe(true);
   });
 
   it('find no scenario for an unknown slug', () => {

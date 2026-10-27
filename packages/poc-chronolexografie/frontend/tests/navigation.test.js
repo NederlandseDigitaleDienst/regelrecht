@@ -10,10 +10,13 @@ const casus = {
 };
 const state = reactive({ casus: null, scenario: null, fout: '' });
 const calls = [];
+// Set to make the cell refuse the next choice of a case.
+let refuse = false;
 vi.mock('../src/state.js', () => ({
   state,
   kiezen: async (id) => {
     calls.push(['kiezen', id]);
+    if (refuse) return false;
     state.casus = { ...casus, id };
     state.scenario = null;
     return true;
@@ -60,6 +63,7 @@ const flush = async () => {
 beforeEach(() => {
   calls.length = 0;
   entries.length = 0;
+  refuse = false;
   Object.assign(state, { casus: null, scenario: null, fout: '' });
 });
 
@@ -115,5 +119,13 @@ describe('the address', () => {
     await toChoice();
     expect(unknown.value).toBeNull();
     expect(location.pathname).toBe('/');
+  });
+
+  it('stays on an address the cell could not open, so a reload tries it again', async () => {
+    go('/vakantieverlof/aanvraag-wordt-verleend');
+    refuse = true;
+    await listeners.popstate();
+    expect(location.pathname).toBe('/vakantieverlof/aanvraag-wordt-verleend');
+    expect(calls).toEqual([['kiezen', 'vakantieverlof']]);
   });
 });
