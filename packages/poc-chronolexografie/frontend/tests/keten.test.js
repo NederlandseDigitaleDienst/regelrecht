@@ -101,17 +101,35 @@ describe('keten.js', () => {
     );
     expect(schakelTekst(reductie).uitleg).toBe(
       'Deze reductie leest de kroniek van gemeente Wilgendaal en geeft geldende_besluiten. ' +
-        'De stap erboven geeft basis = Verordening (fictief) artikel 2 mee. Het systeem leest de geldende besluiten.',
+        'De stap erboven geeft basis = Verordening (fictief) artikel 2 mee.',
     );
     expect(schakelTekst(keten.kinderen[0]).uitleg).toBe(
       'Verordening (fictief) artikel 2 laat dit begrip open. Of het maximum is bereikt. Het artikel hieronder vult het in.',
     );
     expect(schakelTekst(keten.kinderen[0].kinderen[0]).uitleg).toContain('geeft het antwoord aantal_geldig uit haar reductie reductie_geldig');
-    expect(schakelTekst(keten.kinderen[1]).uitleg).toContain('blijft het leeg');
+    expect(schakelTekst(keten.kinderen[1]).uitleg).toContain('blijft de invoer leeg');
     const vult = { ...reductie, laag: 'UITVOERINGSBELEID', leest: [], parameters: {}, vult: 'maximum_bereikt', vult_in: 'fictieve_verordening#2', vraagt: ['aantal_geldig'], kinderen: [keten.kinderen[0].kinderen[0]] };
     expect(schakelTekst(vult).uitleg).toBe(
       'Dit artikel vult het open begrip maximum_bereikt van Verordening (fictief) artikel 2. ' +
         'Het neemt daarvoor het antwoord aantal_geldig van gemeente Wilgendaal.',
+    );
+    // Of its own open terms only those no rule fills, per judge.
+    const eigen = (id, ingevuld_door, kinderen = []) => ({ soort: 'begrip', id, ingevuld_door, kinderen });
+    const metEigen = {
+      ...vult,
+      kinderen: [
+        ...vult.kinderen,
+        eigen('gevuld', 'de Kamer', [reductie]),
+        eigen('a_volgens_college', 'het college'),
+        eigen('b_volgens_college', 'het college'),
+      ],
+    };
+    expect(schakelTekst(metEigen).uitleg).toContain(
+      'Daarnaast laat het a_volgens_college en b_volgens_college open; dat beoordeelt per geval het college.',
+    );
+    expect(schakelTekst(metEigen).uitleg).not.toContain('gevuld open');
+    expect(schakelTekst({ soort: 'eerder', wet: 'x', artikel: '4', laag: 'UITVOERINGSBELEID', naam: 'Uitvoeringsbesluit X' }).tekst).toBe(
+      'Uitvoeringsbesluit art. 4',
     );
   });
 });

@@ -6,7 +6,10 @@
 //! The cuts work on the text, not on parsed YAML, so a fragment keeps the
 //! keys in the order and the notation of the file. Full-line comments and
 //! blank lines are left out of a fragment, and each block loses its own
-//! indentation; every other line is a line of the file.
+//! indentation; every other line is a line of the file. A line inside a
+//! block scalar (`|`, `>-`) that is blank or starts with `#` is left out
+//! too: the cut does not track scalars, and the corpus writes neither in
+//! the blocks a fragment shows.
 
 /// The longest block of a fragment, in lines. A longer one ends with
 /// [`AFGEKAPT`], and the full article is one click away.
@@ -25,9 +28,16 @@ fn leeg(regel: &str) -> bool {
     t.is_empty() || t.starts_with('#')
 }
 
+/// `regel` trimmed and without a comment after its content
+/// (`input:  # why`).
+fn kaal(regel: &str) -> &str {
+    let t = regel.trim();
+    t.find(" #").map_or(t, |i| t[..i].trim_end())
+}
+
 /// A key that opens a block (`input:`), as opposed to a list item.
 fn opent_blok(regel: &str) -> bool {
-    let t = regel.trim();
+    let t = kaal(regel);
     t.ends_with(':') && !t.starts_with("- ")
 }
 
@@ -62,7 +72,7 @@ fn ouder<'a>(regels: &[&'a str], i: usize) -> Option<&'a str> {
         .rev()
         .filter(|r| !leeg(r))
         .find(|r| inspring(r) < eigen || (item && inspring(r) == eigen && opent_blok(r)))
-        .map(|r| r.trim().trim_start_matches("- ").trim_end_matches(':'))
+        .map(|r| kaal(r).trim_start_matches("- ").trim_end_matches(':'))
 }
 
 /// Lines `van..tot` without comments and blank lines, less the indentation
@@ -101,7 +111,7 @@ fn artikel(regels: &[&str], number: &str) -> Option<(usize, usize)> {
 pub fn machine_readable(yaml: &str, number: &str) -> Option<String> {
     let regels: Vec<&str> = yaml.lines().collect();
     let (begin, eind) = artikel(&regels, number)?;
-    let mr = (begin + 1..eind).find(|&i| regels[i].trim() == "machine_readable:")?;
+    let mr = (begin + 1..eind).find(|&i| kaal(regels[i]) == "machine_readable:")?;
     let eigen = inspring(regels[mr]);
     let tot = einde(&regels, mr);
     Some(
@@ -136,7 +146,7 @@ pub fn van_artikel(yaml: &str, number: &str, keuze: &Keuze<'_>) -> Vec<String> {
     let mut blokken: Vec<Vec<String>> = Vec::new();
     let blok = |i: usize| snede(&regels, i, einde(&regels, i));
     if keuze.implements {
-        if let Some(i) = binnen.clone().find(|&i| regels[i].trim() == "implements:") {
+        if let Some(i) = binnen.clone().find(|&i| kaal(regels[i]) == "implements:") {
             blokken.push(blok(i));
         }
     }
@@ -198,13 +208,13 @@ fn item<'a>(regel: &'a str, key: &str) -> Option<&'a str> {
     waarde(regel.trim_start().strip_prefix("- ")?, key)
 }
 
-/// The line of `antwoord` under `answers` in the catalogue `cel_yaml`
-/// (`cel.yaml`), as written there.
+/// The entry of `antwoord` under `answers` in the catalogue `cel_yaml`
+/// (`cel.yaml`), as written there: one line, or more when its value wraps.
 pub fn van_catalogus(cel_yaml: &str, antwoord: &str) -> Option<String> {
     let regels: Vec<&str> = cel_yaml.lines().collect();
     let i = (0..regels.len())
         .find(|&i| waarde(regels[i], antwoord).is_some() && ouder(&regels, i) == Some("answers"))?;
-    Some(regels[i].trim().to_string())
+    Some(snede(&regels, i, einde(&regels, i)).join("\n"))
 }
 
 #[cfg(test)]
@@ -323,5 +333,25 @@ articles:
         let cel = "name: X\n# answers\nanswers:\n  a: reductie_a\n  b: reductie_b\n";
         assert_eq!(van_catalogus(cel, "b").as_deref(), Some("b: reductie_b"));
         assert_eq!(van_catalogus(cel, "name"), None);
+        let lang = "answers:\n  heel_lang_antwoord:\n    reductie_met_een_lange_naam\n  b: c\n";
+        assert_eq!(
+            van_catalogus(lang, "heel_lang_antwoord").as_deref(),
+            Some("heel_lang_antwoord:\n  reductie_met_een_lange_naam")
+        );
+    }
+
+    #[test]
+    fn a_comment_after_a_key_hides_no_block() {
+        let yaml = "articles:\n  - number: '1'\n    machine_readable:  # why\n      execution:\n        input:  # inputs\n          - name: x\n            source:\n              reduction: y\n";
+        assert!(machine_readable(yaml, "1").is_some());
+        let invoer = ["x".to_string()];
+        let keuze = Keuze {
+            invoer: &invoer,
+            ..Keuze::default()
+        };
+        assert_eq!(
+            van_artikel(yaml, "1", &keuze),
+            ["- name: x\n  source:\n    reduction: y"]
+        );
     }
 }

@@ -68,7 +68,15 @@ pub enum Schakel {
     },
     /// An article the chain already showed above, with the same parameters
     /// and on the chronicle of the same cell.
-    Eerder { wet: String, artikel: String },
+    /// It carries the layer, name and outputs read, so its heading matches
+    /// the step it points to.
+    Eerder {
+        wet: String,
+        artikel: String,
+        laag: String,
+        naam: Option<String>,
+        leest: Vec<String>,
+    },
 }
 
 /// An article in the chain.
@@ -200,6 +208,9 @@ impl<'a> Keten<'a> {
             return Ok(Some(Schakel::Eerder {
                 wet: wet.to_string(),
                 artikel: artikel.to_string(),
+                laag: law.regulatory_layer.as_str().to_string(),
+                naam: law.name.clone(),
+                leest,
             }));
         }
         let mut kinderen = self.begrippen(law, article, cel)?;

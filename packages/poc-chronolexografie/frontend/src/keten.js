@@ -86,9 +86,16 @@ const parameterWaarde = (v) => (String(v).includes('#') ? verwijzing(v) : String
  */
 function artikelKop(s) {
   if (s.laag === 'REDUCTIE') return `Reductie ${opsomming(s.leest ?? [])}`.trim();
-  const wet = ['WET', 'AMVB'].includes(s.laag) ? wetNaam(s.wet, s.naam) : hoofd(laagNaam(s.laag));
+  // The first word of a lower regelwerk's name tells two of one layer apart
+  // ("Uitvoeringsbesluit art. 2", "Parkeerverordening art. 2").
+  const wet = ['WET', 'AMVB'].includes(s.laag)
+    ? wetNaam(s.wet, s.naam)
+    : (s.naam?.split(/\s+/)[0] ?? hoofd(laagNaam(s.laag)));
   return `${wet} art. ${s.artikel}`;
 }
+
+/** `dat` for one name, `die` for more: "geeft a, dat …", "geeft a en b, die …". */
+const datDie = (namen) => (namen.length > 1 ? 'die' : 'dat');
 
 /** The cells under a step that give `antwoord`, by name. */
 const cellenVoor = (s, antwoord) =>
@@ -108,7 +115,7 @@ function artikelUitleg(s, wortel) {
   if (wortel) {
     return zinnen(
       `Dit artikel beslist over de aanvraag en bepaalt ${opsomming(s.leest ?? [])}`,
-      korteUitleg(s.tekst),
+      korteUitleg(s.tekst, 120),
       eigen.length && `Het laat ${eigen.length === 1 ? 'één open begrip' : `${eigen.length} open begrippen`} over aan andere regels: ${opsomming(eigen.map((b) => b.id))}`,
     );
   }
@@ -117,7 +124,6 @@ function artikelUitleg(s, wortel) {
     return zinnen(
       `Deze reductie leest de kroniek van ${celNaam(s.cel)} en geeft ${opsomming(s.leest ?? [])}`,
       mee.length && `De stap erboven geeft ${opsomming(mee)} mee`,
-      korteUitleg(s.tekst),
     );
   }
   if (s.vult) {
@@ -125,16 +131,22 @@ function artikelUitleg(s, wortel) {
       const cellen = cellenVoor(s, a);
       return `het antwoord ${a}${cellen.length ? ` van ${opsomming(cellen)}` : ''}`;
     });
-    const zelf = eigen.filter((b) => b.ingevuld_door);
+    // Its own open terms that no rule fills, grouped by who judges them.
+    const perRechter = new Map();
+    for (const b of eigen.filter((b) => b.ingevuld_door && !heeftKinderen(b))) {
+      perRechter.set(b.ingevuld_door, [...(perRechter.get(b.ingevuld_door) ?? []), b.id]);
+    }
     return zinnen(
       `Dit artikel vult het open begrip ${s.vult} van ${verwijzing(s.vult_in)}`,
-      antwoorden.length ? `Het neemt daarvoor ${opsomming(antwoorden)}` : korteUitleg(s.tekst),
-      zelf.length && `Daarnaast laat het ${opsomming(zelf.map((b) => b.id))} open, dat ${zelf[0].ingevuld_door} per geval beoordeelt`,
+      antwoorden.length ? `Het neemt daarvoor ${opsomming(antwoorden)}` : korteUitleg(s.tekst, 120),
+      ...[...perRechter].map(
+        ([wie, ids]) => `Daarnaast laat het ${opsomming(ids)} open; dat beoordeelt per geval ${wie}`,
+      ),
     );
   }
   return zinnen(
-    s.leest?.length && `Dit artikel geeft ${opsomming(s.leest)}, dat de stap erboven gebruikt`,
-    korteUitleg(s.tekst),
+    s.leest?.length && `Dit artikel geeft ${opsomming(s.leest)}, ${datDie(s.leest)} de stap erboven gebruikt`,
+    korteUitleg(s.tekst, 120),
   );
 }
 
@@ -172,7 +184,7 @@ export function schakelTekst(s, { wortel = false } = {}) {
           n
             ? `${n === 1 ? 'Het artikel' : 'De artikelen'} hieronder ${n === 1 ? 'vult' : 'vullen'} het in`
             : s.ingevuld_door
-              ? `Geen regel vult het in, dus ${s.ingevuld_door} beoordeelt het per geval`
+              ? `Geen regel vult het in; dat doet per geval ${s.ingevuld_door}`
               : 'Geen regelwerk van deze casus vult het in',
         ),
       };
@@ -185,7 +197,7 @@ export function schakelTekst(s, { wortel = false } = {}) {
             toelichting: `geeft ${s.antwoord}`,
             uitleg: zinnen(
               `${hoofd(celNaam(s.cel))} geeft het antwoord ${s.antwoord} uit haar reductie ${s.reductie}`,
-              'Die reductie leest de kroniek van deze cel; welke reductie bij welk antwoord hoort, staat onder answers in haar cel.yaml',
+              'In haar cel.yaml staat welke reductie dit antwoord geeft',
             ),
           }
         : {
@@ -194,7 +206,7 @@ export function schakelTekst(s, { wortel = false } = {}) {
             toelichting: '',
             uitleg: zinnen(
               `Geen cel van deze casus geeft het antwoord ${s.antwoord}`,
-              'Zonder antwoord blijft het leeg, of neemt de cel het besluit niet',
+              'Zonder dit antwoord blijft de invoer leeg, of weigert de beslissende cel het besluit',
             ),
           };
     case 'kroniek':
@@ -209,7 +221,7 @@ export function schakelTekst(s, { wortel = false } = {}) {
     case 'eerder':
       return {
         overline: 'zie eerder',
-        tekst: artikelNaam(s.wet, s.artikel),
+        tekst: artikelKop(s),
         toelichting: '',
         uitleg: 'Dit artikel staat al eerder in de keten. Daar staan ook de stappen eronder.',
       };

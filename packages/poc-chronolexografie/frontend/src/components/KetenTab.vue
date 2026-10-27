@@ -44,8 +44,8 @@ watch(() => state.datum, laden);
         Van het artikel dat over de aanvraag beslist naar wat de cellen uit hun kroniek lezen. Het
         spel leidt deze keten af uit de regelwerken die de casus laadt, op de speeldatum. Een open
         begrip staat onder het artikel dat het openlaat, met de regels die het invullen. Neemt
-        beleid een antwoord van een cel, dan volgen de cel en haar reductie. Onder elke stap staat
-        het stuk YAML uit het corpus dat die schakel legt. Volledig artikel toont de hele
+        beleid een antwoord van een cel, dan volgen de cel en haar reductie. Onder een stap staan
+        de stukken YAML uit het corpus die de schakel leggen. Volledig artikel toont de hele
         machine-leesbare uitwerking. Elk artikel dat de PoC verzon, zoals elke reductie, draagt het
         label fictief.
       </nldd-text>

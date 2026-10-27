@@ -27,8 +27,10 @@ const isOpen = ref(props.open);
 const s = computed(() => props.schakel);
 const tekst = computed(() => schakelTekst(s.value, { wortel: props.diepte === 0 }));
 const artikel = computed(() => s.value.soort === 'artikel');
-// Every step opens onto its explanation; it has one of every kind.
-const tak = computed(() => !!tekst.value.uitleg || heeftKinderen(s.value));
+// A step opens onto its explanation, its panels and the steps under it.
+const tak = computed(
+  () => !!tekst.value.uitleg || (s.value.fragmenten?.length ?? 0) > 0 || artikel.value || heeftKinderen(s.value),
+);
 const panelen = computed(() => s.value.fragmenten ?? []);
 const pad = computed(() => bestandPad(s.value.bestand, state.casus?.bron));
 </script>
