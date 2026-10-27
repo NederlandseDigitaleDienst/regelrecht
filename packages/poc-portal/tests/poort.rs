@@ -267,6 +267,44 @@ async fn a_poc_page_carries_the_notice_and_its_assets_do_not() {
 }
 
 #[tokio::test]
+async fn a_deep_link_into_a_poc_gets_its_index_and_a_missing_file_a_404() {
+    // A PoC with its own router puts the case and scenario in the path
+    // (`/chronolexografie/<case>/<scenario>`). A hard refresh there must get
+    // the PoC's index with 200, not a 404 a proxy might replace; a missing
+    // asset keeps its 404.
+    let dir = std::env::temp_dir().join(format!("poc-diep-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("alfa")).expect("mkdir");
+    std::fs::write(
+        dir.join("alfa/index.html"),
+        "<html><body><h1>Alfa</h1></body></html>",
+    )
+    .expect("index");
+
+    std::env::set_var("POC_COOKIE_SECRET", SECRET);
+    std::env::set_var("POC_PW_ALFA", "alfa-geheim");
+    std::env::set_var("POC_PW_BETA", "beta-geheim");
+    let config = Config::from_env(REGISTER)
+        .expect("config")
+        .met_static_root(dir.to_string_lossy().into_owned());
+    let app = router(AppState::new(config));
+
+    let (status, html) = get(
+        &app,
+        "/alfa/een-casus/een-scenario",
+        Some(&cookie_voor("alfa")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(html.contains("<h1>Alfa</h1>"), "{html}");
+    assert!(html.contains("data-poc-portaal"), "{html}");
+
+    let (status, _) = get(&app, "/alfa/assets/weg.js", Some(&cookie_voor("alfa"))).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[tokio::test]
 async fn the_assistant_answers_503_when_it_is_not_running() {
     // Niet 404: het endpoint bestaat, de assistent draait alleen niet in deze
     // omgeving. De app doet toch al een health-probe en verbergt zijn paneel.

@@ -17,11 +17,16 @@
 //
 // The introductory deck (presentation/) covers the page when the choice
 // screen starts it or the URL carries `?presentatie`. Its closing slide, like
-// the choice screen, begins one of the demo scenarios (startDemo).
+// the choice screen, begins one of the demo scenarios (startDemo). The button
+// "Presentatie" brings it back, on the slide the visitor left it on.
+//
+// The address names the case and the scenario (navigation.js), so a link
+// opens a scenario and the browser's back and forward walk the choices.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { api } from './api.js';
 import { artikelNaam } from './logboek.js';
 import { melding } from './melding.js';
+import { followAddress, navigate, toChoice, unknown } from './navigation.js';
 import { beginScenario, hervatten, kiezen, naarKeuze, state, stap, verversen } from './state.js';
 import AanvragerTab from './components/AanvragerTab.vue';
 import AndereCellenTab from './components/AndereCellenTab.vue';
@@ -50,10 +55,20 @@ const tabs = computed(() => [
   { id: 'logboek', tekst: 'Logboek' },
 ]);
 const tab = ref('scenarios');
+// A newly chosen case opens on its scenarios, whichever way it was chosen.
+// The choice screen's own `gekozen` comes too late: it is gone by then, and
+// Vue drops an event from an unmounted component.
+watch(
+  () => state.casus?.id,
+  () => (tab.value = 'scenarios'),
+);
 const details = ref(false);
 watch(() => state.fout, () => (details.value = false));
 
-onMounted(hervatten);
+onMounted(async () => {
+  await hervatten();
+  await followAddress(started);
+});
 
 const presentation = usePresentation();
 onMounted(() => {
@@ -65,6 +80,15 @@ watch(() => state.datum, verversen);
 const artikel = computed(() => {
   const [wet, nummer] = (state.casus?.besluit ?? '#').split('#');
   return artikelNaam(wet, nummer);
+});
+// The notice for an address that names a case or scenario this app does not
+// have (navigation.js).
+const base = import.meta.env.BASE_URL;
+const onbekendTekst = computed(() => {
+  const u = unknown.value;
+  if (u?.scenario) return `De casus ${u.casus} heeft geen scenario met het adres “${u.scenario}”.`;
+  if (u?.casus) return `Er is geen casus met het adres “${u.casus}”.`;
+  return 'Dit adres hoort bij geen casus of scenario.';
 });
 const title = computed(() => `${state.casus?.titel} naspelen`);
 const subtitle = computed(
@@ -133,9 +157,11 @@ async function restart() {
 // A demo scenario of the parking card, from the choice screen or the
 // closing slide: choose the case if it is not open, then begin the scenario
 // as its own button does.
-async function startDemo(naam) {
-  if (state.casus?.id !== DEMO_CASUS && !(await kiezen(DEMO_CASUS))) return;
-  if (await beginScenario(naam)) await started();
+function startDemo(naam) {
+  return navigate(async () => {
+    if (state.casus?.id !== DEMO_CASUS && !(await kiezen(DEMO_CASUS))) return;
+    if (await beginScenario(naam)) await started();
+  });
 }
 function toTab(id) {
   tab.value = id;
@@ -163,6 +189,10 @@ function toTab(id) {
               <nldd-toolbar-item v-if="guide && (!showGuide || asSheet)" slot="end" :priority="2">
                 <nldd-button appearance="neutral-tinted" text="Uitleg" @click="openGuide"></nldd-button>
                 <nldd-menu-item slot="overflow" text="Uitleg" @select="openGuide"></nldd-menu-item>
+              </nldd-toolbar-item>
+              <nldd-toolbar-item slot="end" :priority="2">
+                <nldd-button appearance="neutral-tinted" text="Presentatie" @click="presentation.resume()"></nldd-button>
+                <nldd-menu-item slot="overflow" text="Presentatie" @select="presentation.resume()"></nldd-menu-item>
               </nldd-toolbar-item>
               <nldd-toolbar-item slot="end" :priority="1">
                 <nldd-button appearance="neutral-tinted" text="Andere casus" @click="naarKeuze"></nldd-button>
@@ -224,9 +254,24 @@ function toTab(id) {
                 </nldd-banner>
               </nldd-simple-section>
 
+              <nldd-simple-section v-if="unknown" padding-block="16">
+                <nldd-banner
+                  variant="warning"
+                  :text="unknown.scenario ? 'Dit scenario bestaat niet' : 'Deze casus bestaat niet'"
+                  :supporting-text="onbekendTekst"
+                >
+                  <nldd-button
+                    slot="actions"
+                    appearance="neutral-tinted"
+                    size="sm"
+                    :href="base"
+                    text="Naar de casuskeuze"
+                    @click.prevent="toChoice"
+                  ></nldd-button>
+                </nldd-banner>
+              </nldd-simple-section>
               <CasusKeuze
-                v-if="!state.casus"
-                @gekozen="tab = 'scenarios'"
+                v-else-if="!state.casus"
                 @presentatie="presentation.start()"
                 @demo="startDemo"
               />

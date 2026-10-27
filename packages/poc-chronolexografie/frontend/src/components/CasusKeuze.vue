@@ -13,7 +13,7 @@ import { bronMeldingen, herkomst } from '../bronnen.js';
 import { artikelNaam } from '../logboek.js';
 import { hoofdletter, kiezen, state } from '../state.js';
 
-const emit = defineEmits(['gekozen', 'presentatie', 'demo']);
+const emit = defineEmits(['presentatie', 'demo']);
 const demo = demoGuides();
 const casussen = ref([]);
 const bronnen = ref([]);
@@ -33,9 +33,7 @@ const artikel = (c) => {
   return artikelNaam(wet, nummer);
 };
 
-async function kies(c) {
-  if (await kiezen(c.id)) emit('gekozen');
-}
+const kies = (c) => kiezen(c.id);
 </script>
 
 <template>
