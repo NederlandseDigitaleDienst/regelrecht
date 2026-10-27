@@ -259,10 +259,35 @@ impl ReadScope {
                     .await
                     .map_err(law_read_error(t.traject.traject_id, law_id))
             }
-            // The global corpus is fully loaded up front, so there's no lazy
-            // fetch that could fail — a miss is always a genuine miss.
+            // The global corpus loads a few bodies up front and holds the
+            // rest of each source by path; those are fetched here on first
+            // read. A fetch failure is a 502, a law nobody indexed a miss.
             ReadScope::Global(g) => {
-                Ok(g.source_map.get_law(law_id).map(|l| l.yaml_content.clone()))
+                let Some(law) = g.source_map.get_law(law_id) else {
+                    return Ok(None);
+                };
+                if law.is_loaded() {
+                    return Ok(Some(law.yaml_content.clone()));
+                }
+                let (source_id, relative_path) = (law.source_id.clone(), law.relative_path.clone());
+                global_body(g, &source_id, &relative_path)
+                    .await
+                    .map_err(|e| match e {
+                        GlobalBodyError::Busy => {
+                            tracing::warn!(law_id = %law_id, "global fetch budget spent");
+                            (
+                                StatusCode::SERVICE_UNAVAILABLE,
+                                "Er worden nu te veel regelwerken opgevraagd. Probeer het later opnieuw.".to_string(),
+                            )
+                        }
+                        GlobalBodyError::Read(e) => {
+                            tracing::warn!(law_id = %law_id, error = %e, "failed to load law body");
+                            (
+                                StatusCode::BAD_GATEWAY,
+                                format!("Kon regelwerk '{law_id}' niet laden"),
+                            )
+                        }
+                    })
             }
         }
     }
@@ -291,27 +316,106 @@ impl ReadScope {
                         )
                     })
             }
-            // The global corpus is fully loaded up front (like `law_yaml`), so
-            // eagerly-loaded (local-source) bodies are present; filter any
-            // metadata-only sentinel so the loader never receives an empty YAML
-            // string. Asymmetry to note: GitHub-backed versions are metadata-
-            // only in the global view (never lazily fetched here, just as
-            // `law_yaml`'s Global branch can't fetch them), so they are omitted
-            // from the global endpoint. The traject-scoped path *does* lazily
-            // fetch them — and scenario execution always runs under a traject,
-            // so the omission never affects the dependency loader.
-            ReadScope::Global(g) => Ok(g
-                .source_map
-                .get_law_versions(law_id)
-                .map(|vs| {
-                    vs.iter()
-                        .map(|l| l.yaml_content.clone())
-                        .filter(|y| !y.is_empty())
-                        .collect()
-                })
-                .unwrap_or_default()),
+            // Bodies loaded up front come from the map, the others are
+            // fetched like `law_yaml` does. Per version: one version that
+            // fails to fetch is skipped and logged, not fatal, as on the
+            // traject path, so a law whose version in force is readable
+            // still runs.
+            ReadScope::Global(g) => {
+                let versions: Vec<(String, String, String)> = g
+                    .source_map
+                    .get_law_versions(law_id)
+                    .map(|vs| {
+                        vs.iter()
+                            .map(|v| {
+                                (
+                                    v.source_id.clone(),
+                                    v.relative_path.clone(),
+                                    v.yaml_content.clone(),
+                                )
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let mut out = Vec::with_capacity(versions.len());
+                for (source_id, relative_path, body) in versions {
+                    if !body.is_empty() {
+                        out.push(body);
+                        continue;
+                    }
+                    match global_body(g, &source_id, &relative_path).await {
+                        Ok(Some(body)) => out.push(body),
+                        Ok(None) => {
+                            tracing::warn!(law_id = %law_id, source_id = %source_id, "skipping an indexed law version whose file is gone")
+                        }
+                        Err(e) => {
+                            tracing::warn!(law_id = %law_id, source_id = %source_id, error = %e, "skipping a law version that failed to fetch")
+                        }
+                    }
+                }
+                Ok(out)
+            }
         }
     }
+}
+
+/// Why [`global_body`] has no body to give.
+enum GlobalBodyError {
+    /// This hour's fetch budget is spent (see `GLOBAL_FETCHES_PER_HOUR`).
+    Busy,
+    /// The source could not be read.
+    Read(regelrecht_corpus::error::CorpusError),
+}
+
+impl std::fmt::Display for GlobalBodyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GlobalBodyError::Busy => {
+                f.write_str("hourly fetch budget for the global corpus is spent")
+            }
+            GlobalBodyError::Read(e) => e.fmt(f),
+        }
+    }
+}
+
+/// The body of one law version the global corpus holds by path only: from
+/// the cache, else read from the version's source and cached, so the next
+/// reader of this law costs no GitHub call. The cache is checked again once
+/// the backend lock is held, so readers who queued behind the same fetch do
+/// not each repeat it. A source without a usable backend is an error: the
+/// index listed the law, so it exists and could not be read.
+async fn global_body(
+    corpus: &CorpusState,
+    source_id: &str,
+    relative_path: &str,
+) -> Result<Option<String>, GlobalBodyError> {
+    let key = crate::state::global_body_key(source_id, relative_path);
+    let cache = &corpus.lazy_bodies.cache;
+    if let Some(body) = cache.read().await.get(&key) {
+        return Ok(Some(body.clone()));
+    }
+    let Some(entry) = corpus.backends.get(source_id) else {
+        return Err(GlobalBodyError::Read(
+            regelrecht_corpus::error::CorpusError::Config(format!(
+                "source '{source_id}' has no usable backend, so '{relative_path}' cannot be read"
+            )),
+        ));
+    };
+    let backend = entry.backend.lock().await;
+    if let Some(body) = cache.read().await.get(&key) {
+        return Ok(Some(body.clone()));
+    }
+    if !corpus.lazy_bodies.take_fetch() {
+        return Err(GlobalBodyError::Busy);
+    }
+    let body = backend
+        .read_file(std::path::Path::new(relative_path))
+        .await
+        .map_err(GlobalBodyError::Read)?;
+    if let Some(body) = &body {
+        cache.write().await.insert(key, body.clone());
+    }
+    Ok(body)
 }
 
 /// Map a law-body backend failure to the client-facing 502; the raw error
@@ -698,6 +802,9 @@ fn filter_corpus_laws_counted(
                     return false;
                 }
             }
+            if params.loaded && !law.is_loaded() {
+                return false;
+            }
             if params.enriched && !is_enriched(law, never_enriched) {
                 return false;
             }
@@ -1014,9 +1121,10 @@ async fn implementors_in_scope(scope: &ReadScope, law_id: &str) -> Vec<String> {
             }
             result.implementors
         }
-        // Global: bodies are fully loaded up front and each law's
-        // `implements` list was parsed once at load time, so this is an
-        // in-memory reverse scan — no per-request YAML parsing.
+        // Global: each loaded law's `implements` list was parsed once at load
+        // time, so this is an in-memory reverse scan — no per-request YAML
+        // parsing. A law the index holds by path only has no body to read,
+        // so it is not found as an implementor here until a reload loads it.
         ReadScope::Global(corpus) => {
             let mut out: Vec<String> = corpus
                 .source_map
@@ -3089,8 +3197,17 @@ pub async fn reload_corpus(
     // for the duration of the GitHub round-trip.
     let (registry, auth_file, mut law_ids) = {
         let corpus = state.corpus.read().await;
-        let law_ids: std::collections::HashSet<String> =
-            corpus.source_map.laws().map(|l| l.law_id.clone()).collect();
+        // Only the laws whose bodies were loaded: the rest of each source is
+        // held by path and indexed again below, and fetching every body here
+        // would download the whole corpus.
+        // Every version, not only the current one: a law whose body is loaded
+        // from one source can have an indexed-only version current from another.
+        let law_ids: std::collections::HashSet<String> = corpus
+            .source_map
+            .all_versions()
+            .filter(|l| l.is_loaded())
+            .map(|l| l.law_id.clone())
+            .collect();
         (corpus.registry.clone(), corpus.auth_file.clone(), law_ids)
     };
 
@@ -3116,13 +3233,24 @@ pub async fn reload_corpus(
                 "Failed to reload corpus".to_string(),
             )
         })?;
-    // Same rule as at startup (`init_corpus`): the version in force is current.
+    // Same as at startup (`init_corpus`): the version in force is current,
+    // then the rest of each source by path.
     new_map.prefer_version_in_force();
+    let index_failures: std::collections::HashMap<String, String> = registry
+        .index_github_sources_into(&mut new_map, auth_file.as_deref())
+        .await
+        .into_iter()
+        .map(|f| (f.source_id, f.error))
+        .collect();
 
     let law_count = new_map.len();
     {
         let mut corpus = state.corpus.write().await;
         corpus.source_map = new_map;
+        corpus.index_failures = index_failures;
+        // Bodies fetched before the reload may be out of date. The fetch
+        // budget stays: a reload must not hand out a fresh hour.
+        corpus.lazy_bodies.cache = Default::default();
     }
     tracing::info!(law_count, "corpus reloaded (local + GitHub)");
     Ok(Json(ReloadResponse { law_count }))
@@ -5393,6 +5521,7 @@ mod tests {
             ids: ids.map(str::to_string),
             source: source.map(str::to_string),
             enriched: false,
+            loaded: false,
         }
     }
 

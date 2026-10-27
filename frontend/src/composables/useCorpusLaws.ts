@@ -14,6 +14,10 @@ import { humanizeLawId } from '../lib/lawName';
  * the same list/promise.
  */
 
+// Only laws whose body is loaded (`loaded=true`): a law the index holds by
+// path has no name to show, and Corpus juris holds most of the central corpus
+// that way, so the full list would be thousands of entries without one.
+//
 // Backend hard-caps `?limit` at 1000 (see editor-api/corpus_handlers.rs
 // MAX_LIMIT). With the current curated Test Corpus this is far above
 // what's loaded, but if the corpus ever grows past 1000, MachineReadable
@@ -74,7 +78,7 @@ function ensureFetched(trajectRef: TrajectRef): Promise<CorpusLaw[]> {
   if (!lawsByScope.has(key)) lawsByScope.set(key, ref<CorpusLaw[]>([]));
   // Set just above when missing; SCOPE_CACHE_MAX > 0, so it is not evicted.
   const lawsRef = lawsByScope.get(key)!;
-  const p = apiFetchJson<unknown>(lawsListUrl(trajectRef, `limit=${FETCH_LIMIT}`))
+  const p = apiFetchJson<unknown>(lawsListUrl(trajectRef, `limit=${FETCH_LIMIT}&loaded=true`))
     .then(list => {
       lawsRef.value = Array.isArray(list) ? (list as CorpusLaw[]) : [];
       if (lawsRef.value.length >= FETCH_LIMIT) {

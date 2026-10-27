@@ -816,6 +816,19 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
     // Trajecten keep priority first: their own repo must stay current there.
     source_map.prefer_version_in_force();
 
+    // The rest of each GitHub source by path only, so Corpus juris can find
+    // every law in it; a body is fetched when someone opens the law (see
+    // `ReadScope::law_yaml`). A source that fails to list is reported on
+    // `/api/sources` instead of silently showing fewer laws. After
+    // `prefer_version_in_force`, so a law refused for a conflict between two
+    // sources is left out rather than kept as a version.
+    let index_failures: HashMap<String, String> = registry
+        .index_github_sources_into(&mut source_map, auth_file)
+        .await
+        .into_iter()
+        .map(|f| (f.source_id, f.error))
+        .collect();
+
     let backends = init_backends(&registry, auth_file).await;
 
     CorpusState {
@@ -823,11 +836,8 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
         source_map,
         backends,
         auth_file: auth_file.map(|p| p.to_path_buf()),
-        // The global startup path loads favorites with its own all-or-
-        // nothing fallback above; per-source scan health is only tracked
-        // on the traject path (`build_traject_corpus`), where a silently
-        // missing source changes which corpus a law resolves from.
-        index_failures: HashMap::new(),
+        index_failures,
+        lazy_bodies: Default::default(),
     }
 }
 

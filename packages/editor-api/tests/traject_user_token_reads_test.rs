@@ -204,6 +204,7 @@ fn all_query() -> Query<PaginationParams> {
         ids: None,
         source: None,
         enriched: false,
+        loaded: false,
     })
 }
 
