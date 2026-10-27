@@ -11,7 +11,7 @@
 import { api } from '../api.js';
 import { artikelNaam } from '../logboek.js';
 import { hoofdletter, leesbaar, state, stap } from '../state.js';
-import { formulier, ingevuld, scenarioWaarden, uitScenario } from '../scenarioInvoer.js';
+import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
 import RechterCel from './RechterCel.vue';
 import UitScenario from './UitScenario.vue';
 import VeldInvoer from './VeldInvoer.vue';
@@ -62,10 +62,7 @@ async function vastleggen(cel, handeling) {
         <nldd-card v-for="h in c.handelingen" :key="h.feit">
           <nldd-container padding="16" gap="12">
             <nldd-title size="5" :text="`Vastleggen: ${naam(h.feit)}`"></nldd-title>
-            <UitScenario
-              v-if="ingevuld('vastleggen', doel(c.cel, h.feit))"
-              :namen="uitScenario('vastleggen', doel(c.cel, h.feit))"
-            />
+            <UitScenario soort="vastleggen" :doel="doel(c.cel, h.feit)" />
             <VeldInvoer
               v-for="veld in h.velden"
               :key="veld.naam"

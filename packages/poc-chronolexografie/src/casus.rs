@@ -151,11 +151,25 @@ pub struct Scenario {
 /// with its values and text ([`Handeling`]), and the guide beside the page
 /// (frontend/src/scenarioGuides.js) shows it. A case from a source gives its
 /// steps as instruction text, and has no guide.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum Stap {
     Handeling(Handeling),
     Tekst(String),
+}
+
+/// A string is a step as text; anything else must be an action, and a
+/// mistake in one says which field, where an untagged enum would only say
+/// that no variant matched.
+impl<'de> Deserialize<'de> for Stap {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+        match Value::deserialize(d)? {
+            Value::String(tekst) => Ok(Self::Tekst(tekst)),
+            v => serde_json::from_value(v)
+                .map(Self::Handeling)
+                .map_err(serde::de::Error::custom),
+        }
+    }
 }
 
 /// One action of a scenario: what the visitor does, on which play date,
@@ -174,9 +188,10 @@ pub struct Handeling {
     pub datum: Option<NaiveDate>,
     /// Which one the step acts on, counted from 1: the application for a
     /// decision or an objection, the objection for a decision on it, the
-    /// decision on objection for an appeal. Without one: the next
-    /// application to decide, the last application, the next objection to
-    /// decide, the last decision on objection.
+    /// decision on objection for an appeal. Without one, a decision acts on
+    /// the n-th application when it is the n-th decision step, and likewise
+    /// a decision on objection on the n-th objection; an objection acts on
+    /// the last application, an appeal on the last decision on objection.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub op: Option<usize>,
     /// For [`Soort::Vastleggen`]: the other cell that records, and the fact

@@ -15,7 +15,7 @@ import { computed, reactive } from 'vue';
 import { beroepApi, ontvangstVan, uitspraakOp } from '../beroep.js';
 import { artikelNaam } from '../logboek.js';
 import { isBesluitwaarde, kort, leesbaar, state, stap, waarde, zonderLeeg } from '../state.js';
-import { formulier, ingevuld, scenarioWaarden, uitScenario } from '../scenarioInvoer.js';
+import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
 import UitScenario from './UitScenario.vue';
 import VeldInvoer from './VeldInvoer.vue';
 import Voorvertoning from './Voorvertoning.vue';
@@ -88,7 +88,7 @@ const uitvoer = (g) => Object.entries(g.outputs ?? {}).map(([naam, w]) => ({ naa
           </nldd-list>
           <nldd-container layout="grid" gap="16">
             <nldd-container gap="12">
-              <UitScenario v-if="ingevuld('uitspraak')" :namen="uitScenario('uitspraak')" />
+              <UitScenario soort="uitspraak" />
               <VeldInvoer
                 v-for="o in eigen"
                 :key="o.naam"

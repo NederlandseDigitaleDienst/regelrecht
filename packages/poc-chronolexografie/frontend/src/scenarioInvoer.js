@@ -10,10 +10,10 @@
  * scenario moves on to its next step; then the form starts again from that
  * step ([`formulier`]).
  */
-import { reactive, watch } from 'vue';
+import { computed, reactive, watch } from 'vue';
 import { guideFor } from './scenarioGuides.js';
 import { counts, progress } from './scenarioProgress.js';
-import { aanvragen, besluitOp, state } from './state.js';
+import { aanvragen, besluitOp, bezwaarBasis, isBesluit, state } from './state.js';
 
 // Which example values a kind of step starts from.
 const VOORBEELD = {
@@ -24,15 +24,19 @@ const VOORBEELD = {
   uitspraak: 'uitspraak',
 };
 
-/** The step of the scenario the visitor is at, `{ index, step }`, or null. */
-export function huidigeStap() {
+// The step of the scenario the visitor is at, once for every form.
+const nu = computed(() => {
   const guide = guideFor(state.casus, state.scenario);
   if (!guide) return null;
   const p = progress(guide, counts());
   return p.finished ? null : { index: p.current, step: guide.steps[p.current] };
-}
+});
+
+/** The step of the scenario the visitor is at, `{ index, step }`, or null. */
+export const huidigeStap = () => nu.value;
 
 const bezwaren = () => state.grammen.filter((g) => g.kind === 'BEZWAAR');
+const beslissingen = () => state.grammen.filter((g) => isBesluit(g) && g.basis === bezwaarBasis());
 
 /**
  * Whether `step` acts on `doel`: the application a decision decides, the
@@ -50,6 +54,8 @@ function past(step, doel) {
     }
     case 'beslissing_op_bezwaar':
       return !doel.bezwaar || bezwaren()[step.doel - 1]?.id === doel.bezwaar;
+    case 'beroep':
+      return !doel.besluit || beslissingen()[step.doel - 1]?.id === doel.besluit;
     case 'vastleggen':
       return step.stap.cel === doel.cel && step.stap.feit === doel.feit;
     default:
@@ -70,6 +76,10 @@ export function scenarioWaarden(soort, doel = {}) {
   if (!nu || nu.step.stap.stap !== soort || !past(nu.step, doel)) return null;
   return { ...voorbeeld, ...(nu.step.stap.invoer ?? {}) };
 }
+
+/** Whether a form of `soort` starts from example values of the case. */
+export const heeftVoorbeeld = (soort) =>
+  Object.keys(state.casus?.voorbeeld?.[VOORBEELD[soort]] ?? {}).length > 0;
 
 /** Whether the form of `soort` starts from the scenario with any value, for the hint. */
 export const ingevuld = (soort, doel = {}) =>
@@ -92,7 +102,7 @@ export function formulier(standaard) {
   const eigen = reactive({});
   const wis = (sleutel) => delete eigen[sleutel];
   watch(
-    () => `${state.scenario}|${huidigeStap()?.index}`,
+    () => `${state.begonnen}|${state.scenario}|${nu.value?.index}`,
     () => Object.keys(eigen).forEach(wis),
   );
   return {

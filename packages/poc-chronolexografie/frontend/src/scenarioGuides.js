@@ -18,6 +18,7 @@
  * The texts name the buttons and fields as the components label them;
  * change them together.
  */
+import { refused } from './scenarioProgress.js';
 import { hoofdletter, jaNee, leesbaar, longDate } from './state.js';
 
 // What the scenario expects of a step, as warning text.
@@ -38,8 +39,10 @@ const SEEN_OBJECTION =
 /**
  * Per kind of step: its tab, its title and text when the step gives none,
  * when it is done, given `n`, the how-many-th of its kind it is (for a
- * decision: the application it decides on), and `fact`, the short name of
- * the fact a step records.
+ * decision: the application it decides on), and the refusal a step of this
+ * kind can expect (`weigering`, as the cell words it): a decision that
+ * misses a judgement, a decision on objection against a decision already
+ * replaced. tests/scenarios.rs checks the same.
  */
 const KINDS = {
   aanvraag: {
@@ -58,6 +61,7 @@ const KINDS = {
     todo: 'Klik onder Open aanvragen op Besluit nemen.',
     seen: () => 'Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.',
     done: (n) => (k) => k.decided.length >= n,
+    weigering: /no judgement was given|asks '/,
   },
   bezwaar: {
     tab: 'aanvrager',
@@ -72,13 +76,16 @@ const KINDS = {
     todo: 'Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat de bevindingen staan en klik op Beslissen op bezwaar.',
     seen: () => 'De beslissing staat onder Beslissingen op bezwaar.',
     done: (n) => (k) => k.beslissingen >= n,
+    weigering: /already replaces/,
   },
   vastleggen: {
     tab: 'andere',
     title: () => 'Vastleggen',
     todo: 'Klik op Vastleggen.',
     seen: () => 'Het feit staat in de kroniek van de andere cel.',
-    done: (n, stap) => (k) => k.executogrammen(stap.feit.split('#').at(-1), stap.invoer ?? {}) >= 1,
+    // Done once the cell holds one more record of the fact than it knew
+    // before this step, whatever the visitor changed in it.
+    done: (n, stap, vooraf) => (k) => k.executogrammen(feitNaam(stap.feit)) >= vooraf + n,
   },
   beroep: {
     tab: 'aanvrager',
@@ -109,8 +116,18 @@ const KINDS = {
     todo: 'Klik onder Na een uitspraak op Heroverwegen en dan op Opnieuw beslissen op bezwaar.',
     seen: () => 'De nieuwe beslissing op bezwaar staat onder Na een uitspraak.',
     done: (n) => (k) => k.redecisions >= n,
+    weigering: /already replaces/,
   },
 };
+
+// `regeling#3#geneeskundig_onderzoek_verricht` → `geneeskundig_onderzoek_verricht`.
+const feitNaam = (feit) => String(feit).split('#').at(-1);
+
+/** How many records of `feit` the other cells of `casus` hold before a scenario. */
+const vooraf = (casus, feit) =>
+  (casus?.andere_cellen ?? [])
+    .flatMap((c) => c.begin?.executogrammen ?? [])
+    .filter((e) => feitNaam(e.feit) === feitNaam(feit)).length;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const waarde = (v) =>
@@ -128,9 +145,13 @@ export function invoerZin(invoer) {
   return `Het formulier staat ingevuld uit het scenario: ${lijst}.`;
 }
 
-/** The guide of `scenario` (a scenario of a case, as `api.casus` gives it). */
-export function bouwGids(scenario) {
+/**
+ * The guide of `scenario` (a scenario of a case, as `api.casus` gives it),
+ * with `casus` for what its other cells record before a scenario.
+ */
+export function bouwGids(scenario, casus = null) {
   const geteld = {};
+  const feiten = {};
   const uitkomsten = {};
   const steps = scenario.stappen.map((stap) => {
     const kind = KINDS[stap.stap];
@@ -142,7 +163,11 @@ export function bouwGids(scenario) {
     if (stap.stap === 'bezwaar') doel = stap.op ?? geteld.aanvraag ?? 1;
     if (stap.stap === 'beroep') doel = stap.op ?? geteld.beslissing_op_bezwaar ?? 1;
     const keer = stap.uitkomst ? (uitkomsten[stap.uitkomst] = (uitkomsten[stap.uitkomst] ?? 0) + 1) : 0;
-    let done = kind.done(stap.stap === 'besluit' ? doel : n, stap);
+    const keerFeit = stap.feit ? (feiten[feitNaam(stap.feit)] = (feiten[feitNaam(stap.feit)] ?? 0) + 1) : 0;
+    let done =
+      stap.stap === 'vastleggen'
+        ? kind.done(keerFeit, stap, vooraf(casus, stap.feit))
+        : kind.done(stap.stap === 'besluit' ? doel : n, stap);
     let expect = null;
     switch (stap.uitkomst) {
       case 'toegewezen':
@@ -162,9 +187,11 @@ export function bouwGids(scenario) {
         break;
       case 'geweigerd': {
         // The cell refuses and records nothing: the step is done once it
-        // refused, and a decision taken after all departs from the scenario.
+        // refused as the step expects, and a decision taken after all
+        // departs from the scenario.
         const genomen = done;
-        done = (k) => k.refusals.length >= keer || genomen(k);
+        const weigerde = refused(kind.weigering ?? /$^/);
+        done = (k) => weigerde(k) || genomen(k);
         expect =
           stap.stap === 'besluit'
             ? expectation((k) => !genomen(k), 'hier hoort de cel de stap te weigeren, zonder besluit')
@@ -201,6 +228,6 @@ export function guideFor(casus, naam) {
   if (!casus || casus.bron) return null;
   const scenario = casus.scenarios?.find((s) => s.naam === naam);
   if (!scenario?.stappen?.length || scenario.stappen.some((s) => typeof s !== 'object')) return null;
-  if (!gebouwd.has(scenario)) gebouwd.set(scenario, bouwGids(scenario));
+  if (!gebouwd.has(scenario)) gebouwd.set(scenario, bouwGids(scenario, casus));
   return gebouwd.get(scenario);
 }

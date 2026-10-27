@@ -29,7 +29,7 @@ import {
   stap,
   zonderLeeg,
 } from '../state.js';
-import { formulier, ingevuld, scenarioWaarden, uitScenario } from '../scenarioInvoer.js';
+import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
 import Uitkomst from './Uitkomst.vue';
 import UitScenario from './UitScenario.vue';
 import OordeelKeuze from './OordeelKeuze.vue';
@@ -55,12 +55,20 @@ const openBezwaren = computed(() =>
 
 // Per aanvraag de oordelen van het bestuursorgaan. Een schakelaar die uit
 // staat, zegt nee; een begrip dat de cel niet weet, blijft leeg tot het
-// bestuursorgaan oordeelt.
+// bestuursorgaan oordeelt. Een casus uit een bron speelt haar scenario's als
+// tekst: daar zegt een bevinding zonder voorbeeldwaarde ja, zoals de
+// voorbeeldwaarden altijd deden.
 const besluitVorm = formulier((id) => scenarioWaarden('besluit', { aanvraag: id }));
 const oordeel = besluitVorm.eigen;
-const uit = (id) =>
-  Object.fromEntries(oordelen().filter((o) => o.type === 'boolean').map((o) => [o.naam, false]));
-const oordeelVoor = (id) => ({ ...uit(id), ...zonderLeeg(besluitVorm.waarden(id)) });
+const uit = () => {
+  const standaard = !!(state.casus.bron && state.scenario);
+  return Object.fromEntries(
+    oordelen()
+      .filter((o) => o.type === 'boolean' && !o.mag_leeg)
+      .map((o) => [o.naam, standaard]),
+  );
+};
+const oordeelVoor = (id) => ({ ...uit(), ...zonderLeeg(besluitVorm.waarden(id)) });
 const zetOordeel = (id, naam, waarde) => besluitVorm.zet(id, naam, waarde);
 
 const uitkomsten = reactive({});
@@ -148,10 +156,7 @@ const uitkomstOpBezwaar = (uit) =>
         ></nldd-title>
         <nldd-container layout="grid" gap="16">
           <nldd-container gap="12">
-            <UitScenario
-              v-if="ingevuld('besluit', { aanvraag: a.id })"
-              :namen="uitScenario('besluit', { aanvraag: a.id })"
-            />
+            <UitScenario soort="besluit" :doel="{ aanvraag: a.id }" />
             <VeldInvoer
               v-for="o in oordelen()"
               :key="o.naam"
@@ -230,10 +235,7 @@ const uitkomstOpBezwaar = (uit) =>
           ></nldd-inline-dialog>
           <nldd-container layout="grid" gap="16">
             <nldd-container gap="12">
-              <UitScenario
-                v-if="ingevuld('beslissing_op_bezwaar', { bezwaar: bz.id })"
-                :namen="uitScenario('beslissing_op_bezwaar', { bezwaar: bz.id })"
-              />
+              <UitScenario soort="beslissing_op_bezwaar" :doel="{ bezwaar: bz.id }" />
               <OordeelKeuze
                 v-for="o in toetsen[bz.id].bevindingen"
                 :key="o.naam"

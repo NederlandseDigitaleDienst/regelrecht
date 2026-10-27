@@ -25,7 +25,7 @@ import {
   toegewezen,
   zonderLeeg,
 } from '../state.js';
-import { formulier, ingevuld, scenarioWaarden, uitScenario } from '../scenarioInvoer.js';
+import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
 import UitScenario from './UitScenario.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
@@ -113,7 +113,7 @@ async function indienenTegen() {
       </nldd-text>
     </nldd-title>
     <nldd-container gap="16" max-width="560px">
-      <UitScenario v-if="ingevuld('aanvraag')" :namen="uitScenario('aanvraag')" />
+      <UitScenario soort="aanvraag" />
       <VeldInvoer
         v-for="veld in state.vormen.aanvraag.velden"
         :key="veld.naam"
@@ -185,10 +185,7 @@ async function indienenTegen() {
       </nldd-text>
     </nldd-title>
     <nldd-container gap="16" max-width="560px">
-      <UitScenario
-        v-if="ingevuld(tegen.soort, { besluit: tegen.besluit.id })"
-        :namen="uitScenario(tegen.soort, { besluit: tegen.besluit.id })"
-      />
+      <UitScenario :soort="tegen.soort" :doel="{ besluit: tegen.besluit.id }" />
       <VeldInvoer
         v-for="veld in indieningVelden"
         :key="veld.naam"
@@ -213,10 +210,7 @@ async function indienenTegen() {
       </nldd-text>
     </nldd-title>
     <nldd-container gap="16" max-width="560px">
-      <UitScenario
-        v-if="ingevuld(tegen.soort, { besluit: tegen.besluit.id })"
-        :namen="uitScenario(tegen.soort, { besluit: tegen.besluit.id })"
-      />
+      <UitScenario :soort="tegen.soort" :doel="{ besluit: tegen.besluit.id }" />
       <VeldInvoer
         v-for="veld in indieningVelden"
         :key="veld.naam"

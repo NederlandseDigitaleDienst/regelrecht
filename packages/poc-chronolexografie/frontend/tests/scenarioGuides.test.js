@@ -88,14 +88,29 @@ describe('invoerZin', () => {
 });
 
 describe('bouwGids', () => {
-  it('expects of a refused step a refusal, not a decision', () => {
+  it('expects of a refused step the refusal of its kind, not a decision', () => {
     const g = bouwGids({
       naam: 'x',
       stappen: [{ stap: 'aanvraag' }, { stap: 'besluit', uitkomst: 'geweigerd' }],
     });
     const besluit = g.steps[1];
-    expect(besluit.done({ refusals: ['nee'], decided: [] })).toBe(true);
+    const geweigerd = "refused: the decision of wet#1 asks 'x' of the deciding authority";
+    expect(besluit.done({ refusals: [geweigerd], decided: [] })).toBe(true);
+    // Another refusal, such as a play date that goes back, does not count.
+    expect(besluit.done({ refusals: ['the day goes back'], decided: [] })).toBe(false);
     expect(besluit.expect.check({ decided: [true] })).toBe(false);
+  });
+
+  it('counts a record as done whatever the visitor changed in it', () => {
+    const feit = 'beleid#1#vestiging_ingeschreven';
+    const casus = { andere_cellen: [{ cel: 'kvk', begin: { executogrammen: [{ feit }, { feit }] } }] };
+    const g = bouwGids(
+      { naam: 'x', stappen: [{ stap: 'vastleggen', cel: 'kvk', feit, invoer: { postcode: '7713 AA' } }] },
+      casus,
+    );
+    const k = (n) => ({ executogrammen: (f) => (f === 'vestiging_ingeschreven' ? n : 0) });
+    expect(g.steps[0].done(k(2))).toBe(false);
+    expect(g.steps[0].done(k(3))).toBe(true);
   });
 });
 

@@ -13,7 +13,7 @@
 import { reactive } from 'vue';
 import { beroepApi, binnenTermijn, openOntvangsten } from '../beroep.js';
 import { alsJson, jaNee, kort, leesbaar, state, stap, waarde, zonderLeeg } from '../state.js';
-import { formulier, ingevuld, scenarioWaarden, uitScenario } from '../scenarioInvoer.js';
+import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
 import { stilBegrippen } from '../stil.js';
 import OordeelKeuze from './OordeelKeuze.vue';
 import StilOordeel from './StilOordeel.vue';
@@ -93,7 +93,7 @@ const termijn = (o) => {
           <template v-else>
             <nldd-container layout="grid" gap="16">
               <nldd-container gap="12">
-                <UitScenario v-if="ingevuld('opnieuw_beslissen')" :namen="uitScenario('opnieuw_beslissen')" />
+                <UitScenario soort="opnieuw_beslissen" />
                 <OordeelKeuze
                   v-for="b in toetsen[o.id].bevindingen"
                   :key="b.naam"

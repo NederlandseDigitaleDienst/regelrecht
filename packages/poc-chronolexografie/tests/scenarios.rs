@@ -77,6 +77,21 @@ fn tegen(spel: &mut Spel, velden: &Value, id: &str) -> Value {
     )
 }
 
+/// The refusal a step expects (`uitkomst: geweigerd`), by kind, as the guide
+/// recognises it (frontend/src/scenarioGuides.js): a decision that misses a
+/// judgement, a decision on objection against a decision already replaced.
+fn geweigerd(e: &impl std::fmt::Display, soort: &str, waar: &str) {
+    let melding = e.to_string();
+    let delen: &[&str] = match soort {
+        "besluit" => &["no judgement was given", "asks '"],
+        _ => &["already replaces"],
+    };
+    assert!(
+        delen.iter().any(|d| melding.contains(d)),
+        "{waar}: refused for another reason: {melding}"
+    );
+}
+
 /// What a scenario has done so far, to find what a step acts on.
 #[derive(Default)]
 struct Stand {
@@ -123,6 +138,9 @@ fn speel(casus_id: &str, index: usize) {
     let uitkomst = casus["uitkomst"].as_str().unwrap();
     let mut datum = dag(&casus["speeldatum"]);
     let mut stand = Stand::default();
+    // Per kind, how many steps of it came so far: without `op`, the n-th
+    // decision step acts on the n-th application, as the guide counts.
+    let mut geteld: std::collections::HashMap<String, usize> = Default::default();
     for (i, stap) in scenario["stappen"].as_array().unwrap().iter().enumerate() {
         let waar = format!("{casus_id}, '{naam}', step {}", i + 1);
         assert!(
@@ -135,7 +153,13 @@ fn speel(casus_id: &str, index: usize) {
         let invoer = &stap["invoer"];
         let verwacht = stap["uitkomst"].as_str();
         let vormen = spel.vormen(datum).unwrap();
-        match stap["stap"].as_str().unwrap() {
+        let soort = stap["stap"].as_str().unwrap();
+        let n = *geteld
+            .entry(soort.to_string())
+            .and_modify(|n| *n += 1)
+            .or_insert(1);
+        let doel = stap["op"].as_u64().map_or(n, |op| op as usize) - 1;
+        match soort {
             "aanvraag" => {
                 let velden = met(&voorbeeld["aanvraag"], invoer);
                 alles_gevuld(&vormen["aanvraag"]["velden"], &velden, &waar);
@@ -145,24 +169,20 @@ fn speel(casus_id: &str, index: usize) {
                     .push((gram["id"].as_str().unwrap().to_string(), None));
             }
             "besluit" => {
-                let n = match stap["op"].as_u64() {
-                    Some(n) => n as usize - 1,
-                    None => stand
-                        .aanvragen
-                        .iter()
-                        .position(|(_, b)| b.is_none())
-                        .unwrap(),
-                };
-                let op = stand.aanvragen[n].0.clone();
+                let op = stand.aanvragen[doel].0.clone();
                 let bevindingen = met(&voorbeeld["bevindingen"], invoer);
                 alles_gevuld(&vormen["besluit"]["bevindingen"], &bevindingen, &waar);
                 let genomen = spel.besluiten(&op, &bevindingen, datum);
                 if verwacht == Some("geweigerd") {
-                    assert!(genomen.is_err(), "{waar}: the cell takes the decision");
+                    let e = genomen
+                        .err()
+                        .unwrap_or_else(|| panic!("{waar}: the cell decides"));
+                    geweigerd(&e, soort, &waar);
                     continue;
                 }
                 let genomen = genomen.unwrap_or_else(|e| panic!("{waar}: {e}"));
-                stand.aanvragen[n].1 = Some(genomen["besluit"]["id"].as_str().unwrap().to_string());
+                stand.aanvragen[doel].1 =
+                    Some(genomen["besluit"]["id"].as_str().unwrap().to_string());
                 let toegewezen = genomen["besluit"]["outputs"][uitkomst] == json!(true);
                 if let Some(v) = verwacht {
                     let kreeg = if toegewezen {
@@ -188,19 +208,18 @@ fn speel(casus_id: &str, index: usize) {
                     .push((gram["id"].as_str().unwrap().to_string(), false));
             }
             "beslissing_op_bezwaar" => {
-                let n = match stap["op"].as_u64() {
-                    Some(n) => n as usize - 1,
-                    None => stand.bezwaren.iter().position(|(_, b)| !b).unwrap(),
-                };
-                let op = stand.bezwaren[n].0.clone();
+                let op = stand.bezwaren[doel].0.clone();
                 spel.heroverweging(&op, datum).unwrap();
                 let genomen = spel.beslissen_op_bezwaar(&op, &map(invoer), datum);
                 if verwacht == Some("geweigerd") {
-                    assert!(genomen.is_err(), "{waar}: the cell decides");
+                    let e = genomen
+                        .err()
+                        .unwrap_or_else(|| panic!("{waar}: the cell decides"));
+                    geweigerd(&e, soort, &waar);
                     continue;
                 }
                 let genomen = genomen.unwrap_or_else(|e| panic!("{waar}: {e}"));
-                stand.bezwaren[n].1 = true;
+                stand.bezwaren[doel].1 = true;
                 stand
                     .beslissingen
                     .push(genomen["beslissing"]["id"].as_str().unwrap().to_string());
