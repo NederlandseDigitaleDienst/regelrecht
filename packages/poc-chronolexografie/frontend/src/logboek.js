@@ -19,12 +19,11 @@ const AFKORTINGEN = {
 
 /**
  * De naam van een regelwerk: zijn afkorting, de naam die het zelf draagt
- * (`eigen`, zoals die van de versie die geldt, of anders die uit
- * `api.casus`), of zijn `$id` leesbaar met een hoofdletter.
+ * (`api.casus`), of zijn `$id` leesbaar met een hoofdletter.
  */
-export function wetNaam(wet, eigen = null) {
+export function wetNaam(wet) {
   if (AFKORTINGEN[wet]) return AFKORTINGEN[wet];
-  const naam = eigen ?? state.casus?.regelwerken?.find((r) => r.id === wet)?.naam;
+  const naam = state.casus?.regelwerken?.find((r) => r.id === wet)?.naam;
   if (naam) return naam;
   return hoofdletter(leesbaar(wet));
 }

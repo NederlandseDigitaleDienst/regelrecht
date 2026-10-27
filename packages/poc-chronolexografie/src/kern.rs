@@ -39,9 +39,6 @@ pub struct Corpus {
     /// Per `$id` and `valid_from` of a regelwerk the cell runs, that
     /// version as written.
     geschreven: BTreeMap<(String, Option<String>), String>,
-    /// Per `$id` and `valid_from` of a regelwerk the cell runs, the file of
-    /// that version under its root (`<map>/<file>.yaml`).
-    bestanden: BTreeMap<(String, Option<String>), String>,
     cell_dir: PathBuf,
     /// The directories of the other cells of the sphere, in the order of
     /// the case file.
@@ -171,17 +168,14 @@ impl Corpus {
         let afleiding = afleiden(regelwerken, &casus, &cells)?;
         let mut versies = Vec::new();
         let mut geschreven = BTreeMap::new();
-        let mut bestanden = BTreeMap::new();
         let mut gelezen = Vec::new();
         for id in &afleiding.regelwerken {
             let werk = regelwerken
                 .get(id)
                 .ok_or_else(|| Error::Setup(format!("'{id}' is not in the corpus")))?;
             versies.extend(werk.versies.iter().map(|(yaml, _)| yaml.clone()));
-            for ((yaml, law), bestand) in werk.versies.iter().zip(&werk.bestanden) {
-                let sleutel = (law.id.clone(), law.valid_from.clone());
-                bestanden.insert(sleutel.clone(), format!("{}/{bestand}", werk.map));
-                geschreven.insert(sleutel, yaml.clone());
+            for (yaml, law) in &werk.versies {
+                geschreven.insert((law.id.clone(), law.valid_from.clone()), yaml.clone());
             }
             let naam = werk.versies.last().and_then(|(_, law)| law.name.clone());
             gelezen.push((id.clone(), naam, werk.map.clone()));
@@ -192,7 +186,6 @@ impl Corpus {
             regelwerken: gelezen,
             versies,
             geschreven,
-            bestanden,
             cell_dir,
             andere_dirs,
             files,
@@ -323,7 +316,7 @@ impl Corpus {
 
     /// The version of the regelwerk `id` the cell runs that is valid from
     /// `valid_from`, as written.
-    pub(crate) fn yaml_van(&self, id: &str, valid_from: &Option<String>) -> Option<&str> {
+    fn yaml_van(&self, id: &str, valid_from: &Option<String>) -> Option<&str> {
         self.geschreven
             .get(&(id.to_string(), valid_from.clone()))
             .map(String::as_str)
@@ -357,27 +350,6 @@ impl Corpus {
     /// (`regulation/nl/...`, `cells/.../reductions/...`).
     pub fn mappen(&self) -> impl Iterator<Item = &str> {
         self.regelwerken.iter().map(|(_, _, map)| map.as_str())
-    }
-
-    /// The catalogue (`cel.yaml`) of the cell `cel` of the case, as written.
-    pub(crate) fn cel_yaml(&self, cel: &str) -> Option<String> {
-        let dir = if cel == self.casus.cel {
-            &self.cell_dir
-        } else {
-            let i = self.casus.andere_cellen.iter().position(|a| a.cel == cel)?;
-            self.andere_dirs.get(i)?
-        };
-        self.files
-            .read(&dir.join(regelrecht_cel::identity::FILE))
-            .ok()
-    }
-
-    /// The file of the version of the regelwerk `id` the cell runs that is
-    /// valid from `valid_from`, under its root.
-    pub(crate) fn bestand_van(&self, id: &str, valid_from: &Option<String>) -> Option<&str> {
-        self.bestanden
-            .get(&(id.to_string(), valid_from.clone()))
-            .map(String::as_str)
     }
 
     fn law(&self) -> &str {
@@ -1933,48 +1905,9 @@ pub fn voorvertoning_op_bezwaar(
 /// What an input reads from the chronicle: the decisions under an article,
 /// or the executograms of a fact.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Bron {
+enum Bron {
     Besluiten(String),
     Feiten(String),
-}
-
-/// What `source` reads from the chronicle, if anything: a `decisions:
-/// $<parameter>` names the article that `given`, the literal parameters of
-/// the caller, holds under that name; one it does not hold reads nothing the
-/// PoC can name.
-pub(crate) fn bron_van(
-    source: &regelrecht_engine::Source,
-    given: &BTreeMap<String, String>,
-) -> Option<Bron> {
-    match (&source.decisions, &source.facts) {
-        (Some(basis), _) => match basis.strip_prefix('$') {
-            None => Some(Bron::Besluiten(basis.clone())),
-            Some(naam) => given.get(naam).cloned().map(Bron::Besluiten),
-        },
-        (None, Some(feit)) => Some(Bron::Feiten(feit.clone())),
-        (None, None) => None,
-    }
-}
-
-/// The literal parameters `source` passes to what it calls: as written, or a
-/// `$<name>` that `given`, the literal parameters of the caller, holds. A
-/// value only known when the article runs (`$kvk_nummer`) is left out.
-pub(crate) fn doorgegeven(
-    source: &regelrecht_engine::Source,
-    given: &BTreeMap<String, String>,
-) -> BTreeMap<String, String> {
-    source
-        .parameters
-        .iter()
-        .flatten()
-        .filter_map(|(naam, waarde)| {
-            let waarde = match waarde.strip_prefix('$') {
-                None => waarde.clone(),
-                Some(van) => given.get(van)?.clone(),
-            };
-            Some((naam.clone(), waarde))
-        })
-        .collect()
 }
 
 /// One input of a reduction that reads the chronicle: its name, the
@@ -2029,7 +1962,15 @@ fn lezingen_van(
         let Some(source) = input.source.as_ref() else {
             continue;
         };
-        if let Some(bron) = bron_van(source, given) {
+        let bron = match (&source.decisions, &source.facts) {
+            (Some(basis), _) => match basis.strip_prefix('$') {
+                None => Some(Bron::Besluiten(basis.clone())),
+                Some(naam) => given.get(naam).cloned().map(Bron::Besluiten),
+            },
+            (None, Some(feit)) => Some(Bron::Feiten(feit.clone())),
+            (None, None) => None,
+        };
+        if let Some(bron) = bron {
             let lezing = Lezing {
                 naam: input.name.clone(),
                 reductie: reduction.id.clone(),
@@ -2053,12 +1994,27 @@ fn lezingen_van(
         else {
             continue;
         };
+        // What the call passes as written, and a `$<name>` the caller's own
+        // literal parameters hold, such as `basis` that article 2 of the
+        // reduction of the Awb passes on to its article 1.
+        let letterlijk: BTreeMap<String, String> = source
+            .parameters
+            .iter()
+            .flatten()
+            .filter_map(|(naam, waarde)| {
+                let waarde = match waarde.strip_prefix('$') {
+                    None => waarde.clone(),
+                    Some(van) => given.get(van)?.clone(),
+                };
+                Some((naam.clone(), waarde))
+            })
+            .collect();
         bezig.push(called.id.clone());
         lezingen_van(
             service,
             called,
             &artikelen_voor(called, output),
-            &doorgegeven(source, given),
+            &letterlijk,
             bezig,
             on,
             uit,

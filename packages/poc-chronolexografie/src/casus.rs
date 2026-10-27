@@ -192,9 +192,6 @@ pub struct Regelwerk {
     /// directory. Where a reduction sits says whose it is.
     pub houder: Option<String>,
     pub versies: Vec<(String, ArticleBasedLaw)>,
-    /// The file name of each version in its directory, in the order of
-    /// `versies`.
-    pub bestanden: Vec<String>,
 }
 
 impl Regelwerk {
@@ -331,7 +328,6 @@ impl Regelwerken {
             }
             paths.sort();
             let mut versies = Vec::new();
-            let mut bestanden = Vec::new();
             for path in paths {
                 let yaml = files.read(&path)?;
                 // Parsed here, so a broken version names its file at the start.
@@ -361,11 +357,6 @@ impl Regelwerken {
                     )));
                 }
                 versies.push((yaml, law));
-                bestanden.push(
-                    path.file_name()
-                        .map(|n| n.to_string_lossy().into_owned())
-                        .unwrap_or_default(),
-                );
             }
             let houder = match &plek {
                 Plek::Reducties(houder) => houder.clone(),
@@ -381,7 +372,6 @@ impl Regelwerken {
                 wortel: root.to_path_buf(),
                 houder,
                 versies,
-                bestanden,
             });
         }
         Ok(uit)

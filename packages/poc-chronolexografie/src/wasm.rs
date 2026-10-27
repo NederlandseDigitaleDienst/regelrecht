@@ -283,10 +283,6 @@ impl Poc {
         antwoord(self.spel.reducties(dag(datum)?))
     }
 
-    pub fn keten(&mut self, datum: &str) -> Result<String, JsError> {
-        antwoord(self.spel.keten(dag(datum)?))
-    }
-
     pub fn logboek(&mut self) -> Result<String, JsError> {
         antwoord(self.spel.logboek())
     }
