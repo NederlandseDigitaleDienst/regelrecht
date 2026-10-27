@@ -180,7 +180,7 @@ Laws declare `open_terms` that other regulations fill via `implements`, by deleg
 
 1. Indexes all `implements` declarations at law load time
 2. Looks up the implementations of an `open_term` when an operation first reads it
-3. Filters by temporal validity (`calculation_date`) and scope (`gemeente_code`, etc.)
+3. Filters by temporal validity (`calculation_date`) and scope (`gemeente_code`, etc.). An article of the regulation that declares the term passes the scope filter: that regulation already applies to the case
 4. Resolves conflicts via **lex superior** (higher layer wins) then **lex posterior** (newer date wins)
 5. Falls back to the `default` if no implementation found; a default reads the earlier terms of its article as it reaches them
 
