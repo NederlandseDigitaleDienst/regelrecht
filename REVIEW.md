@@ -87,8 +87,9 @@ When `machine_readable` sections are added or changed:
 
 ### Tests (any change that adds or edits a test)
 
-A test that cannot fail is worse than no test: it reports coverage that is not
-there. Each point below is a pattern that has slipped through review before.
+A test that cannot fail is worse than no test, because it reports coverage that
+is not there. Each point below is a pattern that has slipped through review
+before.
 
 - Does the test call the real code? A function or response builder copied into
   the test file and tested there proves only that the copy works, and the
@@ -99,9 +100,9 @@ there. Each point below is a pattern that has slipped through review before.
   `toBeTruthy()` or `toBeDefined()` on a value that is always an object,
   `expect(true)`, and asserts on a mock that the test itself filled. Each of these
   passes for the wrong reason as easily as for the right one.
-- A test or scenario called "rejects a late appeal" that only checks the
-  response is not empty promises more than it asserts. That is a finding
-  (Minor), and so is a comment describing a check the code no longer makes.
+- A test or scenario called "rejects a late appeal" that only checks for a
+  non-empty response claims more than it asserts. That is a finding (Minor). So
+  is a comment that describes a check the code no longer makes.
 - Does the BDD scenario depend on what it claims to test? If the outcome follows
   from an input that the regulation hard-codes (a `definitions` value or an
   output that is always `true`), the scenario passes whatever the case data says.
@@ -109,16 +110,19 @@ there. Each point below is a pattern that has slipped through review before.
 - A new rule or condition with only a happy-path test leaves the condition
   itself untested: delete it and every test still passes. Ask for at least one
   case where the condition decides the outcome.
-- Will the new test actually run? A new `*.test.ts` or `*.test.sh` file, or a
-  `.feature` file in a directory no BDD runner scans, runs only if something
-  picks it up. Look for it in `.github/workflows/ci.yml`, the `Justfile` and
-  `.pre-commit-config.yaml` (CI runs the pre-commit hooks). A Rust test behind
+- Will the new test actually run? A `*.test.sh` file runs in CI only when a
+  hook in `.pre-commit-config.yaml` or a step in `.github/workflows/ci.yml` runs
+  it, directly or through a `Justfile` recipe. A recipe that nothing in CI calls
+  runs only locally. A `*.test.ts` file runs only if its package has a test step in
+  `.github/workflows/ci.yml`, usually `npm test -w <package>`, and a `.feature`
+  file only in a directory that a BDD runner scans. A Rust test behind
   `#[ignore]`, or a scenario tagged `@wip`, needs a comment saying why and what
   would let it run again.
-- Is the setup copied? Rust integration tests share helpers through the crate's
-  `tests/common/` (`packages/engine/tests/common/` is one). When such a helper
-  already does what the new test sets up by hand, or a frontend's
-  `src/test-utils/` does, the copy is a finding (Minor).
+- Is the setup copied? Rust tests share helpers through `tests/common/` (in
+  `engine` and `cel`) or through a `test-utils` feature (`pipeline` and `auth`,
+  with the helpers in `src/test_utils.rs`). If the new test builds by hand what
+  such a helper, or a frontend's `src/test-utils/`, already provides, the copy
+  is a finding (Minor).
 
 ### Any code change
 
