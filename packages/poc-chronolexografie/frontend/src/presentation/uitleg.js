@@ -35,7 +35,7 @@ export const steps = [
     title: 'BABW art. 49',
     text: [
       'Artikel 49 van het BABW regelt de gehandicaptenparkeerkaart. Het zegt wat een aanvraag bevat en welke uitkomst het besluit vastlegt.',
-      'Het college verstrekt de kaart alleen als het zijn bevoegdheid gebruikt. Wanneer dat zo is, laat de wet open, in het open begrip `bevoegdheid_tot_verstrekken_gebruikt`.',
+      'Het college verstrekt de kaart alleen als het zijn bevoegdheid gebruikt. Wanneer het dat doet, zegt de wet niet: dat is het open begrip `bevoegdheid_tot_verstrekken_gebruikt`.',
     ],
     panels: [
       {
@@ -51,7 +51,10 @@ export const steps = [
   - type: BESCHIKKING
     decision_type: TOEKENNING
     outputs:
-      - gehandicaptenparkeerkaart_verstrekt`,
+      - gehandicaptenparkeerkaart_verstrekt
+      - kaart_vermeldt_bestuurder
+      - kaart_vermeldt_passagier
+    # …`,
       },
       {
         label: 'De uitkomst hangt af van het open begrip',
@@ -75,17 +78,20 @@ export const steps = [
     ],
     panels: [
       {
-        label: 'Beleid artikel 1',
+        label: 'Beleid artikel 1: welk begrip het vult, en wat het openlaat',
         source: BELEID,
         code: `open_terms:
   - id: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
-# …
+    # …
 implements:
   - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
     article: '49'
-    open_term: bevoegdheid_tot_verstrekken_gebruikt
-# …
-- output: bevoegdheid_tot_verstrekken_gebruikt
+    open_term: bevoegdheid_tot_verstrekken_gebruikt`,
+      },
+      {
+        label: 'Geen kaart als er al een geldige is',
+        source: BELEID,
+        code: `- output: bevoegdheid_tot_verstrekken_gebruikt
   value:
     operation: NOT
     value: $aanvrager_heeft_geldige_gehandicaptenparkeerkaart`,
@@ -148,13 +154,15 @@ implements:
         label: 'cel.yaml van de gemeente Wilgendaal',
         source: CEL,
         code: `answers:
-  aanvrager_heeft_geldige_gehandicaptenparkeerkaart: reductie_geldige_gehandicaptenparkeerkaart`,
+  aanvrager_heeft_geldige_gehandicaptenparkeerkaart: reductie_geldige_gehandicaptenparkeerkaart
+  aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt: reductie_geldige_gehandicaptenparkeerkaart
+  # …`,
       },
     ],
   },
   {
     overline: 'Reductie',
-    title: 'Reductie zoekt een geldige kaart',
+    title: 'Reductie zoekt geldige kaart',
     text: [
       'De reductie leest de kroniek van de gemeente terug. Ze vraagt eerst de reductie van de Awb welke besluiten onder BABW art. 49 nog gelden, en geeft daarvoor `basis` mee.',
       'Onder die besluiten zoekt ze een kaart voor deze aanvrager die op de dag van het besluit nog geldig is.',
@@ -226,10 +234,10 @@ combine: OR`,
   },
   {
     overline: 'Zijtak',
-    title: 'Het advies van de GGD',
+    title: 'Advies van de GGD',
     text: [
       'Of de aanvrager voor een kaart in aanmerking komt, hangt af van een geneeskundig advies. Artikel 7 van het beleid neemt dat advies als antwoord van de cel van de GGD.',
-      'De GGD geeft het uit haar reductie, die de vastgelegde adviezen uit haar eigen kroniek leest.',
+      'Dat antwoord komt uit een reductie van de GGD, die de vastgelegde adviezen uit haar eigen kroniek leest.',
     ],
     panels: [
       {
@@ -239,14 +247,19 @@ combine: OR`,
   type: boolean
   nullable: true
   source:
-    reduction: advies_langdurige_loopbeperking`,
+    reduction: advies_langdurige_loopbeperking
+    parameters:
+      bsn_aanvrager: $bsn_aanvrager
+      dagtekening_aanvraag: $dagtekening_aanvraag
+      datum_afgifte: $datum_afgifte`,
       },
       {
         label: 'cel.yaml van de GGD Wilgendaal',
         source: GGD_CEL,
         code: `answers:
-  geneeskundig_onderzoek_heeft_plaatsgehad: reductie_geneeskundig_onderzoek
-  advies_langdurige_loopbeperking: reductie_geneeskundig_advies`,
+  # …
+  advies_langdurige_loopbeperking: reductie_geneeskundig_advies
+  # …`,
       },
       {
         label: 'De reductie leest de adviezen',

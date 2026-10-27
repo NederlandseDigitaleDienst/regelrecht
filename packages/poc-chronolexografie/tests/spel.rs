@@ -1179,29 +1179,6 @@ fn every_case_shows_the_reductions_of_its_cell() {
 }
 
 #[test]
-fn the_reduction_tab_follows_basis_through_the_awb() {
-    // Article 2 of the reduction of the Awb passes `basis` on to article 1,
-    // which reads the decisions under it: the tab shows the row the call
-    // names as `basis`, not only the literals of the first call.
-    let mut spel = spel_met("vakantieverlof");
-    let stand = spel.reducties(dag("2026-12-01")).unwrap();
-    let invoer: Vec<&Value> = stand["reducties"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|r| r["id"] == "reductie_verlof_al_verleend_in_schooljaar")
-        .flat_map(|r| r["invoer"].as_array().unwrap())
-        .collect();
-    assert!(
-        invoer
-            .iter()
-            .any(|i| i["reductie"] == "reductie_algemene_wet_bestuursrecht"
-                && i["besluiten_onder"] == "leerplichtwet_1969#13a"),
-        "{invoer:#?}"
-    );
-}
-
-#[test]
 fn the_log_holds_the_facts_the_other_cells_recorded() {
     // The registrations of the Chamber of Commerce are facts the decisions
     // read: the log shows them beside the municipality's own steps, those

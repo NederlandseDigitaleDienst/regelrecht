@@ -82,7 +82,9 @@ const uitleg = useUitleg();
 onMounted(() => {
   const i = startIndex(window.location.search, presentation.total.value);
   if (i !== null) presentation.start(i);
-  uitleg.follow();
+  // One panel over the page at a time: the deck wins when the address asks
+  // for both.
+  else uitleg.follow();
 });
 watch(() => state.datum, verversen);
 

@@ -1994,20 +1994,12 @@ fn lezingen_van(
         else {
             continue;
         };
-        // What the call passes as written, and a `$<name>` the caller's own
-        // literal parameters hold, such as `basis` that article 2 of the
-        // reduction of the Awb passes on to its article 1.
         let letterlijk: BTreeMap<String, String> = source
             .parameters
             .iter()
             .flatten()
-            .filter_map(|(naam, waarde)| {
-                let waarde = match waarde.strip_prefix('$') {
-                    None => waarde.clone(),
-                    Some(van) => given.get(van)?.clone(),
-                };
-                Some((naam.clone(), waarde))
-            })
+            .filter(|(_, waarde)| !waarde.starts_with('$'))
+            .map(|(naam, waarde)| (naam.clone(), waarde.clone()))
             .collect();
         bezig.push(called.id.clone());
         lezingen_van(

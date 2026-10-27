@@ -6,45 +6,77 @@ import { intro, steps } from '../src/presentation/uitleg.js';
 import { asked, createUitleg, withParam } from '../src/presentation/useUitleg.js';
 
 const repo = fileURLToPath(new URL('../../../../', import.meta.url));
-const lines = (source) =>
+const indent = (l) => l.length - l.trimStart().length;
+const isMark = (l) => l.trim() === '# …';
+
+// The lines of a file that hold YAML: no blank lines, no comment lines.
+const yamlLines = (source) =>
   readFileSync(join(repo, source), 'utf8')
     .split('\n')
-    .map((l) => l.trim());
+    .filter((l) => l.trim() && !l.trim().startsWith('#'));
 
-// What a panel shows of its YAML: its lines without the mark of a cut.
-const shown = (code) =>
-  code
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((t) => t && !t.startsWith('#'));
+// A panel in pieces: the runs of lines between the marks of a cut (`# …`).
+function pieces(code) {
+  const out = [[]];
+  for (const l of code.split('\n')) {
+    if (isMark(l)) out.push([]);
+    else out[out.length - 1].push(l);
+  }
+  return out.filter((p) => p.length);
+}
+
+/**
+ * Where a piece stands in `file` from line `from` on: the lines follow each
+ * other there, each with the same indentation relative to the first, as the
+ * panel shows them. -1 when nowhere.
+ */
+function find(file, piece, from) {
+  for (let i = from; i + piece.length <= file.length; i++) {
+    const shift = indent(file[i]) - indent(piece[0]);
+    if (piece.every((l, j) => file[i + j].trim() === l.trim() && indent(file[i + j]) - indent(l) === shift)) return i;
+  }
+  return -1;
+}
 
 const panels = steps.flatMap((s) => s.panels.map((p) => [`${s.title}: ${p.label}`, p]));
 const texts = [intro.title, intro.lead, ...steps.flatMap((s) => [s.title, ...s.text])];
 
 describe('the explanation page', () => {
-  it.each(panels)('%s quotes its file, in order', (_, { code, source }) => {
-    const file = lines(source);
+  it.each(panels)('%s quotes its file: runs of lines as written, cuts marked', (_, { code, source }) => {
+    const file = yamlLines(source);
+    const runs = pieces(code);
     let at = 0;
-    for (const t of shown(code)) {
-      const found = file.indexOf(t, at);
-      expect(found, `${source}: ${t}`).toBeGreaterThanOrEqual(0);
-      at = found + 1;
+    let first = -1;
+    let end = -1;
+    for (const run of runs) {
+      const i = find(file, run, at);
+      expect(i, `${source}: ${run[0].trim()}`).toBeGreaterThanOrEqual(0);
+      if (first < 0) first = i;
+      end = i + run.length;
+      at = end;
     }
+    // A block that goes on after the panel ends in a mark, so nothing looks
+    // complete that is not.
+    const startIndent = indent(file[first]);
+    const next = file[end];
+    if (next && indent(next) > startIndent) expect(isMark(code.split('\n').at(-1)), `${source}: ends before ${next.trim()}`).toBe(true);
   });
 
-  it.each(panels)('%s is a small piece: 2 to 15 lines, without comments', (_, { code }) => {
+  it.each(panels)('%s is a small piece: 3 to 15 lines, without comments', (_, { code }) => {
     const n = code.split('\n').length;
-    expect(n).toBeGreaterThanOrEqual(2);
+    expect(n).toBeGreaterThanOrEqual(3);
     expect(n).toBeLessThanOrEqual(15);
     for (const l of code.split('\n')) if (l.trim().startsWith('#')) expect(l.trim()).toBe('# …');
   });
 
   it('gives every step a short heading, two or three short sentences and a panel', () => {
     for (const s of steps) {
-      expect(s.title.split(/\s+/).length, s.title).toBeLessThanOrEqual(5);
-      const sentences = s.text.join(' ').match(/[^.!?]+[.!?]/g) ?? [];
+      expect(s.title.split(/\s+/).length, s.title).toBeLessThanOrEqual(4);
+      // "art." and a dot in code end no sentence.
+      const plain = s.text.join(' ').replaceAll('art.', 'art').replace(/`[^`]*`/g, 'x');
+      const sentences = plain.match(/[^.!?]+[.!?]/g) ?? [];
       expect(sentences.length, s.title).toBeGreaterThanOrEqual(2);
-      expect(sentences.length, s.title).toBeLessThanOrEqual(4);
+      expect(sentences.length, s.title).toBeLessThanOrEqual(3);
       expect(s.panels.length, s.title).toBeGreaterThan(0);
     }
   });
