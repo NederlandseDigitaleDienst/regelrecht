@@ -1,5 +1,6 @@
 /**
- * Whether the explanation page (UitlegPagina.vue) is open. Its address is
+ * Whether the explanation page (UitlegPagina.vue) shows instead of the
+ * choice screen. Its address is
  * the page's own with `?uitleg`, beside `?presentatie` of the deck
  * (usePresentation.js): a query parameter leaves the paths of the cases and
  * scenarios (route.js) as they are. Opening adds the parameter, so the
@@ -32,12 +33,6 @@ export function createUitleg() {
   // Whether opening pushed an entry that closing should go back over.
   let pushed = false;
 
-  function onKey(e) {
-    if (active.value && e.key === 'Escape' && !e.altKey && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      close();
-    }
-  }
   // Back and forward open and close it along with the address.
   const onPop = () => {
     active.value = asked(window.location.search);
@@ -47,7 +42,6 @@ export function createUitleg() {
   let listening = false;
   function listen() {
     if (listening || typeof window === 'undefined') return;
-    window.addEventListener('keydown', onKey);
     window.addEventListener('popstate', onPop);
     listening = true;
   }
@@ -79,7 +73,7 @@ export function createUitleg() {
     if (typeof window !== 'undefined' && asked(window.location.search)) open({ push: false });
   }
 
-  return { active, open, close, follow, onKey };
+  return { active, open, close, follow };
 }
 
 let shared = null;

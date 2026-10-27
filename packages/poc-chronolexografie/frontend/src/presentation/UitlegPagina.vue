@@ -1,118 +1,49 @@
 <script setup>
-// The explanation page: one long page in the form of the deck (deck.css),
-// over the whole screen, that shows with small pieces of YAML how law,
-// policy, cell, reduction and the reduction of the Awb hang together, on one
-// case (uitleg.js). It scrolls; nothing on it opens or closes. The choice
-// screen opens it, and so does an address with `?uitleg` (useUitleg.js).
-import { ref } from 'vue';
-import { emphasize } from './emphasize.js';
+// The explanation page: a page of the app, built like the choice screen
+// (CasusKeuze.vue), that shows with small pieces of YAML how law, policy,
+// cell, reduction and the reduction of the Awb hang together, on one case
+// (uitleg.js). Each step is a section with a heading, two or three sentences
+// and a code viewer per panel. It scrolls; nothing on it opens or closes.
+// The choice screen opens it, and so does an address with `?uitleg`
+// (useUitleg.js); the button at the top goes back to the choice screen.
 import { intro, steps } from './uitleg.js';
-import { useOverlay } from './useOverlay.js';
-import { useUitleg } from './useUitleg.js';
 
-const u = useUitleg();
-const page = ref(null);
-const { top } = useOverlay(() => u.active.value, page);
+const emit = defineEmits(['terug']);
+
+/** A sentence in pieces: plain text, and `name` as code. */
+const stukken = (zin) =>
+  String(zin)
+    .split(/(`[^`]+`)/)
+    .filter(Boolean)
+    .map((s) => (s.startsWith('`') ? { code: s.slice(1, -1) } : { tekst: s }));
+
+/** The file of a panel, short: its last three parts. */
+const kortPad = (source) => source.split('/').slice(-3).join('/');
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="u.active.value"
-      ref="page"
-      class="deck uitleg"
-      role="region"
-      :aria-label="intro.title"
-      tabindex="-1"
-      :style="{ top: `${top}px` }"
-    >
-      <div class="bar">
-        <nldd-button appearance="inherit-tinted" text="Sluiten" @click="u.close()"></nldd-button>
-      </div>
-      <article class="stage">
-        <header class="intro">
-          <span class="overline">{{ intro.overline }}</span>
-          <h1 class="title title-hero">{{ intro.title }}</h1>
-          <p class="lead" v-html="emphasize(intro.lead)"></p>
-        </header>
-        <ol class="steps">
-          <li v-for="(s, i) in steps" :key="s.title" class="step">
-            <span class="overline">Stap {{ i + 1 }} · {{ s.overline }}</span>
-            <h2 class="title">{{ s.title }}</h2>
-            <p v-for="(t, j) in s.text" :key="j" class="lead" v-html="emphasize(t)"></p>
-            <div class="panels">
-              <figure v-for="pnl in s.panels" :key="pnl.label" class="code">
-                <pre tabindex="0" :aria-label="pnl.label"><code>{{ pnl.code }}</code></pre>
-                <figcaption>{{ pnl.label }} · <code>{{ pnl.source.split('/').slice(-3).join('/') }}</code></figcaption>
-              </figure>
-            </div>
-          </li>
-        </ol>
-      </article>
-    </div>
-  </Teleport>
+  <nldd-simple-section>
+    <nldd-container gap="16">
+      <nldd-button-bar>
+        <nldd-button appearance="neutral-tinted" start-icon="back" text="Naar de casuskeuze" @click="emit('terug')"></nldd-button>
+      </nldd-button-bar>
+      <nldd-title size="2" heading-level="1" :overline="intro.overline" :text="intro.title">
+        <nldd-text slot="supporting-text">
+          <template v-for="(s, i) in stukken(intro.lead)" :key="i"><code v-if="s.code">{{ s.code }}</code><template v-else>{{ s.tekst }}</template></template>
+        </nldd-text>
+      </nldd-title>
+    </nldd-container>
+  </nldd-simple-section>
+  <nldd-simple-section v-for="(s, i) in steps" :key="s.title">
+    <nldd-title slot="header" size="3" heading-level="2" :overline="`Stap ${i + 1} · ${s.overline}`" :text="s.title"></nldd-title>
+    <nldd-container gap="12">
+      <nldd-text v-for="(t, j) in s.text" :key="j">
+        <template v-for="(st, k) in stukken(t)" :key="k"><code v-if="st.code">{{ st.code }}</code><template v-else>{{ st.tekst }}</template></template>
+      </nldd-text>
+      <nldd-container v-for="p in s.panels" :key="p.label" gap="4">
+        <nldd-code-viewer language="yaml" appearance="box-tinted" :aria-label="p.label">{{ p.code }}</nldd-code-viewer>
+        <nldd-text size="sm" color="secondary">{{ p.label }} · {{ kortPad(p.source) }}</nldd-text>
+      </nldd-container>
+    </nldd-container>
+  </nldd-simple-section>
 </template>
-
-<style scoped src="./deck.css"></style>
-
-<style scoped>
-/* De opbouw van de uitlegpagina: één kolom die scrolt, in de vorm van het dek
- * (deck.css). Eigen CSS om dezelfde reden als het dek: het design system heeft
- * geen presentatiecomponent. */
-.uitleg {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  overflow-y: auto;
-  box-sizing: border-box;
-}
-.bar {
-  position: sticky;
-  top: 0;
-  display: flex;
-  justify-content: flex-end;
-  padding: 0.75rem clamp(1rem, 4vw, 4rem);
-  background: color-mix(in srgb, var(--primitives-color-lintblauw-750) 92%, transparent);
-  z-index: 1;
-}
-/* Een kolom van hooguit 1100px. De typografie volgt de kolombreedte, kleiner
- * dan op een dia: dit is een pagina om te lezen. */
-.stage {
-  --slide-unit: calc(0.62cqw);
-  container-type: inline-size;
-  width: min(100%, 1100px);
-  margin: 0 auto;
-  padding: 1rem 1rem 4rem;
-  box-sizing: border-box;
-}
-.intro,
-.step {
-  display: flex;
-  flex-direction: column;
-  gap: max(0.5rem, calc(1.4 * var(--slide-unit)));
-}
-.intro {
-  margin-bottom: max(2rem, calc(5 * var(--slide-unit)));
-}
-.steps {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: max(2.5rem, calc(7 * var(--slide-unit)));
-}
-.step + .step {
-  border-top: 1px solid var(--ink-18);
-  padding-top: max(2rem, calc(5 * var(--slide-unit)));
-}
-.panels {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
-  gap: 1rem;
-  margin-top: 0.5rem;
-}
-.panels pre {
-  font-size: max(0.75rem, calc(1.5 * var(--slide-unit)));
-}
-</style>

@@ -2,6 +2,9 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { describe, expect, it } from 'vitest';
+import { createSSRApp, h } from 'vue';
+import { renderToString } from 'vue/server-renderer';
+import UitlegPagina from '../src/presentation/UitlegPagina.vue';
 import { intro, steps } from '../src/presentation/uitleg.js';
 import { asked, createUitleg, withParam } from '../src/presentation/useUitleg.js';
 
@@ -116,7 +119,17 @@ describe('the address of the page', () => {
     const u = createUitleg();
     u.open({ push: false });
     expect(u.active.value).toBe(true);
-    u.onKey({ key: 'Escape', preventDefault() {} });
+    u.close();
     expect(u.active.value).toBe(false);
+  });
+});
+
+describe('the page', () => {
+  it('is a page of the app: a section per step, a code viewer per panel', async () => {
+    const html = await renderToString(createSSRApp({ render: () => h(UitlegPagina) }));
+    expect(html.match(/<nldd-simple-section/g)).toHaveLength(steps.length + 1);
+    expect(html.match(/<nldd-code-viewer[^>]*language="yaml"/g)).toHaveLength(panels.length);
+    expect(html).toContain('Naar de casuskeuze');
+    expect(html).toContain('<code>bevoegdheid_tot_verstrekken_gebruikt</code>');
   });
 });

@@ -6,12 +6,10 @@
 // and no slide that opens a tab. The closing slide offers the demo scenarios
 // (demo.js); choosing one closes the deck and begins it (`scenario`). The
 // button "Presentatie" on the page brings the deck back on that slide.
-import { computed, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { usePresentation } from './usePresentation.js';
 import { demoGuides } from './demo.js';
 import Diagram from './Diagram.vue';
-import { emphasize } from './emphasize.js';
-import { useOverlay } from './useOverlay.js';
 
 const emit = defineEmits(['scenario']);
 const p = usePresentation();
@@ -23,14 +21,55 @@ const progress = computed(() => `${((p.index.value + 1) / p.total.value) * 100}%
 const today = new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' });
 const scenarios = demoGuides();
 
-// Under the portal's strip, with the focus and the app inert while open
-// (useOverlay.js).
-const { top, forget } = useOverlay(() => p.active.value, deck);
+// Behind the portal a strip with the voorbehoud sits sticky at the top of
+// every page (packages/poc-portal, `data-poc-portaal`), above everything. The
+// deck starts under it, so the strip stays readable and covers no slide.
+const top = ref(0);
+let strip = null;
+const resize = new ResizeObserver(() => {
+  top.value = strip ? Math.max(0, strip.getBoundingClientRect().bottom) : 0;
+});
+function followStrip() {
+  strip = document.querySelector('[data-poc-portaal]');
+  resize.disconnect();
+  if (strip) resize.observe(strip);
+  top.value = strip ? Math.max(0, strip.getBoundingClientRect().bottom) : 0;
+}
+onBeforeUnmount(() => resize.disconnect());
+
+// The deck takes the focus when it opens, so the keys and a screen reader
+// start on the slide, and gives it back to where it was when it closes. The
+// app under it is inert meanwhile: Tab and a screen reader stay on the deck
+// and the portal's strip above it.
+const app = () => document.getElementById('app');
+let before = null;
+watch(
+  () => p.active.value,
+  async (open) => {
+    if (open) {
+      followStrip();
+      before = document.activeElement;
+      if (app()) app().inert = true;
+      await nextTick();
+      deck.value?.focus();
+    } else {
+      if (app()) app().inert = false;
+      // After a scenario was chosen the choice screen is gone, and the
+      // button that opened the deck with it; `choose` clears `before`.
+      if (before?.isConnected) before.focus?.();
+      before = null;
+    }
+  },
+);
+
+/** `**bold**` → <strong>, `` `name` `` → <code>; everything else escaped. */
+function emphasize(line) {
+  const escaped = String(line).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+  return escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>');
+}
 
 function choose(naam) {
-  // After a scenario was chosen the choice screen is gone, and the button
-  // that opened the deck with it.
-  forget();
+  before = null;
   p.leave();
   emit('scenario', naam);
 }
@@ -151,11 +190,11 @@ function choose(naam) {
   </Teleport>
 </template>
 
-<style scoped src="./deck.css"></style>
-
 <style scoped>
-/* De opbouw van het dek: één dia over het hele scherm. Kleuren en
- * typografie staan in deck.css, dat de uitlegpagina ook gebruikt. */
+/* Eigen CSS, zoals in het dek van de demo: het design system heeft geen
+ * presentatiecomponent. De kleuren zijn tokens. Het dek is altijd donkerblauw
+ * met witte tekst, ook in donkere modus: `color-scheme: light` houdt de
+ * kleurschalen aan hun lichte kant, waar lintblauw-750 donkerblauw is. */
 .deck {
   position: fixed;
   inset: 0;
@@ -164,6 +203,20 @@ function choose(naam) {
   flex-direction: column;
   padding: 2vh 0 1.5rem;
   box-sizing: border-box;
+  color-scheme: light;
+  outline: none;
+  --ink: var(--primitives-color-coolgray-0);
+  --ink-96: color-mix(in srgb, var(--ink) 96%, transparent);
+  --ink-85: color-mix(in srgb, var(--ink) 85%, transparent);
+  --ink-72: color-mix(in srgb, var(--ink) 72%, transparent);
+  --ink-55: color-mix(in srgb, var(--ink) 55%, transparent);
+  --ink-35: color-mix(in srgb, var(--ink) 35%, transparent);
+  --ink-18: color-mix(in srgb, var(--ink) 18%, transparent);
+  --ink-08: color-mix(in srgb, var(--ink) 8%, transparent);
+  --accent: var(--primitives-color-donkergeel-200);
+  color: var(--ink);
+  background: linear-gradient(160deg, var(--primitives-color-lintblauw-750) 0%, var(--primitives-color-lintblauw-700) 100%);
+  font-family: 'RijksSans', system-ui, sans-serif;
 }
 /* Het podium: een gecentreerde kolom van hooguit 1600px. Zijn breedte is de
  * maat van de typografie (`--slide-unit`). */
@@ -202,6 +255,27 @@ function choose(naam) {
   gap: max(0.5rem, calc(1.6 * var(--slide-unit)));
   min-width: 0;
 }
+.overline {
+  font-size: max(0.8rem, calc(1.6 * var(--slide-unit)));
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-72);
+}
+.title {
+  font-weight: 700;
+  font-size: max(1.5rem, calc(4.4 * var(--slide-unit)));
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+  margin: 0;
+  color: var(--ink);
+}
+.with-figure .title {
+  font-size: max(1.4rem, calc(3.6 * var(--slide-unit)));
+}
+.title-hero {
+  font-size: max(2rem, calc(8 * var(--slide-unit)));
+}
 .statement {
   font-weight: 400;
   line-height: 1.2;
@@ -209,6 +283,13 @@ function choose(naam) {
 .statement-line {
   display: block;
   text-wrap: balance;
+}
+.lead {
+  font-size: max(1rem, calc(2.3 * var(--slide-unit)));
+  line-height: 1.4;
+  margin: 0;
+  font-weight: 500;
+  text-wrap: pretty;
 }
 .with-figure .lead {
   font-size: max(1rem, calc(1.9 * var(--slide-unit)));
@@ -246,8 +327,50 @@ function choose(naam) {
   padding-left: 0;
   font-size: max(1rem, calc(2.6 * var(--slide-unit)));
 }
+.content :deep(strong) {
+  font-weight: 700;
+}
+.content :deep(code),
+pre {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+.content :deep(code) {
+  font-size: 0.86em;
+  overflow-wrap: anywhere;
+  background: var(--ink-08);
+  padding: 0.05em 0.3em;
+  border-radius: 4px;
+}
 .figure {
   min-width: 0;
+}
+.code {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+pre {
+  margin: 0;
+  padding: max(0.75rem, calc(1.4 * var(--slide-unit)));
+  font-size: max(0.7rem, calc(1.1 * var(--slide-unit)));
+  line-height: 1.45;
+  background: color-mix(in srgb, var(--primitives-color-lintblauw-750) 70%, black);
+  border: 1px solid var(--ink-18);
+  border-radius: 8px;
+  overflow: auto;
+  max-height: 64vh;
+  color: var(--ink-96);
+}
+.content pre code {
+  background: none;
+  border-radius: 0;
+  padding: 0;
+  font-size: inherit;
+}
+.code figcaption {
+  font-size: max(0.75rem, calc(1.3 * var(--slide-unit)));
+  color: var(--ink-72);
 }
 .scenarios {
   list-style: none;

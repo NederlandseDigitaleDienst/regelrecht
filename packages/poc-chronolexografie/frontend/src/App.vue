@@ -20,7 +20,7 @@
 // the choice screen, begins one of the demo scenarios (startDemo). The button
 // "Presentatie" brings it back, on the slide a scenario was last chosen on,
 // or else on the first. The explanation page (presentation/UitlegPagina.vue)
-// covers the page the same way, from the choice screen or `?uitleg`.
+// takes the place of the choice screen, from its button or `?uitleg`.
 //
 // The address names the case and the scenario (navigation.js), so a link
 // opens a scenario and the browser's back and forward walk the choices.
@@ -82,9 +82,7 @@ const uitleg = useUitleg();
 onMounted(() => {
   const i = startIndex(window.location.search, presentation.total.value);
   if (i !== null) presentation.start(i);
-  // One panel over the page at a time: the deck wins when the address asks
-  // for both.
-  else uitleg.follow();
+  uitleg.follow();
 });
 watch(() => state.datum, verversen);
 
@@ -249,7 +247,7 @@ function toTab(id) {
           <nldd-split-view-pane slot="main" has-content>
             <!-- One page per tab, as the editor gets one per route: a new tab
                  starts at its top instead of where the last one was scrolled. -->
-            <nldd-page :key="tab" landmarks="page">
+            <nldd-page :key="uitleg.active.value ? 'uitleg' : tab" landmarks="page">
               <nldd-simple-section v-if="state.fout" padding-block="16">
                 <nldd-banner
                   variant="critical"
@@ -287,6 +285,7 @@ function toTab(id) {
                   ></nldd-button>
                 </nldd-banner>
               </nldd-simple-section>
+              <UitlegPagina v-else-if="uitleg.active.value" @terug="uitleg.close()" />
               <CasusKeuze
                 v-else-if="!state.casus"
                 @presentatie="presentation.start()"
@@ -325,5 +324,4 @@ function toTab(id) {
     </nldd-bar-split-view>
   </nldd-shell>
   <PresentationDeck @scenario="startDemo" />
-  <UitlegPagina />
 </template>
