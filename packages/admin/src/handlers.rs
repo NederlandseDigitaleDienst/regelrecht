@@ -1089,27 +1089,51 @@ pub async fn dashboard_stats(
     .await
     .map_err(db_err("dashboard recent-failures query failed"))?;
 
-    // 5. Daily series for the last 14 Europe/Amsterdam days: jobs added
-    //    (created_at) and jobs finished (completed_at, split by outcome), per
-    //    type. Days without activity come back as explicit zero rows so the
-    //    frontend never fills gaps. Pre-aggregate per (day, type, kind) first —
-    //    a day-skeleton joined directly against the jobs rows degrades into an
-    //    O(days × rows) nested loop. The 15-day cutoffs give slack for the
-    //    UTC↔Amsterdam offset; at most 6 aggregate rows join per day, so the
-    //    SUM FILTER never double-counts.
+    // 5. Daily series. The moment comes from Postgres, like every other block
+    //    here, so all of them agree on what "today" is.
+    let as_of: chrono::DateTime<chrono::Utc> = sqlx::query_scalar("SELECT now()")
+        .fetch_one(pool)
+        .await
+        .map_err(db_err("dashboard clock query failed"))?;
+    let daily = daily_series(pool, as_of).await?;
+
+    Ok(Json(DashboardStats {
+        jobs,
+        executed,
+        open_untranslatables,
+        recent_failures,
+        daily,
+    }))
+}
+
+/// Daily series for the 14 Europe/Amsterdam calendar days up to and including
+/// the day `as_of` falls on. `as_of` is a parameter rather than `now()` in the
+/// query so a test can pin the moment, including the hours where the UTC date
+/// and the Amsterdam date differ.
+pub async fn daily_series(
+    pool: &sqlx::PgPool,
+    as_of: chrono::DateTime<chrono::Utc>,
+) -> Result<Vec<DailyEntry>, ApiError> {
+    // Jobs added (created_at) and jobs finished (completed_at, split by
+    // outcome), per type. Days without activity come back as explicit zero rows
+    // so the frontend never fills gaps. Pre-aggregate per (day, type, kind)
+    // first — a day-skeleton joined directly against the jobs rows degrades into
+    // an O(days × rows) nested loop. The 15-day cutoffs give slack for the
+    // UTC↔Amsterdam offset; at most 6 aggregate rows join per day, so the
+    // SUM FILTER never double-counts.
     // The pivot used to sit in the SQL as six hardcoded `FILTER (WHERE job_type
     // = 'harvest' | 'enrich')` columns, which is where three of the five types
     // fell out of the chart. The query now returns one row per (day, type,
     // kind) and the pivot happens below, over whatever types come back.
     let daily_rows = sqlx::query_as::<_, (String, String, String, i64)>(
         "WITH days AS ( \
-             SELECT ((now() AT TIME ZONE 'Europe/Amsterdam')::date - offs) AS day \
+             SELECT (($1::timestamptz AT TIME ZONE 'Europe/Amsterdam')::date - offs) AS day \
              FROM generate_series(13, 0, -1) AS offs \
          ), events AS ( \
              SELECT (created_at AT TIME ZONE 'Europe/Amsterdam')::date AS day, \
                     job_type::text AS job_type, 'added' AS kind, COUNT(*) AS n \
              FROM jobs \
-             WHERE created_at >= now() - INTERVAL '15 days' \
+             WHERE created_at >= $1::timestamptz - INTERVAL '15 days' \
              GROUP BY 1, 2 \
              UNION ALL \
              SELECT (completed_at AT TIME ZONE 'Europe/Amsterdam')::date, \
@@ -1118,7 +1142,7 @@ pub async fn dashboard_stats(
                     COUNT(*) \
              FROM jobs \
              WHERE status IN ('completed', 'failed') \
-               AND completed_at >= now() - INTERVAL '15 days' \
+               AND completed_at >= $1::timestamptz - INTERVAL '15 days' \
              GROUP BY 1, 2, 3 \
          ) \
          SELECT to_char(days.day, 'YYYY-MM-DD'), \
@@ -1129,6 +1153,7 @@ pub async fn dashboard_stats(
          GROUP BY days.day, e.job_type, e.kind \
          ORDER BY days.day",
     )
+    .bind(as_of)
     .fetch_all(pool)
     .await
     .map_err(db_err("dashboard daily-series query failed"))?;
@@ -1159,13 +1184,7 @@ pub async fn dashboard_stats(
         }
     }
 
-    Ok(Json(DashboardStats {
-        jobs,
-        executed,
-        open_untranslatables,
-        recent_failures,
-        daily,
-    }))
+    Ok(daily)
 }
 
 #[derive(Deserialize)]

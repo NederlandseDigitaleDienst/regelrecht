@@ -2014,99 +2014,148 @@ async fn dashboard_stats_failure_reason_falls_back_when_no_error_key() {
     assert_eq!(failures[0]["error"], "onbekend");
 }
 
+/// Inserts a job and pins its timestamps, so a test controls which calendar day
+/// it falls on instead of inheriting the moment the test happens to run.
+async fn insert_job_at(
+    pool: &sqlx::PgPool,
+    job_type: JobType,
+    law_id: &str,
+    status: &str,
+    created_at: &str,
+    completed_at: Option<&str>,
+) {
+    let job = job_queue::create_job(pool, CreateJobRequest::new(job_type, law_id))
+        .await
+        .unwrap();
+    sqlx::query(
+        "UPDATE jobs SET status = $2::job_status, \
+         created_at = $3::timestamptz, completed_at = $4::timestamptz WHERE id = $1",
+    )
+    .bind(job.id)
+    .bind(status)
+    .bind(created_at)
+    .bind(completed_at)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
 #[tokio::test]
 async fn dashboard_stats_daily_series_fourteen_days() {
     let db = TestDb::new().await;
     let pool = db.pool.clone();
 
-    // Harvest job created today, still pending → counts as added only.
-    job_queue::create_job(
+    // A fixed moment where the UTC date and the Amsterdam date already differ in
+    // the evening: 22:17 UTC on the Monday after the switch to winter time is
+    // 23:17 in Amsterdam, and the 14-day window (13 to 26 October) spans that
+    // switch. The CI failure this replaces came from this hour: fixtures built as
+    // `now() - interval '5 days'` are 120 hours back, which crosses the switch
+    // and lands one Amsterdam day off. Every timestamp below is pinned instead.
+    let as_of: chrono::DateTime<chrono::Utc> = "2026-10-26T22:17:00Z".parse().unwrap();
+
+    // Today (index 13). 23:30 UTC on the 25th is 00:30 on the 26th in Amsterdam:
+    // a UTC grouping would put this job on index 12.
+    insert_job_at(
         &pool,
-        CreateJobRequest::new(JobType::Harvest, "BWBR0000040"),
+        JobType::Harvest,
+        "BWBR0000040",
+        "pending",
+        "2026-10-25T23:30:00Z",
+        None,
     )
-    .await
-    .unwrap();
-
-    // Enrich job created and completed today → added + succeeded today.
-    job_queue::create_job(&pool, CreateJobRequest::new(JobType::Enrich, "BWBR0000041"))
-        .await
-        .unwrap();
-    let claimed = job_queue::claim_job(&pool, Some(JobType::Enrich))
-        .await
-        .unwrap()
-        .unwrap();
-    job_queue::complete_job(&pool, claimed.id, None)
-        .await
-        .unwrap();
-
-    // Harvest job created 5 days ago, failed 3 days ago: added counts on the
-    // creation day, failed on the completion day.
-    let failed = job_queue::create_job(
+    .await;
+    // Added and succeeded today, late in the Amsterdam evening.
+    insert_job_at(
         &pool,
-        CreateJobRequest::new(JobType::Harvest, "BWBR0000042"),
+        JobType::Enrich,
+        "BWBR0000041",
+        "completed",
+        "2026-10-26T22:05:00Z",
+        Some("2026-10-26T22:10:00Z"),
     )
-    .await
-    .unwrap();
-    sqlx::query(
-        "UPDATE jobs SET status = 'failed', \
-         created_at = now() - interval '5 days', \
-         completed_at = now() - interval '3 days' WHERE id = $1",
-    )
-    .bind(failed.id)
-    .execute(&pool)
-    .await
-    .unwrap();
+    .await;
 
-    // Harvest job created and completed 20 days ago → outside the window.
-    let old = job_queue::create_job(
+    // Added five Amsterdam days ago, failed three Amsterdam days ago. Both fall
+    // just past midnight in summer time (UTC+2), so the UTC date is a day
+    // earlier each time.
+    insert_job_at(
         &pool,
-        CreateJobRequest::new(JobType::Harvest, "BWBR0000043"),
+        JobType::Harvest,
+        "BWBR0000042",
+        "failed",
+        "2026-10-20T22:30:00Z",       // 21 Oct 00:30 Amsterdam → index 8
+        Some("2026-10-22T22:15:00Z"), // 23 Oct 00:15 Amsterdam → index 10
     )
-    .await
-    .unwrap();
-    sqlx::query(
-        "UPDATE jobs SET status = 'completed', \
-         created_at = now() - interval '20 days', \
-         completed_at = now() - interval '20 days' WHERE id = $1",
-    )
-    .bind(old.id)
-    .execute(&pool)
-    .await
-    .unwrap();
+    .await;
 
-    let json = get_dashboard_stats(&pool).await;
-    let daily = json["daily"].as_array().unwrap();
+    // The first day of the window starts at Amsterdam midnight: one second before
+    // it is outside, midnight itself is inside (index 0).
+    insert_job_at(
+        &pool,
+        JobType::Harvest,
+        "BWBR0000043",
+        "pending",
+        "2026-10-12T21:59:59Z", // 12 Oct 23:59:59 Amsterdam
+        None,
+    )
+    .await;
+    insert_job_at(
+        &pool,
+        JobType::Harvest,
+        "BWBR0000044",
+        "pending",
+        "2026-10-12T22:00:00Z", // 13 Oct 00:00 Amsterdam
+        None,
+    )
+    .await;
+
+    // Created and completed 20 days ago → outside the window.
+    insert_job_at(
+        &pool,
+        JobType::Harvest,
+        "BWBR0000045",
+        "completed",
+        "2026-10-06T12:00:00Z",
+        Some("2026-10-06T12:00:00Z"),
+    )
+    .await;
+
+    let daily = serde_json::to_value(handlers::daily_series(&pool, as_of).await.unwrap()).unwrap();
+    let daily = daily.as_array().unwrap();
     assert_eq!(daily.len(), 14);
 
-    // Dates ascend and the last entry is today's Europe/Amsterdam date (same
-    // source of truth as the query: Postgres).
-    let today: String = sqlx::query_scalar(
-        "SELECT to_char((now() AT TIME ZONE 'Europe/Amsterdam')::date, 'YYYY-MM-DD')",
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert_eq!(daily[13]["date"], today.as_str());
+    // Dates ascend and run over Amsterdam calendar days, ending on the day of
+    // `as_of` in Amsterdam (the UTC date is the same here; 23:30 UTC would not be).
+    assert_eq!(daily[0]["date"], "2026-10-13");
+    assert_eq!(daily[13]["date"], "2026-10-26");
     for pair in daily.windows(2) {
         assert!(pair[0]["date"].as_str().unwrap() < pair[1]["date"].as_str().unwrap());
     }
 
-    // Today (index 13): 1 harvest added, 1 enrich added + succeeded.
+    // Today (index 13): 1 harvest added, 1 enrich added + succeeded. Nothing on
+    // index 12, where the UTC date of the harvest job would have put it.
     assert_eq!(daily[13]["harvest"]["added"], 1);
     assert_eq!(daily[13]["harvest"]["succeeded"], 0);
     assert_eq!(daily[13]["harvest"]["failed"], 0);
     assert_eq!(daily[13]["enrich"]["added"], 1);
     assert_eq!(daily[13]["enrich"]["succeeded"], 1);
+    assert_eq!(daily[12]["harvest"]["added"], 0);
 
-    // 5 days ago (index 8): the failed harvest counts as added there;
-    // 3 days ago (index 10): it counts as failed there.
+    // The failed harvest: added on index 8, failed on index 10, and not on the
+    // neighbouring days its UTC dates point at.
     assert_eq!(daily[8]["harvest"]["added"], 1);
+    assert_eq!(daily[7]["harvest"]["added"], 0);
     assert_eq!(daily[10]["harvest"]["failed"], 1);
+    assert_eq!(daily[9]["harvest"]["failed"], 0);
 
-    // The 20-day-old job appears nowhere in the window.
+    // Window start: only the job at Amsterdam midnight counts.
+    assert_eq!(daily[0]["harvest"]["added"], 1);
+
+    // Today's, the failed one and the one at window start; the job a second
+    // before the window and the 20-day-old job appear nowhere.
     let total_harvest_added: i64 = daily
         .iter()
         .map(|d| d["harvest"]["added"].as_i64().unwrap())
         .sum();
-    assert_eq!(total_harvest_added, 2);
+    assert_eq!(total_harvest_added, 3);
 }
