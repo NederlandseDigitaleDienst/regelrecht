@@ -50,7 +50,7 @@ open_terms:
       - name: CBR
 ```
 
-A cell's answer reaches such a term through the policy of the deciding authority. That policy binds the term to the answer (`source.reduction`, [RFC-048](/rfcs/rfc-048)). Wherever that binding runs, the engine asks the one answerer of the call that the term names. A cell that the term does not name is not asked. Two answerers that the term names make the decision fail: the engine merges no answers, and which cell of a category answers is an [open question](/concepts/chronolexography/open-questions). For a term without `competent_authority`, the engine asks the cell of the policy's holder. The article's own `competent_authority` plays no part in which cell the engine asks.
+A cell's answer reaches such a term through the policy of the deciding authority. That policy binds the term to the answer (`source.reduction`, [RFC-048](/rfcs/rfc-048)). Wherever that binding runs, the engine asks the one answerer of the call that the term names. A cell that the term does not name is not asked. More than one answerer that the term names makes the decision fail: the engine merges no answers, and which cell of a category answers is an [open question](/concepts/chronolexography/open-questions). For a term without `competent_authority`, the engine asks the cell of the policy's holder. The article's own `competent_authority` plays no part in which cell the engine asks.
 
 ## Who gives a finding
 

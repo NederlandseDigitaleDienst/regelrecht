@@ -62,6 +62,20 @@ impl Cellen {
         self.andere.iter().collect()
     }
 
+    /// The bindings of a policy in force on `on` to an answer that one of
+    /// the cells gives (RFC-048): of the case's cell or of another cell of
+    /// the case. A term such a binding fills is no judgement the form asks.
+    pub fn gebonden(&self, service: &LawExecutionService, on: NaiveDate) -> Vec<reading::Binding> {
+        reading::bindings(service, on)
+            .into_iter()
+            .filter(|b| {
+                std::iter::once(&self.eigen)
+                    .chain(&self.andere)
+                    .any(|cell| cell.answers().contains_key(&b.answer))
+            })
+            .collect()
+    }
+
     /// The case's cell to record in, and the others to ask.
     pub fn splits(&mut self) -> (&mut Cell, Vec<&Cell>) {
         (&mut self.eigen, self.andere.iter().collect())
@@ -466,7 +480,7 @@ fn beleid_laat_oordelen(
 /// the contested decision ([`heroverweging`]).
 pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
     let service = corpus.service()?;
-    let beantwoord = reading::bindings(&service, on);
+    let beantwoord = cell.gebonden(&service, on);
     let aanvraag = shape::derive(&service, corpus.law(), corpus.article(), on)?;
     let besluit = decision::derive(&service, corpus.law(), corpus.article(), on)?;
     let bezwaar = shape::derive(&service, corpus.awb(), corpus.objection(), on)?;
@@ -1716,8 +1730,9 @@ fn voorvertonen<T>(
     neem: impl Fn(&mut Cellen, &Map<String, Value>) -> Result<T>,
 ) -> Result<Voorvertoning<T>> {
     let service = corpus.service()?;
-    // A term a policy binds to the answer of a cell takes no finding.
-    let beantwoord = reading::bindings(&service, on);
+    // A term a policy binds to the answer of a cell of the case takes no
+    // finding.
+    let beantwoord = cell.gebonden(&service, on);
     let van_cel = |naam: &str| beantwoord.iter().any(|b| b.term.open_term == naam);
     // The case's own article must derive: its error is the step's error.
     let eigen_shape = decision::derive(&service, corpus.law(), corpus.article(), on)?;
@@ -3743,31 +3758,23 @@ mod tests {
             kaart.besluit.outputs["gehandicaptenparkeerkaart_verstrekt"],
             json!(true)
         );
-        let door = |begrip: &str| {
+        let antwoord = |begrip: &str| {
             kaart
                 .waarom
                 .antwoorden
                 .iter()
                 .find(|a| a["begrip"] == json!(begrip))
-                .map(|a| a["door"].clone())
+                .cloned()
                 .unwrap_or_else(|| panic!("{begrip}: {:#?}", kaart.waarom.antwoorden))
         };
+        let ggd = antwoord("geneeskundig_onderzoek_heeft_plaatsgehad");
+        assert_eq!(ggd["door"], json!("ggd_wilgendaal"));
+        // Another cell's answer has no explanation in this cell.
+        assert_eq!(ggd["keer"], Value::Null);
         assert_eq!(
-            door("geneeskundig_onderzoek_heeft_plaatsgehad"),
-            json!("ggd_wilgendaal")
-        );
-        assert_eq!(
-            door("aanvrager_heeft_geldige_gehandicaptenparkeerkaart"),
+            antwoord("aanvrager_heeft_geldige_gehandicaptenparkeerkaart")["door"],
             json!("gemeente_wilgendaal")
         );
-        // Another cell's answer has no explanation in this cell.
-        let ggd = kaart
-            .waarom
-            .antwoorden
-            .iter()
-            .find(|a| a["begrip"] == json!("geneeskundig_onderzoek_heeft_plaatsgehad"))
-            .unwrap();
-        assert_eq!(ggd["keer"], Value::Null);
 
         // Five years on the card has expired; the college leaves the
         // examination out under lid 2 onder a, since its own cell answers
