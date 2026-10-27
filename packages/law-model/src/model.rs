@@ -222,16 +222,11 @@ pub struct Source {
     /// (`cel.yaml`, `answers`), with `parameters` as the values the cell's
     /// reduction gets under its own names. Only a policy article that fills
     /// an open term (`implements`) takes one: it binds the term to the
-    /// answer. The engine asks the cells of the call for it: those the
+    /// answer. The engine asks one cell of the call for it: the one the
     /// filled term names in its `competent_authority`, or else the cell of
     /// the policy's holder. Without a cell that answers, the value is null.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reduction: Option<String>,
-    /// With `reduction`: how the answers of several cells make one value,
-    /// with the aggregations of FOREACH (schema v0.8.9, RFC-052), where the
-    /// filled term itself names no `combine`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub combine: Option<CombineOp>,
     /// The article whose decision this input takes (schema v0.8.4, RFC-050):
     /// an article reference `<regulation>#<article>`, or a `$`-reference to
     /// a value that holds one, such as the `basis` of a `decision`
@@ -1159,11 +1154,6 @@ pub struct OpenTerm {
     /// per case it also says who gives the finding (RFC-048 §2).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub competent_authority: Option<CompetentAuthority>,
-    /// How the answers of several competent answerers make one value, with
-    /// the aggregations of FOREACH (schema v0.8.8, RFC-052). Without it, two
-    /// answers are an error.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub combine: Option<CombineOp>,
 }
 
 impl OpenTerm {

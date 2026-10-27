@@ -4,7 +4,7 @@
 //! records that reads them back with rulework of its own, a cell with its
 //! reductions. Such a cell gives named answers. The caller passes it with
 //! the call ([`Call`]), as the answerer of the call and as the other
-//! answerers of the sphere ([`Call::sphere`]).
+//! answerers it takes along ([`Call::sphere`]).
 //!
 //! The law asks no cell. The policy of the authority that decides binds an
 //! open term of the law to an answer: an article of that policy fills the
@@ -12,12 +12,14 @@
 //! (`source: {reduction: <answer>, parameters: {...}}`, schema v0.8.9). The
 //! engine resolves that input by asking the answerers of the call for the
 //! answer by its name ([`OpenTermAnswerer::answer`]), with the parameters the
-//! binding passes. It asks those the filled term names in its
-//! `competent_authority` (RFC-048 §4), and else those the policy names as its
-//! holder. It compares names; what an answerer is, it does not know.
-//! Several answers that are not null make one value with the `combine` of
-//! the term, or else that of the binding; an answerer that gives no answer
-//! of that name, or a null one, is silent.
+//! binding passes. It asks the one the filled term names in its
+//! `competent_authority` (RFC-048 §4), and else the one the policy names as
+//! its holder. It compares names; what an answerer is, it does not know. One
+//! question goes to one answerer: where the call holds several that the term
+//! names, the input is an error, and the engine merges no answers. An
+//! answerer that gives no answer of that name, or a null one, is silent.
+//! The article that binds may take answers of different cells for different
+//! questions and make one outcome of them: that is synthesis.
 //!
 //! Without an answerer that answers, the input is null: the binding then
 //! fills nothing, so the term is what it is without a filling regulation,
@@ -180,7 +182,7 @@ pub trait Chronicle {
 
 /// What a caller gives an execution apart from its parameters: the
 /// findings for the case (RFC-045), the answerer of the call and the other
-/// answerers of the sphere (RFC-048 §4), and the chronicle a reduction is
+/// answerers it takes along (RFC-048 §4), and the chronicle a reduction is
 /// applied to.
 #[derive(Default)]
 pub struct Call<'a> {
@@ -192,9 +194,10 @@ pub struct Call<'a> {
     /// the rows every reduction in the execution reads. Only a cell that
     /// runs one of its reductions passes it; a decision is taken without.
     pub chronicle: Option<&'a dyn Chronicle>,
-    /// The other cells of the sphere, asked with [`Self::answerer`] where a
-    /// binding fills a term that names them in `competent_authority`
-    /// (RFC-048 §4), or where the binding's policy names them as its holder.
+    /// The other cells the call takes along, asked instead of
+    /// [`Self::answerer`] where a binding fills a term that names them in
+    /// `competent_authority` (RFC-048 §4), or where the binding's policy
+    /// names them as its holder.
     pub sphere: Vec<&'a dyn OpenTermAnswerer>,
 }
 

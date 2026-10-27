@@ -12,7 +12,7 @@
 
 /// Version stamped on newly written law YAML. Bump together with
 /// `schema/latest`; the test below fails otherwise.
-pub const CURRENT_SCHEMA_VERSION: &str = "v0.8.12";
+pub const CURRENT_SCHEMA_VERSION: &str = "v0.8.13";
 
 /// `$schema` URL for newly written law YAML.
 ///
@@ -20,9 +20,9 @@ pub const CURRENT_SCHEMA_VERSION: &str = "v0.8.12";
 /// `corpus/regulation/`, so written files never point at a moving target.
 pub const SCHEMA_URL: &str = concat!(
     "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-",
-    "v0.8.12",
+    "v0.8.13",
     "/schema/",
-    "v0.8.12",
+    "v0.8.13",
     "/schema.json"
 );
 

@@ -62,7 +62,7 @@ use crate::chronicle::Gram;
 use crate::chronicle::EXECUTOGRAM;
 use crate::error::{refused, setup, Result};
 use crate::shape::{self, article_on};
-use regelrecht_law_model::{stored, CompetentAuthority};
+use regelrecht_law_model::stored;
 
 /// An open term of a law article, by the law, the article and its id.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -126,58 +126,6 @@ pub fn bindings(service: &LawExecutionService, day: NaiveDate) -> Vec<Binding> {
         }
     }
     uit
-}
-
-/// The open terms a policy in force on `day` binds to one of `answers`
-/// ([`bindings`]) and asks the cell `authority` for. As the engine routes
-/// the binding, that cell is one named by the first term the binding
-/// article fills that names its `competent_authority`, or else the
-/// policy's holder (RFC-048, RFC-052). Where the cell runs, its answer
-/// fills such a term; elsewhere the term is what it is without one.
-/// Each term once, in the order of the laws and their articles.
-pub fn bound_terms(
-    service: &LawExecutionService,
-    authority: &Authority,
-    answers: &BTreeMap<String, String>,
-    day: NaiveDate,
-) -> Vec<Term> {
-    let mut terms: Vec<Term> = Vec::new();
-    for binding in bindings(service, day) {
-        if !answers.contains_key(&binding.answer) || terms.contains(&binding.term) {
-            continue;
-        }
-        // As the engine: the first term the binding article fills that
-        // names its competent authorities routes the whole binding.
-        let competent = article_on(service, &binding.law_id, &binding.article, day)
-            .and_then(|article| article.get_implements())
-            .into_iter()
-            .flatten()
-            .find_map(|decl| {
-                article_on(service, &decl.law, &decl.article, day)?
-                    .get_open_terms()?
-                    .iter()
-                    .find(|t| t.id == decl.open_term)?
-                    .competent_authority
-                    .as_ref()
-                    .and_then(CompetentAuthority::named)
-            })
-            .map(<[_]>::to_vec);
-        let holder = || {
-            service
-                .resolver()
-                .get_law_for_date(&binding.law_id, Some(day))
-                .and_then(|law| law.competent_authority.as_ref())
-                .and_then(CompetentAuthority::named)
-                .map(<[_]>::to_vec)
-        };
-        if competent
-            .or_else(holder)
-            .is_some_and(|named| authority.is_named_by(&named))
-        {
-            terms.push(binding.term);
-        }
-    }
-    terms
 }
 
 /// The decisions in `grams` taken under `basis` (`<regulation>#<article>`),
@@ -1492,62 +1440,5 @@ articles:
                 answer: "al_verleend".into(),
             }]
         );
-    }
-
-    #[test]
-    fn the_terms_a_policy_binds_to_an_answer_of_the_cell_are_listed() {
-        let service = service();
-        let terms = bound_terms(&service, authority(), answers(), day());
-        assert_eq!(
-            terms,
-            [Term {
-                law: "wet_fictief".into(),
-                article: "1".into(),
-                open_term: "al_verleend".into(),
-            }]
-        );
-        assert!(bound_terms(&service, authority(), &BTreeMap::new(), day()).is_empty());
-        // A cell the policy does not ask has the term not as its own.
-        let other = Authority {
-            name: "een ander".into(),
-            category: None,
-        };
-        assert!(bound_terms(&service, &other, answers(), day()).is_empty());
-        let before = NaiveDate::from_ymd_opt(2025, 1, 1).unwrap();
-        assert!(bound_terms(&service, authority(), answers(), before).is_empty());
-    }
-
-    #[test]
-    fn a_term_that_names_its_competent_routes_the_whole_binding() {
-        // The binding fills two terms; only the second names who may
-        // answer it. The engine asks that one for both, so neither term is
-        // the holder's.
-        let deciding = DECIDING.replace(
-            "          decided_per_case_by: het hoofd\n",
-            "          decided_per_case_by: het hoofd\n        - id: ook_verleend\n          \
-             type: boolean\n          required: false\n          competent_authority:\n            \
-             name: een ander\n",
-        );
-        let binding = BINDING.replace(
-            "          open_term: al_verleend\n",
-            "          open_term: al_verleend\n        - law: wet_fictief\n          article: '1'\n          \
-             open_term: ook_verleend\n",
-        );
-        let mut service = LawExecutionService::new();
-        service.load_law(&deciding).unwrap();
-        service.load_law(&binding).unwrap();
-        service
-            .load_law(&reduction("reductie_a", "2026-01-01"))
-            .unwrap();
-        assert!(bound_terms(&service, authority(), answers(), day()).is_empty());
-        let other = Authority {
-            name: "een ander".into(),
-            category: None,
-        };
-        let terms: Vec<String> = bound_terms(&service, &other, answers(), day())
-            .into_iter()
-            .map(|t| t.open_term)
-            .collect();
-        assert_eq!(terms, ["al_verleend", "ook_verleend"]);
     }
 }

@@ -306,23 +306,15 @@ fn parkeerkaart_a_second_card_next_to_a_valid_one() {
         casus["rol"],
         json!("het college van burgemeester en wethouders")
     );
-    // The other cells of the sphere (RFC-052), from the case file, the
-    // court among them (RFC-053).
+    // The other cells the case takes along (RFC-052), from the case file,
+    // the court among them (RFC-053).
     let andere: Vec<&str> = casus["andere_cellen"]
         .as_array()
         .unwrap()
         .iter()
         .map(|a| a["cel"].as_str().unwrap())
         .collect();
-    assert_eq!(
-        andere,
-        [
-            "ggd_wilgendaal",
-            "gemeente_oostmeer",
-            "cbr",
-            "rechtbank_wilgendaal"
-        ]
-    );
+    assert_eq!(andere, ["ggd_wilgendaal", "rechtbank_wilgendaal"]);
     assert_eq!(casus["rechter"]["cel"], json!("rechtbank_wilgendaal"));
     let aanvraag = map(&casus["voorbeeld"]["aanvraag"]);
     let bevindingen = map(&casus["voorbeeld"]["bevindingen"]);

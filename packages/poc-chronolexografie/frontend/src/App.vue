@@ -45,7 +45,7 @@ import PresentationDeck from './presentation/PresentationDeck.vue';
 import { DEMO_CASUS } from './presentation/demo.js';
 import { startIndex, usePresentation } from './presentation/usePresentation.js';
 
-// Het tabblad Andere cellen staat er alleen bij een casus met een sfeer
+// Het tabblad Andere cellen staat er alleen bij een casus met andere cellen
 // (RFC-052).
 const tabs = computed(() => [
   { id: 'scenarios', tekst: "Scenario's" },

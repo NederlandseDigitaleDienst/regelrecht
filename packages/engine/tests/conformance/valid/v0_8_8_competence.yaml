@@ -1,18 +1,18 @@
 ---
 # Tier C: competence on an open term and on a fact (schema v0.8.8, RFC-052).
 # The article names who decides; the open term names who may answer it, a
-# list, and combines their answers with OR; the fact names who establishes it.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
-$id: test_conformance_synthesis
+# list; the fact names who establishes it.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$id: test_conformance_competence
 regulatory_layer: WET
 bwb_id: BWBR9999953
 publication_date: '2026-10-20'
 valid_from: '2026-10-20'
 name: Testwet verstrekking
-url: https://example.invalid/synthesis
+url: https://example.invalid/competence
 articles:
   - number: '1'
-    url: https://example.invalid/synthesis/1
+    url: https://example.invalid/competence/1
     text: Het college of de landelijke uitgever verstrekt de kaart.
     machine_readable:
       competent_authority:
@@ -34,7 +34,6 @@ articles:
           type: boolean
           required: true
           decided_per_case_by: het college
-          combine: OR
       execution:
         parameters:
           - name: bsn

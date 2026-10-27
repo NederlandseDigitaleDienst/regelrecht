@@ -122,8 +122,6 @@ export const COMPONENTS = {
     paths: [
       'pocs/',
       'corpus-poc/',
-      'corpus/cells/cbr/',
-      'corpus/cells/gemeente_oostmeer/',
       'corpus/cells/gemeente_wilgendaal/',
       'corpus/cells/ggd_wilgendaal/',
       'corpus/cells/kamer_van_koophandel/',

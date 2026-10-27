@@ -2,8 +2,8 @@
 # Tier C: a reduction as the named answer of a cell (schema v0.8.9, RFC-048).
 # It fills no open term; it reads the decisions in the chronicle of its cell
 # and passes what it found to the policy of that cell's authority as a
-# parameter. It names no holder (schema v0.8.12): it sits with its cell.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+# parameter. It names no holder (schema v0.8.13): it sits with its cell.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
 $id: test_conformance_reduction_answer
 regulatory_layer: REDUCTIE
 publication_date: '2026-10-22'

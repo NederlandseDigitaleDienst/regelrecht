@@ -180,12 +180,12 @@ export const slides = [
     overline: 'Begrip',
     title: 'Synthese',
     bullets: [
-      'Een wetsartikel neemt antwoorden van meer cellen samen tot één uitkomst.',
-      'Zo blijft elke cel baas over haar eigen feiten.',
-      'Elke cel reduceert alleen haar eigen kroniek.',
+      'Een artikel neemt de antwoorden van verschillende cellen, op verschillende vragen, samen tot één uitkomst.',
+      'Elke cel beantwoordt haar eigen vraag uit haar eigen kroniek, en blijft zo baas over haar eigen feiten.',
+      'De synthese gebeurt bij wie vraagt, niet in een cel.',
       'In RegelRecht doet de engine dit als hij een artikel uitvoert met antwoorden van meer cellen.',
     ],
-    figure: { diagram: 'synthese', label: 'Een artikel neemt de antwoorden van twee cellen samen' },
+    figure: { diagram: 'synthese', label: 'Een artikel neemt de antwoorden van twee cellen op twee vragen samen' },
   },
   {
     kind: 'section',

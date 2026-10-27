@@ -31,19 +31,19 @@ const keten = [
 ];
 
 // The reductions in the corpus that call the reduction of the Awb, each
-// with the article its own decisions rest on (`basis`).
+// with the article its own decisions rest on (`basis`), where its box
+// stands and the arrow from it to the Awb-reductie in the middle.
 const awb = [
-  { naam: 'OBS De Klimop: al verlof dit schooljaar?', basis: 'basis: leerplichtwet_1969#13a' },
-  { naam: 'Wilgendaal: al een geldige kaart?', basis: 'basis: …babw#49' },
-  { naam: 'Oostmeer: eerder een kaart gegeven?', basis: 'basis: …babw#49' },
-  { naam: 'Centraal Bureau Rijvaardigheidsbewijzen', basis: 'basis: …babw#49' },
+  { naam: 'OBS De Klimop: al verlof dit schooljaar?', basis: 'basis: leerplichtwet_1969#13a', x: 0, y: 0, pijl: 'M 165 74 L 260 130' },
+  { naam: 'Wilgendaal: al een geldige kaart?', basis: 'basis: …babw#49', x: 370, y: 0, pijl: 'M 535 74 L 440 130' },
+  { naam: 'Wilgendaal: hoeveel vergunningen?', basis: 'basis: …parkeerverordening…#2', x: 185, y: 250, pijl: 'M 350 250 L 350 200' },
 ];
 
 const synthese = {
   synthese: {
     cellen: [
-      { naam: 'Cel A', antwoord: 'antwoord uit eigen kroniek' },
-      { naam: 'Cel B', antwoord: 'antwoord uit eigen kroniek' },
+      { naam: 'Cel A', antwoord: 'antwoord op vraag 1' },
+      { naam: 'Cel B', antwoord: 'antwoord op vraag 2' },
     ],
     artikel: 'wetsartikel',
     uitkomst: 'één uitkomst',
@@ -95,22 +95,20 @@ const synthese = {
          eromheen. -->
     <svg v-else-if="name === 'awb'" viewBox="0 0 700 330">
       <defs aria-hidden="true"><marker :id="arrowId" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="head" /></marker></defs>
-      <g v-for="(r, i) in awb" :key="i" :transform="`translate(${(i % 2) * 370} ${i < 2 ? 0 : 250})`">
+      <g v-for="(r, i) in awb" :key="i" :transform="`translate(${r.x} ${r.y})`">
         <rect x="2" y="2" width="326" height="70" rx="8" class="box" />
         <text x="165" y="32" class="strong" text-anchor="middle">{{ r.naam }}</text>
         <text x="165" y="56" class="mono" text-anchor="middle">{{ r.basis }}</text>
       </g>
-      <path d="M 165 74 L 260 130" class="arrow" :marker-end="arrow" />
-      <path d="M 535 74 L 440 130" class="arrow" :marker-end="arrow" />
-      <path d="M 165 250 L 260 200" class="arrow" :marker-end="arrow" />
-      <path d="M 535 250 L 440 200" class="arrow" :marker-end="arrow" />
+      <path v-for="(r, i) in awb" :key="`pijl-${i}`" :d="r.pijl" class="arrow" :marker-end="arrow" />
       <rect x="200" y="132" width="300" height="66" rx="33" class="box accent" />
       <text x="350" y="160" class="strong" text-anchor="middle">Reductie van de Awb</text>
       <text x="350" y="182" class="mono" text-anchor="middle">geldende_besluiten</text>
     </svg>
 
-    <!-- Synthese: two cells each answer from their own chronicle, and the
-         article that decides takes the answers together. -->
+    <!-- Synthese: two cells each answer a question of their own from their
+         own chronicle, and the article that decides takes the answers
+         together. -->
     <svg v-else-if="synthese[name]" viewBox="0 0 480 300">
       <defs aria-hidden="true"><marker :id="arrowId" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="head" /></marker></defs>
       <g v-for="(c, i) in synthese[name].cellen" :key="i" :transform="`translate(${i * 240} 0)`">

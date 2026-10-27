@@ -19,9 +19,9 @@ omschrijving: >-
   gehandicaptenparkeerkaart (BABW artikel 49). Het college beslist na een
   geneeskundig onderzoek door de GGD. Of het onderzoek plaatsvond en wat het
   advies van de GGD per criterium zegt, vraagt de gemeente aan de GGD; of de
-  aanvrager eerder een kaart kreeg, aan elke instantie die kaarten verstrekt:
-  zijzelf, een andere gemeente en het CBR. Elke cel antwoordt uit haar eigen
-  kroniek (synthese, RFC-048). Het advies staat in fictief beleid van de
+  aanvrager al een kaart heeft of eerder kreeg, aan haar eigen cel. Elke cel
+  antwoordt uit haar eigen kroniek, en het besluit maakt van die antwoorden
+  één uitkomst (synthese, RFC-048). Het advies staat in fictief beleid van de
   gemeente: het college oordeelt zoals het advies, en zonder advies zelf.
 cel_naam: gemeente Wilgendaal
 speeldatum: 2026-10-13
@@ -69,13 +69,12 @@ voorbeeld:
     indiener_is_belanghebbende: true
     rechtsregel_geschonden: false
 
-# De andere cellen van de sfeer (RFC-052). Het open begrip zegt wie bevoegd
-# is: de GGD of de aangewezen deskundige voor het onderzoek (Regeling
-# gehandicaptenparkeerkaart, artikel 3), het college van elke gemeente en het
-# CBR voor een eerdere kaart (artikel 2, tweede lid, van de regeling). De engine vraagt alleen een
-# cel die het begrip noemt. Elke cel legt bij
-# elke start en reset opnieuw vast wat zij vóór het eerste scenario wist, via
-# de cel zoals elke stap.
+# De andere cellen die de casus meeneemt (RFC-052). Het open begrip zegt wie
+# bevoegd is: de GGD of de aangewezen deskundige voor het onderzoek (Regeling
+# gehandicaptenparkeerkaart, artikel 3). De engine vraagt alleen een cel die
+# het begrip noemt, en één cel per vraag. Elke cel legt bij elke start en
+# reset opnieuw vast wat zij vóór het eerste scenario wist, via de cel zoals
+# elke stap.
 #
 # - De GGD onderzocht de voorbeeldaanvrager op 9 oktober, na de dagtekening
 #   van de voorbeeldaanvraag (5 oktober), dus het onderzoek telt voor die
@@ -85,55 +84,12 @@ voorbeeld:
 #   het fictieve beleid van Wilgendaal vereist).
 # - Een tweede aanvrager (BSN 999990068) onderzocht zij ook op 9 oktober;
 #   haar advies vindt geen enkel criterium.
-# - Oostmeer (fictief) en het CBR verstrekten in 2026 een kaart aan een
-#   andere aanvrager. Eerder kan niet: het BABW staat hier vanaf 1 januari
-#   2026 in het corpus. Eigen keuze: beide beslissen op het model van
-#   artikel 49, eerste lid, en het fictieve beleid van Wilgendaal geldt ook
-#   voor hen (het is ongescoped). De open begrippen van dat beleid
-#   beantwoordt alleen het college van Wilgendaal, de houder; Oostmeer en
-#   het CBR geven daarop geen bevinding. De cellen geven ze: de GGD
-#   onderzocht beide aanvragers in januari en bracht advies uit, en de cel
-#   van Wilgendaal kent geen kaart van hen. Die onderzoeken tellen niet voor
-#   een aanvraag in oktober (artikel 5, derde lid, van het beleid). Het
-#   derde lid (het CBR, voor wie geen ingezetene is) is niet gemodelleerd:
-#   het CBR beslist hier op het model van het eerste lid, zonder de
-#   bevindingen die artikel 49 aan het college laat.
 andere_cellen:
   - cel: ggd_wilgendaal
     cel_naam: GGD Wilgendaal
     begin:
       datum: 2026-10-09
       executogrammen:
-        - feit: regeling_gehandicaptenparkeerkaart#3#geneeskundig_onderzoek_verricht
-          datum: 2026-01-12
-          velden:
-            bsn_aanvrager: '999990044'
-            datum_onderzoek: '2026-01-12'
-            verricht_door: Gemeentelijke Gezondheidsdienst
-        - feit: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
-          datum: 2026-01-12
-          velden:
-            bsn_aanvrager: '999990044'
-            datum_onderzoek: '2026-01-12'
-            langdurige_loopbeperking: true
-            continu_afhankelijk_van_hulp_bestuurder: false
-            permanent_rolstoelgebonden: false
-            ernstige_beperkingen_andere_dan_loopbeperkingen: false
-        - feit: regeling_gehandicaptenparkeerkaart#3#geneeskundig_onderzoek_verricht
-          datum: 2026-01-30
-          velden:
-            bsn_aanvrager: '999990056'
-            datum_onderzoek: '2026-01-30'
-            verricht_door: Gemeentelijke Gezondheidsdienst
-        - feit: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
-          datum: 2026-01-30
-          velden:
-            bsn_aanvrager: '999990056'
-            datum_onderzoek: '2026-01-30'
-            langdurige_loopbeperking: true
-            continu_afhankelijk_van_hulp_bestuurder: false
-            permanent_rolstoelgebonden: false
-            ernstige_beperkingen_andere_dan_loopbeperkingen: false
         - feit: regeling_gehandicaptenparkeerkaart#3#geneeskundig_onderzoek_verricht
           velden:
             bsn_aanvrager: '999990020'
@@ -160,40 +116,6 @@ andere_cellen:
             continu_afhankelijk_van_hulp_bestuurder: false
             permanent_rolstoelgebonden: false
             ernstige_beperkingen_andere_dan_loopbeperkingen: false
-  - cel: gemeente_oostmeer
-    cel_naam: gemeente Oostmeer
-    begin:
-      datum: 2026-01-15
-      aanvragen:
-        - datum: 2026-01-15
-          velden:
-            bsn_aanvrager: '999990044'
-            kaart_als_bestuurder: true
-            kaart_als_passagier: false
-            aanvraag_ondertekend: true
-            naam_aanvrager: B. Jansen
-            adres_aanvrager: Voorbeeldstraat 4
-            dagtekening: '2026-01-10'
-            gevraagde_beschikking: gehandicaptenparkeerkaart
-          bevindingen:
-            geneeskundig_onderzoek_achterwege_gelaten: false
-            bekend_dat_aanvrager_nog_steeds_voldoet: false
-            keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet: false
-  - cel: cbr
-    cel_naam: CBR
-    begin:
-      datum: 2026-02-02
-      aanvragen:
-        - datum: 2026-02-02
-          velden:
-            bsn_aanvrager: '999990056'
-            kaart_als_bestuurder: true
-            kaart_als_passagier: false
-            aanvraag_ondertekend: true
-            naam_aanvrager: C. Smit
-            adres_aanvrager: Voorbeeldstraat 6
-            dagtekening: '2026-01-28'
-            gevraagde_beschikking: gehandicaptenparkeerkaart
   # De bestuursrechter (RFC-053): ook een andere cel, met een eigen kroniek.
   # Dat zij de rechter is, zegt haar cel.yaml (categorie "de
   # bestuursrechter", wie volgens Awb 8:70 beslist). Het artikel van het
@@ -385,54 +307,6 @@ scenarios:
       artikel 2, tweede lid, onder a). Bij het besluit staat "aanvrager eerder
       gehandicaptenparkeerkaart verstrekt: ja", ingevuld door het beleid van
       Wilgendaal met het antwoord van de cel. Laat je ze uit, dan volgt de melding van het vorige scenario.
-  - naam: Een kaart van een andere gemeente telt mee
-    stappen:
-      - >-
-        Aanvrager, speeldatum 13 oktober 2026: verander het BSN in 999990044
-        en klik op Aanvraag indienen. Deze aanvrager kreeg in januari 2026 een
-        kaart van de (fictieve) gemeente Oostmeer en woont nu in Wilgendaal.
-      - >-
-        Bestuursorgaan, speeldatum 20 oktober 2026: er is geen advies, dus
-        het college oordeelt over de vier criteria: Ja bij "langdurige
-        loopbeperking volgens college", Nee bij de andere drie. Zet "geneeskundig onderzoek
-        achterwege gelaten" en "bekend dat aanvrager nog steeds voldoet" aan,
-        en klik op Besluit nemen.
-    eind: >-
-      Toegewezen, zonder onderzoek (Regeling gehandicaptenparkeerkaart,
-      artikel 2, tweede lid, onder a). Wilgendaal kent die eerdere kaart niet,
-      maar vroeg elke verstrekkende instantie die de wet noemt (Regeling
-      gehandicaptenparkeerkaart, artikel 2, tweede lid): het CBR en Wilgendaal zelf zwegen, Oostmeer antwoordde ja.
-      Het Logboek noemt bij het begrip de gemeente Oostmeer.
-  - naam: Een kaart van het CBR telt ook
-    stappen:
-      - >-
-        Aanvrager, speeldatum 13 oktober 2026: verander het BSN in 999990056
-        en klik op Aanvraag indienen. Het CBR gaf deze aanvrager in februari
-        2026 een kaart.
-      - >-
-        Bestuursorgaan, speeldatum 20 oktober 2026: geef de vier criteria
-        zoals hierboven, zet "geneeskundig onderzoek achterwege gelaten" en
-        "bekend dat aanvrager nog steeds voldoet" aan, en klik op Besluit
-        nemen.
-    eind: >-
-      Toegewezen. Bij het begrip staat nu het CBR als de cel die antwoordde.
-  - naam: Twee uitgevers, één antwoord
-    stappen:
-      - Speel eerst "Een kaart van een andere gemeente telt mee".
-      - >-
-        Aanvrager, speeldatum 20 oktober 2031, als de kaart van Wilgendaal is
-        verlopen: BSN 999990044, dagtekening 20 oktober 2031, klik op Aanvraag
-        indienen.
-      - >-
-        Bestuursorgaan: geef de vier criteria (Ja bij "langdurige
-        loopbeperking volgens college", Nee bij de andere drie), zet "geneeskundig
-        onderzoek achterwege gelaten" en "bekend dat aanvrager nog steeds
-        voldoet" aan, en klik op Besluit nemen.
-    eind: >-
-      Toegewezen. Nu antwoordden twee cellen ja: Oostmeer en Wilgendaal. De
-      wet zegt hoe hun antwoorden één waarde worden: eerder een kaart
-      verstrekt is waar als één verstrekkende instantie het zegt (combine:
-      OR op artikel 2 van de regeling). Het Logboek noemt beide.
   - naam: Beroep ongegrond
     stappen:
       - >-

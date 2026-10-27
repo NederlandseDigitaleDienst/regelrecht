@@ -650,17 +650,18 @@ mod tests {
 
     #[test]
     fn a_reduction_that_reads_one_of_another_cell_is_refused() {
-        // The school's reduction asks the CBR's: that one would read the
-        // school's chronicle, not the CBR's.
+        // The school's reduction asks the Chamber's: that one would read the
+        // school's chronicle, not the Chamber's.
         let e = verplaatst(VERLOF, VERLOF, |tekst| {
             tekst.replacen(
                 "regulation: reductie_algemene_wet_bestuursrecht",
-                "regulation: reductie_eerder_verstrekte_gehandicaptenparkeerkaart_cbr",
+                "regulation: reductie_vestiging_in_handelsregister",
                 1,
             )
         });
         assert!(
-            e.contains("of the cell 'cbr'") && e.contains("only those of its own cell"),
+            e.contains("of the cell 'kamer_van_koophandel'")
+                && e.contains("only those of its own cell"),
             "{e}"
         );
     }

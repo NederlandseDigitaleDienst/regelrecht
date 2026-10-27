@@ -57,7 +57,7 @@ export const gelezen = (p, grammen) =>
 /**
  * De cel die een begrip beantwoordde, zoals de bezoeker haar kent: de naam
  * uit de casus (OBS De Klimop, gemeente Wilgendaal, GGD Wilgendaal) als zij
- * de cel van de casus of een andere cel van haar sfeer is (RFC-052), anders
+ * de cel van de casus of een andere cel van de casus is (RFC-052), anders
  * haar id.
  */
 export const celNaam = (cel) =>
@@ -67,7 +67,7 @@ export const celNaam = (cel) =>
 
 /**
  * De kroniek van de cel `cel`: die van de casus, of die van een andere cel
- * van de sfeer (RFC-052), om daar het laatst gelezen chronolexogram te
+ * van de casus (RFC-052), om daar het laatst gelezen chronolexogram te
  * vinden.
  */
 export const grammenVan = (cel, grammen) =>
@@ -88,17 +88,13 @@ const vanCel = (a, grammen) =>
 
 /**
  * Een koppeling van beleid aan antwoorden van cellen (RFC-048) in woorden:
- * `beleid <id> art. <n>, antwoord <naam> van <cel> (reductie <id>, …)`. Gaven
- * meer cellen hetzelfde antwoord, dan staan zij achter elkaar; de wet of het
- * beleid zegt hoe hun antwoorden één waarde worden (combine, RFC-052).
+ * `beleid <id> art. <n>, antwoord <naam> van <cel> (reductie <id>, …)`. Nam
+ * het artikel antwoorden van meer cellen op verschillende vragen, dan staan
+ * die achter elkaar (synthese, RFC-048). Eén vraag gaat naar één cel.
  */
 export function koppeling(by, grammen) {
   const beleid = `beleid ${by.law_id} art. ${by.article}`;
   if (!by.answers.length) return `${beleid}, geen antwoord van een cel`;
-  const namen = [...new Set(by.answers.map((a) => a.answer))];
-  if (namen.length === 1) {
-    return `${beleid}, antwoord ${namen[0]} van ${opsomming(by.answers.map((a) => vanCel(a, grammen)))}`;
-  }
   return `${beleid}, ${opsomming(by.answers.map((a) => `antwoord ${a.answer} van ${vanCel(a, grammen)}`))}`;
 }
 
@@ -135,7 +131,7 @@ export function stapTekst(stap, grammen) {
         : { tekst: `${leesbaar(stap.naam)}: ${toon(stap.waarde)}` };
     case 'begrip': {
       const tekst = `${leesbaar(stap.naam)}: ${toon(stap.waarde)}`;
-      // Beleid koppelde het begrip aan het antwoord van een of meer cellen.
+      // Beleid koppelde het begrip aan het antwoord van een cel.
       if (stap.ingevuld_door?.answer) return { tekst, toelichting: ingevuldDoor(stap.ingevuld_door, grammen) };
       // Een begrip dat zijn standaardwaarde kreeg, noemt de engine niet bij
       // de ingevulde begrippen; het heeft dan wel een waarde.

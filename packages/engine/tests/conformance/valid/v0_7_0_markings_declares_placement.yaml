@@ -2,7 +2,7 @@
 # The v0.7.0 article family: a marking (a construct the format cannot express),
 # a declares (a document property the article fixes) and a placement (the
 # containers that enclose the article).
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
 $id: test_conformance_v0_7_0
 regulatory_layer: WET
 publication_date: '2025-01-01'

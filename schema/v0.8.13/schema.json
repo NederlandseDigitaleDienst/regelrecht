@@ -1,0 +1,3295 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.12",
+  "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
+  "type": "object",
+  "required": [
+    "regulatory_layer",
+    "publication_date",
+    "url",
+    "articles"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name of the law/regulation (can be plain text or internal reference like '#wet_naam')."
+    },
+    "publication_date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "Date when the law/regulation was officially published (publicatiedatum)."
+    },
+    "valid_from": {
+      "type": "string",
+      "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2}|#.+)$",
+      "description": "Date when the law/regulation becomes effective (inwerkingtredingsdatum), or an internal reference starting with #.",
+      "examples": [
+        "2025-01-01"
+      ]
+    },
+    "valid_to": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "Last calendar day on which the law/regulation is in force, inclusive (einddatum). Set ONLY when the law is terminated - it vervalt or wordt ingetrokken (a horizonbepaling/vervalbepaling, or repeal by another instrument); omit when a newer version of the same law simply takes over. A statutory 'vervalt met ingang van D' maps to valid_to = D minus one day. Must be a literal date (no internal references): the engine reads it as static version-selection metadata; end dates derived from another instrument or an executed article output are future work. See RFC-019.",
+      "examples": [
+        "2024-12-31"
+      ]
+    },
+    "regulatory_layer": {
+      "type": "string",
+      "enum": [
+        "GRONDWET",
+        "WET",
+        "AMVB",
+        "KONINKLIJK_BESLUIT",
+        "MINISTERIELE_REGELING",
+        "BELEIDSREGEL",
+        "EU_VERORDENING",
+        "EU_RICHTLIJN",
+        "VERDRAG",
+        "UITVOERINGSBELEID",
+        "GEMEENTELIJKE_VERORDENING",
+        "PROVINCIALE_VERORDENING",
+        "WATERSCHAPS_VERORDENING",
+        "REDUCTIE"
+      ],
+      "description": "Type of legal instrument (regelgevingslaag). It fixes which identifier the file must carry, and it ranks candidates when several regulations implement the same open term. Which layer may implement a term is set by that term's `delegation_type`, not by this field alone. `REDUCTIE`: not a regulation but a cell's reduction over its own chronicle (RFC-022 §4, RFC-048). Since v0.8.12 it sits with its cell (`corpus/cells/<cell>/reductions/`), or with none (`corpus/cells/reductions/`), where every cell applies it to its own chronicle, and names no `competent_authority`: the directory is its holder. Its cell gives its outputs as named answers (the catalogue `answers` in `cel.yaml`). It is the only rulework that reads a chronicle: decisions (`source.decisions`) and the facts its cell recorded (`source.facts`, since v0.8.7; `source.executograms` in v0.8.6, RFC-051). It may call law or policy (`source.regulation`), passing what it reads from the chronicle as parameters. It fills no open term (no `implements`; v0.8.5 to v0.8.8 allowed it): the policy of the authority that decides binds a term to an answer (`source.reduction`). Beyond that it does not act on law (no `hooks` or `overrides`), takes no decisions (no `execution.produces`) and delegates nothing (no `open_terms`).",
+      "examples": [
+        "WET",
+        "GEMEENTELIJKE_VERORDENING"
+      ]
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Official URL of the law text this file was written from, at the version stated in `valid_from`.",
+      "examples": [
+        "https://wetten.overheid.nl/BWBR0018451/2025-01-01"
+      ]
+    },
+    "bwb_id": {
+      "type": "string",
+      "pattern": "^BWBR[0-9]{7}$",
+      "description": "BWB identification number (for Dutch national laws).",
+      "examples": [
+        "BWBR0018451"
+      ]
+    },
+    "celex_nummer": {
+      "type": "string",
+      "description": "CELEX number (for EU regulations and directives).",
+      "examples": [
+        "32013R1303"
+      ]
+    },
+    "eli": {
+      "type": "string",
+      "format": "uri",
+      "description": "European Legislation Identifier (for EU laws)."
+    },
+    "tractatenblad_id": {
+      "type": "string",
+      "description": "Tractatenblad identification (for international treaties)."
+    },
+    "unts_nummer": {
+      "type": "string",
+      "description": "UN Treaty Series number (for international treaties)."
+    },
+    "gemeente_code": {
+      "type": "string",
+      "pattern": "^GM[0-9]{4}$",
+      "description": "CBS municipality code (for municipal regulations).",
+      "examples": [
+        "GM0363"
+      ]
+    },
+    "provincie_code": {
+      "type": "string",
+      "pattern": "^PV[0-9]{2}$",
+      "description": "CBS province code (for provincial regulations)."
+    },
+    "waterschap_code": {
+      "type": "string",
+      "pattern": "^WS[0-9]{4}$",
+      "description": "CBS water board code (for water board regulations)."
+    },
+    "officiele_titel": {
+      "type": "string",
+      "description": "Official full title (for decentralized regulations)."
+    },
+    "stcrt_id": {
+      "type": "string",
+      "description": "Staatscourant identification number."
+    },
+    "organisation": {
+      "type": "string",
+      "description": "Organization responsible (for implementation policies without official IDs)."
+    },
+    "competent_authority": {
+      "description": "Since v0.8.9 in the schema: the authority this rulework is of, for every article that names none of its own (RFC-002). A `UITVOERINGSBELEID` that binds an open term to the answer of a cell (`source.reduction`) names its holder by name: where the term names no competent authorities, the engine asks the cell of that holder, matched as RFC-052 matches an answerer (an `INSTANCE` by name, a `CATEGORY` by category).",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^#",
+          "description": "Internal reference to output (e.g., '#bevoegd_gezag')."
+        },
+        {
+          "$ref": "#/definitions/namedAuthority"
+        }
+      ]
+    },
+    "legal_basis": {
+      "type": "array",
+      "description": "Articles of higher law that authorize this regulation: the grondslag. Not the same shape as the `legal_basis` a field or action carries, which cites a provision far more precisely.",
+      "items": {
+        "type": "object",
+        "required": [
+          "law_id",
+          "article"
+        ],
+        "properties": {
+          "law_id": {
+            "type": "string",
+            "description": "Identifier of the law that provides authority."
+          },
+          "article": {
+            "type": "string",
+            "description": "Article number that authorizes this regulation."
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional explanation of the legal relationship."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "preamble": {
+      "type": "object",
+      "description": "The aanhef, the passage before Article 1 that names the authority the regulation is made under. It carries no operative norm of its own, so it rarely computes anything.",
+      "required": [
+        "text"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "Preamble text in markdown format, preserving original formatting from official publication."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL to the preamble in the official publication (if available)."
+        },
+        "machine_readable": {
+          "$ref": "#/definitions/machineReadableSection",
+          "description": "Machine-readable interpretation of the preamble, in the same shape as an article's. The Rust law-model reads it and the loader checks its operations, but the engine does not execute it."
+        }
+      },
+      "additionalProperties": false
+    },
+    "articles": {
+      "type": "array",
+      "description": "The articles of this regulation, in the order they appear in the law. An article is carried as text whether or not it has been translated; `machine_readable` is what makes one executable.",
+      "items": {
+        "type": "object",
+        "required": [
+          "number",
+          "text",
+          "url"
+        ],
+        "properties": {
+          "number": {
+            "type": "string",
+            "description": "Article number as it appears in the law."
+          },
+          "text": {
+            "type": "string",
+            "description": "Article text in markdown format, preserving original formatting from official publication (numbered lists, links, paragraph structure)."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to this specific article."
+          },
+          "machine_readable": {
+            "$ref": "#/definitions/machineReadableSection",
+            "description": "Machine-readable interpretation of this article. Absent when the article has not been translated, which is the normal state for most of the corpus: an article without this key is carried as text only."
+          },
+          "references": {
+            "type": "array",
+            "description": "Structured references to other laws and articles. The Rust law-model reads and keeps them, but nothing resolves these at runtime today.",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "bwb_id"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Reference ID used in markdown links (e.g., 'ref1')."
+                },
+                "bwb_id": {
+                  "type": "string",
+                  "pattern": "^BWBR[0-9]{7}$",
+                  "description": "BWB identifier of referenced law."
+                },
+                "artikel": {
+                  "type": "string",
+                  "description": "Article number in referenced law."
+                },
+                "lid": {
+                  "type": "string",
+                  "description": "Lid (paragraph) number."
+                },
+                "onderdeel": {
+                  "type": "string",
+                  "description": "Onderdeel (sub-item) letter/number."
+                },
+                "hoofdstuk": {
+                  "type": "string",
+                  "description": "Chapter number."
+                },
+                "paragraaf": {
+                  "type": "string",
+                  "description": "Paragraph number."
+                },
+                "afdeling": {
+                  "type": "string",
+                  "description": "Section number."
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "placement": {
+            "type": "object",
+            "description": "Where this article sits in the document: the containers that enclose it, each with its number and its opschrift. The opschrift is condensed legal classification written by the legislator, and it decides questions the article text alone cannot answer. Awb 3:9 only makes sense once you can see it sits in 'Afdeling 3.3 Advisering', because the adviseur definition of 3:5 lid 1 is scoped to that division. Absent for an article that no container encloses, which is normal in a short law.",
+            "properties": {
+              "boek": {
+                "type": "object",
+                "required": [
+                  "number"
+                ],
+                "properties": {
+                  "number": {
+                    "type": "string",
+                    "description": "Number of this container as the law gives it (e.g. '3.3')"
+                  },
+                  "heading": {
+                    "type": "string",
+                    "description": "Opschrift of this container (e.g. 'Advisering')"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "deel": {
+                "type": "object",
+                "required": [
+                  "number"
+                ],
+                "properties": {
+                  "number": {
+                    "type": "string",
+                    "description": "Number of this container as the law gives it (e.g. '3.3')"
+                  },
+                  "heading": {
+                    "type": "string",
+                    "description": "Opschrift of this container (e.g. 'Advisering')"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "hoofdstuk": {
+                "type": "object",
+                "required": [
+                  "number"
+                ],
+                "properties": {
+                  "number": {
+                    "type": "string",
+                    "description": "Number of this container as the law gives it (e.g. '3.3')"
+                  },
+                  "heading": {
+                    "type": "string",
+                    "description": "Opschrift of this container (e.g. 'Advisering')"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "titeldeel": {
+                "type": "object",
+                "required": [
+                  "number"
+                ],
+                "properties": {
+                  "number": {
+                    "type": "string",
+                    "description": "Number of this container as the law gives it (e.g. '3.3')"
+                  },
+                  "heading": {
+                    "type": "string",
+                    "description": "Opschrift of this container (e.g. 'Advisering')"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "afdeling": {
+                "type": "object",
+                "required": [
+                  "number"
+                ],
+                "properties": {
+                  "number": {
+                    "type": "string",
+                    "description": "Number of this container as the law gives it (e.g. '3.3')"
+                  },
+                  "heading": {
+                    "type": "string",
+                    "description": "Opschrift of this container (e.g. 'Advisering')"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "paragraaf": {
+                "type": "object",
+                "required": [
+                  "number"
+                ],
+                "properties": {
+                  "number": {
+                    "type": "string",
+                    "description": "Number of this container as the law gives it (e.g. '3.3')"
+                  },
+                  "heading": {
+                    "type": "string",
+                    "description": "Opschrift of this container (e.g. 'Advisering')"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "procedure": {
+      "type": "array",
+      "description": "AWB-defined procedure lifecycles for administrative decisions (RFC-008).",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "applies_to",
+          "stages"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for this procedure (e.g., 'beschikking', 'beschikking_uov')."
+          },
+          "default": {
+            "type": "boolean",
+            "description": "Whether this is the default procedure for its legal_character."
+          },
+          "applies_to": {
+            "type": "object",
+            "required": [
+              "legal_character"
+            ],
+            "properties": {
+              "legal_character": {
+                "type": "string",
+                "description": "Legal character this procedure governs."
+              }
+            },
+            "description": "Which decisions this procedure governs, matched on the legal character an article declares in `produces`."
+          },
+          "stages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Stage name (e.g., AANVRAAG, BESLUIT, BEKENDMAKING)."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Human-readable description."
+                },
+                "requires": {
+                  "type": "array",
+                  "description": "External inputs required to enter this stage.",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "name",
+                      "type"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Name of the value this stage needs before it can complete."
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "string",
+                          "number",
+                          "boolean",
+                          "date",
+                          "array",
+                          "object"
+                        ],
+                        "description": "Value type of the required input."
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "The lifecycle stages in order, from the application to the final decision. Each names itself and what it needs before it can complete."
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "regulatory_layer": {
+            "enum": [
+              "WET",
+              "AMVB",
+              "MINISTERIELE_REGELING",
+              "GRONDWET"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "bwb_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "regulatory_layer": {
+            "enum": [
+              "EU_VERORDENING",
+              "EU_RICHTLIJN"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "celex_nummer"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "regulatory_layer": {
+            "const": "VERDRAG"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "tractatenblad_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "regulatory_layer": {
+            "const": "GEMEENTELIJKE_VERORDENING"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "gemeente_code",
+          "officiele_titel"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "regulatory_layer": {
+            "const": "PROVINCIALE_VERORDENING"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "provincie_code",
+          "officiele_titel"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "regulatory_layer": {
+            "const": "WATERSCHAPS_VERORDENING"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "waterschap_code",
+          "officiele_titel"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "regulatory_layer": {
+            "const": "REDUCTIE"
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "required": [
+            "competent_authority"
+          ]
+        },
+        "properties": {
+          "articles": {
+            "items": {
+              "properties": {
+                "machine_readable": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "implements"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "hooks"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "overrides"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "open_terms"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "execution"
+                        ],
+                        "properties": {
+                          "execution": {
+                            "required": [
+                              "produces"
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "preamble": {
+            "properties": {
+              "machine_readable": {
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "implements"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "hooks"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "overrides"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "open_terms"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "execution"
+                      ],
+                      "properties": {
+                        "execution": {
+                          "required": [
+                            "produces"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "articles": {
+            "items": {
+              "properties": {
+                "machine_readable": {
+                  "properties": {
+                    "execution": {
+                      "properties": {
+                        "input": {
+                          "items": {
+                            "properties": {
+                              "source": {
+                                "not": {
+                                  "anyOf": [
+                                    {
+                                      "required": [
+                                        "decisions"
+                                      ]
+                                    },
+                                    {
+                                      "required": [
+                                        "facts"
+                                      ]
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "preamble": {
+            "properties": {
+              "machine_readable": {
+                "properties": {
+                  "execution": {
+                    "properties": {
+                      "input": {
+                        "items": {
+                          "properties": {
+                            "source": {
+                              "not": {
+                                "anyOf": [
+                                  {
+                                    "required": [
+                                      "decisions"
+                                    ]
+                                  },
+                                  {
+                                    "required": [
+                                      "facts"
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "regulatory_layer": {
+            "const": "UITVOERINGSBELEID"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "articles": {
+            "items": {
+              "properties": {
+                "machine_readable": {
+                  "properties": {
+                    "execution": {
+                      "properties": {
+                        "input": {
+                          "items": {
+                            "properties": {
+                              "source": {
+                                "not": {
+                                  "required": [
+                                    "reduction"
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "preamble": {
+            "properties": {
+              "machine_readable": {
+                "properties": {
+                  "execution": {
+                    "properties": {
+                      "input": {
+                        "items": {
+                          "properties": {
+                            "source": {
+                              "not": {
+                                "required": [
+                                  "reduction"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "regulatory_layer": {
+            "const": "UITVOERINGSBELEID"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "articles": {
+            "items": {
+              "if": {
+                "required": [
+                  "machine_readable"
+                ],
+                "properties": {
+                  "machine_readable": {
+                    "required": [
+                      "execution"
+                    ],
+                    "properties": {
+                      "execution": {
+                        "required": [
+                          "input"
+                        ],
+                        "properties": {
+                          "input": {
+                            "contains": {
+                              "required": [
+                                "source"
+                              ],
+                              "properties": {
+                                "source": {
+                                  "required": [
+                                    "reduction"
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "machine_readable": {
+                    "required": [
+                      "implements"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "preamble": {
+            "if": {
+              "required": [
+                "machine_readable"
+              ],
+              "properties": {
+                "machine_readable": {
+                  "required": [
+                    "execution"
+                  ],
+                  "properties": {
+                    "execution": {
+                      "required": [
+                        "input"
+                      ],
+                      "properties": {
+                        "input": {
+                          "contains": {
+                            "required": [
+                              "source"
+                            ],
+                            "properties": {
+                              "source": {
+                                "required": [
+                                  "reduction"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "machine_readable": {
+                  "required": [
+                    "implements"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "if": {
+          "anyOf": [
+            {
+              "required": [
+                "articles"
+              ],
+              "properties": {
+                "articles": {
+                  "contains": {
+                    "required": [
+                      "machine_readable"
+                    ],
+                    "properties": {
+                      "machine_readable": {
+                        "required": [
+                          "execution"
+                        ],
+                        "properties": {
+                          "execution": {
+                            "required": [
+                              "input"
+                            ],
+                            "properties": {
+                              "input": {
+                                "contains": {
+                                  "required": [
+                                    "source"
+                                  ],
+                                  "properties": {
+                                    "source": {
+                                      "required": [
+                                        "reduction"
+                                      ]
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "required": [
+                "preamble"
+              ],
+              "properties": {
+                "preamble": {
+                  "required": [
+                    "machine_readable"
+                  ],
+                  "properties": {
+                    "machine_readable": {
+                      "required": [
+                        "execution"
+                      ],
+                      "properties": {
+                        "execution": {
+                          "required": [
+                            "input"
+                          ],
+                          "properties": {
+                            "input": {
+                              "contains": {
+                                "required": [
+                                  "source"
+                                ],
+                                "properties": {
+                                  "source": {
+                                    "required": [
+                                      "reduction"
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "then": {
+          "required": [
+            "competent_authority"
+          ],
+          "properties": {
+            "competent_authority": {
+              "$ref": "#/definitions/namedAuthority"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "baseField": {
+      "type": "object",
+      "required": [
+        "name",
+        "type"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Field name, referenced elsewhere as `$name`. This is the name another law asks for when it reads this value through `source`, so renaming an output is a change other laws can see."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description."
+        },
+        "type": {
+          "type": "string",
+          "description": "Value type. What an `amount` is counted in is declared separately, in `type_spec.unit`; units are opt-in per law, and an un-annotated value has unit `unknown` and is never checked (RFC-023). A `decision` is a decision value `{basis, fields, findings, outputs}`: the article that decided (`<regulation>#<article>`), the parameters that article was given and declares, its findings per case (the open terms it leaves to an authority per case, `decided_per_case_by`, under their ids), and the outputs of its decision item (RFC-050). A value built from a recorded decision may also carry `taken_on`: the article that established the submission the decision was taken on.",
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "amount",
+            "object",
+            "array",
+            "date",
+            "decision"
+          ]
+        },
+        "nullable": {
+          "type": "boolean",
+          "description": "Whether `null` (absence: the register or the law says there is none) is a legitimate value of this field. Defaults to false: a non-nullable input may never receive null from a data source, another law or a caller, a non-nullable output may never evaluate to null, and a non-nullable parameter may never be passed null. On a required parameter the flag means the same at the top level and across laws: a nullable one is run with the null and decides on it, a non-nullable one is a caller error at the top level and skips the call across laws. Unknown (a value nobody has) is not governed by this flag. RFC-036."
+        },
+        "type_spec": {
+          "type": "object",
+          "description": "Additional type specifications for numeric and temporal values.",
+          "properties": {
+            "unit": {
+              "type": "string",
+              "description": "Unit of measurement for the value (RFC-023). A label, never a computational constraint: tagging a value never changes it. `ratio` (0-1) and `percentage` (0-100) are distinct labels; any division by 100 is an explicit value operation, never implied by the label.",
+              "enum": [
+                "euro",
+                "eurocent",
+                "ratio",
+                "percentage",
+                "years",
+                "weeks",
+                "months",
+                "days"
+              ]
+            },
+            "precision": {
+              "type": "integer",
+              "description": "Number of decimal places for numeric values. Parsed as metadata and not yet enforced by the engine.",
+              "minimum": 0
+            },
+            "min": {
+              "type": "number",
+              "description": "Minimum allowed value. Parsed as metadata and not yet enforced by the engine."
+            },
+            "max": {
+              "type": "number",
+              "description": "Maximum allowed value. Parsed as metadata and not yet enforced by the engine."
+            }
+          },
+          "examples": [
+            {
+              "unit": "eurocent"
+            },
+            {
+              "unit": "ratio",
+              "precision": 4
+            }
+          ]
+        },
+        "temporal": {
+          "type": "object",
+          "description": "How the value relates to time: whether it is measured at a moment or over a period, and which date it is anchored to (RFC-001). Declared in the schema but not yet read by the engine, and unused in the corpus.",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "Whether the value represents a period or point in time.",
+              "enum": [
+                "period",
+                "point_in_time"
+              ]
+            },
+            "period_type": {
+              "type": "string",
+              "description": "Granularity of the period (for period type).",
+              "enum": [
+                "year",
+                "month",
+                "continuous"
+              ]
+            },
+            "reference": {
+              "description": "Reference date for point-in-time values.",
+              "oneOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "$calculation_date",
+                    "$prev_january_first",
+                    "$january_first"
+                  ]
+                },
+                {
+                  "$ref": "#/definitions/variableReference"
+                }
+              ]
+            }
+          }
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The provision this field rests on. On an output it is the article granting the entitlement; on an input, the provision that makes the value relevant."
+        }
+      }
+    },
+    "variableReference": {
+      "type": "string",
+      "pattern": "^\\$[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$",
+      "description": "Variable reference starting with $ (e.g., $standaardpremie, $referencedate.year). Supports dot notation for property access.",
+      "examples": [
+        "$standaardpremie",
+        "$toetsingsinkomen"
+      ]
+    },
+    "parameterField": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/baseField"
+        },
+        {
+          "properties": {
+            "required": {
+              "type": "boolean",
+              "description": "Whether the caller must pass this parameter. Defaults to true: an omitted required parameter is an error. A parameter declared `required: false` that the caller omits resolves to an unknown value that names the parameter (RFC-036), so a law can declare application-form fields another law never passes."
+            }
+          }
+        }
+      ]
+    },
+    "inputField": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/baseField"
+        },
+        {
+          "properties": {
+            "source": {
+              "type": "object",
+              "description": "Reference to where this input comes from.",
+              "properties": {
+                "regulation": {
+                  "type": "string",
+                  "description": "Name of external law/regulation. Omit for external data sources that must be resolved outside the YAML."
+                },
+                "output": {
+                  "type": "string",
+                  "description": "Output name to retrieve from the source."
+                },
+                "parameters": {
+                  "type": "object",
+                  "description": "Parameters passed when calling the source regulation. A map from the parameter name the source expects to the value passed for it, usually a `$`-reference to a value in scope, as in `bsn: $bsn`.",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Human-readable description or legal reference for this data source."
+                },
+                "endpoint": {
+                  "type": "string",
+                  "description": "Endpoint to call on the delegated regulation."
+                },
+                "decisions": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/definitions/articleReference"
+                    },
+                    {
+                      "$ref": "#/definitions/variableReference"
+                    }
+                  ],
+                  "description": "The decisions taken under an article: `<regulation>#<article>`, or (since v0.8.11) a `$`-reference to a parameter of the reading article that holds one. A list with one row per decision. A row holds the fields, the findings and the outputs of the decision under their own names, the article it was taken under as `basis`, and its `id`. A `decision` value `{basis, fields, findings, outputs}` in a field or an output, such as the decision a judgment sets in place, is a row in turn: with the `id` of the record that holds it, and with every output its article declares, null where the value has none. Only a `REDUCTIE` rulework reads it (RFC-048), and only a data source (or the caller, as a parameter) answers it: the cell that runs the reduction binds the decisions in its chronicle, also for a reduction that one calls; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters` or `endpoint`. Without a source that answers it the input is an error, never an empty list."
+                },
+                "facts": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9_]+#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?#[a-z][a-z0-9_]*$",
+                  "not": {
+                    "pattern": " lid [0-9]"
+                  },
+                  "description": "Since v0.8.7 (`executograms` in v0.8.6): the recorded instances of a fact an article requires, `<regulation>#<article>#<fact>`: the article and the `fact` of its `requires` entry, since an article may require more than one fact. A list with one row per recorded instance, holding the parameters the `requires` entry lists, the record's `basis` and `id`, and the decision it refers to as `refers_to`, or null; a `decision` value in it is a row as under `decisions`. Only a `REDUCTIE` rulework reads it (RFC-048), and only a data source (or the caller, as a parameter) answers it: its cell binds the facts it recorded; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters`, `endpoint` or `decisions`. Without a source that answers it the input is an error, never an empty list."
+                },
+                "reduction": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "description": "Since v0.8.9 (RFC-048): the named answer of a cell this input takes, by the name under which cells give it (the catalogue `answers` in `cel.yaml`). Only an article of `UITVOERINGSBELEID` that fills an open term (`implements`) takes one: it binds the term to the answer, and its policy names its holder (`competent_authority`). `parameters` gives the values the answer takes, under the names the cell's reduction declares; one it declares and the binding does not pass is an error. The engine asks one cell of the execution: the cell the filled term names in its `competent_authority` (RFC-052), or else the cell of the policy's holder. Where the execution holds more than one cell the term names, the input is an error at run time: one question goes to one cell, and the engine merges no answers. A cell without an answer of that name, or with a null one, is silent. Without an answer the input is null, so the binding fills nothing and the term is what it is without it, such as the finding of the deciding authority; an input that takes an answer is therefore declared `nullable: true`, and one that is not is an error at run time when no cell answers. It stands alone, without `regulation`, `output`, `endpoint`, `decisions`, `facts` or `article`."
+                },
+                "article": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/definitions/articleReference"
+                    },
+                    {
+                      "$ref": "#/definitions/variableReference"
+                    }
+                  ],
+                  "description": "The article whose decision this input takes: `<regulation>#<article>`, or a `$`-reference to a value that holds one, such as the `basis` of a `decision` value, or that is a `decision` value itself. A `decision` value is called anew: the engine runs its `basis` with its own `fields` as parameters and its own `findings`. Without `output` the engine runs the decision item of that article at stage BESLUIT, and the input is a `decision` value `{basis, fields, findings, outputs}`. With `output`, the input is that one output of the decision item. The article is the one in force on the calculation date; one that is not in force, or that takes no decision, is an error at run time. The parameters are the `fields` of a `decision` value, then those of `parameters_from`, with `parameters` on top; a name the article does not declare is dropped, and the trace names it, unless it is the id of an open term the article leaves to an authority per case (`decided_per_case_by`): that is the finding for this case, kept under `findings`, not `fields`. A finding the caller of the engine gives for the execution, apart from the parameters, wins over one the call passes, and an implementation of the term still wins over both (RFC-047). It stands apart from `regulation`, `decisions` and `endpoint`."
+                },
+                "parameters_from": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "$ref": "#/definitions/variableReference"
+                  },
+                  "description": "Values whose fields are passed to the `article` as parameters, merged in order: a later one wins over an earlier one, and `parameters` wins over all of them. Each is an object, such as the `fields` or `findings` of a `decision` value, or null, which adds nothing; any other value is an error at run time. Only with `article`."
+                }
+              },
+              "additionalProperties": false,
+              "dependencies": {
+                "decisions": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "regulation"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "output"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "parameters"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "endpoint"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "article": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "regulation"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "decisions"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "endpoint"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "facts"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "parameters_from": {
+                  "required": [
+                    "article"
+                  ]
+                },
+                "facts": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "regulation"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "output"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "parameters"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "endpoint"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "decisions"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "reduction": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "regulation"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "output"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "endpoint"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "decisions"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "facts"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "article"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              },
+              "examples": [
+                {
+                  "regulation": "wet_op_de_zorgtoeslag",
+                  "output": "standaardpremie",
+                  "parameters": {
+                    "bsn": "$bsn"
+                  }
+                },
+                {
+                  "decisions": "leerplichtwet_1969#13a"
+                },
+                {
+                  "facts": "fictief_beleid_vestiging_obs_de_klimop#1#vestiging"
+                },
+                {
+                  "reduction": "verlof_al_verleend_in_schooljaar",
+                  "parameters": {
+                    "bsn_jongere": "$bsn_jongere",
+                    "eerste_verlofdag": "$eerste_verlofdag"
+                  }
+                },
+                {
+                  "article": "$besluit"
+                },
+                {
+                  "article": "$besluit.basis",
+                  "parameters_from": [
+                    "$besluit.fields",
+                    "$besluit.findings"
+                  ]
+                },
+                {
+                  "article": "wet_fictief#3",
+                  "output": "verlof_verleend",
+                  "parameters": {
+                    "bsn": "$bsn"
+                  }
+                }
+              ]
+            }
+          },
+          "required": [
+            "source"
+          ]
+        }
+      ]
+    },
+    "outputField": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/baseField"
+        }
+      ]
+    },
+    "arithmeticOperation": {
+      "type": "object",
+      "description": "Arithmetic operations that compute numeric values.",
+      "required": [
+        "operation",
+        "values"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": [
+            "ADD",
+            "SUBTRACT",
+            "MULTIPLY",
+            "DIVIDE",
+            "MIN",
+            "MAX"
+          ],
+          "description": "Operation discriminator. Pins this object to the ADD / SUBTRACT / MULTIPLY / DIVIDE / MIN / MAX form; the engine dispatches on it and the schema rejects any other key combination."
+        },
+        "values": {
+          "type": "array",
+          "description": "Operands for the operation.",
+          "items": {
+            "$ref": "#/definitions/operationValue"
+          }
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The article this particular step rests on. Set it where one action combines rules from several provisions and the operands come from different articles, so a trace can name the provision behind each step."
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operation": "DIVIDE",
+          "values": [
+            "$inkomen",
+            "$maanden_per_jaar"
+          ]
+        },
+        {
+          "operation": "MIN",
+          "values": [
+            {
+              "operation": "ADD",
+              "values": [
+                "$woonperiodes",
+                "$werkzame_verzekerde_jaren"
+              ]
+            },
+            "$jaren_voor_volledig_pensioen"
+          ]
+        }
+      ]
+    },
+    "logicalOperation": {
+      "type": "object",
+      "description": "Logical operations that combine boolean conditions.",
+      "required": [
+        "operation",
+        "conditions"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": [
+            "AND",
+            "OR"
+          ],
+          "description": "Operation discriminator. Pins this object to the AND / OR form; the engine dispatches on it and the schema rejects any other key combination."
+        },
+        "conditions": {
+          "type": "array",
+          "description": "Conditions to combine - each item can be an operation, variable reference, or boolean literal.",
+          "items": {
+            "$ref": "#/definitions/operationValue"
+          }
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The article this particular step rests on. Set it where one action combines rules from several provisions and the operands come from different articles, so a trace can name the provision behind each step."
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operation": "OR",
+          "conditions": [
+            {
+              "operation": "NOT",
+              "value": {
+                "operation": "EQUALS",
+                "subject": "$type_bedrijf",
+                "value": "$type_horecabedrijf"
+              }
+            },
+            {
+              "operation": "GREATER_THAN_OR_EQUAL",
+              "subject": "$vloeroppervlakte",
+              "value": "$minimale_vloeroppervlakte_horeca"
+            }
+          ]
+        }
+      ]
+    },
+    "comparisonOperation": {
+      "type": "object",
+      "description": "Comparison operations that compare values. Operands may be numbers or ISO 8601 dates (YYYY-MM-DD); when both operands are dates they are compared chronologically (RFC-021). `value` is required: all five of these compare two operands, and a comparison with only a subject compares against nothing. It was optional, and the Rust model's untagged fallback turned such an operation into a literal object without an error, a warning or a line in the trace, so the execution carried on and produced an answer that looked complete.",
+      "required": [
+        "operation",
+        "subject",
+        "value"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": [
+            "EQUALS",
+            "GREATER_THAN",
+            "LESS_THAN",
+            "GREATER_THAN_OR_EQUAL",
+            "LESS_THAN_OR_EQUAL"
+          ],
+          "description": "Operation discriminator. Pins this object to the EQUALS / GREATER_THAN / LESS_THAN / GREATER_THAN_OR_EQUAL / LESS_THAN_OR_EQUAL form; the engine dispatches on it and the schema rejects any other key combination."
+        },
+        "subject": {
+          "$ref": "#/definitions/operationValue",
+          "description": "The value being compared, on the left of the comparison."
+        },
+        "value": {
+          "$ref": "#/definitions/operationValue",
+          "description": "The value compared against, on the right of the comparison."
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The article this particular step rests on. Set it where one action combines rules from several provisions and the operands come from different articles, so a trace can name the provision behind each step."
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operation": "GREATER_THAN_OR_EQUAL",
+          "subject": "$leeftijd",
+          "value": 18
+        }
+      ]
+    },
+    "notOperation": {
+      "type": "object",
+      "description": "Logical NOT - negates a boolean value.",
+      "required": [
+        "operation",
+        "value"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "NOT",
+          "description": "Operation discriminator. Pins this object to the NOT form; the engine dispatches on it and the schema rejects any other key combination."
+        },
+        "value": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Value to negate."
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The article this particular step rests on. Set it where one action combines rules from several provisions and the operands come from different articles, so a trace can name the provision behind each step."
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operation": "NOT",
+          "value": {
+            "operation": "EQUALS",
+            "subject": "$type_bedrijf",
+            "value": "$type_horecabedrijf"
+          }
+        }
+      ]
+    },
+    "roundingOperation": {
+      "type": "object",
+      "description": "Rounding operations (RFC-024). Round the single operand to `precision` decimal places, in the value's own unit (RFC-023). Rounding is never implicit - a law that rounds must say so here. ROUND is half-up (rekenkundig, the Hoge Raad default); CEIL rounds up (naar boven); FLOOR rounds down (naar beneden / afkapping).",
+      "required": [
+        "operation",
+        "value",
+        "precision"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": [
+            "ROUND",
+            "CEIL",
+            "FLOOR"
+          ],
+          "description": "Operation discriminator. Pins this object to the ROUND / CEIL / FLOOR form; the engine dispatches on it and the schema rejects any other key combination."
+        },
+        "value": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Operand to round."
+        },
+        "precision": {
+          "type": "integer",
+          "description": "Number of decimal places to round to, in the value's own unit. 0 = whole units; 2 = two decimals; a negative value rounds to tens/hundreds (e.g. -2 rounds a eurocent value to whole euros).",
+          "minimum": -28,
+          "maximum": 28
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The article this particular step rests on. Set it where one action combines rules from several provisions and the operands come from different articles, so a trace can name the provision behind each step."
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operation": "ROUND",
+          "precision": 0,
+          "value": {
+            "operation": "DIVIDE",
+            "values": [
+              "$pensioen_uitkering_bruto",
+              "$maanden_per_jaar"
+            ]
+          }
+        },
+        {
+          "operation": "FLOOR",
+          "precision": 1,
+          "value": "$alcoholpercentage"
+        }
+      ]
+    },
+    "ifOperation": {
+      "type": "object",
+      "description": "Conditional operation with multiple cases evaluated in order.",
+      "required": [
+        "operation",
+        "cases"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "IF",
+          "description": "Operation discriminator. Pins this object to the IF form; the engine dispatches on it and the schema rejects any other key combination."
+        },
+        "cases": {
+          "type": "array",
+          "description": "Cases evaluated in order; the first whose `when` holds decides the value. Order is significant, so a narrower case belongs before a broader one.",
+          "items": {
+            "type": "object",
+            "required": [
+              "when",
+              "then"
+            ],
+            "properties": {
+              "when": {
+                "$ref": "#/definitions/operationValue",
+                "description": "Condition to evaluate."
+              },
+              "then": {
+                "$ref": "#/definitions/operationValue",
+                "description": "Value if condition is true."
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "default": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Value when no case matches. Without it, an IF whose cases all fail evaluates to null (absence, RFC-036), so the validator refuses a defaultless IF on an output that is not `nullable`. A case whose condition is unknown takes neither its branch nor the default."
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The article this particular step rests on. Set it where one action combines rules from several provisions and the operands come from different articles, so a trace can name the provision behind each step."
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operation": "IF",
+          "cases": [
+            {
+              "when": {
+                "operation": "EQUALS",
+                "subject": "$type_beplanting",
+                "value": "heg_of_heester"
+              },
+              "then": 50
+            }
+          ],
+          "default": 0
+        }
+      ]
+    },
+    "inOperation": {
+      "type": "object",
+      "description": "Membership test - checks if subject is in a list.",
+      "required": [
+        "operation",
+        "subject"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "IN",
+          "description": "Operation discriminator. Pins this object to the IN form; the engine dispatches on it and the schema rejects any other key combination."
+        },
+        "subject": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Value to check."
+        },
+        "value": {
+          "$ref": "#/definitions/operationValue",
+          "description": "A single value or a reference to a list to test against. Use `values` instead to write the list inline."
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/operationValue"
+          },
+          "description": "Inline list to check against."
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The article this particular step rests on. Set it where one action combines rules from several provisions and the operands come from different articles, so a trace can name the provision behind each step."
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operation": "IN",
+          "subject": "$partnerschap_type",
+          "value": "$geldige_partnertypen"
+        }
+      ]
+    },
+    "listOperation": {
+      "type": "object",
+      "description": "Construct an array from items.",
+      "required": [
+        "operation",
+        "items"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "LIST",
+          "description": "Operation discriminator. Pins this object to the LIST form; the engine dispatches on it and the schema rejects any other key combination."
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/operationValue"
+          },
+          "description": "Items in the list."
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The article this particular step rests on. Set it where one action combines rules from several provisions and the operands come from different articles, so a trace can name the provision behind each step."
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operation": "LIST",
+          "items": [
+            "$huur"
+          ]
+        }
+      ]
+    },
+    "foreachOperation": {
+      "type": "object",
+      "description": "Iterate over a collection, evaluating an expression per element (RFC-016).",
+      "required": [
+        "operation",
+        "collection",
+        "body"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "FOREACH",
+          "description": "Operation discriminator. Pins this object to the FOREACH form; the engine dispatches on it and the schema rejects any other key combination."
+        },
+        "collection": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Expression evaluating to the array to iterate over. A non-array iterates as a single element; null is an empty collection."
+        },
+        "as": {
+          "type": "string",
+          "pattern": "^[a-z_][a-z0-9_]*$",
+          "description": "Name of the local variable bound to the current element. Defaults to 'item'."
+        },
+        "filter": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Evaluated per element in the child scope; elements for which it is false are skipped."
+        },
+        "body": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Evaluated once per surviving element, in the child scope where 'as' is bound."
+        },
+        "combine": {
+          "type": "string",
+          "enum": [
+            "ADD",
+            "OR",
+            "AND",
+            "MIN",
+            "MAX",
+            "ONLY"
+          ],
+          "description": "Aggregation over the collected results. Omitted, the results are returned as an array. `ONLY` (since v0.8.6) gives the one result the filter leaves, of any type, such as the record in force on a day: null when it leaves none, an error at run time when it leaves more than one."
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The article this particular step rests on. Set it where one action combines rules from several provisions and the operands come from different articles, so a trace can name the provision behind each step."
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operation": "FOREACH",
+          "collection": "$medebewoners",
+          "as": "medebewoner",
+          "body": 1,
+          "combine": "ADD"
+        }
+      ]
+    },
+    "ageOperation": {
+      "type": "object",
+      "description": "Calculate age in complete years between two dates.",
+      "required": [
+        "operation",
+        "date_of_birth",
+        "reference_date"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "AGE",
+          "description": "Operation discriminator. Pins this object to the AGE form; the engine dispatches on it and the schema rejects any other key combination."
+        },
+        "date_of_birth": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Date of birth."
+        },
+        "reference_date": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Reference date to calculate age at."
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The article this particular step rests on. Set it where one action combines rules from several provisions and the operands come from different articles, so a trace can name the provision behind each step."
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operation": "AGE",
+          "date_of_birth": "$geboortedatum",
+          "reference_date": "$peildatum"
+        }
+      ]
+    },
+    "dateAddOperation": {
+      "type": "object",
+      "description": "Add years, months, weeks, and/or days to a date. Applied coarsest-to-finest: years → months → weeks → days. Month/year additions use the Dutch legal 'corresponding numbered day' rule: the day is clamped to the last day of the target month (e.g., Jan 31 + 1 month = Feb 28).",
+      "required": [
+        "operation",
+        "date"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "DATE_ADD",
+          "description": "Operation discriminator. Pins this object to the DATE_ADD form; the engine dispatches on it and the schema rejects any other key combination."
+        },
+        "date": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Base date."
+        },
+        "years": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Number of years to add (clamped to last day of target month)."
+        },
+        "months": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Number of months to add (clamped to last day of target month)."
+        },
+        "weeks": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Number of weeks to add."
+        },
+        "days": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Number of days to add."
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The article this particular step rests on. Set it where one action combines rules from several provisions and the operands come from different articles, so a trace can name the provision behind each step."
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operation": "DATE_ADD",
+          "date": "$bekendmaking_datum",
+          "days": 1
+        }
+      ]
+    },
+    "dateConstructOperation": {
+      "type": "object",
+      "description": "Construct a date from year, month, day components.",
+      "required": [
+        "operation",
+        "year",
+        "month",
+        "day"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "DATE",
+          "description": "Operation discriminator. Pins this object to the DATE form; the engine dispatches on it and the schema rejects any other key combination."
+        },
+        "year": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Year."
+        },
+        "month": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Month (1-12)."
+        },
+        "day": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Day (1-31)."
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The article this particular step rests on. Set it where one action combines rules from several provisions and the operands come from different articles, so a trace can name the provision behind each step."
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operation": "DATE",
+          "year": "$jaar",
+          "month": 1,
+          "day": 1
+        }
+      ]
+    },
+    "dayOfWeekOperation": {
+      "type": "object",
+      "description": "Get the day of the week (0=Monday, 6=Sunday).",
+      "required": [
+        "operation",
+        "date"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "DAY_OF_WEEK",
+          "description": "Operation discriminator. Pins this object to the DAY_OF_WEEK form; the engine dispatches on it and the schema rejects any other key combination."
+        },
+        "date": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Date to check."
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The article this particular step rests on. Set it where one action combines rules from several provisions and the operands come from different articles, so a trace can name the provision behind each step."
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operation": "DAY_OF_WEEK",
+          "date": "$activiteitsdatum"
+        }
+      ]
+    },
+    "dateDiffOperation": {
+      "type": "object",
+      "description": "Signed difference between two dates, expressed in a chosen unit. Positive when 'to' is on or after 'from'. Months and years count complete calendar units (RFC-021).",
+      "required": [
+        "operation",
+        "from",
+        "to",
+        "in"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "DATE_DIFF",
+          "description": "Operation discriminator. Pins this object to the DATE_DIFF form; the engine dispatches on it and the schema rejects any other key combination."
+        },
+        "from": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Start date (ISO 8601 YYYY-MM-DD)."
+        },
+        "to": {
+          "$ref": "#/definitions/operationValue",
+          "description": "End date (ISO 8601 YYYY-MM-DD)."
+        },
+        "in": {
+          "description": "Unit the difference is expressed in: 'days', 'months', or 'years' (or a variable resolving to one of these).",
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "days",
+                "months",
+                "years"
+              ]
+            },
+            {
+              "$ref": "#/definitions/variableReference"
+            }
+          ]
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The article this particular step rests on. Set it where one action combines rules from several provisions and the operands come from different articles, so a trace can name the provision behind each step."
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operation": "DATE_DIFF",
+          "from": "$datum_aanmaning_opheffing",
+          "to": "$datum_ontstaan_schade",
+          "in": "days"
+        }
+      ]
+    },
+    "operationType": {
+      "type": "string",
+      "description": "Operation type identifier used in action definitions, naming the same forms the operations below accept.",
+      "enum": [
+        "ADD",
+        "SUBTRACT",
+        "MULTIPLY",
+        "DIVIDE",
+        "MIN",
+        "MAX",
+        "AND",
+        "OR",
+        "NOT",
+        "EQUALS",
+        "GREATER_THAN",
+        "LESS_THAN",
+        "GREATER_THAN_OR_EQUAL",
+        "LESS_THAN_OR_EQUAL",
+        "IF",
+        "IN",
+        "LIST",
+        "FOREACH",
+        "AGE",
+        "DATE_ADD",
+        "DATE",
+        "DAY_OF_WEEK",
+        "DATE_DIFF",
+        "DATE_PART",
+        "START_OF",
+        "ROUND",
+        "CEIL",
+        "FLOOR"
+      ]
+    },
+    "operation": {
+      "description": "An executable operation that computes a value. Operations nest: any operand may itself be an operation.",
+      "oneOf": [
+        {
+          "$ref": "#/definitions/arithmeticOperation"
+        },
+        {
+          "$ref": "#/definitions/roundingOperation"
+        },
+        {
+          "$ref": "#/definitions/logicalOperation"
+        },
+        {
+          "$ref": "#/definitions/comparisonOperation"
+        },
+        {
+          "$ref": "#/definitions/notOperation"
+        },
+        {
+          "$ref": "#/definitions/ifOperation"
+        },
+        {
+          "$ref": "#/definitions/inOperation"
+        },
+        {
+          "$ref": "#/definitions/listOperation"
+        },
+        {
+          "$ref": "#/definitions/foreachOperation"
+        },
+        {
+          "$ref": "#/definitions/ageOperation"
+        },
+        {
+          "$ref": "#/definitions/dateAddOperation"
+        },
+        {
+          "$ref": "#/definitions/dateConstructOperation"
+        },
+        {
+          "$ref": "#/definitions/dayOfWeekOperation"
+        },
+        {
+          "$ref": "#/definitions/dateDiffOperation"
+        },
+        {
+          "$ref": "#/definitions/datePartOperation"
+        },
+        {
+          "$ref": "#/definitions/startOfOperation"
+        }
+      ]
+    },
+    "operationValue": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/variableReference"
+        },
+        {
+          "type": [
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        {
+          "type": "string",
+          "not": {
+            "pattern": "^\\$"
+          }
+        },
+        {
+          "$ref": "#/definitions/operation"
+        }
+      ]
+    },
+    "action": {
+      "type": "object",
+      "required": [
+        "output"
+      ],
+      "properties": {
+        "output": {
+          "type": "string",
+          "description": "Name of the output field this action computes."
+        },
+        "value": {
+          "$ref": "#/definitions/operationValue",
+          "description": "A literal value for this output, used where the law states an amount or a term outright. When the action also carries an `operation`, that operation wins and this field is read as one of its operands."
+        },
+        "operation": {
+          "$ref": "#/definitions/operationType",
+          "description": "The operation computing this action's value. When the action also carries `value`, this wins and that field is read as an operand."
+        },
+        "values": {
+          "type": "array",
+          "description": "Operands for the operation.",
+          "items": {
+            "$ref": "#/definitions/operationValue"
+          }
+        },
+        "precision": {
+          "type": "integer",
+          "description": "Decimal places for an inline rounding operation (ROUND/CEIL/FLOOR; RFC-024), in the value's own unit. 0 = whole units; negative rounds to tens/hundreds.",
+          "minimum": -28,
+          "maximum": 28
+        },
+        "resolve": {
+          "type": "object",
+          "description": "Look up the value in whichever regulation implements it. The Rust law-model reads it, but the engine does not execute it yet; no law in the corpus uses it.",
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "Regulatory layer to search for implementation."
+            },
+            "output": {
+              "type": "string",
+              "description": "Output field to retrieve."
+            },
+            "match": {
+              "type": "object",
+              "description": "Matching criteria for selecting the right implementation.",
+              "additionalProperties": true
+            }
+          }
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The provision this action rests on. The engine records it on the action's trace step (RFC-039), so a result can cite the provision it follows from."
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "operation"
+            ],
+            "properties": {
+              "operation": {
+                "enum": [
+                  "ROUND",
+                  "CEIL",
+                  "FLOOR"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "precision"
+            ]
+          }
+        }
+      ]
+    },
+    "legalBasis": {
+      "type": "object",
+      "properties": {
+        "law": {
+          "type": "string",
+          "description": "Name of the law."
+        },
+        "bwb_id": {
+          "type": "string",
+          "pattern": "^BWBR[0-9]{7}$",
+          "description": "BWB identification number."
+        },
+        "article": {
+          "type": "string",
+          "description": "Article number."
+        },
+        "paragraph": {
+          "type": "string",
+          "description": "Paragraph/lid number."
+        },
+        "sentence": {
+          "type": "string",
+          "description": "Sentence number for fine-grained reference."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL to wetten.overheid.nl."
+        },
+        "juriconnect": {
+          "type": "string",
+          "pattern": "^jci1\\.3:c:BWBR[0-9]{7}(&[a-zA-Z_]+=.+)*$",
+          "description": "Juriconnect BWB 1.3 reference. Optionally pinned to a date with the `z=`/`g=` parameters; most references in the corpus carry them, and the pattern does not require them."
+        },
+        "explanation": {
+          "type": "string",
+          "description": "Dutch explanation of how this element relates to the law text."
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "law": "Wet op de zorgtoeslag",
+          "bwb_id": "BWBR0018451",
+          "article": "2",
+          "paragraph": "1",
+          "url": "https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel2",
+          "explanation": "De aanspraak op zorgtoeslag volgt uit artikel 2, eerste lid."
+        }
+      ]
+    },
+    "machineReadableSection": {
+      "type": "object",
+      "description": "Machine-readable interpretation of legal text.",
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "description": "Named endpoint for this article. The Rust law-model reads it, but the engine does not call by endpoint: a law calls another law by output name."
+        },
+        "competent_authority": {
+          "description": "Bevoegd gezag: the authority whose execution of this article produces a binding decision. Another body may run the same calculation and get the same number, but its result carries no legal force (RFC-009). Annotation only: the engine computes the same either way.",
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^#",
+              "description": "Internal reference to output (e.g., '#bevoegd_gezag')."
+            },
+            {
+              "$ref": "#/definitions/namedAuthority"
+            }
+          ]
+        },
+        "requires": {
+          "type": "array",
+          "description": "Other provisions this article depends on, and the facts it requires (since v0.8.7). The Rust law-model reads the structure below; the engine does not act on it at runtime.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "article": {
+                "type": "string",
+                "description": "Article number within this law."
+              },
+              "law": {
+                "type": "string",
+                "description": "Name of external law."
+              },
+              "regeling": {
+                "type": "string",
+                "description": "Name of ministerial regulation."
+              },
+              "koninklijk_besluit": {
+                "type": "string",
+                "description": "Name of royal decree."
+              },
+              "values": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The outputs this article needs from the dependency, named so the dependency is checkable rather than implied."
+              },
+              "fact": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "description": "Since v0.8.7: a fact this article requires to exist, by a name unique within the article, such as `geneeskundig_onderzoek` for 'een geneeskundig onderzoek heeft plaatsgehad'. The law says what the fact holds (`parameters`), not when it arises or who records it. An entry with `fact` names no other provision."
+              },
+              "parameters": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "uniqueItems": true,
+                "description": "Since v0.8.7, only with `fact`: the names of this article's parameters that the fact holds, with their types. Every name must be a parameter of the article; the loader checks it."
+              },
+              "description": {
+                "type": "string",
+                "description": "Since v0.8.7, only with `fact`: what the fact is, in words."
+              },
+              "competent_authority": {
+                "description": "Since v0.8.8, only with `fact`: who establishes the fact (RFC-052), one named authority or a list, such as the GGD for a medical examination.",
+                "oneOf": [
+                  {
+                    "$ref": "#/definitions/namedAuthority"
+                  },
+                  {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "$ref": "#/definitions/namedAuthority"
+                    }
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "required": [
+                    "fact"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "parameters"
+                  ],
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "article"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "law"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "regeling"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "koninklijk_besluit"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "values"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "else": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "parameters"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "description"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "competent_authority"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "open_terms": {
+          "type": "array",
+          "description": "Abstract values that this article leaves open and that an implementing regulation or implementing policy fills at a lower level. Any regulatory layer can declare open_terms; a law typically has required: true (no default), lower layers often provide defaults that can be refined further down. This is the single place for an open norm, whether the article names who fills it ('bij ministeriele regeling') or leaves that open ('redelijkerwijs'); in the second case delegated_to and delegation_type are simply absent and any competent authority may fill it through implementing policy. Whether the filling regulation is currently in the corpus is a state of the corpus and not a property of the law, so it is not recorded here.",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "type"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Identifier for this open term (e.g., 'standaardpremie')."
+              },
+              "description": {
+                "type": "string",
+                "description": "Human-readable description of what this term represents."
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "string",
+                  "number",
+                  "boolean",
+                  "amount",
+                  "date"
+                ],
+                "description": "Data type of the expected value."
+              },
+              "required": {
+                "type": "boolean",
+                "default": true,
+                "description": "Whether an implementation is mandatory (true) or optional with possible default (false)."
+              },
+              "delegated_to": {
+                "type": "string",
+                "description": "Who the article authorises to fill this term (e.g. 'Onze Minister', 'gemeenteraad'). Absent when the article names nobody, which leaves the term to whichever authority is competent in the individual case."
+              },
+              "delegation_type": {
+                "type": "string",
+                "description": "The regulatory layer the article requires of the implementation. An implementation at another layer does not fill this term: delegation is a question of competence, and a regulation that takes on what the law did not delegate to it has nothing to give. Closed here rather than free text, so a misspelling is caught when the file is written instead of years later when the filling regulation is finally harvested.",
+                "enum": [
+                  "GRONDWET",
+                  "WET",
+                  "AMVB",
+                  "KONINKLIJK_BESLUIT",
+                  "MINISTERIELE_REGELING",
+                  "BELEIDSREGEL",
+                  "EU_VERORDENING",
+                  "EU_RICHTLIJN",
+                  "VERDRAG",
+                  "UITVOERINGSBELEID",
+                  "GEMEENTELIJKE_VERORDENING",
+                  "PROVINCIALE_VERORDENING",
+                  "WATERSCHAPS_VERORDENING"
+                ]
+              },
+              "legal_basis": {
+                "type": "string",
+                "description": "The provision that delegates this term, as it reads in the law (e.g. 'artikel 4 Wet op de zorgtoeslag')."
+              },
+              "default": {
+                "type": "object",
+                "description": "Default execution logic, making the article executable standalone while still allowing refinement through `implements`. It applies in two cases: no implementing regulation was found, and an implementation ran but returned null for this case.",
+                "properties": {
+                  "actions": {
+                    "type": "array",
+                    "description": "Default actions to execute.",
+                    "items": {
+                      "$ref": "#/definitions/action"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              },
+              "expected_source": {
+                "type": "string",
+                "description": "The regulation the article itself names as the one that fills this term (e.g. 'Regeling zorgverzekering'), a BWB id when the text carries one. Which regulation is meant is a property of the law, so it belongs here, next to delegated_to and delegation_type. Whether that regulation is currently in the corpus is not: that changes without the law changing, and it belongs to the resolve step."
+              },
+              "decided_per_case_by": {
+                "type": "string",
+                "description": "The authority that fills this norm in the individual case while no general specification exists, with the article that makes it competent. Which authority may decide is a property of the law, so it belongs here. Its answer needs a motivation (Awb 3:46) and is part of the besluit rather than a ground for it, which is what separates a discretionary power from a value that is merely missing. When no implementation fills the term, the judgement for the case is supplied with the execution, under the term's id (RFC-047)."
+              },
+              "competent_authority": {
+                "description": "Since v0.8.8 (RFC-052): who may answer this term for a reader that reaches the article through `source.regulation`, one named authority or a list. An engine that routes on competence asks only those. The article's own `competent_authority` says who decides (RFC-002), which is another question.",
+                "oneOf": [
+                  {
+                    "$ref": "#/definitions/namedAuthority"
+                  },
+                  {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "$ref": "#/definitions/namedAuthority"
+                    }
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "examples": [
+            [
+              {
+                "id": "standaardpremie",
+                "type": "amount",
+                "required": true
+              }
+            ]
+          ]
+        },
+        "implements": {
+          "type": "array",
+          "description": "Declares that this article fills open terms from a higher-level law. Maps to the 'Gelet op' clause in Dutch legislation. One article can implement multiple open terms from different laws.",
+          "items": {
+            "type": "object",
+            "required": [
+              "law",
+              "article",
+              "open_term"
+            ],
+            "properties": {
+              "law": {
+                "type": "string",
+                "description": "The $id of the higher-level law being implemented (e.g., 'wet_op_de_zorgtoeslag')."
+              },
+              "article": {
+                "type": "string",
+                "description": "Article number in the higher law that declares the open_term (e.g., '4')."
+              },
+              "open_term": {
+                "type": "string",
+                "description": "The open_term id being filled (e.g., 'standaardpremie')."
+              },
+              "gelet_op": {
+                "type": "string",
+                "description": "Legal reference text (e.g., 'Gelet op artikel 4 van de Wet op de zorgtoeslag')."
+              }
+            },
+            "additionalProperties": false
+          },
+          "examples": [
+            [
+              {
+                "law": "wet_op_de_zorgtoeslag",
+                "article": "4",
+                "open_term": "standaardpremie",
+                "gelet_op": "Gelet op artikel 4 van de Wet op de zorgtoeslag"
+              }
+            ]
+          ]
+        },
+        "definitions": {
+          "type": "object",
+          "description": "Definitions and constants. Each entry is either a bare value (`naam: 123`) or the optionally-structured form carrying a `type` and `type_spec` so the constant can declare its quantity-kind (RFC-023): `naam: {value: 123, type: amount, type_spec: {unit: eurocent}}`.",
+          "additionalProperties": true
+        },
+        "execution": {
+          "type": "object",
+          "description": "The executable logic of this article: what it needs, what it computes and what it yields.",
+          "properties": {
+            "produces": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "legal_character": {
+                      "type": "string",
+                      "enum": [
+                        "BESCHIKKING",
+                        "TOETS",
+                        "WAARDEBEPALING",
+                        "BESLUIT_VAN_ALGEMENE_STREKKING",
+                        "INFORMATIEF",
+                        "RECHTSPOSITIE",
+                        "UITSPRAAK"
+                      ],
+                      "description": "Legal character of the output. BESCHIKKING: a besluit not of general scope (Awb art. 1:3 lid 2). RECHTSPOSITIE: a legal position of a person that arises by operation of law, without a besluit and without an aanvraag (voting rights, majority, nationality). UITSPRAAK (since v0.8.10): the judgment of an administrative court on an appeal (Awb 8:70); no besluit, because a court is no bestuursorgaan (Awb 1:1 lid 2 onder c) (RFC-053)."
+                    },
+                    "decision_type": {
+                      "type": "string",
+                      "enum": [
+                        "TOEKENNING",
+                        "AFWIJZING",
+                        "GOEDKEURING",
+                        "GEEN_BESLUIT",
+                        "ALGEMEEN_VERBINDEND_VOORSCHRIFT",
+                        "BELEIDSREGEL",
+                        "VOORBEREIDINGSBESLUIT",
+                        "ANDERE_HANDELING",
+                        "AANSLAG"
+                      ],
+                      "description": "The kind of decision this output is, within its legal character. `GEEN_BESLUIT` is the value for an article that establishes a fact rather than deciding anything."
+                    },
+                    "procedure_id": {
+                      "type": "string",
+                      "description": "Selects a specific AWB procedure variant. When absent, the default procedure for the legal_character is used."
+                    },
+                    "submission": {
+                      "type": "object",
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "AANVRAAG",
+                            "BEZWAAR",
+                            "BEROEP"
+                          ],
+                          "description": "What the belanghebbende submits. AANVRAAG: a request to take a decision (Awb 1:3 lid 3). BEZWAAR: an objection against a decision, to the authority that took it (Awb 1:5, 6:4 lid 1) (RFC-050). BEROEP (since v0.8.10): an appeal against a decision to the administrative court (Awb 6:4 lid 3, 8:1) (RFC-053)."
+                        }
+                      },
+                      "description": "The article establishes a submission of a belanghebbende, such as an application (RFC-045). Hooks with applies_to.submission fire when the article runs. Independent of the legal character of the article's own outputs. An article that establishes the application and also decides on it may instead write produces as a list, with the application and the decision as separate items (RFC-047).",
+                      "examples": [
+                        {
+                          "kind": "AANVRAAG"
+                        }
+                      ]
+                    },
+                    "moment": {
+                      "type": "object",
+                      "required": [
+                        "legal_basis"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "parameter": {
+                          "type": "string",
+                          "description": "The parameter of this article whose value is the moment, such as the date of receipt. Absent when the moment is the one at which a runtime records the fact."
+                        },
+                        "legal_basis": {
+                          "$ref": "#/definitions/legalBasis",
+                          "description": "The provision that says why this moment counts."
+                        }
+                      },
+                      "description": "The moment that counts in law for what this article produces (RFC-045), such as the receipt of an application (Awb 4:13 lid 1). Metadata for a process runtime; the engine does not read it.",
+                      "examples": [
+                        {
+                          "parameter": "datum_ontvangst",
+                          "legal_basis": {
+                            "law": "Algemene wet bestuursrecht",
+                            "bwb_id": "BWBR0005537",
+                            "article": "4:13",
+                            "paragraph": "1",
+                            "url": "https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel4:13"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "description": "What executing this article yields in legal terms: its legal character, the kind of decision it is, and the procedure that governs it. Not merely annotation: `legal_character` and `decision_type` select which hooks fire, and `legal_character` with `procedure_id` selects the Awb procedure, so an article's outputs and how it runs both depend on what is declared here."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/definitions/producedItem"
+                  },
+                  "minItems": 1,
+                  "description": "Several things the article yields, each its own item with a `type`, such as an application (AANVRAAG) and the decision on it (BESCHIKKING), with the parameters and outputs that belong to each (RFC-047)."
+                }
+              ],
+              "description": "What executing this article yields in legal terms. One object for an article that yields one thing, the form most laws use. A list when the article yields more than one thing, such as an application and the decision on it, each item with its own type, parameters and outputs (RFC-047).",
+              "examples": [
+                {
+                  "legal_character": "BESCHIKKING",
+                  "decision_type": "TOEKENNING"
+                },
+                [
+                  {
+                    "type": "AANVRAAG",
+                    "requests": "leerplichtwet_1969#13a",
+                    "parameters": [
+                      "bsn_jongere"
+                    ]
+                  },
+                  {
+                    "type": "BESCHIKKING",
+                    "outputs": [
+                      "verlof_verleend"
+                    ]
+                  }
+                ]
+              ]
+            },
+            "parameters": {
+              "type": "array",
+              "description": "Values the caller passes in, such as a bsn or a peildatum.",
+              "items": {
+                "$ref": "#/definitions/parameterField"
+              }
+            },
+            "input": {
+              "type": "array",
+              "description": "Values this article reads from elsewhere: another law's output, or a fact from a register. Each declares a `source`.",
+              "items": {
+                "$ref": "#/definitions/inputField"
+              }
+            },
+            "output": {
+              "type": "array",
+              "description": "Values this article yields. Each is callable from another law by name.",
+              "items": {
+                "$ref": "#/definitions/outputField"
+              }
+            },
+            "actions": {
+              "type": "array",
+              "description": "The steps that compute the outputs, each assigning one output either a literal or the result of an operation.",
+              "items": {
+                "$ref": "#/definitions/action"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "hooks": {
+          "type": "array",
+          "description": "Hook declarations: this article fires when matching lifecycle events occur (RFC-007).",
+          "items": {
+            "type": "object",
+            "required": [
+              "hook_point",
+              "applies_to"
+            ],
+            "properties": {
+              "hook_point": {
+                "type": "string",
+                "enum": [
+                  "pre_actions",
+                  "post_actions"
+                ],
+                "description": "Where in the lifecycle of another article's decision this one runs: before its actions or after them."
+              },
+              "applies_to": {
+                "type": "object",
+                "properties": {
+                  "legal_character": {
+                    "type": "string",
+                    "enum": [
+                      "BESCHIKKING",
+                      "TOETS",
+                      "WAARDEBEPALING",
+                      "BESLUIT_VAN_ALGEMENE_STREKKING",
+                      "INFORMATIEF",
+                      "RECHTSPOSITIE",
+                      "UITSPRAAK"
+                    ],
+                    "description": "Match articles that produce this legal character: produces.legal_character in the object form, or an item with this `type` in the list form (RFC-047)."
+                  },
+                  "decision_type": {
+                    "type": "string",
+                    "description": "Optionally narrow to a specific decision type."
+                  },
+                  "stage": {
+                    "type": "string",
+                    "description": "Lifecycle stage at which this hook fires (e.g., BESLUIT, BEKENDMAKING). Defaults to BESLUIT."
+                  },
+                  "submission": {
+                    "type": "string",
+                    "enum": [
+                      "AANVRAAG",
+                      "BEZWAAR",
+                      "BEROEP"
+                    ],
+                    "description": "Match articles that establish a submission of this kind: produces.submission.kind in the object form, or an item with this `type` in the list form (RFC-047). A hook names either legal_character or submission (RFC-045). For an article that follows a procedure, a staged execution fires the hook at the stage named after the kind (RFC-047)."
+                  },
+                  "established_by": {
+                    "$ref": "#/definitions/articleReference",
+                    "description": "With submission: only the submission that this article (`<regulation>#<article>`) establishes. Without it the hook applies to every submission of the kind."
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Which decisions (legal_character, optionally decision_type and stage) or which submissions (submission, optionally established_by, RFC-045) of other articles this hook fires on. A hook names one of the two.",
+                "oneOf": [
+                  {
+                    "required": [
+                      "legal_character"
+                    ],
+                    "not": {
+                      "anyOf": [
+                        {
+                          "required": [
+                            "submission"
+                          ]
+                        },
+                        {
+                          "required": [
+                            "established_by"
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "required": [
+                      "submission"
+                    ],
+                    "not": {
+                      "anyOf": [
+                        {
+                          "required": [
+                            "legal_character"
+                          ]
+                        },
+                        {
+                          "required": [
+                            "stage"
+                          ]
+                        },
+                        {
+                          "required": [
+                            "decision_type"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "overrides": {
+          "type": "array",
+          "description": "Override declarations: this article replaces another article's output (RFC-007, lex specialis).",
+          "items": {
+            "type": "object",
+            "required": [
+              "law",
+              "article",
+              "output"
+            ],
+            "properties": {
+              "law": {
+                "type": "string",
+                "description": "The `$id` of the law whose output is being replaced: lex specialis written down. An override from another law fires only when that law is the one being executed, so with no such context it does not apply (RFC-007). An override on an output of its own law applies whatever the contextual law is, because an exclusion in the same law is not a claim about the asking law (RFC-041). The engine does not check that the override is legally valid."
+              },
+              "article": {
+                "type": "string",
+                "description": "The article number being overridden."
+              },
+              "output": {
+                "type": "string",
+                "description": "The specific output being replaced."
+              },
+              "voids": {
+                "type": "boolean",
+                "description": "The overridden output does not arise at all, rather than being replaced by another value. \"Bestaat geen aanspraak\" is not an entitlement of zero: with an entitlement of zero there is a decision carrying legal remedies and a ground for recovery, and with no entitlement there is neither. An engine reads this flag and nothing else; it needs no knowledge of administrative law to act on it."
+              },
+              "legal_text_excerpt": {
+                "type": "string",
+                "description": "The words of this article that establish the override, quoted verbatim, as `markings` already do. A closed vocabulary was considered and rejected: it would make the agent translate the statute into a category, which is the interpretive step this format exists to avoid. A quotation only has to be copied, and a check can hold it against the article's own text."
+              }
+            },
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "voids": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "voids"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "legal_text_excerpt"
+                  ]
+                }
+              }
+            ]
+          },
+          "examples": [
+            [
+              {
+                "law": "algemene_wet_bestuursrecht",
+                "article": "6:7",
+                "output": "termijn_weken"
+              }
+            ]
+          ]
+        },
+        "markings": {
+          "type": "array",
+          "description": "Constructs in this article that the format itself cannot express. A marking is a flag on an article that is otherwise worked out: it names the one thing that does not fit and leaves everything that does fit standing. A marking that empties an article is a defect, not a translation. Keep it strictly apart from open_terms, which say the opposite: the language can express this fine, the content is filled elsewhere. Replaces untranslatables and norm_gaps from earlier schema versions.",
+          "items": {
+            "type": "object",
+            "required": [
+              "about",
+              "reason",
+              "resolution",
+              "resolved_by",
+              "target",
+              "legal_text_excerpt"
+            ],
+            "properties": {
+              "about": {
+                "type": "string",
+                "description": "The construct that cannot be expressed, in the words the article uses (e.g. 'het kalenderjaar waarop de tegemoetkoming betrekking heeft')"
+              },
+              "reason": {
+                "type": "string",
+                "description": "Why this construct does not fit the format, in terms of what the format does have. This is the diagnosis, and it is the field a reviewer needs to tell a well-examined gap from a wish: resolved_by follows from it, and not the other way round. Round 4 showed the asymmetry: 'voor zover limits application per provision of this law rather than the law as a whole, and the model only knows applicability of a whole law' yields the change that would close it, while the change on its own recovers none of the reading behind it."
+              },
+              "resolution": {
+                "type": "string",
+                "enum": [
+                  "operation",
+                  "model"
+                ],
+                "description": "What has to change before this article can be translated in full. operation: the operation does not exist and must be built (statutory rounding, extracting the year from a date). Adding one reaches further than the engine: schema, model, evaluation, the BDD grammar and the frontend all carry it, so the value names the thing to be built rather than the place it happens to run. model: the operation set is not the problem; the format has no shape for this construct (quantification over persons, a rule about a set rather than a value, a legal fiction). Nothing else belongs here: a norm whose content is filled by another regulation is an open_term, and a value produced by another law is an input with a source."
+              },
+              "resolved_by": {
+                "type": "string",
+                "description": "The change that would resolve it, named concretely enough to become work (e.g. 'Een YEAR-bewerking die het jaardeel van een datum oplevert', or the shape the format lacks). Required, and it is the field that keeps resolution: model from becoming the bin everything awkward falls into: a marking that cannot say what would fix it has not been diagnosed. Grouping markings by this field is how the backlog is read off the corpus."
+              },
+              "target": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The values in this article that cannot be produced because of this marking: outputs, inputs or parameters by name. Every name listed here must be absent from the article's actions, which the enrichment checks hold the file to: computing a value you declared blocked is a contradiction, and it is caught when the file is written rather than when someone is waiting on an answer. An empty list is a statement and not an omission: it says the marking is a flag on an article that is otherwise worked out, and that only the explanation is incomplete. It does not change execution. What the engine does with a marked article is decided by `accepted` and the untranslatable modes of RFC-012, which do not read this field; whether a marking should ever block only the values it names is an open question in RFC-031."
+              },
+              "legal_text_excerpt": {
+                "type": "string",
+                "description": "The words from this article's own legal text that the marking hangs on. Required: a marking that cannot quote the text it is about is about something else."
+              },
+              "accepted": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether a human has reviewed and acknowledged this gap. Accepted markings are allowed in error mode."
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "declares": {
+          "type": "array",
+          "description": "Document properties this article establishes. A citation title, a commencement date or a scope in time is not a calculation, and it is not nothing either: it fixes a value the rest of the corpus and every trace depend on. Article 51 of the Awir says what that law is called, and a trace that names the law is quoting that article. Recording it here makes the article accounted for and lets a check hold the document header against the provision that decides it.",
+          "items": {
+            "type": "object",
+            "required": [
+              "property",
+              "value"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "property": {
+                "type": "string",
+                "enum": [
+                  "name",
+                  "officiele_titel",
+                  "valid_from",
+                  "valid_to",
+                  "regulatory_layer",
+                  "legal_basis"
+                ],
+                "description": "The top-level document property this article fixes."
+              },
+              "value": {
+                "description": "The value the article gives it, verbatim from the text."
+              },
+              "applies_from": {
+                "type": "string",
+                "description": "Where the article limits the property in time beyond the value itself, e.g. Awir article 50, which commences on 1 September 2005 but applies to berekeningsjaren from 1 January 2006."
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "datePartOperation": {
+      "type": "object",
+      "description": "Read one calendar component out of a date. The inverse of DATE, so 'in' ranges over exactly the components DATE takes. Returns an integer: the year number, the month number (1-12) or the day of the month (1-31). A month number is only meaningful within one year — comparing two month numbers across a year boundary is almost always wrong. For the weekday, use DAY_OF_WEEK.",
+      "required": [
+        "operation",
+        "date",
+        "in"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "DATE_PART"
+        },
+        "date": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Date to read a component from (ISO 8601 YYYY-MM-DD)"
+        },
+        "in": {
+          "type": "string",
+          "description": "Calendar component to read: 'year', 'month' or 'day' (singular, because the operation selects a component rather than counting units the way DATE_DIFF does)",
+          "enum": [
+            "year",
+            "month",
+            "day"
+          ]
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis"
+        }
+      },
+      "additionalProperties": false
+    },
+    "startOfOperation": {
+      "type": "object",
+      "description": "Truncate a date down to the start of the calendar unit it falls in: 1 January of its year, or the first day of its month. Returns a date (ISO 8601 YYYY-MM-DD). For 'the first day of the month following', truncate first and add afterwards — DATE_ADD over START_OF — so the day-clamping of DATE_ADD never comes into play and the first of the month yields the next first.",
+      "required": [
+        "operation",
+        "date",
+        "in"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "START_OF"
+        },
+        "date": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Date to truncate (ISO 8601 YYYY-MM-DD)"
+        },
+        "in": {
+          "type": "string",
+          "description": "Calendar unit to truncate to: 'year' or 'month'. 'day' is the identity and 'week' would need a convention no legal text imposes.",
+          "enum": [
+            "year",
+            "month"
+          ]
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis"
+        }
+      },
+      "additionalProperties": false
+    },
+    "articleReference": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?$",
+      "not": {
+        "pattern": " lid [0-9]"
+      },
+      "description": "An article of a regulation, `<regulation>#<article>`, without ` lid <n>`. The article holds letters, digits, `:`, `.`, `_`, `-` and spaces (Kieswet `G 1`, Awb `4:13`), and starts and ends with a letter or digit.",
+      "examples": [
+        "leerplichtwet_1969#13a",
+        "kieswet#G 1"
+      ]
+    },
+    "producedItem": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "AANVRAAG",
+            "BEZWAAR",
+            "BEROEP",
+            "BESCHIKKING",
+            "TOETS",
+            "WAARDEBEPALING",
+            "BESLUIT_VAN_ALGEMENE_STREKKING",
+            "INFORMATIEF",
+            "RECHTSPOSITIE",
+            "UITSPRAAK"
+          ],
+          "description": "What this item is: a submission of a belanghebbende (AANVRAAG: a request to take a decision, Awb 1:3 lid 3; BEZWAAR: an objection against a decision, Awb 1:5, RFC-050; BEROEP: an appeal to the administrative court, Awb 8:1, since v0.8.10, RFC-053) or a decision with its legal character (BESCHIKKING, TOETS, UITSPRAAK, ...). An article lists at most one item of each type, so the article and the type together name the item (RFC-047). Hooks with applies_to.submission match a submission type, hooks with applies_to.legal_character a decision type."
+        },
+        "requests": {
+          "$ref": "#/definitions/articleReference",
+          "description": "Only on a submission: the article whose decision it asks for, as `<regulation>#<article>`, also when that is this article (Awb 1:3 lid 3, Awb 4:2 lid 1 onder c). The target is that article's decision: the item with a decision type in the list form, or the article itself in the object form with a legal_character. The loader checks a target in the same law; a target in another law is checked when it is used (RFC-047)."
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "The names of this article's parameters that this item contains, such as the fields of an application. A submission without it contains none of the article's parameters: the fields of an application are the parameters it lists and those of the hooks on it (RFC-046, RFC-047). Every name must be a parameter of the article; the loader checks it."
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "The names of this article's outputs that this item yields, such as the outputs of the decision. A submission without it yields none; the decision without it yields every output that no other item lists and that it does not list under `derived`. Every name must be an output of the article; the loader checks it. Every output belongs to exactly one item, under `outputs` or, for data derived for the decision, under `derived` (RFC-047, RFC-050). In a staged execution, the stage named after a submission's type computes that submission's outputs, and every other stage those of the decision with the data derived for it."
+        },
+        "derived": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "Only on a decision: the names of this article's outputs that are data derived for the decision (RFC-050), such as an intermediate result the decision is recorded with. They are computed at the decision's stages and recorded with it, but are none of its outputs, so a call to the article (`source.article`) leaves them out of the decision value. Derived data is listed, never inferred: an output that no item lists under `outputs` or `derived` is refused, so a forgotten or misspelt output fails instead of turning into derived data. Every name must be an output of the article and belongs to no other item; the loader checks both."
+        },
+        "decision_type": {
+          "type": "string",
+          "enum": [
+            "TOEKENNING",
+            "AFWIJZING",
+            "GOEDKEURING",
+            "GEEN_BESLUIT",
+            "ALGEMEEN_VERBINDEND_VOORSCHRIFT",
+            "BELEIDSREGEL",
+            "VOORBEREIDINGSBESLUIT",
+            "ANDERE_HANDELING",
+            "AANSLAG"
+          ],
+          "description": "Only on a decision: the kind of decision, within its legal character."
+        },
+        "procedure_id": {
+          "type": "string",
+          "description": "Only on a decision: selects a specific AWB procedure variant. When absent, the default procedure for the type is used."
+        },
+        "moment": {
+          "type": "object",
+          "required": [
+            "legal_basis"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "parameter": {
+              "type": "string",
+              "description": "The parameter of this article whose value is the moment, such as the date of receipt. Absent when the moment is the one at which a runtime records the fact."
+            },
+            "legal_basis": {
+              "$ref": "#/definitions/legalBasis",
+              "description": "The provision that says why this moment counts."
+            }
+          },
+          "description": "The moment that counts in law for what this article produces (RFC-045), such as the receipt of an application (Awb 4:13 lid 1). Metadata for a process runtime; the engine does not read it.",
+          "examples": [
+            {
+              "parameter": "datum_ontvangst",
+              "legal_basis": {
+                "law": "Algemene wet bestuursrecht",
+                "bwb_id": "BWBR0005537",
+                "article": "4:13",
+                "paragraph": "1",
+                "url": "https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel4:13"
+              }
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "AANVRAAG",
+                  "BEZWAAR",
+                  "BEROEP"
+                ]
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "decision_type"
+                  ]
+                },
+                {
+                  "required": [
+                    "procedure_id"
+                  ]
+                },
+                {
+                  "required": [
+                    "derived"
+                  ]
+                }
+              ]
+            }
+          },
+          "else": {
+            "not": {
+              "required": [
+                "requests"
+              ]
+            }
+          }
+        }
+      ],
+      "description": "One thing that executing this article yields, when produces is a list (RFC-047): a submission, such as an application with what it contains and the decision it asks for, or a decision with the outputs that belong to it. `type` selects which hooks fire and, for a decision, with `procedure_id` the Awb procedure.",
+      "examples": [
+        {
+          "type": "AANVRAAG",
+          "requests": "leerplichtwet_1969#13a",
+          "parameters": [
+            "bsn_jongere",
+            "eerste_verlofdag",
+            "laatste_verlofdag"
+          ]
+        },
+        {
+          "type": "BESCHIKKING",
+          "decision_type": "TOEKENNING",
+          "outputs": [
+            "verlof_verleend"
+          ]
+        }
+      ]
+    },
+    "namedAuthority": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the authority."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "INSTANCE",
+            "CATEGORY"
+          ],
+          "default": "INSTANCE",
+          "description": "INSTANCE = specific organization (default), CATEGORY = must be resolved per context."
+        }
+      }
+    }
+  }
+}

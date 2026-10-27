@@ -77,10 +77,11 @@ pub enum FilledBy {
     Regulation { law_id: String, article: String },
     /// An article of a policy that implements the term and takes the named
     /// answer of a cell (`source.reduction`): the binding, and every answer
-    /// it took that was not null, with what each cell says it answered
-    /// from, in the order of the names of their cells; several were
-    /// combined (RFC-052). Where every cell was silent and nothing falls
-    /// back, the null answers; where no cell answered, none.
+    /// it took that was not null, one per input that takes an answer, with
+    /// what each cell says it answered from, in the order the inputs were
+    /// asked. Inputs may take the answers of different cells (synthesis,
+    /// RFC-048). Where every cell was silent and nothing falls back, the
+    /// null answers; where no cell answered, none.
     Answer {
         law_id: String,
         article: String,

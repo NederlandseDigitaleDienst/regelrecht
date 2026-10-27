@@ -1,5 +1,5 @@
 <script setup>
-// De andere cellen van de sfeer (RFC-052): wie de wet bevoegd maakt voor een
+// De andere cellen van de casus (RFC-052): wie de wet bevoegd maakt voor een
 // waarde die het bestuursorgaan nodig heeft, zoals de GGD voor het
 // geneeskundig onderzoek. Elke cel houdt haar eigen kroniek bij en
 // antwoordt daaruit. Een cel die een feit vastlegt (een executogram,
@@ -48,7 +48,7 @@ async function vastleggen(cel, handeling) {
     <nldd-simple-section v-else>
       <nldd-title slot="header" size="3" :text="c.cel_naam">
         <nldd-text slot="supporting-text">
-          Een andere cel van de sfeer. De engine vraagt haar alleen naar een waarde waarvoor de wet
+          Een andere cel van de casus. De engine vraagt haar alleen naar een waarde waarvoor de wet
           haar bevoegd maakt, en zij antwoordt uit haar eigen kroniek.
         </nldd-text>
       </nldd-title>

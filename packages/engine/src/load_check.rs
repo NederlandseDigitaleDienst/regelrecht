@@ -35,8 +35,7 @@
 //! policy that names its holder (`competent_authority`), whose cell the
 //! engine asks where the term names no competent authorities. The answer
 //! stands apart from every other way to a value (`regulation`, `output`,
-//! `endpoint`, `decisions`, `facts`, `article`), and only an answer takes a
-//! `combine`, which fits the type of the input as on an open term.
+//! `endpoint`, `decisions`, `facts`, `article`).
 //!
 //! The loader refuses any of these the other way round, and a `decisions`
 //! beside another way to the value.
@@ -48,19 +47,13 @@
 //! Who may answer an open term, or establish a fact, sits on that term or
 //! fact (`competent_authority`, schema v0.8.8, RFC-052); on an article the
 //! field keeps its meaning of RFC-002, who decides, and names one authority.
-//! The `combine` of an open term makes one value of the answers of several
-//! competent answerers. It has to fit the term's type, as the `combine` of a
-//! FOREACH has to fit its body: `OR` and `AND` a boolean, `ADD`, `MIN` and
-//! `MAX` a number or an amount. `ONLY` is no rule for answers: one answer
-//! needs none, and two without a rule are an error already. It sits only on
-//! a term that names its competent authorities.
 
 use crate::answer::ChronicleRead;
 use crate::article::ArticleBasedLaw;
 use crate::error::{EngineError, Result};
 use regelrecht_law_model::{
-    parse_schema_version, ActionOperation, ActionValue, CombineOp, CompetentAuthority,
-    MachineReadable, ParameterType, RegulatoryLayer,
+    parse_schema_version, ActionOperation, ActionValue, CompetentAuthority, MachineReadable,
+    RegulatoryLayer,
 };
 
 /// The schema versions in which a `REDUCTIE` may have `implements`: from
@@ -75,7 +68,7 @@ const REDUCTION_ANSWERS: (u32, u32, u32) = (0, 8, 9);
 /// may have `implements` only under a `$schema` from v0.8.5 to v0.8.8. An
 /// answer is taken only in a `UITVOERINGSBELEID` that names its holder, by
 /// an article that fills an open term, from schema v0.8.9; it stands apart
-/// from every other way to a value, and only it takes a `combine`.
+/// from every other way to a value.
 pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
     let refuse = |why: String| Err(EngineError::LoadError(format!("law '{}' {why}", law.id)));
     let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
@@ -153,23 +146,6 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
                         input.name
                     ));
                 }
-                if let Some(op) = source.combine {
-                    if let Some(why) = combine_misfit(op, input.input_type) {
-                        return refuse(format!(
-                            "{where_}: input '{}' combines the answers of '{answer}' with {} \
-                             (combine), {why}",
-                            input.name,
-                            op.as_str()
-                        ));
-                    }
-                }
-            } else if let Some(op) = source.combine {
-                return refuse(format!(
-                    "{where_}: input '{}' has combine {} without the answer of a cell \
-                     (reduction) whose answers it combines",
-                    input.name,
-                    op.as_str()
-                ));
             }
             let Some(read) = chronicle_read(source) else {
                 continue;
@@ -229,32 +205,6 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
         );
     }
     Ok(())
-}
-
-/// Why `op` does not combine values of type `kind`, or `None` when it
-/// does: `OR` and `AND` a boolean, `ADD`, `MIN` and `MAX` a number or an
-/// amount, and `ONLY` nothing, since one answer needs no rule and two
-/// without one are an error already.
-fn combine_misfit(op: CombineOp, kind: ParameterType) -> Option<String> {
-    let fits = match op {
-        CombineOp::Or | CombineOp::And => kind == ParameterType::Boolean,
-        CombineOp::Add | CombineOp::Min | CombineOp::Max => {
-            matches!(kind, ParameterType::Number | ParameterType::Amount)
-        }
-        CombineOp::Only => {
-            return Some(
-                "which is no rule for answers: one needs none, and two without one are an \
-                 error"
-                    .to_string(),
-            )
-        }
-    };
-    (!fits).then(|| {
-        format!(
-            "which does not fit its type {}",
-            format!("{kind:?}").to_lowercase()
-        )
-    })
 }
 
 /// The first key of `section` that acts on law: a hook, an override, a
@@ -326,14 +276,12 @@ pub(crate) fn reject_misplaced_article_call(law: &ArticleBasedLaw) -> Result<()>
     Ok(())
 }
 
-/// Refuse competence and `combine` where they do not belong (RFC-052):
+/// Refuse competence where it does not belong (RFC-052):
 ///
 /// - an article names one competent authority (RFC-002), never a list;
 /// - an open term or a fact names its competent authorities by name, one or
 ///   a list of at least one, never a `#` reference;
-/// - `competent_authority` on a `requires` entry only with `fact`;
-/// - `combine` only on a term that names its competent authorities, fitting
-///   the term's type, and never `ONLY`.
+/// - `competent_authority` on a `requires` entry only with `fact`.
 pub(crate) fn reject_misplaced_competence(law: &ArticleBasedLaw) -> Result<()> {
     for (where_, section) in sections(law) {
         let refuse = |why: String| {
@@ -380,29 +328,10 @@ pub(crate) fn reject_misplaced_competence(law: &ArticleBasedLaw) -> Result<()> {
             }
         }
         for term in section.open_terms.iter().flatten() {
-            let competent = named(
+            named(
                 &term.competent_authority,
                 &format!("open term '{}'", term.id),
             )?;
-            let Some(op) = term.combine else {
-                continue;
-            };
-            let combines = |why: &str| {
-                refuse(format!(
-                    "open term '{}' combines its answers with {} (combine), {why}",
-                    term.id,
-                    op.as_str()
-                ))
-            };
-            if !competent {
-                return combines(
-                    "but names no competent authorities, so no more than one answerer can \
-                     answer it",
-                );
-            }
-            if let Some(why) = combine_misfit(op, term.term_type) {
-                return combines(&why);
-            }
         }
     }
     Ok(())
