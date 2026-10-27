@@ -19,7 +19,8 @@
 // screen starts it or the URL carries `?presentatie`. Its closing slide, like
 // the choice screen, begins one of the demo scenarios (startDemo). The button
 // "Presentatie" brings it back, on the slide a scenario was last chosen on,
-// or else on the first.
+// or else on the first. The explanation page (presentation/UitlegPagina.vue)
+// covers the page the same way, from the choice screen or `?uitleg`.
 //
 // The address names the case and the scenario (navigation.js), so a link
 // opens a scenario and the browser's back and forward walk the choices.
@@ -42,6 +43,8 @@ import ScenarioGuide from './components/ScenarioGuide.vue';
 import ScenarioTab from './components/ScenarioTab.vue';
 import { guideFor } from './scenarioGuides.js';
 import PresentationDeck from './presentation/PresentationDeck.vue';
+import UitlegPagina from './presentation/UitlegPagina.vue';
+import { useUitleg } from './presentation/useUitleg.js';
 import { DEMO_CASUS } from './presentation/demo.js';
 import { startIndex, usePresentation } from './presentation/usePresentation.js';
 
@@ -75,9 +78,11 @@ onMounted(async () => {
 });
 
 const presentation = usePresentation();
+const uitleg = useUitleg();
 onMounted(() => {
   const i = startIndex(window.location.search, presentation.total.value);
   if (i !== null) presentation.start(i);
+  uitleg.follow();
 });
 watch(() => state.datum, verversen);
 
@@ -283,6 +288,7 @@ function toTab(id) {
               <CasusKeuze
                 v-else-if="!state.casus"
                 @presentatie="presentation.start()"
+                @uitleg="uitleg.open()"
                 @demo="startDemo"
               />
               <template v-else-if="state.vormen">
@@ -317,4 +323,5 @@ function toTab(id) {
     </nldd-bar-split-view>
   </nldd-shell>
   <PresentationDeck @scenario="startDemo" />
+  <UitlegPagina />
 </template>
