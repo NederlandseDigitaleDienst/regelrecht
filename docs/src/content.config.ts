@@ -216,6 +216,45 @@ const vraagVelden = {
   verwant: z.array(slug()).default([]),
 };
 
+/*
+ * Een user story onder een onderzoeksvraag: het niveau waarop het team
+ * prioriteert, en wat een casus overdraagbaar maakt tussen analisten.
+ *
+ * Een story is een titel plus een paragraaf, in de taal van de gebruiker, en
+ * niet meer: geen punten, geen inschatting, geen namen. Taken horen er wel
+ * onder, maar die staan in Bouwmeester en niet op de publieke roadmap; de
+ * roadmap zegt wat er moet kunnen, de backlog zegt wie wat doet.
+ *
+ * `verhaal` is die ene paragraaf ("Als analist wil ik … zodat …"). Mag leeg:
+ * een story begint met een titel en een plek, de rest volgt.
+ *
+ * `stand` deelt het vocabulaire van de belegging van een werkpakket (vrij,
+ * opgepakt, klaar) en niet dat van `status` op de vraag: een story is werk
+ * dat iemand oppakt en afrondt, geen vraag die beantwoord raakt. Leeg is
+ * "volgt de vraag": een story zonder eigen stand staat in de lane van zijn
+ * vraag, zoals een deelvraag dat doet (storyLane() in lib/roadmap.ts).
+ *
+ * `acceptatiecriteria` horen bij déze story en zeggen wat de oplevering
+ * specifiek moet doen. Ze zijn iets anders dan de definition of done, die
+ * voor elke oplevering geldt en daarom niet per story herhaald wordt.
+ *
+ * `voorstel` markeert een story die nog niet door het team is vastgesteld:
+ * een suggestie om de vraag concreet te maken. De pagina's tonen hem met een
+ * tag "Voorstel", zodat een lezer ziet wat er al staat en wat nog een idee
+ * is. Een vastgestelde story heeft het veld niet.
+ *
+ * De volgorde in de lijst is de prioriteit: de bovenste eerst. Geen apart
+ * veld, want een getal naast een lijst raakt uit de pas met die lijst.
+ */
+const storyVelden = {
+  titel: z.string().min(1),
+  id: slug().optional(),
+  verhaal: z.string().default(''),
+  stand: z.enum(BELEGGING_IDS).or(z.literal('')).default(''),
+  acceptatiecriteria: z.array(z.string().min(1)).default([]),
+  voorstel: z.boolean().default(false),
+};
+
 const werkpakketten = defineCollection({
   loader: glob({
     pattern: '*.md',
@@ -257,6 +296,9 @@ const werkpakketten = defineCollection({
               deelvragen: z
                 .array(z.union([z.string(), z.object(vraagVelden).strict()]))
                 .default([]),
+              // Alleen op een hoofdvraag. Een deelvraag is een stap in het
+              // beantwoorden van zijn vraag; het werk hangt aan de vraag.
+              stories: z.array(z.object(storyVelden).strict()).default([]),
             })
             .strict(),
         ]),

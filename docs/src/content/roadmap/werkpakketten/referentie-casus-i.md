@@ -52,11 +52,52 @@ onderzoeksvragen:
       Daarbij hoort het koppelen van data of representatieve overgangsdata, en
       optioneel raakvlakken met andere systemen.
     id: rc1-technische-constructen
+    stories:
+      - titel: Een aanvraag loopt van invoer tot rechtsgevolg door de engine
+        id: rc1-aanvraag-tot-rechtsgevolg
+        verhaal: >-
+          Als analist wil ik een aanvraag voor de casus van begin tot eind door
+          het systeem laten lopen, zodat ik zie welke constructen buiten de
+          rekenregels nog ontbreken voordat er een rechtsgevolg uit komt.
+        acceptatiecriteria:
+          - Een ingevulde aanvraag levert een besluit op met een execution trace.
+          - Elke stap die niet uit het regelwerk komt, is als ontbrekend construct genoteerd.
+        voorstel: true
+      - titel: Representatieve overgangsdata koppelen aan de regels
+        id: rc1-overgangsdata-koppelen
+        verhaal: >-
+          Als analist wil ik een set representatieve gegevens aan de regels
+          koppelen, zodat de aanvraag met echte situaties te beproeven is
+          zonder persoonsgegevens.
+        acceptatiecriteria:
+          - De koppeling is beschreven in het regelwerk, niet in losse code.
+          - De set dekt de gevallen die de regeling onderscheidt.
+        voorstel: true
   - vraag: >-
       Frontend: Kan een herbruikbare frontend worden vormgegeven op basis van
       regelwerken, en welke generieke componenten
       zijn daarvoor nodig?
     id: rc1-herbruikbare-frontend
+    stories:
+      - titel: Een aanvraagscherm dat uit het regelwerk volgt
+        id: rc1-aanvraagscherm-uit-regelwerk
+        verhaal: >-
+          Als aanvrager wil ik alleen de vragen zien die voor mijn situatie
+          gelden, zodat ik niet hoef te raden welke velden ik moet invullen.
+        acceptatiecriteria:
+          - De volgorde en de zichtbaarheid van de vragen komen uit het regelwerk.
+          - Een wijziging in het regelwerk verandert het scherm zonder handwerk.
+        voorstel: true
+      - titel: Een generiek component per soort invoer
+        id: rc1-generiek-invoercomponent
+        verhaal: >-
+          Als ontwikkelaar wil ik per soort invoer (bedrag, datum, keuze) één
+          herbruikbaar component, zodat een volgende casus het scherm niet
+          opnieuw bouwt.
+        acceptatiecriteria:
+          - De componenten zijn gedocumenteerd met het regelwerkveld dat ze bedienen.
+          - De casus gebruikt geen component dat alleen voor deze regeling werkt.
+        voorstel: true
   - vraag: >-
       Methode: Wat zijn patronen en tooling in het analyseren en valideren van de
       regelwerken die herbruikbaar zijn voor volgende casussen, en waar

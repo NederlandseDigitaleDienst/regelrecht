@@ -7,15 +7,22 @@
  * nldd-list van het type `tree` met één tak, de rij als knop, en in de
  * `children`-slot één rij met het uitgeklapte deel: het doel, het mini-bord
  * met de deelvragen in vrij, opgepakt en klaar (een deelvraag zonder eigen
- * status volgt de lane van deze vraag), en de verwante vragen. Het
+ * status volgt de lane van deze vraag), de user stories in
+ * prioriteitsvolgorde (RoadmapStoryLijst), en de verwante vragen. Het
  * werkpakket en de papersectie staan als klikbare segmenten op de kaart zelf.
+ *
+ * De stories staan vóór de deelvragen: de deelvragen zijn de stappen van het
+ * onderzoek, de stories zijn wat er voor de gebruiker moet komen te staan,
+ * en dat laatste is waar het team op prioriteert.
  *
  * De data-attributen voor zoeken en het standfilter staan op de lijst, niet
  * op de rij, om dezelfde reden als bij de werkpakketrij.
  */
 import RoadmapMiniBord from '~/components/RoadmapMiniBord.astro';
+import RoadmapStoryLijst from '~/components/RoadmapStoryLijst.astro';
 import {
   getOnderzoek,
+  storiesTekst,
   getBelegging,
   vraagLane,
   deelvraagLane,
@@ -98,7 +105,7 @@ const tickets: MiniTicket[] = vraag.deelvragen.map((d) => {
   <nldd-list-item-segment class="rr-vraag__veld rr-vraag__veld--werkpakket" button data-open-werkpakket={werkpakket.id} accessible-label={`Werkpakket ${werkpakket.titel} openen`}>
     <nldd-text-cell overline="Werkpakket" text={werkpakket.titel} />
   </nldd-list-item-segment>
-  <nldd-list-item-segment button disclosure width="full" accessible-label={`${vraag.vraag}, deelvragen tonen`}>
+  <nldd-list-item-segment button disclosure width="full" accessible-label={`${vraag.vraag}, user stories en deelvragen tonen`}>
     <nldd-text-cell overline={kopregel} text={vraag.vraag} width="full">
       <nldd-container slot="supporting-text" layout="wrap" gap="4" vertical-alignment="center">
         {/* De eigen status als tag; zonder eigen status de belegging van het
@@ -123,6 +130,11 @@ const tickets: MiniTicket[] = vraag.deelvragen.map((d) => {
           />
         ))}
         {rfcs && <nldd-text size="xs" color="secondary">{rfcs}</nldd-text>}
+        {/* De telling van de stories op de kaart zelf, zodat je zonder
+            uitklappen ziet welke vragen al concreet zijn gemaakt. */}
+        {vraag.stories.length > 0 && (
+          <nldd-text size="xs" color="secondary">{storiesTekst(vraag.stories.length)}</nldd-text>
+        )}
       </nldd-container>
     </nldd-text-cell>
     <nldd-icon-cell size="20" icon="chevron-right" disclosure />
@@ -147,6 +159,11 @@ const tickets: MiniTicket[] = vraag.deelvragen.map((d) => {
             <nldd-text size="sm">{vraag.doel}</nldd-text>
           </nldd-container>
         )}
+
+        <nldd-container gap="4">
+          <nldd-text size="xs" weight="medium" color="secondary">User stories</nldd-text>
+          <RoadmapStoryLijst stories={vraag.stories} ouderLane={lane} />
+        </nldd-container>
 
         <nldd-container gap="4">
           <nldd-text size="xs" weight="medium" color="secondary">Deelvragen</nldd-text>

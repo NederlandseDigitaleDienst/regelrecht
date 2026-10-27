@@ -271,7 +271,9 @@ de titel om ertussen te wisselen:
   velden op de kaart. Druk op de vraag zelf en eronder staan het doel, de
   verwante vragen en een mini-bord met de deelvragen in dezelfde drie lanes
   (ook als dat nog leeg is); een deelvraag zonder eigen status volgt zijn
-  vraag.
+  vraag. Boven de deelvragen staan de user stories van de vraag als
+  genummerde kaarten in prioriteitsvolgorde, elk met stand, paragraaf en
+  acceptatiecriteria (`RoadmapStoryLijst.astro`).
 
 Een werkpakket opent op beide pagina's in een paneel over de helft van het
 scherm, zonder paginawissel: op het bord via een vraagticket in het
@@ -356,6 +358,57 @@ een `verwant` naar zichzelf, en een `verwant` op een vraag zonder eigen id,
 met het werkpakket en de plek erbij (`werkpakket X (Titel): vraag 3, deelvraag
 2 heeft id "…", maar …`). Een verschreven sleutel (`deelvraag:`) valt de build
 ook: de objecten zijn strikt, zodat zo'n fout niet stil verdwijnt.
+
+### User stories onder een vraag
+
+Een hoofdvraag kan `stories` dragen: het niveau waarop het team prioriteert,
+en wat een casus overdraagbaar maakt. Een deelvraag niet; het werk hangt aan
+de vraag.
+
+```yaml
+  - vraag: >-
+      Kan een herbruikbare frontend worden vormgegeven op basis van regelwerken?
+    id: rc1-herbruikbare-frontend
+    stories:
+      - titel: Een aanvraagscherm dat uit het regelwerk volgt
+        id: rc1-aanvraagscherm-uit-regelwerk
+        verhaal: >-
+          Als aanvrager wil ik alleen de vragen zien die voor mijn situatie
+          gelden, zodat ik niet hoef te raden welke velden ik moet invullen.
+        stand: opgepakt
+        acceptatiecriteria:
+          - De volgorde en de zichtbaarheid van de vragen komen uit het regelwerk.
+        voorstel: true
+```
+
+Alleen `titel` is verplicht. Een story is een titel en een paragraaf, niet
+meer: geen punten, geen inschatting, geen namen, geen casusdetails. Taken
+horen in Bouwmeester, niet hier.
+
+`verhaal` — de paragraaf, in de taal van de gebruiker ("Als … wil ik … zodat
+…"). Mag leeg; eerst een titel en een plek, de rest later.
+
+`stand` — `vrij`, `opgepakt`, `klaar`, of `''`. Het vocabulaire van de
+belegging, niet van `status`: een story is werk dat iemand oppakt en afrondt.
+Leeg betekent "volgt de vraag": de story staat dan in de lane van zijn vraag,
+en de kaart zegt dat ("via vraag"). Vul alleen een stand in als die van de
+vraag afwijkt.
+
+`acceptatiecriteria` — wat déze oplevering specifiek moet doen. Niet de
+definition of done; die geldt voor alles en wordt niet per story herhaald.
+
+`voorstel: true` — de story is een suggestie en nog niet door het team
+vastgesteld. De pagina's tonen een tag "Voorstel". Stelt het team hem vast,
+haal het veld dan weg.
+
+`id` — een slug, uniek over alle stories; het anker is `#story-<id>`. Alleen
+nodig als iets ernaar moet wijzen.
+
+De volgorde in de lijst is de prioriteit: de bovenste eerst. Er is met opzet
+geen apart veld voor.
+
+De build valt op een dubbel story-id en op een verschreven sleutel (de
+objecten zijn strikt).
 
 ### De juiste sectie vinden
 
@@ -554,6 +607,7 @@ aan zodra je `/roadmap` echt opvraagt. Vertrouw op `docs-build`.
 - een `paper:`-anker dat niet in het paper staat, ook op een deelvraag
 - een onderzoeksvraag met een dubbel `id`, een `verwant` dat nergens heen
   wijst of naar zichzelf, of een `verwant` op een vraag zonder eigen `id`
+- een user story met een dubbel `id`
 - een RFC-nummer in `rfcs` dat niet bestaat
 - een `belegging` die niet klopt: `opgepakt` of `klaar` zonder `sinds`, een
   `sinds` bij een stand die hem nergens toont, een datum in de toekomst, of

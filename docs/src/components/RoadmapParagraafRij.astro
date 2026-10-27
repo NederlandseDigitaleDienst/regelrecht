@@ -16,6 +16,7 @@
 import RoadmapVraagRij from '~/components/RoadmapVraagRij.astro';
 import {
   BELEGGING_STANDEN,
+  storiesTekst,
   vraagLane,
   type PaperSectie,
   type VraagMetWerkpakket,
@@ -35,10 +36,12 @@ const sleutel = sectie?.slug ?? 'geen';
 
 const kop = sectie ? `§ ${sectie.nummer}` : 'Zonder sectie in het paper';
 const deelvragen = items.reduce((n, { vraag }) => n + vraag.deelvragen.length, 0);
+const stories = items.reduce((n, { vraag }) => n + vraag.stories.length, 0);
 const meervoud = (n: number, een: string, meer: string) => `${n} ${n === 1 ? een : meer}`;
 const telling = [
   meervoud(items.length, 'vraag', 'vragen'),
   deelvragen > 0 && meervoud(deelvragen, 'deelvraag', 'deelvragen'),
+  stories > 0 && storiesTekst(stories),
 ]
   .filter(Boolean)
   .join(', ');

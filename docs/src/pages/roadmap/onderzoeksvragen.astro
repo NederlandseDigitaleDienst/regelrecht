@@ -31,8 +31,11 @@ import {
   vragenOpVolgorde,
   verwantIndex,
   telStatussen,
+  telStories,
+  BELEGGING_STANDEN,
   ONDERZOEK_STANDEN,
   GEEN_STATUS,
+  storiesTekst,
   assertReferencesResolve,
   assertPaperSections,
   assertOnderzoeksvragen,
@@ -55,6 +58,7 @@ const meervoud = (n: number, een: string, meer: string) =>
 const vragen = vragenOpVolgorde(werkpakketten);
 const verwanten = verwantIndex(werkpakketten);
 const telling = telStatussen(werkpakketten);
+const stories = telStories(werkpakketten);
 
 /*
  * De vragen per paragraaf van het paper, in de volgorde waarin ze al staan.
@@ -88,12 +92,12 @@ const pathname = '/roadmap/onderzoeksvragen';
   pathname={pathname}
   noSearchIndex
   title="Onderzoeksvragen · Roadmap · RegelRecht"
-  description="Alle onderzoeksvragen van de RegelRecht-roadmap, met hun stand, deelvragen en verwante vragen."
+  description="Alle onderzoeksvragen van de RegelRecht-roadmap, met hun stand, user stories, deelvragen en verwante vragen."
 >
   <RoadmapSectie>
     <RoadmapKop
       huidig="onderzoeksvragen"
-      ondertitel="De paragrafen van het position paper, elk met de onderzoeksvragen die eraan hangen. Druk op een paragraaf voor zijn vragen, en op een vraag voor zijn deelvragen, elk met de stand: vrij, opgepakt of klaar."
+      ondertitel="De paragrafen van het position paper, elk met de onderzoeksvragen die eraan hangen. Druk op een paragraaf voor zijn vragen, en op een vraag voor zijn user stories en deelvragen, elk met de stand: vrij, opgepakt of klaar."
       zoek={{ placeholder: 'Zoek in onderzoeksvragen', noun: 'vragen' }}
       filters={['stand']}
       weergaven={[
@@ -123,6 +127,20 @@ const pathname = '/roadmap/onderzoeksvragen';
         Onderzoek per werkpakket ({telling.werkpakketten.totaal} werkpakketten):{' '}
         {standenTekst(telling.werkpakketten.perStatus)}.
       </nldd-text>
+      {/* De derde regel gaat over het werk onder de vragen. Een story zonder
+          eigen stand telt in de lane van zijn vraag, zoals zijn tag hem toont.
+          Het standfilter hierboven filtert op de vraag, niet op de story: een
+          story met een eigen stand die van zijn vraag afwijkt telt hier in
+          zijn eigen lane, maar verdwijnt met zijn vraag als die wegfiltert.
+          Bewust zo gelaten tot stories een eigen filter nodig blijken te
+          hebben. */}
+      {stories.totaal > 0 && (
+        <nldd-text size="sm" color="secondary">
+          {storiesTekst(stories.totaal)} onder de vragen:{' '}
+          {BELEGGING_STANDEN.map((s) => `${stories.perLane[s.id] ?? 0} ${s.label.toLowerCase()}`).join(', ')}
+          {stories.voorstel > 0 && `, waarvan ${stories.voorstel} nog een voorstel`}.
+        </nldd-text>
+      )}
     </nldd-container>
 
     {/* Eén kolom, de volle breedte: per paragraaf een tegel, dicht bij het

@@ -1,0 +1,131 @@
+---
+/*
+ * De user stories onder een onderzoeksvraag, als genummerde kaarten in
+ * prioriteitsvolgorde: de bovenste eerst, want dat is de afspraak over
+ * prioriteren ("één staat bovenaan") en daarom staat er geen cijfer in de
+ * frontmatter dat van die volgorde kan afwijken.
+ *
+ * Per story: de titel met zijn stand als tag (eigen stand, of die van de
+ * vraag met "via vraag" erbij, zoals een deelvraag zijn lane overneemt), een
+ * tag "Voorstel" als het team hem nog niet heeft vastgesteld, de paragraaf
+ * in de taal van de gebruiker, en de acceptatiecriteria als lijst. Alles in
+ * één oogopslag, niets uitklapbaars: een story is een titel en een paragraaf,
+ * en wie meer moet klikken om dat te lezen, leest het niet.
+ *
+ * Geen taken: die staan in Bouwmeester. Geen namen, geen punten: de roadmap
+ * is publiek en het proces is licht.
+ *
+ * Wordt gebruikt op de vragenpagina, onder een uitgeklapte vraag. Het
+ * werkpakketpaneel en het bord noemen alleen het aantal (werkpakketTickets);
+ * de werkpakketpagina rendert titel en stand als lopende lijst in
+ * RoadmapVraag.astro.
+ */
+import { getBelegging, storyLane, type UserStory } from '~/lib/roadmap';
+
+interface Props {
+  stories: UserStory[];
+  /** De lane van de vraag erboven; een story zonder eigen stand staat daarin. */
+  ouderLane: string;
+}
+
+const { stories, ouderLane } = Astro.props;
+
+const rijen = stories.map((story, i) => {
+  const { lane, eigen } = storyLane(story, ouderLane);
+  return { story, nummer: i + 1, lane, eigen, stand: getBelegging(lane) };
+});
+---
+
+{
+  rijen.length === 0 ? (
+    <nldd-text size="xs" color="secondary">
+      Nog geen user stories. Die komen bij het scherpstellen van de vraag.
+    </nldd-text>
+  ) : (
+    <ol class="rr-story__lijst" aria-label="User stories, in prioriteitsvolgorde">
+      {rijen.map(({ story, nummer, lane, eigen, stand }) => (
+        <li>
+        <nldd-card id={story.anker} background={lane === 'opgepakt' ? 'tinted' : undefined}>
+          <nldd-container padding="12" gap="8">
+            <nldd-container layout="row" gap="8" vertical-alignment="top">
+              {/* Het cijfer is de prioriteit; een schermlezer leest "1." net
+                  zo goed als een kijker. */}
+              <nldd-text size="sm" weight="medium" color="secondary">{nummer}.</nldd-text>
+              <nldd-container gap="4" width="full">
+                <nldd-text size="sm" weight="medium">{story.titel}</nldd-text>
+                <nldd-container layout="wrap" gap="4" vertical-alignment="center">
+                  {/* Vrij krijgt geen tag, zoals overal op de roadmap: alleen
+                      opgepakt en klaar zeggen iets. */}
+                  {stand && stand.id !== 'vrij' && (
+                    <nldd-tag
+                      size="sm"
+                      color={stand.tagColor}
+                      text={stand.label}
+                      icon={stand.id === 'klaar' ? 'done' : 'user'}
+                    />
+                  )}
+                  {stand && stand.id !== 'vrij' && !eigen && (
+                    <nldd-text size="xs" color="secondary">via vraag</nldd-text>
+                  )}
+                  {story.voorstel && <nldd-tag size="sm" color="neutral" text="Voorstel" />}
+                  {story.acceptatiecriteria.length > 0 && (
+                    <nldd-text size="xs" color="secondary">
+                      {story.acceptatiecriteria.length}{' '}
+                      {story.acceptatiecriteria.length === 1 ? 'acceptatiecriterium' : 'acceptatiecriteria'}
+                    </nldd-text>
+                  )}
+                </nldd-container>
+              </nldd-container>
+            </nldd-container>
+
+            {story.verhaal && <nldd-text size="sm">{story.verhaal}</nldd-text>}
+
+            {story.acceptatiecriteria.length > 0 && (
+              <nldd-container gap="2">
+                <nldd-text size="xs" weight="medium" color="secondary">Acceptatiecriteria</nldd-text>
+                <ol class="rr-story__criteria">
+                  {story.acceptatiecriteria.map((c) => (
+                    <li>{c}</li>
+                  ))}
+                </ol>
+              </nldd-container>
+            )}
+          </nldd-container>
+        </nldd-card>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+<style>
+  /*
+   * De kaarten in een echte lijst, zonder lijstteken: de volgorde ís de
+   * prioriteit, en een <ol> zegt dat ook aan een schermlezer. Het cijfer
+   * staat als tekst in de kaart, dus het lijstteken is dubbel.
+   */
+  .rr-story__lijst {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /*
+   * De acceptatiecriteria als gewone genummerde lijst. Eigen CSS, want een
+   * nldd-card zit niet in de rich-text-context die lijsten hun ritme geeft,
+   * en zonder dit staan de nummers tegen de rand van de kaart.
+   */
+  .rr-story__criteria {
+    margin: 0;
+    padding-inline-start: 1.25rem;
+    font: var(--primitives-font-body-sm-regular, inherit);
+    color: var(--semantics-content-primary-color, inherit);
+  }
+
+  .rr-story__criteria li + li {
+    margin-block-start: 0.25rem;
+  }
+</style>

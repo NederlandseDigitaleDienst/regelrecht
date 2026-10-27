@@ -59,8 +59,24 @@ export interface VraagVelden {
 /** Een deelvraag: een string of de objectvorm, zonder eigen deelvragen. */
 export type DeelvraagData = string | VraagVelden;
 
+/**
+ * Een user story zoals hij in de frontmatter staat, onder `stories` van een
+ * hoofdvraag; de betekenis van de velden staat bij `storyVelden` in
+ * content.config.ts.
+ */
+export interface StoryData {
+  titel: string;
+  id?: string;
+  verhaal: string;
+  stand: string;
+  acceptatiecriteria: string[];
+  voorstel: boolean;
+}
+
 /** Een onderzoeksvraag zoals hij in de frontmatter staat. */
-export type VraagData = string | (VraagVelden & { deelvragen: DeelvraagData[] });
+export type VraagData =
+  | string
+  | (VraagVelden & { deelvragen: DeelvraagData[]; stories: StoryData[] });
 
 /** A werkpakket's frontmatter, mirroring the zod schema in content.config.ts. */
 export interface WerkpakketData {
@@ -723,14 +739,38 @@ export interface Onderzoeksvraag {
   /** De ids uit de frontmatter, één kant op; verwantIndex() leest beide. */
   verwant: string[];
   deelvragen: Onderzoeksvraag[];
+  /** De user stories onder de vraag, in prioriteitsvolgorde; leeg op een deelvraag. */
+  stories: UserStory[];
 }
+
+/**
+ * Een user story zoals de pagina's hem renderen. Dezelfde velden als
+ * StoryData, plus het anker voor een story met een id.
+ */
+export interface UserStory extends StoryData {
+  /** `story-<id>`: het anker op de pagina's. Alleen met een id. */
+  anker?: string;
+}
+
+/** Het anker van een story op de werkpakketpagina en het overzicht. */
+export const storyAnker = (id: string) => `story-${id}`;
 
 /** Het anker van een vraag op de werkpakketpagina en het overzicht. */
 export const vraagAnker = (id: string) => `vraag-${id}`;
 
-/** De tekst van een vraag met zijn doel en deelvragen, voor het zoeken. */
+/**
+ * De tekst van een vraag met zijn doel, deelvragen en stories, voor het
+ * zoeken. De stories tellen mee: wie op "aanvraagscherm" zoekt vindt de
+ * vraag waar die story onder hangt, ook als de vraag zelf het woord niet
+ * gebruikt.
+ */
 function vraagTekst(v: Onderzoeksvraag): string[] {
-  return [v.vraag, v.doel, ...v.deelvragen.flatMap(vraagTekst)];
+  return [
+    v.vraag,
+    v.doel,
+    ...v.deelvragen.flatMap(vraagTekst),
+    ...v.stories.flatMap((st) => [st.titel, st.verhaal, ...st.acceptatiecriteria]),
+  ];
 }
 
 /**
@@ -798,7 +838,14 @@ export const getPaperSectie = (slug: string) => paperSecties.get(slug);
 
 function normaliseerVraag(v: VraagData | DeelvraagData): Onderzoeksvraag {
   if (typeof v === 'string') {
-    return { vraag: v, status: '', doel: '', verwant: [], deelvragen: [] };
+    return {
+      vraag: v,
+      status: '',
+      doel: '',
+      verwant: [],
+      deelvragen: [],
+      stories: [],
+    };
   }
   return {
     vraag: v.vraag,
@@ -809,6 +856,10 @@ function normaliseerVraag(v: VraagData | DeelvraagData): Onderzoeksvraag {
     doel: v.doel,
     verwant: v.verwant,
     deelvragen: ('deelvragen' in v ? v.deelvragen : []).map(normaliseerVraag),
+    stories: ('stories' in v ? v.stories : []).map((st) => ({
+      ...st,
+      anker: st.id ? storyAnker(st.id) : undefined,
+    })),
   };
 }
 
@@ -967,6 +1018,51 @@ export function deelvraagLane(
 }
 
 /**
+ * De lane van een user story: zijn eigen stand (vrij, opgepakt, klaar), en
+ * zonder eigen stand die van zijn vraag. Dezelfde afleiding als bij een
+ * deelvraag, maar zonder vertaling: een story spreekt al het vocabulaire van
+ * de lanes.
+ */
+export function storyLane(
+  story: UserStory,
+  ouderLane: string,
+): { lane: string; eigen: boolean } {
+  if (story.stand) return { lane: story.stand, eigen: true };
+  return { lane: ouderLane, eigen: false };
+}
+
+/** "3 user stories" of "1 user story", voor tellingen op tegels en tickets. */
+export const storiesTekst = (n: number) =>
+  `${n} ${n === 1 ? 'user story' : 'user stories'}`;
+
+/**
+ * De tellingen van de user stories: hoeveel er zijn, hoeveel per lane (zoals
+ * storyLane() ze afleidt, dus met de stand van de vraag erbij), en hoeveel
+ * daarvan nog een voorstel zijn. Voor de regel boven het vragenoverzicht.
+ */
+export function telStories(werkpakketten: { data: WerkpakketData }[]): {
+  totaal: number;
+  perLane: Record<string, number>;
+  voorstel: number;
+} {
+  const perLane: Record<string, number> = {};
+  let totaal = 0;
+  let voorstel = 0;
+  for (const { data } of werkpakketten) {
+    for (const vraag of onderzoeksvraagLijst(data.onderzoeksvragen)) {
+      const ouder = vraagLane(vraag, data).lane;
+      for (const story of vraag.stories) {
+        const { lane } = storyLane(story, ouder);
+        perLane[lane] = (perLane[lane] ?? 0) + 1;
+        totaal += 1;
+        if (story.voorstel) voorstel += 1;
+      }
+    }
+  }
+  return { totaal, perLane, voorstel };
+}
+
+/**
  * De onderzoeksvragen van een werkpakket als tickets voor het mini-bord: de
  * stand uit de eigen status, of uit de belegging van het werkpakket. Gedeeld
  * door het bord en het werkpakketpaneel, zodat beide hetzelfde laten zien.
@@ -985,6 +1081,7 @@ export function werkpakketTickets(data: WerkpakketData): MiniTicket[] {
           vraag.paper && `§ ${vraag.paper.nummer}`,
           vraag.deelvragen.length > 0 &&
             `${vraag.deelvragen.length} ${vraag.deelvragen.length === 1 ? 'deelvraag' : 'deelvragen'}`,
+          vraag.stories.length > 0 && storiesTekst(vraag.stories.length),
         ]
           .filter(Boolean)
           .join(' · ') || undefined,
@@ -1133,6 +1230,28 @@ export function assertOnderzoeksvragen(
     } else {
       gezien.set(id, v);
     }
+  }
+
+  /*
+   * De ids van stories delen de ruimte van de vragen niet (hun anker is
+   * `story-<id>`), maar wel die van elkaar: twee stories met hetzelfde id
+   * zouden hetzelfde anker dragen, en de tweede is dan onvindbaar.
+   */
+  const storyIds = new Map<string, string>();
+  for (const v of alle) {
+    v.vraag.stories.forEach((story, i) => {
+      if (!story.id) return;
+      const hier = `${waar(v)}, story ${i + 1}`;
+      const eerder = storyIds.get(story.id);
+      if (eerder) {
+        problems.push(
+          `${hier} heeft id "${story.id}", maar ${eerder} ook; een story-id ` +
+            'moet uniek zijn over de hele roadmap',
+        );
+      } else {
+        storyIds.set(story.id, hier);
+      }
+    });
   }
 
   for (const v of alle) {

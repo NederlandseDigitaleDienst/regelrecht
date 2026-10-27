@@ -78,6 +78,26 @@ onderzoeksvragen:
       trace ook waarden over een ander bevat?
     id: trace-bij-ontvangst
     paper: sec:traceaccess
+    stories:
+      - titel: De trace zit bij het besluit
+        id: trace-bij-besluit
+        verhaal: >-
+          Als burger wil ik bij mijn besluit de execution trace kunnen inzien,
+          zodat ik kan nagaan op welke feiten en welke regel het rustte.
+        acceptatiecriteria:
+          - Het besluit verwijst naar de trace waarmee het is berekend.
+          - De trace is herberekenbaar met de gepubliceerde regel.
+        voorstel: true
+      - titel: Waarden over een ander blijven buiten beeld
+        id: trace-waarden-over-ander
+        verhaal: >-
+          Als burger wil ik in mijn trace alleen de waarden zien die over mij
+          gaan, zodat gegevens van een ander niet via mijn besluit bij mij
+          terechtkomen.
+        acceptatiecriteria:
+          - Een waarde over een ander is in de trace vervangen door een verwijzing.
+          - De herberekening blijft mogelijk zonder die waarde te tonen.
+        voorstel: true
 samenhangIds:
   - informatiepositie-burgers-ondernemers
   - lakmoesproef-valideren-en-vaststellen
