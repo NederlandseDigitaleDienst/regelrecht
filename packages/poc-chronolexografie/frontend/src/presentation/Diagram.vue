@@ -34,9 +34,9 @@ const keten = [
 // with the article its own decisions rest on (`basis`), where its box
 // stands and the arrow from it to the Awb-reductie in the middle.
 const awb = [
-  { naam: 'OBS De Klimop: al verlof dit schooljaar?', basis: 'basis: leerplichtwet_1969#13a', x: 0, y: 0, pijl: 'M 165 74 L 260 130' },
-  { naam: 'Wilgendaal: al een geldige kaart?', basis: 'basis: …babw#49', x: 370, y: 0, pijl: 'M 535 74 L 440 130' },
-  { naam: 'Wilgendaal: hoeveel vergunningen?', basis: 'basis: …parkeerverordening…#2', x: 185, y: 250, pijl: 'M 350 250 L 350 200' },
+  { naam: 'De Klimop: al verlof dit schooljaar?', basis: 'basis: leerplichtwet_1969#13a', x: 0, y: 0, pijl: 'M 210 74 L 340 130' },
+  { naam: 'Wilgendaal: geldige kaart?', basis: 'basis: …babw#49', x: 460, y: 0, pijl: 'M 670 74 L 540 130' },
+  { naam: 'Wilgendaal: aantal vergunningen?', basis: 'basis: …parkeerverordening…#2', x: 230, y: 250, pijl: 'M 440 250 L 440 200' },
 ];
 
 const synthese = {
@@ -93,17 +93,17 @@ const synthese = {
 
     <!-- De Awb-reductie in het midden, de reducties die haar gebruiken
          eromheen. -->
-    <svg v-else-if="name === 'awb'" viewBox="0 0 700 330">
+    <svg v-else-if="name === 'awb'" viewBox="0 0 880 330">
       <defs aria-hidden="true"><marker :id="arrowId" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="head" /></marker></defs>
       <g v-for="(r, i) in awb" :key="i" :transform="`translate(${r.x} ${r.y})`">
-        <rect x="2" y="2" width="326" height="70" rx="8" class="box" />
-        <text x="165" y="32" class="strong" text-anchor="middle">{{ r.naam }}</text>
-        <text x="165" y="56" class="mono" text-anchor="middle">{{ r.basis }}</text>
+        <rect x="2" y="2" width="416" height="70" rx="8" class="box" />
+        <text x="210" y="32" class="strong" text-anchor="middle">{{ r.naam }}</text>
+        <text x="210" y="56" class="mono" text-anchor="middle">{{ r.basis }}</text>
       </g>
       <path v-for="(r, i) in awb" :key="`pijl-${i}`" :d="r.pijl" class="arrow" :marker-end="arrow" />
-      <rect x="200" y="132" width="300" height="66" rx="33" class="box accent" />
-      <text x="350" y="160" class="strong" text-anchor="middle">Reductie van de Awb</text>
-      <text x="350" y="182" class="mono" text-anchor="middle">geldende_besluiten</text>
+      <rect x="290" y="132" width="300" height="66" rx="33" class="box accent" />
+      <text x="440" y="160" class="strong" text-anchor="middle">Reductie van de Awb</text>
+      <text x="440" y="182" class="mono" text-anchor="middle">geldende_besluiten</text>
     </svg>
 
     <!-- Synthese: two cells each answer a question of their own from their
