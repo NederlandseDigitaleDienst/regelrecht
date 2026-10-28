@@ -494,6 +494,182 @@ mod tests {
         );
     }
 
+    /// The test regulation with the application in article 1 and the
+    /// decision it asks for in article 2 (`requests`, RFC-047).
+    const AANVRAAG_EN_BESLUIT_APART: &str = r#"---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.8/schema/v0.8.8/schema.json
+$id: voorbeeld_bron_subsidie
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.invalid/voorbeeld_bron_subsidie
+name: Voorbeeldsubsidie (fictieve testbron)
+competent_authority:
+  name: Voorbeeldautoriteit
+articles:
+  - number: '1'
+    text: FICTIEF. Een vereniging kan subsidie aanvragen voor een subsidiejaar.
+    url: https://example.invalid/voorbeeld_bron_subsidie#1
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: voorbeeld_bron_subsidie#2
+            parameters:
+              - naam_partij
+              - subsidiejaar
+            outputs:
+              - aanvraag_ontvangen
+        parameters:
+          - name: naam_partij
+            type: string
+            description: De naam van de vereniging die subsidie aanvraagt.
+          - name: subsidiejaar
+            type: number
+            description: Het jaar waarvoor subsidie wordt gevraagd.
+        output:
+          - name: aanvraag_ontvangen
+            type: boolean
+            description: Dat de aanvraag is ontvangen.
+        actions:
+          - output: aanvraag_ontvangen
+            value: true
+  - number: '2'
+    text: >-
+      FICTIEF. De Voorbeeldautoriteit besluit op de aanvraag, en verleent de
+      subsidie indien de vereniging geregistreerd is.
+    url: https://example.invalid/voorbeeld_bron_subsidie#2
+    machine_readable:
+      open_terms:
+        - id: partij_geregistreerd
+          type: boolean
+          required: true
+          decided_per_case_by: de Voorbeeldautoriteit (artikel 2)
+          description: Of de aanvragende vereniging geregistreerd is.
+      execution:
+        produces:
+          - type: BESCHIKKING
+            decision_type: TOEKENNING
+            outputs:
+              - subsidie_verleend
+        parameters:
+          - name: naam_partij
+            type: string
+            description: De naam van de vereniging die subsidie aanvraagt.
+          - name: subsidiejaar
+            type: number
+            description: Het jaar waarvoor subsidie wordt gevraagd.
+        output:
+          - name: subsidie_verleend
+            type: boolean
+            description: Of de autoriteit de subsidie verleent.
+        actions:
+          - output: subsidie_verleend
+            value: $partij_geregistreerd
+"#;
+
+    /// The test regulation of the source `voorbeeld`.
+    const VOORBEELD_WET: &str =
+        "regulation/nl/uitvoeringsbeleid/voorbeeld_bron_subsidie/2026-01-01.yaml";
+
+    /// The source `voorbeeld` with its test regulation replaced by `wet`.
+    fn voorbeeld_met(wet: &str) -> Bron {
+        let mut bron = voorbeeld();
+        bron.bestanden.insert(VOORBEELD_WET.into(), wet.into());
+        bron
+    }
+
+    #[test]
+    fn a_case_decides_on_the_article_its_application_asks_for() {
+        let bron = voorbeeld_met(AANVRAAG_EN_BESLUIT_APART);
+        let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        assert!(standen[0].fouten.is_empty(), "{:?}", standen[0]);
+        let c = alle
+            .iter()
+            .find(|c| c.casus.id == "voorbeeld_subsidie")
+            .unwrap();
+        assert_eq!(
+            (c.afleiding.article.as_str(), c.afleiding.decision.as_str()),
+            ("1", "2")
+        );
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        let outputs = speel(&mut spel, "voorbeeld_subsidie");
+        assert_eq!(outputs["subsidie_verleend"], serde_json::json!(true));
+    }
+
+    #[test]
+    fn an_application_that_asks_for_a_missing_article_is_named() {
+        let wet = AANVRAAG_EN_BESLUIT_APART.replace(
+            "requests: voorbeeld_bron_subsidie#2",
+            "requests: voorbeeld_bron_subsidie#9",
+        );
+        let fout = fouten_met(&wet, "artikel: voorbeeld_bron_subsidie#1");
+        assert!(
+            fout.contains("asks for the decision of voorbeeld_bron_subsidie#9"),
+            "{fout}"
+        );
+    }
+
+    /// The errors of the source `voorbeeld` with its test regulation
+    /// replaced by `wet` and the case's `artikel:` line by `artikel`.
+    fn fouten_met(wet: &str, artikel: &str) -> String {
+        let mut bron = voorbeeld_met(wet);
+        let casus = "casussen/voorbeeld_subsidie.yaml";
+        let tekst = bron.bestanden[casus].replace("artikel: voorbeeld_bron_subsidie#1", artikel);
+        bron.bestanden.insert(casus.into(), tekst);
+        let (_, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        standen[0].fouten.join("\n")
+    }
+
+    #[test]
+    fn an_application_that_asks_for_an_article_without_a_decision_is_named() {
+        let wet = AANVRAAG_EN_BESLUIT_APART.replace(
+            "requests: voorbeeld_bron_subsidie#2",
+            "requests: voorbeeld_bron_subsidie#1",
+        );
+        let fout = fouten_met(&wet, "artikel: voorbeeld_bron_subsidie#1");
+        assert!(
+            fout.contains(
+                "asks for the decision of voorbeeld_bron_subsidie#1, which its corpus does not \
+                 hold as an article that takes a decision"
+            ),
+            "{fout}"
+        );
+    }
+
+    #[test]
+    fn a_case_on_a_missing_law_or_article_says_which() {
+        let fout = fouten_met(
+            AANVRAAG_EN_BESLUIT_APART,
+            "artikel: voorbeeld_bron_subsidie#9",
+        );
+        assert!(
+            fout.contains("'voorbeeld_bron_subsidie' has no article 9"),
+            "{fout}"
+        );
+        let fout = fouten_met(AANVRAAG_EN_BESLUIT_APART, "artikel: niet_in_het_corpus#1");
+        assert!(
+            fout.contains("needs regelwerk 'niet_in_het_corpus', which is not in the corpus"),
+            "{fout}"
+        );
+    }
+
+    #[test]
+    fn who_decides_follows_from_the_article_that_takes_the_decision() {
+        let wet = AANVRAAG_EN_BESLUIT_APART.replace(
+            "    machine_readable:\n      open_terms:",
+            "    machine_readable:\n      competent_authority:\n        name: Tweede autoriteit\n      open_terms:",
+        );
+        let bron = voorbeeld_met(&wet);
+        let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        assert!(standen[0].fouten.is_empty(), "{:?}", standen[0]);
+        let c = alle
+            .iter()
+            .find(|c| c.casus.id == "voorbeeld_subsidie")
+            .unwrap();
+        assert_eq!(c.afleiding.rol, "Tweede autoriteit");
+    }
+
     #[test]
     fn a_source_without_the_awb_does_not_get_the_regelrecht_one() {
         let mut bron = voorbeeld();

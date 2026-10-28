@@ -319,6 +319,15 @@ impl Corpus {
         &self.afleiding.article
     }
 
+    /// The law and article whose decision the application asks for.
+    fn decision_law(&self) -> &str {
+        &self.afleiding.decision_law
+    }
+
+    fn decision(&self) -> &str {
+        &self.afleiding.decision
+    }
+
     fn awb(&self) -> &str {
         &self.afleiding.objection_law
     }
@@ -352,7 +361,7 @@ impl Corpus {
             "begin": c.begin,
             "andere_cellen": c.andere_cellen,
             "scenarios": c.scenarios,
-            "besluit": format!("{}#{}", a.law, a.article),
+            "besluit": format!("{}#{}", a.decision_law, a.decision),
             "beslissing_op_bezwaar": format!("{}#{}", a.objection_law, a.objection),
             "rechter": rechter,
             "beroep": a.beroep.as_ref().map(|b| format!("{}#{}", b.law, b.article)),
@@ -375,7 +384,7 @@ impl Corpus {
             "titel": c.titel,
             "omschrijving": c.omschrijving,
             "cel_naam": c.cel_naam,
-            "besluit": format!("{}#{}", self.afleiding.law, self.afleiding.article),
+            "besluit": format!("{}#{}", self.decision_law(), self.decision()),
             "rol": self.afleiding.rol,
         })
     }
@@ -477,7 +486,7 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
     let service = corpus.service()?;
     let beantwoord = cell.gebonden(&service, on);
     let aanvraag = shape::derive(&service, corpus.law(), corpus.article(), on)?;
-    let besluit = decision::derive(&service, corpus.law(), corpus.article(), on)?;
+    let besluit = decision::derive(&service, corpus.decision_law(), corpus.decision(), on)?;
     let bezwaar = shape::derive(&service, corpus.awb(), corpus.objection(), on)?;
     let op_bezwaar = decision::derive(&service, corpus.awb(), corpus.objection(), on)?;
     let moment = |s: &shape::Shape| {
@@ -592,7 +601,7 @@ fn opnieuw_te_beoordelen(
     let mut uit: Vec<shape::Field> = Vec::new();
     for shape in [
         decision::derive(service, corpus.awb(), corpus.objection(), on)?,
-        decision::derive(service, corpus.law(), corpus.article(), on)?,
+        decision::derive(service, corpus.decision_law(), corpus.decision(), on)?,
     ] {
         for t in shape.terms.iter().filter(|t| t.asks_finding()) {
             if !uit.iter().any(|f| f.name == t.id) {
@@ -1557,8 +1566,8 @@ pub fn besluiten(
     let besluit = beslissen(
         corpus,
         cell,
-        corpus.law(),
-        corpus.article(),
+        corpus.decision_law(),
+        corpus.decision(),
         aanvraag,
         bevindingen,
         on,
@@ -1751,8 +1760,9 @@ fn voorvertonen<T>(
     // finding.
     let beantwoord = cell.gebonden(&service, on);
     let van_cel = |naam: &str| beantwoord.iter().any(|b| b.term.open_term == naam);
-    // The case's own article must derive: its error is the step's error.
-    let eigen_shape = decision::derive(&service, corpus.law(), corpus.article(), on)?;
+    // The decision the application asks for must derive: its error is the
+    // step's error.
+    let eigen_shape = decision::derive(&service, corpus.decision_law(), corpus.decision(), on)?;
     // A term the policy fills takes no finding; one a policy leaves to the
     // authority is given once the case reaches it.
     let wie = cell.eigen.authority();

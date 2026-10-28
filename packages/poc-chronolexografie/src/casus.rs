@@ -547,9 +547,14 @@ fn verzamel(files: &dyn Files, dir: &Path, uit: &mut Vec<PathBuf>) -> Result<()>
 /// What follows from the law for a case.
 #[derive(Debug, Clone, Serialize)]
 pub struct Afleiding {
-    /// The law and article of the application, and of its decision.
+    /// The law and article of the application.
     pub law: String,
     pub article: String,
+    /// The article whose decision the application asks for (`requests`,
+    /// RFC-047): the application's own in the object form, or the article
+    /// that its item names, which may be the application itself.
+    pub decision_law: String,
+    pub decision: String,
     /// The article that establishes the objection (`type: BEZWAAR`), and
     /// decides on it: Awb 7:11 for both cases.
     pub objection_law: String,
@@ -558,9 +563,9 @@ pub struct Afleiding {
     /// (`type: BEROEP`) and decides on it, Awb 8:70, and the fact in which
     /// the cell records the receipt of a judgment ([`Beroep`]).
     pub beroep: Option<Beroep>,
-    /// Who decides: the competent authority of the article, or else the
-    /// holder of its rulework (RFC-002), as the app names it ("het hoofd",
-    /// "het college van burgemeester en wethouders").
+    /// Who decides: the competent authority of the article that takes the
+    /// decision, or else the holder of its rulework (RFC-002), as the app
+    /// names it ("het hoofd", "het college van burgemeester en wethouders").
     pub rol: String,
     /// The regelwerken the cell runs, by `$id`, the article's law first.
     pub regelwerken: Vec<String>,
@@ -601,7 +606,11 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
         ))
     })?;
 
+    let (decision_law, decision) = gevraagd_besluit(regelwerken, &casus.id, law, article)?;
     let mut gevonden: Vec<String> = vec![law.to_string()];
+    if decision_law != law {
+        gevonden.push(decision_law.clone());
+    }
     for id in cells.iter().flat_map(|cell| cell.answers().values()) {
         if !gevonden.contains(id) {
             gevonden.push(id.clone());
@@ -640,11 +649,11 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
     )?;
 
     let werk = regelwerken
-        .get(law)
-        .ok_or_else(|| Error::Setup(format!("'{law}' is not in the corpus")))?;
-    let rol = rol(werk.nieuwste(), article).ok_or_else(|| {
+        .get(&decision_law)
+        .ok_or_else(|| Error::Setup(format!("'{decision_law}' is not in the corpus")))?;
+    let rol = rol(werk.nieuwste(), &decision).ok_or_else(|| {
         Error::Setup(format!(
-            "case '{}': {law}#{article} names no competent authority",
+            "case '{}': {decision_law}#{decision} names no competent authority",
             casus.id
         ))
     })?;
@@ -652,6 +661,8 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
     Ok(Afleiding {
         law: law.to_string(),
         article: article.to_string(),
+        decision_law,
+        decision,
         objection_law,
         objection,
         beroep,
@@ -710,6 +721,49 @@ fn beroep(
         ontvangst,
         rechter,
     }))
+}
+
+/// The article whose decision the application under `law#article` asks
+/// for ([`regelrecht_law_model::Article::requested_decision`]): it must be
+/// in the case's corpus and take a decision. The application's own law and
+/// article must be in that corpus too.
+fn gevraagd_besluit(
+    regelwerken: &Regelwerken,
+    casus: &str,
+    law: &str,
+    article: &str,
+) -> Result<(String, String)> {
+    let eigen = format!("{law}#{article}");
+    let werk = regelwerken.get(law).ok_or_else(|| {
+        Error::Setup(format!(
+            "case '{casus}' needs regelwerk '{law}', which is not in the corpus"
+        ))
+    })?;
+    let aanvraag = werk
+        .nieuwste()
+        .articles
+        .iter()
+        .find(|a| a.number == article)
+        .ok_or_else(|| Error::Setup(format!("case '{casus}': '{law}' has no article {article}")))?;
+    let doel = aanvraag.requested_decision(&eigen).ok_or_else(|| {
+        Error::Setup(format!(
+            "case '{casus}': {eigen} establishes no application that asks for a decision"
+        ))
+    })?;
+    let neemt = doel.split_once('#').and_then(|(l, a)| {
+        let werk = regelwerken.get(l)?;
+        werk.nieuwste()
+            .articles
+            .iter()
+            .any(|x| x.number == a && x.get_decision().is_some())
+            .then(|| (l.to_string(), a.to_string()))
+    });
+    neemt.ok_or_else(|| {
+        Error::Setup(format!(
+            "case '{casus}': {eigen} asks for the decision of {doel}, which its corpus does not \
+             hold as an article that takes a decision"
+        ))
+    })
 }
 
 /// The one article among the regelwerken `gevonden` whose `produces` lists a
