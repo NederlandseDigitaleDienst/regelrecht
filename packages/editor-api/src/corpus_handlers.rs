@@ -780,6 +780,11 @@ fn filter_corpus_laws_counted(
         .q
         .as_deref()
         .and_then(crate::law_search::LawQuery::parse);
+    // A query with nothing to search on ("...") finds nothing; without this
+    // it would fall through to the unfiltered list of the whole corpus.
+    if needle.is_none() && params.q.as_deref().is_some_and(|q| !q.trim().is_empty()) {
+        return (Vec::new(), 0);
+    }
 
     // Provenance filter. Orthogonal to `ids`/`q` — those say *which* laws,
     // this says *whose* — so it narrows (AND) whichever of the two applies
@@ -854,7 +859,8 @@ fn filter_corpus_laws_counted(
         // which puts a law before the acts that amend or introduce it. Without
         // a search (ids or source only) the rest is alphabetical. No offset
         // paging — return the matching set.
-        let searching = needle.is_some();
+        // `ids` wins over `q` (see the filter above), so an ids list is not a search.
+        let searching = needle.is_some() && id_filter.is_none();
         entries.sort_by(|(rank_a, loaded_a, a), (rank_b, loaded_b, b)| {
             let by_search = || {
                 if searching {
@@ -5546,6 +5552,29 @@ mod tests {
         let mut ids: Vec<String> = entries.into_iter().map(|e| e.law_id).collect();
         ids.sort();
         ids
+    }
+
+    #[test]
+    fn an_ids_list_stays_alphabetical_even_with_a_query() {
+        // `wet_beta` is the shorter id, so a search would put it first.
+        let (page, _) = filter_corpus_laws_counted(
+            &two_source_map(),
+            &HashSet::new(),
+            &params(None, Some("wet_beta,wet_alpha"), Some("wet")),
+        );
+        let ids: Vec<String> = page.into_iter().map(|e| e.law_id).collect();
+        assert_eq!(ids, vec!["wet_alpha", "wet_beta"]);
+    }
+
+    #[test]
+    fn a_query_without_words_finds_nothing() {
+        let (page, total) = filter_corpus_laws_counted(
+            &two_source_map(),
+            &HashSet::new(),
+            &params(None, None, Some("...")),
+        );
+        assert!(page.is_empty());
+        assert_eq!(total, 0);
     }
 
     #[test]

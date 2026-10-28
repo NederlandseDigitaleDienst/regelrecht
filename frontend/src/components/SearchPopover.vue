@@ -146,13 +146,20 @@ interface ResultHeading {
   supportingText?: string;
 }
 
-// Under the heading when the backend cut the list short: the matches are
-// ranked, so these are the best ones, and a longer query finds the rest.
-const cappedNote = computed(() =>
-  resultsCapped.value
-    ? `De beste ${serverLaws.value.length} van ${totalMatches.value.toLocaleString('nl-NL')} treffers. Typ meer om te verfijnen.`
-    : undefined,
-);
+// Under the heading when the backend cut this source's list short. The cap
+// counts across sources, ordered by priority, so only the last source can be
+// cut; its total is what the others leave of the overall count. A search is
+// ranked, so the rows shown are its best ones and a longer query finds the
+// rest; a list without a search term is not ranked and gets no note.
+const cappedNote = computed(() => {
+  const group = shownGroup.value;
+  const groups = sourceGroups.value;
+  if (!resultsCapped.value || !group || group !== groups[groups.length - 1]) return undefined;
+  if (searchTerm.value.length === 0) return undefined;
+  const elsewhere = groups.filter((g) => g !== group).reduce((n, g) => n + g.laws.length, 0);
+  const total = (totalMatches.value - elsewhere).toLocaleString('nl-NL');
+  return `De beste ${group.laws.length} van ${total} treffers. Typ meer om te verfijnen.`;
+});
 const resultHeading = computed<ResultHeading | null>(() => {
   if (showSuggestions.value && suggestions.value.length) return { text: 'Suggesties' };
   if (filterEnriched.value && searchTerm.value.length === 0 && shownGroup.value) {
