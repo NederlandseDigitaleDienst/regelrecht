@@ -965,6 +965,25 @@ impl RuleResolver {
     /// (e.g., `gemeente_code`, `waterschap_code`). A law with no scope fields
     /// is considered national and always matches. A law with scope fields only
     /// matches if every scope field has a matching value in the execution scope.
+    /// Whether two scoped laws hold for the same territory: both carry scope
+    /// fields, and the same ones with the same values. Two national laws do
+    /// not count; for them `matches_scope` already holds.
+    fn shares_territory(a: &ArticleBasedLaw, b: &ArticleBasedLaw) -> bool {
+        let fields = |law: &ArticleBasedLaw| {
+            (
+                law.gemeente_code.clone(),
+                law.provincie_code.clone(),
+                law.waterschap_code.clone(),
+            )
+        };
+        let scoped = |law: &ArticleBasedLaw| {
+            law.gemeente_code.is_some()
+                || law.provincie_code.is_some()
+                || law.waterschap_code.is_some()
+        };
+        scoped(a) && fields(a) == fields(b)
+    }
+
     fn matches_scope(law: &ArticleBasedLaw, scope: &HashMap<String, Value>) -> bool {
         if let Some(ref law_gemeente) = law.gemeente_code {
             let scope_value = scope.get("gemeente_code").and_then(|v| match v {
@@ -1136,7 +1155,13 @@ impl RuleResolver {
             // same value. Unscoped regulations (national) always match. The
             // regulation that declares the term matches too: the scope picks
             // which regulation applies to a case, and that one already does.
-            if law.id != law_id && !Self::matches_scope(law, scope) {
+            // So does a regulation scoped to the same territory as the one that
+            // declares the term, such as the college's nadere regels under a
+            // verordening of the same municipality.
+            let of_the_declarers_territory = self
+                .get_law_for_date(law_id, reference_date)
+                .is_some_and(|declarer| Self::shares_territory(declarer, law));
+            if law.id != law_id && !of_the_declarers_territory && !Self::matches_scope(law, scope) {
                 tracing::debug!(
                     candidate = %entry.law_id,
                     "Skipping: scope fields do not match execution parameters"
@@ -3860,6 +3885,85 @@ articles:
             assert_eq!(found.len(), 1, "scope {scope:?}");
             assert_eq!(found[0].1.number, "2");
         }
+    }
+
+    /// A regulation of the same municipality fills a term that its
+    /// verordening declares, also without a scope, like the verordening
+    /// itself (the college's nadere regels); one of another municipality does
+    /// not.
+    #[test]
+    fn test_find_implementations_a_law_of_the_same_territory_fills_the_term() {
+        let mut resolver = RuleResolver::new();
+        resolver
+            .load_from_yaml(
+                r#"
+$id: verordening_gm0363
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+gemeente_code: 'GM0363'
+articles:
+  - number: '1'
+    text: Het college stelt het tarief vast.
+    machine_readable:
+      open_terms:
+        - id: tarief
+          type: number
+          required: true
+      execution:
+        output:
+          - name: bedrag
+            type: number
+        actions:
+          - output: bedrag
+            value: $tarief
+"#,
+            )
+            .unwrap();
+        for (id, code) in [
+            ("nadere_regels_gm0363", "GM0363"),
+            ("nadere_regels_gm0599", "GM0599"),
+        ] {
+            resolver
+                .load_from_yaml(&format!(
+                    r#"
+$id: {id}
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+gemeente_code: '{code}'
+articles:
+  - number: '1'
+    text: Het tarief is 7.
+    machine_readable:
+      implements:
+        - law: verordening_gm0363
+          article: '1'
+          open_term: tarief
+      execution:
+        output:
+          - name: tarief
+            type: number
+        actions:
+          - output: tarief
+            value: 7
+"#
+                ))
+                .unwrap();
+        }
+        // A run without a gemeente_code, as a cell makes one.
+        let found = resolver
+            .find_implementations(
+                "verordening_gm0363",
+                "1",
+                open_term(&resolver, "verordening_gm0363", "1", "tarief"),
+                None,
+                &HashMap::new(),
+            )
+            .unwrap()
+            .implementations;
+        let ids: Vec<&str> = found.iter().map(|(law, _)| law.id.as_str()).collect();
+        assert_eq!(ids, ["nadere_regels_gm0363"]);
     }
 
     /// A waterschapsverordening only implements an open term for its own
