@@ -38,6 +38,8 @@ export interface CorpusLaw {
   enriched?: boolean;
   /** When the current version is not enriched but another is: that version's date. */
   enriched_version?: string | null;
+  /** The law's folder on GitHub, for a law from a GitHub source. */
+  source_url?: string | null;
 }
 
 type TrajectRef = string | null | undefined;

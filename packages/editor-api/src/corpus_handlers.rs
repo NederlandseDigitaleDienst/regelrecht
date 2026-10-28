@@ -20,6 +20,7 @@ use regelrecht_corpus::annotation_schema::{
 use regelrecht_corpus::annotation_sidecar::{self, LegacyFallback};
 use regelrecht_corpus::backend::{EditorUser, PersistOutcome, RepoBackend, WriteContext};
 use regelrecht_corpus::dto::{build_source_summaries, PaginationParams, SourceSummary};
+use regelrecht_corpus::models::SourceType;
 use regelrecht_corpus::source_map::{
     collect_law_outputs, extract_date_from_path, extract_law_id, validate_yaml_syntax, LoadedLaw,
     SourceMap,
@@ -102,6 +103,10 @@ pub struct CorpusLawEntry {
     /// the newest such version, so the library can point to it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enriched_version: Option<String>,
+    /// The folder on GitHub that holds this law's versions, at the ref the
+    /// source reads, for a law from a GitHub source; absent for a local one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_url: Option<String>,
 }
 
 /// A parameter required by the execution block that declares an output.
@@ -701,9 +706,33 @@ impl axum::response::IntoResponse for CorpusLawsResponse {
 
 fn list_corpus_laws_in_scope(scope: &ReadScope, params: PaginationParams) -> CorpusLawsResponse {
     let corpus = scope.corpus();
-    let (entries, total) =
+    let (mut entries, total) =
         filter_corpus_laws_counted(&corpus.source_map, &never_enriched_sources(corpus), &params);
+    add_source_urls(corpus, &mut entries);
     CorpusLawsResponse(entries, total)
+}
+
+/// Fill [`CorpusLawEntry::source_url`]: the folder of the law's current
+/// version in its GitHub source, at the ref that source reads.
+fn add_source_urls(corpus: &CorpusState, entries: &mut [CorpusLawEntry]) {
+    for entry in entries {
+        let Some(law) = corpus.source_map.get_law(&entry.law_id) else {
+            continue;
+        };
+        let Some(SourceType::GitHub { github }) = corpus
+            .registry
+            .get_source(&law.source_id)
+            .map(|s| &s.source_type)
+        else {
+            continue;
+        };
+        let folder = law.file_path.rsplit_once('/').map_or("", |(dir, _)| dir);
+        entry.source_url = Some(format!(
+            "https://github.com/{}/tree/{}/{folder}",
+            github.full_repo(),
+            github.effective_ref(),
+        ));
+    }
 }
 
 /// Ids of the registry sources marked `enriched: false`: their laws never count
@@ -843,6 +872,8 @@ fn filter_corpus_laws_counted(
                     } else {
                         other_enriched_version(source_map, law, never_enriched)
                     },
+                    // Set by `add_source_urls`, which knows the registry.
+                    source_url: None,
                 },
             ))
         })
@@ -5552,6 +5583,72 @@ mod tests {
         let mut ids: Vec<String> = entries.into_iter().map(|e| e.law_id).collect();
         ids.sort();
         ids
+    }
+
+    #[test]
+    fn a_github_law_links_to_its_folder_and_a_local_one_does_not() {
+        let mut corpus = CorpusState::empty();
+        corpus.registry = regelrecht_corpus::CorpusRegistry::from_yaml(
+            r#"
+schema_version: "1.0"
+sources:
+  - id: central
+    name: Centraal
+    type: github
+    github: { owner: example-org, repo: central-corpus, branch: main, path: regulation/nl }
+    priority: 2
+  - id: local
+    name: Lokaal
+    type: local
+    local: { path: /tmp/corpus }
+    priority: 1
+  - id: pinned
+    name: Vastgezet
+    type: github
+    github: { owner: example-org, repo: pinned-corpus, branch: main, ref: abc1234 }
+    priority: 3
+"#,
+        )
+        .unwrap();
+        for (law_id, source_id, path) in [
+            (
+                "wet_a",
+                "central",
+                "regulation/nl/wet/wet_a/2025-01-01.yaml",
+            ),
+            ("wet_b", "local", "/tmp/corpus/wet/wet_b/2025-01-01.yaml"),
+            ("wet_c", "pinned", "wet/wet_c/2025-01-01.yaml"),
+        ] {
+            corpus
+                .source_map
+                .load_metadata_entry(law_id, path, None, source_id, source_id, 1, None)
+                .unwrap();
+        }
+        let mut entries = filter_corpus_laws(
+            &corpus.source_map,
+            &HashSet::new(),
+            &params(None, None, None),
+        );
+        add_source_urls(&corpus, &mut entries);
+        let urls: Vec<(String, Option<String>)> = entries
+            .into_iter()
+            .map(|e| (e.law_id, e.source_url))
+            .collect();
+        assert_eq!(
+            urls,
+            vec![
+                (
+                    "wet_a".to_string(),
+                    Some("https://github.com/example-org/central-corpus/tree/main/regulation/nl/wet/wet_a".to_string())
+                ),
+                ("wet_b".to_string(), None),
+                // A pinned ref wins over the branch, as for reading.
+                (
+                    "wet_c".to_string(),
+                    Some("https://github.com/example-org/pinned-corpus/tree/abc1234/wet/wet_c".to_string())
+                ),
+            ]
+        );
     }
 
     #[test]
