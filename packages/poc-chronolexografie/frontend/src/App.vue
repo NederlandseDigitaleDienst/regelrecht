@@ -16,10 +16,10 @@
 // brings it back after "Verbergen".
 //
 // The introductory deck (presentation/) covers the page when the choice
-// screen starts it or the URL carries `?presentatie`. Its closing slide, like
-// the choice screen, begins one of the demo scenarios (startDemo). The button
-// "Presentatie" brings it back, on the slide a scenario was last chosen on,
-// or else on the first. The explanation page (presentation/UitlegPagina.vue)
+// screen starts it or the URL carries `?presentatie`. Its closing slide opens
+// the explanation page (uitlegVanDek); the choice screen begins one of the
+// demo scenarios (startDemo). The button "Presentatie" brings the deck back,
+// on the slide it was last left on, or else on the first. The explanation page (presentation/UitlegPagina.vue)
 // takes the place of the choice screen, from its button or `?uitleg`.
 //
 // The address names the case and the scenario (navigation.js), so a link
@@ -179,6 +179,12 @@ function startDemo(naam) {
     await started();
   });
 }
+// The closing slide of the deck: the explanation page belongs to the choice
+// screen, so an open case gives way first.
+async function uitlegVanDek() {
+  if (state.casus) await toChoice();
+  uitleg.open();
+}
 function toTab(id) {
   tab.value = id;
   // In a sheet the guide covers the page; close it so the tab shows.
@@ -328,5 +334,5 @@ function toTab(id) {
       </nldd-split-view-pane>
     </nldd-bar-split-view>
   </nldd-shell>
-  <PresentationDeck @scenario="startDemo" />
+  <PresentationDeck @uitleg="uitlegVanDek" />
 </template>

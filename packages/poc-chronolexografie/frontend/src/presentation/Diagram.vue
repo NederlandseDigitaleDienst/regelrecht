@@ -30,13 +30,12 @@ const keten = [
   { titel: 'Kroniek van Wilgendaal', code: 'de besluiten onder artikel 49', accent: true },
 ];
 
-// The reductions in the corpus that call the reduction of the Awb, each
+// Two reductions of Wilgendaal that call the reduction of the Awb, each
 // with the article its own decisions rest on (`basis`), where its box
-// stands and the arrow from it to the Awb-reductie in the middle.
+// stands and the arrow from it to the Awb-reductie below.
 const awb = [
-  { naam: 'De Klimop: al verlof dit schooljaar?', basis: 'basis: leerplichtwet_1969#13a', x: 0, y: 0, pijl: 'M 210 74 L 340 130' },
-  { naam: 'Wilgendaal: geldige kaart?', basis: 'basis: …babw#49', x: 460, y: 0, pijl: 'M 670 74 L 540 130' },
-  { naam: 'Wilgendaal: aantal vergunningen?', basis: 'basis: …parkeerverordening…#2', x: 230, y: 250, pijl: 'M 440 250 L 440 200' },
+  { naam: 'Wilgendaal: geldige kaart?', basis: 'basis: …babw#49', x: 0, y: 0, pijl: 'M 210 74 L 340 130' },
+  { naam: 'Wilgendaal: aantal vergunningen?', basis: 'basis: …parkeerverordening…#2', x: 460, y: 0, pijl: 'M 670 74 L 540 130' },
 ];
 
 const synthese = {
@@ -47,14 +46,6 @@ const synthese = {
     ],
     artikel: 'wetsartikel',
     uitkomst: 'één uitkomst',
-  },
-  'synthese-kaart': {
-    cellen: [
-      { naam: 'GGD Wilgendaal', antwoord: 'onderzoek en advies' },
-      { naam: 'Gemeente Wilgendaal', antwoord: 'al een geldige kaart gegeven?', accent: true },
-    ],
-    artikel: 'BABW artikel 49',
-    uitkomst: 'kaart verstrekt of geweigerd',
   },
 };
 </script>
@@ -93,7 +84,7 @@ const synthese = {
 
     <!-- De Awb-reductie in het midden, de reducties die haar gebruiken
          eromheen. -->
-    <svg v-else-if="name === 'awb'" viewBox="0 0 880 330">
+    <svg v-else-if="name === 'awb'" viewBox="0 0 880 210">
       <defs aria-hidden="true"><marker :id="arrowId" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="head" /></marker></defs>
       <g v-for="(r, i) in awb" :key="i" :transform="`translate(${r.x} ${r.y})`">
         <rect x="2" y="2" width="416" height="70" rx="8" class="box" />

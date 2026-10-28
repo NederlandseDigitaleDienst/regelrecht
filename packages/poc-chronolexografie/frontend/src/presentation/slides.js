@@ -106,7 +106,7 @@ export const slides = [
     kind: 'bullets',
     overline: 'Waarom',
     title: 'Wetten vragen naar het verleden',
-    lead: 'Heeft de school deze leerling dit schooljaar al extra verlof gegeven? En geldt dat besluit nog?',
+    lead: 'Heeft dit bedrijf nog recht op een parkeervergunning, gezien het aantal medewerkers en de vergunningen die het al heeft?',
     bullets: [
       'Dat antwoord ligt nu verspreid over systemen.',
       'Die bewaren vaak alleen de laatste stand.',
@@ -225,7 +225,7 @@ export const slides = [
       'Elke reductie van een uitvoerder roept haar aan met de grondslag van haar eigen besluiten (`basis`).',
       'De uitvoerder schrijft alleen zijn eigen vraag. Herroepen en vernietigde besluiten zijn er al uit.',
     ],
-    figure: { diagram: 'awb', label: 'De reducties in de corpus die de Awb-reductie gebruiken' },
+    figure: { diagram: 'awb', label: 'Twee reducties van Wilgendaal die de Awb-reductie gebruiken' },
   },
   {
     kind: 'bullets',
@@ -244,21 +244,10 @@ export const slides = [
     },
   },
   {
-    kind: 'bullets',
-    overline: 'Synthese',
-    title: 'Eén besluit, antwoorden van twee cellen',
-    lead: 'Het besluit over de kaart (BABW artikel 49) neemt twee antwoorden samen.',
-    bullets: [
-      'De cel van de GGD antwoordt uit haar kroniek: was er een onderzoek, en wat zegt het advies?',
-      'De cel van Wilgendaal antwoordt uit haar eigen kroniek: heeft de gemeente deze aanvrager al een geldige gehandicaptenparkeerkaart gegeven?',
-      'Artikel 49 maakt er één uitkomst van: de kaart wordt verstrekt of geweigerd.',
-    ],
-    figure: { diagram: 'synthese-kaart', label: 'Het besluit over de kaart neemt de antwoorden van de GGD en Wilgendaal samen' },
-  },
-  {
     kind: 'closing',
-    overline: 'Nu live',
-    title: 'Speel het na',
-    lines: ["Drie scenario's van de gehandicaptenparkeerkaart, elk met een gids naast de pagina."],
+    overline: 'Verder',
+    title: 'Hoe het in elkaar zit',
+    lines: ['De uitlegpagina loopt met de bedrijfsparkeervergunning door hoe regel, cel en reducties samenhangen.'],
+    button: 'Naar de uitleg',
   },
 ];

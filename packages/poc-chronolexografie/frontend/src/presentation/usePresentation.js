@@ -2,8 +2,8 @@
  * The introductory deck: which slide shows, and the keys that move it. The
  * same shape as the deck of the demo (frontend-demo/src/presentation/), cut
  * down to a deck that only covers the screen: there is no rail beside the
- * app, and no slide opens a tab. The closing slide starts a scenario
- * instead (PresentationDeck.vue).
+ * app, and no slide opens a tab. The closing slide opens the explanation
+ * page instead (PresentationDeck.vue).
  *
  * `createPresentation` makes one deck, for the tests; the app shares one
  * through `usePresentation`.
@@ -80,8 +80,8 @@ export function createPresentation(slides = SLIDES) {
   const total = computed(() => slides.length);
   const current = computed(() => slides[index.value] ?? null);
   const isLast = computed(() => index.value === slides.length - 1);
-  // The slide a scenario was chosen on (`leave`), where `resume` goes back
-  // to; null while the visitor never left the deck for a scenario.
+  // The slide the visitor left the deck on (`leave`), where `resume` goes
+  // back to; null while the visitor never left it.
   const cameFrom = ref(null);
   let listening = false;
 
@@ -133,13 +133,13 @@ export function createPresentation(slides = SLIDES) {
     }
   }
 
-  /** Close the deck for a scenario, remembering the slide it was chosen on. */
+  /** Close the deck for the page, remembering the slide it was left on. */
   function leave() {
     cameFrom.value = index.value;
     stop();
   }
 
-  /** Back to the deck: the slide a scenario was last chosen on, or else the first. */
+  /** Back to the deck: the slide it was last left on, or else the first. */
   const resume = () => start(cameFrom.value ?? 0);
 
   return { active, index, total, current, isLast, cameFrom, start, stop, leave, resume, next, prev, goTo, onKey };
