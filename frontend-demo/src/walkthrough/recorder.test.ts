@@ -78,12 +78,13 @@ describe('media fetch', () => {
     expect(mediaFiles(timeline, { audioOnly: true }).map((f) => f.src)).toEqual(['main-voice.m4a']);
   });
 
-  it('fetches the dubbed voices and their lines, but not for the replay check', () => {
+  it('fetches the dubbed voices for the replay check too, their lines only for the site', () => {
     const timeline = {
       main: { audio: { src: 'main-voice.m4a', sha256: 'v' }, dub: { en: { audio: { src: 'main-voice-en.m4a', sha256: 'e' }, captions: 'main-x.en.dub.vtt' } } },
       dub: { en: { bumpers: { wait: [{ src: 'bumper-wait-en.m4a', sha256: 'w' }] } } },
     };
     expect(mediaFiles(timeline).map((f) => f.src)).toEqual(['main-voice.m4a', 'main-voice-en.m4a', 'bumper-wait-en.m4a']);
-    expect(mediaFiles(timeline, { audioOnly: true }).map((f) => f.src)).toEqual(['main-voice.m4a']);
+    // In English the player plays the dub, so the replay check has to have it.
+    expect(mediaFiles(timeline, { audioOnly: true }).map((f) => f.src)).toEqual(['main-voice.m4a', 'main-voice-en.m4a']);
   });
 });

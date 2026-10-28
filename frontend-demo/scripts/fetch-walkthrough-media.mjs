@@ -34,13 +34,12 @@ export function mediaFiles(timeline, { audioOnly = false } = {}) {
   // the replay check does not play them, so `audioOnly` leaves them out.
   const bumpers = audioOnly ? [] : Object.values(timeline.bumpers ?? {}).flat();
   // The walkthrough in other languages, in the cloned voice (`walkthrough
-  // dub`). Same clock as the recorded voice, so the replay check skips them.
-  const dubbed = audioOnly
-    ? []
-    : [
-        ...tracks.flatMap((t) => Object.values(t.dub ?? {}).map((d) => d.audio)),
-        ...Object.values(timeline.dub ?? {}).flatMap((d) => Object.values(d.bumpers ?? {}).flat()),
-      ];
+  // dub`). The replay check needs those too: in a language with a dub the
+  // player plays it instead of the recorded voice. Their short lines it does not.
+  const dubbed = [
+    ...tracks.flatMap((t) => Object.values(t.dub ?? {}).map((d) => d.audio)),
+    ...(audioOnly ? [] : Object.values(timeline.dub ?? {}).flatMap((d) => Object.values(d.bumpers ?? {}).flat())),
+  ];
   return [...tracks.flatMap((t) => (audioOnly ? [t.audio] : [t.audio, t.video, t.cam]).filter(Boolean)), ...bumpers, ...dubbed].map(({ src, sha256 }) => ({ src, sha256 }));
 }
 
