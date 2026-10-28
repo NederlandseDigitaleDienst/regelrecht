@@ -26,6 +26,13 @@ async function tekst(url) {
   return res.text();
 }
 
+/**
+ * De bestanden van de bundel, per pad in de repository: de uitlegpagina leest
+ * er de YAML van haar panelen uit. De cel haalt dezelfde bundel op; de tweede
+ * keer komt hij uit de cache van de browser.
+ */
+export const bestanden = async () => JSON.parse(await tekst(b('/bundel.json')));
+
 let laden = null;
 
 /** Het spel van dit tabblad; de eerste keer laadt het de cel. */

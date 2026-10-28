@@ -3,7 +3,7 @@
  * business parking permit at the fictional municipality of Wilgendaal, from
  * the rule to the chronicle, step by step, written for a reader who does not
  * know the law format. Each step has a short heading, two or three
- * sentences, and one or more panels of YAML.
+ * sentences, and one or more panels of YAML that fold.
  *
  * A step that rests on the text of an article starts with that text
  * (`quote`): from `text` of the article `artikel` in `source`, a paragraph
@@ -11,11 +11,16 @@
  * the regulation is invented, the strip of the portal above every page
  * says, so the page does not say it again.
  *
- * A panel quotes the corpus: its lines are lines of the file it names under
- * `source`, in order, without comments; `# …` marks lines left out.
- * tests/uitleg.test.js checks the panels and the quotes there, so a change in
- * the corpus that this page no longer matches makes the test fail. In a
- * sentence, `name` is code, as in the deck (slides.js).
+ * A panel shows a part of the file it names under `source`, as the demo
+ * shows a law (YamlNode from frontend-shared): the node at `root` (`''` is
+ * the whole file) as a tree that folds, with the nodes on the way to each
+ * path of `open` open and everything else folded. A path is relative to
+ * `root` and labelled as the tree labels it (yamlExpand.js in
+ * frontend-shared): an item of a list by its `output`, `name` or `number`,
+ * else by its index; `*` stands for any one part. tests/uitleg.test.js checks
+ * that every root and every path is in the file, so a change in the corpus
+ * that this page no longer matches makes the test fail. In a sentence,
+ * `name` is code, as in the deck (slides.js).
  */
 
 const VERORDENING =
@@ -30,6 +35,12 @@ const KVK_CEL = 'corpus/cells/kamer_van_koophandel/cel.yaml';
 const KVK_REDUCTIE =
   'corpus/cells/kamer_van_koophandel/reductions/reductie_vestiging_in_handelsregister/2026-01-01.yaml';
 
+/** The files the panels show, for the page that loads them (UitlegPagina.vue). */
+export const bronnen = [VERORDENING, BESLUIT, CEL, REDUCTIE, AWB, KVK_CEL, KVK_REDUCTIE];
+
+/** The paths of a panel that start open, from the root of its file. */
+export const openPaden = ({ root, open }) => open.map((p) => (root ? `${root}.${p}` : p));
+
 /** The case the page follows, which the button at the bottom opens. */
 export const casus = 'bedrijfsparkeervergunning';
 
@@ -38,7 +49,7 @@ export const intro = {
   title: 'Hoe het in elkaar zit',
   lead:
     'Een bedrijf vraagt de gemeente Wilgendaal om een parkeervergunning. Deze pagina volgt die aanvraag van de regel tot de kroniek, het overzicht waarin de gemeente al haar besluiten bewaart. ' +
-    'Waar een stap op een artikel rust, staat eerst de tekst van dat artikel. Daarna volgt de YAML die het uitvoerbaar maakt, letterlijk uit de bestanden.',
+    'Waar een stap op een artikel rust, staat eerst de tekst van dat artikel. Daarna volgt de YAML die het uitvoerbaar maakt, uit de bestanden zelf. De delen waar het om gaat, staan open. De rest klap je zelf open.',
 };
 
 export const steps = [
@@ -60,33 +71,14 @@ export const steps = [
     ],
     panels: [
       {
-        label: 'Wat het bedrijf vraagt, en wat het besluit vastlegt',
+        label: 'Artikel 2: wat het bedrijf vraagt, wat het besluit vastlegt en wanneer het de vergunning krijgt',
         source: VERORDENING,
-        code: `produces:
-  - type: AANVRAAG
-    requests: fictieve_parkeerverordening_gemeente_wilgendaal#2
-    parameters:
-      - kvk_nummer
-      - kenteken
-  - type: BESCHIKKING
-    decision_type: TOEKENNING
-    outputs:
-      - bedrijfsparkeervergunning_verleend
-    # …`,
-      },
-      {
-        label: 'De uitkomst: krijgt het bedrijf de vergunning?',
-        source: VERORDENING,
-        code: `- output: bedrijfsparkeervergunning_verleend
-  value:
-    operation: AND
-    conditions:
-      - $bedrijf_gevestigd_in_vergunninggebied
-      - operation: OR
-        conditions:
-          - operation: NOT
-            value: $maximum_bedrijfsparkeervergunningen_bereikt
-          - $weigeringsgrond_buiten_toepassing_gelaten`,
+        root: 'articles.2.machine_readable',
+        open: [
+          'execution.produces.0.parameters',
+          'execution.produces.1.outputs',
+          'execution.actions.bedrijfsparkeervergunning_verleend.value.conditions.1.conditions.0',
+        ],
       },
     ],
   },
@@ -109,42 +101,15 @@ export const steps = [
     ],
     panels: [
       {
-        label: 'Artikel 3 laat een nieuw begrip open en vult het maximum',
+        label: 'Artikel 3: het nieuwe begrip en de berekening van het maximum',
         source: BESLUIT,
-        code: `open_terms:
-  # …
-  - id: aantal_geldige_bedrijfsparkeervergunningen
-    type: number
-    required: true
-    # …
-implements:
-  - law: fictieve_parkeerverordening_gemeente_wilgendaal
-    article: '2'
-    open_term: maximum_bedrijfsparkeervergunningen_bereikt`,
-      },
-      {
-        label: 'Het maximum: twee in de binnenstad',
-        source: BESLUIT,
-        code: `- output: maximum_bedrijfsparkeervergunningen
-  value:
-    operation: IF
-    cases:
-      - when:
-          operation: EQUALS
-          subject: $vergunninggebied
-          value: binnenstad
-        then: 2
-      # …
-    default: 0`,
-      },
-      {
-        label: 'Bereikt als het bedrijf er al zoveel heeft',
-        source: BESLUIT,
-        code: `- output: maximum_bedrijfsparkeervergunningen_bereikt
-  value:
-    operation: GREATER_THAN_OR_EQUAL
-    subject: $aantal_geldige_bedrijfsparkeervergunningen
-    value: $maximum_bedrijfsparkeervergunningen`,
+        root: 'articles.3.machine_readable',
+        open: [
+          'open_terms.1',
+          'implements.0',
+          'execution.actions.maximum_bedrijfsparkeervergunningen.value.cases.*.when.conditions.*.value',
+          'execution.actions.maximum_bedrijfsparkeervergunningen_bereikt.value',
+        ],
       },
     ],
   },
@@ -164,38 +129,14 @@ implements:
     ],
     panels: [
       {
-        label: 'Artikel 5 vult het aantal uit artikel 3',
+        label: 'Artikel 5: de vraag aan de cel, en het college als de cel niet antwoordt',
         source: BESLUIT,
-        code: `implements:
-  - law: fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal
-    article: '3'
-    open_term: aantal_geldige_bedrijfsparkeervergunningen`,
-      },
-      {
-        label: 'De vraag aan de cel',
-        source: BESLUIT,
-        code: `- name: antwoord_aantal_geldig
-  type: number
-  nullable: true
-  source:
-    reduction: aantal_geldige_bedrijfsparkeervergunningen
-    parameters:
-      kvk_nummer: $kvk_nummer
-      besluit_datum: $besluit_datum`,
-      },
-      {
-        label: 'Zonder antwoord van de cel beslist het college',
-        source: BESLUIT,
-        code: `- output: aantal_geldige_bedrijfsparkeervergunningen
-  value:
-    operation: IF
-    cases:
-      - when:
-          operation: EQUALS
-          subject: $antwoord_aantal_geldig
-          value: null
-        then: $aantal_geldige_bedrijfsparkeervergunningen_volgens_college
-    default: $antwoord_aantal_geldig`,
+        root: 'articles.5.machine_readable',
+        open: [
+          'implements.0',
+          'execution.input.antwoord_aantal_geldig.source.parameters',
+          'execution.actions.aantal_geldige_bedrijfsparkeervergunningen.value.cases.0.when',
+        ],
       },
     ],
   },
@@ -210,9 +151,8 @@ implements:
       {
         label: 'cel.yaml van de gemeente Wilgendaal',
         source: CEL,
-        code: `answers:
-  # …
-  aantal_geldige_bedrijfsparkeervergunningen: reductie_geldige_bedrijfsparkeervergunningen`,
+        root: '',
+        open: ['answers'],
       },
     ],
   },
@@ -225,34 +165,14 @@ implements:
     ],
     panels: [
       {
-        label: 'De besluiten die nog gelden onder verordening artikel 2',
+        label: 'De reductie: de besluiten die nog gelden, en de telling van de vergunningen van dit bedrijf',
         source: REDUCTIE,
-        code: `- name: geldende_besluiten
-  type: array
-  source:
-    regulation: reductie_algemene_wet_bestuursrecht
-    output: geldende_besluiten
-    parameters:
-      basis: fictieve_parkeerverordening_gemeente_wilgendaal#2`,
-      },
-      {
-        label: 'Tel de eerdere besluiten die dit bedrijf een vergunning gaven',
-        source: REDUCTIE,
-        code: `operation: FOREACH
-collection: $geldende_besluiten
-as: besluit
-filter:
-  operation: AND
-  conditions:
-    - operation: EQUALS
-      subject: $besluit.bedrijfsparkeervergunning_verleend
-      value: true
-    - operation: EQUALS
-      subject: $besluit.kvk_nummer
-      value: $kvk_nummer
-    # …
-body: 1
-combine: ADD`,
+        root: 'articles.1.machine_readable',
+        open: [
+          'execution.input.geldende_besluiten.source.parameters',
+          'execution.actions.aantal_geldige_bedrijfsparkeervergunningen.value.filter.conditions.*.subject',
+          'execution.actions.aantal_geldige_bedrijfsparkeervergunningen.value.filter.conditions.*.value',
+        ],
       },
     ],
   },
@@ -265,30 +185,16 @@ combine: ADD`,
     ],
     panels: [
       {
-        label: 'Uit de kroniek van de cel die haar aanroept: besluiten, bezwaar en uitspraken',
+        label: 'Artikel 1: uit de kroniek van de cel die haar aanroept, de besluiten, het bezwaar en de uitspraken',
         source: AWB,
-        code: `- name: besluiten
-  type: array
-  source:
-    decisions: $basis
-- name: beslissingen_op_bezwaar
-  type: array
-  source:
-    decisions: algemene_wet_bestuursrecht#7:11
-- name: uitspraken
-  type: array
-  source:
-    facts: algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak`,
+        root: 'articles.1.machine_readable',
+        open: ['execution.input.*.source'],
       },
       {
-        label: 'Wat geldt: de besluiten die bleven staan, en die de rechter ervoor in de plaats stelde',
+        label: 'Artikel 2: wat geldt, de besluiten die bleven staan en die de rechter ervoor in de plaats stelde',
         source: AWB,
-        code: `- output: geldende_besluiten
-  value:
-    operation: ADD
-    values:
-      - $besluiten_in_stand
-      - $besluiten_in_de_plaats`,
+        root: 'articles.2.machine_readable',
+        open: ['execution.actions.geldende_besluiten.value.values'],
       },
     ],
   },
@@ -310,29 +216,20 @@ combine: ADD`,
       {
         label: 'Uitvoeringsbesluit artikel 4: de vraag aan de KvK',
         source: BESLUIT,
-        code: `- name: antwoord_postcode
-  type: string
-  nullable: true
-  source:
-    reduction: postcode_vestiging
-    parameters:
-      kvk_nummer: $kvk_nummer
-      peildatum: $besluit_datum`,
+        root: 'articles.4.machine_readable',
+        open: ['execution.input.antwoord_postcode.source.parameters'],
       },
       {
         label: 'cel.yaml van de Kamer van Koophandel',
         source: KVK_CEL,
-        code: `answers:
-  postcode_vestiging: reductie_vestiging_in_handelsregister
-  # …`,
+        root: '',
+        open: ['answers'],
       },
       {
         label: 'De reductie leest de inschrijvingen',
         source: KVK_REDUCTIE,
-        code: `- name: inschrijvingen
-  type: array
-  source:
-    facts: fictief_beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven`,
+        root: 'articles.1.machine_readable',
+        open: ['execution.input.inschrijvingen.source'],
       },
     ],
   },

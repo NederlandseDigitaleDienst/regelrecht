@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { childPath as pathOf, initiallyOpen, scalarHint, type OpenQuery } from './yamlExpand';
+import { childPath as pathOf, initiallyOpen, scalarHint, type OpenQuery } from '../yamlExpand';
 
 // One node of a parsed YAML document rendered as a collapsible tree. Mappings
 // and sequences fold; scalars show typed. A `source.regulation: <law>` value
@@ -126,3 +126,79 @@ function scalarText() {
     </template>
   </div>
 </template>
+
+<style>
+/* The tree, inside a `.yaml-tree` the page puts around the root node. Not
+ * scoped: every node is its own instance, and the rules reach across them.
+ * The page sets the size; the indentation scales with it. */
+.yaml-tree {
+  font-family: var(--primitives-font-family-monospace, monospace);
+  line-height: 1.5;
+  /* A long token (the $schema URL, a juriconnect id) must wrap inside the box
+   * instead of running out of it. */
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+/* In `em`, niet `rem`: de inspringing moet met de letter meeschalen. In `rem`
+ * volgt hij de rootfont, en kruipt de boom bij een grotere letter dicht. */
+.yaml-tree .yaml-node {
+  padding-left: 1.25em;
+}
+
+/* Op een telefoon liet de volle inspringing tien niveaus diep een kolom van
+ * een paar tekens over, en brak daarin elk woord letter voor letter af. */
+@media (max-width: 640px) {
+  .yaml-tree .yaml-node {
+    padding-left: 0.5em;
+  }
+}
+
+.yaml-tree .yaml-key {
+  color: var(--primitives-color-donkerblauw-700);
+}
+
+.yaml-tree .yaml-scalar {
+  color: var(--semantics-content-color, var(--primitives-color-coolgray-800));
+}
+
+.yaml-tree .yaml-string {
+  color: var(--primitives-color-groen-700);
+}
+
+.yaml-tree .yaml-var {
+  color: var(--primitives-color-paars-700);
+  font-weight: 600;
+}
+
+.yaml-tree .yaml-toggle {
+  cursor: pointer;
+  user-select: none;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  padding: 0;
+}
+
+.yaml-tree .yaml-toggle::before {
+  content: '▸';
+  display: inline-block;
+  width: 1rem;
+  color: var(--semantics-content-secondary-color, var(--primitives-color-coolgray-500));
+}
+
+.yaml-tree .yaml-toggle[aria-expanded='true']::before {
+  content: '▾';
+}
+
+.yaml-tree .yaml-link {
+  color: var(--primitives-color-donkerblauw-700);
+  text-decoration: underline dotted;
+  cursor: pointer;
+  border: 0;
+  background: none;
+  font: inherit;
+  padding: 0;
+}
+</style>

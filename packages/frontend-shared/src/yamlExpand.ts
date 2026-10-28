@@ -18,8 +18,9 @@
  * zodra hij wordt opengeklapt. Dat werkt omdat een kind pas bij het openen
  * wordt aangemaakt en dan zijn eigen voorbereide stand opzoekt.
  *
- * De paden komen uit `expanded_paths` en `folded_paths` in
- * `corpus/demo/demo-config.yaml`.
+ * In de demo komen de paden uit `expanded_paths` en `folded_paths` in
+ * `corpus/demo/demo-config.yaml`; de uitlegpagina van de
+ * chronolexografie-PoC geeft ze per paneel (presentation/uitleg.js).
  */
 
 /** `articles.2` — het enige knooppunt dat de presentator zelf openklapt. */
@@ -92,4 +93,31 @@ export function initiallyOpen({ path, depth, all, paths, folded }: OpenQuery): b
   if (path === 'articles') return true;
   if ((folded ?? []).some((pattern) => matches(pattern, path))) return false;
   return (paths ?? []).some((pattern) => onPath(pattern, path));
+}
+
+/** All node paths of a document, labelled the way YamlNode labels them, from `at` down. */
+export function nodePaths(value: unknown, at = '', out: string[] = []): string[] {
+  if (at) out.push(at);
+  if (value && typeof value === 'object') {
+    const list = Array.isArray(value);
+    const entries: [string | number, unknown][] = list ? value.map((v, i): [number, unknown] => [i, v]) : Object.entries(value);
+    for (const [k, v] of entries) nodePaths(v, childPath(at, k, v, list), out);
+  }
+  return out;
+}
+
+/** The node at `path` (no `*`) in a document, labelled as YamlNode labels it; undefined when there is none. */
+export function nodeAt(value: unknown, path: string): unknown {
+  let node = value;
+  let at = '';
+  for (const segment of path ? path.split('.') : []) {
+    if (!node || typeof node !== 'object') return undefined;
+    const list = Array.isArray(node);
+    const entries: [string | number, unknown][] = list ? (node as unknown[]).map((v, i): [number, unknown] => [i, v]) : Object.entries(node);
+    const next = entries.find(([k, v]) => childPath(at, k, v, list) === (at ? `${at}.${segment}` : segment));
+    if (!next) return undefined;
+    at = at ? `${at}.${segment}` : segment;
+    node = next[1];
+  }
+  return node;
 }

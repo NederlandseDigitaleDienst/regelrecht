@@ -6,64 +6,24 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createSSRApp, h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import UitlegPagina from '../src/presentation/UitlegPagina.vue';
-import { casus, intro, steps } from '../src/presentation/uitleg.js';
+import { matches, nodeAt, nodePaths } from '@regelrecht/frontend-shared/yamlExpand';
+import { bronnen, casus, intro, openPaden, steps } from '../src/presentation/uitleg.js';
 import { asked, createUitleg, withParam } from '../src/presentation/useUitleg.js';
 
 const repo = fileURLToPath(new URL('../../../../', import.meta.url));
-const indent = (l) => l.length - l.trimStart().length;
-const isMark = (l) => l.trim() === '# …';
-
-// The lines of a file that hold YAML: no blank lines, no comment lines.
-const yamlLines = (source) =>
-  readFileSync(join(repo, source), 'utf8')
-    .split('\n')
-    .filter((l) => l.trim() && !l.trim().startsWith('#'));
-
-// A panel in pieces: the runs of lines between the marks of a cut (`# …`).
-function pieces(code) {
-  const out = [[]];
-  for (const l of code.split('\n')) {
-    if (isMark(l)) out.push([]);
-    else out[out.length - 1].push(l);
-  }
-  return out.filter((p) => p.length);
-}
-
-/**
- * Where a piece stands in `file` from line `from` on: the lines follow each
- * other there, each with the same indentation relative to the first, as the
- * panel shows them. -1 when nowhere.
- */
-function find(file, piece, from) {
-  for (let i = from; i + piece.length <= file.length; i++) {
-    const shift = indent(file[i]) - indent(piece[0]);
-    if (piece.every((l, j) => file[i + j].trim() === l.trim() && indent(file[i + j]) - indent(l) === shift)) return i;
-  }
-  return -1;
-}
-
 const panels = steps.flatMap((s) => s.panels.map((p) => [`${s.title}: ${p.label}`, p]));
 const texts = [intro.title, intro.lead, ...steps.flatMap((s) => [s.title, ...s.text])];
 
 describe('the explanation page', () => {
-  it.each(panels)('%s quotes its file: runs of lines as written, cuts marked', (_, { code, source }) => {
-    const file = yamlLines(source);
-    const runs = pieces(code);
-    let at = 0;
-    let first = -1;
-    let end = -1;
-    for (const run of runs) {
-      const i = find(file, run, at);
-      expect(i, `${source}: ${run[0].trim()}`).toBeGreaterThanOrEqual(0);
-      if (first < 0) first = i;
-      end = i + run.length;
-      at = end;
-    }
-    // A block that goes on after the panel ends in a mark, so nothing looks
-    // complete that is not.
-    const startIndent = indent(file[first]);
-    const next = file[end];
-    if (next && indent(next) > startIndent) expect(isMark(code.split('\n').at(-1)), `${source}: ends before ${next.trim()}`).toBe(true);
+  it.each(panels)('%s shows a node of its file, and every path that starts open is there', (_, p) => {
+    const doc = load(readFileSync(join(repo, p.source), 'utf8'));
+    expect(bronnen).toContain(p.source);
+    const root = nodeAt(doc, p.root);
+    expect(root, `${p.source}: ${p.root}`).toBeTruthy();
+    expect(typeof root).toBe('object');
+    expect(p.open.length).toBeGreaterThan(0);
+    const paths = nodePaths(root, p.root);
+    for (const pattern of openPaden(p)) expect(paths.some((q) => matches(pattern, q)), `${p.source}: ${pattern}`).toBe(true);
   });
 
   it.each(steps.filter((s) => s.quote).map((s) => [s.title, s.quote]))(
@@ -86,13 +46,6 @@ describe('the explanation page', () => {
       }
     },
   );
-
-  it.each(panels)('%s is a small piece: 3 to 15 lines, without comments', (_, { code }) => {
-    const n = code.split('\n').length;
-    expect(n).toBeGreaterThanOrEqual(3);
-    expect(n).toBeLessThanOrEqual(15);
-    for (const l of code.split('\n')) if (l.trim().startsWith('#')) expect(l.trim()).toBe('# …');
-  });
 
   it('gives every step a short heading, two or three short sentences and a panel', () => {
     for (const s of steps) {
@@ -159,18 +112,34 @@ describe('the address of the page', () => {
 });
 
 describe('the page', () => {
-  it('is a page of the app: a section per step, a code viewer per panel', async () => {
-    const html = await renderToString(createSSRApp({ render: () => h(UitlegPagina) }));
+  const bestanden = Object.fromEntries(bronnen.map((f) => [f, readFileSync(join(repo, f), 'utf8')]));
+
+  it('is a page of the app: a section per step, a tree per panel', async () => {
+    const html = await renderToString(createSSRApp({ render: () => h(UitlegPagina, { bestanden }) }));
     expect(html.match(/<nldd-simple-section/g)).toHaveLength(steps.length + 2);
     expect(html).toContain('Naar de casus');
-    expect(html.match(/<nldd-code-viewer[^>]*language="yaml"/g)).toHaveLength(panels.length);
+    expect(html.match(/class="yaml-tree"/g)).toHaveLength(panels.length);
     expect(html).toContain('Naar de casuskeuze');
-    expect(html).toContain('<code>aantal_geldige_bedrijfsparkeervergunningen</code>');
+    expect(html).toMatch(/<code[^>]*>aantal_geldige_bedrijfsparkeervergunningen<\/code>/);
     expect(html.match(/<nldd-blockquote lang="nl"/g)).toHaveLength(steps.filter((s) => s.quote).length);
     // The portal's strip says the regulation is invented; the page does not repeat it.
     expect(html).not.toMatch(/verzonnen/i);
     for (const t of [...texts, ...steps.filter((x) => x.quote).map((x) => x.quote.label)]) expect(t, t).not.toMatch(/fictie/i);
     expect(html).not.toContain('slot="attribution"');
+  });
+
+  it('opens the parts a step is about and leaves the rest folded', async () => {
+    const html = await renderToString(createSSRApp({ render: () => h(UitlegPagina, { bestanden }) }));
+    // The whole condition of article 2 of the regulation, down to the exception.
+    expect(html).toContain('$weigeringsgrond_buiten_toepassing_gelaten');
+    expect(html).toContain('$maximum_bedrijfsparkeervergunningen_bereikt');
+    // Its inputs stay folded: the key shows, what is under it does not.
+    expect(html).not.toContain('einde_geldigheidsduur_bij_verlening');
+  });
+
+  it('loads the files when none are given, and says so until they are there', async () => {
+    const html = await renderToString(createSSRApp({ render: () => h(UitlegPagina) }));
+    expect(html.match(/De YAML wordt geladen/g)).toHaveLength(panels.length);
   });
 });
 

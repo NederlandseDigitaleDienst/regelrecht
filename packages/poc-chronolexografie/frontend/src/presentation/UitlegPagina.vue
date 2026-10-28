@@ -4,15 +4,46 @@
 // cell, reduction and the reduction of the Awb hang together, on one case
 // (uitleg.js). Each step is a section with a heading, the text of the
 // article it rests on where there is one, two or three
-// sentences, and a code viewer per panel. It scrolls; nothing on it opens or closes.
+// sentences, and per panel a part of a file of the corpus as a tree that
+// folds, as the demo shows a law (YamlNode from frontend-shared), with the
+// parts the step is about open. The files come from the bundle the cell
+// loads too (api.js); a test passes them as `bestanden`.
 // The choice screen opens it, and so does an address with `?uitleg`
 // (useUitleg.js); the button at the top goes back to the choice screen, the
 // one at the bottom opens the case the page follows.
 import { nextTick, onMounted, ref } from 'vue';
-import { casus, intro, steps } from './uitleg.js';
+import { load } from 'js-yaml';
+import YamlNode from '@regelrecht/frontend-shared/components/YamlNode.vue';
+import { nodeAt } from '@regelrecht/frontend-shared/yamlExpand';
+import { bestanden as haalBestanden } from '../api.js';
+import { bronnen, casus, intro, openPaden, steps } from './uitleg.js';
 import { useUitleg } from './useUitleg.js';
 
+const props = defineProps({
+  /** The files of the panels, per path; without them the page loads the bundle. */
+  bestanden: { type: Object, default: null },
+});
 const emit = defineEmits(['terug', 'casus']);
+
+/** The parsed files of the panels, per path, once they are there. */
+const docs = ref(props.bestanden ? lees(props.bestanden) : null);
+const fout = ref(false);
+function lees(alle) {
+  return Object.fromEntries(bronnen.map((pad) => [pad, load(alle[pad])]));
+}
+onMounted(async () => {
+  if (docs.value) return;
+  try {
+    docs.value = lees(await haalBestanden());
+  } catch {
+    fout.value = true;
+  }
+});
+
+/** The name the tree shows on top: the last part of the root. */
+const naam = (p) => (p.root ? p.root.split('.').at(-1) : null);
+/** What starts open, in the form YamlNode takes. */
+const stand = (p) => ({ paths: openPaden(p), folded: [], version: 0, all: null });
 // Opened by a click, the button that opened the page is gone; the focus
 // starts on the way back.
 const terugKnop = ref(null);
@@ -66,7 +97,14 @@ const kortPad = (source) => source.split('/').slice(-3).join('/');
         <!-- The caption comes first, so it is read before the code. A file
              name has no place to break, hence overflow-wrap. -->
         <nldd-text size="sm" color="secondary" style="overflow-wrap: anywhere">{{ p.label }} · {{ kortPad(p.source) }}</nldd-text>
-        <nldd-code-viewer language="yaml" appearance="box-tinted">{{ p.code }}</nldd-code-viewer>
+        <nldd-box>
+          <nldd-container padding="12">
+            <div class="yaml-tree" lang="nl" style="font-size: 0.875rem">
+              <YamlNode v-if="docs" :name="naam(p)" :value="nodeAt(docs[p.source], p.root)" :path="p.root" :expanded="stand(p)" />
+              <nldd-text v-else size="sm" color="secondary">{{ fout ? 'De YAML kwam niet binnen. Herlaad de pagina om het opnieuw te proberen.' : 'De YAML wordt geladen.' }}</nldd-text>
+            </div>
+          </nldd-container>
+        </nldd-box>
       </nldd-container>
     </nldd-container>
   </nldd-simple-section>
@@ -76,3 +114,11 @@ const kortPad = (source) => source.split('/').slice(-3).join('/');
     </nldd-button-bar>
   </nldd-simple-section>
 </template>
+
+<style scoped>
+/* A name in a sentence has no place to break; on a phone it would run out of
+ * the page. */
+code {
+  overflow-wrap: anywhere;
+}
+</style>
