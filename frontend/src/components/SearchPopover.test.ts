@@ -180,9 +180,14 @@ describe('SearchPopover server-side search', () => {
     expect(
       wrapper.find('[data-testid="search-other-source"] nldd-text-cell').attributes('text'),
     ).toBe('Ook 1+ treffers in Centrale Regelrecht Corpus');
-    // And the heading says the list was cut short.
-    expect(internals(wrapper).resultHeading?.supportingText).toBe(
-      'De beste 2 van 80 treffers. Typ meer om te verfijnen.',
+    // The first source's list is complete: no note under its heading.
+    const heading = () => wrapper.get('[data-testid="search-result-label"]');
+    expect(heading().attributes('supporting-text')).toBeUndefined();
+    // The last source is the one the cap cut short; its heading says so, with
+    // what the other source leaves of the total.
+    await wrapper.find('[data-testid="search-other-source"]').trigger('click');
+    expect(heading().attributes('supporting-text')).toBe(
+      'De beste 1 van 79 treffers. Typ meer om te verfijnen.',
     );
   });
 

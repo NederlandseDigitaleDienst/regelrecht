@@ -6,13 +6,20 @@
 //! laws that are called that to the top instead of an alphabetical slice:
 //!
 //! 0. the whole text is the query ("participatiewet");
-//! 1. the text starts with the query ("wet op de zorgtoeslag" for "wet");
+//! 1. the text starts with the query, as characters, so a word still being
+//!    typed counts ("wet op de zorgtoeslag" and "wetboek van strafrecht" for
+//!    "wet");
 //! 2. every word sits at the start or the end of a word in the text
 //!    ("algemene wet bestuursrecht", or "zorgverzekeringswet", since a Dutch
 //!    compound ends in its head);
 //! 3. any other match ("aanbestedingswet 2012" for "besteding").
 
 use unicode_normalization::UnicodeNormalization;
+
+/// The longest query looked at, in characters.
+pub(crate) const MAX_QUERY_CHARS: usize = 200;
+/// The most distinct words a law is checked for.
+pub(crate) const MAX_WORDS: usize = 10;
 
 /// How well a law matches; lower is better. See the module docs.
 pub(crate) type Rank = u8;
@@ -27,12 +34,25 @@ pub(crate) struct LawQuery {
 
 impl LawQuery {
     /// `None` for a query without any word to search on.
+    ///
+    /// The endpoint is public and every word is checked against every law, so
+    /// a query is cut to [`MAX_QUERY_CHARS`] and its distinct words to
+    /// [`MAX_WORDS`]; no law title needs more to be found.
     pub(crate) fn parse(q: &str) -> Option<Self> {
-        let phrase = fold(q);
+        let cut: String = q.chars().take(MAX_QUERY_CHARS).collect();
+        let phrase = fold(&cut);
         if phrase.is_empty() {
             return None;
         }
-        let words = phrase.split(' ').map(str::to_string).collect();
+        let mut words: Vec<String> = Vec::new();
+        for word in phrase.split(' ') {
+            if words.len() == MAX_WORDS {
+                break;
+            }
+            if !words.iter().any(|w| w == word) {
+                words.push(word.to_string());
+            }
+        }
         Some(Self { phrase, words })
     }
 
@@ -138,6 +158,25 @@ mod tests {
         assert_eq!(rank("wet", "algemene_wet_bestuursrecht", None), Some(2));
         assert_eq!(rank("wet", "zorgverzekeringswet", None), Some(2));
         assert_eq!(rank("besteding", "aanbestedingswet_2012", None), Some(3));
+    }
+
+    #[test]
+    fn digits_are_words_too() {
+        assert_eq!(rank("2001", "wet_inkomstenbelasting_2001", None), Some(2));
+        assert!(rank("2012", "wet_inkomstenbelasting_2001", None).is_none());
+    }
+
+    #[test]
+    fn repeated_and_surplus_words_are_dropped() {
+        let q = LawQuery::parse("wet wet wet").unwrap();
+        assert_eq!(q.words, vec!["wet"]);
+        let many: String = (0..50).map(|i| format!("w{i} ")).collect();
+        assert_eq!(LawQuery::parse(&many).unwrap().words.len(), MAX_WORDS);
+        let long = "a".repeat(10 * MAX_QUERY_CHARS);
+        assert_eq!(
+            LawQuery::parse(&long).unwrap().phrase.len(),
+            MAX_QUERY_CHARS
+        );
     }
 
     #[test]
