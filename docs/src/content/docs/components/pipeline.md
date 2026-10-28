@@ -277,6 +277,21 @@ with `LLM_PATH` and `LLM_MODEL` as the fallback for either.
 
 The LLM subprocess runs with a stripped environment (allowlisted vars only) for security.
 
+The image pins the claude CLI (`packages/pipeline/Dockerfile`, version
+2.1.303). The CLI is a native binary: the image installs the platform package
+`@anthropic-ai/claude-code-linux-x64-musl` and links its binary as `claude`,
+because the wrapper package `@anthropic-ai/claude-code` only puts the binary in
+place from a postinstall script, which the install skips.
+
+Without `CLAUDE_MODEL` and `LLM_EFFORT` the CLI chooses for itself, and the
+stripped environment keeps its own variables (`ANTHROPIC_MODEL`,
+`CLAUDE_CODE_EFFORT_LEVEL`) out. Which model that is depends on the CLI
+version and the subscription behind the token; 2.1.303 started without a token
+names Opus 5.5. The effort it picks also depends on a server-side setting, and
+the CLI reports it nowhere. Set both on the enrich worker to know what runs.
+The CLI does report the model, in the `init` event at the start of the
+stream-json output.
+
 ## Configuration
 
 ### Database and workers
