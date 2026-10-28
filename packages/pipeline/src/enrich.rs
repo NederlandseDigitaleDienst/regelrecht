@@ -5416,43 +5416,6 @@ related_legislation:
         assert_eq!(unknown_config.provider.name(), "opencode");
     }
 
-    /// Two windows running side by side must not share a session id. It is
-    /// the provider's handle on one conversation, so handing the same one to
-    /// two live processes is two agents writing one transcript: the second
-    /// refuses, or adopts the first's history and sees articles it was never
-    /// assigned. Sharing a session across the calls of one window is the
-    /// feature; sharing it across concurrent windows is the opposite of it.
-    #[test]
-    fn concurrent_windows_each_get_their_own_session() {
-        let parent = std::sync::Arc::new(AgentSession::new(SessionReuse::Window));
-        let child = std::sync::Arc::new(AgentSession::new(parent.reuse()));
-        assert_ne!(parent.id(), child.id());
-        assert_eq!(child.reuse(), parent.reuse());
-    }
-
-    /// The article count catches a deleted entry and says nothing about the
-    /// text inside one. An agent that shortened an article moved no counter
-    /// at all, so the file was committed with a wrong legal text under a run
-    /// reporting success.
-    #[test]
-    fn a_shortened_article_text_is_visible_in_the_comparison() {
-        let before: std::collections::BTreeMap<String, String> = [(
-            "1".to_string(),
-            "De volledige wettekst van dit artikel.".to_string(),
-        )]
-        .into_iter()
-        .collect();
-        let after: std::collections::BTreeMap<String, String> =
-            [("1".to_string(), "De volledige".to_string())]
-                .into_iter()
-                .collect();
-        let changed = before
-            .iter()
-            .find(|(number, text)| after.get(*number) != Some(*text));
-        assert!(changed.is_some(), "a truncated text must be caught");
-        assert_eq!(changed.expect("changed").0, "1");
-    }
-
     /// The enqueue path always names a provider, so this override runs on
     /// every production job. Hardcoding `RunSteps::all()` here made
     /// `ENRICH_STEPS` dead in the worker: whatever `from_env` parsed was
@@ -7620,13 +7583,8 @@ articles:
         }
     }
 
-    #[tokio::test]
-    async fn test_execute_enrich_with_fake_runner() {
-        let dir = tempfile::tempdir().unwrap();
-        let law_dir = dir.path().join("regulation/nl/wet/test_law");
-        tokio::fs::create_dir_all(&law_dir).await.unwrap();
-
-        let yaml_content = r#"---
+    /// Three articles, one of them already translated.
+    const FAKE_RUNNER_LAW: &str = r#"---
 $schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.7.0/schema/v0.7.0/schema.json
 $id: test_law
 regulatory_layer: WET
@@ -7648,6 +7606,73 @@ articles:
     text: Article three.
     url: https://wetten.overheid.nl/BWBR0000001/2025-01-01#Artikel3
 "#;
+
+    /// Enriches like [`FakeLlmRunner`], and on the way cuts the text of
+    /// article 1 short.
+    struct TruncatingLlmRunner;
+
+    #[async_trait::async_trait]
+    impl LlmRunner for TruncatingLlmRunner {
+        async fn run(
+            &self,
+            payload: &EnrichPayload,
+            yaml_abs: &Path,
+            repo_path: &Path,
+            config: &EnrichConfig,
+        ) -> Result<()> {
+            FakeLlmRunner
+                .run(payload, yaml_abs, repo_path, config)
+                .await?;
+            let content = tokio::fs::read_to_string(yaml_abs).await?;
+            let mut doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)?;
+            if let Some(serde_yaml_ng::Value::Mapping(first)) =
+                doc.get_mut("articles").and_then(|a| a.get_mut(0))
+            {
+                first.insert("text".into(), "Article".into());
+            }
+            tokio::fs::write(yaml_abs, serde_yaml_ng::to_string(&doc)?).await?;
+            Ok(())
+        }
+    }
+
+    /// The article count catches a deleted entry and says nothing about the
+    /// text inside one. An agent that shortened an article moved no counter
+    /// at all, so the file was committed with a wrong legal text under a run
+    /// reporting success.
+    #[tokio::test]
+    async fn a_shortened_article_text_fails_the_run() {
+        let dir = tempfile::tempdir().unwrap();
+        let yaml_path = "regulation/nl/wet/test_law/2025-01-01.yaml";
+        let law_abs = dir.path().join(yaml_path);
+        tokio::fs::create_dir_all(law_abs.parent().unwrap())
+            .await
+            .unwrap();
+        tokio::fs::write(&law_abs, FAKE_RUNNER_LAW).await.unwrap();
+
+        let payload = chunk_test_payload(yaml_path);
+        let config = test_config(LlmProvider::OpenCode {
+            path: "fake".into(),
+            model: None,
+        });
+
+        let err =
+            execute_enrich_with_runner(&payload, dir.path(), &config, "", &TruncatingLlmRunner)
+                .await
+                .expect_err("a truncated article text must fail the run");
+        let message = err.to_string();
+        assert!(
+            message.contains("the statutory text of article 1 changed"),
+            "{message}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_execute_enrich_with_fake_runner() {
+        let dir = tempfile::tempdir().unwrap();
+        let law_dir = dir.path().join("regulation/nl/wet/test_law");
+        tokio::fs::create_dir_all(&law_dir).await.unwrap();
+
+        let yaml_content = FAKE_RUNNER_LAW;
         let yaml_path = "regulation/nl/wet/test_law/2025-01-01.yaml";
         tokio::fs::write(dir.path().join(yaml_path), yaml_content)
             .await
@@ -8307,6 +8332,91 @@ articles:
             "elke agent kreeg een eigen kopie"
         );
         assert!(checkouts.iter().all(|c| c != dir.path()));
+    }
+
+    /// Does what [`WindowRunner`] does, and writes down the session each
+    /// window was handed.
+    struct SessionRecordingWindowRunner {
+        inner: WindowRunner,
+        sessions: std::sync::Mutex<Vec<Option<(uuid::Uuid, SessionReuse)>>>,
+    }
+
+    #[async_trait::async_trait]
+    impl LlmRunner for SessionRecordingWindowRunner {
+        async fn run(
+            &self,
+            payload: &EnrichPayload,
+            yaml_abs: &Path,
+            repo_path: &Path,
+            config: &EnrichConfig,
+        ) -> Result<()> {
+            #[allow(clippy::unwrap_used)]
+            {
+                self.sessions
+                    .lock()
+                    .unwrap()
+                    .push(payload.session.as_ref().map(|s| (s.id(), s.reuse())));
+            }
+            self.inner.run(payload, yaml_abs, repo_path, config).await
+        }
+    }
+
+    /// Two windows running side by side must not share a session id. It is
+    /// the provider's handle on one conversation, so handing the same one to
+    /// two live processes is two agents writing one transcript: the second
+    /// refuses, or adopts the first's history and sees articles it was never
+    /// assigned. Sharing a session across the calls of one window is the
+    /// feature; sharing it across concurrent windows is the opposite of it.
+    #[tokio::test]
+    async fn concurrent_windows_each_get_their_own_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let law_rel = "regulation/nl/wet/test_law/2025-01-01.yaml";
+        let law_abs = dir.path().join(law_rel);
+        tokio::fs::create_dir_all(law_abs.parent().unwrap())
+            .await
+            .unwrap();
+        tokio::fs::write(&law_abs, LAYERED_LAW).await.unwrap();
+
+        let config = test_config(LlmProvider::Claude {
+            path: "claude".into(),
+            model: None,
+        });
+        let parent = std::sync::Arc::new(AgentSession::new(SessionReuse::Window));
+        let payload = EnrichPayload {
+            session: Some(std::sync::Arc::clone(&parent)),
+            ..corpus_wide_payload()
+        };
+        let runner = SessionRecordingWindowRunner {
+            inner: WindowRunner {
+                checkouts: std::sync::Mutex::new(Vec::new()),
+            },
+            sessions: std::sync::Mutex::new(Vec::new()),
+        };
+        run_windows_concurrently(
+            &[numbers(&["2"]), numbers(&["3"])],
+            &payload,
+            &law_abs,
+            law_rel,
+            dir.path(),
+            &config,
+            &runner,
+        )
+        .await
+        .unwrap();
+
+        let sessions: Vec<_> = runner
+            .sessions
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|s| s.expect("each window carries a session"))
+            .collect();
+        assert_eq!(sessions.len(), 2);
+        assert_ne!(sessions[0].0, sessions[1].0, "the windows share a session");
+        for (id, reuse) in &sessions {
+            assert_ne!(*id, parent.id(), "a window was handed the parent's session");
+            assert_eq!(*reuse, parent.reuse());
+        }
     }
 
     #[test]

@@ -959,7 +959,15 @@ articles:
         .evaluate_law_output("wet_kring", "uitkomst", BTreeMap::new(), DATE)
         .unwrap_err()
         .to_string();
-    assert!(message.contains("Circular"), "{message}");
+    // The depth limit is a CircularReference too ("Circular reference
+    // detected: Cross-law resolution depth exceeded"), so "Circular" alone
+    // stays green when the cycle detection breaks and the recursion runs on
+    // to the limit.
+    assert!(
+        message.contains("article wet_kring#1 is already being resolved"),
+        "{message}"
+    );
+    assert!(!message.contains("depth exceeded"), "{message}");
 }
 
 #[test]
@@ -1014,12 +1022,21 @@ articles:
     let mut service = LawExecutionService::new();
     service.load_law(b).unwrap();
     service.load_law(a).unwrap();
-    for (law, output) in [("wet_a", "uitkomst"), ("wet_b", "besloten")] {
+    // The loop is closed on the first key it re-enters: from wet_a that is
+    // the decision article wet_b#1, from wet_b the output wet_a#uitkomst.
+    for (law, output, key) in [
+        ("wet_a", "uitkomst", "article wet_b#1"),
+        ("wet_b", "besloten", "wet_a#uitkomst"),
+    ] {
         let message = service
             .evaluate_law_output(law, output, BTreeMap::new(), DATE)
             .unwrap_err()
             .to_string();
-        assert!(message.contains("Circular"), "{law}: {message}");
+        assert!(
+            message.contains(&format!("{key} is already being resolved")),
+            "{law}: {message}"
+        );
+        assert!(!message.contains("depth exceeded"), "{law}: {message}");
     }
 }
 

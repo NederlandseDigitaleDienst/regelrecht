@@ -353,7 +353,12 @@ workflow_is() { printf '%s\n' "$1" >"$STUB_WORKFLOW_RUN"; }
 sticky_is() { printf '%s\n' "$1" >"$STUB_STICKY_COMMENTS"; }
 inline_is() { printf '%s\n' "$1" >"$STUB_INLINE_COMMENTS"; }
 reviews_are() { printf '%s\n' "$1" >"$STUB_REVIEWS"; }
-comments_were_read() { grep -qxF 'sticky-comments' "$STUB_CALLS"; }
+comments_were_read() { grep -qxE 'sticky-comments|inline-comments|reviews' "$STUB_CALLS"; }
+all_comments_were_read() {
+  grep -qxF 'sticky-comments' "$STUB_CALLS" &&
+    grep -qxF 'inline-comments' "$STUB_CALLS" &&
+    grep -qxF 'reviews' "$STUB_CALLS"
+}
 dispatch_runs_are() { printf '%s\n' "$@" >"$STUB_DISPATCH_RUNS"; }
 dispatch_jobs_are() { printf '%s\n' "$@" >"$STUB_DISPATCH_JOBS"; }
 
@@ -740,7 +745,7 @@ echo "== de poort opent =="
 # zegt de review dat wel in een samenvatting; die is hier het enige comment.
 reset_fixtures
 check "review af met nul bevindingen: groen" 0 "review afgerond (success)" "Wat hij niet bewijst" -- MAX_WAIT_SECONDS=0
-if comments_were_read; then
+if all_comments_were_read; then
   echo "ok   met bewijs van de review worden de comments wél gelezen"
   passed=$((passed + 1))
 else
@@ -1122,7 +1127,7 @@ if grep -qF '/labels' "$GATE"; then
   echo "FAIL de poort leest labels, en dat kan alleen om er een uitweg aan op te hangen"
   failed=$((failed + 1))
 else
-  echo "ok   de poort kent geen uitweg langs een kritieke bevinding"
+  echo "ok   de poort leest geen labels om een kritieke bevinding te omzeilen"
   passed=$((passed + 1))
 fi
 

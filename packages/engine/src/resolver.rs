@@ -2059,21 +2059,6 @@ articles:
     }
 
     #[test]
-    fn test_resolver_law_count_limit() {
-        // Test that we can't exceed the maximum law count
-        // Note: This test uses a smaller limit to avoid long test times
-        let mut resolver = RuleResolver::new();
-
-        // Load a law to verify basic functionality
-        resolver.load_from_yaml(make_test_law()).unwrap();
-        assert_eq!(resolver.law_count(), 1);
-
-        // Verify replacement doesn't count towards limit
-        resolver.load_from_yaml(make_test_law()).unwrap();
-        assert_eq!(resolver.law_count(), 1); // Should still be 1 (replacement)
-    }
-
-    #[test]
     fn test_resolver_load_law_returns_result() {
         // Test that load_law now returns a Result
         let mut resolver = RuleResolver::new();
@@ -3607,6 +3592,20 @@ publication_date: '2025-01-01'
         }
         assert_eq!(resolver.version_count(), config::MAX_LOADED_LAWS);
         resolver
+    }
+
+    #[test]
+    fn test_resolver_limit_rejects_a_new_law() {
+        let mut resolver = resolver_at_law_limit();
+
+        let result = resolver.load_from_yaml(&make_numbered_law(config::MAX_LOADED_LAWS, None));
+
+        assert!(
+            matches!(result, Err(EngineError::LoadError(_))),
+            "a new law at the limit must be rejected, got {result:?}"
+        );
+        assert_eq!(resolver.version_count(), config::MAX_LOADED_LAWS);
+        assert!(!resolver.has_law(&format!("filler_law_{}", config::MAX_LOADED_LAWS)));
     }
 
     #[test]

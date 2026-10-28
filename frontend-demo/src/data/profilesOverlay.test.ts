@@ -78,10 +78,14 @@ describe("de Engelse persona's", () => {
     expect(Object.keys(en.profiles)).toEqual(Object.keys(nl.profiles));
   });
 
-  it('houden de BSN als tekst en niet als getal', () => {
+  it('houden de BSN als tekst en niet als getal, in beide talen', () => {
     // Een BSN mag met een nul beginnen. Wordt de sleutel een getal, dan valt die
-    // nul weg en vindt geen enkele opzoeking de persoon nog.
-    for (const key of Object.keys(en.profiles)) expect(typeof key).toBe('string');
+    // nul weg en vindt geen enkele opzoeking de persoon nog. Object.keys geeft
+    // altijd tekst; wat overblijft van zo'n getal is een sleutel van minder dan
+    // negen cijfers.
+    for (const doc of [nl, en]) {
+      for (const key of Object.keys(doc.profiles)) expect(key).toMatch(/^\d{9}$/);
+    }
   });
 
   it('hebben overal een beschrijving, en nergens meer de Nederlandse', () => {

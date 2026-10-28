@@ -183,3 +183,38 @@ export const VERLEGGING_GERUSTSTELLING = [
   'Het geldt voor dit jaar. Verdien je volgend jaar meer? Dan rekent DUO daar weer mee.',
   'Je mag je inkomen schatten. DUO kijkt later naar je echte inkomen en verrekent het verschil.',
 ];
+
+/**
+ * Is de draagkrachtmeting een keuze voor deze debiteur? `sim` is de
+ * doorrekening zónder aanvraag. Is de meting dan niet van toepassing, dan
+ * valt de debiteur onder hoofdstuk 10a (artikel 10a.7) en moet hij hem zelf
+ * aanvragen. Staat hij ook zonder aanvraag al aan, dan gaat het ambtshalve
+ * (hoofdstuk 6) en valt er niets te kiezen. Een onbekende uitkomst is geen
+ * keuze.
+ */
+export function draagkrachtmetingIsKeuze(sim) {
+  return sim?.timeline?.[0]?.draagkrachtmeting_van_toepassing === false;
+}
+
+/**
+ * De waarschuwing over het budget bij het eerste jaar van de doorrekening,
+ * of null zonder betalingsprobleem.
+ *
+ * Capaciteit nul betekent: na de vaste lasten volgens het
+ * Nibud-referentiebudget blijft er niets over. Dan helpt "kijk of je minder
+ * kunt betalen" niet, want ook een lager bedrag knelt. Bij een bedrag van een
+ * paar euro is die tekst bovendien ongeloofwaardig.
+ */
+export function budgetSignaal(t0) {
+  if (!t0?.betalingsprobleem) return null;
+  if (!t0.afloscapaciteit) {
+    return {
+      variant: 'warning',
+      tekst: `Je inkomen is te laag voor de vaste lasten die het Nibud voor jouw huishouden rekent. Ook ${euro(t0.maandbedrag)} per maand is dan lastig. Kom je er niet uit, neem dan contact op met DUO of met schuldhulpverlening in je gemeente.`,
+    };
+  }
+  return {
+    variant: 'warning',
+    tekst: `Dit maandbedrag ligt boven wat je volgens het Nibud kunt missen (ongeveer ${euro(t0.afloscapaciteit)} per maand). Kijk bij je keuzes of je minder kunt betalen.`,
+  };
+}

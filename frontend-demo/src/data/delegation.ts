@@ -25,7 +25,8 @@
  */
 import { t } from '../i18n/index.js';
 
-import { isDelegationProvider } from './entrypoints';
+import { isDelegationProvider, subjectOf } from './entrypoints';
+import type { Subject } from './entrypoints';
 import type { LawDocLike } from './format';
 import type { DemoProfileConfig } from './loadCorpus';
 
@@ -328,4 +329,133 @@ export function delegationKey(delegation: Pick<Delegation, 'subjectType' | 'subj
  */
 export function startDelegationKey(profile: Partial<DemoProfileConfig> | null | undefined): string | null {
   return profile?.start_namens ? delegationKey({ subjectType: 'BUSINESS', subjectId: profile.start_namens }) : null;
+}
+
+/** The stored choice for "Mezelf": a choice, but not a delegation. */
+export const SELF_KEY = 'SELF';
+
+/** The part of a delegation the store's rules read. */
+type DelegationLike = Pick<Delegation, 'subjectType' | 'subjectId'>;
+
+/**
+ * The key a choice in the toolbar stores. "Mezelf" is not a delegation but
+ * its absence, and still a choice: it wins over the profile's start
+ * delegation.
+ */
+export function chosenDelegationKey(delegation: DelegationLike | null | undefined): string | null {
+  return !delegation || delegation.subjectType === 'SELF' ? SELF_KEY : delegationKey(delegation);
+}
+
+/**
+ * The delegations that can be chosen in the toolbar: everything the law
+ * grants, or nothing when the DELEGATION flag is off.
+ */
+export function selectableDelegations<D>(enabled: boolean, delegations: D[]): D[] {
+  return enabled ? delegations : [];
+}
+
+/**
+ * The chosen delegation, or null when acting for oneself. A stored choice that
+ * no longer exists (another reference date, another profile) silently falls
+ * back to acting for oneself: that is the safe side.
+ *
+ * The start delegation follows from the profile and the law; `enabled` (the
+ * DELEGATION flag) only governs what can be chosen in the toolbar. Without the
+ * flag an earlier choice does not count: whoever chose "Mezelf" with the flag
+ * on and then turned it off starts on behalf of the business again.
+ *
+ * `delegations` is everything the law grants, regardless of the flag.
+ */
+export function activeDelegationFor<D extends DelegationLike>({
+  profile,
+  chosenKey,
+  enabled,
+  delegations,
+}: {
+  profile: Partial<DemoProfileConfig> | null | undefined;
+  chosenKey: string | null;
+  enabled: boolean;
+  delegations: D[];
+}): D | null {
+  const start = startDelegationKey(profile);
+  const key = (enabled ? chosenKey : null) ?? start;
+  if (!key || key === SELF_KEY) return null;
+  const pool = key === start ? delegations : selectableDelegations(enabled, delegations);
+  const found = pool.find((d) => delegationKey(d) === key) ?? null;
+  return found && found.subjectType !== 'SELF' ? found : null;
+}
+
+/** The parameters identifying the subject a law is evaluated for. */
+// A type alias, not an interface, so it stays assignable to the store's
+// open-ended `SubjectParams`.
+export type SubjectIds = {
+  bsn?: string;
+  kvk_nummer?: string;
+};
+
+/**
+ * The parameters a law is asked about the subject with.
+ *
+ * Acting on behalf of someone else, the parameters are about that other: a
+ * business is asked about by its KvK number, a child by its BSN. Acting for
+ * oneself is acting as a citizen, even with a business; the business is
+ * reached through the delegation.
+ */
+export function subjectParams(
+  delegation: DelegationLike | null | undefined,
+  profile: Pick<DemoProfileConfig, 'bsn'>,
+): SubjectIds {
+  if (delegation?.subjectType === 'BUSINESS') return { kvk_nummer: delegation.subjectId };
+  if (delegation?.subjectType === 'CITIZEN') return { bsn: delegation.subjectId };
+  return { bsn: profile.bsn };
+}
+
+/**
+ * The BSN this is about now. On behalf of a child that is the child; on behalf
+ * of a business it stays the agent's, because a business has none.
+ */
+export function subjectBsnFor(
+  delegation: DelegationLike | null | undefined,
+  profile: Pick<DemoProfileConfig, 'bsn'> | null | undefined,
+): string | undefined {
+  return delegation?.subjectType === 'CITIZEN' ? delegation.subjectId : profile?.bsn;
+}
+
+/** Which kind of schemes the portal shows: those of the subject. */
+export function portalSubject(delegation: Pick<Delegation, 'subjectType'> | null | undefined): Subject {
+  return delegation?.subjectType === 'BUSINESS' ? 'BUSINESS' : 'CITIZEN';
+}
+
+/** The part of a case `caseOfSubject` matches on. */
+export interface SubjectCase {
+  lawId: string;
+  status: string;
+  bsn?: string;
+  kvk: string | null;
+}
+
+/**
+ * The subject's case for this law.
+ *
+ * What is compared follows the law, not the caller: a law that computes on a
+ * KvK number has its case on the KvK number, a law about a person its case on
+ * the BSN. The distinction matters because an entrepreneur acting for herself
+ * carries both: matching on the BSN whenever it was there hid her own business
+ * case as soon as an agent had filed it (that case carries the agent's BSN),
+ * although the case was about the same business.
+ */
+export function caseOfSubject<C extends SubjectCase>(
+  cases: C[],
+  lawEntry: { id: string; doc?: LawDocLike | null },
+  params: SubjectIds,
+): C | null {
+  const onBusiness = subjectOf(lawEntry.doc) === 'BUSINESS' && params.kvk_nummer !== undefined;
+  return (
+    cases.find(
+      (c) =>
+        c.lawId === lawEntry.id &&
+        c.status !== 'WITHDRAWN' &&
+        (onBusiness ? c.kvk === params.kvk_nummer : c.bsn === params.bsn),
+    ) ?? null
+  );
 }

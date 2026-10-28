@@ -388,8 +388,15 @@ fn a_reduction_reads_only_a_fact_its_article_requires() {
     assert!(e.to_string().contains("requires no fact 'stand'"), "{e}");
     // A stream id, as v0.8.6 had it, or an article alone is no fact
     // reference.
-    assert!(service().load_law(&reduction("stand")).is_err());
-    assert!(service().load_law(&reduction(BASIS)).is_err());
+    for not_a_fact in ["stand", BASIS] {
+        let e = service().load_law(&reduction(not_a_fact)).unwrap_err();
+        assert!(
+            e.to_string().contains(&format!(
+                "'{not_a_fact}' is not <regulation>#<article>#<fact>"
+            )),
+            "{e}"
+        );
+    }
 }
 
 #[test]

@@ -19,10 +19,22 @@ import {
 } from '../engine/useDemoEngine';
 import { reviewedByCaseworker, statusOf } from '../data/lifecycle';
 import { declaredClaim } from '../data/declarations';
-import { delegationKey, delegationTypeLabel, delegationsFor, maySubmitClaims, startDelegationKey } from '../data/delegation';
+import {
+  activeDelegationFor,
+  caseOfSubject,
+  chosenDelegationKey,
+  delegationTypeLabel,
+  delegationsFor,
+  maySubmitClaims,
+  portalSubject,
+  selectableDelegations,
+  subjectBsnFor,
+  subjectParams,
+} from '../data/delegation';
 import { verdictOf } from '../data/format';
 import { driftOf } from '../data/caseDrift';
-import { isEntrypointFor, subjectOf } from '../data/entrypoints';
+import { isEntrypointFor } from '../data/entrypoints';
+import { featureFlagEnabled } from '../data/featureFlags';
 import { assignClaimOwnership } from '../data/claimOwnership';
 import { activeLocale, t } from '../i18n/index.js';
 import type { Corpus, DemoConfig, LawEntry, PersonaProfile, DemoProfileConfig } from '../data/loadCorpus';
@@ -514,9 +526,7 @@ export const FEATURES: FeatureFlag[] = [
  * schakelaar.
  */
 function featureEnabled(key: string): boolean {
-  const override = state.featureOverrides?.[key];
-  if (override !== undefined) return override;
-  return !!profile.value?.feature_flags?.[key];
+  return featureFlagEnabled(profile.value, state.featureOverrides, key);
 }
 
 /** Reactieve vorm van `featureEnabled`, voor gebruik in een template. */
@@ -550,46 +560,30 @@ const delegationResult = computed<{ delegations: Delegation[]; errors: Delegatio
 const delegationEnabled = computed(() => features.value.DELEGATION);
 
 /** De machtigingen die dit profiel kan kiezen; leeg als de vlag uit staat. */
-const delegations = computed<Delegation[]>(() => (delegationEnabled.value ? delegationResult.value.delegations : []));
+const delegations = computed<Delegation[]>(() =>
+  selectableDelegations(delegationEnabled.value, delegationResult.value.delegations),
+);
 
-/**
- * De gekozen machtiging, of null als er voor zichzelf gehandeld wordt.
- * Een bewaarde keuze die niet meer bestaat (andere peildatum, ander profiel)
- * vervalt stil naar 'voor zichzelf': dat is de veilige kant.
- */
-const activeDelegation = computed<Delegation | null>(() => {
-  const start = startDelegationKey(profile.value);
-  // De startmachtiging volgt uit het profiel en de wet; de vlag gaat alleen
-  // over wat er in de werkbalk te kiezen is. Zonder de vlag telt een eerder
-  // gemaakte keuze dus niet: wie met de vlag aan "Mezelf" koos en hem daarna
-  // uitzette, begint weer namens de zaak.
-  const key = (delegationEnabled.value ? state.delegationKey : null) ?? start;
-  if (!key || key === SELF_KEY) return null;
-  const pool = key === start ? delegationResult.value.delegations : delegations.value;
-  const found = pool.find((d) => delegationKey(d) === key) ?? null;
-  return found && found.subjectType !== 'SELF' ? found : null;
-});
+/** The chosen delegation, or null when acting for oneself (see `activeDelegationFor`). */
+const activeDelegation = computed<Delegation | null>(() =>
+  activeDelegationFor({
+    profile: profile.value,
+    chosenKey: state.delegationKey,
+    enabled: delegationEnabled.value,
+    delegations: delegationResult.value.delegations,
+  }),
+);
 
 /** Mag er in de huidige context gecorrigeerd en aangevraagd worden? */
 const canSubmitClaims = computed(() => maySubmitClaims(activeDelegation.value));
 
-/**
- * De BSN waar het nu over gaat. Namens een kind is dat het kind; namens een
- * onderneming blijft het de gemachtigde, want een onderneming heeft er geen.
- */
+/** The BSN this is about now (see `subjectBsnFor`). */
 function subjectBsn(): string | undefined {
-  const d = activeDelegation.value;
-  return d?.subjectType === 'CITIZEN' ? d.subjectId : profile.value?.bsn;
+  return subjectBsnFor(activeDelegation.value, profile.value);
 }
 
-/** De opgeslagen keuze voor Mezelf (zie `delegationKey` in defaultState). */
-const SELF_KEY = 'SELF';
-
 function setDelegation(delegation: Delegation | null): void {
-  const key = delegationKey(delegation);
-  // 'Mezelf' is geen machtiging maar de afwezigheid ervan, en wel een keuze:
-  // die wint van de startmachtiging van het profiel.
-  state.delegationKey = !delegation || delegation.subjectType === 'SELF' ? SELF_KEY : key;
+  state.delegationKey = chosenDelegationKey(delegation);
 }
 
 /**
@@ -602,11 +596,8 @@ function setDelegation(delegation: Delegation | null): void {
  * zij een onderneming heeft: die bereikt ze via de machtiging.
  */
 function personaParams(): SubjectParams {
-  const d = activeDelegation.value;
-  if (d?.subjectType === 'BUSINESS') return { kvk_nummer: d.subjectId };
-  if (d?.subjectType === 'CITIZEN') return { bsn: d.subjectId };
   // Throws without a profile, as it did in JavaScript; callers run after boot.
-  return { bsn: profile.value!.bsn };
+  return subjectParams(activeDelegation.value, profile.value!);
 }
 
 function setProfile(key: string | null): void {
@@ -651,8 +642,7 @@ function isLawEnabled(lawEntry: Pick<LawEntry, 'service' | 'law_path'>): boolean
  */
 const portalLaws = computed<LawEntry[]>(() => {
   if (!corpus.value || !profile.value) return [];
-  const d = activeDelegation.value;
-  const wanted = d?.subjectType === 'BUSINESS' ? 'BUSINESS' : 'CITIZEN';
+  const wanted = portalSubject(activeDelegation.value);
   return [...corpus.value.latestById.values()].filter(
     (law) => isEntrypointFor(law.doc, wanted) && isLawEnabled(law),
   );
@@ -670,28 +660,9 @@ function evaluate(
 
 // ---- cases -----------------------------------------------------------------
 
-/**
- * De zaak van het huidige onderwerp voor deze wet.
- *
- * Waarop vergeleken wordt volgt de wet, niet de aanroeper: een wet die om een
- * KvK-nummer rekent heeft een zaak op het KvK-nummer, een
- * wet over een persoon een zaak op de BSN. Dat onderscheid is nodig omdat een
- * ondernemer bij zichzelf allebei bij zich draagt: matchen op de BSN zolang
- * die er is, liet een ondernemer zijn eigen bedrijfszaak niet zien zodra een
- * gemachtigde die had ingediend (die zaak staat op diéns BSN), terwijl de
- * zaak wel over dezelfde onderneming ging.
- */
+/** The current subject's case for this law (see `caseOfSubject`). */
 function findCase(lawEntry: Pick<LawEntry, 'id' | 'doc'>, subject: SubjectParams | null = null): DemoCase | null {
-  const params = subject ?? personaParams();
-  const onBusiness = subjectOf(lawEntry.doc) === 'BUSINESS' && params.kvk_nummer !== undefined;
-  return (
-    state.cases.find(
-      (c) =>
-        c.lawId === lawEntry.id &&
-        c.status !== 'WITHDRAWN' &&
-        (onBusiness ? c.kvk === params.kvk_nummer : c.bsn === params.bsn),
-    ) ?? null
-  );
+  return caseOfSubject(state.cases, lawEntry, subject ?? personaParams());
 }
 
 /**

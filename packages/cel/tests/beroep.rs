@@ -361,6 +361,40 @@ fn the_court_records_the_appeal_with_the_copy_it_received() {
 }
 
 #[test]
+fn an_appeal_received_after_the_period_is_inadmissible() {
+    let mut school = school();
+    let mut court = court();
+    let refused = refused(&mut school);
+    let (_, decided) = objected(&mut school, &refused, json!({}));
+    let copy = school
+        .afschrift(&mut service(), &[], &decided[0].id)
+        .unwrap();
+    // Received one day after the period the decision on the objection set.
+    let appeal = appealed_on(&mut court, &copy, ["2026-12-20", "2026-12-28"]).unwrap();
+    assert_eq!(appeal.fields["termijn_einddatum"], json!("2026-12-27"));
+    assert_eq!(
+        appeal.outputs["bezwaar_of_beroepschrift_tijdig_ingediend"],
+        json!(false)
+    );
+    // The cell still asks whether a rule was breached; even with a breach,
+    // lateness alone keeps the decision standing.
+    let findings = object_map(json!({
+        "indiener_is_belanghebbende": true,
+        "rechtsregel_geschonden": true,
+    }));
+    let judgment = judged(&mut court, &appeal, &findings);
+    assert_eq!(judgment.outputs["beroep_ontvankelijk"], json!(false));
+    assert_eq!(
+        judgment.outputs["uitspraak_strekt_tot"],
+        json!("niet-ontvankelijkverklaring van het beroep")
+    );
+    assert_eq!(
+        judgment.outputs["bestreden_besluit_vernietigd"],
+        json!(false)
+    );
+}
+
+#[test]
 fn the_court_annuls_the_decision_and_orders_a_new_one() {
     let case = case(&well_founded());
     let judgment = &case.judgment;
