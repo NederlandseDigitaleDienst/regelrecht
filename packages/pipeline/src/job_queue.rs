@@ -366,20 +366,33 @@ where
 /// trip would let the reaper take back a job that is still running.
 pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 
-/// Record that the worker holding `job_id` is still working on it.
+/// Record that the worker holding a job is still working on it.
 ///
-/// Returns `false` when the job is no longer processing (it finished, failed
-/// or was reaped), which tells the heartbeat to stop.
-pub async fn heartbeat<'e, E>(executor: E, job_id: Uuid) -> Result<bool>
+/// `claimed_at` is the `started_at` the claim returned, and serves as the
+/// claim's token: a job that was reset and claimed again has a new
+/// `started_at`, so a heartbeat left over from the earlier claim no longer
+/// lands and cannot keep the later claim alive after its worker died.
+///
+/// Returns `false` when this claim no longer holds the job (it finished,
+/// failed, was reaped, or was claimed again), which tells the heartbeat to
+/// stop.
+pub async fn heartbeat<'e, E>(
+    executor: E,
+    job_id: Uuid,
+    claimed_at: Option<chrono::DateTime<chrono::Utc>>,
+) -> Result<bool>
 where
     E: sqlx::PgExecutor<'e>,
 {
-    let updated =
-        sqlx::query("UPDATE jobs SET heartbeat_at = now() WHERE id = $1 AND status = 'processing'")
-            .bind(job_id)
-            .execute(executor)
-            .await?
-            .rows_affected();
+    let updated = sqlx::query(
+        "UPDATE jobs SET heartbeat_at = now() \
+         WHERE id = $1 AND status = 'processing' AND started_at IS NOT DISTINCT FROM $2",
+    )
+    .bind(job_id)
+    .bind(claimed_at)
+    .execute(executor)
+    .await?
+    .rows_affected();
     Ok(updated == 1)
 }
 
@@ -403,10 +416,10 @@ pub struct JobHeartbeat {
 }
 
 impl JobHeartbeat {
-    pub fn start(pool: sqlx::PgPool, job_id: Uuid, job_timeout: Duration) -> Self {
+    pub fn start(pool: sqlx::PgPool, job: &Job, job_timeout: Duration) -> Self {
         Self::start_with(
             pool,
-            job_id,
+            job,
             HEARTBEAT_INTERVAL,
             job_timeout.saturating_add(HEARTBEAT_GRACE),
         )
@@ -416,10 +429,12 @@ impl JobHeartbeat {
     #[doc(hidden)]
     pub fn start_with(
         pool: sqlx::PgPool,
-        job_id: Uuid,
+        job: &Job,
         interval: Duration,
         max_age: Duration,
     ) -> Self {
+        let job_id = job.id;
+        let claimed_at = job.started_at;
         let handle = tokio::spawn(async move {
             let deadline = tokio::time::Instant::now() + max_age;
             let mut tick = tokio::time::interval(interval);
@@ -437,10 +452,10 @@ impl JobHeartbeat {
                     );
                     break;
                 }
-                match heartbeat(&pool, job_id).await {
+                match heartbeat(&pool, job_id, claimed_at).await {
                     Ok(true) => {}
                     Ok(false) => {
-                        tracing::debug!(job_id = %job_id, "job no longer processing, heartbeat stopped");
+                        tracing::debug!(job_id = %job_id, "claim no longer holds the job, heartbeat stopped");
                         break;
                     }
                     // A missed beat is not fatal: the reaper allows several.

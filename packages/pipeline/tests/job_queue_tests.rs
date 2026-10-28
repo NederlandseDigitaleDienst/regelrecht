@@ -391,7 +391,10 @@ async fn test_reap_spares_long_running_job_with_fresh_heartbeat() {
         .execute(&db.pool)
         .await
         .unwrap();
-    assert!(job_queue::heartbeat(&db.pool, job.id).await.unwrap());
+    let held = job_queue::get_job(&db.pool, job.id).await.unwrap();
+    assert!(job_queue::heartbeat(&db.pool, held.id, held.started_at)
+        .await
+        .unwrap());
 
     let reaped = job_queue::reap_orphaned_jobs(&db.pool, Duration::from_secs(60))
         .await
@@ -437,15 +440,51 @@ async fn test_heartbeat_reports_job_no_longer_processing() {
     let job = job_queue::create_job(&db.pool, req).await.unwrap();
 
     // Pending: nothing to beat for.
-    assert!(!job_queue::heartbeat(&db.pool, job.id).await.unwrap());
+    assert!(!job_queue::heartbeat(&db.pool, job.id, None).await.unwrap());
 
-    job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
-    assert!(job_queue::heartbeat(&db.pool, job.id).await.unwrap());
+    let claimed = job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+    assert!(
+        job_queue::heartbeat(&db.pool, claimed.id, claimed.started_at)
+            .await
+            .unwrap()
+    );
 
     job_queue::complete_job(&db.pool, job.id, None)
         .await
         .unwrap();
-    assert!(!job_queue::heartbeat(&db.pool, job.id).await.unwrap());
+    assert!(
+        !job_queue::heartbeat(&db.pool, claimed.id, claimed.started_at)
+            .await
+            .unwrap()
+    );
+}
+
+#[tokio::test]
+async fn test_heartbeat_from_earlier_claim_does_not_land() {
+    // The first worker died; the job was reset and claimed again. A beat
+    // still carrying the first claim's token must not keep the second
+    // claim alive.
+    let db = TestDb::new().await;
+
+    let req = CreateJobRequest::new(JobType::Harvest, "BWBR0001840").with_max_attempts(3);
+    job_queue::create_job(&db.pool, req).await.unwrap();
+    let first = job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+
+    sqlx::query("UPDATE jobs SET status = 'pending' WHERE id = $1")
+        .bind(first.id)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+    let second = job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+    assert_eq!(second.id, first.id);
+    assert_ne!(second.started_at, first.started_at);
+
+    assert!(!job_queue::heartbeat(&db.pool, first.id, first.started_at)
+        .await
+        .unwrap());
+    assert!(job_queue::heartbeat(&db.pool, second.id, second.started_at)
+        .await
+        .unwrap());
 }
 
 /// Seconds since the job's last heartbeat, as the database sees it.
@@ -472,13 +511,13 @@ async fn age_heartbeat(db: &TestDb, id: uuid::Uuid) {
 async fn test_job_heartbeat_beats_and_stops_on_drop() {
     let db = TestDb::new().await;
     let req = CreateJobRequest::new(JobType::Harvest, "BWBR0001840");
-    let job = job_queue::create_job(&db.pool, req).await.unwrap();
-    job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+    job_queue::create_job(&db.pool, req).await.unwrap();
+    let job = job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
 
     age_heartbeat(&db, job.id).await;
     let guard = job_queue::JobHeartbeat::start_with(
         db.pool.clone(),
-        job.id,
+        &job,
         Duration::from_millis(50),
         Duration::from_secs(60),
     );
@@ -512,9 +551,10 @@ async fn test_job_heartbeat_stops_at_its_ceiling() {
         .await
         .unwrap();
     age_heartbeat(&db, job.id).await;
+    let held = job_queue::get_job(&db.pool, job.id).await.unwrap();
     let _guard = job_queue::JobHeartbeat::start_with(
         db.pool.clone(),
-        job.id,
+        &held,
         Duration::from_millis(50),
         Duration::ZERO,
     );

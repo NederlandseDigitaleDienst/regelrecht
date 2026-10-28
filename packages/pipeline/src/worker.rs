@@ -396,7 +396,7 @@ async fn process_next_job(
         None => return Ok(JobOutcome::Idle),
     };
     // Tells the reaper this job is still being worked on, until it is done.
-    let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), job.id, config.job_timeout);
+    let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), &job, config.job_timeout);
 
     tracing::info!(
         job_id = %job.id,
@@ -1380,7 +1380,7 @@ async fn process_next_document_convert_job(
         None => return Ok(JobOutcome::Idle),
     };
     // Tells the reaper this job is still being worked on, until it is done.
-    let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), job.id, job_timeout);
+    let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), &job, job_timeout);
 
     // Parse the payload. A malformed payload is deterministic — fail terminally
     // (no retry) and still drop the transient upload if we can recover its id.
@@ -1576,7 +1576,7 @@ async fn process_next_law_convert_job(
         None => return Ok(JobOutcome::Idle),
     };
     // Tells the reaper this job is still being worked on, until it is done.
-    let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), job.id, job_timeout);
+    let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), &job, job_timeout);
     tracing::info!(job_id = %job.id, law_id = %job.law_id, "processing law-convert job");
 
     // Malformed payload is deterministisch: terminaal falen, en de upload
@@ -1728,7 +1728,7 @@ async fn process_next_traject_harvest_job(
         None => return Ok(JobOutcome::Idle),
     };
     // Tells the reaper this job is still being worked on, until it is done.
-    let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), job.id, config.job_timeout);
+    let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), &job, config.job_timeout);
     tracing::info!(job_id = %job.id, law_id = %job.law_id, attempt = job.attempts, "processing traject-harvest job");
 
     // Malformed payload is deterministisch: terminaal falen. Zonder payload
@@ -2678,7 +2678,7 @@ async fn process_next_enrich_job(
         None => return Ok(JobOutcome::Idle),
     };
     // Tells the reaper this job is still being worked on, until it is done.
-    let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), job.id, job_timeout);
+    let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), &job, job_timeout);
 
     let payload: EnrichPayload = match &job.payload {
         Some(p) => match serde_json::from_value(p.clone()) {
@@ -3437,6 +3437,42 @@ async fn handle_enrich_exhausted_or_retry(
 #[cfg(test)]
 mod tests {
     use crate::api::bwb_search::BwbSearchResult;
+
+    /// Every claim starts a heartbeat that lives as long as the job. A claim
+    /// without one gets its job reaped after the orphan timeout, and
+    /// `let _ = JobHeartbeat::start(..)` drops the guard at once, which no
+    /// other test would notice.
+    #[test]
+    fn every_claim_keeps_a_heartbeat_for_the_whole_job() {
+        let source = include_str!("worker.rs");
+        // Only the production code: the tests below mention the call too.
+        let production = &source[..source
+            .find("#[cfg(test)]\nmod tests {")
+            .expect("test module marker")];
+        let lines: Vec<&str> = production.lines().collect();
+        let claims: Vec<usize> = lines
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| l.contains("job_queue::claim_job("))
+            .map(|(i, _)| i)
+            .collect();
+        assert!(!claims.is_empty(), "the worker claims jobs");
+        for i in claims {
+            let next_code_line = lines[i + 1..]
+                .iter()
+                .map(|l| l.trim())
+                .skip_while(|l| !l.starts_with("};"))
+                .skip(1)
+                .find(|l| !l.is_empty() && !l.starts_with("//"))
+                .unwrap_or("");
+            assert!(
+                next_code_line
+                    .starts_with("let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), &job,"),
+                "the claim on line {} must be followed by a named heartbeat guard, found: {next_code_line}",
+                i + 1
+            );
+        }
+    }
 
     fn hit(bwb_id: &str) -> BwbSearchResult {
         BwbSearchResult {
