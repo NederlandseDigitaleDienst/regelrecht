@@ -105,6 +105,9 @@ describe('LibraryView machine views in Corpus juris', () => {
   });
 
   it('keeps every view inside a traject', async () => {
+    // An entry that would raise the other-version note in Corpus juris: inside
+    // a traject the note stays away.
+    entries.list = [{ law_id: 'wet_a', enriched: false, enriched_version: '2025-01-01' }];
     activeTrajectRef.value = 'traject-aaaa1111';
     routeState.params = { trajectRef: 'traject-aaaa1111', lawId: 'wet_a' };
     const wrapper = mountLibrary();

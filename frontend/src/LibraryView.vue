@@ -42,6 +42,7 @@ import { useDocumentUpload } from './composables/useDocumentUpload';
 import { useAddActions } from './composables/useAddActions';
 import { useDocumentTaskReview } from './composables/useDocumentTaskReview';
 import { humanizeLawId } from './lib/lawName';
+import { officialTextUrl } from './lib/searchResults';
 import { sameTraject } from './lib/taskReview';
 import { apiFetch, apiFetchJson, ApiError } from './lib/apiFetch';
 import { uploadMultipart } from './lib/uploadMultipart';
@@ -969,6 +970,12 @@ const selectedLawId = ref<string | null>(null);
 // the law's first occurrence.
 const selectedSection = ref<string | null>(null);
 const selectedLaw = shallowRef<LibraryLawDocument | null>(null);
+// The law's YAML as the server sent it, for the YAML tab on Algemeen; cleared
+// with the parsed law.
+const selectedLawText = shallowRef('');
+watch(selectedLaw, (law) => {
+  if (!law) selectedLawText.value = '';
+});
 const selectedLawLoading = ref(false);
 const lawError = ref<RequestError | null>(null);
 
@@ -1077,7 +1084,8 @@ function onDetailTabChange(e: CustomEvent<{ item?: NLDDTabBarItem } | null>) {
 // established; a text-only law shows its text, and says so when another
 // version does have a machine version. The list entry carries both facts
 // (`enriched`, `enriched_version`), so fetch it for the open law. A traject is
-// a place of work: there every law keeps all three views, as before.
+// a place of work: there every law keeps all three views, as before. The
+// entry is fetched there too, for the GitHub link on Algemeen (`source_url`).
 const lawEntry = shallowRef<CorpusLaw | null>(null);
 const claimLawEntry = useLatest();
 watch(
@@ -1085,10 +1093,10 @@ watch(
   async ([lawId, trajectRef]) => {
     const isCurrent = claimLawEntry();
     lawEntry.value = null;
-    if (!lawId || trajectRef) return;
+    if (!lawId) return;
     try {
       const list = await apiFetchJson<CorpusLaw[]>(
-        lawsListUrl(null, `ids=${encodeURIComponent(lawId)}`),
+        lawsListUrl(trajectRef, `ids=${encodeURIComponent(lawId)}`),
       );
       if (isCurrent()) lawEntry.value = list.find((l) => l.law_id === lawId) ?? null;
     } catch {
@@ -1416,6 +1424,48 @@ const algemeenRows = computed(() => {
   return rows.filter((row) => row.value);
 });
 
+// Algemeen has two tabs, Overzicht and YAML (the whole file). They ride the
+// same URL hash as the article tabs, so #yaml deep-links to the file; the
+// Overzicht tab writes the article's 'tekst' view (#text), and any hash other
+// than #yaml shows Overzicht.
+const algemeenView = computed(() => (detailView.value === 'yaml' ? 'yaml' : 'overzicht'));
+
+// Where the law comes from: the published text, and the folder of versions
+// on GitHub when the law lives in a GitHub source.
+const algemeenLinks = computed(() => {
+  const law = selectedLaw.value;
+  if (!law) return [];
+  const links: { key: string; text: string; supportingText: string; href: string }[] = [];
+  // The law file's own `url` points at its version, but the file is written
+  // by people (traject members, the harvester), so only a web address may
+  // become a link; anything else falls back to the BWB id.
+  const official = webUrl(law.url) ?? (typeof law.bwb_id === 'string' && law.bwb_id ? webUrl(officialTextUrl(law.bwb_id)) : null);
+  if (official) {
+    links.push({ key: 'official', text: official.hostname, supportingText: 'Officiële tekst', href: official.href });
+  }
+  const sourceUrl = lawEntry.value?.source_url;
+  if (sourceUrl) {
+    links.push({
+      key: 'github',
+      text: 'GitHub',
+      supportingText: 'De map met de versies van dit regelwerk',
+      href: sourceUrl,
+    });
+  }
+  return links;
+});
+
+/** `value` as a URL when it is an http(s) address, else null. */
+function webUrl(value: unknown): URL | null {
+  if (typeof value !== 'string') return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 // `legal_basis` points at other laws in the corpus, so these become links.
 const algemeenLegalBasis = computed(() => selectedLaw.value?.legal_basis ?? []);
 
@@ -1684,7 +1734,9 @@ async function loadLaw(lawId: string, { minLoadingMs = 0 }: { minLoadingMs?: num
     const text = await res.text();
     if (!isCurrent()) return;
     // Unchecked YAML: the types say what the view reads, nothing validates it.
-    selectedLaw.value = yaml.load(text) as LibraryLawDocument | null;
+    const parsed = yaml.load(text) as LibraryLawDocument | null;
+    selectedLawText.value = text;
+    selectedLaw.value = parsed;
     // selectedArticleNumber is set from the route on initial mount and via
     // onBeforeRouteUpdate; we don't validate here so an invalid number
     // surfaces as the articleNotFound error state instead of being silently
@@ -2745,37 +2797,72 @@ watch(activeTrajectRef, () => {
                   <span slot="supporting-text">{{ lawName }}</span>
                 </nldd-title>
                 <nldd-spacer size="16"></nldd-spacer>
-                <nldd-list appearance="box-tinted" accessible-label="Algemene informatie">
-                  <nldd-list-item v-for="row in algemeenRows" :key="row.label">
-                    <nldd-text-cell :text="row.label" width="200px"></nldd-text-cell>
-                    <nldd-spacer-cell size="16"></nldd-spacer-cell>
-                    <nldd-text-cell :text="row.value"></nldd-text-cell>
-                  </nldd-list-item>
-                </nldd-list>
-                <template v-if="algemeenLegalBasis.length">
-                  <nldd-spacer size="24"></nldd-spacer>
-                  <nldd-title size="4">
-                    <h4>Grondslag</h4>
-                  </nldd-title>
-                  <nldd-spacer size="8"></nldd-spacer>
-                  <nldd-list appearance="simple">
-                    <nldd-list-item
-                      v-for="basis in algemeenLegalBasis"
-                      :key="`${basis.law_id}-${basis.article}`"
-                      size="md"
-                      button
-                      @click="selectLawArticle(basis.law_id, basis.article)"
-                    >
-                      <nldd-text-cell
-                        :text="basis.article ? `Artikel ${basis.article}` : humanizeLawId(basis.law_id)"
-                        :supporting-text="basis.description || (basis.article ? humanizeLawId(basis.law_id) : undefined)"
-                      ></nldd-text-cell>
-                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                      <nldd-icon-cell size="20">
-                        <nldd-icon icon="chevron-right"></nldd-icon>
-                      </nldd-icon-cell>
+                <nldd-toolbar>
+                  <nldd-toolbar-item slot="start">
+                    <nldd-tab-bar size="md" @tabchange="onDetailTabChange">
+                      <nldd-tab-bar-item data-view="tekst" :current="algemeenView === 'overzicht' || undefined" text="Overzicht"></nldd-tab-bar-item>
+                      <nldd-tab-bar-item data-view="yaml" :current="algemeenView === 'yaml' || undefined" text="YAML"></nldd-tab-bar-item>
+                    </nldd-tab-bar>
+                  </nldd-toolbar-item>
+                </nldd-toolbar>
+                <nldd-spacer size="24"></nldd-spacer>
+                <nldd-code-viewer v-if="algemeenView === 'yaml'" data-testid="algemeen-yaml" language="yaml">{{ selectedLawText }}</nldd-code-viewer>
+                <template v-else>
+                  <nldd-list appearance="box-tinted" accessible-label="Algemene informatie">
+                    <nldd-list-item v-for="row in algemeenRows" :key="row.label">
+                      <nldd-text-cell :text="row.label" width="200px"></nldd-text-cell>
+                      <nldd-spacer-cell size="16"></nldd-spacer-cell>
+                      <nldd-text-cell :text="row.value"></nldd-text-cell>
                     </nldd-list-item>
                   </nldd-list>
+                  <template v-if="algemeenLinks.length">
+                    <nldd-spacer size="24"></nldd-spacer>
+                    <nldd-title size="4">
+                      <h4>Bronnen</h4>
+                    </nldd-title>
+                    <nldd-spacer size="8"></nldd-spacer>
+                    <nldd-list appearance="simple" accessible-label="Bronnen">
+                      <nldd-list-item
+                        v-for="link in algemeenLinks"
+                        :key="link.key"
+                        :data-testid="`algemeen-link-${link.key}`"
+                        size="md"
+                        :href="link.href"
+                        target="_blank"
+                      >
+                        <nldd-text-cell :text="link.text" :supporting-text="link.supportingText"></nldd-text-cell>
+                        <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                        <nldd-icon-cell size="20">
+                          <nldd-icon icon="external-link"></nldd-icon>
+                        </nldd-icon-cell>
+                      </nldd-list-item>
+                    </nldd-list>
+                  </template>
+                  <template v-if="algemeenLegalBasis.length">
+                    <nldd-spacer size="24"></nldd-spacer>
+                    <nldd-title size="4">
+                      <h4>Grondslag</h4>
+                    </nldd-title>
+                    <nldd-spacer size="8"></nldd-spacer>
+                    <nldd-list appearance="simple">
+                      <nldd-list-item
+                        v-for="basis in algemeenLegalBasis"
+                        :key="`${basis.law_id}-${basis.article}`"
+                        size="md"
+                        button
+                        @click="selectLawArticle(basis.law_id, basis.article)"
+                      >
+                        <nldd-text-cell
+                          :text="basis.article ? `Artikel ${basis.article}` : humanizeLawId(basis.law_id)"
+                          :supporting-text="basis.description || (basis.article ? humanizeLawId(basis.law_id) : undefined)"
+                        ></nldd-text-cell>
+                        <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                        <nldd-icon-cell size="20">
+                          <nldd-icon icon="chevron-right"></nldd-icon>
+                        </nldd-icon-cell>
+                      </nldd-list-item>
+                    </nldd-list>
+                  </template>
                 </template>
               </nldd-simple-section>
               <nldd-simple-section width="full" v-else-if="!selectedArticle">
