@@ -27,7 +27,7 @@ const fetchMock = () => vi.mocked(fetch) as unknown as Mock<FetchStub>;
 interface SearchPopoverInternals {
   search: string;
   shownLaws: CorpusLaw[];
-  resultHeading: { overline?: string; text: string } | null;
+  resultHeading: { overline?: string; text: string; supportingText?: string } | null;
   searchFailed: boolean;
   useCenteredPosition: boolean;
   isAnchored: boolean;
@@ -180,6 +180,10 @@ describe('SearchPopover server-side search', () => {
     expect(
       wrapper.find('[data-testid="search-other-source"] nldd-text-cell').attributes('text'),
     ).toBe('Ook 1+ treffers in Centrale Regelrecht Corpus');
+    // And the heading says the list was cut short.
+    expect(internals(wrapper).resultHeading?.supportingText).toBe(
+      'De beste 2 van 80 treffers. Typ meer om te verfijnen.',
+    );
   });
 
   it('falls through to the next source when the first has no match', async () => {

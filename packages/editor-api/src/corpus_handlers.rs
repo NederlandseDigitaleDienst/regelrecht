@@ -773,15 +773,13 @@ fn filter_corpus_laws_counted(
         .filter(|s: &std::collections::HashSet<&str>| !s.is_empty());
 
     // Optional server-side search. The corpus index can hold thousands of
-    // laws, so the editor sends `?q=` and we filter here rather than shipping
-    // every law to the browser to filter client-side. Underscores in the
-    // `law_id` are treated as spaces so "wet op de zorgtoeslag" matches
-    // `wet_op_de_zorgtoeslag`; loaded laws also match on their `name`.
+    // laws, so the editor sends `?q=` and we filter and rank here rather than
+    // shipping every law to the browser. See `law_search` for what matches
+    // and in which order.
     let needle = params
         .q
         .as_deref()
-        .map(|s| s.trim().to_lowercase())
-        .filter(|s| !s.is_empty());
+        .and_then(crate::law_search::LawQuery::parse);
 
     // Provenance filter. Orthogonal to `ids`/`q` — those say *which* laws,
     // this says *whose* — so it narrows (AND) whichever of the two applies
@@ -794,74 +792,83 @@ fn filter_corpus_laws_counted(
         .map(str::trim)
         .filter(|s| !s.is_empty());
 
-    let mut entries: Vec<CorpusLawEntry> = source_map
+    // Each match with its search rank (0 without a query) and whether its
+    // body is loaded, for the order below.
+    let mut entries: Vec<(crate::law_search::Rank, bool, CorpusLawEntry)> = source_map
         .laws()
-        .filter(|law| {
+        .filter_map(|law| {
             if let Some(source_id) = source_filter {
                 if law.source_id != source_id {
-                    return false;
+                    return None;
                 }
             }
             if params.loaded && !law.is_loaded() {
-                return false;
+                return None;
             }
             if params.enriched && !is_enriched(law, never_enriched) {
-                return false;
+                return None;
             }
-            if let Some(ids) = &id_filter {
-                return ids.contains(law.law_id.as_str());
-            }
-            match &needle {
-                None => true,
-                Some(n) => {
-                    law.law_id.replace('_', " ").to_lowercase().contains(n)
-                        || law
-                            .name
-                            .as_deref()
-                            .is_some_and(|name| name.to_lowercase().contains(n))
+            let rank = if let Some(ids) = &id_filter {
+                if !ids.contains(law.law_id.as_str()) {
+                    return None;
                 }
-            }
-        })
-        .map(|law| {
+                0
+            } else if let Some(query) = &needle {
+                query.rank(&law.law_id, law.name.as_deref())?
+            } else {
+                0
+            };
             let enriched = is_enriched(law, never_enriched);
-            CorpusLawEntry {
-                law_id: law.law_id.clone(),
-                name: law.name.clone(),
-                // Precomputed at index/load time (see `LoadedLaw::display_name`)
-                // so the unfiltered list doesn't re-scan every law body — let
-                // alone fully re-parse the `name: '#ref'` ones — per page load.
-                display_name: law.display_name.clone(),
-                source_id: law.source_id.clone(),
-                source_name: law.source_name.clone(),
-                source_priority: law.source_priority,
-                enriched,
-                enriched_version: if enriched {
-                    None
-                } else {
-                    other_enriched_version(source_map, law, never_enriched)
+            Some((
+                rank,
+                law.is_loaded(),
+                CorpusLawEntry {
+                    law_id: law.law_id.clone(),
+                    name: law.name.clone(),
+                    // Precomputed at index/load time (see `LoadedLaw::display_name`)
+                    // so the unfiltered list doesn't re-scan every law body — let
+                    // alone fully re-parse the `name: '#ref'` ones — per page load.
+                    display_name: law.display_name.clone(),
+                    source_id: law.source_id.clone(),
+                    source_name: law.source_name.clone(),
+                    source_priority: law.source_priority,
+                    enriched,
+                    enriched_version: if enriched {
+                        None
+                    } else {
+                        other_enriched_version(source_map, law, never_enriched)
+                    },
                 },
-            }
+            ))
         })
         .collect();
 
     let total = entries.len();
     let page = if id_filter.is_some() || needle.is_some() || source_filter.is_some() {
-        // Filtered (by ids, search or source): order so the grouped UI gets
-        // the highest-priority sources first (the traject's own repo before
-        // the central corpus), and the result cap can't starve a
-        // high-priority source. No offset paging — return the matching set.
-        entries.sort_by(|a, b| {
+        // Filtered (by ids, search or source): highest-priority source first
+        // (the traject's own repo before the central corpus), so the grouped
+        // UI gets them in order and the result cap can't starve a
+        // high-priority source. Within a source the best search matches come
+        // first, then laws whose body is loaded (favorites, example rulework:
+        // the ones people work with), then the shorter id, which puts a law
+        // before the acts that amend or introduce it. No offset paging —
+        // return the matching set.
+        entries.sort_by(|(rank_a, loaded_a, a), (rank_b, loaded_b, b)| {
             a.source_priority
                 .cmp(&b.source_priority)
+                .then_with(|| rank_a.cmp(rank_b))
+                .then_with(|| loaded_b.cmp(loaded_a))
+                .then_with(|| a.law_id.len().cmp(&b.law_id.len()))
                 .then_with(|| a.law_id.cmp(&b.law_id))
         });
-        entries.into_iter().take(limit).collect()
+        entries.into_iter().take(limit).map(|(_, _, e)| e).collect()
     } else {
-        entries.sort_by(|a, b| a.law_id.cmp(&b.law_id));
+        entries.sort_by(|(_, _, a), (_, _, b)| a.law_id.cmp(&b.law_id));
         entries
             .into_iter()
             .skip(params.offset)
             .take(limit)
+            .map(|(_, _, e)| e)
             .collect()
     };
     (page, total)
@@ -5529,6 +5536,60 @@ mod tests {
         let mut ids: Vec<String> = entries.into_iter().map(|e| e.law_id).collect();
         ids.sort();
         ids
+    }
+
+    #[test]
+    fn search_ranks_laws_named_after_the_term_first() {
+        let mut map = SourceMap::new("2026-06-01");
+        for law_id in [
+            "aanbestedingswet_2012",
+            "invoeringswet_participatiewet",
+            "algemene_wet_bestuursrecht",
+            "wet_op_de_zorgtoeslag",
+            "participatiewet",
+            "wet_kinderopvang",
+            "besluit_zonder_de_term",
+        ] {
+            map.load_metadata_entry(
+                law_id,
+                &format!("wet/{law_id}/2025-01-01.yaml"),
+                None,
+                "central",
+                "central",
+                2,
+                None,
+            )
+            .unwrap();
+        }
+        // A loaded law (a favorite) goes before others of the same rank.
+        map.load_fetched_file(
+            "$id: wet_op_de_huurtoeslag\n",
+            "wet/wet_op_de_huurtoeslag/2025-01-01.yaml",
+            None,
+            "central",
+            "central",
+            2,
+        )
+        .unwrap();
+
+        let (page, total) =
+            filter_corpus_laws_counted(&map, &HashSet::new(), &params(None, None, Some("wet")));
+        assert_eq!(total, 7);
+        let ids: Vec<String> = page.into_iter().map(|e| e.law_id).collect();
+        assert_eq!(
+            ids,
+            vec![
+                // Starts with the term: loaded first, then the shorter id.
+                "wet_op_de_huurtoeslag",
+                "wet_kinderopvang",
+                "wet_op_de_zorgtoeslag",
+                // The term at the edge of a word, shorter first.
+                "participatiewet",
+                "aanbestedingswet_2012",
+                "algemene_wet_bestuursrecht",
+                "invoeringswet_participatiewet",
+            ]
+        );
     }
 
     /// A Corpus juris with an example source (priority 1) next to the central

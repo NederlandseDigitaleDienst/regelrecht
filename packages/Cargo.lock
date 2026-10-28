@@ -4035,6 +4035,7 @@ dependencies = [
  "tower-sessions-memory-store",
  "tower-sessions-sqlx-store",
  "tracing",
+ "unicode-normalization",
  "url",
  "uuid",
  "wiremock",
