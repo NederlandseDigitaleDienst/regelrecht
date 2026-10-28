@@ -13,15 +13,18 @@
 import { reactive } from 'vue';
 import { beroepApi, binnenTermijn, openOntvangsten } from '../beroep.js';
 import { alsJson, jaNee, kort, leesbaar, state, stap, waarde, zonderLeeg } from '../state.js';
+import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
 import { stilBegrippen } from '../stil.js';
 import OordeelKeuze from './OordeelKeuze.vue';
 import StilOordeel from './StilOordeel.vue';
 import Uitkomst from './Uitkomst.vue';
+import UitScenario from './UitScenario.vue';
 import Voorvertoning from './Voorvertoning.vue';
 import Waarom from './Waarom.vue';
 
 const toetsen = reactive({});
-const opnieuw = reactive({});
+const vorm = formulier(() => scenarioWaarden('opnieuw_beslissen'));
+const opnieuw = vorm.eigen;
 const beslissingen = reactive({});
 const { stil, meldStil } = stilBegrippen(opnieuw);
 // De begrippen die de cel bij deze beslissing niet weet en die niet al onder
@@ -33,12 +36,12 @@ async function toon(o) {
   const antwoord = await stap(() => beroepApi.heroverweging(o.id));
   if (antwoord) {
     toetsen[o.id] = antwoord;
-    opnieuw[o.id] = {};
+    vorm.wis(o.id);
   }
 }
 
 // Wat het bestuursorgaan opnieuw vindt; 'Laat staan' geeft niets.
-const gegeven = (o) => zonderLeeg(opnieuw[o.id] ?? {});
+const gegeven = (o) => zonderLeeg(vorm.waarden(o.id));
 
 async function beslis(o) {
   const antwoord = await stap(() => beroepApi.opnieuwBeslissen(o.id, gegeven(o), state.datum));
@@ -90,21 +93,22 @@ const termijn = (o) => {
           <template v-else>
             <nldd-container layout="grid" gap="16">
               <nldd-container gap="12">
+                <UitScenario soort="opnieuw_beslissen" />
                 <OordeelKeuze
                   v-for="b in toetsen[o.id].bevindingen"
                   :key="b.naam"
                   :veld="b"
-                  :model-value="opnieuw[o.id][b.naam]"
+                  :model-value="vorm.waarden(o.id)[b.naam]"
                   :leeg="`Laat staan (${jaNee(b.eerder)})`"
                   :toelichting="`${b.basis} · eerder: ${jaNee(b.eerder)}`"
-                  @update:model-value="opnieuw[o.id][b.naam] = $event"
+                  @update:model-value="vorm.zet(o.id, b.naam, $event)"
                 />
                 <StilOordeel
                   v-for="v in stilNa(o)"
                   :key="v.naam"
                   :veld="v"
-                  :model-value="opnieuw[o.id][v.naam]"
-                  @update:model-value="opnieuw[o.id][v.naam] = $event"
+                  :model-value="vorm.waarden(o.id)[v.naam]"
+                  @update:model-value="vorm.zet(o.id, v.naam, $event)"
                 />
                 <nldd-button appearance="primary" text="Opnieuw beslissen op bezwaar" @click="beslis(o)"></nldd-button>
               </nldd-container>

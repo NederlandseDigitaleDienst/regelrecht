@@ -114,8 +114,10 @@ pub struct BeginExecutogram {
     pub datum: Option<NaiveDate>,
 }
 
-/// Fictional values the forms start with, so a visitor clicks through
-/// quickly. Which fields there are, the law says; these only fill them.
+/// Fictional values the forms start with while the visitor follows a
+/// scenario, with the values of its step over them ([`Handeling::invoer`]);
+/// in free play a form starts empty. Which fields there are, the law says;
+/// these only fill them.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Voorbeeld {
@@ -133,14 +135,118 @@ pub struct Voorbeeld {
     pub uitspraak: Map<String, Value>,
 }
 
-/// A scenario as instruction text: the steps in order, and what the visitor
-/// sees at the end.
+/// A scenario: the steps in order, and what the visitor sees at the end.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Scenario {
     pub naam: String,
-    pub stappen: Vec<String>,
+    /// The scenario in one sentence, as the tab Scenario's shows it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub samenvatting: Option<String>,
+    pub stappen: Vec<Stap>,
     pub eind: String,
+}
+
+/// A step of a scenario. A case of this crate gives each step as an action
+/// with its values and text ([`Handeling`]), and the guide beside the page
+/// (frontend/src/scenarioGuides.js) shows it. A case from a source gives its
+/// steps as instruction text, and has no guide.
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
+pub enum Stap {
+    Handeling(Handeling),
+    Tekst(String),
+}
+
+/// A string is a step as text; anything else must be an action, and a
+/// mistake in one says which field, where an untagged enum would only say
+/// that no variant matched.
+impl<'de> Deserialize<'de> for Stap {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+        match Value::deserialize(d)? {
+            Value::String(tekst) => Ok(Self::Tekst(tekst)),
+            v => serde_json::from_value(v)
+                .map(Self::Handeling)
+                .map_err(serde::de::Error::custom),
+        }
+    }
+}
+
+/// One action of a scenario: what the visitor does, on which play date,
+/// with which values, and what the scenario expects of it.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Handeling {
+    pub stap: Soort,
+    /// The title of the step in the guide; without one, the guide names it
+    /// after its kind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub titel: Option<String>,
+    /// The play date of this step; without one, the step plays on the date
+    /// of the step before it, or on [`Casus::speeldatum`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub datum: Option<NaiveDate>,
+    /// Which one the step acts on, counted from 1: the application for a
+    /// decision or an objection, the objection for a decision on it, the
+    /// decision on objection for an appeal. Without one, a decision acts on
+    /// the n-th application when it is the n-th decision step, and likewise
+    /// a decision on objection on the n-th objection; an objection acts on
+    /// the last application, an appeal on the last decision on objection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub op: Option<usize>,
+    /// For [`Soort::Vastleggen`]: the other cell that records, and the fact
+    /// it records (`<regulation>#<article>#<fact>`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cel: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub feit: Option<String>,
+    /// The values the step fills in, under the names the law gives the
+    /// fields and findings. A form starts from the case's
+    /// [`Voorbeeld`] for its kind and takes these over it.
+    #[serde(default, skip_serializing_if = "Map::is_empty")]
+    pub invoer: Map<String, Value>,
+    /// What the step comes to, where the scenario expects something.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uitkomst: Option<Uitkomst>,
+    /// What the visitor does, beyond what the guide says for every step of
+    /// this kind, and what they see once it is done. The guide puts the
+    /// values of `invoer` before `tekst`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tekst: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gezien: Option<String>,
+}
+
+/// What a visitor does in a step, one form each.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Soort {
+    Aanvraag,
+    Besluit,
+    Bezwaar,
+    BeslissingOpBezwaar,
+    /// Another cell records a fact (RFC-051), such as the GGD an advice.
+    Vastleggen,
+    Beroep,
+    Uitspraak,
+    Toezenden,
+    /// The authority decides on the objection again after a judgment.
+    OpnieuwBeslissen,
+}
+
+/// What a step comes to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Uitkomst {
+    /// The decision grants what was asked ([`Casus::uitkomst`]).
+    Toegewezen,
+    Afgewezen,
+    /// The decision on objection revokes the contested decision.
+    Gegrond,
+    Ongegrond,
+    NietOntvankelijk,
+    /// The cell refuses the step and records nothing.
+    Geweigerd,
 }
 
 /// The cases in `dir`, one per `<id>.yaml`, in the order of their ids, read

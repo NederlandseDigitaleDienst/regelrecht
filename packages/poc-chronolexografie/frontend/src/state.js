@@ -39,6 +39,9 @@ export const state = reactive({
   // refusal records nothing in a chronicle, yet a guide can end on one
   // (scenarioGuides.js); a reset that shortens the chronicle forgets them.
   refusals: [],
+  // How often a scenario began in this tab: a restart starts the forms
+  // anew, even at the same step (scenarioInvoer.js).
+  begonnen: 0,
 });
 
 /** Het artikel waaronder de casus op een aanvraag besluit, `<wet>#<artikel>`. */
@@ -168,6 +171,7 @@ export async function beginScenario(naam) {
   state.datum = state.casus.speeldatum;
   state.scenario = naam;
   state.refusals = [];
+  state.begonnen += 1;
   await bewaar();
   return true;
 }

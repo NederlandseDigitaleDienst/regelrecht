@@ -1,0 +1,368 @@
+[
+ {
+  "name": "De kaart wordt verstrekt op het advies van de GGD",
+  "summary": "Na de aanvraag onderzoekt de GGD de aanvrager en adviseert positief, en het college verstrekt de kaart op dat advies.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "todo": "Het formulier staat ingevuld uit het scenario: \"bsn aanvrager\" 999990032. Klik op Aanvraag indienen. De GGD heeft deze aanvrager nog niet onderzocht.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling, en onder Kroniek als eerste chronolexogram van de gemeente.",
+    "expect": null
+   },
+   {
+    "title": "Onderzoek door de GGD",
+    "tab": "andere",
+    "date": "2026-10-16",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"bsn aanvrager\" 999990032, \"datum onderzoek\" 16 oktober 2026 en \"verricht door\" Gemeentelijke Gezondheidsdienst. Klik bij GGD Wilgendaal onder \"Vastleggen: Geneeskundig onderzoek verricht\" op Vastleggen.",
+    "seen": "Het onderzoek staat in de kroniek van de GGD, onder Andere cellen. De wet zegt dat er eerst een onderzoek moet zijn (Regeling gehandicaptenparkeerkaart, artikel 2) en dat de GGD het doet (artikel 3). Hoe de gemeente de GGD daarom vraagt, zegt de wet niet; dat verzoek zie je daarom niet in de PoC.",
+    "expect": null
+   },
+   {
+    "title": "Advies van de GGD",
+    "tab": "andere",
+    "date": null,
+    "todo": "Het formulier staat ingevuld uit het scenario: \"bsn aanvrager\" 999990032, \"datum onderzoek\" 16 oktober 2026, \"langdurige loopbeperking\" Ja, \"continu afhankelijk van hulp bestuurder\" Nee, \"permanent rolstoelgebonden\" Nee en \"ernstige beperkingen andere dan loopbeperkingen\" Nee. Klik bij GGD Wilgendaal onder \"Vastleggen: Geneeskundig advies uitgebracht\" op Vastleggen.",
+    "seen": "Het advies staat ook in de kroniek van de GGD.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-20",
+    "todo": "Het formulier vraagt de vier criteria niet: het advies van de GGD geeft ze. Klik op Besluit nemen.",
+    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   }
+  ]
+ },
+ {
+  "name": "Het advies vindt geen criterium",
+  "summary": "Het advies van de GGD vindt geen enkel criterium, en de kaart wordt geweigerd.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "todo": "Het formulier staat ingevuld uit het scenario: \"bsn aanvrager\" 999990068. Klik op Aanvraag indienen. De GGD onderzocht deze aanvrager op 9 oktober en vond geen enkel criterium.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-20",
+    "todo": "Klik op Besluit nemen.",
+    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   }
+  ]
+ },
+ {
+  "name": "Een tweede kaart naast een geldige",
+  "summary": "Wie al een geldige kaart heeft, krijgt er geen tweede bij.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "todo": "Klik op Aanvraag indienen.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-20",
+    "todo": "Klik op Besluit nemen.",
+    "seen": "De kaart is verstrekt, geldig tot en met 19 oktober 2031.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   },
+   {
+    "title": "Nog een aanvraag indienen",
+    "tab": "aanvrager",
+    "date": "2027-03-01",
+    "todo": "Klik nog een keer op Aanvraag indienen.",
+    "seen": "De tweede aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluiten op de tweede aanvraag",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "todo": "Klik op Besluit nemen. Het beleid van de gemeente geeft geen tweede kaart naast een geldige.",
+    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   }
+  ]
+ },
+ {
+  "name": "Ongegrond bezwaar tegen een verstrekking",
+  "summary": "De aanvrager maakt bezwaar tegen de verstrekte kaart, en de heroverweging geeft dezelfde uitkomst.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "todo": "Klik op Aanvraag indienen.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-20",
+    "todo": "Klik op Besluit nemen.",
+    "seen": "De kaart is verstrekt, geldig tot en met 19 oktober 2031.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   },
+   {
+    "title": "Bezwaar maken",
+    "tab": "aanvrager",
+    "date": "2026-11-01",
+    "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
+    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "expect": null
+   },
+   {
+    "title": "Beslissen op bezwaar",
+    "tab": "bestuursorgaan",
+    "date": "2026-11-20",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen. Laat alle bevindingen staan en klik op Beslissen op bezwaar.",
+    "seen": "De beslissing staat onder Beslissingen op bezwaar.",
+    "expect": "hier hoort het bezwaar ongegrond te zijn"
+   }
+  ]
+ },
+ {
+  "name": "Gegrond bezwaar na een nieuw advies",
+  "summary": "Na het bezwaar onderzoekt de GGD opnieuw, en op dat nieuwe advies komt er alsnog een kaart.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "todo": "Het formulier staat ingevuld uit het scenario: \"bsn aanvrager\" 999990068. Klik op Aanvraag indienen. Het advies van de GGD vindt geen criterium.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-20",
+    "todo": "Klik op Besluit nemen.",
+    "seen": "De kaart is geweigerd: het advies vindt geen criterium.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   },
+   {
+    "title": "Bezwaar maken",
+    "tab": "aanvrager",
+    "date": "2026-11-01",
+    "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
+    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "expect": null
+   },
+   {
+    "title": "Nieuw advies van de GGD",
+    "tab": "andere",
+    "date": "2026-11-10",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"bsn aanvrager\" 999990068, \"datum onderzoek\" 10 november 2026, \"langdurige loopbeperking\" Ja, \"continu afhankelijk van hulp bestuurder\" Nee, \"permanent rolstoelgebonden\" Nee en \"ernstige beperkingen andere dan loopbeperkingen\" Nee. De GGD brengt een nieuw advies uit. Klik bij GGD Wilgendaal onder \"Vastleggen: Geneeskundig advies uitgebracht\" op Vastleggen.",
+    "seen": "Het nieuwe advies staat in de kroniek van de GGD; de gemeente leest het bij de heroverweging.",
+    "expect": null
+   },
+   {
+    "title": "Beslissen op bezwaar",
+    "tab": "bestuursorgaan",
+    "date": "2026-11-20",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "seen": "De beslissing staat onder Beslissingen op bezwaar.",
+    "expect": "hier hoort het bezwaar gegrond te zijn"
+   }
+  ]
+ },
+ {
+  "name": "Een kaart na bezwaar telt bij de volgende aanvraag",
+  "summary": "Na bezwaar komt de kaart er alsnog, en bij de volgende aanvraag weigert de gemeente een tweede.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "todo": "Het formulier staat ingevuld uit het scenario: \"bsn aanvrager\" 999990068. Klik op Aanvraag indienen. Het advies van de GGD vindt geen criterium.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-20",
+    "todo": "Klik op Besluit nemen.",
+    "seen": "De kaart is geweigerd. Onder Kroniek staat één besluit onder artikel 49, en dat verstrekt geen kaart.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   },
+   {
+    "title": "Bezwaar maken",
+    "tab": "aanvrager",
+    "date": "2026-11-01",
+    "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
+    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "expect": null
+   },
+   {
+    "title": "Nieuw advies van de GGD",
+    "tab": "andere",
+    "date": "2026-11-10",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"bsn aanvrager\" 999990068, \"datum onderzoek\" 10 november 2026, \"langdurige loopbeperking\" Ja, \"continu afhankelijk van hulp bestuurder\" Nee, \"permanent rolstoelgebonden\" Nee en \"ernstige beperkingen andere dan loopbeperkingen\" Nee. De GGD brengt een nieuw advies uit. Klik bij GGD Wilgendaal onder \"Vastleggen: Geneeskundig advies uitgebracht\" op Vastleggen.",
+    "seen": "Het nieuwe advies staat in de kroniek van de GGD; de gemeente leest het bij de heroverweging.",
+    "expect": null
+   },
+   {
+    "title": "Beslissen op bezwaar",
+    "tab": "bestuursorgaan",
+    "date": "2026-11-20",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "seen": "Gegrond: de weigering is herroepen (Awb 7:11, tweede lid). De beslissing op bezwaar nam een nieuw besluit dat de kaart verstrekt, geldig tot en met 19 november 2031. Onder Kroniek staan nu twee besluiten onder artikel 49: de weigering en het nieuwe besluit. Niets is overschreven.",
+    "expect": "hier hoort het bezwaar gegrond te zijn"
+   },
+   {
+    "title": "Nog een aanvraag indienen",
+    "tab": "aanvrager",
+    "date": "2027-03-01",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"bsn aanvrager\" 999990068. Klik op Aanvraag indienen. Dezelfde aanvrager vraagt nog een kaart.",
+    "seen": "De tweede aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluiten op de tweede aanvraag",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "todo": "Klik op Besluit nemen. Open daarna bij het besluit \"Hoe de cel dit beantwoordde\".",
+    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   }
+  ]
+ },
+ {
+  "name": "Zonder advies oordeelt het college, en zonder onderzoek nog geen kaart",
+  "summary": "Zonder advies oordeelt het college zelf, maar zonder onderzoek komt er nog geen kaart.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "todo": "Het formulier staat ingevuld uit het scenario: \"bsn aanvrager\" 999990032. Klik op Aanvraag indienen. De GGD heeft deze aanvrager niet onderzocht.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen zonder oordeel over het onderzoek",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-20",
+    "todo": "Er is geen advies, dus het college oordeelt zelf over de vier criteria. Het voorbeeld geeft alleen een langdurige loopbeperking. Laat \"geneeskundig onderzoek heeft plaatsgehad\" op Nog niet beoordeeld en klik op Besluit nemen.",
+    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "expect": "hier hoort de cel de stap te weigeren, zonder besluit"
+   }
+  ]
+ },
+ {
+  "name": "Een nieuwe kaart zonder nieuw onderzoek",
+  "summary": "Wie eerder een kaart kreeg, krijgt een nieuwe zonder nieuw onderzoek.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "todo": "Klik op Aanvraag indienen.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-20",
+    "todo": "Klik op Besluit nemen.",
+    "seen": "De kaart is verstrekt, geldig tot en met 19 oktober 2031.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   },
+   {
+    "title": "Nog een aanvraag indienen",
+    "tab": "aanvrager",
+    "date": "2031-10-20",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"dagtekening\" 20 oktober 2031. Klik op Aanvraag indienen. Het onderzoek en het advies van 2026 tellen niet voor deze aanvraag.",
+    "seen": "De tweede aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluiten op de tweede aanvraag",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "todo": "Het formulier staat ingevuld uit het scenario: \"geneeskundig onderzoek achterwege gelaten\" Ja en \"bekend dat aanvrager nog steeds voldoet\" Ja. Er is geen advies, dus het college oordeelt zelf over de vier criteria. Het voorbeeld geeft alleen een langdurige loopbeperking. Klik op Besluit nemen.",
+    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   }
+  ]
+ },
+ {
+  "name": "Beroep ongegrond",
+  "summary": "Na een ongegrond bezwaar gaat de aanvrager in beroep, en de rechter geeft de gemeente gelijk.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "todo": "Het formulier staat ingevuld uit het scenario: \"bsn aanvrager\" 999990068. Klik op Aanvraag indienen. Het advies van de GGD vindt geen criterium.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-20",
+    "todo": "Klik op Besluit nemen.",
+    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   },
+   {
+    "title": "Bezwaar maken",
+    "tab": "aanvrager",
+    "date": "2026-11-01",
+    "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
+    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "expect": null
+   },
+   {
+    "title": "Beslissen op bezwaar",
+    "tab": "bestuursorgaan",
+    "date": "2026-11-20",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen. Laat alle bevindingen staan en klik op Beslissen op bezwaar.",
+    "seen": "Ongegrond: de weigering blijft. Bij Aanvrager kun je nu in beroep gaan.",
+    "expect": "hier hoort het bezwaar ongegrond te zijn"
+   },
+   {
+    "title": "Beroep instellen",
+    "tab": "aanvrager",
+    "date": "2026-12-01",
+    "todo": "Klik bij de beslissing op bezwaar op Beroep instellen en dan op Beroepschrift indienen.",
+    "seen": "Het beroep staat in de kroniek van Rechtbank Wilgendaal, met het afschrift dat het bestuursorgaan van zijn beslissing maakte. Rechtbank en bestuursorgaan hebben elk een eigen kroniek; beide staan onder Kroniek.",
+    "expect": null
+   },
+   {
+    "title": "Uitspraak doen",
+    "tab": "andere",
+    "date": "2027-01-11",
+    "todo": "Klik onder Ingekomen beroepen op Uitspraak doen. De voorbeeldbevindingen zeggen dat de gemeente geen rechtsregel schond.",
+    "seen": "De uitspraak staat onder Uitspraken, in de kroniek van de rechtbank. Het bestuursorgaan weet er nog niets van.",
+    "expect": null
+   },
+   {
+    "title": "Toezenden",
+    "tab": "andere",
+    "date": null,
+    "todo": "Klik bij de uitspraak op Toezenden aan gemeente Wilgendaal.",
+    "seen": "Het bestuursorgaan legt de ontvangst vast in zijn eigen kroniek (Awb 8:79).",
+    "expect": null
+   }
+  ]
+ }
+]

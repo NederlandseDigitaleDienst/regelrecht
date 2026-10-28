@@ -15,6 +15,8 @@ import { computed, reactive } from 'vue';
 import { beroepApi, ontvangstVan, uitspraakOp } from '../beroep.js';
 import { artikelNaam } from '../logboek.js';
 import { isBesluitwaarde, kort, leesbaar, state, stap, waarde, zonderLeeg } from '../state.js';
+import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
+import UitScenario from './UitScenario.vue';
 import VeldInvoer from './VeldInvoer.vue';
 import Voorvertoning from './Voorvertoning.vue';
 
@@ -31,9 +33,10 @@ const gelezenArtikelen = computed(() =>
 const open = computed(() => state.rechter.filter((g) => g.kind === 'BEROEP' && !uitspraakOp(g.id)));
 const uitspraken = computed(() => state.rechter.filter((g) => g.kind === 'UITSPRAAK'));
 
-// Per beroep de bevindingen van de rechter, met de voorbeeldwaarden.
-const oordeel = reactive({});
-const oordeelVoor = (id) => (oordeel[id] ??= { ...state.casus.voorbeeld.uitspraak });
+// Per beroep de bevindingen van de rechter.
+// Volg je een scenario, dan staan haar bevindingen ingevuld (scenarioInvoer.js).
+const uitspraakVorm = formulier(() => scenarioWaarden('uitspraak'));
+const oordeelVoor = (id) => uitspraakVorm.waarden(id);
 
 // Wat de cel bij een uitspraak teruggaf: wat niet gevraagd werd.
 const nietGevraagd = reactive({});
@@ -85,12 +88,13 @@ const uitvoer = (g) => Object.entries(g.outputs ?? {}).map(([naam, w]) => ({ naa
           </nldd-list>
           <nldd-container layout="grid" gap="16">
             <nldd-container gap="12">
+              <UitScenario soort="uitspraak" />
               <VeldInvoer
                 v-for="o in eigen"
                 :key="o.naam"
                 :model-value="oordeelVoor(b.id)[o.naam]"
                 :veld="o"
-                @update:model-value="oordeelVoor(b.id)[o.naam] = $event"
+                @update:model-value="uitspraakVorm.zet(b.id, o.naam, $event)"
               />
               <template v-if="gelezen.length">
                 <nldd-text size="sm" color="secondary">
@@ -103,7 +107,7 @@ const uitvoer = (g) => Object.entries(g.outputs ?? {}).map(([naam, w]) => ({ naa
                   :key="o.naam"
                   :model-value="oordeelVoor(b.id)[o.naam]"
                   :veld="o"
-                  @update:model-value="oordeelVoor(b.id)[o.naam] = $event"
+                  @update:model-value="uitspraakVorm.zet(b.id, o.naam, $event)"
                 />
               </template>
               <nldd-button appearance="primary" text="Uitspraak doen" @click="uitspraakDoen(b)"></nldd-button>
