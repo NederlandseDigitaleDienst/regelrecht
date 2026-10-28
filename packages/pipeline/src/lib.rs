@@ -28,6 +28,7 @@
 //! - `traject_harvest`: schrijft in een werkdirectory en ketent een
 //!   taak-flow-enrich — raakt zelf geen traject-repo aan.
 
+pub mod agent_activity;
 pub mod api;
 mod api_state;
 pub mod config;
