@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createSSRApp, h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import UitlegPagina from '../src/presentation/UitlegPagina.vue';
-import { matches, nodeAt, nodePaths } from '@regelrecht/frontend-shared/yamlExpand';
+import { matches, nodePaths } from '@regelrecht/frontend-shared/yamlExpand';
 import { bronnen, casus, intro, openPaden, steps } from '../src/presentation/uitleg.js';
 import { asked, createUitleg, withParam } from '../src/presentation/useUitleg.js';
 
@@ -15,14 +15,11 @@ const panels = steps.flatMap((s) => s.panels.map((p) => [`${s.title}: ${p.label}
 const texts = [intro.title, intro.lead, ...steps.flatMap((s) => [s.title, ...s.text])];
 
 describe('the explanation page', () => {
-  it.each(panels)('%s shows a node of its file, and every path that starts open is there', (_, p) => {
+  it.each(panels)('%s shows its whole file, and every path that starts open is there', (_, p) => {
     const doc = load(readFileSync(join(repo, p.source), 'utf8'));
     expect(bronnen).toContain(p.source);
-    const root = nodeAt(doc, p.root);
-    expect(root, `${p.source}: ${p.root}`).toBeTruthy();
-    expect(typeof root).toBe('object');
     expect(p.open.length).toBeGreaterThan(0);
-    const paths = nodePaths(root, p.root);
+    const paths = nodePaths(doc);
     for (const pattern of openPaden(p)) expect(paths.some((q) => matches(pattern, q)), `${p.source}: ${pattern}`).toBe(true);
   });
 
@@ -135,6 +132,9 @@ describe('the page', () => {
     expect(html).toContain('$maximum_bedrijfsparkeervergunningen_bereikt');
     // Its inputs stay folded: the key shows, what is under it does not.
     expect(html).not.toContain('einde_geldigheidsduur_bij_verlening');
+    // The whole file, from the root: its identity and its other articles too.
+    expect(html).toContain('fictieve_parkeerverordening_gemeente_wilgendaal');
+    expect(html.match(/>\s*\$id\s*</g)?.length ?? 0).toBeGreaterThanOrEqual(panels.filter(([, q]) => !q.source.endsWith('cel.yaml')).length);
   });
 
   it('loads the files when none are given, and says so until they are there', async () => {

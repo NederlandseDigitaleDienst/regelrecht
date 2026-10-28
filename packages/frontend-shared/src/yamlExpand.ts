@@ -105,19 +105,3 @@ export function nodePaths(value: unknown, at = '', out: string[] = []): string[]
   }
   return out;
 }
-
-/** The node at `path` (no `*`) in a document, labelled as YamlNode labels it; undefined when there is none. */
-export function nodeAt(value: unknown, path: string): unknown {
-  let node = value;
-  let at = '';
-  for (const segment of path ? path.split('.') : []) {
-    if (!node || typeof node !== 'object') return undefined;
-    const list = Array.isArray(node);
-    const entries: [string | number, unknown][] = list ? (node as unknown[]).map((v, i): [number, unknown] => [i, v]) : Object.entries(node);
-    const next = entries.find(([k, v]) => childPath(at, k, v, list) === (at ? `${at}.${segment}` : segment));
-    if (!next) return undefined;
-    at = at ? `${at}.${segment}` : segment;
-    node = next[1];
-  }
-  return node;
-}

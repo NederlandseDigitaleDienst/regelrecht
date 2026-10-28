@@ -11,14 +11,15 @@
  * the regulation is invented, the strip of the portal above every page
  * says, so the page does not say it again.
  *
- * A panel shows a part of the file it names under `source`, as the demo
- * shows a law (YamlNode from frontend-shared): the node at `root` (`''` is
- * the whole file) as a tree that folds, with the nodes on the way to each
- * path of `open` open and everything else folded. A path is relative to
- * `root` and labelled as the tree labels it (yamlExpand.js in
- * frontend-shared): an item of a list by its `output`, `name` or `number`,
- * else by its index; `*` stands for any one part. tests/uitleg.test.js checks
- * that every root and every path is in the file, so a change in the corpus
+ * A panel shows the whole file it names under `source`, as the demo shows a
+ * law (YamlNode from frontend-shared): a tree from the root that folds, with
+ * the nodes on the way to each path of `open` open and everything else
+ * folded, so the reader can open the rest. A file can come back in another
+ * step with other paths open. A path runs from the root of the file and is
+ * labelled as the tree labels it (yamlExpand.js in frontend-shared): an item
+ * of a list by its `output`, `name` or `number`, else by its index; `*`
+ * stands for any one part. tests/uitleg.test.js checks
+ * that every path is in the file, so a change in the corpus
  * that this page no longer matches makes the test fail. In a sentence,
  * `name` is code, as in the deck (slides.js).
  */
@@ -38,8 +39,15 @@ const KVK_REDUCTIE =
 /** The files the panels show, for the page that loads them (UitlegPagina.vue). */
 export const bronnen = [VERORDENING, BESLUIT, CEL, REDUCTIE, AWB, KVK_CEL, KVK_REDUCTIE];
 
-/** The paths of a panel that start open, from the root of its file. */
-export const openPaden = ({ root, open }) => open.map((p) => (root ? `${root}.${p}` : p));
+/**
+ * The paths of a panel that start open: its own, and the article each one
+ * runs through. The tree opens an article only when a path names it as such
+ * (yamlExpand.js in frontend-shared), as the demo opens one per click.
+ */
+export const openPaden = ({ open }) => {
+  const artikelen = open.map((p) => p.match(/^articles\.[^.]+/)?.[0]).filter(Boolean);
+  return [...new Set([...artikelen, ...open])];
+};
 
 /** The case the page follows, which the button at the bottom opens. */
 export const casus = 'bedrijfsparkeervergunning';
@@ -73,11 +81,10 @@ export const steps = [
       {
         label: 'Artikel 2: wat het bedrijf vraagt, wat het besluit vastlegt en wanneer het de vergunning krijgt',
         source: VERORDENING,
-        root: 'articles.2.machine_readable',
         open: [
-          'execution.produces.0.parameters',
-          'execution.produces.1.outputs',
-          'execution.actions.bedrijfsparkeervergunning_verleend.value.conditions.1.conditions.0',
+          'articles.2.machine_readable.execution.produces.0.parameters',
+          'articles.2.machine_readable.execution.produces.1.outputs',
+          'articles.2.machine_readable.execution.actions.bedrijfsparkeervergunning_verleend.value.conditions.1.conditions.0',
         ],
       },
     ],
@@ -103,12 +110,11 @@ export const steps = [
       {
         label: 'Artikel 3: het nieuwe begrip en de berekening van het maximum',
         source: BESLUIT,
-        root: 'articles.3.machine_readable',
         open: [
-          'open_terms.1',
-          'implements.0',
-          'execution.actions.maximum_bedrijfsparkeervergunningen.value.cases.*.when.conditions.*.value',
-          'execution.actions.maximum_bedrijfsparkeervergunningen_bereikt.value',
+          'articles.3.machine_readable.open_terms.1',
+          'articles.3.machine_readable.implements.0',
+          'articles.3.machine_readable.execution.actions.maximum_bedrijfsparkeervergunningen.value.cases.*.when.conditions.*.value',
+          'articles.3.machine_readable.execution.actions.maximum_bedrijfsparkeervergunningen_bereikt.value',
         ],
       },
     ],
@@ -131,11 +137,10 @@ export const steps = [
       {
         label: 'Artikel 5: de vraag aan de cel, en het college als de cel niet antwoordt',
         source: BESLUIT,
-        root: 'articles.5.machine_readable',
         open: [
-          'implements.0',
-          'execution.input.antwoord_aantal_geldig.source.parameters',
-          'execution.actions.aantal_geldige_bedrijfsparkeervergunningen.value.cases.0.when',
+          'articles.5.machine_readable.implements.0',
+          'articles.5.machine_readable.execution.input.antwoord_aantal_geldig.source.parameters',
+          'articles.5.machine_readable.execution.actions.aantal_geldige_bedrijfsparkeervergunningen.value.cases.0.when',
         ],
       },
     ],
@@ -151,7 +156,6 @@ export const steps = [
       {
         label: 'cel.yaml van de gemeente Wilgendaal',
         source: CEL,
-        root: '',
         open: ['answers'],
       },
     ],
@@ -167,11 +171,10 @@ export const steps = [
       {
         label: 'De reductie: de besluiten die nog gelden, en de telling van de vergunningen van dit bedrijf',
         source: REDUCTIE,
-        root: 'articles.1.machine_readable',
         open: [
-          'execution.input.geldende_besluiten.source.parameters',
-          'execution.actions.aantal_geldige_bedrijfsparkeervergunningen.value.filter.conditions.*.subject',
-          'execution.actions.aantal_geldige_bedrijfsparkeervergunningen.value.filter.conditions.*.value',
+          'articles.1.machine_readable.execution.input.geldende_besluiten.source.parameters',
+          'articles.1.machine_readable.execution.actions.aantal_geldige_bedrijfsparkeervergunningen.value.filter.conditions.*.subject',
+          'articles.1.machine_readable.execution.actions.aantal_geldige_bedrijfsparkeervergunningen.value.filter.conditions.*.value',
         ],
       },
     ],
@@ -185,16 +188,12 @@ export const steps = [
     ],
     panels: [
       {
-        label: 'Artikel 1: uit de kroniek van de cel die haar aanroept, de besluiten, het bezwaar en de uitspraken',
+        label: 'Artikel 1 leest de besluiten, het bezwaar en de uitspraken uit de kroniek; artikel 2 zegt wat geldt',
         source: AWB,
-        root: 'articles.1.machine_readable',
-        open: ['execution.input.*.source'],
-      },
-      {
-        label: 'Artikel 2: wat geldt, de besluiten die bleven staan en die de rechter ervoor in de plaats stelde',
-        source: AWB,
-        root: 'articles.2.machine_readable',
-        open: ['execution.actions.geldende_besluiten.value.values'],
+        open: [
+          'articles.1.machine_readable.execution.input.*.source',
+          'articles.2.machine_readable.execution.actions.geldende_besluiten.value.values',
+        ],
       },
     ],
   },
@@ -216,20 +215,17 @@ export const steps = [
       {
         label: 'Uitvoeringsbesluit artikel 4: de vraag aan de KvK',
         source: BESLUIT,
-        root: 'articles.4.machine_readable',
-        open: ['execution.input.antwoord_postcode.source.parameters'],
+        open: ['articles.4.machine_readable.execution.input.antwoord_postcode.source.parameters'],
       },
       {
         label: 'cel.yaml van de Kamer van Koophandel',
         source: KVK_CEL,
-        root: '',
         open: ['answers'],
       },
       {
         label: 'De reductie leest de inschrijvingen',
         source: KVK_REDUCTIE,
-        root: 'articles.1.machine_readable',
-        open: ['execution.input.inschrijvingen.source'],
+        open: ['articles.1.machine_readable.execution.input.inschrijvingen.source'],
       },
     ],
   },

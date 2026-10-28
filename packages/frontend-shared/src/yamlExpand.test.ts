@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { initiallyOpen, nodeAt, nodePaths, onPath, type OpenQuery } from './yamlExpand';
+import { initiallyOpen, nodePaths, onPath, type OpenQuery } from './yamlExpand';
 
 // De paden zoals ze voor de zorgtoeslagwet in demo-config.yaml staan.
 const paths = [
@@ -154,11 +154,5 @@ describe('de knopen van een document', () => {
 
   it('noemt elk pad zoals YamlNode het labelt', () => {
     expect(nodePaths(doc)).toContain('articles.2_3.execution.actions.x.value.conditions.1');
-  });
-
-  it('vindt de knoop op een pad, en niets op een pad dat er niet is', () => {
-    expect(nodeAt(doc, 'articles.2_3.execution.actions.x.value.conditions.1')).toBe('$b');
-    expect(nodeAt(doc, '')).toBe(doc);
-    expect(nodeAt(doc, 'articles.9')).toBeUndefined();
   });
 });
