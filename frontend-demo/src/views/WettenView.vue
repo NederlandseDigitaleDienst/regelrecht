@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useLocalePath } from '../i18n/useLocalePath';
 import { useI18n } from '../i18n/index.js';
-import YamlNode from '../components/YamlNode.vue';
+import YamlNode from '@regelrecht/frontend-shared/components/YamlNode.vue';
 import OrgLogo from '../components/OrgLogo.vue';
 import LawGroupTree from '../components/LawGroupTree.vue';
 import { useDemo } from '../store/demoStore';

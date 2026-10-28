@@ -5,18 +5,29 @@
 // er niet lukte: een bron die er niet is, of een bestand dat niet laadt.
 //
 // At the top: what a demo needs, the presentation and the parking card
-// scenarios that follow it (presentation/demo.js).
-import { onMounted, ref } from 'vue';
+// scenarios that follow it (presentation/demo.js), and the explanation page
+// that shows in YAML how one case hangs together (presentation/uitleg.js).
+import { nextTick, onMounted, ref } from 'vue';
 import { demoGuides } from '../presentation/demo.js';
+import { useUitleg } from '../presentation/useUitleg.js';
 import { api } from '../api.js';
 import { bronMeldingen, herkomst } from '../bronnen.js';
 import { artikelNaam } from '../logboek.js';
 import { navigate } from '../navigation.js';
 import { hoofdletter, kiezen, state } from '../state.js';
 
-const emit = defineEmits(['presentatie', 'demo']);
+const emit = defineEmits(['presentatie', 'uitleg', 'demo']);
 const demo = demoGuides();
 const casussen = ref([]);
+const uitlegKnop = ref(null);
+const uitleg = useUitleg();
+// Back from the explanation page, the focus returns to its button.
+onMounted(async () => {
+  if (!uitleg.terug.value) return;
+  uitleg.terug.value = false;
+  await nextTick();
+  uitlegKnop.value?.focus();
+});
 const bronnen = ref([]);
 
 onMounted(async () => {
@@ -51,6 +62,7 @@ const kies = (c) => navigate(() => kiezen(c.id));
     <nldd-container gap="16">
       <nldd-button-bar>
         <nldd-button appearance="primary" start-icon="guide" text="Presentatie starten" @click="emit('presentatie')"></nldd-button>
+        <nldd-button ref="uitlegKnop" appearance="secondary" start-icon="link" text="Hoe het in elkaar zit" @click="emit('uitleg')"></nldd-button>
       </nldd-button-bar>
       <!-- `item-min-width`, not `item-width`: @nldd/design-system 0.9.0 renamed
            the attribute (collection.d.ts, @migration), and the old name now

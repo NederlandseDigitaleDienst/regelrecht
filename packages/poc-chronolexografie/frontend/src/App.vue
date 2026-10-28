@@ -19,7 +19,8 @@
 // screen starts it or the URL carries `?presentatie`. Its closing slide, like
 // the choice screen, begins one of the demo scenarios (startDemo). The button
 // "Presentatie" brings it back, on the slide a scenario was last chosen on,
-// or else on the first.
+// or else on the first. The explanation page (presentation/UitlegPagina.vue)
+// takes the place of the choice screen, from its button or `?uitleg`.
 //
 // The address names the case and the scenario (navigation.js), so a link
 // opens a scenario and the browser's back and forward walk the choices.
@@ -42,6 +43,8 @@ import ScenarioGuide from './components/ScenarioGuide.vue';
 import ScenarioTab from './components/ScenarioTab.vue';
 import { guideFor } from './scenarioGuides.js';
 import PresentationDeck from './presentation/PresentationDeck.vue';
+import UitlegPagina from './presentation/UitlegPagina.vue';
+import { useUitleg } from './presentation/useUitleg.js';
 import { DEMO_CASUS } from './presentation/demo.js';
 import { startIndex, usePresentation } from './presentation/usePresentation.js';
 
@@ -75,9 +78,12 @@ onMounted(async () => {
 });
 
 const presentation = usePresentation();
+const uitleg = useUitleg();
 onMounted(() => {
   const i = startIndex(window.location.search, presentation.total.value);
   if (i !== null) presentation.start(i);
+  // The page belongs to the choice screen; on a case's address it gives way.
+  uitleg.follow({ opCasus: !!parseRoute(window.location.pathname, import.meta.env.BASE_URL).casus });
 });
 watch(() => state.datum, verversen);
 
@@ -242,7 +248,7 @@ function toTab(id) {
           <nldd-split-view-pane slot="main" has-content>
             <!-- One page per tab, as the editor gets one per route: a new tab
                  starts at its top instead of where the last one was scrolled. -->
-            <nldd-page :key="tab" landmarks="page">
+            <nldd-page :key="uitleg.active.value && !state.casus ? 'uitleg' : tab" landmarks="page">
               <nldd-simple-section v-if="state.fout" padding-block="16">
                 <nldd-banner
                   variant="critical"
@@ -280,9 +286,15 @@ function toTab(id) {
                   ></nldd-button>
                 </nldd-banner>
               </nldd-simple-section>
+              <UitlegPagina
+                v-else-if="uitleg.active.value && !state.casus"
+                @terug="uitleg.close()"
+                @casus="(id) => uitleg.naarCasus(() => navigate(() => kiezen(id)))"
+              />
               <CasusKeuze
                 v-else-if="!state.casus"
                 @presentatie="presentation.start()"
+                @uitleg="uitleg.open()"
                 @demo="startDemo"
               />
               <template v-else-if="state.vormen">
