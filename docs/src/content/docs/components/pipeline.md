@@ -85,7 +85,7 @@ stateDiagram-v2
     Processing --> Completed: complete_job
     Processing --> Pending: fail_job (retries left)
     Processing --> Failed: fail_job (max attempts reached)
-    Processing --> Pending: reap_orphaned_jobs (timeout)
+    Processing --> Pending: reap_orphaned_jobs (heartbeat stale)
     Processing --> Failed: reap_orphaned_jobs (no retries)
 ```
 
@@ -97,7 +97,21 @@ When a job fails and has attempts remaining (`attempts < max_attempts`), it retu
 
 ### Orphan Reaping
 
-Jobs stuck in `Processing` beyond the orphan timeout (default: 30 minutes) are reset to `Pending` or marked `Failed`, which is how a crashed worker is handled.
+A worker that holds a job records a heartbeat on it every 30 seconds
+(`heartbeat_at`), from the moment it claims the job until it is done. A job in
+`Processing` whose last heartbeat is older than the orphan timeout (default 5
+minutes) is reset to `Pending` or marked `Failed`. That is how a crashed or
+restarted worker is handled.
+
+How long a job has been running does not count: a worker that keeps beating
+keeps its job, and the job timeout (`WORKER_JOB_TIMEOUT_SECS`) decides when it
+gives up. The heartbeat itself stops 10 minutes after the job timeout, so a
+worker that is alive but stuck (a hung `git push`) loses its job to the reaper
+instead of holding it until the pod restarts. A database outage longer than
+the orphan timeout also costs the jobs in flight, because no heartbeat lands
+while the database is down. Before the heartbeat, the
+reaper measured from `started_at`, so a run still working past the orphan
+timeout was put back to `Pending` and its result refused when it finished.
 
 ## Law Status Tracking
 
@@ -239,7 +253,7 @@ The LLM subprocess runs with a stripped environment (allowlisted vars only) for 
 | `WORKER_POLL_INTERVAL_SECS` | 5 | Queue poll interval |
 | `WORKER_MAX_POLL_INTERVAL_SECS` | 60 | Max backoff interval |
 | `WORKER_JOB_TIMEOUT_SECS` | 1200 (20 min) | Job execution timeout |
-| `WORKER_ORPHAN_TIMEOUT_SECS` | 1800 (30 min) | Orphan detection timeout |
+| `WORKER_ORPHAN_TIMEOUT_SECS` | 300 (5 min) | How long a processing job may go without a heartbeat before it is reaped; at least 120 |
 | `WORKER_MAX_CONSECUTIVE_RESOURCE_FAILURES` | 5 | Consecutive fork or out-of-memory failures after which the worker exits, so the platform restarts it with a clean process table |
 | `EXHAUSTED_THRESHOLD` | 10 | Consecutive failures after which a law becomes `harvest_exhausted` or `enrich_exhausted` |
 | `RELATED_HARVEST_MAX_DEPTH` | 2 | Depth up to which related legislation from enrichment is harvested |

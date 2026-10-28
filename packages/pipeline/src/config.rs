@@ -61,8 +61,10 @@ pub struct WorkerConfig {
     /// Maximum time a single job may run before being aborted by the worker.
     /// Default: 20 minutes. Configurable via `WORKER_JOB_TIMEOUT_SECS`.
     pub job_timeout: Duration,
-    /// Jobs stuck in 'processing' longer than this are reaped (reset or failed).
-    /// Default: 30 minutes. Configurable via `WORKER_ORPHAN_TIMEOUT_SECS`.
+    /// How long a processing job may go without a heartbeat before the reaper
+    /// takes it back (reset or failed). Default: 5 minutes, at least four
+    /// heartbeats.
+    /// Configurable via `WORKER_ORPHAN_TIMEOUT_SECS`.
     pub orphan_timeout: Duration,
     /// Number of consecutive failures before a law is marked as exhausted.
     /// Default: 10. Configurable via `EXHAUSTED_THRESHOLD`.
@@ -163,7 +165,21 @@ impl WorkerConfig {
         let orphan_timeout_secs: u64 = std::env::var("WORKER_ORPHAN_TIMEOUT_SECS")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(30 * 60); // 30 minutes
+            .unwrap_or(5 * 60);
+        // The reaper takes a job back once its heartbeat is this old, so it
+        // has to span a few beats: one slow round trip must not cost a job.
+        // The default of 5 minutes is ten beats; the floor is four.
+        let min_orphan_secs = crate::job_queue::HEARTBEAT_INTERVAL.as_secs() * 4;
+        let orphan_timeout_secs = if orphan_timeout_secs < min_orphan_secs {
+            tracing::warn!(
+                configured = orphan_timeout_secs,
+                using = min_orphan_secs,
+                "WORKER_ORPHAN_TIMEOUT_SECS is shorter than four heartbeats; raised"
+            );
+            min_orphan_secs
+        } else {
+            orphan_timeout_secs
+        };
 
         let exhausted_threshold: i32 = std::env::var("EXHAUSTED_THRESHOLD")
             .ok()
