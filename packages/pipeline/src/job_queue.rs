@@ -492,9 +492,8 @@ impl Drop for JobHeartbeat {
 /// `GREATEST` ignores a NULL, so a job claimed before heartbeats existed
 /// falls back to its start. How long a job has been running does not matter
 /// otherwise: a worker that keeps beating keeps its job, up to the ceiling
-/// in [`JobHeartbeat`]. If the job
-/// still has retries left, it is reset to 'pending'; otherwise it is marked
-/// 'failed'.
+/// in [`JobHeartbeat`]. If the job still has retries left, it is reset to
+/// 'pending'; otherwise it is marked 'failed'.
 ///
 /// Returns the reaped jobs (atomically claimed by THIS caller: de UPDATE …
 /// RETURNING geeft elke rij aan precies één concurrent reaper), zodat de
