@@ -947,31 +947,70 @@ mod tests {
     use crate::splitting::config::create_dutch_law_hierarchy;
     use crate::splitting::strategy::LeafSplitStrategy;
 
+    fn leaf_engine() -> SplitEngine<LeafSplitStrategy> {
+        SplitEngine::new(create_dutch_law_hierarchy(), LeafSplitStrategy)
+    }
+
+    /// The configuration every production caller uses (`harvester.rs`,
+    /// `cvdr/parse.rs`). Leaf mode is only reachable from tests.
+    fn article_level_engine() -> SplitEngine<LeafSplitStrategy> {
+        leaf_engine().with_article_level(true)
+    }
+
+    /// Both engine modes, labelled for assertion messages. Regressions that
+    /// must hold regardless of granularity run against both, so the
+    /// production (article-level) path is never left uncovered.
+    fn both_engines() -> [(&'static str, SplitEngine<LeafSplitStrategy>); 2] {
+        [
+            ("leaf", leaf_engine()),
+            ("article-level", article_level_engine()),
+        ]
+    }
+
+    fn context() -> SplitContext {
+        SplitContext::new("BWBR0018451", "2025-01-01", "https://example.com")
+    }
+
+    fn split_with(
+        engine: &SplitEngine<LeafSplitStrategy>,
+        xml: &str,
+        context: SplitContext,
+    ) -> Vec<ArticleComponent> {
+        let doc = roxmltree::Document::parse(xml).unwrap();
+        engine.split(doc.root_element(), context)
+    }
+
+    fn split_leaf(xml: &str) -> Vec<ArticleComponent> {
+        split_with(&leaf_engine(), xml, context())
+    }
+
+    fn split_article(xml: &str) -> Vec<ArticleComponent> {
+        split_with(&article_level_engine(), xml, context())
+    }
+
+    fn numbers(components: &[ArticleComponent]) -> Vec<String> {
+        components.iter().map(ArticleComponent::to_number).collect()
+    }
+
     #[test]
     fn test_split_simple_artikel() {
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
         let xml = r#"<artikel>
             <kop><nr>1</nr></kop>
             <al>Article text here.</al>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0000000", "2025-01-01", "https://example.com");
+        for (mode, engine) in both_engines() {
+            let components = split_with(&engine, xml, context());
 
-        let components = engine.split(doc.root_element(), context);
-
-        assert_eq!(components.len(), 1);
-        assert_eq!(components[0].to_number(), "1");
-        assert!(components[0].text.contains("Article text"));
+            assert_eq!(components.len(), 1, "{mode}");
+            assert_eq!(components[0].to_number(), "1", "{mode}");
+            assert_eq!(components[0].text, "Article text here.", "{mode}");
+            assert!(components[0].warnings.is_empty(), "{mode}");
+        }
     }
 
     #[test]
     fn test_split_artikel_with_lid() {
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
         let xml = r#"<artikel>
             <kop><nr>1</nr></kop>
             <lid>
@@ -984,21 +1023,13 @@ mod tests {
             </lid>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0000000", "2025-01-01", "https://example.com");
+        let components = split_leaf(xml);
 
-        let components = engine.split(doc.root_element(), context);
-
-        assert_eq!(components.len(), 2);
-        assert_eq!(components[0].to_number(), "1.1");
-        assert_eq!(components[1].to_number(), "1.2");
+        assert_eq!(numbers(&components), ["1.1", "1.2"]);
     }
 
     #[test]
     fn test_split_artikel_with_lijst() {
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
         let xml = r#"<artikel>
             <kop><nr>1</nr></kop>
             <lid>
@@ -1011,94 +1042,122 @@ mod tests {
             </lid>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0000000", "2025-01-01", "https://example.com");
-
-        let components = engine.split(doc.root_element(), context);
+        let components = split_leaf(xml);
 
         // Should have: intro + 2 list items = 3 components
-        assert_eq!(components.len(), 3);
-        assert_eq!(components[0].to_number(), "1.1"); // Intro
-        assert_eq!(components[1].to_number(), "1.1.a");
-        assert_eq!(components[2].to_number(), "1.1.b");
+        assert_eq!(numbers(&components), ["1.1", "1.1.a", "1.1.b"]);
     }
 
     #[test]
     fn test_split_artikel_with_extref() {
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
         let xml = r#"<artikel>
             <kop><nr>1</nr></kop>
             <al>verzekerde: de persoon, bedoeld in <extref doc="jci1.3:c:BWBR0018450&amp;artikel=1">artikel 1 van de Zorgverzekeringswet</extref>.</al>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0018451", "2025-01-01", "https://example.com");
+        for (mode, engine) in both_engines() {
+            let components = split_with(&engine, xml, context());
 
-        let components = engine.split(doc.root_element(), context);
-
-        assert_eq!(components.len(), 1);
-        // Should contain markdown link
-        assert!(components[0]
-            .text
-            .contains("[artikel 1 van de Zorgverzekeringswet][ref1]"));
-        // Should have reference definition
-        assert!(components[0].references.len() == 1);
-        assert_eq!(components[0].references[0].id, "ref1");
-        assert_eq!(components[0].references[0].bwb_id, "BWBR0018450");
-        assert_eq!(components[0].references[0].artikel, Some("1".to_string()));
+            assert_eq!(components.len(), 1, "{mode}");
+            // Should contain markdown link
+            assert!(
+                components[0]
+                    .text
+                    .contains("[artikel 1 van de Zorgverzekeringswet][ref1]"),
+                "{mode}: {}",
+                components[0].text
+            );
+            // Should have reference definition
+            assert_eq!(components[0].references.len(), 1, "{mode}");
+            assert_eq!(components[0].references[0].id, "ref1", "{mode}");
+            assert_eq!(components[0].references[0].bwb_id, "BWBR0018450", "{mode}");
+            assert_eq!(
+                components[0].references[0].artikel,
+                Some("1".to_string()),
+                "{mode}"
+            );
+        }
     }
 
     #[test]
     fn test_split_artikel_with_multiple_refs() {
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
         let xml = r#"<artikel>
             <kop><nr>1</nr></kop>
             <al>Zie <extref doc="jci1.3:c:BWBR0018450&amp;artikel=1">artikel 1</extref> en <extref doc="jci1.3:c:BWBR0018450&amp;artikel=2">artikel 2</extref>.</al>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0018451", "2025-01-01", "https://example.com");
+        for (mode, engine) in both_engines() {
+            let components = split_with(&engine, xml, context());
 
-        let components = engine.split(doc.root_element(), context);
-
-        assert_eq!(components.len(), 1);
-        assert_eq!(components[0].references.len(), 2);
-        assert_eq!(components[0].references[0].id, "ref1");
-        assert_eq!(components[0].references[0].artikel, Some("1".to_string()));
-        assert_eq!(components[0].references[1].id, "ref2");
-        assert_eq!(components[0].references[1].artikel, Some("2".to_string()));
+            assert_eq!(components.len(), 1, "{mode}");
+            let refs = &components[0].references;
+            assert_eq!(refs.len(), 2, "{mode}");
+            assert_eq!(refs[0].id, "ref1", "{mode}");
+            assert_eq!(refs[0].artikel, Some("1".to_string()), "{mode}");
+            assert_eq!(refs[1].id, "ref2", "{mode}");
+            assert_eq!(refs[1].artikel, Some("2".to_string()), "{mode}");
+        }
     }
 
     #[test]
     fn test_split_artikel_with_intref() {
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
         let xml = r#"<artikel>
             <kop><nr>2</nr></kop>
             <al>Zie <intref doc="jci1.3:c:BWBR0018451&amp;artikel=1">artikel 1</intref> van deze wet.</al>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0018451", "2025-01-01", "https://example.com");
+        for (mode, engine) in both_engines() {
+            let components = split_with(&engine, xml, context());
 
-        let components = engine.split(doc.root_element(), context);
+            assert_eq!(components.len(), 1, "{mode}");
+            assert!(
+                components[0].text.contains("[artikel 1][ref1]"),
+                "{mode}: {}",
+                components[0].text
+            );
+            assert_eq!(components[0].references.len(), 1, "{mode}");
+            assert_eq!(components[0].references[0].bwb_id, "BWBR0018451", "{mode}");
+        }
+    }
+
+    /// References inside leden and onderdelen are numbered across the whole
+    /// artikel in article-level mode, since the artikel is one component with
+    /// one reference list.
+    #[test]
+    fn test_article_level_numbers_refs_across_leden() {
+        let xml = r#"<artikel>
+            <kop><nr>1</nr></kop>
+            <lid>
+                <lidnr>1.</lidnr>
+                <al>Zie <extref doc="jci1.3:c:BWBR0018450&amp;artikel=1">artikel 1</extref>:</al>
+                <lijst>
+                    <li><li.nr>a.</li.nr><al>en <extref doc="jci1.3:c:BWBR0018450&amp;artikel=2">artikel 2</extref>;</al></li>
+                </lijst>
+            </lid>
+            <lid>
+                <lidnr>2.</lidnr>
+                <al>Zie <intref doc="jci1.3:c:BWBR0018451&amp;artikel=3">artikel 3</intref>.</al>
+            </lid>
+        </artikel>"#;
+
+        let components = split_article(xml);
 
         assert_eq!(components.len(), 1);
-        assert!(components[0].text.contains("[artikel 1][ref1]"));
-        assert_eq!(components[0].references.len(), 1);
-        assert_eq!(components[0].references[0].bwb_id, "BWBR0018451");
+        let text = &components[0].text;
+        assert!(text.contains("1. Zie [artikel 1][ref1]:"), "got:\n{text}");
+        assert!(text.contains("a. en [artikel 2][ref2];"), "got:\n{text}");
+        assert!(text.contains("2. Zie [artikel 3][ref3]."), "got:\n{text}");
+        let refs = &components[0].references;
+        assert_eq!(
+            refs.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(),
+            ["ref1", "ref2", "ref3"]
+        );
+        assert_eq!(refs[2].bwb_id, "BWBR0018451");
+        assert_eq!(refs[2].artikel, Some("3".to_string()));
     }
 
     #[test]
     fn test_split_artikel_with_bijlage_prefix() {
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
         let xml = r#"<artikel>
             <kop><nr>1</nr></kop>
             <lid>
@@ -1107,44 +1166,42 @@ mod tests {
             </lid>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0005537", "2025-01-01", "https://example.com")
-            .with_bijlage_prefix("B1");
+        for (mode, engine, expected) in [
+            ("leaf", leaf_engine(), "B1:1.1"),
+            ("article-level", article_level_engine(), "B1:1"),
+        ] {
+            let components = split_with(&engine, xml, context().with_bijlage_prefix("B1"));
 
-        let components = engine.split(doc.root_element(), context);
-
-        assert_eq!(components.len(), 1);
-        assert_eq!(components[0].to_number(), "B1:1.1");
-        assert_eq!(components[0].bijlage_prefix, Some("B1".to_string()));
+            assert_eq!(components.len(), 1, "{mode}");
+            assert_eq!(components[0].to_number(), expected, "{mode}");
+            assert_eq!(
+                components[0].bijlage_prefix,
+                Some("B1".to_string()),
+                "{mode}"
+            );
+        }
     }
 
     #[test]
     fn test_split_artikel_without_bijlage_prefix() {
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
         let xml = r#"<artikel>
             <kop><nr>1</nr></kop>
             <al>Regular article text.</al>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0005537", "2025-01-01", "https://example.com");
+        for (mode, engine) in both_engines() {
+            let components = split_with(&engine, xml, context());
 
-        let components = engine.split(doc.root_element(), context);
-
-        assert_eq!(components.len(), 1);
-        assert_eq!(components[0].to_number(), "1");
-        assert_eq!(components[0].bijlage_prefix, None);
+            assert_eq!(components.len(), 1, "{mode}");
+            assert_eq!(components[0].to_number(), "1", "{mode}");
+            assert_eq!(components[0].bijlage_prefix, None, "{mode}");
+        }
     }
 
     #[test]
     fn test_split_artikel_with_nested_marked_list_in_definition() {
         // Tests definitions like "woonruimte: 1° ... 2° ..." where a definition term
         // has sub-items in a nested marked list
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
         let xml = r#"<artikel>
             <kop><nr>1</nr></kop>
             <lid>
@@ -1174,26 +1231,25 @@ mod tests {
             </lid>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0035303", "2025-01-01", "https://example.com");
+        for (mode, engine) in both_engines() {
+            let components = split_with(&engine, xml, context());
 
-        let components = engine.split(doc.root_element(), context);
+            assert_eq!(components.len(), 1, "{mode}");
+            let text = &components[0].text;
 
-        assert_eq!(components.len(), 1);
-        let text = &components[0].text;
+            // Should contain the term
+            assert!(text.contains("*woonruimte:*"), "{mode}: {text}");
 
-        // Should contain the term
-        assert!(text.contains("*woonruimte:*"), "Missing woonruimte term");
-
-        // Should contain the nested list items
-        assert!(
-            text.contains("1°") && text.contains("besloten ruimte"),
-            "Missing nested list item 1°"
-        );
-        assert!(
-            text.contains("2°") && text.contains("standplaats"),
-            "Missing nested list item 2°"
-        );
+            // Should contain the nested list items with their markers
+            assert!(
+                text.contains("1° besloten ruimte"),
+                "{mode}: missing nested list item 1°: {text}"
+            );
+            assert!(
+                text.contains("2° standplaats"),
+                "{mode}: missing nested list item 2°: {text}"
+            );
+        }
     }
 
     #[test]
@@ -1201,9 +1257,6 @@ mod tests {
         // Lists with dash markers should be kept inline, not split into separate components
         // This fixes the issue where articles like Wetboek van Strafrecht 421.1.b
         // were incorrectly split because dash-marked lists weren't recognized as unmarked
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
         let xml = r#"<artikel>
             <kop><nr>421</nr></kop>
             <lid>
@@ -1216,33 +1269,26 @@ mod tests {
             </lid>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0001854", "2025-01-01", "https://example.com");
+        for (mode, engine) in both_engines() {
+            let components = split_with(&engine, xml, context());
 
-        let components = engine.split(doc.root_element(), context);
+            // Should produce 1 component with all items inline (not split into 3)
+            assert_eq!(components.len(), 1, "{mode}: dash list should stay inline");
+            let text = &components[0].text;
+            assert!(text.contains("first item"), "{mode}: {text}");
+            assert!(text.contains("second item"), "{mode}: {text}");
+        }
 
-        // Should produce 1 component with all items inline (not split into 3)
-        assert_eq!(
-            components.len(),
-            1,
-            "Dash-marked list should be kept inline, not split"
-        );
-        assert!(
-            components[0].text.contains("first item"),
-            "Missing first list item"
-        );
-        assert!(
-            components[0].text.contains("second item"),
-            "Missing second list item"
-        );
+        // Article-level keeps the whole dash list as one block after the lid
+        // intro: the dashes are not onderdelen, so the items get no block of
+        // their own.
+        let text = &split_article(xml)[0].text;
+        assert_eq!(text.matches("\n\n").count(), 1, "got:\n{text}");
     }
 
     #[test]
     fn test_split_artikel_with_bullet_list_inline() {
         // Lists with bullet markers (•) should also be kept inline
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
         let xml = r#"<artikel>
             <kop><nr>1</nr></kop>
             <lid>
@@ -1255,27 +1301,29 @@ mod tests {
             </lid>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0000000", "2025-01-01", "https://example.com");
+        for (mode, engine) in both_engines() {
+            let components = split_with(&engine, xml, context());
 
-        let components = engine.split(doc.root_element(), context);
+            assert_eq!(
+                components.len(),
+                1,
+                "{mode}: bullet list should stay inline"
+            );
+            let text = &components[0].text;
+            assert!(text.contains("requirement one"), "{mode}: {text}");
+            assert!(text.contains("requirement two"), "{mode}: {text}");
+        }
 
-        assert_eq!(
-            components.len(),
-            1,
-            "Bullet-marked list should be kept inline"
-        );
-        assert!(components[0].text.contains("requirement one"));
-        assert!(components[0].text.contains("requirement two"));
+        // Article-level keeps the whole bullet list as one block after the
+        // lid intro, like the dash list above.
+        let text = &split_article(xml)[0].text;
+        assert_eq!(text.matches("\n\n").count(), 1, "got:\n{text}");
     }
 
     #[test]
     fn test_split_artikel_with_mixed_markers_still_splits() {
         // A list with mixed markers (some addressable, some not) should still be split
         // because the addressable items need their own components
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
         let xml = r#"<artikel>
             <kop><nr>1</nr></kop>
             <lid>
@@ -1289,15 +1337,23 @@ mod tests {
             </lid>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0000000", "2025-01-01", "https://example.com");
+        // The dash item keeps its own component, numbered by its marker.
+        let components = split_leaf(xml);
+        assert_eq!(numbers(&components), ["1.1", "1.1.a", "1.1.–", "1.1.b"]);
+        assert_eq!(components[2].text, "note about definitions;");
 
-        let components = engine.split(doc.root_element(), context);
-
-        // Should still split because not ALL items have non-addressable markers
-        assert!(
-            components.len() > 1,
-            "Mixed marker list should still be split"
+        // Article-level: every item is its own block, keeping its marker.
+        let components = split_article(xml);
+        assert_eq!(components.len(), 1);
+        let blocks: Vec<&str> = components[0].text.split("\n\n").collect();
+        assert_eq!(
+            blocks,
+            [
+                "1. Definitions:",
+                "a. first definition;",
+                "– note about definitions;",
+                "b. second definition.",
+            ]
         );
     }
 
@@ -1305,38 +1361,24 @@ mod tests {
     fn test_split_artikel_excludes_redactie() {
         // Editorial content (<redactie>) should not appear in extracted text
         // as it's not law text but editorial annotations
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
         let xml = r#"<artikel>
             <kop><nr>1</nr></kop>
             <al><redactie type="extra">This is editorial, not law text.</redactie></al>
             <al>This is actual law text.</al>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0000000", "2025-01-01", "https://example.com");
+        for (mode, engine) in both_engines() {
+            let components = split_with(&engine, xml, context());
 
-        let components = engine.split(doc.root_element(), context);
-
-        assert_eq!(components.len(), 1);
-        assert!(
-            !components[0].text.contains("editorial"),
-            "Editorial content should be excluded"
-        );
-        assert!(
-            components[0].text.contains("actual law text"),
-            "Law text should be present"
-        );
+            assert_eq!(components.len(), 1, "{mode}");
+            assert_eq!(components[0].text, "This is actual law text.", "{mode}");
+        }
     }
 
     #[test]
     fn test_split_artikel_with_multiple_versions_stays_together() {
         // Articles with gefaseerde inwerkingtreding (phased implementation) contain
         // multiple versions separated by <tussenkop>. They should stay as one component.
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
         let xml = r#"<artikel>
             <kop><nr>8:36c</nr></kop>
             <al><redactie type="extra">Editorial note about this article.</redactie></al>
@@ -1360,46 +1402,27 @@ mod tests {
             </lid>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0005537", "2025-01-01", "https://example.com");
+        for (mode, engine) in both_engines() {
+            let components = split_with(&engine, xml, context());
 
-        let components = engine.split(doc.root_element(), context);
+            // Single component with both versions
+            assert_eq!(components.len(), 1, "{mode}");
+            assert_eq!(components[0].to_number(), "8:36c", "{mode}");
 
-        // Single component with both versions
-        assert_eq!(
-            components.len(),
-            1,
-            "Multi-version article should be a single component"
-        );
-        assert_eq!(components[0].to_number(), "8:36c");
+            let text = &components[0].text;
+            // Both versions should be present
+            assert!(text.contains("Version 1 lid 1"), "{mode}: {text}");
+            assert!(text.contains("Version 2 lid 2"), "{mode}: {text}");
 
-        // Both versions should be present
-        assert!(
-            components[0].text.contains("Version 1 lid 1"),
-            "Version 1 content should be present"
-        );
-        assert!(
-            components[0].text.contains("Version 2 lid 1"),
-            "Version 2 content should be present"
-        );
-
-        // Editorial content should be excluded
-        assert!(
-            !components[0].text.contains("Editorial note"),
-            "Editorial note should be excluded"
-        );
-        assert!(
-            !components[0].text.contains("overige gevallen"),
-            "Editorial separator should be excluded"
-        );
+            // Editorial content should be excluded
+            assert!(!text.contains("Editorial note"), "{mode}: {text}");
+            assert!(!text.contains("overige gevallen"), "{mode}: {text}");
+        }
     }
 
     #[test]
     fn test_split_artikel_redactie_in_lid() {
         // Redactie inside lid elements should also be excluded
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
         let xml = r#"<artikel>
             <kop><nr>5</nr></kop>
             <lid>
@@ -1409,56 +1432,20 @@ mod tests {
             </lid>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0000000", "2025-01-01", "https://example.com");
+        for (mode, engine) in both_engines() {
+            let components = split_with(&engine, xml, context());
 
-        let components = engine.split(doc.root_element(), context);
-
-        assert_eq!(components.len(), 1);
-        assert!(
-            !components[0].text.contains("Vervallen"),
-            "Editorial 'Vervallen' should be excluded"
-        );
-        assert!(components[0].text.contains("Actual paragraph text"));
-    }
-
-    #[test]
-    fn test_split_artikel_with_single_list() {
-        // Single list should still split normally into separate components
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
-        let xml = r#"<artikel>
-            <kop><nr>1</nr></kop>
-            <lid>
-                <lidnr>1.</lidnr>
-                <al>Introduction:</al>
-                <lijst>
-                    <li><li.nr>a.</li.nr><al>first item;</al></li>
-                    <li><li.nr>b.</li.nr><al>second item.</al></li>
-                </lijst>
-            </lid>
-        </artikel>"#;
-
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0000000", "2025-01-01", "https://example.com");
-
-        let components = engine.split(doc.root_element(), context);
-
-        // Should split: intro + 2 list items = 3 components
-        assert_eq!(components.len(), 3, "Single list should be split normally");
-        assert_eq!(components[0].to_number(), "1.1");
-        assert_eq!(components[1].to_number(), "1.1.a");
-        assert_eq!(components[2].to_number(), "1.1.b");
+            assert_eq!(components.len(), 1, "{mode}");
+            let text = &components[0].text;
+            assert!(!text.contains("Vervallen"), "{mode}: {text}");
+            assert!(text.contains("Actual paragraph text"), "{mode}: {text}");
+        }
     }
 
     #[test]
     fn test_split_artikel_with_multiple_sibling_lists_keeps_inline() {
         // Multiple sibling lists at the same level should be kept inline
         // to prevent duplicates like B2:1.a appearing multiple times
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
         let xml = r#"<artikel>
             <kop><nr>1</nr></kop>
             <al>Introduction to first list:</al>
@@ -1473,34 +1460,25 @@ mod tests {
             </lijst>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0005537", "2025-01-01", "https://example.com")
-            .with_bijlage_prefix("B2");
+        for (mode, engine) in both_engines() {
+            let components = split_with(&engine, xml, context().with_bijlage_prefix("B2"));
 
-        let components = engine.split(doc.root_element(), context);
+            // Multiple sibling lists should be kept inline - single component
+            assert_eq!(components.len(), 1, "{mode}");
+            assert_eq!(components[0].to_number(), "B2:1", "{mode}");
 
-        // Multiple sibling lists should be kept inline - single component
-        assert_eq!(
-            components.len(),
-            1,
-            "Multiple sibling lists should be kept inline, not split"
-        );
-        assert_eq!(components[0].to_number(), "B2:1");
-
-        // All content should be present
-        let text = &components[0].text;
-        assert!(text.contains("first list item a"), "Missing first list a");
-        assert!(text.contains("first list item b"), "Missing first list b");
-        assert!(text.contains("second list item a"), "Missing second list a");
-        assert!(text.contains("second list item b"), "Missing second list b");
+            // All content should be present
+            let text = &components[0].text;
+            assert!(text.contains("first list item a"), "{mode}: {text}");
+            assert!(text.contains("first list item b"), "{mode}: {text}");
+            assert!(text.contains("second list item a"), "{mode}: {text}");
+            assert!(text.contains("second list item b"), "{mode}: {text}");
+        }
     }
 
     #[test]
     fn test_split_artikel_with_lid_wrapped_lists() {
         // Lists inside separate lids should still split (each lid has one list)
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
         let xml = r#"<artikel>
             <kop><nr>1</nr></kop>
             <lid>
@@ -1521,62 +1499,18 @@ mod tests {
             </lid>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0000000", "2025-01-01", "https://example.com");
+        let components = split_leaf(xml);
 
-        let components = engine.split(doc.root_element(), context);
-
-        // Each lid has ONE list, so they should split normally
-        // lid 1: intro + a + b = 3 components
-        // lid 2: intro + a + b = 3 components
-        // Total = 6 components
+        // Each lid has ONE list, so they should split normally, with unique
+        // numbers (no duplicates).
         assert_eq!(
-            components.len(),
-            6,
-            "Lists in separate lids should split normally"
+            numbers(&components),
+            ["1.1", "1.1.a", "1.1.b", "1.2", "1.2.a", "1.2.b"]
         );
-
-        // Verify unique numbers (no duplicates)
-        assert_eq!(components[0].to_number(), "1.1");
-        assert_eq!(components[1].to_number(), "1.1.a");
-        assert_eq!(components[2].to_number(), "1.1.b");
-        assert_eq!(components[3].to_number(), "1.2");
-        assert_eq!(components[4].to_number(), "1.2.a");
-        assert_eq!(components[5].to_number(), "1.2.b");
-    }
-
-    #[test]
-    fn test_split_artikel_components_have_warnings_field() {
-        // Verify that ArticleComponent has a warnings field (even if empty)
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
-        let xml = r#"<artikel>
-            <kop><nr>1</nr></kop>
-            <al>Article text here.</al>
-        </artikel>"#;
-
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0000000", "2025-01-01", "https://example.com");
-
-        let components = engine.split(doc.root_element(), context);
-
-        assert_eq!(components.len(), 1);
-        // Verify warnings field exists and is initialized
-        assert!(
-            components[0].warnings.is_empty(),
-            "Expected no warnings for valid content"
-        );
-    }
-
-    fn article_level_engine() -> SplitEngine<LeafSplitStrategy> {
-        SplitEngine::new(create_dutch_law_hierarchy(), LeafSplitStrategy).with_article_level(true)
     }
 
     #[test]
     fn test_article_level_folds_lid_and_onderdelen_into_one_component() {
-        let engine = article_level_engine();
-
         let xml = r#"<artikel>
             <kop><nr>1</nr></kop>
             <lid>
@@ -1589,9 +1523,7 @@ mod tests {
             </lid>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0018492", "2026-01-01", "https://example.com");
-        let components = engine.split(doc.root_element(), context);
+        let components = split_article(xml);
 
         // One component for the whole article (not split per onderdeel).
         assert_eq!(components.len(), 1);
@@ -1616,8 +1548,6 @@ mod tests {
 
     #[test]
     fn test_article_level_keeps_nested_sub_items_with_markers() {
-        let engine = article_level_engine();
-
         let xml = r#"<artikel>
             <kop><nr>1</nr></kop>
             <lid>
@@ -1636,9 +1566,7 @@ mod tests {
             </lid>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0018492", "2026-01-01", "https://example.com");
-        let components = engine.split(doc.root_element(), context);
+        let components = split_article(xml);
 
         assert_eq!(components.len(), 1);
         let text = &components[0].text;
@@ -1652,17 +1580,13 @@ mod tests {
 
     #[test]
     fn test_article_level_multiple_lids_one_component_with_lidnrs() {
-        let engine = article_level_engine();
-
         let xml = r#"<artikel>
             <kop><nr>2</nr></kop>
             <lid><lidnr>1.</lidnr><al>Eerste lid tekst.</al></lid>
             <lid><lidnr>2.</lidnr><al>Tweede lid tekst.</al></lid>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0000000", "2025-01-01", "https://example.com");
-        let components = engine.split(doc.root_element(), context);
+        let components = split_article(xml);
 
         assert_eq!(components.len(), 1);
         assert_eq!(components[0].to_number(), "2");
@@ -1674,40 +1598,17 @@ mod tests {
     }
 
     #[test]
-    fn test_article_level_excludes_redactie() {
-        let engine = article_level_engine();
-
-        let xml = r#"<artikel>
-            <kop><nr>1</nr></kop>
-            <al><redactie type="extra">Editorial note.</redactie></al>
-            <al>Actual law text.</al>
-        </artikel>"#;
-
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0000000", "2025-01-01", "https://example.com");
-        let components = engine.split(doc.root_element(), context);
-
-        assert_eq!(components.len(), 1);
-        assert!(!components[0].text.contains("Editorial note"));
-        assert!(components[0].text.contains("Actual law text."));
-    }
-
-    #[test]
     fn test_article_level_vervallen_lid_keeps_lone_enumerator() {
         // A repealed ("Vervallen") lid has only editorial content, so its body is
         // empty. We still emit the lid number as a lone block so the structure
         // reads "1." / "2." with the repealed lid visible (prepend_marker None arm).
-        let engine = article_level_engine();
-
         let xml = r#"<artikel>
             <kop><nr>3</nr></kop>
             <lid><lidnr>1.</lidnr><al><redactie type="vervanging">Vervallen.</redactie></al></lid>
             <lid><lidnr>2.</lidnr><al>Tweede lid tekst.</al></lid>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0000000", "2025-01-01", "https://example.com");
-        let components = engine.split(doc.root_element(), context);
+        let components = split_article(xml);
 
         assert_eq!(components.len(), 1);
         let text = &components[0].text;
@@ -1726,38 +1627,50 @@ mod tests {
     #[test]
     fn test_split_artikel_with_unknown_element_produces_warning() {
         // An unknown element inside <al> should produce a warning but still extract text
-        let hierarchy = create_dutch_law_hierarchy();
-        let engine = SplitEngine::new(hierarchy, LeafSplitStrategy);
-
         let xml = r#"<artikel>
             <kop><nr>1</nr></kop>
             <al>Text before <unknown_element>unknown content</unknown_element> text after.</al>
         </artikel>"#;
 
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let context = SplitContext::new("BWBR0000000", "2025-01-01", "https://example.com");
+        for (mode, engine) in both_engines() {
+            let components = split_with(&engine, xml, context());
 
-        let components = engine.split(doc.root_element(), context);
+            assert_eq!(components.len(), 1, "{mode}");
+            // Text should still be extracted (graceful degradation)
+            let text = &components[0].text;
+            assert!(text.contains("Text before"), "{mode}: {text}");
+            assert!(text.contains("text after"), "{mode}: {text}");
+            // Should have a warning about the unknown element
+            let warnings = &components[0].warnings;
+            assert_eq!(warnings.len(), 1, "{mode}: {warnings:?}");
+            assert!(
+                warnings[0].contains("unknown_element"),
+                "{mode}: warning should name the element: {warnings:?}"
+            );
+        }
+    }
+
+    /// An unknown element nested in a lid and onderdeel still surfaces its
+    /// warning at article level, where the walk goes through
+    /// `collect_article_blocks` instead of the leaf extractor.
+    #[test]
+    fn test_article_level_unknown_element_in_onderdeel_produces_warning() {
+        let xml = r#"<artikel>
+            <kop><nr>1</nr></kop>
+            <lid>
+                <lidnr>1.</lidnr>
+                <al>Intro:</al>
+                <lijst>
+                    <li><li.nr>a.</li.nr><al>item <unknown_element>x</unknown_element> tekst;</al></li>
+                </lijst>
+            </lid>
+        </artikel>"#;
+
+        let components = split_article(xml);
 
         assert_eq!(components.len(), 1);
-        // Text should still be extracted (graceful degradation)
-        assert!(
-            components[0].text.contains("Text before"),
-            "Should extract text before unknown element"
-        );
-        assert!(
-            components[0].text.contains("text after"),
-            "Should extract text after unknown element"
-        );
-        // Should have a warning about the unknown element
-        assert!(
-            !components[0].warnings.is_empty(),
-            "Should have warning for unknown element, got: {:?}",
-            components[0].warnings
-        );
-        assert!(
-            components[0].warnings[0].contains("unknown_element"),
-            "Warning should mention the unknown element name"
-        );
+        let warnings = &components[0].warnings;
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(warnings[0].contains("unknown_element"), "{warnings:?}");
     }
 }
