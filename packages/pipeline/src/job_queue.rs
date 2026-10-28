@@ -402,6 +402,12 @@ where
 /// of their own.
 pub const HEARTBEAT_GRACE: Duration = Duration::from_secs(10 * 60);
 
+/// How long a job with this timeout keeps beating: the timeout plus
+/// [`HEARTBEAT_GRACE`].
+fn heartbeat_ceiling(job_timeout: Duration) -> Duration {
+    job_timeout.saturating_add(HEARTBEAT_GRACE)
+}
+
 /// Keeps a claimed job's heartbeat going while it is alive, up to a ceiling.
 ///
 /// Start one right after claiming a job and keep it in scope until the job is
@@ -421,7 +427,7 @@ impl JobHeartbeat {
             pool,
             job,
             HEARTBEAT_INTERVAL,
-            job_timeout.saturating_add(HEARTBEAT_GRACE),
+            heartbeat_ceiling(job_timeout),
         )
     }
 
@@ -714,6 +720,16 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn heartbeat_stops_ten_minutes_after_the_job_timeout() {
+        // The pipeline docs promise this margin for the untimed steps around
+        // a run (checkout, commit, push).
+        assert_eq!(
+            heartbeat_ceiling(Duration::from_secs(3900)),
+            Duration::from_secs(3900 + 10 * 60)
+        );
+    }
 
     #[test]
     fn retry_backoff_doubles_per_attempt() {

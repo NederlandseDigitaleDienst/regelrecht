@@ -162,24 +162,17 @@ impl WorkerConfig {
             .and_then(|v| v.parse().ok())
             .unwrap_or(20 * 60); // 20 minutes
 
-        let orphan_timeout_secs: u64 = std::env::var("WORKER_ORPHAN_TIMEOUT_SECS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(5 * 60);
-        // The reaper takes a job back once its heartbeat is this old, so it
-        // has to span a few beats: one slow round trip must not cost a job.
-        // The default of 5 minutes is ten beats; the floor is four.
-        let min_orphan_secs = crate::job_queue::HEARTBEAT_INTERVAL.as_secs() * 4;
-        let orphan_timeout_secs = if orphan_timeout_secs < min_orphan_secs {
+        let (orphan_timeout_secs, orphan_raised) = orphan_timeout_secs(
+            std::env::var("WORKER_ORPHAN_TIMEOUT_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok()),
+        );
+        if orphan_raised {
             tracing::warn!(
-                configured = orphan_timeout_secs,
-                using = min_orphan_secs,
+                using = orphan_timeout_secs,
                 "WORKER_ORPHAN_TIMEOUT_SECS is shorter than four heartbeats; raised"
             );
-            min_orphan_secs
-        } else {
-            orphan_timeout_secs
-        };
+        }
 
         let exhausted_threshold: i32 = std::env::var("EXHAUSTED_THRESHOLD")
             .ok()
@@ -264,5 +257,45 @@ impl WorkerConfig {
             database_url: self.database_url.clone(),
             max_connections: self.max_connections,
         }
+    }
+}
+
+/// The orphan timeout in seconds, from the configured value if there is one,
+/// and whether a configured value was too short and had to be raised.
+///
+/// The reaper takes a job back once its heartbeat is this old, so it has to
+/// span a few beats: one slow round trip must not cost a job. The default of
+/// 5 minutes is ten beats; the floor is four.
+fn orphan_timeout_secs(configured: Option<u64>) -> (u64, bool) {
+    let min = crate::job_queue::HEARTBEAT_INTERVAL.as_secs() * 4;
+    match configured {
+        None => (5 * 60, false),
+        Some(secs) if secs < min => (min, true),
+        Some(secs) => (secs, false),
+    }
+}
+
+#[cfg(test)]
+mod orphan_timeout_tests {
+    use super::orphan_timeout_secs;
+
+    #[test]
+    fn unset_gives_five_minutes() {
+        assert_eq!(orphan_timeout_secs(None), (300, false));
+    }
+
+    #[test]
+    fn shorter_than_four_heartbeats_is_raised_to_four() {
+        assert_eq!(orphan_timeout_secs(Some(60)), (120, true));
+    }
+
+    #[test]
+    fn exactly_four_heartbeats_is_kept() {
+        assert_eq!(orphan_timeout_secs(Some(120)), (120, false));
+    }
+
+    #[test]
+    fn longer_is_kept() {
+        assert_eq!(orphan_timeout_secs(Some(1800)), (1800, false));
     }
 }
