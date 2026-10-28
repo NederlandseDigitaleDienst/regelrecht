@@ -43,7 +43,7 @@ chrono-tz = "0.10"
 # The default features (`resolve-http`, `resolve-file`, `tls-aws-lc-rs`) drag
 # in reqwest, rustls and aws-lc-rs - roughly a hundred crates of HTTP stack
 # that is compiled but never called.
-jsonschema = { version = "0.58", default-features = false }
+jsonschema = { version = "0.59", default-features = false }
 # default-features = false drops `rustls-tls`, which would hand
 # oauth2/reqwest 0.12 the ring provider and put a second crypto backend in
 # every image. TLS comes from our own reqwest declaration instead, which picks
