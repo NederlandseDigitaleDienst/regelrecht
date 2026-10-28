@@ -141,7 +141,7 @@ impl std::ops::Deref for Cellen {
 
 impl Corpus {
     /// The case `casus` on the corpus at `roots` (the repository's
-    /// `corpus/`, and for a case from a source that source too) in `files`,
+    /// `corpus/`, or for a case from a source that source alone) in `files`,
     /// whose regelwerken are `regelwerken`: its cell at `<root>/cells/<cel>`
     /// of the first root that has it, and what follows from the law within
     /// its corpus ([`afleiden`], [`Regelwerken::voor`]).
@@ -345,12 +345,6 @@ impl Corpus {
             service.load_law(yaml)?;
         }
         Ok(service)
-    }
-
-    /// The directories of the regelwerken the cell runs, under their root
-    /// (`regulation/nl/...`, `cells/.../reductions/...`).
-    pub fn mappen(&self) -> impl Iterator<Item = &str> {
-        self.regelwerken.iter().map(|(_, _, map)| map.as_str())
     }
 
     fn law(&self) -> &str {
