@@ -367,6 +367,8 @@ dev-demo: wasm-build
 #   just walkthrough check [take]    what a take sounds like, in numbers
 #   just walkthrough script [take]   a draft script per slide, for the cloned voice
 #   just walkthrough build           walkthrough.yaml -> what the demo plays
+#   just walkthrough translate <code> captions, slides and spoken text in another language
+#   just walkthrough dub <code>      that language in the cloned voice (ElevenLabs)
 #   just walkthrough publish <tag>   the media into a GitHub release (asks first)
 #   just walkthrough status          which takes there are, and how far along
 #   just walkthrough test            the pipeline's own tests

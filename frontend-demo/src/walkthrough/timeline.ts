@@ -213,6 +213,21 @@ export interface Track {
   pieces?: TrackPiece[];
   /** locale code -> translations. */
   i18n?: Record<string, TrackTranslation>;
+  /** locale code -> the track spoken in that language (`walkthrough dub`). */
+  dub?: Record<string, TrackDub>;
+}
+
+/**
+ * A track in another language, in the presenter's cloned voice. Exactly as
+ * long as the recorded voice, with every sentence in the slot of the Dutch
+ * one, so the events keep their times.
+ */
+export interface TrackDub {
+  audio: MediaFile;
+  /** What this voice says, as captions, under `CAPTIONS_BASE`. */
+  captions: string;
+  /** The Dutch sentences it was made against (dub.py); for the pipeline. */
+  basis?: string;
 }
 
 /** A frequently asked question with the track that answers it. */
@@ -234,6 +249,16 @@ export interface Timeline {
   bumpers?: Record<string, BumperClip[]>;
   /** The languages the walkthrough is translated into. */
   locales?: string[];
+  /** locale code -> what the cloned voice says outside the tracks. */
+  dub?: Record<string, { bumpers?: Record<string, BumperClip[]> }>;
+}
+
+/**
+ * The cloned voice of `track` in `locale`, or null: when there is none, or
+ * when the viewer chose the presenter's own voice (`original`).
+ */
+export function dubOf(track: Pick<Track, 'dub'> | null | undefined, locale: string, original = false): TrackDub | null {
+  return original ? null : (track?.dub?.[locale] ?? null);
 }
 
 /** A caption cue from a WebVTT file. */

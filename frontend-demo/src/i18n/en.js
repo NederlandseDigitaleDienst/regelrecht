@@ -974,6 +974,8 @@ export default {
   'walkthrough.back_seconds': 'Back {n} seconds',
   'walkthrough.forward_seconds': 'Forward {n} seconds',
   'walkthrough.ai_voice': "The voice in the chapters is generated with AI, from the presenter's own voice.",
+  'walkthrough.dubbed_voice': "The walkthrough was recorded in Dutch. What you hear is a translation, spoken by an AI voice based on the presenter's own.",
+  'walkthrough.original_voice': 'Original voice (Dutch)',
   'recorder.mic.label': 'Microphone',
   'recorder.mic.test': 'Test microphone',
   'recorder.mic.stop_test': 'Stop test',

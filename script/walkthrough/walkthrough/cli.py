@@ -17,6 +17,7 @@
     walkthrough states           the demo's state at chapters added in walkthrough.yaml (dev server on)
     walkthrough subtitles        shorter subtitles for what was said, in subtitles.yaml (then build)
     walkthrough translate <code> captions, slides and questions in another language (then build)
+    walkthrough dub <code>       the walkthrough spoken in that language, in the cloned voice
     (verify: `just walkthrough verify` runs frontend-demo/scripts/verify-walkthrough.mjs)
     walkthrough publish <tag>    the media into a GitHub release (asks first)
 
@@ -39,7 +40,7 @@ from pathlib import Path
 
 import yaml
 
-from . import localize, media
+from . import dub, localize, media
 from .media import FPS, ffmpeg
 from .timeline import (
     CutError,
@@ -64,6 +65,8 @@ WORK = ROOT / ".walkthrough"
 TAKES = WORK / "takes"
 CORPUS = ROOT / "corpus" / "demo" / "walkthrough"
 CONFIG = CORPUS / "walkthrough.yaml"
+# The Dutch sentences per track with their times: what a dub is made from.
+SENTENCES = CORPUS / "sentences.json"
 PUBLIC = ROOT / "frontend-demo" / "public" / "walkthrough"
 HERE = Path(__file__).resolve().parent
 
@@ -574,7 +577,9 @@ def render_scripted(name: str, seg: dict, cfg: dict, overrides: dict, workdir: P
     lines = [parse_line(str(raw)) for raw in doc.get("lines") or []]
     if not lines:
         raise SystemExit(f"{path.name}: geen regels")
-    voice_cfg = cfg.get("voice") or {"provider": "say"}
+    voice_cfg = {k: v for k, v in (cfg.get("voice") or {"provider": "say"}).items() if k != "dub"}
+    if voice_cfg.get("provider", "say") == "elevenlabs" and not voice_cfg.get("voice_id"):
+        raise SystemExit("walkthrough.yaml: voice.voice_id ontbreekt; zoek de id van de kloon op met `walkthrough voices`")
     texts = [line.text for line in lines]
     audio = [speak(text, voice_cfg, WORK, texts[i - 1] if i else "", texts[i + 1] if i + 1 < len(texts) else "") for i, text in enumerate(texts)]
     take = doc.get("take")
@@ -737,6 +742,8 @@ def render_track(name: str, segments: list[dict], cfg: dict, overrides: dict, de
     (vtt_dest / vtt_name).write_text(vtt)
     entry["captions"] = {"nl": vtt_name}
     entry["pieces"] = pieces
+    # For a dub, not for the player: `build` moves these to sentences.json.
+    entry["sentences"] = dub.sentences(sorted(words, key=lambda w: w["start"]), breaks=[x["t"] for x in pauses] + seams[:-1], duration=duration)
     return entry
 
 
@@ -879,12 +886,18 @@ def build(release: str | None = None) -> None:
             bumpers = render_bumpers(cfg, media_out, work)
         except CutError as e:
             raise SystemExit(f"walkthrough.yaml: {e}")
+        said = {"main": {"duration": main["duration"], "sentences": main.pop("sentences")}}
+        for f in faqs:
+            said[f"faq-{f['id']}"] = {"duration": f["duration"], "sentences": f.pop("sentences")}
+        old = read_json(CORPUS / "timeline.json", {}) or {}
+        dubs, keep = kept_dubs(old, said)
         # A rebuild replaces everything: stale media under an old hash would be
-        # served and fetched for nothing.
+        # served and fetched for nothing. A dub made against the same Dutch
+        # sentences still fits, and stays.
         PUBLIC.mkdir(parents=True, exist_ok=True)
-        for old in [*PUBLIC.glob("*"), *CORPUS.glob("*.vtt")]:
-            if old.is_file():
-                old.unlink()
+        for f in [*PUBLIC.glob("*"), *CORPUS.glob("*.vtt")]:
+            if f.is_file() and f.name not in keep:
+                f.unlink()
         for f in [*media_out.iterdir()]:
             shutil.move(f, PUBLIC / f.name)
         for f in [*vtt_out.iterdir()]:
@@ -897,10 +910,41 @@ def build(release: str | None = None) -> None:
         "faq": faqs,
         "bumpers": bumpers,
     }
+    for name, track in (("main", main), *((f"faq-{f['id']}", f) for f in faqs)):
+        if dubs.get(name):
+            track["dub"] = dubs[name]
+    if old.get("dub"):
+        timeline["dub"] = old["dub"]
+    SENTENCES.write_text(json.dumps(said, ensure_ascii=False, indent=1) + "\n")
     report_translations(localize.apply(timeline, CORPUS), timeline)
     (CORPUS / "timeline.json").write_text(json.dumps(timeline, ensure_ascii=False, indent=1) + "\n")
     total = sum(sum((t.get(k) or {}).get("bytes") or 0 for k in ("audio", "video", "cam")) for t in [main, *faqs])
     say(f"klaar: {main['duration']:.0f}s rondleiding, {len(faqs)} vragen, {total / 1e6:.0f} MB media in {PUBLIC.relative_to(ROOT)}")
+
+
+def tracks_of(timeline: dict) -> dict[str, dict]:
+    """The playable tracks by name: `main` and `faq-<id>`."""
+    return {"main": timeline["main"], **{f"faq-{f['id']}": f for f in timeline.get("faq") or []}}
+
+
+def kept_dubs(old: dict, said: dict) -> tuple[dict[str, dict], set[str]]:
+    """The dubs of the previous timeline that still fit the new one, per
+    track, and the files they use. A dub fits when it was made against the
+    same Dutch sentences at the same times; one that does not goes, with a
+    word on how to make it again."""
+    if not old.get("main"):
+        return {}, set()
+    dubs, keep = {}, set()
+    for name, track in tracks_of(old).items():
+        for code, d in (track.get("dub") or {}).items():
+            if name in said and d.get("basis") == dub.basis(said[name]):
+                dubs.setdefault(name, {})[code] = d
+                keep |= {d["audio"]["src"], d["captions"]}
+            else:
+                say(f"{name}: de nagesproken versie ({code}) past niet meer bij de nieuwe build; draai `walkthrough dub {code}`")
+    for d in (old.get("dub") or {}).values():
+        keep |= {c["src"] for clips in (d.get("bumpers") or {}).values() for c in clips}
+    return dubs, keep
 
 
 def render_bumpers(cfg: dict, dest: Path, workdir: Path) -> dict:
@@ -1045,6 +1089,9 @@ def publish(tag: str, yes: bool) -> None:
     tracks = [timeline["main"], *(timeline.get("faq") or [])]
     files = [PUBLIC / m["src"] for t in tracks for m in (t.get("audio"), t.get("video"), t.get("cam")) if m]
     files += [PUBLIC / b["src"] for clips in (timeline.get("bumpers") or {}).values() for b in clips]
+    # The walkthrough in other languages (`dub`) and its short lines.
+    files += [PUBLIC / d["audio"]["src"] for t in tracks for d in (t.get("dub") or {}).values()]
+    files += [PUBLIC / b["src"] for d in (timeline.get("dub") or {}).values() for clips in (d.get("bumpers") or {}).values() for b in clips]
     missing = [f.name for f in files if not f.exists()]
     if missing:
         raise SystemExit(f"ontbreken in {PUBLIC.relative_to(ROOT)}: {missing}; draai `just walkthrough build` opnieuw")
@@ -1157,12 +1204,12 @@ LANGUAGE_NAMES = {"en": "Engels (Brits gespeld, zoals de Engelse demo: organisat
 
 TRANSLATE_PROMPT = """Je vertaalt de tekst bij een gesproken rondleiding door de demo van
 RegelRecht (wetten als machine-uitvoerbare regels) naar het {language}. De
-presentator spreekt Nederlands; de kijker leest jouw vertaling {what}.
+presentator spreekt Nederlands; {what}.
 
 Regels:
 - Vertaal wat er staat, niet meer en niet minder. Houd getallen, bedragen,
   namen en wetsnamen zoals ze zijn.
-- Kort en helder; ondertitels hooguit twee regels van 42 tekens.
+- {brevity}
 - Vaste vertalingen, altijd zo:
 {terms}
 - Staat iets op het scherm onder een andere naam in de demo, gebruik dan die
@@ -1181,11 +1228,26 @@ vertaling.
 """
 
 TRANSLATE_WHAT = {
-    "captions": "als ondertitel, terwijl hij het Nederlands hoort",
-    "slides": "op de dia's naast de demo; **vet** blijft **vet**",
-    "questions": "als vraag in de lijst met veelgestelde vragen",
-    "typed": "als tekst die de presentator in een formulier van de demo typt",
+    "captions": "de kijker leest jouw vertaling als ondertitel, terwijl hij het Nederlands hoort",
+    "slides": "de kijker leest jouw vertaling op de dia's naast de demo; **vet** blijft **vet**",
+    "questions": "de kijker leest jouw vertaling als vraag in de lijst met veelgestelde vragen",
+    "typed": "de kijker leest jouw vertaling als tekst die de presentator in een formulier van de demo typt",
+    "spoken": (
+        "de kijker hoort jouw vertaling, uitgesproken door de stem van de presentator, "
+        "precies op het moment dat hij de Nederlandse zin zei, terwijl de demo doet wat hij toen deed"
+    ),
 }
+
+TRANSLATE_BREVITY = {
+    "spoken": (
+        "Spreektaal, zoals een presentator het zegt, geen schrijftaal. Laat vulwoorden\n"
+        "  en valse starts weg. Elke zin heeft een tijdvak: blijf onder `hooguit_woorden`,\n"
+        "  liever ruim eronder; een zin die niet past wordt versneld of ingekort.\n"
+        "  \"Hier\", \"dit\" en \"nu\" wijzen naar wat de demo op dat moment doet: houd ze.\n"
+        "  Een Nederlands brokstuk dat de vorige zin al afmaakt, mag leeg blijven (\"\")."
+    ),
+}
+BREVITY = "Kort en helder; ondertitels hooguit twee regels van 42 tekens."
 
 
 def ui_labels(code: str, texts: list[str]) -> dict[str, str]:
@@ -1213,8 +1275,9 @@ def ui_labels(code: str, texts: list[str]) -> dict[str, str]:
 TRANSLATE_BATCH = 25
 
 
-def ask_translations(kind: str, items: list[str], code: str, labels: dict[str, str], terms: dict[str, str]) -> dict[str, str]:
-    """Translations for `items` from a language model, in batches."""
+def ask_translations(kind: str, items: list[str], code: str, labels: dict[str, str], terms: dict[str, str], budgets: dict[str, int] | None = None) -> dict[str, str]:
+    """Translations for `items` from a language model, in batches. With
+    `budgets`, each item goes with the most words its translation may have."""
     language = LANGUAGE_NAMES.get(code, code)
     names = load_config(required=False).get("glossary") or []
     extra = ("- Namen die blijven zoals ze zijn: " + ", ".join(n for n in names if n.lower() not in {t.lower() for t in terms}) + ".\n") if names else ""
@@ -1227,7 +1290,15 @@ def ask_translations(kind: str, items: list[str], code: str, labels: dict[str, s
         for _ in range(2):
             r = subprocess.run(
                 ["claude", "-p", "--model", "sonnet", "--tools", ""],
-                input=TRANSLATE_PROMPT.format(language=language, what=TRANSLATE_WHAT[kind], terms=term_lines, labels=label_lines, extra=extra, items=json.dumps({str(n + 1): c for n, c in enumerate(batch)}, ensure_ascii=False, indent=0)),
+                input=TRANSLATE_PROMPT.format(
+                    language=language,
+                    what=TRANSLATE_WHAT[kind],
+                    brevity=TRANSLATE_BREVITY.get(kind, BREVITY),
+                    terms=term_lines,
+                    labels=label_lines,
+                    extra=extra,
+                    items=json.dumps({str(n + 1): ({"tekst": c, "hooguit_woorden": budgets[c]} if budgets and c in budgets else c) for n, c in enumerate(batch)}, ensure_ascii=False, indent=0),
+                ),
                 capture_output=True,
                 text=True,
             )
@@ -1239,7 +1310,7 @@ def ask_translations(kind: str, items: list[str], code: str, labels: dict[str, s
             answer = [answer.get(str(n + 1)) for n in range(len(batch))] if isinstance(answer, dict) else []
             # A caption may come back empty: a fragment ("gaan.") that the
             # line before already says in the other language's word order.
-            if answer and all(isinstance(x, str) and (x.strip() or kind == "captions") for x in answer):
+            if answer and all(isinstance(x, str) and (x.strip() or kind in ("captions", "spoken")) for x in answer):
                 got = answer
                 break
         if got is None:
@@ -1248,6 +1319,240 @@ def ask_translations(kind: str, items: list[str], code: str, labels: dict[str, s
         out.update({a: " ".join(b.split()) for a, b in zip(batch, got)})
         say(f"  {kind}: {min(i + len(batch), len(items))} van {len(items)}")
     return out
+
+
+def save_translations(code: str, data: dict) -> None:
+    """corpus/demo/i18n/walkthrough.<code>.yaml, with its header."""
+    header = (
+        "---\n"
+        f"# De rondleiding in het {LANGUAGE_NAMES.get(code, code).split(' (')[0]}: wat de kijker leest terwijl de\n"
+        "# presentator Nederlands spreekt, en onder `spoken:` wat zijn gekloonde stem\n"
+        "# zegt. Gesleuteld op het Nederlands, zodat een nieuwe knip of build elke\n"
+        "# regel houdt die nog voorkomt.\n"
+        f"# `just walkthrough translate {code}` vult aan wat ontbreekt; corrigeer gerust\n"
+        "# met de hand. Een build (`just walkthrough build`) zet het in beeld,\n"
+        f"# `just walkthrough dub {code}` laat het uitspreken.\n"
+    )
+    # Folded at 100: a spoken sentence is longer than yamllint allows on one line.
+    localize.path_for(code).write_text(header + yaml.dump(data, Dumper=IndentedDumper, allow_unicode=True, sort_keys=False, width=100))
+
+
+def dub_languages() -> set[str]:
+    """The languages with a cloned voice: `voice.dub` in walkthrough.yaml."""
+    return set(((load_config(required=False).get("voice") or {}).get("dub")) or {})
+
+
+def voice_for(code: str, provider: str | None = None) -> dict:
+    """The voice settings for `code`: `voice` in walkthrough.yaml with
+    `voice.dub.<code>` over it."""
+    voice = dict(load_config().get("voice") or {})
+    lang = (voice.pop("dub", None) or {}).get(code)
+    if lang is None:
+        raise SystemExit(f"walkthrough.yaml: geen voice.dub.{code}; zet daar de stem voor deze taal")
+    out = {**voice, **lang, "settings": {**(voice.get("settings") or {}), **(lang.get("settings") or {})}}
+    out.setdefault("language", code)
+    if provider:
+        out["provider"] = provider
+    if out.get("provider", "say") == "elevenlabs" and not out.get("voice_id"):
+        raise SystemExit("walkthrough.yaml: voice.voice_id ontbreekt; zoek de id van de kloon op met `walkthrough voices`")
+    return out
+
+
+# Without the Dutch original: with it next to the translation, the model
+# answered in Dutch, twice out of two. With the sentences around it: without
+# them it wrote a different sentence ("Still so.", "Right on that.").
+SHORTEN_PROMPT = """Hieronder staat een zin in het {language} uit een gesproken rondleiding
+door de demo van RegelRecht (wetten als machine-uitvoerbare regels). Hij is te
+lang voor het moment waarop hij klinkt. Schrijf hem korter, in dezelfde taal:
+hooguit {words} woorden, spreektaal.
+
+- Hij moet hetzelfde zeggen en aansluiten op de zinnen eromheen. Liever een
+  zin die iets te lang blijft dan een die iets anders zegt.
+- Vakbegrippen, namen en getallen blijven precies zoals ze zijn.
+
+Ervoor: {before}
+De zin: {local}
+Erna: {after}
+
+Antwoord met alleen de kortere zin, in het {language}.
+"""
+
+
+def ask_shorter(local: str, words: int, code: str, before: str = "", after: str = "", source: str = "") -> str | None:
+    """A shorter version of a spoken translation, or None: without a model,
+    or when the answer is not shorter or is the Dutch `source` again."""
+    if not shutil.which("claude"):
+        return None
+    r = subprocess.run(
+        ["claude", "-p", "--model", "sonnet", "--tools", ""],
+        input=SHORTEN_PROMPT.format(language=LANGUAGE_NAMES.get(code, code), words=words, local=local, before=before or "-", after=after or "-"),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    out = " ".join(r.stdout.split()).strip('"')
+    if not out or len(out.split()) >= len(local.split()) or dub.echoes(out, source):
+        return None
+    return out
+
+
+def dub_track(name: str, track: dict, said: dict, code: str, voice: dict, tr: dict, data: dict, workdir: Path) -> list[Path]:
+    """One track in the cloned voice in `code`, sentence by sentence in the
+    slots of the Dutch (dub.py). Writes the audio and its captions and puts
+    them in `track["dub"][code]`. Returns the files of the dub it replaces,
+    for the caller to remove once the new timeline is written."""
+    from .voice import speak
+
+    sents = said["sentences"]
+    # Read per sentence, not once: a sentence shortened here is shortened
+    # wherever it occurs again, in this track or a later one.
+    text_of = lambda i: tr["spoken"][sents[i]["nl"]]
+    clips, placed, words = [], [], []
+    # Where the last placed line ends. A line that ran over its slot moves the
+    # next one on by that much rather than talking over it: a fraction of a
+    # second later than the Dutch is not heard, two voices at once are.
+    cursor = 0.0
+    tally = {"sneller": 0, "gerekt": 0, "ingekort": 0, "geperst": 0}
+    for i, x in enumerate(sents):
+        text = text_of(i)
+        if not text.strip():
+            continue  # a fragment the sentence before already says
+        slot = x["until"] - x["start"]
+        prev = next((text_of(j) for j in range(i - 1, -1, -1) if text_of(j).strip()), "")
+        nxt = next((text_of(j) for j in range(i + 1, len(sents)) if text_of(j).strip()), "")
+        # A trial voice (`say`) is not the clone: a sentence too long for it
+        # says nothing about the clone, so it is squeezed, never shortened.
+        speed, shortened = 1.0, x["nl"] in tr["shortened"] or voice.get("provider") != "elevenlabs"
+        while True:
+            cfg = {**voice, "settings": {**voice["settings"], "speed": speed}} if speed != 1.0 else voice
+            audio = speak(text, cfg, WORK, prev, nxt)
+            step = dub.fit(audio["duration"], slot, speed, shortened, can_speed=voice.get("speed_control", True), tempo_max=float(voice.get("tempo_max", dub.TEMPO_MAX)))
+            if step.action == "speed":
+                speed = step.speed
+                continue
+            if step.action == "shorten":
+                shortened = True
+                tr["shortened"].add(x["nl"])
+                target = max(2, int(len(text.split()) * slot / audio["duration"] * 0.9))
+                new = ask_shorter(text, target, code, prev, nxt, source=x["nl"])
+                if new:
+                    tally["ingekort"] += 1
+                    say(f"  ingekort: {text!r} -> {new!r}")
+                    entry = next(e for e in data["spoken"] if e.get("nl") and norm_cue(e["nl"]) == x["nl"])
+                    entry[code], entry["shortened"] = new, True
+                    save_translations(code, data)
+                    tr["spoken"][x["nl"]] = new
+                    text, speed = new, 1.0
+                continue
+            break
+        tally["sneller"] += speed > 1.0
+        wav = audio["wav"]
+        if step.tempo > 1.0001:
+            tally["geperst" if step.action == "squeeze" else "gerekt"] += 1
+            stretched = workdir / f"{name}-{i}.wav"
+            ffmpeg("-i", wav, "-af", f"atempo={step.tempo}", "-ar", "48000", "-ac", "1", stretched)
+            wav = stretched
+        at = max(x["start"], cursor)
+        cursor = at + audio["duration"] / step.tempo
+        clips.append((dub.read_pcm(wav), at))
+        placed.append((x, text, round(cursor - x["until"], 2)))
+        words += dub.aligned_words(text, audio["alignment"], at, step.tempo)
+
+    samples = dub.assemble(clips, said["duration"])
+    raw = workdir / f"{name}-{code}-raw.wav"
+    dub.write_pcm(samples, raw)
+    norm = workdir / f"{name}-{code}.wav"
+    media.loudnorm(raw, norm)
+    # Exactly as long as the Dutch: the player keeps the demo on its clock.
+    m4a = workdir / f"{name}-{code}.m4a"
+    ffmpeg("-i", norm, "-af", f"apad,atrim=end={said['duration']}", "-c:a", "aac", "-b:a", "96k", "-ac", "1", "-movflags", "+faststart", m4a)
+    old = (track.get("dub") or {}).get(code) or {}
+    audio_entry = hashed(m4a, f"{name}-voice-{code}", PUBLIC)
+    vtt = to_vtt(captions(sorted(words, key=lambda w: w["start"]), breaks=[p["t"] for p in track.get("pauses") or []]))
+    vtt_name = f"{name}-{hashlib.sha256(vtt.encode()).hexdigest()[:12]}.{code}.dub.vtt"
+    (CORPUS / vtt_name).write_text(vtt)
+    track.setdefault("dub", {})[code] = {"audio": audio_entry, "captions": vtt_name, "basis": dub.basis(said)}
+
+    steps = ", ".join(f"{n} {k}" for k, n in tally.items() if n)
+    say(f"{name} ({code}): {len(clips)} zinnen" + (f" ({steps})" if steps else "") + f"; {sum(len(t) for _, t, _ in placed)} tekens")
+    for x, text, over in placed:
+        if over > 0.05:
+            say(f"  te lang ({over:.1f}s over het tijdvak) bij {x['start']:.1f}s: {text!r}; maak de zin korter in spoken: en draai dub opnieuw")
+    stale = [(PUBLIC, (old.get("audio") or {}).get("src")), (CORPUS, old.get("captions"))]
+    return [where / f for where, f in stale if f and f not in (audio_entry["src"], vtt_name)]
+
+
+def dub_bumpers(code: str, voice: dict, tr: dict, timeline: dict, workdir: Path) -> list[Path]:
+    """The player's short lines ("Go ahead, I'll wait.") in the cloned
+    voice, from `bumpers:` in walkthrough.<code>.yaml. Returns the files of
+    the lines they replace."""
+    from .voice import speak
+
+    old = ((timeline.get("dub") or {}).get(code) or {}).get("bumpers") or {}
+    out: dict = {}
+    for kind in ("wait", "resume"):
+        clips = []
+        for i, text in enumerate((tr["bumpers"] or {}).get(kind) or []):
+            audio = speak(text, voice, WORK)
+            norm = workdir / f"bumper-{kind}-{code}-{i}.wav"
+            media.loudnorm(audio["wav"], norm)
+            m4a = workdir / f"bumper-{kind}-{code}-{i}.m4a"
+            ffmpeg("-i", norm, "-c:a", "aac", "-b:a", "96k", "-ac", "1", "-movflags", "+faststart", m4a)
+            clips.append({**hashed(m4a, f"bumper-{kind}-{code}", PUBLIC), "duration": round(audio["duration"], 3)})
+        if clips:
+            out[kind] = clips
+    if out:
+        timeline.setdefault("dub", {}).setdefault(code, {})["bumpers"] = out
+        say(f"tussenzinnen ({code}): {len(out.get('wait', []))} wachten, {len(out.get('resume', []))} verder")
+    else:
+        say(f"geen tussenzinnen in {localize.path_for(code).relative_to(ROOT)} (bumpers:); de speler toont dan alleen de hint")
+    kept = {c["src"] for clips in out.values() for c in clips}
+    return [PUBLIC / c["src"] for clips in old.values() for c in clips if c["src"] not in kept]
+
+
+def dub_cmd(code: str, only: str | None = None, provider: str | None = None) -> None:
+    """The walkthrough in `code`, spoken in the presenter's cloned voice."""
+    if code == localize.SOURCE:
+        raise SystemExit("het Nederlands is de opname zelf; kies een andere taal")
+    timeline = read_json(CORPUS / "timeline.json")
+    said = read_json(SENTENCES)
+    if not timeline or not said:
+        raise SystemExit("nog geen timeline.json of sentences.json; draai eerst `walkthrough build`")
+    voice = voice_for(code, provider)
+    tr = localize.load(code)
+    data = yaml.safe_load(localize.path_for(code).read_text()) or {}
+    tracks = tracks_of(timeline)
+    if only and only not in (*tracks, "bumpers"):
+        raise SystemExit(f"onbekend spoor {only}; kies uit {', '.join([*tracks, 'bumpers'])}")
+    todo = {name: track for name, track in tracks.items() if only in (None, name)}
+    # Everything that can stop the run is checked before anything is spent.
+    for name, track in todo.items():
+        if said.get(name, {}).get("duration") != track["duration"]:
+            raise SystemExit(f"{name}: sentences.json hoort bij een andere build; draai `walkthrough build`")
+        missing = {x["nl"] for x in said[name]["sentences"] if x["nl"] not in tr["spoken"]}
+        if missing:
+            raise SystemExit(f"{name}: {len(missing)} zinnen zonder vertaling in {localize.path_for(code).relative_to(ROOT)}; draai `walkthrough translate {code}`")
+    PUBLIC.mkdir(parents=True, exist_ok=True)
+    WORK.mkdir(parents=True, exist_ok=True)
+
+    def save() -> None:
+        (CORPUS / "timeline.json").write_text(json.dumps(timeline, ensure_ascii=False, indent=1) + "\n")
+
+    # Saved after every track, and the files a track replaces removed only
+    # once the timeline no longer names them: a run that stops halfway (a
+    # quota, Ctrl-C) leaves a timeline whose files all exist.
+    with tempfile.TemporaryDirectory(dir=WORK) as tmp:
+        for name, track in todo.items():
+            stale = dub_track(name, track, said[name], code, voice, tr, data, Path(tmp))
+            save()
+            for f in stale:
+                f.unlink(missing_ok=True)
+        if only in (None, "bumpers"):
+            stale = dub_bumpers(code, voice, tr, timeline, Path(tmp))
+            save()
+            for f in stale:
+                f.unlink(missing_ok=True)
+    say(f"klaar; luister in de dev-server en draai `walkthrough publish <tag>` voor de media ({voice.get('provider', 'say')})")
 
 
 def translate(code: str) -> None:
@@ -1274,17 +1579,9 @@ def translate(code: str) -> None:
     miss = localize.apply(copy.deepcopy(timeline), CORPUS, write=False).get(code) or {}
     labels = ui_labels(code, [t for v in miss.values() for t in v])
     data = yaml.safe_load(path.read_text()) or {}
-    header = (
-        "---\n"
-        f"# De rondleiding in het {LANGUAGE_NAMES.get(code, code).split(' (')[0]}: wat de kijker leest terwijl de\n"
-        "# presentator Nederlands spreekt. Gesleuteld op het Nederlands, zodat een\n"
-        "# nieuwe knip of build elke regel houdt die nog voorkomt.\n"
-        f"# `just walkthrough translate {code}` vult aan wat ontbreekt; corrigeer gerust\n"
-        "# met de hand. Een build (`just walkthrough build`) zet het in beeld.\n"
-    )
 
     def save():
-        path.write_text(header + yaml.dump(data, Dumper=IndentedDumper, allow_unicode=True, sort_keys=False, width=1000))
+        save_translations(code, data)
 
     questions = {f["question"]: f["id"] for f in timeline.get("faq") or []}
     for kind in ("questions", "slides", "typed", "captions"):
@@ -1299,6 +1596,23 @@ def translate(code: str) -> None:
             data.setdefault(kind, [])
             data[kind] += [{"nl": a, code: b} for a, b in got.items()]
         save()
+    # What the cloned voice says, for a language that has one (voice.dub in
+    # walkthrough.yaml): every sentence as said, with its word budget.
+    if code in dub_languages():
+        said = read_json(SENTENCES, {}) or {}
+        sents = [x for t in said.values() for x in t["sentences"]]
+        have = localize.load(code)["spoken"]
+        todo = list(dict.fromkeys(x["nl"] for x in sents if x["nl"] not in have))
+        wps = float(((load_config().get("voice") or {}).get("dub") or {}).get(code, {}).get("words_per_second", dub.WORDS_PER_SECOND))
+        if todo:
+            say(f"{len(todo)} gesproken zinnen vertalen naar {code}")
+            budgets: dict[str, int] = {}
+            for x in sents:
+                budgets[x["nl"]] = min(budgets.get(x["nl"], 999), dub.budget(x, wps))
+            got = ask_translations("spoken", todo, code, ui_labels(code, todo), localize.load(code)["terms"], budgets=budgets)
+            data.setdefault("spoken", [])
+            data["spoken"] += [{"nl": a, code: b} for a, b in got.items()]
+            save()
     report = localize.apply(timeline, CORPUS)
     (CORPUS / "timeline.json").write_text(json.dumps(timeline, ensure_ascii=False, indent=1) + "\n")
     report_translations(report, timeline)
@@ -1446,6 +1760,10 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("subtitles", help="kortere ondertitels laten maken, in subtitles.yaml")
     p = sub.add_parser("translate", help="ondertitels, dia's en vragen in een andere taal")
     p.add_argument("code", help="de taal, bijvoorbeeld en")
+    p = sub.add_parser("dub", help="de rondleiding in een andere taal, in de gekloonde stem")
+    p.add_argument("code", help="de taal, bijvoorbeeld en")
+    p.add_argument("--track", help="alleen dit spoor: main, faq-<id> of bumpers")
+    p.add_argument("--provider", choices=("elevenlabs", "say"), help="in plaats van voice.provider; say om zonder account te proberen")
     p = sub.add_parser("anchors", help="scrollankers meten voor oudere opnames")
     p.add_argument("--url", default="http://127.0.0.1:7400", help="de dev-server")
     p = sub.add_parser("states", help="de demostand vastleggen bij achteraf toegevoegde hoofdstukken")
@@ -1476,6 +1794,8 @@ def main(argv: list[str] | None = None) -> None:
         subtitles()
     elif args.cmd == "translate":
         translate(args.code)
+    elif args.cmd == "dub":
+        dub_cmd(args.code, args.track, args.provider)
     elif args.cmd == "anchors":
         anchors(args.url)
     elif args.cmd == "states":

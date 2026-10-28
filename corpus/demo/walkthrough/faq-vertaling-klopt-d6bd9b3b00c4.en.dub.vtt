@@ -1,0 +1,140 @@
+WEBVTT
+
+1
+00:00:00.405 --> 00:00:02.133
+Is the translation actually right?
+
+2
+00:00:02.133 --> 00:00:06.823
+Or that the machine-executable
+version, the rulework, is correct?
+
+3
+00:00:06.823 --> 00:00:08.103
+Part of that...
+
+4
+00:00:10.009 --> 00:00:12.889
+It lies in making legislation testable.
+
+5
+00:00:13.711 --> 00:00:19.591
+So we use a language model to turn a rulework
+into a machine-executable version: the
+
+6
+00:00:19.591 --> 00:00:23.391
+statutory text becomes what
+we see below, these actions.
+
+7
+00:00:29.162 --> 00:00:34.282
+On the other side, an explanatory memorandum
+becomes a scenario, a test for the law,
+
+8
+00:00:34.282 --> 00:00:35.482
+you could say.
+
+9
+00:00:39.489 --> 00:00:45.009
+So we can turn the law into a rulework,
+turn a case into a test, and then run it.
+
+10
+00:00:50.595 --> 00:00:54.955
+And once we have a great many of these
+tests, lined up together, capturing the
+
+11
+00:00:54.955 --> 00:00:59.795
+intent of the law, its desired behaviour,
+we can convince ourselves that, at least
+
+12
+00:00:59.795 --> 00:01:03.022
+for these scenarios, the
+law works as it should.
+
+13
+00:01:03.022 --> 00:01:04.995
+That's one answer to the question.
+
+14
+00:01:10.696 --> 00:01:15.776
+Another answer is that, as a legislative
+analyst or legal drafter, someone
+
+15
+00:01:15.776 --> 00:01:18.776
+ultimately responsible for
+how the law takes effect,
+
+16
+00:01:21.332 --> 00:01:25.492
+you must be able to look at this too,
+and see whether it's what you want.
+
+17
+00:01:26.336 --> 00:01:30.776
+We're working on making sure legislative
+analysts and legal drafters don't have to
+
+18
+00:01:30.776 --> 00:01:31.776
+look at this.
+
+19
+00:01:32.621 --> 00:01:37.581
+This may look a bit too nerdy, so we're
+building a better interface, so a lawyer can
+
+20
+00:01:37.581 --> 00:01:42.301
+look at it and say with confidence that
+the interpretation of the law is correct.
+
+21
+00:01:49.600 --> 00:01:54.080
+In a way, we already don't know whether the
+translation of legislation into software
+
+22
+00:01:54.080 --> 00:01:55.280
+is correct.
+
+23
+00:01:58.429 --> 00:02:03.949
+Software often executes legislation today,
+and it's often not transparent how, yet
+
+24
+00:02:03.949 --> 00:02:04.989
+we use it.
+
+25
+00:02:06.471 --> 00:02:10.312
+That's no excuse for not making
+sure translations are correct.
+
+26
+00:02:10.312 --> 00:02:11.952
+They must be correct.
+
+27
+00:02:11.952 --> 00:02:16.032
+It only shows that we already trust the
+translations made by software engineers
+
+28
+00:02:16.032 --> 00:02:17.392
+quite a lot.
+
+29
+00:02:21.538 --> 00:02:26.258
+We propose taking that away from software
+engineers and publishing it openly, so
+
+30
+00:02:26.258 --> 00:02:27.458
+everyone can look at it.

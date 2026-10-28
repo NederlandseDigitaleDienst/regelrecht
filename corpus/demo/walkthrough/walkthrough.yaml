@@ -30,6 +30,27 @@ glossary:
   - Claudia
   - machine-leesbaar
 
+# De gekloonde stem van de presentator (ElevenLabs), voor de rondleiding in
+# een andere taal: `just walkthrough dub <taal>`. De sleutel staat in
+# .walkthrough/.env, nooit in git; de id van de kloon geeft
+# `just walkthrough voices`. Onder `dub` per taal wat daar anders is.
+voice:
+  provider: elevenlabs
+  voice_id: 922uuhDvTklFljgbV3eE   # the presenter, instant clone (2 min from the 11 October recording)
+  model: eleven_multilingual_v2
+  dub:
+    en:
+      model: eleven_v4
+      # v4 negeert de snelheidsinstelling en praat zo'n 50% trager dan v2:
+      # een krappere vertaling (2,0 woorden per seconde in plaats van 2,5),
+      # en rekken tot 1.2 voordat een zin wordt ingekort.
+      speed_control: false
+      tempo_max: 1.2
+      words_per_second: 2.0
+      say_voice: Daniel   # met --provider say: een Engelse Mac-stem, om te proberen
+      say_as:
+        BSN: B S N
+
 # De hoofdlijn: stukken uit opnames, achter elkaar. Een hoofdstuk opnieuw
 # opgenomen? Laat het segment van de oude opname eerder stoppen en zet de
 # nieuwe opname erachter.
