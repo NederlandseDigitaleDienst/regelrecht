@@ -140,8 +140,15 @@ FROM runtime-base AS enrich-worker
 # tools in makes docx/PDF conversion deterministic and needs no runtime egress.
 RUN apk add --no-cache git nodejs npm tini pandoc-cli poppler-utils
 
-# Install opencode and claude CLI globally (pinned versions for reproducibility)
-RUN npm install -g --ignore-scripts opencode-ai@1.2.25 @anthropic-ai/claude-code@2.1.74 && \
+# Install opencode and claude CLI globally (pinned versions for reproducibility).
+# The claude CLI is a native binary. Its npm wrapper (@anthropic-ai/claude-code)
+# copies the binary into place in a postinstall script, which --ignore-scripts
+# skips, leaving a stub that only prints an error. So install the platform
+# package for this image (x86_64, musl for Alpine) and link its binary onto the
+# PATH. `claude --version` fails the build if the binary does not run here.
+RUN npm install -g --ignore-scripts opencode-ai@1.2.25 @anthropic-ai/claude-code-linux-x64-musl@2.1.303 && \
+    ln -s "$(npm root -g)/@anthropic-ai/claude-code-linux-x64-musl/claude" /usr/local/bin/claude && \
+    claude --version && \
     npm cache clean --force
 
 # Copy opencode provider config (VLAM) — the API key is injected at runtime
