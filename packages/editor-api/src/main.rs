@@ -27,6 +27,7 @@ mod favorites;
 mod feature_flags;
 mod github_oauth;
 mod harvest_proxy;
+mod law_search;
 mod middleware;
 mod state;
 mod static_cache;

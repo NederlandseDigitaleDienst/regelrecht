@@ -143,13 +143,28 @@ async function loadSuggestions() {
 interface ResultHeading {
   overline?: string;
   text: string;
+  supportingText?: string;
 }
+
+// Under the heading when the backend cut the list short: the matches are
+// ranked, so these are the best ones, and a longer query finds the rest.
+const cappedNote = computed(() =>
+  resultsCapped.value
+    ? `De beste ${serverLaws.value.length} van ${totalMatches.value.toLocaleString('nl-NL')} treffers. Typ meer om te verfijnen.`
+    : undefined,
+);
 const resultHeading = computed<ResultHeading | null>(() => {
   if (showSuggestions.value && suggestions.value.length) return { text: 'Suggesties' };
   if (filterEnriched.value && searchTerm.value.length === 0 && shownGroup.value) {
-    return { overline: 'Verrijkte regelwerken in', text: shownGroup.value.sourceName };
+    return {
+      overline: 'Verrijkte regelwerken in',
+      text: shownGroup.value.sourceName,
+      supportingText: cappedNote.value,
+    };
   }
-  if (shownGroup.value) return { overline: 'Gevonden in', text: shownGroup.value.sourceName };
+  if (shownGroup.value) {
+    return { overline: 'Gevonden in', text: shownGroup.value.sourceName, supportingText: cappedNote.value };
+  }
   if (bwbResults.value.length) {
     return { overline: 'Niet in de bibliotheek, wel op', text: 'wetten.overheid.nl' };
   }
@@ -522,6 +537,7 @@ defineExpose({ show });
             size="6"
             :overline="resultHeading.overline"
             :text="resultHeading.text"
+            :supporting-text="resultHeading.supportingText"
           ></nldd-title>
         </div>
 
