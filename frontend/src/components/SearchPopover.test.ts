@@ -122,7 +122,7 @@ describe('SearchPopover server-side search', () => {
 
     const row = wrapper.find('[data-testid="search-other-source"]');
     expect(row.find('nldd-text-cell').attributes('text')).toBe(
-      'Ook 1 treffer in Centrale Regelrecht Corpus',
+      'Ook 1 resultaat in Centrale Regelrecht Corpus',
     );
 
     await row.trigger('click');
@@ -134,7 +134,7 @@ describe('SearchPopover server-side search', () => {
     // And back: the first source now has the row.
     expect(
       wrapper.find('[data-testid="search-other-source"] nldd-text-cell').attributes('text'),
-    ).toBe('Ook 1 treffer in example-org/regelrecht-corpus-example');
+    ).toBe('Ook 1 resultaat in example-org/regelrecht-corpus-example');
   });
 
   it('starts over at the first source for a new query', async () => {
@@ -179,7 +179,7 @@ describe('SearchPopover server-side search', () => {
 
     expect(
       wrapper.find('[data-testid="search-other-source"] nldd-text-cell').attributes('text'),
-    ).toBe('Ook 1+ treffers in Centrale Regelrecht Corpus');
+    ).toBe('Ook 1+ resultaten in Centrale Regelrecht Corpus');
     // The first source's list is complete: no note under its heading.
     const heading = () => wrapper.get('[data-testid="search-result-label"]');
     expect(heading().attributes('supporting-text')).toBeUndefined();
@@ -187,7 +187,7 @@ describe('SearchPopover server-side search', () => {
     // what the other source leaves of the total.
     await wrapper.find('[data-testid="search-other-source"]').trigger('click');
     expect(heading().attributes('supporting-text')).toBe(
-      'De beste 1 van 79 treffers. Typ meer om te verfijnen.',
+      'De beste 1 van 79 resultaten. Typ meer om te verfijnen.',
     );
   });
 

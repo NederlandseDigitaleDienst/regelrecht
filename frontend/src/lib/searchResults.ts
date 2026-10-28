@@ -41,13 +41,13 @@ export function groupBySource(laws: readonly CorpusLaw[]): SourceGroup[] {
 }
 
 /**
- * The row that points at another source's matches: "Ook 3 treffers in X".
+ * The row that points at another source's matches: "Ook 3 resultaten in X".
  * `atLeast` marks a count the backend's result cap may have cut short.
  */
 export function otherSourceLabel(group: SourceGroup, atLeast = false): string {
   const n = group.laws.length;
   const count = atLeast ? `${n}+` : `${n}`;
-  return `Ook ${count} ${n === 1 && !atLeast ? 'treffer' : 'treffers'} in ${group.sourceName}`;
+  return `Ook ${count} ${n === 1 && !atLeast ? 'resultaat' : 'resultaten'} in ${group.sourceName}`;
 }
 
 /**
