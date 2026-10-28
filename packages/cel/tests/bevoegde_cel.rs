@@ -1,12 +1,14 @@
-//! Synthesis across cells (RFC-052), under a small fictional law. Art. 2
-//! establishes whether a card was issued to the applicant before, and its
-//! open term makes a college or the national issuer competent for it; art.
-//! 1 decides on an application and reads that fact through
-//! `source.regulation`. Art. 2 also requires a fact only a GGD establishes.
-//! A policy binds the term to the answer `eerder_verstrekt` (RFC-048). Each
-//! cell gives that answer from its own decisions, the deciding cell asks
-//! every competent cell of its sphere for it, and the answers combine with
-//! `OR`.
+//! The answer of the competent cell (RFC-051, RFC-048 §4), under a small
+//! fictional law. Art. 2 establishes whether a card was issued to the
+//! applicant before, and its open term makes a college or the national
+//! issuer competent for it; art. 1 decides on an application and reads that
+//! fact through `source.regulation`. Art. 2 also requires a fact only a GGD
+//! establishes. A policy binds the term to the answer `eerder_verstrekt`
+//! (RFC-048). Each cell gives that answer from its own decisions. The
+//! deciding cell asks the one competent cell among the cells it takes
+//! along; two competent cells are an error, since one question goes to one
+//! cell. Most tests decide in the cell of the RDW, which the term does not
+//! name.
 
 // Test helpers outside a `#[test]` fn may unwrap and panic too; that is how
 // a failing fixture reports itself.
@@ -92,7 +94,6 @@ articles:
           type: boolean
           required: true
           decided_per_case_by: de verstrekkende instantie
-          combine: OR
       execution:
         parameters:
           - {name: bsn, type: string}
@@ -200,7 +201,7 @@ const BSN: &str = "999990019";
 const COLLEGE: &str = "college van burgemeester en wethouders";
 
 /// The actors of the cells of these tests, each with its reduction.
-const CELLS: [&str; 4] = ["oostmeer", "wilgendaal", "landelijk", "ggd"];
+const CELLS: [&str; 5] = ["oostmeer", "wilgendaal", "landelijk", "ggd", "rdw"];
 
 fn service() -> LawExecutionService {
     let mut service = LawExecutionService::new();
@@ -242,6 +243,12 @@ fn cell_answering(actor: &str, name: &str, category: Option<&str>, answers: bool
 
 fn college(actor: &str) -> Cell {
     cell(actor, actor, Some(COLLEGE))
+}
+
+/// A cell that decides under art. 1 and that the term of art. 2 does not
+/// name, so it asks only the competent cells it takes along.
+fn rdw() -> Cell {
+    cell("rdw", "RDW", None)
 }
 
 fn ggd() -> Cell {
@@ -314,17 +321,17 @@ fn issued(gram: &Gram) -> bool {
 }
 
 #[test]
-fn a_card_of_another_college_counts() {
+fn a_card_of_a_college_counts() {
     let mut service = service();
     let mut oostmeer = college("oostmeer");
-    let mut wilgendaal = college("wilgendaal");
+    let mut rdw = rdw();
     assert!(issued(
         &first(&mut service, &mut oostmeer, &[], "2026-03-01").unwrap()
     ));
-    let decision = issue(&mut service, &mut wilgendaal, &[&oostmeer], "2026-10-05").unwrap();
+    let decision = issue(&mut service, &mut rdw, &[&oostmeer], "2026-10-05").unwrap();
     assert!(!issued(&decision));
     // The trace names who answered: Oostmeer, not the deciding cell.
-    let explained = wilgendaal
+    let explained = rdw
         .explain(&mut service, &[&oostmeer], &decision.id)
         .unwrap();
     let filled = explained
@@ -332,7 +339,7 @@ fn a_card_of_another_college_counts() {
         .iter()
         .find(|f| f.term == "eerder_verstrekt")
         .unwrap();
-    // The binding filled it, with the one answer that was not silent.
+    // The binding filled it, with the answer of the competent cell.
     let FilledBy::Answer {
         law_id,
         article,
@@ -369,17 +376,16 @@ fn without_the_other_cell_nobody_answers_and_the_term_is_the_finding() {
 fn a_replay_after_the_other_cell_recorded_later_is_the_same() {
     let mut service = service();
     let mut oostmeer = college("oostmeer");
-    let mut wilgendaal = college("wilgendaal");
-    // Wilgendaal issues first, while Oostmeer knows nothing.
-    let earlier = first(&mut service, &mut wilgendaal, &[&oostmeer], "2026-03-01").unwrap();
+    let mut rdw = rdw();
+    // The RDW issues first, while Oostmeer knows nothing.
+    let earlier = first(&mut service, &mut rdw, &[&oostmeer], "2026-03-01").unwrap();
     assert!(issued(&earlier));
-    // Later Oostmeer issues a card too, without asking Wilgendaal.
+    // Later Oostmeer issues a card too, without asking the RDW.
     let later = first(&mut service, &mut oostmeer, &[], "2026-05-01").unwrap();
     assert!(issued(&later));
-    // The replay of Wilgendaal's decision asks Oostmeer as of 1 March, so
-    // the card of May does not count; with it, the replay would differ.
-    wilgendaal
-        .explain(&mut service, &[&oostmeer], &earlier.id)
+    // The replay of the RDW's decision asks Oostmeer as of 1 March, so the
+    // card of May does not count; with it, the replay would differ.
+    rdw.explain(&mut service, &[&oostmeer], &earlier.id)
         .unwrap();
 }
 
@@ -387,14 +393,14 @@ fn a_replay_after_the_other_cell_recorded_later_is_the_same() {
 fn a_record_on_the_same_day_that_changes_the_answer_fails_the_replay() {
     let mut service = service();
     let mut oostmeer = college("oostmeer");
-    let mut wilgendaal = college("wilgendaal");
-    let earlier = first(&mut service, &mut wilgendaal, &[&oostmeer], "2026-03-01").unwrap();
+    let mut rdw = rdw();
+    let earlier = first(&mut service, &mut rdw, &[&oostmeer], "2026-03-01").unwrap();
     assert!(issued(&earlier));
-    // Oostmeer issues a card on the same day, without asking Wilgendaal.
+    // Oostmeer issues a card on the same day, without asking the RDW.
     assert!(issued(
         &first(&mut service, &mut oostmeer, &[], "2026-03-01").unwrap()
     ));
-    let e = wilgendaal
+    let e = rdw
         .explain(&mut service, &[&oostmeer], &earlier.id)
         .unwrap_err();
     assert!(
@@ -404,34 +410,30 @@ fn a_record_on_the_same_day_that_changes_the_answer_fails_the_replay() {
 }
 
 #[test]
-fn two_cards_combine_with_or() {
+fn two_competent_cells_are_an_error() {
+    // Both issuing bodies may answer, and both are in the call. One question
+    // goes to one cell, and which of them answers is open, so the decision
+    // fails and nothing is recorded.
     let mut service = service();
-    let mut oostmeer = college("oostmeer");
-    let mut wilgendaal = college("wilgendaal");
-    let mut landelijk = cell("landelijk", "Landelijke uitgever", None);
-    first(&mut service, &mut oostmeer, &[], "2026-02-01").unwrap();
-    first(&mut service, &mut landelijk, &[], "2026-02-01").unwrap();
-    let decision = issue(
+    let oostmeer = college("oostmeer");
+    let landelijk = cell("landelijk", "Landelijke uitgever", None);
+    let mut rdw = rdw();
+    let e = issue(
         &mut service,
-        &mut wilgendaal,
+        &mut rdw,
         &[&oostmeer, &landelijk],
         "2026-10-05",
     )
-    .unwrap();
-    assert!(!issued(&decision));
-    let explained = wilgendaal
-        .explain(&mut service, &[&landelijk, &oostmeer], &decision.id)
-        .unwrap();
-    let filled = explained
-        .open_terms
+    .unwrap_err();
+    assert!(
+        e.to_string()
+            .contains("2 cells of the call are named by 'college van burgemeester en wethouders' or 'Landelijke uitgever': Landelijke uitgever, oostmeer"),
+        "{e}"
+    );
+    assert!(!rdw
+        .grams()
         .iter()
-        .find(|f| f.term == "eerder_verstrekt")
-        .unwrap();
-    let FilledBy::Answer { answers: all, .. } = &filled.filled_by else {
-        panic!("two answers: {:?}", filled.filled_by)
-    };
-    let names: Vec<&str> = all.iter().map(|p| p.answerer.as_str()).collect();
-    assert_eq!(names, ["landelijk", "oostmeer"]);
+        .any(|g| g.outputs.contains_key("kaart_verstrekt")));
 }
 
 #[test]
@@ -464,10 +466,10 @@ fn a_competent_cell_without_the_answer_is_silent() {
     let mut service = service();
     let mut oostmeer = cell_answering("oostmeer", "oostmeer", Some(COLLEGE), false);
     first(&mut service, &mut oostmeer, &[], "2026-03-01").unwrap();
-    let mut wilgendaal = college("wilgendaal");
-    let e = issue(&mut service, &mut wilgendaal, &[&oostmeer], "2026-10-05").unwrap_err();
+    let mut rdw = rdw();
+    let e = issue(&mut service, &mut rdw, &[&oostmeer], "2026-10-05").unwrap_err();
     assert!(e.to_string().contains("no judgement was given"), "{e}");
-    let decision = first(&mut service, &mut wilgendaal, &[&oostmeer], "2026-10-06").unwrap();
+    let decision = first(&mut service, &mut rdw, &[&oostmeer], "2026-10-06").unwrap();
     assert!(issued(&decision));
 }
 

@@ -179,8 +179,6 @@ pocs:
     # the_register_lists_what_every_case_needs in
     # packages/poc-chronolexografie/src/bundel.rs houdt deze lijst gelijk.
     corpus:
-      - corpus/cells/cbr
-      - corpus/cells/gemeente_oostmeer
       - corpus/cells/gemeente_wilgendaal
       - corpus/cells/ggd_wilgendaal
       - corpus/cells/kamer_van_koophandel

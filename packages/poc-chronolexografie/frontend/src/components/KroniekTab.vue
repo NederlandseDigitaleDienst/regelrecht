@@ -1,7 +1,7 @@
 <script setup>
 // De kroniek van de cel: elk chronolexogram, in de volgorde waarin het werd
 // vastgelegd, en wat erin staat (RFC-046). Daaronder de kronieken van de
-// andere cellen van de sfeer (RFC-052): elke cel houdt de hare bij; het
+// andere cellen van de casus (RFC-052): elke cel houdt de hare bij; het
 // bestuursorgaan vraagt ze, maar schrijft er niet in. De rechtbank is er
 // een van (RFC-053).
 //
@@ -154,7 +154,7 @@ const json = ref(null);
         De kroniek van de rechtbank, een andere cel. Een beroep verwijst niet naar het bestreden
         besluit, want dat staat in een andere kroniek: het draagt wat de rechtbank ontving.
       </nldd-text>
-      <nldd-text v-else slot="supporting-text">Een andere cel van de sfeer, met haar eigen kroniek.</nldd-text>
+      <nldd-text v-else slot="supporting-text">Een andere cel van de casus, met haar eigen kroniek.</nldd-text>
     </nldd-title>
     <nldd-inline-dialog
       v-if="k.grammen.length === 0"

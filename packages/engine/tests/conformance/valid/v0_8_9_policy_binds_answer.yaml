@@ -2,10 +2,9 @@
 # Tier C: the policy of the authority that decides binds an open term to the
 # named answer of a cell (schema v0.8.9, RFC-048): an article that fills the
 # term takes the answer with `source.reduction`, passing the parameters the
-# answer takes under its own names; `combine` makes one value of the answers
-# of several cells. The policy names its holder. A second article holds a
-# norm that the reduction calls.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+# answer takes under its own names. The policy names its holder. A second
+# article holds a norm that the reduction calls.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
 $id: test_conformance_policy_binds_answer
 regulatory_layer: UITVOERINGSBELEID
 publication_date: '2026-10-22'
@@ -37,7 +36,6 @@ articles:
               reduction: verlof_al_verleend
               parameters:
                 bsn_jongere: $bsn_jongere
-              combine: OR
               description: Het antwoord van de cel van het hoofd.
         output:
           - name: al_verleend

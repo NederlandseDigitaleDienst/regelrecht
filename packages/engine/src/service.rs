@@ -26,8 +26,7 @@
 //! ```
 
 use crate::answer::{
-    Answer, AnswerProvenance, AnswerRequest, Authority, Call, Chronicle, ChronicleRead,
-    OpenTermAnswerer,
+    AnswerProvenance, AnswerRequest, Authority, Call, Chronicle, ChronicleRead, OpenTermAnswerer,
 };
 use crate::article::{
     Article, ArticleBasedLaw, CompetentAuthority, Execution, HookPoint, Input, MachineReadable,
@@ -160,8 +159,8 @@ struct ResolutionContext<'a> {
     /// The cell that runs the execution, asked for the answers a binding
     /// takes (`source.reduction`, RFC-048).
     answerer: Option<&'a dyn OpenTermAnswerer>,
-    /// The other cells of the call (RFC-052), asked with [`Self::answerer`]
-    /// where a binding names them.
+    /// The other cells of the call (RFC-052), asked instead of
+    /// [`Self::answerer`] where a binding names them.
     sphere: Vec<&'a dyn OpenTermAnswerer>,
     /// The chronicle a reduction in this execution is applied to: that of
     /// the cell that runs it (RFC-048).
@@ -565,15 +564,6 @@ fn authorities(named: &[crate::article::NamedAuthority]) -> String {
         .map(|authority| format!("'{}'", authority.name))
         .collect::<Vec<_>>()
         .join(" or ")
-}
-
-/// Who gave `answers`, for a message: "a, b".
-fn answerers(answers: &[Answer]) -> String {
-    answers
-        .iter()
-        .map(|a| a.provenance.answerer.as_str())
-        .collect::<Vec<_>>()
-        .join(", ")
 }
 
 /// Build a cache key from law_id, output_name, and parameters.
@@ -4448,15 +4438,15 @@ impl LawExecutionService {
     ///
     /// The binding is `article` of the policy `law`, which fills an open
     /// term (`implements`, the loader holds to that). Where a term it fills
-    /// names its competent authorities (RFC-052), every answerer of the call
-    /// whose [`Authority`](crate::answer::Authority) they name is asked, in
-    /// the order of their names, and none other; otherwise those the policy
-    /// names as its holder. An answerer without an answer of that name, or
-    /// with a null one, is silent. Several answers that are not null make one
-    /// value with the `combine` of the filled term, or else that of the
-    /// binding, and are an error without one. Without an answer the input is
-    /// null: the binding then fills nothing, as an implementation that is
-    /// silent for the case (RFC-036).
+    /// names its competent authorities (RFC-052), the answerer of the call
+    /// whose [`Authority`](crate::answer::Authority) they name is asked, and
+    /// none other; otherwise the one the policy names as its holder. One
+    /// question goes to one cell: where the call holds more than one cell
+    /// they name, the input is an error, since which of them answers is an
+    /// open point. An answerer without an answer of that name, or with a
+    /// null one, is silent. Without an answer the input is null: the binding
+    /// then fills nothing, as an implementation that is silent for the case
+    /// (RFC-036).
     #[allow(clippy::too_many_arguments)]
     fn resolve_answer<'c>(
         &self,
@@ -4508,146 +4498,102 @@ impl LawExecutionService {
                 ),
             );
         };
-        let combine = terms
-            .iter()
-            .find_map(|term| term.combine)
-            .or(source.combine);
-        let mut askees: Vec<&'c dyn OpenTermAnswerer> = res_ctx
+        let askees: Vec<&'c dyn OpenTermAnswerer> = res_ctx
             .answerer
             .into_iter()
             .chain(res_ctx.sphere.iter().copied())
             .filter(|answerer| answerer.authority().is_named_by(named))
             .collect();
-        askees.sort_by(|a, b| a.authority().name.cmp(&b.authority().name));
-        if let Some(pair) = askees
-            .windows(2)
-            .find(|pair| pair[0].authority().name == pair[1].authority().name)
-        {
+        // One question goes to one cell. Which cell of a category answers
+        // where the call holds several is open, so the engine asks none of
+        // them and does not merge answers.
+        if askees.len() > 1 {
+            let mut names: Vec<&str> = askees.iter().map(|a| a.authority().name.as_str()).collect();
+            names.sort_unstable();
             return refuse(
                 res_ctx,
                 format!(
-                    "input '{}' of {} takes the answer '{answer}': two answerers of the call \
-                     are named '{}'",
+                    "input '{}' of {} takes the answer '{answer}', and {} cells of the call are \
+                     named by {}: {}; the engine asks one cell, and which one is open",
                     input.name,
                     law.id,
-                    pair[0].authority().name
+                    askees.len(),
+                    authorities(named),
+                    names.join(", ")
                 ),
             );
         }
         // Without a cell to ask, the binding gives nothing; the parameters it
         // passes are not needed then, and may be absent (RFC-048).
-        if askees.is_empty() {
+        let Some(askee) = askees.first().copied() else {
             let message = format!(
                 "No cell of this execution gives the answer '{answer}' for {}",
                 authorities(named)
             );
             return Self::no_answer(article, law, input, message, Vec::new(), res_ctx);
-        }
+        };
         let parameters = self.build_target_parameters(source.parameters.as_ref(), context)?;
         let request = AnswerRequest {
             name: answer,
             parameters: &parameters,
             calculation_date: res_ctx.calculation_date,
         };
-        let mut answers: Vec<Answer> = Vec::new();
-        // Who was silent, for the trace, and the null answers among them.
-        let mut silent: Vec<String> = Vec::new();
-        let mut nulls: Vec<AnswerProvenance> = Vec::new();
-        for askee in askees {
-            let given = match askee.answer(self, &request) {
-                Ok(Some(given)) => given,
-                Ok(None) => {
-                    silent.push(format!("{} (no answer '{answer}')", askee.authority().name));
-                    continue;
-                }
-                Err(e) => {
-                    res_ctx.trace_set_message(format!(
-                        "Answer '{answer}': {} failed: {e}",
-                        askee.authority().name
-                    ));
-                    return Err(e);
-                }
-            };
-            // One node per answer, named after it; its `answer` says who
-            // gave it from what.
+        let given = match askee.answer(self, &request) {
+            Ok(Some(given)) => given,
+            Ok(None) => {
+                let message = format!(
+                    "No cell gives the answer '{answer}' for {}; silent: {} (no answer \
+                     '{answer}')",
+                    authorities(named),
+                    askee.authority().name
+                );
+                return Self::no_answer(article, law, input, message, Vec::new(), res_ctx);
+            }
+            Err(e) => {
+                res_ctx.trace_set_message(format!(
+                    "Answer '{answer}': {} failed: {e}",
+                    askee.authority().name
+                ));
+                return Err(e);
+            }
+        };
+        // One node for the answer, named after it; its `answer` says who
+        // gave it from what.
+        {
             let _answered = res_ctx.trace_guard(answer, PathNodeType::Resolve);
             res_ctx.trace_set_result(given.value.clone());
             res_ctx.trace_set_answer(given.provenance.clone());
-            if given.value.is_null() {
-                res_ctx.trace_set_message(format!("{} is silent (null)", given.provenance));
-                silent.push(given.provenance.answerer.clone());
-                nulls.push(given.provenance);
+            res_ctx.trace_set_message(if given.value.is_null() {
+                format!("{} is silent (null)", given.provenance)
             } else {
-                res_ctx.trace_set_message(format!("Answered by {}", given.provenance));
-                answers.push(given);
-            }
+                format!("Answered by {}", given.provenance)
+            });
         }
-        let silent_note = if silent.is_empty() {
-            String::new()
-        } else {
-            format!("; silent: {}", silent.join(", "))
-        };
-        let value = match answers.as_slice() {
-            [] => {
-                let message = format!(
-                    "No cell gives the answer '{answer}' for {}{silent_note}",
-                    authorities(named)
-                );
-                return Self::no_answer(article, law, input, message, nulls, res_ctx);
-            }
-            [one] => {
-                res_ctx.trace_set_message(format!(
-                    "Answer '{answer}' given by {}{silent_note}",
-                    one.provenance.answerer
-                ));
-                one.value.clone()
-            }
-            several => {
-                let Some(op) = combine else {
-                    return refuse(
-                        res_ctx,
-                        format!(
-                            "input '{}' of {} has {} answers '{answer}', from {}, and no \
-                             combine to make one value of them (RFC-052)",
-                            input.name,
-                            law.id,
-                            several.len(),
-                            answerers(several)
-                        ),
-                    );
-                };
-                let values = several.iter().map(|a| a.value.clone()).collect();
-                // The aggregation is that of FOREACH; the error says where it
-                // was used here.
-                let value = match crate::operations::combine_with(op, values) {
-                    Ok(value) => value,
-                    Err(e) => {
-                        return refuse(
-                            res_ctx,
-                            format!(
-                                "input '{}' of {}: combining the answers '{answer}' of {} with \
-                                 {} failed: {e}",
-                                input.name,
-                                law.id,
-                                answerers(several),
-                                op.as_str()
-                            ),
-                        )
-                    }
-                };
-                res_ctx.trace_set_message(format!(
-                    "Answer '{answer}' given by {}, combined with {}{silent_note}",
-                    answerers(several),
-                    op.as_str()
-                ));
-                value
-            }
-        };
+        if given.value.is_null() {
+            let message = format!(
+                "No cell gives the answer '{answer}' for {}; silent: {}",
+                authorities(named),
+                given.provenance.answerer
+            );
+            return Self::no_answer(
+                article,
+                law,
+                input,
+                message,
+                vec![given.provenance],
+                res_ctx,
+            );
+        }
+        res_ctx.trace_set_message(format!(
+            "Answer '{answer}' given by {}",
+            given.provenance.answerer
+        ));
+        let value = given.value;
         res_ctx.trace_set_result(value.clone());
         res_ctx.bound.push(Bound {
             law_id: law.id.clone(),
             article: article.number.clone(),
-            answers: answers.into_iter().map(|a| a.provenance).collect(),
+            answers: vec![given.provenance],
         });
         Ok(Some(value))
     }

@@ -9,8 +9,8 @@ valid_from: '2026-01-01'
 # url wijst daarom naar het artikel dat dit beleid uitwerkt.
 # Artikel 2 tot en met 4 en artikel 7 koppelen open begrippen aan de
 # antwoorden van cellen (source.reduction, RFC-048): het college ontleent wat
-# het anders per aanvraag vaststelt aan wat zijn eigen cel, de cellen van
-# andere verstrekkende instanties of de cel van de GGD uit hun kroniek halen.
+# het anders per aanvraag vaststelt aan wat zijn eigen cel of de cel van de
+# GGD uit haar kroniek haalt.
 # Buiten de cellen geeft een koppeling niets. Wat dan geldt, zegt elk artikel
 # zelf, met een eigen open begrip (decided_per_case_by) dat de engine alleen
 # vraagt als de cellen zwijgen: bij artikel 2 tot en met 4 stelt het college
@@ -145,18 +145,18 @@ articles:
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Of
       aan de aanvrager eerder een gehandicaptenparkeerkaart is verstrekt
       (artikel 2, tweede lid, onder a en b, van de Regeling
-      gehandicaptenparkeerkaart), ontleent het college aan de antwoorden van
-      de cellen van de verstrekkende instanties die de regeling daarvoor
-      bevoegd maakt: zijn eigen cel, die van de colleges van andere gemeenten
-      en die van het CBR. Geeft geen van die cellen een antwoord, dan stelt
-      het college het zelf vast.
+      gehandicaptenparkeerkaart), ontleent het college aan het antwoord van
+      zijn eigen cel over zijn eerdere besluiten. Geeft de cel geen antwoord,
+      dan stelt het college het zelf vast, ook voor een kaart die een andere
+      verstrekkende instantie verstrekte.
     url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel2
     machine_readable:
-      # Synthese bij de afnemer (RFC-052): het begrip noemt wie bevoegd is
-      # (competent_authority) en hoe hun antwoorden één waarde worden
-      # (combine: OR). De engine vraagt elke bevoegde cel van de sfeer om dit
-      # antwoord; een cel die het niet geeft, zwijgt. Zwijgen ze allemaal,
-      # dan geldt het eigen open begrip hieronder.
+      # Het begrip noemt wie bevoegd is (competent_authority): het college
+      # van elke gemeente en het CBR. De engine vraagt één cel, hier die van
+      # het college zelf; een kaart van een andere verstrekkende instantie
+      # kent die cel niet. Welke ene cel van een categorie antwoordt als er
+      # meer zijn, is een open punt (RFC-048). Zwijgt de cel, dan geldt het
+      # eigen open begrip hieronder.
       open_terms:
         - id: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt_volgens_college
           type: boolean
@@ -164,7 +164,7 @@ articles:
           decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
           description: >-
             Wat het college vaststelt over de vraag of aan de aanvrager eerder
-            een kaart is verstrekt, als geen cel een antwoord geeft.
+            een kaart is verstrekt, als de cel geen antwoord geeft.
       implements:
         - law: regeling_gehandicaptenparkeerkaart
           article: '2'
@@ -186,8 +186,8 @@ articles:
           - name: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
             type: boolean
             description: >-
-              Waar, als een verstrekkende instantie de aanvrager eerder een
-              kaart verstrekte; zonder antwoord wat het college vaststelt.
+              Waar, als het college de aanvrager eerder een kaart verstrekte;
+              zonder antwoord van de cel wat het college vaststelt.
         actions:
           - output: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
             value:

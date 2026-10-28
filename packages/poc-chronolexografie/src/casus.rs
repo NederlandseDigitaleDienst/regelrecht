@@ -68,8 +68,8 @@ pub struct Casus {
     /// start and reset as the cell records anything ([`Begin`]).
     #[serde(default)]
     pub begin: Option<Begin>,
-    /// The other cells of the sphere (RFC-052): those the engine may ask
-    /// for a value another actor establishes, where the law makes them
+    /// The other cells the case takes along (RFC-052): those the engine may
+    /// ask for a value another actor establishes, where the law makes them
     /// competent. Each records what it knows before the first scenario.
     /// The court is one of them, for a case that plays the appeal
     /// ([`Beroep::rechter`]); without one the case ends at the objection.
@@ -78,7 +78,7 @@ pub struct Casus {
     pub scenarios: Vec<Scenario>,
 }
 
-/// Another cell of the sphere: its directory under `corpus/cells`, its name
+/// Another cell of the case: its directory under `corpus/cells`, its name
 /// as the visitor reads it, and what it records before the first scenario.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -100,24 +100,6 @@ pub struct Begin {
     pub datum: NaiveDate,
     #[serde(default)]
     pub executogrammen: Vec<BeginExecutogram>,
-    /// Applications under the case's article, each decided on its day,
-    /// after the executograms: a card the cell issued before (RFC-052).
-    #[serde(default)]
-    pub aanvragen: Vec<BeginAanvraag>,
-}
-
-/// An application with its values `velden`, received and decided on
-/// `datum` with the deciding authority's `bevindingen`. The sphere is the
-/// case's own cell and the other cells begun before this one: they answer
-/// what the policy binds, as in any decision, and a finding is only the
-/// cell's own.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct BeginAanvraag {
-    pub datum: NaiveDate,
-    pub velden: Map<String, Value>,
-    #[serde(default)]
-    pub bevindingen: Map<String, Value>,
 }
 
 /// An executogram of the fact `feit` (`<regulation>#<article>#<fact>`, a

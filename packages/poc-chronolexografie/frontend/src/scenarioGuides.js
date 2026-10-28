@@ -504,40 +504,6 @@ const gehandicaptenparkeerkaart = [
     ],
   },
   {
-    name: 'Een kaart van een andere gemeente telt mee',
-    summary: 'Een eerdere kaart van een andere gemeente telt mee, dus het onderzoek mag achterwege blijven.',
-    steps: [
-      apply({
-        todo: withBsn('999990044', 'Deze aanvrager kreeg in januari 2026 een kaart van de (fictieve) gemeente Oostmeer en woont nu in Wilgendaal.'),
-      }),
-      pDecide({ todo: CRITERIA, outcome: 'granted' }),
-    ],
-  },
-  {
-    name: 'Een kaart van het CBR telt ook',
-    summary: 'Een eerdere kaart van het CBR telt net zo mee.',
-    steps: [
-      apply({ todo: withBsn('999990056', 'Het CBR gaf deze aanvrager in februari 2026 een kaart.') }),
-      pDecide({ todo: CRITERIA, outcome: 'granted' }),
-    ],
-  },
-  {
-    name: 'Twee uitgevers, één antwoord',
-    summary: 'Twee cellen zeggen dat er eerder een kaart was, en de wet maakt er één antwoord van.',
-    steps: [
-      apply({
-        todo: withBsn('999990044', 'Deze aanvrager kreeg in januari 2026 een kaart van de gemeente Oostmeer.'),
-      }),
-      pDecide({ todo: CRITERIA, outcome: 'granted' }),
-      apply({
-        n: 2,
-        date: '2031-10-20',
-        todo: 'De kaart van Wilgendaal is verlopen. Verander het BSN in 999990044, zet de dagtekening op 20 oktober 2031 en klik op Aanvraag indienen.',
-      }),
-      pDecide({ n: 2, date: undefined, todo: CRITERIA, outcome: 'granted' }),
-    ],
-  },
-  {
     name: 'Beroep ongegrond',
     summary: 'Na een ongegrond bezwaar gaat de aanvrager in beroep, en de rechter geeft de gemeente gelijk.',
     steps: [

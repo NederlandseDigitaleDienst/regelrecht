@@ -191,67 +191,59 @@ describe('toon en artikelNaam', () => {
   });
 });
 
-describe('synthese: antwoorden van andere cellen (RFC-052)', () => {
+describe('antwoorden van een andere cel (RFC-052)', () => {
+  const KVK = 'kamer_van_koophandel';
   beforeEach(() => {
-    state.casus.andere_cellen = [
-      { cel: 'gemeente_oostmeer', cel_naam: 'gemeente Oostmeer' },
-      { cel: 'cbr', cel_naam: 'CBR' },
-    ];
-    state.andere = [{ cel: 'gemeente_oostmeer', grammen: [{ id: '019a0000-0000-7000-8000-00000000cccc', kind: 'BESCHIKKING' }] }];
+    state.casus.andere_cellen = [{ cel: KVK, cel_naam: 'Kamer van Koophandel' }];
+    state.andere = [{ cel: KVK, grammen: [{ id: '019a0000-0000-7000-8000-00000000cccc', kind: 'EXECUTOGRAM' }] }];
   });
   afterEach(() => {
     delete state.casus.andere_cellen;
     state.andere = [];
   });
 
-  it('leest het laatste chronolexogram in de kroniek van de andere cel', () => {
-    const t = stapTekst(
-      eerder(koppeling([{ ...bron('gemeente_oostmeer'), last_record: '019a0000-0000-7000-8000-00000000cccc' }])),
-      [],
-    );
-    expect(t.toelichting).toContain('beschikking 0000cccc');
-  });
-  const eerder = (ingevuld_door) => ({
+  const begrip = (ingevuld_door) => ({
     soort: 'begrip',
-    naam: 'aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt',
-    wet: 'besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw',
-    artikel: '51',
+    naam: 'bedrijf_gevestigd_in_vergunninggebied',
+    wet: 'fictieve_parkeerverordening_gemeente_wilgendaal',
+    artikel: '2',
     waarde: true,
     ontbreekt: [],
     keer: null,
     ingevuld_door,
   });
   const koppeling = (answers) => ({
-    answer: { law_id: 'fictief_beleid_gemeente_wilgendaal', article: '3', answers },
+    answer: { law_id: 'fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal', article: '4', answers },
   });
-  const bron = (answerer, answer = 'aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt') => ({
-    answerer,
+  const bron = (answer) => ({
+    answerer: KVK,
     answer,
     article: '1',
-    law_id: `reductie_${answerer}`,
+    law_id: 'reductie_vestiging_in_handelsregister',
     valid_from: '2026-01-01',
     records_read: 1,
     last_record: null,
   });
 
+  it('leest het laatste chronolexogram in de kroniek van de andere cel', () => {
+    const t = stapTekst(
+      begrip(koppeling([{ ...bron('postcode_vestiging'), last_record: '019a0000-0000-7000-8000-00000000cccc' }])),
+      [],
+    );
+    expect(t.toelichting).toContain('0000cccc');
+  });
+
   it('noemt de andere cel bij haar naam', () => {
-    const t = stapTekst(eerder(koppeling([bron('gemeente_oostmeer')])), []);
+    const t = stapTekst(begrip(koppeling([bron('postcode_vestiging')])), []);
     expect(t.toelichting).toBe(
-      'ingevuld door beleid fictief_beleid_gemeente_wilgendaal art. 3, antwoord aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt van gemeente Oostmeer (reductie reductie_gemeente_oostmeer, niets uit de kroniek gelezen)',
+      'ingevuld door beleid fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal art. 4, antwoord postcode_vestiging van Kamer van Koophandel (reductie reductie_vestiging_in_handelsregister, niets uit de kroniek gelezen)',
     );
   });
 
-  it('noemt elke cel waarvan het antwoord meetelde, één keer het antwoord', () => {
-    const t = stapTekst(eerder(koppeling([bron('cbr'), bron('gemeente_oostmeer')])), []);
+  it('noemt elk antwoord dat het artikel nam, met de cel die het gaf', () => {
+    const t = stapTekst(begrip(koppeling([bron('postcode_vestiging'), bron('aantal_werkzame_personen')])), []);
     expect(t.toelichting).toBe(
-      'ingevuld door beleid fictief_beleid_gemeente_wilgendaal art. 3, antwoord aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt van CBR (reductie reductie_cbr, niets uit de kroniek gelezen) en gemeente Oostmeer (reductie reductie_gemeente_oostmeer, niets uit de kroniek gelezen)',
-    );
-  });
-
-  it('noemt per cel het antwoord als de namen verschillen', () => {
-    const t = stapTekst(eerder(koppeling([bron('cbr', 'a'), bron('gemeente_oostmeer', 'b')])), []);
-    expect(t.toelichting).toBe(
-      'ingevuld door beleid fictief_beleid_gemeente_wilgendaal art. 3, antwoord a van CBR (reductie reductie_cbr, niets uit de kroniek gelezen) en antwoord b van gemeente Oostmeer (reductie reductie_gemeente_oostmeer, niets uit de kroniek gelezen)',
+      'ingevuld door beleid fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal art. 4, antwoord postcode_vestiging van Kamer van Koophandel (reductie reductie_vestiging_in_handelsregister, niets uit de kroniek gelezen) en antwoord aantal_werkzame_personen van Kamer van Koophandel (reductie reductie_vestiging_in_handelsregister, niets uit de kroniek gelezen)',
     );
   });
 });

@@ -566,23 +566,6 @@ fn a_binding_takes_an_answer_only_from_schema_v0_8_9() {
     ArticleBasedLaw::from_yaml_str(&unnamed).unwrap();
 }
 
-#[test]
-fn only_an_answer_takes_a_combine_that_fits_its_type() {
-    let combined = |op: &str| binding(BINDS, &format!("{BINDS}              combine: {op}\n"));
-    ArticleBasedLaw::from_yaml_str(&combined("OR")).unwrap();
-    refused(&combined("ADD"), "which does not fit its type boolean");
-    refused(&combined("ONLY"), "which is no rule for answers");
-    // Beside another way to the value, combine has nothing to combine.
-    let schooljaar = "              output: begin_schooljaar\n";
-    refused(
-        &binding(
-            schooljaar,
-            &format!("{schooljaar}              combine: OR\n"),
-        ),
-        "has combine OR without the answer of a cell",
-    );
-}
-
 // ---------------------------------------------------------------------------
 // The head's policy binds the open term of art. 13a to the cell's answer
 // (source.reduction, schema v0.8.9)

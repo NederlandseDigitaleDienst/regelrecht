@@ -133,13 +133,9 @@ fn service() -> LawExecutionService {
         "regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart".to_string(),
         format!("regulation/nl/wet/{AWB}"),
         format!("regulation/nl/uitvoeringsbeleid/{POLICY}"),
-        // The reductions of every issuing body and of the GGD, each with
-        // its cell (RFC-048).
+        // The reductions of the municipality and of the GGD, each with its
+        // cell (RFC-048).
         common::reduction_dir(REDUCTION),
-        common::reduction_dir(
-            "reductie_eerder_verstrekte_gehandicaptenparkeerkaart_gemeente_oostmeer",
-        ),
-        common::reduction_dir("reductie_eerder_verstrekte_gehandicaptenparkeerkaart_cbr"),
         common::reduction_dir(REPORTS),
         common::reduction_dir(ADVICE_REDUCTION),
         format!("regulation/nl/uitvoeringsbeleid/{ADVICE_POLICY}"),
@@ -160,11 +156,6 @@ fn cell_dir() -> PathBuf {
 /// The municipality's cell, with an empty chronicle.
 fn cell() -> Cell {
     Cell::in_memory(RECORDING_ACTOR, cell_dir()).unwrap()
-}
-
-/// A cell of Wilgendaal, for a helper whose own `cell` names another.
-fn cell_of_wilgendaal() -> Cell {
-    cell()
 }
 
 /// A complete application of `bsn` for a card as a driver, dated
@@ -538,10 +529,10 @@ fn a_card_of_someone_else_does_not_count() {
 }
 
 #[test]
-fn a_cell_lists_the_answers_it_gives_and_the_terms_they_fill() {
+fn a_cell_lists_the_answers_it_gives() {
     // The answers of the municipality's reduction: whether the applicant
-    // holds a valid card, and whether a card was issued before (Regeling
-    // art. 2 lid 2, RFC-052). The examination is the GGD's, in a cell of its
+    // holds a valid card, and whether the college issued a card before
+    // (Regeling art. 2 lid 2). The examination is the GGD's, in a cell of its
     // own. The catalogue also gives the count of the bedrijfsparkeervergunning:
     // a cell's answers are the cell's, whatever case asks. The service here
     // loads none of the rulework that binds it, so it fills no term.
@@ -559,27 +550,6 @@ fn a_cell_lists_the_answers_it_gives_and_the_terms_they_fill() {
             (VALID, REDUCTION)
         ]
     );
-    let terms: Vec<(String, String)> = cell
-        .bound_terms(&service(), day("2026-10-20"))
-        .into_iter()
-        .map(|t| (t.law, t.open_term))
-        .collect();
-    assert_eq!(
-        terms,
-        [
-            (POLICY.into(), VALID.into()),
-            (REGELING.into(), EARLIER.into())
-        ]
-    );
-    // The GGD's answer fills the examination; the policy binds it too.
-    let ggd: Vec<String> = ggd()
-        .bound_terms(&service(), day("2026-10-20"))
-        .into_iter()
-        .map(|t| t.open_term)
-        .collect();
-    let mut expected = vec![EXAMINED];
-    expected.extend(ADVICE);
-    assert_eq!(ggd, expected);
 }
 
 // ---------------------------------------------------------------------------
@@ -1335,47 +1305,6 @@ fn without_a_report_the_college_may_establish_the_examination_itself() {
     assert!(found.contains(&EXAMINED_C.to_string()), "{found:?}");
 }
 
-// Synthesis (RFC-052): whether a card was issued before is a fact of every
-// issuing body (Regeling art. 2 lid 2: "de verstrekkende instantie"), and
-// each answers from its own chronicle.
-
-/// Another issuing body: the fictitious municipality of Oostmeer, or the CBR.
-fn issuer(actor: &str) -> Cell {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/cells/{actor}"));
-    Cell::in_memory(actor, dir).unwrap()
-}
-
-/// `issuer` issues `bsn` a card on `on`, after an examination and an advice
-/// of the GGD. The policy of Wilgendaal is unscoped (it says so), so the
-/// other body decides under it. It gives no finding on that policy's own
-/// terms: the college of Wilgendaal, its holder, answers those. So the
-/// cells answer them all: the GGD the examination and the advice, the
-/// cell of Wilgendaal, without a card yet, whether the applicant holds one.
-fn issued_by(issuer: &mut Cell, bsn: &str, on: &str) -> Gram {
-    let app = applied(issuer, bsn, on);
-    reported(issuer, bsn, on, on);
-    advised(bsn, on, true, on);
-    let wilgendaal = cell();
-    let gram = issuer
-        .decide(
-            &mut service(),
-            &[&ggd(), &wilgendaal],
-            LAW,
-            ARTICLE,
-            &app.id,
-            &Map::new(),
-            &Map::new(),
-            day(on),
-        )
-        .map(|mut grams| grams.remove(0))
-        .unwrap();
-    assert_eq!(
-        gram.outputs["gehandicaptenparkeerkaart_verstrekt"],
-        json!(true)
-    );
-    gram
-}
-
 /// The college of Wilgendaal decides with `sphere` and leaves the
 /// examination out because it knows the applicant still qualifies (Regeling
 /// art. 2 lid 2 onder a), which needs an earlier card.
@@ -1412,76 +1341,6 @@ fn earlier_filled_by(cell: &Cell, sphere: &[&Cell], id: &str) -> regelrecht_engi
         .expect("the term was filled")
 }
 
-#[test]
-fn a_card_of_another_municipality_counts() {
-    let mut oostmeer = issuer("gemeente_oostmeer");
-    issued_by(&mut oostmeer, "999990044", "2026-01-15");
-    let mut cell = cell();
-    let app = applied(&mut cell, "999990044", "2026-10-13");
-    let gram = without_examination(&mut cell, &[&ggd(), &oostmeer], &app.id, "2026-10-20").unwrap();
-    assert_eq!(
-        gram.outputs["gehandicaptenparkeerkaart_verstrekt"],
-        json!(true)
-    );
-    let regelrecht_engine::FilledBy::Answer { answers, .. } =
-        earlier_filled_by(&cell, &[&ggd(), &oostmeer], &gram.id)
-    else {
-        panic!("one answer")
-    };
-    let [by] = answers.as_slice() else {
-        panic!("one answer: {answers:?}")
-    };
-    assert_eq!(by.answerer, "gemeente_oostmeer");
-}
-
-#[test]
-fn a_card_of_the_cbr_counts() {
-    let mut cbr = issuer("cbr");
-    issued_by(&mut cbr, "999990056", "2026-02-02");
-    let mut cell = cell();
-    let app = applied(&mut cell, "999990056", "2026-10-13");
-    let gram = without_examination(&mut cell, &[&ggd(), &cbr], &app.id, "2026-10-20").unwrap();
-    assert_eq!(
-        gram.outputs["gehandicaptenparkeerkaart_verstrekt"],
-        json!(true)
-    );
-    let regelrecht_engine::FilledBy::Answer { answers, .. } =
-        earlier_filled_by(&cell, &[&ggd(), &cbr], &gram.id)
-    else {
-        panic!("one answer")
-    };
-    let [by] = answers.as_slice() else {
-        panic!("one answer: {answers:?}")
-    };
-    assert_eq!(by.answerer, "cbr");
-}
-
-#[test]
-fn cards_of_two_issuers_combine_with_or() {
-    // Wilgendaal issued a card in 2026 and Oostmeer one before; after the
-    // card of Wilgendaal expired, both say true. Without `combine: OR` on
-    // the term of Regeling art. 2 the two answers would be an error.
-    let mut oostmeer = issuer("gemeente_oostmeer");
-    issued_by(&mut oostmeer, "999990044", "2026-01-15");
-    let mut cell = cell();
-    let app = applied(&mut cell, "999990044", "2026-10-13");
-    without_examination(&mut cell, &[&ggd(), &oostmeer], &app.id, "2026-10-20").unwrap();
-    let again = applied(&mut cell, "999990044", "2031-10-20");
-    let gram =
-        without_examination(&mut cell, &[&ggd(), &oostmeer], &again.id, "2031-10-20").unwrap();
-    assert_eq!(
-        gram.outputs["gehandicaptenparkeerkaart_verstrekt"],
-        json!(true)
-    );
-    let regelrecht_engine::FilledBy::Answer { answers: all, .. } =
-        earlier_filled_by(&cell, &[&ggd(), &oostmeer], &gram.id)
-    else {
-        panic!("two answers")
-    };
-    let names: Vec<&str> = all.iter().map(|p| p.answerer.as_str()).collect();
-    assert_eq!(names, ["gemeente_oostmeer", RECORDING_ACTOR]);
-}
-
 /// In `cell`, a refusal of `bsn` on 2026-10-20 that the objection leaves
 /// standing; the court then decides the case itself (Awb 8:72 lid 3 onder
 /// b): it revokes the refusal in the decision on the objection it sets in
@@ -1489,35 +1348,11 @@ fn cards_of_two_issuers_combine_with_or() {
 /// gives the facts the cell would otherwise answer (Awb 8:69 lid 3). The
 /// card the court granted, as the decision value inside its judgment.
 fn granted_by_the_court(cell: &mut Cell, bsn: &str) -> Value {
-    // Wilgendaal decides with its own findings; another issuer gives none on
-    // the policy of Wilgendaal, so the cells answer them: the GGD the
-    // examination and the advice, the cell of Wilgendaal the card.
-    let other = cell.recording_actor() != RECORDING_ACTOR;
     let app = applied(cell, bsn, "2026-10-20");
     reported(cell, bsn, "2026-10-20", "2026-10-20");
-    if other {
-        advised(bsn, "2026-10-20", false, "2026-10-20");
-    }
-    let wilgendaal = other.then(cell_of_wilgendaal);
-    let mut sphere = vec![ggd()];
-    sphere.extend(wilgendaal);
-    let sphere: Vec<&Cell> = sphere.iter().collect();
-    let refused = if !other {
-        decide(cell, &app.id, false, "2026-10-20")
-    } else {
-        cell.decide(
-            &mut service(),
-            &sphere,
-            LAW,
-            ARTICLE,
-            &app.id,
-            &Map::new(),
-            &Map::new(),
-            day("2026-10-20"),
-        )
-        .unwrap()
-        .remove(0)
-    };
+    let ggd = ggd();
+    let sphere = [&ggd];
+    let refused = decide(cell, &app.id, false, "2026-10-20");
     let bezwaar = object(
         cell,
         &refused.id,
@@ -1582,51 +1417,6 @@ fn a_card_the_court_granted_counts_as_an_earlier_card_but_not_as_a_valid_one() {
         panic!("one answer: {answers:?}")
     };
     assert_eq!(by.answerer, RECORDING_ACTOR);
-}
-
-#[test]
-fn a_card_the_court_granted_in_place_of_another_issuer_counts_there() {
-    // One applicant per issuer: the GGD of these tests advises each once.
-    for (actor, bsn) in [("gemeente_oostmeer", "999990044"), ("cbr", "999990056")] {
-        let mut other = issuer(actor);
-        granted_by_the_court(&mut other, bsn);
-        let mut cell = cell();
-        let app = applied(&mut cell, bsn, "2027-03-01");
-        let gram =
-            without_examination(&mut cell, &[&ggd(), &other], &app.id, "2027-03-01").unwrap();
-        assert_eq!(
-            gram.outputs["gehandicaptenparkeerkaart_verstrekt"],
-            json!(true),
-            "{actor}"
-        );
-        let regelrecht_engine::FilledBy::Answer { answers, .. } =
-            earlier_filled_by(&cell, &[&ggd(), &other], &gram.id)
-        else {
-            panic!("one answer from {actor}")
-        };
-        let [by] = answers.as_slice() else {
-            panic!("one answer: {answers:?}")
-        };
-        assert_eq!(by.answerer, actor);
-    }
-}
-
-#[test]
-fn regeling_2_combines_the_answers_of_the_issuers_with_or() {
-    let service = service();
-    let law = service
-        .resolver()
-        .get_law_for_date(REGELING, Some(day("2026-10-20")))
-        .unwrap();
-    let term = law
-        .find_article_by_number("2")
-        .and_then(|a| a.get_open_terms())
-        .and_then(|terms| terms.iter().find(|t| t.id == EARLIER))
-        .expect("art. 2 declares the term");
-    assert_eq!(
-        term.combine,
-        Some(regelrecht_engine::article::CombineOp::Or)
-    );
 }
 
 #[test]

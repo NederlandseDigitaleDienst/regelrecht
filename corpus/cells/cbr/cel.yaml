@@ -1,8 +1,0 @@
----
-# Wie deze cel is (RFC-046). Het CBR verstrekt kaarten aan wie niet als
-# ingezetene is ingeschreven (BABW artikel 49, derde lid).
-name: CBR
-# Welk antwoord de cel geeft, en uit welke eigen reductie
-# (reductions/, RFC-048).
-answers:
-  aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt: reductie_eerder_verstrekte_gehandicaptenparkeerkaart_cbr

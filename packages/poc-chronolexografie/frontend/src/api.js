@@ -88,7 +88,7 @@ export const api = {
   vormen: (datum) => roep((p) => p.vormen(datum)),
   kroniek: () => roep((p) => p.kroniek()),
   aanvragen: (velden, datum) => roep((p) => p.aanvragen(json(velden), datum)),
-  // Een andere cel van de sfeer legt een handeling vast, zoals de GGD een
+  // Een andere cel van de casus legt een handeling vast, zoals de GGD een
   // geneeskundig onderzoek (RFC-052).
   vastleggen: (cel, feit, velden, datum) => roep((p) => p.vastleggen(cel, feit, json(velden), datum)),
   besluiten: (op, bevindingen, datum) => roep((p) => p.besluiten(op, json(bevindingen), datum)),

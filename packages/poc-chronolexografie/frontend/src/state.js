@@ -22,7 +22,7 @@ export const state = reactive({
   casus: null,
   datum: '',
   grammen: [],
-  // De kronieken van de andere cellen van de sfeer (RFC-052), elk met
+  // De kronieken van de andere cellen van de casus (RFC-052), elk met
   // `cel`, `cel_naam` en `grammen`; leeg bij een casus zonder.
   andere: [],
   // De kroniek van de rechtbank (RFC-053): die van de andere cel die

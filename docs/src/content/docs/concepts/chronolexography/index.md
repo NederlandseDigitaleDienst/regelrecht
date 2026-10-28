@@ -14,7 +14,7 @@ Recording is an optional layer ([RFC-046](/rfcs/rfc-046)). The procedure a cell 
 | Cell | Keeps its chronicle; records and decides through the engine | `corpus/cells/<cell>/`, `packages/cel` |
 | Reduction | Gives a named answer from the chronicle | `corpus/cells/<cell>/reductions/`, or `corpus/cells/reductions/` for one of no cell |
 | Policy | Binds an open term of the law to a cell's answer | `corpus/regulation/nl/uitvoeringsbeleid/` |
-| Engine | Executes the law, asks the cells, combines their answers. Stores nothing | `packages/engine` |
+| Engine | Executes the law and asks one cell per question. Stores nothing | `packages/engine` |
 
 ## A cell
 
@@ -123,7 +123,11 @@ The cell refuses a copy of what is no decision, a copy of its own decision offer
 
 ## Answers of other cells
 
-A decision may take other cells along: its sphere. When a binding fills an open term with `competent_authority`, the engine asks every competent cell of the call, the deciding cell and its sphere, for the answer and merges their answers with the term's `combine`, or else the binding's ([Competent Authority](/concepts/competent-authority#who-answers-an-open-term)). A cell without that answer in its catalogue is silent. Without competence on the term, the engine asks the cell of the policy's holder. This is the paper's synthesis. It happens in the asking process, and each cell reduces only its own chronicle.
+A decision may take other cells along, such as the GGD for the parking card or the Chamber of Commerce for the business parking permit. When a binding fills an open term with `competent_authority`, the engine asks the cell of the call that the term names: the deciding cell, or one it took along ([Competent Authority](/concepts/competent-authority#who-answers-an-open-term)). Without competence on the term, it asks the cell of the policy's holder. A cell without that answer in its catalogue is silent.
+
+One question goes to one cell. If the call holds more than one cell that the term names, the decision fails, and the engine never merges answers. Which single cell of a category should answer is an [open question](/concepts/chronolexography/open-questions).
+
+Synthesis is what the asking article does with those answers. It takes the answers of different cells, each to its own question, and makes one outcome of them: the parking card follows from the GGD's advice and from the municipality's own record of earlier cards. Each cell reduces only its own chronicle.
 
 ## Explaining a decision
 

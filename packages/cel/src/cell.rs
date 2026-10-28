@@ -26,7 +26,7 @@ use crate::decision::{self, finding_field, DecisionShape, Source};
 use crate::error::{refused, setup, Result};
 use crate::files::{Disk, Files};
 use crate::identity;
-use crate::reading::{self, Asked, Reader, Term};
+use crate::reading::{Asked, Reader};
 use crate::shape::{self, Field, Shape};
 use regelrecht_law_model::stored;
 
@@ -230,12 +230,6 @@ impl Cell {
     /// The `$id`s of the reductions the cell keeps (`reductions`).
     pub fn reductions(&self) -> &BTreeSet<String> {
         &self.reductions
-    }
-
-    /// The open terms a policy in force on `on` in `service` binds to an
-    /// answer of this cell ([`reading::bound_terms`]).
-    pub fn bound_terms(&self, service: &LawExecutionService, on: NaiveDate) -> Vec<Term> {
-        reading::bound_terms(service, &self.authority, &self.answers, on)
     }
 
     pub fn recording_actor(&self) -> &str {

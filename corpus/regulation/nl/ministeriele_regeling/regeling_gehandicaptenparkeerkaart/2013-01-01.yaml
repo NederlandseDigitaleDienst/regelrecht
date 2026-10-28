@@ -169,7 +169,8 @@ articles:
         # instantie". Wie kaarten verstrekt, zegt artikel 49 van het BABW:
         # het college (eerste lid) en het CBR (derde lid). Elk van hen weet
         # het uit de eigen besluiten; een kaart van een andere gemeente of
-        # van het CBR telt ook, dus elk antwoord telt mee (OR).
+        # van het CBR telt ook. Welke ene verstrekkende instantie de vraag
+        # beantwoordt als er meer zijn, is een open punt.
         - id: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
           competent_authority:
             - name: college van burgemeester en wethouders
@@ -180,7 +181,6 @@ articles:
           decided_per_case_by: >-
             de verstrekkende instantie: het college of het CBR (artikel 49
             van het BABW)
-          combine: OR
           description: >-
             Of aan de aanvrager eerder een gehandicaptenparkeerkaart is
             verstrekt (lid 2, onder a en b).

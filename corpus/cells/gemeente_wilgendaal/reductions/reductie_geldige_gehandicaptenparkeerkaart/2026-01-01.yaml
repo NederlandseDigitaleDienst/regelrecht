@@ -14,12 +14,10 @@ valid_from: '2026-01-01'
 # (fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal) koppelt het
 # eerste aan zijn eigen open begrip, ook als Awb 7:11 artikel 49 opnieuw
 # aanroept, en het tweede aan het open begrip van artikel 2, tweede lid, onder
-# a en b, van de Regeling gehandicaptenparkeerkaart. Voor dat laatste is elke
-# verstrekkende instantie bevoegd (competent_authority van dat begrip,
-# RFC-052), dus ook de colleges van andere gemeenten en het CBR antwoorden.
-# Twee artikelen, omdat het tweede antwoord de dag van het besluit niet kent:
-# artikel 2 van de regeling geeft die niet mee. Er is geen bekendmaking; de
-# url wijst naar artikel 49.
+# a en b, van de Regeling gehandicaptenparkeerkaart. Twee artikelen, omdat
+# het tweede antwoord de dag van het besluit niet kent: artikel 2 van de
+# regeling geeft die niet mee. Er is geen bekendmaking; de url wijst naar
+# artikel 49.
 url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
 name: Geldige gehandicaptenparkeerkaart bij de gemeente Wilgendaal (reductie)
 articles:
@@ -181,8 +179,8 @@ articles:
           # verstrekte, geldig of niet, ook een kaart die de bestuursrechter
           # in de plaats van het vernietigde besluit verstrekte. Vindt het
           # systeem er geen, dan zwijgt het (null): een kaart van een andere
-          # gemeente of van het CBR kent het niet; die cel antwoordt zelf
-          # (RFC-052).
+          # gemeente of van het CBR kent het niet, en dan stelt het college
+          # het vast.
           - output: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
             value:
               operation: IF

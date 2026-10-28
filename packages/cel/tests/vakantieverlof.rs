@@ -1069,7 +1069,7 @@ fn the_reductions_of_no_cell_are_no_cell() {
 }
 
 #[test]
-fn a_cell_lists_the_answers_it_gives_and_the_terms_they_fill() {
+fn a_cell_lists_the_answers_it_gives() {
     // The school's own cell: five answers from three reductions.
     let own = Cell::in_memory(RECORDING_ACTOR, cell_dir()).unwrap();
     let listed: Vec<(&str, &str)> = own
@@ -1093,25 +1093,6 @@ fn a_cell_lists_the_answers_it_gives_and_the_terms_they_fill() {
             ),
         ]
     );
-
-    // The head's policy binds both terms of art. 13a; the cell for lid 2
-    // gives the answer of one of them.
-    let service = service();
-    let terms: Vec<String> = own
-        .bound_terms(&service, day("2026-10-20"))
-        .into_iter()
-        .filter(|t| t.law == LAW)
-        .map(|t| t.open_term)
-        .collect();
-    assert_eq!(terms, [ONCE, OUTSIDE_HOLIDAYS]);
-    let terms: Vec<String> = cell()
-        .bound_terms(&service, day("2026-10-20"))
-        .into_iter()
-        .map(|t| t.open_term)
-        .collect();
-    assert_eq!(terms, [ONCE]);
-    // Before the policy is in force, it binds nothing.
-    assert!(cell().bound_terms(&service, day("2026-07-01")).is_empty());
 
     // A cell without answers gives none.
     assert!(without_reductions().answers().is_empty());

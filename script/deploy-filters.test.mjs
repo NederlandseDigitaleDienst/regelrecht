@@ -189,8 +189,6 @@ test('chronolexografie volgt zijn cellen, hun regelwerken, de casussen en zijn f
     'corpus/regulation/nl/wet/leerplichtwet_1969/2026-08-01.yaml',
     'corpus/cells/gemeente_wilgendaal/reductions/reductie_geldige_gehandicaptenparkeerkaart/2026-01-01.yaml',
     'corpus/cells/ggd_wilgendaal/reductions/reductie_geneeskundig_onderzoek/2026-01-01.yaml',
-    'corpus/cells/gemeente_oostmeer/cel.yaml',
-    'corpus/cells/cbr/cel.yaml',
     'corpus/cells/rechtbank_wilgendaal/cel.yaml',
     'corpus/regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw/2026-01-01.yaml',
     'packages/poc-chronolexografie/casussen/gehandicaptenparkeerkaart.yaml',
