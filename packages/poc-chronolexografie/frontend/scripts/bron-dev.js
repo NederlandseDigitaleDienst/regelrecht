@@ -42,6 +42,12 @@ export function bestandenUitManifest(bestand) {
   const { wortel = '', mappen } = leesYaml(readFileSync(bestand, 'utf8'));
   const basis = resolve(dirname(bestand), wortel);
   const paren = Object.entries(mappen).map(([doel, van]) => [zonderSlash(doel), zonderSlash(van)]);
+  // Elke map ligt onder de wortel, zoals `Manifest::lees` in het portaal eist.
+  for (const pad of paren.flat()) {
+    if (!pad || pad.split('/').some((d) => d === '..' || d === '.' || d === '')) {
+      throw new Error(`the manifest ${bestand}: '${pad}' is no directory below the root`);
+    }
+  }
   const alle = {};
   for (const [, van] of paren) {
     const dir = join(basis, van);

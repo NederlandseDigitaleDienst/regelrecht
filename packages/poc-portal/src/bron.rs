@@ -134,6 +134,8 @@ impl Manifest {
         path.ends_with(".yaml") || path.ends_with(".yml")
     }
 
+    /// The manifest in `tekst`, read from `waar` (for the message). Every
+    /// directory it names lies below the root: no `..`, `.` or empty part.
     pub fn lees(tekst: &str, waar: &str) -> Result<Self, String> {
         let m: Self =
             serde_yaml_ng::from_str(tekst).map_err(|e| format!("the manifest {waar}: {e}"))?;

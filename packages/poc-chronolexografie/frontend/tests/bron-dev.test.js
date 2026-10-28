@@ -40,6 +40,15 @@ describe('bronAntwoord', () => {
     ]);
   });
 
+  it('weigert een manifest met een map boven de wortel, zoals het portaal', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bron-dev-'));
+    writeFileSync(join(dir, 'bron.yaml'), 'mappen:\n  cells/c: ../elders\n');
+    const [status, , tekst] = bronAntwoord('napp', { [lokaleEnv('napp')]: join(dir, 'bron.yaml') });
+    rmSync(dir, { recursive: true });
+    expect(status).toBe(502);
+    expect(tekst).toContain('no directory below the root');
+  });
+
   it('zegt zonder POC_BRON_<NAAM> dat de bron niet beschikbaar is', () => {
     expect(lokaleEnv('mijn-bron')).toBe('POC_BRON_MIJN_BRON');
     const [status, , tekst] = bronAntwoord('napp', {});

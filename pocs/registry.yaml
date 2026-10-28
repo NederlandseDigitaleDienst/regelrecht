@@ -59,8 +59,8 @@
 #                packages/poc-portal/src/bron.rs). Een nieuwe commit op die
 #                branch staat er na hooguit een minuut, zonder build. Lokaal
 #                neemt de map of het manifest in POC_BRON_<NAME> de plaats
-#                van de branch in,
-#                zonder token. Zie de pagina van het poc-portaal in de docs.
+#                van de branch in, zonder token. Zie de pagina van het
+#                poc-portaal in de docs.
 #   tags         INTERN. Korte labels: departement, uitvoerder, het beleidsveld.
 #                Samen wijzen ze het dossier aan, ook waar de publieke helft
 #                dat bewust niet doet.
