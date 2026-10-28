@@ -48,6 +48,8 @@ export function bestandenUitManifest(bestand) {
       throw new Error(`the manifest ${bestand}: '${pad}' is no directory below the root`);
     }
   }
+  const dubbel = paren.map(([, van]) => van).find((van, i, alle) => alle.indexOf(van) !== i);
+  if (dubbel !== undefined) throw new Error(`the manifest ${bestand}: '${dubbel}' is named twice`);
   const alle = {};
   for (const [, van] of paren) {
     const dir = join(basis, van);

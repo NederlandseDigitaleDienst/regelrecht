@@ -49,6 +49,15 @@ describe('bronAntwoord', () => {
     expect(tekst).toContain('no directory below the root');
   });
 
+  it('weigert een manifest dat een map twee keer noemt, zoals het portaal', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bron-dev-'));
+    writeFileSync(join(dir, 'bron.yaml'), 'mappen:\n  a: b\n  c: b/\n');
+    const [status, , tekst] = bronAntwoord('napp', { [lokaleEnv('napp')]: join(dir, 'bron.yaml') });
+    rmSync(dir, { recursive: true });
+    expect(status).toBe(502);
+    expect(tekst).toContain('named twice');
+  });
+
   it('zegt zonder POC_BRON_<NAAM> dat de bron niet beschikbaar is', () => {
     expect(lokaleEnv('mijn-bron')).toBe('POC_BRON_MIJN_BRON');
     const [status, , tekst] = bronAntwoord('napp', {});

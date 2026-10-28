@@ -135,7 +135,8 @@ impl Manifest {
     }
 
     /// The manifest in `tekst`, read from `waar` (for the message). Every
-    /// directory it names lies below the root: no `..`, `.` or empty part.
+    /// directory it names lies below the root (no `..`, `.` or empty part),
+    /// and no directory of the repository is named twice.
     pub fn lees(tekst: &str, waar: &str) -> Result<Self, String> {
         let m: Self =
             serde_yaml_ng::from_str(tekst).map_err(|e| format!("the manifest {waar}: {e}"))?;
@@ -148,6 +149,17 @@ impl Manifest {
             {
                 return Err(format!(
                     "the manifest {waar}: '{pad}' is no directory below the root"
+                ));
+            }
+        }
+        // One directory of the repository lands in one place: two that name
+        // the same would leave the choice to the order of reading.
+        let mut gezien = std::collections::BTreeSet::new();
+        for van in m.mappen.values() {
+            if !gezien.insert(van.trim_matches('/')) {
+                return Err(format!(
+                    "the manifest {waar}: '{}' is named twice",
+                    van.trim_matches('/')
                 ));
             }
         }
@@ -624,6 +636,8 @@ mod tests {
         let e = uit_tarball(&boven, "m.yaml").unwrap_err();
         assert!(e.contains("above the repository"), "{e}");
         assert!(Manifest::lees("mappen: {a: ../b}", "m").is_err());
+        let e = Manifest::lees("mappen: {a: b, c: b/}", "m").unwrap_err();
+        assert!(e.contains("named twice"), "{e}");
     }
 
     #[test]
