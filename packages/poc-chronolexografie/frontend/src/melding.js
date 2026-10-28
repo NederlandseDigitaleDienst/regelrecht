@@ -71,10 +71,12 @@ const vertalingen = [
     (veld) =>
       `De aanvraag mist "${leesbaar(veld)}", en het besluit heeft dat nodig (Awb 4:5). Vul het aan in een nieuwe aanvraag.`,
   ],
+  // Een bevinding of een waarde die het besluit van het bestuursorgaan vraagt,
+  // zoals de motivering, en die het nog niet gaf (de cel).
   [
     /asks '([^']+)' of the deciding authority/,
     (veld) =>
-      `Het bestuursorgaan heeft "${leesbaar(veld)}" nog niet beoordeeld, en het besluit heeft die bevinding nodig.`,
+      `Het bestuursorgaan heeft "${leesbaar(veld)}" nog niet gegeven, en het besluit heeft dat nodig.`,
   ],
   [
     /'([^']+)' is .*, which does not fit a/,

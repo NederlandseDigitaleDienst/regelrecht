@@ -497,10 +497,27 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
     // The form asks the findings of the deciding article itself. One that a
     // policy leaves to the authority where its cell is silent, it asks only
     // when the preview shows the case reaches it ([`voorvertonen`]).
+    // What the authority supplies, such as a parameter of a hook on the
+    // decision, it gives in the same form: the cell splits the two
+    // ([`decide`]).
     let wie = cell.eigen.authority();
-    let bevindingen: Vec<Value> = eigen_oordelen(&besluit, wie)
+    let mut bevindingen: Vec<Value> = eigen_oordelen(&besluit, wie)
         .map(|t| veld(&decision::finding_field(t)))
         .collect();
+    // Not one the policy fills, nor one by the name of a finding: the cell
+    // refuses those as a value of the authority.
+    bevindingen.extend(
+        besluit
+            .inputs
+            .iter()
+            .filter(|i| {
+                i.source == Source::Supplied
+                    && i.field.type_ != ParameterType::Decision
+                    && !besluit.filled(&i.field.name)
+                    && besluit.finding(&i.field.name, wie).is_none()
+            })
+            .map(|i| veld(&i.field)),
+    );
     let mut herkomst: Vec<Value> = besluit
         .inputs
         .iter()
@@ -1541,18 +1558,45 @@ fn beslissen(
     bevindingen: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Vec<Gram>> {
-    let mut service = corpus.service()?;
     let (cell, sfeer) = cell.splits();
-    cell.decide(
-        &mut service,
+    decide(
+        cell,
+        &mut corpus.service()?,
         &sfeer,
         law_id,
         article,
         op,
-        &Map::new(),
+        None,
         bevindingen,
         on,
     )
+}
+
+/// Decide on the submission `op` under `law_id#article`, after `after` when
+/// it is given ([`Cell::decide_after`]), with what the deciding authority
+/// gives: the cell splits it into what it supplies and its findings, as the
+/// decision asks them ([`decision::DecisionShape::split`]).
+#[allow(clippy::too_many_arguments)]
+fn decide(
+    cell: &mut Cell,
+    service: &mut LawExecutionService,
+    sfeer: &[&Cell],
+    law_id: &str,
+    article: &str,
+    op: &str,
+    after: Option<&str>,
+    gegeven: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<Vec<Gram>> {
+    let (supplied, findings) = decision::derive(service, law_id, article, on)?.split(gegeven);
+    Ok(match after {
+        None => cell.decide(
+            service, sfeer, law_id, article, op, &supplied, &findings, on,
+        )?,
+        Some(after) => cell.decide_after(
+            service, sfeer, law_id, article, op, after, &supplied, &findings, on,
+        )?,
+    })
 }
 
 /// The deciding authority decides on the application `aanvraag` with its findings.
@@ -2146,13 +2190,14 @@ pub fn uitspraak_doen(
     let b = corpus.beroep()?;
     let neem = |cellen: &mut Cellen, gegeven: &Map<String, Value>| -> Result<Vec<Gram>> {
         let (rechter, sfeer) = cellen.splits_op(&b.rechter)?;
-        rechter.decide(
+        decide(
+            rechter,
             &mut corpus.service()?,
             &sfeer,
             &b.law,
             &b.article,
             beroep,
-            &Map::new(),
+            None,
             gegeven,
             on,
         )
@@ -2305,14 +2350,14 @@ pub fn opnieuw_beslissen_op_bezwaar(
 ) -> Result<Value> {
     let bezwaar = na_uitspraak(corpus, cellen, ontvangst)?[2].id.clone();
     let (cell, sfeer) = cellen.splits();
-    let genomen = cell.decide_after(
+    let genomen = decide(
+        cell,
         &mut corpus.service()?,
         &sfeer,
         corpus.awb(),
         corpus.objection(),
         &bezwaar,
-        ontvangst,
-        &Map::new(),
+        Some(ontvangst),
         bevindingen,
         on,
     )?;

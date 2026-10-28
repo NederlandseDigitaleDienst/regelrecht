@@ -88,7 +88,7 @@ describe('melding', () => {
   it('noemt de bevinding die het bestuursorgaan nog moet geven', () => {
     const fout =
       "refused: the decision of leerplichtwet_1969#13a asks 'specifieke_aard_beroep_ouder' of the deciding authority (leerplichtwet_1969#11)";
-    expect(melding(fout)).toContain('"specifieke aard beroep ouder" nog niet beoordeeld');
+    expect(melding(fout)).toContain('"specifieke aard beroep ouder" nog niet gegeven');
   });
 
   it('noemt een waarde die niet past, met en zonder non-nullable', () => {

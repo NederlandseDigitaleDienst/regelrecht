@@ -311,6 +311,72 @@ fn the_application_holds_what_its_item_lists() {
     assert_eq!(shape.input("reden").unwrap().source, Source::Supplied);
 }
 
+#[test]
+fn what_the_authority_gives_splits_into_what_it_supplies_and_its_findings() {
+    let special = SPECIAL_LAW.replace(
+        "          - {name: dagen, type: number}\n        output:",
+        "          - {name: dagen, type: number}\n          - {name: reden, type: string}\n        output:",
+    );
+    let mut service = service_of(&[GENERAL_LAW, &special]);
+    let shape = decision::derive(&service, LAW, "1", day()).unwrap();
+    let given = object_map(json!({"reden": "ziek", "grond_aanwezig": true, "dagen": 9}));
+    let (supplied, findings) = shape.split(&given);
+    assert_eq!(
+        supplied.keys().collect::<Vec<_>>(),
+        ["dagen", "reden"],
+        "a parameter of the decision is supplied"
+    );
+    assert_eq!(findings.keys().collect::<Vec<_>>(), ["grond_aanwezig"]);
+    // The split decides nothing: the parameter the application holds is
+    // refused as one when the cell decides.
+    let mut cell = bare_cell("fictieve_school");
+    let app = cell
+        .record_submission(
+            &mut service,
+            &[],
+            LAW,
+            "1",
+            None,
+            &object_map(json!({"dagen": 2})),
+            day(),
+        )
+        .unwrap();
+    let err = cell
+        .decide(
+            &mut service,
+            &[],
+            LAW,
+            "1",
+            &app.id,
+            &supplied,
+            &findings,
+            day(),
+        )
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("'dagen' of the decision of wet_verlof_fictief#1 comes from the application"),
+        "{err}"
+    );
+    let (supplied, findings) = shape.split(&object_map(
+        json!({"reden": "ziek", "grond_aanwezig": true}),
+    ));
+    let gram = cell
+        .decide(
+            &mut service,
+            &[],
+            LAW,
+            "1",
+            &app.id,
+            &supplied,
+            &findings,
+            day(),
+        )
+        .unwrap()
+        .remove(0);
+    assert_eq!(gram.fields["reden"], "ziek");
+}
+
 /// Article 1 decides; article 2 establishes the application and asks for
 /// the decision of article 1 with `requests`.
 const SPLIT_LAW: &str = r#"
