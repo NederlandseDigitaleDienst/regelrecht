@@ -1,0 +1,1659 @@
+{
+ "main": {
+  "duration": 1240.8,
+  "sentences": [
+   {
+    "start": 0.981,
+    "end": 5.903,
+    "until": 5.963,
+    "nl": "Wetten worden al decennia met de hand vertaald naar software."
+   },
+   {
+    "start": 5.963,
+    "end": 13.567,
+    "until": 13.955,
+    "nl": "Iedere uitvoeringsorganisatie heeft zijn eigen interpretatie van wet en regelgeving en een groot stuk van die interpretatie die landt in software."
+   },
+   {
+    "start": 13.955,
+    "end": 24.406,
+    "until": 24.826,
+    "nl": "Dat gebeurt al jaren, al decennia in sommige gevallen en heel veel wetswijzigingen, nieuwe wetsvoorstellen landen op die manier boven op elkaar gestapeld in software."
+   },
+   {
+    "start": 24.826,
+    "end": 27.307,
+    "until": 27.327,
+    "nl": "Met als gevolg dat er eigenlijk geen overzicht meer is."
+   },
+   {
+    "start": 27.327,
+    "end": 33.409,
+    "until": 33.45,
+    "nl": "Het is niet duidelijk welk stukje software zich verhoudt tot welk stukje wet- of regelgeving en andersom."
+   },
+   {
+    "start": 33.45,
+    "end": 37.931,
+    "until": 37.951,
+    "nl": "Wat er weer toe leidt dat het onvoorspelbaar wordt hoe die software werkt."
+   },
+   {
+    "start": 37.951,
+    "end": 54.534,
+    "until": 54.554,
+    "nl": "Niet alleen voor burgers en ondernemers die aan de ontvangende kant van zo'n stuk software staan, maar ook Voor beleidsmakers, voor mensen die moeten werken met die software, ambtenaren en ook zelfs voor ICT'ers, voor mensen die die software bouwen."
+   },
+   {
+    "start": 54.554,
+    "end": 66.477,
+    "until": 66.497,
+    "nl": "Het wordt onbeheersbaar vaak om die software nog aan te passen, wat men niet meer durft, dat men niet meer weet wat het effect is van wijziging in de software."
+   },
+   {
+    "start": 66.497,
+    "end": 73.999,
+    "until": 74.676,
+    "nl": "RegelRecht gaat over wat nou als we beginnen met de wet, de wet zelf machine-uitvoerbaar maken en dat openbaar publiceren."
+   },
+   {
+    "start": 74.676,
+    "end": 83.68,
+    "until": 83.7,
+    "nl": "Ik ben Anne Schuth, ik ben staff engineer bij RegelRecht en ik geef de demo het volgende kwartier ongeveer."
+   },
+   {
+    "start": 83.7,
+    "end": 85.14,
+    "until": 85.18,
+    "nl": "Dit is geen statische demo."
+   },
+   {
+    "start": 85.18,
+    "end": 90.362,
+    "until": 90.462,
+    "nl": "Je kan op elk moment stoppen, zelf gaan rondklikken."
+   },
+   {
+    "start": 90.462,
+    "end": 94.524,
+    "until": 94.544,
+    "nl": "Links verschijnen vragen die ik heel vaak krijg."
+   },
+   {
+    "start": 94.544,
+    "end": 96.666,
+    "until": 97.059,
+    "nl": "Daar kan je op klikken om antwoorden te krijgen."
+   },
+   {
+    "start": 97.059,
+    "end": 98.54,
+    "until": 98.56,
+    "nl": "Dit is een compleet verhaal."
+   },
+   {
+    "start": 98.56,
+    "end": 102.141,
+    "until": 102.95,
+    "nl": "Het is werkende software, maar het is geen eindproduct."
+   },
+   {
+    "start": 102.95,
+    "end": 105.352,
+    "until": 105.392,
+    "nl": "Dus het is niet bedoeld om ooit in productie te gaan."
+   },
+   {
+    "start": 105.392,
+    "end": 109.695,
+    "until": 109.715,
+    "nl": "En we doen dit vanuit een beleidsdirectie, dus we maken beleid door te doen, door zover te maken."
+   },
+   {
+    "start": 109.715,
+    "end": 115.799,
+    "until": 115.839,
+    "nl": "We beginnen helemaal aan de achterkant, bij een regelwerk, in dit geval voor de zorgtoeslag."
+   },
+   {
+    "start": 115.839,
+    "end": 119.982,
+    "until": 120.022,
+    "nl": "Hier zien we een machine-uitvoerbare versie van de zorgtoeslag."
+   },
+   {
+    "start": 120.022,
+    "end": 123.824,
+    "until": 123.864,
+    "nl": "Niet de hele wet, maar stukjes uit die wet, namelijk alleen artikel 2 en artikel 4."
+   },
+   {
+    "start": 123.864,
+    "end": 128.407,
+    "until": 128.467,
+    "nl": "Hier zien we artikel 2, het hele artikel, dus hier zien we de hele tekst."
+   },
+   {
+    "start": 128.467,
+    "end": 132.39,
+    "until": 133.395,
+    "nl": "En hieronder zien we dan machine-readable, het machine-uitvoerbare stuk van die wet."
+   },
+   {
+    "start": 133.395,
+    "end": 134.996,
+    "until": 135.016,
+    "nl": "Dat is een interpretatie van die wet."
+   },
+   {
+    "start": 135.016,
+    "end": 139.438,
+    "until": 139.478,
+    "nl": "En wat we hier zien, is dat het begint met een parameter, namelijk BSN."
+   },
+   {
+    "start": 139.478,
+    "end": 142.84,
+    "until": 142.86,
+    "nl": "En dan hangen er wat acties aan, namelijk of iemand voldoet aan de voorwaarden."
+   },
+   {
+    "start": 142.86,
+    "end": 148.063,
+    "until": 148.083,
+    "nl": "Nou, iemand moet tenminste de minimumleeftijd hebben en iemand moet verzekerde zijn."
+   },
+   {
+    "start": 148.083,
+    "end": 150.424,
+    "until": 150.485,
+    "nl": "En dan zien we de hoogte van de zorgtoeslag."
+   },
+   {
+    "start": 150.485,
+    "end": 160.41,
+    "until": 161.016,
+    "nl": "En dat is een hele berekening en daar ga ik niet in detail op in, maar hieronder bijvoorbeeld zien we Operation Add, het optellen van inkomen met partnerinkomen, zodat het met het drempelinkomen vergelijkbaar wordt als je met een toeslagpartner."
+   },
+   {
+    "start": 161.016,
+    "end": 165.901,
+    "until": 165.941,
+    "nl": "Waar ik net overheen ging, is iets wat wij inputs noemen."
+   },
+   {
+    "start": 165.941,
+    "end": 169.405,
+    "until": 169.465,
+    "nl": "Dat zijn eigenlijk verwijzingen naar andere wetten."
+   },
+   {
+    "start": 169.465,
+    "end": 173.309,
+    "until": 173.349,
+    "nl": "Bijvoorbeeld, die is verzekerde, één van de voorwaarden."
+   },
+   {
+    "start": 173.349,
+    "end": 174.209,
+    "until": 174.229,
+    "nl": "Dat komt uit een andere wet."
+   },
+   {
+    "start": 174.229,
+    "end": 177.733,
+    "until": 178.053,
+    "nl": "Dus in de zorgtoeslagwet staat verzekerde, zoals bedoeld in de zorgverzekeringswet."
+   },
+   {
+    "start": 178.053,
+    "end": 183.656,
+    "until": 183.676,
+    "nl": "Dan kunnen we dus naar de zorgverzekeringswet doorklikken en dat doen we nu en dan zien we wat het betekent om een verzekerde te zijn."
+   },
+   {
+    "start": 183.676,
+    "end": 193.181,
+    "until": 193.221,
+    "nl": "Iemand is namelijk een verzekerde, dat is een output hier, als iemand een verzekering heeft of een verdragsverzekering en als iemand niet in detentie zit."
+   },
+   {
+    "start": 193.221,
+    "end": 197.763,
+    "until": 198.535,
+    "nl": "En dat in detentie zit is weer een input, dat zien we hier, namelijk uit de penitentiaire beginselenwet."
+   },
+   {
+    "start": 198.535,
+    "end": 202.717,
+    "until": 202.737,
+    "nl": "En daar kunnen we dan ook heen gaan en dan zien we wat het betekent om gedetineerd te zijn."
+   },
+   {
+    "start": 202.737,
+    "end": 209.841,
+    "until": 209.881,
+    "nl": "Namelijk, je zit in een penitentiaire inrichting of in een huis van bewaring en je bent ingesloten of tijdelijk afwezig."
+   },
+   {
+    "start": 209.881,
+    "end": 220.027,
+    "until": 220.047,
+    "nl": "En zo zie je dus om zorgtoeslag uit te rekenen, het recht op zorgtoeslag en de hoogte van die zorgtoeslag, heb je een hele reeks aan wetregelgeving nodig."
+   },
+   {
+    "start": 220.047,
+    "end": 222.268,
+    "until": 222.308,
+    "nl": "En eigenlijk is het niet een reeks, maar een graaf."
+   },
+   {
+    "start": 222.308,
+    "end": 226.13,
+    "until": 226.333,
+    "nl": "En als je wetten in een machine uitvoerbaar hebt, dan kan je dat ook visualiseren."
+   },
+   {
+    "start": 226.333,
+    "end": 228.715,
+    "until": 229.576,
+    "nl": "Dan kan je zien dat die wetten samen hangen met elkaar."
+   },
+   {
+    "start": 229.576,
+    "end": 237.202,
+    "until": 237.282,
+    "nl": "Ik zal wat inzoomen, maar hier zie je bijvoorbeeld de zorgtoeslag."
+   },
+   {
+    "start": 237.282,
+    "end": 243.548,
+    "until": 243.568,
+    "nl": "Even kijken, hier zien we die is verzekerde, dat lijntje kunnen we dan volgen."
+   },
+   {
+    "start": 243.568,
+    "end": 248.372,
+    "until": 248.412,
+    "nl": "Dan komen we bij de zorgverzekeringswet en dan zien we dat is gedetineerd en dat lijntje kunnen we ook volgen."
+   },
+   {
+    "start": 248.412,
+    "end": 250.4,
+    "until": 250.655,
+    "nl": "Dat zien we dan hier."
+   },
+   {
+    "start": 250.655,
+    "end": 253.567,
+    "until": 254.906,
+    "nl": "Dan zien we het bepalen van de detentiestatus."
+   },
+   {
+    "start": 254.906,
+    "end": 260.671,
+    "until": 260.691,
+    "nl": "En hier zien we dus eigenlijk het hele stelsel van wet- en regelgeving wat nodig is om tot de zorgtoeslag te komen."
+   },
+   {
+    "start": 260.691,
+    "end": 266.736,
+    "until": 266.776,
+    "nl": "Als ik dit aanklik dan zien we alle wet- en regelgeving die we op dit moment in de proof of concept hebben."
+   },
+   {
+    "start": 266.776,
+    "end": 269.838,
+    "until": 269.858,
+    "nl": "Je ziet dat dat best wel een hele queue is."
+   },
+   {
+    "start": 269.858,
+    "end": 272.921,
+    "until": 273.847,
+    "nl": "Je mag bijvoorbeeld eens raden welke dit zou kunnen zijn."
+   },
+   {
+    "start": 273.847,
+    "end": 275.289,
+    "until": 277.671,
+    "nl": "Kijk gerust zelf even rond."
+   },
+   {
+    "start": 277.671,
+    "end": 287.943,
+    "until": 287.983,
+    "nl": "Je kan gewoon rondklikken, inzoomen, uitzoomen en lijntjes volgen om de samenhang tussen wet en regelgeving te zien."
+   },
+   {
+    "start": 287.983,
+    "end": 288.804,
+    "until": 288.934,
+    "nl": "Dan gaan we zo weer verder."
+   },
+   {
+    "start": 289.594,
+    "end": 299.901,
+    "until": 299.941,
+    "nl": "Een van de vragen die ik heel vaak krijg hierbij is hoe we omgaan met ambiguïteit eigenlijk."
+   },
+   {
+    "start": 299.941,
+    "end": 313.071,
+    "until": 314.288,
+    "nl": "Dus als er ergens in dit hele netwerk twee definities met dezelfde naam staan, bijvoorbeeld partnerinkomen is een veel voortkomende of huishouden."
+   },
+   {
+    "start": 314.288,
+    "end": 318.567,
+    "until": 319.115,
+    "nl": "En die komen ook voor, je zou er even naar kunnen gaan zoeken."
+   },
+   {
+    "start": 319.115,
+    "end": 326.634,
+    "until": 328.163,
+    "nl": "Dus er zijn gewoon op verschillende plekken in verschillende wetten wordt op een verschillende manier partnerinkomen gedefinieerd of huishouden gedefinieerd."
+   },
+   {
+    "start": 328.163,
+    "end": 331.263,
+    "until": 331.303,
+    "nl": "En dat vinden wij als mensen heel erg vervelend."
+   },
+   {
+    "start": 331.303,
+    "end": 335.6,
+    "until": 335.992,
+    "nl": "Maar voor machines maakt het eigenlijk niet uit, zolang je maar naar de juiste definitie door blijft wijzen."
+   },
+   {
+    "start": 335.992,
+    "end": 345.521,
+    "until": 345.561,
+    "nl": "Wat je hier ziet, Dat is eigenlijk iets wat automatisch gegenereerd kan worden als je eenmaal machine-uitvoer bij de wet- en regelgeving hebt."
+   },
+   {
+    "start": 345.561,
+    "end": 363.046,
+    "until": 364.761,
+    "nl": "En dit is al best wel nuttig voor wetsanalysten, voor wetgevingsjuristen, voor mensen die moeten werken met wet- en regelgeving, omdat het overzicht geeft in wat er allemaal samenhangt en wat er mogelijk allemaal kapot gaat als je ergens iets aanpast."
+   },
+   {
+    "start": 364.761,
+    "end": 369.363,
+    "until": 369.403,
+    "nl": "Als je wet eenmaal machine-uitvoerbaar hebt, dan kan je ook het volgende doen."
+   },
+   {
+    "start": 369.403,
+    "end": 374.044,
+    "until": 374.244,
+    "nl": "Waar we hier naar kijken, zijn eigenlijk scenario's, casussen."
+   },
+   {
+    "start": 374.244,
+    "end": 382.23,
+    "until": 382.29,
+    "nl": "En die casussen staan heel vaak beschreven in In de memorie van toelichting bijvoorbeeld."
+   },
+   {
+    "start": 382.29,
+    "end": 391.116,
+    "until": 391.156,
+    "nl": "Dus een wet gaat naar de Kamer of een wetsvoorstel gaat naar de Kamer of een wetswijziging gaat naar de Kamer en meestal wordt er dan ook een memorie van toelichting meegestuurd."
+   },
+   {
+    "start": 391.156,
+    "end": 396.42,
+    "until": 396.44,
+    "nl": "En in die memorie van toelichting staat dan hoe die wet zijn werking zou moeten hebben op specifieke gevallen, op casussen."
+   },
+   {
+    "start": 396.44,
+    "end": 405.827,
+    "until": 405.867,
+    "nl": "Soms zelfs een hele tabel met wat eigenschappen van personen of huishoudens, bedrijven, met hoe de wet daar zijn werking op zou moeten hebben."
+   },
+   {
+    "start": 405.867,
+    "end": 408.529,
+    "until": 408.69,
+    "nl": "Wat de bedoeling is van hoe die wet zou werken."
+   },
+   {
+    "start": 408.69,
+    "end": 412.545,
+    "until": 413.476,
+    "nl": "Zo'n casus kan je dus uit zijn memorie van toelichting halen."
+   },
+   {
+    "start": 413.476,
+    "end": 414.656,
+    "until": 414.676,
+    "nl": "En dat ziet er dan bijvoorbeeld zo uit."
+   },
+   {
+    "start": 414.676,
+    "end": 419.578,
+    "until": 419.618,
+    "nl": "Dus dan zien we een persoon met een fictief BSN-nummer, fictief loon."
+   },
+   {
+    "start": 419.618,
+    "end": 427.841,
+    "until": 427.881,
+    "nl": "En als de zorgtoeslagwet dan wordt uitgevoerd, dan zou dit de hoogte van de zorgtoeslag in eurocenten per jaar moeten zijn voor dit specifieke geval."
+   },
+   {
+    "start": 427.881,
+    "end": 433.383,
+    "until": 433.403,
+    "nl": "Nou, wat we dan kunnen doen, en dit is waarom het machine-uitvoerbare wet een regelgeving heet, is we kunnen dat uitvoeren."
+   },
+   {
+    "start": 433.403,
+    "end": 440.185,
+    "until": 440.205,
+    "nl": "En wat we dan krijgen is wat wij noemen een trace van het uitvoeren van de wet op dit specifieke geval."
+   },
+   {
+    "start": 440.205,
+    "end": 443.426,
+    "until": 443.746,
+    "nl": "Hier zien we bijvoorbeeld dat de zorgtoeslagwet wordt uitgevoerd."
+   },
+   {
+    "start": 443.746,
+    "end": 448.711,
+    "until": 448.731,
+    "nl": "Om te bepalen wat de hoogte van de zorgtoeslag is op het BSN-nummer dat we net zagen."
+   },
+   {
+    "start": 448.731,
+    "end": 455.497,
+    "until": 455.518,
+    "nl": "En als we iets verder naar beneden gaan, dan zien we hier dat de zorgverzekeringswet is uitgevoerd om te bepalen of iemand de verzekerde is."
+   },
+   {
+    "start": 455.518,
+    "end": 461.563,
+    "until": 461.583,
+    "nl": "En als we dan nog iets verder naar beneden gaan, dan herkennen we de penitentiaire beginselenwet om te bepalen of iemand gedetineerd is."
+   },
+   {
+    "start": 461.583,
+    "end": 465.207,
+    "until": 465.227,
+    "nl": "In dit geval is deze persoon niet gedetineerd."
+   },
+   {
+    "start": 465.227,
+    "end": 466.528,
+    "until": 467.6,
+    "nl": "Dan loopt het ook gewoon door."
+   },
+   {
+    "start": 467.6,
+    "end": 480.658,
+    "until": 484.805,
+    "nl": "En dan helemaal naar beneden, en dat is best een stukje scrollen, zien we dan de hoogte van de zorgtoeslag in eurocenten per jaar, wat in dit geval dan overeenkomt met wat we in deze casus hier zagen."
+   },
+   {
+    "start": 484.805,
+    "end": 487.909,
+    "until": 487.95,
+    "nl": "Een persoon onder de 18 die zou geen recht moeten hebben op zorgtoeslag."
+   },
+   {
+    "start": 487.95,
+    "end": 490.253,
+    "until": 490.273,
+    "nl": "Dus dit is weer zo'n scenario."
+   },
+   {
+    "start": 490.273,
+    "end": 495.061,
+    "until": 495.081,
+    "nl": "En als we dit dan uitvoeren dan zien we dat die trace ook een stuk korter is geworden."
+   },
+   {
+    "start": 495.081,
+    "end": 500.648,
+    "until": 500.668,
+    "nl": "We zien bijvoorbeeld dat deze persoon 17 is en dat zorgt ervoor Dat het niet verder loopt."
+   },
+   {
+    "start": 500.668,
+    "end": 501.969,
+    "until": 501.989,
+    "nl": "Dat was namelijk één van de voorwaarden."
+   },
+   {
+    "start": 501.989,
+    "end": 505.731,
+    "until": 505.771,
+    "nl": "Iemand moest tenminste de minimum leeftijd hebben, dat was 18."
+   },
+   {
+    "start": 505.771,
+    "end": 506.892,
+    "until": 506.912,
+    "nl": "En dan houdt het dus op."
+   },
+   {
+    "start": 506.912,
+    "end": 522.721,
+    "until": 522.741,
+    "nl": "Dus deze persoon voldoet niet aan de voorwaarden en daarmee wordt bijvoorbeeld niet de hoogte van de zorgtoeslag bepaald en wordt dus ook niet gekeken naar mogelijk gevoelige datapunten zoals ze in detentie zitten."
+   },
+   {
+    "start": 522.741,
+    "end": 526.103,
+    "until": 527.876,
+    "nl": "Dus er zit eigenlijk automatisch iets van dataminimalisatie in."
+   },
+   {
+    "start": 527.876,
+    "end": 531.457,
+    "until": 533.158,
+    "nl": "Voel je vrij om hier ook even rond te kijken."
+   },
+   {
+    "start": 533.158,
+    "end": 538.533,
+    "until": 538.968,
+    "nl": "Je kan zelf met die scenario's spelen en die traces volgen."
+   },
+   {
+    "start": 538.968,
+    "end": 549.386,
+    "until": 549.426,
+    "nl": "Een van de vragen die ik nu vaak krijg of vaak gekregen heb Dit is hoe we eigenlijk komen aan die regelwerken."
+   },
+   {
+    "start": 549.426,
+    "end": 558.08,
+    "until": 558.825,
+    "nl": "Het korte antwoord is dat we AI gebruiken, generatieve AI, om wet- en regelgeving om te zetten naar zo'n regelwerk."
+   },
+   {
+    "start": 558.825,
+    "end": 565.066,
+    "until": 565.454,
+    "nl": "Dat we generatieve AI gebruiken om memorie van toelichting om te zetten naar zo'n scenario."
+   },
+   {
+    "start": 565.454,
+    "end": 570.215,
+    "until": 570.235,
+    "nl": "En dat we dan het scenario runnen en erachter komen dat het nog niet goed gaat."
+   },
+   {
+    "start": 570.235,
+    "end": 573.016,
+    "until": 573.056,
+    "nl": "Dus dat er dingen niet geslaagd zijn."
+   },
+   {
+    "start": 573.056,
+    "end": 580.519,
+    "until": 580.539,
+    "nl": "En dat we de output daarvan, dus het resultaat, de dingen die mis gaan, gebruiken om aan het taalmodel te geven om nog een rondje te gaan."
+   },
+   {
+    "start": 580.539,
+    "end": 585.18,
+    "until": 585.2,
+    "nl": "Dus dan wordt er opnieuw een regelwerk uitgehaald, opnieuw een scenario uitgehaald."
+   },
+   {
+    "start": 585.2,
+    "end": 587.041,
+    "until": 587.641,
+    "nl": "Dan wordt het opnieuw gerund tot op een gegeven moment."
+   },
+   {
+    "start": 587.641,
+    "end": 595.19,
+    "until": 595.21,
+    "nl": "Wel allemaal op geslaagd staat en dat is eigenlijk het punt dat we het aan een wetsanalyst of wetgevingsjurist zouden geven."
+   },
+   {
+    "start": 595.21,
+    "end": 607.744,
+    "until": 608.438,
+    "nl": "Dus dat zou het startpunt zijn voor een jurist om te gaan kijken naar de werking van de machine-uitvoerbare wet en regelgeving en of die wel doet wat die moet doen en of die de wet en over regelgeving wel implementeert zoals we dat willen."
+   },
+   {
+    "start": 608.438,
+    "end": 612.762,
+    "until": 612.782,
+    "nl": "Als je eenmaal wetten machine-uitvoerbaar maakt, dan kun je van alles doen."
+   },
+   {
+    "start": 612.782,
+    "end": 617.626,
+    "until": 617.646,
+    "nl": "Je kan ook dat op meerdere personen tegelijkertijd runnen."
+   },
+   {
+    "start": 617.646,
+    "end": 622.349,
+    "until": 622.389,
+    "nl": "Dus net bij de scenario's voerden we eigenlijk de wet steeds uit op één individu."
+   },
+   {
+    "start": 622.389,
+    "end": 627.273,
+    "until": 628.654,
+    "nl": "En wat we hier zien is dat we het uitvoeren op een populatie, in dit geval een populatie van 50 personen."
+   },
+   {
+    "start": 628.654,
+    "end": 637.922,
+    "until": 637.942,
+    "nl": "Die gemiddeld 54 jaar zijn, 36% heeft een partner, 40% is huurder, 18% heeft kinderen, 4% is student, gemiddeld een inkomen van 41.000 euro."
+   },
+   {
+    "start": 637.942,
+    "end": 650.752,
+    "until": 650.812,
+    "nl": "Dit is natuurlijk een wat kleine populatie en daarmee niet zo realistisch, maar wel gesampled op basis van de statistieken van het CBS."
+   },
+   {
+    "start": 650.812,
+    "end": 666.128,
+    "until": 666.188,
+    "nl": "Een van de dingen die je kan doen, als je eenmaal alle wet- en regelgevingen, die zien we hieronder, Dus hier zien we de bijstand, inkomensafhankelijke bijdrage, ZVW, zorgverzekeringswet, inkomstenbelasting, kiesrecht, Tweede Kamer, etcetera, etcetera."
+   },
+   {
+    "start": 666.188,
+    "end": 673.521,
+    "until": 673.541,
+    "nl": "Als je eenmaal al die wetten, machine-uitvoerbaarheid en dus uitvoer op zo'n populatie, Dan kan je dit soort dingen gaan berekenen."
+   },
+   {
+    "start": 673.541,
+    "end": 676.845,
+    "until": 676.885,
+    "nl": "Besteedbaar inkomen, dus het inkomen wat je overhoudt aan het eind van de maand."
+   },
+   {
+    "start": 676.885,
+    "end": 682.351,
+    "until": 682.411,
+    "nl": "Dus inkomen minus belasting plus toeslagen en uitkeringen die de wetten toekennen."
+   },
+   {
+    "start": 682.411,
+    "end": 686.215,
+    "until": 686.235,
+    "nl": "En daarmee verdisconteer je eigenlijk ook alle interactie tussen wet en regelgeving."
+   },
+   {
+    "start": 686.235,
+    "end": 689.779,
+    "until": 689.819,
+    "nl": "Dus het kan best zijn dat je ergens iets meer krijgt en daardoor ergens anders iets minder."
+   },
+   {
+    "start": 689.819,
+    "end": 692.402,
+    "until": 692.856,
+    "nl": "En dat zie je dus terug in dit soort bedragen."
+   },
+   {
+    "start": 692.856,
+    "end": 700.923,
+    "until": 700.943,
+    "nl": "Een van de dingen die je kan doen als je wetten eenmaal zo misschien uitvoerbaar maakt, is dat je kan kijken wat het effect van wetswijzigingen zijn."
+   },
+   {
+    "start": 700.943,
+    "end": 706.441,
+    "until": 706.481,
+    "nl": "Dus bijvoorbeeld een wetswijziging van de standaardpremie van de zorgtoeslag."
+   },
+   {
+    "start": 706.481,
+    "end": 717.53,
+    "until": 717.61,
+    "nl": "Als we die min of meer verdubbelen en dan een simulatie draaien, die simulatie draait dus op dezelfde populatie, dan zien we wat er gebeurt en dan kunnen we die ook met elkaar vergelijken."
+   },
+   {
+    "start": 717.61,
+    "end": 724.822,
+    "until": 724.842,
+    "nl": "Dus dan zien we hier de vergelijking tussen de standaard situatie en de standaard De situatie met de standaardpremie aangepast."
+   },
+   {
+    "start": 724.842,
+    "end": 738.28,
+    "until": 739.321,
+    "nl": "Dus dan zien we bijvoorbeeld in dit geval dat het besteedbaar inkomen per maand omhoog gaat van 4720 naar 4775 euro."
+   },
+   {
+    "start": 739.321,
+    "end": 753.721,
+    "until": 753.761,
+    "nl": "En als je moet stemmen, dus je zit bijvoorbeeld in de Tweede Kamer en je moet stemmen over een amendement waarbij die standaardpremie wordt aangepast, dan is het heel prettig als je dit soort Zorgtoeslag is het effect van een wetswijziging."
+   },
+   {
+    "start": 753.761,
+    "end": 763.385,
+    "until": 763.405,
+    "nl": "We zien dat de zorgtoeslagwet aanzienlijk omhoog gaat."
+   },
+   {
+    "start": 763.405,
+    "end": 767.467,
+    "until": 768.766,
+    "nl": "Blijkbaar worden ergens anders mensen gekort en dat wil je dan dus weten."
+   },
+   {
+    "start": 768.766,
+    "end": 778.372,
+    "until": 778.433,
+    "nl": "Hier kan je zelf ook even rondklikken, misschien wat andere wetswijzigingen uitproberen en verschillende vergelijkingen maken."
+   },
+   {
+    "start": 778.433,
+    "end": 782.515,
+    "until": 782.535,
+    "nl": "En je kan ook inzoomen op hoe dit uitsplitst binnen een populatie."
+   },
+   {
+    "start": 782.535,
+    "end": 794.103,
+    "until": 795.378,
+    "nl": "Dus hier zie je bijvoorbeeld hoe het uitsplitst naar leeftijd of naar inkomen of naar wel of niet hebben van een partner, of je huurt of koopt en of je wel of geen kinderen hebt."
+   },
+   {
+    "start": 795.378,
+    "end": 797.159,
+    "until": 797.219,
+    "nl": "Dus kijk gerust even rond."
+   },
+   {
+    "start": 797.219,
+    "end": 799.1,
+    "until": 799.233,
+    "nl": "Dan gaan we zo weer verder."
+   },
+   {
+    "start": 800.387,
+    "end": 804.869,
+    "until": 804.889,
+    "nl": "Als je wetten namelijk eenmaal machine-uitvoerbaar maakt, dan kan je ook dit doen."
+   },
+   {
+    "start": 804.889,
+    "end": 809.752,
+    "until": 811.012,
+    "nl": "Wat we hier zien is een soort van mijn overheid."
+   },
+   {
+    "start": 811.012,
+    "end": 815.754,
+    "until": 815.794,
+    "nl": "En wat we hier eigenlijk zien, ik zal even de demo resetten."
+   },
+   {
+    "start": 815.794,
+    "end": 822.481,
+    "until": 822.501,
+    "nl": "Wat we hier zien is een portaal voor Merijn."
+   },
+   {
+    "start": 822.501,
+    "end": 824.503,
+    "until": 824.523,
+    "nl": "We hebben ook een portaal voor Claudia, dat is een ondernemer."
+   },
+   {
+    "start": 824.523,
+    "end": 833.671,
+    "until": 833.691,
+    "nl": "Maar bijvoorbeeld Merijn, die zou recht moeten hebben op, of misschien recht hebben op kindgebonden budget, recht moeten hebben op zorgtoeslag, bijstand van de gemeente Amsterdam, etcetera, etcetera."
+   },
+   {
+    "start": 833.691,
+    "end": 836.394,
+    "until": 836.414,
+    "nl": "Hier zien we eigenlijk alle wetten weer terug die we eerder ook zagen."
+   },
+   {
+    "start": 836.414,
+    "end": 843.922,
+    "until": 843.962,
+    "nl": "Bijvoorbeeld die zorgtoeslag, daar zien we exact eigenlijk de trace die we net zagen, maar dan alleen de datapunten uit die trace."
+   },
+   {
+    "start": 843.962,
+    "end": 848.046,
+    "until": 848.066,
+    "nl": "Dus bijvoorbeeld zien we hier dat Merijn niet in detentie zit."
+   },
+   {
+    "start": 848.066,
+    "end": 850.129,
+    "until": 850.229,
+    "nl": "Dit komt dus uit die penitentiaire beginselenwet."
+   },
+   {
+    "start": 850.229,
+    "end": 854.414,
+    "until": 854.474,
+    "nl": "Merijn ziet al deze gegevens en denkt, ja, dit klopt wel, dient een aanvraag."
+   },
+   {
+    "start": 854.474,
+    "end": 856.056,
+    "until": 856.739,
+    "nl": "En dat wordt dan ook direct toegekend."
+   },
+   {
+    "start": 856.739,
+    "end": 864.424,
+    "until": 864.505,
+    "nl": "Dus Dienst Toeslagen aan de achterkant, bevoegd gezag voor het uitvoeren van de zorgtoeslagwet, die kent direct dit bedrag toe."
+   },
+   {
+    "start": 864.505,
+    "end": 877.454,
+    "until": 877.474,
+    "nl": "En dat kan omdat de aanvraag gedaan werd met machine-uitvoerbare wet en regelgeving voor de zorgtoeslag en Dienst Toeslagen gebruikt aan de achterkant natuurlijk exact dezelfde machine-uitvoerbare wet en regelgeving."
+   },
+   {
+    "start": 877.474,
+    "end": 883.538,
+    "until": 884.062,
+    "nl": "Met andere woorden, dit is dus niet de rekenhulp, maar de echte interpretatie van wet en regelgeving."
+   },
+   {
+    "start": 884.062,
+    "end": 885.683,
+    "until": 885.703,
+    "nl": "De huurtoeslag zou net wat anders werken."
+   },
+   {
+    "start": 885.703,
+    "end": 894.309,
+    "until": 894.349,
+    "nl": "Merijn moet namelijk wat gegevens aanleveren, zoals de huur en subsidiabele servicekosten."
+   },
+   {
+    "start": 894.349,
+    "end": 896.831,
+    "until": 896.991,
+    "nl": "En dan komt er een bedrag uit, 302,96 euro."
+   },
+   {
+    "start": 896.991,
+    "end": 901.134,
+    "until": 901.154,
+    "nl": "En dan denkt Merijn misschien, hé, ik had wat meer verwacht."
+   },
+   {
+    "start": 901.154,
+    "end": 905.653,
+    "until": 905.673,
+    "nl": "En als hij wat beter kijkt, dan ziet hij ook Dat dat inkomen van hem, dat klopt helemaal niet."
+   },
+   {
+    "start": 905.673,
+    "end": 908.635,
+    "until": 908.655,
+    "nl": "Hij klikt nog eens door en hij ziet dat er winst uit de onderneming staat."
+   },
+   {
+    "start": 908.655,
+    "end": 917.44,
+    "until": 917.46,
+    "nl": "Vorig jaar had Merijn misschien wel een onderneming, maar ik heb mijn onderneming niet meer."
+   },
+   {
+    "start": 917.46,
+    "end": 920.121,
+    "until": 920.161,
+    "nl": "Misschien met een uitschrijving bij de KVK."
+   },
+   {
+    "start": 920.161,
+    "end": 922.283,
+    "until": 922.323,
+    "nl": "Nou, en dat dient Merijn dan in."
+   },
+   {
+    "start": 922.323,
+    "end": 923.423,
+    "until": 923.443,
+    "nl": "Dus hier zien we de wijziging."
+   },
+   {
+    "start": 923.443,
+    "end": 927.546,
+    "until": 929.906,
+    "nl": "We zien ook direct dat het bedrag omhoog gaat, van 302 naar 406,95 euro."
+   },
+   {
+    "start": 929.906,
+    "end": 934.43,
+    "until": 934.45,
+    "nl": "En dan kan Merijn dit aanvragen en dit moet dan misschien in behandeling genomen worden."
+   },
+   {
+    "start": 934.45,
+    "end": 944.019,
+    "until": 945.112,
+    "nl": "Misschien willen we als overheid even kijken naar die wijziging in inkomen van Merijn in het bewijs van uitschrijving van KVK."
+   },
+   {
+    "start": 945.112,
+    "end": 953.066,
+    "until": 953.76,
+    "nl": "We zien ook dat die zorgtoeslag die Merijn al aangevraagd had en die al toegekend was, dat de aanvraag eigenlijk niet meer klopt."
+   },
+   {
+    "start": 953.76,
+    "end": 959.145,
+    "until": 959.165,
+    "nl": "Het is natuurlijk zo dat die zorgtoeslag ook gebaseerd was op het inkomen en Merijn heeft dat gewijzigd."
+   },
+   {
+    "start": 959.165,
+    "end": 971.216,
+    "until": 971.91,
+    "nl": "Dus misschien wil Merijn die aanvraag ook even wijzigen en dat moet dan misschien ook in behandeling genomen worden, omdat dat onderliggende bewijsstuk, uitschrijving KVK, nog steeds door een ambtenaar bekeken moet worden."
+   },
+   {
+    "start": 971.91,
+    "end": 977.996,
+    "until": 979.161,
+    "nl": "Dit is een moment dat mensen vaak vragen of dit niet proactief had gekund."
+   },
+   {
+    "start": 979.161,
+    "end": 985.466,
+    "until": 987.428,
+    "nl": "Deze demo komt voort uit een fieldlab, proactieve dienstverlening, in december 2024."
+   },
+   {
+    "start": 987.428,
+    "end": 990.21,
+    "until": 990.25,
+    "nl": "En dat is exact de aanleiding om hier aan te gaan werken."
+   },
+   {
+    "start": 990.25,
+    "end": 1003.261,
+    "until": 1003.281,
+    "nl": "Kunnen we niet, als we eenmaal het recht op zorgtoeslag en de hoogte van de zorgtoeslag met machine-uitvoerbare wet- en regelgeving kunnen uitrekenen, kunnen we dat dan niet ook direct proactief toekennen."
+   },
+   {
+    "start": 1003.281,
+    "end": 1013.996,
+    "until": 1015.831,
+    "nl": "Het korte antwoord is Dat het technisch misschien zou kunnen, maar dat het misschien niet altijd gewenst is, omdat we niet alles weten van de aanvragen."
+   },
+   {
+    "start": 1015.831,
+    "end": 1023.959,
+    "until": 1023.999,
+    "nl": "Het wat langere antwoord is dat we, om direct te kunnen toekennen, eigenlijk alles zouden moeten weten van een aanvrager."
+   },
+   {
+    "start": 1023.999,
+    "end": 1026.561,
+    "until": 1026.581,
+    "nl": "Bijvoorbeeld ook of iemand net een erfenis gekregen heeft."
+   },
+   {
+    "start": 1026.581,
+    "end": 1034.988,
+    "until": 1035.028,
+    "nl": "Want het zou best kunnen dat met alle gegevens die de overheid heeft, het lijkt alsof je recht hebt op een zorgtoeslag, maar de overheid weet niet alles."
+   },
+   {
+    "start": 1035.028,
+    "end": 1045.036,
+    "until": 1045.056,
+    "nl": "Als je net een erfenis gekregen hebt bijvoorbeeld, dan zal dat een invloed hebben Op je recht op zorgtoeslag en de hoogte van dat recht."
+   },
+   {
+    "start": 1045.056,
+    "end": 1051.161,
+    "until": 1051.181,
+    "nl": "En als we dat direct toegekend zouden hebben, dan zou je wel eens in de problemen kunnen komen en dat allemaal terug moeten betalen."
+   },
+   {
+    "start": 1051.181,
+    "end": 1052.923,
+    "until": 1052.943,
+    "nl": "Dus dat vergt keuzes."
+   },
+   {
+    "start": 1052.943,
+    "end": 1060.509,
+    "until": 1062.237,
+    "nl": "Het vergt politieke keuzes en misschien wel wetswijzigingen voor zoiets op een betrouwbare manier gedaan kan worden."
+   },
+   {
+    "start": 1062.237,
+    "end": 1074.01,
+    "until": 1074.323,
+    "nl": "Merijn heeft dus deze twee aanvragen gedaan en dan is er misschien iets van een zaaksysteem, in dit geval voor Dienst Toeslagen, maar het kan ook voor een andere organisatie zijn, maar bijvoorbeeld Dienst Toeslagen."
+   },
+   {
+    "start": 1074.323,
+    "end": 1078.605,
+    "until": 1078.625,
+    "nl": "Die ziet hier de twee aanvragen van Merijn, huurtoeslag, zorgtoeslag en kan daar in detail naar kijken."
+   },
+   {
+    "start": 1078.625,
+    "end": 1083.567,
+    "until": 1083.587,
+    "nl": "En dan ziet hij bijvoorbeeld dat Merijn hier een wijziging heeft gemaakt."
+   },
+   {
+    "start": 1083.587,
+    "end": 1086.228,
+    "until": 1086.248,
+    "nl": "Winst uit onderneming is van 25.000 naar nul gegaan."
+   },
+   {
+    "start": 1086.248,
+    "end": 1088.149,
+    "until": 1088.209,
+    "nl": "Dat kan goedgekeurd of afgewezen worden."
+   },
+   {
+    "start": 1088.209,
+    "end": 1092.691,
+    "until": 1092.711,
+    "nl": "Of de hele aanvraag kan toegekend of afgewezen worden."
+   },
+   {
+    "start": 1092.711,
+    "end": 1101.735,
+    "until": 1104.006,
+    "nl": "Deze ambtenaar overweegt dit heel zorgvuldig en motiveert waarom dit toch niet klopt en wijst af."
+   },
+   {
+    "start": 1104.006,
+    "end": 1106.587,
+    "until": 1106.607,
+    "nl": "En voor Merijn zou dat er dan zo uitzien."
+   },
+   {
+    "start": 1106.607,
+    "end": 1113.549,
+    "until": 1113.609,
+    "nl": "Zijn huurtoeslagaanvraag is afgewezen en hij kan in bezwaar gaan."
+   },
+   {
+    "start": 1113.609,
+    "end": 1119.033,
+    "until": 1119.451,
+    "nl": "In bezwaar gaan is natuurlijk weer een andere wet die in werking treedt, namelijk de Algemene Wet Bestuursrecht."
+   },
+   {
+    "start": 1119.451,
+    "end": 1125.333,
+    "until": 1125.353,
+    "nl": "En die Algemene Wet Bestuursrecht is ook machine-uitvoerbaar."
+   },
+   {
+    "start": 1125.353,
+    "end": 1126.794,
+    "until": 1126.814,
+    "nl": "En die kunnen we ook zien."
+   },
+   {
+    "start": 1126.814,
+    "end": 1129.975,
+    "until": 1131.112,
+    "nl": "Hier zien we bijvoorbeeld het bezwaar."
+   },
+   {
+    "start": 1131.112,
+    "end": 1133.314,
+    "until": 1133.354,
+    "nl": "En dan zien we wanneer het mogelijk is om in bezwaar te gaan."
+   },
+   {
+    "start": 1133.354,
+    "end": 1141.0,
+    "until": 1141.388,
+    "nl": "Dus waar bij de zorgtoeslagwet de hoogte van de zorgtoeslag bijvoorbeeld een output was, zien we dat hier bezwaar mogelijk een output is."
+   },
+   {
+    "start": 1141.388,
+    "end": 1152.877,
+    "until": 1153.695,
+    "nl": "En we zien bijvoorbeeld dat de wet waar de beslissing uit voortkwam niet een algemeen verbindend voorschrift, niet een beleidsregel, niet een voorbereid besluit van een andere handeling moet zijn en wel een beschikking of een besluit van algemene strekking tot gevolg heeft."
+   },
+   {
+    "start": 1153.695,
+    "end": 1167.253,
+    "until": 1167.313,
+    "nl": "En je moet niet eerder in bezwaar gegaan En zo zie je dus dat meer procesmatige wet- en regelgeving, zoals de Awb of dit stukje, zou ik moeten zeggen, uit de Awb ook machine-uitvoerbaar gemaakt kan worden."
+   },
+   {
+    "start": 1167.313,
+    "end": 1168.994,
+    "until": 1169.034,
+    "nl": "En dat dat mee kan werken."
+   },
+   {
+    "start": 1169.034,
+    "end": 1176.02,
+    "until": 1176.22,
+    "nl": "Dus het blokje hier, bezwaar mogelijk of in bezwaar gaan, dat zit misschien in deze user interface, in dit stukje software."
+   },
+   {
+    "start": 1176.22,
+    "end": 1185.345,
+    "until": 1185.405,
+    "nl": "Maar de logica daarachter, dus de business logic, de logica die bepaalt of iemand wel of niet in bezwaar kan gaan, dat zit in zo'n regelwerk."
+   },
+   {
+    "start": 1185.405,
+    "end": 1195.811,
+    "until": 1196.475,
+    "nl": "En dat zorgt ervoor dat je dus zo'n stuk van de Awb eigenlijk maar één keer hoeft te interpreteren, één keer machine-uitvoerbaar hoeft te maken om hem te laten werken overal."
+   },
+   {
+    "start": 1196.475,
+    "end": 1200.838,
+    "until": 1200.858,
+    "nl": "De wet- en regelgeving die we hier bijvoorbeeld zien."
+   },
+   {
+    "start": 1200.858,
+    "end": 1213.747,
+    "until": 1213.787,
+    "nl": "Dat geldt niet alleen voor de Awb, maar misschien ook wel voor andere proceswet- en regelgeving, zoals misschien de Archiefwet of de AVG of de Woo, of stukjes uit al die wetten zou ik eigenlijk moeten zeggen."
+   },
+   {
+    "start": 1213.787,
+    "end": 1219.766,
+    "until": 1221.262,
+    "nl": "Maar je kan dus best wel ver gaan in het ook machine-uitvoerbaar maken van procesmatige wet- en regelgeving."
+   },
+   {
+    "start": 1221.262,
+    "end": 1222.803,
+    "until": 1222.823,
+    "nl": "Dit is waar ik wil stoppen."
+   },
+   {
+    "start": 1222.823,
+    "end": 1225.205,
+    "until": 1225.225,
+    "nl": "Dat was RegelRecht, van wet naar digitale werking."
+   },
+   {
+    "start": 1225.225,
+    "end": 1227.546,
+    "until": 1227.566,
+    "nl": "Het is een compleet verhaal, geen eindproduct."
+   },
+   {
+    "start": 1227.566,
+    "end": 1230.148,
+    "until": 1230.168,
+    "nl": "Wat we doen is beleid maken door te doen."
+   },
+   {
+    "start": 1230.168,
+    "end": 1231.549,
+    "until": 1231.589,
+    "nl": "De demo staat helemaal open."
+   },
+   {
+    "start": 1231.589,
+    "end": 1233.11,
+    "until": 1233.15,
+    "nl": "Je kan het zelf proberen."
+   },
+   {
+    "start": 1233.15,
+    "end": 1235.692,
+    "until": 1235.752,
+    "nl": "Klik op probeer zelf of klik gewoon rond."
+   },
+   {
+    "start": 1235.752,
+    "end": 1240.115,
+    "until": 1240.8,
+    "nl": "En je kan meer lezen over wat we doen op regelrecht.rijks.app."
+   }
+  ]
+ },
+ "faq-open-normen": {
+  "duration": 140.7,
+  "sentences": [
+   {
+    "start": 0.398,
+    "end": 2.067,
+    "until": 3.355,
+    "nl": "Wat gebeurt er met open normen?"
+   },
+   {
+    "start": 3.355,
+    "end": 8.058,
+    "until": 8.098,
+    "nl": "Eigenlijk stellen we voor dat er niets anders gebeurt dan nu."
+   },
+   {
+    "start": 8.098,
+    "end": 11.22,
+    "until": 11.24,
+    "nl": "Open normen daar gaan we op ten minste twee manieren mee om."
+   },
+   {
+    "start": 11.24,
+    "end": 17.464,
+    "until": 18.302,
+    "nl": "De eerste manier is dat de norm misschien in de wet opengelaten wordt, maar dat in uitvoeringsbeleid alsnog keuzes gemaakt worden."
+   },
+   {
+    "start": 18.302,
+    "end": 20.844,
+    "until": 20.864,
+    "nl": "Of misschien een lagere wet- en regelgeving."
+   },
+   {
+    "start": 20.864,
+    "end": 28.589,
+    "until": 28.609,
+    "nl": "Het zou best kunnen dat er pas in een werkinstructie of soms zelfs pas in software een keuze wordt gemaakt waarmee een open norm niet open meer is."
+   },
+   {
+    "start": 28.609,
+    "end": 32.912,
+    "until": 32.932,
+    "nl": "En wat we eigenlijk voorstellen met RegelRecht is dat we dat niet veranderen."
+   },
+   {
+    "start": 32.932,
+    "end": 41.456,
+    "until": 41.476,
+    "nl": "Het enige verschil is dat we het uit software Dat we met regelgeving en uitvoeringsbeleid machine-uitvoerbaar maken."
+   },
+   {
+    "start": 41.476,
+    "end": 50.819,
+    "until": 50.879,
+    "nl": "Met andere woorden, dat we al die keuzes die gemaakt worden, waarmee open normen ingevuld worden, dat we die expliciet en transparant maken."
+   },
+   {
+    "start": 50.879,
+    "end": 57.981,
+    "until": 58.441,
+    "nl": "En dat het daarmee navolgbaar wordt hoe die keuzes gemaakt zijn en ook reproduceerbaar worden."
+   },
+   {
+    "start": 58.441,
+    "end": 71.129,
+    "until": 71.169,
+    "nl": "De andere vorm van open normen is denk ik dat die ingevuld worden door, of de andere invulling eigenlijk van open normen is dat er ruimte is voor bijvoorbeeld een beslisambtenaar om een keuze te maken."
+   },
+   {
+    "start": 71.169,
+    "end": 74.191,
+    "until": 74.211,
+    "nl": "En ook dat veranderen we niet."
+   },
+   {
+    "start": 74.211,
+    "end": 88.418,
+    "until": 88.478,
+    "nl": "Dus een voorbeeld daarvan is in het asielrecht is er bijvoorbeeld sprake van Het partnerbegrip en soms is het heel erg moeilijk om hard te maken dat je een partner bent van elkaar."
+   },
+   {
+    "start": 88.478,
+    "end": 92.5,
+    "until": 92.921,
+    "nl": "Als bijvoorbeeld in het land van herkomst je niet met elkaar mag trouwen."
+   },
+   {
+    "start": 92.921,
+    "end": 97.224,
+    "until": 97.244,
+    "nl": "En hoe dat nu werkt is dat er dan bewijs over gelegd moet worden."
+   },
+   {
+    "start": 97.244,
+    "end": 115.875,
+    "until": 117.203,
+    "nl": "Bijvoorbeeld vakantiefoto's zouden kunnen gelden als bewijs dat je al En dan is het aan een ambtenaar om die foto's te beoordelen en tot de conclusie te komen dat het aannemelijk is dat twee mensen partner van elkaar zijn."
+   },
+   {
+    "start": 117.203,
+    "end": 119.524,
+    "until": 119.544,
+    "nl": "Ook met RegelRecht blijft dat precies zo werken."
+   },
+   {
+    "start": 119.544,
+    "end": 123.384,
+    "until": 123.424,
+    "nl": "Hoe dat werkt is dat dat dan een datapunt wordt."
+   },
+   {
+    "start": 123.424,
+    "end": 127.845,
+    "until": 127.885,
+    "nl": "Het aannemelijk zijn van een partner."
+   },
+   {
+    "start": 127.885,
+    "end": 132.706,
+    "until": 132.746,
+    "nl": "En dat is iets wat dan mee gaat werken in de wet- en regelgeving."
+   },
+   {
+    "start": 132.746,
+    "end": 139.588,
+    "until": 139.628,
+    "nl": "Maar het komen tot dat datapunt, dus de menselijke beoordeling die daarvoor nodig is, die veranderen we niet."
+   },
+   {
+    "start": 139.628,
+    "end": 140.428,
+    "until": 140.7,
+    "nl": "Dat is nog steeds zo."
+   }
+  ]
+ },
+ "faq-juridisch-bindend": {
+  "duration": 56.867,
+  "sentences": [
+   {
+    "start": 0.384,
+    "end": 8.147,
+    "until": 8.187,
+    "nl": "De vraag of dit juridisch bindend is, of zo'n regelwerk zoals we hier zien, of dat juridisch bindend is."
+   },
+   {
+    "start": 8.187,
+    "end": 10.908,
+    "until": 10.928,
+    "nl": "De wet die is juridisch bindend."
+   },
+   {
+    "start": 10.928,
+    "end": 15.73,
+    "until": 15.77,
+    "nl": "Want dit zijn machine-uitvoerbare interpretaties van de wet."
+   },
+   {
+    "start": 15.77,
+    "end": 20.352,
+    "until": 20.372,
+    "nl": "Net zo goed als software nu een machine-uitvoerbare interpretatie van de wet is."
+   },
+   {
+    "start": 20.372,
+    "end": 23.113,
+    "until": 23.153,
+    "nl": "Dus de machine-uitvoerbare versie is niet de wet zelf."
+   },
+   {
+    "start": 23.153,
+    "end": 25.114,
+    "until": 25.154,
+    "nl": "De wet is de wet."
+   },
+   {
+    "start": 25.154,
+    "end": 28.555,
+    "until": 29.115,
+    "nl": "En wat we hier zien is slechts een machine-uitvoerbare interpretatie van die wet."
+   },
+   {
+    "start": 29.115,
+    "end": 35.44,
+    "until": 35.461,
+    "nl": "En het heeft ook slechts die status, de status van een interpretatie van de wet, die dus ook aanvechtbaar is."
+   },
+   {
+    "start": 35.461,
+    "end": 52.768,
+    "until": 52.788,
+    "nl": "Het grote verschil is natuurlijk dat het een interpretatie is die te inspecteren valt, die te zien valt door zowel de uitvoerder, de burger, ondernemer, maar ook de wetgevende macht en de rechtssprekende macht kunnen kijken naar die interpretatie."
+   },
+   {
+    "start": 52.788,
+    "end": 56.579,
+    "until": 56.867,
+    "nl": "En die interpretatie is transparant en gepubliceerd."
+   }
+  ]
+ },
+ "faq-volgorde-artikelen": {
+  "duration": 104.433,
+  "sentences": [
+   {
+    "start": 0.443,
+    "end": 9.912,
+    "until": 9.972,
+    "nl": "Een van de vragen die ik vaak krijg hier is of het uitmaakt wat de volgorde van artikelen is om tot dataminimalisatie te komen."
+   },
+   {
+    "start": 9.972,
+    "end": 21.704,
+    "until": 21.744,
+    "nl": "En dus we zien bijvoorbeeld voor deze persoon onder de 18 dat we dus vroeg achterkomen dat deze persoon 17 is en dat we daardoor niet naar de rest van de machine-uitvoerbare wet- en regelgeving moeten kijken."
+   },
+   {
+    "start": 21.744,
+    "end": 28.447,
+    "until": 28.467,
+    "nl": "Maar komt dat dan niet omdat die leeftijd is een van de eerste artikelen die beschreven staat."
+   },
+   {
+    "start": 28.467,
+    "end": 32.748,
+    "until": 32.788,
+    "nl": "En als dat toevallig later had gestaan, hadden we dan niet wel naar die gevoelige datapunten gekeken?"
+   },
+   {
+    "start": 32.788,
+    "end": 34.848,
+    "until": 34.868,
+    "nl": "En het antwoord is ja, dat klopt."
+   },
+   {
+    "start": 34.868,
+    "end": 38.749,
+    "until": 38.809,
+    "nl": "Dat is in dit geval zeker zo."
+   },
+   {
+    "start": 38.809,
+    "end": 41.63,
+    "until": 41.67,
+    "nl": "En we hebben discussies met juristen hierover."
+   },
+   {
+    "start": 41.67,
+    "end": 45.511,
+    "until": 45.531,
+    "nl": "Mag je de volgorde van wet- en regelgeving aanpassen?"
+   },
+   {
+    "start": 45.531,
+    "end": 51.312,
+    "until": 52.012,
+    "nl": "Dus mag je kiezen welke artikelen je eerst uitvoert?"
+   },
+   {
+    "start": 52.012,
+    "end": 54.593,
+    "until": 54.613,
+    "nl": "Juristen zijn het daar niet per se over eens."
+   },
+   {
+    "start": 54.613,
+    "end": 60.195,
+    "until": 60.235,
+    "nl": "Waarschijnlijk is het zo dat het voor sommige wet- en regelgeving niet uitmaakt in welke volgorde je de artikelen uitvoert."
+   },
+   {
+    "start": 60.235,
+    "end": 62.776,
+    "until": 62.816,
+    "nl": "En voor andere wet- en regelgeving maakt het misschien wel uit."
+   },
+   {
+    "start": 62.816,
+    "end": 67.798,
+    "until": 68.415,
+    "nl": "Is het misschien zo dat een later artikel ervan uitgaat dat je een artikel daarvoor al gelezen hebt?"
+   },
+   {
+    "start": 68.415,
+    "end": 78.602,
+    "until": 78.622,
+    "nl": "Hoe dan ook, als er ruimte is om te kiezen in welke volgorde je artikelen uitvoert, dan zou dat kunnen betekenen dat je dit kan minimaliseren."
+   },
+   {
+    "start": 78.622,
+    "end": 85.306,
+    "until": 85.326,
+    "nl": "Dus dat je ervoor kan zorgen dat er zo min mogelijk datapunten geraakt worden of zo min mogelijk gevoelige datapunten geraakt worden."
+   },
+   {
+    "start": 85.326,
+    "end": 92.431,
+    "until": 94.833,
+    "nl": "En misschien zouden we zelfs er ver kunnen gaan dat we de AVG, die volgorde, laten bepalen."
+   },
+   {
+    "start": 94.833,
+    "end": 104.225,
+    "until": 104.433,
+    "nl": "Die wet een soort van meta-werking heeft hierover en iets zegt over wat gevoelig is en wat minder gevoelig is en wat je wel en niet aan mag raken."
+   }
+  ]
+ },
+ "faq-vertaling-klopt": {
+  "duration": 149.633,
+  "sentences": [
+   {
+    "start": 0.405,
+    "end": 2.09,
+    "until": 2.13,
+    "nl": "Hoe weten we of de vertaling klopt?"
+   },
+   {
+    "start": 2.13,
+    "end": 6.803,
+    "until": 6.823,
+    "nl": "Of de machine-uitvoerbare versie, het regelwerk, of dat klopt?"
+   },
+   {
+    "start": 6.823,
+    "end": 8.327,
+    "until": 10.009,
+    "nl": "Een stuk daarvan..."
+   },
+   {
+    "start": 10.009,
+    "end": 13.691,
+    "until": 13.711,
+    "nl": "Dat zit in het testbaar maken van wet- en regelgeving."
+   },
+   {
+    "start": 13.711,
+    "end": 29.142,
+    "until": 29.162,
+    "nl": "Dus waar we regelwerk met behulp van een taalmodel omzetten naar zo'n machine-uitvoerbare versie, dus de wettekst wordt omgezet naar wat we hieronder zien, naar deze acties."
+   },
+   {
+    "start": 29.162,
+    "end": 38.456,
+    "until": 39.489,
+    "nl": "Daar wordt aan de andere kant een memorie van toelichting omgezet naar een scenario, een test voor de wet zou je kunnen zeggen."
+   },
+   {
+    "start": 39.489,
+    "end": 50.535,
+    "until": 50.595,
+    "nl": "En wat we dus kunnen doen is de wet omzetten naar zo'n regelwerk, een scenario, een casus omzetten naar zo'n test en dan kunnen we het uitvoeren."
+   },
+   {
+    "start": 50.595,
+    "end": 70.676,
+    "until": 70.696,
+    "nl": "En als we op een gegeven moment een hele hoop van dit soort tests hebben, dus we kunnen een hele hoop van dit soort tests onder elkaar zetten die de bedoeling van de wet, de gewenste werking van de wet vangen, dan kunnen we onszelf ervan overtuigen dat in ieder geval op dit soort scenario's de wet werkt zoals die Dat is denk ik één antwoord op de vraag."
+   },
+   {
+    "start": 70.696,
+    "end": 81.272,
+    "until": 81.332,
+    "nl": "Een ander antwoord is natuurlijk dat je als wetsanalyst of wetgevingsjurist in ieder geval als iemand die verantwoordelijk uiteindelijk is, Voor hoe die wet zijn werking heeft."
+   },
+   {
+    "start": 81.332,
+    "end": 85.933,
+    "until": 86.336,
+    "nl": "Dit ook moeten kunnen bekijken en je moet kunnen zien of dit gewenst is."
+   },
+   {
+    "start": 86.336,
+    "end": 92.601,
+    "until": 92.621,
+    "nl": "We zijn op dit moment bezig om te zorgen dat wetsanalysten en wetgevingsjuristen niet hiernaar hoeven te kijken."
+   },
+   {
+    "start": 92.621,
+    "end": 108.927,
+    "until": 109.6,
+    "nl": "Dit ziet er misschien iets te nerderig uit, dus we zijn bezig om hier een betere gebruikersinterface op te zetten, zodat een jurist hiernaar kan kijken en met overtuiging kan zeggen Dat de interpretatie van de wet is zoals die moet zijn."
+   },
+   {
+    "start": 109.6,
+    "end": 118.034,
+    "until": 118.429,
+    "nl": "Ergens is het natuurlijk nu ook al zo dat we niet weten of de vertaling van wet- en regelgeving naar software klopt."
+   },
+   {
+    "start": 118.429,
+    "end": 126.451,
+    "until": 126.471,
+    "nl": "Software voert vaak wet- en regelgeving uit op dit moment en het is vaak niet transparant hoe dat precies werkt en toch gebruiken we die software."
+   },
+   {
+    "start": 126.471,
+    "end": 130.292,
+    "until": 130.312,
+    "nl": "Dat is geen excuus om er niet voor te zorgen dat de vertalingen moeten kloppen."
+   },
+   {
+    "start": 130.312,
+    "end": 131.932,
+    "until": 131.952,
+    "nl": "Die moeten kloppen."
+   },
+   {
+    "start": 131.952,
+    "end": 141.518,
+    "until": 141.538,
+    "nl": "Het geeft alleen maar aan dat we Nu ook al best wel veel vertrouwen hebben in de vertalingen die gemaakt worden door software engineers."
+   },
+   {
+    "start": 141.538,
+    "end": 149.401,
+    "until": 149.633,
+    "nl": "Wij stellen voor om dat eigenlijk weg te halen bij software engineers en openbaar te publiceren zodat iedereen ernaar kijkt."
+   }
+  ]
+ }
+}

@@ -16840,6 +16840,17 @@
      }
     ]
    }
+  },
+  "dub": {
+   "en": {
+    "audio": {
+     "src": "main-voice-en-d571c0afcacc.m4a",
+     "sha256": "d571c0afcaccb56418162b5b9da5230fa0b00b4e833c550d13e402004b9db01b",
+     "bytes": 12395821
+    },
+    "captions": "main-1dbf843ee43f.en.dub.vtt",
+    "basis": "ab3a450d694e931d"
+   }
   }
  },
  "faq": [
@@ -17793,6 +17804,17 @@
       }
      ],
      "question": "What happens to open norms?"
+    }
+   },
+   "dub": {
+    "en": {
+     "audio": {
+      "src": "faq-open-normen-voice-en-98cff687b405.m4a",
+      "sha256": "98cff687b405beecd5a04ebffa6aad2684ccbf7ea4929a1df39454a988bb0334",
+      "bytes": 1170527
+     },
+     "captions": "faq-open-normen-ffed0a23c197.en.dub.vtt",
+     "basis": "517eb022e4f82ee8"
     }
    }
   },
@@ -18748,6 +18770,17 @@
       }
      ],
      "question": "Is this legally binding?"
+    }
+   },
+   "dub": {
+    "en": {
+     "audio": {
+      "src": "faq-juridisch-bindend-voice-en-c5038f1d5cef.m4a",
+      "sha256": "c5038f1d5cef9bcaff2de2720cc442d7221aa9660bbbd732f642d76b6f038200",
+      "bytes": 570649
+     },
+     "captions": "faq-juridisch-bindend-a3656b72c05a.en.dub.vtt",
+     "basis": "faee8e1fb96ab545"
     }
    }
   },
@@ -20183,6 +20216,17 @@
       }
      ],
      "question": "Does the order of articles matter?"
+    }
+   },
+   "dub": {
+    "en": {
+     "audio": {
+      "src": "faq-volgorde-artikelen-voice-en-442dd5aa399f.m4a",
+      "sha256": "442dd5aa399f8ab4afb359c2ce309e905d20f414299dff44724a4f820126c770",
+      "bytes": 945646
+     },
+     "captions": "faq-volgorde-artikelen-a1c16ac33727.en.dub.vtt",
+     "basis": "36fc7f281afdb032"
     }
    }
   },
@@ -22589,6 +22633,17 @@
      ],
      "question": "How do we know the translation is correct?"
     }
+   },
+   "dub": {
+    "en": {
+     "audio": {
+      "src": "faq-vertaling-klopt-voice-en-2eed57dc81d4.m4a",
+      "sha256": "2eed57dc81d431a49d30c6e9be023857cd37231cee57c05082d80b97c5387652",
+      "bytes": 1313546
+     },
+     "captions": "faq-vertaling-klopt-d6bd9b3b00c4.en.dub.vtt",
+     "basis": "a0ac32a2e7678cfd"
+    }
    }
   }
  ],
@@ -22613,5 +22668,27 @@
  "locales": [
   "nl",
   "en"
- ]
+ ],
+ "dub": {
+  "en": {
+   "bumpers": {
+    "wait": [
+     {
+      "src": "bumper-wait-en-23f28f87b3a6.m4a",
+      "sha256": "23f28f87b3a6a870ba10d2113b8163360db77160ea60c0f04cdd76e28f89b784",
+      "bytes": 34613,
+      "duration": 2.72
+     }
+    ],
+    "resume": [
+     {
+      "src": "bumper-resume-en-3f9432630c0f.m4a",
+      "sha256": "3f9432630c0fef664d6b23686cc774bb159d41ed358f3bb0cf80ea7438b27f45",
+      "bytes": 22927,
+      "duration": 1.76
+     }
+    ]
+   }
+  }
+ }
 }

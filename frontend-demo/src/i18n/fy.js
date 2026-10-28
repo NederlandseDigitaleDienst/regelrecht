@@ -869,6 +869,8 @@ export default {
   "walkthrough.back_seconds": "{n} sekonden werom",
   "walkthrough.forward_seconds": "{n} sekonden foarút",
   "walkthrough.ai_voice": "De stim yn de haadstikken is makke mei AI, op basis fan de stim fan de presintator.",
+  "walkthrough.dubbed_voice": "De rûnlieding is yn it Nederlânsk opnommen. Wat jo hearre is in oersetting, útsprutsen troch in AI-stim op basis fan de stim fan de presintator.",
+  "walkthrough.original_voice": "Oarspronklike stim (Nederlânsk)",
   "recorder.mic.label": "Mikrofoan",
   "recorder.mic.test": "Mikrofoan teste",
   "recorder.mic.stop_test": "Test stopje",

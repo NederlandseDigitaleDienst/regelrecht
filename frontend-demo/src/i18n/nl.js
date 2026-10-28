@@ -995,6 +995,8 @@ export default {
   'walkthrough.back_seconds': '{n} seconden terug',
   'walkthrough.forward_seconds': '{n} seconden vooruit',
   'walkthrough.ai_voice': 'De stem in de hoofdstukken is gegenereerd met AI, op basis van de stem van de presentator.',
+  'walkthrough.dubbed_voice': 'De rondleiding is in het Nederlands opgenomen. Wat je hoort is een vertaling, uitgesproken door een AI-stem op basis van de stem van de presentator.',
+  'walkthrough.original_voice': 'Originele stem (Nederlands)',
   'recorder.mic.label': 'Microfoon',
   'recorder.mic.test': 'Microfoon testen',
   'recorder.mic.stop_test': 'Test stoppen',

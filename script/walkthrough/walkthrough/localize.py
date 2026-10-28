@@ -22,6 +22,15 @@ the deck's own overlay, for anyone to correct by hand:
     typed:                # sentences typed into a form
       - nl: Dit klopt niet
         en: This is not correct
+    spoken:               # per sentence as said, for the cloned voice (dub.py)
+      - nl: Dat is nog steeds zo.
+        en: That is still true.
+        shortened: true   # made shorter to fit its slot; not shortened again
+    bumpers:              # the player's short lines, in the cloned voice
+      wait:
+        - Go ahead, have a look around. I'll wait.
+      resume:
+        - Right, let's carry on.
 
 Keyed by the Dutch text, not by position: a recut or a rebuild keeps every
 line that still occurs. `walkthrough translate <code>` asks a language model
@@ -69,6 +78,9 @@ def load(code: str) -> dict:
         "slides": pairs("slides"),
         "captions": pairs("captions"),
         "typed": pairs("typed"),
+        "spoken": pairs("spoken"),
+        "shortened": {norm_cue(e["nl"]) for e in data.get("spoken") or [] if e.get("nl") and e.get("shortened")},
+        "bumpers": data.get("bumpers") or {},
     }
 
 
