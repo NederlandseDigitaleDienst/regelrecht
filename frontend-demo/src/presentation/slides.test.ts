@@ -31,6 +31,7 @@ type Overlay = Record<string, string | undefined>;
 const overlays: Record<string, Overlay> = {
   en: (yaml.load(readFileSync(join(demoDir, 'i18n', 'en.yaml'), 'utf8')) as Overlay | undefined) ?? {},
   fy: (yaml.load(readFileSync(join(demoDir, 'i18n', 'fy.yaml'), 'utf8')) as Overlay | undefined) ?? {},
+  fr: (yaml.load(readFileSync(join(demoDir, 'i18n', 'fr.yaml'), 'utf8')) as Overlay | undefined) ?? {},
 };
 
 /** Every .vue file under src, concatenated: where a `data-highlight` anchor has to live. */
@@ -65,8 +66,8 @@ describe('slide highlights', () => {
 
 describe('the simulation slide', () => {
   // Words, not digits, because that is how the slide says it. Change
-  // MAX_POPULATION and this table, and the slide text in all three languages.
-  const SPELLED: Record<number, Record<string, string> | undefined> = { 2000: { nl: 'tweeduizend', en: 'two thousand', fy: 'twatûzen' } };
+  // MAX_POPULATION and this table, and the slide text in every language.
+  const SPELLED: Record<number, Record<string, string> | undefined> = { 2000: { nl: 'tweeduizend', en: 'two thousand', fy: 'twatûzen', fr: 'deux mille' } };
 
   const i = slides.findIndex((s) => s.route === '/simulatie');
 
@@ -78,7 +79,7 @@ describe('the simulation slide', () => {
     expect(SPELLED[MAX_POPULATION], `add MAX_POPULATION=${MAX_POPULATION} to SPELLED`).toBeDefined();
   });
 
-  it.each(['nl', 'en', 'fy'])('names the population a run can reach, in %s', (code) => {
+  it.each(['nl', 'en', 'fy', 'fr'])('names the population a run can reach, in %s', (code) => {
     const title = code === 'nl' ? slides[i]?.title : overlays[code]?.[`slides.${i}.title`];
     expect(title).toContain(SPELLED[MAX_POPULATION]?.[code]);
   });

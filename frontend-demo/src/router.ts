@@ -52,24 +52,24 @@ interface DemoPage {
  * against the route name.
  */
 const PAGES: DemoPage[] = [
-  { name: 'home', paths: { nl: '/', en: '/en', fy: '/fy' }, component: () => import('./views/HomeView.vue') },
-  { name: 'presentatie', paths: { nl: '/presentatie', en: '/en/presentation', fy: '/fy/presintaasje' }, component: () => import('./views/PresentatieView.vue') },
+  { name: 'home', paths: { nl: '/', en: '/en', fy: '/fy', fr: '/fr' }, component: () => import('./views/HomeView.vue') },
+  { name: 'presentatie', paths: { nl: '/presentatie', en: '/en/presentation', fy: '/fy/presintaasje', fr: '/fr/presentation' }, component: () => import('./views/PresentatieView.vue') },
   {
     name: 'wetten',
-    paths: { nl: '/regelwerken/:lawId?', en: '/en/ruleworks/:lawId?', fy: '/fy/regelwurken/:lawId?' },
+    paths: { nl: '/regelwerken/:lawId?', en: '/en/ruleworks/:lawId?', fy: '/fy/regelwurken/:lawId?', fr: '/fr/reglementations/:lawId?' },
     formerPaths: { nl: '/wetten/:lawId?', en: '/en/laws/:lawId?', fy: '/fy/wetten/:lawId?' },
     component: () => import('./views/WettenView.vue'),
   },
-  { name: 'graaf', paths: { nl: '/graaf', en: '/en/graph', fy: '/fy/graaf' }, component: () => import('./views/GraafView.vue') },
-  { name: 'scenarios', paths: { nl: '/scenarios/:featurePath(.*)?', en: '/en/scenarios/:featurePath(.*)?', fy: '/fy/senarios/:featurePath(.*)?' }, component: () => import('./views/ScenariosView.vue') },
-  { name: 'simulatie', paths: { nl: '/simulatie', en: '/en/simulation', fy: '/fy/simulaasje' }, component: () => import('./views/SimulatieView.vue') },
-  { name: 'portaal', paths: { nl: '/portaal', en: '/en/portal', fy: '/fy/portaal' }, component: () => import('./views/PortaalView.vue') },
-  { name: 'zaaksysteem', paths: { nl: '/zaaksysteem/:caseId?', en: '/en/cases/:caseId?', fy: '/fy/saaksysteem/:caseId?' }, component: () => import('./views/ZaaksysteemView.vue') },
+  { name: 'graaf', paths: { nl: '/graaf', en: '/en/graph', fy: '/fy/graaf', fr: '/fr/graphe' }, component: () => import('./views/GraafView.vue') },
+  { name: 'scenarios', paths: { nl: '/scenarios/:featurePath(.*)?', en: '/en/scenarios/:featurePath(.*)?', fy: '/fy/senarios/:featurePath(.*)?', fr: '/fr/scenarios/:featurePath(.*)?' }, component: () => import('./views/ScenariosView.vue') },
+  { name: 'simulatie', paths: { nl: '/simulatie', en: '/en/simulation', fy: '/fy/simulaasje', fr: '/fr/simulation' }, component: () => import('./views/SimulatieView.vue') },
+  { name: 'portaal', paths: { nl: '/portaal', en: '/en/portal', fy: '/fy/portaal', fr: '/fr/portail' }, component: () => import('./views/PortaalView.vue') },
+  { name: 'zaaksysteem', paths: { nl: '/zaaksysteem/:caseId?', en: '/en/cases/:caseId?', fy: '/fy/saaksysteem/:caseId?', fr: '/fr/dossiers/:caseId?' }, component: () => import('./views/ZaaksysteemView.vue') },
   // The recorded walkthrough: this page starts it, and from there it drives
   // the deck and the tabs like a presenter. `:faqId` opens one answer, so a
   // single question can be shared. The Frisian slug drops the circumflex of
   // "rûnlieding" (a path must not need percent-encoding); see REVIEW-fy.md.
-  { name: 'rondleiding', paths: { nl: '/rondleiding/:faqId?', en: '/en/tour/:faqId?', fy: '/fy/runlieding/:faqId?' }, component: () => import('./walkthrough/WalkthroughView.vue') },
+  { name: 'rondleiding', paths: { nl: '/rondleiding/:faqId?', en: '/en/tour/:faqId?', fy: '/fy/runlieding/:faqId?', fr: '/fr/visite/:faqId?' }, component: () => import('./walkthrough/WalkthroughView.vue') },
 ];
 
 // Elke taal uit de tabel moet elke pagina hebben. Een ontbrekend pad zou hier

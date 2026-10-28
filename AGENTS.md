@@ -265,7 +265,7 @@ both: `corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml`.
 
 ## De demo is meertalig
 
-`frontend-demo/` draait in het Nederlands, het Engels en het Fries.
+`frontend-demo/` draait in het Nederlands, het Engels, het Fries en het Frans.
 **Nederlands is de bron**: elke tekst staat eerst in `src/i18n/nl.js`, en de
 andere woordenboeken zijn er de vertaling van. Bewerk ze in dezelfde wijziging;
 een sleutel die maar in één bestand landt is een bug, geen halve klus.
@@ -280,7 +280,9 @@ een sleutel die maar in één bestand landt is een bug, geen halve klus.
   nakijken staat in `corpus/demo/i18n/REVIEW-fy.md`: de plekken waar de
   vertalers zelf zeiden dat ze het niet zeker wisten, met per geval wat er vast
   staat en wat niet. Vul die lijst aan wanneer je op zo'n plek stuit, in plaats
-  van de twijfel in een commit-bericht te laten zitten.
+  van de twijfel in een commit-bericht te laten zitten. Het Frans is op
+  dezelfde manier vertaald en heeft zijn eigen lijst,
+  `corpus/demo/i18n/REVIEW-fr.md`.
   `MAX_IDENTICAL_SHARE` in `i18n.test.ts` bewaakt dat het aandeel sleutels dat
   nog letterlijk het Nederlands is daalt en niet stijgt; dat getal gaat met de
   hand omlaag, met de reden in de commit.

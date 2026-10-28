@@ -20,6 +20,8 @@ describe('localeFromPath', () => {
     ['/en/', 'en'],
     ['/en/ruleworks', 'en'],
     ['/en/laws', 'en'],
+    ['/fr/reglementations', 'fr'],
+    ['/fr/visite', 'fr'],
     // Not every path that begins with the letters "en": only the segment.
     ['/energie', 'nl'],
   ])('%s is %s', (path, expected) => {

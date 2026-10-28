@@ -184,9 +184,10 @@ describe('parseCliLine', () => {
 
 describe('the prompt', () => {
   it('asks for the answer in the language of the demo', () => {
-    expect(systemPrompt('nl')).not.toMatch(/Engels|Fries/);
+    expect(systemPrompt('nl')).not.toMatch(/Engels|Fries|Frans/);
     expect(systemPrompt('en')).toMatch(/Engels/);
     expect(systemPrompt('fy')).toMatch(/Fries/);
+    expect(systemPrompt('fr')).toMatch(/Frans/);
   });
 
   it('falls back to Dutch for an unknown locale', () => {

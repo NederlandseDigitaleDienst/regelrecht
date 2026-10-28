@@ -50,6 +50,17 @@ voice:
       say_voice: Daniel   # met --provider say: een Engelse Mac-stem, om te proberen
       say_as:
         BSN: B S N
+    fr:
+      model: eleven_v4
+      # Gemeten op de eerste vijf zinnen: 2,8 Franse woorden per seconde met
+      # v4 (Franse woorden zijn korter). Het budget ligt er bewust onder, zodat
+      # er ruimte blijft; nog altijd ruimer dan Engels.
+      speed_control: false
+      tempo_max: 1.2
+      words_per_second: 2.4
+      say_voice: Thomas   # met --provider say: een Franse Mac-stem
+      say_as:
+        BSN: B S N
 
 # De hoofdlijn: stukken uit opnames, achter elkaar. Een hoofdstuk opnieuw
 # opgenomen? Laat het segment van de oude opname eerder stoppen en zet de
