@@ -251,7 +251,10 @@ worker writes `jobs.progress` with two parts:
 The job detail sheet on the Harvester page shows this while a job runs, and
 keeps the last state on a job that stopped. That is the place to look when a
 run times out: the error itself also ends with a line on what the agent did
-last.
+last. When the claude CLI exits with an error, such as an API call that kept
+failing, the error also carries the reason the CLI gave in its closing
+`result` event. The CLI writes nothing to stderr in that case, so without it
+the job would only say `exit status: 1`.
 
 A claude call that writes nothing for `ENRICH_AGENT_IDLE_SECS` (default 600)
 is stopped as stalled, and fails like a timeout, with the same retries. With

@@ -1151,19 +1151,37 @@ pub(crate) async fn run_llm_subprocess(
         }
     };
 
+    // Let stdout drain to its end so the closing event is in, on success for
+    // its usage and on failure for its error text. Bounded: a grandchild
+    // that inherited the pipe could keep it open and never EOF, and this
+    // await sits outside the timeout/memory select!.
+    if let Some(task) = stdout_task {
+        let _ = tokio::time::timeout(Duration::from_secs(2), task).await;
+    }
+
     if !status.success() {
         // Give the stderr drain a moment to finish so the tail is complete,
-        // but bound the wait: the child has exited, yet a leaked grandchild
-        // that inherited fd 2 could keep the pipe open and never EOF. Without
-        // a bound this await (outside the timeout/memory select!) would wedge
-        // the worker loop. Best-effort, like the tail in the other paths.
+        // bounded for the same reason as stdout above. Best-effort, like the
+        // tail in the other paths.
         if let Some(task) = stderr_task {
             let _ = tokio::time::timeout(Duration::from_secs(2), task).await;
         }
+        // The claude CLI reports a failed API call in its closing event and
+        // exits 1 with nothing on stderr; without this the reason is lost.
+        let cli_error = result_line
+            .lock()
+            .ok()
+            .and_then(|r| {
+                r.as_deref()
+                    .and_then(crate::agent_activity::result_error_text)
+            })
+            .map(|t| format!(": {t}"))
+            .unwrap_or_default();
         return Err(PipelineError::Enrich(format!(
-            "{} exited with {}{}{}",
+            "{} exited with {}{}{}{}",
             provider_name,
             status,
+            cli_error,
             stderr_suffix(),
             activity.summary()
         )));
@@ -1175,11 +1193,6 @@ pub(crate) async fn run_llm_subprocess(
     // task is a no-op.
     if let Some(t) = &stderr_task {
         t.abort();
-    }
-    // Let stdout drain to its end so the closing event is in. Bounded for
-    // the same reason as stderr above: a grandchild holding the pipe open.
-    if let Some(task) = stdout_task {
-        let _ = tokio::time::timeout(Duration::from_secs(2), task).await;
     }
 
     let from_result = result_line
@@ -10474,6 +10487,23 @@ mod subprocess_tests {
         assert!(err.contains("timed out after"), "{err}");
         assert!(
             err.contains("agent activity: 1 turns, 1 tool calls"),
+            "{err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failed_run_says_what_the_cli_reported() {
+        // A failed API call: one synthetic assistant message, an error
+        // result, exit 1, and nothing on stderr.
+        let (dir, provider) = fake_claude(
+            "echo '{\"type\":\"assistant\",\"message\":{\"id\":\"m1\",\"content\":[{\"type\":\"text\",\"text\":\"API Error: 429\"}]}}'\n\
+             echo '{\"duration_ms\":240000,\"is_error\":true,\"type\":\"result\",\"subtype\":\"success\",\"result\":\"API Error: 429 rate_limit_error\"}'\n\
+             exit 1",
+        );
+        let (out, _) = run(&provider, dir.path(), Duration::from_secs(20), None).await;
+        let err = out.expect_err("the run fails").to_string();
+        assert!(
+            err.contains("exited with exit status: 1: API Error: 429 rate_limit_error; agent activity: 1 turns, 0 tool calls"),
             "{err}"
         );
     }
