@@ -203,9 +203,9 @@ pocs:
       - corpus/regulation/nl/wet/algemene_wet_bestuursrecht
       - corpus/regulation/nl/wet/leerplichtwet_1969
       - packages/poc-chronolexografie/casussen
-    # De NAPP-casus staat met haar regeling en cel in deze bron, niet in
-    # deze repository; zij draait op de bron en het regelrecht-corpus
-    # hierboven (src/bundel.rs, met_bronnen).
+    # De NAPP-casus staat met haar regelingen, de Awb incluis, en cel in
+    # deze bron, niet in deze repository; zij draait alleen op de bron, niet
+    # op het regelrecht-corpus hierboven (src/bundel.rs, met_bronnen).
     sources:
       - name: napp
         github:

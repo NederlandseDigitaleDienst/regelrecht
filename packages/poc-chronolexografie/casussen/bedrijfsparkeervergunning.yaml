@@ -1,11 +1,24 @@
 ---
 # Casus: de bedrijfsparkeervergunning bij een fictieve gemeente.
 #
-# Configuratie is alleen wat niet uit de wet volgt. De regelwerken die de cel
-# draait, het artikel van het bezwaar en de naam van wie beslist, leidt de app
-# af uit dit artikel en de cel (src/casus.rs).
+# Configuratie is alleen wat niet uit de wet volgt, en het corpus: welke
+# regelwerken in deze casus gelden. De regelwerken die de cel daarvan draait,
+# het artikel van het bezwaar en de naam van wie beslist, leidt de app af uit
+# dit artikel en de cel, binnen dat corpus (src/casus.rs).
 cel: gemeente_wilgendaal
 artikel: fictieve_parkeerverordening_gemeente_wilgendaal#2
+# Het corpus van deze casus: alleen deze regelwerken gelden, elk een map
+# onder corpus/. De reducties van de cellen van de casus komen met die
+# cellen mee.
+corpus:
+  - regulation/nl/gemeentelijke_verordening/wilgendaal/fictieve_parkeerverordening_gemeente_wilgendaal
+  - regulation/nl/wet/algemene_wet_bestuursrecht
+  - regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+  - regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart
+  - regulation/nl/uitvoeringsbeleid/fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/fictief_beleid_handelsregister_kamer_van_koophandel
+  - regulation/nl/uitvoeringsbeleid/fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal
+  - cells/reductions/reductie_algemene_wet_bestuursrecht
 # De uitvoer die zegt of het besluit het gevraagde toewijst. De verordening
 # merkt die niet aan: decision_type TOEKENNING zegt wat voor besluit het is,
 # niet welke van zijn uitvoer de toewijzing is.

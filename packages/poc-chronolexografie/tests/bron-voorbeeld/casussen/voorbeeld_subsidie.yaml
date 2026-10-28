@@ -2,6 +2,10 @@
 # Testcasus van de testbron (src/bundel.rs).
 cel: voorbeeld_autoriteit
 artikel: voorbeeld_bron_subsidie#1
+corpus:
+  - regulation/nl/uitvoeringsbeleid/voorbeeld_bron_subsidie
+  - regulation/nl/wet/algemene_wet_bestuursrecht
+  - cells/reductions/reductie_algemene_wet_bestuursrecht
 uitkomst: subsidie_verleend
 titel: Voorbeeldsubsidie
 omschrijving: Een casus uit een testbron.

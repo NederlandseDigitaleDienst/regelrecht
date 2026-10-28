@@ -1,9 +1,12 @@
 //! The cases the app plays (casussen), and what follows for each from the
 //! law.
 //!
-//! A case names two things: the cell that plays it and the article that
-//! establishes the application. Everything else is derived from the law
-//! ([`Afleiding`]): which regelwerken the cell runs, which article
+//! A case names three things: the cell that plays it, the article that
+//! establishes the application, and its corpus: the regelwerken that count
+//! in this case ([`Casus::corpus`]). The cell is the organisation as it is;
+//! the corpus is a choice of the case. Everything else is derived from the
+//! law, within that corpus ([`Afleiding`]): which regelwerken the cell
+//! runs, which article
 //! establishes the objection, and what the deciding role is called. What the
 //! law does not say is in the case file with the reason (`uitkomst`), next to
 //! the text a visitor reads: a description, example values for the forms and
@@ -42,6 +45,13 @@ pub struct Casus {
     pub cel: String,
     /// The article that establishes the application, `<law>#<article>`.
     pub artikel: String,
+    /// The regelwerken that count in this case and no others: each a
+    /// directory under the root of the case (`regulation/nl/...`, or
+    /// `cells/reductions/<id>` for a reduction of no cell). The reductions
+    /// of the case's cells come with those cells. A regelwerk outside it
+    /// neither runs nor acts on the case, even with a hook on every
+    /// decision.
+    pub corpus: Vec<String>,
     /// The output of the decision that says whether it grants what was
     /// asked. The law does not mark it: `decision_type: TOEKENNING` says what
     /// kind of decision it is, not which of its outputs is the grant, and
@@ -397,6 +407,38 @@ impl Regelwerken {
             }
         }
         Ok(())
+    }
+
+    /// The regelwerken of `casus`: those in its corpus, and the reductions
+    /// of the cells it names. An entry of the corpus that holds no
+    /// regelwerk is an error.
+    pub fn voor(&self, casus: &Casus) -> Result<Self> {
+        let cellen: BTreeSet<&str> = std::iter::once(casus.cel.as_str())
+            .chain(casus.andere_cellen.iter().map(|a| a.cel.as_str()))
+            .collect();
+        if let Some(los) = casus
+            .corpus
+            .iter()
+            .find(|m| !self.werken.iter().any(|w| &w.map == *m))
+        {
+            return Err(Error::Setup(format!(
+                "case '{}': its corpus names '{los}', which holds no regelwerk",
+                casus.id
+            )));
+        }
+        let werken = self
+            .werken
+            .iter()
+            .filter(|w| {
+                casus.corpus.contains(&w.map)
+                    || w.houder.as_deref().is_some_and(|h| cellen.contains(h))
+            })
+            .cloned()
+            .collect();
+        Ok(Self {
+            werken,
+            meldingen: self.meldingen.clone(),
+        })
     }
 
     pub fn get(&self, id: &str) -> Option<&Regelwerk> {

@@ -13,16 +13,20 @@
 //! (`sources` of `chronolexografie` in the register). A source holds its own
 //! cases (`casussen/`), regelwerken (`regulation/nl/`) and cells (`cells/`,
 //! with their reductions).
-//! A case from a source runs on that source and the regelrecht corpus; the
-//! cases of this crate never see a source ([`met_bronnen`]).
+//! A case from a source runs on that source alone: one corpus at a time,
+//! so its own Awb and regelwerken are the ones that count, and nothing of
+//! the regelrecht corpus takes their place. The cases of this crate never
+//! see a source ([`met_bronnen`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use regelrecht_cel::{identity, Bundle, Error, Files};
+use regelrecht_cel::{Bundle, Error};
 use serde::{Deserialize, Serialize};
 
+#[cfg(doc)]
+use crate::casus::Casus;
 use crate::casus::{casussen as lees_casussen, Regelwerken};
 use crate::kern::{Corpus, Result};
 
@@ -45,7 +49,7 @@ pub fn casussen(files: BTreeMap<String, String>) -> Result<Vec<Corpus>> {
 }
 
 /// Where a source's files are in the bundle a case from it plays on:
-/// `bron/<name>/...`, next to the repository paths of the regelrecht files.
+/// `bron/<name>/...`.
 pub const BRONNEN: &str = "bron";
 
 /// A source as the page gives it: its files by their path in the source, or
@@ -69,8 +73,8 @@ pub struct Bron {
 
 /// What became of a source, as the app shows it: unavailable or broken
 /// (`fout`, with the file it names), a case from it that did not load
-/// (`fouten`), and what loading set aside (`meldingen`), such as a `$id`
-/// the regelrecht corpus holds too.
+/// (`fouten`), and what loading set aside (`meldingen`), such as a case
+/// with the id of a case before it.
 #[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
 pub struct BronStand {
     pub naam: String,
@@ -83,7 +87,7 @@ pub struct BronStand {
 }
 
 /// Every case on the bundle `files` ([`casussen`]), and every case of the
-/// `bronnen`, each on the regelrecht files and its own source. A broken
+/// `bronnen`, each on its own source alone. A broken
 /// regelrecht bundle fails as before; a broken source does not: what went
 /// wrong is in its [`BronStand`], and the other cases play on. A case from
 /// a source with the id of a case before it is set aside, with a message.
@@ -102,7 +106,7 @@ pub fn met_bronnen(
             ..BronStand::default()
         };
         if stand.fout.is_none() {
-            match uit_bron(&files, &bron, &mut stand) {
+            match uit_bron(&bron, &mut stand) {
                 Ok(erbij) => {
                     for corpus in erbij {
                         let id = corpus.casus.id.clone();
@@ -124,13 +128,9 @@ pub fn met_bronnen(
     Ok((alle, standen))
 }
 
-/// The cases of `bron`, each on the regelrecht `files` and the source under
-/// `bron/<name>`. A case that does not load is in `stand.fouten`.
-fn uit_bron(
-    files: &BTreeMap<String, String>,
-    bron: &Bron,
-    stand: &mut BronStand,
-) -> Result<Vec<Corpus>> {
+/// The cases of `bron`, each on the source under `bron/<name>` alone. A case
+/// that does not load is in `stand.fouten`.
+fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
     let wortel = Path::new(BRONNEN).join(&bron.naam);
     // A name is one path component of a-z, 0-9 and '-', so it stays under
     // `bron/`.
@@ -144,45 +144,19 @@ fn uit_bron(
             bron.naam
         )));
     }
-    let mut alles = files.clone();
-    for (pad, tekst) in &bron.bestanden {
-        let pad = format!("{}/{pad}", wortel.display());
-        if alles.insert(pad.clone(), tekst.clone()).is_some() {
-            return Err(Error::Setup(format!("'{pad}' is twice in the bundle")));
-        }
-    }
+    let alles: BTreeMap<String, String> = bron
+        .bestanden
+        .iter()
+        .map(|(pad, tekst)| (format!("{}/{pad}", wortel.display()), tekst.clone()))
+        .collect();
     let bundle: Arc<Bundle> = Arc::new(
         Bundle::new(alles).map_err(|e| Error::Setup(format!("source '{}': {e}", bron.naam)))?,
     );
-    let roots = [PathBuf::from(CORPUS), wortel.clone()];
+    let roots = [wortel.clone()];
     let regelwerken = Regelwerken::load(&*bundle, &roots)?;
     stand
         .meldingen
         .extend(regelwerken.meldingen.iter().cloned());
-    // A cell of the source with the name of a regelrecht cell: the case
-    // runs the regelrecht one (the first root wins), and says so.
-    let cellen = wortel.join("cells");
-    if bundle.is_dir(&cellen) {
-        for dir in bundle.entries(&cellen)? {
-            let Some(naam) = dir.file_name() else {
-                continue;
-            };
-            // The reductions of no cell are regelwerken, which loading
-            // compares by $id.
-            if identity::is_shared_reductions(&dir) {
-                continue;
-            }
-            let ook = Path::new(CORPUS).join("cells").join(naam);
-            if bundle.is_dir(&ook) {
-                stand.meldingen.push(format!(
-                    "cell '{}' in {} is also in {}; the app runs the latter",
-                    naam.to_string_lossy(),
-                    dir.display(),
-                    ook.display()
-                ));
-            }
-        }
-    }
     let mut uit = Vec::new();
     for mut casus in lees_casussen(&*bundle, &wortel.join("casussen"))? {
         casus.bron = Some(bron.naam.clone());
@@ -196,13 +170,13 @@ fn uit_bron(
 }
 
 /// The directories, under the repository root, that the bundle of `alle`
-/// holds: the case files, and per case the directories of the regelwerken
-/// its cell runs and of its own cell and the other cells of its sphere
+/// holds: the case files, and per case its corpus ([`Casus::corpus`]) and
+/// the directories of its own cell and the other cells of its sphere
 /// (RFC-052).
 pub fn mappen(alle: &[Corpus]) -> BTreeSet<String> {
     let mut uit = BTreeSet::from([CASUSSEN.to_string()]);
     for c in alle {
-        uit.extend(c.mappen().map(|m| format!("{CORPUS}/{m}")));
+        uit.extend(c.casus.corpus.iter().map(|m| format!("{CORPUS}/{m}")));
         let cellen =
             std::iter::once(&c.casus.cel).chain(c.casus.andere_cellen.iter().map(|a| &a.cel));
         uit.extend(cellen.map(|cel| format!("{CORPUS}/cells/{cel}")));
@@ -359,12 +333,29 @@ mod tests {
         uit
     }
 
-    /// The test source in `tests/bron-voorbeeld`.
+    /// The Awb of the regelrecht corpus and the reductions of no cell, by
+    /// their path in a source.
+    fn awb() -> BTreeMap<String, String> {
+        gebundeld()
+            .into_iter()
+            .filter(|(pad, _)| {
+                pad.starts_with("corpus/regulation/nl/wet/algemene_wet_bestuursrecht/")
+                    || pad.starts_with("corpus/cells/reductions/")
+            })
+            .map(|(pad, tekst)| (pad["corpus/".len()..].to_string(), tekst))
+            .collect()
+    }
+
+    /// The test source in `tests/bron-voorbeeld`, with a copy of the Awb: a
+    /// source brings every regelwerk its cases run.
     fn voorbeeld() -> Bron {
+        let mut bestanden =
+            uit_map(&repo().join("packages/poc-chronolexografie/tests/bron-voorbeeld"));
+        bestanden.extend(awb());
         Bron {
             naam: "voorbeeld".into(),
             versie: Some("abc1234".into()),
-            bestanden: uit_map(&repo().join("packages/poc-chronolexografie/tests/bron-voorbeeld")),
+            bestanden,
             ..Bron::default()
         }
     }
@@ -426,15 +417,14 @@ mod tests {
     }
 
     #[test]
-    fn a_case_from_a_source_plays_on_the_source_and_the_regelrecht_corpus() {
+    fn a_case_from_a_source_plays_on_its_source_alone() {
         let (alle, standen) = met_bronnen(gebundeld(), vec![voorbeeld()]).unwrap();
         let c = alle
             .iter()
             .find(|c| c.casus.id == "voorbeeld_subsidie")
             .expect("the case of the source");
         assert_eq!(c.casus.bron.as_deref(), Some("voorbeeld"));
-        // The regulation and the cell from the source, the objection from
-        // the regelrecht Awb.
+        // The regulation, the cell and the objection from the source.
         assert_eq!(c.afleiding.regelwerken[0], "voorbeeld_bron_subsidie");
         assert_eq!(c.afleiding.objection_law, "algemene_wet_bestuursrecht");
         assert_eq!(c.afleiding.rol, "Voorbeeldautoriteit");
@@ -519,38 +509,73 @@ mod tests {
     }
 
     #[test]
-    fn the_regelrecht_corpus_wins_over_a_source_with_the_same_id() {
+    fn a_source_without_the_awb_does_not_get_the_regelrecht_one() {
         let mut bron = voorbeeld();
-        let awb = "corpus/regulation/nl/wet/algemene_wet_bestuursrecht/1994-01-01.yaml";
-        let tekst = gebundeld()[awb].clone();
+        bron.bestanden.retain(|pad, _| !awb().contains_key(pad));
+        let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        assert!(alle.iter().all(|c| c.casus.bron.is_none()));
+        assert!(standen[0].casussen.is_empty(), "{:?}", standen[0]);
+    }
+
+    #[test]
+    fn a_source_runs_its_own_copy_of_a_regelrecht_id() {
+        let mut bron = voorbeeld();
+        let awb = "regulation/nl/wet/algemene_wet_bestuursrecht/1994-01-01.yaml";
+        let tekst = bron.bestanden.remove(awb).unwrap();
         bron.bestanden
             .insert("regulation/nl/wet/awb_kopie/1994-01-01.yaml".into(), tekst);
+        let casus = "casussen/voorbeeld_subsidie.yaml";
+        let tekst = bron.bestanden[casus].replace(
+            "regulation/nl/wet/algemene_wet_bestuursrecht",
+            "regulation/nl/wet/awb_kopie",
+        );
+        bron.bestanden.insert(casus.into(), tekst);
         let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
         assert!(alle.iter().any(|c| c.casus.id == "voorbeeld_subsidie"));
-        assert_eq!(standen[0].meldingen.len(), 1, "{:?}", standen[0]);
+        assert!(standen[0].meldingen.is_empty(), "{:?}", standen[0]);
+    }
+
+    /// The case `voorbeeld_subsidie` of the test source with `wijzig`
+    /// applied to its file: why it did not load.
+    fn fout_van_voorbeeld(wijzig: impl Fn(&str) -> String) -> String {
+        let mut bron = voorbeeld();
+        let casus = "casussen/voorbeeld_subsidie.yaml";
+        let tekst = wijzig(&bron.bestanden[casus]);
+        bron.bestanden.insert(casus.into(), tekst);
+        let (_, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        assert!(standen[0].casussen.is_empty(), "{:?}", standen[0]);
+        standen[0].fouten.join("\n")
+    }
+
+    #[test]
+    fn a_regelwerk_outside_the_corpus_of_a_case_does_not_count() {
+        // The Awb is in the source, but not in the corpus of the case.
+        let fout = fout_van_voorbeeld(|t| {
+            t.replace("  - regulation/nl/wet/algemene_wet_bestuursrecht\n", "")
+        });
+        assert!(fout.contains("BEZWAAR"), "{fout}");
+    }
+
+    #[test]
+    fn an_entry_of_the_corpus_without_a_regelwerk_is_named() {
+        let fout = fout_van_voorbeeld(|t| {
+            t.replace("corpus:\n", "corpus:\n  - regulation/nl/wet/bestaat_niet\n")
+        });
         assert!(
-            standen[0].meldingen[0].contains("bron/voorbeeld/regulation/nl/wet/awb_kopie"),
-            "{:?}",
-            standen[0]
+            fout.contains("names 'regulation/nl/wet/bestaat_niet', which holds no regelwerk"),
+            "{fout}"
         );
     }
 
     #[test]
-    fn a_cell_of_the_source_with_a_regelrecht_name_is_set_aside_with_a_message() {
+    fn a_cell_of_the_source_with_a_regelrecht_name_is_its_own() {
         let mut bron = voorbeeld();
         bron.bestanden.insert(
             "cells/obs_de_klimop/cel.yaml".into(),
             "name: Een andere school\n".into(),
         );
         let (_, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
-        assert!(
-            standen[0]
-                .meldingen
-                .iter()
-                .any(|m| m.contains("cell 'obs_de_klimop'")),
-            "{:?}",
-            standen[0]
-        );
+        assert!(standen[0].meldingen.is_empty(), "{:?}", standen[0]);
     }
 
     #[test]
