@@ -61,8 +61,10 @@ pub struct WorkerConfig {
     /// Maximum time a single job may run before being aborted by the worker.
     /// Default: 20 minutes. Configurable via `WORKER_JOB_TIMEOUT_SECS`.
     pub job_timeout: Duration,
-    /// Jobs stuck in 'processing' longer than this are reaped (reset or failed).
-    /// Default: 30 minutes. Configurable via `WORKER_ORPHAN_TIMEOUT_SECS`.
+    /// How long a processing job may go without a heartbeat before the reaper
+    /// takes it back (reset or failed). Default: 5 minutes, at least four
+    /// heartbeats.
+    /// Configurable via `WORKER_ORPHAN_TIMEOUT_SECS`.
     pub orphan_timeout: Duration,
     /// Number of consecutive failures before a law is marked as exhausted.
     /// Default: 10. Configurable via `EXHAUSTED_THRESHOLD`.
@@ -160,10 +162,17 @@ impl WorkerConfig {
             .and_then(|v| v.parse().ok())
             .unwrap_or(20 * 60); // 20 minutes
 
-        let orphan_timeout_secs: u64 = std::env::var("WORKER_ORPHAN_TIMEOUT_SECS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(30 * 60); // 30 minutes
+        let (orphan_timeout_secs, orphan_raised) = orphan_timeout_secs(
+            std::env::var("WORKER_ORPHAN_TIMEOUT_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok()),
+        );
+        if orphan_raised {
+            tracing::warn!(
+                using = orphan_timeout_secs,
+                "WORKER_ORPHAN_TIMEOUT_SECS is shorter than four heartbeats; raised"
+            );
+        }
 
         let exhausted_threshold: i32 = std::env::var("EXHAUSTED_THRESHOLD")
             .ok()
@@ -248,5 +257,45 @@ impl WorkerConfig {
             database_url: self.database_url.clone(),
             max_connections: self.max_connections,
         }
+    }
+}
+
+/// The orphan timeout in seconds, from the configured value if there is one,
+/// and whether a configured value was too short and had to be raised.
+///
+/// The reaper takes a job back once its heartbeat is this old, so it has to
+/// span a few beats: one slow round trip must not cost a job. The default of
+/// 5 minutes is ten beats; the floor is four.
+fn orphan_timeout_secs(configured: Option<u64>) -> (u64, bool) {
+    let min = crate::job_queue::HEARTBEAT_INTERVAL.as_secs() * 4;
+    match configured {
+        None => (5 * 60, false),
+        Some(secs) if secs < min => (min, true),
+        Some(secs) => (secs, false),
+    }
+}
+
+#[cfg(test)]
+mod orphan_timeout_tests {
+    use super::orphan_timeout_secs;
+
+    #[test]
+    fn unset_gives_five_minutes() {
+        assert_eq!(orphan_timeout_secs(None), (300, false));
+    }
+
+    #[test]
+    fn shorter_than_four_heartbeats_is_raised_to_four() {
+        assert_eq!(orphan_timeout_secs(Some(60)), (120, true));
+    }
+
+    #[test]
+    fn exactly_four_heartbeats_is_kept() {
+        assert_eq!(orphan_timeout_secs(Some(120)), (120, false));
+    }
+
+    #[test]
+    fn longer_is_kept() {
+        assert_eq!(orphan_timeout_secs(Some(1800)), (1800, false));
     }
 }

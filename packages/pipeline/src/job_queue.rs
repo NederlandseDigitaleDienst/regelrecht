@@ -200,7 +200,7 @@ where
     let job = sqlx::query_as::<_, Job>(
         r#"
         UPDATE jobs
-        SET status = 'processing', started_at = now(), attempts = attempts + 1
+        SET status = 'processing', started_at = now(), heartbeat_at = now(), attempts = attempts + 1
         WHERE id = (
             SELECT id FROM jobs
             WHERE status = 'pending'
@@ -361,11 +361,139 @@ where
     Ok(job)
 }
 
-/// Reap orphaned jobs stuck in 'processing' for longer than `timeout`.
+/// How often a worker records that it still holds its job. The orphan
+/// timeout must be a few multiples of this, or a single slow database round
+/// trip would let the reaper take back a job that is still running.
+pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
+
+/// Record that the worker holding a job is still working on it.
 ///
-/// Jobs that remain in 'processing' beyond the timeout are assumed orphaned
-/// (e.g., the worker crashed). If the job still has retries left, it is reset
-/// to 'pending'; otherwise it is marked 'failed'.
+/// `claimed_at` is the `started_at` the claim returned, and serves as the
+/// claim's token: a job that was reset and claimed again has a new
+/// `started_at`, so a heartbeat left over from the earlier claim no longer
+/// lands and cannot keep the later claim alive after its worker died.
+///
+/// Returns `false` when this claim no longer holds the job (it finished,
+/// failed, was reaped, or was claimed again), which tells the heartbeat to
+/// stop.
+pub async fn heartbeat<'e, E>(
+    executor: E,
+    job_id: Uuid,
+    claimed_at: Option<chrono::DateTime<chrono::Utc>>,
+) -> Result<bool>
+where
+    E: sqlx::PgExecutor<'e>,
+{
+    let updated = sqlx::query(
+        "UPDATE jobs SET heartbeat_at = now() \
+         WHERE id = $1 AND status = 'processing' AND started_at IS NOT DISTINCT FROM $2",
+    )
+    .bind(job_id)
+    .bind(claimed_at)
+    .execute(executor)
+    .await?
+    .rows_affected();
+    Ok(updated == 1)
+}
+
+/// How long a job keeps beating past its own job timeout. The worker's
+/// timeout normally ends the job well before this; the margin covers the
+/// steps around the timed run (checkout, commit, push) that have no deadline
+/// of their own.
+pub const HEARTBEAT_GRACE: Duration = Duration::from_secs(10 * 60);
+
+/// How long a job with this timeout keeps beating: the timeout plus
+/// [`HEARTBEAT_GRACE`].
+fn heartbeat_ceiling(job_timeout: Duration) -> Duration {
+    job_timeout.saturating_add(HEARTBEAT_GRACE)
+}
+
+/// Keeps a claimed job's heartbeat going while it is alive, up to a ceiling.
+///
+/// Start one right after claiming a job and keep it in scope until the job is
+/// done; dropping it stops the heartbeat. Bind it to a named variable
+/// (`let _heartbeat = ...`), because `let _ = ...` drops it at once.
+///
+/// The heartbeat stops by itself after `job_timeout` plus [`HEARTBEAT_GRACE`].
+/// A worker that is alive but stuck (a hung `git push`) would otherwise hold
+/// its job forever; this way the reaper takes it back once the beats stop.
+pub struct JobHeartbeat {
+    handle: tokio::task::JoinHandle<()>,
+}
+
+impl JobHeartbeat {
+    pub fn start(pool: sqlx::PgPool, job: &Job, job_timeout: Duration) -> Self {
+        Self::start_with(
+            pool,
+            job,
+            HEARTBEAT_INTERVAL,
+            heartbeat_ceiling(job_timeout),
+        )
+    }
+
+    /// [`JobHeartbeat::start`] with an explicit interval and ceiling, for tests.
+    #[doc(hidden)]
+    pub fn start_with(
+        pool: sqlx::PgPool,
+        job: &Job,
+        interval: Duration,
+        max_age: Duration,
+    ) -> Self {
+        let job_id = job.id;
+        let claimed_at = job.started_at;
+        let handle = tokio::spawn(async move {
+            let deadline = tokio::time::Instant::now() + max_age;
+            let mut tick = tokio::time::interval(interval);
+            tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+            // The first tick fires at once; `claim_job` has just set the
+            // heartbeat, so skip it.
+            tick.tick().await;
+            loop {
+                tick.tick().await;
+                if tokio::time::Instant::now() >= deadline {
+                    tracing::warn!(
+                        job_id = %job_id,
+                        max_age = ?max_age,
+                        "job outlived its timeout; heartbeat stopped so the reaper can take it back"
+                    );
+                    break;
+                }
+                match heartbeat(&pool, job_id, claimed_at).await {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        tracing::debug!(job_id = %job_id, "claim no longer holds the job, heartbeat stopped");
+                        break;
+                    }
+                    // A missed beat is not fatal: the reaper allows several.
+                    Err(e) => {
+                        tracing::warn!(job_id = %job_id, error = %e, "failed to record job heartbeat");
+                    }
+                }
+            }
+        });
+        Self { handle }
+    }
+}
+
+impl Drop for JobHeartbeat {
+    fn drop(&mut self) {
+        self.handle.abort();
+    }
+}
+
+/// Reap orphaned jobs whose worker has stopped responding.
+///
+/// A job counts as orphaned when it is processing and the later of its last
+/// heartbeat and its start is older than `timeout`, e.g. because the worker
+/// crashed or was restarted. Taking the later of the two matters when a job
+/// was reset and claimed again by a worker that does not beat (an old
+/// version during a rolling deploy): its `heartbeat_at` is left over from
+/// the earlier claim, and its fresh `started_at` is what counts. Postgres
+/// `GREATEST` ignores a NULL, so a job claimed before heartbeats existed
+/// falls back to its start. How long a job has been running does not matter
+/// otherwise: a worker that keeps beating keeps its job, up to the ceiling
+/// in [`JobHeartbeat`]. If the job still has retries left, it is reset to
+/// 'pending'; otherwise it is marked 'failed'.
 ///
 /// Returns the reaped jobs (atomically claimed by THIS caller: de UPDATE …
 /// RETURNING geeft elke rij aan precies één concurrent reaper), zodat de
@@ -396,7 +524,7 @@ where
                     ELSE NULL
                 END
             WHERE status = 'processing'
-              AND started_at < now() - $1::interval
+              AND GREATEST(heartbeat_at, started_at) < now() - $1::interval
             RETURNING id, law_id, job_type, status, priority, payload
         )
         SELECT id, law_id, job_type, status, priority, payload FROM reaped
@@ -591,6 +719,16 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn heartbeat_stops_ten_minutes_after_the_job_timeout() {
+        // The pipeline docs promise this margin for the untimed steps around
+        // a run (checkout, commit, push).
+        assert_eq!(
+            heartbeat_ceiling(Duration::from_secs(3900)),
+            Duration::from_secs(3900 + 10 * 60)
+        );
+    }
 
     #[test]
     fn retry_backoff_doubles_per_attempt() {

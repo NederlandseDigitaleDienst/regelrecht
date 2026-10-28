@@ -364,7 +364,7 @@ async fn reaped_terminal_enrich_job_does_not_strand_law_in_enriching() {
     // Spend all attempts and backdate the start so the reaper sees an orphan
     // beyond its timeout with no retries left.
     sqlx::query(
-        "UPDATE jobs SET attempts = max_attempts, started_at = now() - interval '2 hours' WHERE id = $1",
+        "UPDATE jobs SET attempts = max_attempts, started_at = now() - interval '2 hours', heartbeat_at = now() - interval '2 hours' WHERE id = $1",
     )
     .bind(job.id)
     .execute(&db.pool)

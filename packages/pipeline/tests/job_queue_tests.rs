@@ -352,11 +352,14 @@ async fn test_reap_orphaned_jobs_resets_to_pending() {
     assert_eq!(claimed.status, JobStatus::Processing);
 
     // Backdate started_at so reaper considers it orphaned
-    sqlx::query("UPDATE jobs SET started_at = now() - interval '2 hours' WHERE id = $1")
-        .bind(job.id)
-        .execute(&db.pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "UPDATE jobs SET started_at = now() - interval '2 hours', \
+         heartbeat_at = now() - interval '2 hours' WHERE id = $1",
+    )
+    .bind(job.id)
+    .execute(&db.pool)
+    .await
+    .unwrap();
 
     let reaped_jobs = job_queue::reap_orphaned_jobs(&db.pool, Duration::from_secs(60))
         .await
@@ -373,6 +376,249 @@ async fn test_reap_orphaned_jobs_resets_to_pending() {
 }
 
 #[tokio::test]
+async fn test_reap_spares_long_running_job_with_fresh_heartbeat() {
+    // The bug this guards against: a run that was still working after the
+    // orphan timeout got reset to pending, and its result was then refused.
+    let db = TestDb::new().await;
+
+    let req = CreateJobRequest::new(JobType::Enrich, "wet_op_de_zorgtoeslag").with_max_attempts(3);
+    let job = job_queue::create_job(&db.pool, req).await.unwrap();
+    job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+
+    // Started two hours ago, but the worker beat just now.
+    sqlx::query("UPDATE jobs SET started_at = now() - interval '2 hours' WHERE id = $1")
+        .bind(job.id)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+    let held = job_queue::get_job(&db.pool, job.id).await.unwrap();
+    assert!(job_queue::heartbeat(&db.pool, held.id, held.started_at)
+        .await
+        .unwrap());
+
+    let reaped = job_queue::reap_orphaned_jobs(&db.pool, Duration::from_secs(60))
+        .await
+        .unwrap();
+    assert!(reaped.is_empty());
+
+    // So the worker can still complete it.
+    job_queue::complete_job(&db.pool, job.id, None)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_reap_takes_back_job_with_stale_heartbeat() {
+    let db = TestDb::new().await;
+
+    let req = CreateJobRequest::new(JobType::Harvest, "BWBR0001840").with_max_attempts(3);
+    let job = job_queue::create_job(&db.pool, req).await.unwrap();
+    job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+
+    // Started a while ago, and the worker went quiet.
+    sqlx::query(
+        "UPDATE jobs SET started_at = now() - interval '1 hour', \
+         heartbeat_at = now() - interval '10 minutes' WHERE id = $1",
+    )
+    .bind(job.id)
+    .execute(&db.pool)
+    .await
+    .unwrap();
+
+    let reaped = job_queue::reap_orphaned_jobs(&db.pool, Duration::from_secs(300))
+        .await
+        .unwrap();
+    assert_eq!(reaped.len(), 1);
+    assert_eq!(reaped[0].status, JobStatus::Pending);
+}
+
+#[tokio::test]
+async fn test_heartbeat_reports_job_no_longer_processing() {
+    let db = TestDb::new().await;
+
+    let req = CreateJobRequest::new(JobType::Harvest, "BWBR0001840");
+    let job = job_queue::create_job(&db.pool, req).await.unwrap();
+
+    // Pending: nothing to beat for.
+    assert!(!job_queue::heartbeat(&db.pool, job.id, None).await.unwrap());
+
+    let claimed = job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+    assert!(
+        job_queue::heartbeat(&db.pool, claimed.id, claimed.started_at)
+            .await
+            .unwrap()
+    );
+
+    job_queue::complete_job(&db.pool, job.id, None)
+        .await
+        .unwrap();
+    assert!(
+        !job_queue::heartbeat(&db.pool, claimed.id, claimed.started_at)
+            .await
+            .unwrap()
+    );
+}
+
+#[tokio::test]
+async fn test_heartbeat_from_earlier_claim_does_not_land() {
+    // The first worker died; the job was reset and claimed again. A beat
+    // still carrying the first claim's token must not keep the second
+    // claim alive.
+    let db = TestDb::new().await;
+
+    let req = CreateJobRequest::new(JobType::Harvest, "BWBR0001840").with_max_attempts(3);
+    job_queue::create_job(&db.pool, req).await.unwrap();
+    let first = job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+
+    sqlx::query("UPDATE jobs SET status = 'pending' WHERE id = $1")
+        .bind(first.id)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+    let second = job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+    assert_eq!(second.id, first.id);
+    assert_ne!(second.started_at, first.started_at);
+
+    assert!(!job_queue::heartbeat(&db.pool, first.id, first.started_at)
+        .await
+        .unwrap());
+    assert!(job_queue::heartbeat(&db.pool, second.id, second.started_at)
+        .await
+        .unwrap());
+}
+
+/// Seconds since the job's last heartbeat, as the database sees it.
+async fn heartbeat_age_secs(db: &TestDb, id: uuid::Uuid) -> f64 {
+    let (age,): (f64,) = sqlx::query_as(
+        "SELECT EXTRACT(EPOCH FROM (now() - heartbeat_at))::float8 FROM jobs WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(&db.pool)
+    .await
+    .unwrap();
+    age
+}
+
+async fn age_heartbeat(db: &TestDb, id: uuid::Uuid) {
+    sqlx::query("UPDATE jobs SET heartbeat_at = now() - interval '1 hour' WHERE id = $1")
+        .bind(id)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_job_heartbeat_beats_and_stops_on_drop() {
+    let db = TestDb::new().await;
+    let req = CreateJobRequest::new(JobType::Harvest, "BWBR0001840");
+    job_queue::create_job(&db.pool, req).await.unwrap();
+    let job = job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+
+    age_heartbeat(&db, job.id).await;
+    let guard = job_queue::JobHeartbeat::start_with(
+        db.pool.clone(),
+        &job,
+        Duration::from_millis(50),
+        Duration::from_secs(60),
+    );
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(
+        heartbeat_age_secs(&db, job.id).await < 5.0,
+        "the guard beats"
+    );
+
+    drop(guard);
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    age_heartbeat(&db, job.id).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(
+        heartbeat_age_secs(&db, job.id).await > 3000.0,
+        "a dropped guard stops"
+    );
+}
+
+#[tokio::test]
+async fn test_job_heartbeat_stops_at_its_ceiling() {
+    // A worker that is alive but stuck must not hold its job forever.
+    let db = TestDb::new().await;
+    let req = CreateJobRequest::new(JobType::Enrich, "wet_op_de_zorgtoeslag");
+    let job = job_queue::create_job(&db.pool, req).await.unwrap();
+    job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+
+    sqlx::query("UPDATE jobs SET started_at = now() - interval '2 hours' WHERE id = $1")
+        .bind(job.id)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+    age_heartbeat(&db, job.id).await;
+    let held = job_queue::get_job(&db.pool, job.id).await.unwrap();
+    let _guard = job_queue::JobHeartbeat::start_with(
+        db.pool.clone(),
+        &held,
+        Duration::from_millis(50),
+        Duration::ZERO,
+    );
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(heartbeat_age_secs(&db, job.id).await > 3000.0);
+
+    let reaped = job_queue::reap_orphaned_jobs(&db.pool, Duration::from_secs(300))
+        .await
+        .unwrap();
+    assert_eq!(reaped.len(), 1);
+}
+
+#[tokio::test]
+async fn test_reap_uses_start_when_heartbeat_missing() {
+    // A job claimed by a worker from before heartbeats has none.
+    let db = TestDb::new().await;
+    let req = CreateJobRequest::new(JobType::Harvest, "BWBR0001840");
+    let job = job_queue::create_job(&db.pool, req).await.unwrap();
+    job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+
+    sqlx::query("UPDATE jobs SET heartbeat_at = NULL WHERE id = $1")
+        .bind(job.id)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+    let reaped = job_queue::reap_orphaned_jobs(&db.pool, Duration::from_secs(300))
+        .await
+        .unwrap();
+    assert!(reaped.is_empty(), "just started");
+
+    sqlx::query("UPDATE jobs SET started_at = now() - interval '1 hour' WHERE id = $1")
+        .bind(job.id)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+    let reaped = job_queue::reap_orphaned_jobs(&db.pool, Duration::from_secs(300))
+        .await
+        .unwrap();
+    assert_eq!(reaped.len(), 1, "started long ago and never beat");
+}
+
+#[tokio::test]
+async fn test_reap_ignores_heartbeat_left_from_earlier_claim() {
+    // Reset, then claimed again by a worker that does not beat: the stale
+    // heartbeat from the first claim must not get the fresh run reaped.
+    let db = TestDb::new().await;
+    let req = CreateJobRequest::new(JobType::Harvest, "BWBR0001840");
+    let job = job_queue::create_job(&db.pool, req).await.unwrap();
+    job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+
+    sqlx::query(
+        "UPDATE jobs SET started_at = now(), heartbeat_at = now() - interval '1 hour' WHERE id = $1",
+    )
+    .bind(job.id)
+    .execute(&db.pool)
+    .await
+    .unwrap();
+    let reaped = job_queue::reap_orphaned_jobs(&db.pool, Duration::from_secs(300))
+        .await
+        .unwrap();
+    assert!(reaped.is_empty());
+}
+
+#[tokio::test]
 async fn test_reap_orphaned_jobs_permanently_fails_exhausted() {
     let db = TestDb::new().await;
 
@@ -383,11 +629,14 @@ async fn test_reap_orphaned_jobs_permanently_fails_exhausted() {
     job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
 
     // Backdate started_at
-    sqlx::query("UPDATE jobs SET started_at = now() - interval '2 hours' WHERE id = $1")
-        .bind(job.id)
-        .execute(&db.pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "UPDATE jobs SET started_at = now() - interval '2 hours', \
+         heartbeat_at = now() - interval '2 hours' WHERE id = $1",
+    )
+    .bind(job.id)
+    .execute(&db.pool)
+    .await
+    .unwrap();
 
     let reaped_jobs = job_queue::reap_orphaned_jobs(&db.pool, Duration::from_secs(60))
         .await

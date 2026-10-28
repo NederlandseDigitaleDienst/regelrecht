@@ -395,6 +395,8 @@ async fn process_next_job(
         Some(job) => job,
         None => return Ok(JobOutcome::Idle),
     };
+    // Tells the reaper this job is still being worked on, until it is done.
+    let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), &job, config.job_timeout);
 
     tracing::info!(
         job_id = %job.id,
@@ -940,14 +942,7 @@ pub async fn run_enrich_worker(config: WorkerConfig) -> Result<()> {
         // interactive, user-initiated uploads (naturally rate-limited) and must
         // not be blocked when bulk enrichment has hit its budget cap. They still
         // share this worker's LLM CLI environment and OAuth token.
-        match process_next_document_convert_job(
-            &pool,
-            &enrich_config,
-            config.job_timeout,
-            config.orphan_timeout,
-        )
-        .await
-        {
+        match process_next_document_convert_job(&pool, &enrich_config, config.job_timeout).await {
             Ok(JobOutcome::Processed) => {
                 consecutive_resource_failures = 0;
                 current_interval = config.poll_interval;
@@ -975,14 +970,7 @@ pub async fn run_enrich_worker(config: WorkerConfig) -> Result<()> {
         // Law-convert jobs (upload → basis-wet-YAML) run before the cap gate
         // for the same reason as document-convert: interactive uploads. The
         // enrich job they chain into DOES fall under the hourly cap.
-        match process_next_law_convert_job(
-            &pool,
-            &enrich_config,
-            config.job_timeout,
-            config.orphan_timeout,
-        )
-        .await
-        {
+        match process_next_law_convert_job(&pool, &enrich_config, config.job_timeout).await {
             Ok(JobOutcome::Processed) => {
                 consecutive_resource_failures = 0;
                 current_interval = config.poll_interval;
@@ -1386,12 +1374,13 @@ async fn process_next_document_convert_job(
     pool: &PgPool,
     enrich_config: &EnrichConfig,
     job_timeout: Duration,
-    orphan_timeout: Duration,
 ) -> Result<JobOutcome> {
     let job = match job_queue::claim_job(pool, Some(JobType::DocumentConvert)).await? {
         Some(job) => job,
         None => return Ok(JobOutcome::Idle),
     };
+    // Tells the reaper this job is still being worked on, until it is done.
+    let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), &job, job_timeout);
 
     // Parse the payload. A malformed payload is deterministic — fail terminally
     // (no retry) and still drop the transient upload if we can recover its id.
@@ -1443,18 +1432,13 @@ async fn process_next_document_convert_job(
     }
 
     // Apply the payload's provider override (if any) and bound the run by the
-    // worker's job timeout, mirroring the enrich path. Net als law-convert
-    // begrensd ónder de reaper-window: de agent-fallback kan traag zijn, en
-    // een gereapte single-attempt-job zou anders stil verdwijnen — de
-    // begrenzing laat een te trage run in het zichtbare foutpad eindigen.
+    // worker's job timeout, mirroring the enrich path. The heartbeat keeps the
+    // reaper away for as long as the run takes.
     let mut job_config = match &payload.provider {
         Some(provider) => enrich_config.with_provider_override(provider),
         None => enrich_config.clone(),
     };
-    let reaper_margin = orphan_timeout
-        .saturating_sub(Duration::from_secs(120))
-        .max(Duration::from_secs(60));
-    let convert_deadline = job_timeout.min(reaper_margin);
+    let convert_deadline = job_timeout;
     job_config.timeout = convert_deadline;
 
     match run_document_convert(pool, &job, &payload, &job_config, convert_deadline).await {
@@ -1586,12 +1570,13 @@ async fn process_next_law_convert_job(
     pool: &PgPool,
     enrich_config: &EnrichConfig,
     job_timeout: Duration,
-    orphan_timeout: Duration,
 ) -> Result<JobOutcome> {
     let job = match job_queue::claim_job(pool, Some(JobType::LawConvert)).await? {
         Some(job) => job,
         None => return Ok(JobOutcome::Idle),
     };
+    // Tells the reaper this job is still being worked on, until it is done.
+    let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), &job, job_timeout);
     tracing::info!(job_id = %job.id, law_id = %job.law_id, "processing law-convert job");
 
     // Malformed payload is deterministisch: terminaal falen, en de upload
@@ -1639,17 +1624,10 @@ async fn process_next_law_convert_job(
         Some(provider) => enrich_config.with_provider_override(provider),
         None => enrich_config.clone(),
     };
-    // De generieke orphan-reaper (reap_orphaned_jobs) kent geen heartbeat en
-    // faalt élke processing-job ouder dan orphan_timeout — bij max_attempts=1
-    // zou een trage/hangende LLM-run dus stil verdwijnen, zonder
-    // job_failed-taak. Begrens de hele conversie (beide agent-runs samen)
-    // ruim ónder de reaper-window, zodat de worker de race altijd wint en
-    // een te trage run in het zichtbare foutpad eindigt. kill_on_drop op het
-    // subprocess ruimt de agent op wanneer de buitenste timeout afgaat.
-    let reaper_margin = orphan_timeout
-        .saturating_sub(Duration::from_secs(120))
-        .max(Duration::from_secs(60));
-    let convert_deadline = job_timeout.min(reaper_margin);
+    // Bound the whole conversion (both agent runs together) by the job
+    // timeout, so a run that is too slow ends in the visible failure path.
+    // kill_on_drop on the subprocess cleans up the agent when it fires.
+    let convert_deadline = job_timeout;
     job_config.timeout = convert_deadline;
 
     let run_result = match tokio::time::timeout(
@@ -1749,6 +1727,8 @@ async fn process_next_traject_harvest_job(
         Some(job) => job,
         None => return Ok(JobOutcome::Idle),
     };
+    // Tells the reaper this job is still being worked on, until it is done.
+    let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), &job, config.job_timeout);
     tracing::info!(job_id = %job.id, law_id = %job.law_id, attempt = job.attempts, "processing traject-harvest job");
 
     // Malformed payload is deterministisch: terminaal falen. Zonder payload
@@ -2697,6 +2677,8 @@ async fn process_next_enrich_job(
         Some(job) => job,
         None => return Ok(JobOutcome::Idle),
     };
+    // Tells the reaper this job is still being worked on, until it is done.
+    let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), &job, job_timeout);
 
     let payload: EnrichPayload = match &job.payload {
         Some(p) => match serde_json::from_value(p.clone()) {
@@ -3456,6 +3438,42 @@ async fn handle_enrich_exhausted_or_retry(
 mod tests {
     use crate::api::bwb_search::BwbSearchResult;
 
+    /// Every claim starts a heartbeat that lives as long as the job. A claim
+    /// without one gets its job reaped after the orphan timeout, and
+    /// `let _ = JobHeartbeat::start(..)` drops the guard at once, which no
+    /// other test would notice.
+    #[test]
+    fn every_claim_keeps_a_heartbeat_for_the_whole_job() {
+        let source = include_str!("worker.rs");
+        // Only the production code: the tests below mention the call too.
+        let production = &source[..source
+            .find("#[cfg(test)]\nmod tests {")
+            .expect("test module marker")];
+        let lines: Vec<&str> = production.lines().collect();
+        let claims: Vec<usize> = lines
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| l.contains("job_queue::claim_job("))
+            .map(|(i, _)| i)
+            .collect();
+        assert!(!claims.is_empty(), "the worker claims jobs");
+        for i in claims {
+            let next_code_line = lines[i + 1..]
+                .iter()
+                .map(|l| l.trim())
+                .skip_while(|l| !l.starts_with("};"))
+                .skip(1)
+                .find(|l| !l.is_empty() && !l.starts_with("//"))
+                .unwrap_or("");
+            assert!(
+                next_code_line
+                    .starts_with("let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), &job,"),
+                "the claim on line {} must be followed by a named heartbeat guard, found: {next_code_line}",
+                i + 1
+            );
+        }
+    }
+
     fn hit(bwb_id: &str) -> BwbSearchResult {
         BwbSearchResult {
             bwb_id: bwb_id.to_string(),
@@ -4053,14 +4071,9 @@ mod contract_tests {
             path: "claude".into(),
             model: None,
         });
-        process_next_document_convert_job(
-            &db.pool,
-            &config,
-            Duration::from_secs(60),
-            Duration::from_secs(1800),
-        )
-        .await
-        .expect("verwerking hoort netjes af te ronden (met een terminaal gefaalde job)");
+        process_next_document_convert_job(&db.pool, &config, Duration::from_secs(60))
+            .await
+            .expect("verwerking hoort netjes af te ronden (met een terminaal gefaalde job)");
     }
 
     /// Assert dat de job terminaal gefaald is met de contractfout, de upload is

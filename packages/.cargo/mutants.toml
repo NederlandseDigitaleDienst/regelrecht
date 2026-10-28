@@ -216,4 +216,13 @@ exclude_re = [
     # de functie heeft geen terugwaarde en ze sturen niets. Welke uitkomst als
     # welke soort telt ligt vast in classify_sru_result en wordt daar gedood.
     'worker\.rs.*replace \+= with .* in harvest_related_legislation',
+
+    # run_enrich_worker and run_harvest_worker are the workers' endless poll
+    # loops: they read the config, start the reaper and call the
+    # process_next_* functions each round until a signal stops them. Killing
+    # an immediate Ok(()) would take a test that starts a whole worker with a
+    # database, an LLM CLI and signal handling. What they call is killed on
+    # its own: claim_job, the heartbeat, reap_orphaned_jobs and the
+    # processing per job type.
+    'worker\.rs.*replace run_(enrich|harvest)_worker -> Result<\(\)> with Ok\(\(\)\)',
 ]
