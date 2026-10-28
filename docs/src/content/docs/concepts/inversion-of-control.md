@@ -121,7 +121,7 @@ The implementing article then reads an output of that law, and that output depen
 
 ## Policy that fills an open term with a cell's answer
 
-A cell is an organization that records its own decisions and facts, and answers later questions from that record. A reduction ([RFC-048](/rfcs/rfc-048)) is the rulework that reads the cell's earlier decisions and gives an answer under a name. It sits with the cell, in `corpus/cells/<cell>/reductions/`. A reduction is not a regulation, and it fills no open term.
+A cell is an organization that keeps its own chronicle and answers questions from it. A reduction ([RFC-048](/rfcs/rfc-048)) is the rulework that reads the cell's chronicle and gives an answer under a name. It sits with the cell, in `corpus/cells/<cell>/reductions/`. A reduction is not a regulation, and it fills no open term.
 
 The policy of the deciding authority fills the term. One of its articles fills the term with `implements` and takes the cell's answer as an input (`source.reduction`, schema v0.8.9). Art. 13a of the Leerplichtwet 1969 leaves `verlof_al_verleend_in_schooljaar` to the head of the school, case by case (`decided_per_case_by`). The head's policy binds that term to the answer:
 

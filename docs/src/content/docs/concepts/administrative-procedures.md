@@ -5,7 +5,7 @@ description: "How the law format models an Awb procedure: what an article establ
 
 A specific law says that someone may apply for something. The procedure around that application comes from the Algemene wet bestuursrecht (Awb), from what the application must contain up to the objection against the decision. The rulework of the specific law does not have to name the Awb. The Awb articles attach themselves to every application through hooks.
 
-[RFC-045](/rfcs/rfc-045) gives the design and its reasons. [Chronolexography](/concepts/chronolexography) shows how a cell, the organization that keeps the record, records the procedure.
+[RFC-045](/rfcs/rfc-045) gives the design and its reasons. [Chronolexography](/concepts/chronolexography) shows how a cell, the organization that keeps a chronicle of its legal facts, records the procedure.
 
 ## What an article establishes
 
