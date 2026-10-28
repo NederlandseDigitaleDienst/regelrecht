@@ -585,3 +585,83 @@ fn a_judgement_left_out_is_no_finding() {
     );
     assert!(findings.is_empty(), "{:?}", findings);
 }
+
+/// A hook on every application that names its receipt as the moment
+/// (Awb 4:13), and an article that decides on it by the day of receipt.
+const RECEIPT_LAW: &str = r#"
+$id: wet_ontvangst_fictief
+regulatory_layer: WET
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+articles:
+  - number: '1'
+    text: Het hoofd verleent op aanvraag verlof, als de aanvraag op tijd is ontvangen.
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: wet_ontvangst_fictief#1
+            parameters: []
+          - type: BESCHIKKING
+            outputs: [ontvangen_op]
+        parameters:
+          - {name: datum_ontvangst, type: date}
+        output:
+          - {name: ontvangen_op, type: date}
+        actions:
+          - {output: ontvangen_op, value: $datum_ontvangst}
+  - number: '2'
+    text: De termijn loopt vanaf de ontvangst van de aanvraag.
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to: {submission: AANVRAAG}
+      execution:
+        produces:
+          moment:
+            parameter: datum_ontvangst
+            legal_basis: {law: Wet ontvangst fictief, article: '2'}
+        parameters:
+          - {name: datum_ontvangst, type: date, required: false}
+        output:
+          - {name: ontvangst_gezien, type: boolean}
+        actions:
+          - {output: ontvangst_gezien, value: true}
+"#;
+
+#[test]
+fn the_decision_takes_the_moment_of_the_application() {
+    let mut service = service_of(&[GENERAL_LAW, RECEIPT_LAW]);
+    let shape = decision::derive(&service, "wet_ontvangst_fictief", "1", day()).unwrap();
+    assert_eq!(
+        shape.input("datum_ontvangst").map(|i| &i.source),
+        Some(&Source::Application)
+    );
+    let mut cell = bare_cell("fictieve_school");
+    let app = cell
+        .record_submission(
+            &mut service,
+            &[],
+            "wet_ontvangst_fictief",
+            "1",
+            None,
+            &Map::new(),
+            day(),
+        )
+        .unwrap();
+    let later = day().succ_opt().unwrap();
+    let gram = cell
+        .decide(
+            &mut service,
+            &[],
+            "wet_ontvangst_fictief",
+            "1",
+            &app.id,
+            &Map::new(),
+            &Map::new(),
+            later,
+        )
+        .unwrap()
+        .remove(0);
+    assert_eq!(gram.outputs["ontvangen_op"], json!(ON));
+}
