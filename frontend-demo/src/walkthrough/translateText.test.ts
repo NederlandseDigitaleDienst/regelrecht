@@ -42,6 +42,14 @@ describe('text on screen compared with the recording', () => {
     expect(sameNumbers('Premie € 4.112,00', 'Premie €4,113.00')).toBe(false);
     expect(sameNumbers('€ 100', '€ 1.000')).toBe(false);
     expect(sameNumbers('€ 1.000', '€1,000')).toBe(true);
+    // French: the sign after the amount, a narrow no-break space between thousands.
+    expect(sameNumbers('Premie € 4.112,00', 'Premie 4 112,00 €')).toBe(true);
+    expect(sameNumbers('€ 25.000,00 → € 0,00', '25 000,00 € → 0,00 €')).toBe(true);
+    // The same with plain spaces, as the text reaches the comparison.
+    expect(sameNumbers('€ 25.000,00 → € 0,00', '25 000,00 € → 0,00 €')).toBe(true);
+    expect(sameNumbers('€ -4.112,00', '-4\u202f112,00\u00a0€')).toBe(true);
+    // Two numbers with a plain space between them stay two numbers.
+    expect(sameNumbers('Premie 2025 € 4.112,00', 'Premie 2025 4 112,00 €')).toBe(true);
     expect(sameNumbers('1 januari', '10 januari')).toBe(false);
     expect(sameNumbers('1,8%', '18%')).toBe(false);
     expect(sameNumbers('1,8%', '1.8%')).toBe(true);

@@ -1,0 +1,1360 @@
+WEBVTT
+
+1
+00:00:00.981 --> 00:00:04.901
+Cela fait des décennies que les lois
+sont traduites à la main en logiciel.
+
+2
+00:00:05.963 --> 00:00:10.523
+Chaque organisme d'exécution a sa propre
+interprétation de la loi, et une grande
+
+3
+00:00:10.523 --> 00:00:13.955
+partie de cette interprétation
+finit dans le logiciel.
+
+4
+00:00:13.955 --> 00:00:18.915
+Cela dure depuis des années, voire des
+décennies, et d'innombrables modifications de
+
+5
+00:00:18.915 --> 00:00:22.835
+loi et nouveaux projets de loi
+s'empilent ainsi dans le logiciel.
+
+6
+00:00:24.826 --> 00:00:27.327
+Résultat : on n'a plus
+vraiment de vue d'ensemble.
+
+7
+00:00:27.327 --> 00:00:31.967
+On ne sait plus quel bout de logiciel
+correspond à quel bout de loi, et inversement.
+
+8
+00:00:33.450 --> 00:00:37.951
+Du coup, le fonctionnement de ce
+logiciel devient imprévisible.
+
+9
+00:00:37.951 --> 00:00:42.191
+Pas seulement pour les citoyens et les
+entrepreneurs qui subissent ce logiciel, mais
+
+10
+00:00:42.191 --> 00:00:46.031
+aussi pour les décideurs, les agents
+qui travaillent avec, et même pour les
+
+11
+00:00:46.031 --> 00:00:48.111
+informaticiens qui le construisent.
+
+12
+00:00:54.554 --> 00:00:59.274
+Il devient ingérable de modifier ce logiciel
+: on n'ose plus, on ne sait plus quel
+
+13
+00:00:59.274 --> 00:01:01.354
+effet aura une modification.
+
+14
+00:01:06.497 --> 00:01:10.817
+RegelRecht part d'une idée : et si on
+commençait par la loi, qu'on la rendait
+
+15
+00:01:10.817 --> 00:01:14.657
+elle-même exécutable par machine,
+et qu'on la publiait ouvertement
+
+16
+00:01:14.657 --> 00:01:14.737
+?
+
+17
+00:01:14.676 --> 00:01:19.076
+Je suis Anne Schuth, staff engineer chez
+RegelRecht, et je présente la démo pendant
+
+18
+00:01:19.076 --> 00:01:20.676
+environ un quart d'heure.
+
+19
+00:01:23.700 --> 00:01:25.180
+Ce n'est pas une démo statique.
+
+20
+00:01:25.180 --> 00:01:28.140
+Vous pouvez m'arrêter à tout
+moment et cliquer vous-même.
+
+21
+00:01:30.462 --> 00:01:33.582
+À gauche apparaissent les
+questions qu'on me pose souvent.
+
+22
+00:01:34.544 --> 00:01:37.059
+Cliquez dessus pour obtenir les réponses.
+
+23
+00:01:37.059 --> 00:01:38.631
+Un récit complet.
+
+24
+00:01:38.560 --> 00:01:42.080
+C'est un logiciel qui fonctionne,
+mais pas un produit fini.
+
+25
+00:01:42.950 --> 00:01:45.392
+Il n'est donc pas pour la production.
+
+26
+00:01:45.392 --> 00:01:49.715
+Et nous le faisons depuis une direction
+des politiques publiques, par la pratique.
+
+27
+00:01:49.715 --> 00:01:54.275
+Nous commençons tout au fond, par une
+réglementation, ici celle de l'allocation de
+
+28
+00:01:54.275 --> 00:01:55.839
+soins de santé.
+
+29
+00:01:55.839 --> 00:02:00.098
+Voici une version exécutable par machine
+de l'allocation de soins de santé.
+
+30
+00:02:00.022 --> 00:02:03.864
+Pas toute la loi, seulement des
+extraits : les articles 2 et 4.
+
+31
+00:02:03.864 --> 00:02:07.224
+Voici l'article 2, en
+entier, donc tout le texte.
+
+32
+00:02:08.467 --> 00:02:13.395
+Et en dessous, la partie machine-readable,
+exécutable par machine, de cette loi.
+
+33
+00:02:13.395 --> 00:02:15.016
+C'est une interprétation de cette loi.
+
+34
+00:02:15.016 --> 00:02:19.478
+Et ce qu'on voit ici, c'est que cela
+commence par un paramètre : le BSN.
+
+35
+00:02:19.478 --> 00:02:22.860
+Et là, des actions dépendent de
+l'éligibilité aux conditions.
+
+36
+00:02:22.860 --> 00:02:25.820
+Il faut avoir l'âge
+minimum et être assuré.
+
+37
+00:02:28.083 --> 00:02:30.485
+Et voici le montant de
+l'allocation de soins de santé.
+
+38
+00:02:30.485 --> 00:02:35.790
+C'est un calcul complet, je ne détaille
+pas, mais ici, Operation Add additionne le
+
+39
+00:02:35.790 --> 00:02:39.669
+revenu et celui du partenaire, pour le
+comparer au seuil de revenu avec un
+
+40
+00:02:39.669 --> 00:02:41.016
+partenaire d'allocation.
+
+41
+00:02:41.016 --> 00:02:44.136
+Ce que j'ai survolé, ce sont
+ce qu'on appelle des inputs.
+
+42
+00:02:45.941 --> 00:02:48.341
+Ce sont des renvois vers d'autres lois.
+
+43
+00:02:49.465 --> 00:02:53.349
+Par exemple, être assuré,
+l'une des conditions.
+
+44
+00:02:53.349 --> 00:02:54.373
+D'une autre loi.
+
+45
+00:02:54.373 --> 00:02:58.661
+La loi sur l'allocation dit : assuré au
+sens de la loi sur l'assurance maladie.
+
+46
+00:02:58.661 --> 00:03:02.181
+On clique vers cette loi pour
+voir ce qu'est être assuré.
+
+47
+00:03:03.676 --> 00:03:08.236
+Est assuré, c'est un output ici,
+quiconque a une assurance ou une assurance
+
+48
+00:03:08.236 --> 00:03:10.476
+conventionnelle, et
+n'est pas en détention.
+
+49
+00:03:13.221 --> 00:03:18.535
+Et être en détention est encore un input,
+ici, issu de la loi pénitentiaire.
+
+50
+00:03:18.535 --> 00:03:22.737
+On peut aussi y aller, et voir
+ce que signifie être détenu.
+
+51
+00:03:22.737 --> 00:03:27.677
+À savoir : être dans un établissement
+pénitentiaire ou une maison d'arrêt, et y être
+
+52
+00:03:27.677 --> 00:03:29.957
+enfermé ou temporairement absent.
+
+53
+00:03:29.881 --> 00:03:34.481
+Ainsi, pour calculer l'allocation de soins
+de santé, le droit et son montant, il
+
+54
+00:03:34.481 --> 00:03:36.601
+faut toute une série de textes de loi.
+
+55
+00:03:40.047 --> 00:03:42.308
+Bref : un graphe, pas une série.
+
+56
+00:03:42.308 --> 00:03:46.333
+Et quand les lois sont exécutables
+par machine, on peut les visualiser.
+
+57
+00:03:46.333 --> 00:03:49.576
+On voit alors que ces lois
+sont liées entre elles.
+
+58
+00:03:49.576 --> 00:03:53.976
+Je zoome un peu, et ici, on voit par
+exemple l'allocation de soins de santé.
+
+59
+00:03:57.282 --> 00:04:01.602
+Voyons, ici, on voit « est assuré
+», et on peut suivre ce lien.
+
+60
+00:04:03.568 --> 00:04:08.412
+On arrive à la loi sur l'assurance maladie,
+puis « est détenu », et ce lien aussi.
+
+61
+00:04:08.412 --> 00:04:09.852
+Et on le voit ici.
+
+62
+00:04:10.655 --> 00:04:13.615
+Voici la détermination
+du statut de détention.
+
+63
+00:04:14.906 --> 00:04:19.266
+Et ici, on voit tout l'ensemble des textes
+nécessaires pour obtenir l'allocation de
+
+64
+00:04:19.266 --> 00:04:20.691
+soins de santé.
+
+65
+00:04:20.691 --> 00:04:24.371
+Si je clique ici, on voit toutes les lois
+que contient actuellement la preuve de
+
+66
+00:04:24.371 --> 00:04:25.091
+concept.
+
+67
+00:04:26.776 --> 00:04:29.016
+Tu vois que c'est une
+sacrée file d'attente.
+
+68
+00:04:29.858 --> 00:04:32.338
+Essaie de deviner laquelle
+ce pourrait être.
+
+69
+00:04:33.847 --> 00:04:35.607
+Regarde donc par toi-même.
+
+70
+00:04:37.671 --> 00:04:42.711
+Tu peux cliquer partout, zoomer, dézoomer
+et suivre les liens pour voir la cohérence
+
+71
+00:04:42.711 --> 00:04:44.871
+entre loi et réglementation.
+
+72
+00:04:47.983 --> 00:04:49.594
+On reprend tout de suite.
+
+73
+00:04:49.594 --> 00:04:52.634
+On me demande très souvent
+comment on gère l'ambiguïté.
+
+74
+00:04:59.941 --> 00:05:04.661
+Donc si, quelque part dans ce réseau,
+deux définitions portent le même nom, par
+
+75
+00:05:04.661 --> 00:05:08.741
+exemple revenu du partenaire,
+très fréquent, ou ménage.
+
+76
+00:05:14.288 --> 00:05:16.768
+Et il y en a, tu pourrais
+aller en chercher.
+
+77
+00:05:19.115 --> 00:05:23.955
+Donc selon les lois et les endroits, le
+revenu du partenaire ou le ménage est défini
+
+78
+00:05:23.955 --> 00:05:25.195
+de manière différente.
+
+79
+00:05:28.163 --> 00:05:31.303
+Et nous, humains,
+trouvons ça très pénible.
+
+80
+00:05:31.303 --> 00:05:35.992
+Mais pour les machines, peu importe, tant
+qu'on pointe vers la bonne définition.
+
+81
+00:05:35.992 --> 00:05:39.952
+Ce que tu vois ici peut être généré
+automatiquement dès que la loi et la
+
+82
+00:05:39.952 --> 00:05:42.872
+réglementation sont
+exécutables par machine.
+
+83
+00:05:45.561 --> 00:05:50.094
+Et c'est déjà très utile pour les analystes
+juridiques, les juristes législatifs,
+
+84
+00:05:50.094 --> 00:05:53.881
+tous ceux qui travaillent avec la loi et
+la réglementation, car on voit tout ce qui
+
+85
+00:05:53.881 --> 00:05:57.721
+est lié et ce qui risque de casser
+si on modifie quelque chose.
+
+86
+00:06:04.761 --> 00:06:08.361
+Une fois la loi exécutable par
+machine, on peut aussi faire ceci.
+
+87
+00:06:09.403 --> 00:06:14.244
+Ce que nous regardons ici, ce sont
+des scénarios, des cas concrets.
+
+88
+00:06:14.244 --> 00:06:18.644
+Et ces cas sont très souvent décrits,
+par exemple, dans l'exposé des motifs.
+
+89
+00:06:22.290 --> 00:06:28.250
+Donc une loi, un projet de loi ou une
+modification de loi va au Parlement, et on y
+
+90
+00:06:28.250 --> 00:06:31.156
+joint généralement un exposé des motifs.
+
+91
+00:06:31.156 --> 00:06:35.076
+Et cet exposé des motifs explique comment
+la loi doit fonctionner sur des cas
+
+92
+00:06:35.076 --> 00:06:36.440
+précis.
+
+93
+00:06:36.440 --> 00:06:41.133
+Parfois même un tableau entier avec les
+caractéristiques de personnes, de ménages,
+
+94
+00:06:41.133 --> 00:06:44.040
+d'entreprises, et l'effet voulu de la loi.
+
+95
+00:06:45.867 --> 00:06:47.547
+L'intention de la loi.
+
+96
+00:06:48.690 --> 00:06:52.290
+Un tel cas, on peut donc le
+tirer de l'exposé des motifs.
+
+97
+00:06:53.476 --> 00:06:54.820
+Et cela ressemble à ceci.
+
+98
+00:06:54.820 --> 00:06:59.618
+Ici, une personne avec un faux
+numéro BSN et un faux salaire.
+
+99
+00:06:59.618 --> 00:07:03.858
+Et si la loi sur l'allocation de soins de
+santé est exécutée, ce serait le montant
+
+100
+00:07:03.858 --> 00:07:07.881
+de l'allocation en centimes
+d'euro par an pour ce cas précis.
+
+101
+00:07:07.881 --> 00:07:11.516
+Eh bien, ce que nous pouvons faire, et c'est
+pourquoi on parle de loi exécutable par
+
+102
+00:07:11.516 --> 00:07:13.403
+machine, c'est l'exécuter.
+
+103
+00:07:13.403 --> 00:07:17.483
+Et ce qu'on obtient, c'est ce qu'on appelle
+une trace de l'exécution de la loi sur
+
+104
+00:07:17.483 --> 00:07:18.763
+ce cas précis.
+
+105
+00:07:20.205 --> 00:07:23.746
+Ici, on voit que la loi sur
+l'allocation de soins s'applique.
+
+106
+00:07:23.746 --> 00:07:28.731
+Pour déterminer le montant de l'allocation
+pour le numéro BSN qu'on vient de voir.
+
+107
+00:07:28.731 --> 00:07:33.051
+Un peu plus bas, on voit que la loi sur
+l'assurance maladie a été exécutée pour
+
+108
+00:07:33.051 --> 00:07:35.518
+déterminer si la personne est assurée.
+
+109
+00:07:35.518 --> 00:07:39.203
+Encore un peu plus bas, on reconnaît
+la loi pénitentiaire de principes pour
+
+110
+00:07:39.203 --> 00:07:41.583
+déterminer si la personne est détenue.
+
+111
+00:07:41.583 --> 00:07:44.223
+Ici, cette personne n'est pas détenue.
+
+112
+00:07:45.227 --> 00:07:47.600
+Alors, ça continue tout simplement.
+
+113
+00:07:47.600 --> 00:07:52.040
+Et tout en bas, après un bon bout de
+défilement, on voit le montant de l'allocation
+
+114
+00:07:52.040 --> 00:07:56.240
+de soins de santé en centimes d'euro par
+an, qui correspond ici à ce qu'on a vu dans
+
+115
+00:07:56.240 --> 00:07:57.120
+ce cas.
+
+116
+00:08:04.805 --> 00:08:08.018
+Une personne de moins de 18 ans
+n'aurait pas droit à l'allocation.
+
+117
+00:08:07.950 --> 00:08:10.273
+Voilà donc un autre scénario.
+
+118
+00:08:10.273 --> 00:08:14.113
+Et en l'exécutant, on voit que cette
+trace est devenue beaucoup plus courte.
+
+119
+00:08:15.081 --> 00:08:19.161
+On voit par exemple que cette personne
+a 17 ans, et que ça arrête tout.
+
+120
+00:08:20.668 --> 00:08:22.055
+C'était l'une des conditions.
+
+121
+00:08:21.989 --> 00:08:25.771
+Il fallait avoir au moins
+l'âge minimum, soit 18 ans.
+
+122
+00:08:25.771 --> 00:08:26.912
+Et donc ça s'arrête là.
+
+123
+00:08:26.912 --> 00:08:30.992
+Cette personne ne remplit donc pas les
+conditions : le montant de l'allocation n'est
+
+124
+00:08:30.992 --> 00:08:34.672
+pas calculé, et on ne regarde pas des
+données sensibles, comme une détention
+
+125
+00:08:34.672 --> 00:08:35.952
+éventuelle.
+
+126
+00:08:42.741 --> 00:08:47.876
+Il y a donc, en quelque sorte, une
+minimisation des données automatique.
+
+127
+00:08:47.876 --> 00:08:50.196
+N'hésitez pas à explorer
+un peu par vous-même.
+
+128
+00:08:53.158 --> 00:08:56.678
+Vous pouvez jouer avec ces
+scénarios et suivre ces traces.
+
+129
+00:08:58.968 --> 00:09:03.021
+On me demande souvent, ou on m'a
+souvent demandé, comment on arrive à ces
+
+130
+00:09:03.021 --> 00:09:04.248
+réglementations.
+
+131
+00:09:09.426 --> 00:09:14.506
+La réponse courte : on utilise l'IA générative
+pour transformer les textes de loi en
+
+132
+00:09:14.506 --> 00:09:15.986
+réglementation.
+
+133
+00:09:18.825 --> 00:09:23.625
+On utilise l'IA générative pour transformer
+l'exposé des motifs en scénario.
+
+134
+00:09:25.454 --> 00:09:30.235
+Puis on exécute le scénario, et on
+constate que ça ne marche pas encore.
+
+135
+00:09:30.235 --> 00:09:33.056
+Certains points ne sont donc pas réussis.
+
+136
+00:09:33.056 --> 00:09:37.096
+Et on donne le résultat, ce qui a échoué,
+au modèle de langage pour qu'il fasse un
+
+137
+00:09:37.096 --> 00:09:38.416
+nouveau tour.
+
+138
+00:09:40.539 --> 00:09:45.200
+On sort donc à nouveau une réglementation,
+puis à nouveau un scénario.
+
+139
+00:09:45.200 --> 00:09:49.134
+On relance ensuite le tout,
+jusqu'à ce que tout soit Réussi.
+
+140
+00:09:49.134 --> 00:09:52.654
+C'est le moment où on le donnerait à
+un analyste juridique ou à un juriste
+
+141
+00:09:52.654 --> 00:09:53.881
+législatif.
+
+142
+00:09:55.210 --> 00:09:59.930
+Ce serait pour lui le point de départ :
+vérifier si la loi exécutable par machine
+
+143
+00:09:59.930 --> 00:10:04.170
+fait bien ce qu'elle doit et met en
+œuvre la réglementation comme voulu.
+
+144
+00:10:08.438 --> 00:10:12.782
+Une fois les lois exécutables par machine,
+on peut faire beaucoup de choses.
+
+145
+00:10:12.782 --> 00:10:16.302
+On peut aussi les exécuter sur
+plusieurs personnes en même temps.
+
+146
+00:10:17.646 --> 00:10:21.326
+Dans les scénarios, on exécutait
+la loi sur un seul individu.
+
+147
+00:10:22.389 --> 00:10:26.789
+Ici, on l'exécute sur une
+population, ici de 50 personnes.
+
+148
+00:10:28.654 --> 00:10:34.106
+Âge moyen 54 ans, 36 % avec
+partenaire, 40 % locataires, 18 % avec
+
+149
+00:10:34.106 --> 00:10:38.010
+enfants, 4 % étudiants,
+revenu moyen 41 000 euros.
+
+150
+00:10:37.942 --> 00:10:42.302
+C'est une petite population, donc peu
+réaliste, mais échantillonnée d'après les
+
+151
+00:10:42.302 --> 00:10:43.622
+statistiques du CBS.
+
+152
+00:10:50.812 --> 00:10:54.972
+Une fois toute la réglementation
+disponible, on voit ici l'aide sociale, la
+
+153
+00:10:54.972 --> 00:10:59.892
+cotisation liée au revenu, la loi sur
+l'assurance maladie, l'impôt sur le revenu, le
+
+154
+00:10:59.892 --> 00:11:02.892
+droit de vote, la Seconde Chambre, etc.
+
+155
+00:11:06.188 --> 00:11:10.428
+Une fois toutes ces lois exécutables sur
+une telle population, on peut calculer ce
+
+156
+00:11:10.428 --> 00:11:11.628
+genre de choses.
+
+157
+00:11:13.541 --> 00:11:16.885
+Le revenu disponible, ce qui
+vous reste en fin de mois.
+
+158
+00:11:16.885 --> 00:11:21.503
+Donc revenu moins impôts, plus les
+allocations et prestations que les lois
+
+159
+00:11:21.503 --> 00:11:22.487
+accordent.
+
+160
+00:11:22.411 --> 00:11:26.235
+On prend ainsi en compte toutes
+les interactions entre les lois.
+
+161
+00:11:26.235 --> 00:11:29.819
+On peut gagner plus d'un
+côté et moins de l'autre.
+
+162
+00:11:29.819 --> 00:11:31.819
+Et cela se voit dans ces montants.
+
+163
+00:11:32.856 --> 00:11:37.416
+Une fois les lois exécutables, on peut voir
+l'effet de modifications législatives.
+
+164
+00:11:40.943 --> 00:11:44.823
+Par exemple, une modification de la prime
+standard de l'allocation de soins de
+
+165
+00:11:44.823 --> 00:11:45.663
+santé.
+
+166
+00:11:46.481 --> 00:11:50.841
+Si on la double à peu près, et qu'on lance
+une simulation sur la même population, on
+
+167
+00:11:50.841 --> 00:11:52.961
+voit ce qui change et on peut comparer.
+
+168
+00:11:57.610 --> 00:12:02.130
+Ici, la comparaison entre la situation
+standard et celle avec la prime standard
+
+169
+00:12:02.130 --> 00:12:03.130
+modifiée.
+
+170
+00:12:04.842 --> 00:12:09.922
+Ici par exemple, le revenu
+disponible par mois passe de 4720 à
+
+171
+00:12:09.922 --> 00:12:12.522
+4775 euros.
+
+172
+00:12:19.321 --> 00:12:23.081
+Et quand on doit voter, par exemple à
+la Seconde Chambre, sur un amendement
+
+173
+00:12:23.081 --> 00:12:27.401
+modifiant la prime standard, il est précieux
+de voir l'effet d'une modification de
+
+174
+00:12:27.401 --> 00:12:29.641
+loi sur l'allocation de soins de santé.
+
+175
+00:12:33.761 --> 00:12:37.281
+On voit que l'allocation de soins
+de santé augmente nettement.
+
+176
+00:12:43.405 --> 00:12:47.085
+Ailleurs, des gens perdent
+apparemment, et on veut le savoir.
+
+177
+00:12:48.766 --> 00:12:53.446
+Ici, vous pouvez aussi cliquer vous-même,
+essayer d'autres modifications de loi et
+
+178
+00:12:53.446 --> 00:12:55.086
+faire différentes comparaisons.
+
+179
+00:12:58.433 --> 00:13:01.233
+Et zoomez sur la répartition
+dans la population.
+
+180
+00:13:02.535 --> 00:13:07.495
+Ici, on voit par exemple la répartition
+par âge, par revenu, avec ou sans
+
+181
+00:13:07.495 --> 00:13:11.735
+partenaire, location ou
+propriété, avec ou sans enfants.
+
+182
+00:13:15.378 --> 00:13:17.219
+Regardez donc tranquillement.
+
+183
+00:13:17.219 --> 00:13:18.739
+On reprend tout de suite.
+
+184
+00:13:20.387 --> 00:13:24.067
+Des lois exécutables par
+machine permettent aussi ceci.
+
+185
+00:13:24.889 --> 00:13:27.929
+Ici, on voit une sorte
+de Mon administration.
+
+186
+00:13:31.012 --> 00:13:34.452
+Et ici, en fait, je
+réinitialise d'abord la démo.
+
+187
+00:13:35.794 --> 00:13:38.434
+Ici, on voit un portail pour Merijn.
+
+188
+00:13:42.501 --> 00:13:44.869
+Claudia, entrepreneuse, a son portail.
+
+189
+00:13:44.869 --> 00:13:49.549
+Merijn aurait droit au budget lié aux
+enfants, à l'allocation de soins de santé, à
+
+190
+00:13:49.549 --> 00:13:52.149
+l'aide sociale d'Amsterdam, etc.
+
+191
+00:13:53.691 --> 00:13:56.414
+Voici toutes les lois déjà vues.
+
+192
+00:13:56.414 --> 00:14:01.254
+Par exemple l'allocation de soins de
+santé : exactement la trace d'avant, mais
+
+193
+00:14:01.254 --> 00:14:02.174
+seulement les données.
+
+194
+00:14:03.962 --> 00:14:07.162
+Ici, par exemple, Merijn
+n'est pas en détention.
+
+195
+00:14:08.066 --> 00:14:10.229
+Issu de la loi pénitentiaire.
+
+196
+00:14:10.229 --> 00:14:14.474
+Merijn voit ces données,
+les juge justes, et demande.
+
+197
+00:14:14.474 --> 00:14:16.739
+Et c'est accordé directement.
+
+198
+00:14:16.739 --> 00:14:21.301
+Dienst Toeslagen, côté back-office, autorité
+compétente pour la loi sur l'allocation
+
+199
+00:14:21.301 --> 00:14:24.505
+de soins de santé, accorde
+directement ce montant.
+
+200
+00:14:24.505 --> 00:14:28.292
+Et c'est possible car la demande utilisait
+la loi exécutable par machine pour
+
+201
+00:14:28.292 --> 00:14:32.825
+l'allocation de soins de santé, et Dienst
+Toeslagen utilise exactement la même en
+
+202
+00:14:32.825 --> 00:14:33.945
+back-office.
+
+203
+00:14:37.474 --> 00:14:41.714
+Autrement dit, ce n'est pas un simulateur,
+mais la véritable interprétation de la
+
+204
+00:14:41.714 --> 00:14:42.434
+loi.
+
+205
+00:14:44.062 --> 00:14:45.726
+L'allocation logement diffère.
+
+206
+00:14:45.726 --> 00:14:50.446
+Merijn doit fournir des données, comme le
+loyer et les charges de service éligibles.
+
+207
+00:14:54.349 --> 00:14:56.991
+Résultat : 302,96 euros.
+
+208
+00:14:56.991 --> 00:15:00.111
+Merijn se dit peut-être :
+j'en attendais un peu plus.
+
+209
+00:15:01.154 --> 00:15:04.194
+Il regarde mieux : son revenu est faux.
+
+210
+00:15:05.673 --> 00:15:08.655
+Il continue et voit un
+bénéfice d'entreprise.
+
+211
+00:15:08.655 --> 00:15:12.895
+L'an dernier, Merijn avait peut-être une
+entreprise, mais moi, je n'en ai plus.
+
+212
+00:15:17.460 --> 00:15:20.161
+Peut-être avec une
+radiation auprès de la KVK.
+
+213
+00:15:20.161 --> 00:15:21.521
+Et Merijn la soumet.
+
+214
+00:15:22.323 --> 00:15:23.731
+Voici la modification.
+
+215
+00:15:23.731 --> 00:15:29.906
+On voit aussi que le montant
+passe de 302 à 406,95 euros.
+
+216
+00:15:29.906 --> 00:15:34.450
+Merijn peut alors demander ceci, et
+cela doit peut-être être examiné.
+
+217
+00:15:34.450 --> 00:15:38.610
+En tant qu'administration, on voudra peut-être
+vérifier cette modification du revenu
+
+218
+00:15:38.610 --> 00:15:42.770
+de Merijn, dans la pièce
+justificative de radiation de la KVK.
+
+219
+00:15:45.112 --> 00:15:49.752
+On voit aussi que l'allocation de soins de
+santé déjà demandée et accordée à Merijn
+
+220
+00:15:49.752 --> 00:15:51.512
+ne correspond en fait plus.
+
+221
+00:15:53.760 --> 00:15:58.000
+Cette allocation reposait aussi sur
+le revenu, et Merijn l'a modifié.
+
+222
+00:15:59.165 --> 00:16:03.165
+Merijn voudra donc peut-être aussi modifier
+cette demande, qui devra aussi être
+
+223
+00:16:03.165 --> 00:16:08.005
+examinée, car la pièce justificative, la
+radiation de la KVK, doit encore être
+
+224
+00:16:08.005 --> 00:16:09.805
+vérifiée par un fonctionnaire.
+
+225
+00:16:11.910 --> 00:16:15.550
+C'est le moment où l'on demande souvent si
+cela n'aurait pas pu se faire de manière
+
+226
+00:16:15.550 --> 00:16:16.630
+proactive.
+
+227
+00:16:19.161 --> 00:16:24.361
+Cette démo est née d'un fieldlab sur les
+services proactifs, en décembre 2024.
+
+228
+00:16:27.428 --> 00:16:29.108
+Et c'est ce qui nous a motivés.
+
+229
+00:16:30.250 --> 00:16:34.330
+Si l'on peut calculer le droit à l'allocation
+de soins de santé et son montant avec
+
+230
+00:16:34.330 --> 00:16:38.703
+des lois exécutables par machine, ne
+pourrait-on pas aussi l'accorder directement,
+
+231
+00:16:38.703 --> 00:16:40.170
+de façon proactive ?
+
+232
+00:16:43.281 --> 00:16:47.601
+La réponse courte : techniquement peut-être,
+mais ce n'est pas toujours souhaitable,
+
+233
+00:16:47.601 --> 00:16:49.681
+car nous ne savons pas tout des demandes.
+
+234
+00:16:55.831 --> 00:17:00.311
+La réponse plus longue : pour accorder
+directement, il faudrait tout savoir d'un
+
+235
+00:17:00.311 --> 00:17:01.111
+demandeur.
+
+236
+00:17:03.999 --> 00:17:06.581
+Car il vient d'hériter, par exemple.
+
+237
+00:17:06.581 --> 00:17:10.181
+Car avec toutes les données de
+l'administration, on peut sembler avoir droit à
+
+238
+00:17:10.181 --> 00:17:13.461
+l'allocation, alors que
+l'administration ne sait pas tout.
+
+239
+00:17:15.028 --> 00:17:19.468
+Si vous venez de recevoir un héritage, cela
+influence votre droit à l'allocation de
+
+240
+00:17:19.468 --> 00:17:21.508
+soins de santé et son montant.
+
+241
+00:17:25.056 --> 00:17:28.896
+Et si on l'avait accordée directement, vous
+pourriez avoir des problèmes et devoir
+
+242
+00:17:28.896 --> 00:17:30.096
+tout rembourser.
+
+243
+00:17:31.181 --> 00:17:33.016
+Cela demande donc des choix.
+
+244
+00:17:32.943 --> 00:17:37.303
+Cela demande des choix politiques, et
+peut-être des modifications de loi, pour le
+
+245
+00:17:37.303 --> 00:17:38.943
+faire de manière fiable.
+
+246
+00:17:42.237 --> 00:17:46.477
+Merijn a donc fait ces deux demandes, et
+il existe peut-être un système de gestion
+
+247
+00:17:46.477 --> 00:17:50.517
+des dossiers, ici pour la Dienst
+Toeslagen, mais ce pourrait être un autre
+
+248
+00:17:50.517 --> 00:17:51.117
+organisme.
+
+249
+00:17:54.323 --> 00:17:58.625
+Il voit ici les deux demandes de
+Merijn et peut les examiner en détail.
+
+250
+00:17:58.625 --> 00:18:02.065
+Et il voit par exemple que Merijn
+a fait ici une modification.
+
+251
+00:18:03.587 --> 00:18:06.248
+Le bénéfice passe de 25 000 à zéro.
+
+252
+00:18:06.248 --> 00:18:08.424
+Elle sera acceptée ou refusée.
+
+253
+00:18:08.360 --> 00:18:12.711
+Ou la demande entière peut
+être accordée ou rejetée.
+
+254
+00:18:12.711 --> 00:18:17.831
+Ce fonctionnaire examine cela très attentivement,
+motive pourquoi cela ne tient pas,
+
+255
+00:18:17.831 --> 00:18:18.951
+et rejette.
+
+256
+00:18:24.006 --> 00:18:26.607
+Et voilà ce que cela
+donnerait pour Merijn.
+
+257
+00:18:26.607 --> 00:18:31.247
+Sa demande d'allocation logement est
+rejetée, et il peut former une réclamation.
+
+258
+00:18:33.609 --> 00:18:38.249
+Former une réclamation déclenche une
+autre loi, la Loi générale sur le droit
+
+259
+00:18:38.249 --> 00:18:39.451
+administratif.
+
+260
+00:18:39.451 --> 00:18:42.651
+Et cette loi est elle aussi
+exécutable par machine.
+
+261
+00:18:45.353 --> 00:18:46.814
+Et on peut la voir aussi.
+
+262
+00:18:46.814 --> 00:18:49.694
+Ici, on voit par exemple la réclamation.
+
+263
+00:18:51.112 --> 00:18:53.354
+Et on voit quand une
+réclamation est possible.
+
+264
+00:18:53.354 --> 00:18:57.644
+Donc là où, pour la loi sur l'allocation
+de soins de santé, le montant était une
+
+265
+00:18:57.644 --> 00:19:01.466
+sortie, ici c'est la réclamation
+possible qui en est une.
+
+266
+00:19:01.388 --> 00:19:04.994
+On voit par exemple que la loi dont la
+décision découle ne doit pas être une
+
+267
+00:19:04.994 --> 00:19:09.932
+disposition générale, ni une règle de
+politique, ni une décision préparatoire, et
+
+268
+00:19:09.932 --> 00:19:13.773
+doit aboutir à une décision
+individuelle ou de portée générale.
+
+269
+00:19:13.695 --> 00:19:16.495
+Et il ne faut pas avoir
+déjà fait de réclamation.
+
+270
+00:19:16.495 --> 00:19:22.388
+Ainsi, une législation plus procédurale,
+comme l'Awb ou plutôt ce passage de l'Awb,
+
+271
+00:19:22.388 --> 00:19:25.055
+peut aussi être rendue
+exécutable par machine.
+
+272
+00:19:27.313 --> 00:19:29.034
+Et que cela fonctionne.
+
+273
+00:19:29.034 --> 00:19:34.047
+Donc le bouton ici, réclamation possible,
+se trouve peut-être dans cette interface,
+
+274
+00:19:34.047 --> 00:19:36.220
+dans ce morceau de logiciel.
+
+275
+00:19:36.220 --> 00:19:40.860
+Mais la logique derrière, la logique métier
+qui détermine si quelqu'un peut ou non
+
+276
+00:19:40.860 --> 00:19:44.460
+former une réclamation, elle se
+trouve dans cette réglementation.
+
+277
+00:19:45.405 --> 00:19:50.205
+Ainsi, un tel morceau de l'Awb, on n'a
+besoin de l'interpréter qu'une fois, de le
+
+278
+00:19:50.205 --> 00:19:54.125
+rendre exécutable par machine une
+fois, pour qu'il fonctionne partout.
+
+279
+00:19:56.475 --> 00:19:59.275
+La législation que l'on
+voit ici, par exemple.
+
+280
+00:20:00.858 --> 00:20:05.138
+Cela vaut non seulement pour l'Awb, mais
+peut-être aussi pour d'autres textes
+
+281
+00:20:05.138 --> 00:20:10.938
+procéduraux, comme la loi sur les
+archives, le RGPD ou la Woo, ou plutôt des
+
+282
+00:20:10.938 --> 00:20:12.458
+extraits de toutes ces lois.
+
+283
+00:20:13.787 --> 00:20:17.587
+On peut donc aller assez loin pour
+rendre aussi exécutable par machine la
+
+284
+00:20:17.587 --> 00:20:19.307
+législation procédurale.
+
+285
+00:20:21.262 --> 00:20:22.823
+C'est là que je m'arrête.
+
+286
+00:20:22.823 --> 00:20:25.447
+Voilà RegelRecht, la loi exécutée.
+
+287
+00:20:25.383 --> 00:20:27.724
+Un récit complet, pas un produit fini.
+
+288
+00:20:27.724 --> 00:20:30.326
+Nous construisons les
+politiques par la pratique.
+
+289
+00:20:30.326 --> 00:20:31.747
+La démo est ouverte.
+
+290
+00:20:31.747 --> 00:20:33.150
+Vous pouvez l'essayer.
+
+291
+00:20:33.150 --> 00:20:35.752
+Cliquez sur « essayer » ou explorez.
+
+292
+00:20:35.752 --> 00:20:39.832
+Et lisez-en plus sur regelrecht.rijks.app.

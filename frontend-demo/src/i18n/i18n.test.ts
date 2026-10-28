@@ -218,8 +218,8 @@ describe('adoptLocale', () => {
   });
 
   it('ignores a locale it does not have', () => {
-    adoptLocale('fr');
-    expect(LOCALE_CODES).not.toContain('fr');
+    adoptLocale('xx');
+    expect(LOCALE_CODES).not.toContain('xx');
     expect(currentLocale()).toBe('nl');
   });
 });

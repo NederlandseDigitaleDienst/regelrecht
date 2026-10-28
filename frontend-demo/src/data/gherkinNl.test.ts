@@ -101,3 +101,25 @@ describe('een taal zonder eigen sjablonen', () => {
     expect(renderStep({ keyword: 'Given', text: 'iets wat de grammatica niet kent' }).matched).toBe(false);
   });
 });
+
+describe('a step in French', () => {
+  afterEach(() => adoptLocale('nl'));
+
+  it('uses the French Gherkin keywords and phrases the step in French', () => {
+    adoptLocale('fr');
+    expect(renderStep({ keyword: 'Given', text: 'the calculation date is "2025-01-01"' })).toEqual({
+      keyword: 'Soit',
+      text: 'la date de référence est "2025-01-01"',
+      matched: true,
+    });
+    expect(featureKeywords().Feature).toBe('Fonctionnalité');
+  });
+
+  it('has a French line for every step that has a Dutch one', () => {
+    adoptLocale('fr');
+    for (const entry of GRAMMAR.filter((e) => TRANSLATED_STEP_IDS.has(e.id))) {
+      const english = entry.template(entry.argTypes.map((t) => (t === 'number' ? '1' : 'x')));
+      expect(renderStep({ keyword: 'Given', text: english }).text, entry.id).not.toBe(english);
+    }
+  });
+});

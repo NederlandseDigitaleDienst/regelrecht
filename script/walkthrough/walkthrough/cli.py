@@ -1200,7 +1200,7 @@ class IndentedDumper(yaml.SafeDumper):
         return super().increase_indent(flow, False)
 
 
-LANGUAGE_NAMES = {"en": "Engels (Brits gespeld, zoals de Engelse demo: organisation, behaviour)", "fy": "Fries"}
+LANGUAGE_NAMES = {"en": "Engels (Brits gespeld, zoals de Engelse demo: organisation, behaviour)", "fy": "Fries", "fr": "Frans"}
 
 TRANSLATE_PROMPT = """Je vertaalt de tekst bij een gesproken rondleiding door de demo van
 RegelRecht (wetten als machine-uitvoerbare regels) naar het {language}. De
