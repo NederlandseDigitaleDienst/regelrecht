@@ -55,6 +55,12 @@ COPY packages/engine/ engine/
 COPY packages/law-model/ law-model/
 COPY packages/poc-chronolexografie/ poc-chronolexografie/
 COPY packages/shared/ shared/
+# The tests of chronolexografie load a source with the portal's own loader, a
+# dev-dependency on poc-portal. Cargo reads the manifest of every dependency,
+# dev ones too, and the portal with its own dependencies is not in this stage;
+# the WASM build needs none of it, so the line goes.
+RUN grep -q '^regelrecht-poc-portal = ' poc-chronolexografie/Cargo.toml && \
+    sed -i '/^regelrecht-poc-portal = /d' poc-chronolexografie/Cargo.toml
 RUN cargo build --target wasm32-unknown-unknown --release --features wasm -p regelrecht-engine && \
     wasm-bindgen --target web --out-dir /wasm-pkg \
       target/wasm32-unknown-unknown/release/regelrecht_engine.wasm
