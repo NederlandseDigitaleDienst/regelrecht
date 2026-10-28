@@ -13,6 +13,12 @@
 //! Locally `POC_BRON_<NAME>` names a folder that takes the branch's place:
 //! read on every request, without a token and without the cache, so an edit
 //! shows on the next load.
+//!
+//! Instead of a folder, `path` (and `POC_BRON_<NAME>`) may name a manifest
+//! ([`Manifest`]): a YAML file that makes the source from directories
+//! anywhere on the branch, each under the path the source gives it. A
+//! repository laid out for other work then serves as a source without being
+//! moved around, and only what the manifest names reaches the browser.
 
 use std::collections::BTreeMap;
 use std::future::Future;
@@ -20,7 +26,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use crate::registry::Source;
@@ -51,7 +57,7 @@ pub struct Opgehaald {
 /// out, so a trace or a failing test never prints it.
 #[derive(Clone, PartialEq, Eq)]
 pub enum Herkomst {
-    /// A local folder, from `POC_BRON_<NAME>`.
+    /// A local folder or manifest, from `POC_BRON_<NAME>`.
     Lokaal(PathBuf),
     /// The branch on GitHub, with the token from `token_env`.
     Github {
@@ -107,7 +113,112 @@ impl Herkomst {
     }
 }
 
+/// A source made of directories elsewhere in the repository: per directory
+/// of the source, the directory of the repository it is, under `wortel`.
+/// `wortel` is the repository root as seen from the manifest's own
+/// directory (`../../..`), so the manifest reads the same on a branch and
+/// in a local checkout. A file lies under the longest directory of the
+/// repository that holds it, so a subdirectory may land elsewhere than its
+/// parent, such as a cell's `reducties` under `reductions`.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct Manifest {
+    #[serde(default)]
+    pub wortel: String,
+    pub mappen: BTreeMap<String, String>,
+}
+
+impl Manifest {
+    /// Whether `path` names a manifest rather than a folder.
+    pub fn is_manifest(path: &str) -> bool {
+        path.ends_with(".yaml") || path.ends_with(".yml")
+    }
+
+    /// The manifest in `tekst`, read from `waar` (for the message). Every
+    /// directory it names lies below the root (no `..`, `.` or empty part),
+    /// and no directory of the repository is named twice.
+    pub fn lees(tekst: &str, waar: &str) -> Result<Self, String> {
+        let m: Self =
+            serde_yaml_ng::from_str(tekst).map_err(|e| format!("the manifest {waar}: {e}"))?;
+        for pad in m.mappen.keys().chain(m.mappen.values()) {
+            let pad = pad.trim_matches('/');
+            if pad.is_empty()
+                || pad
+                    .split('/')
+                    .any(|d| d == ".." || d == "." || d.is_empty())
+            {
+                return Err(format!(
+                    "the manifest {waar}: '{pad}' is no directory below the root"
+                ));
+            }
+        }
+        // One directory of the repository lands in one place: two that name
+        // the same would leave the choice to the order of reading.
+        let mut gezien = std::collections::BTreeSet::new();
+        for van in m.mappen.values() {
+            if !gezien.insert(van.trim_matches('/')) {
+                return Err(format!(
+                    "the manifest {waar}: '{}' is named twice",
+                    van.trim_matches('/')
+                ));
+            }
+        }
+        Ok(m)
+    }
+
+    /// The root, as a path under the repository, of the manifest at `pad`
+    /// (a path under the repository); `None` when `wortel` climbs out.
+    fn wortel_van(&self, pad: &str) -> Option<String> {
+        let mut delen: Vec<&str> = pad.split('/').collect();
+        delen.pop();
+        for d in self
+            .wortel
+            .split('/')
+            .filter(|d| !d.is_empty() && *d != ".")
+        {
+            if d == ".." {
+                delen.pop()?;
+            } else {
+                delen.push(d);
+            }
+        }
+        Some(delen.join("/"))
+    }
+
+    /// The source from `alle`, the files of the repository by their path
+    /// under the root: each file under a directory the manifest names, by
+    /// its path in the source. A directory without a YAML file is an error
+    /// that names it.
+    pub fn bron(
+        &self,
+        alle: &BTreeMap<String, String>,
+    ) -> Result<BTreeMap<String, String>, String> {
+        let mut uit = BTreeMap::new();
+        for (pad, tekst) in alle {
+            let langste = self
+                .mappen
+                .iter()
+                .map(|(doel, van)| (doel.trim_matches('/'), van.trim_matches('/')))
+                .filter(|(_, van)| pad.starts_with(&format!("{van}/")))
+                .max_by_key(|(_, van)| van.len());
+            if let Some((doel, van)) = langste {
+                uit.insert(format!("{doel}{}", &pad[van.len()..]), tekst.clone());
+            }
+        }
+        for (doel, van) in &self.mappen {
+            let van = van.trim_matches('/');
+            if !alle.keys().any(|p| p.starts_with(&format!("{van}/"))) {
+                return Err(format!(
+                    "the manifest names '{van}' for '{doel}', which holds no YAML file"
+                ));
+            }
+        }
+        Ok(uit)
+    }
+}
+
 /// The YAML files under `path` in a GitHub tarball, by their path under it,
+/// or the source its manifest makes when `path` names one ([`Manifest`]),
 /// and the short sha of the commit (seven characters from the end of the
 /// archive's top-level directory, `{owner}-{repo}-{sha}`). No file under `path` is an error: the
 /// folder is not on the branch.
@@ -115,14 +226,37 @@ pub fn uit_tarball(
     bytes: &[u8],
     path: &str,
 ) -> Result<(Option<String>, BTreeMap<String, String>), String> {
-    let prefix = format!("{}/", path.trim_matches('/'));
+    let path = path.trim_matches('/');
+    let manifest = Manifest::is_manifest(path);
+    let prefix = format!("{path}/");
     let mut bestanden = BTreeMap::new();
     let top = regelrecht_corpus::github::each_yaml_in_tar_gz(bytes, |rel, text| {
-        if let Some(onder) = rel.strip_prefix(&prefix) {
+        if manifest {
+            bestanden.insert(rel.to_string(), text);
+        } else if let Some(onder) = rel.strip_prefix(&prefix) {
             bestanden.insert(onder.to_string(), text);
         }
     })
     .map_err(|e| format!("the tarball does not read: {e}"))?;
+    if manifest {
+        let tekst = bestanden
+            .get(path)
+            .ok_or_else(|| format!("the branch has no manifest '{path}'"))?;
+        let m = Manifest::lees(tekst, path)?;
+        let wortel = m
+            .wortel_van(path)
+            .ok_or_else(|| format!("the manifest {path}: its root lies above the repository"))?;
+        let onder = if wortel.is_empty() {
+            bestanden
+        } else {
+            let prefix = format!("{wortel}/");
+            bestanden
+                .into_iter()
+                .filter_map(|(p, t)| p.strip_prefix(&prefix).map(|o| (o.to_string(), t)))
+                .collect()
+        };
+        bestanden = m.bron(&onder)?;
+    }
     if bestanden.is_empty() {
         return Err(format!("the branch has no YAML file under '{path}'"));
     }
@@ -132,6 +266,29 @@ pub fn uit_tarball(
             .map(|sha| sha.chars().take(7).collect())
     });
     Ok((versie, bestanden))
+}
+
+/// The source at `pad` on disk: the YAML files of a folder ([`uit_map`]),
+/// or what a manifest makes of the directories it names ([`Manifest`]).
+pub fn lokaal(pad: &Path) -> Result<BTreeMap<String, String>, String> {
+    if !Manifest::is_manifest(&pad.to_string_lossy()) {
+        return uit_map(pad);
+    }
+    let tekst = std::fs::read_to_string(pad).map_err(|e| format!("{}: {e}", pad.display()))?;
+    let m = Manifest::lees(&tekst, &pad.display().to_string())?;
+    let wortel = pad.parent().unwrap_or(Path::new("")).join(&m.wortel);
+    let mut alle = BTreeMap::new();
+    for van in m.mappen.values() {
+        let van = van.trim_matches('/');
+        let dir = wortel.join(van);
+        if !dir.is_dir() {
+            continue;
+        }
+        for (onder, tekst) in uit_map(&dir)? {
+            alle.insert(format!("{van}/{onder}"), tekst);
+        }
+    }
+    m.bron(&alle)
 }
 
 /// The YAML files under the folder `dir`, by their path under it.
@@ -274,7 +431,7 @@ impl Bron {
             Herkomst::Geen(waarom) => Err(BronFout::NietBeschikbaar(waarom.clone())),
             Herkomst::Lokaal(dir) => {
                 let dir = dir.clone();
-                let bestanden = tokio::task::spawn_blocking(move || uit_map(&dir))
+                let bestanden = tokio::task::spawn_blocking(move || lokaal(&dir))
                     .await
                     .map_err(|e| BronFout::Ophalen(e.to_string()))?
                     .map_err(BronFout::Ophalen)?;
@@ -433,6 +590,79 @@ mod tests {
             BTreeMap::from([("casussen/c.yaml".to_string(), "cel: c".to_string())])
         );
         assert!(uit_map(Path::new("/nonexistent/poc-bron")).is_err());
+    }
+
+    const MANIFEST: &str = "wortel: ../..\nmappen:\n  regulation/nl/w: regulation/nl/w\n  regulation/nl/v: werk/eigen/regulation/nl/v\n  cells/c: werk/m/cellen/c\n  cells/c/reductions: werk/m/cellen/c/reducties\n  casussen: werk/m/casussen\n";
+
+    #[test]
+    fn a_manifest_in_a_tarball_makes_the_source_from_its_directories() {
+        let bytes = tarball(
+            "o-r-abc1234",
+            &[
+                ("werk/m/bron.yaml", MANIFEST),
+                ("regulation/nl/w/2026-01-01.yaml", "$id: w"),
+                ("regulation/nl/v/2026-01-01.yaml", "$id: v van Luc"),
+                ("werk/eigen/regulation/nl/v/2026-01-01.yaml", "$id: v"),
+                ("werk/m/cellen/c/cel.yaml", "name: C"),
+                ("werk/m/cellen/c/reducties/r/2026-01-01.yaml", "$id: r"),
+                ("werk/m/casussen/k.yaml", "cel: c"),
+                ("werk/groot/niet.yaml", "not named"),
+            ],
+        );
+        let (versie, bestanden) = uit_tarball(&bytes, "werk/m/bron.yaml").unwrap();
+        assert_eq!(versie.as_deref(), Some("abc1234"));
+        let paden: Vec<&str> = bestanden.keys().map(String::as_str).collect();
+        assert_eq!(
+            paden,
+            [
+                "casussen/k.yaml",
+                "cells/c/cel.yaml",
+                "cells/c/reductions/r/2026-01-01.yaml",
+                "regulation/nl/v/2026-01-01.yaml",
+                "regulation/nl/w/2026-01-01.yaml",
+            ]
+        );
+        assert_eq!(bestanden["regulation/nl/v/2026-01-01.yaml"], "$id: v");
+    }
+
+    #[test]
+    fn a_manifest_names_what_it_cannot_find() {
+        let bytes = tarball("o-r-abc", &[("werk/m/bron.yaml", MANIFEST)]);
+        let e = uit_tarball(&bytes, "werk/m/bron.yaml").unwrap_err();
+        assert!(e.contains("holds no YAML file"), "{e}");
+        let e = uit_tarball(&bytes, "werk/m/ander.yaml").unwrap_err();
+        assert!(e.contains("no manifest 'werk/m/ander.yaml'"), "{e}");
+        let boven = tarball("o-r-abc", &[("m.yaml", "wortel: ..\nmappen: {a: b}\n")]);
+        let e = uit_tarball(&boven, "m.yaml").unwrap_err();
+        assert!(e.contains("above the repository"), "{e}");
+        assert!(Manifest::lees("mappen: {a: ../b}", "m").is_err());
+        let e = Manifest::lees("mappen: {a: b, c: b/}", "m").unwrap_err();
+        assert!(e.contains("named twice"), "{e}");
+    }
+
+    #[test]
+    fn a_local_manifest_reads_as_the_one_on_the_branch() {
+        let dir = std::env::temp_dir().join(format!("poc-bron-manifest-{}", std::process::id()));
+        let schrijf = |pad: &str, tekst: &str| {
+            let pad = dir.join(pad);
+            std::fs::create_dir_all(pad.parent().unwrap()).unwrap();
+            std::fs::write(pad, tekst).unwrap();
+        };
+        let files = [
+            ("werk/m/bron.yaml", MANIFEST),
+            ("regulation/nl/w/2026-01-01.yaml", "$id: w"),
+            ("werk/eigen/regulation/nl/v/2026-01-01.yaml", "$id: v"),
+            ("werk/m/cellen/c/cel.yaml", "name: C"),
+            ("werk/m/cellen/c/reducties/r/2026-01-01.yaml", "$id: r"),
+            ("werk/m/casussen/k.yaml", "cel: c"),
+        ];
+        for (pad, tekst) in files {
+            schrijf(pad, tekst);
+        }
+        let lokaal = lokaal(&dir.join("werk/m/bron.yaml"));
+        let (_, uit_branch) = uit_tarball(&tarball("o-r-abc", &files), "werk/m/bron.yaml").unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(lokaal.unwrap(), uit_branch);
     }
 
     #[test]

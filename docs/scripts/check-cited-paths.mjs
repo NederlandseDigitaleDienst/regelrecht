@@ -57,6 +57,7 @@ const ALLOW = new Map([
   ['acme/regelrecht-private-test', 'fictional repository in a private-traject example'],
   ['owner/repo', 'placeholder for a GitHub repository the reader supplies'],
   ['MinBZK/regelrecht-corpus', 'a separate repository, not a path in this one'],
+  ['werkbank/chronolex/napp/bron.yaml', 'a manifest in the private NAPP corpus, a separate repository'],
   ['application/wasm', 'a media type, not a path'],
   ['.walkthrough/.env', 'local and gitignored: the API key file the walkthrough pipeline reads'],
   ['corpus/demo/walkthrough/script/', 'created by `just walkthrough script` once a chapter is spoken by a generated voice; none is yet'],
