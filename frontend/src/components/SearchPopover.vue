@@ -88,7 +88,7 @@ const totalMatches = ref(0);
 // Search goes through the sources in order and shows the first one with
 // matches, named in the toolbar ("Gevonden in ..."): the traject's own repo,
 // then the example rulework, then the central corpus. Each other source with
-// matches gets a row ("Ook 3 treffers in ...") that switches to it, so a hit
+// matches gets a row ("Ook 3 resultaten in ...") that switches to it, so a hit
 // in a higher source never hides the rest. Only when no source has a match
 // does the search go out to wetten.overheid.nl.
 const sourceGroups = computed(() => groupBySource(serverLaws.value));
@@ -158,7 +158,7 @@ const cappedNote = computed(() => {
   if (searchTerm.value.length === 0) return undefined;
   const elsewhere = groups.filter((g) => g !== group).reduce((n, g) => n + g.laws.length, 0);
   const total = (totalMatches.value - elsewhere).toLocaleString('nl-NL');
-  return `De beste ${group.laws.length} van ${total} treffers. Typ meer om te verfijnen.`;
+  return `De beste ${group.laws.length} van ${total} resultaten. Typ meer om te verfijnen.`;
 });
 const resultHeading = computed<ResultHeading | null>(() => {
   if (showSuggestions.value && suggestions.value.length) return { text: 'Suggesties' };

@@ -37,12 +37,12 @@ describe('otherSourceLabel', () => {
   });
 
   it('counts the matches, singular for one', () => {
-    expect(otherSourceLabel(group(1))).toBe('Ook 1 treffer in Centraal');
-    expect(otherSourceLabel(group(3))).toBe('Ook 3 treffers in Centraal');
+    expect(otherSourceLabel(group(1))).toBe('Ook 1 resultaat in Centraal');
+    expect(otherSourceLabel(group(3))).toBe('Ook 3 resultaten in Centraal');
   });
 
   it('marks a count the result cap may have cut short', () => {
-    expect(otherSourceLabel(group(1), true)).toBe('Ook 1+ treffers in Centraal');
+    expect(otherSourceLabel(group(1), true)).toBe('Ook 1+ resultaten in Centraal');
   });
 });
 
