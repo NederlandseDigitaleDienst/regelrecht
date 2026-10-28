@@ -50,6 +50,9 @@ struct Activity {
     /// Calls started in this job.
     calls: u32,
     call_started: Option<Instant>,
+    /// Agent subprocesses running now. More than one when windows run side
+    /// by side; the clock is cleared only when the last one ends.
+    in_flight: u32,
     last_output: Option<Instant>,
     /// Assistant messages seen, counted by message id.
     turns: u32,
@@ -80,23 +83,37 @@ impl ActivityHandle {
     }
 
     /// Mark the start of an agent call. `label` names it in snapshots.
+    /// Name the agent call about to start. With windows side by side the
+    /// last one named shows.
     pub fn begin_call(&self, label: &str) {
         let now = Instant::now();
         self.with(|a| {
             a.call = Some(label.to_string());
             a.calls += 1;
             a.call_started = Some(now);
+        });
+    }
+
+    /// An agent subprocess started. Pair with [`ActivityHandle::exit`].
+    pub fn enter(&self) {
+        let now = Instant::now();
+        self.with(|a| {
+            a.in_flight += 1;
             a.last_output = Some(now);
         });
     }
 
-    /// Mark the end of an agent call: the time since the last output means
-    /// nothing until the next one starts.
-    pub fn end_call(&self) {
+    /// An agent subprocess ended. Once none is left, the time since the last
+    /// output means nothing until the next one starts, so the clock clears.
+    /// Until then it keeps running for the ones still going.
+    pub fn exit(&self) {
         self.with(|a| {
-            a.call = None;
-            a.call_started = None;
-            a.last_output = None;
+            a.in_flight = a.in_flight.saturating_sub(1);
+            if a.in_flight == 0 {
+                a.call = None;
+                a.call_started = None;
+                a.last_output = None;
+            }
         });
     }
 
@@ -435,10 +452,11 @@ mod tests {
     }
 
     #[test]
-    fn end_call_clears_the_clock() {
+    fn exit_clears_the_clock_once_no_call_is_left() {
         let a = ActivityHandle::new();
         a.begin_call("translate");
-        a.end_call();
+        a.enter();
+        a.exit();
         assert!(a.idle().is_none());
         let s = a.snapshot();
         assert!(s["call"].is_null());
@@ -447,10 +465,32 @@ mod tests {
     }
 
     #[test]
+    fn a_window_that_ends_keeps_the_clock_for_the_ones_still_running() {
+        // Two windows side by side: the first to finish must not switch off
+        // the stall check for the other.
+        let a = ActivityHandle::new();
+        a.begin_call("translate");
+        a.enter();
+        a.begin_call("translate");
+        a.enter();
+        a.exit();
+        assert!(a.idle().is_some(), "the other window is still running");
+        assert_eq!(a.snapshot()["call"], "translate");
+        a.exit();
+        assert!(a.idle().is_none());
+        // An extra exit does not wrap the count around.
+        a.exit();
+        a.enter();
+        a.exit();
+        assert!(a.idle().is_none());
+    }
+
+    #[test]
     fn summary_names_turns_tools_and_recent_work() {
         let a = ActivityHandle::new();
         assert_eq!(a.summary(), "; agent activity: 0 turns, 0 tool calls");
         a.begin_call("translate");
+        a.enter();
         a.record_line(&assistant(
             "m1",
             r#"{"type":"tool_use","name":"Read","input":{"file_path":"a.yaml"}}"#,
@@ -480,21 +520,23 @@ mod tests {
     }
 
     #[test]
-    fn begin_call_counts_calls_and_resets_silence() {
+    fn begin_call_names_and_counts_calls() {
         let a = ActivityHandle::new();
-        assert!(a.idle().is_none());
         a.begin_call("translate");
         a.begin_call("schema");
         let s = a.snapshot();
         assert_eq!(s["calls"], 2);
         assert_eq!(s["call"], "schema");
+        // Naming a call starts no clock; a running subprocess does.
+        assert!(a.idle().is_none());
+        a.enter();
         assert!(a.idle().unwrap() < Duration::from_secs(5));
     }
 
     #[tokio::test]
     async fn touch_resets_silence() {
         let a = ActivityHandle::new();
-        a.begin_call("translate");
+        a.enter();
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert!(a.idle().unwrap() >= Duration::from_millis(200));
         a.touch();

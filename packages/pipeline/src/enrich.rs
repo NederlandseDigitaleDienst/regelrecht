@@ -969,9 +969,9 @@ pub(crate) async fn run_llm_subprocess(
     // and process-group kill both need it.
     let pid = child.id();
     let activity = config.activity.clone();
-    activity.touch();
-    // However this call ends, the clock on it stops with it.
-    let _end_call = EndCallOnDrop(activity.clone());
+    activity.enter();
+    // However this call ends, it stops counting as in flight.
+    let _in_flight = ExitOnDrop(activity.clone());
     // Only the claude provider streams per token, so only there does silence
     // mean the agent stopped. opencode writes an event per finished part and
     // can be quiet for longer while it writes a large file.
@@ -1206,12 +1206,12 @@ pub(crate) async fn run_llm_subprocess(
     Ok(usage)
 }
 
-/// Ends the activity's current call when an agent call returns, by any path.
-struct EndCallOnDrop(crate::agent_activity::ActivityHandle);
+/// Marks the agent subprocess as ended when its call returns, by any path.
+struct ExitOnDrop(crate::agent_activity::ActivityHandle);
 
-impl Drop for EndCallOnDrop {
+impl Drop for ExitOnDrop {
     fn drop(&mut self) {
-        self.0.end_call();
+        self.0.exit();
     }
 }
 
