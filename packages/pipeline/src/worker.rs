@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use regelrecht_corpus::{CorpusClient, CorpusConfig};
@@ -100,7 +100,9 @@ fn document_convert_outcome(err: &PipelineError, msg: &str) -> JobOutcome {
 /// per-law failures lets the worker bail out for a restart instead of
 /// fast-failing every queued job in a tight loop.
 fn is_resource_exhaustion(err: &str) -> bool {
-    let e = err.to_ascii_lowercase();
+    // The agent's activity summary names files the model chose; it must not
+    // decide what kind of failure this is.
+    let e = crate::agent_activity::without_activity(err).to_ascii_lowercase();
     const MARKERS: &[&str] = &[
         "cannot fork",
         "resource temporarily unavailable", // EAGAIN, human-readable form
@@ -124,7 +126,8 @@ fn is_resource_exhaustion(err: &str) -> bool {
 /// resource exhaustion, network errors) are deliberately excluded — those can
 /// succeed on a later attempt and must stay retryable.
 fn is_deterministic_content_failure(err: &str) -> bool {
-    let e = err.to_ascii_lowercase();
+    // As in `is_resource_exhaustion`: classify without the activity summary.
+    let e = crate::agent_activity::without_activity(err).to_ascii_lowercase();
     // These markers track PipelineError's `#[error(...)]` Display formats
     // ("YAML error: …" on `Yaml`, and the `Enrich` message from enrich.rs). The
     // `deterministic_markers_track_error_display_format` test constructs the real
@@ -1438,6 +1441,11 @@ async fn process_next_document_convert_job(
         Some(provider) => enrich_config.with_provider_override(provider),
         None => enrich_config.clone(),
     };
+    // Its own view of the agent, so an error names this job's tools and not
+    // a previous one's. No stall check: a conversion may run a converter
+    // through Bash, which is silent while it works.
+    job_config.activity = crate::agent_activity::ActivityHandle::new();
+    job_config.idle_timeout = None;
     let convert_deadline = job_timeout;
     job_config.timeout = convert_deadline;
 
@@ -1624,6 +1632,11 @@ async fn process_next_law_convert_job(
         Some(provider) => enrich_config.with_provider_override(provider),
         None => enrich_config.clone(),
     };
+    // Its own view of the agent, so an error names this job's tools and not
+    // a previous one's. No stall check: a conversion may run a converter
+    // through Bash, which is silent while it works.
+    job_config.activity = crate::agent_activity::ActivityHandle::new();
+    job_config.idle_timeout = None;
     // Bound the whole conversion (both agent runs together) by the job
     // timeout, so a run that is too slow ends in the visible failure path.
     // kill_on_drop on the subprocess cleans up the agent when it fires.
@@ -2410,14 +2423,22 @@ async fn process_enrich_task_job(
 
     let mut bounded_config = effective_config.clone();
     bound_llm_timeout(&mut bounded_config, job_timeout);
+    // A fresh view of the agent per job, read by the progress poller.
+    bounded_config.activity = crate::agent_activity::ActivityHandle::new();
+    let activity = bounded_config.activity.clone();
     // De taak-flow loopt in vensters, net als het corpus-pad: een grote wet in
     // één sessie haalt de timeout per agent-call niet (de Kieswet, 593
     // artikelen). De cursor reist mee in de `.enrichment.yaml` die
     // `finish_enrich_task_job` als input-blob aan de vervolgjob doorgeeft.
 
-    let outcome = tokio::time::timeout(
-        job_timeout,
-        execute_enrich(payload, workdir.path(), &bounded_config, ""),
+    let outcome = with_progress(
+        pool,
+        job.id,
+        ProgressSources::for_law(workdir.path(), &payload.yaml_path, activity.clone()),
+        tokio::time::timeout(
+            job_timeout,
+            execute_enrich(payload, workdir.path(), &bounded_config, ""),
+        ),
     )
     .await;
 
@@ -2425,7 +2446,11 @@ async fn process_enrich_task_job(
         Err(_elapsed) => {
             // Time-out: retryable. De uur-cap begrenst LLM-spend en
             // max_attempts=3 begrenst de schade van herhaalde pogingen.
-            let msg = format!("verrijking time-out na {}s", job_timeout.as_secs());
+            let msg = format!(
+                "verrijking time-out na {}s{}",
+                job_timeout.as_secs(),
+                activity.summary()
+            );
             fail_enrich_task_job_with_retry(pool, job, &msg).await?;
             Ok(JobOutcome::Processed)
         }
@@ -2835,41 +2860,29 @@ async fn process_next_enrich_job(
         .as_ref()
         .map(|c| c.client.repo_path().to_path_buf());
 
-    // Compute the progress file path and spawn a background polling task.
-    // The LLM writes phase info to this file; we relay it to the DB every 10s.
-    let normalized_yaml_path = crate::enrich::normalize_yaml_path(&payload.yaml_path).ok();
-    let progress_path = normalized_yaml_path
-        .as_ref()
-        .map(|p| progress_file_path(&effective_repo.join(p)));
-
-    let cancel_token = tokio_util::sync::CancellationToken::new();
-    let poll_handle = if let Some(ref ppath) = progress_path {
-        let token = cancel_token.clone();
-        let pool = pool.clone();
-        let job_id = job.id;
-        let ppath = ppath.clone();
-        Some(tokio::spawn(async move {
-            poll_progress_file(&pool, job_id, &ppath, token).await;
-        }))
-    } else {
-        None
-    };
-
     // Ensure the LLM's internal timeout fires before the outer job timeout
     // so ProcessLlmRunner can kill the child process cleanly. Without this,
     // if LLM_TIMEOUT_SECS > WORKER_JOB_TIMEOUT_SECS, the outer timeout would
     // drop the future while the OS subprocess keeps running.
     let mut bounded_config = effective_config.clone();
     bound_llm_timeout(&mut bounded_config, job_timeout);
+    // A fresh view of the agent per job, read by the progress poller.
+    bounded_config.activity = crate::agent_activity::ActivityHandle::new();
+    let activity = bounded_config.activity.clone();
 
     let source_hash = enrich_corpus
         .as_ref()
         .map(|c| c.source_hash.clone())
         .unwrap_or_default();
 
-    let enrich_outcome = tokio::time::timeout(
-        job_timeout,
-        execute_enrich(&payload, &effective_repo, &bounded_config, &source_hash),
+    let enrich_outcome = with_progress(
+        pool,
+        job.id,
+        ProgressSources::for_law(&effective_repo, &payload.yaml_path, activity.clone()),
+        tokio::time::timeout(
+            job_timeout,
+            execute_enrich(&payload, &effective_repo, &bounded_config, &source_hash),
+        ),
     )
     .await;
 
@@ -2884,7 +2897,11 @@ async fn process_next_enrich_job(
             );
 
             let error_json = serde_json::json!({
-                "error": format!("job timed out after {}s", job_timeout.as_secs())
+                "error": format!(
+                    "job timed out after {}s{}",
+                    job_timeout.as_secs(),
+                    activity.summary()
+                )
             });
             match job_queue::fail_job(pool, job.id, Some(error_json)).await {
                 Ok(failed_job) => {
@@ -3183,15 +3200,6 @@ async fn process_next_enrich_job(
         }
     };
 
-    // Stop the progress polling task and clean up the progress file.
-    cancel_token.cancel();
-    if let Some(handle) = poll_handle {
-        let _ = handle.await;
-    }
-    if let Some(ref ppath) = progress_path {
-        let _ = tokio::fs::remove_file(ppath).await;
-    }
-
     // Clean up the per-job corpus checkout directory (regardless of outcome).
     // Each enrich job creates a full git clone; without cleanup these accumulate.
     if let Some(path) = checkout_path {
@@ -3209,14 +3217,83 @@ async fn process_next_enrich_job(
     job_result
 }
 
-/// Poll the progress file written by the LLM and relay its contents to the DB.
-///
-/// Runs until the cancellation token is cancelled. Reads the file every 10
-/// seconds; parse errors are silently ignored (the file may be half-written).
-async fn poll_progress_file(
+/// Where a running enrich job's progress comes from.
+struct ProgressSources {
+    /// The note the agent writes before each step (`phase`, `step`,
+    /// `total_steps`), when it writes one.
+    agent_note: PathBuf,
+    /// The law YAML the agent edits, counted for articles done.
+    law_yaml: PathBuf,
+    /// What the worker sees the agent do.
+    activity: crate::agent_activity::ActivityHandle,
+}
+
+impl ProgressSources {
+    /// For a law at `yaml_path` (repo-relative, as in the payload) under `root`.
+    fn for_law(
+        root: &Path,
+        yaml_path: &str,
+        activity: crate::agent_activity::ActivityHandle,
+    ) -> Option<Self> {
+        let normalized = crate::enrich::normalize_yaml_path(yaml_path).ok()?;
+        let law_yaml = root.join(normalized);
+        Some(Self {
+            agent_note: progress_file_path(&law_yaml),
+            law_yaml,
+            activity,
+        })
+    }
+
+    /// Read every source once.
+    async fn read(&self) -> serde_json::Value {
+        let note = tokio::fs::read_to_string(&self.agent_note)
+            .await
+            .ok()
+            // Half-written or invalid JSON: leave the note out this round.
+            .and_then(|c: String| serde_json::from_str::<serde_json::Value>(&c).ok());
+        let counts = tokio::fs::read_to_string(&self.law_yaml)
+            .await
+            .ok()
+            .map(|y: String| crate::agent_activity::count_articles(&y));
+        progress_value(note, self.activity.snapshot(), counts)
+    }
+
+    /// Remove the agent's note, which must not end up in the result.
+    async fn clean_up(&self) {
+        let _ = tokio::fs::remove_file(&self.agent_note).await;
+    }
+}
+
+/// The value written to `jobs.progress`. The agent's note stays at the top
+/// level, where it always was; what the worker observed goes under `worker`.
+fn progress_value(
+    note: Option<serde_json::Value>,
+    activity: serde_json::Value,
+    counts: Option<(usize, usize)>,
+) -> serde_json::Value {
+    let mut worker = activity;
+    if let (Some((articles, done)), Some(w)) = (counts, worker.as_object_mut()) {
+        w.insert("articles".into(), articles.into());
+        w.insert("articles_with_machine_readable".into(), done.into());
+    }
+    let mut value = match note {
+        Some(serde_json::Value::Object(map)) => serde_json::Value::Object(map),
+        Some(other) => serde_json::json!({ "agent_note": other }),
+        None => serde_json::json!({}),
+    };
+    if let Some(map) = value.as_object_mut() {
+        map.insert("worker".into(), worker);
+    }
+    value
+}
+
+/// Write the job's progress to `jobs.progress` every 10 seconds until
+/// `cancel` fires, and once more after, so the last state stays readable on
+/// a job that failed.
+async fn poll_progress(
     pool: &PgPool,
     job_id: uuid::Uuid,
-    path: &Path,
+    sources: &ProgressSources,
     cancel: tokio_util::sync::CancellationToken,
 ) {
     let interval = Duration::from_secs(10);
@@ -3225,28 +3302,37 @@ async fn poll_progress_file(
             _ = cancel.cancelled() => break,
             _ = tokio::time::sleep(interval) => {}
         }
-
-        let content = match tokio::fs::read_to_string(path).await {
-            Ok(c) => c,
-            Err(_) => continue, // file doesn't exist yet
-        };
-
-        let value: serde_json::Value = match serde_json::from_str(&content) {
-            Ok(v) => v,
-            Err(_) => continue, // half-written or invalid JSON
-        };
-
-        if let Err(e) = job_queue::update_progress(pool, job_id, value).await {
+        if let Err(e) = job_queue::update_progress(pool, job_id, sources.read().await).await {
             tracing::warn!(job_id = %job_id, error = %e, "failed to update job progress");
         }
     }
+    let _ = job_queue::update_progress(pool, job_id, sources.read().await).await;
+}
 
-    // Final read to capture the last phase the LLM wrote before the job finished.
-    if let Ok(content) = tokio::fs::read_to_string(path).await {
-        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&content) {
-            let _ = job_queue::update_progress(pool, job_id, value).await;
-        }
-    }
+/// Run `work` while writing progress for it, then stop the poller and remove
+/// the agent's note.
+async fn with_progress<T>(
+    pool: &PgPool,
+    job_id: uuid::Uuid,
+    sources: Option<ProgressSources>,
+    work: impl std::future::Future<Output = T>,
+) -> T {
+    let Some(sources) = sources else {
+        return work.await;
+    };
+    let sources = std::sync::Arc::new(sources);
+    let cancel = tokio_util::sync::CancellationToken::new();
+    let poller = {
+        let pool = pool.clone();
+        let sources = std::sync::Arc::clone(&sources);
+        let cancel = cancel.clone();
+        tokio::spawn(async move { poll_progress(&pool, job_id, &sources, cancel).await })
+    };
+    let out = work.await;
+    cancel.cancel();
+    let _ = poller.await;
+    sources.clean_up().await;
+    out
 }
 
 /// Execute the harvest and write results to the output directory.
@@ -3472,6 +3558,35 @@ mod tests {
                 i + 1
             );
         }
+    }
+
+    #[test]
+    fn progress_keeps_the_agents_note_and_adds_what_the_worker_saw() {
+        let note = serde_json::json!({"phase": "generate", "step": 2, "total_steps": 4});
+        let activity = serde_json::json!({"turns": 12, "tool_calls": 30});
+        let v = super::progress_value(Some(note), activity, Some((9, 4)));
+        assert_eq!(v["phase"], "generate");
+        assert_eq!(v["step"], 2);
+        assert_eq!(v["worker"]["turns"], 12);
+        assert_eq!(v["worker"]["articles"], 9);
+        assert_eq!(v["worker"]["articles_with_machine_readable"], 4);
+    }
+
+    #[test]
+    fn progress_without_a_note_or_a_readable_law_still_reports_activity() {
+        let v = super::progress_value(None, serde_json::json!({"turns": 1}), None);
+        assert_eq!(v, serde_json::json!({"worker": {"turns": 1}}));
+    }
+
+    #[test]
+    fn a_note_that_is_not_an_object_is_kept_beside_the_activity() {
+        let v = super::progress_value(
+            Some(serde_json::json!("reading")),
+            serde_json::json!({}),
+            None,
+        );
+        assert_eq!(v["agent_note"], "reading");
+        assert!(v["worker"].is_object());
     }
 
     fn hit(bwb_id: &str) -> BwbSearchResult {

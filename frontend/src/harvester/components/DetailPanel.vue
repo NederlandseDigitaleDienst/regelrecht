@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import StatusBadge from './StatusBadge.vue';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
 import { formatDate } from '../formatters';
+import { progressRows, recentTools } from '../jobProgress';
 import type { DetailJob } from '../composables/useJobDetail';
 
 const props = withDefaults(
@@ -49,6 +50,16 @@ const infoFields = computed(() => {
     ['Completed', formatDate(props.job.completed_at)],
   ] satisfies [string, string | number | null | undefined][]).filter(([, value]) => value != null);
 });
+
+const progressFields = computed(() =>
+  progressRows(props.job?.progress, props.job?.status === 'processing'),
+);
+const progressTools = computed(() => recentTools(props.job?.progress));
+// While the job runs this is live; afterwards it is what the job was doing
+// when it stopped, which is what explains a timeout.
+const progressTitle = computed(() =>
+  props.job?.status === 'processing' ? 'Progress' : 'Last progress',
+);
 
 const resultJson = computed(() =>
   props.job?.result ? JSON.stringify(props.job.result, null, 2) : null,
@@ -109,6 +120,23 @@ function onSheetClose() {
               <nldd-text-cell v-else :text="String(value)" horizontal-alignment="right" />
             </nldd-list-item>
           </nldd-list>
+
+          <template v-if="progressFields.length">
+            <nldd-spacer size="16" />
+            <nldd-title size="6"><h3>{{ progressTitle }}</h3></nldd-title>
+            <nldd-spacer size="4" />
+            <nldd-list appearance="simple" data-testid="job-progress">
+              <nldd-list-item v-for="[label, value] in progressFields" :key="label">
+                <nldd-text-cell :text="label" color="secondary" width="fit-content" />
+                <nldd-spacer-cell size="12" />
+                <nldd-text-cell :text="value" horizontal-alignment="right" />
+              </nldd-list-item>
+            </nldd-list>
+            <template v-if="progressTools.length">
+              <nldd-spacer size="8" />
+              <nldd-code-viewer wrap>{{ progressTools.join('\n') }}</nldd-code-viewer>
+            </template>
+          </template>
 
           <template v-for="section in codeSections" :key="section.title">
             <nldd-spacer size="16" />

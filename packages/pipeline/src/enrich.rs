@@ -458,10 +458,24 @@ impl AgentUsage {
         //
         // The scan stays for the streaming shape, where the closing object
         // really is the last one on the stream.
-        let value: serde_json::Value = serde_json::from_str(tail.trim()).ok().or_else(|| {
-            let start = tail.rfind("{\"type\"").or_else(|| tail.rfind('{'))?;
-            serde_json::from_str(tail[start..].trim()).ok()
-        })?;
+        //
+        // Then line by line from the end, for stream-json: the last line
+        // with a top-level `usage` is the closing `result`. Assistant and
+        // stream events carry theirs nested, and the CLI puts `type`
+        // anywhere in the object, so neither key order nor a `{"type"`
+        // prefix can be relied on.
+        let value: serde_json::Value = serde_json::from_str(tail.trim())
+            .ok()
+            .or_else(|| {
+                tail.lines().rev().find_map(|line| {
+                    let v: serde_json::Value = serde_json::from_str(line.trim()).ok()?;
+                    v.get("usage").is_some().then_some(v)
+                })
+            })
+            .or_else(|| {
+                let start = tail.rfind("{\"type\"").or_else(|| tail.rfind('{'))?;
+                serde_json::from_str(tail[start..].trim()).ok()
+            })?;
         let usage = value.get("usage")?;
         let n = |key: &str| {
             usage
@@ -703,6 +717,21 @@ impl AgentSession {
     }
 }
 
+/// Default for `ENRICH_AGENT_IDLE_SECS`. Generous on purpose: the claude
+/// provider streams every token, so ten silent minutes means no token at
+/// all, not a long answer. API retries after an overload are the slowest
+/// legitimate silence, and they stay well under this.
+const DEFAULT_AGENT_IDLE_SECS: u64 = 600;
+
+/// The stall limit from `ENRICH_AGENT_IDLE_SECS`: unset or unreadable gives
+/// the default, `0` turns the check off.
+fn agent_idle_timeout(raw: Option<&str>) -> Option<Duration> {
+    let secs = raw
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .unwrap_or(DEFAULT_AGENT_IDLE_SECS);
+    (secs > 0).then(|| Duration::from_secs(secs))
+}
+
 /// The label a call is accounted under.
 fn pass_label(pass: &Pass) -> &'static str {
     match pass {
@@ -754,6 +783,7 @@ impl LlmRunner for ProcessLlmRunner {
         // A feedback pass asks for one thing and gives the agent nothing
         // else to do, so it cannot wander back into translating.
         let action = begin_call(payload);
+        config.activity.begin_call(pass_label(&payload.pass));
         // Computed for both passes, because a feedback round runs in the same
         // runtime as the translation it answers and the prompt tells it so
         // ("You have no network and no search"). A deny list that only applied
@@ -938,6 +968,17 @@ pub(crate) async fn run_llm_subprocess(
     // Capture the PID before any wait reaps the child; the memory watchdog
     // and process-group kill both need it.
     let pid = child.id();
+    let activity = config.activity.clone();
+    activity.touch();
+    // However this call ends, the clock on it stops with it.
+    let _end_call = EndCallOnDrop(activity.clone());
+    // Only the claude provider streams per token, so only there does silence
+    // mean the agent stopped. opencode writes an event per finished part and
+    // can be quiet for longer while it writes a large file.
+    let idle_limit = match provider {
+        LlmProvider::Claude { .. } => config.idle_timeout,
+        LlmProvider::OpenCode { .. } => None,
+    };
 
     // Drain stderr, retaining the last `MAX_STDERR_CAPTURE` bytes for the
     // error message and re-logging bounded previews so it stays visible.
@@ -945,12 +986,14 @@ pub(crate) async fn run_llm_subprocess(
     let stderr_task = child.stderr.take().map(|mut stderr| {
         let tail = stderr_tail.clone();
         let stderr_provider = provider_name.clone();
+        let activity = activity.clone();
         tokio::spawn(async move {
             let mut buf = [0u8; 8192];
             loop {
                 match stderr.read(&mut buf).await {
                     Ok(0) | Err(_) => break, // EOF or pipe gone
                     Ok(n) => {
+                        activity.touch();
                         let text = String::from_utf8_lossy(&buf[..n]);
                         let preview: String = text.trim().chars().take(500).collect();
                         if !preview.is_empty() {
@@ -991,9 +1034,16 @@ pub(crate) async fn run_llm_subprocess(
     // of no interest, and the stream can carry megabytes.
     let stdout_tail = std::sync::Arc::new(Mutex::new(String::new()));
     let tail_writer = std::sync::Arc::clone(&stdout_tail);
+    // The claude provider's closing `result` event, kept whole: it carries
+    // the usage, and the bounded tail can cut a long one in half.
+    let result_line = std::sync::Arc::new(Mutex::new(None::<String>));
+    let result_writer = std::sync::Arc::clone(&result_line);
+    let mut stdout_task = None;
     if let Some(mut stdout) = child.stdout.take() {
         let drain_provider = provider_name.clone();
-        tokio::spawn(async move {
+        let activity = activity.clone();
+        stdout_task = Some(tokio::spawn(async move {
+            let mut lines = crate::agent_activity::LineSplitter::default();
             // Drain in fixed-size chunks rather than whole lines: opencode
             // inlines multi-MB page bodies as a single JSON line, so a
             // line reader would allocate the entire body just to log a
@@ -1005,6 +1055,15 @@ pub(crate) async fn run_llm_subprocess(
                 match stdout.read(&mut buf).await {
                     Ok(0) | Err(_) => break, // EOF or pipe gone (process exited/killed)
                     Ok(n) => {
+                        activity.touch();
+                        lines.feed(&buf[..n], |line| {
+                            activity.record_line(line);
+                            if crate::agent_activity::is_result_event(line) {
+                                if let Ok(mut r) = result_writer.lock() {
+                                    *r = Some(line.to_string());
+                                }
+                            }
+                        });
                         // Bounded preview at debug only (off under the
                         // default "info" subscriber). The leading bytes of a
                         // read carry the event type and ids, not the large
@@ -1030,7 +1089,7 @@ pub(crate) async fn run_llm_subprocess(
                     }
                 }
             }
-        });
+        }));
     }
 
     let status = tokio::select! {
@@ -1048,8 +1107,29 @@ pub(crate) async fn run_llm_subprocess(
                 t.abort();
             }
             return Err(PipelineError::Enrich(format!(
-                "{} timed out after {:?}{}",
-                provider_name, config.timeout, stderr_suffix()
+                "{} timed out after {:?}{}{}",
+                provider_name,
+                config.timeout,
+                stderr_suffix(),
+                activity.summary()
+            )));
+        }
+        silent = wait_for_silence(&activity, idle_limit) => {
+            tracing::error!(
+                provider = %provider_name,
+                silent_secs = silent.as_secs(),
+                "LLM subprocess wrote nothing for too long, killing it as stalled"
+            );
+            terminate(&mut child, pid).await;
+            if let Some(t) = &stderr_task {
+                t.abort();
+            }
+            return Err(PipelineError::Enrich(format!(
+                "{} stalled: no output for {}s{}{}",
+                provider_name,
+                silent.as_secs(),
+                stderr_suffix(),
+                activity.summary()
             )));
         }
         observed_mb = watch_memory(pid, config.max_rss_mb) => {
@@ -1081,10 +1161,11 @@ pub(crate) async fn run_llm_subprocess(
             let _ = tokio::time::timeout(Duration::from_secs(2), task).await;
         }
         return Err(PipelineError::Enrich(format!(
-            "{} exited with {}{}",
+            "{} exited with {}{}{}",
             provider_name,
             status,
-            stderr_suffix()
+            stderr_suffix(),
+            activity.summary()
         )));
     }
 
@@ -1095,11 +1176,22 @@ pub(crate) async fn run_llm_subprocess(
     if let Some(t) = &stderr_task {
         t.abort();
     }
+    // Let stdout drain to its end so the closing event is in. Bounded for
+    // the same reason as stderr above: a grandchild holding the pipe open.
+    if let Some(task) = stdout_task {
+        let _ = tokio::time::timeout(Duration::from_secs(2), task).await;
+    }
 
-    let usage = stdout_tail
+    let from_result = result_line
         .lock()
         .ok()
-        .and_then(|tail| AgentUsage::from_stdout_tail(&tail));
+        .and_then(|r| r.as_deref().and_then(AgentUsage::from_stdout_tail));
+    let usage = from_result.or_else(|| {
+        stdout_tail
+            .lock()
+            .ok()
+            .and_then(|tail| AgentUsage::from_stdout_tail(&tail))
+    });
     if let Some(u) = usage {
         tracing::info!(
             provider = %provider_name,
@@ -1112,6 +1204,37 @@ pub(crate) async fn run_llm_subprocess(
         );
     }
     Ok(usage)
+}
+
+/// Ends the activity's current call when an agent call returns, by any path.
+struct EndCallOnDrop(crate::agent_activity::ActivityHandle);
+
+impl Drop for EndCallOnDrop {
+    fn drop(&mut self) {
+        self.0.end_call();
+    }
+}
+
+/// Resolve once the agent has written nothing for `limit`, with how long it
+/// has been silent. Never resolves when the check is off.
+async fn wait_for_silence(
+    activity: &crate::agent_activity::ActivityHandle,
+    limit: Option<Duration>,
+) -> Duration {
+    let Some(limit) = limit else {
+        return std::future::pending().await;
+    };
+    // Check a few times per limit, at most every 15 s, so a short limit in a
+    // test still fires promptly.
+    let every = (limit / 4).clamp(Duration::from_millis(50), Duration::from_secs(15));
+    loop {
+        tokio::time::sleep(every).await;
+        if let Some(silent) = activity.idle() {
+            if silent >= limit {
+                return silent;
+            }
+        }
+    }
 }
 
 /// Kill the LLM subprocess and reap it.
@@ -2064,6 +2187,16 @@ pub struct EnrichConfig {
     /// medium, high, xhigh, max). `None` leaves the provider's own default,
     /// which is what every run did before this existed.
     pub effort: Option<String>,
+    /// What the agent is doing in the current job. The worker gives each job
+    /// a fresh handle and reads it for `jobs.progress`; every clone of this
+    /// config shares it. With `window_concurrency` above 1 the windows share
+    /// one view: the counts add up, and the stall check only fires once
+    /// every window has gone quiet.
+    pub activity: crate::agent_activity::ActivityHandle,
+    /// How long an agent call may write nothing before it is stopped as
+    /// stalled. `None` turns the check off. Only applies to the claude
+    /// provider, the one that streams per token.
+    pub idle_timeout: Option<Duration>,
     /// Pre-built provider configs keyed by name, populated at startup.
     provider_configs: std::collections::HashMap<String, LlmProvider>,
 }
@@ -2105,6 +2238,8 @@ impl EnrichConfig {
             // as they always did; the session tests set this themselves.
             session_reuse: SessionReuse::Off,
             effort: None,
+            activity: Default::default(),
+            idle_timeout: None,
             provider_configs,
         }
     }
@@ -2140,6 +2275,9 @@ impl EnrichConfig {
             steps: RunSteps::all(),
             session_reuse,
             effort,
+            activity: Default::default(),
+            // A local run is watched by the person who started it.
+            idle_timeout: None,
             provider_configs,
         }
     }
@@ -2264,6 +2402,10 @@ impl EnrichConfig {
                 .unwrap_or_else(RunSteps::all),
             session_reuse,
             effort,
+            activity: Default::default(),
+            idle_timeout: agent_idle_timeout(
+                std::env::var("ENRICH_AGENT_IDLE_SECS").ok().as_deref(),
+            ),
             provider_configs,
         }
     }
@@ -2303,6 +2445,8 @@ impl EnrichConfig {
             steps: self.steps,
             session_reuse: self.session_reuse,
             effort: self.effort.clone(),
+            activity: self.activity.clone(),
+            idle_timeout: self.idle_timeout,
             provider_configs: self.provider_configs.clone(),
         }
     }
@@ -2999,11 +3143,16 @@ fn build_command(
                 .arg(prompt)
                 .arg("--allowedTools")
                 .arg(tools.allowed())
-                // Makes the run report its own token use on stdout, which the
-                // drain now keeps the tail of. Without it a round can only be
-                // compared on wall clock.
+                // One JSON event per line while the run goes, closing with
+                // the `result` event that carries the token use. The worker
+                // reads the events for progress and to notice a stalled
+                // run; `--include-partial-messages` adds an event per token
+                // so a long answer does not look like silence. stream-json
+                // requires `--verbose` under `-p`.
                 .arg("--output-format")
-                .arg("json")
+                .arg("stream-json")
+                .arg("--verbose")
+                .arg("--include-partial-messages")
                 .current_dir(cwd);
             if !denied.is_empty() {
                 cmd.arg("--disallowedTools").arg(denied.join(","));
@@ -8488,6 +8637,24 @@ articles:
     }
 
     #[test]
+    fn usage_is_found_in_a_stream_whatever_the_key_order() {
+        // stream-json as the CLI writes it: the closing event does not start
+        // with `type`, and a stream event with a nested `type` follows it.
+        let tail = concat!(
+            r#"{"type":"assistant","message":{"usage":{"input_tokens":1}}}"#,
+            "\n",
+            r#"{"duration_api_ms":5,"type":"result","total_cost_usd":0.01,"usage":{"input_tokens":42,"output_tokens":7}}"#,
+            "\n",
+            r#"{"type":"stream_event","event":{"type":"message_stop"}}"#,
+            "\n",
+        );
+        let u = AgentUsage::from_stdout_tail(tail).expect("usage");
+        assert_eq!(u.input_tokens, 42);
+        assert_eq!(u.output_tokens, 7);
+        assert_eq!(u.cost_millicents, 1_000);
+    }
+
+    #[test]
     fn a_truncated_tail_reports_nothing_rather_than_guessing() {
         // The tail is bounded, so a large stream can cut an object in half.
         // Half a figure is worse than no figure.
@@ -10192,5 +10359,155 @@ articles:
         .unwrap();
         assert!(result.law_complete);
         assert_eq!(result.enrich_cursor, 0);
+    }
+}
+
+/// `run_llm_subprocess` against a shell script standing in for the provider's
+/// CLI. The script ignores its arguments and prints what a real run would.
+#[cfg(all(test, unix))]
+mod subprocess_tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    /// A fake claude CLI running `body`, in its own temp dir.
+    #[allow(clippy::unwrap_used)] // test setup; a failure here is the failure
+    fn fake_claude(body: &str) -> (tempfile::TempDir, LlmProvider) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("claude");
+        std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let provider = LlmProvider::Claude { path, model: None };
+        (dir, provider)
+    }
+
+    async fn run(
+        provider: &LlmProvider,
+        cwd: &Path,
+        timeout: Duration,
+        idle: Option<Duration>,
+    ) -> (Result<Option<AgentUsage>>, EnrichConfig) {
+        let mut config = EnrichConfig::for_test(provider.clone());
+        config.timeout = timeout;
+        config.idle_timeout = idle;
+        config.activity.begin_call("translate");
+        let out = run_llm_subprocess(
+            provider,
+            "prompt",
+            None,
+            cwd,
+            &config,
+            ToolPolicy {
+                allow_bash: false,
+                deny: &[],
+            },
+            SessionAction::Cold,
+        )
+        .await;
+        (out, config)
+    }
+
+    const TOOL_EVENT: &str = r#"{"type":"assistant","message":{"id":"m1","content":[{"type":"tool_use","name":"Read","input":{"file_path":"laws/x/law.yaml"}}]}}"#;
+
+    #[tokio::test]
+    async fn reads_events_and_usage_from_the_stream() {
+        // The closing event as the CLI writes it: `type` is not the first
+        // key, and an event can follow it.
+        let (dir, provider) = fake_claude(&format!(
+            "echo '{{\"type\":\"system\",\"subtype\":\"init\"}}'\n\
+             echo '{TOOL_EVENT}'\n\
+             echo '{{\"type\":\"stream_event\",\"event\":{{}}}}'\n\
+             echo '{{\"duration_api_ms\":812,\"is_error\":false,\"type\":\"result\",\"total_cost_usd\":0.5,\"usage\":{{\"input_tokens\":10,\"output_tokens\":20}}}}'\n\
+             echo '{{\"type\":\"stream_event\",\"event\":{{\"type\":\"message_stop\"}}}}'"
+        ));
+        let (out, config) = run(&provider, dir.path(), Duration::from_secs(20), None).await;
+        let usage = out.expect("run succeeds").expect("usage reported");
+        assert_eq!(usage.input_tokens, 10);
+        assert_eq!(usage.output_tokens, 20);
+        assert_eq!(usage.cost_millicents, 50_000);
+        let s = config.activity.snapshot();
+        assert_eq!(s["turns"], 1);
+        assert_eq!(s["tool_calls"], 1);
+        assert_eq!(s["last_tool"], "Read laws/x/law.yaml");
+    }
+
+    #[tokio::test]
+    async fn a_silent_run_is_stopped_as_stalled() {
+        let (dir, provider) = fake_claude(&format!("echo '{TOOL_EVENT}'\nsleep 30"));
+        let started = std::time::Instant::now();
+        let (out, _) = run(
+            &provider,
+            dir.path(),
+            Duration::from_secs(20),
+            Some(Duration::from_millis(400)),
+        )
+        .await;
+        let err = out.expect_err("a silent run fails").to_string();
+        assert!(err.contains("stalled: no output for"), "{err}");
+        assert!(err.contains("recent tools: Read laws/x/law.yaml"), "{err}");
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "stopped long before the timeout"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_slow_run_that_keeps_writing_is_not_stalled() {
+        // Longer in total than the stall limit, but never silent for that long.
+        let (dir, provider) = fake_claude(
+            "for i in 1 2 3 4 5 6 7 8; do echo '{\"type\":\"stream_event\"}'; sleep 0.1; done",
+        );
+        let (out, _) = run(
+            &provider,
+            dir.path(),
+            Duration::from_secs(20),
+            Some(Duration::from_millis(500)),
+        )
+        .await;
+        out.expect("a run that keeps writing completes");
+    }
+
+    #[tokio::test]
+    async fn a_timeout_says_what_the_agent_was_doing() {
+        let (dir, provider) = fake_claude(&format!("echo '{TOOL_EVENT}'\nsleep 30"));
+        let (out, _) = run(&provider, dir.path(), Duration::from_millis(500), None).await;
+        let err = out.expect_err("the run times out").to_string();
+        assert!(err.contains("timed out after"), "{err}");
+        assert!(
+            err.contains("agent activity: 1 turns, 1 tool calls"),
+            "{err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn opencode_is_not_stopped_for_silence() {
+        // opencode writes an event per finished part, not per token, so a
+        // quiet stretch is normal there and the check does not apply.
+        let (dir, claude) = fake_claude("sleep 1");
+        let LlmProvider::Claude { path, .. } = claude else {
+            unreachable!("fake_claude builds a claude provider")
+        };
+        let provider = LlmProvider::OpenCode { path, model: None };
+        let (out, _) = run(
+            &provider,
+            dir.path(),
+            Duration::from_secs(20),
+            Some(Duration::from_millis(200)),
+        )
+        .await;
+        out.expect("a quiet opencode run completes");
+    }
+
+    #[test]
+    fn idle_limit_defaults_to_ten_minutes_and_zero_turns_it_off() {
+        assert_eq!(agent_idle_timeout(None), Some(Duration::from_secs(600)));
+        assert_eq!(
+            agent_idle_timeout(Some("nonsense")),
+            Some(Duration::from_secs(600))
+        );
+        assert_eq!(
+            agent_idle_timeout(Some(" 120 ")),
+            Some(Duration::from_secs(120))
+        );
+        assert_eq!(agent_idle_timeout(Some("0")), None);
     }
 }

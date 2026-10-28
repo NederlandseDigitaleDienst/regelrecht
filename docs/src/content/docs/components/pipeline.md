@@ -182,7 +182,7 @@ Two mechanisms pull in further laws, each with its own limit:
 The enrich worker:
 1. Polls the queue for pending enrich jobs, within the hourly budget (`ENRICH_HOURLY_LIMIT`)
 2. Spawns an LLM CLI process to generate `machine_readable` sections
-3. Tracks progress via `.enrichment-progress.json` (polled every 10s)
+3. Writes progress to the job every 10 seconds (see [Progress and stalls](#progress-and-stalls))
 4. Computes coverage score (the stored `law_entries.coverage_score` is the cumulative fraction of articles with `machine_readable`; the per-run delta rides in the job result)
 5. Pushes the result to a per-provider branch (`enrich/` followed by the provider name, `opencode` or `claude`) for review
 
@@ -231,6 +231,40 @@ compared; `enrich-once --session-reuse` prints the same table locally.
 The reasoning behind both, including why a window follows document order rather
 than "the next articles without `machine_readable`", is in the doc comments on
 `plan_chunk` and `SessionReuse` in `enrich.rs`.
+
+### Progress and stalls
+
+The claude provider runs with `--output-format stream-json`, so the worker
+reads each event as it happens: assistant turns, tool calls, a partial event
+per token, and the closing `result` with the token use. Every 10 seconds the
+worker writes `jobs.progress` with two parts:
+
+- at the top level, the note the agent writes before each step (`phase`,
+  `step`, `total_steps`), as before;
+- under `worker`, what the worker saw: the current call (`translate` or a
+  gate), how long it has run, how long ago the agent last wrote anything, the
+  number of turns and tool calls, the last few tool calls (`Edit
+  laws/…/law.yaml`), and how many of the law's articles carry
+  `machine_readable` so far. The tool summary names the tool and what it works
+  on, never the text it writes.
+
+The job detail sheet on the Harvester page shows this while a job runs, and
+keeps the last state on a job that stopped. That is the place to look when a
+run times out: the error itself also ends with a line on what the agent did
+last.
+
+A claude call that writes nothing for `ENRICH_AGENT_IDLE_SECS` (default 600)
+is stopped as stalled, and fails like a timeout, with the same retries. With
+partial events on, a long answer arrives as a stream of events, so silence
+means no token at all. The limit is generous because an API retry after an
+overload is silent for a while too. `0` turns the check off. The check leaves
+opencode alone, because it writes an event per finished part and can be quiet
+for longer, and it leaves the document and law conversions alone, because a
+converter run through Bash is silent while it works.
+
+With `ENRICH_WINDOW_CONCURRENCY` above 1 the windows of a job share one view
+of the agent: the counts add up, and the stall check fires only once every
+window has gone quiet.
 
 ### LLM Providers
 
@@ -295,6 +329,7 @@ without one.
 | `ENRICH_WINDOW_CONCURRENCY` | 1 | Windows run side by side, each in its own copy of the checkout and its own agent session |
 | `ENRICH_CONTEXT_BRIEF` | on | `0` withholds the context brief the worker writes beside the law |
 | `ENRICH_MAX_RSS_MB` | 3500 | Memory ceiling for the agent subprocess |
+| `ENRICH_AGENT_IDLE_SECS` | 600 | Stop a claude call that writes nothing for this long; `0` turns it off |
 | `CODE_COMMIT` | empty | Commit of the running image, recorded in the enrichment metadata |
 
 `LLM_TIMEOUT_SECS` is a ceiling per agent call, and one run makes several: a
