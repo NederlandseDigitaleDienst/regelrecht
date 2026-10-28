@@ -43,7 +43,7 @@
   "devDependencies": {
     "@types/node": "^24.19.2",
     "@vue/tsconfig": "^0.9.1",
-    "happy-dom": "^20.14.6",
+    "happy-dom": "^21.0.4",
     "js-yaml": "^5.4.2",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",
