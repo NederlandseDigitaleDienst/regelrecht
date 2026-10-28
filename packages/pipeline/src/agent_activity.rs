@@ -217,6 +217,52 @@ pub fn is_result_event(line: &str) -> bool {
             .unwrap_or(false)
 }
 
+/// The longest CLI error text kept in a job's error message.
+const MAX_ERROR_TEXT_CHARS: usize = 300;
+
+/// The error the claude CLI reported in its closing `result` event, if it
+/// reported one. A failed API call (rate limit, overload, an expired token)
+/// ends the run with `is_error` set and the reason as text in `result`; the
+/// process then exits 1 with nothing on stderr, so this is the only place
+/// the reason is written down. Some error subtypes carry an `errors` list
+/// instead. One line, cut to a limit, for appending to the job's error.
+pub fn result_error_text(line: &str) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(line).ok()?;
+    if v.get("type")?.as_str()? != "result" {
+        return None;
+    }
+    let subtype = v.get("subtype").and_then(serde_json::Value::as_str);
+    let is_error = v.get("is_error").and_then(serde_json::Value::as_bool) == Some(true)
+        || subtype.is_some_and(|s| s.starts_with("error"));
+    if !is_error {
+        return None;
+    }
+    let from_result = v
+        .get("result")
+        .and_then(serde_json::Value::as_str)
+        .filter(|t| !t.trim().is_empty())
+        .map(str::to_string);
+    let from_errors = || {
+        let list: Vec<&str> = v
+            .get("errors")?
+            .as_array()?
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .collect();
+        (!list.is_empty()).then(|| list.join("; "))
+    };
+    let text = from_result
+        .or_else(from_errors)
+        .or_else(|| subtype.map(str::to_string))?;
+    let one_line = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let short: String = one_line.chars().take(MAX_ERROR_TEXT_CHARS).collect();
+    Some(if short.len() < one_line.len() {
+        format!("{short}…")
+    } else {
+        short
+    })
+}
+
 /// The parts of a claude stream-json event this module reads.
 #[derive(Debug, PartialEq, Eq)]
 enum Event {
@@ -425,6 +471,46 @@ mod tests {
             r#"{"type":"stream_event","event":{"type":"message_stop"}}"#
         ));
         assert!(!is_result_event("not json"));
+    }
+
+    #[test]
+    fn the_cli_error_is_read_from_the_result_event() {
+        let line = r#"{"duration_ms":240000,"is_error":true,"type":"result","subtype":"success","result":"API Error: 429 {\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\"}}"}"#;
+        assert_eq!(
+            result_error_text(line).as_deref(),
+            Some(r#"API Error: 429 {"type":"error","error":{"type":"rate_limit_error"}}"#)
+        );
+    }
+
+    #[test]
+    fn an_error_subtype_without_text_falls_back_to_its_errors_or_its_name() {
+        let with_errors = r#"{"type":"result","subtype":"error_during_execution","is_error":false,"errors":["first","second"]}"#;
+        assert_eq!(
+            result_error_text(with_errors).as_deref(),
+            Some("first; second")
+        );
+        let bare = r#"{"type":"result","subtype":"error_max_turns","is_error":false}"#;
+        assert_eq!(result_error_text(bare).as_deref(), Some("error_max_turns"));
+    }
+
+    #[test]
+    fn a_successful_result_has_no_error_text() {
+        let ok = r#"{"type":"result","subtype":"success","is_error":false,"result":"done"}"#;
+        assert_eq!(result_error_text(ok), None);
+        assert_eq!(result_error_text(r#"{"type":"assistant"}"#), None);
+        assert_eq!(result_error_text("not json"), None);
+    }
+
+    #[test]
+    fn the_cli_error_becomes_one_short_line() {
+        let long = format!("API Error:\n  {}", "x".repeat(500));
+        let line =
+            serde_json::json!({"type": "result", "is_error": true, "result": long}).to_string();
+        let text = result_error_text(&line).unwrap();
+        assert!(text.starts_with("API Error: xxx"), "{text}");
+        assert!(!text.contains('\n'));
+        assert!(text.ends_with('…'));
+        assert_eq!(text.chars().count(), MAX_ERROR_TEXT_CHARS + 1);
     }
 
     #[test]
