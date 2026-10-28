@@ -46,7 +46,7 @@ describe('melding', () => {
     // aan het college, met een eigen open begrip.
     const engine =
       "engine: Resolution error: Required open term 'langdurige_loopbeperking_volgens_college' on " +
-      'fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#6 is decided per case by het college ' +
+      'beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#6 is decided per case by het college ' +
       'van burgemeester en wethouders van de gemeente Wilgendaal, and no judgement was given for this case';
     state.casus = { cel_naam: 'gemeente Wilgendaal', rol: 'het college van burgemeester en wethouders' };
     expect(

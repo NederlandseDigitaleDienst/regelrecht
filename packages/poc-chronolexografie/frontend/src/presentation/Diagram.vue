@@ -35,7 +35,7 @@ const keten = [
 // stands and the arrow from it to the Awb-reductie below.
 const awb = [
   { naam: 'Wilgendaal: geldige kaart?', basis: 'basis: …babw#49', x: 0, y: 0, pijl: 'M 210 74 L 340 130' },
-  { naam: 'Wilgendaal: aantal vergunningen?', basis: 'basis: …parkeerverordening…#2', x: 460, y: 0, pijl: 'M 670 74 L 540 130' },
+  { naam: 'Wilgendaal: aantal vergunningen?', basis: 'basis: parkeerverordening…#2', x: 460, y: 0, pijl: 'M 670 74 L 540 130' },
 ];
 
 const synthese = {

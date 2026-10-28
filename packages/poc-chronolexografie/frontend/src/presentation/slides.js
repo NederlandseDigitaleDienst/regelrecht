@@ -25,7 +25,7 @@ export const KINDS = Object.freeze(['title', 'statement', 'section', 'bullets', 
 export const CORPUS_NAMES = Object.freeze([
   'reductie_geldige_gehandicaptenparkeerkaart',
   'reductie_algemene_wet_bestuursrecht',
-  'fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal',
+  'beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal',
   'geldende_besluiten',
   'aanvrager_heeft_geldige_gehandicaptenparkeerkaart',
   'aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt',

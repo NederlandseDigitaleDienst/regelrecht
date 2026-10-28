@@ -1,6 +1,6 @@
 ---
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.9/schema/v0.8.9/schema.json
-$id: fictief_beleid_geneeskundig_advies_ggd_wilgendaal
+$id: beleid_geneeskundig_advies_ggd_wilgendaal
 regulatory_layer: UITVOERINGSBELEID
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'
@@ -8,7 +8,7 @@ valid_from: '2026-01-01'
 # modellering: geen bekendgemaakt beleid, maar een aanname namens de houder.
 # Het zegt welk advies de GGD voor een aanvraag laat tellen, zoals artikel 5,
 # derde lid, van het fictieve beleid
-# fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal het vraagt.
+# beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal het vraagt.
 # Het voert die regel van de gemeente uit en stelt zelf geen norm. Het leest
 # geen kroniek: de adviezen krijgt het als parameter. De reductie reductie_geneeskundig_advies van de GGD haalt ze uit
 # haar kroniek en past dit beleid toe (RFC-048). Er is geen bekendmaking; de

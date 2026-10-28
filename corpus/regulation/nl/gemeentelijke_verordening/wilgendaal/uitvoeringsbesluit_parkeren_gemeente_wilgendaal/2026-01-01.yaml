@@ -1,23 +1,27 @@
 ---
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
-$id: fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal
-regulatory_layer: UITVOERINGSBELEID
+$id: uitvoeringsbesluit_parkeren_gemeente_wilgendaal
+regulatory_layer: GEMEENTELIJKE_VERORDENING
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'
 # FICTIEF. De gemeente Wilgendaal bestaat niet en dit is geen bekendgemaakt
 # besluit, maar een eigen keuze in de modellering, naar het model van het
 # Uitvoeringsbesluit Parkeren Delft 2025 (CVDR733452), artikel 8, derde en
 # achtste lid. Er is geen bekendmaking; de url wijst daarom naar dat besluit.
-# Het Delftse besluit stelt "nadere regels" krachtens de verordening. Eigen
-# keuze: de laag is UITVOERINGSBELEID, omdat alleen beleid een open begrip aan
-# het antwoord van een cel mag koppelen (source.reduction, RFC-048), en dat
-# doen artikel 4 en 5. Weggelaten uit het model: de wachtlijst (artikel 6), het
-# maximum per gebied (artikel 5), de tijden waarop een vergunning geldt
-# (artikel 8, zevende lid) en het parkeren op eigen terrein (artikel 8,
-# tiende lid).
-# Ongescoped, zoals het fictieve beleid gehandicaptenparkeerkaart van
-# Wilgendaal: een gemeente_code zou dit besluit tot één gemeente beperken,
-# maar de cel van de gemeente geeft de engine geen gemeente_code mee.
+# Het besluit stelt de nadere regels van het college krachtens de verordening
+# (artikel 2, derde en vierde lid), zoals het Delftse besluit "nadere regels"
+# stelt. Het schema kent geen aparte laag voor nadere regels van het college;
+# het is een algemeen verbindend voorschrift van de gemeente, dus
+# GEMEENTELIJKE_VERORDENING. Welke cel antwoordt op de begrippen van artikel 2
+# en 3, staat niet hier maar in het beleid bedrijfsparkeervergunning van
+# Wilgendaal (beleid_bedrijfsparkeervergunning_gemeente_wilgendaal).
+# Weggelaten uit het model: de wachtlijst (artikel 6), het maximum per gebied
+# (artikel 5), de tijden waarop een vergunning geldt (artikel 8, zevende lid)
+# en het parkeren op eigen terrein (artikel 8, tiende lid).
+# De gemeentecode bestaat niet, zoals bij de verordening: het schema eist er
+# een voor een gemeentelijke verordening, en GM9999 is geen code van het CBS.
+gemeente_code: GM9999
+officiele_titel: Uitvoeringsbesluit Parkeren Wilgendaal 2026 (fictief)
 url: https://lokaleregelgeving.overheid.nl/CVDR733452
 name: Uitvoeringsbesluit Parkeren Wilgendaal 2026 (fictief)
 competent_authority:
@@ -25,7 +29,7 @@ competent_authority:
 # De verordening laat de regels met zoveel woorden aan het college (artikel
 # 2, derde en vierde lid).
 legal_basis:
-  - law_id: fictieve_parkeerverordening_gemeente_wilgendaal
+  - law_id: parkeerverordening_gemeente_wilgendaal
     article: '2'
     description: >-
       Het college stelt regels over de vergunninggebieden en over de wijze
@@ -102,10 +106,11 @@ articles:
       # (implements, RFC-045). Het adres staat in het handelsregister
       # (artikel 11, eerste lid, onder c, van de Handelsregisterwet 2007: "het
       # post- en bezoekadres"), dus de Kamer van Koophandel antwoordt erop
-      # (competent_authority, RFC-052). Artikel 4 koppelt dat begrip aan het
-      # antwoord van de cel van de Kamer. Niet verplicht: vermeldt het
-      # handelsregister geen vestiging, dan blijkt niet dat het bedrijf in een
-      # vergunninggebied is gevestigd, en weigert het college.
+      # (competent_authority, RFC-052). Artikel 1 van het beleid
+      # bedrijfsparkeervergunning koppelt dat begrip aan het antwoord van de
+      # cel van de Kamer. Niet verplicht: vermeldt het handelsregister geen
+      # vestiging, dan blijkt niet dat het bedrijf in een vergunninggebied is
+      # gevestigd, en weigert het college.
       # Het Delftse model vraagt ook dat het bedrijf in het gebied een
       # onroerende zaak "daadwerkelijk in gebruik heeft ten behoeve van de
       # bedrijfsvoering"; dat is weggelaten.
@@ -120,7 +125,7 @@ articles:
             De postcode van het bezoekadres van de vestiging van het bedrijf,
             zoals het handelsregister die op de dag van het besluit vermeldt.
       implements:
-        - law: fictieve_parkeerverordening_gemeente_wilgendaal
+        - law: parkeerverordening_gemeente_wilgendaal
           article: '2'
           open_term: bedrijf_gevestigd_in_vergunninggebied
       execution:
@@ -138,7 +143,7 @@ articles:
             type: string
             nullable: true
             source:
-              regulation: fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal
+              regulation: uitvoeringsbesluit_parkeren_gemeente_wilgendaal
               output: vergunninggebied_van_postcode
               parameters:
                 postcode: $postcode_vestiging_volgens_handelsregister
@@ -183,11 +188,11 @@ articles:
       # verordening. Het Delftse model zegt bij de schil "gelijk aan het
       # aantal werknemers per bedrijf"; eigen keuze: dat aantal zoals het
       # handelsregister het vermeldt, zodat de Kamer van Koophandel ook hierop
-      # antwoordt (artikel 4). Vermeldt het handelsregister geen aantal, dan
+      # antwoordt (artikel 1 van het beleid). Vermeldt het handelsregister geen aantal, dan
       # is het maximum in de schil nul.
       # Hoeveel geldige vergunningen het bedrijf al heeft, weet het college
-      # uit zijn eigen besluiten; artikel 5 koppelt dat begrip aan het
-      # antwoord van de cel van de gemeente. Welke vergunning geldt, zeggen
+      # uit zijn eigen besluiten; artikel 2 van het beleid koppelt dat begrip
+      # aan het antwoord van de cel van de gemeente. Welke vergunning geldt, zeggen
       # artikel 3 van de verordening (een jaar vanaf de verlening) en de Awb
       # (een herroepen of vernietigd besluit geldt niet).
       open_terms:
@@ -208,7 +213,7 @@ articles:
             Hoeveel bedrijfsparkeervergunningen het college het bedrijf
             verleende die op de dag van het besluit nog geldig zijn.
       implements:
-        - law: fictieve_parkeerverordening_gemeente_wilgendaal
+        - law: parkeerverordening_gemeente_wilgendaal
           article: '2'
           open_term: maximum_bedrijfsparkeervergunningen_bereikt
       execution:
@@ -224,7 +229,7 @@ articles:
             type: string
             nullable: true
             source:
-              regulation: fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal
+              regulation: uitvoeringsbesluit_parkeren_gemeente_wilgendaal
               output: vergunninggebied_van_vestiging
               parameters:
                 kvk_nummer: $kvk_nummer
@@ -264,121 +269,3 @@ articles:
               operation: GREATER_THAN_OR_EQUAL
               subject: $aantal_geldige_bedrijfsparkeervergunningen
               value: $maximum_bedrijfsparkeervergunningen
-  - number: '4'
-    text: >-
-      FICTIEF, eigen keuze in de modellering. Wat het handelsregister op de
-      dag van het besluit vermeldt over het bezoekadres van de vestiging van
-      het bedrijf en over het aantal personen dat in het bedrijf werkzaam is
-      (artikel 2 en 3), ontleent het college aan het antwoord van de cel van
-      de Kamer van Koophandel. Geeft die cel geen antwoord, dan blijkt het niet
-      uit het handelsregister.
-    url: https://lokaleregelgeving.overheid.nl/CVDR733452
-    machine_readable:
-      # De begrippen van artikel 2 en 3 noemen de Kamer van Koophandel als
-      # bevoegde (competent_authority). Zwijgt haar cel, dan geeft deze
-      # koppeling niets (null): wat niet in het handelsregister staat, blijkt
-      # er niet uit. Daarom geen eigen begrip van het college, anders dan bij
-      # artikel 5.
-      implements:
-        - law: fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal
-          article: '2'
-          open_term: postcode_vestiging_volgens_handelsregister
-        - law: fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal
-          article: '3'
-          open_term: aantal_werkzame_personen_volgens_handelsregister
-      execution:
-        parameters:
-          - name: kvk_nummer
-            type: string
-            description: Het nummer dat de Kamer van Koophandel het bedrijf toekende.
-          - name: besluit_datum
-            type: date
-            description: De dag waarop het college op de aanvraag besluit.
-        input:
-          - name: antwoord_postcode
-            type: string
-            nullable: true
-            source:
-              reduction: postcode_vestiging
-              parameters:
-                kvk_nummer: $kvk_nummer
-                peildatum: $besluit_datum
-          - name: antwoord_aantal_werkzame_personen
-            type: number
-            nullable: true
-            source:
-              reduction: aantal_werkzame_personen
-              parameters:
-                kvk_nummer: $kvk_nummer
-                peildatum: $besluit_datum
-        output:
-          - name: postcode_vestiging_volgens_handelsregister
-            type: string
-            nullable: true
-          - name: aantal_werkzame_personen_volgens_handelsregister
-            type: number
-            nullable: true
-        actions:
-          - output: postcode_vestiging_volgens_handelsregister
-            value: $antwoord_postcode
-          - output: aantal_werkzame_personen_volgens_handelsregister
-            value: $antwoord_aantal_werkzame_personen
-  - number: '5'
-    text: >-
-      FICTIEF, eigen keuze in de modellering. Hoeveel geldige
-      bedrijfsparkeervergunningen het bedrijf op de dag van het besluit heeft
-      (artikel 3), ontleent het college aan het antwoord van zijn eigen cel
-      over zijn eerdere besluiten. Geeft de cel geen antwoord, dan stelt het
-      college het zelf vast.
-    url: https://lokaleregelgeving.overheid.nl/CVDR733452
-    machine_readable:
-      # Zonder antwoord geldt wat het college vaststelt: een eigen open
-      # begrip, dat de engine alleen vraagt als de cel zwijgt (zoals artikel 2
-      # van het fictieve beleid gehandicaptenparkeerkaart van Wilgendaal).
-      open_terms:
-        - id: aantal_geldige_bedrijfsparkeervergunningen_volgens_college
-          type: number
-          required: true
-          decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
-          description: >-
-            Wat het college vaststelt over het aantal geldige
-            bedrijfsparkeervergunningen van het bedrijf, als de cel geen
-            antwoord geeft.
-      implements:
-        - law: fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal
-          article: '3'
-          open_term: aantal_geldige_bedrijfsparkeervergunningen
-      execution:
-        parameters:
-          - name: kvk_nummer
-            type: string
-            description: Het nummer dat de Kamer van Koophandel het bedrijf toekende.
-          - name: besluit_datum
-            type: date
-            description: De dag waarop het college op de aanvraag besluit.
-        input:
-          - name: antwoord_aantal_geldig
-            type: number
-            nullable: true
-            source:
-              reduction: aantal_geldige_bedrijfsparkeervergunningen
-              parameters:
-                kvk_nummer: $kvk_nummer
-                besluit_datum: $besluit_datum
-        output:
-          - name: aantal_geldige_bedrijfsparkeervergunningen
-            type: number
-            description: >-
-              Hoeveel geldige bedrijfsparkeervergunningen het bedrijf heeft: het
-              antwoord van de cel, of zonder dat wat het college vaststelt.
-        actions:
-          - output: aantal_geldige_bedrijfsparkeervergunningen
-            value:
-              operation: IF
-              cases:
-                - when:
-                    operation: EQUALS
-                    subject: $antwoord_aantal_geldig
-                    value: null
-                  then: $aantal_geldige_bedrijfsparkeervergunningen_volgens_college
-              default: $antwoord_aantal_geldig
