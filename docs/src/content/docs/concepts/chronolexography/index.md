@@ -55,7 +55,7 @@ A chronolexogram repeats nothing the law says. The law in force on `recorded_on`
 
 ## Recording and deciding
 
-- `Cell::record_submission` runs the establishing article at the stage named after the submission's kind, so the hooks on it run. A missing required field goes under `missing`: an incomplete application is still one (Awb 4:5). The moment the law counts from is the day of recording. A submission may refer to a decision (`refers_to`), as an objection does.
+- `Cell::record_submission` runs the establishing article at the stage named after the submission's kind, so the hooks on it run. A missing required field goes under `missing`: an incomplete application is still one (Awb 4:5). The moment the law counts from is the day of recording. A submission may refer to a decision (`refers_to`), as an objection does. What the article and its hooks give is not stored. `Cell::submission_outputs` computes it again from the fields, in the law of `recorded_on`, and a decision on the submission takes it the same way, such as whether an objection came in time (Awb 6:9).
 - `Cell::decide` takes the id of a submission in the chronicle that requests this decision, and runs the later stages. Findings travel apart from the parameters. Each non-null output of type `decision`, such as a new decision on objection, becomes its own chronolexogram in the same append.
 - `Cell::record_executogram` records a fact whole or not at all. The fact refers to nothing. A change is a new executogram; the old one stays.
 

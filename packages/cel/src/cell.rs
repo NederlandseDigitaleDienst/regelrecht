@@ -460,8 +460,6 @@ impl Cell {
         filled: Filled,
         on: NaiveDate,
     ) -> Result<Gram> {
-        let law_id = shape.law_id.as_str();
-        let article = shape.article.as_str();
         // A field the application leaves out and that can be absent is absent:
         // the application is what the applicant sent (RFC-036), and the
         // chronolexogram says so with `null`. One that cannot be absent stays
@@ -486,13 +484,52 @@ impl Cell {
             declared_by: m.declared_by.clone(),
         });
 
+        // The article runs, with the hooks on the submission, so that a
+        // submission the law cannot take is not recorded. What it gives is
+        // not kept: it follows from the fields and the law of the day, and
+        // the cell computes it again when asked ([`Cell::submission_outputs`]).
+        self.given(service, sphere, shape, &fields, moment.as_ref(), on)?;
+
+        let gram = Gram {
+            id: uuid::Uuid::now_v7().to_string(),
+            kind: shape.kind.clone(),
+            basis: shape.basis(),
+            fact: None,
+            refers_to: filled.refers_to,
+            received: filled.received,
+            after: None,
+            recording_actor: self.recording_actor.clone(),
+            recorded_on: on,
+            moment,
+            fields,
+            missing,
+            outputs: BTreeMap::new(),
+        };
+        Ok(self.chronicle.append(gram)?.clone())
+    }
+
+    /// What the article that establishes a submission of `shape` gives on
+    /// `fields`, with the moment `moment`, in the law in force on `on`: its
+    /// own outputs and those of the hooks on the submission, such as the
+    /// last day of the decision period (Awb 4:13).
+    fn given(
+        &self,
+        service: &mut LawExecutionService,
+        sphere: &[&Cell],
+        shape: &Shape,
+        fields: &BTreeMap<String, serde_json::Value>,
+        moment: Option<&GramMoment>,
+        on: NaiveDate,
+    ) -> Result<BTreeMap<String, serde_json::Value>> {
+        let law_id = shape.law_id.as_str();
+        let article = shape.article.as_str();
         // The engine gets the fields and the moment.
         let day = json_date(on);
         let mut parameters: BTreeMap<String, Value> = fields
             .iter()
             .map(|(k, v)| Ok((k.clone(), stored::from_stored(v)?)))
             .collect::<Result<_>>()?;
-        if let Some(name) = moment.as_ref().and_then(|m| m.parameter.as_ref()) {
+        if let Some(name) = moment.and_then(|m| m.parameter.as_ref()) {
             parameters.insert(name.clone(), day.clone());
         }
         // A decision the submission holds by its id reaches the engine as
@@ -537,23 +574,57 @@ impl Cell {
         };
         let mut output_values = BTreeMap::new();
         collect_outputs(&result, &mut output_values)?;
+        Ok(output_values)
+    }
 
-        let gram = Gram {
-            id: uuid::Uuid::now_v7().to_string(),
-            kind: shape.kind.clone(),
-            basis: shape.basis(),
-            fact: None,
-            refers_to: filled.refers_to,
-            received: filled.received,
-            after: None,
-            recording_actor: self.recording_actor.clone(),
-            recorded_on: on,
-            moment,
-            fields,
-            missing,
-            outputs: output_values,
-        };
-        Ok(self.chronicle.append(gram)?.clone())
+    /// What the article that established the submission `id` gives on it,
+    /// with the hooks on it: executed again on what the submission holds, in
+    /// the law in force on the day it was recorded. The chronolexogram holds
+    /// what was submitted and not what follows from it (RFC-045); a decision
+    /// on the submission takes these the same way.
+    pub fn submission_outputs(
+        &self,
+        service: &mut LawExecutionService,
+        sphere: &[&Cell],
+        id: &str,
+    ) -> Result<BTreeMap<String, serde_json::Value>> {
+        let gram = self.grams().iter().find(|g| g.id == id).ok_or_else(|| {
+            refused(format!(
+                "there is no chronolexogram '{id}' in the chronicle of '{}'",
+                self.recording_actor
+            ))
+        })?;
+        self.outputs_of_submission(service, sphere, gram)
+    }
+
+    /// [`Cell::submission_outputs`] of `gram`.
+    fn outputs_of_submission(
+        &self,
+        service: &mut LawExecutionService,
+        sphere: &[&Cell],
+        gram: &Gram,
+    ) -> Result<BTreeMap<String, serde_json::Value>> {
+        let (law_id, article) = gram.basis.rsplit_once('#').ok_or_else(|| {
+            setup(format!(
+                "chronolexogram '{}' has no basis '<regulation>#<article>'",
+                gram.id
+            ))
+        })?;
+        let shape = shape::derive(service, law_id, article, gram.recorded_on)?;
+        if gram.kind != shape.kind || gram.fact.is_some() {
+            return Err(refused(format!(
+                "chronolexogram '{}' is a {} under {}, not the {} it establishes",
+                gram.id, gram.kind, gram.basis, shape.kind
+            )));
+        }
+        self.given(
+            service,
+            sphere,
+            &shape,
+            &gram.fields,
+            gram.moment.as_ref(),
+            gram.recorded_on,
+        )
     }
 
     /// Record an executogram on `on` (RFC-051): an instance of the fact
@@ -885,7 +956,11 @@ impl Cell {
             .filter(|_| !replaces.is_empty());
         // The decision values it gets, from replays of those decisions.
         let shape = decision::derive(service, law_id, article, on)?;
-        let applied = self.application(&shape, application, after)?.clone();
+        let mut applied = self.application(&shape, application, after)?.clone();
+        // What the submission gives, such as whether an objection came in
+        // time (Awb 6:9), is not in its chronolexogram: the decision takes it
+        // from the article executed again on what the submission holds.
+        applied.outputs = self.outputs_of_submission(service, sphere, &applied)?;
         // Taken again, the decision sets aside every earlier one on it.
         let set_aside: Vec<String> = decisions_on(self.grams(), &applied.id)
             .iter()

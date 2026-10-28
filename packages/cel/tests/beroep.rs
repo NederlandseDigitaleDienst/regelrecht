@@ -70,6 +70,13 @@ fn service() -> LawExecutionService {
     service
 }
 
+/// What the article of the submission `gram` gives on it, with the hooks on
+/// it: not in its chronolexogram, but computed again by the cell.
+fn given(cell: &Cell, gram: &Gram) -> std::collections::BTreeMap<String, Value> {
+    cell.submission_outputs(&mut service(), &[], &gram.id)
+        .unwrap()
+}
+
 fn cells() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/cells")
 }
@@ -351,11 +358,11 @@ fn the_court_records_the_appeal_with_the_copy_it_received() {
     // 6:7 and 6:8 on that beschikking), and 6:9 says the appeal is on time.
     assert_eq!(appeal.fields["termijn_einddatum"], json!("2026-12-27"));
     assert_eq!(
-        appeal.outputs["bezwaar_of_beroepschrift_tijdig_ingediend"],
+        given(&court, &appeal)["bezwaar_of_beroepschrift_tijdig_ingediend"],
         json!(true)
     );
     assert_eq!(
-        appeal.outputs["bezwaar_of_beroepschrift_bevat_wat_artikel_6_5_eist"],
+        given(&court, &appeal)["bezwaar_of_beroepschrift_bevat_wat_artikel_6_5_eist"],
         json!(true)
     );
 }
@@ -373,7 +380,7 @@ fn an_appeal_received_after_the_period_is_inadmissible() {
     let appeal = appealed_on(&mut court, &copy, ["2026-12-20", "2026-12-28"]).unwrap();
     assert_eq!(appeal.fields["termijn_einddatum"], json!("2026-12-27"));
     assert_eq!(
-        appeal.outputs["bezwaar_of_beroepschrift_tijdig_ingediend"],
+        given(&court, &appeal)["bezwaar_of_beroepschrift_tijdig_ingediend"],
         json!(false)
     );
     // The cell still asks whether a rule was breached; even with a breach,

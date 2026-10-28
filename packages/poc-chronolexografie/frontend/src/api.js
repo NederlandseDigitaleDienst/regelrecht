@@ -97,6 +97,9 @@ export const api = {
   voorvertoningBesluit: (op, bevindingen, datum) =>
     roep((p) => p.voorvertoningBesluit(op, json(bevindingen), datum)),
   waarom: (id) => roep((p) => p.waarom(id)),
+  // Wat uit een aanvraag, bezwaar of beroep volgt, zoals de laatste dag van
+  // de beslistermijn: de kroniek bewaart het niet, de cel rekent het uit.
+  watVolgt: (id) => roep((p) => p.watVolgt(id)),
   hoeBeantwoord: (id, antwoord) => roep((p) => p.hoeBeantwoord(id, antwoord)),
   bezwaren: (besluit, velden, datum) => roep((p) => p.bezwaren(besluit, json(velden), datum)),
   heroverweging: (bezwaar, datum) => roep((p) => p.heroverweging(bezwaar, datum)),

@@ -12,6 +12,9 @@
 // uitvoer. Het geheel als JSON, met decimalen als getal, staat in een sheet.
 // Welke bevindingen een besluit gebruikte, staat niet in de kroniek: de cel
 // leidt het af uit het besluit opnieuw genomen (Cell::findings, RFC-050).
+// Wat uit een aanvraag, bezwaar of beroep volgt, zoals de laatste dag van de
+// beslistermijn, staat er ook niet in: de cel rekent het uit bij het
+// openklappen (Cell::submission_outputs).
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { api } from '../api.js';
 import { beroepApi, herkomst } from '../beroep.js';
@@ -42,6 +45,7 @@ const vind = (id) => {
 // gebruikte, opgehaald bij het openklappen.
 const open = ref(new Set());
 const bevindingen = reactive({});
+const gevolgen = reactive({});
 const isOpen = (id) => open.value.has(id);
 
 async function laadBevindingen(id) {
@@ -58,12 +62,26 @@ async function laadBevindingen(id) {
   }
 }
 
+const isIndiening = (g) => ['AANVRAAG', 'BEZWAAR', 'BEROEP'].includes(g.kind);
+
+async function laadGevolgen(id) {
+  const g = vind(id)?.gram;
+  if (!g || !isIndiening(g) || gevolgen[id]) return;
+  try {
+    gevolgen[id] = await api.watVolgt(id);
+  } catch (e) {
+    gevolgen[id] = false;
+    state.fout = e.message;
+  }
+}
+
 function toggle(id) {
   const nieuw = new Set(open.value);
   if (nieuw.has(id)) nieuw.delete(id);
   else {
     nieuw.add(id);
     laadBevindingen(id);
+    laadGevolgen(id);
   }
   open.value = nieuw;
 }
@@ -132,6 +150,10 @@ function regels(k, g) {
   }
   for (const [naam, w] of Object.entries(g.outputs ?? {})) {
     uit.push({ naam: leesbaar(naam), waarde: toon(w), toelichting: 'uitvoer' });
+  }
+  if (gevolgen[g.id] === false) uit.push({ naam: 'Volgt uit de wet', waarde: 'niet uitgerekend, zie de melding' });
+  for (const [naam, w] of Object.entries(gevolgen[g.id] || {})) {
+    uit.push({ naam: leesbaar(naam), waarde: toon(w), toelichting: 'volgt uit de wet, niet vastgelegd' });
   }
   return uit;
 }

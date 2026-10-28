@@ -840,6 +840,28 @@ pub fn waarom(corpus: &Corpus, cell: &Cellen, id: &str) -> Result<Waarom> {
     waarom_in(corpus, cell, &cell.sfeer(), id)
 }
 
+/// What follows from the submission `id`, in the chronicle of any cell of
+/// the case: the outputs of the article that established it and of the hooks
+/// on it, such as the last day of the decision period (Awb 4:13). The
+/// chronolexogram holds what was submitted; the cell computes these when
+/// asked, in the law in force on the day it was recorded.
+pub fn wat_volgt(corpus: &Corpus, cellen: &Cellen, id: &str) -> Result<Value> {
+    let mut service = corpus.service()?;
+    let houder = std::iter::once(&cellen.eigen)
+        .chain(&cellen.andere)
+        .find(|c| c.grams().iter().any(|g| g.id == id))
+        .ok_or_else(|| Error::Refused(format!("no cell of this case holds '{id}'")))?;
+    let uitvoer = if houder.recording_actor() == cellen.eigen.recording_actor() {
+        cellen
+            .eigen
+            .submission_outputs(&mut service, &cellen.sfeer(), id)?
+    } else {
+        let (cell, sfeer) = cellen.op(houder.recording_actor())?;
+        cell.submission_outputs(&mut service, &sfeer, id)?
+    };
+    Ok(json!(uitvoer))
+}
+
 /// [`waarom`] for the decision `id` of `cell`, with the other cells of
 /// `sfeer`: the case's cell, or another cell of the case such as the court.
 fn waarom_in(corpus: &Corpus, cell: &Cell, sfeer: &[&Cell], id: &str) -> Result<Waarom> {
@@ -1612,7 +1634,7 @@ pub fn heroverweging(
         "bezwaar": bezwaar,
         "bestreden_besluit": bestreden.id,
         "ontvankelijk": ontvankelijk,
-        "tijdig": ingediend.outputs.get("bezwaar_of_beroepschrift_tijdig_ingediend"),
+        "tijdig": toets.fields.get("bezwaar_of_beroepschrift_tijdig_ingediend"),
         "uitvoer": toets.outputs,
         "bevindingen": bevindingen,
     }))
@@ -4178,7 +4200,8 @@ mod tests {
         assert_eq!(ingesteld.kind, "BEROEP");
         assert_eq!(ingesteld.received.as_ref().unwrap().id, op_bezwaar);
         assert_eq!(
-            ingesteld.outputs["bezwaar_of_beroepschrift_tijdig_ingediend"],
+            wat_volgt(&corpus, &cell, &ingesteld.id).unwrap()
+                ["bezwaar_of_beroepschrift_tijdig_ingediend"],
             json!(true)
         );
 

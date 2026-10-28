@@ -269,13 +269,14 @@ fn an_executogram_read_back_records_a_fact_and_nothing_else() {
         std::fs::write(&path, tampered).unwrap();
         Cell::open(ACTOR, &path, dir.path()).map(|_| ())
     };
-    let e = opens(line.replace("\"outputs\":{}", "\"outputs\":{\"x\":1}")).unwrap_err();
+    // An executogram holds no outputs, so the line has none to change.
+    let with = |extra: &str| format!("{},{extra}}}\n", line.trim_end().strip_suffix('}').unwrap());
+    let e = opens(with("\"outputs\":{\"x\":1}")).unwrap_err();
     assert!(
         matches!(&e, Error::Setup(m) if m.contains("records a fact and nothing else")),
         "{e}"
     );
-    let e = opens(line.replace("\"outputs\":{}", "\"missing\":[\"sinds\"],\"outputs\":{}"))
-        .unwrap_err();
+    let e = opens(with("\"missing\":[\"sinds\"]")).unwrap_err();
     assert!(
         matches!(&e, Error::Setup(m) if m.contains("records a fact and nothing else")),
         "{e}"

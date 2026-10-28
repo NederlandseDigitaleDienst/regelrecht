@@ -48,6 +48,13 @@ fn service() -> LawExecutionService {
     service_without(&[])
 }
 
+/// What the article of the submission `gram` gives on it, with the hooks on
+/// it: not in its chronolexogram, but computed again by the cell.
+fn given(cell: &Cell, gram: &Gram) -> std::collections::BTreeMap<String, Value> {
+    cell.submission_outputs(&mut service(), &[], &gram.id)
+        .unwrap()
+}
+
 /// As [`service`], without the regelwerken under `without`.
 fn service_without(without: &[&str]) -> LawExecutionService {
     let mut service = LawExecutionService::new();
@@ -185,17 +192,19 @@ fn an_application_is_recorded_with_its_basis_and_the_awb_deadline() {
     assert_eq!(moment.on, day("2026-10-13"));
     assert_eq!(moment.declared_by, "algemene_wet_bestuursrecht#4:13");
 
-    // What the Awb hooks gave. Art. 13a follows the Awb procedure, so
-    // recording the application runs its stage AANVRAAG: the outputs of
-    // art. 13a belong to the decision (`produces`), and no hook on the
-    // decision fires yet.
-    assert_eq!(gram.outputs.len(), 2);
+    // What the Awb hooks give is not in the chronolexogram: it follows from
+    // the fields and the law of the day, and the cell computes it when
+    // asked. Art. 13a follows the Awb procedure, so the article runs its
+    // stage AANVRAAG: the outputs of art. 13a belong to the decision
+    // (`produces`), and no hook on the decision fires yet.
+    assert!(gram.outputs.is_empty());
+    assert_eq!(given(&cell, &gram).len(), 2);
     assert_eq!(
-        gram.outputs["aanvraag_bevat_wat_artikel_4_2_eist"],
+        given(&cell, &gram)["aanvraag_bevat_wat_artikel_4_2_eist"],
         json!(true)
     );
     assert_eq!(
-        gram.outputs["redelijke_beslistermijn_einddatum"],
+        given(&cell, &gram)["redelijke_beslistermijn_einddatum"],
         json!("2026-12-08")
     );
     // The chronolexogram does not repeat the law: what each field and output
@@ -222,7 +231,7 @@ fn an_application_without_an_address_is_recorded_and_4_2_says_it_lacks() {
         .collect();
     for gram in &grams {
         assert_eq!(
-            gram.outputs["aanvraag_bevat_wat_artikel_4_2_eist"],
+            given(&cell, gram)["aanvraag_bevat_wat_artikel_4_2_eist"],
             json!(false)
         );
         // Left out or `null`, the chronolexogram shows what the engine
@@ -1362,14 +1371,14 @@ fn an_objection_refers_to_the_decision_and_takes_its_period_from_it() {
         refused.outputs["termijn_einddatum"]
     );
     assert_eq!(gram.moment.as_ref().unwrap().on, day("2026-11-01"));
-    assert_eq!(gram.outputs[TIMELY], json!(true));
+    assert_eq!(given(&cell, &gram)[TIMELY], json!(true));
     assert_eq!(
-        gram.outputs["bezwaar_of_beroepschrift_bevat_wat_artikel_6_5_eist"],
+        given(&cell, &gram)["bezwaar_of_beroepschrift_bevat_wat_artikel_6_5_eist"],
         json!(true)
     );
     // Awb 7:10: six weeks from the day after the period ends.
     assert_eq!(
-        gram.outputs["beslistermijn_bezwaar_einddatum"],
+        given(&cell, &gram)["beslistermijn_bezwaar_einddatum"],
         json!("2027-01-12")
     );
     // The hooks on the decision do not fire on the objection.
@@ -1483,7 +1492,7 @@ fn a_second_application_upheld_on_objection_stands() {
     // time comes from the objection (Awb 6:9).
     assert_eq!(decision.fields["bestreden_besluit"], json!(second.id));
     assert_eq!(decision.fields[TIMELY], json!(true));
-    assert_eq!(decision.fields[TIMELY], bezwaar.outputs[TIMELY]);
+    assert_eq!(decision.fields[TIMELY], given(&cell, &bezwaar)[TIMELY]);
     assert!(!decision.fields.contains_key(PROFESSION));
     // The heroverweging gives no cause.
     assert_eq!(decision.outputs[ADMISSIBLE], json!(true));
@@ -1567,7 +1576,7 @@ fn an_objection_against_a_decision_on_objection_is_not_admissible() {
     let again = object(&mut cell, &upheld.id, &objection(&[]), "2026-11-20").unwrap();
     assert_eq!(again.fields["bestreden_besluit"], json!(upheld.id));
     // Its period comes from the decision on the objection.
-    assert_eq!(again.outputs[TIMELY], json!(true));
+    assert_eq!(given(&cell, &again)[TIMELY], json!(true));
     let decided = decide_objection(&mut cell, &again.id, "2026-11-25").unwrap();
     assert_eq!(decided.len(), 1);
     assert_eq!(decided[0].outputs[ADMISSIBLE], json!(false));
@@ -1590,7 +1599,7 @@ fn an_objection_against_the_decision_taken_on_objection_is_not_admissible() {
     assert_eq!(new.outputs["verlof_verleend"], json!(true));
 
     let again = object(&mut cell, &new.id, &objection(&[]), "2026-11-20").unwrap();
-    assert_eq!(again.outputs[TIMELY], json!(true));
+    assert_eq!(given(&cell, &again)[TIMELY], json!(true));
     // The objection is not reconsidered, so a finding anew is asked by no
     // article and refused; without one it is decided on.
     let e = reconsider(&mut cell, &again.id, &profession(false), "2026-11-25").unwrap_err();
@@ -1737,10 +1746,10 @@ fn a_late_objection_is_recorded_and_not_admissible() {
     let refused = apply_and_decide(&mut cell, "2027-02-01", "2027-02-16", "2026-10-20");
     // On the last day of the period it is on time.
     let on_time = object(&mut cell, &refused.id, &objection(&[]), "2026-12-01").unwrap();
-    assert_eq!(on_time.outputs[TIMELY], json!(true));
+    assert_eq!(given(&cell, &on_time)[TIMELY], json!(true));
     // The day after it is late, and still recorded.
     let late = object(&mut cell, &refused.id, &objection(&[]), "2026-12-02").unwrap();
-    assert_eq!(late.outputs[TIMELY], json!(false));
+    assert_eq!(given(&cell, &late)[TIMELY], json!(false));
 
     // A late objection is not admissible (Awb 7:11 lid 1): it is not
     // reconsidered, so there is no judgement on cause, and the decision
@@ -1830,7 +1839,7 @@ fn a_late_objection_is_not_admissible_where_the_heroverweging_would_fail() {
     let mut cell = cell();
     let refused = apply_and_decide(&mut cell, "2027-02-01", "2027-02-16", "2026-10-20");
     let late = object(&mut cell, &refused.id, &objection(&[]), "2026-12-02").unwrap();
-    assert_eq!(late.outputs[TIMELY], json!(false));
+    assert_eq!(given(&cell, &late)[TIMELY], json!(false));
     // Without the school's policy on the day of the decision, art. 13a anew
     // cannot be applied; the objection is not reconsidered, so that does not
     // stand in the way (Awb 7:11 lid 1).

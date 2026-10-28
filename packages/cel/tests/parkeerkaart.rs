@@ -147,6 +147,13 @@ fn service() -> LawExecutionService {
     service
 }
 
+/// What the article of the submission `gram` gives on it, with the hooks on
+/// it: not in its chronolexogram, but computed again by the cell.
+fn given(cell: &Cell, gram: &Gram) -> std::collections::BTreeMap<String, Value> {
+    cell.submission_outputs(&mut service(), &[&ggd()], &gram.id)
+        .unwrap()
+}
+
 /// The municipality's cell directory, with its catalogue of answers
 /// (RFC-048).
 fn cell_dir() -> PathBuf {
@@ -283,11 +290,11 @@ fn an_application_is_recorded_with_the_awb_deadline() {
     assert_eq!(gram.recording_actor, RECORDING_ACTOR);
     assert_eq!(gram.fields["kaart_als_bestuurder"], json!(true));
     assert_eq!(
-        gram.outputs["aanvraag_bevat_wat_artikel_4_2_eist"],
+        given(&cell, &gram)["aanvraag_bevat_wat_artikel_4_2_eist"],
         json!(true)
     );
     assert_eq!(
-        gram.outputs["redelijke_beslistermijn_einddatum"],
+        given(&cell, &gram)["redelijke_beslistermijn_einddatum"],
         json!("2026-12-08")
     );
     // The decision's outputs wait for the decision.
@@ -662,7 +669,7 @@ fn ongegrond_the_same_examination_refuses_again_and_the_refusal_stands() {
     .unwrap();
     assert_eq!(bezwaar.fields["termijn_einddatum"], json!("2026-12-01"));
     assert_eq!(
-        bezwaar.outputs["bezwaar_of_beroepschrift_tijdig_ingediend"],
+        given(&cell, &bezwaar)["bezwaar_of_beroepschrift_tijdig_ingediend"],
         json!(true)
     );
 

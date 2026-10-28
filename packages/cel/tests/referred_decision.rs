@@ -283,6 +283,13 @@ fn service() -> LawExecutionService {
     service_with(HEROVERWEGING)
 }
 
+/// What the article of the submission `gram` gives on it, with the hooks on
+/// it: not in its chronolexogram, but computed again by the cell.
+fn given(cell: &Cell, gram: &Gram) -> std::collections::BTreeMap<String, Value> {
+    cell.submission_outputs(&mut service(), &[], &gram.id)
+        .unwrap()
+}
+
 /// A cell that gives the answer `al_verleend` from the reduction, as its
 /// catalogue says.
 fn cell() -> (Cell, tempfile::TempDir) {
@@ -390,10 +397,10 @@ fn the_decision_field_comes_from_refers_to_and_is_kept_as_its_id() {
         granted.outputs["termijn_einde"]
     );
     assert_eq!(bezwaar.fields["nieuwe_gegevens"], Value::Null);
-    assert_eq!(bezwaar.outputs["tijdig"], json!(true));
+    assert_eq!(given(&cell, &bezwaar)["tijdig"], json!(true));
     // The hook got the decision value, not the id.
     assert_eq!(
-        bezwaar.outputs["bestreden_grondslag"],
+        given(&cell, &bezwaar)["bestreden_grondslag"],
         json!("wet_verlof_fictief#1")
     );
 }
@@ -1301,7 +1308,11 @@ fn a_finding_for_a_call_anew_that_does_not_happen_is_refused() {
         "2026-05-01",
     )
     .unwrap();
-    assert_eq!(late.outputs["tijdig"], json!(false));
+    assert_eq!(
+        cell.submission_outputs(&mut service, &[], &late.id)
+            .unwrap()["tijdig"],
+        json!(false)
+    );
     let before = cell.grams().len();
     let e = decide_objection(
         &mut cell,
