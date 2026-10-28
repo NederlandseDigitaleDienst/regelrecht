@@ -957,14 +957,6 @@ impl RuleResolver {
         law.find_article_by_output(output)
     }
 
-    /// Find all implementations of an open term, resolved by priority.
-    ///
-    /// Check if a law's scope fields match the execution scope.
-    ///
-    /// Scope fields are law-level metadata that limit territorial applicability
-    /// (e.g., `gemeente_code`, `waterschap_code`). A law with no scope fields
-    /// is considered national and always matches. A law with scope fields only
-    /// matches if every scope field has a matching value in the execution scope.
     /// Whether two scoped laws hold for the same territory: both carry scope
     /// fields, and the same ones with the same values. Two national laws do
     /// not count; for them `matches_scope` already holds.
@@ -984,6 +976,14 @@ impl RuleResolver {
         scoped(a) && fields(a) == fields(b)
     }
 
+    /// Find all implementations of an open term, resolved by priority.
+    ///
+    /// Check if a law's scope fields match the execution scope.
+    ///
+    /// Scope fields are law-level metadata that limit territorial applicability
+    /// (e.g., `gemeente_code`, `waterschap_code`). A law with no scope fields
+    /// is considered national and always matches. A law with scope fields only
+    /// matches if every scope field has a matching value in the execution scope.
     fn matches_scope(law: &ArticleBasedLaw, scope: &HashMap<String, Value>) -> bool {
         if let Some(ref law_gemeente) = law.gemeente_code {
             let scope_value = scope.get("gemeente_code").and_then(|v| match v {
