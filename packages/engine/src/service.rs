@@ -2398,20 +2398,12 @@ impl LawExecutionService {
                 continue;
             };
             for article in &law.articles {
-                let Some(submission) = article.get_submission() else {
-                    continue;
-                };
-                let asks = match submission.requests() {
-                    Some(requests) => requests == target,
-                    None => {
-                        id == law_id
-                            && article.number == article_number
-                            && !article.produces_list()
-                            && article.get_decision().is_some()
-                    }
-                };
-                if asks {
-                    found.push(format!("{id}#{}", article.number));
+                let own = format!("{id}#{}", article.number);
+                if article
+                    .requested_decision(&own)
+                    .is_some_and(|t| t == target)
+                {
+                    found.push(own);
                 }
             }
         }

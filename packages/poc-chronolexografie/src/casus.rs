@@ -551,8 +551,8 @@ pub struct Afleiding {
     pub law: String,
     pub article: String,
     /// The article whose decision the application asks for (`requests`,
-    /// RFC-047): the application's own for Leerplichtwet 13a, that of Wpp
-    /// 107 for Wpp 102.
+    /// RFC-047): the application's own in the object form, or the article
+    /// that its item names, which may be the application itself.
     pub decision_law: String,
     pub decision: String,
     /// The article that establishes the objection (`type: BEZWAAR`), and
@@ -563,9 +563,9 @@ pub struct Afleiding {
     /// (`type: BEROEP`) and decides on it, Awb 8:70, and the fact in which
     /// the cell records the receipt of a judgment ([`Beroep`]).
     pub beroep: Option<Beroep>,
-    /// Who decides: the competent authority of the article, or else the
-    /// holder of its rulework (RFC-002), as the app names it ("het hoofd",
-    /// "het college van burgemeester en wethouders").
+    /// Who decides: the competent authority of the article that takes the
+    /// decision, or else the holder of its rulework (RFC-002), as the app
+    /// names it ("het hoofd", "het college van burgemeester en wethouders").
     pub rol: String,
     /// The regelwerken the cell runs, by `$id`, the article's law first.
     pub regelwerken: Vec<String>,
@@ -649,11 +649,11 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
     )?;
 
     let werk = regelwerken
-        .get(law)
-        .ok_or_else(|| Error::Setup(format!("'{law}' is not in the corpus")))?;
-    let rol = rol(werk.nieuwste(), article).ok_or_else(|| {
+        .get(&decision_law)
+        .ok_or_else(|| Error::Setup(format!("'{decision_law}' is not in the corpus")))?;
+    let rol = rol(werk.nieuwste(), &decision).ok_or_else(|| {
         Error::Setup(format!(
-            "case '{}': {law}#{article} names no competent authority",
+            "case '{}': {decision_law}#{decision} names no competent authority",
             casus.id
         ))
     })?;
@@ -725,7 +725,8 @@ fn beroep(
 
 /// The article whose decision the application under `law#article` asks
 /// for ([`regelrecht_law_model::Article::requested_decision`]): it must be
-/// in the case's corpus and take a decision.
+/// in the case's corpus and take a decision. The application's own law and
+/// article must be in that corpus too.
 fn gevraagd_besluit(
     regelwerken: &Regelwerken,
     casus: &str,
@@ -733,15 +734,22 @@ fn gevraagd_besluit(
     article: &str,
 ) -> Result<(String, String)> {
     let eigen = format!("{law}#{article}");
-    let doel = regelwerken
-        .get(law)
-        .and_then(|w| w.nieuwste().articles.iter().find(|a| a.number == article))
-        .and_then(|a| a.requested_decision(&eigen))
-        .ok_or_else(|| {
-            Error::Setup(format!(
-                "case '{casus}': {eigen} establishes no application that asks for a decision"
-            ))
-        })?;
+    let werk = regelwerken.get(law).ok_or_else(|| {
+        Error::Setup(format!(
+            "case '{casus}' needs regelwerk '{law}', which is not in the corpus"
+        ))
+    })?;
+    let aanvraag = werk
+        .nieuwste()
+        .articles
+        .iter()
+        .find(|a| a.number == article)
+        .ok_or_else(|| Error::Setup(format!("case '{casus}': '{law}' has no article {article}")))?;
+    let doel = aanvraag.requested_decision(&eigen).ok_or_else(|| {
+        Error::Setup(format!(
+            "case '{casus}': {eigen} establishes no application that asks for a decision"
+        ))
+    })?;
     let neemt = doel.split_once('#').and_then(|(l, a)| {
         let werk = regelwerken.get(l)?;
         werk.nieuwste()
