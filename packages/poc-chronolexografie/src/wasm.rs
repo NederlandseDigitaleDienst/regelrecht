@@ -148,6 +148,11 @@ impl Poc {
         antwoord(self.spel.waarom(id))
     }
 
+    #[wasm_bindgen(js_name = watVolgt)]
+    pub fn wat_volgt(&mut self, id: &str) -> Result<String, JsError> {
+        antwoord(self.spel.wat_volgt(id))
+    }
+
     #[wasm_bindgen(js_name = hoeBeantwoord)]
     pub fn hoe_beantwoord(&mut self, id: &str, naam: &str) -> Result<String, JsError> {
         antwoord(self.spel.hoe_beantwoord(id, naam))

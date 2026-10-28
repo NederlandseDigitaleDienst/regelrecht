@@ -105,7 +105,7 @@ function regels(h) {
     uit.push({
       naam: 'Geen besluit',
       toelichting:
-        'De cel legde vast wat de aanvrager indiende. Wat het artikel daarbij uitrekende, zoals de laatste dag van de termijn, staat in de kroniek.',
+        'De cel legde vast wat de aanvrager indiende. Wat daaruit volgt, zoals de laatste dag van de termijn, rekent zij uit als je het chronolexogram in de kroniek openklapt.',
     });
   }
   return uit;

@@ -197,6 +197,11 @@ impl Spel {
         ok(self.met(|c, cell| kern::waarom(c, cell, id))?)
     }
 
+    /// What follows from the submission `id` ([`kern::wat_volgt`]).
+    pub fn wat_volgt(&mut self, id: &str) -> Antwoord {
+        ok(self.met(|c, cell| kern::wat_volgt(c, cell, id))?)
+    }
+
     pub fn hoe_beantwoord(&mut self, id: &str, naam: &str) -> Antwoord {
         ok(self.met(|c, cell| kern::hoe_beantwoord(c, cell, id, naam))?)
     }

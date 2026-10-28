@@ -1068,8 +1068,12 @@ fn bedrijfsparkeervergunning_the_ordinance_sets_a_term_of_four_weeks() {
     let aanvraag = spel
         .aanvragen(&map(&casus["voorbeeld"]["aanvraag"]), dag("2026-10-13"))
         .unwrap();
+    // The chronolexogram holds what was submitted; the term follows from it
+    // and the cell computes it when asked.
+    assert!(aanvraag.get("outputs").is_none());
+    let id = aanvraag["id"].as_str().unwrap();
     assert_eq!(
-        aanvraag["outputs"]["redelijke_beslistermijn_einddatum"],
+        spel.wat_volgt(id).unwrap()["redelijke_beslistermijn_einddatum"],
         json!("2026-11-10")
     );
     let mut kaart = spel_met("gehandicaptenparkeerkaart");
@@ -1077,8 +1081,9 @@ fn bedrijfsparkeervergunning_the_ordinance_sets_a_term_of_four_weeks() {
     let aanvraag = kaart
         .aanvragen(&map(&casus["voorbeeld"]["aanvraag"]), dag("2026-10-13"))
         .unwrap();
+    let id = aanvraag["id"].as_str().unwrap();
     assert_eq!(
-        aanvraag["outputs"]["redelijke_beslistermijn_einddatum"],
+        kaart.wat_volgt(id).unwrap()["redelijke_beslistermijn_einddatum"],
         json!("2026-12-08")
     );
 }

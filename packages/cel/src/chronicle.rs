@@ -83,15 +83,16 @@ pub struct Gram {
     /// incomplete application is still recorded (Awb 4:5).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub missing: Vec<String>,
-    /// What executing the establishing article gave: its own outputs and
-    /// those of the hooks on the submission, such as the last day of the
-    /// decision period (Awb 4:13).
+    /// The outputs of a decision. A submission holds none: what its article
+    /// and the hooks on it give, such as the last day of the decision period
+    /// (Awb 4:13), follows from its fields and the law of its day, and the
+    /// cell computes it when asked ([`crate::Cell::submission_outputs`]).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub outputs: BTreeMap<String, Value>,
 }
 
 impl Gram {
-    /// The value it holds under `name`: a field, or else an output (what a
-    /// hook on a submission gave, RFC-050).
+    /// The value it holds under `name`: a field, or else an output.
     pub fn held(&self, name: &str) -> Option<&Value> {
         self.fields.get(name).or_else(|| self.outputs.get(name))
     }
