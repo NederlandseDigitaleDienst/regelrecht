@@ -165,7 +165,7 @@ sources:
 "#,
     )
     .unwrap();
-    let alice = seed_account(&db.pool, "alice@test.local", "Alice").await;
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
 
     let traject_id = create_traject(&state, &alice, "Zonder voorbeelden").await;
 

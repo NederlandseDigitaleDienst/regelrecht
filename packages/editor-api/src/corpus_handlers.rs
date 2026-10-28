@@ -848,17 +848,27 @@ fn filter_corpus_laws_counted(
         // Filtered (by ids, search or source): highest-priority source first
         // (the traject's own repo before the central corpus), so the grouped
         // UI gets them in order and the result cap can't starve a
-        // high-priority source. Within a source the best search matches come
-        // first, then laws whose body is loaded (favorites, example rulework:
-        // the ones people work with), then the shorter id, which puts a law
-        // before the acts that amend or introduce it. No offset paging —
-        // return the matching set.
+        // high-priority source. For a search, within a source the best
+        // matches come first, then laws whose body is loaded (favorites,
+        // example rulework: the ones people work with), then the shorter id,
+        // which puts a law before the acts that amend or introduce it. Without
+        // a search (ids or source only) the rest is alphabetical. No offset
+        // paging — return the matching set.
+        let searching = needle.is_some();
         entries.sort_by(|(rank_a, loaded_a, a), (rank_b, loaded_b, b)| {
+            let by_search = || {
+                if searching {
+                    rank_a
+                        .cmp(rank_b)
+                        .then_with(|| loaded_b.cmp(loaded_a))
+                        .then_with(|| a.law_id.len().cmp(&b.law_id.len()))
+                } else {
+                    std::cmp::Ordering::Equal
+                }
+            };
             a.source_priority
                 .cmp(&b.source_priority)
-                .then_with(|| rank_a.cmp(rank_b))
-                .then_with(|| loaded_b.cmp(loaded_a))
-                .then_with(|| a.law_id.len().cmp(&b.law_id.len()))
+                .then_with(by_search)
                 .then_with(|| a.law_id.cmp(&b.law_id))
         });
         entries.into_iter().take(limit).map(|(_, _, e)| e).collect()

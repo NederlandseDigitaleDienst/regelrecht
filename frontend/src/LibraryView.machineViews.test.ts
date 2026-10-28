@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, type VueWrapper } from '@vue/test-utils';
 import { nextTick, ref } from 'vue';
+import * as harness from './test-utils/libraryViewHarness';
 
 interface Internals {
   showMachineViews: boolean;
@@ -21,96 +22,38 @@ const routeState: { name: string; params: Record<string, string>; query: Record<
   fullPath: '/corpus-juris/wet_a#machine',
   hash: '#machine',
 };
-vi.mock('vue-router', () => ({
-  useRoute: () => routeState,
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), resolve: () => ({ href: '#' }) }),
-  onBeforeRouteUpdate: vi.fn(),
-  onBeforeRouteLeave: vi.fn(),
-}));
+vi.mock('vue-router', () => harness.vueRouter(() => routeState));
 
 // Logged in by default; the favorites test logs out.
 const authenticated = ref(true);
-vi.mock('./composables/useAuth', () => ({
-  useAuth: () => ({ authenticated, login: vi.fn() }),
-}));
+vi.mock('./composables/useAuth', () => harness.auth(() => ({ authenticated })));
 
 // No traject: Corpus juris. A test that needs a traject sets this ref.
 const activeTrajectRef = ref<string | null>(null);
-vi.mock('./composables/useTrajects', () => ({
-  useTrajects: () => ({
-    activeTrajectRef,
-    activeTraject: ref({ name: 'Traject A' }),
-  }),
-  refreshTrajects: vi.fn(),
-}));
+vi.mock('./composables/useTrajects', () =>
+  harness.trajectsModule(() => ({ activeTrajectRef, activeTraject: ref({ name: 'Traject A' }) })),
+);
 
 // The open law's list entry: what the test sets here is what `?ids=` answers.
+// A minimal law body, so the law pane (and its toolbar with the star) renders.
 const entries = vi.hoisted(() => ({ list: [] as Record<string, unknown>[] }));
-vi.mock('./lib/apiFetch', () => ({
-  // A minimal law, so the law pane (and its toolbar with the star) renders.
-  apiFetch: vi.fn().mockResolvedValue({
-    ok: true,
-    status: 200,
-    json: async () => [],
-    text: async () => '$id: wet_a\narticles: []\n',
+vi.mock('./lib/apiFetch', () =>
+  harness.apiFetchModule({
+    apiFetch: vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [],
+      text: async () => '$id: wet_a\narticles: []\n',
+    }),
+    apiFetchJson: vi.fn(async (url: string) => (url.includes('ids=') ? entries.list : [])),
   }),
-  apiFetchJson: vi.fn(async (url: string) => (url.includes('ids=') ? entries.list : [])),
-  ApiError: class ApiError extends Error {},
-}));
+);
 
-vi.mock('./composables/useFeatureFlags', () => ({
-  useFeatureFlags: () => ({ isEnabled: () => true }),
-}));
-
-vi.mock('./composables/useDocumentsManager', () => ({
-  useDocumentsManager: () => ({
-    documents: ref([]),
-    listLoading: ref(false),
-    listError: ref(null),
-    currentPath: ref(null),
-    currentBody: ref(''),
-    hasChanges: ref(false),
-    docLoading: ref(false),
-    docError: ref(null),
-    saving: ref(false),
-    open: vi.fn(),
-    startNew: vi.fn(),
-    close: vi.fn(),
-    uploadDocument: vi.fn(),
-    displayTitle: (p: string | null | undefined) => p,
-    dropDraft: vi.fn(),
-  }),
-}));
-
-vi.mock('./composables/useTrajectDocumentJobs', () => ({
-  useTrajectDocumentJobs: () => ({
-    jobs: ref([]),
-    refresh: vi.fn(),
-    startPolling: vi.fn(),
-    stopPolling: vi.fn(),
-  }),
-}));
-
-vi.mock('./composables/useDocumentUpload', () => ({
-  useDocumentUpload: () => ({
-    fileInput: ref(null),
-    uploadError: ref(null),
-    uploadRetryable: ref(false),
-    onUpload: vi.fn(),
-    onFileChange: vi.fn(),
-  }),
-}));
-
-vi.mock('./composables/useDocumentTaskReview', () => ({
-  useDocumentTaskReview: () => ({
-    reviewTask: ref(null),
-    proposedContent: ref(null),
-    loadError: ref(null),
-    loadReview: vi.fn(),
-    approveAfterSave: vi.fn(),
-    reject: vi.fn(),
-  }),
-}));
+vi.mock('./composables/useFeatureFlags', () => harness.featureFlags());
+vi.mock('./composables/useDocumentsManager', () => harness.documentsManager());
+vi.mock('./composables/useTrajectDocumentJobs', () => harness.trajectDocumentJobs());
+vi.mock('./composables/useDocumentUpload', () => harness.documentUpload());
+vi.mock('./composables/useDocumentTaskReview', () => harness.documentTaskReview());
 
 import LibraryView from './LibraryView.vue';
 

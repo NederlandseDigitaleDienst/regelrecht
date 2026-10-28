@@ -10,12 +10,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+mod common;
+
+use common::{app_state, contents_file_json};
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::extract::{Path, Query, State};
 use axum::response::IntoResponse;
-use base64::Engine;
 use pretty_assertions::assert_eq;
 use tokio::sync::{Mutex, RwLock};
 use wiremock::matchers::{method, path};
@@ -23,12 +26,10 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use regelrecht_corpus::dto::PaginationParams;
 use regelrecht_corpus::CorpusRegistry;
-use regelrecht_editor_api::config::AppConfig;
 use regelrecht_editor_api::corpus_handlers::{
     get_corpus_law, get_corpus_law_versions, list_corpus_laws,
 };
-use regelrecht_editor_api::state::{AppState, BackendEntry, CorpusState};
-use regelrecht_editor_api::traject_corpus::TrajectCorpusCache;
+use regelrecht_editor_api::state::{BackendEntry, CorpusState};
 
 // Fictional repositories: a central corpus on GitHub, a second GitHub source
 // at the same priority, and a local source above both.
@@ -131,38 +132,14 @@ async fn mount_github(server: &MockServer) {
     let indexed = law_path(INDEXED_LAW, "2025-01-01");
     Mock::given(method("GET"))
         .and(path(format!("/repos/{REPO}/contents/{indexed}")))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "name": "2025-01-01.yaml",
-            "path": indexed,
-            "sha": "blob-indexed",
-            "type": "file",
-            "content": base64::engine::general_purpose::STANDARD.encode(law_body(INDEXED_LAW)),
-            "encoding": "base64",
-        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(contents_file_json(
+            "2025-01-01.yaml",
+            &indexed,
+            &law_body(INDEXED_LAW),
+        )))
         .expect(1)
         .mount(server)
         .await;
-}
-
-fn state_with(corpus: CorpusState) -> AppState {
-    AppState {
-        corpus: Arc::new(RwLock::new(corpus)),
-        oidc_client: None,
-        end_session_url: None,
-        config: Arc::new(AppConfig {
-            oidc: None,
-            base_url: None,
-            github_oauth: None,
-            task_enrich_provider: "claude".to_string(),
-        }),
-        http_client: regelrecht_auth::http_client(),
-        pool: None,
-        pipeline_api_url: None,
-        harvest_admin_url: None,
-        reload_lock: Arc::new(Mutex::new(())),
-        integrity: Default::default(),
-        trajects: Arc::new(TrajectCorpusCache::new()),
-    }
 }
 
 async fn body_text(response: impl IntoResponse) -> String {
@@ -246,7 +223,8 @@ async fn corpus_juris_finds_and_opens_laws_it_did_not_load_up_front() {
     }
     corpus.registry = registry;
     corpus.source_map = map;
-    let state = state_with(corpus);
+    let mut state = app_state(None, None);
+    state.corpus = Arc::new(RwLock::new(corpus));
 
     let list = |query: serde_json::Value| {
         let state = state.clone();
