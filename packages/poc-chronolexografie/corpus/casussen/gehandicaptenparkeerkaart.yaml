@@ -145,9 +145,6 @@ scenarios:
       - stap: aanvraag
         invoer:
           bsn_aanvrager: '999990032'
-        tekst: >-
-          Klik op Aanvraag indienen. De GGD heeft deze aanvrager nog niet
-          onderzocht.
         gezien: >-
           De aanvraag staat onder Mijn aanvragen op In behandeling, en onder
           Kroniek als eerste chronolexogram van de gemeente.
@@ -188,9 +185,6 @@ scenarios:
       - stap: besluit
         datum: 2026-10-20
         uitkomst: toegewezen
-        tekst: >-
-          Het formulier vraagt de vier criteria niet: het advies van de GGD
-          geeft ze. Klik op Besluit nemen.
     eind: >-
       Toegewezen: de kaart is verstrekt en vermeldt de bestuurder. Ze is
       geldig tot en met 19 oktober 2031, vijf jaar vanaf de dag van het
@@ -210,14 +204,9 @@ scenarios:
       - stap: aanvraag
         invoer:
           bsn_aanvrager: '999990068'
-        tekst: >-
-          Klik op Aanvraag indienen. De GGD onderzocht deze aanvrager op 9
-          oktober en vond geen enkel criterium.
       - stap: besluit
         datum: 2026-10-20
         uitkomst: afgewezen
-        tekst: >-
-          Klik op Besluit nemen.
     eind: >-
       Afgewezen. Het college oordeelt zoals het advies (artikel 6 van het
       fictieve beleid), en kan daar niet van afwijken: een beleid dat een
@@ -234,8 +223,6 @@ scenarios:
       - stap: besluit
         datum: 2026-10-20
         uitkomst: toegewezen
-        tekst: >-
-          Klik op Besluit nemen.
         gezien: >-
           De kaart is verstrekt, geldig tot en met 19 oktober 2031.
       - stap: aanvraag
@@ -244,9 +231,6 @@ scenarios:
           Klik nog een keer op Aanvraag indienen.
       - stap: besluit
         uitkomst: afgewezen
-        tekst: >-
-          Klik op Besluit nemen. Het beleid van de gemeente geeft geen tweede
-          kaart naast een geldige.
     eind: >-
       In het Logboek staat bij het tweede besluit "aanvrager heeft geldige
       gehandicaptenparkeerkaart: ja", ingevuld door het beleid van Wilgendaal
@@ -262,8 +246,6 @@ scenarios:
       - stap: besluit
         datum: 2026-10-20
         uitkomst: toegewezen
-        tekst: >-
-          Klik op Besluit nemen.
         gezien: >-
           De kaart is verstrekt, geldig tot en met 19 oktober 2031.
       - stap: bezwaar
@@ -272,7 +254,7 @@ scenarios:
         datum: 2026-11-20
         uitkomst: ongegrond
         tekst: >-
-          Klik onder Open bezwaren op Ontvankelijkheid toetsen. Laat alle
+          Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat alle
           bevindingen staan en klik op Beslissen op bezwaar.
     eind: >-
       Ongegrond: de heroverweging geeft dezelfde uitkomst, en het besluit
@@ -289,14 +271,9 @@ scenarios:
       - stap: aanvraag
         invoer:
           bsn_aanvrager: '999990068'
-        tekst: >-
-          Klik op Aanvraag indienen. Het advies van de GGD vindt geen
-          criterium.
       - stap: besluit
         datum: 2026-10-20
         uitkomst: afgewezen
-        tekst: >-
-          Klik op Besluit nemen.
         gezien: >-
           De kaart is geweigerd: het advies vindt geen criterium.
       - stap: bezwaar
@@ -314,8 +291,8 @@ scenarios:
           permanent_rolstoelgebonden: false
           ernstige_beperkingen_andere_dan_loopbeperkingen: false
         tekst: >-
-          De GGD brengt een nieuw advies uit. Klik bij GGD Wilgendaal onder
-          "Vastleggen: Geneeskundig advies uitgebracht" op Vastleggen.
+          Klik bij GGD Wilgendaal onder "Vastleggen: Geneeskundig advies
+          uitgebracht" op Vastleggen.
         gezien: >-
           Het nieuwe advies staat in de kroniek van de GGD; de gemeente leest
           het bij de heroverweging.
@@ -340,14 +317,9 @@ scenarios:
       - stap: aanvraag
         invoer:
           bsn_aanvrager: '999990068'
-        tekst: >-
-          Klik op Aanvraag indienen. Het advies van de GGD vindt geen
-          criterium.
       - stap: besluit
         datum: 2026-10-20
         uitkomst: afgewezen
-        tekst: >-
-          Klik op Besluit nemen.
         gezien: >-
           De kaart is geweigerd. Onder Kroniek staat één besluit onder artikel
           49, en dat verstrekt geen kaart.
@@ -366,8 +338,8 @@ scenarios:
           permanent_rolstoelgebonden: false
           ernstige_beperkingen_andere_dan_loopbeperkingen: false
         tekst: >-
-          De GGD brengt een nieuw advies uit. Klik bij GGD Wilgendaal onder
-          "Vastleggen: Geneeskundig advies uitgebracht" op Vastleggen.
+          Klik bij GGD Wilgendaal onder "Vastleggen: Geneeskundig advies
+          uitgebracht" op Vastleggen.
         gezien: >-
           Het nieuwe advies staat in de kroniek van de GGD; de gemeente leest
           het bij de heroverweging.
@@ -387,12 +359,8 @@ scenarios:
         datum: 2027-03-01
         invoer:
           bsn_aanvrager: '999990068'
-        tekst: >-
-          Klik op Aanvraag indienen. Dezelfde aanvrager vraagt nog een kaart.
       - stap: besluit
         uitkomst: afgewezen
-        tekst: >-
-          Klik op Besluit nemen.
     eind: >-
       Afgewezen: het beleid van de gemeente geeft geen tweede kaart naast een
       geldige. In het Logboek staat bij het besluit "aanvrager heeft geldige
@@ -409,16 +377,11 @@ scenarios:
       - stap: aanvraag
         invoer:
           bsn_aanvrager: '999990032'
-        tekst: >-
-          Klik op Aanvraag indienen. De GGD heeft deze aanvrager niet
-          onderzocht.
       - stap: besluit
         titel: Besluit nemen zonder oordeel over het onderzoek
         datum: 2026-10-20
         uitkomst: geweigerd
         tekst: >-
-          Er is geen advies, dus het college oordeelt zelf over de vier
-          criteria. Het voorbeeld geeft alleen een langdurige loopbeperking.
           Laat "geneeskundig onderzoek heeft plaatsgehad" op Nog niet
           beoordeeld en klik op Besluit nemen.
     eind: >-
@@ -440,26 +403,17 @@ scenarios:
       - stap: besluit
         datum: 2026-10-20
         uitkomst: toegewezen
-        tekst: >-
-          Klik op Besluit nemen.
         gezien: >-
           De kaart is verstrekt, geldig tot en met 19 oktober 2031.
       - stap: aanvraag
         datum: 2031-10-20
         invoer:
           dagtekening: '2031-10-20'
-        tekst: >-
-          Klik op Aanvraag indienen. Het onderzoek en het advies van 2026
-          tellen niet voor deze aanvraag.
       - stap: besluit
         invoer:
           geneeskundig_onderzoek_achterwege_gelaten: true
           bekend_dat_aanvrager_nog_steeds_voldoet: true
         uitkomst: toegewezen
-        tekst: >-
-          Er is geen advies, dus het college oordeelt zelf over de vier
-          criteria. Het voorbeeld geeft alleen een langdurige loopbeperking.
-          Klik op Besluit nemen.
     eind: >-
       Toegewezen, zonder nieuw onderzoek (Regeling gehandicaptenparkeerkaart,
       artikel 2, tweede lid, onder a). In het Logboek staat bij het besluit
@@ -474,21 +428,16 @@ scenarios:
       - stap: aanvraag
         invoer:
           bsn_aanvrager: '999990068'
-        tekst: >-
-          Klik op Aanvraag indienen. Het advies van de GGD vindt geen
-          criterium.
       - stap: besluit
         datum: 2026-10-20
         uitkomst: afgewezen
-        tekst: >-
-          Klik op Besluit nemen.
       - stap: bezwaar
         datum: 2026-11-01
       - stap: beslissing_op_bezwaar
         datum: 2026-11-20
         uitkomst: ongegrond
         tekst: >-
-          Klik onder Open bezwaren op Ontvankelijkheid toetsen. Laat alle
+          Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat alle
           bevindingen staan en klik op Beslissen op bezwaar.
         gezien: >-
           Ongegrond: de weigering blijft. Bij Aanvrager kun je nu in beroep
@@ -497,9 +446,6 @@ scenarios:
         datum: 2026-12-01
       - stap: uitspraak
         datum: 2027-01-11
-        tekst: >-
-          Klik onder Ingekomen beroepen op Uitspraak doen. De
-          voorbeeldbevindingen zeggen dat de gemeente geen rechtsregel schond.
       - stap: toezenden
         tekst: >-
           Klik bij de uitspraak op Toezenden aan gemeente Wilgendaal.

@@ -105,15 +105,11 @@ scenarios:
       Een ouder vraagt verlof in februari, en het hoofd verleent het.
     stappen:
       - stap: aanvraag
-        tekst: >-
-          Klik op Aanvraag indienen. De voorbeeldwaarden vragen verlof in de
-          eerste week van februari 2027.
       - stap: besluit
         uitkomst: toegewezen
         tekst: >-
           Laat "specifieke aard beroep ouder" aan staan en klik op Besluit
-          nemen. Of het verlof buiten de schoolvakanties valt, vraagt het
-          formulier niet: dat antwoordt de school zelf.
+          nemen.
     eind: >-
       Bij Aanvrager staat de aanvraag op Toegewezen.
   - naam: 'Afwijzing, bezwaar en heroverweging: gegrond'
@@ -126,24 +122,17 @@ scenarios:
         invoer:
           specifieke_aard_beroep_ouder: false
         uitkomst: afgewezen
-        tekst: >-
-          Het hoofd vindt het beroep niet bijzonder genoeg. Klik op Besluit
-          nemen.
         gezien: >-
           Bij Aanvrager staat de aanvraag op Afgewezen.
       - stap: bezwaar
         datum: 2026-11-01
-        tekst: >-
-          Klik bij het besluit op Bezwaar maken. De gronden noemen een
-          verklaring van de werkgever. Klik op Bezwaar indienen.
       - stap: beslissing_op_bezwaar
         datum: 2026-11-15
         invoer:
           specifieke_aard_beroep_ouder: true
         uitkomst: gegrond
         tekst: >-
-          Klik onder Open bezwaren op Ontvankelijkheid toetsen: het bezwaar is
-          ontvankelijk. Het hoofd beoordeelt het beroep nu anders. Klik op
+          Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op
           Beslissen op bezwaar.
     eind: >-
       Gegrond: het besluit is herroepen. Er is een nieuw besluit, en dat
@@ -157,8 +146,6 @@ scenarios:
       - stap: aanvraag
       - stap: besluit
         uitkomst: toegewezen
-        tekst: >-
-          Klik op Besluit nemen.
         gezien: >-
           Het verlof is verleend. Bij de tweede aanvraag leest de school dit
           besluit terug.
@@ -178,13 +165,13 @@ scenarios:
         datum: 2026-11-01
         op: 2
         tekst: >-
-          Zoek de tweede aanvraag. Klik bij haar besluit op Bezwaar maken en
-          dan op Bezwaar indienen.
+          Klik bij het besluit op de tweede aanvraag op Bezwaar maken en dan
+          op Bezwaar indienen.
       - stap: beslissing_op_bezwaar
         datum: 2026-11-15
         uitkomst: ongegrond
         tekst: >-
-          Klik onder Open bezwaren op Ontvankelijkheid toetsen. Laat de
+          Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat de
           bevinding staan en klik op Beslissen op bezwaar.
     eind: >-
       Ongegrond: de heroverweging geeft dezelfde uitkomst. Het besluit blijft,
@@ -199,21 +186,16 @@ scenarios:
         invoer:
           specifieke_aard_beroep_ouder: false
         uitkomst: afgewezen
-        tekst: >-
-          Klik op Besluit nemen.
       - stap: bezwaar
         datum: 2026-12-01
-        tekst: >-
-          De bezwaartermijn van zes weken is voorbij. Klik bij het besluit op
-          Bezwaar maken en dan op Bezwaar indienen.
         gezien: >-
           De cel legt het bezwaar vast, ook al is het te laat. Of het op tijd
           is, blijkt pas bij Ontvankelijkheid toetsen (Awb 7:11).
       - stap: beslissing_op_bezwaar
         uitkomst: niet_ontvankelijk
         tekst: >-
-          Klik onder Open bezwaren op Ontvankelijkheid toetsen: het bezwaar
-          kwam te laat. Klik op Beslissen op bezwaar.
+          Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op
+          Beslissen op bezwaar.
     eind: >-
       Niet-ontvankelijk: het bezwaar kwam te laat. Er is geen heroverweging,
       dus geen vragen aan het hoofd. Na Beslissen op bezwaar blijft het
@@ -226,8 +208,6 @@ scenarios:
       - stap: aanvraag
       - stap: besluit
         uitkomst: toegewezen
-        tekst: >-
-          Klik op Besluit nemen. Het verlof wordt verleend.
       - stap: bezwaar
         datum: 2026-11-01
       - stap: bezwaar
@@ -272,23 +252,14 @@ scenarios:
       tweede.
     stappen:
       - stap: aanvraag
-        tekst: >-
-          Klik op Aanvraag indienen. Dit is verlof A, in de eerste week van
-          februari 2027.
       - stap: besluit
         uitkomst: toegewezen
-        tekst: >-
-          Klik op Besluit nemen. Verlof A wordt verleend.
       - stap: aanvraag
         invoer:
           eerste_verlofdag: '2027-05-10'
           laatste_verlofdag: '2027-05-14'
-        tekst: >-
-          Klik op Aanvraag indienen. Dit is verlof B.
       - stap: besluit
         uitkomst: afgewezen
-        tekst: >-
-          Klik op Besluit nemen.
         gezien: >-
           Verlof B is geweigerd: de school las A in haar kroniek, dus de
           jongere kreeg dit schooljaar al verlof.
@@ -296,8 +267,8 @@ scenarios:
         datum: 2026-11-01
         op: 1
         tekst: >-
-          Zoek de eerste aanvraag (A). Klik bij haar besluit op Bezwaar maken
-          en dan op Bezwaar indienen.
+          Klik bij het besluit op de eerste aanvraag (A) op Bezwaar maken en
+          dan op Bezwaar indienen.
       - stap: beslissing_op_bezwaar
         datum: 2026-11-15
         invoer:
@@ -313,8 +284,8 @@ scenarios:
         datum: 2026-11-20
         op: 2
         tekst: >-
-          Zoek de tweede aanvraag (B). Klik bij haar besluit op Bezwaar maken
-          en dan op Bezwaar indienen.
+          Klik bij het besluit op de tweede aanvraag (B) op Bezwaar maken en
+          dan op Bezwaar indienen.
       - stap: beslissing_op_bezwaar
         titel: Beslissen op het bezwaar tegen B
         datum: 2026-12-01
@@ -340,8 +311,8 @@ scenarios:
       - stap: besluit
         uitkomst: afgewezen
         tekst: >-
-          Het hoofd geeft alleen "specifieke aard beroep ouder". Laat die aan
-          staan en klik op Besluit nemen.
+          Laat "specifieke aard beroep ouder" aan staan en klik op Besluit
+          nemen.
     eind: >-
       Het verlof wordt geweigerd. Het hoofd oordeelde niet over de
       schoolvakanties: in het Logboek staat bij het besluit "verlof valt
@@ -365,11 +336,6 @@ scenarios:
         invoer:
           verlof_valt_buiten_schoolvakanties_volgens_hoofd: false
         uitkomst: afgewezen
-        tekst: >-
-          Het vakantierooster van de school reikt nog niet tot schooljaar
-          2027–2028. De voorvertoning meldt dat. Het formulier vraagt het
-          hoofd nu of het verlof buiten de schoolvakanties valt. Klik op
-          Besluit nemen.
     eind: >-
       Het verlof wordt geweigerd. In het Logboek staat bij het besluit "verlof
       valt buiten schoolvakanties volgens hoofd: nee" als bevinding van het
@@ -385,15 +351,13 @@ scenarios:
         invoer:
           specifieke_aard_beroep_ouder: false
         uitkomst: afgewezen
-        tekst: >-
-          Klik op Besluit nemen.
       - stap: bezwaar
         datum: 2026-11-01
       - stap: beslissing_op_bezwaar
         datum: 2026-11-15
         uitkomst: ongegrond
         tekst: >-
-          Klik onder Open bezwaren op Ontvankelijkheid toetsen. Laat de
+          Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat de
           bevinding staan en klik op Beslissen op bezwaar.
         gezien: >-
           Ongegrond: de weigering blijft. Bij Aanvrager kun je nu in beroep
@@ -402,12 +366,6 @@ scenarios:
         datum: 2026-12-01
       - stap: uitspraak
         datum: 2027-01-11
-        tekst: >-
-          Klik onder Ingekomen beroepen op Uitspraak doen. Volgens de
-          voorbeeldbevindingen schendt de beslissing artikel 7:12, eerste lid,
-          Awb: de motivering is niet deugdelijk. De rechtsgevolgen blijven
-          niet in stand. De school heeft tot en met 25 januari 2027 voor een
-          nieuwe beslissing.
       - stap: toezenden
         tekst: >-
           Klik bij de uitspraak op Toezenden aan OBS De Klimop.
@@ -419,9 +377,6 @@ scenarios:
         invoer:
           specifieke_aard_beroep_ouder: true
         uitkomst: gegrond
-        tekst: >-
-          Klik onder Na een uitspraak op Heroverwegen en dan op Opnieuw
-          beslissen op bezwaar.
     eind: >-
       Gegrond: de weigering is herroepen, en het nieuwe besluit verleent het
       verlof van 1 tot en met 5 februari 2027, binnen de termijn van de

@@ -112,6 +112,12 @@ function icon(i) {
         ></nldd-title>
         <nldd-container gap="16">
           <nldd-text>{{ current.todo }}</nldd-text>
+          <nldd-list v-if="current.values.length" dividers="never" accessible-label="Waarden uit het scenario">
+            <nldd-list-item v-for="v in current.values" :key="v" size="sm">
+              <nldd-icon-cell icon="circle-filled-extra-small" color="secondary" size="16"></nldd-icon-cell>
+              <nldd-text-cell :text="v"></nldd-text-cell>
+            </nldd-list-item>
+          </nldd-list>
           <nldd-button-group>
             <nldd-button
               v-if="laterDate"
