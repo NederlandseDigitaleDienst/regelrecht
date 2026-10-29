@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import { load } from 'js-yaml';
 import { nextTick } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { formulier, scenarioWaarden, uitScenario } from '../src/scenarioInvoer.js';
+import { formulier, scenarioWaarden } from '../src/scenarioInvoer.js';
 import { state } from '../src/state.js';
 
 vi.mock('../src/api.js', () => ({ api: {} }));
@@ -41,7 +41,6 @@ describe('the forms while following a scenario', () => {
   it('fill the application with the example values and the values of the step', () => {
     const vorm = formulier(() => scenarioWaarden('aanvraag'));
     expect(vorm.waarden('aanvraag')).toEqual({ ...casus.voorbeeld.aanvraag, kvk_nummer: '99990022' });
-    expect(uitScenario('aanvraag')).toEqual(['kvk_nummer']);
   });
 
   it('fill only the form of the step the scenario is at', () => {

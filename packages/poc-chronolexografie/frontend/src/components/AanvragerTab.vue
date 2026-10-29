@@ -26,7 +26,6 @@ import {
   zonderLeeg,
 } from '../state.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
-import UitScenario from './UitScenario.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
 const aanvraagVorm = formulier(() => scenarioWaarden('aanvraag'));
@@ -125,7 +124,6 @@ async function indienenTegen() {
         </nldd-text>
       </nldd-title>
       <nldd-container gap="16" max-width="560px">
-        <UitScenario soort="aanvraag" />
         <VeldInvoer
           v-for="veld in state.vormen.aanvraag.velden"
           :key="veld.naam"
@@ -208,7 +206,6 @@ async function indienenTegen() {
               {{ state.casus.cel_naam }} maakt een afschrift van haar beslissing, en de rechtbank legt het
               beroep vast met wat zij ontving. De beroepstermijn neemt zij uit dat afschrift.
             </nldd-text>
-            <UitScenario :soort="tegen.soort" :doel="{ besluit: tegen.besluit.id }" />
             <VeldInvoer
               v-for="veld in indieningVelden"
               :key="veld.naam"

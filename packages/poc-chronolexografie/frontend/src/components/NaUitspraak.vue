@@ -18,7 +18,6 @@ import { stilBegrippen } from '../stil.js';
 import OordeelKeuze from './OordeelKeuze.vue';
 import StilOordeel from './StilOordeel.vue';
 import Uitkomst from './Uitkomst.vue';
-import UitScenario from './UitScenario.vue';
 import Voorvertoning from './Voorvertoning.vue';
 import Waarom from './Waarom.vue';
 
@@ -93,7 +92,6 @@ const termijn = (o) => {
           <template v-else>
             <nldd-container layout="grid" gap="16">
               <nldd-container gap="12">
-                <UitScenario soort="opnieuw_beslissen" />
                 <OordeelKeuze
                   v-for="b in toetsen[o.id].bevindingen"
                   :key="b.naam"

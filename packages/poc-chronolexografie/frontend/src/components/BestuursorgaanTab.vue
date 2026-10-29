@@ -30,7 +30,6 @@ import {
 } from '../state.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
 import Uitkomst from './Uitkomst.vue';
-import UitScenario from './UitScenario.vue';
 import OordeelKeuze from './OordeelKeuze.vue';
 import StilOordeel from './StilOordeel.vue';
 import Voorvertoning from './Voorvertoning.vue';
@@ -145,7 +144,6 @@ const uitkomstOpBezwaar = (uit) =>
         ></nldd-title>
         <nldd-container layout="grid" gap="16">
           <nldd-container gap="12">
-            <UitScenario soort="besluit" :doel="{ aanvraag: a.id }" />
             <VeldInvoer
               v-for="o in oordelen()"
               :key="o.naam"
@@ -224,7 +222,6 @@ const uitkomstOpBezwaar = (uit) =>
           ></nldd-inline-dialog>
           <nldd-container layout="grid" gap="16">
             <nldd-container gap="12">
-              <UitScenario soort="beslissing_op_bezwaar" :doel="{ bezwaar: bz.id }" />
               <OordeelKeuze
                 v-for="o in toetsen[bz.id].bevindingen"
                 :key="o.naam"
