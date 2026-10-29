@@ -25,17 +25,17 @@ corpus:
 # van zijn uitvoer de toewijzing is.
 uitkomst: voorschot_verleend
 
+# Een verzekerde vraagt zorgtoeslag aan over 2025 (Awir artikel 15). De
+# Dienst Toeslagen verleent op die aanvraag een voorschot tot het bedrag
+# waarop de zorgtoeslag vermoedelijk wordt vastgesteld (Awir artikel 16). Per
+# aanvraag schat de Dienst in wat hij daarvoor verwacht, zoals het
+# toetsingsinkomen. Het bedrag zelf volgt uit de Wet op de zorgtoeslag en de
+# standaardpremie voor 2025. Tegen het voorschot staat bezwaar open. De
+# betaling in termijnen en de toekenning na de aanslag inkomstenbelasting
+# speelt deze casus nog niet na.
+
 # Wat de bezoeker leest.
 titel: Voorschot zorgtoeslag
-omschrijving: >-
-  Een verzekerde vraagt zorgtoeslag aan over 2025 (Awir artikel 15). De
-  Dienst Toeslagen verleent op die aanvraag een voorschot tot het bedrag
-  waarop de zorgtoeslag vermoedelijk wordt vastgesteld (Awir artikel 16). Per
-  aanvraag schat de Dienst in wat hij daarvoor verwacht, zoals het
-  toetsingsinkomen. Het bedrag zelf volgt uit de Wet op de zorgtoeslag en de
-  standaardpremie voor 2025. Tegen het voorschot staat bezwaar open. De
-  betaling in termijnen en de toekenning na de aanslag inkomstenbelasting
-  speelt deze casus nog niet na.
 cel_naam: Dienst Toeslagen
 speeldatum: 2025-01-06
 
@@ -88,8 +88,8 @@ scenarios:
           toeslagpartner, een zorgverzekering en een vermogen onder de grens.
           Klik op Besluit nemen.
     eind: >-
-      Onder Besluiten staat Toegewezen, met een voorschot van 157700 eurocent:
-      € 1.577 over 2025. Dat is de standaardpremie van € 2.112 min de
+      Bij Aanvrager staat de aanvraag op Toegewezen. In het Logboek staat bij
+      het besluit "voorschotbedrag: 157700", in eurocent: € 1.577 over 2025. Dat is de standaardpremie van € 2.112 min de
       normpremie bij het drempelinkomen, afgerond op hele euro's.
   - naam: 'Niet verzekerd: geen voorschot'
     samenvatting: >-
@@ -107,9 +107,9 @@ scenarios:
           De Dienst vindt geen zorgverzekering voor 2025. Klik op Besluit
           nemen.
     eind: >-
-      Onder Besluiten staat Afgewezen, met een voorschot van nihil: zonder
-      verzekering is er geen aanspraak op zorgtoeslag (artikel 2 van de Wet
-      op de zorgtoeslag).
+      Bij Aanvrager staat de aanvraag op Afgewezen. In het Logboek staat bij
+      het besluit "voorschotbedrag: 0": zonder verzekering is er geen
+      aanspraak op zorgtoeslag (artikel 2 van de Wet op de zorgtoeslag).
   - naam: Inkomen te hoog, bezwaar gegrond
     samenvatting: >-
       Bij het verwachte inkomen is er geen voorschot, maar na het bezwaar

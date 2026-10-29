@@ -16,7 +16,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "todo": "De Dienst verwacht een toetsingsinkomen van € 25.000, geen toeslagpartner, een zorgverzekering en een vermogen onder de grens. Klik op Besluit nemen.",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    }
   ]
@@ -38,7 +38,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "todo": "Het formulier staat ingevuld uit het scenario: \"vermoedelijk verzekerd\" Nee. De Dienst vindt geen zorgverzekering voor 2025. Klik op Besluit nemen.",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]
