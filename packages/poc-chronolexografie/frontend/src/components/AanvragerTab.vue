@@ -43,9 +43,9 @@ async function indienen() {
   }
 }
 
-// Het bezwaar of beroep tegen één besluit tegelijk: `soort` is de sleutel
-// van zijn vorm en zijn voorbeeldwaarden ('bezwaar' of 'beroep'). Volg je
-// een scenario, dan is de dagtekening de speeldatum.
+// Het bezwaar of beroep tegen één besluit tegelijk, in een sheet: `soort`
+// is de sleutel van zijn vorm en zijn voorbeeldwaarden ('bezwaar' of
+// 'beroep'). Volg je een scenario, dan is de dagtekening de speeldatum.
 const tegen = ref(null);
 const scenarioIndiening = () => {
   const t = tegen.value;
@@ -69,6 +69,15 @@ function start(soort, besluit) {
   indieningVorm.wis(besluit.id);
   tegen.value = { soort, besluit };
 }
+
+// De kop van de sheet met het formulier.
+const kop = computed(() => {
+  const t = tegen.value;
+  if (!t) return '';
+  return t.soort === 'beroep'
+    ? `Beroep tegen beslissing op bezwaar ${kort(t.besluit.id)}`
+    : `Bezwaar tegen besluit ${kort(t.besluit.id)}`;
+});
 
 const beroepArtikel = computed(() =>
   state.casus.beroep ? artikelNaam(...state.casus.beroep.split('#')) : '',
@@ -177,53 +186,47 @@ async function indienenTegen() {
     </nldd-container>
   </nldd-one-half-one-half-section>
 
-  <nldd-simple-section v-if="tegen?.soort === 'bezwaar'">
-    <nldd-title slot="header" size="3" :text="`Bezwaar tegen besluit ${kort(tegen.besluit.id)}`">
-      <nldd-text slot="supporting-text">
-        De velden komen uit de Awb (artikel 6:5, via 7:11). Het bestreden besluit en de
-        bezwaartermijn neemt de cel uit het besluit. Het bezwaar wijzigt de aanvraag niet:
-        {{ state.casus.rol }} heroverweegt het besluit op grond van wat je aanvoert. Wil je iets
-        anders vragen, dan doe je een nieuwe aanvraag.
-      </nldd-text>
-    </nldd-title>
-    <nldd-container gap="16" max-width="560px">
-      <UitScenario :soort="tegen.soort" :doel="{ besluit: tegen.besluit.id }" />
-      <VeldInvoer
-        v-for="veld in indieningVelden"
-        :key="veld.naam"
-        :model-value="indiening[veld.naam]"
-        :veld="veld"
-        @update:model-value="indieningVorm.zet(tegen.besluit.id, veld.naam, $event)"
-      />
-      <nldd-button-group>
-        <nldd-button appearance="primary" text="Bezwaar indienen" @click="indienenTegen"></nldd-button>
-        <nldd-button appearance="neutral-transparent" text="Annuleren" @click="tegen = null"></nldd-button>
-      </nldd-button-group>
-    </nldd-container>
-  </nldd-simple-section>
-
-  <nldd-simple-section v-if="tegen?.soort === 'beroep'">
-    <nldd-title slot="header" size="3" :text="`Beroep tegen beslissing op bezwaar ${kort(tegen.besluit.id)}`">
-      <nldd-text slot="supporting-text">
-        Het beroepschrift gaat naar {{ state.casus.rechter.cel_naam }}, een eigen cel met een eigen
-        kroniek. De velden komen uit de wet: {{ beroepArtikel }}, met artikel 6:5 dat erop haakt.
-        {{ state.casus.cel_naam }} maakt een afschrift van haar beslissing, en de rechtbank legt het
-        beroep vast met wat zij ontving. De beroepstermijn neemt zij uit dat afschrift.
-      </nldd-text>
-    </nldd-title>
-    <nldd-container gap="16" max-width="560px">
-      <UitScenario :soort="tegen.soort" :doel="{ besluit: tegen.besluit.id }" />
-      <VeldInvoer
-        v-for="veld in indieningVelden"
-        :key="veld.naam"
-        :model-value="indiening[veld.naam]"
-        :veld="veld"
-        @update:model-value="indieningVorm.zet(tegen.besluit.id, veld.naam, $event)"
-      />
-      <nldd-button-group>
-        <nldd-button appearance="primary" text="Beroepschrift indienen" @click="indienenTegen"></nldd-button>
-        <nldd-button appearance="neutral-transparent" text="Annuleren" @click="tegen = null"></nldd-button>
-      </nldd-button-group>
-    </nldd-container>
-  </nldd-simple-section>
+  <!-- Bezwaar en beroep in één sheet: zelfde velden uit de wet, alleen de
+       kop, de uitleg en de knop verschillen. -->
+  <Teleport to="body">
+    <nldd-sheet width="720px" :open="tegen ? true : undefined" @close="tegen = null">
+      <nldd-page>
+        <nldd-container slot="header" padding="16">
+          <nldd-top-title-bar heading-level="2" :text="kop" dismiss-text="Sluiten"></nldd-top-title-bar>
+        </nldd-container>
+        <nldd-simple-section v-if="tegen">
+          <nldd-container gap="16">
+            <nldd-text v-if="tegen.soort === 'bezwaar'" color="secondary">
+              De velden komen uit de Awb (artikel 6:5, via 7:11). Het bestreden besluit en de
+              bezwaartermijn neemt de cel uit het besluit. Het bezwaar wijzigt de aanvraag niet:
+              {{ state.casus.rol }} heroverweegt het besluit op grond van wat je aanvoert. Wil je iets
+              anders vragen, dan doe je een nieuwe aanvraag.
+            </nldd-text>
+            <nldd-text v-else color="secondary">
+              Het beroepschrift gaat naar {{ state.casus.rechter.cel_naam }}, een eigen cel met een eigen
+              kroniek. De velden komen uit de wet: {{ beroepArtikel }}, met artikel 6:5 dat erop haakt.
+              {{ state.casus.cel_naam }} maakt een afschrift van haar beslissing, en de rechtbank legt het
+              beroep vast met wat zij ontving. De beroepstermijn neemt zij uit dat afschrift.
+            </nldd-text>
+            <UitScenario :soort="tegen.soort" :doel="{ besluit: tegen.besluit.id }" />
+            <VeldInvoer
+              v-for="veld in indieningVelden"
+              :key="veld.naam"
+              :model-value="indiening[veld.naam]"
+              :veld="veld"
+              @update:model-value="indieningVorm.zet(tegen.besluit.id, veld.naam, $event)"
+            />
+            <nldd-button-group>
+              <nldd-button
+                appearance="primary"
+                :text="tegen.soort === 'beroep' ? 'Beroepschrift indienen' : 'Bezwaar indienen'"
+                @click="indienenTegen"
+              ></nldd-button>
+              <nldd-button appearance="neutral-transparent" text="Annuleren" @click="tegen = null"></nldd-button>
+            </nldd-button-group>
+          </nldd-container>
+        </nldd-simple-section>
+      </nldd-page>
+    </nldd-sheet>
+  </Teleport>
 </template>
