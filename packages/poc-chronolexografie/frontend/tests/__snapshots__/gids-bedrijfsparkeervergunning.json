@@ -16,7 +16,7 @@
     "tab": "bestuursorgaan",
     "date": "2026-10-20",
     "todo": "Het formulier vraagt niets: de Kamer van Koophandel en de eigen kroniek van de gemeente geven wat de regels vragen. Klik op Besluit nemen.",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    }
   ]
@@ -94,7 +94,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "todo": "Het formulier staat ingevuld uit het scenario: \"toepassing leidt tot onaanvaardbare gevolgen\" Nee. Het bedrijf zit op het maximum, dus het formulier vraagt het oordeel van het college over de hardheidsclausule (artikel 6 van de fictieve verordening). Klik op Besluit nemen. Open daarna bij het besluit \"Hoe de cel dit beantwoordde\".",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]
@@ -140,7 +140,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "todo": "Klik bij de tweede aanvraag op Besluit nemen.",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    }
   ]
@@ -226,7 +226,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "todo": "Het formulier staat ingevuld uit het scenario: \"toepassing leidt tot onaanvaardbare gevolgen\" Nee. Het formulier vraagt het oordeel opnieuw, want het geldt per geval. Klik op Besluit nemen. Open daarna bij het besluit \"Hoe de cel dit beantwoordde\".",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]

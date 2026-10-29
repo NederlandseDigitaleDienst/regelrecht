@@ -16,7 +16,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "todo": "Laat \"specifieke aard beroep ouder\" aan staan en klik op Besluit nemen. Of het verlof buiten de schoolvakanties valt, vraagt het formulier niet: dat antwoordt de school zelf.",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    }
   ]
@@ -130,7 +130,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "todo": "Het formulier staat ingevuld uit het scenario: \"specifieke aard beroep ouder\" Nee. Klik op Besluit nemen.",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
@@ -168,7 +168,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "todo": "Klik op Besluit nemen. Het verlof wordt verleend.",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    },
    {
@@ -222,7 +222,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "todo": "Klik op Besluit nemen. Verlof A wordt verleend.",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    },
    {
@@ -292,7 +292,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "todo": "Het hoofd geeft alleen \"specifieke aard beroep ouder\". Laat die aan staan en klik op Besluit nemen.",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]
@@ -314,7 +314,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "todo": "Het formulier staat ingevuld uit het scenario: \"verlof valt buiten schoolvakanties volgens hoofd\" Nee. Het vakantierooster van de school reikt nog niet tot schooljaar 2027–2028. De voorvertoning meldt dat. Het formulier vraagt het hoofd nu of het verlof buiten de schoolvakanties valt. Klik op Besluit nemen.",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]
@@ -336,7 +336,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "todo": "Het formulier staat ingevuld uit het scenario: \"specifieke aard beroep ouder\" Nee. Klik op Besluit nemen.",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
