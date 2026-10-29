@@ -1,7 +1,9 @@
 <script setup>
-// The overview at the top of the explanation page: every YAML file of one
-// case as a box, in a column per kind (schema.js), with the names in it that
-// refer to or are referred to from another file. The lines between those
+// A picture of YAML files on the explanation page: every file as a box, in a
+// column per kind, with the names in it that a line starts or ends at; the
+// boxes and lines come from schema.js (`schema` for the whole case, `keten`
+// for one value). With `doel`, that name stands out and the columns run the
+// other way, so the chain reads from left to right towards it. The lines between those
 // names are drawn over the boxes in an SVG, from where the names stand once
 // the page is laid out; they are drawn again when the overview changes size.
 // Pointing at a name, or focusing it, shows only its own lines.
@@ -9,21 +11,25 @@
 // The lines are a picture: a screen reader gets, per name, the names it
 // points to and is pointed to from, in words.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { LIJNSOORTEN, SOORTEN, schema } from './schema.js';
+import { LIJNSOORTEN, SOORTEN } from './schema.js';
 
 const props = defineProps({
-  /** All files of the bundle, per path in the repository, as text. */
-  bestanden: { type: Object, required: true },
-  /** The case whose files show. */
-  casus: { type: String, required: true },
+  /** The boxes and lines, from `schema` or `keten` in schema.js. */
+  schema: { type: Object, required: true },
+  /** What the picture shows, for a screen reader. */
+  label: { type: String, required: true },
 });
 
-const s = computed(() => schema(props.bestanden, props.casus));
-const kolommen = computed(() =>
-  SOORTEN.map((k) => ({ ...k, bestanden: s.value.bestanden.filter((b) => b.soort === k.soort) })).filter(
-    (k) => k.bestanden.length,
-  ),
-);
+const s = computed(() => props.schema);
+const doel = computed(() => s.value.doel && sleutel(s.value.doel.pad, s.value.doel.begrip));
+const kolommen = computed(() => {
+  const k = SOORTEN.map((x) => ({ ...x, bestanden: s.value.bestanden.filter((b) => b.soort === x.soort) })).filter(
+    (x) => x.bestanden.length,
+  );
+  return doel.value ? k.reverse() : k;
+});
+/** The kinds of line in this picture, for the legend. */
+const soorten = computed(() => LIJNSOORTEN.filter((l) => s.value.lijnen.some((x) => x.soort === l.soort)));
 
 /** How a name's role reads. */
 const ROL = {
@@ -126,13 +132,13 @@ watch(s, async () => {
   <nldd-container gap="12">
     <!-- The legend: what each kind of line means, with its YAML key. -->
     <ul class="legenda">
-      <li v-for="l in LIJNSOORTEN" :key="l.soort">
+      <li v-for="l in soorten" :key="l.soort">
         <svg width="40" height="10" aria-hidden="true"><line x1="0" y1="5" x2="40" y2="5" :class="['lijn', l.soort]" /></svg>
         <nldd-text size="sm">{{ l.label }} <code>{{ l.yaml }}</code></nldd-text>
       </li>
     </ul>
     <!-- The overview is wider than a phone; it scrolls on its own, not the page. -->
-    <div class="rol" tabindex="0" role="group" aria-label="Schema van de bestanden">
+    <div class="rol" tabindex="0" role="group" :aria-label="label">
       <div ref="vlak" class="vlak">
         <div v-for="k in kolommen" :key="k.soort" class="kolom">
           <nldd-text size="sm" color="secondary">{{ k.label }}</nldd-text>
@@ -147,7 +153,7 @@ watch(s, async () => {
                   v-for="g in b.begrippen"
                   :key="g.key"
                   :data-begrip="sleutel(b.pad, g.key)"
-                  :class="{ uit: verbonden && !verbonden.has(sleutel(b.pad, g.key)), aan: actief === sleutel(b.pad, g.key) }"
+                  :class="{ uit: verbonden && !verbonden.has(sleutel(b.pad, g.key)), aan: actief === sleutel(b.pad, g.key), doel: doel === sleutel(b.pad, g.key) }"
                   tabindex="0"
                   @mouseenter="actief = sleutel(b.pad, g.key)"
                   @mouseleave="actief = null"
@@ -229,6 +235,9 @@ watch(s, async () => {
 .begrippen li.aan {
   background: var(--semantics-surfaces-base-background-color);
 }
+.begrippen li.doel {
+  outline: 2px solid var(--semantics-content-accent-color);
+}
 .begrippen li.uit {
   opacity: 0.35;
 }
@@ -275,6 +284,9 @@ code {
   fill: var(--kleur);
 }
 .vult_in,
+.rekent {
+  --kleur: var(--primitives-color-coolgray-700);
+}
 .vult_in {
   --kleur: var(--primitives-color-paars-600);
 }

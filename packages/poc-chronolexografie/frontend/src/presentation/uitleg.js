@@ -77,6 +77,20 @@ export const overzicht = {
   ],
 };
 
+/**
+ * The picture of one value under the overview: `start` is the name it
+ * follows back, `law#article` and its name, as the files write it.
+ */
+export const keten = {
+  overline: 'Eén waarde',
+  title: 'Hoe het maximum bepaald wordt',
+  start: { law: 'parkeerverordening_gemeente_wilgendaal', article: '2', naam: 'maximum_bedrijfsparkeervergunningen_bereikt' },
+  text: [
+    'Dit schema volgt één open begrip uit de verordening terug: `maximum_bedrijfsparkeervergunningen_bereikt`. Links staat waar het begint, de kroniek van de cellen; rechts, omlijnd, de waarde zelf.',
+    'Elke lijn loopt van wat nodig is naar wat het gebruikt, ook binnen één bestand. Parameters zoals het KvK-nummer en de dag van het besluit staan er niet in: die geeft de casus.',
+  ],
+};
+
 export const steps = [
   {
     overline: 'Verordening',
