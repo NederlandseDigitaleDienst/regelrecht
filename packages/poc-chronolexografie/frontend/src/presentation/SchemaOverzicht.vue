@@ -71,6 +71,18 @@ const maat = ref({ w: 0, h: 0 });
 const paden = ref([]);
 const actief = ref(null);
 
+/**
+ * A line from (ax, ay), leaving to the side `uit` (1 right, -1 left), to
+ * (bx, by), arriving from the side `in_`. It starts and ends with a straight
+ * piece of `recht` pixels, so the arrowhead sits on the line however steep
+ * the curve between is; `bocht` is how far the curve swings out.
+ */
+function boog(ax, ay, uit, bx, by, in_, bocht, recht = 10) {
+  const a2 = ax + uit * recht;
+  const b2 = bx + in_ * recht;
+  return `M ${ax} ${ay} L ${a2} ${ay} C ${a2 + uit * bocht} ${ay}, ${b2 + in_ * bocht} ${by}, ${b2} ${by} L ${bx} ${by}`;
+}
+
 /** Each line as a curve, from the side of one name to the side of the other. */
 function teken() {
   const root = vlak.value;
@@ -91,20 +103,17 @@ function teken() {
     if (l.van.pad === l.naar.pad) {
       // Same file: in the lane on the left inside the box, the longer the
       // further out, so the arcs nest instead of lying on top of each other.
-      const bocht = 6 + Math.min(18, Math.abs(by - ay) / 25);
       const x = a.left - o.left - 2;
-      d = `M ${x} ${ay} C ${x - bocht} ${ay}, ${x - bocht} ${by}, ${x} ${by}`;
+      d = boog(x, ay, -1, x, by, -1, 4 + Math.min(14, Math.abs(by - ay) / 30), 6);
     } else if (a.kolom === b.kolom) {
       // Same column: out on the right and back in.
       const x = Math.max(a.right, b.right) - o.left;
-      const bocht = 20 + Math.min(24, Math.abs(by - ay) / 10);
-      d = `M ${a.right - o.left} ${ay} C ${x + bocht} ${ay}, ${x + bocht} ${by}, ${b.right - o.left} ${by}`;
+      d = boog(a.right - o.left, ay, 1, b.right - o.left, by, 1, x - (a.right - o.left) + 16 + Math.min(24, Math.abs(by - ay) / 10));
     } else {
       const rechts = b.left > a.left;
       const ax = (rechts ? a.right : a.left) - o.left;
       const bx = (rechts ? b.left : b.right) - o.left;
-      const dx = Math.max(40, Math.abs(bx - ax) / 2) * (rechts ? 1 : -1);
-      d = `M ${ax} ${ay} C ${ax + dx} ${ay}, ${bx - dx} ${by}, ${bx} ${by}`;
+      d = boog(ax, ay, rechts ? 1 : -1, bx, by, rechts ? -1 : 1, Math.max(30, Math.abs(bx - ax) / 2 - 10));
     }
     return [{ i, d, soort: l.soort, binnen: l.van.pad === l.naar.pad, van: sleutel(l.van.pad, l.van.begrip), naar: sleutel(l.naar.pad, l.naar.begrip) }];
   });
