@@ -64,6 +64,19 @@ export const intro = {
     'Waar een stap op een artikel rust, staat eerst de tekst van dat artikel. Daarna volgt de YAML die het uitvoerbaar maakt, uit de bestanden zelf. De delen waar het om gaat, staan open. De rest klap je zelf open.',
 };
 
+/**
+ * The overview above the steps (SchemaOverzicht.vue): its boxes and lines come
+ * from the files themselves (schema.js), so only its heading and text are here.
+ */
+export const overzicht = {
+  overline: 'Overzicht',
+  title: 'Alle bestanden in één beeld',
+  text: [
+    'Elk blok is een YAML-bestand van deze casus, elke lijn een verwijzing van een naam in het ene bestand naar een naam in het andere. Wijs een naam aan om alleen zijn eigen lijnen te zien.',
+    'Het schema komt uit de bestanden zelf: de app volgt vanaf de casus elke verwijzing, zoals `implements` en `source`.',
+  ],
+};
+
 export const steps = [
   {
     overline: 'Verordening',
