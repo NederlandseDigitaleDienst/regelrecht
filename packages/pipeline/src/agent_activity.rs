@@ -561,6 +561,11 @@ mod tests {
             init_model(r#"{"type":"system","subtype":"init","model":""}"#),
             None
         );
+        // `subtype` alone is not enough: the event must be a system event.
+        assert_eq!(
+            init_model(r#"{"type":"user","subtype":"init","model":"x"}"#),
+            None
+        );
     }
 
     #[test]

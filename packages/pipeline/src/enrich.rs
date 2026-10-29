@@ -10542,7 +10542,10 @@ articles:
 
 /// `run_llm_subprocess` against a shell script standing in for the provider's
 /// CLI. The script ignores its arguments and prints what a real run would.
-#[cfg(all(test, unix))]
+// Two attributes rather than `all(test, unix)`: cargo-mutants skips a module
+// marked with a plain `#[cfg(test)]` and would otherwise mutate the helpers.
+#[cfg(test)]
+#[cfg(unix)]
 mod subprocess_tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
@@ -10706,6 +10709,81 @@ mod subprocess_tests {
         )
         .await;
         out.expect("a quiet opencode run completes");
+    }
+
+    #[tokio::test]
+    async fn the_runner_records_the_model_of_each_call() {
+        // The real runner, on a feedback round, against a fake CLI that names
+        // its model: the call it records must carry that model.
+        let (dir, provider) = fake_claude(
+            "echo '{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"claude-opus-5-5\"}'\n\
+             echo '{\"type\":\"result\",\"is_error\":false,\"usage\":{\"input_tokens\":3,\"output_tokens\":4}}'",
+        );
+        let law_dir = dir.path().join("laws/x");
+        std::fs::create_dir_all(&law_dir).unwrap();
+        let yaml_abs = law_dir.join("law.yaml");
+        std::fs::write(&yaml_abs, "$id: x\narticles: []\n").unwrap();
+
+        let session = std::sync::Arc::new(AgentSession::new(SessionReuse::Window));
+        let mut payload: EnrichPayload = serde_json::from_value(
+            serde_json::json!({"law_id": "x", "yaml_path": "laws/x/law.yaml"}),
+        )
+        .unwrap();
+        payload.pass = Pass::Feedback(Feedback {
+            gate: Gate::Schema,
+            findings: vec!["/articles: example finding".into()],
+        });
+        payload.session = Some(std::sync::Arc::clone(&session));
+        let config = EnrichConfig::for_test(provider);
+
+        // The fake CLI is freshly written; retry on ETXTBSY as `run` does.
+        let mut attempt = 0;
+        loop {
+            match ProcessLlmRunner
+                .run(&payload, &yaml_abs, dir.path(), &config)
+                .await
+            {
+                Err(e) if e.to_string().contains("Text file busy") && attempt < 10 => {
+                    attempt += 1;
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+                other => break other.unwrap(),
+            }
+        }
+
+        let calls = session.calls();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].step, "schema");
+        assert_eq!(calls[0].model.as_deref(), Some("claude-opus-5-5"));
+        assert_eq!(calls[0].usage.map(|u| u.output_tokens), Some(4));
+        assert_eq!(session.models(), ["claude-opus-5-5"]);
+    }
+
+    #[tokio::test]
+    async fn the_stored_model_is_read_from_the_enrichment_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let law_dir = dir.path().join("laws/x");
+        std::fs::create_dir_all(&law_dir).unwrap();
+        // No file: nothing stored.
+        assert_eq!(read_stored_model(dir.path(), "laws/x/law.yaml").await, None);
+
+        std::fs::write(
+            law_dir.join(".enrichment.yaml"),
+            "law_id: x\nmodel: claude-opus-5-5\n",
+        )
+        .unwrap();
+        assert_eq!(
+            read_stored_model(dir.path(), "laws/x/law.yaml")
+                .await
+                .as_deref(),
+            Some("claude-opus-5-5")
+        );
+
+        // An empty or missing field is no stored model either.
+        std::fs::write(law_dir.join(".enrichment.yaml"), "law_id: x\nmodel: ''\n").unwrap();
+        assert_eq!(read_stored_model(dir.path(), "laws/x/law.yaml").await, None);
+        std::fs::write(law_dir.join(".enrichment.yaml"), "law_id: x\n").unwrap();
+        assert_eq!(read_stored_model(dir.path(), "laws/x/law.yaml").await, None);
     }
 
     #[test]
