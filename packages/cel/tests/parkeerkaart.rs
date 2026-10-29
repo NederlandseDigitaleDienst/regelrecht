@@ -91,7 +91,7 @@ thread_local! {
     static GGD: std::cell::RefCell<Cell> = std::cell::RefCell::new(
         Cell::in_memory(
             GGD_ACTOR,
-            Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/cells/{GGD_ACTOR}")),
+            Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("tests/fixtures/corpus/cells/{GGD_ACTOR}")),
         )
         .unwrap(),
     );
@@ -157,7 +157,8 @@ fn given(cell: &Cell, gram: &Gram) -> std::collections::BTreeMap<String, Value> 
 /// The municipality's cell directory, with its catalogue of answers
 /// (RFC-048).
 fn cell_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/cells/{RECORDING_ACTOR}"))
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(format!("tests/fixtures/corpus/cells/{RECORDING_ACTOR}"))
 }
 
 /// The municipality's cell, with an empty chronicle.
@@ -790,7 +791,7 @@ fn judged_by_the_court_in(
 ) -> Gram {
     let mut court = Cell::in_memory(
         COURT,
-        Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/cells/{COURT}")),
+        Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("tests/fixtures/corpus/cells/{COURT}")),
     )
     .unwrap();
     let copy = cell

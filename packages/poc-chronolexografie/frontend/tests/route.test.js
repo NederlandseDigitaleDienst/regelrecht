@@ -4,7 +4,7 @@ import { load } from 'js-yaml';
 import { describe, expect, it } from 'vitest';
 import { findScenario, parseRoute, routePath, scenarioSlug } from '../src/route.js';
 
-const casussenDir = fileURLToPath(new URL('../../casussen/', import.meta.url));
+const casussenDir = fileURLToPath(new URL('../../corpus/casussen/', import.meta.url));
 const casussen = readdirSync(casussenDir)
   .filter((f) => f.endsWith('.yaml'))
   .map((f) => ({ id: f.replace(/\.yaml$/, ''), ...load(readFileSync(casussenDir + f, 'utf8')) }));

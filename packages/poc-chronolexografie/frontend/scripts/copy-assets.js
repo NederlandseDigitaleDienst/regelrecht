@@ -1,12 +1,11 @@
 /**
  * Zet in public/ wat de app in de browser draait:
  *
- *  - public/bundel.json: de bestanden die elke casus nodig heeft, per pad in
- *    de repository. Welke mappen dat zijn, staat bij `corpus` van
- *    chronolexografie in pocs/registry.yaml; een test in
- *    packages/poc-chronolexografie (src/bundel.rs) houdt die lijst gelijk met
- *    wat de app per casus uit de casussen en de wet afleidt. Elk bestand
- *    eronder gaat mee, behalve de scenario's.
+ *  - public/bundel.json: de bestanden van het eigen corpus van de poc, per pad
+ *    in de repository. Die map staat bij `corpus` van chronolexografie in
+ *    pocs/registry.yaml; een test in packages/poc-chronolexografie
+ *    (src/bundel.rs) houdt dat er niets in staat wat geen casus nodig heeft.
+ *    Elk bestand eronder gaat mee, behalve de scenario's.
  *  - public/bronnen.json: de namen van de bronnen bij `sources` van
  *    chronolexografie. De app haalt elke bron op bron/<naam> wanneer zij
  *    laadt (src/bronnen.js); het portaal serveert haar, niet de build.

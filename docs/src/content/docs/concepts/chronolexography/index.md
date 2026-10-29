@@ -11,9 +11,11 @@ Recording is an optional layer on top of the law ([RFC-046](/rfcs/rfc-046)). The
 
 | Part | Role | Where |
 |---|---|---|
-| Cell | Keeps its chronicle. Records submissions and takes decisions through the engine | `corpus/cells/<cell>/`, `packages/cel` |
-| Reduction | Reads the chronicle and gives an answer under a name | `corpus/cells/<cell>/reductions/`, or `corpus/cells/reductions/` for one of no cell |
-| Policy | Says that an open term of the law takes a cell's answer | `corpus/regulation/nl/uitvoeringsbeleid/` |
+| Cell | Keeps its chronicle. Records submissions and takes decisions through the engine | `cells/<cell>/` of a corpus, `packages/cel` |
+| Reduction | Reads the chronicle and gives an answer under a name | `cells/<cell>/reductions/`, or `cells/reductions/` for one of no cell |
+| Policy | Says that an open term of the law takes a cell's answer | `regulation/nl/uitvoeringsbeleid/` |
+
+The paths are relative to the root of a corpus. The cells and cases in this repository are in the corpus of the [PoC](/components/poc-portal#chronolexografie), `packages/poc-chronolexografie/corpus/`, and `packages/cel` tests on a copy of it in `tests/fixtures/corpus/`.
 | Engine | Executes the law and asks one cell per question. Stores nothing | `packages/engine` |
 
 ## A cell
@@ -21,7 +23,7 @@ Recording is an optional layer on top of the law ([RFC-046](/rfcs/rfc-046)). The
 A cell is a directory with a file `cel.yaml` and its reductions, one directory per `$id` under `reductions/`. `Cell::open` opens the cell with the chronicle stored on disk. `Cell::in_memory` opens it with an empty chronicle.
 
 ```yaml
-# corpus/cells/<cell>/cel.yaml
+# cells/<cell>/cel.yaml
 name: Het college van burgemeester en wethouders van Voorbeeldstad
 category: college van burgemeester en wethouders
 answers:
@@ -84,7 +86,7 @@ Sometimes a decision has an output with a different legal character than the dec
 A reduction reads what the cell recorded earlier and gives an answer under a name, such as `eerder_vergunning_verleend` ("was this permit granted before?"). It is the only kind of rulework that reads a chronicle.
 
 ```yaml
-# corpus/cells/gemeente_voorbeeldstad/reductions/reductie_eerder_vergunning_verleend/<valid_from>.yaml
+# cells/gemeente_voorbeeldstad/reductions/reductie_eerder_vergunning_verleend/<valid_from>.yaml
 regulatory_layer: REDUCTIE
 execution:                         # shortened
   parameters: [bsn_aanvrager]
@@ -115,7 +117,7 @@ execution:
 This policy article is called a binding: it binds the open term to the answer.
 
 - Each cell decides for itself how it reduces. The engine only asks it for an answer by name. The cell in `packages/cel` uses what the engine offers: rulework of its own kind (`REDUCTIE`) in the cell's own directory. The directory says whose reduction it is, so the reduction names no `competent_authority`. A reduction reads decisions or facts (`source.decisions`, `source.facts`). For decisions it names an article, or a parameter that names one. It may call policy for a norm.
-- A reduction may also call a reduction of no cell, in `corpus/cells/reductions/`. Such a reduction has no chronicle of its own, and no cell gives it as an answer. It reads the chronicle of the cell that runs the reduction that calls it. The reduction of the Awb is one: given an article, it gives the decisions under that article that still hold after objection and appeal.
+- A reduction may also call a reduction of no cell, in `cells/reductions/`. Such a reduction has no chronicle of its own, and no cell gives it as an answer. It reads the chronicle of the cell that runs the reduction that calls it. The reduction of the Awb is one: given an article, it gives the decisions under that article that still hold after objection and appeal.
 - A reduction never calls a reduction of another cell, because that reduction would read the wrong chronicle. The corpus loader of the PoC refuses such a call, and its tests check the whole corpus for it.
 - The engine asks the cell for the answer wherever the binding runs. The cell then runs the reduction that its catalogue names for that answer. Because the binding is an article of policy, its value becomes the value of the term, even when that value is null. A finding of the authority cannot replace it ([Inversion of Control](/concepts/inversion-of-control#policy-that-fills-an-open-term-with-a-cells-answer)). Sometimes the cell has no answer and the authority should judge the case itself. The policy then says so with an open term of its own (`decided_per_case_by`).
 - The loader refuses `source.decisions` and `source.facts` outside a `REDUCTIE`. It refuses `source.reduction` outside such a binding.
@@ -156,5 +158,5 @@ The cell stores no reasons. It explains a decision by taking it again.
 
 ## Try it
 
-- `cargo test --manifest-path packages/cel/Cargo.toml` runs the cases in `corpus/cells/`.
+- `cargo test --manifest-path packages/cel/Cargo.toml` runs the cases on the cells in `packages/cel/tests/fixtures/corpus/`.
 - The [PoC portal](/components/poc-portal#chronolexografie) plays them in a browser.

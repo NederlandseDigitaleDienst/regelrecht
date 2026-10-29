@@ -14,7 +14,7 @@
  *   before the objection.
  */
 import { load } from 'js-yaml';
-import yaml from '../../../casussen/gehandicaptenparkeerkaart.yaml?raw';
+import yaml from '../../../corpus/casussen/gehandicaptenparkeerkaart.yaml?raw';
 import { guideFor } from '../scenarioGuides.js';
 
 export const DEMO_CASUS = 'gehandicaptenparkeerkaart';

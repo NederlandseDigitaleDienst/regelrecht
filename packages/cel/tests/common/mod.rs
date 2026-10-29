@@ -43,9 +43,11 @@ pub fn service_of(laws: &[&str]) -> LawExecutionService {
     service
 }
 
-/// The corpus of the repository.
+/// The corpus these tests run on: the cells and regelwerken of the
+/// chronolexografie cases as fixtures of this crate (`tests/fixtures/corpus`),
+/// so a change to the PoC or the regelrecht corpus does not move them.
 pub fn corpus() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/corpus")
 }
 
 /// Load every version in each directory of `dirs`, relative to the corpus

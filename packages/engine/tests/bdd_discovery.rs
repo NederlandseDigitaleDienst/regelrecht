@@ -20,7 +20,7 @@ fn collect_feature_paths(
     root: &Path,
     bucket: Bucket,
 ) -> Result<Vec<std::path::PathBuf>, DiscoveryError> {
-    discovery::collect_feature_paths(root, &root.join("corpus/regulation"), bucket)
+    discovery::collect_feature_paths(root, &[root.join("corpus/regulation")], bucket)
 }
 
 /// Minimal stand-in for the repository layout: one bucket-A scenario next to a
@@ -140,7 +140,7 @@ fn bucket_a_follows_a_corpus_outside_the_root() {
 
     let features = discovery::collect_feature_paths(
         tmp.path(),
-        &tmp.path().join("corpus/demo/regulation"),
+        &[tmp.path().join("corpus/demo/regulation")],
         Bucket::Corpus,
     )
     .unwrap();

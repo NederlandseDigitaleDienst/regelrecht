@@ -42,7 +42,8 @@ would never use.
 
 Usage:  python3 cross-law-integriteit.py [corpus_root ...] [--peildatum YYYY-MM-DD]
         (defaults: regulation, today). Several roots are read as one corpus,
-        such as corpus/regulation and corpus/cells (the reductions).
+        such as the regulation and the cells (the reductions) of the corpus
+        of the chronolexografie PoC.
 """
 import sys, glob, datetime
 

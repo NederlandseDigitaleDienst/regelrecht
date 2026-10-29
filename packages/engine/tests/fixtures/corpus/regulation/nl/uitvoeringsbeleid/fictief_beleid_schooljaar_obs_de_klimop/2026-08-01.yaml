@@ -1,0 +1,42 @@
+---
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.8.1/schema/v0.8.1/schema.json
+$id: fictief_beleid_schooljaar_obs_de_klimop
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-07-01'
+valid_from: '2026-08-01'
+valid_to: '2027-07-31'
+# FICTIEF. OBS De Klimop bestaat niet en dit is geen bekendgemaakt beleid,
+# maar een eigen keuze in de modellering. Er is geen bekendmaking; de url wijst
+# daarom naar het artikel dat dit beleid uitwerkt.
+url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+name: Schooljaar 2026-2027 van OBS De Klimop (fictief beleid)
+competent_authority:
+  name: Het hoofd van OBS De Klimop
+# Geen legal_basis: geen artikel machtigt dit beleid met zoveel woorden.
+# Artikel 13a, tweede lid, van de Leerplichtwet 1969 noemt "de eerste twee
+# lesweken van het schooljaar"; wanneer die beginnen, staat hier.
+# Het formaat kent geen scope voor een school (alleen gemeente_code,
+# provincie_code en waterschap_code), dus dit fictieve beleid geldt voor elke
+# school zolang die scope er niet is.
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. De eerste lesdag van het schooljaar
+      2026-2027 van OBS De Klimop is maandag 31 augustus 2026.
+    url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+    machine_readable:
+      implements:
+        - law: leerplichtwet_1969
+          article: 13a
+          open_term: eerste_lesdag_schooljaar
+      execution:
+        output:
+          - name: eerste_lesdag_schooljaar
+            type: date
+        actions:
+          - output: eerste_lesdag_schooljaar
+            value:
+              operation: DATE
+              year: 2026
+              month: 8
+              day: 31

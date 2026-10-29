@@ -7,16 +7,16 @@
 # dit artikel en de cel, binnen dat corpus (src/casus.rs).
 cel: gemeente_wilgendaal
 artikel: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
-# Het corpus van deze casus: alleen deze regelwerken gelden, elk een map
-# onder corpus/. De reducties van de cellen van de casus komen met die
-# cellen mee.
+# Het corpus van deze casus: alleen deze regelwerken gelden. Hieronder de
+# gedeelde, elk een map onder het corpus van de poc; de eigen regelwerken
+# van de casus, in casussen/gehandicaptenparkeerkaart/regulation/nl, gelden zonder dat ze hier
+# staan. De reducties van de cellen van de casus komen met die cellen mee.
 corpus:
   - regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
   - regulation/nl/wet/algemene_wet_bestuursrecht
   - regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart
   - regulation/nl/gemeentelijke_verordening/wilgendaal/parkeerverordening_gemeente_wilgendaal
   - regulation/nl/uitvoeringsbeleid/beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
-  - regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_ggd_wilgendaal
   - regulation/nl/gemeentelijke_verordening/wilgendaal/uitvoeringsbesluit_parkeren_gemeente_wilgendaal
   - regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal
   - cells/reductions/reductie_algemene_wet_bestuursrecht

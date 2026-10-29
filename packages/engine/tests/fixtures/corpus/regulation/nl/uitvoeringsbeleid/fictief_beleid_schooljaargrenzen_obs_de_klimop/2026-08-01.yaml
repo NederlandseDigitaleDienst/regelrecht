@@ -1,0 +1,109 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.2/schema/v0.8.2/schema.json
+$id: fictief_beleid_schooljaargrenzen_obs_de_klimop
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-07-01'
+valid_from: '2026-08-01'
+# FICTIEF. OBS De Klimop bestaat niet en dit is geen bekendgemaakt beleid,
+# maar een eigen keuze in de modellering. Er is geen bekendmaking; de url wijst
+# daarom naar het artikel dat dit beleid uitwerkt.
+url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+name: Begin en einde van het schooljaar bij OBS De Klimop (fictief beleid)
+competent_authority:
+  name: Het hoofd van OBS De Klimop
+# Geen legal_basis: geen artikel machtigt dit beleid met zoveel woorden.
+# Artikel 13a, tweede lid, van de Leerplichtwet 1969 laat het hoofd verlof
+# "slechts eenmaal ... per schooljaar" verlenen. In welk schooljaar een dag
+# valt, staat hier; het beleid van het hoofd over vakantieverlof vraagt het
+# voor de eerste verlofdag (artikel 1), voor de reductie van de school
+# (RFC-048). Het beleid neemt geen besluit en kent geen lijst. Het
+# formaat kent geen scope voor een school, dus dit fictieve beleid geldt voor
+# elke school.
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Een
+      schooljaar loopt van 1 augustus tot en met 31 juli van het jaar erna.
+    url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+    machine_readable:
+      execution:
+        parameters:
+          - name: datum
+            type: date
+            description: De dag waarvan het schooljaar wordt gevraagd.
+        output:
+          - name: begin_schooljaar
+            type: date
+            description: De eerste dag van het schooljaar waarin de datum valt.
+          - name: einde_schooljaar
+            type: date
+            description: De laatste dag van het schooljaar waarin de datum valt.
+          - name: eerste_jaar_schooljaar
+            type: number
+            description: >-
+              Het jaar waarin het schooljaar van de datum begint: 2026 voor het
+              schooljaar 2026–2027.
+          - name: laatste_jaar_schooljaar
+            type: number
+            description: >-
+              Het jaar waarin het schooljaar van de datum eindigt: 2027 voor
+              het schooljaar 2026–2027.
+        actions:
+          # Vanaf 1 augustus begint het schooljaar van dat jaar, daarvóór loopt
+          # het schooljaar dat het jaar ervoor begon. Dezelfde periode noemt
+          # artikel 1 van de Wet op het primair onderwijs ("schooljaar"); die
+          # wet staat niet in het corpus, dus dit beleid herhaalt haar zonder
+          # legal_basis.
+          - output: begin_schooljaar
+            value:
+              operation: DATE
+              year:
+                operation: IF
+                cases:
+                  - when:
+                      operation: GREATER_THAN_OR_EQUAL
+                      subject:
+                        operation: DATE_PART
+                        date: $datum
+                        in: month
+                      value: 8
+                    then:
+                      operation: DATE_PART
+                      date: $datum
+                      in: year
+                default:
+                  operation: SUBTRACT
+                  values:
+                    - operation: DATE_PART
+                      date: $datum
+                      in: year
+                    - 1
+              month: 8
+              day: 1
+          - output: einde_schooljaar
+            value:
+              operation: DATE
+              year:
+                operation: ADD
+                values:
+                  - operation: DATE_PART
+                    date: $begin_schooljaar
+                    in: year
+                  - 1
+              month: 7
+              day: 31
+          # De jaren van het schooljaar, zoals de Regeling vaststelling
+          # schoolvakanties 2025–2030 haar tabellen noemt ("Schooljaar
+          # 2026–2027") en haar zomervakanties telt ("voor de jaren 2026,
+          # 2027, ..."). De reductie van de school over verlof buiten de
+          # schoolvakanties vraagt ze voor de eerste verlofdag (RFC-051).
+          - output: eerste_jaar_schooljaar
+            value:
+              operation: DATE_PART
+              date: $begin_schooljaar
+              in: year
+          - output: laatste_jaar_schooljaar
+            value:
+              operation: DATE_PART
+              date: $einde_schooljaar
+              in: year

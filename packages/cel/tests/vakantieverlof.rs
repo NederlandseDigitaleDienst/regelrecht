@@ -78,7 +78,8 @@ fn service_without(without: &[&str]) -> LawExecutionService {
 
 /// The school's cell directory, with its identity and catalogue (RFC-048).
 fn cell_dir() -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/cells/{RECORDING_ACTOR}"))
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(format!("tests/fixtures/corpus/cells/{RECORDING_ACTOR}"))
 }
 
 /// A directory of the school's cell that gives the answers `answers`, each

@@ -177,31 +177,18 @@ test('het poc-portaal volgt zijn register, zijn corpus en zijn frontends', () =>
   assert.equal(namesOf(['frontend-poc-terugbetaalregimes/src/App.vue'])['poc-napp'], false);
 });
 
-test('chronolexografie volgt zijn cellen, hun regelwerken, de casussen en zijn frontend', () => {
-  // chronolexografie draait als WASM in de browser en zit in het poc-image:
-  // de cellen van de casussen en de regelwerken die zij draaien raken dat
-  // image, en er is geen eigen component meer.
+test('chronolexografie volgt zijn eigen corpus en zijn frontend', () => {
+  // chronolexografie draait als WASM in de browser en zit in het poc-image.
+  // Zijn corpus (de casussen, de gedeelde regelwerken, die van elke casus en
+  // de cellen) staat in de map van de crate, dus de graaf vindt het.
   assert.equal('poc-chronolexografie' in COMPONENTS, false);
+  const corpus = 'packages/poc-chronolexografie/corpus';
   for (const pad of [
-    'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantieverlof_obs_de_klimop/2026-08-01.yaml',
-    'corpus/cells/obs_de_klimop/reductions/reductie_verlof_al_verleend_in_schooljaar/2026-08-01.yaml',
-    'corpus/cells/reductions/reductie_algemene_wet_bestuursrecht/2026-01-01.yaml',
-    'corpus/cells/obs_de_klimop/cel.yaml',
-    'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vestiging_obs_de_klimop/2026-08-01.yaml',
-    'corpus/regulation/nl/ministeriele_regeling/regeling_vaststelling_schoolvakanties_20252030/2025-08-01.yaml',
-    'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantierooster_obs_de_klimop/2026-08-01.yaml',
-    'corpus/regulation/nl/wet/leerplichtwet_1969/2026-08-01.yaml',
-    'corpus/cells/gemeente_wilgendaal/reductions/reductie_geldige_gehandicaptenparkeerkaart/2026-01-01.yaml',
-    'corpus/cells/ggd_wilgendaal/reductions/reductie_geneeskundig_onderzoek/2026-01-01.yaml',
-    'corpus/cells/rechtbank_wilgendaal/cel.yaml',
-    'corpus/regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw/2026-01-01.yaml',
-    'packages/poc-chronolexografie/casussen/gehandicaptenparkeerkaart.yaml',
-    'corpus/regulation/nl/gemeentelijke_verordening/wilgendaal/parkeerverordening_gemeente_wilgendaal/2026-01-01.yaml',
-    'corpus/regulation/nl/gemeentelijke_verordening/wilgendaal/uitvoeringsbesluit_parkeren_gemeente_wilgendaal/2026-01-01.yaml',
-    'corpus/regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal/2026-01-01.yaml',
-    'corpus/cells/kamer_van_koophandel/reductions/reductie_vestiging_in_handelsregister/2026-01-01.yaml',
-    'corpus/cells/gemeente_wilgendaal/reductions/reductie_geldige_bedrijfsparkeervergunningen/2026-01-01.yaml',
-    'packages/poc-chronolexografie/casussen/bedrijfsparkeervergunning.yaml',
+    `${corpus}/casussen/bedrijfsparkeervergunning.yaml`,
+    `${corpus}/casussen/vakantieverlof/regulation/nl/wet/leerplichtwet_1969/2026-08-01.yaml`,
+    `${corpus}/regulation/nl/wet/algemene_wet_bestuursrecht/1994-01-01.yaml`,
+    `${corpus}/cells/obs_de_klimop/cel.yaml`,
+    `${corpus}/cells/reductions/reductie_algemene_wet_bestuursrecht/2026-01-01.yaml`,
     'packages/poc-chronolexografie/frontend/src/App.vue',
   ]) {
     const geraakt = namesOf([pad]);
@@ -213,10 +200,10 @@ test('chronolexografie volgt zijn cellen, hun regelwerken, de casussen en zijn f
   assert.equal(namesOf(['packages/poc-chronolexografie/src/kern.rs']).poc, true);
   assert.equal(namesOf(['packages/cel/src/cell.rs']).poc, true);
 
-  // Een wet die de cel niet draait, raakt het niet, en een reductie van geen
-  // cel die geen casus draait ook niet.
+  // Het regelrecht-corpus raakt het niet, ook niet de wetten waarvan de poc
+  // een kopie heeft.
   assert.equal(namesOf(['corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml']).poc, false);
-  assert.equal(namesOf(['corpus/cells/reductions/reductie_elders/2026-01-01.yaml']).poc, false);
+  assert.equal(namesOf(['corpus/regulation/nl/wet/algemene_wet_bestuursrecht/1994-01-01.yaml']).poc, false);
 });
 
 test('een engine-wijziging bouwt het poc-image, want dat bakt de engine als WASM', () => {

@@ -1,0 +1,65 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.7/schema/v0.8.7/schema.json
+$id: fictief_beleid_vestiging_obs_de_klimop
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-07-01'
+valid_from: '2026-08-01'
+# FICTIEF. OBS De Klimop bestaat niet en dit is geen bekendgemaakt beleid,
+# maar een eigen keuze in de modellering. Er is geen bekendmaking; de url wijst
+# daarom naar het artikel waarvoor de vestiging ertoe doet.
+url: https://wetten.overheid.nl/BWBR0049811/2025-08-01#Artikel2
+name: Vestiging van OBS De Klimop (fictief beleid)
+competent_authority:
+  name: Het bevoegd gezag van OBS De Klimop
+# Geen legal_basis: geen artikel in het corpus vestigt met zoveel woorden de
+# handeling waarmee een school haar plaats van vestiging vastlegt. Artikel 2
+# van de Regeling vaststelling schoolvakanties 2025–2030 gebruikt haar ("De
+# plaats van vestiging is bepalend voor de regio waartoe een school
+# behoort"), maar zegt niet wie haar vastlegt. De Wet op het primair onderwijs
+# kent de vestiging (artikel 1, "nevenvestiging"), en de registratie van
+# instellingen bij DUO (RIO) staat niet in het corpus. Daarom is dit het
+# eigen beleid van de school, gemarkeerd als fictief: het vereist het feit
+# van de vestiging en zegt wat het bevat (RFC-051).
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Het
+      bevoegd gezag van OBS De Klimop legt vast in welke gemeente de school
+      gevestigd is, en sinds welke dag. Verhuist de school, dan legt het de
+      nieuwe vestiging vast; de oude blijft vastgelegd.
+    url: https://wetten.overheid.nl/BWBR0049811/2025-08-01#Artikel2
+    machine_readable:
+      # De vestiging is een feit dat dit beleid vereist (requires, fact).
+      # Artikel 3 van de regeling deelt in naar provincie en gemeente, en vier
+      # gemeenten naar een voormalige gemeente of een kern; daarom ook de
+      # provincie en het deel van de gemeente.
+      requires:
+        - fact: vestiging
+          description: De gemeente waarin de school gevestigd is, en sinds welke dag.
+          parameters:
+            - gemeente
+            - provincie
+            - deel_van_gemeente
+            - sinds
+      execution:
+        parameters:
+          - name: gemeente
+            type: string
+            description: >-
+              De gemeente waarin de vestiging ligt, zoals artikel 3 van de
+              regeling haar noemt, of het openbaar lichaam in Caribisch
+              Nederland.
+          - name: provincie
+            type: string
+            nullable: true
+            description: De provincie waarin de gemeente ligt; afwezig in Caribisch Nederland.
+          - name: deel_van_gemeente
+            type: string
+            nullable: true
+            description: >-
+              De voormalige gemeente of de kern waarin de vestiging ligt, waar
+              artikel 3 van de regeling een gemeente zo verdeelt; anders
+              afwezig.
+          - name: sinds
+            type: date
+            description: De dag vanaf welke de school daar gevestigd is.

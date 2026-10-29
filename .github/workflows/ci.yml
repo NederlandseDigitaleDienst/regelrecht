@@ -69,10 +69,6 @@ jobs:
               - packages/frontend-shared/**
               - bdd/**
               - corpus/regulation/**
-              # De cellen met hun catalogus (cel.yaml) en hun reducties, en de
-              # reducties van geen cel (RFC-048): gevalideerd en gelezen door de
-              # celtests.
-              - corpus/cells/**
               # De demo-wetten en -scenario's: gevalideerd en gedraaid als bucket demo.
               - corpus/demo/**
               - schema/**
@@ -130,7 +126,6 @@ jobs:
               - bdd/**
               - schema/**
               - corpus/regulation/**
-              - corpus/cells/**
               - Justfile
               - .claude/skills/docs-writing/**
               - .github/workflows/ci.yml
@@ -272,9 +267,12 @@ jobs:
           # Every $schema URL in corpus YAML must reference a known schema version
           KNOWN_VERSIONS=$(ls -d schema/v*/ | xargs -n1 basename)
           FAILED=false
-          # A reduction sits with its cell, or with none, under corpus/cells
-          # (RFC-048).
-          for file in $(find corpus/regulation -name "*.yaml"; find corpus/cells -path "*/reductions/*" -name "*.yaml"); do
+          # The corpus of the chronolexografie PoC too: its regulation
+          # (script/chrono-regulation-dirs.sh), and the reductions, which sit
+          # with their cell or with none under cells/ (RFC-048).
+          # A plain assignment, so a failing script fails the step.
+          CHRONO_DIRS=$(script/chrono-regulation-dirs.sh)
+          for file in $(find corpus/regulation $CHRONO_DIRS -name "*.yaml"; find packages/poc-chronolexografie/corpus/cells -path "*/reductions/*" -name "*.yaml"); do
             SCHEMA_URL=$(grep '^\$schema:' "$file" | head -1 | sed 's/\$schema: *//')
             # Handle multi-line $schema with >-
             if [ -z "$SCHEMA_URL" ] || [ "$SCHEMA_URL" = ">-" ]; then
@@ -382,7 +380,14 @@ jobs:
       # are all modelling errors. The script exits non-zero on any finding.
       - name: Check cross-law binding integrity
         run: |
-          python3 script/cross-law-integriteit.py corpus/regulation corpus/cells
+          python3 script/cross-law-integriteit.py corpus/regulation
+
+      # Het corpus van de chronolexografie-poc apart: het heeft eigen kopieën
+      # van wetten uit corpus/regulation, met dezelfde $id.
+      - name: Check cross-law binding integrity (chronolexografie)
+        run: |
+          CHRONO_DIRS=$(script/chrono-regulation-dirs.sh)
+          python3 script/cross-law-integriteit.py $CHRONO_DIRS packages/poc-chronolexografie/corpus/cells
 
   pre-commit:
     name: Pre-commit
@@ -691,6 +696,23 @@ jobs:
           REGULATION_PATH: ${{ github.workspace }}/corpus/demo/regulation
           RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
         run: cargo test --test bdd -- --nocapture
+
+      # Zoals `just bdd-chrono`: bucket A over het corpus van de
+      # chronolexografie-poc, de gedeelde regelwerken en die van elke casus
+      # samen. Ook verzonnen gegevens, dus ook hier is rood een echte fout.
+      - name: Run chronolexografie bucket (${{ matrix.leg }} actions)
+        working-directory: packages/engine
+        env:
+          BDD_BUCKET: corpus
+          BDD_REVERSE_ACTIONS: ${{ matrix.reverse }}
+          RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
+        # A plain assignment under `-eo pipefail`, so a failing script fails
+        # the step instead of leaving REGULATION_PATH empty, which would run
+        # bucket A over corpus/regulation and pass.
+        run: |
+          REGULATION_PATH=$(../../script/chrono-regulation-dirs.sh | sed "s|^|$GITHUB_WORKSPACE/|" | paste -sd:)
+          export REGULATION_PATH
+          cargo test --test bdd -- --nocapture
 
       # Zoals `just bdd-demo`: de Awb-levensloop over hetzelfde democorpus.
       # De unit-baan draait deze test alleen tegen corpus/regulation.

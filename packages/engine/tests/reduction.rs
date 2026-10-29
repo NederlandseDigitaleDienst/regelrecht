@@ -34,11 +34,15 @@ const POLICY: &str = "fictief_beleid_vakantieverlof_obs_de_klimop";
 /// The policy the head's policy calls for the school year.
 const SCHOOL_YEAR: &str = "fictief_beleid_schooljaargrenzen_obs_de_klimop";
 
+/// The fixture corpus of these tests: the regelwerken of the vakantieverlof
+/// case of the chronolexografie PoC as they were copied here, so a change to
+/// the PoC does not move them.
+fn corpus_dir() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/corpus")
+}
+
 fn corpus(path: &str) -> String {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../corpus")
-        .join(path);
-    std::fs::read_to_string(path).unwrap()
+    std::fs::read_to_string(corpus_dir().join(path)).unwrap()
 }
 
 /// The reduction of the fictional school that reads its decisions, from
@@ -576,7 +580,7 @@ const AWB: &str = "algemene_wet_bestuursrecht";
 /// The Leerplichtwet, the Awb and the school's policies from the corpus,
 /// the head's binding among them, and the reduction if `with_reduction`.
 fn corpus_service(with_reduction: bool) -> LawExecutionService {
-    let regulation = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/regulation/nl");
+    let regulation = corpus_dir().join("regulation/nl");
     let mut service = LawExecutionService::new();
     for law in [
         "wet/leerplichtwet_1969",

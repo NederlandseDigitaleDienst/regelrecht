@@ -24,19 +24,21 @@
  * `name` is code, as in the deck (slides.js).
  */
 
+import { CORPUS } from '../corpus.js';
+
 const VERORDENING =
-  'corpus/regulation/nl/gemeentelijke_verordening/wilgendaal/parkeerverordening_gemeente_wilgendaal/2026-01-01.yaml';
+  `${CORPUS}/regulation/nl/gemeentelijke_verordening/wilgendaal/parkeerverordening_gemeente_wilgendaal/2026-01-01.yaml`;
 const BESLUIT =
-  'corpus/regulation/nl/gemeentelijke_verordening/wilgendaal/uitvoeringsbesluit_parkeren_gemeente_wilgendaal/2026-01-01.yaml';
+  `${CORPUS}/regulation/nl/gemeentelijke_verordening/wilgendaal/uitvoeringsbesluit_parkeren_gemeente_wilgendaal/2026-01-01.yaml`;
 const BELEID =
-  'corpus/regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal/2026-01-01.yaml';
-const CEL = 'corpus/cells/gemeente_wilgendaal/cel.yaml';
+  `${CORPUS}/regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal/2026-01-01.yaml`;
+const CEL = `${CORPUS}/cells/gemeente_wilgendaal/cel.yaml`;
 const REDUCTIE =
-  'corpus/cells/gemeente_wilgendaal/reductions/reductie_geldige_bedrijfsparkeervergunningen/2026-01-01.yaml';
-const AWB = 'corpus/cells/reductions/reductie_algemene_wet_bestuursrecht/2026-01-01.yaml';
-const KVK_CEL = 'corpus/cells/kamer_van_koophandel/cel.yaml';
+  `${CORPUS}/cells/gemeente_wilgendaal/reductions/reductie_geldige_bedrijfsparkeervergunningen/2026-01-01.yaml`;
+const AWB = `${CORPUS}/cells/reductions/reductie_algemene_wet_bestuursrecht/2026-01-01.yaml`;
+const KVK_CEL = `${CORPUS}/cells/kamer_van_koophandel/cel.yaml`;
 const KVK_REDUCTIE =
-  'corpus/cells/kamer_van_koophandel/reductions/reductie_vestiging_in_handelsregister/2026-01-01.yaml';
+  `${CORPUS}/cells/kamer_van_koophandel/reductions/reductie_vestiging_in_handelsregister/2026-01-01.yaml`;
 
 /** The files the panels show, for the page that loads them (UitlegPagina.vue). */
 export const bronnen = [VERORDENING, BESLUIT, BELEID, CEL, REDUCTIE, AWB, KVK_CEL, KVK_REDUCTIE];

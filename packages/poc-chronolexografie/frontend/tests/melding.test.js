@@ -62,7 +62,7 @@ describe('melding', () => {
   it('zegt dat de reductie van de cel op die dag nog niet geldt', () => {
     const fout =
       "setup: open term 'verlof_al_verleend_in_schooljaar' of leerplichtwet_1969#13a is filled by a reduction in " +
-      'corpus/cells/obs_de_klimop, but none is in force on 2026-07-01; the cell does not take it as a finding of the deciding authority';
+      'packages/poc-chronolexografie/corpus/cells/obs_de_klimop, but none is in force on 2026-07-01; the cell does not take it as a finding of the deciding authority';
     expect(melding(fout)).toBe(
       'De cel beantwoordt "verlof al verleend in schooljaar" uit haar kroniek, maar op 2026-07-01 geldt haar reductie nog niet. Kies een latere speeldatum.',
     );

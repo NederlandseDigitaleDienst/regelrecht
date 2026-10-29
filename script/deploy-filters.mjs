@@ -115,38 +115,14 @@ export const COMPONENTS = {
   // staan — precies de fout die dit script hoort uit te bannen.
   //
   // chronolexografie draait als WASM in de browser: het image bouwt de crate
-  // (met de cel, en de casussen en de app in de map van de crate, uit de graaf)
-  // en bundelt per casus de regelwerken die haar cel draait en de cellen zelf,
-  // met hun reducties. Die mappen staan bij `corpus` in pocs/registry.yaml; een
-  // test in packages/poc-chronolexografie (src/bundel.rs) houdt de lijst
-  // hieronder daarmee gelijk.
+  // (met de cel) en bundelt het eigen corpus van de poc, met de casussen, de
+  // regelwerken en de cellen. Dat corpus en de app staan in de map van de
+  // crate, dus de graaf vindt ze; hieronder staat er niets voor.
   poc: {
     crate: ['regelrecht-poc-portal', 'regelrecht-engine', 'regelrecht-poc-chronolexografie'],
     paths: [
       'pocs/',
       'corpus-poc/',
-      'corpus/cells/gemeente_wilgendaal/',
-      'corpus/cells/ggd_wilgendaal/',
-      'corpus/cells/kamer_van_koophandel/',
-      'corpus/cells/obs_de_klimop/',
-      'corpus/cells/rechtbank_wilgendaal/',
-      'corpus/cells/reductions/reductie_algemene_wet_bestuursrecht/',
-      'corpus/regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw/',
-      'corpus/regulation/nl/gemeentelijke_verordening/wilgendaal/parkeerverordening_gemeente_wilgendaal/',
-      'corpus/regulation/nl/gemeentelijke_verordening/wilgendaal/uitvoeringsbesluit_parkeren_gemeente_wilgendaal/',
-      'corpus/regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart/',
-      'corpus/regulation/nl/ministeriele_regeling/regeling_vaststelling_schoolvakanties_20252030/',
-      'corpus/regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal/',
-      'corpus/regulation/nl/uitvoeringsbeleid/beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal/',
-      'corpus/regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_ggd_wilgendaal/',
-      'corpus/regulation/nl/uitvoeringsbeleid/beleid_handelsregister_kamer_van_koophandel/',
-      'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaar_obs_de_klimop/',
-      'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaargrenzen_obs_de_klimop/',
-      'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantierooster_obs_de_klimop/',
-      'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantieverlof_obs_de_klimop/',
-      'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vestiging_obs_de_klimop/',
-      'corpus/regulation/nl/wet/algemene_wet_bestuursrecht/',
-      'corpus/regulation/nl/wet/leerplichtwet_1969/',
       'frontend-poc-portal/',
       'frontend-poc-terugbetaalregimes/',
       'frontend-poc-nieuwkomersbekostiging/',

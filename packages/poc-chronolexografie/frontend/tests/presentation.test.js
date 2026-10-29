@@ -9,13 +9,20 @@ import { createPresentation, keyAction, startIndex } from '../src/presentation/u
 
 // The slides name reductions, open terms and outputs of the corpus, and
 // quote it. Nothing else checks that those names and lines still exist.
-const corpusDir = fileURLToPath(new URL('../../../../corpus', import.meta.url));
+const corpusDir = fileURLToPath(new URL('../../corpus', import.meta.url));
 function yamlFiles(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
     e.isDirectory() ? yamlFiles(join(dir, e.name)) : e.name.endsWith('.yaml') ? [join(dir, e.name)] : [],
   );
 }
-const corpus = [join(corpusDir, 'regulation'), join(corpusDir, 'cells')]
+// The shared regulation, the own regulation of each case, and the cells.
+const corpus = [
+  join(corpusDir, 'regulation'),
+  join(corpusDir, 'cells'),
+  ...readdirSync(join(corpusDir, 'casussen'), { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => join(corpusDir, 'casussen', e.name, 'regulation')),
+]
   .flatMap(yamlFiles)
   .map((f) => readFileSync(f, 'utf8'))
   .join('\n');
@@ -87,7 +94,7 @@ describe('the slides', () => {
 
 describe('the demo scenarios', () => {
   const yaml = load(
-    readFileSync(new URL(`../../casussen/${DEMO_CASUS}.yaml`, import.meta.url), 'utf8'),
+    readFileSync(new URL(`../../corpus/casussen/${DEMO_CASUS}.yaml`, import.meta.url), 'utf8'),
   );
 
   it('are scenarios of the case, each with a guide', () => {

@@ -1,0 +1,74 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$id: beleid_handelsregister_kamer_van_koophandel
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# FICTIEF. Dit is geen beleid van de Kamer van Koophandel, maar een eigen
+# keuze in de modellering, naar het voorbeeldbeleid voor de bevraging van het
+# handelsregister in de NAPP-PoC. De url wijst naar artikel 11 van de
+# Handelsregisterwet 2007, dat zegt wat het register over een vestiging van
+# een onderneming opneemt.
+# Waarom beleid en geen artikel van de wet: de Handelsregisterwet 2007 staat
+# niet in dit corpus. Zij staat wel in de NAPP-bron, met uitvoerbare artikelen
+# van die casus; een tweede versie onder dezelfde $id hier zou die
+# overschaduwen, want het regelrecht-corpus gaat voor een bron. Zolang de wet
+# niet in het centrale corpus staat, vereist dit beleid het feit van de
+# inschrijving en zegt het wat zij bevat (RFC-051), zoals het fictieve beleid
+# van OBS De Klimop haar vestiging.
+url: https://wetten.overheid.nl/BWBR0021777/2025-07-16#Artikel11
+name: Inschrijving van een vestiging in het handelsregister (fictief beleid)
+competent_authority:
+  name: Kamer van Koophandel
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen beleid van de Kamer van
+      Koophandel. De Kamer legt bij de inschrijving van een vestiging van een
+      onderneming vast: het nummer dat zij de onderneming toekende (artikel 9,
+      onder a, van de Handelsregisterwet 2007), de postcode van het
+      bezoekadres van de vestiging (artikel 11, eerste lid, onder c), het
+      aantal personen dat in de onderneming werkzaam is, en de dag van de
+      inschrijving. Wijzigt een gegeven, dan legt zij de vestiging opnieuw
+      vast; de oude inschrijving blijft vastgelegd.
+    url: https://wetten.overheid.nl/BWBR0021777/2025-07-16#Artikel11
+    machine_readable:
+      # Het feit is de handeling van de Kamer: zij schrijft de vestiging in
+      # (requires, fact). Wie het vastlegt, noemt het feit
+      # (competent_authority, RFC-051).
+      # Het aantal werkzame personen noemt artikel 11 van de wet niet. Een
+      # algemene maatregel van bestuur kan bepalen dat het register andere
+      # gegevens opneemt (artikel 17, eerste lid, onder a); die maatregel staat
+      # niet in het corpus. Eigen keuze: het aantal staat bij de inschrijving
+      # van de vestiging.
+      requires:
+        - fact: vestiging_ingeschreven
+          description: >-
+            Dat de Kamer een vestiging van een onderneming inschreef of haar
+            gegevens wijzigde: van welke onderneming, met welke postcode van het
+            bezoekadres, met hoeveel werkzame personen, en op welke dag.
+          competent_authority:
+            - name: Kamer van Koophandel
+          parameters:
+            - kvk_nummer
+            - postcode
+            - aantal_werkzame_personen
+            - datum_inschrijving
+      execution:
+        parameters:
+          - name: kvk_nummer
+            type: string
+            description: >-
+              Het nummer dat de Kamer de onderneming toekende (artikel 9, onder
+              a, van de wet).
+          - name: postcode
+            type: string
+            description: >-
+              De postcode van het bezoekadres van de vestiging (artikel 11,
+              eerste lid, onder c, van de wet).
+          - name: aantal_werkzame_personen
+            type: number
+            description: Het aantal personen dat in de onderneming werkzaam is.
+          - name: datum_inschrijving
+            type: date
+            description: De dag vanaf welke de Kamer deze gegevens in het register opnam.

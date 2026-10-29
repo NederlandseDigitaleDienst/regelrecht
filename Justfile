@@ -112,8 +112,8 @@ validate *FILES:
 
 # Validate the demo corpus (schema + type check, RFC-036/RFC-037)
 #
-# `validate` without arguments walks corpus/regulation and the reductions in
-# corpus/cells only, so the eighty demo laws would be seen by the pre-commit
+# `validate` without arguments walks corpus/regulation and the corpus of the
+# chronolexografie PoC only, so the eighty demo laws would be seen by the pre-commit
 # hook and by nothing else. This recipe hands them to the same binary, so a law
 # that stops type-checking is caught by `just demo` and not first by a red
 # scenario run.
@@ -331,6 +331,16 @@ bdd-reversed:
 bdd-demo:
     cd packages/engine && {{ci_flags}} BDD_BUCKET=corpus REGULATION_PATH="$(pwd)/../../corpus/demo/regulation" cargo test --test bdd -- --nocapture
     cd packages/engine && {{ci_flags}} REGULATION_PATH="$(pwd)/../../corpus/demo/regulation" cargo test --test awb_lifecycle
+
+# Bucket A over het corpus van de chronolexografie-poc: de gedeelde regelwerken
+# en die van elke casus (script/chrono-regulation-dirs.sh) samen, als één
+# corpus. De gegevens zijn verzonnen, dus rood is hier een echte fout.
+bdd-chrono:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    REGULATION_PATH="$(script/chrono-regulation-dirs.sh | sed "s|^|$PWD/|" | paste -sd:)"
+    export REGULATION_PATH
+    cd packages/engine && {{ci_flags}} BDD_BUCKET=corpus cargo test --test bdd -- --nocapture
 
 # Start the demo and open it. One command for anyone who just wants to see it:
 # it builds the engine to WASM, starts Vite and opens the browser on the

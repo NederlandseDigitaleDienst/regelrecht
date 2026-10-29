@@ -1,0 +1,12 @@
+---
+# Wie deze cel is (RFC-046). De Kamer van Koophandel houdt het
+# handelsregister (artikel 2 van de Handelsregisterwet 2007). De inschrijvingen
+# zijn verzonnen: de cel legt ze vast in haar eigen kroniek, als feit dat het
+# fictieve beleid beleid_handelsregister_kamer_van_koophandel vereist,
+# en antwoordt wat het register op een dag over een vestiging vermeldt.
+name: Kamer van Koophandel
+# Welke antwoorden de cel geeft, en uit welke eigen reductie
+# (reductions/, RFC-048).
+answers:
+  postcode_vestiging: reductie_vestiging_in_handelsregister
+  aantal_werkzame_personen: reductie_vestiging_in_handelsregister

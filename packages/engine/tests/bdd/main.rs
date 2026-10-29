@@ -99,12 +99,10 @@ impl Bucket {
 
 /// The corpus whose scenarios bucket A runs: `REGULATION_PATH` when set (the
 /// same variable the engine loads its laws from), else the fixture corpus.
-/// `just bdd-demo` points it at `corpus/demo/regulation`.
-fn corpus_root(root: &Path) -> PathBuf {
-    match std::env::var("REGULATION_PATH") {
-        Ok(p) if !p.trim().is_empty() => PathBuf::from(p),
-        _ => root.join("corpus/regulation"),
-    }
+/// `just bdd-demo` points it at `corpus/demo/regulation`, `just bdd-chrono`
+/// at the directories of the chronolexografie PoC.
+fn corpus_roots() -> Vec<PathBuf> {
+    common::regulation_base_paths()
 }
 
 #[tokio::main]
@@ -124,7 +122,7 @@ async fn main() {
         .to_path_buf();
 
     let bucket = Bucket::from_env();
-    let features = match discovery::collect_feature_paths(&root, &corpus_root(&root), bucket) {
+    let features = match discovery::collect_feature_paths(&root, &corpus_roots(), bucket) {
         Ok(features) => features,
         Err(e) => panic!("BDD feature discovery failed under {}: {e}", root.display()),
     };

@@ -78,7 +78,7 @@ fn given(cell: &Cell, gram: &Gram) -> std::collections::BTreeMap<String, Value> 
 }
 
 fn cells() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/cells")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/corpus/cells")
 }
 
 /// A directory of the school's cell that gives only the answer for art. 13a

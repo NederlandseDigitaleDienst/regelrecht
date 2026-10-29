@@ -40,15 +40,17 @@ pub struct Casus {
     /// file is, never from the file.
     #[serde(skip_deserializing)]
     pub bron: Option<String>,
-    /// The cell that plays the case: its directory under `corpus/cells`, and
+    /// The cell that plays the case: its directory under `cells/` of the corpus, and
     /// the actor it records as.
     pub cel: String,
     /// The article that establishes the application, `<law>#<article>`.
     pub artikel: String,
-    /// The regelwerken that count in this case and no others: each a
-    /// directory under the root of the case (`regulation/nl/...`, or
-    /// `cells/reductions/<id>` for a reduction of no cell). The reductions
-    /// of the case's cells come with those cells. A regelwerk outside it
+    /// The regelwerken of the root that count in this case, besides its
+    /// own: each a directory under the root (`regulation/nl/...`, or
+    /// `cells/reductions/<id>` for a reduction of no cell). Its own
+    /// regelwerken, under `casussen/<id>/regulation/nl`, count without being
+    /// named here, and those of another case never do. The reductions of the
+    /// case's cells come with those cells. A regelwerk outside all of these
     /// neither runs nor acts on the case, even with a hook on every
     /// decision.
     pub corpus: Vec<String>,
@@ -78,7 +80,7 @@ pub struct Casus {
     pub scenarios: Vec<Scenario>,
 }
 
-/// Another cell of the case: its directory under `corpus/cells`, its name
+/// Another cell of the case: its directory under `cells/` of the corpus, its name
 /// as the visitor reads it, and what it records before the first scenario.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -250,14 +252,27 @@ pub enum Uitkomst {
 }
 
 /// The cases in `dir`, one per `<id>.yaml`, in the order of their ids, read
-/// through `files`.
+/// through `files`. Beside a case file may be a directory `<id>/` with the
+/// case's own regelwerken ([`EIGEN`]); a directory without a case file is an
+/// error, since its regelwerken would count for no case.
 pub fn casussen(files: &dyn Files, dir: &Path) -> Result<Vec<Casus>> {
-    let mut paths: Vec<PathBuf> = files
-        .entries(dir)?
-        .into_iter()
+    let entries = files.entries(dir)?;
+    let mut paths: Vec<PathBuf> = entries
+        .iter()
         .filter(|p| p.extension().is_some_and(|x| x == "yaml"))
+        .cloned()
         .collect();
     paths.sort();
+    if let Some(los) = entries
+        .iter()
+        .find(|p| files.is_dir(p) && !paths.contains(&p.with_extension("yaml")))
+    {
+        return Err(Error::Setup(format!(
+            "{}: a directory of its own regelwerken, but no case {}.yaml beside it",
+            los.display(),
+            los.file_name().unwrap_or_default().to_string_lossy()
+        )));
+    }
     let mut uit = Vec::new();
     for path in paths {
         let mut casus: Casus = serde_yaml_ng::from_str(&files.read(&path)?)
@@ -275,12 +290,22 @@ pub fn casussen(files: &dyn Files, dir: &Path) -> Result<Vec<Casus>> {
     Ok(uit)
 }
 
+/// Where in its directory under `casussen/` a case keeps its own regelwerken.
+pub const EIGEN: &str = "regulation/nl";
+
+/// The directory, relative to the root, of the regelwerken of the case `id`
+/// alone.
+pub fn eigen_map(id: &str) -> String {
+    format!("casussen/{id}/{EIGEN}")
+}
+
 /// One regelwerk in the corpus: where it is and its versions, each as its
 /// YAML and parsed.
 #[derive(Debug, Clone)]
 pub struct Regelwerk {
     /// Its directory, relative to its root: under `regulation/nl`, such as
-    /// `regulation/nl/wet/leerplichtwet_1969`, or for a reduction with its
+    /// `regulation/nl/wet/leerplichtwet_1969`, under the own regelwerken of
+    /// a case (`casussen/<id>/regulation/nl/...`), or for a reduction with its
     /// cell (`cells/<cel>/reductions/<$id>`) or with none
     /// (`cells/reductions/<$id>`).
     pub map: String,
@@ -326,7 +351,8 @@ enum Plek {
 }
 
 /// Every regelwerk of each root, read once at the start: the regulation
-/// under `regulation/nl`, and the reductions with their cell
+/// under `regulation/nl` and under the own directory of each case
+/// (`casussen/<id>/regulation/nl`), and the reductions with their cell
 /// (`cells/<cel>/reductions`) or with none (`cells/reductions`). The
 /// derivation looks across all of them for what acts on a case's
 /// regelwerken, so the whole corpus has to parse, and a new regelwerk that
@@ -345,7 +371,7 @@ impl Regelwerken {
     /// versions (`<date>.yaml`), through `files`; its `scenarios` are no
     /// versions. A root without them adds nothing. Two directories of one
     /// root with the same `$id` are an error: neither is the one the corpus
-    /// means. Across roots the first wins, such as the regelrecht corpus
+    /// means. Across roots the first wins, such as this crate's corpus
     /// over a source, and [`Regelwerken::meldingen`] says which it set
     /// aside.
     ///
@@ -389,10 +415,18 @@ impl Regelwerken {
     /// The directories of regelwerken of `root`, each with its place.
     fn mappen(files: &dyn Files, root: &Path) -> Result<Vec<(PathBuf, Plek)>> {
         let mut uit = Vec::new();
-        let regulation = root.join("regulation/nl");
-        if files.is_dir(&regulation) {
+        let mut regulation = vec![root.join("regulation/nl")];
+        let casussen = root.join("casussen");
+        if files.is_dir(&casussen) {
+            for casus in files.entries(&casussen)? {
+                if files.is_dir(&casus) {
+                    regulation.push(casus.join(EIGEN));
+                }
+            }
+        }
+        for dir in regulation.into_iter().filter(|d| files.is_dir(d)) {
             let mut mappen = Vec::new();
-            verzamel(files, &regulation, &mut mappen)?;
+            verzamel(files, &dir, &mut mappen)?;
             uit.extend(mappen.into_iter().map(|m| (m, Plek::Regelgeving)));
         }
         let cells = root.join("cells");
@@ -497,13 +531,22 @@ impl Regelwerken {
         Ok(())
     }
 
-    /// The regelwerken of `casus`: those in its corpus, and the reductions
-    /// of the cells it names. An entry of the corpus that holds no
-    /// regelwerk is an error.
+    /// The regelwerken of `casus`: those in its corpus, its own, and the
+    /// reductions of the cells it names. An entry of the corpus that holds
+    /// no regelwerk, or that names the own regelwerken of a case, is an
+    /// error: its own count already, and another's never.
     pub fn voor(&self, casus: &Casus) -> Result<Self> {
         let cellen: BTreeSet<&str> = std::iter::once(casus.cel.as_str())
             .chain(casus.andere_cellen.iter().map(|a| a.cel.as_str()))
             .collect();
+        let eigen = format!("{}/", eigen_map(&casus.id));
+        if let Some(fout) = casus.corpus.iter().find(|m| m.starts_with("casussen/")) {
+            return Err(Error::Setup(format!(
+                "case '{}': its corpus names '{fout}'; the own regelwerken of a case \
+                 count only for that case, and without being named",
+                casus.id
+            )));
+        }
         if let Some(los) = casus
             .corpus
             .iter()
@@ -519,6 +562,7 @@ impl Regelwerken {
             .iter()
             .filter(|w| {
                 casus.corpus.contains(&w.map)
+                    || w.map.starts_with(&eigen)
                     || w.houder.as_deref().is_some_and(|h| cellen.contains(h))
             })
             .cloned()

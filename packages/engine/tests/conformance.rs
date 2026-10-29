@@ -238,9 +238,13 @@ fn schema_accepts(version: &str, value: &Value) -> bool {
 #[test]
 fn tier_a_corpus_differential() {
     let root = repo_root();
-    // The reductions sit with their cell, or with none, under corpus/cells;
-    // a cell's identity there (cel.yaml) has no `$schema` and is skipped.
-    let corpus = [root.join("corpus/regulation"), root.join("corpus/cells")];
+    // The corpus of the chronolexografie PoC holds its own regulation and
+    // the cells with their reductions; a cell's identity (cel.yaml) and a
+    // case file have no `$schema` and are skipped.
+    let corpus = [
+        root.join("corpus/regulation"),
+        root.join("packages/poc-chronolexografie/corpus"),
+    ];
 
     let mut checked = 0usize;
     let mut hard_failures: Vec<String> = Vec::new();

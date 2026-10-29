@@ -1,0 +1,153 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.9/schema/v0.8.9/schema.json
+$id: beleid_geneeskundig_advies_ggd_wilgendaal
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# FICTIEF beleid van de (fictieve) GGD Wilgendaal, eigen keuze in de
+# modellering: geen bekendgemaakt beleid, maar een aanname namens de houder.
+# Het zegt welk advies de GGD voor een aanvraag laat tellen, zoals artikel 5,
+# derde lid, van het fictieve beleid
+# beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal het vraagt.
+# Het voert die regel van de gemeente uit en stelt zelf geen norm. Het leest
+# geen kroniek: de adviezen krijgt het als parameter. De reductie reductie_geneeskundig_advies van de GGD haalt ze uit
+# haar kroniek en past dit beleid toe (RFC-048). Er is geen bekendmaking; de
+# url wijst naar artikel 3 van de regeling, dat zegt wie onderzoekt.
+url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+name: Geneeskundig advies van de GGD Wilgendaal (fictief beleid)
+competent_authority:
+  name: GGD Wilgendaal
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Van
+      de adviezen die de GGD het college uitbracht, telt voor een aanvraag het
+      advies van het laatste onderzoek van dezelfde aanvrager op of na de
+      dagtekening van de aanvraag en uiterlijk op de dag van het besluit
+      (artikel 5, derde lid, van het beleid van de gemeente). Is er geen, dan
+      zegt dit beleid niets, en oordeelt het college zelf.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    machine_readable:
+      execution:
+        # De parameters van artikel 5 van het beleid van de gemeente, en de
+        # adviezen die de reductie van de GGD uit haar kroniek haalt.
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager.
+          - name: dagtekening_aanvraag
+            type: date
+            nullable: true
+            description: De dagtekening van de aanvraag.
+          - name: datum_afgifte
+            type: date
+            description: De dag waarop het college op de aanvraag besluit.
+          # Eén rij per advies, met bsn_aanvrager, datum_onderzoek en de vier
+          # gegevens (het feit geneeskundig_advies_uitgebracht).
+          - name: adviezen
+            type: array
+            description: De adviezen die de GGD het college uitbracht.
+        output:
+          - name: dagen_van_laatste_onderzoek_tot_besluit
+            type: number
+            nullable: true
+            description: >-
+              Hoeveel dagen het laatste onderzoek dat voor de aanvraag telt
+              vóór de dag van het besluit ligt; afwezig zonder advies.
+          - name: advies
+            type: object
+            nullable: true
+            description: Het advies dat voor de aanvraag telt.
+          - name: advies_langdurige_loopbeperking
+            type: boolean
+            nullable: true
+            description: Wat het advies zegt over een langdurige loopbeperking. Afwezig zonder advies.
+          - name: advies_continu_afhankelijk_van_hulp_bestuurder
+            type: boolean
+            nullable: true
+            description: Wat het advies zegt over de hulp van de bestuurder. Afwezig zonder advies.
+          - name: advies_permanent_rolstoelgebonden
+            type: boolean
+            nullable: true
+            description: Wat het advies zegt over rolstoelgebondenheid. Afwezig zonder advies.
+          - name: advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+            type: boolean
+            nullable: true
+            description: Wat het advies zegt over andere ernstige beperkingen. Afwezig zonder advies.
+        actions:
+          # Het laatste onderzoek in de termijn: het kleinste aantal dagen tot
+          # het besluit. Zonder dagtekening telt geen advies; de voorwaarde
+          # staat eerst, want AND stopt bij de eerste onwaar en DATE_DIFF
+          # faalt op een afwezige dag.
+          - output: dagen_van_laatste_onderzoek_tot_besluit
+            value:
+              operation: FOREACH
+              collection: $adviezen
+              as: a
+              filter:
+                operation: AND
+                conditions:
+                  - operation: NOT
+                    value:
+                      operation: EQUALS
+                      subject: $dagtekening_aanvraag
+                      value: null
+                  - operation: EQUALS
+                    subject: $a.bsn_aanvrager
+                    value: $bsn_aanvrager
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject:
+                      operation: DATE_DIFF
+                      from: $dagtekening_aanvraag
+                      to: $a.datum_onderzoek
+                      in: days
+                    value: 0
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject:
+                      operation: DATE_DIFF
+                      from: $a.datum_onderzoek
+                      to: $datum_afgifte
+                      in: days
+                    value: 0
+              body:
+                operation: DATE_DIFF
+                from: $a.datum_onderzoek
+                to: $datum_afgifte
+                in: days
+              combine: MIN
+          # Het advies van dat onderzoek. Twee adviezen van dezelfde dag
+          # weigert ONLY: welk dan telt, zegt het beleid niet. Zonder advies
+          # is er geen (null).
+          - output: advies
+            value:
+              operation: FOREACH
+              collection: $adviezen
+              as: a
+              filter:
+                operation: AND
+                conditions:
+                  - operation: NOT
+                    value:
+                      operation: EQUALS
+                      subject: $dagen_van_laatste_onderzoek_tot_besluit
+                      value: null
+                  - operation: EQUALS
+                    subject: $a.bsn_aanvrager
+                    value: $bsn_aanvrager
+                  - operation: EQUALS
+                    subject:
+                      operation: DATE_DIFF
+                      from: $a.datum_onderzoek
+                      to: $datum_afgifte
+                      in: days
+                    value: $dagen_van_laatste_onderzoek_tot_besluit
+              body: $a
+              combine: ONLY
+          - output: advies_langdurige_loopbeperking
+            value: $advies.langdurige_loopbeperking
+          - output: advies_continu_afhankelijk_van_hulp_bestuurder
+            value: $advies.continu_afhankelijk_van_hulp_bestuurder
+          - output: advies_permanent_rolstoelgebonden
+            value: $advies.permanent_rolstoelgebonden
+          - output: advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+            value: $advies.ernstige_beperkingen_andere_dan_loopbeperkingen

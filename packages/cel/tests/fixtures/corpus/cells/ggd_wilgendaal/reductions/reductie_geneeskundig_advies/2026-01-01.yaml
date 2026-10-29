@@ -1,0 +1,117 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$id: reductie_geneeskundig_advies
+regulatory_layer: REDUCTIE
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# Geen regelgeving: een reductie van de (fictieve) GGD Wilgendaal over haar
+# eigen kroniek (RFC-048). Ze leest de executogrammen van het feit dat
+# artikel 5 van het fictieve beleid
+# beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal vereist: de
+# adviezen die de GGD het college uitbracht. Welk advies telt, zegt het
+# fictieve beleid van de GGD (beleid_geneeskundig_advies_ggd_wilgendaal);
+# deze reductie geeft het de adviezen mee (source.regulation). De cel van de
+# GGD geeft haar vier uitvoeren als antwoorden (cel.yaml, answers). Artikel 7
+# van het beleid van de gemeente koppelt die aan de open begrippen van
+# artikel 5; daarvoor is de GGD bevoegd (competent_authority). Er is geen
+# bekendmaking; de url wijst naar artikel 3 van de regeling, dat zegt wie
+# onderzoekt.
+url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+name: Geneeskundig advies van de GGD Wilgendaal (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving. Het systeem van de GGD kijkt door middel van een
+      chronolexografische reductie op zijn eigen kroniek welke adviezen het
+      over de aanvrager uitbracht, en past daarop het beleid van de GGD toe:
+      het advies van het laatste onderzoek voor de aanvraag telt. Vindt het
+      systeem er geen, dan zwijgt het, en oordeelt het college zelf.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    machine_readable:
+      execution:
+        # Wat het antwoord vraagt; het beleid dat het koppelt, geeft ze op
+        # naam mee.
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager.
+          - name: dagtekening_aanvraag
+            type: date
+            nullable: true
+            description: De dagtekening van de aanvraag.
+          - name: datum_afgifte
+            type: date
+            description: De dag waarop het college op de aanvraag besluit.
+        input:
+          # De uitgebrachte adviezen, één rij per executogram, met
+          # bsn_aanvrager, datum_onderzoek en de vier gegevens.
+          - name: adviezen
+            type: array
+            source:
+              facts: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
+          - name: volgens_beleid_langdurige_loopbeperking
+            type: boolean
+            nullable: true
+            source:
+              regulation: beleid_geneeskundig_advies_ggd_wilgendaal
+              output: advies_langdurige_loopbeperking
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening_aanvraag: $dagtekening_aanvraag
+                datum_afgifte: $datum_afgifte
+                adviezen: $adviezen
+          - name: volgens_beleid_continu_afhankelijk_van_hulp_bestuurder
+            type: boolean
+            nullable: true
+            source:
+              regulation: beleid_geneeskundig_advies_ggd_wilgendaal
+              output: advies_continu_afhankelijk_van_hulp_bestuurder
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening_aanvraag: $dagtekening_aanvraag
+                datum_afgifte: $datum_afgifte
+                adviezen: $adviezen
+          - name: volgens_beleid_permanent_rolstoelgebonden
+            type: boolean
+            nullable: true
+            source:
+              regulation: beleid_geneeskundig_advies_ggd_wilgendaal
+              output: advies_permanent_rolstoelgebonden
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening_aanvraag: $dagtekening_aanvraag
+                datum_afgifte: $datum_afgifte
+                adviezen: $adviezen
+          - name: volgens_beleid_ernstige_beperkingen_andere_dan_loopbeperkingen
+            type: boolean
+            nullable: true
+            source:
+              regulation: beleid_geneeskundig_advies_ggd_wilgendaal
+              output: advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening_aanvraag: $dagtekening_aanvraag
+                datum_afgifte: $datum_afgifte
+                adviezen: $adviezen
+        output:
+          - name: advies_langdurige_loopbeperking
+            type: boolean
+            nullable: true
+          - name: advies_continu_afhankelijk_van_hulp_bestuurder
+            type: boolean
+            nullable: true
+          - name: advies_permanent_rolstoelgebonden
+            type: boolean
+            nullable: true
+          - name: advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+            type: boolean
+            nullable: true
+        actions:
+          - output: advies_langdurige_loopbeperking
+            value: $volgens_beleid_langdurige_loopbeperking
+          - output: advies_continu_afhankelijk_van_hulp_bestuurder
+            value: $volgens_beleid_continu_afhankelijk_van_hulp_bestuurder
+          - output: advies_permanent_rolstoelgebonden
+            value: $volgens_beleid_permanent_rolstoelgebonden
+          - output: advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+            value: $volgens_beleid_ernstige_beperkingen_andere_dan_loopbeperkingen

@@ -1,5 +1,5 @@
 <script setup>
-// The scenarios of the case (packages/poc-chronolexografie/casussen/). A
+// The scenarios of the case (packages/poc-chronolexografie/corpus/casussen/). A
 // scenario with a guide (scenarioGuides.js) shows one sentence here; its steps
 // follow in the guide beside the page once it begins. One without (a case
 // from a source, such as NAPP) shows the steps from the YAML in order and

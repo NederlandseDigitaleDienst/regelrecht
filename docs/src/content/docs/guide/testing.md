@@ -52,6 +52,7 @@ just bdd                          # Both buckets
 BDD_BUCKET=conformance just bdd   # Engine conformance only
 BDD_BUCKET=corpus just bdd        # Law validation only
 just bdd-demo                     # Bucket A over the demo corpus
+just bdd-chrono                   # Bucket A over the corpus of the chronolexografie PoC
 just bdd-trace                    # With execution traces in trace_output/
 ```
 

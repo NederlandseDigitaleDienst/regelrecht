@@ -7,18 +7,12 @@
 # dit artikel en de cel, binnen dat corpus (src/casus.rs).
 cel: obs_de_klimop
 artikel: leerplichtwet_1969#13a
-# Het corpus van deze casus: alleen deze regelwerken gelden, elk een map
-# onder corpus/. De reducties van de cellen van de casus komen met die
-# cellen mee.
+# Het corpus van deze casus: alleen deze regelwerken gelden. Hieronder de
+# gedeelde, elk een map onder het corpus van de poc; de eigen regelwerken
+# van de casus, in casussen/vakantieverlof/regulation/nl, gelden zonder dat ze hier
+# staan. De reducties van de cellen van de casus komen met die cellen mee.
 corpus:
-  - regulation/nl/wet/leerplichtwet_1969
   - regulation/nl/wet/algemene_wet_bestuursrecht
-  - regulation/nl/ministeriele_regeling/regeling_vaststelling_schoolvakanties_20252030
-  - regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaar_obs_de_klimop
-  - regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaargrenzen_obs_de_klimop
-  - regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantierooster_obs_de_klimop
-  - regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantieverlof_obs_de_klimop
-  - regulation/nl/uitvoeringsbeleid/fictief_beleid_vestiging_obs_de_klimop
   - cells/reductions/reductie_algemene_wet_bestuursrecht
 # De uitvoer die zegt of het besluit het gevraagde toewijst. De wet merkt die
 # niet aan: decision_type TOEKENNING zegt wat voor besluit het is, niet welke
