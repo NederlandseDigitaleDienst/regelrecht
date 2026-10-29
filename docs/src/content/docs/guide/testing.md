@@ -82,6 +82,8 @@ just test-no-docker # Everything that needs no external services
 just test-db        # Only the container-backed crates
 ```
 
+The tests of `packages/cel` and the reduction tests of the engine (`packages/engine/tests/reduction.rs`) share one set of fixtures, `packages/cel/tests/fixtures/corpus/`. A fixture there is YAML made for these tests and holds only what they read: the cells, and fictional rulework and reductions cut down to the articles and outputs a test exercises. Real laws such as the Awb and the Leerplichtwet are not copied in. The tests read them from `corpus/regulation/`.
+
 ## Conformance
 
 ```bash

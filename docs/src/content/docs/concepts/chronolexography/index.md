@@ -16,7 +16,7 @@ Recording is an optional layer on top of the law ([RFC-046](/rfcs/rfc-046)). The
 | Policy | Says that an open term of the law takes a cell's answer | `regulation/nl/uitvoeringsbeleid/` |
 | Engine | Executes the law and asks one cell per question. Stores nothing | `packages/engine` |
 
-The paths are relative to the root of a corpus. The cells and cases in this repository are in the corpus of the [PoC](/components/poc-portal#chronolexografie), `packages/poc-chronolexografie/corpus/`. The tests of `packages/cel` run on their own fixtures in `tests/fixtures/corpus/`: cells, and fictional rulework cut down to what the tests read. The real laws they call, such as the Awb and the Leerplichtwet, are read from `corpus/regulation/`.
+The paths are relative to the root of a corpus. The cells and cases in this repository are in the corpus of the [PoC](/components/poc-portal#chronolexografie), `packages/poc-chronolexografie/corpus/`.
 
 ## A cell
 
@@ -158,5 +158,5 @@ The cell stores no reasons. It explains a decision by taking it again.
 
 ## Try it
 
-- `cargo test --manifest-path packages/cel/Cargo.toml` runs the tests on the fixtures in `packages/cel/tests/fixtures/corpus/`. The cases themselves are in the PoC corpus.
-- The [PoC portal](/components/poc-portal#chronolexografie) plays them in a browser.
+- `cargo test --manifest-path packages/cel/Cargo.toml` runs the tests of the cell.
+- The [PoC portal](/components/poc-portal#chronolexografie) plays the cases in a browser.
