@@ -27,15 +27,6 @@ uitkomst: bedrijfsparkeervergunning_verleend
 
 # Wat de bezoeker leest.
 titel: Bedrijfsparkeervergunning
-omschrijving: >-
-  Een bedrijf vraagt de gemeente om een bedrijfsparkeervergunning, onder een
-  fictieve parkeerverordening naar het model van Delft. Het college verleent
-  haar aan een bedrijf dat in een vergunninggebied is gevestigd, tot een
-  maximum per bedrijf. Waar het bedrijf is gevestigd en hoeveel mensen er
-  werken, vraagt de gemeente aan de Kamer van Koophandel, die antwoordt uit
-  haar eigen kroniek van het handelsregister. Hoeveel geldige vergunningen
-  het bedrijf al heeft, leest de gemeente uit haar eigen besluiten, met wat
-  de Awb zegt over herroepen besluiten.
 cel_naam: gemeente Wilgendaal
 speeldatum: 2026-10-13
 

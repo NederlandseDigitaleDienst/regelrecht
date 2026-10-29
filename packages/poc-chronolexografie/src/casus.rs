@@ -60,7 +60,6 @@ pub struct Casus {
     /// both decisions have more than one boolean output.
     pub uitkomst: String,
     pub titel: String,
-    pub omschrijving: String,
     /// The cell's name as the visitor reads it.
     pub cel_naam: String,
     /// The first day of every scenario.

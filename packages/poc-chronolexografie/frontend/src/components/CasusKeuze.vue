@@ -112,9 +112,6 @@ const kies = (c) => navigate(() => kiezen(c.id));
             :supporting-text="`${artikel(c)} · beslist door ${c.rol}${herkomst(c, bronnen)}`"
           ></nldd-title>
         </nldd-container>
-        <nldd-container padding="16">
-          <nldd-text>{{ c.omschrijving }}</nldd-text>
-        </nldd-container>
         <nldd-container slot="footer" padding="16">
           <nldd-button appearance="primary" :text="`${c.titel} naspelen`" @click="kies(c)"></nldd-button>
         </nldd-container>
