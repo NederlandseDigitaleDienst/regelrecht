@@ -456,7 +456,7 @@ articles:
     # Niet apart uitvoerbaar. Lid 1, onder a, toetsen twee artikelen: 7:11
     # (geen bezwaar tegen een besluit dat op bezwaar is genomen) en 8:70
     # (beroep alleen tegen een besluit dat op bezwaar is genomen). Beide lezen
-    # taken_on van het bestreden besluit (RFC-045 §6). Niet gemodelleerd zijn
+    # taken_on van het bestreden besluit (RFC-045 §7). Niet gemodelleerd zijn
     # het besluit in administratief beroep (onder a) en de uitzonderingen
     # onder b tot en met g: beroep zonder voorafgaand bezwaar is in dit
     # corpus altijd niet-ontvankelijk.
@@ -893,7 +893,7 @@ articles:
           # zijn niet gemodelleerd); en dat de indiener
           # belanghebbende is (artikel 8:1). Een besluitwaarde uit de kroniek
           # noemt in taken_on het artikel van de indiening waarop het besluit
-          # is genomen (RFC-045 §6): de beslissing op bezwaar en het nieuwe
+          # is genomen (RFC-045 §7): de beslissing op bezwaar en het nieuwe
           # besluit dat zij in de plaats van een herroepen besluit nam,
           # hebben allebei 7:11. Artikel 6:6 en 6:11 nog niet.
           - output: beroep_ontvankelijk

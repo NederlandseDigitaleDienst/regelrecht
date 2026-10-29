@@ -246,7 +246,8 @@ impl Cell {
     /// decision keeps only the day, not a position in the other cell's
     /// chronicle; a replay asks it as of that day (RFC-046: a source says
     /// what it knew on a given day). A record it makes later, dated up to
-    /// that day, enters the replay; RFC-048 §6 says when that fails it.
+    /// that day, enters the replay; whether that fails the replay is an open
+    /// question (RFC-048 §6).
     fn known_on(&self, on: NaiveDate) -> Reader<'_> {
         let grams = self
             .grams()
