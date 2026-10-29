@@ -290,7 +290,10 @@ version and the subscription behind the token; 2.1.303 started without a token
 names Opus 5.5. The effort it picks also depends on a server-side setting, and
 the CLI reports it nowhere. Set both on the enrich worker to know what runs.
 The CLI does report the model, in the `init` event at the start of the
-stream-json output.
+stream-json output. The worker records it: per call in the job result's
+`agent_calls`, as `models` on the result, as `model` in `.enrichment.yaml`
+(which said `default` when no model was set), and in the progress the
+Harvester page shows while a job runs.
 
 ## Configuration
 

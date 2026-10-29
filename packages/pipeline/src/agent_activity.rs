@@ -59,6 +59,10 @@ struct Activity {
     last_message_id: Option<String>,
     tool_calls: u32,
     last_tool: Option<String>,
+    /// The model the latest agent call named in its `init` event. Kept after
+    /// the call ends, so a stopped job still shows what it ran on; with
+    /// windows side by side the last one to start wins.
+    model: Option<String>,
     recent: VecDeque<String>,
 }
 
@@ -136,6 +140,10 @@ impl ActivityHandle {
         if line.starts_with(r#"{"type":"stream_event""#) {
             return;
         }
+        if let Some(model) = init_model(line) {
+            self.with(|a| a.model = Some(model));
+            return;
+        }
         // Only assistant messages are read. A tool result can be a whole
         // file; skip parsing what cannot be one. The CLI does not promise
         // key order, so look for the pair anywhere; `classify` checks the
@@ -171,6 +179,7 @@ impl ActivityHandle {
         self.with(|a| {
             serde_json::json!({
                 "call": a.call,
+                "model": a.model,
                 "calls": a.calls,
                 "call_elapsed_secs": a.call_started.map(|t| t.elapsed().as_secs()),
                 "idle_secs": a.last_output.map(|t| t.elapsed().as_secs()),
@@ -215,6 +224,24 @@ pub fn is_result_event(line: &str) -> bool {
             .ok()
             .and_then(|v| v.get("type")?.as_str().map(|t| t == "result"))
             .unwrap_or(false)
+}
+
+/// The model named in the claude CLI's `init` event, the first line of a
+/// stream-json run. This is what actually runs: the worker passes a model only
+/// when `CLAUDE_MODEL` is set, and otherwise the CLI picks one from its version
+/// and the subscription behind the token.
+pub fn init_model(line: &str) -> Option<String> {
+    if !line.contains(r#""subtype":"init""#) {
+        return None;
+    }
+    let v: serde_json::Value = serde_json::from_str(line).ok()?;
+    if v.get("type")?.as_str()? != "system" || v.get("subtype")?.as_str()? != "init" {
+        return None;
+    }
+    v.get("model")?
+        .as_str()
+        .filter(|m| !m.is_empty())
+        .map(str::to_string)
 }
 
 /// The longest CLI error text kept in a job's error message.
@@ -511,6 +538,42 @@ mod tests {
         assert!(!text.contains('\n'));
         assert!(text.ends_with('…'));
         assert_eq!(text.chars().count(), MAX_ERROR_TEXT_CHARS + 1);
+    }
+
+    #[test]
+    fn the_model_is_read_from_the_init_event() {
+        let init = r#"{"type":"system","subtype":"init","cwd":"/tmp","model":"claude-opus-5-5","tools":["Read"]}"#;
+        assert_eq!(init_model(init).as_deref(), Some("claude-opus-5-5"));
+        // Any key order, as with the other events.
+        let reordered = r#"{"model":"claude-sonnet-5-5","subtype":"init","type":"system"}"#;
+        assert_eq!(init_model(reordered).as_deref(), Some("claude-sonnet-5-5"));
+        // Other system events, a quoted init in a tool result, and an empty name
+        // say nothing about the model.
+        assert_eq!(
+            init_model(r#"{"type":"system","subtype":"status","model":"x"}"#),
+            None
+        );
+        assert_eq!(
+            init_model(r#"{"type":"user","message":{"content":"\"subtype\":\"init\""}}"#),
+            None
+        );
+        assert_eq!(
+            init_model(r#"{"type":"system","subtype":"init","model":""}"#),
+            None
+        );
+        // `subtype` alone is not enough: the event must be a system event.
+        assert_eq!(
+            init_model(r#"{"type":"user","subtype":"init","model":"x"}"#),
+            None
+        );
+    }
+
+    #[test]
+    fn the_snapshot_names_the_model() {
+        let a = ActivityHandle::new();
+        assert!(a.snapshot()["model"].is_null());
+        a.record_line(r#"{"type":"system","subtype":"init","model":"claude-opus-5-5"}"#);
+        assert_eq!(a.snapshot()["model"], "claude-opus-5-5");
     }
 
     #[test]

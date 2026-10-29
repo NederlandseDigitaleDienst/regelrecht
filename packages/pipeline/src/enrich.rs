@@ -611,6 +611,10 @@ pub struct AgentCallRecord {
     pub resumed: bool,
     /// What the provider reported, or `None` when it reported nothing.
     pub usage: Option<AgentUsage>,
+    /// The model the call ran on, as the CLI named it in its `init` event.
+    /// `None` when it named none (opencode, a fake runner).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
 }
 
 /// The agent session of one window: the id every call in it shares, whether it
@@ -679,7 +683,13 @@ impl AgentSession {
     /// Record a finished call. Called only after the subprocess succeeded, so
     /// a failed start does not leave the session marked open — the next call
     /// would then resume an id the provider never wrote.
-    pub(crate) fn record(&self, step: &str, action: SessionAction, usage: Option<AgentUsage>) {
+    pub(crate) fn record(
+        &self,
+        step: &str,
+        action: SessionAction,
+        usage: Option<AgentUsage>,
+        model: Option<String>,
+    ) {
         if let Ok(mut state) = self.state.lock() {
             if matches!(action, SessionAction::Start(_)) {
                 state.open = true;
@@ -688,8 +698,24 @@ impl AgentSession {
                 step: step.to_string(),
                 resumed: action.resumed(),
                 usage,
+                model,
             });
         }
+    }
+
+    /// The models this window's calls ran on, each once, in the order they
+    /// first appeared.
+    #[must_use]
+    pub fn models(&self) -> Vec<String> {
+        let mut models: Vec<String> = Vec::new();
+        for call in self.calls() {
+            if let Some(model) = call.model {
+                if !models.contains(&model) {
+                    models.push(model);
+                }
+            }
+        }
+        models
     }
 
     /// What every call in this window was and cost, in order.
@@ -750,10 +776,19 @@ fn begin_call(payload: &EnrichPayload) -> SessionAction {
 }
 
 /// Record a finished call against the window's session.
-fn end_call(payload: &EnrichPayload, action: SessionAction, usage: Option<AgentUsage>) {
+fn end_call(payload: &EnrichPayload, action: SessionAction, run: AgentRun) {
     if let Some(session) = payload.session.as_ref() {
-        session.record(pass_label(&payload.pass), action, usage);
+        session.record(pass_label(&payload.pass), action, run.usage, run.model);
     }
+}
+
+/// What one agent subprocess reported about itself.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct AgentRun {
+    /// Token use and cost, from the closing event.
+    pub usage: Option<AgentUsage>,
+    /// The model it ran on, from the `init` event.
+    pub model: Option<String>,
 }
 
 /// Max bytes of the LLM subprocess's stderr to retain for diagnostics. The tail
@@ -800,7 +835,7 @@ impl LlmRunner for ProcessLlmRunner {
             } else {
                 prompt
             };
-            let usage = run_llm_subprocess(
+            let run = run_llm_subprocess(
                 &config.provider,
                 &prompt,
                 Some(yaml_abs),
@@ -813,7 +848,7 @@ impl LlmRunner for ProcessLlmRunner {
                 action,
             )
             .await?;
-            end_call(payload, action, usage);
+            end_call(payload, action, run);
             return Ok(());
         }
 
@@ -859,7 +894,7 @@ impl LlmRunner for ProcessLlmRunner {
             payload.skip_mvt.unwrap_or(false),
             brief.is_some(),
         );
-        let usage = run_llm_subprocess(
+        let run = run_llm_subprocess(
             &config.provider,
             &prompt,
             Some(yaml_abs),
@@ -873,7 +908,7 @@ impl LlmRunner for ProcessLlmRunner {
             action,
         )
         .await?;
-        end_call(payload, action, usage);
+        end_call(payload, action, run);
         Ok(())
     }
 }
@@ -939,7 +974,7 @@ pub(crate) async fn run_llm_subprocess(
     config: &EnrichConfig,
     tools: ToolPolicy<'_>,
     session: SessionAction,
-) -> Result<Option<AgentUsage>> {
+) -> Result<AgentRun> {
     let provider_name = provider.name().to_string();
 
     let mut cmd = build_command(
@@ -1038,6 +1073,9 @@ pub(crate) async fn run_llm_subprocess(
     // the usage, and the bounded tail can cut a long one in half.
     let result_line = std::sync::Arc::new(Mutex::new(None::<String>));
     let result_writer = std::sync::Arc::clone(&result_line);
+    // The model the CLI names in its `init` event, for the call's record.
+    let init_model = std::sync::Arc::new(Mutex::new(None::<String>));
+    let model_writer = std::sync::Arc::clone(&init_model);
     let mut stdout_task = None;
     if let Some(mut stdout) = child.stdout.take() {
         let drain_provider = provider_name.clone();
@@ -1058,6 +1096,12 @@ pub(crate) async fn run_llm_subprocess(
                         activity.touch();
                         lines.feed(&buf[..n], |line| {
                             activity.record_line(line);
+                            if let Some(model) = crate::agent_activity::init_model(line) {
+                                tracing::info!(provider = %drain_provider, %model, "agent session started");
+                                if let Ok(mut m) = model_writer.lock() {
+                                    *m = Some(model);
+                                }
+                            }
                             if crate::agent_activity::is_result_event(line) {
                                 if let Ok(mut r) = result_writer.lock() {
                                     *r = Some(line.to_string());
@@ -1216,7 +1260,8 @@ pub(crate) async fn run_llm_subprocess(
             "agent run accounted"
         );
     }
-    Ok(usage)
+    let model = init_model.lock().ok().and_then(|m| m.clone());
+    Ok(AgentRun { usage, model })
 }
 
 /// Marks the agent subprocess as ended when its call returns, by any path.
@@ -1958,6 +2003,11 @@ pub struct EnrichResult {
     /// window, on the same law.
     #[serde(default)]
     pub agent_calls: Vec<AgentCallRecord>,
+    /// The models the window's calls ran on, in the order they first
+    /// appeared: usually one. Read from the CLI, so it says what ran even
+    /// when the worker set no model and the CLI chose.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub models: Vec<String>,
     /// Which session mode the window ran under (`off`, `repair`, `window`),
     /// so a stored result says what produced its figures.
     #[serde(default)]
@@ -3230,6 +3280,37 @@ async fn read_stored_source_hash(repo_path: &Path, normalized_law_path: &str) ->
         .ok()?;
     let prov: Provenance = serde_yaml_ng::from_str(&content).ok()?;
     (!prov.source_hash.is_empty()).then_some(prov.source_hash)
+}
+
+/// The `model` written to `.enrichment.yaml`: what the CLI said this
+/// window's calls ran on. A window that made no call (an empty window at the
+/// end of a chunked law) keeps the model the file already names, so it does
+/// not overwrite a model that ran with a guess. Only without either does it
+/// fall back to the configured model, `default` when none is set.
+fn metadata_model(models: &[String], previous: Option<String>, configured: String) -> String {
+    if !models.is_empty() {
+        return models.join(", ");
+    }
+    previous
+        .filter(|m| !m.is_empty() && m != "default")
+        .unwrap_or(configured)
+}
+
+/// Read the `model` recorded in the target law's `.enrichment.yaml`, if any.
+async fn read_stored_model(repo_path: &Path, normalized_law_path: &str) -> Option<String> {
+    #[derive(serde::Deserialize)]
+    struct ModelField {
+        #[serde(default)]
+        model: String,
+    }
+    let meta_rel = Path::new(normalized_law_path)
+        .parent()?
+        .join(".enrichment.yaml");
+    let content = tokio::fs::read_to_string(repo_path.join(meta_rel))
+        .await
+        .ok()?;
+    let field: ModelField = serde_yaml_ng::from_str(&content).ok()?;
+    (!field.model.is_empty()).then_some(field.model)
 }
 
 /// Read the chunked-enrichment cursor recorded in the target law's
@@ -4930,12 +5011,14 @@ pub async fn execute_enrich_with_runner(
         Some(_) => {}
     }
 
-    // Write enrichment metadata
+    // Write enrichment metadata.
+    let models = session.models();
+    let previous_model = read_stored_model(repo_path, &normalized_path).await;
     let metadata = EnrichmentMetadata {
         law_id: payload.law_id.clone(),
         timestamp: chrono::Utc::now().to_rfc3339(),
         provider: provider_name.clone(),
-        model: config.provider.model_str(),
+        model: metadata_model(&models, previous_model, config.provider.model_str()),
         prompt_hash: compute_prompt_hash(repo_path).await,
         code_commit: config.code_commit.clone(),
         coverage_score,
@@ -5043,6 +5126,7 @@ pub async fn execute_enrich_with_runner(
         feedback,
         usage,
         agent_calls,
+        models,
         session_reuse: config.session_reuse.label().to_string(),
     };
 
@@ -5418,6 +5502,7 @@ mod tests {
             feedback: Vec::new(),
             usage: None,
             agent_calls: Vec::new(),
+            models: Vec::new(),
             session_reuse: SessionReuse::Off.label().to_string(),
         };
 
@@ -6932,12 +7017,12 @@ articles:
         let first = session.plan(&Pass::Translate);
         assert_eq!(first, SessionAction::Start(session.id()));
 
-        session.record("translate", first, None);
+        session.record("translate", first, None, None);
         assert_eq!(
             session.plan(&feedback_pass(Gate::Schema)),
             SessionAction::Resume(session.id())
         );
-        session.record("schema", SessionAction::Resume(session.id()), None);
+        session.record("schema", SessionAction::Resume(session.id()), None, None);
         assert_eq!(
             session.plan(&feedback_pass(Gate::Marking)),
             SessionAction::Resume(session.id()),
@@ -6951,7 +7036,7 @@ articles:
         // the first chunk of the Awir must not walk into the last one still
         // holding everything it wrote.
         let first = AgentSession::new(SessionReuse::Window);
-        first.record("translate", first.plan(&Pass::Translate), None);
+        first.record("translate", first.plan(&Pass::Translate), None, None);
         assert!(first.plan(&feedback_pass(Gate::Checks)).resumed());
 
         let second = AgentSession::new(SessionReuse::Window);
@@ -6970,7 +7055,7 @@ articles:
         // an agent that remembers making it is the failure those gates exist
         // to catch.
         let session = AgentSession::new(SessionReuse::Repair);
-        session.record("translate", session.plan(&Pass::Translate), None);
+        session.record("translate", session.plan(&Pass::Translate), None, None);
 
         assert_eq!(
             session.plan(&feedback_pass(Gate::Schema)),
@@ -6990,7 +7075,7 @@ articles:
     fn reuse_off_never_shares_a_session() {
         let session = AgentSession::new(SessionReuse::Off);
         assert_eq!(session.plan(&Pass::Translate), SessionAction::Cold);
-        session.record("translate", SessionAction::Cold, None);
+        session.record("translate", SessionAction::Cold, None, None);
         assert_eq!(
             session.plan(&feedback_pass(Gate::Schema)),
             SessionAction::Cold
@@ -7150,7 +7235,7 @@ articles:
                     .push((pass_label(&payload.pass).to_string(), action));
             }
             self.inner.run(payload, yaml_abs, repo_path, config).await?;
-            end_call(payload, action, None);
+            end_call(payload, action, AgentRun::default());
             Ok(())
         }
     }
@@ -7266,8 +7351,14 @@ articles:
             "translate",
             SessionAction::Start(session.id()),
             Some(translate),
+            None,
         );
-        session.record("schema", SessionAction::Resume(session.id()), Some(repair));
+        session.record(
+            "schema",
+            SessionAction::Resume(session.id()),
+            Some(repair),
+            None,
+        );
 
         let total = session.total().expect("two calls reported");
         assert_eq!(total.input_tokens, 110);
@@ -8680,6 +8771,80 @@ articles:
     fn an_object_without_usage_reports_nothing() {
         // A provider that reports no accounting must not read as zero cost.
         assert!(AgentUsage::from_stdout_tail(r#"{"type":"result","result":"ok"}"#).is_none());
+    }
+
+    #[test]
+    fn the_metadata_names_the_model_that_ran() {
+        let ran = vec!["claude-opus-5-5".to_string()];
+        // What the CLI named wins over what was configured or stored.
+        assert_eq!(
+            metadata_model(&ran, Some("claude-opus-4-6".into()), "default".into()),
+            "claude-opus-5-5"
+        );
+        let two = vec![
+            "claude-opus-5-5".to_string(),
+            "claude-sonnet-5-5".to_string(),
+        ];
+        assert_eq!(
+            metadata_model(&two, None, "default".into()),
+            "claude-opus-5-5, claude-sonnet-5-5"
+        );
+        // A window without calls keeps what the file already said.
+        assert_eq!(
+            metadata_model(&[], Some("claude-opus-5-5".into()), "default".into()),
+            "claude-opus-5-5"
+        );
+        // Without either, the configured model, and a stored `default` is no
+        // better than that.
+        assert_eq!(
+            metadata_model(&[], Some("default".into()), "opus".into()),
+            "opus"
+        );
+        assert_eq!(metadata_model(&[], None, "default".into()), "default");
+    }
+
+    #[test]
+    fn results_stored_before_the_model_was_recorded_still_load() {
+        let call: AgentCallRecord =
+            serde_json::from_str(r#"{"step":"translate","resumed":false,"usage":null}"#).unwrap();
+        assert_eq!(call.model, None);
+        let json = serde_json::json!({
+            "law_id": "x", "yaml_path": "laws/x/law.yaml", "articles_total": 1,
+            "articles_with_machine_readable": 1, "coverage_score": 1.0,
+            "provider": "claude", "branch": "enrich/claude",
+        });
+        let result: EnrichResult = serde_json::from_value(json).unwrap();
+        assert!(result.models.is_empty());
+        // And a result without models leaves the key out.
+        let back = serde_json::to_value(&result).unwrap();
+        assert!(back.get("models").is_none());
+    }
+
+    #[test]
+    fn a_session_names_each_model_once_in_order() {
+        let session = AgentSession::new(SessionReuse::Window);
+        assert!(session.models().is_empty());
+        session.record(
+            "translate",
+            SessionAction::Start(session.id()),
+            None,
+            Some("claude-opus-5-5".into()),
+        );
+        session.record("schema", SessionAction::Resume(session.id()), None, None);
+        session.record(
+            "binding",
+            SessionAction::Resume(session.id()),
+            None,
+            Some("claude-opus-5-5".into()),
+        );
+        session.record(
+            "marking",
+            SessionAction::Cold,
+            None,
+            Some("claude-sonnet-5-5".into()),
+        );
+        assert_eq!(session.models(), ["claude-opus-5-5", "claude-sonnet-5-5"]);
+        assert_eq!(session.calls()[1].model, None);
     }
 
     #[test]
@@ -10377,7 +10542,10 @@ articles:
 
 /// `run_llm_subprocess` against a shell script standing in for the provider's
 /// CLI. The script ignores its arguments and prints what a real run would.
-#[cfg(all(test, unix))]
+// Two attributes rather than `all(test, unix)`: cargo-mutants skips a module
+// marked with a plain `#[cfg(test)]` and would otherwise mutate the helpers.
+#[cfg(test)]
+#[cfg(unix)]
 mod subprocess_tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
@@ -10398,24 +10566,38 @@ mod subprocess_tests {
         cwd: &Path,
         timeout: Duration,
         idle: Option<Duration>,
-    ) -> (Result<Option<AgentUsage>>, EnrichConfig) {
+    ) -> (Result<AgentRun>, EnrichConfig) {
         let mut config = EnrichConfig::for_test(provider.clone());
         config.timeout = timeout;
         config.idle_timeout = idle;
         config.activity.begin_call("translate");
-        let out = run_llm_subprocess(
-            provider,
-            "prompt",
-            None,
-            cwd,
-            &config,
-            ToolPolicy {
-                allow_bash: false,
-                deny: &[],
-            },
-            SessionAction::Cold,
-        )
-        .await;
+        // The fake CLI was just written. A test running beside this one may
+        // fork while that file is still open for writing, and until the child
+        // execs it holds the descriptor, so exec here fails with "Text file
+        // busy" (ETXTBSY). That is the test writing an executable, not the
+        // code under test; wait briefly and try again.
+        let mut attempt = 0;
+        let out = loop {
+            let out = run_llm_subprocess(
+                provider,
+                "prompt",
+                None,
+                cwd,
+                &config,
+                ToolPolicy {
+                    allow_bash: false,
+                    deny: &[],
+                },
+                SessionAction::Cold,
+            )
+            .await;
+            let busy = matches!(&out, Err(e) if e.to_string().contains("Text file busy"));
+            attempt += 1;
+            if !busy || attempt == 10 {
+                break out;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        };
         (out, config)
     }
 
@@ -10426,14 +10608,16 @@ mod subprocess_tests {
         // The closing event as the CLI writes it: `type` is not the first
         // key, and an event can follow it.
         let (dir, provider) = fake_claude(&format!(
-            "echo '{{\"type\":\"system\",\"subtype\":\"init\"}}'\n\
+            "echo '{{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"claude-opus-5-5\"}}'\n\
              echo '{TOOL_EVENT}'\n\
              echo '{{\"type\":\"stream_event\",\"event\":{{}}}}'\n\
              echo '{{\"duration_api_ms\":812,\"is_error\":false,\"type\":\"result\",\"total_cost_usd\":0.5,\"usage\":{{\"input_tokens\":10,\"output_tokens\":20}}}}'\n\
              echo '{{\"type\":\"stream_event\",\"event\":{{\"type\":\"message_stop\"}}}}'"
         ));
         let (out, config) = run(&provider, dir.path(), Duration::from_secs(20), None).await;
-        let usage = out.expect("run succeeds").expect("usage reported");
+        let run = out.expect("run succeeds");
+        assert_eq!(run.model.as_deref(), Some("claude-opus-5-5"));
+        let usage = run.usage.expect("usage reported");
         assert_eq!(usage.input_tokens, 10);
         assert_eq!(usage.output_tokens, 20);
         assert_eq!(usage.cost_millicents, 50_000);
@@ -10525,6 +10709,81 @@ mod subprocess_tests {
         )
         .await;
         out.expect("a quiet opencode run completes");
+    }
+
+    #[tokio::test]
+    async fn the_runner_records_the_model_of_each_call() {
+        // The real runner, on a feedback round, against a fake CLI that names
+        // its model: the call it records must carry that model.
+        let (dir, provider) = fake_claude(
+            "echo '{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"claude-opus-5-5\"}'\n\
+             echo '{\"type\":\"result\",\"is_error\":false,\"usage\":{\"input_tokens\":3,\"output_tokens\":4}}'",
+        );
+        let law_dir = dir.path().join("laws/x");
+        std::fs::create_dir_all(&law_dir).unwrap();
+        let yaml_abs = law_dir.join("law.yaml");
+        std::fs::write(&yaml_abs, "$id: x\narticles: []\n").unwrap();
+
+        let session = std::sync::Arc::new(AgentSession::new(SessionReuse::Window));
+        let mut payload: EnrichPayload = serde_json::from_value(
+            serde_json::json!({"law_id": "x", "yaml_path": "laws/x/law.yaml"}),
+        )
+        .unwrap();
+        payload.pass = Pass::Feedback(Feedback {
+            gate: Gate::Schema,
+            findings: vec!["/articles: example finding".into()],
+        });
+        payload.session = Some(std::sync::Arc::clone(&session));
+        let config = EnrichConfig::for_test(provider);
+
+        // The fake CLI is freshly written; retry on ETXTBSY as `run` does.
+        let mut attempt = 0;
+        loop {
+            match ProcessLlmRunner
+                .run(&payload, &yaml_abs, dir.path(), &config)
+                .await
+            {
+                Err(e) if e.to_string().contains("Text file busy") && attempt < 10 => {
+                    attempt += 1;
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+                other => break other.unwrap(),
+            }
+        }
+
+        let calls = session.calls();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].step, "schema");
+        assert_eq!(calls[0].model.as_deref(), Some("claude-opus-5-5"));
+        assert_eq!(calls[0].usage.map(|u| u.output_tokens), Some(4));
+        assert_eq!(session.models(), ["claude-opus-5-5"]);
+    }
+
+    #[tokio::test]
+    async fn the_stored_model_is_read_from_the_enrichment_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let law_dir = dir.path().join("laws/x");
+        std::fs::create_dir_all(&law_dir).unwrap();
+        // No file: nothing stored.
+        assert_eq!(read_stored_model(dir.path(), "laws/x/law.yaml").await, None);
+
+        std::fs::write(
+            law_dir.join(".enrichment.yaml"),
+            "law_id: x\nmodel: claude-opus-5-5\n",
+        )
+        .unwrap();
+        assert_eq!(
+            read_stored_model(dir.path(), "laws/x/law.yaml")
+                .await
+                .as_deref(),
+            Some("claude-opus-5-5")
+        );
+
+        // An empty or missing field is no stored model either.
+        std::fs::write(law_dir.join(".enrichment.yaml"), "law_id: x\nmodel: ''\n").unwrap();
+        assert_eq!(read_stored_model(dir.path(), "laws/x/law.yaml").await, None);
+        std::fs::write(law_dir.join(".enrichment.yaml"), "law_id: x\n").unwrap();
+        assert_eq!(read_stored_model(dir.path(), "laws/x/law.yaml").await, None);
     }
 
     #[test]
