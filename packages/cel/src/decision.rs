@@ -28,6 +28,7 @@ use regelrecht_engine::{
     Authority, DecisionTerm, LawExecutionService, ParameterType, ProcedureStage,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use std::collections::HashMap;
 
 use crate::error::{refused, setup, Result};
@@ -108,6 +109,21 @@ impl DecisionShape {
         self.terms
             .iter()
             .find(|t| t.id == name && t.is_finding(authority))
+    }
+
+    /// Split what the deciding authority gives when it takes the decision
+    /// into what it supplies and its findings, as [`Cell::decide`] takes
+    /// them: a parameter of the decision is supplied, anything else is a
+    /// finding. Who may give each, and whether it fits, `decide` checks
+    /// after the split, so `decide` still refuses a parameter the
+    /// application holds, and a finding of another authority.
+    ///
+    /// [`Cell::decide`]: crate::Cell::decide
+    pub fn split(&self, given: &Map<String, Value>) -> (Map<String, Value>, Map<String, Value>) {
+        given
+            .clone()
+            .into_iter()
+            .partition(|(name, _)| self.input(name).is_some())
     }
 
     /// Whether a regulation fills the open term `name` of the deciding

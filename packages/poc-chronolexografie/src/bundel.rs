@@ -598,6 +598,48 @@ articles:
     }
 
     #[test]
+    fn the_authority_gives_what_the_decision_asks_beside_its_findings() {
+        let mut bron = voorbeeld();
+        let tekst = AANVRAAG_EN_BESLUIT_APART.replace(
+            "        output:\n          - name: subsidie_verleend",
+            "          - name: motivering\n            type: string\n            \
+             description: Waarom de autoriteit zo besluit.\n        output:\n          \
+             - name: subsidie_verleend",
+        );
+        assert_ne!(tekst, AANVRAAG_EN_BESLUIT_APART);
+        bron.bestanden.insert(
+            "regulation/nl/uitvoeringsbeleid/voorbeeld_bron_subsidie/2026-01-01.yaml".into(),
+            tekst,
+        );
+        let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        assert!(standen[0].fouten.is_empty(), "{:?}", standen[0]);
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        let casus = spel.kiezen("voorbeeld_subsidie").unwrap();
+        let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+        let vormen = spel.vormen(dag).unwrap();
+        let gevraagd: Vec<&str> = vormen["besluit"]["bevindingen"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v["naam"].as_str().unwrap())
+            .collect();
+        assert_eq!(gevraagd, ["partij_geregistreerd", "motivering"]);
+        let aanvraag = casus["voorbeeld"]["aanvraag"].as_object().cloned().unwrap();
+        let gram = spel.aanvragen(&aanvraag, dag).unwrap();
+        let gegeven =
+            serde_json::json!({"partij_geregistreerd": true, "motivering": "geregistreerd"});
+        let besluit = spel
+            .besluiten(
+                gram["id"].as_str().unwrap(),
+                gegeven.as_object().unwrap(),
+                dag,
+            )
+            .unwrap();
+        assert_eq!(besluit["besluit"]["fields"]["motivering"], "geregistreerd");
+        assert_eq!(besluit["besluit"]["outputs"]["subsidie_verleend"], true);
+    }
+
+    #[test]
     fn an_application_that_asks_for_a_missing_article_is_named() {
         let wet = AANVRAAG_EN_BESLUIT_APART.replace(
             "requests: voorbeeld_bron_subsidie#2",
