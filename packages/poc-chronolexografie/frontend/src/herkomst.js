@@ -83,7 +83,9 @@ let bundel = null;
  * on `op` (the play date when not given), or null when the bundle does not
  * hold it. Before its first version, the first one. A case from a source runs
  * on the source's own regelwerken, which the bundle does not hold, so there it
- * is null rather than a text of the bundle that may differ.
+ * is null rather than a text of the bundle that may differ. The `map` of a
+ * regelwerk is relative to the root of the corpus, the directory that holds
+ * `casussen/<id>.yaml`; the bundle keys a file by its path in the repository.
  */
 export async function artikelTekst(wet, artikel, op = state.datum) {
   if (state.casus?.bron) return null;
@@ -93,9 +95,11 @@ export async function artikelTekst(wet, artikel, op = state.datum) {
   });
   const alle = await bundel;
   const map = mapVan(wet);
-  if (!map) return null;
+  const casus = `casussen/${state.casus?.id}.yaml`;
+  const wortel = Object.keys(alle).find((p) => p === casus || p.endsWith(`/${casus}`))?.slice(0, -casus.length);
+  if (!map || wortel == null) return null;
   const versies = Object.keys(alle)
-    .filter((p) => p.startsWith(`corpus/${map}/`) && p.endsWith('.yaml'))
+    .filter((p) => p.startsWith(`${wortel}${map}/`) && p.endsWith('.yaml'))
     .sort();
   const datum = (p) => p.split('/').at(-1).replace('.yaml', '');
   const pad = versies.filter((p) => datum(p) <= op).at(-1) ?? versies[0];

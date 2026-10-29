@@ -4,8 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../src/api.js', async (importOriginal) => ({
   ...(await importOriginal()),
   bestanden: async () => ({
-    'corpus/regulation/nl/uitvoeringsbeleid/beleid_parkeren/2026-01-01.yaml': "articles:\n  - number: '1'\n    text: oud\n",
-    'corpus/regulation/nl/uitvoeringsbeleid/beleid_parkeren/2027-01-01.yaml': "articles:\n  - number: '1'\n    text: nieuw\n",
+    'pocs/x/corpus/casussen/parkeren.yaml': 'cel: gemeente_wilgendaal\n',
+    'pocs/x/corpus/regulation/nl/uitvoeringsbeleid/beleid_parkeren/2026-01-01.yaml': "articles:\n  - number: '1'\n    text: oud\n",
+    'pocs/x/corpus/regulation/nl/uitvoeringsbeleid/beleid_parkeren/2027-01-01.yaml': "articles:\n  - number: '1'\n    text: nieuw\n",
   }),
 }));
 
@@ -14,6 +15,7 @@ import { state } from '../src/state.js';
 
 beforeEach(() => {
   state.casus = {
+    id: 'parkeren',
     cel: 'gemeente_wilgendaal',
     regelwerken: [
       { id: 'parkeerverordening', naam: null, map: 'regulation/nl/gemeentelijke_verordening/wilgendaal/parkeerverordening' },
