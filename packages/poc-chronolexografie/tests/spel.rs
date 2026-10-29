@@ -673,7 +673,7 @@ fn bedrijfsparkeervergunning_a_company_in_the_city_centre_gets_a_permit() {
         antwoord(&besluit, "aantal_geldige_bedrijfsparkeervergunningen"),
         &json!(0)
     );
-    // The registration is in the Chamber's own chronicle (RFC-052).
+    // The registration is in the Chamber's own chronicle (RFC-046 §2).
     let kroniek = spel.kroniek().unwrap();
     assert_eq!(soorten(&kroniek), ["AANVRAAG", "BESCHIKKING"]);
     assert_eq!(kroniek["andere"][0]["cel"], json!("kamer_van_koophandel"));

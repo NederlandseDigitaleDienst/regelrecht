@@ -1175,7 +1175,7 @@ pub struct Handeling {
 /// The log of the case, newest first: every chronolexogram of the case's
 /// cell as an action ([`Handeling`]), and the executograms of the other
 /// cells of the sphere, such as a registration by the Chamber of Commerce
-/// or an examination by the GGD (RFC-051, RFC-052). They are facts the
+/// or an examination by the GGD (RFC-051). They are facts the
 /// decisions read through the answers of those cells. The other cells'
 /// decisions stay out: why they came out so, is their own reasoning. Nothing
 /// of it is stored apart from the chronicles; a refused step recorded
