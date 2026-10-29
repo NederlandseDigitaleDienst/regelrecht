@@ -139,8 +139,8 @@ impl std::ops::Deref for Cellen {
 }
 
 impl Corpus {
-    /// The case `casus` on the corpus at `roots` (the repository's
-    /// `corpus/`, or for a case from a source that source alone) in `files`,
+    /// The case `casus` on the corpus at `roots` (this crate's `corpus/`,
+    /// or for a case from a source that source alone) in `files`,
     /// whose regelwerken are `regelwerken`: its cell at `<root>/cells/<cel>`
     /// of the first root that has it, and what follows from the law within
     /// its corpus ([`afleiden`], [`Regelwerken::voor`]).
@@ -295,7 +295,7 @@ impl Corpus {
             .ok_or_else(|| Error::Refused(format!("the case '{}' has no court", self.casus.id)))
     }
 
-    /// The paths of the cells the case runs under `corpus/cells`: its own,
+    /// The paths of the cells the case runs under `cells/` of the corpus: its own,
     /// and the other cells of its sphere (RFC-052), the court among them.
     pub fn cellen(&self) -> impl Iterator<Item = &str> {
         std::iter::once(self.casus.cel.as_str())
@@ -2389,12 +2389,12 @@ mod tests {
     const SCHOOL: &str = "obs_de_klimop";
     const ROOSTER: &str = "fictief_beleid_vakantierooster_obs_de_klimop";
 
-    /// The case `id` from `casussen/`, on the repository's corpus.
+    /// The case `id` from `corpus/casussen/`, on the corpus of this crate.
     fn casus(id: &str) -> Corpus {
         static ALLE: std::sync::OnceLock<Vec<Corpus>> = std::sync::OnceLock::new();
         let alle = ALLE.get_or_init(|| {
             let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-            Corpus::alle(&dir.join("../../corpus"), &dir.join("casussen")).unwrap()
+            Corpus::alle(&dir.join("corpus"), &dir.join("corpus/casussen")).unwrap()
         });
         alle.iter().find(|c| c.casus.id == id).unwrap().clone()
     }

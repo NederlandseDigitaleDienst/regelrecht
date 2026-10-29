@@ -1,0 +1,77 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$id: reductie_verlof_al_verleend_in_schooljaar
+regulatory_layer: REDUCTIE
+publication_date: '2026-07-01'
+valid_from: '2026-08-01'
+url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+name: Al verleend vakantieverlof in het schooljaar bij OBS De Klimop (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving.
+    url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+    machine_readable:
+      execution:
+        # Wat het antwoord vraagt; het beleid dat het koppelt, geeft ze op
+        # naam mee uit artikel 13a.
+        parameters:
+          - name: bsn_jongere
+            type: string
+          - name: eerste_verlofdag
+            type: date
+        input:
+          - name: geldende_besluiten
+            type: array
+            source:
+              regulation: reductie_algemene_wet_bestuursrecht
+              parameters:
+                basis: leerplichtwet_1969#13a
+          - name: begin_schooljaar
+            type: date
+            source:
+              regulation: fictief_beleid_vakantieverlof_obs_de_klimop
+              output: begin_schooljaar_van_verlof
+              parameters:
+                eerste_verlofdag: $eerste_verlofdag
+          - name: einde_schooljaar
+            type: date
+            source:
+              regulation: fictief_beleid_vakantieverlof_obs_de_klimop
+              output: einde_schooljaar_van_verlof
+              parameters:
+                eerste_verlofdag: $eerste_verlofdag
+        output:
+          - name: verlof_al_verleend_in_schooljaar
+            type: boolean
+        actions:
+          - output: verlof_al_verleend_in_schooljaar
+            value:
+              operation: FOREACH
+              collection: $geldende_besluiten
+              as: besluit
+              filter:
+                operation: AND
+                conditions:
+                  - operation: EQUALS
+                    subject: $besluit.verlof_verleend
+                    value: true
+                  - operation: EQUALS
+                    subject: $besluit.bsn_jongere
+                    value: $bsn_jongere
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject:
+                      operation: DATE_DIFF
+                      from: $begin_schooljaar
+                      to: $besluit.eerste_verlofdag
+                      in: days
+                    value: 0
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject:
+                      operation: DATE_DIFF
+                      from: $besluit.eerste_verlofdag
+                      to: $einde_schooljaar
+                      in: days
+                    value: 0
+              body: true
+              combine: OR

@@ -1,0 +1,65 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.6/schema/v0.8.6/schema.json
+$id: fictief_beleid_vakantierooster_obs_de_klimop
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-07-01'
+valid_from: '2026-08-01'
+url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel11
+name: Vakantierooster van OBS De Klimop (fictief beleid)
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering.
+    url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel11
+    machine_readable:
+      execution:
+        output:
+          - name: herfstvakantie_eerste_dag
+            type: date
+            nullable: true
+          - name: herfstvakantie_laatste_dag
+            type: date
+            nullable: true
+          - name: voorjaarsvakantie_eerste_dag
+            type: date
+            nullable: true
+          - name: voorjaarsvakantie_laatste_dag
+            type: date
+            nullable: true
+        actions:
+          - output: herfstvakantie_eerste_dag
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $eerste_jaar_schooljaar
+                    value: 2026
+                  then: '2026-10-17'
+          - output: herfstvakantie_laatste_dag
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $eerste_jaar_schooljaar
+                    value: 2026
+                  then: '2026-10-25'
+          - output: voorjaarsvakantie_eerste_dag
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $eerste_jaar_schooljaar
+                    value: 2026
+                  then: '2027-02-20'
+          - output: voorjaarsvakantie_laatste_dag
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $eerste_jaar_schooljaar
+                    value: 2026
+                  then: '2027-02-28'

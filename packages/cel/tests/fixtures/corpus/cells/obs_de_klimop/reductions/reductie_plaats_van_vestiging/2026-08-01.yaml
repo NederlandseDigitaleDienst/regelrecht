@@ -1,0 +1,101 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$id: reductie_plaats_van_vestiging
+regulatory_layer: REDUCTIE
+publication_date: '2026-07-01'
+valid_from: '2026-08-01'
+url: https://wetten.overheid.nl/BWBR0049811/2025-08-01#Artikel2
+name: Plaats van vestiging van OBS De Klimop (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving.
+    url: https://wetten.overheid.nl/BWBR0049811/2025-08-01#Artikel2
+    machine_readable:
+      execution:
+        parameters:
+          - name: eerste_verlofdag
+            type: date
+          - name: laatste_verlofdag
+            type: date
+        input:
+          - name: vestigingen
+            type: array
+            source:
+              facts: fictief_beleid_vestiging_obs_de_klimop#1#vestiging
+        output:
+          - name: gemeente_van_vestiging
+            type: string
+            nullable: true
+          - name: provincie_van_vestiging
+            type: string
+        actions:
+          - output: dagen_sinds_vestiging_op_eerste_verlofdag
+            value:
+              operation: FOREACH
+              collection: $vestigingen
+              as: v
+              filter:
+                operation: GREATER_THAN_OR_EQUAL
+                subject:
+                  operation: DATE_DIFF
+                  from: $v.sinds
+                  to: $eerste_verlofdag
+                  in: days
+                value: 0
+              body:
+                operation: DATE_DIFF
+                from: $v.sinds
+                to: $eerste_verlofdag
+                in: days
+              combine: MIN
+          - output: dagen_sinds_vestiging_op_laatste_verlofdag
+            value:
+              operation: FOREACH
+              collection: $vestigingen
+              as: v
+              body:
+                operation: DATE_DIFF
+                from: $v.sinds
+                to: $laatste_verlofdag
+                in: days
+              combine: MIN
+          - output: vestiging
+            value:
+              operation: FOREACH
+              collection: $vestigingen
+              as: v
+              filter:
+                operation: OR
+                conditions:
+                  - operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject:
+                          operation: DATE_DIFF
+                          from: $v.sinds
+                          to: $eerste_verlofdag
+                          in: days
+                        value: $dagen_sinds_vestiging_op_eerste_verlofdag
+                  - operation: AND
+                    conditions:
+                      - operation: GREATER_THAN_OR_EQUAL
+                        subject:
+                          operation: DATE_DIFF
+                          from: $v.sinds
+                          to: $laatste_verlofdag
+                          in: days
+                        value: 0
+                      - operation: EQUALS
+                        subject:
+                          operation: DATE_DIFF
+                          from: $v.sinds
+                          to: $laatste_verlofdag
+                          in: days
+                        value: $dagen_sinds_vestiging_op_laatste_verlofdag
+              body: $v
+              combine: ONLY
+          - output: gemeente_van_vestiging
+            value: $vestiging.gemeente
+          - output: provincie_van_vestiging
+            value: $vestiging.provincie

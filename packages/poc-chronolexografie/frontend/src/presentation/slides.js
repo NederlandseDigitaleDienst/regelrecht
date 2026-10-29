@@ -20,6 +20,8 @@
  * order. Lines left out are marked with `# …`.
  */
 
+import { CORPUS } from '../corpus.js';
+
 export const KINDS = Object.freeze(['title', 'statement', 'section', 'bullets', 'closing']);
 
 /** The names the slides use, which tests/presentation.test.js finds in the corpus. */
@@ -50,7 +52,7 @@ const GRAM = `{
   }
 }`;
 
-const CEL = `# corpus/cells/gemeente_wilgendaal/cel.yaml
+const CEL = `# cells/gemeente_wilgendaal/cel.yaml
 name: Het college van burgemeester en wethouders van de gemeente Wilgendaal
 category: college van burgemeester en wethouders
 answers:
@@ -157,7 +159,7 @@ export const slides = [
       'De cel legt vast en beslist via de engine; wat ze controleert, komt uit de wet.',
       'Het is een map met `cel.yaml`. Daarin staat wie de cel is en welke antwoorden ze geeft.',
     ],
-    figure: { code: CEL, source: 'corpus/cells/gemeente_wilgendaal/cel.yaml', label: 'De cel van de gemeente Wilgendaal' },
+    figure: { code: CEL, source: `${CORPUS}/cells/gemeente_wilgendaal/cel.yaml`, label: 'De cel van de gemeente Wilgendaal' },
   },
   {
     kind: 'bullets',
@@ -172,7 +174,7 @@ export const slides = [
     ],
     figure: {
       code: FOREACH,
-      source: 'corpus/cells/gemeente_wilgendaal/reductions/reductie_geldige_gehandicaptenparkeerkaart/2026-01-01.yaml',
+      source: `${CORPUS}/cells/gemeente_wilgendaal/reductions/reductie_geldige_gehandicaptenparkeerkaart/2026-01-01.yaml`,
       label: 'Uit de reductie van de gemeente Wilgendaal, ingekort',
     },
   },
@@ -240,7 +242,7 @@ export const slides = [
     ],
     figure: {
       code: INPUT,
-      source: 'corpus/cells/gemeente_wilgendaal/reductions/reductie_geldige_gehandicaptenparkeerkaart/2026-01-01.yaml',
+      source: `${CORPUS}/cells/gemeente_wilgendaal/reductions/reductie_geldige_gehandicaptenparkeerkaart/2026-01-01.yaml`,
       label: 'De invoer van de reductie van de gemeente',
     },
   },

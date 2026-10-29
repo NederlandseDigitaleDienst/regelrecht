@@ -1,0 +1,9 @@
+---
+name: GGD Wilgendaal
+category: Gemeentelijke Gezondheidsdienst
+answers:
+  geneeskundig_onderzoek_heeft_plaatsgehad: reductie_geneeskundig_onderzoek
+  advies_langdurige_loopbeperking: reductie_geneeskundig_advies
+  advies_continu_afhankelijk_van_hulp_bestuurder: reductie_geneeskundig_advies
+  advies_permanent_rolstoelgebonden: reductie_geneeskundig_advies
+  advies_ernstige_beperkingen_andere_dan_loopbeperkingen: reductie_geneeskundig_advies

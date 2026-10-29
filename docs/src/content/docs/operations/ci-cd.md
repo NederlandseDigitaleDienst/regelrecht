@@ -179,7 +179,7 @@ Released schema versions in `schema/v*.*.*` are immutable. CI fails if a PR trie
 
 ### Provenance checks (on corpus/engine changes)
 
-Among other checks, the `provenance-checks` job verifies that every `$schema` URL in `corpus/regulation` and in the reductions under `corpus/cells` names a schema version that exists under `schema/`, that every version directory under `schema/` is registered in `packages/engine/src/schema.rs`, and that `schema/latest` points at the highest version (currently `v0.8.13`). It does not check the form of the URL: a tag-based `refs/tags/schema-vX.Y.Z` reference is the convention, but a branch-based URL that names a known version passes. On a pull request that changes engine source it also compares the version in `packages/engine/Cargo.toml` with `main`; an unchanged version only prints a warning. See [RFC-013](/rfcs/rfc-013) for context.
+Among other checks, the `provenance-checks` job verifies that every `$schema` URL in `corpus/regulation` and in the corpus of the chronolexografie PoC (`packages/poc-chronolexografie/corpus/`, its reductions included) names a schema version that exists under `schema/`, that every version directory under `schema/` is registered in `packages/engine/src/schema.rs`, and that `schema/latest` points at the highest version (currently `v0.8.13`). It does not check the form of the URL: a tag-based `refs/tags/schema-vX.Y.Z` reference is the convention, but a branch-based URL that names a known version passes. On a pull request that changes engine source it also compares the version in `packages/engine/Cargo.toml` with `main`; an unchanged version only prints a warning. See [RFC-013](/rfcs/rfc-013) for context.
 
 ### Docs accessibility gate (on docs changes)
 
@@ -223,7 +223,7 @@ CI uses path filters to determine which checks to run:
 
 | Change group | Triggers on changes to |
 |---|---|
-| `ci` | `packages/`, `frontend/`, `corpus/regulation/`, `corpus/cells/`, `corpus/demo/`, `bdd/`, `schema/`, `script/`, the PoC trees, and the root build files (`Justfile`, `package.json`, `rust-toolchain.toml`) |
+| `ci` | `packages/`, `frontend/`, `corpus/regulation/`, `corpus/demo/`, `bdd/`, `schema/`, `script/`, the PoC trees, and the root build files (`Justfile`, `package.json`, `rust-toolchain.toml`) |
 | `docs` | `docs/`, plus the corpus and shared frontend code the landing page reads at build time |
 | `docs-source` | `docs/`, `packages/`, `bdd/`, `schema/`, `corpus/regulation/`, `justfile`, `.claude/skills/docs-writing/`, `.github/workflows/ci.yml` |
 | `rust-image` | `packages/`, `schema/`, `rust-toolchain.toml`, `.github/workflows/ci.yml` |

@@ -1,0 +1,69 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$id: reductie_geneeskundig_onderzoek
+regulatory_layer: REDUCTIE
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+name: Geneeskundig onderzoek bij de GGD Wilgendaal (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+          - name: dagtekening_aanvraag
+            type: date
+            nullable: true
+          - name: datum_afgifte
+            type: date
+        input:
+          - name: onderzoeken
+            type: array
+            source:
+              facts: regeling_gehandicaptenparkeerkaart#3#geneeskundig_onderzoek_verricht
+        output:
+          - name: geneeskundig_onderzoek_heeft_plaatsgehad
+            type: boolean
+            nullable: true
+        actions:
+          - output: geneeskundig_onderzoek_heeft_plaatsgehad
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: FOREACH
+                    collection: $onderzoeken
+                    as: onderzoek
+                    filter:
+                      operation: AND
+                      conditions:
+                        - operation: NOT
+                          value:
+                            operation: EQUALS
+                            subject: $dagtekening_aanvraag
+                            value: null
+                        - operation: EQUALS
+                          subject: $onderzoek.bsn_aanvrager
+                          value: $bsn_aanvrager
+                        - operation: GREATER_THAN_OR_EQUAL
+                          subject:
+                            operation: DATE_DIFF
+                            from: $dagtekening_aanvraag
+                            to: $onderzoek.datum_onderzoek
+                            in: days
+                          value: 0
+                        - operation: GREATER_THAN_OR_EQUAL
+                          subject:
+                            operation: DATE_DIFF
+                            from: $onderzoek.datum_onderzoek
+                            to: $datum_afgifte
+                            in: days
+                          value: 0
+                    body: true
+                    combine: OR
+                  then: true

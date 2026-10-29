@@ -8,7 +8,7 @@ valid_from: '2026-01-01'
 # besluiten die herroepen of vernietigd zijn (Awb 7:11, tweede lid, en 8:72),
 # en over het besluit dat de uitspraak in de plaats stelt (Awb 8:72, derde
 # lid, onder b). Ze hoort bij geen cel: ze staat naast de cellen
-# (corpus/cells/reductions/) en heeft geen eigen kroniek. Daarom geeft geen
+# (cells/reductions/) en heeft geen eigen kroniek. Daarom geeft geen
 # bestuursorgaan haar uitvoer als antwoord. Een andere reductie roept haar aan
 # (source.regulation) met het artikel waarvan zij de besluiten wil weten
 # (`basis`). De Awb-reductie leest dan uit de kroniek van de uitvoerder op

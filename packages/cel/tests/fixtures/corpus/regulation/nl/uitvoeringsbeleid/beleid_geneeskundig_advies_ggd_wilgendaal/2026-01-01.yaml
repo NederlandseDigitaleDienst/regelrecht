@@ -1,0 +1,60 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.9/schema/v0.8.9/schema.json
+$id: beleid_geneeskundig_advies_ggd_wilgendaal
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+name: Geneeskundig advies van de GGD Wilgendaal (fictief beleid)
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    machine_readable:
+      execution:
+        output:
+          - name: advies_langdurige_loopbeperking
+            type: boolean
+            nullable: true
+        actions:
+          - output: dagen_van_laatste_onderzoek_tot_besluit
+            value:
+              operation: FOREACH
+              collection: $adviezen
+              as: a
+              filter:
+                operation: AND
+                conditions:
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject:
+                      operation: DATE_DIFF
+                      from: $dagtekening_aanvraag
+                      to: $a.datum_onderzoek
+                      in: days
+                    value: 0
+              body:
+                operation: DATE_DIFF
+                from: $a.datum_onderzoek
+                to: $datum_afgifte
+                in: days
+              combine: MIN
+          - output: advies
+            value:
+              operation: FOREACH
+              collection: $adviezen
+              as: a
+              filter:
+                operation: AND
+                conditions:
+                  - operation: EQUALS
+                    subject:
+                      operation: DATE_DIFF
+                      from: $a.datum_onderzoek
+                      to: $datum_afgifte
+                      in: days
+                    value: $dagen_van_laatste_onderzoek_tot_besluit
+              body: $a
+              combine: ONLY
+          - output: advies_langdurige_loopbeperking
+            value: $advies.langdurige_loopbeperking

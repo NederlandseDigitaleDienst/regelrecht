@@ -52,6 +52,7 @@ just bdd                          # Both buckets
 BDD_BUCKET=conformance just bdd   # Engine conformance only
 BDD_BUCKET=corpus just bdd        # Law validation only
 just bdd-demo                     # Bucket A over the demo corpus
+just bdd-chrono                   # Bucket A over the corpus of the chronolexografie PoC
 just bdd-trace                    # With execution traces in trace_output/
 ```
 
@@ -80,6 +81,8 @@ just test           # Whole workspace (needs Docker)
 just test-no-docker # Everything that needs no external services
 just test-db        # Only the container-backed crates
 ```
+
+The tests of `packages/cel` and the reduction tests of the engine (`packages/engine/tests/reduction.rs`) share one set of fixtures, `packages/cel/tests/fixtures/corpus/`. A fixture there is YAML made for these tests and holds only what they read: the cells, and fictional rulework and reductions cut down to the articles and outputs a test exercises. Real laws such as the Awb and the Leerplichtwet are not copied in. The tests read them from `corpus/regulation/`.
 
 ## Conformance
 

@@ -67,7 +67,7 @@ describe('the explanation page', () => {
 
   it('follows one case, the business parking permit, from the rule to the chronicle', () => {
     expect(steps[0].title).toBe('Recht op een vergunning');
-    expect(existsSync(join(repo, 'packages/poc-chronolexografie/casussen', `${casus}.yaml`))).toBe(true);
+    expect(existsSync(join(repo, 'packages/poc-chronolexografie/corpus/casussen', `${casus}.yaml`))).toBe(true);
     const sources = steps.flatMap((s) => s.panels.map((p) => p.source)).join('\n');
     expect(sources).toContain('gemeente_wilgendaal/cel.yaml');
     expect(sources).toContain('reductie_geldige_bedrijfsparkeervergunningen');

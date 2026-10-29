@@ -1,0 +1,44 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$id: reductie_geneeskundig_advies
+regulatory_layer: REDUCTIE
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+name: Geneeskundig advies van de GGD Wilgendaal (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+          - name: dagtekening_aanvraag
+            type: date
+          - name: datum_afgifte
+            type: date
+        input:
+          - name: adviezen
+            type: array
+            source:
+              facts: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
+          - name: volgens_beleid_langdurige_loopbeperking
+            type: boolean
+            nullable: true
+            source:
+              regulation: beleid_geneeskundig_advies_ggd_wilgendaal
+              output: advies_langdurige_loopbeperking
+              parameters:
+                dagtekening_aanvraag: $dagtekening_aanvraag
+                datum_afgifte: $datum_afgifte
+                adviezen: $adviezen
+        output:
+          - name: advies_langdurige_loopbeperking
+            type: boolean
+            nullable: true
+        actions:
+          - output: advies_langdurige_loopbeperking
+            value: $volgens_beleid_langdurige_loopbeperking

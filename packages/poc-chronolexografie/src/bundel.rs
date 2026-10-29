@@ -1,12 +1,17 @@
-//! The bundle the app plays from in the browser: the files every case needs,
-//! by their path in the repository, built into the page.
+//! The bundle the app plays from in the browser: the files of this crate's
+//! own corpus ([`CORPUS`]), by their path in the repository, built into the
+//! page.
 //!
-//! Which directories those are follows from the case files and the law
-//! ([`mappen`]): the case files, per case the regelwerken its cell runs, and
-//! its cells. The register (`pocs/registry.yaml`, `corpus` of
-//! `chronolexografie`) lists them for the build, which copies every file
-//! under them except the scenarios; a test below holds that list equal to
-//! [`mappen`], so neither can drift.
+//! That corpus has the layout of a source: the cases (`casussen/`), the
+//! regelwerken they run (`regulation/nl/`) and the cells (`cells/`, with
+//! their reductions). It holds copies of the laws the cases run, the Awb
+//! among them, so work on the cases never changes the regelrecht corpus and
+//! the other way round. The register (`pocs/registry.yaml`, `corpus` of
+//! `chronolexografie`) names the directory for the build, which copies
+//! every file under it except the scenarios. A test below holds that every
+//! shared regelwerk and cell in it is one a case lists ([`mappen`]), so
+//! nothing dead ends up in the browser; a case's own regelwerken count for
+//! that case anyway.
 //!
 //! Next to it the page may hold sources ([`Bron`]): a corpus the portal
 //! fetches when the page loads, such as a branch of another repository
@@ -15,7 +20,7 @@
 //! with their reductions).
 //! A case from a source runs on that source alone: one corpus at a time,
 //! so its own Awb and regelwerken are the ones that count, and nothing of
-//! the regelrecht corpus takes their place. The cases of this crate never
+//! this crate's corpus takes their place. The cases of this crate never
 //! see a source ([`met_bronnen`]).
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -30,12 +35,13 @@ use crate::casus::Casus;
 use crate::casus::{casussen as lees_casussen, Regelwerken};
 use crate::kern::{Corpus, Result};
 
-/// The corpus, under the repository root: the regelwerken under
-/// `regulation/nl` and the cells under `cells`, with their reductions.
-pub const CORPUS: &str = "corpus";
+/// This crate's corpus, under the repository root: the cases under
+/// `casussen`, the regelwerken under `regulation/nl` and the cells under
+/// `cells`, with their reductions.
+pub const CORPUS: &str = "packages/poc-chronolexografie/corpus";
 
 /// The case files, under the repository root.
-pub const CASUSSEN: &str = "packages/poc-chronolexografie/casussen";
+pub const CASUSSEN: &str = "packages/poc-chronolexografie/corpus/casussen";
 
 /// Every case on the bundle `files`, each a path under the repository root
 /// with its text.
@@ -238,9 +244,28 @@ mod tests {
     }
 
     #[test]
-    fn the_register_lists_what_every_case_needs_and_nothing_else() {
+    fn the_register_names_this_crates_corpus() {
+        assert_eq!(in_het_register(), BTreeSet::from([CORPUS.to_string()]));
+    }
+
+    #[test]
+    fn every_directory_of_the_corpus_is_one_a_case_needs() {
+        // The build bundles the whole directory, so a regelwerk or a cell
+        // that no case runs would go to the browser for nothing.
         let alle = Corpus::alle(&repo().join(CORPUS), &repo().join(CASUSSEN)).unwrap();
-        assert_eq!(in_het_register(), mappen(&alle));
+        let nodig = mappen(&alle);
+        let aanwezig: BTreeSet<String> = gebundeld()
+            .keys()
+            .map(|pad| pad.rsplit_once('/').unwrap().0.to_string())
+            .collect();
+        for map in aanwezig {
+            assert!(
+                nodig
+                    .iter()
+                    .any(|n| map == *n || map.starts_with(&format!("{n}/"))),
+                "{map} is in the corpus, but no case needs it"
+            );
+        }
     }
 
     #[test]
@@ -265,23 +290,6 @@ mod tests {
     }
 
     #[test]
-    fn the_deploy_filter_holds_what_every_case_runs() {
-        // A change to a regelwerk or a cell a case runs rebuilds the image
-        // that bundles it. The case files are in this crate's directory,
-        // which the filter takes from the cargo graph.
-        let filters = std::fs::read_to_string(repo().join("script/deploy-filters.mjs")).unwrap();
-        for pad in in_het_register()
-            .into_iter()
-            .filter(|p| p.as_str() != CASUSSEN)
-        {
-            assert!(
-                filters.contains(&format!("'{pad}/'")),
-                "{pad}/ not in deploy-filters.mjs"
-            );
-        }
-    }
-
-    #[test]
     fn a_bundle_without_a_file_a_case_needs_fails_at_the_start() {
         let mut files = BTreeMap::new();
         for dir in in_het_register() {
@@ -289,13 +297,11 @@ mod tests {
         }
         // Without its catalogue the school has no cell.
         let mut without_cell = files.clone();
-        without_cell.remove("corpus/cells/obs_de_klimop/cel.yaml");
+        without_cell.remove(&format!("{CORPUS}/cells/obs_de_klimop/cel.yaml"));
         let e = casussen(without_cell).unwrap_err().to_string();
-        assert!(e.contains("corpus/cells/obs_de_klimop"), "{e}");
+        assert!(e.contains(&format!("{CORPUS}/cells/obs_de_klimop")), "{e}");
         // Without a reduction its catalogue names, the cell does not open.
-        files.remove(
-            "corpus/cells/obs_de_klimop/reductions/reductie_verlof_al_verleend_in_schooljaar/2026-08-01.yaml",
-        );
+        files.remove(&format!("{CORPUS}/{VERLOF}"));
         let e = casussen(files).unwrap_err().to_string();
         assert!(
             e.contains("reductie_verlof_al_verleend_in_schooljaar")
@@ -304,7 +310,64 @@ mod tests {
         );
     }
 
-    /// The regelrecht bundle as the build makes it.
+    /// The own regelwerk of the case of the parking card, by its path under
+    /// [`CORPUS`].
+    const GGD_BELEID: &str = "casussen/gehandicaptenparkeerkaart/regulation/nl/uitvoeringsbeleid/\
+         beleid_geneeskundig_advies_ggd_wilgendaal/2026-01-01.yaml";
+
+    #[test]
+    fn the_own_regelwerken_of_a_case_count_without_being_named() {
+        // Moved to the shared regulation and named by no case, the policy
+        // counts for none, and the case that needs it no longer loads.
+        let e = verplaatst(
+            GGD_BELEID,
+            "regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_ggd_wilgendaal/2026-01-01.yaml",
+            str::to_string,
+        );
+        assert!(
+            e.contains(
+                "case 'gehandicaptenparkeerkaart' needs regelwerk \
+                 'beleid_geneeskundig_advies_ggd_wilgendaal', which is not in the corpus"
+            ),
+            "{e}"
+        );
+    }
+
+    #[test]
+    fn a_case_that_names_the_own_regelwerken_of_another_is_refused() {
+        let mut files = gebundeld();
+        let pad = format!("{CASUSSEN}/bedrijfsparkeervergunning.yaml");
+        let tekst = files[&pad].replacen(
+            "corpus:\n",
+            "corpus:\n  - casussen/gehandicaptenparkeerkaart/regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_ggd_wilgendaal\n",
+            1,
+        );
+        files.insert(pad, tekst);
+        let e = casussen(files).unwrap_err().to_string();
+        assert!(e.contains("count only for that case"), "{e}");
+    }
+
+    #[test]
+    fn another_directory_under_the_cases_is_ignored() {
+        let mut files = gebundeld();
+        files.insert(format!("{CASUSSEN}/notities/README.md"), "notities".into());
+        assert_eq!(
+            casussen(files).unwrap().len(),
+            casussen(gebundeld()).unwrap().len()
+        );
+    }
+
+    #[test]
+    fn own_regelwerken_without_a_case_are_refused() {
+        let e = verplaatst(
+            GGD_BELEID,
+            "casussen/los/regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_ggd_wilgendaal/2026-01-01.yaml",
+            str::to_string,
+        );
+        assert!(e.contains("no case los.yaml"), "{e}");
+    }
+
+    /// The bundle of this crate as the build makes it.
     fn gebundeld() -> BTreeMap<String, String> {
         let mut files = BTreeMap::new();
         for dir in in_het_register() {
@@ -319,16 +382,17 @@ mod tests {
         regelrecht_poc_portal::bron::lokaal(pad).unwrap()
     }
 
-    /// The Awb of the regelrecht corpus and the reductions of no cell, by
+    /// The Awb of this crate's corpus and the reductions of no cell, by
     /// their path in a source.
     fn awb() -> BTreeMap<String, String> {
         gebundeld()
             .into_iter()
-            .filter(|(pad, _)| {
-                pad.starts_with("corpus/regulation/nl/wet/algemene_wet_bestuursrecht/")
-                    || pad.starts_with("corpus/cells/reductions/")
+            .filter_map(|(pad, tekst)| {
+                let pad = pad.strip_prefix(&format!("{CORPUS}/"))?.to_string();
+                (pad.starts_with("regulation/nl/wet/algemene_wet_bestuursrecht/")
+                    || pad.starts_with("cells/reductions/"))
+                .then_some((pad, tekst))
             })
-            .map(|(pad, tekst)| (pad["corpus/".len()..].to_string(), tekst))
             .collect()
     }
 
@@ -713,7 +777,7 @@ articles:
     }
 
     #[test]
-    fn a_source_without_the_awb_does_not_get_the_regelrecht_one() {
+    fn a_source_without_the_awb_does_not_get_the_one_of_this_crate() {
         let mut bron = voorbeeld();
         bron.bestanden.retain(|pad, _| !awb().contains_key(pad));
         let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
@@ -722,7 +786,7 @@ articles:
     }
 
     #[test]
-    fn a_source_runs_its_own_copy_of_a_regelrecht_id() {
+    fn a_source_runs_its_own_copy_of_an_id_of_this_crate() {
         let mut bron = voorbeeld();
         let awb = "regulation/nl/wet/algemene_wet_bestuursrecht/1994-01-01.yaml";
         let tekst = bron.bestanden.remove(awb).unwrap();
@@ -772,7 +836,7 @@ articles:
     }
 
     #[test]
-    fn a_cell_of_the_source_with_a_regelrecht_name_is_its_own() {
+    fn a_cell_of_the_source_with_a_name_of_this_crate_is_its_own() {
         let mut bron = voorbeeld();
         bron.bestanden.insert(
             "cells/obs_de_klimop/cel.yaml".into(),
@@ -820,22 +884,23 @@ articles:
     }
 
     /// The bundle's error when `files` replaces the file at `van` with the
-    /// file at `naar`, its text changed by `wijzig`.
+    /// file at `naar` (both under [`CORPUS`]), its text changed by `wijzig`.
     fn verplaatst(van: &str, naar: &str, wijzig: impl Fn(&str) -> String) -> String {
         let mut files = gebundeld();
-        let tekst = files.remove(van).unwrap();
-        files.insert(naar.into(), wijzig(&tekst));
+        let tekst = files.remove(&format!("{CORPUS}/{van}")).unwrap();
+        files.insert(format!("{CORPUS}/{naar}"), wijzig(&tekst));
         casussen(files).unwrap_err().to_string()
     }
 
+    /// A reduction of the school, by its path under [`CORPUS`].
     const VERLOF: &str =
-        "corpus/cells/obs_de_klimop/reductions/reductie_verlof_al_verleend_in_schooljaar/2026-08-01.yaml";
+        "cells/obs_de_klimop/reductions/reductie_verlof_al_verleend_in_schooljaar/2026-08-01.yaml";
 
     #[test]
     fn a_reduction_under_regulation_is_refused() {
         let e = verplaatst(
             VERLOF,
-            "corpus/regulation/nl/reducties/reductie_verlof_al_verleend_in_schooljaar/2026-08-01.yaml",
+            "regulation/nl/reducties/reductie_verlof_al_verleend_in_schooljaar/2026-08-01.yaml",
             str::to_string,
         );
         assert!(e.contains("a REDUCTIE is no regulation"), "{e}");
@@ -845,7 +910,7 @@ articles:
     fn a_reduction_in_a_directory_not_named_by_its_id_is_refused() {
         let e = verplaatst(
             VERLOF,
-            "corpus/cells/obs_de_klimop/reductions/al_verleend/2026-08-01.yaml",
+            "cells/obs_de_klimop/reductions/al_verleend/2026-08-01.yaml",
             str::to_string,
         );
         assert!(e.contains("a directory named by its $id"), "{e}");
@@ -861,7 +926,9 @@ articles:
             .clone();
         let tekst = files[&beleid].clone();
         files.insert(
-            "corpus/cells/reductions/fictief_beleid_vestiging_obs_de_klimop/2026-08-01.yaml".into(),
+            format!(
+                "{CORPUS}/cells/reductions/fictief_beleid_vestiging_obs_de_klimop/2026-08-01.yaml"
+            ),
             tekst,
         );
         files.remove(&beleid);
@@ -872,7 +939,7 @@ articles:
     #[test]
     fn a_loose_file_beside_the_reductions_of_no_cell_is_refused() {
         let mut files = gebundeld();
-        files.insert("corpus/cells/reductions/los.yaml".into(), String::new());
+        files.insert(format!("{CORPUS}/cells/reductions/los.yaml"), String::new());
         let e = casussen(files).unwrap_err().to_string();
         assert!(e.contains("a file per version"), "{e}");
     }

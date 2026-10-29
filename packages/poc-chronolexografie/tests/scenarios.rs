@@ -15,7 +15,7 @@ use serde_json::{json, Map, Value};
 
 fn spel() -> Spel {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    Spel::new(Corpus::alle(&dir.join("../../corpus"), &dir.join("casussen")).unwrap())
+    Spel::new(Corpus::alle(&dir.join("corpus"), &dir.join("corpus/casussen")).unwrap())
 }
 
 fn map(v: &Value) -> Map<String, Value> {

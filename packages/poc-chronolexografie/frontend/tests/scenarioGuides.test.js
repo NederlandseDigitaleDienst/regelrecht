@@ -7,7 +7,7 @@ import { bouwGids, guideFor, invoerZin } from '../src/scenarioGuides.js';
 // check that every scenario of every case gives a guide the panel can show.
 const casus = (id) => ({
   id,
-  ...load(readFileSync(new URL(`../../casussen/${id}.yaml`, import.meta.url), 'utf8')),
+  ...load(readFileSync(new URL(`../../corpus/casussen/${id}.yaml`, import.meta.url), 'utf8')),
 });
 const CASUSSEN = ['vakantieverlof', 'gehandicaptenparkeerkaart', 'bedrijfsparkeervergunning'];
 const TABS = ['aanvrager', 'bestuursorgaan', 'andere'];

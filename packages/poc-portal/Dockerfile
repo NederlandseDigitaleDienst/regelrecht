@@ -101,13 +101,11 @@ RUN POC_BASE=/terugbetaalregimes/ npm run build -w poc-terugbetaalregimes
 RUN POC_BASE=/nieuwkomersbekostiging/ npm run build -w poc-nieuwkomersbekostiging
 
 # chronolexografie draait helemaal in de browser. De bundel die de app
-# meekrijgt, zijn de mappen bij `corpus` in pocs/registry.yaml
-# (scripts/copy-assets.js); hier gaan het register, het corpus en de casussen
-# mee, en kiest het script daaruit.
+# meekrijgt, is de map bij `corpus` in pocs/registry.yaml, het eigen corpus
+# van de poc (scripts/copy-assets.js); hier gaan het register en dat corpus
+# mee.
 COPY pocs/ pocs/
-COPY corpus/regulation/ corpus/regulation/
-COPY corpus/cells/ corpus/cells/
-COPY packages/poc-chronolexografie/casussen/ packages/poc-chronolexografie/casussen/
+COPY packages/poc-chronolexografie/corpus/ packages/poc-chronolexografie/corpus/
 COPY packages/poc-chronolexografie/frontend/ packages/poc-chronolexografie/frontend/
 COPY --from=wasm-builder /wasm-chronolexografie/ packages/poc-chronolexografie/frontend/public/wasm/pkg/
 RUN POC_BASE=/chronolexografie/ npm run build -w poc-chronolexografie

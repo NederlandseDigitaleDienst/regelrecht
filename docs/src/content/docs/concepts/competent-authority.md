@@ -90,7 +90,7 @@ competent_authority:
   name: Het college van burgemeester en wethouders van Voorbeeldstad
 ```
 
-A policy that binds an open term to a cell's answer must name its holder this way, by name. The loader refuses a `#` reference or a list there. A reduction names no holder. Since schema v0.8.12 it sits with its cell (`corpus/cells/<cell>/reductions/`), and a cell answers only from the reductions it keeps.
+A policy that binds an open term to a cell's answer must name its holder this way, by name. The loader refuses a `#` reference or a list there. A reduction names no holder. Since schema v0.8.12 it sits with its cell (`cells/<cell>/reductions/` of the corpus), and a cell answers only from the reductions it keeps.
 
 ## Further reading
 

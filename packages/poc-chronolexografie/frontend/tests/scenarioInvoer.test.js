@@ -15,7 +15,7 @@ const casus = {
   beslissing_op_bezwaar: 'awb#7:11',
   uitkomst: 'bedrijfsparkeervergunning_verleend',
   ...load(
-    readFileSync(new URL('../../casussen/bedrijfsparkeervergunning.yaml', import.meta.url), 'utf8'),
+    readFileSync(new URL('../../corpus/casussen/bedrijfsparkeervergunning.yaml', import.meta.url), 'utf8'),
   ),
 };
 const SCHIL = 'Het maximum in de schil, en een vergunning na bezwaar';

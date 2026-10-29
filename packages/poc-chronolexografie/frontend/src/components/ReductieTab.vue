@@ -30,10 +30,13 @@ async function laden() {
 onMounted(laden);
 watch(() => [state.grammen.length, state.datum], laden);
 
-/** Waar de reductie in de corpus staat: bij haar cel, of bij geen cel. */
+/**
+ * Waar de reductie in het corpus van de casus staat: bij haar cel, of bij
+ * geen cel, vanaf de wortel van dat corpus.
+ */
 const pad = (r) => {
   const map = state.casus.regelwerken.find((w) => w.id === r.id).map;
-  return `corpus/${map}/${r.geldig_vanaf}.yaml`;
+  return `${map}/${r.geldig_vanaf}.yaml`;
 };
 
 /** De koppelingen van beleid aan het antwoord `naam` van de reductie `r`. */

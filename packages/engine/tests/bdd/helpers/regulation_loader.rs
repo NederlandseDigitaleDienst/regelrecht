@@ -2,17 +2,28 @@
 //!
 //! Loads all YAML regulation files from the corpus/regulation/nl directory.
 
-use crate::common::regulation_base_path;
+use crate::common::regulation_base_paths;
 use regelrecht_engine::{EngineError, LawExecutionService};
 use walkdir::WalkDir;
 
 /// Load all regulation YAML files into the service.
 ///
-/// Scans the `corpus/regulation/nl/` directory (or `REGULATION_PATH` env var base)
-/// and loads all `.yaml` files found.
+/// Scans the `corpus/regulation/nl/` directory (or the `nl/` of each base in
+/// `REGULATION_PATH`) and loads all `.yaml` files found.
 pub fn load_all_regulations(service: &mut LawExecutionService) -> Result<usize, EngineError> {
-    let regulation_dir = regulation_base_path().join("nl");
+    let mut count = 0;
+    for base in regulation_base_paths() {
+        count += load_regulations_in(service, &base.join("nl"))?;
+    }
+    tracing::info!(count = count, "Loaded regulations");
+    Ok(count)
+}
 
+/// Load every `.yaml` file under `regulation_dir` into the service.
+fn load_regulations_in(
+    service: &mut LawExecutionService,
+    regulation_dir: &std::path::Path,
+) -> Result<usize, EngineError> {
     if !regulation_dir.exists() {
         return Err(EngineError::LoadError(format!(
             "Regulation directory not found: {}",
@@ -22,7 +33,7 @@ pub fn load_all_regulations(service: &mut LawExecutionService) -> Result<usize, 
 
     let mut count = 0;
 
-    for entry in WalkDir::new(&regulation_dir)
+    for entry in WalkDir::new(regulation_dir)
         .follow_links(true)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -60,7 +71,6 @@ pub fn load_all_regulations(service: &mut LawExecutionService) -> Result<usize, 
         }
     }
 
-    tracing::info!(count = count, "Loaded regulations");
     Ok(count)
 }
 

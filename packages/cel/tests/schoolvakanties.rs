@@ -100,8 +100,8 @@ fn rooster_2027() -> String {
 
 /// The school's own cell, with all its reductions, and an empty chronicle.
 fn school() -> Cell {
-    let dir =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/cells/{RECORDING_ACTOR}"));
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(format!("tests/fixtures/corpus/cells/{RECORDING_ACTOR}"));
     Cell::in_memory(RECORDING_ACTOR, dir).unwrap()
 }
 

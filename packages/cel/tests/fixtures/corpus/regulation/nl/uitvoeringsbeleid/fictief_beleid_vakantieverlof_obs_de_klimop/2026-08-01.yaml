@@ -1,0 +1,171 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.9/schema/v0.8.9/schema.json
+$id: fictief_beleid_vakantieverlof_obs_de_klimop
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-07-01'
+valid_from: '2026-08-01'
+url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+name: Vakantieverlof bij OBS De Klimop (fictief beleid)
+competent_authority:
+  name: Het hoofd van OBS De Klimop
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering.
+    url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+    machine_readable:
+      execution:
+        input:
+          - name: begin_schooljaar
+            type: date
+            source:
+              regulation: fictief_beleid_schooljaargrenzen_obs_de_klimop
+              parameters:
+                datum: $eerste_verlofdag
+          - name: einde_schooljaar
+            type: date
+            source:
+              regulation: fictief_beleid_schooljaargrenzen_obs_de_klimop
+              parameters:
+                datum: $eerste_verlofdag
+        output:
+          - name: begin_schooljaar_van_verlof
+            type: date
+          - name: einde_schooljaar_van_verlof
+            type: date
+        actions:
+          - output: begin_schooljaar_van_verlof
+            value: $begin_schooljaar
+          - output: einde_schooljaar_van_verlof
+            value: $einde_schooljaar
+  - number: '2'
+    text: >-
+      FICTIEF, eigen keuze in de modellering.
+    url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+    machine_readable:
+      open_terms:
+        - id: verlof_al_verleend_in_schooljaar_volgens_hoofd
+          type: boolean
+          decided_per_case_by: het hoofd van OBS De Klimop
+      implements:
+        - law: leerplichtwet_1969
+          article: 13a
+          open_term: verlof_al_verleend_in_schooljaar
+      execution:
+        parameters:
+          - name: bsn_jongere
+            type: string
+          - name: eerste_verlofdag
+            type: date
+        input:
+          - name: antwoord_verlof_al_verleend
+            type: boolean
+            nullable: true
+            source:
+              reduction: verlof_al_verleend_in_schooljaar
+              parameters:
+                bsn_jongere: $bsn_jongere
+                eerste_verlofdag: $eerste_verlofdag
+        actions:
+          - output: verlof_al_verleend_in_schooljaar
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $antwoord_verlof_al_verleend
+                    value: null
+                  then: $verlof_al_verleend_in_schooljaar_volgens_hoofd
+              default: $antwoord_verlof_al_verleend
+  - number: '3'
+    text: >-
+      FICTIEF, eigen keuze in de modellering.
+    url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel11
+    machine_readable:
+      open_terms:
+        - id: verlof_valt_buiten_schoolvakanties_volgens_hoofd
+          type: boolean
+          decided_per_case_by: het hoofd van OBS De Klimop
+      implements:
+        - law: leerplichtwet_1969
+          article: 13a
+          open_term: verlof_valt_buiten_schoolvakanties
+      execution:
+        parameters:
+          - name: eerste_verlofdag
+            type: date
+          - name: laatste_verlofdag
+            type: date
+        input:
+          - name: antwoord_buiten_schoolvakanties
+            type: boolean
+            nullable: true
+            source:
+              reduction: verlof_valt_buiten_schoolvakanties
+              parameters:
+                eerste_verlofdag: $eerste_verlofdag
+                laatste_verlofdag: $laatste_verlofdag
+        actions:
+          - output: verlof_valt_buiten_schoolvakanties
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $antwoord_buiten_schoolvakanties
+                    value: null
+                  then: $verlof_valt_buiten_schoolvakanties_volgens_hoofd
+              default: $antwoord_buiten_schoolvakanties
+  - number: '4'
+    text: >-
+      FICTIEF, eigen keuze in de modellering.
+    url: https://wetten.overheid.nl/BWBR0049811/2025-08-01#Artikel2
+    machine_readable:
+      implements:
+        - law: regeling_vaststelling_schoolvakanties_20252030
+          article: '2'
+          open_term: gemeente_van_vestiging
+      execution:
+        parameters:
+          - name: eerste_verlofdag
+            type: date
+          - name: laatste_verlofdag
+            type: date
+        input:
+          - name: antwoord_gemeente
+            type: string
+            nullable: true
+            source:
+              reduction: gemeente_van_vestiging
+              parameters:
+                eerste_verlofdag: $eerste_verlofdag
+                laatste_verlofdag: $laatste_verlofdag
+        actions:
+          - output: gemeente_van_vestiging
+            value: $antwoord_gemeente
+  - number: '5'
+    text: >-
+      FICTIEF, eigen keuze in de modellering.
+    url: https://wetten.overheid.nl/BWBR0049811/2025-08-01#Artikel2
+    machine_readable:
+      implements:
+        - law: regeling_vaststelling_schoolvakanties_20252030
+          article: '2'
+          open_term: provincie_van_vestiging
+      execution:
+        parameters:
+          - name: eerste_verlofdag
+            type: date
+          - name: laatste_verlofdag
+            type: date
+        input:
+          - name: antwoord_provincie
+            type: string
+            source:
+              reduction: provincie_van_vestiging
+              parameters:
+                eerste_verlofdag: $eerste_verlofdag
+                laatste_verlofdag: $laatste_verlofdag
+        actions:
+          - output: provincie_van_vestiging
+            value: $antwoord_provincie

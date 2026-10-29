@@ -20,7 +20,7 @@ fn collect_feature_paths(
     root: &Path,
     bucket: Bucket,
 ) -> Result<Vec<std::path::PathBuf>, DiscoveryError> {
-    discovery::collect_feature_paths(root, &root.join("corpus/regulation"), bucket)
+    discovery::collect_feature_paths(root, &[root.join("corpus/regulation")], bucket)
 }
 
 /// Minimal stand-in for the repository layout: one bucket-A scenario next to a
@@ -140,11 +140,43 @@ fn bucket_a_follows_a_corpus_outside_the_root() {
 
     let features = discovery::collect_feature_paths(
         tmp.path(),
-        &tmp.path().join("corpus/demo/regulation"),
+        &[tmp.path().join("corpus/demo/regulation")],
         Bucket::Corpus,
     )
     .unwrap();
 
     assert_eq!(features.len(), 1);
     assert!(features[0].ends_with("scenarios/demo.feature"));
+}
+
+#[test]
+fn bucket_a_reads_several_corpora_as_one() {
+    // The chronolexografie PoC keeps its regulation in several directories,
+    // and not every one of them has scenarios.
+    let tmp = tempfile::tempdir().unwrap();
+    write_repo(tmp.path());
+    let without_scenarios = tmp.path().join("eigen/regulation/nl/wet/zonder_scenarios");
+    fs::create_dir_all(&without_scenarios).unwrap();
+    fs::write(without_scenarios.join("2025-01-01.yaml"), "").unwrap();
+
+    let features = discovery::collect_feature_paths(
+        tmp.path(),
+        &[
+            tmp.path().join("corpus/regulation"),
+            tmp.path().join("eigen/regulation"),
+        ],
+        Bucket::Corpus,
+    )
+    .unwrap();
+    assert_eq!(features.len(), 1);
+    assert!(features[0].ends_with("scenarios/uitkering.feature"));
+
+    // A corpus without a scenario on its own is an error.
+    let err = discovery::collect_feature_paths(
+        tmp.path(),
+        &[tmp.path().join("eigen/regulation")],
+        Bucket::Corpus,
+    )
+    .expect_err("no corpus has a scenario");
+    assert!(matches!(err, DiscoveryError::Empty { .. }), "{err}");
 }

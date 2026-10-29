@@ -177,38 +177,18 @@ pocs:
       zij zo veel mogelijk af uit de wet.
     soort: statisch
     bron: poc-chronolexografie
-    # De bundel die de app in de browser draait: de casussen, en per casus de
-    # regelwerken die haar cel draait en de cellen zelf, met hun reducties.
-    # Volgt uit de casussen en de wet; de test
-    # the_register_lists_what_every_case_needs in
-    # packages/poc-chronolexografie/src/bundel.rs houdt deze lijst gelijk.
+    # De bundel die de app in de browser draait: het eigen corpus van de
+    # poc, met de casussen, de regelwerken die hun cellen draaien en de
+    # cellen zelf, met hun reducties. Daarin staan kopieën van de wetten die
+    # de casussen draaien, zodat werk aan de poc het regelrecht-corpus niet
+    # raakt. De test every_directory_of_the_corpus_is_one_a_case_needs in
+    # packages/poc-chronolexografie/src/bundel.rs houdt dat er niets in staat
+    # wat geen casus nodig heeft.
     corpus:
-      - corpus/cells/gemeente_wilgendaal
-      - corpus/cells/ggd_wilgendaal
-      - corpus/cells/kamer_van_koophandel
-      - corpus/cells/obs_de_klimop
-      - corpus/cells/rechtbank_wilgendaal
-      - corpus/cells/reductions/reductie_algemene_wet_bestuursrecht
-      - corpus/regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
-      - corpus/regulation/nl/gemeentelijke_verordening/wilgendaal/parkeerverordening_gemeente_wilgendaal
-      - corpus/regulation/nl/gemeentelijke_verordening/wilgendaal/uitvoeringsbesluit_parkeren_gemeente_wilgendaal
-      - corpus/regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart
-      - corpus/regulation/nl/ministeriele_regeling/regeling_vaststelling_schoolvakanties_20252030
-      - corpus/regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal
-      - corpus/regulation/nl/uitvoeringsbeleid/beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
-      - corpus/regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_ggd_wilgendaal
-      - corpus/regulation/nl/uitvoeringsbeleid/beleid_handelsregister_kamer_van_koophandel
-      - corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaar_obs_de_klimop
-      - corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaargrenzen_obs_de_klimop
-      - corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantierooster_obs_de_klimop
-      - corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantieverlof_obs_de_klimop
-      - corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vestiging_obs_de_klimop
-      - corpus/regulation/nl/wet/algemene_wet_bestuursrecht
-      - corpus/regulation/nl/wet/leerplichtwet_1969
-      - packages/poc-chronolexografie/casussen
+      - packages/poc-chronolexografie/corpus
     # De NAPP-casus staat met haar regelingen, de Awb incluis, en cel in
     # deze bron, niet in deze repository; zij draait alleen op de bron, niet
-    # op het regelrecht-corpus hierboven (src/bundel.rs, met_bronnen).
+    # op het corpus hierboven (src/bundel.rs, met_bronnen).
     sources:
       - name: napp
         github:

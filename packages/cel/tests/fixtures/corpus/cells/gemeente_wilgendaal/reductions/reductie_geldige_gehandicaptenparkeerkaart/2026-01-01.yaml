@@ -1,0 +1,116 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$id: reductie_geldige_gehandicaptenparkeerkaart
+regulatory_layer: REDUCTIE
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+name: Geldige gehandicaptenparkeerkaart bij de gemeente Wilgendaal (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+          - name: besluit_datum
+            type: date
+        input:
+          - name: geldende_besluiten
+            type: array
+            source:
+              regulation: reductie_algemene_wet_bestuursrecht
+              parameters:
+                basis: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
+        output:
+          - name: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+            type: boolean
+            nullable: true
+        actions:
+          - output: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: FOREACH
+                    collection: $geldende_besluiten
+                    as: besluit
+                    filter:
+                      operation: AND
+                      conditions:
+                        - operation: EQUALS
+                          subject: $besluit.bsn_aanvrager
+                          value: $bsn_aanvrager
+                        - operation: NOT
+                          value:
+                            operation: EQUALS
+                            subject: $besluit.kaart_geldig_tot
+                            value: null
+                        - operation: GREATER_THAN_OR_EQUAL
+                          subject:
+                            operation: DATE_DIFF
+                            from: $besluit_datum
+                            to: $besluit.kaart_geldig_tot
+                            in: days
+                          value: 0
+                    body: true
+                    combine: OR
+                  then: true
+                - when:
+                    operation: FOREACH
+                    collection: $geldende_besluiten
+                    as: besluit
+                    filter:
+                      operation: AND
+                      conditions:
+                        - operation: EQUALS
+                          subject: $besluit.gehandicaptenparkeerkaart_verstrekt
+                          value: true
+                        - operation: EQUALS
+                          subject: $besluit.kaart_geldig_tot
+                          value: null
+                    body: true
+                    combine: OR
+                  then: null
+              default: false
+  - number: '2'
+    text: >-
+      Geen regelgeving.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel2
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+        input:
+          - name: geldende_besluiten
+            type: array
+            source:
+              regulation: reductie_algemene_wet_bestuursrecht
+              parameters:
+                basis: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
+        output:
+          - name: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
+            type: boolean
+            nullable: true
+        actions:
+          - output: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: FOREACH
+                    collection: $geldende_besluiten
+                    as: besluit
+                    filter:
+                      operation: AND
+                      conditions:
+                        - operation: EQUALS
+                          subject: $besluit.gehandicaptenparkeerkaart_verstrekt
+                          value: true
+                    body: true
+                    combine: OR
+                  then: true

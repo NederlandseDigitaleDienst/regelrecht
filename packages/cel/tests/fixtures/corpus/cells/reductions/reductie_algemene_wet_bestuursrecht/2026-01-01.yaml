@@ -1,0 +1,175 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$id: reductie_algemene_wet_bestuursrecht
+regulatory_layer: REDUCTIE
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
+name: Besluiten die nog gelden, naar de Algemene wet bestuursrecht (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
+    machine_readable:
+      execution:
+        parameters:
+          - name: basis
+            type: string
+        input:
+          - name: besluiten
+            type: array
+            source:
+              decisions: $basis
+          - name: beslissingen_op_bezwaar
+            type: array
+            source:
+              decisions: algemene_wet_bestuursrecht#7:11
+          - name: uitspraken
+            type: array
+            source:
+              facts: algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak
+        output:
+          - name: beslissingen_herroepen_bij_uitspraak
+            type: array
+          - name: herroepen_besluiten
+            type: array
+          - name: besluiten_in_stand
+            type: array
+        actions:
+          - output: vernietigde_besluiten
+            value:
+              operation: FOREACH
+              collection: $uitspraken
+              as: uitspraak
+              filter:
+                operation: EQUALS
+                subject: $uitspraak.rechtsgevolgen_vernietigd
+                value: true
+              body: $uitspraak.refers_to
+          - output: besluiten_van_vernietigde_beslissingen
+            value:
+              operation: FOREACH
+              collection: $beslissingen_op_bezwaar
+              as: beslissing
+              filter:
+                operation: IN
+                subject: $beslissing.id
+                value: $vernietigde_besluiten
+              body: $beslissing.nieuw_besluit
+          - output: beslissingen_herroepen_bij_uitspraak
+            value:
+              operation: FOREACH
+              collection: $uitspraken
+              as: uitspraak
+              filter:
+                operation: AND
+                conditions:
+                  - operation: EQUALS
+                    subject: $uitspraak.uitspraak_in_de_plaats.basis
+                    value: algemene_wet_bestuursrecht#7:11
+                  - operation: EQUALS
+                    subject: $uitspraak.uitspraak_in_de_plaats.bestreden_besluit_herroepen
+                    value: true
+              body: $uitspraak.refers_to
+          - output: herroepen_besluiten
+            value:
+              operation: FOREACH
+              collection: $beslissingen_op_bezwaar
+              as: beslissing
+              filter:
+                operation: OR
+                conditions:
+                  - operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $beslissing.bestreden_besluit_herroepen
+                        value: true
+                      - operation: NOT
+                        value:
+                          operation: IN
+                          subject: $beslissing.id
+                          value: $vernietigde_besluiten
+                  - operation: IN
+                    subject: $beslissing.id
+                    value: $beslissingen_herroepen_bij_uitspraak
+              body: $beslissing.bestreden_besluit
+          - output: besluiten_in_stand
+            value:
+              operation: FOREACH
+              collection: $besluiten
+              as: besluit
+              filter:
+                operation: AND
+                conditions:
+                  - operation: NOT
+                    value:
+                      operation: IN
+                      subject: $besluit.id
+                      value: $herroepen_besluiten
+                  - operation: NOT
+                    value:
+                      operation: IN
+                      subject: $besluit.id
+                      value: $vernietigde_besluiten
+                  - operation: NOT
+                    value:
+                      operation: IN
+                      subject: $besluit.id
+                      value: $besluiten_van_vernietigde_beslissingen
+              body: $besluit
+  - number: '2'
+    text: >-
+      Geen regelgeving.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
+    machine_readable:
+      execution:
+        input:
+          - name: uitspraken
+            type: array
+            source:
+              facts: algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak
+          - name: besluiten_in_stand
+            type: array
+            source:
+              output: besluiten_in_stand
+        output:
+          - name: besluiten_in_de_plaats
+            type: array
+          - name: geldende_besluiten
+            type: array
+        actions:
+          - output: besluiten_in_de_plaats
+            value:
+              operation: FOREACH
+              collection: $uitspraken
+              as: uitspraak
+              filter:
+                operation: OR
+                conditions:
+                  - operation: EQUALS
+                    subject: $uitspraak.uitspraak_in_de_plaats.basis
+                    value: $basis
+                  - operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $uitspraak.uitspraak_in_de_plaats.basis
+                        value: algemene_wet_bestuursrecht#7:11
+                      - operation: EQUALS
+                        subject: $uitspraak.uitspraak_in_de_plaats.nieuw_besluit.basis
+                        value: $basis
+              body:
+                operation: IF
+                cases:
+                  - when:
+                      operation: EQUALS
+                      subject: $uitspraak.uitspraak_in_de_plaats.basis
+                      value: $basis
+                    then: $uitspraak.uitspraak_in_de_plaats
+                default: $uitspraak.uitspraak_in_de_plaats.nieuw_besluit
+          - output: geldende_besluiten
+            value:
+              operation: ADD
+              values:
+                - $besluiten_in_stand
+                - $besluiten_in_de_plaats

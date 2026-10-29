@@ -1,0 +1,1247 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.10/schema/v0.8.10/schema.json
+$id: algemene_wet_bestuursrecht
+regulatory_layer: WET
+publication_date: '2026-01-01'
+valid_from: '1994-01-01'
+name: Algemene wet bestuursrecht
+bwb_id: BWBR0005537
+url: https://wetten.overheid.nl/BWBR0005537/2024-01-01
+
+procedure:
+  - id: beschikking
+    default: true
+    applies_to:
+      legal_character: BESCHIKKING
+    stages:
+      - name: AANVRAAG
+        description: Belanghebbende dient aanvraag in (AWB 4:1)
+        requires:
+          - name: aanvraag_datum
+            type: date
+
+      - name: BEHANDELING
+        description: Bestuursorgaan onderzoekt de aanvraag (AWB 3:2)
+        requires:
+          - name: beslistermijn_start
+            type: date
+
+      - name: BESLUIT
+        description: Bestuursorgaan neemt besluit (AWB 1:3)
+        requires:
+          - name: besluit_datum
+            type: date
+
+      - name: BEKENDMAKING
+        description: Besluit wordt bekendgemaakt (AWB 3:41)
+        requires:
+          - name: bekendmaking_datum
+            type: date
+
+      - name: BEZWAAR
+        description: Bezwaarperiode (AWB 6:4 e.v.)
+
+  - id: beroep
+    # De uitspraak van de bestuursrechter is geen besluit: een orgaan dat met
+    # rechtspraak is belast, is geen bestuursorgaan (artikel 1:1, tweede lid,
+    # onder c). Het beroep volgt daarom een eigen procedure.
+    default: true
+    applies_to:
+      legal_character: UITSPRAAK
+    stages:
+      - name: BEROEP
+        description: Belanghebbende stelt beroep in bij de bestuursrechter (AWB 6:4 lid 3, 8:1)
+
+      - name: UITSPRAAK
+        description: De bestuursrechter doet uitspraak (AWB 8:66, 8:70)
+        requires:
+          - name: uitspraak_datum
+            type: date
+
+      - name: TOEZENDING
+        description: De griffier stelt een afschrift van de uitspraak ter beschikking van partijen (AWB 8:79)
+        requires:
+          - name: toezending_datum
+            type: date
+
+articles:
+  - number: '3:46'
+    text: |-
+      Een besluit dient te berusten op een deugdelijke motivering.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel3:46
+    machine_readable:
+      hooks:
+        - hook_point: pre_actions
+          applies_to:
+            legal_character: BESCHIKKING
+            stage: BESLUIT
+      execution:
+        output:
+          - name: motivering_vereist
+            type: boolean
+        actions:
+          - output: motivering_vereist
+            value: true
+
+  - number: '4:2'
+    text: |-
+      1. De aanvraag wordt ondertekend en bevat ten minste:
+      a. de naam en het adres van de aanvrager;
+      b. de dagtekening;
+      c. een aanduiding van de beschikking die wordt gevraagd.
+      2. De aanvrager verschaft voorts de gegevens en bescheiden die voor de
+      beslissing op de aanvraag nodig zijn en waarover hij redelijkerwijs de
+      beschikking kan krijgen.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel4:2
+    machine_readable:
+      # Lid 1: wat elke aanvraag ten minste bevat. Het artikel haakt op elke
+      # aanvraag (RFC-045). Afdeling 4.1.1 gaat over de aanvraag om een
+      # beschikking; dat onderscheid kent een haak nog niet, dus een aanvraag
+      # om een ander besluit krijgt dit artikel nu ook. Lid 2 hangt af van de
+      # beslissing op de aanvraag en is niet gemodelleerd.
+      hooks:
+        - hook_point: pre_actions
+          applies_to:
+            submission: AANVRAAG
+      execution:
+        parameters:
+          - name: aanvraag_ondertekend
+            type: boolean
+            nullable: true
+            required: false
+            description: Of de aanvraag is ondertekend (lid 1, aanhef).
+          - name: naam_aanvrager
+            type: string
+            nullable: true
+            required: false
+            description: De naam van de aanvrager (lid 1, onder a).
+          - name: adres_aanvrager
+            type: string
+            nullable: true
+            required: false
+            description: Het adres van de aanvrager (lid 1, onder a).
+          - name: dagtekening
+            type: date
+            nullable: true
+            required: false
+            description: De dagtekening van de aanvraag (lid 1, onder b).
+          # Kan later volgen uit `requests` van het aanvraag-item (RFC-047).
+          - name: gevraagde_beschikking
+            type: string
+            nullable: true
+            required: false
+            description: Een aanduiding van de beschikking die wordt gevraagd (lid 1, onder c).
+        output:
+          - name: aanvraag_bevat_wat_artikel_4_2_eist
+            type: boolean
+            description: Of de aanvraag is ondertekend en ten minste de gegevens van lid 1 bevat.
+        actions:
+          - output: aanvraag_bevat_wat_artikel_4_2_eist
+            value:
+              operation: AND
+              conditions:
+                - operation: EQUALS
+                  subject: $aanvraag_ondertekend
+                  value: true
+                - operation: NOT
+                  value: {operation: EQUALS, subject: $naam_aanvrager, value: null}
+                - operation: NOT
+                  value: {operation: EQUALS, subject: $adres_aanvrager, value: null}
+                - operation: NOT
+                  value: {operation: EQUALS, subject: $dagtekening, value: null}
+                - operation: NOT
+                  value: {operation: EQUALS, subject: $gevraagde_beschikking, value: null}
+
+  - number: '4:13'
+    text: |-
+      1. Een beschikking dient te worden gegeven binnen de bij wettelijk
+      voorschrift bepaalde termijn of, bij het ontbreken van zulk een termijn,
+      binnen een redelijke termijn na ontvangst van de aanvraag.
+      2. De in het eerste lid bedoelde redelijke termijn is in ieder geval
+      verstreken wanneer het bestuursorgaan binnen acht weken na ontvangst van
+      de aanvraag geen beschikking heeft gegeven, noch een mededeling als
+      bedoeld in artikel 4:14, derde lid, heeft gedaan.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel4:13
+    machine_readable:
+      # Lid 1: de beslistermijn loopt vanaf de ontvangst van de aanvraag; dat is
+      # het moment dat voor de aanvraag rechtens telt.
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            submission: AANVRAAG
+      execution:
+        produces:
+          moment:
+            parameter: datum_ontvangst
+            legal_basis:
+              law: Algemene wet bestuursrecht
+              bwb_id: BWBR0005537
+              article: '4:13'
+              paragraph: '1'
+              url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel4:13
+              juriconnect: jci1.3:c:BWBR0005537&artikel=4:13&lid=1&z=2024-01-01&g=2024-01-01
+        parameters:
+          - name: datum_ontvangst
+            type: date
+            required: false
+            description: De dag waarop het bestuursorgaan de aanvraag ontving (lid 1).
+        output:
+          - name: redelijke_beslistermijn_einddatum
+            type: date
+            description: >-
+              De laatste dag van de redelijke termijn van lid 1 voor zover lid 2
+              die begrenst: acht weken na ontvangst. De dag erna is de termijn
+              in ieder geval verstreken.
+        actions:
+          # Lid 2, voor een aanvraag waarvoor geen wettelijk voorschrift een
+          # beslistermijn bepaalt (lid 1). Een wet met een eigen termijn gaat
+          # voor; daarvoor is geen haak nodig maar een override. Een mededeling
+          # als bedoeld in artikel 4:14, derde lid, is niet gemodelleerd.
+          # Telling als bij artikel 6:8: de dag van ontvangst telt niet mee.
+          # Verlenging door de Algemene termijnenwet (weekend, feestdag) is
+          # niet gemodelleerd.
+          - output: redelijke_beslistermijn_einddatum
+            value:
+              operation: DATE_ADD
+              date: $datum_ontvangst
+              weeks: 8
+
+  - number: '6:4'
+    text: |-
+      1. Het maken van bezwaar geschiedt door het indienen van een
+      bezwaarschrift bij het bestuursorgaan dat het besluit heeft genomen.
+      2. Het instellen van administratief beroep geschiedt door het indienen
+      van een beroepschrift bij het beroepsorgaan.
+      3. Het instellen van beroep bij een bestuursrechter geschiedt door het
+      indienen van een beroepschrift bij die rechter.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel6:4
+    # Niet uitvoerbaar gemaakt. Lid 1 zegt bij wie het bezwaarschrift wordt
+    # ingediend, zoals artikel 4:1 dat voor de aanvraag zegt. Het bezwaar zelf
+    # ontstaat bij het artikel dat erop beslist (7:11), zoals de aanvraag om
+    # vakantieverlof bij artikel 13a van de Leerplichtwet 1969 (RFC-050). Zo
+    # ontstaat het beroep bij de bestuursrechter (lid 3) bij artikel 8:70.
+    # Lid 2 (administratief beroep) is niet gemodelleerd.
+
+  - number: '6:5'
+    text: |-
+      1. Het bezwaar- of beroepschrift wordt ondertekend en bevat ten minste:
+      a. de naam en het adres van de indiener;
+      b. de dagtekening;
+      c. een omschrijving van het besluit waartegen het bezwaar of beroep is
+      gericht;
+      d. de gronden van het bezwaar of beroep.
+      2. Bij het beroepschrift wordt zo mogelijk een afschrift van het besluit
+      waarop het geschil betrekking heeft, overgelegd.
+      3. Indien het bezwaar- of beroepschrift in een vreemde taal is gesteld en
+      een vertaling voor een goede behandeling van het bezwaar of beroep
+      noodzakelijk is, dient de indiener zorg te dragen voor een vertaling.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel6:5
+    machine_readable:
+      # Lid 1, voor het bezwaarschrift en voor het beroepschrift bij de
+      # bestuursrechter: het artikel haakt op elk bezwaar en elk beroep. Lid 2
+      # ("zo mogelijk" een afschrift van het besluit) stelt geen eis, en de
+      # vertaling (lid 3) is niet gemodelleerd. Wat volgt als het bezwaar- of
+      # beroepschrift niet voldoet, regelt artikel 6:6; dat is niet
+      # gemodelleerd.
+      hooks:
+        - hook_point: pre_actions
+          applies_to:
+            submission: BEZWAAR
+        - hook_point: pre_actions
+          applies_to:
+            submission: BEROEP
+      execution:
+        parameters:
+          - name: bezwaar_of_beroepschrift_ondertekend
+            type: boolean
+            nullable: true
+            required: false
+            description: Of het bezwaar- of beroepschrift is ondertekend (lid 1, aanhef).
+          - name: naam_indiener
+            type: string
+            nullable: true
+            required: false
+            description: De naam van de indiener (lid 1, onder a).
+          - name: adres_indiener
+            type: string
+            nullable: true
+            required: false
+            description: Het adres van de indiener (lid 1, onder a).
+          - name: dagtekening_bezwaar_of_beroepschrift
+            type: date
+            nullable: true
+            required: false
+            description: De dagtekening van het bezwaar- of beroepschrift (lid 1, onder b).
+          - name: omschrijving_bestreden_besluit
+            type: string
+            nullable: true
+            required: false
+            description: Een omschrijving van het besluit waartegen het bezwaar of beroep is gericht (lid 1, onder c).
+          - name: gronden_bezwaar_of_beroep
+            type: string
+            nullable: true
+            required: false
+            description: De gronden van het bezwaar of beroep (lid 1, onder d).
+        output:
+          - name: bezwaar_of_beroepschrift_bevat_wat_artikel_6_5_eist
+            type: boolean
+            description: Of het bezwaar- of beroepschrift is ondertekend en ten minste de gegevens van lid 1 bevat.
+        actions:
+          - output: bezwaar_of_beroepschrift_bevat_wat_artikel_6_5_eist
+            value:
+              operation: AND
+              conditions:
+                - operation: EQUALS
+                  subject: $bezwaar_of_beroepschrift_ondertekend
+                  value: true
+                - operation: NOT
+                  value: {operation: EQUALS, subject: $naam_indiener, value: null}
+                - operation: NOT
+                  value: {operation: EQUALS, subject: $adres_indiener, value: null}
+                - operation: NOT
+                  value: {operation: EQUALS, subject: $dagtekening_bezwaar_of_beroepschrift, value: null}
+                - operation: NOT
+                  value: {operation: EQUALS, subject: $omschrijving_bestreden_besluit, value: null}
+                - operation: NOT
+                  value: {operation: EQUALS, subject: $gronden_bezwaar_of_beroep, value: null}
+
+  - number: '6:7'
+    text: |-
+      De termijn voor het indienen van een bezwaar- of
+      beroepschrift bedraagt zes weken.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel6:7
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            legal_character: BESCHIKKING
+            stage: BESLUIT
+      execution:
+        output:
+          - name: termijn_weken
+            type: number
+        actions:
+          - output: termijn_weken
+            value: 6
+
+  - number: '6:8'
+    text: |-
+      1. De termijn vangt aan met ingang van de dag na die
+      waarop het besluit op de voorgeschreven wijze is
+      bekendgemaakt.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel6:8
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            legal_character: BESCHIKKING
+            stage: BEKENDMAKING
+      execution:
+        parameters:
+          - name: bekendmaking_datum
+            type: date
+            required: true
+            description: Datum waarop het besluit is bekendgemaakt
+        input:
+          - name: termijn_weken
+            type: number
+            source:
+              regulation: algemene_wet_bestuursrecht
+              output: termijn_weken
+        output:
+          - name: termijn_startdatum
+            type: date
+          - name: termijn_einddatum
+            type: date
+        actions:
+          # "met ingang van de dag na die waarop het besluit is bekendgemaakt"
+          # startdatum = bekendmaking + 1 dag (dies a quo: bekendmakingsdatum telt niet mee)
+          - output: termijn_startdatum
+            value:
+              operation: DATE_ADD
+              date: $bekendmaking_datum
+              days: 1
+          # einddatum = bekendmaking + termijn (NIET startdatum + termijn).
+          # De startdatum is dag 1 van de termijn (inclusief), dus 6 weken
+          # = 42 dagen gerekend vanaf startdatum = dag 42 = bekendmaking + 42.
+          # startdatum + 6 weken zou dag 43 geven — één dag te veel.
+          - output: termijn_einddatum
+            value:
+              operation: DATE_ADD
+              date: $bekendmaking_datum
+              weeks: $termijn_weken
+
+  - number: '6:9'
+    text: |-
+      1. Een bezwaar- of beroepschrift is tijdig ingediend indien het voor het
+      einde van de termijn is ontvangen.
+      2. Bij verzending per post is een bezwaar- of beroepschrift tijdig
+      ingediend indien het voor het einde van de termijn ter post is bezorgd,
+      mits het niet later dan een week na afloop van de termijn is ontvangen.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel6:9
+    machine_readable:
+      # Lid 1: of het bezwaar- of beroepschrift op tijd is, hangt af van de
+      # ontvangst. Dat is het moment dat voor het bezwaar of beroep rechtens
+      # telt. Lid 2 (verzending per post) is niet gemodelleerd. Een te laat
+      # bezwaar- of beroepschrift blijft een bezwaar- of beroepschrift;
+      # artikel 6:11 (verschoonbare termijnoverschrijding) is niet
+      # gemodelleerd.
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            submission: BEZWAAR
+        - hook_point: post_actions
+          applies_to:
+            submission: BEROEP
+      execution:
+        produces:
+          moment:
+            parameter: datum_ontvangst_bezwaar_of_beroepschrift
+            legal_basis:
+              law: Algemene wet bestuursrecht
+              bwb_id: BWBR0005537
+              article: '6:9'
+              paragraph: '1'
+              url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel6:9
+              juriconnect: jci1.3:c:BWBR0005537&artikel=6:9&lid=1&z=2024-01-01&g=2024-01-01
+        parameters:
+          - name: datum_ontvangst_bezwaar_of_beroepschrift
+            type: date
+            required: false
+            description: >-
+              De dag waarop het bestuursorgaan het bezwaarschrift of de
+              bestuursrechter het beroepschrift ontving (lid 1).
+          - name: termijn_einddatum
+            type: date
+            required: false
+            description: >-
+              De laatste dag van de termijn voor het indienen van het bezwaar-
+              of beroepschrift (artikelen 6:7 en 6:8).
+        output:
+          - name: bezwaar_of_beroepschrift_tijdig_ingediend
+            type: boolean
+            description: Of het bezwaar- of beroepschrift voor het einde van de termijn is ontvangen (lid 1).
+        actions:
+          # "voor het einde van de termijn": uiterlijk op de laatste dag.
+          - output: bezwaar_of_beroepschrift_tijdig_ingediend
+            value:
+              operation: GREATER_THAN_OR_EQUAL
+              subject:
+                operation: DATE_DIFF
+                from: $datum_ontvangst_bezwaar_of_beroepschrift
+                to: $termijn_einddatum
+                in: days
+              value: 0
+
+  - number: '7:1'
+    text: |-
+      1. Degene aan wie het recht is toegekend beroep bij een bestuursrechter in
+      te stellen, dient alvorens beroep in te stellen bezwaar te maken, tenzij:
+      a. het besluit op bezwaar of in administratief beroep is genomen,
+      b. het besluit aan goedkeuring is onderworpen,
+      c. het besluit een goedkeuring of een weigering daarvan inhoudt,
+      d. het besluit is voorbereid met toepassing van afdeling 3.4,
+      e. het besluit is genomen op basis van een uitspraak waarin de
+      bestuursrechter met toepassing van artikel 8:72, vierde lid, onderdeel a,
+      heeft bepaald dat afdeling 3.4 geheel of gedeeltelijk buiten toepassing
+      blijft,
+      f. het beroep zich richt tegen het niet tijdig nemen van een besluit,
+      g. het besluit is genomen op grond van een voorschrift als genoemd in de
+      bij deze wet behorende Regeling rechtstreeks beroep dan wel het besluit
+      anderszins in die regeling is omschreven.
+      2. Tegen de beslissing op het bezwaar kan beroep worden ingesteld met
+      toepassing van de voorschriften die gelden voor het instellen van beroep
+      tegen het besluit waartegen bezwaar is gemaakt.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel7:1
+    # Niet apart uitvoerbaar. Lid 1, onder a, toetsen twee artikelen: 7:11
+    # (geen bezwaar tegen een besluit dat op bezwaar is genomen) en 8:70
+    # (beroep alleen tegen een besluit dat op bezwaar is genomen). Beide lezen
+    # taken_on van het bestreden besluit (RFC-050). Niet gemodelleerd zijn
+    # het besluit in administratief beroep (onder a) en de uitzonderingen
+    # onder b tot en met g: beroep zonder voorafgaand bezwaar is in dit
+    # corpus altijd niet-ontvankelijk.
+
+  - number: '7:2'
+    text: |-
+      1. Voordat een bestuursorgaan op het bezwaar beslist, stelt het
+      belanghebbenden in de gelegenheid te worden gehoord.
+      2. Het bestuursorgaan stelt daarvan in ieder geval de indiener van het
+      bezwaarschrift op de hoogte alsmede de belanghebbenden die bij de
+      voorbereiding van het besluit hun zienswijze naar voren hebben gebracht.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel7:2
+    # Niet gemodelleerd. Het horen is een handeling vóór de beslissing op het
+    # bezwaar, geen berekening.
+
+  - number: '7:10'
+    text: |-
+      1. Het bestuursorgaan beslist binnen zes weken of – indien een commissie
+      als bedoeld in artikel 7:13 is ingesteld – binnen twaalf weken, gerekend
+      vanaf de dag na die waarop de termijn voor het indienen van het
+      bezwaarschrift is verstreken.
+      2. De termijn wordt opgeschort gerekend vanaf de dag na die waarop de
+      indiener is verzocht een verzuim als bedoeld in artikel 6:6 te
+      herstellen, tot de dag waarop het verzuim is hersteld of de daarvoor
+      gestelde termijn ongebruikt is verstreken.
+      3. Het bestuursorgaan kan de beslissing voor ten hoogste zes weken
+      verdagen.
+      4. Verder uitstel is mogelijk voor zover:
+      a. alle belanghebbenden daarmee instemmen,
+      b. de indiener van het bezwaarschrift daarmee instemt en andere
+      belanghebbenden daardoor niet in hun belangen kunnen worden geschaad, of
+      c. dit nodig is in verband met de naleving van wettelijke
+      procedurevoorschriften.
+      5. Indien toepassing is gegeven aan het tweede, derde of vierde lid, doet
+      het bestuursorgaan hiervan schriftelijk mededeling aan belanghebbenden.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel7:10
+    machine_readable:
+      # Lid 1, zonder commissie als bedoeld in artikel 7:13. Opschorting (lid 2),
+      # verdaging (lid 3) en verder uitstel (lid 4) zijn niet gemodelleerd.
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            submission: BEZWAAR
+      execution:
+        parameters:
+          - name: termijn_einddatum
+            type: date
+            required: false
+            description: De laatste dag van de termijn voor het indienen van het bezwaarschrift (artikelen 6:7 en 6:8).
+        output:
+          - name: beslistermijn_bezwaar_einddatum
+            type: date
+            description: De laatste dag waarop het bestuursorgaan op het bezwaar beslist (lid 1).
+        actions:
+          # Telling als bij artikel 6:8: de dag na het verstrijken van de
+          # bezwaartermijn is de eerste dag, dus zes weken eindigen op de
+          # laatste dag van de bezwaartermijn plus zes weken.
+          - output: beslistermijn_bezwaar_einddatum
+            value:
+              operation: DATE_ADD
+              date: $termijn_einddatum
+              weeks: 6
+
+  - number: '7:11'
+    text: |-
+      1. Indien het bezwaar ontvankelijk is, vindt op grondslag daarvan een
+      heroverweging van het bestreden besluit plaats.
+      2. Voor zover de heroverweging daartoe aanleiding geeft, herroept het
+      bestuursorgaan het bestreden besluit en neemt het voor zover nodig in de
+      plaats daarvan een nieuw besluit.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel7:11
+    machine_readable:
+      # Lid 1: de heroverweging van het bestreden besluit is dat besluit
+      # opnieuw nemen, onder het artikel waarop het berust, met zijn gegevens
+      # en wat het bestuursorgaan bij de heroverweging opnieuw oordeelt. Lid 2:
+      # geeft dat een andere uitkomst, dan herroept het bestuursorgaan het
+      # besluit en neemt het in zijn plaats het besluit dat de heroverweging
+      # gaf (RFC-050).
+      execution:
+        # Lid 1: de heroverweging vindt plaats "op grondslag van" het bezwaar.
+        # Dit artikel brengt twee dingen voort, zoals artikel 13a van de
+        # Leerplichtwet 1969 de aanvraag en het besluit erop (RFC-047,
+        # RFC-050). Het bezwaar, waar de Awb op haakt (6:5, 6:9, 7:10), met
+        # het bestreden besluit. En de beslissing op het bezwaar, een besluit
+        # dat de procedure van de Awb volgt, met de uitvoer die daarbij hoort.
+        # Eigen keuze: de beslissing op bezwaar tegen een beschikking is zelf
+        # een beschikking. Bezwaar tegen een ander besluit is niet
+        # gemodelleerd.
+        produces:
+          - type: BEZWAAR
+            requests: algemene_wet_bestuursrecht#7:11
+            parameters:
+              - bestreden_besluit
+          - type: BESCHIKKING
+            outputs:
+              - bezwaar_ontvankelijk
+              - heroverweging_geeft_aanleiding
+              - bestreden_besluit_herroepen
+              - nieuw_besluit
+        parameters:
+          # Lid 1 en 2: "het bestreden besluit"; het bezwaarschrift omschrijft
+          # het (artikel 6:5, eerste lid, onder c). De indiener levert het
+          # niet als gegeven aan: het is een besluit dat het bestuursorgaan
+          # nam.
+          - name: bestreden_besluit
+            type: decision
+            description: Het besluit waartegen het bezwaar is gericht.
+          # Wat artikel 6:9 bij het bezwaarschrift geeft; de indiener levert
+          # het niet aan.
+          - name: bezwaar_of_beroepschrift_tijdig_ingediend
+            type: boolean
+            description: Of het bezwaarschrift tijdig is ingediend (artikel 6:9).
+        input:
+          # Lid 1: de heroverweging. Het bestreden besluit opnieuw genomen,
+          # op de dag van de beslissing op het bezwaar (ex nunc), met zijn
+          # eigen gegevens en bevindingen; wat het bestuursorgaan opnieuw
+          # vaststelt, geeft de uitvoering mee (RFC-050). Alleen gelezen als
+          # het bezwaar ontvankelijk is.
+          - name: heroverweging
+            type: decision
+            nullable: true
+            source:
+              article: $bestreden_besluit
+        output:
+          - name: bezwaar_ontvankelijk
+            type: boolean
+            description: >-
+              Of het bezwaar ontvankelijk is (lid 1). Getoetst zijn de termijn
+              (artikel 6:9) en dat het bestreden besluit niet op bezwaar onder
+              dit artikel is genomen (artikel 7:1, eerste lid, onder a): de
+              beslissing op bezwaar niet, en het nieuwe besluit dat zij in de
+              plaats van een herroepen besluit nam evenmin. De overige
+              vereisten en artikel 6:11 nog niet.
+          - name: heroverweging_geeft_aanleiding
+            type: boolean
+            nullable: true
+            description: >-
+              Of de heroverweging aanleiding geeft het bestreden besluit te
+              herroepen (lid 2). Leeg bij een niet-ontvankelijk bezwaar: dan
+              vindt geen heroverweging plaats (lid 1).
+          - name: bestreden_besluit_herroepen
+            type: boolean
+            description: Of het bestuursorgaan het bestreden besluit herroept (lid 2).
+          - name: nieuw_besluit
+            type: decision
+            nullable: true
+            description: >-
+              Het besluit dat het bestuursorgaan in de plaats van het
+              herroepen besluit neemt (lid 2).
+        actions:
+          # Eigen keuze: lid 1 zegt niet wanneer een bezwaar ontvankelijk is.
+          # Hier de termijn (artikel 6:9), en dat er geen bezwaar openstaat
+          # tegen een besluit dat op bezwaar is genomen: daartegen staat
+          # beroep open (artikel 7:1, eerste lid, onder a, dat niet is
+          # opgenomen). Dat is de beslissing op het bezwaar, en ook het nieuwe
+          # besluit dat zij in de plaats van een herroepen besluit nam: dat
+          # berust op het artikel van het herroepen besluit, maar is genomen
+          # op het bezwaar. Een besluitwaarde uit de kroniek noemt in
+          # taken_on het artikel van de indiening waarop het besluit is
+          # genomen (RFC-050). De overige vereisten (artikelen 1:2, 6:5 met
+          # 6:6) en artikel 6:11 nog niet.
+          - output: bezwaar_ontvankelijk
+            value:
+              operation: AND
+              conditions:
+                - $bezwaar_of_beroepschrift_tijdig_ingediend
+                - operation: NOT
+                  value:
+                    operation: EQUALS
+                    subject: $bestreden_besluit.taken_on
+                    value: algemene_wet_bestuursrecht#7:11
+          # Lid 2: "voor zover de heroverweging daartoe aanleiding geeft".
+          # Eigen keuze: aanleiding is er als de heroverweging een andere
+          # uitkomst geeft dan het bestreden besluit. Alleen wat het
+          # besluit-item van dat artikel als uitkomst noemt telt; gegevens die
+          # voor het besluit worden afgeleid niet (RFC-050). Elke uitkomst van
+          # dat besluit-item telt, niet alleen de beslissing zelf: geeft de
+          # heroverweging bij artikel 13a een ander aantal verlofdagen en
+          # weigert zij het verlof opnieuw, dan wordt de weigering herroepen
+          # en komt er een andere weigering voor in de plaats. Bij een
+          # niet-ontvankelijk bezwaar wordt de heroverweging niet gelezen.
+          - output: heroverweging_geeft_aanleiding
+            value:
+              operation: IF
+              cases:
+                - when: $bezwaar_ontvankelijk
+                  then:
+                    operation: NOT
+                    value:
+                      operation: EQUALS
+                      subject: $heroverweging.outputs
+                      value: $bestreden_besluit.outputs
+              default: null
+          - output: bestreden_besluit_herroepen
+            value:
+              operation: EQUALS
+              subject: $heroverweging_geeft_aanleiding
+              value: true
+          # Lid 2: "neemt het voor zover nodig in de plaats daarvan een nieuw
+          # besluit". Eigen keuze: dat is nodig zodra het besluit is
+          # herroepen, want de heroverweging gaf een andere uitkomst; het
+          # nieuwe besluit is wat de heroverweging gaf.
+          - output: nieuw_besluit
+            value:
+              operation: IF
+              cases:
+                - when: $bestreden_besluit_herroepen
+                  then: $heroverweging
+              default: null
+
+  - number: '7:12'
+    text: |-
+      1. De beslissing op het bezwaar dient te berusten op een deugdelijke
+      motivering, die bij de bekendmaking van de beslissing wordt vermeld.
+      Daarbij wordt, indien ingevolge artikel 7:3 van het horen is afgezien,
+      tevens aangegeven op welke grond dat is geschied.
+      2. De beslissing wordt bekendgemaakt door toezending of uitreiking aan
+      degenen tot wie zij is gericht. Betreft het een besluit dat niet tot een
+      of meer belanghebbenden is gericht, dan wordt de beslissing tevens
+      bekendgemaakt op dezelfde wijze als waarop dat besluit bekendgemaakt is,
+      tenzij het bestreden besluit in stand wordt gelaten.
+      3. Zo spoedig mogelijk na de bekendmaking van de beslissing wordt hiervan
+      mededeling gedaan aan de belanghebbenden die in bezwaar of bij de
+      voorbereiding van het bestreden besluit hun zienswijze naar voren hebben
+      gebracht.
+      4. Bij de mededeling, bedoeld in het derde lid, is artikel 6:23 van
+      overeenkomstige toepassing en wordt met het oog op de aanvang van de
+      beroepstermijn zo duidelijk mogelijk aangegeven wanneer de bekendmaking
+      van de beslissing overeenkomstig het tweede lid heeft plaatsgevonden.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel7:12
+    # Niet apart gemodelleerd. De beslissing op het bezwaar is een beschikking
+    # (zie 7:11), dus artikel 3:46 haakt er al op en geeft motivering_vereist.
+    # Lid 2 tot en met 4 (bekendmaking en mededeling) zijn niet gemodelleerd.
+
+  - number: '8:1'
+    text: |-
+      Een belanghebbende kan tegen een besluit beroep instellen bij de
+      bestuursrechter.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:1
+    # Niet apart uitvoerbaar. "Tegen een besluit": het bestreden besluit is
+    # een besluitwaarde (type decision) van artikel 8:70. Of de indiener
+    # belanghebbende is (artikel 1:2, eerste lid: "degene wiens belang
+    # rechtstreeks bij een besluit is betrokken"), oordeelt de bestuursrechter;
+    # dat open begrip staat bij artikel 8:70, waar de ontvankelijkheid wordt
+    # bepaald.
+
+  - number: 8:70
+    text: |-
+      De uitspraak strekt tot:
+      a. onbevoegdverklaring van de bestuursrechter,
+      b. niet-ontvankelijkverklaring van het beroep,
+      c. ongegrondverklaring van het beroep, of
+      d. gegrondverklaring van het beroep.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:70
+    machine_readable:
+      # Bevoegd gezag (RFC-002): de bestuursrechter doet de uitspraak (onder
+      # a: "onbevoegdverklaring van de bestuursrechter"). Hij beantwoordt ook
+      # de open begrippen hieronder.
+      competent_authority:
+        name: de bestuursrechter
+        type: CATEGORY
+      # De uitspraak op het beroep, zoals artikel 7:11 de beslissing op het
+      # bezwaar is (RFC-050). Onder a is niet gemodelleerd: de bevoegdheid
+      # (artikelen 8:6 en 8:7) staat niet in dit corpus, dus de
+      # bestuursrechter is altijd bevoegd. Waarop de bestuursrechter de
+      # ontvankelijkheid toetst en wanneer het beroep gegrond is, zegt dit
+      # artikel niet; zie de acties.
+      open_terms:
+        # Artikel 8:1: alleen "een belanghebbende" kan beroep instellen.
+        - id: indiener_is_belanghebbende
+          type: boolean
+          required: true
+          decided_per_case_by: de bestuursrechter (artikel 8:1)
+          description: >-
+            Of de indiener van het beroepschrift belanghebbende is: degene
+            wiens belang rechtstreeks bij het bestreden besluit is betrokken
+            (artikelen 1:2, eerste lid, en 8:1).
+        # Artikel 8:77, tweede lid: bij een gegrondverklaring vermeldt de
+        # uitspraak "welke geschreven of ongeschreven rechtsregel of welk
+        # algemeen rechtsbeginsel geschonden wordt geoordeeld". Dat oordeel
+        # is aan de bestuursrechter. Eigen keuze: het zijn twee begrippen. Of
+        # er een rechtsregel geschonden is, moet de bestuursrechter geven
+        # zodra het beroep ontvankelijk is, want een verplicht begrip kan niet
+        # leeg zijn; welke, is een tekst die alleen bij een gegrond beroep
+        # telt.
+        - id: rechtsregel_geschonden
+          type: boolean
+          required: true
+          decided_per_case_by: de bestuursrechter (artikel 8:77, tweede lid)
+          description: >-
+            Of het bestreden besluit een geschreven of ongeschreven rechtsregel
+            of een algemeen rechtsbeginsel schendt.
+        - id: geschonden_rechtsregel
+          type: string
+          required: false
+          decided_per_case_by: de bestuursrechter (artikel 8:77, tweede lid)
+          description: >-
+            Welke geschreven of ongeschreven rechtsregel of welk algemeen
+            rechtsbeginsel geschonden wordt geoordeeld.
+      execution:
+        # Dit artikel brengt twee dingen voort, zoals artikel 7:11 (RFC-047,
+        # RFC-050). Het beroep, waar de Awb op haakt (6:5, 6:9), met het
+        # bestreden besluit. En de uitspraak erop, met wat zij inhoudt. De
+        # uitspraak is geen besluit: een orgaan dat met rechtspraak is
+        # belast, is geen bestuursorgaan (artikel 1:1, tweede lid, onder c).
+        # Daarom de soort UITSPRAAK, met de procedure beroep hierboven.
+        produces:
+          - type: BEROEP
+            requests: algemene_wet_bestuursrecht#8:70
+            parameters:
+              - bestreden_besluit
+          - type: UITSPRAAK
+            outputs:
+              - beroep_ontvankelijk
+              - beroep_gegrond
+              - uitspraak_strekt_tot
+              - geschonden_geoordeelde_rechtsregel
+              - bestreden_besluit_vernietigd
+              - rechtsgevolgen_vernietigd
+              - opdracht_nieuw_besluit
+              - termijn_nieuw_besluit_einddatum
+              - uitspraak_in_de_plaats
+        parameters:
+          # Artikel 8:1: beroep "tegen een besluit"; het beroepschrift
+          # omschrijft het (artikel 6:5, eerste lid, onder c). Het is een
+          # besluit dat het bestuursorgaan nam, geen gegeven van de indiener.
+          - name: bestreden_besluit
+            type: decision
+            description: Het besluit waartegen het beroep is gericht.
+          # Wat artikel 6:9 bij het beroepschrift geeft; de indiener levert
+          # het niet aan.
+          - name: bezwaar_of_beroepschrift_tijdig_ingediend
+            type: boolean
+            description: Of het beroepschrift tijdig is ingediend (artikel 6:9).
+        input:
+          # Wat artikel 8:72 aan een gegrondverklaring verbindt. Eigen keuze:
+          # de uitspraak neemt het over, zodat het deel is van de uitspraak
+          # en niet van een haak, die buiten de uitkomst van het besluit
+          # valt (RFC-047). Alleen gelezen bij een gegrond beroep: dat is
+          # waar artikel 8:72 van toepassing is ("indien de bestuursrechter
+          # het beroep gegrond verklaart").
+          - name: vernietiging_bestreden_besluit
+            type: boolean
+            source:
+              regulation: algemene_wet_bestuursrecht
+              output: vernietiging_bestreden_besluit
+              parameters:
+                bestreden_besluit: $bestreden_besluit
+          - name: vernietiging_rechtsgevolgen
+            type: boolean
+            source:
+              regulation: algemene_wet_bestuursrecht
+              output: vernietiging_rechtsgevolgen
+              parameters:
+                bestreden_besluit: $bestreden_besluit
+          - name: opdracht_tot_nieuw_besluit
+            type: boolean
+            source:
+              regulation: algemene_wet_bestuursrecht
+              output: opdracht_tot_nieuw_besluit
+              parameters:
+                bestreden_besluit: $bestreden_besluit
+          - name: gestelde_termijn_nieuw_besluit
+            type: date
+            nullable: true
+            source:
+              regulation: algemene_wet_bestuursrecht
+              output: gestelde_termijn_nieuw_besluit
+              parameters:
+                bestreden_besluit: $bestreden_besluit
+          - name: besluit_in_de_plaats
+            type: decision
+            nullable: true
+            source:
+              regulation: algemene_wet_bestuursrecht
+              output: in_de_plaats_gesteld_besluit
+              parameters:
+                bestreden_besluit: $bestreden_besluit
+        output:
+          - name: beroep_ontvankelijk
+            type: boolean
+            description: >-
+              Of het beroep ontvankelijk is. Getoetst zijn de termijn (artikel
+              6:9), dat het bestreden besluit op bezwaar is genomen (artikel
+              7:1, eerste lid) en dat de indiener belanghebbende is (artikel
+              8:1). De overige vereisten en artikel 6:11 nog niet.
+          - name: beroep_gegrond
+            type: boolean
+            nullable: true
+            description: >-
+              Of het beroep gegrond is (onder c en d). Leeg bij een
+              niet-ontvankelijk beroep: daarop oordeelt de bestuursrechter niet
+              over de gronden.
+          - name: uitspraak_strekt_tot
+            type: string
+            description: Waartoe de uitspraak strekt (onder b, c of d).
+          - name: geschonden_geoordeelde_rechtsregel
+            type: string
+            nullable: true
+            description: >-
+              De rechtsregel of het rechtsbeginsel die de uitspraak bij een
+              gegrondverklaring vermeldt (artikel 8:77, tweede lid).
+          - name: bestreden_besluit_vernietigd
+            type: boolean
+            description: Of de bestuursrechter het bestreden besluit vernietigt (artikel 8:72, eerste lid).
+          - name: rechtsgevolgen_vernietigd
+            type: boolean
+            description: >-
+              Of de vernietiging ook de rechtsgevolgen van het besluit
+              vernietigt (artikel 8:72, tweede lid en derde lid, onder a).
+          - name: opdracht_nieuw_besluit
+            type: boolean
+            description: >-
+              Of de bestuursrechter het bestuursorgaan opdraagt een nieuw
+              besluit te nemen (artikel 8:72, vierde lid).
+          - name: termijn_nieuw_besluit_einddatum
+            type: date
+            nullable: true
+            description: >-
+              De laatste dag van de termijn die de bestuursrechter stelt voor
+              het nieuwe besluit (artikel 8:72, vierde lid, onder b).
+          - name: uitspraak_in_de_plaats
+            type: decision
+            nullable: true
+            description: >-
+              Het besluit dat de uitspraak in de plaats van het vernietigde
+              stelt (artikel 8:72, derde lid, onder b).
+        actions:
+          # Eigen keuze: dit artikel zegt niet wanneer een beroep ontvankelijk
+          # is. Hier de termijn (artikel 6:9); dat het bestreden besluit op
+          # bezwaar is genomen, want wie beroep instelt dient eerst bezwaar te
+          # maken (artikel 7:1, eerste lid, onder a; het besluit in
+          # administratief beroep en de uitzonderingen onder b tot en met g
+          # zijn niet gemodelleerd); en dat de indiener
+          # belanghebbende is (artikel 8:1). Een besluitwaarde uit de kroniek
+          # noemt in taken_on het artikel van de indiening waarop het besluit
+          # is genomen (RFC-050): de beslissing op bezwaar en het nieuwe
+          # besluit dat zij in de plaats van een herroepen besluit nam,
+          # hebben allebei 7:11. Artikel 6:6 en 6:11 nog niet.
+          - output: beroep_ontvankelijk
+            value:
+              operation: AND
+              conditions:
+                - $bezwaar_of_beroepschrift_tijdig_ingediend
+                - operation: EQUALS
+                  subject: $bestreden_besluit.taken_on
+                  value: algemene_wet_bestuursrecht#7:11
+                - $indiener_is_belanghebbende
+          # Eigen keuze, uit artikel 8:77, tweede lid: gegrond is het beroep
+          # als de bestuursrechter oordeelt dat het besluit een rechtsregel
+          # of rechtsbeginsel schendt. Niet-ontvankelijk: geen oordeel.
+          - output: beroep_gegrond
+            value:
+              operation: IF
+              cases:
+                - when: $beroep_ontvankelijk
+                  then: $rechtsregel_geschonden
+              default: null
+          - output: uitspraak_strekt_tot
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: NOT
+                    value: $beroep_ontvankelijk
+                  then: niet-ontvankelijkverklaring van het beroep
+                - when:
+                    operation: EQUALS
+                    subject: $beroep_gegrond
+                    value: true
+                  then: gegrondverklaring van het beroep
+              default: ongegrondverklaring van het beroep
+          - output: geschonden_geoordeelde_rechtsregel
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $beroep_gegrond
+                    value: true
+                  then: $geschonden_rechtsregel
+              default: null
+          - output: bestreden_besluit_vernietigd
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $beroep_gegrond
+                    value: true
+                  then: $vernietiging_bestreden_besluit
+              default: false
+          - output: rechtsgevolgen_vernietigd
+            value:
+              operation: IF
+              cases:
+                - when: $bestreden_besluit_vernietigd
+                  then: $vernietiging_rechtsgevolgen
+              default: false
+          - output: opdracht_nieuw_besluit
+            value:
+              operation: IF
+              cases:
+                - when: $bestreden_besluit_vernietigd
+                  then: $opdracht_tot_nieuw_besluit
+              default: false
+          - output: termijn_nieuw_besluit_einddatum
+            value:
+              operation: IF
+              cases:
+                - when: $opdracht_nieuw_besluit
+                  then: $gestelde_termijn_nieuw_besluit
+              default: null
+          - output: uitspraak_in_de_plaats
+            value:
+              operation: IF
+              cases:
+                - when: $rechtsgevolgen_vernietigd
+                  then: $besluit_in_de_plaats
+              default: null
+
+  - number: 8:72
+    text: |-
+      1. Indien de bestuursrechter het beroep gegrond verklaart, vernietigt hij
+      het bestreden besluit geheel of gedeeltelijk.
+      2. De vernietiging van een besluit of een gedeelte van een besluit brengt
+      vernietiging van de rechtsgevolgen van dat besluit of van het vernietigde
+      gedeelte daarvan mee.
+      3. De bestuursrechter kan bepalen dat:
+      a. de rechtsgevolgen van het vernietigde besluit of het vernietigde
+      gedeelte daarvan geheel of gedeeltelijk in stand blijven, of
+      b. zijn uitspraak in de plaats treedt van het vernietigde besluit of het
+      vernietigde gedeelte daarvan.
+      4. De bestuursrechter kan, indien toepassing van het derde lid niet
+      mogelijk is, het bestuursorgaan opdragen een nieuw besluit te nemen of
+      een andere handeling te verrichten met inachtneming van zijn
+      aanwijzingen. Daarbij kan hij:
+      a. bepalen dat wettelijke voorschriften over de voorbereiding van het
+      nieuwe besluit of de andere handeling geheel of gedeeltelijk buiten
+      toepassing blijven;
+      b. het bestuursorgaan een termijn stellen voor het nemen van het nieuwe
+      besluit of het verrichten van de andere handeling.
+      5. De bestuursrechter kan zo nodig een voorlopige voorziening treffen.
+      Daarbij bepaalt hij het tijdstip waarop de voorlopige voorziening
+      vervalt.
+      6. De bestuursrechter kan bepalen dat, indien of zolang het
+      bestuursorgaan niet voldoet aan een uitspraak, het bestuursorgaan aan een
+      door hem aangewezen partij een in de uitspraak vast te stellen dwangsom
+      verbeurt. De artikelen 611a, vierde lid, 611b tot en met 611d en 611g van
+      het Wetboek van Burgerlijke Rechtsvordering zijn van overeenkomstige
+      toepassing.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
+    machine_readable:
+      # Bevoegd gezag (RFC-002): de bestuursrechter vernietigt en bepaalt
+      # (lid 1, 3 en 4). Hij beantwoordt de open begrippen hieronder.
+      competent_authority:
+        name: de bestuursrechter
+        type: CATEGORY
+      # Lid 1 alleen voor een geheel besluit: gedeeltelijke vernietiging is
+      # niet gemodelleerd. Lid 4, onder a, en de leden 5 en 6 (voorlopige
+      # voorziening, dwangsom) zijn niet gemodelleerd. De aanwijzingen van
+      # lid 4 zijn geen gegeven dat de uitspraak overdraagt.
+      open_terms:
+        - id: rechtsgevolgen_in_stand
+          type: boolean
+          required: true
+          decided_per_case_by: de bestuursrechter (artikel 8:72, derde lid)
+          description: >-
+            Of de rechtsgevolgen van het vernietigde besluit geheel in stand
+            blijven (lid 3, onder a).
+        # Lid 3, onder b: de bestuursrechter kan bepalen dat zijn uitspraak in
+        # de plaats treedt van het vernietigde besluit. Alleen gevraagd als
+        # de rechtsgevolgen niet in stand blijven: lid 3 noemt a "of" b.
+        - id: uitspraak_treedt_in_de_plaats
+          type: boolean
+          required: true
+          decided_per_case_by: de bestuursrechter (artikel 8:72, derde lid)
+          description: >-
+            Of de uitspraak in de plaats treedt van het vernietigde besluit
+            (lid 3, onder b).
+        - id: termijn_nieuw_besluit
+          type: date
+          required: false
+          decided_per_case_by: de bestuursrechter (artikel 8:72, vierde lid)
+          description: >-
+            De laatste dag van de termijn die de bestuursrechter het
+            bestuursorgaan stelt voor het nieuwe besluit (lid 4, onder b).
+      execution:
+        # Dit artikel geldt voor een gegrond beroep (lid 1, aanhef); artikel
+        # 8:70 leest het alleen dan.
+        parameters:
+          - name: bestreden_besluit
+            type: decision
+            description: Het besluit waartegen het beroep is gericht (artikel 8:70).
+        input:
+          # Lid 3, onder b: wat de bestuursrechter in de plaats van het
+          # vernietigde besluit stelt. Eigen keuze: dat is het bestreden
+          # besluit opnieuw genomen, onder het artikel waarop het berust, met
+          # zijn eigen gegevens en bevindingen en wat de bestuursrechter zelf
+          # vaststelt, ook waar de feiten aanvulling vragen (artikel 8:69,
+          # derde lid), zoals bij de heroverweging van artikel 7:11. Alleen
+          # gelezen als de uitspraak in de plaats treedt.
+          - name: besluit_van_de_bestuursrechter
+            type: decision
+            nullable: true
+            source:
+              article: $bestreden_besluit
+        output:
+          - name: vernietiging_bestreden_besluit
+            type: boolean
+            description: Of de bestuursrechter het bestreden besluit vernietigt (lid 1).
+          - name: vernietiging_rechtsgevolgen
+            type: boolean
+            description: Of de vernietiging de rechtsgevolgen van het besluit meebrengt (lid 2, met lid 3, onder a).
+          - name: opdracht_tot_nieuw_besluit
+            type: boolean
+            description: Of de bestuursrechter het bestuursorgaan opdraagt een nieuw besluit te nemen (lid 4).
+          - name: in_de_plaats_gesteld_besluit
+            type: decision
+            nullable: true
+            description: >-
+              Het besluit dat de uitspraak in de plaats van het vernietigde
+              stelt (lid 3, onder b).
+          - name: gestelde_termijn_nieuw_besluit
+            type: date
+            nullable: true
+            description: >-
+              De laatste dag van de termijn voor het nieuwe besluit, als de
+              bestuursrechter er een stelt (lid 4, onder b).
+        actions:
+          # Lid 1: gegrond, dan vernietigd; hier het hele besluit.
+          - output: vernietiging_bestreden_besluit
+            value: true
+          # Lid 2: de vernietiging brengt die van de rechtsgevolgen mee,
+          # tenzij de bestuursrechter bepaalt dat zij in stand blijven (lid 3,
+          # onder a).
+          - output: vernietiging_rechtsgevolgen
+            value:
+              operation: NOT
+              value: $rechtsgevolgen_in_stand
+          - output: in_de_plaats_gesteld_besluit
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: AND
+                    conditions:
+                      - $vernietiging_rechtsgevolgen
+                      - $uitspraak_treedt_in_de_plaats
+                  then: $besluit_van_de_bestuursrechter
+              default: null
+          # Lid 4: "indien toepassing van het derde lid niet mogelijk is".
+          # Eigen keuze: de bestuursrechter draagt een nieuw besluit op zodra
+          # hij het besluit vernietigt en het derde lid niet toepast: de
+          # rechtsgevolgen blijven niet in stand en zijn uitspraak treedt niet
+          # in de plaats. Het "kan" van lid 4 geldt als de gewone gang. Het
+          # besluit waarop het beroep was gericht, is dan weg, en de bezwaren
+          # liggen weer open.
+          - output: opdracht_tot_nieuw_besluit
+            value:
+              operation: AND
+              conditions:
+                - $vernietiging_rechtsgevolgen
+                - operation: EQUALS
+                  subject: $in_de_plaats_gesteld_besluit
+                  value: null
+          - output: gestelde_termijn_nieuw_besluit
+            value:
+              operation: IF
+              cases:
+                - when: $opdracht_tot_nieuw_besluit
+                  then: $termijn_nieuw_besluit
+              default: null
+
+  - number: 8:77
+    text: |-
+      1. De schriftelijke uitspraak vermeldt:
+      a. de namen van partijen en van hun vertegenwoordigers of gemachtigden,
+      b. de gronden van de beslissing,
+      c. de beslissing,
+      d. de naam van de rechter of de namen van de rechters die de zaak heeft
+      onderscheidenlijk hebben behandeld,
+      e. de dag waarop de beslissing is uitgesproken, en
+      f. door wie, binnen welke termijn en bij welke bestuursrechter welk
+      rechtsmiddel kan worden aangewend.
+      2. Indien de uitspraak strekt tot gegrondverklaring van het beroep, wordt
+      in de uitspraak vermeld welke geschreven of ongeschreven rechtsregel of
+      welk algemeen rechtsbeginsel geschonden wordt geoordeeld.
+      3. De uitspraak wordt ondertekend door de voorzitter en de griffier. Bij
+      verhindering van de voorzitter of de griffier wordt dit in de uitspraak
+      vermeld.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:77
+    # Niet apart uitvoerbaar. Lid 2 is het oordeel van de bestuursrechter; de
+    # open begrippen daarvoor staan bij artikel 8:70, en de uitspraak geeft de
+    # vermelde rechtsregel als uitvoer. Lid 1 en 3 zijn niet gemodelleerd.
+
+  - number: 8:79
+    text: |-
+      1. Binnen twee weken na de dagtekening van de uitspraak stelt de griffier
+      kosteloos een afschrift van de uitspraak of van het proces-verbaal van de
+      mondelinge uitspraak ter beschikking van partijen.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:79
+    machine_readable:
+      # Het ter beschikking stellen van het afschrift is de fase TOEZENDING
+      # van de procedure beroep hierboven. Dat een partij het afschrift
+      # heeft, is een feit dat dit artikel omschrijft (requires, fact). Wat
+      # het bevat: waartoe de uitspraak strekt (artikel 8:70) en wat zij aan
+      # een gegrond beroep verbindt (artikelen 8:72 en 8:77, tweede lid),
+      # onder de namen van die uitkomsten, ook het besluit dat de uitspraak
+      # in de plaats van het vernietigde stelt. Wie vastlegt dat een partij
+      # het afschrift heeft, zegt de wet niet: het artikel laat de griffier
+      # het ter beschikking stellen. Daarom noemt het feit geen
+      # competent_authority (RFC-051); de partij die het ontvangt, legt het
+      # vast (eigen keuze). De termijn van twee weken is niet gemodelleerd.
+      # Lid 2 en 3 (anderen dan partijen, de Europese Commissie) zijn hier
+      # niet opgenomen.
+      requires:
+        - fact: afschrift_van_de_uitspraak
+          description: >-
+            Het afschrift van de uitspraak dat de griffier ter beschikking van
+            een partij stelt.
+          parameters:
+            - uitspraak_strekt_tot
+            - bestreden_besluit_vernietigd
+            - rechtsgevolgen_vernietigd
+            - opdracht_nieuw_besluit
+            - termijn_nieuw_besluit_einddatum
+            - geschonden_geoordeelde_rechtsregel
+            - uitspraak_in_de_plaats
+      execution:
+        parameters:
+          - name: uitspraak_strekt_tot
+            type: string
+            description: Waartoe de uitspraak strekt (artikel 8:70).
+          - name: bestreden_besluit_vernietigd
+            type: boolean
+            description: Of de bestuursrechter het bestreden besluit vernietigde (artikel 8:72, eerste lid).
+          - name: rechtsgevolgen_vernietigd
+            type: boolean
+            description: >-
+              Of ook de rechtsgevolgen van het besluit vervielen (artikel 8:72,
+              tweede lid en derde lid, onder a).
+          - name: opdracht_nieuw_besluit
+            type: boolean
+            description: >-
+              Of de bestuursrechter het bestuursorgaan opdroeg een nieuw besluit
+              te nemen (artikel 8:72, vierde lid).
+          - name: termijn_nieuw_besluit_einddatum
+            type: date
+            nullable: true
+            required: false
+            description: De laatste dag van de termijn voor het nieuwe besluit (artikel 8:72, vierde lid, onder b).
+          - name: geschonden_geoordeelde_rechtsregel
+            type: string
+            nullable: true
+            required: false
+            description: De rechtsregel die de uitspraak geschonden oordeelde (artikel 8:77, tweede lid).
+          - name: uitspraak_in_de_plaats
+            type: decision
+            nullable: true
+            required: false
+            description: >-
+              Het besluit dat de uitspraak in de plaats van het vernietigde
+              stelt (artikel 8:72, derde lid, onder b).
+
+  - number: 8:104
+    text: |-
+      1. Een belanghebbende en het bestuursorgaan kunnen hoger beroep instellen
+      tegen:
+      a. een uitspraak als bedoeld in artikel 8:66, eerste lid, of artikel
+      8:67, eerste lid, van de rechtbank,
+      b. een uitspraak als bedoeld in artikel 8:86, eerste lid, van de
+      voorzieningenrechter van de rechtbank,
+      c. een uitspraak van de rechtbank op een verzoek als bedoeld in artikel
+      8:88, eerste lid.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:104
+    # Niet gemodelleerd. Hoger beroep tegen de uitspraak (en artikel 8:105,
+    # de Afdeling bestuursrechtspraak van de Raad van State) volgt later. De
+    # leden 2 tot en met 4 zijn hier niet opgenomen.
+
+  - number: 8:105
+    text: |-
+      1. Het hoger beroep wordt ingesteld bij de Afdeling bestuursrechtspraak
+      van de Raad van State, tenzij een andere hogerberoepsrechter bevoegd is
+      ingevolge hoofdstuk 4 van de bij deze wet behorende Bevoegdheidsregeling
+      bestuursrechtspraak dan wel ingevolge een ander wettelijk voorschrift.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:105
+    # Niet gemodelleerd; zie artikel 8:104. Lid 2 is hier niet opgenomen.

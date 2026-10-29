@@ -1,0 +1,7 @@
+---
+name: Het college van burgemeester en wethouders van de gemeente Wilgendaal
+category: college van burgemeester en wethouders
+answers:
+  aanvrager_heeft_geldige_gehandicaptenparkeerkaart: reductie_geldige_gehandicaptenparkeerkaart
+  aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt: reductie_geldige_gehandicaptenparkeerkaart
+  aantal_geldige_bedrijfsparkeervergunningen: reductie_geldige_bedrijfsparkeervergunningen

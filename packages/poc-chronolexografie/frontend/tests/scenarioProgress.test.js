@@ -26,7 +26,7 @@ const casus = {
   uitkomst: 'verlof_verleend',
   rechter: { cel: 'rechtbank', cel_naam: 'Rechtbank' },
   // The scenarios of the case YAML, with their steps.
-  scenarios: load(readFileSync(new URL('../../casussen/vakantieverlof.yaml', import.meta.url), 'utf8'))
+  scenarios: load(readFileSync(new URL('../../corpus/casussen/vakantieverlof.yaml', import.meta.url), 'utf8'))
     .scenarios,
 };
 const aanvraag = { id: id('0000aaaa'), kind: 'AANVRAAG', basis: 'wet#13a' };

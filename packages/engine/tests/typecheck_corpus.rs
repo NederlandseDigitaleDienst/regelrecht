@@ -1,6 +1,7 @@
 //! The corpus stays typed: the static type check (RFC-036 nullability,
-//! RFC-037 typing) finds nothing in `corpus/regulation` with the reductions
-//! in `corpus/cells`, or in the demo corpus `corpus/demo/regulation`.
+//! RFC-037 typing) finds nothing in `corpus/regulation`, in the demo corpus
+//! `corpus/demo/regulation`, or in the corpus of the chronolexografie PoC
+//! with its reductions.
 //!
 //! Every law of a corpus is loaded first, so the cross-law rule (N5) is held
 //! against the version of each referenced law the engine would select, then
@@ -81,15 +82,38 @@ fn format_finding(path: &Path, finding: &Finding) -> String {
     format!("{relative}: {finding}")
 }
 
+/// The corpus of the chronolexografie PoC: its shared regulation, the own
+/// regulation of each case and the cells with their reductions. The case
+/// files beside those are no laws.
+fn chrono_dirs() -> Vec<PathBuf> {
+    let corpus = repo_root().join("packages/poc-chronolexografie/corpus");
+    let mut dirs = vec![corpus.join("regulation"), corpus.join("cells")];
+    for casus in std::fs::read_dir(corpus.join("casussen")).unwrap() {
+        let own = casus.unwrap().path().join("regulation");
+        if own.is_dir() {
+            dirs.push(own);
+        }
+    }
+    dirs
+}
+
 #[test]
-fn corpus_regulation_has_no_type_findings() {
-    let findings = findings_over(&[
-        repo_root().join("corpus/regulation"),
-        repo_root().join("corpus/cells"),
-    ]);
+fn corpus_chronolexografie_has_no_type_findings() {
+    let findings = findings_over(&chrono_dirs());
     assert!(
         findings.is_empty(),
-        "{} type finding(s) in corpus/regulation and corpus/cells:\n{}",
+        "{} type finding(s) in the corpus of chronolexografie:\n{}",
+        findings.len(),
+        findings.join("\n")
+    );
+}
+
+#[test]
+fn corpus_regulation_has_no_type_findings() {
+    let findings = findings_over(&[repo_root().join("corpus/regulation")]);
+    assert!(
+        findings.is_empty(),
+        "{} type finding(s) in corpus/regulation:\n{}",
         findings.len(),
         findings.join("\n")
     );
