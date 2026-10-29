@@ -4,47 +4,24 @@ $id: reductie_geneeskundig_onderzoek
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'
-# Geen regelgeving: een reductie van de (fictieve) GGD Wilgendaal over haar
-# eigen kroniek (RFC-022 §4.1, RFC-048, RFC-051). Ze leest de executogrammen
-# van het feit dat artikel 3, eerste lid, van de Regeling
-# gehandicaptenparkeerkaart omschrijft: de onderzoeken die de GGD verrichtte.
-# Wat elk executogram bevat, zegt dat artikel (requires, fact). De cel van de
-# GGD geeft haar uitvoer als het antwoord
-# geneeskundig_onderzoek_heeft_plaatsgehad (cel.yaml, answers). Het beleid van
-# de gemeente die beslist, koppelt dat antwoord aan het open begrip van dat
-# artikel; daarvoor is de GGD bevoegd (competent_authority van dat begrip,
-# RFC-052). Er is geen bekendmaking; de url wijst naar dat artikel.
 url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
 name: Geneeskundig onderzoek bij de GGD Wilgendaal (reductie)
 articles:
   - number: '1'
     text: >-
-      Geen regelgeving. Het systeem van de GGD kijkt door middel van een
-      chronolexografische reductie op zijn eigen kroniek of het voor deze
-      aanvraag een geneeskundig onderzoek verrichtte. Een geneeskundig
-      onderzoek heeft voor deze aanvraag plaatsgehad als de GGD een onderzoek
-      naar dezelfde aanvrager verrichtte op of na de dagtekening van de
-      aanvraag en uiterlijk op de dag van afgifte. Vindt het systeem er geen,
-      dan zwijgt het, en stelt het college het vast.
+      Geen regelgeving.
     url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
     machine_readable:
       execution:
-        # Wat het antwoord vraagt; het beleid dat het koppelt, geeft ze op
-        # naam mee.
         parameters:
           - name: bsn_aanvrager
             type: string
-            description: Burgerservicenummer van de aanvrager.
           - name: dagtekening_aanvraag
             type: date
             nullable: true
-            description: De dagtekening van de aanvraag.
           - name: datum_afgifte
             type: date
-            description: De dag waarop de kaart zou worden afgegeven.
         input:
-          # De verrichte onderzoeken, één rij per executogram, met
-          # bsn_aanvrager, datum_onderzoek en verricht_door.
           - name: onderzoeken
             type: array
             source:
@@ -53,14 +30,7 @@ articles:
           - name: geneeskundig_onderzoek_heeft_plaatsgehad
             type: boolean
             nullable: true
-            description: >-
-              Waar, als de GGD een onderzoek voor deze aanvraag verrichtte;
-              anders afwezig.
         actions:
-          # Zonder dagtekening valt niet te zeggen of een onderzoek bij deze
-          # aanvraag hoort: dan telt er geen. De voorwaarde staat eerst: AND
-          # stopt bij de eerste onwaar, en DATE_DIFF faalt op een afwezige
-          # dag.
           - output: geneeskundig_onderzoek_heeft_plaatsgehad
             value:
               operation: IF
@@ -97,4 +67,3 @@ articles:
                     body: true
                     combine: OR
                   then: true
-              default: null

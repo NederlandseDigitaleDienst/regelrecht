@@ -43,19 +43,30 @@ pub fn service_of(laws: &[&str]) -> LawExecutionService {
     service
 }
 
-/// The corpus these tests run on: the cells and regelwerken of the
-/// chronolexografie cases as fixtures of this crate (`tests/fixtures/corpus`),
-/// so a change to the PoC or the regelrecht corpus does not move them.
+/// The fixtures these tests run on (`tests/fixtures/corpus`): the cells, and
+/// the fictional regelwerken and reductions made for these tests, each cut
+/// down to what the tests read. The engine's reduction tests read them too.
 pub fn corpus() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/corpus")
 }
 
-/// Load every version in each directory of `dirs`, relative to the corpus
+/// The corpus of the repository (`corpus/`), which holds the real laws
+/// these tests call: the fixtures do not copy them.
+pub fn repo_corpus() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus")
+}
+
+/// Load every version in each directory of `dirs`, relative to a corpus
 /// (`regulation/nl/wet/<id>`, `cells/<cell>/reductions/<id>`), into
-/// `service`.
+/// `service`: from the fixtures, or else from the repository's corpus.
 pub fn load(service: &mut LawExecutionService, dirs: impl IntoIterator<Item = impl AsRef<str>>) {
     for dir in dirs {
-        let dir = corpus().join(dir.as_ref());
+        let fixture = corpus().join(dir.as_ref());
+        let dir = if fixture.is_dir() {
+            fixture
+        } else {
+            repo_corpus().join(dir.as_ref())
+        };
         for entry in std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display())) {
             let path = entry.unwrap().path();
             if path.extension().is_some_and(|x| x == "yaml") {

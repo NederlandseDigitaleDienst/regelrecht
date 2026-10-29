@@ -34,11 +34,16 @@ const POLICY: &str = "fictief_beleid_vakantieverlof_obs_de_klimop";
 /// The policy the head's policy calls for the school year.
 const SCHOOL_YEAR: &str = "fictief_beleid_schooljaargrenzen_obs_de_klimop";
 
-/// The fixture corpus of these tests: the regelwerken of the vakantieverlof
-/// case of the chronolexografie PoC as they were copied here, so a change to
-/// the PoC does not move them.
+/// The fixtures of these tests: the fictional regelwerken and reductions of
+/// the vakantieverlof case, made for the tests of `packages/cel` and cut down
+/// to what those and these tests read.
 fn corpus_dir() -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/corpus")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../cel/tests/fixtures/corpus")
+}
+
+/// The corpus of the repository, which holds the real laws these tests call.
+fn repo_corpus_dir() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus")
 }
 
 fn corpus(path: &str) -> String {
@@ -580,16 +585,17 @@ const AWB: &str = "algemene_wet_bestuursrecht";
 /// The Leerplichtwet, the Awb and the school's policies from the corpus,
 /// the head's binding among them, and the reduction if `with_reduction`.
 fn corpus_service(with_reduction: bool) -> LawExecutionService {
-    let regulation = corpus_dir().join("regulation/nl");
+    let real = repo_corpus_dir().join("regulation/nl");
+    let fictional = corpus_dir().join("regulation/nl");
     let mut service = LawExecutionService::new();
-    for law in [
-        "wet/leerplichtwet_1969",
-        "wet/algemene_wet_bestuursrecht",
-        "uitvoeringsbeleid/fictief_beleid_schooljaar_obs_de_klimop",
-        "uitvoeringsbeleid/fictief_beleid_schooljaargrenzen_obs_de_klimop",
-        "uitvoeringsbeleid/fictief_beleid_vakantieverlof_obs_de_klimop",
+    for dir in [
+        real.join("wet/leerplichtwet_1969"),
+        real.join("wet/algemene_wet_bestuursrecht"),
+        fictional.join("uitvoeringsbeleid/fictief_beleid_schooljaar_obs_de_klimop"),
+        fictional.join("uitvoeringsbeleid/fictief_beleid_schooljaargrenzen_obs_de_klimop"),
+        fictional.join("uitvoeringsbeleid/fictief_beleid_vakantieverlof_obs_de_klimop"),
     ] {
-        for entry in std::fs::read_dir(regulation.join(law)).unwrap() {
+        for entry in std::fs::read_dir(dir).unwrap() {
             let path = entry.unwrap().path();
             if path.extension().is_some_and(|x| x == "yaml") {
                 service

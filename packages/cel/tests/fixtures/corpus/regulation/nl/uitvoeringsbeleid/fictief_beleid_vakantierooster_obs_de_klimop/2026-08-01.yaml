@@ -4,65 +4,28 @@ $id: fictief_beleid_vakantierooster_obs_de_klimop
 regulatory_layer: UITVOERINGSBELEID
 publication_date: '2026-07-01'
 valid_from: '2026-08-01'
-# FICTIEF. OBS De Klimop bestaat niet en dit is geen bekendgemaakt beleid,
-# maar een eigen keuze in de modellering. Er is geen bekendmaking; de url wijst
-# daarom naar het artikel dat de schoolvakanties noemt.
 url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel11
 name: Vakantierooster van OBS De Klimop (fictief beleid)
-competent_authority:
-  name: Het bevoegd gezag van OBS De Klimop
-# Geen legal_basis: geen artikel geeft het bevoegd gezag met zoveel woorden
-# de bevoegdheid de herfst- en voorjaarsvakantie vast te stellen. De
-# Regeling vaststelling schoolvakanties 2025–2030 stelt alleen de kerst-, mei-
-# en zomervakantie vast (artikelen 5 en 6), en de Wet op het primair
-# onderwijs regelt vakanties alleen via die regeling (artikel 15, tweede
-# lid). Artikel 11, eerste lid, onder l, van de Wet medezeggenschap op
-# scholen gaat ervan uit dat het bevoegd gezag de vakantie regelt: de
-# medezeggenschapsraad mag vooraf advies uitbrengen over "elk door het
-# bevoegd gezag te nemen besluit" over de "regeling van de vakantie". Dat is
-# een adviesrecht, geen instemming, en dit beleid modelleert het niet.
-# Daarom is dit het eigen beleid van de school, gemarkeerd als fictief.
-#
-# Het rooster is een regel van de school, zoals in een schoolgids: het staat
-# in dit beleid, niet als besluit in de kroniek van de school. Elk schooljaar
-# krijgt een eigen versie, die op 1 augustus van dat jaar ingaat; deze versie
-# kent alleen het schooljaar 2026–2027.
 articles:
   - number: '1'
     text: >-
-      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. In
-      het schooljaar 2026–2027 heeft OBS De Klimop herfstvakantie van 17 tot
-      en met 25 oktober 2026 en voorjaarsvakantie van 20 tot en met 28
-      februari 2027.
+      FICTIEF, eigen keuze in de modellering.
     url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel11
     machine_readable:
-      # Voor een ander schooljaar zegt deze versie niets (null): dan kent de
-      # school die vakanties niet en oordeelt het hoofd. "Tot en met": de
-      # laatste dag hoort bij de vakantie.
       execution:
-        parameters:
-          - name: eerste_jaar_schooljaar
-            type: number
-            description: >-
-              Het jaar waarin het schooljaar begint: 2026 voor het schooljaar
-              2026–2027.
         output:
           - name: herfstvakantie_eerste_dag
             type: date
             nullable: true
-            description: De eerste dag van de herfstvakantie.
           - name: herfstvakantie_laatste_dag
             type: date
             nullable: true
-            description: De laatste dag van de herfstvakantie.
           - name: voorjaarsvakantie_eerste_dag
             type: date
             nullable: true
-            description: De eerste dag van de voorjaarsvakantie.
           - name: voorjaarsvakantie_laatste_dag
             type: date
             nullable: true
-            description: De laatste dag van de voorjaarsvakantie.
         actions:
           - output: herfstvakantie_eerste_dag
             value:
