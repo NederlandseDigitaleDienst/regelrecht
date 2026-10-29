@@ -98,7 +98,8 @@ fn without_a_chosen_case_a_step_is_refused_and_choosing_one_starts_its_cell() {
         [
             "bedrijfsparkeervergunning",
             "gehandicaptenparkeerkaart",
-            "vakantieverlof"
+            "vakantieverlof",
+            "zorgtoeslag"
         ]
     );
 

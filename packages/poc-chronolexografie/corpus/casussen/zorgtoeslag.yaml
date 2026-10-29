@@ -1,0 +1,174 @@
+---
+# Casus: het voorschot op de zorgtoeslag bij de Dienst Toeslagen.
+#
+# Configuratie is alleen wat niet uit de wet volgt, en het corpus: welke
+# regelwerken in deze casus gelden. Het besluit dat de aanvraag vraagt, het
+# artikel van het bezwaar en de naam van wie beslist, leidt de app af uit dit
+# artikel en de cel, binnen dat corpus (src/casus.rs).
+cel: dienst_toeslagen
+artikel: algemene_wet_inkomensafhankelijke_regelingen#15
+# Het corpus van deze casus: alleen deze regelwerken gelden. Hieronder de
+# gedeelde, elk een map onder het corpus van de poc; de eigen regelwerken van
+# de casus, in casussen/zorgtoeslag/regulation/nl, gelden zonder dat ze hier
+# staan: de Wet op de zorgtoeslag, de regeling standaardpremie en het
+# uitvoeringsbeleid van de Dienst Toeslagen. De Zorgverzekeringswet, de
+# Algemene wet inzake rijksbelastingen en de Wet inkomstenbelasting 2001
+# staan erbij omdat de Wet op de zorgtoeslag en de Awir eruit lezen.
+corpus:
+  - regulation/nl/wet/algemene_wet_bestuursrecht
+  - regulation/nl/wet/algemene_wet_inkomensafhankelijke_regelingen
+  - regulation/nl/wet/algemene_wet_inzake_rijksbelastingen
+  - regulation/nl/wet/wet_inkomstenbelasting_2001
+  - regulation/nl/wet/zorgverzekeringswet
+# De uitvoer die zegt of het besluit het gevraagde toewijst. De wet merkt die
+# niet aan: decision_type TOEKENNING zegt wat voor besluit het is, niet welke
+# van zijn uitvoer de toewijzing is.
+uitkomst: voorschot_verleend
+
+# Wat de bezoeker leest.
+titel: Voorschot zorgtoeslag
+omschrijving: >-
+  Een verzekerde vraagt zorgtoeslag aan over 2025 (Awir artikel 15). De
+  Dienst Toeslagen verleent op die aanvraag een voorschot tot het bedrag
+  waarop de zorgtoeslag vermoedelijk wordt vastgesteld (Awir artikel 16). Wat
+  de Dienst daarvoor verwacht, zoals het toetsingsinkomen, oordeelt hij per
+  aanvraag; het bedrag zelf volgt uit de Wet op de zorgtoeslag en de
+  standaardpremie voor 2025. Tegen het voorschot staat bezwaar open. De
+  betaling in termijnen en de toekenning na de aanslag inkomstenbelasting
+  speelt deze casus nog niet.
+cel_naam: Dienst Toeslagen
+speeldatum: 2025-01-06
+
+# Fictieve voorbeeldgegevens. Volg je een scenario, dan begint elk formulier
+# hiermee, met de waarden van de stap erover; bij vrij spelen blijft het leeg.
+# Een BSN uit de testreeks. De bedragen staan in eurocent, zoals de wet ze
+# rekent: 2500000 is € 25.000. Een alleenstaande met dat inkomen krijgt het
+# hele verschil tussen de standaardpremie en de normpremie bij het
+# drempelinkomen.
+voorbeeld:
+  aanvraag:
+    bsn: '999993653'
+    berekeningsjaar: 2025
+    aanvraag_ondertekend: true
+    naam_aanvrager: S. de Vries
+    adres_aanvrager: Voorbeeldlaan 7, 1234 AB Wilgendaal
+    dagtekening: '2025-01-03'
+    gevraagde_beschikking: zorgtoeslag over 2025
+  bevindingen:
+    vermoedelijk_toetsingsinkomen: 2500000
+    vermoedelijk_heeft_toeslagpartner: false
+    vermoedelijk_toetsingsinkomen_toeslagpartner: 0
+    vermoedelijk_verzekerd: true
+    vermoedelijk_vermogen_onder_grens: true
+  bezwaar:
+    bezwaar_of_beroepschrift_ondertekend: true
+    naam_indiener: S. de Vries
+    adres_indiener: Voorbeeldlaan 7, 1234 AB Wilgendaal
+    omschrijving_bestreden_besluit: voorschot zorgtoeslag over 2025
+    gronden_bezwaar_of_beroep: >-
+      mijn inkomen daalt in 2025: ik werk vanaf februari vier dagen in plaats
+      van vijf
+
+scenarios:
+  - naam: Voorschot wordt verleend
+    samenvatting: >-
+      Een alleenstaande vraagt zorgtoeslag aan, en de Dienst Toeslagen
+      verleent een voorschot.
+    stappen:
+      - stap: aanvraag
+        tekst: >-
+          Klik op Aanvraag indienen. De aanvraag noemt het burgerservicenummer
+          en het berekeningsjaar 2025.
+      - stap: besluit
+        uitkomst: toegewezen
+        uitvoer:
+          voorschotbedrag: 157700
+        tekst: >-
+          De Dienst verwacht een toetsingsinkomen van € 25.000, geen
+          toeslagpartner, een zorgverzekering en een vermogen onder de grens.
+          Klik op Besluit nemen.
+    eind: >-
+      Onder Besluiten staat Toegewezen, met een voorschot van 157700 eurocent:
+      € 1.577 over 2025. Dat is de standaardpremie van € 2.112 min de
+      normpremie bij het drempelinkomen, afgerond op hele euro's.
+  - naam: 'Niet verzekerd: geen voorschot'
+    samenvatting: >-
+      De Dienst verwacht dat de aanvrager geen zorgverzekering heeft, en
+      verleent geen voorschot.
+    stappen:
+      - stap: aanvraag
+      - stap: besluit
+        invoer:
+          vermoedelijk_verzekerd: false
+        uitkomst: afgewezen
+        uitvoer:
+          voorschotbedrag: 0
+        tekst: >-
+          De Dienst vindt geen zorgverzekering voor 2025. Klik op Besluit
+          nemen.
+    eind: >-
+      Onder Besluiten staat Afgewezen, met een voorschot van nihil: zonder
+      verzekering is er geen aanspraak op zorgtoeslag (artikel 2 van de Wet
+      op de zorgtoeslag).
+  - naam: Inkomen te hoog, bezwaar gegrond
+    samenvatting: >-
+      Bij het verwachte inkomen is er geen voorschot, maar na het bezwaar
+      verwacht de Dienst minder en verleent hij er alsnog een.
+    stappen:
+      - stap: aanvraag
+      - stap: besluit
+        invoer:
+          vermoedelijk_toetsingsinkomen: 4500000
+        uitkomst: afgewezen
+        uitvoer:
+          voorschotbedrag: 0
+        tekst: >-
+          De Dienst verwacht een toetsingsinkomen van € 45.000. Klik op Besluit
+          nemen.
+        gezien: >-
+          Afgewezen: bij dat inkomen is de normpremie hoger dan de
+          standaardpremie, dus de zorgtoeslag is nihil.
+      - stap: bezwaar
+        datum: 2025-01-20
+        tekst: >-
+          Klik bij het besluit op Bezwaar maken. De gronden zeggen dat het
+          inkomen in 2025 daalt. Klik op Bezwaar indienen.
+      - stap: beslissing_op_bezwaar
+        datum: 2025-02-03
+        invoer:
+          vermoedelijk_toetsingsinkomen: 3000000
+        uitkomst: gegrond
+        uitvoer:
+          voorschotbedrag: 133100
+        tekst: >-
+          Klik onder Open bezwaren op Ontvankelijkheid toetsen: het bezwaar is
+          ontvankelijk. De Dienst verwacht nu € 30.000. Klik op Beslissen op
+          bezwaar.
+    eind: >-
+      Gegrond: het besluit is herroepen. Het nieuwe besluit verleent een
+      voorschot van 133100 eurocent: € 1.331 over 2025.
+  - naam: 'Bezwaar zonder nieuwe feiten: ongegrond'
+    samenvatting: >-
+      De aanvrager maakt bezwaar tegen een verleend voorschot, maar de Dienst
+      verwacht hetzelfde en het voorschot blijft.
+    stappen:
+      - stap: aanvraag
+      - stap: besluit
+        uitkomst: toegewezen
+        tekst: >-
+          Klik op Besluit nemen.
+        gezien: >-
+          Toegewezen, met een voorschot van € 1.577.
+      - stap: bezwaar
+        datum: 2025-01-20
+        invoer:
+          gronden_bezwaar_of_beroep: het voorschot is te laag
+      - stap: beslissing_op_bezwaar
+        datum: 2025-02-03
+        uitkomst: ongegrond
+        tekst: >-
+          Klik onder Open bezwaren op Ontvankelijkheid toetsen. Laat de
+          bevindingen staan en klik op Beslissen op bezwaar.
+    eind: >-
+      Ongegrond: de heroverweging geeft hetzelfde voorschot. Het besluit
+      blijft, er komt geen nieuw besluit.

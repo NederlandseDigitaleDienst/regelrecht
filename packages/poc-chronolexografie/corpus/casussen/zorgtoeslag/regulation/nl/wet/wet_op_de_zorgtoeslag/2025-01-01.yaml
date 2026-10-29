@@ -1,0 +1,642 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$id: wet_op_de_zorgtoeslag
+regulatory_layer: WET
+publication_date: '2024-12-20'
+valid_from: '2025-01-01'
+bwb_id: BWBR0018451
+url: https://wetten.overheid.nl/BWBR0018451/2025-01-01
+name: '#wet_naam'
+# Artikel 5, eerste lid: "De Dienst Toeslagen is belast met de uitvoering
+# van deze wet." Letterlijk, en niet als verwijzing naar een uitvoer: wie
+# beslist, leest de app uit de wet (src/casus.rs).
+competent_authority:
+  name: Dienst Toeslagen
+articles:
+  - number: '1'
+    text: >-
+      1. In deze wet en de daarop berustende bepalingen wordt, tenzij anders is geregeld, verstaan onder: a. Onze Minister:
+      Onze Minister van Volksgezondheid, Welzijn en Sport; b. zorgverzekering: de schadeverzekering, bedoeld in artikel 1,
+      onder d, van de Zorgverzekeringswet; c. verzekerde: de persoon, bedoeld in artikel 1, onder f, van de
+      Zorgverzekeringswet, de persoon die een bijdrage als bedoeld in artikel 68b, vijfde lid, van de Zorgverzekeringswet
+      verschuldigd is, of de persoon, bedoeld in artikel 69 van de Zorgverzekeringswet, steeds vanaf de eerste dag van de
+      kalendermaand volgende op de maand waarin hij achttien jaar wordt, met uitzondering van de verzekerde, bedoeld in
+      artikel 24, eerste of derde lid,van die wet; d. premie: een premie als bedoeld in afdeling 3.3.1 van de
+      Zorgverzekeringswet; e. zorgtoeslag: een tegemoetkoming in een premie dan wel in een bestuursrechtelijke premie als
+      bedoeld in artikel 18d of 18e van de Zorgverzekeringswet en in het verplicht eigen risico, bedoeld in artikel 19 van
+      de Zorgverzekeringswet; f. drempelinkomen: 108% van het twaalfvoud van het voor de maand januari van het
+      berekeningsjaar geldende in artikel 8, eerste lid, onderdeel b, van de Wet minimumloon en minimumvakantiebijslag
+      bedoelde bedrag per maand; g. de standaardpremie: het op grond van artikel 4 vastgestelde bedrag; h. de normpremie: de
+      aan de hand van het drempelinkomen en het toetsingsinkomen van de verzekerde berekende premie voor een zorgverzekering
+      in het berekeningsjaar.
+
+
+      2. De hoogte van de zorgtoeslag is afhankelijk van de draagkracht op basis van het inkomen en het vermogen.
+    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel1
+    machine_readable:
+      definitions:
+        # Artikel 1, eerste lid, onderdeel a: "Onze Minister: Onze Minister van
+        # Volksgezondheid, Welzijn en Sport".
+        verantwoordelijke_autoriteit: Minister van Volksgezondheid, Welzijn en Sport
+  - number: '2'
+    text: >-
+      1. Indien de normpremie voor een verzekerde in het berekeningsjaar minder bedraagt dan de standaardpremie in dat
+      jaar, heeft de verzekerde aanspraak op een zorgtoeslag ter grootte van dat verschil. Voor een verzekerde met een
+      partner wordt daarbij
+      tweemaal de standaardpremie in aanmerking genomen; in dat geval worden de verzekerde en zijn partner voor de
+      toepassing van deze wet geacht gezamenlijk één aanspraak te hebben.
+
+
+      2. De normpremie bedraagt een percentage van het drempelinkomen in het berekeningsjaar, vermeerderd met een
+      percentage van het toetsingsinkomen van de verzekerde in dat jaar voorzover dat toetsingsinkomen het
+      drempelinkomen te boven gaat. Voor een verzekerde met een partner wordt daarbij het gezamenlijke toetsingsinkomen
+      in aanmerking genomen.
+
+
+      3. De percentages worden voor verzekerden met een partner vastgesteld op 4,273% van het drempelinkomen,
+      vermeerderd met 13,700% van het toetsingsinkomen voor zover dat boven het drempelinkomen uitgaat en voor een
+      verzekerde zonder partner op 1,896% van het drempelinkomen, vermeerderd met 13,700% van het toetsingsinkomen voor
+      zover dat boven het drempelinkomen uitgaat. Deze percentages kunnen bij algemene maatregel van bestuur worden
+      gewijzigd.
+
+
+      4. In afwijking van het eerste lid bedraagt de aanspraak op een zorgtoeslag voor een verzekerde met een partner die
+      geen verzekerde is, vijftig procent van het op grond van het eerste lid berekende bedrag.
+
+
+      5. De aanspraak op een zorgtoeslag wordt voor iedere kalendermaand afzonderlijk bepaald.
+
+
+      6. Bij regeling van Onze Minister kunnen omtrent het bepaalde in het vijfde lid nadere regels worden gesteld.
+
+
+      7. De voordracht voor een krachtens het derde lid vast te stellen algemene maatregel van bestuur wordt niet
+      eerder gedaan dan twee weken nadat het ontwerp aan beide kamers der Staten-Generaal is overgelegd.
+    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel2
+    machine_readable:
+      definitions:
+        # RFC-023: constants declare their quantity-kind. Money is eurocent;
+        # the percentages here are stored as 0-1 ratios (1,896% = 0.01896), so
+        # they carry unit: ratio — not percentage. The label never divides by 100.
+        # Artikel 1, onderdeel f: het drempelinkomen is "108% van het twaalfvoud
+        # van het voor de maand januari van het berekeningsjaar geldende [...]
+        # bedrag per maand" uit de Wet minimumloon.
+        #
+        # Die som komt niet uit op de waarde hieronder, en dat is bewust. Het
+        # bedrag van artikel 8, eerste lid, onderdeel b Wml is per januari 2025
+        # 2.191,80 euro, wat 1,08 x 12 x 2.191,80 = 28.405,73 euro geeft. Met
+        # die drempel komt de afbouw op nul bij een inkomen van 39.891 euro,
+        # terwijl Dienst Toeslagen 39.719 euro als inkomensgrens publiceert.
+        # Met 28.200,96 komt die grens op 39.714 euro, vijf euro van de
+        # gepubliceerde waarde.
+        #
+        # Hier staat dus de waarde die de uitvoeringspraktijk reproduceert, niet
+        # de waarde die de wettekst letterlijk oplevert. Waar dat verschil van
+        # 205 euro vandaan komt is niet uitgezocht; het is een open vraag, geen
+        # afgeronde keuze. Zie #1429.
+        #
+        # De wet kent EEN drempelinkomen; alleen de percentages verschillen per
+        # huishoudtype (lid 3). Beide constanten dragen daarom dezelfde waarde;
+        # de keuze tussen de twee in de berekening hieronder is daarmee een
+        # no-op geworden en kan later verdwijnen.
+        #
+        # Hier stonden eerder 39.719 en 55.875. Dat zijn geen drempelinkomens
+        # maar inkomensgrenzen: het maximale inkomen waarbij nog recht bestaat,
+        # dat zelf uit de drempel, de percentages en de standaardpremie volgt.
+        # Met die waarden werd de afbouwtak nooit geraakt en keerde de wet voor
+        # elk inkomen onder de grens hetzelfde bedrag uit (issue #1429).
+        drempelinkomen_alleenstaande:
+          value: 2820096
+          type: amount
+          type_spec:
+            unit: eurocent
+        drempelinkomen_aanvrager_met_toeslagpartner:
+          value: 2820096
+          type: amount
+          type_spec:
+            unit: eurocent
+        percentage_drempelinkomen_alleenstaande:
+          value: 0.01896
+          type: number
+          type_spec:
+            unit: ratio
+        percentage_drempelinkomen_partner:
+          value: 0.04273
+          type: number
+          type_spec:
+            unit: ratio
+        percentage_toetsingsinkomen:
+          value: 0.137
+          type: number
+          type_spec:
+            unit: ratio
+      execution:
+        # Geen produces: dit artikel zegt of de verzekerde aanspraak heeft op
+        # een zorgtoeslag en hoe hoog die is. De beschikking erover geeft de
+        # Dienst Toeslagen op grond van de Awir: het voorschot (artikel 16) en
+        # de toekenning (artikel 14).
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: is_verzekerde
+            type: boolean
+            source:
+              regulation: zorgverzekeringswet
+              output: is_verzekerd
+              parameters:
+                bsn: $bsn
+          - name: heeft_toeslagpartner
+            type: boolean
+            source:
+              regulation: algemene_wet_inkomensafhankelijke_regelingen
+              output: heeft_toeslagpartner
+              parameters:
+                bsn: $bsn
+          - name: toetsingsinkomen
+            type: amount
+            source:
+              regulation: algemene_wet_inkomensafhankelijke_regelingen
+              output: toetsingsinkomen
+              parameters:
+                bsn: $bsn
+            type_spec:
+              unit: eurocent
+          # Lid 2, tweede zin: "Voor een verzekerde met een partner wordt
+          # daarbij het gezamenlijke toetsingsinkomen in aanmerking genomen."
+          # Wie de partner is volgt uit artikel 3 Awir; zijn toetsingsinkomen
+          # uit artikel 8 Awir, voor hem net als voor de verzekerde. Zonder
+          # partner is het burgerservicenummer null, slaat de engine de aanroep
+          # van artikel 8 over en is het toetsingsinkomen van de partner
+          # afwezig (RFC-036). Beide inputs zijn daarom nullable.
+          - name: bsn_toeslagpartner
+            type: string
+            nullable: true
+            source:
+              regulation: algemene_wet_inkomensafhankelijke_regelingen
+              output: bsn_toeslagpartner
+              parameters:
+                bsn: $bsn
+          - name: toetsingsinkomen_toeslagpartner
+            type: amount
+            nullable: true
+            source:
+              regulation: algemene_wet_inkomensafhankelijke_regelingen
+              output: toetsingsinkomen
+              parameters:
+                bsn: $bsn_toeslagpartner
+            type_spec:
+              unit: eurocent
+          - name: standaardpremie
+            type: amount
+            source:
+              output: standaardpremie
+            type_spec:
+              unit: eurocent
+          - name: vermogen_onder_grens
+            type: boolean
+            source:
+              output: vermogen_onder_grens
+        output:
+          - name: heeft_recht_op_zorgtoeslag
+            type: boolean
+          - name: hoogte_zorgtoeslag
+            type: amount
+            type_spec:
+              unit: eurocent
+          - name: in_aanmerking_genomen_toetsingsinkomen
+            type: amount
+            type_spec:
+              unit: eurocent
+        actions:
+          - output: in_aanmerking_genomen_toetsingsinkomen
+            legal_basis:
+              law: Wet op de zorgtoeslag
+              bwb_id: BWBR0018451
+              article: '2'
+              paragraph: '2'
+              url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel2
+              juriconnect: jci1.3:c:BWBR0018451&artikel=2&lid=2&z=2025-01-01&g=2025-01-01
+              explanation: >-
+                Het toetsingsinkomen waarmee de normpremie wordt berekend. Voor
+                een verzekerde met een partner is dat het gezamenlijke
+                toetsingsinkomen: dat van de verzekerde vermeerderd met dat van
+                de partner. Zonder partner is het dat van de verzekerde.
+            value:
+              operation: IF
+              cases:
+                # De partner volgt uit artikel 3 Awir, dat alleen een
+                # burgerservicenummer levert als er een partner is. Staat de
+                # partner wel als partner geregistreerd maar zonder nummer, dan
+                # is er geen toetsingsinkomen van hem op te halen en valt dit
+                # stil terug op dat van de verzekerde. Dat is een fout in de
+                # registratie, geen keuze van de wet, en hij zou moeten falen.
+                # Dat kan niet: regel N4 eist de afwezigheidstoets hieronder
+                # voor de ADD, ook waar heeft_toeslagpartner de afwezigheid al
+                # uitsluit, en een wet kan geen fout schrijven. Zie #1563.
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $heeft_toeslagpartner
+                        value: true
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $toetsingsinkomen_toeslagpartner
+                          value: null
+                  then:
+                    operation: ADD
+                    values:
+                      - $toetsingsinkomen
+                      - $toetsingsinkomen_toeslagpartner
+              default: $toetsingsinkomen
+          - output: hoogte_zorgtoeslag
+            # RFC-039: the action states which sentence of the law it carries out,
+            # so a trace step can cite the text it came from instead of only naming
+            # the article it was reached through.
+            legal_basis:
+              law: Wet op de zorgtoeslag
+              bwb_id: BWBR0018451
+              article: '2'
+              paragraph: '1'
+              # De url wijst op artikelniveau: wetten.overheid.nl heeft geen
+              # stabiel anker per lid. Het lid staat in `paragraph` en in de
+              # juriconnect, met `z`/`g` op de datum van deze versie, zodat de
+              # verwijzing de tekst van toen aanwijst en niet die van vandaag.
+              url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel2
+              juriconnect: jci1.3:c:BWBR0018451&artikel=2&lid=1&z=2025-01-01&g=2025-01-01
+              explanation: >-
+                Het verschil tussen de standaardpremie en de normpremie. Lid 1
+                verdubbelt de standaardpremie bij een toeslagpartner; de
+                normpremie zelf volgt uit lid 2 en lid 3. Lid 4 (vijftig procent
+                bij een partner die geen verzekerde is) is nog niet gemodelleerd.
+            # RFC-024: round the toeslag to whole eurocent (rekenkundig/half-up).
+            # The engine no longer rounds eurocent outputs implicitly; the rounding
+            # is stated explicitly here as a law-modeled instruction.
+            operation: ROUND
+            precision: 0
+            value:
+              operation: MAX
+              values:
+                - 0
+                - operation: SUBTRACT
+                  values:
+                    - operation: IF
+                      cases:
+                        - when:
+                            operation: EQUALS
+                            subject: $heeft_toeslagpartner
+                            value: true
+                          then:
+                            operation: MULTIPLY
+                            values:
+                              - 2
+                              - $standaardpremie
+                      default: $standaardpremie
+                    - operation: ADD
+                      values:
+                        - operation: MULTIPLY
+                          values:
+                            - operation: IF
+                              cases:
+                                - when:
+                                    operation: EQUALS
+                                    subject: $heeft_toeslagpartner
+                                    value: true
+                                  then: $percentage_drempelinkomen_partner
+                              default: $percentage_drempelinkomen_alleenstaande
+                            # Lid 3 zegt "van het drempelinkomen", zonder
+                            # voorbehoud: het eerste percentage gaat over de
+                            # volle drempel, ook als het inkomen lager is.
+                            # Hier stond een MIN met het toetsingsinkomen, die
+                            # lage inkomens een te lage normpremie en dus een te
+                            # hoge toeslag gaf (issue #1429). De tabel in
+                            # kst-35925-XVI-14 vraag 374 wijst dat uit: bij een
+                            # inkomen onder de drempel houdt de gepubliceerde
+                            # toeslag een vast bedrag aan, wat alleen klopt
+                            # zonder deze MIN.
+                            - operation: IF
+                              cases:
+                                - when:
+                                    operation: EQUALS
+                                    subject: $heeft_toeslagpartner
+                                    value: true
+                                  then: $drempelinkomen_aanvrager_met_toeslagpartner
+                              default: $drempelinkomen_alleenstaande
+                        - operation: IF
+                          cases:
+                            - when:
+                                operation: GREATER_THAN
+                                subject: $in_aanmerking_genomen_toetsingsinkomen
+                                value:
+                                  operation: IF
+                                  cases:
+                                    - when:
+                                        operation: EQUALS
+                                        subject: $heeft_toeslagpartner
+                                        value: true
+                                      then: $drempelinkomen_aanvrager_met_toeslagpartner
+                                  default: $drempelinkomen_alleenstaande
+                              then:
+                                operation: MULTIPLY
+                                values:
+                                  - operation: SUBTRACT
+                                    values:
+                                      - $in_aanmerking_genomen_toetsingsinkomen
+                                      - operation: IF
+                                        cases:
+                                          - when:
+                                              operation: EQUALS
+                                              subject: $heeft_toeslagpartner
+                                              value: true
+                                            then: $drempelinkomen_aanvrager_met_toeslagpartner
+                                        default: $drempelinkomen_alleenstaande
+                                  - $percentage_toetsingsinkomen
+                          default: 0
+          - output: heeft_recht_op_zorgtoeslag
+            # Deze verwijzing blijft bewust op artikelniveau. De drie
+            # voorwaarden komen uit drie bepalingen: verzekerd zijn uit artikel
+            # 1 onderdeel a, de vermogenstoets uit artikel 3, en alleen het
+            # positieve verschil uit artikel 2 lid 1. Een verwijzing naar lid 1
+            # zou preciezer lijken dan ze is, en dat is erger dan grof: wie de
+            # diepe link volgt vindt daar twee van de drie voorwaarden niet.
+            legal_basis:
+              law: Wet op de zorgtoeslag
+              bwb_id: BWBR0018451
+              article: '2'
+              url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel2
+              juriconnect: jci1.3:c:BWBR0018451&artikel=2&z=2025-01-01&g=2025-01-01
+              explanation: >-
+                De aanspraak ontstaat pas als het verschil uit artikel 2 lid 1
+                positief is. Daarnaast gelden twee voorwaarden van buiten dit
+                lid: verzekerd zijn (artikel 1 onderdeel a) en de vermogenstoets
+                (artikel 3), die als uitsluitingsgrond is geformuleerd.
+            value:
+              operation: AND
+              conditions:
+                - operation: EQUALS
+                  subject: $is_verzekerde
+                  value: true
+                - operation: EQUALS
+                  subject: $vermogen_onder_grens
+                  value: true
+                - operation: GREATER_THAN
+                  subject: $hoogte_zorgtoeslag
+                  value: 0
+  - number: '3'
+    text: >-
+      1. In afwijking van artikel 7, derde lid, van de Algemene wet inkomensafhankelijke regelingen, bestaat geen aanspraak
+      op een zorgtoeslag indien de rendementsgrondslag, bedoeld in artikel 5.3 van de Wet inkomstenbelasting 2001, van de
+      verzekerde aan het begin van het berekeningsjaar meer bedraagt dan € 141.896 of, indien de verzekerde het gehele
+      berekeningsjaar dezelfde partner heeft, de gezamenlijke rendementsgrondslag, bedoeld in artikel 5.3, van de Wet
+      inkomstenbelasting 2001, van de verzekerde en zijn partner aan het begin van het berekeningsjaar meer bedraagt dan €
+      179.429. Bij de bepaling van de rendementsgrondslag, bedoeld in de vorige zin, wordt geen rekening gehouden met de
+      vrijstelling, bedoeld in artikel 5.13 van de Wet inkomstenbelasting 2001.
+
+
+      2. Bij het begin van het kalenderjaar worden de bedragen, bedoeld in het eerste lid, bij ministeriële regeling
+      gewijzigd overeenkomstig de tabelcorrectiefactor, bedoeld in artikel 10.2 van de Wet inkomstenbelasting 2001.
+
+
+      3. Indien er aanleiding is om de bedragen, bedoeld in het eerste lid, te verhogen op een andere wijze dan op grond van
+      het tweede lid, worden de bedragen vastgesteld bij algemene maatregel van bestuur.
+
+
+      4. De overeenkomstig het tweede en derde lid aangepaste bedragen treden in de plaats van de bedragen, genoemd in het
+      eerste lid.
+
+
+      5. Indien een verhoging als bedoeld in het derde lid wordt toegepast, vindt deze verhoging plaats nadat het tweede lid
+      toepassing heeft gevonden.
+    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel3
+    machine_readable:
+      definitions:
+        # Artikel 3 noemt deze grenzen in euro's (141.896 en 179.429); ze staan
+        # hier in eurocent, net als de andere bedragen in deze wet. De eenheid
+        # stond er niet bij, waardoor een spoor ze als kaal getal meldde
+        # (RFC-023).
+        vermogensgrens_verzekerde:
+          value: 14189600
+          type: amount
+          type_spec:
+            unit: eurocent
+        vermogensgrens_gezamenlijk:
+          value: 17942900
+          type: amount
+          type_spec:
+            unit: eurocent
+      execution:
+        produces:
+          legal_character: TOETS
+          decision_type: GOEDKEURING
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: vermogen
+            type: amount
+            source:
+              regulation: wet_inkomstenbelasting_2001
+              output: rendementsgrondslag
+              parameters:
+                bsn: $bsn
+            type_spec:
+              unit: eurocent
+          - name: heeft_toeslagpartner
+            type: boolean
+            source:
+              regulation: algemene_wet_inkomensafhankelijke_regelingen
+              output: heeft_toeslagpartner
+              parameters:
+                bsn: $bsn
+          # Lid 1: "de gezamenlijke rendementsgrondslag [...] van de verzekerde
+          # en zijn partner". De rendementsgrondslag van de partner komt uit
+          # dezelfde bepaling van de Wet IB 2001 als die van de verzekerde,
+          # aangeroepen met het burgerservicenummer van de partner uit
+          # artikel 3 Awir. Zonder partner slaat de engine die aanroep over en
+          # is de input afwezig (RFC-036).
+          - name: bsn_toeslagpartner
+            type: string
+            nullable: true
+            source:
+              regulation: algemene_wet_inkomensafhankelijke_regelingen
+              output: bsn_toeslagpartner
+              parameters:
+                bsn: $bsn
+          - name: vermogen_toeslagpartner
+            type: amount
+            nullable: true
+            source:
+              regulation: wet_inkomstenbelasting_2001
+              output: rendementsgrondslag
+              parameters:
+                bsn: $bsn_toeslagpartner
+            type_spec:
+              unit: eurocent
+          # Lid 1: "indien de verzekerde het gehele berekeningsjaar dezelfde
+          # partner heeft". Dat is een feit over het hele jaar, niet over de
+          # peildatum: een partner die in de loop van het jaar komt of gaat,
+          # of een andere partner dan in januari, maakt dat de verzekerde
+          # alleen met zijn eigen grondslag wordt getoetst. Geen andere wet in
+          # het corpus stelt dit vast, dus het komt uit de registratie.
+          - name: heeft_gehele_berekeningsjaar_dezelfde_partner
+            type: boolean
+            source: {}
+        output:
+          - name: vermogen_onder_grens
+            type: boolean
+        actions:
+          - output: vermogen_onder_grens
+            legal_basis:
+              law: Wet op de zorgtoeslag
+              bwb_id: BWBR0018451
+              article: '3'
+              paragraph: '1'
+              url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel3
+              juriconnect: jci1.3:c:BWBR0018451&artikel=3&lid=1&z=2025-01-01&g=2025-01-01
+              explanation: >-
+                Lid 1 kent twee gronden, verbonden door "of": de
+                rendementsgrondslag van de verzekerde bedraagt meer dan
+                141.896 euro, "of, indien de verzekerde het gehele
+                berekeningsjaar dezelfde partner heeft", de gezamenlijke
+                rendementsgrondslag van de verzekerde en zijn partner bedraagt
+                meer dan 179.429 euro. Is een van beide waar, dan bestaat geen
+                aanspraak. De vermogenstoets is doorstaan als geen van beide
+                waar is.
+            # Naar de letter is lid 1 een disjunctie: de eerste grond geldt
+            # voor elke verzekerde, ook een met een partner, en de tweede komt
+            # er bij een partner het hele jaar bij. Dienst Toeslagen past bij
+            # een toeslagpartner alleen de gezamenlijke grens toe. De twee
+            # lezingen verschillen als de eigen grondslag boven de 141.896 ligt
+            # en de gezamenlijke onder de 179.429; hier staat de letter, en de
+            # vraag welke lezing juist is, is er een voor een jurist.
+            # De afwezigheidstoets op vermogen_toeslagpartner heeft dezelfde
+            # beperking als bij het toetsingsinkomen in artikel 2: een partner
+            # zonder burgerservicenummer slaat de gezamenlijke toets stil over
+            # (#1563).
+            value:
+              operation: AND
+              conditions:
+                - operation: LESS_THAN_OR_EQUAL
+                  subject: $vermogen
+                  value: $vermogensgrens_verzekerde
+                - operation: IF
+                  cases:
+                    - when:
+                        operation: AND
+                        conditions:
+                          - operation: EQUALS
+                            subject: $heeft_toeslagpartner
+                            value: true
+                          - operation: EQUALS
+                            subject: $heeft_gehele_berekeningsjaar_dezelfde_partner
+                            value: true
+                          - operation: NOT
+                            value:
+                              operation: EQUALS
+                              subject: $vermogen_toeslagpartner
+                              value: null
+                      then:
+                        operation: LESS_THAN_OR_EQUAL
+                        subject:
+                          operation: ADD
+                          values:
+                            - $vermogen
+                            - $vermogen_toeslagpartner
+                        value: $vermogensgrens_gezamenlijk
+                  default: true
+  - number: '4'
+    text: >-
+      Onze Minister stelt uiterlijk 22 dagen voorafgaande aan het berekeningsjaar bij regeling de standaardpremie voor
+      het berekeningsjaar vast die wordt gevormd door de geraamde gemiddelde premie voor een verzekerde voor een
+      zorgverzekering in het berekeningsjaar te vermeerderen met het geraamde gemiddelde bedrag dat een verzekerde naar
+      verwachting in dat jaar betaalt ingevolge artikel 19 van de Zorgverzekeringswet.
+    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel4
+    machine_readable:
+      open_terms:
+        - id: standaardpremie
+          type: amount
+          required: true
+          delegated_to: minister
+          delegation_type: MINISTERIELE_REGELING
+          legal_basis: artikel 4 Wet op de zorgtoeslag
+      execution:
+        output:
+          - name: standaardpremie
+            type: amount
+            type_spec:
+              unit: eurocent
+        actions:
+          - output: standaardpremie
+            value: $standaardpremie
+  - number: 4a
+    text: >-
+      1. De standaardpremie voor een persoon als bedoeld in artikel 69 van de Zorgverzekeringswet is, in afwijking van
+      artikel 4, gelijk aan het met toepassing van dat artikel bepaalde bedrag, vermenigvuldigd met het getal dat wordt
+      berekend uit de verhouding tussen de gemiddelde uitgaven voor zorg voor een persoon ten laste van de sociale
+      zorgverzekeringen in het woonland van deze persoon, en de gemiddelde uitgaven voor zorg voor een persoon ten laste van
+      de sociale zorgverzekeringen in Nederland.
+
+
+      2. Bij ministeriële regeling wordt jaarlijks uiterlijk in november per land het in het eerste lid bedoelde
+      verhoudingsgetal vastgesteld.
+
+
+      3. De aanspraak op een zorgtoeslag van een verzekerde met een partner die een persoon is als bedoeld in artikel 69 van
+      de Zorgverzekeringswet, wordt berekend met toepassing van artikel 2, eerste lid, tweede zin, waarbij de
+      standaardpremie, bedoeld in het eerste lid, in acht wordt genomen.
+
+
+      4. De standaardpremie voor een partner van een persoon als bedoeld in artikel 69 van de Zorgverzekeringswet wordt
+      overeenkomstig het eerste lid vastgesteld, tenzij deze partner een persoon is als bedoeld in artikel 1, onderdeel f,
+      van de Zorgverzekeringswet.
+    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel4a
+  - number: '5'
+    text: >-
+      1. De Dienst Toeslagen is belast met de uitvoering van deze wet.
+
+
+      2. In afwijking van artikel 25, eerste lid, van de Algemene wet inkomensafhankelijke regelingen betaalt de Dienst
+      Toeslagen in opdracht van het CAK, genoemd in artikel 6.1.1, eerste lid, van de Wet langdurige zorg, de zorgtoeslag of
+      het voorschot op de zorgtoeslag als tegemoetkoming in de bestuursrechtelijke premie, bedoeld in artikel 18d of 18e van
+      de Zorgverzekeringswet, aan het CAK uit.
+
+
+      3. De persoon, bedoeld in artikel 68b, vijfde lid, van de Zorgverzekeringswet, wordt geacht, zo nodig in afwijking van
+      artikel 15, eerste lid, van de Algemene wet inkomensafhankelijke regelingen, tijdig een aanvraag als bedoeld in
+      laatstgenoemd artikel te hebben gedaan voor de berekeningsjaren in de periode gelegen tussen de ingangsdatum van de
+      verzekeringsplicht voor de Zorgverzekeringswet en het moment waarop hij van het CAK een kennisgeving heeft ontvangen
+      van de verplichting om een zorgverzekering af te sluiten.
+
+
+      4. Voor de toepassing van artikel 16, eerste lid, van de Algemene wet inkomensafhankelijke regelingen wordt in het
+      geval, bedoeld in het derde lid, de aanvraag geacht te zijn gedaan op het moment waarop de Belastingdienst/Toeslagen
+      van het CAK een afschrift heeft ontvangen van de beschikking, bedoeld in artikel 68b, zesde lid, van de
+      Zorgverzekeringswet.
+
+
+      5. De zorgtoeslag komt ten laste van het Rijk.
+    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel5
+  - number: '6'
+    text: >-
+      Onze Minister zendt binnen vier jaar na de inwerkingtreding van deze wet, en vervolgens telkens na vier jaar, aan
+      de Staten-Generaal een verslag over de doeltreffendheid en de effecten van deze wet in de praktijk, in het bijzonder
+      van de bij of
+      krachtens deze wet vastgestelde percentages ter bepaling van de normpremie.
+    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel6
+  - number: '7'
+    text: |-
+      Deze wet treedt in werking op een bij koninklijk besluit te bepalen tijdstip.
+    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel7
+  - number: '8'
+    text: |-
+      Deze wet wordt aangehaald als: Wet op de zorgtoeslag.
+    url: https://wetten.overheid.nl/BWBR0018451/2025-01-01#Artikel8
+    machine_readable:
+      execution:
+        actions:
+          - output: wet_naam
+            value: Wet op de zorgtoeslag

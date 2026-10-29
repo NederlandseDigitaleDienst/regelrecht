@@ -116,6 +116,17 @@ fn kies<T: Clone>(lijst: &[T], op: &Value, standaard: impl Fn(&[T]) -> Option<us
     lijst[i].clone()
 }
 
+/// That the decision `besluit` has each output the step expects
+/// (`uitvoer`), with that value.
+fn uitvoer_klopt(stap: &Value, besluit: &Value, waar: &str) {
+    for (naam, verwacht) in map(&stap["uitvoer"]) {
+        assert_eq!(
+            besluit["outputs"][&naam], verwacht,
+            "{waar}: output '{naam}'"
+        );
+    }
+}
+
 /// The outcome of a decision on objection as a step writes it.
 fn op_bezwaar(beslissing: &Value) -> &'static str {
     let uit = &beslissing["outputs"];
@@ -183,6 +194,7 @@ fn speel(casus_id: &str, index: usize) {
                 let genomen = genomen.unwrap_or_else(|e| panic!("{waar}: {e}"));
                 stand.aanvragen[doel].1 =
                     Some(genomen["besluit"]["id"].as_str().unwrap().to_string());
+                uitvoer_klopt(stap, &genomen["besluit"], &waar);
                 let toegewezen = genomen["besluit"]["outputs"][uitkomst] == json!(true);
                 if let Some(v) = verwacht {
                     let kreeg = if toegewezen {
@@ -223,6 +235,13 @@ fn speel(casus_id: &str, index: usize) {
                 stand
                     .beslissingen
                     .push(genomen["beslissing"]["id"].as_str().unwrap().to_string());
+                if stap.get("uitvoer").is_some() {
+                    assert!(
+                        genomen["nieuw_besluit"].is_object(),
+                        "{waar}: no new decision to check the outputs of"
+                    );
+                    uitvoer_klopt(stap, &genomen["nieuw_besluit"], &waar);
+                }
                 if let Some(v) = verwacht {
                     assert_eq!(op_bezwaar(&genomen["beslissing"]), v, "{waar}");
                 }
@@ -315,4 +334,9 @@ fn every_scenario_of_gehandicaptenparkeerkaart_plays_with_its_own_values() {
 #[test]
 fn every_scenario_of_bedrijfsparkeervergunning_plays_with_its_own_values() {
     alle("bedrijfsparkeervergunning");
+}
+
+#[test]
+fn every_scenario_of_zorgtoeslag_plays_with_its_own_values() {
+    alle("zorgtoeslag");
 }

@@ -1,6 +1,7 @@
 <script setup>
 // Eén veld zoals de wet het vraagt: het type bepaalt het invoerelement, de
-// basis staat eronder. Een leeg tekst- of datumveld is `undefined`: dan
+// basis staat eronder. Een bedrag (`amount`) is een getal in de eenheid die
+// de wet ervoor rekent, zoals eurocent. Een leeg tekst- of datumveld is `undefined`: dan
 // laat de aanvraag het weg, en de cel noemt het in `missing` (Awb 4:5).
 import { leesbaar } from '../state.js';
 
@@ -36,7 +37,7 @@ const getal = (tekst) => {
       @change="zet($event.detail.value)"
     ></nldd-date-field>
     <nldd-text-field
-      v-else-if="veld.type === 'number'"
+      v-else-if="veld.type === 'number' || veld.type === 'amount'"
       keyboard="decimal"
       :value="modelValue ?? ''"
       @input="zet(getal($event.target.value))"
