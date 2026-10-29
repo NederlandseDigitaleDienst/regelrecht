@@ -132,8 +132,8 @@ export const steps = [
         'Hoeveel geldige bedrijfsparkeervergunningen het bedrijf op de dag van het besluit heeft (artikel 3 van het Uitvoeringsbesluit Parkeren Wilgendaal 2026), ontleent het college aan het antwoord van zijn eigen cel over zijn eerdere besluiten. Geeft de cel geen antwoord, dan stelt het college het zelf vast.',
     },
     text: [
-      'Het uitvoeringsbesluit zegt welke regels gelden. Het beleid van het college zegt hoe het ze uitvoert. Het aantal vraagt de gemeente aan haar cel, het systeem dat haar kroniek bijhoudt.',
-      'In de YAML is dat `source.reduction`. De cel rekent het antwoord uit met een reductie, een rekenregel die de kroniek terugleest.',
+      'Het uitvoeringsbesluit zegt welke regels gelden, het beleid van het college hoe het ze uitvoert. Het aantal vraagt de gemeente aan haar cel, het systeem dat haar kroniek bijhoudt.',
+      'In de YAML is dat `source.reduction`, waarmee de cel het antwoord uitrekent: een reductie, een rekenregel die de kroniek terugleest.',
     ],
     panels: [
       {
