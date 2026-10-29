@@ -36,6 +36,7 @@ import AanvragerTab from './components/AanvragerTab.vue';
 import AndereCellenTab from './components/AndereCellenTab.vue';
 import BestuursorgaanTab from './components/BestuursorgaanTab.vue';
 import CasusKeuze from './components/CasusKeuze.vue';
+import HerkomstSheet from './components/HerkomstSheet.vue';
 import KroniekTab from './components/KroniekTab.vue';
 import LogboekTab from './components/LogboekTab.vue';
 import NaUitspraak from './components/NaUitspraak.vue';
@@ -333,6 +334,7 @@ function toTab(id) {
         </nldd-navigation-split-view>
       </nldd-split-view-pane>
     </nldd-bar-split-view>
+    <HerkomstSheet />
   </nldd-shell>
   <PresentationDeck @uitleg="uitlegVanDek" />
 </template>

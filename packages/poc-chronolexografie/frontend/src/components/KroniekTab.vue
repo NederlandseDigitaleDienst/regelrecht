@@ -19,7 +19,8 @@ import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { api } from '../api.js';
 import { beroepApi, herkomst } from '../beroep.js';
 import { celNaam, toon } from '../logboek.js';
-import { alsJson, isBesluit, kort, leesbaar, rol, state } from '../state.js';
+import { isBesluit, kort, leesbaar, rol, state } from '../state.js';
+import GramCode from './GramCode.vue';
 
 // De kroniek van de cel van de casus, dan die van de andere cellen. Waarom
 // een besluit zo uitviel, vraagt de app aan de cel van de casus en aan de
@@ -236,7 +237,7 @@ const json = ref(null);
           ></nldd-top-title-bar>
         </nldd-container>
         <nldd-simple-section>
-          <nldd-code-viewer v-if="json" language="json" appearance="box-tinted">{{ alsJson(json) }}</nldd-code-viewer>
+          <GramCode v-if="json" :gram="json" />
         </nldd-simple-section>
       </nldd-page>
     </nldd-sheet>

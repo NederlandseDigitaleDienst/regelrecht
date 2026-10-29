@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { artikelNaam, genomenBij, genummerd, opsomming, stapTekst, toon, uitslag, wetNaam } from '../src/logboek.js';
+import { artikelNaam, genomenBij, genummerd, ingevuldDoor, opsomming, stapTekst, toon, uitslag, wetNaam } from '../src/logboek.js';
 import { rol, state } from '../src/state.js';
 
 // De casus zoals `api.casus` haar geeft, voor zover het logboek haar leest.
@@ -92,55 +92,52 @@ describe('genummerd', () => {
 });
 
 describe('stapTekst', () => {
+  it('zet bij een begrip alleen de naam en de waarde, zonder wie het invulde', () => {
+    expect(stapTekst(celAntwoord)).toEqual({ tekst: 'verlof al verleend in schooljaar: nee' });
+  });
+
   it('noemt het beleidsartikel, het antwoord, de cel en de reductie, en hoe ver zij las', () => {
-    expect(stapTekst(celAntwoord, grammen)).toEqual({
-      tekst: 'verlof al verleend in schooljaar: nee',
-      toelichting:
+    expect(ingevuldDoor(celAntwoord.ingevuld_door, grammen)).toEqual(
         'ingevuld door beleid fictief_beleid_vakantieverlof_obs_de_klimop art. 2, antwoord verlof_al_verleend_in_schooljaar van OBS De Klimop (reductie reductie_verlof_al_verleend_in_schooljaar, 5 chronolexogrammen t/m bezwaar 0000bbbb)',
-    });
+    );
   });
 
   it('noemt een koppeling waarop geen cel antwoordde', () => {
     const stil = { ...celAntwoord, waarde: null, ingevuld_door: { answer: { ...celAntwoord.ingevuld_door.answer, answers: [] } } };
-    expect(stapTekst(stil, grammen).toelichting).toBe(
+    expect(ingevuldDoor(stil.ingevuld_door, grammen)).toBe(
       'ingevuld door beleid fictief_beleid_vakantieverlof_obs_de_klimop art. 2, geen antwoord van een cel',
     );
   });
 
   it('noemt een bevinding van het bestuursorgaan en een regeling', () => {
     const bevinding = { ...celAntwoord, naam: 'specifieke_aard_beroep_ouder', waarde: true, ingevuld_door: 'finding' };
-    expect(stapTekst(bevinding, grammen).toelichting).toBe('open begrip, bevinding van het bestuursorgaan');
+    expect(ingevuldDoor(bevinding.ingevuld_door, grammen)).toBe('bevinding van het bestuursorgaan');
     const regeling = {
       ...celAntwoord,
       ingevuld_door: { regulation: { law_id: 'leerplichtwet_1969', article: '1' } },
     };
-    expect(stapTekst(regeling, grammen).toelichting).toBe(
-      'open begrip, ingevuld door Leerplichtwet 1969 artikel 1',
+    expect(ingevuldDoor(regeling.ingevuld_door, grammen)).toBe(
+      'ingevuld door Leerplichtwet 1969 artikel 1',
     );
   });
 
-  it('noemt een standaardwaarde, en een begrip zonder waarde niet ingevuld', () => {
-    const begrip = { ...celAntwoord, ingevuld_door: null, waarde: false };
-    expect(stapTekst(begrip, grammen).toelichting).toBe('open begrip, standaardwaarde');
-    expect(stapTekst({ ...begrip, waarde: null }, grammen).toelichting).toBe('open begrip, niet ingevuld');
-  });
 
   it('noemt een aanroep zonder artikel bij de uitvoer die hij vroeg', () => {
     const stap = { soort: 'artikel', wet: 'leerplichtwet_1969', artikel: '', uitvoer: 'verlofdagen', stappen: [] };
-    expect(stapTekst(stap, grammen).tekst).toBe('verlofdagen uit Leerplichtwet 1969');
+    expect(stapTekst(stap).tekst).toBe('verlofdagen uit Leerplichtwet 1969');
   });
 
   it('zegt bij een uitkomst die niet te bepalen was wat ontbrak', () => {
     const stap = { soort: 'uitkomst', naam: 'bezwaar_of_beroepschrift_tijdig_ingediend', waarde: null, ontbreekt: ['datum_ontvangst_bezwaar_of_beroepschrift'] };
-    expect(stapTekst(stap, grammen)).toEqual({
+    expect(stapTekst(stap)).toEqual({
       tekst: 'bezwaar of beroepschrift tijdig ingediend: niet bepaald',
       toelichting: 'ontbreekt: datum ontvangst bezwaar of beroepschrift',
     });
   });
 
   it('noemt een artikel en een hook bij hun naam', () => {
-    expect(stapTekst(keten[0], grammen).tekst).toBe('Awb artikel 7:11 wordt uitgevoerd');
-    expect(stapTekst(keten[0].stappen[1], grammen).tekst).toBe('Ook van toepassing: Awb artikel 6:7');
+    expect(stapTekst(keten[0]).tekst).toBe('Awb artikel 7:11 wordt uitgevoerd');
+    expect(stapTekst(keten[0].stappen[1]).tekst).toBe('Ook van toepassing: Awb artikel 6:7');
   });
 });
 
@@ -221,23 +218,20 @@ describe('antwoorden van een andere cel (RFC-052)', () => {
   });
 
   it('leest het laatste chronolexogram in de kroniek van de andere cel', () => {
-    const t = stapTekst(
-      begrip(koppeling([{ ...bron('postcode_vestiging'), last_record: '019a0000-0000-7000-8000-00000000cccc' }])),
-      [],
-    );
-    expect(t.toelichting).toContain('0000cccc');
+    const t = ingevuldDoor(begrip(koppeling([{ ...bron('postcode_vestiging'), last_record: '019a0000-0000-7000-8000-00000000cccc' }])).ingevuld_door, []);
+    expect(t).toContain('0000cccc');
   });
 
   it('noemt de andere cel bij haar naam', () => {
-    const t = stapTekst(begrip(koppeling([bron('postcode_vestiging')])), []);
-    expect(t.toelichting).toBe(
+    const t = ingevuldDoor(begrip(koppeling([bron('postcode_vestiging')])).ingevuld_door, []);
+    expect(t).toBe(
       'ingevuld door beleid beleid_bedrijfsparkeervergunning_gemeente_wilgendaal art. 1, antwoord postcode_vestiging van Kamer van Koophandel (reductie reductie_vestiging_in_handelsregister, niets uit de kroniek gelezen)',
     );
   });
 
   it('noemt elk antwoord dat het artikel nam, met de cel die het gaf', () => {
-    const t = stapTekst(begrip(koppeling([bron('postcode_vestiging'), bron('aantal_werkzame_personen')])), []);
-    expect(t.toelichting).toBe(
+    const t = ingevuldDoor(begrip(koppeling([bron('postcode_vestiging'), bron('aantal_werkzame_personen')])).ingevuld_door, []);
+    expect(t).toBe(
       'ingevuld door beleid beleid_bedrijfsparkeervergunning_gemeente_wilgendaal art. 1, antwoord postcode_vestiging van Kamer van Koophandel (reductie reductie_vestiging_in_handelsregister, niets uit de kroniek gelezen) en antwoord aantal_werkzame_personen van Kamer van Koophandel (reductie reductie_vestiging_in_handelsregister, niets uit de kroniek gelezen)',
     );
   });

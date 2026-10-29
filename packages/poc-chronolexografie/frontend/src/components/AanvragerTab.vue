@@ -42,9 +42,9 @@ async function indienen() {
   }
 }
 
-// Het bezwaar of beroep tegen één besluit tegelijk, in een sheet: `soort`
-// is de sleutel van zijn vorm en zijn voorbeeldwaarden ('bezwaar' of
-// 'beroep'). Volg je een scenario, dan is de dagtekening de speeldatum.
+// Het bezwaar of beroep tegen één besluit tegelijk: `soort` is de sleutel
+// van zijn vorm en zijn voorbeeldwaarden ('bezwaar' of 'beroep'). Volg je
+// een scenario, dan is de dagtekening de speeldatum.
 const tegen = ref(null);
 const scenarioIndiening = () => {
   const t = tegen.value;
@@ -69,7 +69,7 @@ function start(soort, besluit) {
   tegen.value = { soort, besluit };
 }
 
-// De kop van de sheet met het formulier.
+// The heading of the sheet with the form.
 const kop = computed(() => {
   const t = tegen.value;
   if (!t) return '';
@@ -111,8 +111,8 @@ async function indienenTegen() {
 </script>
 
 <template>
-  <!-- Het formulier links, wat je al indiende rechts; op een smal scherm
-       valt Mijn aanvragen onder het formulier. -->
+  <!-- The form on the left, what was submitted on the right; on a narrow
+       screen Mijn aanvragen falls below the form. -->
   <nldd-one-half-one-half-section>
     <nldd-container slot="left" gap="16">
       <nldd-title size="3" :text="`Aanvraag: ${state.casus.titel.toLowerCase()}`">
@@ -184,8 +184,8 @@ async function indienenTegen() {
     </nldd-container>
   </nldd-one-half-one-half-section>
 
-  <!-- Bezwaar en beroep in één sheet: zelfde velden uit de wet, alleen de
-       kop, de uitleg en de knop verschillen. -->
+  <!-- Objection and appeal share one sheet: the same fields from the law,
+       only the heading, the explanation and the button differ. -->
   <Teleport to="body">
     <nldd-sheet width="720px" :open="tegen ? true : undefined" @close="tegen = null">
       <nldd-page>
