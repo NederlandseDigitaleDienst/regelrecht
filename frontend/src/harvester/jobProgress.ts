@@ -50,6 +50,11 @@ export function progressRows(progress: unknown, running = true): Row[] {
     rows.push(['Phase', `${phase}${of}`]);
   }
 
+  // What the CLI said it runs, from its first event; set even when the
+  // worker passed no model and the CLI chose one.
+  const model = asText(w.model);
+  if (model) rows.push(['Model', model]);
+
   const call = asText(w.call);
   const calls = asNumber(w.calls);
   if (call) rows.push(['Agent call', calls && calls > 1 ? `${call} (call ${calls})` : call]);

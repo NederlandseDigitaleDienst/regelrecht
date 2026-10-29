@@ -15,6 +15,7 @@ describe('progressRows', () => {
     step: 2,
     total_steps: 4,
     worker: {
+      model: 'claude-opus-5-5',
       call: 'translate',
       calls: 1,
       call_elapsed_secs: 734,
@@ -31,6 +32,7 @@ describe('progressRows', () => {
   it('shows what the agent and the worker reported', () => {
     expect(progressRows(progress)).toEqual([
       ['Phase', 'generate (step 2 of 4)'],
+      ['Model', 'claude-opus-5-5'],
       ['Agent call', 'translate'],
       ['Call running for', '12 min 14 s'],
       ['Last output', '3 s ago'],

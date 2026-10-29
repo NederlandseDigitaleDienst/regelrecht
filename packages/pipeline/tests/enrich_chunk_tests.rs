@@ -59,6 +59,7 @@ fn chunk_result(provider: &str, law_complete: bool, enrich_cursor: usize) -> Enr
         feedback: Vec::new(),
         usage: None,
         agent_calls: Vec::new(),
+        models: Vec::new(),
         session_reuse: "off".into(),
     }
 }
