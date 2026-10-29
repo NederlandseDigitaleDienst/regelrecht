@@ -40,7 +40,6 @@ import HerkomstSheet from './components/HerkomstSheet.vue';
 import KroniekTab from './components/KroniekTab.vue';
 import LogboekTab from './components/LogboekTab.vue';
 import NaUitspraak from './components/NaUitspraak.vue';
-import ReductieTab from './components/ReductieTab.vue';
 import ScenarioGuide from './components/ScenarioGuide.vue';
 import ScenarioTab from './components/ScenarioTab.vue';
 import { guideFor } from './scenarioGuides.js';
@@ -58,7 +57,6 @@ const tabs = computed(() => [
   { id: 'bestuursorgaan', tekst: 'Bestuursorgaan' },
   ...(state.casus?.andere_cellen?.length ? [{ id: 'andere', tekst: 'Andere cellen' }] : []),
   { id: 'kroniek', tekst: 'Kroniek' },
-  { id: 'reductie', tekst: 'Reductie' },
   { id: 'logboek', tekst: 'Logboek' },
 ]);
 const tab = ref('scenarios');
@@ -313,7 +311,6 @@ function toTab(id) {
                 </template>
                 <AndereCellenTab v-else-if="tab === 'andere'" />
                 <KroniekTab v-else-if="tab === 'kroniek'" />
-                <ReductieTab v-else-if="tab === 'reductie'" />
                 <LogboekTab v-else @kroniek="naarKroniek" />
               </template>
             </nldd-page>
