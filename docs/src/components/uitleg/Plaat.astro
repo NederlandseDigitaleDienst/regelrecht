@@ -1,0 +1,43 @@
+---
+/*
+ * A figure on the Dutch explainer pages, inlined as SVG so its text is set in
+ * the site's font. The figures have fixed colors drawn for a white
+ * background, so the panel stays white in the dark theme too. On a narrow
+ * screen the figure scrolls sideways instead of shrinking past legibility.
+ */
+interface Props {
+  /** The SVG source, imported with `?raw`. */
+  svg: string;
+  bijschrift: string;
+}
+const { svg, bijschrift } = Astro.props;
+---
+
+<figure class="uitleg-plaat">
+  <div class="uitleg-plaat__vlak" tabindex="0" role="group" aria-label={bijschrift} set:html={svg} />
+  <figcaption>{bijschrift}</figcaption>
+</figure>
+
+<style>
+  .uitleg-plaat {
+    margin: var(--primitives-space-32) 0;
+  }
+  .uitleg-plaat__vlak {
+    padding: var(--primitives-space-16);
+    border: 1px solid var(--semantics-surfaces-tinted-border-color);
+    border-radius: var(--semantics-surfaces-corner-radius);
+    background: #fff;
+    overflow-x: auto;
+  }
+  .uitleg-plaat__vlak :global(svg) {
+    display: block;
+    width: 100%;
+    min-width: 640px;
+    height: auto;
+  }
+  .uitleg-plaat figcaption {
+    margin-top: var(--primitives-space-8);
+    font: var(--primitives-font-body-sm-regular);
+    color: var(--semantics-content-secondary-color);
+  }
+</style>

@@ -1,0 +1,67 @@
+---
+title: "Hoe RegelRecht werkt"
+description: "RegelRecht zonder techniek uitgelegd, in twee platen: uit welke onderdelen het bestaat, en hoe een regeling een regelwerk wordt."
+lang: nl
+---
+
+import Plaat from '~/components/uitleg/Plaat.astro';
+import landschap from '~/assets/uitleg/systeemlandschap.svg?raw';
+import regelwerk from '~/assets/uitleg/van-regeling-naar-regelwerk.svg?raw';
+
+Wetten zijn geschreven voor mensen. Toch rekenen computers steeds vaker uit waar iemand recht op heeft, bijvoorbeeld op een toeslag, een uitkering of een vergunning. Hoe de wet in die software is vertaald, is van buiten meestal niet te zien. RegelRecht maakt die vertaling openbaar en controleerbaar.
+
+Deze pagina legt uit hoe dat werkt, zonder techniek. De eerste plaat laat zien uit welke onderdelen RegelRecht bestaat en wie het gebruikt. De tweede zoomt in op het middendeel van de eerste en volgt één regeling op weg naar een *regelwerk*: de uitwerking van de wet die een computer kan uitvoeren. De technische uitleg staat in het Engels onder [How RegelRecht Works](/concepts/how-it-works).
+
+## Het systeemlandschap
+
+<Plaat svg={landschap} bijschrift="Het systeemlandschap van RegelRecht: van de officiële regelgeving en de parlementaire geschiedenis links, via inlezen, werkplaats, Corpus Juris en rekenkern, naar de uitvoerders, burgers en de wetgever rechts. Linksonder de gegevens waarmee de rekenkern rekent." />
+
+De plaat leest van links naar rechts.
+
+**Bronnen.** Alles begint bij de officiële wetten en regels, zoals de overheid die publiceert: landelijke wetten en regelingen op wetten.nl, en de regels van gemeenten, provincies en waterschappen. Daarnaast is er de parlementaire geschiedenis van een wet, zoals de memorie van toelichting. Daarin staan vaak rekenvoorbeelden die laten zien hoe de wetgever de regel bedoelde.
+
+**Inlezen.** Het inlezen loopt langs twee stromen. RegelRecht haalt de wettekst automatisch op, artikel voor artikel. Elke versie blijft bewaard, zodat altijd te zien is welke tekst op een bepaald moment gold. Daarnaast worden zulke voorbeelden automatisch uit de parlementaire stukken gehaald en omgezet in testscenario's: gevallen met vaste gegevens en de uitkomst die de wet daarbij zou moeten geven.
+
+**Werkplaats.** Hier wordt de wettekst geïnterpreteerd tot een regelwerk: welke gegevens nodig zijn, welke grenzen gelden en wat de uitkomst is. Juristen, beleidsmedewerkers en uitvoeringsexperts doen dat, ondersteund door AI, en mensen beoordelen het resultaat. Het regelwerk wordt doorgerekend met de testscenario's, zodat te zien is of de uitkomst klopt met wat de wetgever bedoelde. Is het klaar, dan stelt het bevoegd gezag vast dat dit de geldende versie van het regelwerk is.
+
+**Corpus Juris.** Met die vaststelling wordt het regelwerk gepubliceerd in het Corpus Juris, naast de wettekst waar het bij hoort. Iedereen kan dan zien hoe een wet is uitgewerkt. Dat is de regel, met een uitzondering: bij sommige wetten mag de uitvoering niet openbaar zijn, zoals bij opsporing of defensie. Ook dan is het nuttig om het regelwerk in het Corpus Juris vast te leggen, zodat organisaties binnen de overheid en in de keten met dezelfde uitwerking werken. Het wordt dan alleen binnen de overheid gedeeld en niet gepubliceerd.
+
+**Rekenkern.** De rekenkern (in het Engels: *rule engine*) rekent met die uitwerking. Hierbij wordt geen gebruik gemaakt van AI. De rekenkern volgt alleen de vastgelegde regels, dus dezelfde gegevens geven altijd dezelfde uitkomst. Bij elke uitkomst staat op welk artikel van de wet die berust.
+
+**Gegevens.** Om te rekenen heeft de rekenkern gegevens nodig over de persoon of het geval, zoals een inkomen of een leeftijd. Het regelwerk legt vast welke gegevens dat zijn, maar de gegevens zelf staan er niet in. Ze komen van wie de rekenkern gebruikt: uit de registers van een uitvoerder, of de burger vult ze zelf in. Ontbreekt er een gegeven, dan zegt de rekenkern welk, zodat erom gevraagd kan worden.
+
+**Gebruik.** RegelRecht is bedoeld voor organisaties die besluiten nemen, zoals een uitkeringsinstantie, voor burgers en bedrijven die willen weten waar ze recht op hebben en waarom, en voor de wetgever, die wil zien hoe een wet uitpakt voordat er iets verandert. Een nieuwe of gewijzigde wet komt weer bij de bronnen terecht, en dan begint het rondje opnieuw.
+
+## Van regeling naar regelwerk
+
+<Plaat svg={regelwerk} bijschrift="Van regeling naar regelwerk, in zes stappen. De band bovenaan noemt het onderdeel uit de eerste plaat waar elke stap bij hoort. Stap 2 en 3 vormen een lus die grotendeels automatisch loopt; de correcties van experts gaan terug die lus in." />
+
+Hoe wordt een regeling een regelwerk? Deze plaat zoomt in op het middendeel van de eerste: Inlezen, Werkplaats, Corpus Juris en Rekenkern, uitgesplitst in zes stappen. Stap 1 is het inlezen, stap 2 tot en met 4 gebeuren in de werkplaats, stap 5 is de publicatie in het Corpus Juris en stap 6 is het werk van de rekenkern.
+
+**1. Inlezen.** RegelRecht neemt de geldende tekst automatisch over uit de officiële bekendmaking, per artikel. Treedt een nieuwe tekst in werking, dan komt er een nieuwe versie bij. Tegelijk worden de rekenvoorbeelden uit de kamerstukken, zoals de memorie van toelichting, automatisch omgezet in testscenario's.
+
+**2. Interpreteren.** Naast elk artikel komt een uitwerking die een computer kan lezen: welke gegevens nodig zijn, welke regel wordt toegepast en wat de uitkomst is. Meestal schrijft een AI-agent die eerste versie. Een regelwerk zet alleen de artikelen van die ene wet om; het vat niet meerdere wetten samen. Verwijst de wet naar een andere wet of naar lagere regelgeving, dan verwijst het regelwerk naar het regelwerk daarvan, zoals de wetten en regelingen zelf ook naar elkaar verwijzen. Wat zich niet laat vertalen, zoals een afweging die de wet aan de uitvoerder overlaat, krijgt een markering in plaats van een benadering.
+
+**3. Doorrekenen en controleren.** De uitwerking wordt doorgerekend met de testscenario's uit stap 1. Klopt een uitkomst niet, dan wordt de uitwerking aangepast en opnieuw doorgerekend. Daarna wordt elk onderdeel naast de tekst van het artikel gelegd, en wat daar geen grond in heeft, vervalt. Blijkt de wet zelf een gebrek te hebben, dan gaat er een signaal naar de wetgever.
+
+**4. Toetsen door experts.** Juristen en uitvoeringsexperts beoordelen wat om een juridisch oordeel of kennis van de praktijk vraagt. Hun correcties gaan terug naar stap 2. Deze stap is nog ontwerp: zulke toetssessies zijn nog niet gehouden.
+
+**5. Vaststellen en publiceren.** Het bevoegd gezag stelt vast dat dit de geldende versie van het regelwerk is. Daarmee wordt het gepubliceerd in het Corpus Juris, naast de wettekst en met elke eerdere versie erbij. Dat is openbaar, tenzij de uitvoering van een wet niet openbaar mag zijn; dan wordt het regelwerk alleen binnen de overheid gedeeld.
+
+**6. Uitvoeren en verantwoorden.** De rekenkern past de versie toe die gold op de gevraagde datum. Bij elke uitkomst staat tot op artikel en lid waar die op berust, zodat een uitvoerder, een burger of een wetgever haar kan terugvoeren op de wet.
+
+## En tijdens het maken van een wet?
+
+Beide platen beginnen bij een wet die al is bekendgemaakt. Toch kan RegelRecht ook eerder helpen: terwijl een wet nog wordt geschreven en besproken. Dat deel staat nog aan het begin. Er wordt in drie richtingen gewerkt.
+
+**Doorrekenen voordat erover wordt gestemd.** Het parlement stelt een wet nu vast zonder te kunnen testen wat die gaat doen. Met een regelwerk van het voorstel kan een wetgever een wijziging doorrekenen voor een fictieve bevolking, en zien wie erop vooruit of achteruit gaat. Daar bestaat een eerste prototype van.
+
+**De rekenvoorbeelden als toets.** De memorie van toelichting bevat vaak rekenvoorbeelden. Als het regelwerk die voorbeelden niet kan nadoen, zegt de wettekst iets anders dan de wetgever bedoelde. Dat is beter te ontdekken voordat de wet geldt dan erna.
+
+**Het regelwerk meeschrijven.** Een wetgevingsjurist zou het regelwerk kunnen opstellen tegelijk met de wettekst, in plaats van achteraf. Een bepaling die niet eenduidig uit te voeren is, valt dan op terwijl ze nog te veranderen is, bijvoorbeeld tijdens de internetconsultatie. Hoe wetgevingsjuristen nu werken en wat ze daarvoor nodig hebben, wordt nog onderzocht.
+
+Meer over de stappen van het wetgevingsproces staat in [Het wetgevingsproces](/basiswerk/wetgevingsproces).
+
+## Goed om te weten
+
+Het regelwerk is een interpretatie van de wet, en zelf geen wet. Wijkt het af van de wettekst, dan geldt de wettekst en wordt het regelwerk aangepast. RegelRecht wordt op dit moment alleen in proeftuinen gebruikt: overheidsorganisaties nemen er nog geen besluiten mee. Of dat kan, en wat ervoor nodig is, wordt de komende tijd onderzocht en in de praktijk beproefd.

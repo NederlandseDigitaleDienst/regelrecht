@@ -21,6 +21,14 @@ export interface SidebarGroup {
 }
 
 export const sidebar: Record<string, SidebarGroup[]> = {
+  '/uitleg/': [
+    {
+      text: 'Uitleg',
+      items: [
+        { text: 'Hoe RegelRecht werkt', link: '/uitleg/hoe-regelrecht-werkt' },
+      ],
+    },
+  ],
   '/guide/': [
     {
       text: 'Introduction',
