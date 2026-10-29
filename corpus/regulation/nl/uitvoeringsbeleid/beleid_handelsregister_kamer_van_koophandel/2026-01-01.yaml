@@ -1,6 +1,6 @@
 ---
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
-$id: fictief_beleid_handelsregister_kamer_van_koophandel
+$id: beleid_handelsregister_kamer_van_koophandel
 regulatory_layer: UITVOERINGSBELEID
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'

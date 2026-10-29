@@ -139,7 +139,7 @@ export const COMPONENTS = {
       'corpus/regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal/',
       'corpus/regulation/nl/uitvoeringsbeleid/beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal/',
       'corpus/regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_ggd_wilgendaal/',
-      'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_handelsregister_kamer_van_koophandel/',
+      'corpus/regulation/nl/uitvoeringsbeleid/beleid_handelsregister_kamer_van_koophandel/',
       'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaar_obs_de_klimop/',
       'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaargrenzen_obs_de_klimop/',
       'corpus/regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantierooster_obs_de_klimop/',

@@ -968,12 +968,8 @@ impl RuleResolver {
                 law.waterschap_code.clone(),
             )
         };
-        let scoped = |law: &ArticleBasedLaw| {
-            law.gemeente_code.is_some()
-                || law.provincie_code.is_some()
-                || law.waterschap_code.is_some()
-        };
-        scoped(a) && fields(a) == fields(b)
+        let territory = fields(a);
+        territory != (None, None, None) && territory == fields(b)
     }
 
     /// Find all implementations of an open term, resolved by priority.
@@ -1119,6 +1115,8 @@ impl RuleResolver {
         // Resolve each candidate to actual (law, article) references
         let mut candidates: Vec<Candidate> = Vec::new();
         let mut lookup = ImplementationLookup::default();
+        // The declaring law, to recognise candidates of its own territory.
+        let declarer = self.get_law_for_date(law_id, reference_date);
 
         for entry in candidate_entries {
             // Version filter. A regulation that is not in force on this date
@@ -1158,9 +1156,8 @@ impl RuleResolver {
             // So does a regulation scoped to the same territory as the one that
             // declares the term, such as the college's nadere regels under a
             // verordening of the same municipality.
-            let of_the_declarers_territory = self
-                .get_law_for_date(law_id, reference_date)
-                .is_some_and(|declarer| Self::shares_territory(declarer, law));
+            let of_the_declarers_territory =
+                declarer.is_some_and(|declarer| Self::shares_territory(declarer, law));
             if law.id != law_id && !of_the_declarers_territory && !Self::matches_scope(law, scope) {
                 tracing::debug!(
                     candidate = %entry.law_id,
@@ -3964,6 +3961,43 @@ articles:
             .implementations;
         let ids: Vec<&str> = found.iter().map(|(law, _)| law.id.as_str()).collect();
         assert_eq!(ids, ["nadere_regels_gm0363"]);
+    }
+
+    /// Two laws share a territory only when both carry scope fields and those
+    /// fields are equal; two national laws do not.
+    #[test]
+    fn test_shares_territory() {
+        let law = |id: &str, scope: &str| {
+            ArticleBasedLaw::from_yaml_str(&format!(
+                r#"
+$id: {id}
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+{scope}
+articles:
+  - number: '1'
+    text: Tekst.
+"#
+            ))
+            .unwrap()
+        };
+        let national = law("a", "");
+        let gm = law("b", "gemeente_code: 'GM0363'");
+        let gm_other = law("c", "gemeente_code: 'GM0599'");
+        let pv = law("d", "provincie_code: 'PV27'");
+        let ws = law("e", "waterschap_code: 'WS0653'");
+        let ws_other = law("f", "waterschap_code: 'WS0155'");
+        let shares = RuleResolver::shares_territory;
+        assert!(!shares(&national, &national));
+        assert!(!shares(&national, &gm));
+        assert!(!shares(&gm, &national));
+        assert!(shares(&gm, &gm));
+        assert!(!shares(&gm, &gm_other));
+        assert!(shares(&pv, &pv));
+        assert!(!shares(&pv, &gm));
+        assert!(shares(&ws, &ws));
+        assert!(!shares(&ws, &ws_other));
     }
 
     /// A waterschapsverordening only implements an open term for its own

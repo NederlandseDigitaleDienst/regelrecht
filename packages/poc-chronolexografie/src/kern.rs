@@ -3392,12 +3392,12 @@ mod tests {
 
         // The bedrijfsparkeervergunning: art. 2 of the fictitious ordinance,
         // its implementing decision that fills its open terms, the policy
-        // that binds those to the answers of the cells, and the Awb; the reductions of the
-        // catalogues of the municipality and of the Chamber of Commerce, and
-        // the policy that requires the Chamber's registrations. The
-        // municipality's reduction for the parking card reads the decisions
-        // under BABW art. 49, so that article and what acts on it are in this
-        // case too.
+        // that binds those to the answers of the cells, and the Awb; the
+        // reductions of the catalogues of the municipality and of the Chamber
+        // of Commerce, and the policy that requires the Chamber's
+        // registrations. The municipality's reduction for the parking card
+        // reads the decisions under BABW art. 49, so that article and what
+        // acts on it are in this case too.
         let vergunning = casus("bedrijfsparkeervergunning");
         let a = &vergunning.afleiding;
         assert_eq!(a.objection, "7:11");
@@ -3410,8 +3410,8 @@ mod tests {
                 "algemene_wet_bestuursrecht",
                 "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal",
                 "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal",
+                "beleid_handelsregister_kamer_van_koophandel",
                 "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw",
-                "fictief_beleid_handelsregister_kamer_van_koophandel",
                 "parkeerverordening_gemeente_wilgendaal",
                 "reductie_algemene_wet_bestuursrecht",
                 "reductie_geldige_bedrijfsparkeervergunningen",

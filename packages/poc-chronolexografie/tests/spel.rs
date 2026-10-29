@@ -682,8 +682,7 @@ fn bedrijfsparkeervergunning_a_company_in_the_city_centre_gets_a_permit() {
     );
 }
 
-const INSCHRIJVING: &str =
-    "fictief_beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven";
+const INSCHRIJVING: &str = "beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven";
 
 /// The Chamber of Commerce registers the establishment of `kvk` anew on
 /// `datum`.

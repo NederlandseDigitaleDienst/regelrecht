@@ -48,8 +48,8 @@ describe('saving the game of this tab', () => {
   });
 
   it('goes on only at the address of the case it saved, not at the start screen', async () => {
-    // After the closing slide of the deck began a demo scenario, the start
-    // address showed that case again instead of the start screen.
+    // After a demo scenario began from the choice screen, the start address
+    // showed that case again instead of the start screen.
     Object.assign(state, { casus, datum: '2026-10-20', scenario: 'A' });
     await verversen();
     Object.assign(state, { casus: null, scenario: null, datum: '' });

@@ -188,12 +188,12 @@ articles:
       # verordening. Het Delftse model zegt bij de schil "gelijk aan het
       # aantal werknemers per bedrijf"; eigen keuze: dat aantal zoals het
       # handelsregister het vermeldt, zodat de Kamer van Koophandel ook hierop
-      # antwoordt (artikel 1 van het beleid). Vermeldt het handelsregister geen aantal, dan
-      # is het maximum in de schil nul.
+      # antwoordt (artikel 1 van het beleid). Vermeldt het handelsregister
+      # geen aantal, dan is het maximum in de schil nul.
       # Hoeveel geldige vergunningen het bedrijf al heeft, weet het college
       # uit zijn eigen besluiten; artikel 2 van het beleid koppelt dat begrip
-      # aan het antwoord van de cel van de gemeente. Welke vergunning geldt, zeggen
-      # artikel 3 van de verordening (een jaar vanaf de verlening) en de Awb
+      # aan het antwoord van de cel van de gemeente. Welke vergunning geldt,
+      # zeggen artikel 3 van de verordening (een jaar vanaf de verlening) en de Awb
       # (een herroepen of vernietigd besluit geldt niet).
       open_terms:
         - id: aantal_werkzame_personen_volgens_handelsregister

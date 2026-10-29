@@ -109,7 +109,9 @@ machine_readable:
 
 When executing for a person in Diemen (parameters include `gemeente_code: GM0384`), the engine uses Diemen's percentages. For a municipality without an ordinance, the Participation Act's default applies.
 
-The scope selects among other regulations only. An ordinance can fill an open term of one of its own articles. A hardship clause that sets aside a refusal in the same ordinance does this. Such an article fills the term whatever the scope, because the ordinance that declares the term is already the one being applied.
+The scope selects among other regulations, with two exceptions. First, an ordinance can fill an open term of one of its own articles. A hardship clause that sets aside a refusal in the same ordinance does this. Such an article fills the term whatever the scope, because the ordinance that declares the term is already the one being applied.
+
+Second, a regulation with the same scope fields as the declaring one, set to the same values, fills its terms whatever the scope as well. Further rules that the college lays down under an ordinance of its own municipality are the case in point. Two national regulations do not count as sharing a territory; for them the scope plays no part anyway.
 
 ## An implementation that reads the law it fills in
 

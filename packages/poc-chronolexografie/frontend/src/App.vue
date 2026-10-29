@@ -19,8 +19,9 @@
 // screen starts it or the URL carries `?presentatie`. Its closing slide opens
 // the explanation page (uitlegVanDek); the choice screen begins one of the
 // demo scenarios (startDemo). The button "Presentatie" brings the deck back,
-// on the slide it was last left on, or else on the first. The explanation page (presentation/UitlegPagina.vue)
-// takes the place of the choice screen, from its button or `?uitleg`.
+// on the slide it was last left on, or else on the first. The explanation
+// page (presentation/UitlegPagina.vue) takes the place of the choice screen,
+// from its button or `?uitleg`.
 //
 // The address names the case and the scenario (navigation.js), so a link
 // opens a scenario and the browser's back and forward walk the choices.
@@ -169,9 +170,8 @@ async function started() {
 async function restart() {
   if (await beginScenario(state.scenario)) await started();
 }
-// A demo scenario of the parking card, from the choice screen or the
-// closing slide: choose the case if it is not open, then begin the scenario
-// as its own button does.
+// A demo scenario of the parking card, from the choice screen: choose the
+// case if it is not open, then begin the scenario as its own button does.
 function startDemo(naam) {
   return navigate(async (mine) => {
     if (state.casus?.id !== DEMO_CASUS && !(await kiezen(DEMO_CASUS))) return false;

@@ -5,8 +5,9 @@
  * Kinds: `title` (title, subtitle, footer), `statement` (a few large lines),
  * `section` (a title with plain lines), `bullets` (title, lead, bullets,
  * optionally a `figure`: a diagram from Diagram.vue by name, or a YAML/JSON
- * fragment as `code`), and `closing` (title, lines, and the demo scenarios as
- * buttons). In a line, `**bold**` is bold and `` `name` `` is code.
+ * fragment as `code`), and `closing` (title, lines, and as `button` the text
+ * of the button that opens the explanation page). In a line, `**bold**`
+ * is bold and `` `name` `` is code.
  *
  * The concept slides put the position paper
  * (https://chronolexografie.nl/position-paper/) in plain words of our own,
@@ -247,7 +248,7 @@ export const slides = [
     kind: 'closing',
     overline: 'Verder',
     title: 'Hoe het in elkaar zit',
-    lines: ['De uitlegpagina loopt met de bedrijfsparkeervergunning door hoe regel, cel en reducties samenhangen.'],
+    lines: ['De uitlegpagina laat met de bedrijfsparkeervergunning zien hoe regel, cel en reducties samenhangen.'],
     button: 'Naar de uitleg',
   },
 ];

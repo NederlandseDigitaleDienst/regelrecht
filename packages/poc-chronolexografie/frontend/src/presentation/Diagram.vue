@@ -82,8 +82,8 @@ const synthese = {
       <text x="574" y="215" class="small" text-anchor="middle" transform="rotate(-90 574 215)">antwoord: ja of nee</text>
     </svg>
 
-    <!-- De Awb-reductie in het midden, de reducties die haar gebruiken
-         eromheen. -->
+    <!-- De reducties van de gemeente naast elkaar bovenaan, de Awb-reductie
+         die zij allebei vragen eronder. -->
     <svg v-else-if="name === 'awb'" viewBox="0 0 880 210">
       <defs aria-hidden="true"><marker :id="arrowId" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="head" /></marker></defs>
       <g v-for="(r, i) in awb" :key="i" :transform="`translate(${r.x} ${r.y})`">

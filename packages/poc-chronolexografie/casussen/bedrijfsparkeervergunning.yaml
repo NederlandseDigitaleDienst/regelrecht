@@ -16,7 +16,7 @@ corpus:
   - regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
   - regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart
   - regulation/nl/uitvoeringsbeleid/beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
-  - regulation/nl/uitvoeringsbeleid/fictief_beleid_handelsregister_kamer_van_koophandel
+  - regulation/nl/uitvoeringsbeleid/beleid_handelsregister_kamer_van_koophandel
   - regulation/nl/gemeentelijke_verordening/wilgendaal/uitvoeringsbesluit_parkeren_gemeente_wilgendaal
   - regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal
   - cells/reductions/reductie_algemene_wet_bestuursrecht
@@ -96,28 +96,28 @@ andere_cellen:
     begin:
       datum: 2026-03-02
       executogrammen:
-        - feit: fictief_beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+        - feit: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
           datum: 2026-01-05
           velden:
             kvk_nummer: '99990011'
             postcode: 7711 AB
             aantal_werkzame_personen: 4
             datum_inschrijving: '2026-01-05'
-        - feit: fictief_beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+        - feit: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
           datum: 2026-02-02
           velden:
             kvk_nummer: '99990022'
             postcode: 7713 AA
             aantal_werkzame_personen: 1
             datum_inschrijving: '2026-02-02'
-        - feit: fictief_beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+        - feit: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
           datum: 2026-02-16
           velden:
             kvk_nummer: '99990044'
             postcode: 7711 AA
             aantal_werkzame_personen: 12
             datum_inschrijving: '2026-02-16'
-        - feit: fictief_beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+        - feit: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
           datum: 2026-03-02
           velden:
             kvk_nummer: '99990033'
@@ -212,7 +212,7 @@ scenarios:
         titel: Nieuwe inschrijving bij de Kamer van Koophandel
         datum: 2026-11-10
         cel: kamer_van_koophandel
-        feit: fictief_beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+        feit: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
         invoer:
           kvk_nummer: '99990022'
           postcode: 7713 AA
@@ -286,7 +286,7 @@ scenarios:
         titel: Nieuwe inschrijving bij de Kamer van Koophandel
         datum: 2026-11-01
         cel: kamer_van_koophandel
-        feit: fictief_beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+        feit: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
         invoer:
           kvk_nummer: '99990033'
           postcode: 7711 AC
