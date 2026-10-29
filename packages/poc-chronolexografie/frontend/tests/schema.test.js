@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { createSSRApp, h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import SchemaOverzicht from '../src/presentation/SchemaOverzicht.vue';
-import { LIJNSOORTEN, schema } from '../src/presentation/schema.js';
+import { LIJNSOORTEN, keten, schema } from '../src/presentation/schema.js';
+import { keten as ketenUitleg } from '../src/presentation/uitleg.js';
 
 const repo = fileURLToPath(new URL('../../../../', import.meta.url));
 
@@ -67,8 +68,38 @@ describe('the overview of the files of a case', () => {
 
   it('draws a box per file, with its names', async () => {
     const s = schema(alle, 'bedrijfsparkeervergunning');
-    const html = await renderToString(createSSRApp({ render: () => h(SchemaOverzicht, { bestanden: alle, casus: 'bedrijfsparkeervergunning' }) }));
+    const html = await renderToString(createSSRApp({ render: () => h(SchemaOverzicht, { schema: s, label: 'x' }) }));
     expect(html.match(/<nldd-box/g)).toHaveLength(s.bestanden.length);
     expect(html.match(/data-begrip=/g)).toHaveLength(s.bestanden.reduce((n, b) => n + b.begrippen.length, 0));
+  });
+});
+
+describe('the picture of one value', () => {
+  const k = keten(alle, 'bedrijfsparkeervergunning', ketenUitleg.start);
+  const namen = (pad) => k.bestanden.find((b) => map(b.pad) === pad)?.begrippen.map((g) => g.naam) ?? [];
+
+  it('starts at the open term of the regulation and marks it', () => {
+    expect(k.doel.begrip).toBe('2#open_term#maximum_bedrijfsparkeervergunningen_bereikt');
+    expect(k.lijnen.some((l) => l.naar.begrip === k.doel.begrip && l.soort === 'vult_in')).toBe(true);
+  });
+
+  it('follows the value back to the chronicles of both cells', () => {
+    // The count of permits: the municipality's own decisions, with the Awb.
+    expect(heeft(k, 'kroniek', ['parkeerverordening_gemeente_wilgendaal', 'besluiten onder artikel 2'], ['reductie_algemene_wet_bestuursrecht', 'besluiten'])).toBe(true);
+    expect(heeft(k, 'vraagt', ['gemeente_wilgendaal', 'aantal_geldige_bedrijfsparkeervergunningen'], ['beleid_bedrijfsparkeervergunning_gemeente_wilgendaal', 'antwoord_aantal_geldig'])).toBe(true);
+    // The maximum: where the firm is and how many work there, from the KvK.
+    expect(heeft(k, 'kroniek', ['beleid_handelsregister_kamer_van_koophandel', 'vestiging_ingeschreven'], ['reductie_vestiging_in_handelsregister', 'inschrijvingen'])).toBe(true);
+    expect(heeft(k, 'rekent', ['uitvoeringsbesluit_parkeren_gemeente_wilgendaal', 'vergunninggebied_van_postcode'], ['uitvoeringsbesluit_parkeren_gemeente_wilgendaal', 'vergunninggebied'])).toBe(true);
+  });
+
+  it('leaves out what the value does not need, and the parameters', () => {
+    expect(namen('parkeerverordening_gemeente_wilgendaal')).not.toContain('bedrijf_gevestigd_in_vergunninggebied');
+    expect(k.bestanden.flatMap((b) => b.begrippen).some((g) => g.rol === 'parameter' || g.naam === 'kvk_nummer')).toBe(false);
+    expect(k.bestanden.some((b) => b.soort === 'casus')).toBe(false);
+  });
+
+  it('puts a name before what is computed from it', () => {
+    const n = namen('uitvoeringsbesluit_parkeren_gemeente_wilgendaal');
+    expect(n.indexOf('maximum_bedrijfsparkeervergunningen')).toBeLessThan(n.indexOf('maximum_bedrijfsparkeervergunningen_bereikt'));
   });
 });

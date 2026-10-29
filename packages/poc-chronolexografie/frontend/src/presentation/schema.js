@@ -45,6 +45,7 @@ export const SOORTEN = [
 
 /** The kinds of line, in the order of the legend. */
 export const LIJNSOORTEN = [
+  { soort: 'rekent', label: 'rekent met een naam uit hetzelfde regelwerk', yaml: 'actions, source.parameters' },
   { soort: 'vult_in', label: 'vult een open begrip in', yaml: 'implements' },
   { soort: 'leest', label: 'gebruikt een uitkomst', yaml: 'source.regulation, overrides' },
   { soort: 'vraagt', label: 'vraagt een cel, die een reductie aanwijst', yaml: 'source.reduction, answers' },
@@ -96,10 +97,11 @@ function soortVan(doc) {
 }
 
 /**
- * The boxes and lines of case `id`, from the files of the bundle (`alle`, per
- * path in the repository).
+ * What both pictures share: the files of case `id` (`alle`, per path in the
+ * repository), the boxes and lines as they are added, and the result in the
+ * order of the columns (`uitkomst`).
  */
-export function schema(alle, id) {
+function opzet(alle, id) {
   const casusPad = `${CASUSSEN}${id}.yaml`;
   const casus = load(alle[casusPad]);
   const cellen = [casus.cel, ...(casus.andere_cellen ?? []).map((c) => c.cel)];
@@ -138,34 +140,11 @@ export function schema(alle, id) {
     lijnen.push({ soort, yaml, van: { pad: van.pad, begrip: van_ }, naar: { pad: naar.pad, begrip: naar_ } });
   }
 
-  // The walk over articles, as `<$id>#<number>`.
-  const bereikt = new Set();
-  const rij = [];
-  const bereik = (lawId, nummer) => {
-    const k = `${lawId}#${nummer}`;
-    if (bereikt.has(k) || !wet(lawId)) return;
-    bereikt.add(k);
-    rij.push([lawId, String(nummer)]);
-  };
   const artikelVan = (doc, nummer) => doc.articles.find((a) => String(a.number) === String(nummer));
   const metUitvoer = (doc, naam) =>
     doc.articles.find((a) => a.machine_readable?.execution?.output?.some((o) => o.name === naam));
   const metFeit = (doc, feit) => doc.articles.find((a) => a.machine_readable?.requires?.some((r) => r.fact === feit));
 
-  // The case file: its cells and the article of the application.
-  const casusBox = bestand(casusPad, { id, titel: casus.titel, soort: 'casus' });
-  for (const [i, naam] of cellen.entries()) {
-    const box = celBestand(naam);
-    if (box) lijn('casus', casusBox, { naam, rol: i ? 'andere_cellen' : 'cel' }, box, { naam: box.titel, rol: 'cel' }, 'cel');
-  }
-  {
-    const { law, article } = splits(casus.artikel);
-    const w = wet(law);
-    if (w) {
-      lijn('casus', casusBox, { naam: casus.artikel, rol: 'artikel' }, wetBestand(w), { naam: `artikel ${article}`, artikel: article, rol: 'artikel' }, 'artikel');
-      bereik(law, article);
-    }
-  }
 
   // Every `implements` in the case's files, per open term it fills in, for
   // the way back from an open term to what fills it in.
@@ -178,6 +157,55 @@ export function schema(alle, id) {
         if (!invullers.has(k)) invullers.set(k, []);
         invullers.get(k).push({ lawId, artikel: String(a.number), open_term: imp.open_term });
       }
+    }
+  }
+
+  const volgorde = (b) => SOORTEN.findIndex((s) => s.soort === b.soort);
+  const nummer = (n) => String(n ?? '').split(/[^0-9]+/).map(Number);
+  const opArtikel = (x, y) => {
+    const [p, q] = [nummer(x.artikel), nummer(y.artikel)];
+    for (let i = 0; i < Math.max(p.length, q.length); i++) if ((p[i] ?? -1) !== (q[i] ?? -1)) return (p[i] ?? -1) - (q[i] ?? -1);
+    // Within an article, a name before the names computed from it.
+    return (x.volgorde ?? -1) - (y.volgorde ?? -1);
+  };
+  const uitkomst = () => ({
+    bestanden: [...bestanden.values()]
+      .map((b) => ({ ...b, begrippen: [...b.begrippen.values()].sort(opArtikel) }))
+      .sort((x, y) => volgorde(x) - volgorde(y)),
+    lijnen,
+  });
+
+  return { casus, casusPad, cellen, wet, cel, wetten, bestand, wetBestand, celBestand, begrip, lijn, artikelVan, metUitvoer, metFeit, invullers, uitkomst };
+}
+
+/**
+ * The boxes and lines of case `id`, from the files of the bundle (`alle`, per
+ * path in the repository).
+ */
+export function schema(alle, id) {
+  const { casus, casusPad, cellen, wet, cel, wetten, bestand, wetBestand, celBestand, lijn, artikelVan, metUitvoer, metFeit, invullers, uitkomst } = opzet(alle, id);
+
+  // The walk over articles, as `<$id>#<number>`.
+  const bereikt = new Set();
+  const rij = [];
+  const bereik = (lawId, nummer) => {
+    const k = `${lawId}#${nummer}`;
+    if (bereikt.has(k) || !wet(lawId)) return;
+    bereikt.add(k);
+    rij.push([lawId, String(nummer)]);
+  };
+  // The case file: its cells and the article of the application.
+  const casusBox = bestand(casusPad, { id, titel: casus.titel, soort: 'casus' });
+  for (const [i, naam] of cellen.entries()) {
+    const box = celBestand(naam);
+    if (box) lijn('casus', casusBox, { naam, rol: i ? 'andere_cellen' : 'cel' }, box, { naam: box.titel, rol: 'cel' }, 'cel');
+  }
+  {
+    const { law, article } = splits(casus.artikel);
+    const w = wet(law);
+    if (w) {
+      lijn('casus', casusBox, { naam: casus.artikel, rol: 'artikel' }, wetBestand(w), { naam: `artikel ${article}`, artikel: article, rol: 'artikel' }, 'artikel');
+      bereik(law, article);
     }
   }
 
@@ -272,17 +300,125 @@ export function schema(alle, id) {
     }
   }
 
-  const volgorde = (b) => SOORTEN.findIndex((s) => s.soort === b.soort);
-  const nummer = (n) => String(n ?? '').split(/[^0-9]+/).map(Number);
-  const opArtikel = (x, y) => {
-    const [p, q] = [nummer(x.artikel), nummer(y.artikel)];
-    for (let i = 0; i < Math.max(p.length, q.length); i++) if ((p[i] ?? -1) !== (q[i] ?? -1)) return (p[i] ?? -1) - (q[i] ?? -1);
-    return 0;
-  };
-  return {
-    bestanden: [...bestanden.values()]
-      .map((b) => ({ ...b, begrippen: [...b.begrippen.values()].sort(opArtikel) }))
-      .sort((x, y) => volgorde(x) - volgorde(y)),
-    lijnen,
-  };
+  return uitkomst();
+}
+
+/** Every `$name` a value uses, by the part before a dot. */
+function namenIn(waarde, uit = new Set()) {
+  if (typeof waarde === 'string' && waarde.startsWith('$')) uit.add(waarde.slice(1).split('.')[0]);
+  else if (Array.isArray(waarde)) waarde.forEach((w) => namenIn(w, uit));
+  else if (waarde && typeof waarde === 'object') Object.values(waarde).forEach((w) => namenIn(w, uit));
+  return uit;
+}
+
+/**
+ * The picture of one value of case `id`: the name `naam` in article
+ * `article` of regelwerk `law`, and everything it is computed from, back
+ * along the chain. A line runs from what is needed to what needs it:
+ *
+ *  - `rekent`: an output is computed from a name in the same article
+ *    (`actions`), or an input passes one on (`source.parameters`).
+ *  - `leest`, `vult_in`, `vraagt` and `kroniek` as in the overview, the other
+ *    way round: from the output to the input that takes it, from the output
+ *    that fills in an open term to the term, from the reduction to the cell
+ *    and on to the input that asks, and from what a cell recorded to the
+ *    input that reads it.
+ *
+ * Parameters are left out: they are what the case gives (a KvK number, the
+ * day of the decision), not something the chain decides. An open term that
+ * nothing in the case fills in ends the chain: someone decides it per case.
+ */
+export function keten(alle, id, { law, article, naam }) {
+  const { wet, cel, cellen, celBestand, wetBestand, begrip, lijn, artikelVan, metUitvoer, metFeit, invullers, uitkomst } = opzet(alle, id);
+  const klaar = new Map();
+
+  /**
+   * The box and name that hold `naam` in article `nummer` of `lawId`, after
+   * drawing the lines into it; null for a parameter or a name the article
+   * does not have (the item of a FOREACH, say). `gegeven` holds the literal
+   * values a caller passed, for a source that names a parameter
+   * (`decisions: $basis`).
+   */
+  function knoop(lawId, nummer, naam, gegeven = {}) {
+    const k = `${lawId}#${nummer}#${naam}#${JSON.stringify(gegeven)}`;
+    if (klaar.has(k)) return klaar.get(k);
+    klaar.set(k, null);
+    const w = wet(lawId);
+    const mr = w && artikelVan(w.doc, nummer)?.machine_readable;
+    if (!mr) return null;
+    const box = wetBestand(w);
+    const ex = mr.execution ?? {};
+    const hier = (rol) => ({ naam, artikel: String(nummer), rol });
+    let uit = null;
+
+    const actie = ex.actions?.find((a) => a.output === naam);
+    const invoer = ex.input?.find((i) => i.name === naam);
+    if (actie) {
+      uit = { box, begrip: hier('output') };
+      klaar.set(k, uit);
+      for (const v of namenIn(actie.value)) {
+        const d = knoop(lawId, nummer, v, gegeven);
+        if (d) lijn('rekent', d.box, d.begrip, box, uit.begrip, 'actions');
+      }
+    } else if (invoer) {
+      uit = { box, begrip: hier('input') };
+      klaar.set(k, uit);
+      const s = invoer.source ?? {};
+      // What the input passes on to its source, and what that source is given.
+      const door = {};
+      for (const [p, v] of Object.entries(s.parameters ?? {})) {
+        if (typeof v !== 'string') continue;
+        if (!v.startsWith('$')) door[p] = v;
+        else if (gegeven[v.slice(1)]) door[p] = gegeven[v.slice(1)];
+        const d = v.startsWith('$') && knoop(lawId, nummer, v.slice(1), gegeven);
+        if (d) lijn('rekent', d.box, d.begrip, box, uit.begrip, 'source.parameters');
+      }
+      if (s.regulation || s.output) {
+        const doelId = s.regulation ?? lawId;
+        const doel = wet(doelId);
+        const art = doel && metUitvoer(doel.doc, s.output);
+        const d = art && knoop(doelId, art.number, s.output, s.regulation ? door : { ...gegeven, ...door });
+        if (d) lijn(s.regulation && s.regulation !== lawId ? 'leest' : 'rekent', d.box, d.begrip, box, uit.begrip, s.regulation ? 'source.regulation' : 'source.output');
+      } else if (s.reduction) {
+        for (const c of cellen) {
+          const reductie = cel.get(c)?.doc.answers?.[s.reduction];
+          const doel = reductie && wet(reductie);
+          const art = doel && metUitvoer(doel.doc, s.reduction);
+          if (!art) continue;
+          const celBox = celBestand(c);
+          const vraag = { naam: s.reduction, rol: 'answers' };
+          const d = knoop(reductie, art.number, s.reduction, door);
+          if (d) lijn('vraagt', d.box, d.begrip, celBox, vraag, 'answers');
+          lijn('vraagt', celBox, vraag, box, uit.begrip, 'source.reduction');
+        }
+      } else if (s.facts) {
+        const [fLaw, fArt, feit] = String(s.facts).split('#');
+        const doel = wet(fLaw);
+        const art = doel && (metFeit(doel.doc, feit) ?? artikelVan(doel.doc, fArt));
+        if (art) lijn('kroniek', wetBestand(doel), { naam: feit, artikel: String(art.number), rol: 'fact' }, box, uit.begrip, 'source.facts');
+      } else if (s.decisions) {
+        const ref = String(s.decisions).startsWith('$') ? gegeven[String(s.decisions).slice(1)] : s.decisions;
+        const { law: dLaw, article: dArt } = splits(ref ?? '');
+        const doel = wet(dLaw);
+        if (doel) lijn('kroniek', wetBestand(doel), { naam: `besluiten onder artikel ${dArt}`, artikel: dArt, rol: 'decisions' }, box, uit.begrip, 'source.decisions');
+      }
+    } else if (mr.open_terms?.some((t) => t.id === naam)) {
+      uit = { box, begrip: hier('open_term') };
+      klaar.set(k, uit);
+      // Draw the term even when nothing fills it in: then the chain ends here.
+      begrip(box, uit.begrip);
+      for (const inv of invullers.get(`${lawId}#${nummer}`) ?? []) {
+        if (inv.open_term !== naam) continue;
+        const d = knoop(inv.lawId, inv.artikel, naam);
+        if (d) lijn('vult_in', d.box, d.begrip, box, uit.begrip, 'implements');
+      }
+    }
+    // Finished: everything it needs is drawn, so it comes after those.
+    if (uit) uit.box.begrippen.get(begrip(uit.box, uit.begrip)).volgorde = volgorde++;
+    return uit;
+  }
+  let volgorde = 0;
+
+  const doel = knoop(law, String(article), naam);
+  return { ...uitkomst(), doel: doel && { pad: doel.box.pad, begrip: `${doel.begrip.artikel ?? ''}#${doel.begrip.rol}#${doel.begrip.naam}` } };
 }

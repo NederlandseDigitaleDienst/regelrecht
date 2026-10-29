@@ -14,12 +14,13 @@
 // Above the steps, an overview draws every file of that case as a box and
 // every reference between them as a line (SchemaOverzicht.vue), from the
 // same bundle.
-import { nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { load } from 'js-yaml';
 import YamlNode from '@regelrecht/frontend-shared/components/YamlNode.vue';
 import { bestanden as haalBestanden } from '../api.js';
 import SchemaOverzicht from './SchemaOverzicht.vue';
-import { bronnen, casus, intro, openPaden, overzicht, steps } from './uitleg.js';
+import { keten as ketenVan, schema } from './schema.js';
+import { bronnen, casus, intro, keten, openPaden, overzicht, steps } from './uitleg.js';
 import { useUitleg } from './useUitleg.js';
 
 const props = defineProps({
@@ -65,8 +66,14 @@ const stukken = (zin) =>
     .filter(Boolean)
     .map((s) => (s.startsWith('`') ? { code: s.slice(1, -1) } : { tekst: s }));
 
-/** The case file, which the overview starts from. */
+/** The case file, which both pictures start from. */
 const casusPad = `packages/poc-chronolexografie/casussen/${casus}.yaml`;
+/** The two pictures, once the files are there. */
+const plaatjes = computed(() =>
+  alle.value?.[casusPad]
+    ? { overzicht: schema(alle.value, casus), keten: ketenVan(alle.value, casus, keten.start) }
+    : null,
+);
 
 /** The file of a panel, short: its last three parts. */
 const kortPad = (source) => source.split('/').slice(-3).join('/');
@@ -85,13 +92,13 @@ const kortPad = (source) => source.split('/').slice(-3).join('/');
       </nldd-title>
     </nldd-container>
   </nldd-simple-section>
-  <nldd-simple-section>
-    <nldd-title slot="header" size="3" heading-level="2" :overline="overzicht.overline" :text="overzicht.title"></nldd-title>
+  <nldd-simple-section v-for="p in [{ ...overzicht, id: 'overzicht' }, { ...keten, id: 'keten' }]" :key="p.id">
+    <nldd-title slot="header" size="3" heading-level="2" :overline="p.overline" :text="p.title"></nldd-title>
     <nldd-container gap="12">
-      <nldd-text v-for="(t, j) in overzicht.text" :key="j">
+      <nldd-text v-for="(t, j) in p.text" :key="j">
         <template v-for="(st, k) in stukken(t)" :key="k"><code v-if="st.code">{{ st.code }}</code><template v-else>{{ st.tekst }}</template></template>
       </nldd-text>
-      <SchemaOverzicht v-if="alle?.[casusPad]" :bestanden="alle" :casus="casus" />
+      <SchemaOverzicht v-if="plaatjes" :schema="plaatjes[p.id]" :label="p.title" />
       <nldd-text v-else size="sm" color="secondary">{{ fout ? 'De YAML kwam niet binnen. Herlaad de pagina om het opnieuw te proberen.' : 'De YAML wordt geladen.' }}</nldd-text>
     </nldd-container>
   </nldd-simple-section>
