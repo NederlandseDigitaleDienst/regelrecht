@@ -106,9 +106,9 @@ flowchart TD
     D --> DONE[Validated rulework]
 ```
 
-**Phase B, preparation.** Before any scenario runs, the expert checks whether all articles with executable logic are covered (B1), assesses each assumption reverse validation flagged (B2), and lists where the law allows more than one reading and which one the model took (B3). B1 is the scope step of Wetsanalyse asked after the fact; B3 is its meaning step asked in reverse, and it is the main defense against automation bias. The desk skills now prepare most of this material: `regelrecht-stelselanalyse` reports coverage, reverse validation lists the assumptions, and the letter-fidelity audit lists the places where the letter and the toelichting part ways. The judgement on each item is still the expert's.
+**Phase B, preparation.** Before any scenario runs, the expert checks that every article with executable logic is covered (B1). The expert then judges each assumption that reverse validation flagged (B2). Last, the expert lists where the law allows more than one reading, and which one the model took (B3). B1 is the scope step of Wetsanalyse asked after the fact; B3 is its meaning step asked in reverse, and it is the main defense against automation bias. The desk skills now prepare most of this material: `regelrecht-stelselanalyse` reports coverage, reverse validation lists the assumptions, and the letter-fidelity audit lists the places where the letter and the toelichting part ways. The judgement on each item is still the expert's.
 
-**Phase C, scenario validation.** The expert validates the behavior of the rulework, not its YAML. The engine runs the scenarios from the parliamentary papers, and the expert checks whether the outcomes follow from the law as enacted. Then the expert writes adversarial scenarios, which is where the expert cannot be replaced: the model has no access to case law, implementation practice or political context. Edge cases from practice, "unless" paths, values just above and below a threshold, and the interaction between laws are run on the engine, and an error sends the rulework back.
+**Phase C, scenario validation.** The expert validates the behavior of the rulework, not its YAML. The engine runs the scenarios from the parliamentary papers, and the expert checks whether the outcomes follow from the law as enacted. Then the expert writes adversarial scenarios. Here the expert cannot be replaced, because the model has no access to case law, implementation practice or political context. These scenarios cover edge cases from practice, "unless" paths, values just above and below a threshold, and the interaction between laws. The engine runs them, and an error sends the rulework back.
 
 **Phase D, wrap-up.** Policy gaps, where the law underspecifies and a choice was made, are written down. Assumptions are accepted or rejected, and the expert's sign-off is recorded.
 
@@ -123,7 +123,7 @@ Two principles shape these phases. First, the expert reviews reports and outcome
 | 5. Flag policy gaps | Phase D | Same |
 | 6. Build knowledge model | Phase A: the rulework | Human to model |
 
-The method keeps the discipline of Wetsanalyse (traceability, scenarios, policy gaps) and adapts it to an expert who judges rather than builds. The method itself is meant to develop by Design Science Research. A first process, drawn from Wetsanalyse and from research on working with generative models, goes to legal experts and is run in workshops on real cases. Each round revises it, and each round is published.
+The method keeps the discipline of Wetsanalyse (traceability, scenarios, policy gaps) and adapts it to an expert who judges rather than builds. The plan is to develop the method through Design Science Research. A first process, drawn from Wetsanalyse and from research on working with generative models, will be tried with legal experts in workshops on real cases. Each round revises the process and is published.
 
 ## Two kinds of scenario
 

@@ -40,7 +40,7 @@ export const docsNav: DocsNavItem[] = [
     summary:
       'The core ideas: what a rulework is, the law format and its values, how laws reference and delegate to each other, and provenance.',
     intro:
-      'The ideas behind RegelRecht: how Dutch legislation is written down as executable YAML, how laws reference and delegate to one another, how every result traces back to its legal source, and how several organizations share one corpus. The methodology page explains how an interpretation is validated.',
+      'The ideas behind RegelRecht: how Dutch legislation is written down as executable YAML, how laws reference and delegate to one another, how every result traces back to its legal source, and how a corpus can span the repositories of several organizations. The methodology page explains how an interpretation is validated.',
   },
   {
     text: 'Components',

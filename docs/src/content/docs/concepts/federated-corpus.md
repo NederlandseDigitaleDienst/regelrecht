@@ -87,7 +87,7 @@ A traject can point at the authority's own repository, private if need be, inste
 
 ## What is not built
 
-The checked-in `corpus-registry.yaml` lists one source, the central corpus; further sources come from a local registry during development. No repository of another authority is registered. Selecting ruleworks by a source's scope is not built. The execution decides which ruleworks apply to a case, for example through the `gemeente_code` with which [Inversion of Control](./inversion-of-control) selects a municipal ordinance.
+The checked-in `corpus-registry.yaml` lists one source, the central corpus; further sources come from a local registry during development. No repository of another authority is registered. Selecting ruleworks by a source's scope is not built. The parameters of an execution decide which ruleworks apply to a case, for example through the `gemeente_code` with which [Inversion of Control](./inversion-of-control) selects a municipal ordinance.
 
 ## Further reading
 
