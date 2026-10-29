@@ -5,7 +5,7 @@ description: "How an article records the bevoegd gezag: the authority whose exec
 
 A *beschikking* is only binding when the right body issues it. The tax inspector (*inspecteur*) assesses income. The CIZ decides on a long-term care indication. A municipal college grants social assistance. An article records which body is competent in `competent_authority`, the *bevoegd gezag*.
 
-The engine uses this field for two things. It tells a binding decision apart from a calculation that anyone may run (see [Multi-Org Execution](./multi-org-execution)). It also derives from it who may annotate a law with authority (see [Notes and Annotations](./notes-and-annotations)).
+A field of the same name on an open term, or at the root of a policy, decides which cell answers the term ([Who answers an open term](#who-answers-an-open-term)) and who gives a finding on it. By design, the article's own `competent_authority` also decides whether a note on that article is authoritative ([Notes and Annotations](./notes-and-annotations)). No code compares a note's author with it yet.
 
 ## The two forms
 
@@ -92,12 +92,21 @@ competent_authority:
 
 A policy that binds an open term to a cell's answer must name its holder this way, by name. The loader refuses a `#` reference or a list there. A reduction names no holder. Since schema v0.8.12 it sits with its cell (`corpus/cells/<cell>/reductions/`), and a cell answers only from the reductions it keeps.
 
+## A decision or a calculation
+
+Dutch administrative law separates a *beschikking*, a binding act only the competent authority can issue, from a *berekening*, a computation anyone may perform. When one law reads the income another law establishes, it crosses from one organization to another. The question is then whether to compute that value or to accept what the competent body determined.
+
+When an input names another law in `source.regulation` and no data source supplies the value, the engine runs that law itself, whoever is competent for it. Its outputs are unsigned. [RFC-009](/rfcs/rfc-009) proposes execution modes in which an engine identifies as one organization. In the production mode it also signs what it decides and accepts signed decisions of others over FSC (Federated Service Connectivity). None of that is built.
+
+A registered data source can also supply such a value, and the trace then names the source it came from ([Traceability](./traceability)). Besides that, a value of another organization reaches a decision in two ways. A cell that the open term names answers it from its own chronicle ([answers of other cells](/concepts/chronolexography#answers-of-other-cells)). And a cell takes in another cell's decision as a copy ([documents between cells](/concepts/chronolexography#documents-between-cells)). The execution receipt has an `accepted_values` field for the route of RFC-009, and it is always empty ([Execution Provenance](./execution-provenance)).
+
 ## Further reading
 
-- [Multi-Org Execution](./multi-org-execution) - how the competent authority decides execute-vs-accept
-- [Notes and Annotations](./notes-and-annotations) - how note authority is derived from the competent authority
+- [Notes and Annotations](./notes-and-annotations) - how note authority would be derived from the competent authority
 - [RFC-002: Bevoegdheid](/rfcs/rfc-002) - full specification
+- [RFC-009: Multi-Organization Execution](/rfcs/rfc-009) - the proposed execution modes across organizations
 - [RFC-051: Facts and Competence](/rfcs/rfc-051) - competence on an open term and a fact
 - [RFC-048: Reduction and Synthesis](/rfcs/rfc-048) - binding a cell's answer, and asking the competent cell for it
 - [Rules as Executed, section 4.3](/research/rules-as-executed#sec:whochooses) - the position paper on which authority chooses and publishes an encoding
 - [Rules as Executed, section 4.6](/research/rules-as-executed#sec:overrides) - the position paper on overrides and discretion
+- [Rules as Executed, sections 4.11 and 4.12](/research/rules-as-executed#sec:crossorg) - the position paper on executing across organizations and relying on another body's decision
