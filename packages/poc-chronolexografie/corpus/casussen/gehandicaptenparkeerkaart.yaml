@@ -28,15 +28,6 @@ uitkomst: gehandicaptenparkeerkaart_verstrekt
 
 # Wat de bezoeker leest.
 titel: Gehandicaptenparkeerkaart
-omschrijving: >-
-  Iemand met een loopbeperking vraagt de gemeente om een
-  gehandicaptenparkeerkaart (BABW artikel 49). Het college beslist na een
-  geneeskundig onderzoek door de GGD. Of het onderzoek plaatsvond en wat het
-  advies van de GGD per criterium zegt, vraagt de gemeente aan de GGD; of de
-  aanvrager al een kaart heeft of eerder kreeg, aan haar eigen cel. Elke cel
-  antwoordt uit haar eigen kroniek, en het besluit maakt van die antwoorden
-  één uitkomst (synthese, RFC-048). Het advies staat in fictief beleid van de
-  gemeente: het college oordeelt zoals het advies, en zonder advies zelf.
 cel_naam: gemeente Wilgendaal
 speeldatum: 2026-10-13
 
@@ -201,16 +192,16 @@ scenarios:
           Het formulier vraagt de vier criteria niet: het advies van de GGD
           geeft ze. Klik op Besluit nemen.
     eind: >-
-      Onder Besluiten staat Toegewezen: de kaart is verstrekt en vermeldt de
-      bestuurder. Ze is geldig tot en met 19 oktober 2031, vijf jaar vanaf de
-      dag van het besluit (BABW artikel 51). Bij het besluit staat "langdurige
-      loopbeperking: ja", ingevuld door het fictieve beleid van Wilgendaal
-      (artikel 6) uit het advies. In het Logboek staat dat de GGD Wilgendaal
-      het advies gaf en antwoordde dat het onderzoek plaatsvond: de gemeente
-      vroeg het aan de cel die de wet en het beleid daarvoor bevoegd maken.
-      Het onderzoek en het advies staan in de kroniek van de GGD, onder Andere
-      cellen. Het besluit zelf staat onder Kroniek, in de kroniek van de
-      gemeente, na de aanvraag waarop het berust.
+      Toegewezen: de kaart is verstrekt en vermeldt de bestuurder. Ze is
+      geldig tot en met 19 oktober 2031, vijf jaar vanaf de dag van het
+      besluit (BABW artikel 51). In het Logboek staat bij het besluit
+      "langdurige loopbeperking: ja", ingevuld door het fictieve beleid van
+      Wilgendaal (artikel 6) uit het advies. Daar staat ook dat de GGD
+      Wilgendaal het advies gaf en antwoordde dat het onderzoek plaatsvond: de
+      gemeente vroeg het aan de cel die de wet en het beleid daarvoor bevoegd
+      maken. Het onderzoek en het advies staan in de kroniek van de GGD, onder
+      Andere cellen. Het besluit zelf staat onder Kroniek, in de kroniek van
+      de gemeente, na de aanvraag waarop het berust.
   - naam: Het advies vindt geen criterium
     samenvatting: >-
       Het advies van de GGD vindt geen enkel criterium, en de kaart wordt
@@ -232,9 +223,9 @@ scenarios:
       fictieve beleid), en kan daar niet van afwijken: een beleid dat een
       begrip invult gaat voor een oordeel van het college (RFC-045). Of het
       college per geval van zijn beleid mag afwijken (Awb 4:84), is niet
-      gebouwd. Bij het besluit staat geen antwoord over een eerdere kaart:
-      artikel 49 leest het beleid over een tweede kaart alleen voor een
-      aanvrager die aan een criterium voldoet.
+      gebouwd. In het Logboek staat bij het besluit geen antwoord over een
+      eerdere kaart: artikel 49 leest het beleid over een tweede kaart alleen
+      voor een aanvrager die aan een criterium voldoet.
   - naam: Een tweede kaart naast een geldige
     samenvatting: >-
       Wie al een geldige kaart heeft, krijgt er geen tweede bij.
@@ -257,12 +248,11 @@ scenarios:
           Klik op Besluit nemen. Het beleid van de gemeente geeft geen tweede
           kaart naast een geldige.
     eind: >-
-      Bij het besluit staat "aanvrager heeft geldige
+      In het Logboek staat bij het tweede besluit "aanvrager heeft geldige
       gehandicaptenparkeerkaart: ja", ingevuld door het beleid van Wilgendaal
-      met het antwoord van de cel. Onder "Hoe de cel dit beantwoordde" staat
-      het spoor van haar reductie, met het eerste besluit. In het Logboek
-      staat bij het tweede besluit de keten: artikel 49, het beleid van
-      Wilgendaal en het begrip dat de cel beantwoordde.
+      met het antwoord van de cel; haar reductie vond het eerste besluit. De
+      keten loopt via artikel 49, het beleid van Wilgendaal en het begrip dat
+      de cel beantwoordde.
   - naam: Ongegrond bezwaar tegen een verstrekking
     samenvatting: >-
       De aanvrager maakt bezwaar tegen de verstrekte kaart, en de
@@ -402,17 +392,15 @@ scenarios:
       - stap: besluit
         uitkomst: afgewezen
         tekst: >-
-          Klik op Besluit nemen. Open daarna bij het besluit "Hoe de cel dit
-          beantwoordde".
+          Klik op Besluit nemen.
     eind: >-
       Afgewezen: het beleid van de gemeente geeft geen tweede kaart naast een
-      geldige. Bij het besluit staat "aanvrager heeft geldige
-      gehandicaptenparkeerkaart: ja". Onder "Hoe de cel dit beantwoordde"
-      staat wat de reductie van de Awb gaf. Bij "herroepen besluiten" staat de
-      weigering (Awb 7:11, tweede lid). Bij "geldende besluiten" staat alleen
-      het nieuwe besluit uit de beslissing op bezwaar. Daarin vond de reductie
-      van de gemeente de kaart. Zelf kent die reductie geen bezwaar: ze leest
-      alleen de geldende besluiten.
+      geldige. In het Logboek staat bij het besluit "aanvrager heeft geldige
+      gehandicaptenparkeerkaart: ja". De reductie van de Awb liet de herroepen
+      weigering weg (Awb 7:11, tweede lid), zodat alleen het nieuwe besluit
+      uit de beslissing op bezwaar overbleef. Daarin vond de reductie van de
+      gemeente de kaart. Zelf kent die reductie geen bezwaar: ze leest alleen
+      de geldende besluiten.
   - naam: Zonder advies oordeelt het college, en zonder onderzoek nog geen kaart
     samenvatting: >-
       Zonder advies oordeelt het college zelf, maar zonder onderzoek komt er
@@ -474,10 +462,10 @@ scenarios:
           Klik op Besluit nemen.
     eind: >-
       Toegewezen, zonder nieuw onderzoek (Regeling gehandicaptenparkeerkaart,
-      artikel 2, tweede lid, onder a). Bij het besluit staat "aanvrager eerder
-      gehandicaptenparkeerkaart verstrekt: ja", ingevuld door het beleid van
-      Wilgendaal met het antwoord van de cel. Laat je ze uit, dan volgt de
-      melding van het vorige scenario.
+      artikel 2, tweede lid, onder a). In het Logboek staat bij het besluit
+      "aanvrager eerder gehandicaptenparkeerkaart verstrekt: ja", ingevuld
+      door het beleid van Wilgendaal met het antwoord van de cel. Laat je ze
+      uit, dan volgt de melding van het vorige scenario.
   - naam: Beroep ongegrond
     samenvatting: >-
       Na een ongegrond bezwaar gaat de aanvrager in beroep, en de rechter

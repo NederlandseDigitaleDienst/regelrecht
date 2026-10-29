@@ -1,8 +1,7 @@
 <script setup>
 // Het bestuursorgaan (wie dat is, zegt de wet: het hoofd, het college)
-// beslist op aanvragen en bezwaren, en ziet bij elk besluit waarom het zo
-// uitviel (Waarom.vue). De bevindingen die het per aanvraag geeft, komen uit
-// de wet: `decided_per_case_by` op de open begrippen van het artikel
+// beslist op aanvragen en bezwaren. De bevindingen die het per aanvraag
+// geeft, komen uit de wet: `decided_per_case_by` op de open begrippen van het artikel
 // (RFC-050), behalve wat de cel zelf uit haar kroniek beantwoordt. Naast de
 // bevindingen staat wat het besluit ermee zou worden (Voorvertoning.vue),
 // zonder dat er iets wordt vastgelegd; op een smal scherm eronder. Een
@@ -31,7 +30,6 @@ import {
 } from '../state.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
 import Uitkomst from './Uitkomst.vue';
-import UitScenario from './UitScenario.vue';
 import OordeelKeuze from './OordeelKeuze.vue';
 import StilOordeel from './StilOordeel.vue';
 import Voorvertoning from './Voorvertoning.vue';
@@ -46,9 +44,6 @@ const artikel = computed(() => {
 });
 
 const open = computed(() => aanvragen().filter((a) => !besluitOp(a.id)));
-const besluiten = computed(() =>
-  state.grammen.filter((g) => g.basis === besluitBasis() && g.kind !== 'AANVRAAG'),
-);
 const openBezwaren = computed(() =>
   state.grammen.filter((g) => g.kind === 'BEZWAAR' && !beslissingOp(g.id)),
 );
@@ -72,17 +67,9 @@ const uit = () => {
 const oordeelVoor = (id) => ({ ...uit(), ...zonderLeeg(besluitVorm.waarden(id)) });
 const zetOordeel = (id, naam, waarde) => besluitVorm.zet(id, naam, waarde);
 
-const uitkomsten = reactive({});
-
 async function besluit(a) {
   const antwoord = await stap(() => api.besluiten(a.id, oordeelVoor(a.id), state.datum));
   if (antwoord) besluitVorm.wis(a.id);
-  if (antwoord) uitkomsten[antwoord.besluit.id] = antwoord;
-}
-
-async function waarom(b) {
-  const antwoord = await stap(() => api.waarom(b.id));
-  if (antwoord) uitkomsten[b.id] = { besluit: b, waarom: antwoord };
 }
 
 // Bij een bezwaar eerst de ontvankelijkheid, zoals Awb 7:11 die beslist
@@ -157,7 +144,6 @@ const uitkomstOpBezwaar = (uit) =>
         ></nldd-title>
         <nldd-container layout="grid" gap="16">
           <nldd-container gap="12">
-            <UitScenario soort="besluit" :doel="{ aanvraag: a.id }" />
             <VeldInvoer
               v-for="o in oordelen()"
               :key="o.naam"
@@ -236,7 +222,6 @@ const uitkomstOpBezwaar = (uit) =>
           ></nldd-inline-dialog>
           <nldd-container layout="grid" gap="16">
             <nldd-container gap="12">
-              <UitScenario soort="beslissing_op_bezwaar" :doel="{ bezwaar: bz.id }" />
               <OordeelKeuze
                 v-for="o in toetsen[bz.id].bevindingen"
                 :key="o.naam"
@@ -283,29 +268,8 @@ const uitkomstOpBezwaar = (uit) =>
           titel="Nieuw besluit"
           :besluit="b.nieuw_besluit"
           :waarom="b.waarom"
-          :waarom-van="b.beslissing.id"
         />
-        <Waarom v-else :besluit="b.beslissing.id" :waarom="b.waarom" />
-      </nldd-container>
-    </nldd-container>
-  </nldd-simple-section>
-
-  <nldd-simple-section>
-    <nldd-title slot="header" size="3" text="Besluiten">
-      <nldd-text slot="supporting-text">Elk besluit onder {{ artikel }}, met waarom het zo uitviel.</nldd-text>
-    </nldd-title>
-    <nldd-container gap="24">
-      <nldd-container v-for="b in besluiten" :key="b.id" gap="8">
-        <Uitkomst
-          v-if="uitkomsten[b.id]"
-          :titel="`Besluit ${kort(b.id)} (${b.recorded_on})`"
-          :besluit="uitkomsten[b.id].besluit"
-          :waarom="uitkomsten[b.id].waarom"
-        />
-        <template v-else>
-          <Uitkomst :titel="`Besluit ${kort(b.id)} (${b.recorded_on})`" :besluit="b" />
-          <nldd-button appearance="secondary" size="sm" text="Waarom?" @click="waarom(b)"></nldd-button>
-        </template>
+        <Waarom v-else :waarom="b.waarom" />
       </nldd-container>
     </nldd-container>
   </nldd-simple-section>

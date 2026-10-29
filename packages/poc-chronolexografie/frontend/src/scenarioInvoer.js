@@ -79,21 +79,6 @@ export function scenarioWaarden(soort, doel = {}) {
   return { ...voorbeeld, ...(nu.step.stap.invoer ?? {}) };
 }
 
-/** Whether a form of `soort` starts from example values of the case. */
-export const heeftVoorbeeld = (soort) =>
-  Object.keys(state.casus?.voorbeeld?.[VOORBEELD[soort]] ?? {}).length > 0;
-
-/** Whether the form of `soort` starts from the scenario with any value, for the hint. */
-export const ingevuld = (soort, doel = {}) =>
-  Object.keys(scenarioWaarden(soort, doel) ?? {}).length > 0;
-
-/** The names of the values the current step itself gives `soort`, for the hint. */
-export function uitScenario(soort, doel = {}) {
-  const nu = huidigeStap();
-  if (!nu || nu.step.stap.stap !== soort || !past(nu.step, doel)) return [];
-  return Object.keys(nu.step.stap.invoer ?? {});
-}
-
 /**
  * A set of forms, one per key (an application, an objection, a cell's
  * fact), that start from `standaard(key)` and keep what the visitor

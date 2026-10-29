@@ -21,13 +21,6 @@ uitkomst: verlof_verleend
 
 # Wat de bezoeker leest.
 titel: Vakantieverlof
-omschrijving: >-
-  Een ouder vraagt de school om verlof buiten de schoolvakanties
-  (Leerplichtwet 1969 artikel 13a). Het hoofd beslist, en de school leest
-  haar eigen besluiten terug om te weten of de jongere dit schooljaar al
-  verlof kreeg. Of het verlof buiten de schoolvakanties valt, leest zij uit
-  de regeling, uit haar eigen vakantierooster en uit wat zij zelf vastlegde:
-  haar vestiging.
 cel_naam: OBS De Klimop
 speeldatum: 2026-10-14
 
@@ -122,8 +115,7 @@ scenarios:
           nemen. Of het verlof buiten de schoolvakanties valt, vraagt het
           formulier niet: dat antwoordt de school zelf.
     eind: >-
-      Onder Besluiten staat Toegewezen. Bij Aanvrager staat de aanvraag op
-      Toegewezen.
+      Bij Aanvrager staat de aanvraag op Toegewezen.
   - naam: 'Afwijzing, bezwaar en heroverweging: gegrond'
     samenvatting: >-
       Het hoofd weigert het verlof, maar na het bezwaar van de ouder krijgt de
@@ -138,8 +130,7 @@ scenarios:
           Het hoofd vindt het beroep niet bijzonder genoeg. Klik op Besluit
           nemen.
         gezien: >-
-          Onder Besluiten staat Afgewezen; bij Aanvrager staat de aanvraag op
-          Afgewezen.
+          Bij Aanvrager staat de aanvraag op Afgewezen.
       - stap: bezwaar
         datum: 2026-11-01
         tekst: >-
@@ -181,8 +172,8 @@ scenarios:
           Klik bij de tweede aanvraag op Besluit nemen.
         gezien: >-
           Het verlof is geweigerd: de school antwoordt uit haar eigen kroniek
-          dat de jongere dit schooljaar al verlof kreeg. Klik onder Besluiten
-          op Waarom? voor het spoor.
+          dat de jongere dit schooljaar al verlof kreeg. In het Logboek staat
+          bij het besluit de keten.
       - stap: bezwaar
         datum: 2026-11-01
         op: 2
@@ -332,12 +323,11 @@ scenarios:
           Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat de
           bevinding staan en klik op Beslissen op bezwaar.
     eind: >-
-      Gegrond: B is herroepen, en het nieuwe besluit verleent het verlof. Bij
-      het besluit staat "verlof al verleend in schooljaar: nee", ingevuld door
-      het beleid van het hoofd met het antwoord van de cel. Onder "Hoe de cel
-      dit beantwoordde" staat A bij de herroepen besluiten, en het spoor laat
-      zien dat het filter twee besluiten onder artikel 13a oversloeg. Dat zijn
-      A en de weigering die ervoor in de plaats kwam.
+      Gegrond: B is herroepen, en het nieuwe besluit verleent het verlof. In
+      het Logboek staat bij het besluit "verlof al verleend in schooljaar:
+      nee", ingevuld door het beleid van het hoofd met het antwoord van de
+      cel. Haar reductie sloeg twee besluiten onder artikel 13a over: A, dat
+      herroepen is, en de weigering die ervoor in de plaats kwam.
   - naam: 'Verlof in de kerstvakantie: geweigerd zonder oordeel van het hoofd'
     samenvatting: >-
       Verlof in de kerstvakantie wordt geweigerd, omdat het vakantierooster
@@ -354,16 +344,14 @@ scenarios:
           staan en klik op Besluit nemen.
     eind: >-
       Het verlof wordt geweigerd. Het hoofd oordeelde niet over de
-      schoolvakanties: bij het besluit staat "verlof valt buiten
-      schoolvakanties: nee", ingevuld door het beleid van het hoofd met het
-      antwoord van de cel. Onder "Hoe de cel dit beantwoordde" staat dat haar
-      reductie de regio Midden en de kerstvakantie van 19 december 2026 tot en
-      met 3 januari 2027 uit de regeling las, en de herfst- en
-      voorjaarsvakantie uit het beleid van de school. De regio volgt uit de
-      plaats van vestiging, Utrecht, die de cel binnen die reductie zelf gaf;
-      klik daar nog eens op "Hoe de cel dit beantwoordde" voor haar vestiging.
-      In het Logboek staat het besluit met dezelfde keten, en onderaan het
-      executogram van de vestiging.
+      schoolvakanties: in het Logboek staat bij het besluit "verlof valt
+      buiten schoolvakanties: nee", ingevuld door het beleid van het hoofd met
+      het antwoord van de cel. Haar reductie las de regio Midden en de
+      kerstvakantie van 19 december 2026 tot en met 3 januari 2027 uit de
+      regeling, en de herfst- en voorjaarsvakantie uit het beleid van de
+      school. De regio volgt uit de plaats van vestiging, Utrecht, die de cel
+      binnen die reductie zelf gaf; onderaan het Logboek staat het executogram
+      van de vestiging.
   - naam: 'Verlof in een schooljaar dat de school nog niet kent: het hoofd oordeelt'
     samenvatting: >-
       Staat het schooljaar nog niet in het vakantierooster, dan vraagt het
@@ -383,10 +371,10 @@ scenarios:
           hoofd nu of het verlof buiten de schoolvakanties valt. Klik op
           Besluit nemen.
     eind: >-
-      Het verlof wordt geweigerd. Bij het besluit staat "verlof valt buiten
-      schoolvakanties volgens hoofd: nee" als bevinding van het bestuursorgaan
-      bij artikel 4 van het beleid; het beleid vulde er artikel 13a mee in,
-      omdat de school geen antwoord had.
+      Het verlof wordt geweigerd. In het Logboek staat bij het besluit "verlof
+      valt buiten schoolvakanties volgens hoofd: nee" als bevinding van het
+      bestuursorgaan bij artikel 4 van het beleid; het beleid vulde er artikel
+      13a mee in, omdat de school geen antwoord had.
   - naam: Bezwaar ongegrond, beroep gegrond, nieuw besluit op bezwaar
     samenvatting: >-
       Na een ongegrond bezwaar gaat de ouder in beroep; de rechter vernietigt

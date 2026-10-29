@@ -11,6 +11,7 @@ import { computed, ref } from 'vue';
 import { api } from '../api.js';
 import { beroepApi } from '../beroep.js';
 import { artikelNaam } from '../logboek.js';
+import { melding } from '../melding.js';
 import {
   aanvragen,
   bezwaarBasis,
@@ -26,7 +27,6 @@ import {
   zonderLeeg,
 } from '../state.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
-import UitScenario from './UitScenario.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
 const aanvraagVorm = formulier(() => scenarioWaarden('aanvraag'));
@@ -66,9 +66,20 @@ const indieningVelden = computed(() => {
 });
 
 function start(soort, besluit) {
+  // The sheet shows a refusal of its own submission, not one from before.
+  state.fout = '';
   indieningVorm.wis(besluit.id);
   tegen.value = { soort, besluit };
 }
+
+// The heading of the sheet with the form.
+const kop = computed(() => {
+  const t = tegen.value;
+  if (!t) return '';
+  return t.soort === 'beroep'
+    ? `Beroep tegen beslissing op bezwaar ${kort(t.besluit.id)}`
+    : `Bezwaar tegen besluit ${kort(t.besluit.id)}`;
+});
 
 const beroepArtikel = computed(() =>
   state.casus.beroep ? artikelNaam(...state.casus.beroep.split('#')) : '',
@@ -103,125 +114,127 @@ async function indienenTegen() {
 </script>
 
 <template>
-  <nldd-simple-section>
-    <nldd-title slot="header" size="3" :text="`Aanvraag: ${state.casus.titel.toLowerCase()}`">
-      <nldd-text slot="supporting-text">
-        {{ artikel }}. De velden komen uit de wet: wat het artikel vraagt en wat de Algemene wet
-        bestuursrecht erbij eist (artikel 4:2). Een leeg veld laat je weg; de cel legt de
-        aanvraag dan vast met dat gegeven als ontbrekend. De dag van ontvangst is de speeldatum
-        (Awb 4:13).
-      </nldd-text>
-    </nldd-title>
-    <nldd-container gap="16" max-width="560px">
-      <UitScenario soort="aanvraag" />
-      <VeldInvoer
-        v-for="veld in state.vormen.aanvraag.velden"
-        :key="veld.naam"
-        :model-value="aanvraag[veld.naam]"
-        :veld="veld"
-        @update:model-value="aanvraagVorm.zet('aanvraag', veld.naam, $event)"
-      />
-      <nldd-button appearance="primary" text="Aanvraag indienen" @click="indienen"></nldd-button>
-    </nldd-container>
-  </nldd-simple-section>
-
-  <nldd-simple-section>
-    <nldd-title slot="header" size="3" text="Mijn aanvragen"></nldd-title>
-    <nldd-inline-dialog
-      v-if="aanvragen().length === 0"
-      icon="info"
-      text="Nog geen aanvragen"
-      supporting-text="Dien hierboven een aanvraag in."
-    ></nldd-inline-dialog>
-    <nldd-container gap="16">
-      <nldd-card v-for="a in aanvragen()" :key="a.id">
-        <nldd-container padding="16" gap="12">
-        <nldd-title
-          size="5"
-          :text="`Aanvraag ${kort(a.id)}`"
-          :supporting-text="samenvatting(a)"
-        >
-          <nldd-tag slot="end" :color="stand(a).kleur" :text="stand(a).tekst"></nldd-tag>
-        </nldd-title>
-        <nldd-list>
-          <nldd-list-item v-for="s in dossier(a)" :key="s.gram.id" size="sm">
-            <nldd-text-cell
-              :text="`${s.rol} ${kort(s.gram.id)}`"
-              :supporting-text="`${s.gram.recorded_on} · ${s.gram.basis}${s.rechter ? ` · ${state.casus.rechter.cel_naam}` : ''}`"
-            ></nldd-text-cell>
-            <nldd-cell v-if="!s.rechter && isBesluit(s.gram)" width="fit-content">
-              <nldd-button
-                appearance="secondary"
-                size="sm"
-                text="Bezwaar maken"
-                @click="start('bezwaar', s.gram)"
-              ></nldd-button>
-            </nldd-cell>
-            <nldd-cell v-if="!s.rechter && beroepMogelijk(s.gram)" width="fit-content">
-              <nldd-button
-                appearance="secondary"
-                size="sm"
-                text="Beroep instellen"
-                @click="start('beroep', s.gram)"
-              ></nldd-button>
-            </nldd-cell>
-          </nldd-list-item>
-        </nldd-list>
-        <nldd-text v-if="a.missing?.length" color="warning" size="sm">
-          Ontbreekt in de aanvraag: {{ a.missing.map(leesbaar).join(', ') }}
+  <!-- The form on the left, what was submitted on the right; on a narrow
+       screen Mijn aanvragen falls below the form. -->
+  <nldd-one-half-one-half-section>
+    <nldd-container slot="left" gap="16">
+      <nldd-title size="3" :text="`Aanvraag: ${state.casus.titel.toLowerCase()}`">
+        <nldd-text slot="supporting-text">
+          {{ artikel }}. De velden komen uit de wet: wat het artikel vraagt en wat de Algemene wet
+          bestuursrecht erbij eist (artikel 4:2). Een leeg veld laat je weg; de cel legt de
+          aanvraag dan vast met dat gegeven als ontbrekend. De dag van ontvangst is de speeldatum
+          (Awb 4:13).
         </nldd-text>
+      </nldd-title>
+      <nldd-container gap="16" max-width="560px">
+        <VeldInvoer
+          v-for="veld in state.vormen.aanvraag.velden"
+          :key="veld.naam"
+          :model-value="aanvraag[veld.naam]"
+          :veld="veld"
+          @update:model-value="aanvraagVorm.zet('aanvraag', veld.naam, $event)"
+        />
+        <nldd-button appearance="primary" text="Aanvraag indienen" @click="indienen"></nldd-button>
+      </nldd-container>
+    </nldd-container>
+    <nldd-container slot="right" gap="16">
+      <nldd-title size="3" text="Mijn aanvragen"></nldd-title>
+      <nldd-inline-dialog
+        v-if="aanvragen().length === 0"
+        icon="info"
+        text="Nog geen aanvragen"
+      ></nldd-inline-dialog>
+      <nldd-container gap="16">
+        <nldd-card v-for="a in aanvragen()" :key="a.id">
+          <nldd-container padding="16" gap="12">
+          <nldd-title
+            size="5"
+            :text="`Aanvraag ${kort(a.id)}`"
+            :supporting-text="samenvatting(a)"
+          >
+            <nldd-tag slot="end" :color="stand(a).kleur" :text="stand(a).tekst"></nldd-tag>
+          </nldd-title>
+          <nldd-list>
+            <nldd-list-item v-for="s in dossier(a)" :key="s.gram.id" size="sm">
+              <nldd-text-cell
+                :text="`${s.rol} ${kort(s.gram.id)}`"
+                :supporting-text="`${s.gram.recorded_on} · ${s.gram.basis}${s.rechter ? ` · ${state.casus.rechter.cel_naam}` : ''}`"
+              ></nldd-text-cell>
+              <nldd-cell v-if="!s.rechter && isBesluit(s.gram)" width="fit-content">
+                <nldd-button
+                  appearance="secondary"
+                  size="sm"
+                  text="Bezwaar maken"
+                  @click="start('bezwaar', s.gram)"
+                ></nldd-button>
+              </nldd-cell>
+              <nldd-cell v-if="!s.rechter && beroepMogelijk(s.gram)" width="fit-content">
+                <nldd-button
+                  appearance="secondary"
+                  size="sm"
+                  text="Beroep instellen"
+                  @click="start('beroep', s.gram)"
+                ></nldd-button>
+              </nldd-cell>
+            </nldd-list-item>
+          </nldd-list>
+          <nldd-text v-if="a.missing?.length" color="warning" size="sm">
+            Ontbreekt in de aanvraag: {{ a.missing.map(leesbaar).join(', ') }}
+          </nldd-text>
+          </nldd-container>
+        </nldd-card>
+      </nldd-container>
+    </nldd-container>
+  </nldd-one-half-one-half-section>
+
+  <!-- Objection and appeal share one sheet: the same fields from the law,
+       only the heading, the explanation and the button differ. -->
+  <Teleport to="body">
+    <nldd-sheet width="720px" :open="tegen ? true : undefined" @close="tegen = null">
+      <nldd-page>
+        <nldd-container slot="header" padding="16">
+          <nldd-top-title-bar heading-level="2" :text="kop" dismiss-text="Sluiten"></nldd-top-title-bar>
         </nldd-container>
-      </nldd-card>
-    </nldd-container>
-  </nldd-simple-section>
-
-  <nldd-simple-section v-if="tegen?.soort === 'bezwaar'">
-    <nldd-title slot="header" size="3" :text="`Bezwaar tegen besluit ${kort(tegen.besluit.id)}`">
-      <nldd-text slot="supporting-text">
-        De velden komen uit de Awb (artikel 6:5, via 7:11). Het bestreden besluit en de
-        bezwaartermijn neemt de cel uit het besluit. Het bezwaar wijzigt de aanvraag niet:
-        {{ state.casus.rol }} heroverweegt het besluit op grond van wat je aanvoert. Wil je iets
-        anders vragen, dan doe je een nieuwe aanvraag.
-      </nldd-text>
-    </nldd-title>
-    <nldd-container gap="16" max-width="560px">
-      <UitScenario :soort="tegen.soort" :doel="{ besluit: tegen.besluit.id }" />
-      <VeldInvoer
-        v-for="veld in indieningVelden"
-        :key="veld.naam"
-        :model-value="indiening[veld.naam]"
-        :veld="veld"
-        @update:model-value="indieningVorm.zet(tegen.besluit.id, veld.naam, $event)"
-      />
-      <nldd-button-group>
-        <nldd-button appearance="primary" text="Bezwaar indienen" @click="indienenTegen"></nldd-button>
-        <nldd-button appearance="neutral-transparent" text="Annuleren" @click="tegen = null"></nldd-button>
-      </nldd-button-group>
-    </nldd-container>
-  </nldd-simple-section>
-
-  <nldd-simple-section v-if="tegen?.soort === 'beroep'">
-    <nldd-title slot="header" size="3" :text="`Beroep tegen beslissing op bezwaar ${kort(tegen.besluit.id)}`">
-      <nldd-text slot="supporting-text">
-        Het beroepschrift gaat naar {{ state.casus.rechter.cel_naam }}, een eigen cel met een eigen
-        kroniek. De velden komen uit de wet: {{ beroepArtikel }}, met artikel 6:5 dat erop haakt.
-        {{ state.casus.cel_naam }} maakt een afschrift van haar beslissing, en de rechtbank legt het
-        beroep vast met wat zij ontving. De beroepstermijn neemt zij uit dat afschrift.
-      </nldd-text>
-    </nldd-title>
-    <nldd-container gap="16" max-width="560px">
-      <UitScenario :soort="tegen.soort" :doel="{ besluit: tegen.besluit.id }" />
-      <VeldInvoer
-        v-for="veld in indieningVelden"
-        :key="veld.naam"
-        :model-value="indiening[veld.naam]"
-        :veld="veld"
-        @update:model-value="indieningVorm.zet(tegen.besluit.id, veld.naam, $event)"
-      />
-      <nldd-button-group>
-        <nldd-button appearance="primary" text="Beroepschrift indienen" @click="indienenTegen"></nldd-button>
-        <nldd-button appearance="neutral-transparent" text="Annuleren" @click="tegen = null"></nldd-button>
-      </nldd-button-group>
-    </nldd-container>
-  </nldd-simple-section>
+        <nldd-simple-section v-if="tegen">
+          <nldd-container gap="16">
+            <nldd-text v-if="tegen.soort === 'bezwaar'" color="secondary">
+              De velden komen uit de Awb (artikel 6:5, via 7:11). Het bestreden besluit en de
+              bezwaartermijn neemt de cel uit het besluit. Het bezwaar wijzigt de aanvraag niet:
+              {{ state.casus.rol }} heroverweegt het besluit op grond van wat je aanvoert. Wil je iets
+              anders vragen, dan doe je een nieuwe aanvraag.
+            </nldd-text>
+            <nldd-text v-else color="secondary">
+              Het beroepschrift gaat naar {{ state.casus.rechter.cel_naam }}, een eigen cel met een eigen
+              kroniek. De velden komen uit de wet: {{ beroepArtikel }}, met artikel 6:5 dat erop haakt.
+              {{ state.casus.cel_naam }} maakt een afschrift van haar beslissing, en de rechtbank legt het
+              beroep vast met wat zij ontving. De beroepstermijn neemt zij uit dat afschrift.
+            </nldd-text>
+            <VeldInvoer
+              v-for="veld in indieningVelden"
+              :key="veld.naam"
+              :model-value="indiening[veld.naam]"
+              :veld="veld"
+              @update:model-value="indieningVorm.zet(tegen.besluit.id, veld.naam, $event)"
+            />
+            <!-- The banner of the page sits behind the sheet. -->
+            <nldd-inline-dialog
+              v-if="state.fout"
+              icon="warning"
+              icon-color="critical"
+              text="Deze stap lukt niet"
+              :supporting-text="melding(state.fout)"
+            ></nldd-inline-dialog>
+            <nldd-button-group>
+              <nldd-button
+                appearance="primary"
+                :text="tegen.soort === 'beroep' ? 'Beroepschrift indienen' : 'Bezwaar indienen'"
+                @click="indienenTegen"
+              ></nldd-button>
+              <nldd-button appearance="neutral-transparent" text="Annuleren" @click="tegen = null"></nldd-button>
+            </nldd-button-group>
+          </nldd-container>
+        </nldd-simple-section>
+      </nldd-page>
+    </nldd-sheet>
+  </Teleport>
 </template>

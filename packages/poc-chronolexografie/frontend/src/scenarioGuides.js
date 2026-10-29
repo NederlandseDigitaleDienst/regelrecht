@@ -58,7 +58,7 @@ const KINDS = {
     tab: 'bestuursorgaan',
     title: (n) => (n === 1 ? 'Besluit nemen' : 'Besluiten op de tweede aanvraag'),
     todo: 'Klik onder Open aanvragen op Besluit nemen.',
-    seen: () => 'Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.',
+    seen: () => 'Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.',
     done: (n) => (k) => k.decided.length >= n,
     weigering: /no judgement was given|asks '/,
   },

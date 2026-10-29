@@ -1,6 +1,6 @@
 /**
  * Het logboek leesbaar: per handeling wat er gebeurde en met welke uitslag,
- * en de keten van een besluit als genummerde stappen. Het spel leidt alles
+ * en de keten van een besluit als boom van stappen. Het spel leidt alles
  * af uit de kroniek en het besluit opnieuw genomen (`api.logboek`); dit
  * bestand zet het alleen in woorden.
  *
@@ -98,13 +98,6 @@ export function koppeling(by, grammen) {
   return `${beleid}, ${opsomming(by.answers.map((a) => `antwoord ${a.answer} van ${vanCel(a, grammen)}`))}`;
 }
 
-/**
- * Het antwoord van de cel van de casus op een begrip uit de keten, als dat
- * meetelde: de naam waaronder de cel haar uitleg geeft (`api.hoeBeantwoord`).
- */
-export const eigenAntwoord = (stap) =>
-  stap.ingevuld_door?.answer?.answers.find((a) => a.answerer === state.casus?.cel)?.answer ?? null;
-
 /** Wie een open begrip invulde (`FilledBy`), in een zin. */
 export function ingevuldDoor(by, grammen) {
   if (by === 'finding') return 'bevinding van het bestuursorgaan';
@@ -114,7 +107,7 @@ export function ingevuldDoor(by, grammen) {
 }
 
 /** Een stap uit de keten in woorden: een regel tekst en een toelichting. */
-export function stapTekst(stap, grammen) {
+export function stapTekst(stap) {
   switch (stap.soort) {
     case 'artikel':
       return stap.uitvoer
@@ -129,24 +122,18 @@ export function stapTekst(stap, grammen) {
             toelichting: `ontbreekt: ${stap.ontbreekt.map(leesbaar).join(', ')}`,
           }
         : { tekst: `${leesbaar(stap.naam)}: ${toon(stap.waarde)}` };
-    case 'begrip': {
-      const tekst = `${leesbaar(stap.naam)}: ${toon(stap.waarde)}`;
-      // Beleid koppelde het begrip aan het antwoord van een cel.
-      if (stap.ingevuld_door?.answer) return { tekst, toelichting: ingevuldDoor(stap.ingevuld_door, grammen) };
-      // Een begrip dat zijn standaardwaarde kreeg, noemt de engine niet bij
-      // de ingevulde begrippen; het heeft dan wel een waarde.
-      const door =
-        stap.ingevuld_door == null && stap.waarde != null
-          ? 'standaardwaarde'
-          : ingevuldDoor(stap.ingevuld_door, grammen);
-      return { tekst, toelichting: `open begrip, ${door}` };
-    }
+    // Who filled the term in shows as a tag (herkomst.js), not as a sentence.
+    case 'begrip':
+      return { tekst: `${leesbaar(stap.naam)}: ${toon(stap.waarde)}` };
     default:
       return { tekst: stap.soort };
   }
 }
 
-/** De keten genummerd: `1`, `1.2`, `1.2.3`. */
+/**
+ * The chain as a tree. Each step gets a `nummer` (`1`, `1.2`, `1.2.3`) that
+ * serves as its key; the chain does not show it.
+ */
 export function genummerd(stappen, prefix = '') {
   return stappen.map((stap, i) => {
     const nummer = prefix ? `${prefix}.${i + 1}` : `${i + 1}`;

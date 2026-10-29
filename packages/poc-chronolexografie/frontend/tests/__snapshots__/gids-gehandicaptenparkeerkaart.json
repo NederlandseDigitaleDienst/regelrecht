@@ -32,7 +32,7 @@
     "tab": "bestuursorgaan",
     "date": "2026-10-20",
     "todo": "Het formulier vraagt de vier criteria niet: het advies van de GGD geeft ze. Klik op Besluit nemen.",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    }
   ]
@@ -54,7 +54,7 @@
     "tab": "bestuursorgaan",
     "date": "2026-10-20",
     "todo": "Klik op Besluit nemen.",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]
@@ -92,7 +92,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "todo": "Klik op Besluit nemen. Het beleid van de gemeente geeft geen tweede kaart naast een geldige.",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]
@@ -237,8 +237,8 @@
     "title": "Besluiten op de tweede aanvraag",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Klik op Besluit nemen. Open daarna bij het besluit \"Hoe de cel dit beantwoordde\".",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "todo": "Klik op Besluit nemen.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]
@@ -260,7 +260,7 @@
     "tab": "bestuursorgaan",
     "date": "2026-10-20",
     "todo": "Er is geen advies, dus het college oordeelt zelf over de vier criteria. Het voorbeeld geeft alleen een langdurige loopbeperking. Laat \"geneeskundig onderzoek heeft plaatsgehad\" op Nog niet beoordeeld en klik op Besluit nemen.",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort de cel de stap te weigeren, zonder besluit"
    }
   ]
@@ -298,7 +298,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "todo": "Het formulier staat ingevuld uit het scenario: \"geneeskundig onderzoek achterwege gelaten\" Ja en \"bekend dat aanvrager nog steeds voldoet\" Ja. Er is geen advies, dus het college oordeelt zelf over de vier criteria. Het voorbeeld geeft alleen een langdurige loopbeperking. Klik op Besluit nemen.",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    }
   ]
@@ -320,7 +320,7 @@
     "tab": "bestuursorgaan",
     "date": "2026-10-20",
     "todo": "Klik op Besluit nemen.",
-    "seen": "Het besluit staat onder Besluiten. Bij Aanvrager staat de aanvraag niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {

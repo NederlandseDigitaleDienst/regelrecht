@@ -27,15 +27,6 @@ uitkomst: bedrijfsparkeervergunning_verleend
 
 # Wat de bezoeker leest.
 titel: Bedrijfsparkeervergunning
-omschrijving: >-
-  Een bedrijf vraagt de gemeente om een bedrijfsparkeervergunning, onder een
-  fictieve parkeerverordening naar het model van Delft. Het college verleent
-  haar aan een bedrijf dat in een vergunninggebied is gevestigd, tot een
-  maximum per bedrijf. Waar het bedrijf is gevestigd en hoeveel mensen er
-  werken, vraagt de gemeente aan de Kamer van Koophandel, die antwoordt uit
-  haar eigen kroniek van het handelsregister. Hoeveel geldige vergunningen
-  het bedrijf al heeft, leest de gemeente uit haar eigen besluiten, met wat
-  de Awb zegt over herroepen besluiten.
 cel_naam: gemeente Wilgendaal
 speeldatum: 2026-10-13
 
@@ -156,15 +147,14 @@ scenarios:
           kroniek van de gemeente geven wat de regels vragen. Klik op Besluit
           nemen.
     eind: >-
-      Onder Besluiten staat Toegewezen: de vergunning is verleend, geldig tot
-      en met 19 oktober 2027, een jaar vanaf de dag van het besluit (artikel 3
-      van de fictieve verordening). Bij het besluit staat "postcode vestiging
-      volgens handelsregister: 7711 AB", en in het Logboek dat de Kamer van
-      Koophandel dat antwoordde: de gemeente vroeg het aan de cel die het
-      uitvoeringsbesluit daarvoor bevoegd maakt. Bij het besluit staat ook
-      "aantal geldige bedrijfsparkeervergunningen: 0", uit de eigen kroniek
-      van de gemeente. De inschrijving staat in de kroniek van de Kamer, onder
-      Andere cellen.
+      Toegewezen: de vergunning is verleend, geldig tot en met 19 oktober
+      2027, een jaar vanaf de dag van het besluit (artikel 3 van de fictieve
+      verordening). In het Logboek staat bij het besluit "postcode vestiging
+      volgens handelsregister: 7711 AB", en dat de Kamer van Koophandel dat
+      antwoordde: de gemeente vroeg het aan de cel die het uitvoeringsbesluit
+      daarvoor bevoegd maakt. Daar staat ook "aantal geldige
+      bedrijfsparkeervergunningen: 0", uit de eigen kroniek van de gemeente.
+      De inschrijving staat in de kroniek van de Kamer, onder Andere cellen.
   - naam: Het maximum in de schil, en een vergunning na bezwaar
     samenvatting: >-
       In de schil krijgt een bedrijf zoveel vergunningen als er mensen werken,
@@ -200,8 +190,8 @@ scenarios:
           verordening). Klik bij de tweede aanvraag op Besluit nemen.
         gezien: >-
           Afgewezen: het bedrijf heeft al één geldige vergunning, en er werkt
-          één persoon. Bij het besluit staat "aantal werkzame personen volgens
-          handelsregister: 1".
+          één persoon. In het Logboek staat bij het besluit "aantal werkzame
+          personen volgens handelsregister: 1".
       - stap: bezwaar
         datum: 2026-11-01
         op: 2
@@ -250,16 +240,14 @@ scenarios:
         tekst: >-
           Het bedrijf zit op het maximum, dus het formulier vraagt het oordeel
           van het college over de hardheidsclausule (artikel 6 van de fictieve
-          verordening). Klik op Besluit nemen. Open daarna bij het besluit
-          "Hoe de cel dit beantwoordde".
+          verordening). Klik op Besluit nemen.
     eind: >-
       Afgewezen: het bedrijf heeft twee geldige vergunningen, en er werken
-      twee mensen. Bij het besluit staat "aantal geldige
-      bedrijfsparkeervergunningen: 2". Onder "Hoe de cel dit beantwoordde"
-      staat wat de reductie van de Awb gaf. Bij "herroepen besluiten" staat de
-      weigering (Awb 7:11, tweede lid). Bij "geldende besluiten" staan de
-      eerste vergunning en het nieuwe besluit uit de beslissing op bezwaar;
-      die twee telde de reductie van de gemeente. Zelf kent die reductie geen
+      twee mensen. In het Logboek staat bij het besluit "aantal geldige
+      bedrijfsparkeervergunningen: 2". De reductie van de Awb liet de
+      herroepen weigering weg (Awb 7:11, tweede lid). Zo bleven de eerste
+      vergunning en het nieuwe besluit uit de beslissing op bezwaar over; die
+      twee telde de reductie van de gemeente. Zelf kent die reductie geen
       bezwaar: ze leest alleen de geldende besluiten.
   - naam: Buiten het gebied, en na de verhuizing erin
     samenvatting: >-
@@ -279,9 +267,9 @@ scenarios:
         tekst: >-
           Klik op Besluit nemen.
         gezien: >-
-          Afgewezen: uit het handelsregister blijkt niet dat het bedrijf in
-          een vergunninggebied is gevestigd. Bij het besluit staat "postcode
-          vestiging volgens handelsregister: 7720 BC".
+          Afgewezen: uit het handelsregister blijkt niet dat het bedrijf in een
+          vergunninggebied is gevestigd. In het Logboek staat bij het besluit
+          "postcode vestiging volgens handelsregister: 7720 BC".
       - stap: vastleggen
         titel: Nieuwe inschrijving bij de Kamer van Koophandel
         datum: 2026-11-01
@@ -368,7 +356,7 @@ scenarios:
           engine kan dat oordeel niet uitrekenen, en het bedrijf heeft nog
           geen bijzondere omstandigheden aangevoerd. Klik op Besluit nemen.
         gezien: >-
-          Afgewezen. Bij het besluit staat "toepassing leidt tot
+          Afgewezen. In het Logboek staat bij het besluit "toepassing leidt tot
           onaanvaardbare gevolgen": Nee. Dat oordeel staat als gegeven bij het
           besluit in de kroniek, naast wat de Kamer van Koophandel en de eigen
           kroniek antwoordden.
@@ -409,14 +397,12 @@ scenarios:
         uitkomst: afgewezen
         tekst: >-
           Het formulier vraagt het oordeel opnieuw, want het geldt per geval.
-          Klik op Besluit nemen. Open daarna bij het besluit "Hoe de cel dit
-          beantwoordde".
+          Klik op Besluit nemen.
     eind: >-
-      Afgewezen, en bij het besluit staat "aantal geldige
+      Afgewezen, en in het Logboek staat bij het besluit "aantal geldige
       bedrijfsparkeervergunningen: 3": de twee eerste vergunningen en het
-      nieuwe besluit uit de beslissing op bezwaar. Onder "Hoe de cel dit
-      beantwoordde" staat de weigering bij "herroepen besluiten" (Awb 7:11,
-      tweede lid). De feiten zijn niet veranderd; het nieuwe besluit rust op
-      het oordeel van het college, en dat staat als gegeven bij het besluit in
-      de kroniek. Een volgende aanvraag vraagt dat oordeel opnieuw: het geldt
-      per geval.
+      nieuwe besluit uit de beslissing op bezwaar. De weigering telt niet mee:
+      die is herroepen (Awb 7:11, tweede lid). De feiten zijn niet veranderd;
+      het nieuwe besluit rust op het oordeel van het college, en dat staat als
+      gegeven bij het besluit in de kroniek. Een volgende aanvraag vraagt dat
+      oordeel opnieuw: het geldt per geval.
