@@ -168,8 +168,9 @@ articles:
           # tegemoetkoming betrekking heeft". Aanname: de tegemoetkoming die
           # wordt berekend heeft betrekking op het kalenderjaar van de
           # rekendatum. Voor een voorschot in het lopende jaar bestaat het
-          # inkomensgegeven over dat jaar nog niet; artikel 16 (voorschot op
-          # een geschat toetsingsinkomen) is niet gemodelleerd.
+          # inkomensgegeven over dat jaar nog niet; het voorschot (artikel 16)
+          # rekent met het berekeningsjaar uit de aanvraag en met wat de
+          # Dienst Toeslagen verwacht, niet met dit gegeven.
           - name: berekeningsjaar
             type: number
         actions:
@@ -991,16 +992,9 @@ articles:
           # Lid 4: rekenkundig afgerond op hele euro's.
           - output: afgeronde_tegemoetkoming
             value:
-              operation: MULTIPLY
-              values:
-                - 100
-                - operation: ROUND
-                  precision: 0
-                  value:
-                    operation: DIVIDE
-                    values:
-                      - $berekende_tegemoetkoming
-                      - 100
+              operation: ROUND
+              precision: -2
+              value: $berekende_tegemoetkoming
           # Lid 5: niet toegekend als het minder dan € 24 zou bedragen.
           - output: tegemoetkoming_wordt_toegekend
             value:

@@ -30,12 +30,12 @@ titel: Voorschot zorgtoeslag
 omschrijving: >-
   Een verzekerde vraagt zorgtoeslag aan over 2025 (Awir artikel 15). De
   Dienst Toeslagen verleent op die aanvraag een voorschot tot het bedrag
-  waarop de zorgtoeslag vermoedelijk wordt vastgesteld (Awir artikel 16). Wat
-  de Dienst daarvoor verwacht, zoals het toetsingsinkomen, oordeelt hij per
-  aanvraag; het bedrag zelf volgt uit de Wet op de zorgtoeslag en de
+  waarop de zorgtoeslag vermoedelijk wordt vastgesteld (Awir artikel 16). Per
+  aanvraag schat de Dienst in wat hij daarvoor verwacht, zoals het
+  toetsingsinkomen. Het bedrag zelf volgt uit de Wet op de zorgtoeslag en de
   standaardpremie voor 2025. Tegen het voorschot staat bezwaar open. De
   betaling in termijnen en de toekenning na de aanslag inkomstenbelasting
-  speelt deze casus nog niet.
+  speelt deze casus nog niet na.
 cel_naam: Dienst Toeslagen
 speeldatum: 2025-01-06
 
@@ -158,7 +158,7 @@ scenarios:
         tekst: >-
           Klik op Besluit nemen.
         gezien: >-
-          Toegewezen, met een voorschot van € 1.577.
+          Toegewezen, met een voorschotbedrag van 157700 eurocent (€ 1.577).
       - stap: bezwaar
         datum: 2025-01-20
         invoer:
@@ -171,4 +171,4 @@ scenarios:
           bevindingen staan en klik op Beslissen op bezwaar.
     eind: >-
       Ongegrond: de heroverweging geeft hetzelfde voorschot. Het besluit
-      blijft, er komt geen nieuw besluit.
+      blijft staan; er komt geen nieuw besluit.

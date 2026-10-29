@@ -3538,6 +3538,79 @@ mod tests {
         assert!(cell.kronieken()[0].iter().all(|g| g.kind != "BESCHIKKING"));
     }
 
+    /// The advance on an application for 2025 received on `ontvangen`,
+    /// with the Dienst's estimates over the defaults: a single person,
+    /// insured, with assets under the limit and an income of € 25.000.
+    fn voorschot(ontvangen: &str, verwachting: Value) -> std::collections::BTreeMap<String, Value> {
+        let corpus = casus("zorgtoeslag");
+        let mut cell = corpus.cell().unwrap();
+        let op = day(ontvangen);
+        let velden = map(json!({
+            "bsn": "999993653",
+            "berekeningsjaar": 2025,
+            "aanvraag_ondertekend": true,
+            "naam_aanvrager": "S. de Vries",
+            "adres_aanvrager": "Voorbeeldlaan 7",
+            "dagtekening": ontvangen,
+            "gevraagde_beschikking": "zorgtoeslag over 2025",
+        }));
+        let app = aanvragen(&corpus, &mut cell, &velden, op).unwrap();
+        let mut oordelen = map(json!({
+            "vermoedelijk_toetsingsinkomen": 2500000,
+            "vermoedelijk_heeft_toeslagpartner": false,
+            "vermoedelijk_toetsingsinkomen_toeslagpartner": 0,
+            "vermoedelijk_verzekerd": true,
+            "vermoedelijk_vermogen_onder_grens": true,
+        }));
+        oordelen.extend(map(verwachting));
+        besluiten(&corpus, &mut cell, &app.id, &oordelen, op)
+            .unwrap()
+            .besluit
+            .outputs
+    }
+
+    #[test]
+    fn zorgtoeslag_each_condition_of_the_advance_decides_it() {
+        let bedrag = |o: &std::collections::BTreeMap<String, Value>| o["voorschotbedrag"].clone();
+        let verleend =
+            |o: &std::collections::BTreeMap<String, Value>| o["voorschot_verleend"].clone();
+
+        // A partner: twice the standard premium, the partner percentage of
+        // the threshold, and 13,7% of the joint income above it.
+        let partner = voorschot(
+            "2025-01-06",
+            json!({
+                "vermoedelijk_heeft_toeslagpartner": true,
+                "vermoedelijk_toetsingsinkomen_toeslagpartner": 1000000,
+            }),
+        );
+        assert_eq!(bedrag(&partner), json!(208800));
+
+        // Assets above the limit: no entitlement, so no advance.
+        let vermogen = voorschot(
+            "2025-01-06",
+            json!({ "vermoedelijk_vermogen_onder_grens": false }),
+        );
+        assert_eq!(
+            (bedrag(&vermogen), verleend(&vermogen)),
+            (json!(0), json!(false))
+        );
+
+        // Awir 14 lid 5: an allowance of € 20 is under € 24.
+        let klein = voorschot(
+            "2025-01-06",
+            json!({ "vermoedelijk_toetsingsinkomen": 3956800 }),
+        );
+        assert_eq!((bedrag(&klein), verleend(&klein)), (json!(0), json!(false)));
+
+        // Awir 16 lid 1: an application from 1 April of the next year on
+        // gets no advance; the day before it does.
+        let laat = voorschot("2026-04-01", json!({}));
+        assert_eq!((bedrag(&laat), verleend(&laat)), (json!(0), json!(false)));
+        let tijdig = voorschot("2026-03-31", json!({}));
+        assert_eq!(bedrag(&tijdig), json!(157700));
+    }
+
     #[test]
     fn the_preview_of_a_decision_is_the_decision_and_records_nothing() {
         let corpus = corpus();

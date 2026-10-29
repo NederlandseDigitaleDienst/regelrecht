@@ -21,10 +21,10 @@ articles:
     text: >-
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Het
       bedrag waarop de zorgtoeslag vermoedelijk zal worden vastgesteld, is de
-      zorgtoeslag volgens artikel 2 van de Wet op de zorgtoeslag, berekend met
+      zorgtoeslag volgens artikel 2 van de Wet op de zorgtoeslag. De Dienst
+      Toeslagen berekent die met wat hij voor het berekeningsjaar verwacht:
       het toetsingsinkomen, de toeslagpartner en diens toetsingsinkomen, de
-      verzekering en het vermogen zoals de Dienst Toeslagen die voor het
-      berekeningsjaar verwacht. Heeft de verzekerde volgens die verwachting
+      verzekering en het vermogen. Heeft de verzekerde volgens die verwachting
       geen aanspraak op zorgtoeslag, dan is het bedrag nihil.
     url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel16
     machine_readable:
@@ -50,9 +50,9 @@ articles:
           description: >-
             Of de aanvrager volgens de verwachting van de Dienst in het
             berekeningsjaar een toeslagpartner heeft.
-        # Ook zonder toeslagpartner een bedrag, nihil: artikel 2 roept de
-        # engine niet aan met een lege waarde, en telt dit inkomen alleen
-        # mee bij een toeslagpartner.
+        # Ook zonder toeslagpartner een bedrag, nihil: de engine roept
+        # artikel 2 niet aan met een lege waarde, en artikel 2 telt dit
+        # inkomen alleen mee bij een toeslagpartner.
         - id: vermoedelijk_toetsingsinkomen_toeslagpartner
           type: amount
           required: true

@@ -8,8 +8,7 @@ bwb_id: BWBR0018451
 url: https://wetten.overheid.nl/BWBR0018451/2025-01-01
 name: '#wet_naam'
 # Artikel 5, eerste lid: "De Dienst Toeslagen is belast met de uitvoering
-# van deze wet." Letterlijk, en niet als verwijzing naar een uitvoer: wie
-# beslist, leest de app uit de wet (src/casus.rs).
+# van deze wet." Letterlijk, en niet als verwijzing naar een uitvoer.
 competent_authority:
   name: Dienst Toeslagen
 articles:
