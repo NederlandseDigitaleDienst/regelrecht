@@ -269,6 +269,17 @@ With `ENRICH_WINDOW_CONCURRENCY` above 1 the windows of a job share one view
 of the agent: the counts add up, and the stall check fires only once every
 window has gone quiet.
 
+### Definitions and units
+
+The `law-generate` skill writes every constant in `definitions` in the
+structured form, with a `type` and, for a quantity, a `type_spec.unit`
+(RFC-023). Money is `type: amount` with `unit: eurocent`.
+
+The deterministic check `definition-type` reports a definition that holds a
+number without a `type`, because nothing then says whether 0.137 is a share or
+a factor, or whether 3971900 is cents. Its findings go back to the agent as a
+feedback round.
+
 ### LLM Providers
 
 `LLM_PROVIDER` selects `opencode` (the default) or `claude`. The binary and model
