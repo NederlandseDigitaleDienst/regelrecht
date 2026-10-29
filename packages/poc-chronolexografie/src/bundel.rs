@@ -9,8 +9,9 @@
 //! the other way round. The register (`pocs/registry.yaml`, `corpus` of
 //! `chronolexografie`) names the directory for the build, which copies
 //! every file under it except the scenarios. A test below holds that every
-//! directory in it is one a case needs ([`mappen`]), so nothing dead ends up
-//! in the browser.
+//! shared regelwerk and cell in it is one a case lists ([`mappen`]), so
+//! nothing dead ends up in the browser; a case's own regelwerken count for
+//! that case anyway.
 //!
 //! Next to it the page may hold sources ([`Bron`]): a corpus the portal
 //! fetches when the page loads, such as a branch of another repository
@@ -323,7 +324,13 @@ mod tests {
             "regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_ggd_wilgendaal/2026-01-01.yaml",
             str::to_string,
         );
-        assert!(e.contains("gehandicaptenparkeerkaart"), "{e}");
+        assert!(
+            e.contains(
+                "case 'gehandicaptenparkeerkaart' needs regelwerk \
+                 'beleid_geneeskundig_advies_ggd_wilgendaal', which is not in the corpus"
+            ),
+            "{e}"
+        );
     }
 
     #[test]
@@ -338,6 +345,16 @@ mod tests {
         files.insert(pad, tekst);
         let e = casussen(files).unwrap_err().to_string();
         assert!(e.contains("count only for that case"), "{e}");
+    }
+
+    #[test]
+    fn another_directory_under_the_cases_is_ignored() {
+        let mut files = gebundeld();
+        files.insert(format!("{CASUSSEN}/notities/README.md"), "notities".into());
+        assert_eq!(
+            casussen(files).unwrap().len(),
+            casussen(gebundeld()).unwrap().len()
+        );
     }
 
     #[test]

@@ -12,5 +12,7 @@ CORPUS=packages/poc-chronolexografie/corpus
 cd "$(dirname "$0")/.."
 echo "$CORPUS/regulation"
 for dir in "$CORPUS"/casussen/*/regulation; do
-    [ -d "$dir" ] && echo "$dir"
+    if [ -d "$dir" ]; then
+        echo "$dir"
+    fi
 done

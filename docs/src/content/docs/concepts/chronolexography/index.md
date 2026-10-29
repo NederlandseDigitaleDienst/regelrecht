@@ -14,9 +14,9 @@ Recording is an optional layer on top of the law ([RFC-046](/rfcs/rfc-046)). The
 | Cell | Keeps its chronicle. Records submissions and takes decisions through the engine | `cells/<cell>/` of a corpus, `packages/cel` |
 | Reduction | Reads the chronicle and gives an answer under a name | `cells/<cell>/reductions/`, or `cells/reductions/` for one of no cell |
 | Policy | Says that an open term of the law takes a cell's answer | `regulation/nl/uitvoeringsbeleid/` |
-
-The paths are relative to the root of a corpus. The cells and cases in this repository are in the corpus of the [PoC](/components/poc-portal#chronolexografie), `packages/poc-chronolexografie/corpus/`, and `packages/cel` tests on a copy of it in `tests/fixtures/corpus/`.
 | Engine | Executes the law and asks one cell per question. Stores nothing | `packages/engine` |
+
+The paths are relative to the root of a corpus. The cells and cases in this repository are in the corpus of the [PoC](/components/poc-portal#chronolexografie), `packages/poc-chronolexografie/corpus/`. `packages/cel` tests on copies of its cells and rulework in `tests/fixtures/corpus/`.
 
 ## A cell
 

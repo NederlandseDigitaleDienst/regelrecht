@@ -134,7 +134,7 @@ produces:
 | A rule breached, legal effects kept | Well founded: the decision is annulled, and no new decision is needed |
 | A rule breached, and the court decides the case itself | Well founded: the decision is annulled, and the judgment holds the decision in its place. There is no order |
 
-[RFC-053](/rfcs/rfc-053) gives the design. `corpus/regulation/nl/wet/algemene_wet_bestuursrecht/scenarios/beroep.feature` plays these cases.
+[RFC-053](/rfcs/rfc-053) gives the design. `packages/poc-chronolexografie/corpus/regulation/nl/wet/algemene_wet_bestuursrecht/scenarios/beroep.feature` plays these cases.
 
 ## Open questions
 

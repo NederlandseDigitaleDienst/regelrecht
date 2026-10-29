@@ -706,11 +706,14 @@ jobs:
           BDD_BUCKET: corpus
           BDD_REVERSE_ACTIONS: ${{ matrix.reverse }}
           RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
-        # A plain assignment under `-eo pipefail`, so a failing script fails
-        # the step instead of leaving REGULATION_PATH empty, which would run
-        # bucket A over corpus/regulation and pass.
+        # The script runs in a plain assignment, so under `bash -e` a failure
+        # fails the step instead of leaving REGULATION_PATH empty, which would
+        # run bucket A over corpus/regulation and pass. Without pipefail a
+        # failure inside a pipe would be lost, so the script runs on its own
+        # first and the pipe only formats its output.
         run: |
-          REGULATION_PATH=$(../../script/chrono-regulation-dirs.sh | sed "s|^|$GITHUB_WORKSPACE/|" | paste -sd:)
+          DIRS=$(../../script/chrono-regulation-dirs.sh)
+          REGULATION_PATH=$(echo "$DIRS" | sed "s|^|$GITHUB_WORKSPACE/|" | paste -sd:)
           export REGULATION_PATH
           cargo test --test bdd -- --nocapture
 

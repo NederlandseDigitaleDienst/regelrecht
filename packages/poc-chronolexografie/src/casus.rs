@@ -253,8 +253,9 @@ pub enum Uitkomst {
 
 /// The cases in `dir`, one per `<id>.yaml`, in the order of their ids, read
 /// through `files`. Beside a case file may be a directory `<id>/` with the
-/// case's own regelwerken ([`EIGEN`]); a directory without a case file is an
-/// error, since its regelwerken would count for no case.
+/// case's own regelwerken ([`EIGEN`]); such regelwerken without a case file
+/// beside them are an error, since they would count for no case. Other
+/// directories under `dir` are ignored.
 pub fn casussen(files: &dyn Files, dir: &Path) -> Result<Vec<Casus>> {
     let entries = files.entries(dir)?;
     let mut paths: Vec<PathBuf> = entries
@@ -265,7 +266,7 @@ pub fn casussen(files: &dyn Files, dir: &Path) -> Result<Vec<Casus>> {
     paths.sort();
     if let Some(los) = entries
         .iter()
-        .find(|p| files.is_dir(p) && !paths.contains(&p.with_extension("yaml")))
+        .find(|p| files.is_dir(&p.join(EIGEN)) && !paths.contains(&p.with_extension("yaml")))
     {
         return Err(Error::Setup(format!(
             "{}: a directory of its own regelwerken, but no case {}.yaml beside it",
@@ -419,9 +420,7 @@ impl Regelwerken {
         let casussen = root.join("casussen");
         if files.is_dir(&casussen) {
             for casus in files.entries(&casussen)? {
-                if files.is_dir(&casus) {
-                    regulation.push(casus.join(EIGEN));
-                }
+                regulation.push(casus.join(EIGEN));
             }
         }
         for dir in regulation.into_iter().filter(|d| files.is_dir(d)) {
