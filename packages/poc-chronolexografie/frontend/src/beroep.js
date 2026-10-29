@@ -11,7 +11,7 @@
  * leidt het af uit de wet.
  */
 import { api } from './api.js';
-import { kort, state } from './state.js';
+import { state } from './state.js';
 
 export const beroepApi = {
   instellen: api.beroepInstellen,
@@ -20,7 +20,6 @@ export const beroepApi = {
   // kopie van de cel: er wordt niets vastgelegd (zoals api.voorvertoningBesluit).
   voorvertoningUitspraak: api.voorvertoningUitspraak,
   toezenden: api.toezenden,
-  waarom: api.waaromUitspraak,
   heroverweging: api.heroverwegingNaUitspraak,
   opnieuwBeslissen: api.opnieuwBeslissenOpBezwaar,
   voorvertoningNaUitspraak: api.voorvertoningNaUitspraak,
@@ -67,13 +66,4 @@ export const openOntvangsten = () =>
 export function binnenTermijn(ontvangst, datum) {
   const termijn = ontvangst.fields?.termijn_nieuw_besluit_einddatum;
   return termijn ? datum <= termijn : null;
-}
-
-/** Wat een chronolexogram zegt over waar het vandaan komt, in één regel. */
-export function herkomst(g) {
-  const delen = [];
-  if (g.refers_to) delen.push(`verwijst naar ${kort(g.refers_to)}`);
-  if (g.received) delen.push(`ontvangen van ${g.received.from} ${kort(g.received.id)}`);
-  if (g.after) delen.push(`na ${kort(g.after)}`);
-  return delen.join(' · ');
 }

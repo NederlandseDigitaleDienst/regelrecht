@@ -96,10 +96,6 @@ export const api = {
   // vastgelegd. Een weigering van de cel komt terug als `{ geweigerd }`.
   voorvertoningBesluit: (op, bevindingen, datum) =>
     roep((p) => p.voorvertoningBesluit(op, json(bevindingen), datum)),
-  waarom: (id) => roep((p) => p.waarom(id)),
-  // Wat uit een aanvraag, bezwaar of beroep volgt, zoals de laatste dag van
-  // de beslistermijn: de kroniek bewaart het niet, de cel rekent het uit.
-  watVolgt: (id) => roep((p) => p.watVolgt(id)),
   bezwaren: (besluit, velden, datum) => roep((p) => p.bezwaren(besluit, json(velden), datum)),
   heroverweging: (bezwaar, datum) => roep((p) => p.heroverweging(bezwaar, datum)),
   beslissenOpBezwaar: (op, bevindingen, datum) =>
@@ -115,7 +111,6 @@ export const api = {
   voorvertoningUitspraak: (op, bevindingen, datum) =>
     roep((p) => p.voorvertoningUitspraak(op, json(bevindingen), datum)),
   toezenden: (uitspraak, datum) => roep((p) => p.toezenden(uitspraak, datum)),
-  waaromUitspraak: (uitspraak) => roep((p) => p.waaromUitspraak(uitspraak)),
   heroverwegingNaUitspraak: (ontvangst) => roep((p) => p.heroverwegingNaUitspraak(ontvangst)),
   opnieuwBeslissenOpBezwaar: (ontvangst, bevindingen, datum) =>
     roep((p) => p.opnieuwBeslissenOpBezwaar(ontvangst, json(bevindingen), datum)),

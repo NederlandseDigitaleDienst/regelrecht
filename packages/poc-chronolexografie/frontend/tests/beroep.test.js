@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { binnenTermijn, herkomst, openOntvangsten, ontvangstVan, uitspraakOp } from '../src/beroep.js';
+import { binnenTermijn, openOntvangsten, ontvangstVan, uitspraakOp } from '../src/beroep.js';
 import { dossier, geldendBesluit, isBesluit, isBesluitwaarde, rol, state, waarde } from '../src/state.js';
 
 // Ids verzonnen, op de laatste acht tekens na herkenbaar; de vormen zoals de
@@ -100,13 +100,10 @@ describe('het beroep in twee kronieken', () => {
     expect(openOntvangsten()).toEqual([]);
   });
 
-  it('de termijn van de rechter en de herkomst in één regel', () => {
+  it('de termijn van de rechter', () => {
     expect(binnenTermijn(ontvangst, '2027-01-18')).toBe(true);
     expect(binnenTermijn(ontvangst, '2027-01-26')).toBe(false);
     expect(binnenTermijn({ fields: {} }, '2027-01-26')).toBeNull();
-    expect(herkomst(ontvangst)).toBe('verwijst naar 0000dddd · ontvangen van rechtbank 0000ffff');
-    expect(herkomst(gegrond)).toBe('verwijst naar 0000cccc · na 00001111');
-    expect(herkomst(aanvraag)).toBe('');
   });
 });
 

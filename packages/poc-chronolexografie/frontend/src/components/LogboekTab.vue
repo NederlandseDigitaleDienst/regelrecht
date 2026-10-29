@@ -103,8 +103,7 @@ function regels(h) {
   if (!h.waarom && g.kind !== 'EXECUTOGRAM') {
     uit.push({
       naam: 'Geen besluit',
-      toelichting:
-        'De cel legde vast wat de aanvrager indiende. Wat daaruit volgt, zoals de laatste dag van de termijn, rekent zij uit als je het chronolexogram in de kroniek openklapt.',
+      toelichting: 'De cel legde vast wat de aanvrager indiende.',
     });
   }
   return uit;
