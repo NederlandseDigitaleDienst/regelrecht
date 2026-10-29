@@ -133,24 +133,29 @@ test('de handmatige paden buiten de graaf blijven werken', () => {
   assert.equal(namesOf(['frontend/src/main.ts']).editor, true);
   assert.equal(namesOf(['frontend/src/main.ts']).lawmaking, false);
 
-  // frontend-shared zit in elk image dat een frontend bouwt. De twee
-  // poc-images hoorden hier vanaf het begin bij en stonden er niet in: ze
-  // kopiëren het pakket wel en draaien `npm ci` op dezelfde lock.
+  // frontend-shared zit in elk image dat een frontend bouwt. Het portaal
+  // hoorde hier vanaf het begin bij en stond er niet in: het kopieert het
+  // pakket wel en draait `npm ci` op dezelfde lock.
   const shared = namesOf(['packages/frontend-shared/src/auth.ts']);
   assert.equal(shared.editor, true);
   assert.equal(shared.admin, true);
   assert.equal(shared.lawmaking, true);
   assert.equal(shared.demo, true);
   assert.equal(shared.poc, true);
-  assert.equal(shared['poc-napp'], true);
+
+  // napp kopieert van frontend-shared alleen package.json, voor `npm ci`. Een
+  // uitrol van napp herstart de enrich-worker (#1844), dus de bron van het
+  // pakket mag hem niet raken.
+  assert.equal(shared['poc-napp'], false);
+  assert.equal(namesOf(['packages/frontend-shared/package.json'])['poc-napp'], true);
 });
 
 test('het poc-portaal volgt zijn register, zijn corpus en zijn frontends', () => {
   // Het register bepaalt wat het portaal serveert en welke wachtwoorden het
-  // verwacht, dus het raakt beide images.
+  // verwacht. Het napp-image kopieert het niet, dus napp blijft staan.
   const register = namesOf(['pocs/registry.yaml']);
   assert.equal(register.poc, true);
-  assert.equal(register['poc-napp'], true);
+  assert.equal(register['poc-napp'], false);
 
   // Het portaal bakt heel corpus-poc/ in; napp alleen zijn eigen wetten. Een
   // wijziging in de napp-casus raakt daarom allebei.

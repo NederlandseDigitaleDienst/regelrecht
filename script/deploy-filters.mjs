@@ -88,13 +88,18 @@ export const COMPONENTS = {
   },
   // napp draait als eigen, niet-gepubliceerd component; het portaal proxyt
   // ernaartoe. Eigen image, dus eigen filter.
+  //
+  // Alleen wat het image echt kopieert. Het register in pocs/ zit er niet in,
+  // en van frontend-shared alleen package.json, voor `npm ci`. Een te ruim
+  // filter kost hier meer dan een build: napp deelt in ZAD `persistent-storage`
+  // met de enrich-worker, en elke uitrol van napp herstart die worker en breekt
+  // een lopende verrijking af (#1844).
   'poc-napp': {
     crate: 'regelrecht-poc-napp',
     paths: [
-      'pocs/',
       'corpus-poc/napp/',
       'frontend-poc-napp/',
-      'packages/frontend-shared/',
+      'packages/frontend-shared/package.json',
       'packages/poc-napp/Dockerfile',
     ],
   },
