@@ -2,12 +2,24 @@
 import type { ExecutionField, InputSource, RawDefinition } from '../lib/lawFormat';
 import { ref, computed, watch, watchEffect, nextTick } from 'vue';
 import { collectAvailableVariables } from '../utils/operationTree';
-import { centsToEuros, eurosToCents } from '../utils/currency';
 import { lawsListUrl } from '../composables/corpusUrls';
 import { apiFetchJson } from '../lib/apiFetch';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
 import type { NLDDComboBox } from '@nldd/design-system/combo-box';
 import type { OperationSettingsArticle } from './OperationSettings.vue';
+import {
+  DEFINITION_TYPES,
+  NUMBER_UNITS,
+  changeType,
+  fromForm,
+  kindOf,
+  newDefinitionForm,
+  toForm,
+  valueSuffix,
+  type DefinitionForm,
+  type DefinitionType,
+  type NumberUnit,
+} from '../lib/definitionForm';
 
 /** The entry the sheet edits, as the editor view hands it in. */
 export interface EditSheetItem {
@@ -30,8 +42,6 @@ export type EditSheetSave =
   | { section: 'output'; index: number | undefined; data: ExecutionField }
   | { section: 'add-output'; data: ExecutionField };
 
-type ControlType = 'boolean' | 'currency' | 'percentage' | 'number' | 'text';
-
 /** One editable source.parameters row. */
 interface ParamRow {
   _rowId: number;
@@ -43,10 +53,10 @@ interface ParamRow {
 /** The form state. Which fields are set depends on the section (see the watch on `item`). */
 interface FormValues {
   name?: string;
-  displayValue?: unknown;
-  controlType?: ControlType;
-  unit?: string;
-  rawDef?: unknown;
+  /** The definition being edited (see lib/definitionForm). */
+  def?: DefinitionForm;
+  /** The definition as it was, so keys the form does not edit are kept. */
+  rawDef?: RawDefinition | null;
   type?: string;
   required?: boolean;
   sourceRegulation?: string;
@@ -246,25 +256,22 @@ function makeParamRow(key = '', value = '', origValue: unknown = undefined): Par
 }
 
 // Type inference for controls
-function inferControlType(value: unknown, unit: string | undefined): ControlType {
-  if (typeof value === 'boolean') return 'boolean';
-  if (unit === 'eurocent') return 'currency';
-  if (typeof value === 'number' && value > 0 && value < 1 && !unit) return 'percentage';
-  if (typeof value === 'number') return 'number';
-  return 'text';
+/** The definition being edited; only set while the sheet edits one. */
+const def = computed(() => (values.value as FormValues).def ?? null);
+const defKind = computed(() => (def.value ? kindOf(def.value) : null));
+const defSuffix = computed(() => (def.value ? valueSuffix(def.value) : ''));
+// The suffix sits in its own cell, so it also goes into the field's name: a
+// screen reader then hears "Waarde, %" rather than only "Waarde".
+const defLabel = computed(() => (defSuffix.value ? `Waarde (${defSuffix.value})` : 'Waarde'));
+
+function onDefTypeChange(event: Event) {
+  if (!def.value) return;
+  changeType(def.value, (event.target as HTMLSelectElement).value as DefinitionType | '');
 }
 
-function toDisplay(value: unknown, controlType: ControlType) {
-  if (controlType === 'currency') return centsToEuros(value);
-  // inferControlType gives 'percentage' only for a number.
-  if (controlType === 'percentage') return +((value as number) * 100).toFixed(6);
-  return value;
-}
-
-function fromDisplay(value: number, controlType: ControlType | undefined) {
-  if (controlType === 'currency') return eurosToCents(value);
-  if (controlType === 'percentage') return parseFloat((value / 100).toPrecision(15));
-  return value;
+function onDefUnitChange(event: Event) {
+  if (!def.value) return;
+  def.value.unit = (event.target as HTMLSelectElement).value as NumberUnit | '';
 }
 
 watch(() => props.item, async (item) => {
@@ -275,19 +282,13 @@ watch(() => props.item, async (item) => {
 
   const s = item.section;
   if (s === 'definition' || s === 'add-definition') {
-    // A list definition takes the object branch below and so has no `value`
-    // or `type_spec`, as before; the cast keeps that behavior visible.
-    const rawDef = item.rawDef as Exclude<RawDefinition, unknown[]> | null | undefined;
-    const val = rawDef != null ? (typeof rawDef === 'object' ? rawDef.value : rawDef) : 0;
-    const unit = rawDef != null && typeof rawDef === 'object' ? rawDef.type_spec?.unit : undefined;
-    const ct = item.isNew ? 'number' : inferControlType(val, unit);
+    // structuredClone throws DataCloneError on Vue reactive proxies; defs are JSON-safe.
+    const rawDef: RawDefinition | null =
+      !item.isNew && item.rawDef != null ? JSON.parse(JSON.stringify(item.rawDef)) : null;
     values.value = {
       name: item.key ?? '',
-      displayValue: item.isNew ? 0 : toDisplay(val, ct),
-      controlType: ct,
-      unit,
-      // structuredClone throws DataCloneError on Vue reactive proxies; defs are JSON-safe.
-      rawDef: item.rawDef != null ? JSON.parse(JSON.stringify(item.rawDef)) : { value: 0 },
+      def: rawDef == null ? newDefinitionForm() : toForm(rawDef),
+      rawDef,
     };
   } else if (s === 'parameter' || s === 'add-parameter') {
     values.value = {
@@ -365,10 +366,9 @@ function save() {
 
   if (s === 'definition' || s === 'add-definition') {
     // The watch on `item` filled values for this same section.
-    const { name, displayValue, controlType, rawDef } = values.value as FormValues & { name: string };
-    if (!name.trim()) return;
-    const stored = controlType === 'boolean' ? displayValue : fromDisplay(Number(displayValue), controlType);
-    const data = typeof rawDef === 'object' ? { ...rawDef, value: stored } : stored;
+    const { name, def: form, rawDef } = values.value as FormValues & { name: string };
+    if (!name.trim() || !form) return;
+    const data = fromForm(form, rawDef);
     if (s === 'definition') {
       emit('save', { section: 'definition', key: item.key, newKey: name.trim(), data });
     } else {
@@ -483,7 +483,7 @@ const sectionLabels: Record<string, string> = {
 
       <nldd-simple-section v-if="item">
           <!-- Definition -->
-          <template v-if="item.section === 'definition' || item.section === 'add-definition'">
+          <template v-if="(item.section === 'definition' || item.section === 'add-definition') && def">
             <nldd-list appearance="box-tinted" class="edit-settings-list">
               <nldd-list-item size="md">
                 <nldd-text-cell text="Naam" max-width="140px"></nldd-text-cell>
@@ -492,46 +492,105 @@ const sectionLabels: Record<string, string> = {
                   <nldd-text-field size="md" :value="values.name" @input="values.name = $event.target?.value ?? $event.detail?.value ?? values.name"></nldd-text-field>
                 </nldd-cell>
               </nldd-list-item>
-              <nldd-list-item size="md">
+
+              <!-- A type the form does not edit (object, decision, an amount
+                   in euro): the definition is kept as it is. -->
+              <nldd-list-item v-if="def.unsupported" size="md" data-testid="def-unsupported">
                 <nldd-text-cell text="Waarde" max-width="140px"></nldd-text-cell>
                 <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                <template v-if="values.controlType === 'currency'">
-                  <nldd-text-cell text="€" width="fit-content"></nldd-text-cell>
-                  <nldd-spacer-cell size="6"></nldd-spacer-cell>
-                </template>
-                <nldd-cell v-if="values.controlType === 'boolean'">
-                  <nldd-switch-field :checked="values.displayValue ? true : undefined" @change="values.displayValue = Boolean($event.detail?.checked)">Waarde</nldd-switch-field>
-                </nldd-cell>
-                <nldd-cell v-else-if="values.controlType === 'currency' || values.controlType === 'percentage' || values.controlType === 'number'">
-                  <!-- number-field with hide-spin-buttons: keeps numeric input
-                       validation (rejects non-numeric, handles locale) without
-                       the visual clutter that felt out of place for "fixed
-                       value from law" semantics. The plain text-field used
-                       previously silently produced NaN on Dutch comma input
-                       and 0 on cleared field.
-                       Both @input and @change are intentional, not a
-                       copy-paste: @input gives live-as-you-type updates
-                       (dirty marking); @change delivers the value the
-                       field normalises on commit/blur (locale/step). The
-                       assignment is idempotent so a same-tick double-fire
-                       is harmless - do not drop @change. -->
-                  <nldd-number-field
-                    :value="values.displayValue"
-                    :step="values.controlType === 'currency' ? '0.01' : (values.controlType === 'percentage' ? '0.001' : undefined)"
-                    width="full"
-                    hide-spin-buttons
-                    @input="values.displayValue = $event.detail?.value ?? values.displayValue"
-                    @change="values.displayValue = $event.detail?.value ?? values.displayValue"
-                  ></nldd-number-field>
-                </nldd-cell>
-                <nldd-cell v-else>
-                  <nldd-text-field size="md" :value="String(values.displayValue)" @input="values.displayValue = $event.target?.value ?? $event.detail?.value ?? values.displayValue"></nldd-text-field>
-                </nldd-cell>
-                <template v-if="values.controlType === 'percentage'">
-                  <nldd-spacer-cell size="6"></nldd-spacer-cell>
-                  <nldd-text-cell text="%" width="fit-content"></nldd-text-cell>
-                </template>
+                <nldd-text-cell :text="`${def.unsupported}: niet te bewerken in dit venster, wel in de YAML`" color="secondary"></nldd-text-cell>
               </nldd-list-item>
+
+              <template v-else>
+                <nldd-list-item size="md">
+                  <nldd-text-cell text="Type" max-width="140px"></nldd-text-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-cell>
+                    <nldd-dropdown size="md">
+                      <select :value="def.type" aria-label="Type" data-testid="def-type" @change="onDefTypeChange">
+                        <option v-for="t in DEFINITION_TYPES" :key="t.value" :value="t.value">{{ t.label }}</option>
+                      </select>
+                    </nldd-dropdown>
+                  </nldd-cell>
+                </nldd-list-item>
+
+                <nldd-list-item v-if="def.type === 'number'" size="md">
+                  <nldd-text-cell text="Eenheid" max-width="140px"></nldd-text-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-cell>
+                    <nldd-dropdown size="md">
+                      <select :value="def.unit" aria-label="Eenheid" data-testid="def-unit" @change="onDefUnitChange">
+                        <option v-for="u in NUMBER_UNITS" :key="u.value" :value="u.value">{{ u.label }}</option>
+                      </select>
+                    </nldd-dropdown>
+                  </nldd-cell>
+                </nldd-list-item>
+                <!-- Money is always eurocent (the corpus convention); the user
+                     types euros. -->
+                <nldd-list-item v-else-if="def.type === 'amount'" size="md">
+                  <nldd-text-cell text="Eenheid" max-width="140px"></nldd-text-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-text-cell text="eurocent (invoer in euro's)" color="secondary"></nldd-text-cell>
+                </nldd-list-item>
+
+                <nldd-list-item size="md">
+                  <nldd-text-cell text="Waarde" max-width="140px"></nldd-text-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <template v-if="defKind === 'amount'">
+                    <nldd-text-cell text="€" width="fit-content"></nldd-text-cell>
+                    <nldd-spacer-cell size="6"></nldd-spacer-cell>
+                  </template>
+                  <nldd-cell v-if="defKind === 'boolean'">
+                    <nldd-switch-field :checked="def.bool ? true : undefined" @change="def.bool = Boolean($event.detail?.checked)">Waarde</nldd-switch-field>
+                  </nldd-cell>
+                  <nldd-cell v-else-if="defKind === 'number' || defKind === 'amount'">
+                    <!-- number-field with hide-spin-buttons: keeps numeric input
+                         validation (rejects non-numeric, handles locale) without
+                         the visual clutter that felt out of place for "fixed
+                         value from law" semantics. Both @input and @change are
+                         intentional: @input gives live-as-you-type updates;
+                         @change delivers the value the field normalises on
+                         commit/blur. The assignment is idempotent. -->
+                    <nldd-number-field
+                      :value="def.number"
+                      :step="defKind === 'amount' ? '0.01' : '0.000001'"
+                      :accessible-label="defLabel"
+                      width="full"
+                      hide-spin-buttons
+                      data-testid="def-number"
+                      @input="def.number = Number($event.detail?.value ?? def.number)"
+                      @change="def.number = Number($event.detail?.value ?? def.number)"
+                    ></nldd-number-field>
+                  </nldd-cell>
+                  <nldd-cell v-else-if="defKind === 'date'">
+                    <nldd-date-field
+                      :value="def.date"
+                      accessible-label="Waarde"
+                      width="full"
+                      data-testid="def-date"
+                      @input="def.date = $event.detail?.value ?? def.date"
+                      @change="def.date = $event.detail?.value ?? def.date"
+                    ></nldd-date-field>
+                  </nldd-cell>
+                  <nldd-cell v-else-if="defKind === 'array'">
+                    <nldd-token-field
+                      .values="def.items"
+                      allow-custom
+                      accessible-label="Waarde"
+                      placeholder="Toevoegen..."
+                      data-testid="def-items"
+                      @change="def.items = [...($event.detail?.values ?? def.items)]"
+                    ></nldd-token-field>
+                  </nldd-cell>
+                  <nldd-cell v-else>
+                    <nldd-text-field size="md" accessible-label="Waarde" :value="def.text" @input="def.text = $event.target?.value ?? $event.detail?.value ?? def.text"></nldd-text-field>
+                  </nldd-cell>
+                  <template v-if="defSuffix">
+                    <nldd-spacer-cell size="6"></nldd-spacer-cell>
+                    <nldd-text-cell :text="defSuffix" width="fit-content" data-testid="def-suffix"></nldd-text-cell>
+                  </template>
+                </nldd-list-item>
+              </template>
             </nldd-list>
           </template>
 
