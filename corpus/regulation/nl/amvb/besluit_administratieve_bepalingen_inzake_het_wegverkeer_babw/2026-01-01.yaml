@@ -1092,7 +1092,7 @@ articles:
               - kaart_als_passagier
           # De uitkomst is of het college een kaart verstrekt, en welke
           # letters zij draagt. De laatste geldige dag volgt uit de dag van
-          # afgifte (artikel 51) en is afgeleid (RFC-045 §1): zij staat bij het
+          # afgifte (artikel 51) en is afgeleid (RFC-045 §7): zij staat bij het
           # besluit, maar telt niet als uitkomst. Een heroverweging op bezwaar
           # (Awb 7:11) valt op een andere dag; die geeft geen aanleiding
           # alleen omdat de kaart dan later zou aflopen.
