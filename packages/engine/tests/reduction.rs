@@ -592,6 +592,30 @@ fn executograms_of_v0_8_6_are_refused_with_facts_named() {
     }
 }
 
+/// Schema v0.8.13 removed `combine`, on an open term (v0.8.8) and in a
+/// `source` beside `reduction` (v0.8.9): one question goes to one cell. A
+/// file that still has it is refused at load, whatever version it names,
+/// rather than run without it.
+#[test]
+fn combine_is_refused_with_one_cell_named() {
+    for value in ["OR", "~", ""] {
+        refused(
+            &binding(BINDS, &format!("{BINDS}              combine: {value}\n")),
+            "has source.combine, which schema v0.8.13 removed; one question goes to one cell",
+        );
+        refused(
+            &changed(
+                &corpus("regulation/nl/wet/leerplichtwet_1969/2026-08-01.yaml"),
+                "          type: date\n          required: true\n          description: De eerste dag",
+                &format!(
+                    "          type: date\n          required: true\n          combine: {value}\n          description: De eerste dag"
+                ),
+            ),
+            "open term 'eerste_lesdag_schooljaar' has combine, which schema v0.8.13 removed",
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------
 // The head's policy binds the open term of art. 13a to the cell's answer
 // (source.reduction, schema v0.8.9)

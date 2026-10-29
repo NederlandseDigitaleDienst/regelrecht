@@ -253,6 +253,12 @@ pub struct Source {
     /// silently; it is never written back.
     #[serde(default, skip_serializing, deserialize_with = "present")]
     pub executograms: Option<serde_json::Value>,
+    /// Schema v0.8.9's rule to merge the answers of several cells, beside
+    /// `reduction`, which v0.8.13 removed: one question goes to one cell
+    /// (RFC-048 §4). The model reads it only so the engine can refuse it at
+    /// load instead of dropping it silently; it is never written back.
+    #[serde(default, skip_serializing, deserialize_with = "present")]
+    pub combine: Option<serde_json::Value>,
 }
 
 /// Parameter definition in execution spec
@@ -1152,13 +1158,19 @@ pub struct OpenTerm {
     /// Default execution if no implementing regulation exists
     #[serde(default)]
     pub default: Option<OpenTermDefault>,
-    /// Who may answer this term for a reader that reaches the article
-    /// through `source.regulation` (schema v0.8.8, RFC-051): one named
-    /// authority or a list. The article's own `competent_authority` says
-    /// who decides (RFC-002), which is another question. On a term judged
-    /// per case it also says who gives the finding (RFC-048 §2).
+    /// Who may answer this term (schema v0.8.8, RFC-051 §2), wherever a
+    /// binding of it runs (RFC-048 §4): one named authority or a list. The
+    /// article's own `competent_authority` says who decides (RFC-002),
+    /// which is another question. On a term judged per case it also says
+    /// who gives the finding (RFC-048 §2).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub competent_authority: Option<CompetentAuthority>,
+    /// Schema v0.8.8's rule to merge the answers of the competent cells,
+    /// which v0.8.13 removed: one question goes to one cell (RFC-048 §4).
+    /// The model reads it only so the engine can refuse it at load instead
+    /// of dropping it silently; it is never written back.
+    #[serde(default, skip_serializing, deserialize_with = "present")]
+    pub combine: Option<serde_json::Value>,
 }
 
 impl OpenTerm {

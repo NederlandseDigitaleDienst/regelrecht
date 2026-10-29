@@ -28,9 +28,11 @@
 //! The engine has no behavior that depends on the schema version a file
 //! names: every file runs with the semantics of the latest version. A
 //! construct a later version removed is refused with its replacement named:
-//! `source.executograms` (v0.8.6), which v0.8.7 replaced by `source.facts`,
-//! and `implements` on a reduction (v0.8.5 to v0.8.8), which v0.8.9 replaced
-//! by a named answer that a policy binds with `source.reduction`.
+//! `source.executograms` (v0.8.6), which v0.8.7 replaced by `source.facts`;
+//! `implements` on a reduction (v0.8.5 to v0.8.8), which v0.8.9 replaced by
+//! a named answer that a policy binds with `source.reduction`; and `combine`
+//! on an open term or in a `source` (v0.8.8 to v0.8.12), which v0.8.13
+//! removed, since one question goes to one cell.
 //!
 //! The policy of the authority that decides binds an open term to an answer
 //! (schema v0.8.9, RFC-048): a policy article that fills the term
@@ -62,10 +64,13 @@ use regelrecht_law_model::{
 /// Refuse a construct that a later schema version removed, naming what
 /// replaced it. The engine runs every file with the semantics of the latest
 /// version, so it cannot run such a construct; dropping it silently would run
-/// the file without it. So far there are two: `source.executograms` (v0.8.6),
-/// which v0.8.7 replaced by `source.facts` (RFC-051), and `implements` on a
-/// `REDUCTIE` (v0.8.5 to v0.8.8), which v0.8.9 replaced by a named answer of
-/// the cell that a policy binds to the term (`source.reduction`, RFC-048).
+/// the file without it. So far there are three: `source.executograms`
+/// (v0.8.6), which v0.8.7 replaced by `source.facts` (RFC-051); `implements`
+/// on a `REDUCTIE` (v0.8.5 to v0.8.8), which v0.8.9 replaced by a named
+/// answer of the cell that a policy binds to the term (`source.reduction`,
+/// RFC-048); and `combine` on an open term (v0.8.8) or in a `source`
+/// (v0.8.9), which v0.8.13 removed: one question goes to one cell, and an
+/// article makes one outcome of the answers of different cells (RFC-048 §4).
 pub(crate) fn reject_removed_constructs(law: &ArticleBasedLaw) -> Result<()> {
     let refuse = |why: String| Err(EngineError::LoadError(format!("law '{}' {why}", law.id)));
     let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
@@ -77,7 +82,29 @@ pub(crate) fn reject_removed_constructs(law: &ArticleBasedLaw) -> Result<()> {
                  with source.reduction (RFC-048)"
             ));
         }
+        for term in section.open_terms.iter().flatten() {
+            if term.combine.is_some() {
+                return refuse(format!(
+                    "{where_}: open term '{}' has combine, which schema v0.8.13 removed; one \
+                     question goes to one cell, and an article makes one outcome of the answers \
+                     of different cells (RFC-048 §4)",
+                    term.id
+                ));
+            }
+        }
         for input in inputs(section) {
+            if input
+                .source
+                .as_ref()
+                .is_some_and(|source| source.combine.is_some())
+            {
+                return refuse(format!(
+                    "{where_}: input '{}' has source.combine, which schema v0.8.13 removed; one \
+                     question goes to one cell, and an article makes one outcome of the answers \
+                     of different cells (RFC-048 §4)",
+                    input.name
+                ));
+            }
             if input
                 .source
                 .as_ref()

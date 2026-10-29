@@ -178,7 +178,7 @@ fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
 /// The directories, under the repository root, that the bundle of `alle`
 /// holds: the case files, and per case its corpus ([`Casus::corpus`]) and
 /// the directories of its own cell and the other cells of its sphere
-/// (RFC-045 §1).
+/// (RFC-048).
 pub fn mappen(alle: &[Corpus]) -> BTreeSet<String> {
     let mut uit = BTreeSet::from([CASUSSEN.to_string()]);
     for c in alle {
