@@ -143,11 +143,10 @@ test('de handmatige paden buiten de graaf blijven werken', () => {
   assert.equal(shared.demo, true);
   assert.equal(shared.poc, true);
 
-  // napp kopieert van frontend-shared alleen package.json, voor `npm ci`. Een
-  // uitrol van napp herstart de enrich-worker (#1844), dus de bron van het
-  // pakket mag hem niet raken.
+  // napp gebruikt frontend-shared niet. Een uitrol van napp herstart de
+  // enrich-worker (#1844), dus het pakket mag hem niet raken.
   assert.equal(shared['poc-napp'], false);
-  assert.equal(namesOf(['packages/frontend-shared/package.json'])['poc-napp'], true);
+  assert.equal(namesOf(['packages/frontend-shared/package.json'])['poc-napp'], false);
 });
 
 test('het poc-portaal volgt zijn register, zijn corpus en zijn frontends', () => {
