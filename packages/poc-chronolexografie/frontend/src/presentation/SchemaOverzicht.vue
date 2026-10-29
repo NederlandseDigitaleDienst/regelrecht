@@ -2,8 +2,7 @@
 // A picture of YAML files on the explanation page: every file as a box, in a
 // column per kind, with the names in it that a line starts or ends at; the
 // boxes and lines come from schema.js (`schema` for the whole case, `keten`
-// for one value). With `doel`, that name stands out and the columns run the
-// other way, so the chain reads from left to right towards it. The lines between those
+// for one value). With `doel`, that name stands out. The lines between those
 // names are drawn over the boxes in an SVG, from where the names stand once
 // the page is laid out; they are drawn again when the overview changes size.
 // Pointing at a name, or focusing it, shows only its own lines.
@@ -22,12 +21,11 @@ const props = defineProps({
 
 const s = computed(() => props.schema);
 const doel = computed(() => s.value.doel && sleutel(s.value.doel.pad, s.value.doel.begrip));
-const kolommen = computed(() => {
-  const k = SOORTEN.map((x) => ({ ...x, bestanden: s.value.bestanden.filter((b) => b.soort === x.soort) })).filter(
+const kolommen = computed(() =>
+  SOORTEN.map((x) => ({ ...x, bestanden: s.value.bestanden.filter((b) => b.soort === x.soort) })).filter(
     (x) => x.bestanden.length,
-  );
-  return doel.value ? k.reverse() : k;
-});
+  ),
+);
 /** The files with lines between their own names: they get a lane for them. */
 const binnen = computed(() => new Set(s.value.lijnen.filter((l) => l.van.pad === l.naar.pad).map((l) => l.van.pad)));
 /** The kinds of line in this picture, for the legend. */
