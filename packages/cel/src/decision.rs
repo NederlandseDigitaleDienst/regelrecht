@@ -8,7 +8,8 @@
 //! them with, in this order of preference:
 //!
 //! 1. the application: a parameter of the deciding article, or one the
-//!    application holds or gives (a hook's output) by the same name;
+//!    application holds or gives (a hook's output) by the same name, or the
+//!    parameter of its moment, such as the receipt (Awb 4:13);
 //! 2. what the deciding authority supplies, such as a parameter of a hook the
 //!    application does not hold;
 //! 3. the day of the decision, for a date the stage requires.
@@ -242,6 +243,7 @@ pub fn derive(
                 add_field(&mut fields, field, &reference)?;
                 let source = if application.field(&p.name).is_some()
                     || application.given.contains(&p.name)
+                    || application.is_moment(&p.name)
                 {
                     Source::Application
                 } else {

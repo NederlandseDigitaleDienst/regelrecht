@@ -96,6 +96,15 @@ impl Gram {
     pub fn held(&self, name: &str) -> Option<&Value> {
         self.fields.get(name).or_else(|| self.outputs.get(name))
     }
+
+    /// The day of its moment, if `name` is the parameter the law names for
+    /// it (RFC-045).
+    pub fn moment_on(&self, name: &str) -> Option<NaiveDate> {
+        self.moment
+            .as_ref()
+            .filter(|m| m.parameter.as_deref() == Some(name))
+            .map(|m| m.on)
+    }
 }
 
 /// A chronolexogram of another cell, as a cell that received a copy of it

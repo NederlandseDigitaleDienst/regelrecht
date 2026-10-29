@@ -1922,7 +1922,10 @@ fn asked(
                         shape.basis()
                     )))
                 }
-                None => None,
+                // The moment is no field: the day the cell recorded it.
+                None => applied
+                    .moment_on(name)
+                    .map(|day| serde_json::Value::String(day.to_string())),
             },
             Source::Supplied => match supplied.get(name) {
                 Some(value) => Some(value.clone()),
