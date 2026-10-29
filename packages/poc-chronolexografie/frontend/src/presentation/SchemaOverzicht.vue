@@ -28,6 +28,8 @@ const kolommen = computed(() => {
   );
   return doel.value ? k.reverse() : k;
 });
+/** The files with lines between their own names: they get a lane for them. */
+const binnen = computed(() => new Set(s.value.lijnen.filter((l) => l.van.pad === l.naar.pad).map((l) => l.van.pad)));
 /** The kinds of line in this picture, for the legend. */
 const soorten = computed(() => LIJNSOORTEN.filter((l) => s.value.lijnen.some((x) => x.soort === l.soort)));
 
@@ -77,7 +79,7 @@ function teken() {
   maat.value = { w: root.scrollWidth, h: root.scrollHeight };
   const plek = (pad, begrip) => {
     const el = root.querySelector(`[data-begrip="${CSS.escape(sleutel(pad, begrip))}"]`);
-    return el?.getBoundingClientRect();
+    return el && Object.assign(el.getBoundingClientRect().toJSON(), { kolom: el.closest('.kolom') });
   };
   paden.value = s.value.lijnen.flatMap((l, i) => {
     const a = plek(l.van.pad, l.van.begrip);
@@ -86,7 +88,13 @@ function teken() {
     const ay = a.top + a.height / 2 - o.top;
     const by = b.top + b.height / 2 - o.top;
     let d;
-    if (Math.abs(a.left - b.left) < 8) {
+    if (l.van.pad === l.naar.pad) {
+      // Same file: in the lane on the left inside the box, the longer the
+      // further out, so the arcs nest instead of lying on top of each other.
+      const bocht = 6 + Math.min(18, Math.abs(by - ay) / 25);
+      const x = a.left - o.left - 2;
+      d = `M ${x} ${ay} C ${x - bocht} ${ay}, ${x - bocht} ${by}, ${x} ${by}`;
+    } else if (a.kolom === b.kolom) {
       // Same column: out on the right and back in.
       const x = Math.max(a.right, b.right) - o.left;
       const bocht = 20 + Math.min(24, Math.abs(by - ay) / 10);
@@ -98,13 +106,14 @@ function teken() {
       const dx = Math.max(40, Math.abs(bx - ax) / 2) * (rechts ? 1 : -1);
       d = `M ${ax} ${ay} C ${ax + dx} ${ay}, ${bx - dx} ${by}, ${bx} ${by}`;
     }
-    return [{ i, d, soort: l.soort, van: sleutel(l.van.pad, l.van.begrip), naar: sleutel(l.naar.pad, l.naar.begrip) }];
+    return [{ i, d, soort: l.soort, binnen: l.van.pad === l.naar.pad, van: sleutel(l.van.pad, l.van.begrip), naar: sleutel(l.naar.pad, l.naar.begrip) }];
   });
 }
 
 const zichtbaar = (p) => !actief.value || p.van === actief.value || p.naar === actief.value;
 /** The lines drawn over the boxes: those of the name pointed at. */
-const boven = computed(() => (actief.value ? paden.value.filter(zichtbaar) : []));
+// The lines within a file run inside its box, so they are always on top.
+const boven = computed(() => paden.value.filter((p) => p.binnen || (actief.value && zichtbaar(p))));
 const verbonden = computed(() => {
   if (!actief.value) return null;
   const set = new Set([actief.value]);
@@ -148,7 +157,7 @@ watch(s, async () => {
                 <nldd-text size="sm" weight="bold">{{ b.titel }}</nldd-text>
                 <nldd-text size="sm" color="secondary"><code>{{ map(b.pad) }}</code></nldd-text>
               </nldd-container>
-              <ul class="begrippen">
+              <ul :class="['begrippen', { baan: binnen.has(b.pad) }]">
                 <li
                   v-for="g in b.begrippen"
                   :key="g.key"
@@ -184,7 +193,7 @@ watch(s, async () => {
               <path d="M 0 0 L 10 5 L 0 10 z" :class="['punt', l.soort]" />
             </marker>
           </defs>
-          <path v-for="p in boven" :key="p.i" :d="p.d" :class="['lijn', p.soort]" :marker-end="`url(#pijl-boven-${p.soort})`" />
+          <path v-for="p in boven" :key="p.i" :d="p.d" :class="['lijn', p.soort, { uit: !zichtbaar(p), dik: actief && zichtbaar(p) }]" :marker-end="`url(#pijl-boven-${p.soort})`" />
         </svg>
       </div>
     </div>
@@ -222,6 +231,9 @@ watch(s, async () => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+.begrippen.baan {
+  padding-left: 28px;
 }
 .begrippen li {
   display: flex;
@@ -274,7 +286,7 @@ code {
   stroke-width: 1.5;
   transition: opacity 0.15s;
 }
-.boven .lijn {
+.boven .lijn.dik {
   stroke-width: 2.5;
 }
 .lijn.uit {
