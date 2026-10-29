@@ -115,8 +115,8 @@ impl DecisionShape {
     /// into what it supplies and its findings, as [`Cell::decide`] takes
     /// them: a parameter of the decision is supplied, anything else is a
     /// finding. Who may give each, and whether it fits, `decide` checks
-    /// after the split, so a parameter the application holds is refused as
-    /// one, and a finding of another authority as one.
+    /// after the split, so `decide` still refuses a parameter the
+    /// application holds, and a finding of another authority.
     ///
     /// [`Cell::decide`]: crate::Cell::decide
     pub fn split(&self, given: &Map<String, Value>) -> (Map<String, Value>, Map<String, Value>) {
