@@ -59,7 +59,9 @@ struct Activity {
     last_message_id: Option<String>,
     tool_calls: u32,
     last_tool: Option<String>,
-    /// The model the CLI said it runs, from its `init` event.
+    /// The model the latest agent call named in its `init` event. Kept after
+    /// the call ends, so a stopped job still shows what it ran on; with
+    /// windows side by side the last one to start wins.
     model: Option<String>,
     recent: VecDeque<String>,
 }

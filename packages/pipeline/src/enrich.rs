@@ -3282,6 +3282,37 @@ async fn read_stored_source_hash(repo_path: &Path, normalized_law_path: &str) ->
     (!prov.source_hash.is_empty()).then_some(prov.source_hash)
 }
 
+/// The `model` written to `.enrichment.yaml`: what the CLI said this
+/// window's calls ran on. A window that made no call (an empty window at the
+/// end of a chunked law) keeps the model the file already names, so it does
+/// not overwrite a model that ran with a guess. Only without either does it
+/// fall back to the configured model, `default` when none is set.
+fn metadata_model(models: &[String], previous: Option<String>, configured: String) -> String {
+    if !models.is_empty() {
+        return models.join(", ");
+    }
+    previous
+        .filter(|m| !m.is_empty() && m != "default")
+        .unwrap_or(configured)
+}
+
+/// Read the `model` recorded in the target law's `.enrichment.yaml`, if any.
+async fn read_stored_model(repo_path: &Path, normalized_law_path: &str) -> Option<String> {
+    #[derive(serde::Deserialize)]
+    struct ModelField {
+        #[serde(default)]
+        model: String,
+    }
+    let meta_rel = Path::new(normalized_law_path)
+        .parent()?
+        .join(".enrichment.yaml");
+    let content = tokio::fs::read_to_string(repo_path.join(meta_rel))
+        .await
+        .ok()?;
+    let field: ModelField = serde_yaml_ng::from_str(&content).ok()?;
+    (!field.model.is_empty()).then_some(field.model)
+}
+
 /// Read the chunked-enrichment cursor recorded in the target law's
 /// `.enrichment.yaml`: `(enrich_cursor, enrich_cursor_path)`.
 ///
@@ -4980,18 +5011,14 @@ pub async fn execute_enrich_with_runner(
         Some(_) => {}
     }
 
-    // Write enrichment metadata. The model is what the CLI said it ran on;
-    // only when it named none is it the configured one, `default` when unset.
+    // Write enrichment metadata.
     let models = session.models();
+    let previous_model = read_stored_model(repo_path, &normalized_path).await;
     let metadata = EnrichmentMetadata {
         law_id: payload.law_id.clone(),
         timestamp: chrono::Utc::now().to_rfc3339(),
         provider: provider_name.clone(),
-        model: if models.is_empty() {
-            config.provider.model_str()
-        } else {
-            models.join(", ")
-        },
+        model: metadata_model(&models, previous_model, config.provider.model_str()),
         prompt_hash: compute_prompt_hash(repo_path).await,
         code_commit: config.code_commit.clone(),
         coverage_score,
@@ -8747,6 +8774,53 @@ articles:
     }
 
     #[test]
+    fn the_metadata_names_the_model_that_ran() {
+        let ran = vec!["claude-opus-5-5".to_string()];
+        // What the CLI named wins over what was configured or stored.
+        assert_eq!(
+            metadata_model(&ran, Some("claude-opus-4-6".into()), "default".into()),
+            "claude-opus-5-5"
+        );
+        let two = vec![
+            "claude-opus-5-5".to_string(),
+            "claude-sonnet-5-5".to_string(),
+        ];
+        assert_eq!(
+            metadata_model(&two, None, "default".into()),
+            "claude-opus-5-5, claude-sonnet-5-5"
+        );
+        // A window without calls keeps what the file already said.
+        assert_eq!(
+            metadata_model(&[], Some("claude-opus-5-5".into()), "default".into()),
+            "claude-opus-5-5"
+        );
+        // Without either, the configured model, and a stored `default` is no
+        // better than that.
+        assert_eq!(
+            metadata_model(&[], Some("default".into()), "opus".into()),
+            "opus"
+        );
+        assert_eq!(metadata_model(&[], None, "default".into()), "default");
+    }
+
+    #[test]
+    fn results_stored_before_the_model_was_recorded_still_load() {
+        let call: AgentCallRecord =
+            serde_json::from_str(r#"{"step":"translate","resumed":false,"usage":null}"#).unwrap();
+        assert_eq!(call.model, None);
+        let json = serde_json::json!({
+            "law_id": "x", "yaml_path": "laws/x/law.yaml", "articles_total": 1,
+            "articles_with_machine_readable": 1, "coverage_score": 1.0,
+            "provider": "claude", "branch": "enrich/claude",
+        });
+        let result: EnrichResult = serde_json::from_value(json).unwrap();
+        assert!(result.models.is_empty());
+        // And a result without models leaves the key out.
+        let back = serde_json::to_value(&result).unwrap();
+        assert!(back.get("models").is_none());
+    }
+
+    #[test]
     fn a_session_names_each_model_once_in_order() {
         let session = AgentSession::new(SessionReuse::Window);
         assert!(session.models().is_empty());
@@ -10494,19 +10568,33 @@ mod subprocess_tests {
         config.timeout = timeout;
         config.idle_timeout = idle;
         config.activity.begin_call("translate");
-        let out = run_llm_subprocess(
-            provider,
-            "prompt",
-            None,
-            cwd,
-            &config,
-            ToolPolicy {
-                allow_bash: false,
-                deny: &[],
-            },
-            SessionAction::Cold,
-        )
-        .await;
+        // The fake CLI was just written. A test running beside this one may
+        // fork while that file is still open for writing, and until the child
+        // execs it holds the descriptor, so exec here fails with "Text file
+        // busy" (ETXTBSY). That is the test writing an executable, not the
+        // code under test; wait briefly and try again.
+        let mut attempt = 0;
+        let out = loop {
+            let out = run_llm_subprocess(
+                provider,
+                "prompt",
+                None,
+                cwd,
+                &config,
+                ToolPolicy {
+                    allow_bash: false,
+                    deny: &[],
+                },
+                SessionAction::Cold,
+            )
+            .await;
+            let busy = matches!(&out, Err(e) if e.to_string().contains("Text file busy"));
+            attempt += 1;
+            if !busy || attempt == 10 {
+                break out;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        };
         (out, config)
     }
 
