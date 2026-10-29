@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { artikelNaam, eigenAntwoord, genomenBij, genummerd, opsomming, stapTekst, toon, uitslag, wetNaam } from '../src/logboek.js';
+import { artikelNaam, genomenBij, genummerd, opsomming, stapTekst, toon, uitslag, wetNaam } from '../src/logboek.js';
 import { rol, state } from '../src/state.js';
 
 // De casus zoals `api.casus` haar geeft, voor zover het logboek haar leest.
@@ -105,11 +105,6 @@ describe('stapTekst', () => {
     expect(stapTekst(stil, grammen).toelichting).toBe(
       'ingevuld door beleid fictief_beleid_vakantieverlof_obs_de_klimop art. 2, geen antwoord van een cel',
     );
-  });
-
-  it('vindt het antwoord van de eigen cel voor haar uitleg', () => {
-    expect(eigenAntwoord(celAntwoord)).toBe('verlof_al_verleend_in_schooljaar');
-    expect(eigenAntwoord({ ...celAntwoord, ingevuld_door: 'finding' })).toBeNull();
   });
 
   it('noemt een bevinding van het bestuursorgaan en een regeling', () => {

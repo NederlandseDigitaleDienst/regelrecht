@@ -271,9 +271,8 @@ const uitkomstOpBezwaar = (uit) =>
           titel="Nieuw besluit"
           :besluit="b.nieuw_besluit"
           :waarom="b.waarom"
-          :waarom-van="b.beslissing.id"
         />
-        <Waarom v-else :besluit="b.beslissing.id" :waarom="b.waarom" />
+        <Waarom v-else :waarom="b.waarom" />
       </nldd-container>
     </nldd-container>
   </nldd-simple-section>

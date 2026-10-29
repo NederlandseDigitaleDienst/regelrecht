@@ -7,11 +7,10 @@
 // de reden is waarnaar een chronolexogram verwijst (`refers_to`); de keten van
 // een besluit komt uit het besluit opnieuw genomen (`api.logboek`). Een stap
 // die de cel weigerde, legde niets vast en staat er dus niet in.
-import { nextTick, reactive, ref, watch } from 'vue';
+import { nextTick, ref, watch } from 'vue';
 import { api } from '../api.js';
-import { celNaam, eigenAntwoord, genomenBij, genummerd, toon, uitslag } from '../logboek.js';
+import { celNaam, genomenBij, genummerd, toon, uitslag } from '../logboek.js';
 import { herroepen, kort, leesbaar, rol, state } from '../state.js';
-import HoeBeantwoord from './HoeBeantwoord.vue';
 import KetenStap from './KetenStap.vue';
 
 const emit = defineEmits(['kroniek']);
@@ -110,25 +109,6 @@ function regels(h) {
   }
   return uit;
 }
-
-// Het volledige spoor van een besluit, in een sheet.
-const spoor = ref(null);
-
-// De uitleg van de cel bij een begrip, in een sheet.
-const sheet = reactive({ open: false, knoop: null, uitleg: null, besluit: null });
-async function uitleg(besluit, knoop) {
-  Object.assign(sheet, { open: true, knoop, uitleg: null, besluit });
-  try {
-    const antwoord = await api.hoeBeantwoord(besluit, eigenAntwoord(knoop.stap));
-    // Alleen als intussen niet een ander begrip of besluit gekozen is.
-    if (sheet.knoop?.nummer === knoop.nummer && sheet.besluit === besluit) {
-      sheet.uitleg = antwoord.antwoorden[knoop.stap.keer] ?? null;
-    }
-  } catch (e) {
-    state.fout = e.message;
-    sheet.open = false;
-  }
-}
 </script>
 
 <template>
@@ -202,56 +182,15 @@ async function uitleg(besluit, knoop) {
           slot="children"
           :knoop="k"
           :diepte="1"
-          @uitleg="uitleg(h.gram.id, $event)"
         />
         <nldd-list-item slot="children" size="sm" @click.stop>
           <nldd-spacer-cell size="24"></nldd-spacer-cell>
           <nldd-list-item-segment button @click.stop="emit('kroniek', h.gram.id)">
             <nldd-text-cell color="accent" :text="`${h.gram.kind} ${kort(h.gram.id)} in de kroniek`"></nldd-text-cell>
           </nldd-list-item-segment>
-          <nldd-list-item-segment v-if="h.waarom" button @click.stop="spoor = h">
-            <nldd-text-cell color="accent" text="Volledig spoor"></nldd-text-cell>
-          </nldd-list-item-segment>
         </nldd-list-item>
       </nldd-list-item>
     </nldd-list>
   </nldd-simple-section>
 
-  <Teleport to="body">
-    <nldd-sheet width="720px" :open="sheet.open || undefined" @close="sheet.open = false">
-      <nldd-page>
-        <nldd-container slot="header" padding="16">
-          <nldd-top-title-bar
-            heading-level="2"
-            text="Hoe de cel antwoordde"
-            :supporting-text="sheet.knoop ? leesbaar(sheet.knoop.stap.naam) : ''"
-            dismiss-text="Sluiten"
-          ></nldd-top-title-bar>
-        </nldd-container>
-        <nldd-simple-section>
-          <HoeBeantwoord v-if="sheet.uitleg" :uitleg="sheet.uitleg" :besluit="sheet.besluit" />
-          <nldd-text v-else size="sm" color="secondary">Even geduld…</nldd-text>
-        </nldd-simple-section>
-      </nldd-page>
-    </nldd-sheet>
-    <nldd-sheet width="720px" :open="spoor ? true : undefined" @close="spoor = null">
-      <nldd-page>
-        <nldd-container slot="header" padding="16">
-          <nldd-top-title-bar
-            heading-level="2"
-            text="Volledig spoor"
-            :supporting-text="spoor ? `${rol(spoor.gram)} ${kort(spoor.gram.id)}` : ''"
-            dismiss-text="Sluiten"
-          ></nldd-top-title-bar>
-        </nldd-container>
-        <nldd-simple-section>
-          <nldd-text size="sm" color="secondary">
-            De keten in het logboek laat rekenwerk en het opzoeken van waarden weg; hier staat het
-            hele spoor van het besluit opnieuw genomen.
-          </nldd-text>
-          <nldd-code-viewer v-if="spoor" appearance="box-tinted">{{ spoor.waarom.spoor }}</nldd-code-viewer>
-        </nldd-simple-section>
-      </nldd-page>
-    </nldd-sheet>
-  </Teleport>
 </template>

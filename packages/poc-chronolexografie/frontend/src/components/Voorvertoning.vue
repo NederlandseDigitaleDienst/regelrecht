@@ -149,7 +149,7 @@ const regels = (g) =>
           appearance="box-base"
           accessible-label="Keten van de voorlopige uitkomst"
         >
-          <KetenStap v-for="k in keten" :key="k.nummer" :knoop="k" :met-uitleg="false" />
+          <KetenStap v-for="k in keten" :key="k.nummer" :knoop="k" />
         </nldd-list>
       </template>
     </nldd-container>

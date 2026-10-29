@@ -325,12 +325,11 @@ scenarios:
           Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat de
           bevinding staan en klik op Beslissen op bezwaar.
     eind: >-
-      Gegrond: B is herroepen, en het nieuwe besluit verleent het verlof. Bij
-      het besluit staat "verlof al verleend in schooljaar: nee", ingevuld door
-      het beleid van het hoofd met het antwoord van de cel. Onder "Hoe de cel
-      dit beantwoordde" staat A bij de herroepen besluiten, en het spoor laat
-      zien dat het filter twee besluiten onder artikel 13a oversloeg. Dat zijn
-      A en de weigering die ervoor in de plaats kwam.
+      Gegrond: B is herroepen, en het nieuwe besluit verleent het verlof. In
+      het Logboek staat bij het besluit "verlof al verleend in schooljaar:
+      nee", ingevuld door het beleid van het hoofd met het antwoord van de
+      cel. Haar reductie sloeg twee besluiten onder artikel 13a over: A, dat
+      herroepen is, en de weigering die ervoor in de plaats kwam.
   - naam: 'Verlof in de kerstvakantie: geweigerd zonder oordeel van het hoofd'
     samenvatting: >-
       Verlof in de kerstvakantie wordt geweigerd, omdat het vakantierooster
@@ -347,16 +346,14 @@ scenarios:
           staan en klik op Besluit nemen.
     eind: >-
       Het verlof wordt geweigerd. Het hoofd oordeelde niet over de
-      schoolvakanties: bij het besluit staat "verlof valt buiten
-      schoolvakanties: nee", ingevuld door het beleid van het hoofd met het
-      antwoord van de cel. Onder "Hoe de cel dit beantwoordde" staat dat haar
-      reductie de regio Midden en de kerstvakantie van 19 december 2026 tot en
-      met 3 januari 2027 uit de regeling las, en de herfst- en
-      voorjaarsvakantie uit het beleid van de school. De regio volgt uit de
-      plaats van vestiging, Utrecht, die de cel binnen die reductie zelf gaf;
-      klik daar nog eens op "Hoe de cel dit beantwoordde" voor haar vestiging.
-      In het Logboek staat het besluit met dezelfde keten, en onderaan het
-      executogram van de vestiging.
+      schoolvakanties: in het Logboek staat bij het besluit "verlof valt
+      buiten schoolvakanties: nee", ingevuld door het beleid van het hoofd met
+      het antwoord van de cel. Haar reductie las de regio Midden en de
+      kerstvakantie van 19 december 2026 tot en met 3 januari 2027 uit de
+      regeling, en de herfst- en voorjaarsvakantie uit het beleid van de
+      school. De regio volgt uit de plaats van vestiging, Utrecht, die de cel
+      binnen die reductie zelf gaf; onderaan het Logboek staat het executogram
+      van de vestiging.
   - naam: 'Verlof in een schooljaar dat de school nog niet kent: het hoofd oordeelt'
     samenvatting: >-
       Staat het schooljaar nog niet in het vakantierooster, dan vraagt het

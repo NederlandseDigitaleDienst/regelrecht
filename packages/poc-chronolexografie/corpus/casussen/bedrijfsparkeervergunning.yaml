@@ -241,16 +241,14 @@ scenarios:
         tekst: >-
           Het bedrijf zit op het maximum, dus het formulier vraagt het oordeel
           van het college over de hardheidsclausule (artikel 6 van de fictieve
-          verordening). Klik op Besluit nemen. Open daarna bij het besluit
-          "Hoe de cel dit beantwoordde".
+          verordening). Klik op Besluit nemen.
     eind: >-
       Afgewezen: het bedrijf heeft twee geldige vergunningen, en er werken
-      twee mensen. Bij het besluit staat "aantal geldige
-      bedrijfsparkeervergunningen: 2". Onder "Hoe de cel dit beantwoordde"
-      staat wat de reductie van de Awb gaf. Bij "herroepen besluiten" staat de
-      weigering (Awb 7:11, tweede lid). Bij "geldende besluiten" staan de
-      eerste vergunning en het nieuwe besluit uit de beslissing op bezwaar;
-      die twee telde de reductie van de gemeente. Zelf kent die reductie geen
+      twee mensen. In het Logboek staat bij het besluit "aantal geldige
+      bedrijfsparkeervergunningen: 2". De reductie van de Awb liet de
+      herroepen weigering weg (Awb 7:11, tweede lid). Zo bleven de eerste
+      vergunning en het nieuwe besluit uit de beslissing op bezwaar over; die
+      twee telde de reductie van de gemeente. Zelf kent die reductie geen
       bezwaar: ze leest alleen de geldende besluiten.
   - naam: Buiten het gebied, en na de verhuizing erin
     samenvatting: >-
@@ -400,14 +398,12 @@ scenarios:
         uitkomst: afgewezen
         tekst: >-
           Het formulier vraagt het oordeel opnieuw, want het geldt per geval.
-          Klik op Besluit nemen. Open daarna bij het besluit "Hoe de cel dit
-          beantwoordde".
+          Klik op Besluit nemen.
     eind: >-
-      Afgewezen, en bij het besluit staat "aantal geldige
+      Afgewezen, en in het Logboek staat bij het besluit "aantal geldige
       bedrijfsparkeervergunningen: 3": de twee eerste vergunningen en het
-      nieuwe besluit uit de beslissing op bezwaar. Onder "Hoe de cel dit
-      beantwoordde" staat de weigering bij "herroepen besluiten" (Awb 7:11,
-      tweede lid). De feiten zijn niet veranderd; het nieuwe besluit rust op
-      het oordeel van het college, en dat staat als gegeven bij het besluit in
-      de kroniek. Een volgende aanvraag vraagt dat oordeel opnieuw: het geldt
-      per geval.
+      nieuwe besluit uit de beslissing op bezwaar. De weigering telt niet mee:
+      die is herroepen (Awb 7:11, tweede lid). De feiten zijn niet veranderd;
+      het nieuwe besluit rust op het oordeel van het college, en dat staat als
+      gegeven bij het besluit in de kroniek. Een volgende aanvraag vraagt dat
+      oordeel opnieuw: het geldt per geval.

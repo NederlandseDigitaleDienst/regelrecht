@@ -93,7 +93,7 @@
     "title": "Besluiten op de derde aanvraag",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Het formulier staat ingevuld uit het scenario: \"toepassing leidt tot onaanvaardbare gevolgen\" Nee. Het bedrijf zit op het maximum, dus het formulier vraagt het oordeel van het college over de hardheidsclausule (artikel 6 van de fictieve verordening). Klik op Besluit nemen. Open daarna bij het besluit \"Hoe de cel dit beantwoordde\".",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"toepassing leidt tot onaanvaardbare gevolgen\" Nee. Het bedrijf zit op het maximum, dus het formulier vraagt het oordeel van het college over de hardheidsclausule (artikel 6 van de fictieve verordening). Klik op Besluit nemen.",
     "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
@@ -225,7 +225,7 @@
     "title": "Besluiten op de vierde aanvraag",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Het formulier staat ingevuld uit het scenario: \"toepassing leidt tot onaanvaardbare gevolgen\" Nee. Het formulier vraagt het oordeel opnieuw, want het geldt per geval. Klik op Besluit nemen. Open daarna bij het besluit \"Hoe de cel dit beantwoordde\".",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"toepassing leidt tot onaanvaardbare gevolgen\" Nee. Het formulier vraagt het oordeel opnieuw, want het geldt per geval. Klik op Besluit nemen.",
     "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }

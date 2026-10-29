@@ -1,8 +1,7 @@
 <script setup>
 // Een besluit op een aanvraag: toegewezen of afgewezen (volgens de uitvoer
 // die de casus noemt), de uitvoer, en
-// desgewenst waaróm (Waarom.vue). `waaromVan` is het besluit waarvan die
-// uitleg is: het besluit zelf, of de beslissing op bezwaar die het nam.
+// desgewenst waaróm (Waarom.vue).
 import { computed } from 'vue';
 import { leesbaar, toegewezen, waarde } from '../state.js';
 import Waarom from './Waarom.vue';
@@ -10,7 +9,6 @@ import Waarom from './Waarom.vue';
 const props = defineProps({
   besluit: { type: Object, required: true },
   waarom: { type: Object, default: null },
-  waaromVan: { type: String, default: '' },
   titel: { type: String, default: 'Besluit' },
 });
 
@@ -35,6 +33,6 @@ const uitvoer = computed(() =>
         <nldd-text-cell width="fit-content" :text="waarde(u.waarde)"></nldd-text-cell>
       </nldd-list-item>
     </nldd-list>
-    <Waarom v-if="waarom" :besluit="waaromVan || besluit.id" :waarom="waarom" />
+    <Waarom v-if="waarom" :waarom="waarom" />
   </nldd-container>
 </template>

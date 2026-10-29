@@ -98,13 +98,6 @@ export function koppeling(by, grammen) {
   return `${beleid}, ${opsomming(by.answers.map((a) => `antwoord ${a.answer} van ${vanCel(a, grammen)}`))}`;
 }
 
-/**
- * Het antwoord van de cel van de casus op een begrip uit de keten, als dat
- * meetelde: de naam waaronder de cel haar uitleg geeft (`api.hoeBeantwoord`).
- */
-export const eigenAntwoord = (stap) =>
-  stap.ingevuld_door?.answer?.answers.find((a) => a.answerer === state.casus?.cel)?.answer ?? null;
-
 /** Wie een open begrip invulde (`FilledBy`), in een zin. */
 export function ingevuldDoor(by, grammen) {
   if (by === 'finding') return 'bevinding van het bestuursorgaan';

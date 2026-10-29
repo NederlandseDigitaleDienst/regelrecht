@@ -237,7 +237,7 @@
     "title": "Besluiten op de tweede aanvraag",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Klik op Besluit nemen. Open daarna bij het besluit \"Hoe de cel dit beantwoordde\".",
+    "todo": "Klik op Besluit nemen.",
     "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
