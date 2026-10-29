@@ -3,15 +3,15 @@
 // one slide at a time (slides.js), with the counter, the keys and the
 // buttons underneath. The form follows the deck of the demo
 // (frontend-demo/src/presentation/PresentationDeck.vue); this one has no rail
-// and no slide that opens a tab. The closing slide offers the demo scenarios
-// (demo.js); choosing one closes the deck and begins it (`scenario`). The
-// button "Presentatie" on the page brings the deck back on that slide.
+// and no slide that opens a tab. The closing slide leads to the explanation
+// page (UitlegPagina.vue); its button closes the deck and opens the page
+// (`uitleg`). The button "Presentatie" on the page brings the deck back on
+// that slide.
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { usePresentation } from './usePresentation.js';
-import { demoGuides } from './demo.js';
 import Diagram from './Diagram.vue';
 
-const emit = defineEmits(['scenario']);
+const emit = defineEmits(['uitleg']);
 const p = usePresentation();
 const deck = ref(null);
 
@@ -19,7 +19,6 @@ const slide = computed(() => p.current.value);
 const counter = computed(() => `${p.index.value + 1} / ${p.total.value}`);
 const progress = computed(() => `${((p.index.value + 1) / p.total.value) * 100}%`);
 const today = new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' });
-const scenarios = demoGuides();
 
 // Behind the portal a strip with the voorbehoud sits sticky at the top of
 // every page (packages/poc-portal, `data-poc-portaal`), above everything. The
@@ -68,10 +67,10 @@ function emphasize(line) {
   return escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>');
 }
 
-function choose(naam) {
+function toUitleg() {
   before = null;
   p.leave();
-  emit('scenario', naam);
+  emit('uitleg');
 }
 </script>
 
@@ -110,19 +109,12 @@ function choose(naam) {
               <ul v-if="slide.lines?.length" class="bullets bullets-plain">
                 <li v-for="(line, j) in slide.lines" :key="j" v-html="emphasize(line)"></li>
               </ul>
-              <!-- The demo scenarios, as buttons of the design system. The
-                   inherit appearances take their colour from the blue panel. -->
-              <ol v-if="slide.kind === 'closing'" class="scenarios">
-                <li v-for="(g, j) in scenarios" :key="g.name">
-                  <nldd-button
-                    :appearance="j === 0 ? 'inherit-filled' : 'inherit-tinted'"
-                    size="lg"
-                    :text="g.name"
-                    @click="choose(g.name)"
-                  ></nldd-button>
-                  <span class="scenario-summary">{{ g.summary }}</span>
-                </li>
-              </ol>
+              <!-- The way to the explanation page, as a button of the design
+                   system. The inherit appearance takes its colour from the
+                   blue panel. -->
+              <div v-if="slide.kind === 'closing'" class="to-uitleg">
+                <nldd-button appearance="inherit-filled" size="lg" :text="slide.button" @click="toUitleg"></nldd-button>
+              </div>
             </template>
 
             <template v-else>
@@ -372,23 +364,8 @@ pre {
   font-size: max(0.75rem, calc(1.3 * var(--slide-unit)));
   color: var(--ink-72);
 }
-.scenarios {
-  list-style: none;
-  margin: calc(1.5 * var(--slide-unit)) 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: max(0.9rem, calc(1.6 * var(--slide-unit)));
-}
-.scenarios li {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.35rem;
-}
-.scenario-summary {
-  font-size: max(0.9rem, calc(1.6 * var(--slide-unit)));
-  color: var(--ink-85);
+.to-uitleg {
+  margin-top: calc(1.5 * var(--slide-unit));
 }
 .footer {
   flex: 0 0 auto;

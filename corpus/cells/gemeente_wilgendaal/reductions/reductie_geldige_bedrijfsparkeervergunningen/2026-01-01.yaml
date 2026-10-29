@@ -9,8 +9,9 @@ valid_from: '2026-01-01'
 # vergunningen die ertoe doen; de geldigheidsduur staat al in elk besluit
 # (artikel 3 van de fictieve parkeerverordening). De cel van de gemeente geeft
 # haar uitvoer als het antwoord aantal_geldige_bedrijfsparkeervergunningen
-# (cel.yaml, answers). Artikel 5 van het fictieve uitvoeringsbesluit parkeren
-# koppelt dat aan het open begrip van artikel 3. Dat geldt ook wanneer Awb
+# (cel.yaml, answers). Artikel 2 van het fictieve beleid
+# bedrijfsparkeervergunning koppelt dat aan het open begrip van artikel 3 van
+# het fictieve uitvoeringsbesluit parkeren. Dat geldt ook wanneer Awb
 # 7:11 artikel 2 van de verordening opnieuw aanroept; bij die heroverweging
 # laat de cel het bestreden besluit buiten beschouwing. Eigen keuze: de
 # reductie telt per bedrijf, over beide vergunninggebieden. Artikel 3 van het
@@ -55,7 +56,7 @@ articles:
               regulation: reductie_algemene_wet_bestuursrecht
               output: geldende_besluiten
               parameters:
-                basis: fictieve_parkeerverordening_gemeente_wilgendaal#2
+                basis: parkeerverordening_gemeente_wilgendaal#2
         output:
           - name: aantal_geldige_bedrijfsparkeervergunningen
             type: number

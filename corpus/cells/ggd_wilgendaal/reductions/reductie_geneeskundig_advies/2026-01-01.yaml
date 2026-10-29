@@ -7,9 +7,9 @@ valid_from: '2026-01-01'
 # Geen regelgeving: een reductie van de (fictieve) GGD Wilgendaal over haar
 # eigen kroniek (RFC-048). Ze leest de executogrammen van het feit dat
 # artikel 5 van het fictieve beleid
-# fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal vereist: de
+# beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal vereist: de
 # adviezen die de GGD het college uitbracht. Welk advies telt, zegt het
-# fictieve beleid van de GGD (fictief_beleid_geneeskundig_advies_ggd_wilgendaal);
+# fictieve beleid van de GGD (beleid_geneeskundig_advies_ggd_wilgendaal);
 # deze reductie geeft het de adviezen mee (source.regulation). De cel van de
 # GGD geeft haar vier uitvoeren als antwoorden (cel.yaml, answers). Artikel 7
 # van het beleid van de gemeente koppelt die aan de open begrippen van
@@ -48,12 +48,12 @@ articles:
           - name: adviezen
             type: array
             source:
-              facts: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
+              facts: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
           - name: volgens_beleid_langdurige_loopbeperking
             type: boolean
             nullable: true
             source:
-              regulation: fictief_beleid_geneeskundig_advies_ggd_wilgendaal
+              regulation: beleid_geneeskundig_advies_ggd_wilgendaal
               output: advies_langdurige_loopbeperking
               parameters:
                 bsn_aanvrager: $bsn_aanvrager
@@ -64,7 +64,7 @@ articles:
             type: boolean
             nullable: true
             source:
-              regulation: fictief_beleid_geneeskundig_advies_ggd_wilgendaal
+              regulation: beleid_geneeskundig_advies_ggd_wilgendaal
               output: advies_continu_afhankelijk_van_hulp_bestuurder
               parameters:
                 bsn_aanvrager: $bsn_aanvrager
@@ -75,7 +75,7 @@ articles:
             type: boolean
             nullable: true
             source:
-              regulation: fictief_beleid_geneeskundig_advies_ggd_wilgendaal
+              regulation: beleid_geneeskundig_advies_ggd_wilgendaal
               output: advies_permanent_rolstoelgebonden
               parameters:
                 bsn_aanvrager: $bsn_aanvrager
@@ -86,7 +86,7 @@ articles:
             type: boolean
             nullable: true
             source:
-              regulation: fictief_beleid_geneeskundig_advies_ggd_wilgendaal
+              regulation: beleid_geneeskundig_advies_ggd_wilgendaal
               output: advies_ernstige_beperkingen_andere_dan_loopbeperkingen
               parameters:
                 bsn_aanvrager: $bsn_aanvrager

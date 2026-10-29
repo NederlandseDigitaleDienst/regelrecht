@@ -38,7 +38,7 @@ const RECORDING_ACTOR: &str = "gemeente_wilgendaal";
 /// 49 on how the college uses its power, declares an open term of its own
 /// (whether the applicant already holds a valid card), and binds that term
 /// and two of the Regeling to the answers of cells (RFC-048).
-const POLICY: &str = "fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal";
+const POLICY: &str = "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal";
 /// The open term of art. 49 the policy fills.
 const POWER: &str = "bevoegdheid_tot_verstrekken_gebruikt";
 /// The open term of the policy that the policy binds to the answer of the
@@ -75,9 +75,9 @@ const GGD_ACTOR: &str = "ggd_wilgendaal";
 /// municipality's policy fills the college's four judgements on art. 49
 /// from them.
 const ADVISED: &str =
-    "fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht";
+    "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht";
 const ADVICE_REDUCTION: &str = "reductie_geneeskundig_advies";
-const ADVICE_POLICY: &str = "fictief_beleid_geneeskundig_advies_ggd_wilgendaal";
+const ADVICE_POLICY: &str = "beleid_geneeskundig_advies_ggd_wilgendaal";
 /// The four terms of policy art. 5 the GGD answers.
 const ADVICE: [&str; 4] = [
     "advies_langdurige_loopbeperking",

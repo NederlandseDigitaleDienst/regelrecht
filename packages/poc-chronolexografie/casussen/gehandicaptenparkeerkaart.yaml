@@ -14,10 +14,11 @@ corpus:
   - regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
   - regulation/nl/wet/algemene_wet_bestuursrecht
   - regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart
-  - regulation/nl/gemeentelijke_verordening/wilgendaal/fictieve_parkeerverordening_gemeente_wilgendaal
-  - regulation/nl/uitvoeringsbeleid/fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
-  - regulation/nl/uitvoeringsbeleid/fictief_beleid_geneeskundig_advies_ggd_wilgendaal
-  - regulation/nl/uitvoeringsbeleid/fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal
+  - regulation/nl/gemeentelijke_verordening/wilgendaal/parkeerverordening_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_ggd_wilgendaal
+  - regulation/nl/gemeentelijke_verordening/wilgendaal/uitvoeringsbesluit_parkeren_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal
   - cells/reductions/reductie_algemene_wet_bestuursrecht
 # De uitvoer die zegt of het besluit het gevraagde toewijst. De wet merkt die
 # niet aan: decision_type TOEKENNING zegt wat voor besluit het is, niet welke
@@ -109,7 +110,7 @@ andere_cellen:
             bsn_aanvrager: '999990020'
             datum_onderzoek: '2026-10-09'
             verricht_door: Gemeentelijke Gezondheidsdienst
-        - feit: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
+        - feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
           velden:
             bsn_aanvrager: '999990020'
             datum_onderzoek: '2026-10-09'
@@ -122,7 +123,7 @@ andere_cellen:
             bsn_aanvrager: '999990068'
             datum_onderzoek: '2026-10-09'
             verricht_door: Gemeentelijke Gezondheidsdienst
-        - feit: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
+        - feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
           velden:
             bsn_aanvrager: '999990068'
             datum_onderzoek: '2026-10-09'
@@ -180,7 +181,7 @@ scenarios:
       - stap: vastleggen
         titel: Advies van de GGD
         cel: ggd_wilgendaal
-        feit: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
+        feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
         invoer:
           bsn_aanvrager: '999990032'
           datum_onderzoek: '2026-10-16'
@@ -314,7 +315,7 @@ scenarios:
         titel: Nieuw advies van de GGD
         datum: 2026-11-10
         cel: ggd_wilgendaal
-        feit: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
+        feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
         invoer:
           bsn_aanvrager: '999990068'
           datum_onderzoek: '2026-11-10'
@@ -366,7 +367,7 @@ scenarios:
         titel: Nieuw advies van de GGD
         datum: 2026-11-10
         cel: ggd_wilgendaal
-        feit: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
+        feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
         invoer:
           bsn_aanvrager: '999990068'
           datum_onderzoek: '2026-11-10'

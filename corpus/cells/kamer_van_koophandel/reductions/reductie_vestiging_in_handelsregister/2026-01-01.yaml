@@ -7,13 +7,14 @@ valid_from: '2026-01-01'
 # Geen regelgeving: een reductie van de Kamer van Koophandel over haar eigen
 # kroniek (RFC-022 §4.1, RFC-048, RFC-051). Ze leest de executogrammen van het
 # feit vestiging_ingeschreven, dat het fictieve beleid
-# fictief_beleid_handelsregister_kamer_van_koophandel (artikel 1) vereist, en
+# beleid_handelsregister_kamer_van_koophandel (artikel 1) vereist, en
 # geeft de inschrijving die op de peildatum geldt. De cel van de Kamer geeft
 # haar uitvoer als de antwoorden postcode_vestiging en
-# aantal_werkzame_personen (cel.yaml, answers). Artikel 4 van het fictieve
-# uitvoeringsbesluit parkeren van Wilgendaal koppelt ze aan de open begrippen
-# van artikel 2 en 3; daarvoor is de Kamer bevoegd (competent_authority van
-# die begrippen, RFC-052). De url wijst naar artikel 11 van de
+# aantal_werkzame_personen (cel.yaml, answers). Artikel 1 van het fictieve
+# beleid bedrijfsparkeervergunning van Wilgendaal koppelt ze aan de open
+# begrippen van artikel 2 en 3 van het fictieve uitvoeringsbesluit parkeren;
+# daarvoor is de Kamer bevoegd (competent_authority van die begrippen,
+# RFC-052). De url wijst naar artikel 11 van de
 # Handelsregisterwet 2007.
 url: https://wetten.overheid.nl/BWBR0021777/2025-07-16#Artikel11
 name: Vestiging in het handelsregister (reductie)
@@ -42,7 +43,7 @@ articles:
           - name: inschrijvingen
             type: array
             source:
-              facts: fictief_beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+              facts: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
         output:
           - name: dagen_sinds_inschrijving
             type: number

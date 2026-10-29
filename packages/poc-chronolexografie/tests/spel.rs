@@ -479,7 +479,7 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
         .unwrap();
     spel.vastleggen(
         "ggd_wilgendaal",
-        "fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht",
+        "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht",
         &map(&json!({
             "bsn_aanvrager": BSN,
             "datum_onderzoek": "2026-11-10",
@@ -570,7 +570,7 @@ fn parkeerkaart_the_ggd_examines_after_the_application_and_the_card_follows() {
     .unwrap();
     spel.vastleggen(
         "ggd_wilgendaal",
-        "fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht",
+        "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht",
         &map(&json!({
             "bsn_aanvrager": BSN,
             "datum_onderzoek": "2026-10-16",
@@ -682,8 +682,7 @@ fn bedrijfsparkeervergunning_a_company_in_the_city_centre_gets_a_permit() {
     );
 }
 
-const INSCHRIJVING: &str =
-    "fictief_beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven";
+const INSCHRIJVING: &str = "beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven";
 
 /// The Chamber of Commerce registers the establishment of `kvk` anew on
 /// `datum`.
@@ -921,7 +920,7 @@ fn thuiszorg_tot_bezwaar(spel: &mut Spel) -> (Value, Value) {
     assert_eq!(gevraagd, [HARDHEID], "{vooraf}");
     assert_eq!(
         vooraf["stil"][0]["basis"],
-        json!("fictieve_parkeerverordening_gemeente_wilgendaal#6")
+        json!("parkeerverordening_gemeente_wilgendaal#6")
     );
     let geweigerd = spel
         .besluiten(&derde, &hardheid(false), dag("2026-10-27"))

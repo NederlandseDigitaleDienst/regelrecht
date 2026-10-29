@@ -1,6 +1,6 @@
 ---
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
-$id: fictieve_parkeerverordening_gemeente_wilgendaal
+$id: parkeerverordening_gemeente_wilgendaal
 regulatory_layer: GEMEENTELIJKE_VERORDENING
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'
@@ -74,7 +74,7 @@ articles:
       # uitvoeringsbesluit invult: de vestiging en het maximum.
       # Beide oordelen laat de verordening aan regels van het college (lid 3
       # en 4). Het fictieve uitvoeringsbesluit van Wilgendaal vult ze
-      # (fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal, artikel 2
+      # (uitvoeringsbesluit_parkeren_gemeente_wilgendaal, artikel 2
       # en 3). Of het college lid 2 buiten toepassing laat, volgt uit de
       # hardheidsclausule (artikel 6), die het derde begrip vult.
       open_terms:
@@ -108,7 +108,7 @@ articles:
         # weigeren, een beschikking die de procedure van de Awb volgt.
         produces:
           - type: AANVRAAG
-            requests: fictieve_parkeerverordening_gemeente_wilgendaal#2
+            requests: parkeerverordening_gemeente_wilgendaal#2
             parameters:
               - kvk_nummer
               - kenteken
@@ -146,7 +146,7 @@ articles:
           - name: einde_geldigheidsduur_bij_verlening
             type: date
             source:
-              regulation: fictieve_parkeerverordening_gemeente_wilgendaal
+              regulation: parkeerverordening_gemeente_wilgendaal
               output: einde_geldigheidsduur
               parameters:
                 datum_verlening: $besluit_datum
@@ -355,7 +355,7 @@ articles:
             college in dit geval leidt tot onaanvaardbare gevolgen voor
             betrokkenen.
       implements:
-        - law: fictieve_parkeerverordening_gemeente_wilgendaal
+        - law: parkeerverordening_gemeente_wilgendaal
           article: '2'
           open_term: weigeringsgrond_buiten_toepassing_gelaten
       execution:

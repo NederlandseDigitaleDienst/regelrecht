@@ -1,6 +1,6 @@
 ---
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.9/schema/v0.8.9/schema.json
-$id: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+$id: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
 regulatory_layer: UITVOERINGSBELEID
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'
@@ -103,7 +103,7 @@ articles:
             geldige kaart van het college heeft, als de cel geen antwoord
             geeft.
       implements:
-        - law: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+        - law: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
           article: '1'
           open_term: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
       execution:
@@ -308,7 +308,7 @@ articles:
       # Of het onderzoek plaatsvond, blijft het feit van artikel 3 van de
       # regeling; de GGD legt beide vast.
       # Welk advies telt (lid 3), voert de GGD uit met haar fictieve beleid
-      # fictief_beleid_geneeskundig_advies_ggd_wilgendaal, dat haar reductie
+      # beleid_geneeskundig_advies_ggd_wilgendaal, dat haar reductie
       # aanroept. Dat beleid volgt lid 3 en stelt zelf geen norm.
       open_terms:
         - id: advies_langdurige_loopbeperking
@@ -557,7 +557,7 @@ articles:
             type: boolean
             nullable: true
             source:
-              regulation: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+              regulation: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
               output: langdurige_loopbeperking_volgens_advies
               parameters:
                 bsn_aanvrager: $bsn_aanvrager
@@ -567,7 +567,7 @@ articles:
             type: boolean
             nullable: true
             source:
-              regulation: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+              regulation: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
               output: continu_afhankelijk_van_hulp_bestuurder_volgens_advies
               parameters:
                 bsn_aanvrager: $bsn_aanvrager
@@ -577,7 +577,7 @@ articles:
             type: boolean
             nullable: true
             source:
-              regulation: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+              regulation: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
               output: permanent_rolstoelgebonden_volgens_advies
               parameters:
                 bsn_aanvrager: $bsn_aanvrager
@@ -587,7 +587,7 @@ articles:
             type: boolean
             nullable: true
             source:
-              regulation: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+              regulation: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
               output: ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_advies
               parameters:
                 bsn_aanvrager: $bsn_aanvrager
@@ -754,16 +754,16 @@ articles:
             Wat het college vaststelt dat het advies opgeeft over
             andere ernstige beperkingen, als de cel van de GGD geen antwoord geeft.
       implements:
-        - law: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+        - law: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
           article: '5'
           open_term: advies_langdurige_loopbeperking
-        - law: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+        - law: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
           article: '5'
           open_term: advies_continu_afhankelijk_van_hulp_bestuurder
-        - law: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+        - law: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
           article: '5'
           open_term: advies_permanent_rolstoelgebonden
-        - law: fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+        - law: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
           article: '5'
           open_term: advies_ernstige_beperkingen_andere_dan_loopbeperkingen
       execution:

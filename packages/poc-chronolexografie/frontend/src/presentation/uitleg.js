@@ -25,9 +25,11 @@
  */
 
 const VERORDENING =
-  'corpus/regulation/nl/gemeentelijke_verordening/wilgendaal/fictieve_parkeerverordening_gemeente_wilgendaal/2026-01-01.yaml';
+  'corpus/regulation/nl/gemeentelijke_verordening/wilgendaal/parkeerverordening_gemeente_wilgendaal/2026-01-01.yaml';
 const BESLUIT =
-  'corpus/regulation/nl/uitvoeringsbeleid/fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal/2026-01-01.yaml';
+  'corpus/regulation/nl/gemeentelijke_verordening/wilgendaal/uitvoeringsbesluit_parkeren_gemeente_wilgendaal/2026-01-01.yaml';
+const BELEID =
+  'corpus/regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal/2026-01-01.yaml';
 const CEL = 'corpus/cells/gemeente_wilgendaal/cel.yaml';
 const REDUCTIE =
   'corpus/cells/gemeente_wilgendaal/reductions/reductie_geldige_bedrijfsparkeervergunningen/2026-01-01.yaml';
@@ -37,7 +39,7 @@ const KVK_REDUCTIE =
   'corpus/cells/kamer_van_koophandel/reductions/reductie_vestiging_in_handelsregister/2026-01-01.yaml';
 
 /** The files the panels show, for the page that loads them (UitlegPagina.vue). */
-export const bronnen = [VERORDENING, BESLUIT, CEL, REDUCTIE, AWB, KVK_CEL, KVK_REDUCTIE];
+export const bronnen = [VERORDENING, BESLUIT, BELEID, CEL, REDUCTIE, AWB, KVK_CEL, KVK_REDUCTIE];
 
 /**
  * The paths of a panel that start open: its own, and the article each one
@@ -120,27 +122,27 @@ export const steps = [
     ],
   },
   {
-    overline: 'Uitvoeringsbesluit',
+    overline: 'Beleid',
     title: 'Gemeente vraagt de cel',
     quote: {
-      source: BESLUIT,
-      artikel: '5',
-      label: 'Uitvoeringsbesluit parkeren Wilgendaal, artikel 5',
+      source: BELEID,
+      artikel: '2',
+      label: 'Beleid bedrijfsparkeervergunning Wilgendaal, artikel 2',
       tekst:
-        'Hoeveel geldige bedrijfsparkeervergunningen het bedrijf op de dag van het besluit heeft (artikel 3), ontleent het college aan het antwoord van zijn eigen cel over zijn eerdere besluiten. Geeft de cel geen antwoord, dan stelt het college het zelf vast.',
+        'Hoeveel geldige bedrijfsparkeervergunningen het bedrijf op de dag van het besluit heeft (artikel 3 van het Uitvoeringsbesluit Parkeren Wilgendaal 2026), ontleent het college aan het antwoord van zijn eigen cel over zijn eerdere besluiten. Geeft de cel geen antwoord, dan stelt het college het zelf vast.',
     },
     text: [
-      'Het aantal vraagt de gemeente aan haar cel, het systeem dat haar kroniek bijhoudt.',
-      'In de YAML is dat `source.reduction`. De cel rekent het antwoord uit met een reductie, een rekenregel die de kroniek terugleest.',
+      'Het uitvoeringsbesluit zegt welke regels gelden, het beleid van het college hoe het ze uitvoert. Het aantal vraagt de gemeente aan haar cel, het systeem dat haar kroniek bijhoudt.',
+      'In de YAML is dat `source.reduction`, waarmee de cel het antwoord uitrekent: een reductie, een rekenregel die de kroniek terugleest.',
     ],
     panels: [
       {
-        label: 'Artikel 5: de vraag aan de cel, en het college als de cel niet antwoordt',
-        source: BESLUIT,
+        label: 'Artikel 2 van het beleid: de vraag aan de cel, en het college als de cel niet antwoordt',
+        source: BELEID,
         open: [
-          'articles.5.machine_readable.implements.0',
-          'articles.5.machine_readable.execution.input.antwoord_aantal_geldig.source.parameters',
-          'articles.5.machine_readable.execution.actions.aantal_geldige_bedrijfsparkeervergunningen.value.cases.0.when',
+          'articles.2.machine_readable.implements.0',
+          'articles.2.machine_readable.execution.input.antwoord_aantal_geldig.source.parameters',
+          'articles.2.machine_readable.execution.actions.aantal_geldige_bedrijfsparkeervergunningen.value.cases.0.when',
         ],
       },
     ],
@@ -208,14 +210,14 @@ export const steps = [
         'Uit het handelsregister van de Kamer van Koophandel moet blijken dat het bedrijf in een vergunninggebied is gevestigd. Het bedrijf is gevestigd in het vergunninggebied waarin het bezoekadres van zijn vestiging ligt, zoals het handelsregister dat op de dag van het besluit vermeldt.',
     },
     text: [
-      'Of het bedrijf in een vergunninggebied zit, blijkt uit het handelsregister. Daarom vraagt artikel 4 de postcode van de vestiging en het aantal mensen dat er werkt aan de cel van de Kamer van Koophandel.',
+      'Of het bedrijf in een vergunninggebied zit, blijkt uit het handelsregister. Daarom vraagt artikel 1 van het beleid de postcode van de vestiging en het aantal mensen dat er werkt aan de cel van de Kamer van Koophandel.',
       'Die cel leest haar eigen inschrijvingen terug.',
     ],
     panels: [
       {
-        label: 'Uitvoeringsbesluit artikel 4: de vraag aan de KvK',
-        source: BESLUIT,
-        open: ['articles.4.machine_readable.execution.input.antwoord_postcode.source.parameters'],
+        label: 'Beleid artikel 1: de vraag aan de KvK',
+        source: BELEID,
+        open: ['articles.1.machine_readable.execution.input.antwoord_postcode.source.parameters'],
       },
       {
         label: 'cel.yaml van de Kamer van Koophandel',

@@ -133,7 +133,7 @@ describe('the page', () => {
     // Its inputs stay folded: the key shows, what is under it does not.
     expect(html).not.toContain('einde_geldigheidsduur_bij_verlening');
     // The whole file, from the root: its identity and its other articles too.
-    expect(html).toContain('fictieve_parkeerverordening_gemeente_wilgendaal');
+    expect(html).toContain('parkeerverordening_gemeente_wilgendaal');
     expect(html.match(/>\s*\$id\s*</g)?.length ?? 0).toBeGreaterThanOrEqual(panels.filter(([, q]) => !q.source.endsWith('cel.yaml')).length);
   });
 

@@ -1,9 +1,8 @@
 /**
  * The scenarios to play right after the deck, all of the parking card case.
- * The choice screen lists them under "Voor de demo" and the closing slide
- * offers them as buttons. Each one names a scenario of the case YAML, whose
- * guide scenarioGuides.js builds; tests/presentation.test.js keeps them in
- * step.
+ * The choice screen lists them under "Voor de demo". Each one names a
+ * scenario of the case YAML, whose guide scenarioGuides.js builds;
+ * tests/presentation.test.js keeps them in step.
  *
  * - A card on the advice of the GGD: the happy flow, one application and a
  *   decision that lands in the chronicle.

@@ -3375,28 +3375,29 @@ mod tests {
             ids,
             [
                 "algemene_wet_bestuursrecht",
+                "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal",
+                "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal",
+                "beleid_geneeskundig_advies_ggd_wilgendaal",
                 "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw",
-                "fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal",
-                "fictief_beleid_geneeskundig_advies_ggd_wilgendaal",
-                "fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal",
-                "fictieve_parkeerverordening_gemeente_wilgendaal",
+                "parkeerverordening_gemeente_wilgendaal",
                 "reductie_algemene_wet_bestuursrecht",
                 "reductie_geldige_bedrijfsparkeervergunningen",
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_geneeskundig_advies",
                 "reductie_geneeskundig_onderzoek",
                 "regeling_gehandicaptenparkeerkaart",
+                "uitvoeringsbesluit_parkeren_gemeente_wilgendaal",
             ]
         );
 
         // The bedrijfsparkeervergunning: art. 2 of the fictitious ordinance,
-        // its implementing decision that fills its open terms and binds them
-        // to the answers of the cells, and the Awb; the reductions of the
-        // catalogues of the municipality and of the Chamber of Commerce, and
-        // the policy that requires the Chamber's registrations. The
-        // municipality's reduction for the parking card reads the decisions
-        // under BABW art. 49, so that article and what acts on it are in this
-        // case too.
+        // its implementing decision that fills its open terms, the policy
+        // that binds those to the answers of the cells, and the Awb; the
+        // reductions of the catalogues of the municipality and of the Chamber
+        // of Commerce, and the policy that requires the Chamber's
+        // registrations. The municipality's reduction for the parking card
+        // reads the decisions under BABW art. 49, so that article and what
+        // acts on it are in this case too.
         let vergunning = casus("bedrijfsparkeervergunning");
         let a = &vergunning.afleiding;
         assert_eq!(a.objection, "7:11");
@@ -3407,16 +3408,17 @@ mod tests {
             ids,
             [
                 "algemene_wet_bestuursrecht",
+                "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal",
+                "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal",
+                "beleid_handelsregister_kamer_van_koophandel",
                 "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw",
-                "fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal",
-                "fictief_beleid_handelsregister_kamer_van_koophandel",
-                "fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal",
-                "fictieve_parkeerverordening_gemeente_wilgendaal",
+                "parkeerverordening_gemeente_wilgendaal",
                 "reductie_algemene_wet_bestuursrecht",
                 "reductie_geldige_bedrijfsparkeervergunningen",
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_vestiging_in_handelsregister",
                 "regeling_gehandicaptenparkeerkaart",
+                "uitvoeringsbesluit_parkeren_gemeente_wilgendaal",
             ]
         );
     }
@@ -3718,7 +3720,7 @@ mod tests {
     /// The fact of the advice (the municipality's fictitious policy, art.
     /// 5), and the applicant of the case whose advice finds no criterion.
     const ADVIES: &str =
-        "fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht";
+        "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht";
     const ZONDER_CRITERIUM: &str = "999990068";
 
     /// An advice on `bsn` of an examination on `onderzocht`: only a
@@ -3777,7 +3779,7 @@ mod tests {
         assert_eq!(
             door,
             FilledBy::Regulation {
-                law_id: "fictief_beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal".into(),
+                law_id: "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal".into(),
                 article: "6".into()
             }
         );

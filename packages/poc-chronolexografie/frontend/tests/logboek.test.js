@@ -205,7 +205,7 @@ describe('antwoorden van een andere cel (RFC-052)', () => {
   const begrip = (ingevuld_door) => ({
     soort: 'begrip',
     naam: 'bedrijf_gevestigd_in_vergunninggebied',
-    wet: 'fictieve_parkeerverordening_gemeente_wilgendaal',
+    wet: 'parkeerverordening_gemeente_wilgendaal',
     artikel: '2',
     waarde: true,
     ontbreekt: [],
@@ -213,7 +213,7 @@ describe('antwoorden van een andere cel (RFC-052)', () => {
     ingevuld_door,
   });
   const koppeling = (answers) => ({
-    answer: { law_id: 'fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal', article: '4', answers },
+    answer: { law_id: 'beleid_bedrijfsparkeervergunning_gemeente_wilgendaal', article: '1', answers },
   });
   const bron = (answer) => ({
     answerer: KVK,
@@ -236,14 +236,14 @@ describe('antwoorden van een andere cel (RFC-052)', () => {
   it('noemt de andere cel bij haar naam', () => {
     const t = stapTekst(begrip(koppeling([bron('postcode_vestiging')])), []);
     expect(t.toelichting).toBe(
-      'ingevuld door beleid fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal art. 4, antwoord postcode_vestiging van Kamer van Koophandel (reductie reductie_vestiging_in_handelsregister, niets uit de kroniek gelezen)',
+      'ingevuld door beleid beleid_bedrijfsparkeervergunning_gemeente_wilgendaal art. 1, antwoord postcode_vestiging van Kamer van Koophandel (reductie reductie_vestiging_in_handelsregister, niets uit de kroniek gelezen)',
     );
   });
 
   it('noemt elk antwoord dat het artikel nam, met de cel die het gaf', () => {
     const t = stapTekst(begrip(koppeling([bron('postcode_vestiging'), bron('aantal_werkzame_personen')])), []);
     expect(t.toelichting).toBe(
-      'ingevuld door beleid fictief_uitvoeringsbesluit_parkeren_gemeente_wilgendaal art. 4, antwoord postcode_vestiging van Kamer van Koophandel (reductie reductie_vestiging_in_handelsregister, niets uit de kroniek gelezen) en antwoord aantal_werkzame_personen van Kamer van Koophandel (reductie reductie_vestiging_in_handelsregister, niets uit de kroniek gelezen)',
+      'ingevuld door beleid beleid_bedrijfsparkeervergunning_gemeente_wilgendaal art. 1, antwoord postcode_vestiging van Kamer van Koophandel (reductie reductie_vestiging_in_handelsregister, niets uit de kroniek gelezen) en antwoord aantal_werkzame_personen van Kamer van Koophandel (reductie reductie_vestiging_in_handelsregister, niets uit de kroniek gelezen)',
     );
   });
 });
