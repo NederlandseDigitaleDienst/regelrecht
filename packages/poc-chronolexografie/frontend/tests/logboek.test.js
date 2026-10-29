@@ -91,14 +91,10 @@ describe('genummerd', () => {
   });
 });
 
-describe('stapTekst', () => {
-  it('zet bij een begrip alleen de naam en de waarde, zonder wie het invulde', () => {
-    expect(stapTekst(celAntwoord)).toEqual({ tekst: 'verlof al verleend in schooljaar: nee' });
-  });
-
+describe('ingevuldDoor', () => {
   it('noemt het beleidsartikel, het antwoord, de cel en de reductie, en hoe ver zij las', () => {
-    expect(ingevuldDoor(celAntwoord.ingevuld_door, grammen)).toEqual(
-        'ingevuld door beleid fictief_beleid_vakantieverlof_obs_de_klimop art. 2, antwoord verlof_al_verleend_in_schooljaar van OBS De Klimop (reductie reductie_verlof_al_verleend_in_schooljaar, 5 chronolexogrammen t/m bezwaar 0000bbbb)',
+    expect(ingevuldDoor(celAntwoord.ingevuld_door, grammen)).toBe(
+      'ingevuld door beleid fictief_beleid_vakantieverlof_obs_de_klimop art. 2, antwoord verlof_al_verleend_in_schooljaar van OBS De Klimop (reductie reductie_verlof_al_verleend_in_schooljaar, 5 chronolexogrammen t/m bezwaar 0000bbbb)',
     );
   });
 
@@ -120,7 +116,12 @@ describe('stapTekst', () => {
       'ingevuld door Leerplichtwet 1969 artikel 1',
     );
   });
+});
 
+describe('stapTekst', () => {
+  it('zet bij een begrip alleen de naam en de waarde, zonder wie het invulde', () => {
+    expect(stapTekst(celAntwoord)).toEqual({ tekst: 'verlof al verleend in schooljaar: nee' });
+  });
 
   it('noemt een aanroep zonder artikel bij de uitvoer die hij vroeg', () => {
     const stap = { soort: 'artikel', wet: 'leerplichtwet_1969', artikel: '', uitvoer: 'verlofdagen', stappen: [] };

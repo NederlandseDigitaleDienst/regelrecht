@@ -4,8 +4,8 @@
 // its answer. One sheet for the whole app.
 import { computed, ref, watch } from 'vue';
 import { artikelTekst, gelezenGrammen, getoond, leden, SOORTEN } from '../herkomst.js';
-import { artikelNaam, celNaam } from '../logboek.js';
-import { leesbaar } from '../state.js';
+import { artikelNaam, celNaam, gelezen, grammenVan } from '../logboek.js';
+import { leesbaar, state } from '../state.js';
 import GramCode from './GramCode.vue';
 
 const h = getoond;
@@ -19,7 +19,7 @@ watch(h, async (nu) => {
   tekst.value = null;
   if (!nu?.artikel) return;
   try {
-    const t = await artikelTekst(nu.wet, nu.artikel);
+    const t = await artikelTekst(nu.wet, nu.artikel, nu.datum ?? undefined);
     if (h.value !== nu) return;
     tekst.value = { leden: t ? leden(t) : [] };
   } catch (e) {
@@ -61,14 +61,14 @@ const kop = computed(() => {
         </nldd-simple-section>
         <nldd-simple-section v-else-if="h?.antwoorden">
           <nldd-container gap="24">
-            <nldd-container v-for="a in h.antwoorden" :key="`${a.answerer}-${a.answer}`" gap="12">
+            <nldd-container v-for="(a, i) in h.antwoorden" :key="`${i}-${a.answerer}-${a.answer}`" gap="12">
               <nldd-title
                 size="5"
                 :text="`${leesbaar(a.answer)} van ${celNaam(a.answerer)}`"
-                :supporting-text="`reductie ${a.law_id} · ${a.records_read} chronolexogram${a.records_read === 1 ? '' : 'men'} gelezen`"
+                :supporting-text="`reductie ${a.law_id} · ${gelezen(a, grammenVan(a.answerer, state.grammen))}`"
               ></nldd-title>
-              <nldd-text v-if="!a.last_record" size="sm" color="secondary">
-                De reductie las niets uit de kroniek.
+              <nldd-text v-if="a.last_record && !gelezenGrammen(a).length" size="sm" color="secondary">
+                Dat chronolexogram staat niet in een kroniek die de app heeft.
               </nldd-text>
               <GramCode v-for="g in gelezenGrammen(a)" :key="g.id" :gram="g" />
             </nldd-container>

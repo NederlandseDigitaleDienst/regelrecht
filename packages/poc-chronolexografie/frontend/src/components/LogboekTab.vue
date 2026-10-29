@@ -181,6 +181,7 @@ function regels(h) {
           slot="children"
           :knoop="k"
           :diepte="1"
+          :datum="h.gram.recorded_on"
         />
         <nldd-list-item slot="children" size="sm" @click.stop>
           <nldd-spacer-cell size="24"></nldd-spacer-cell>

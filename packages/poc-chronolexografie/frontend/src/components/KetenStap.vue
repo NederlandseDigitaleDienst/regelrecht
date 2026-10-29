@@ -1,10 +1,11 @@
 <script setup>
 // One step of the chain of a decision, as a row of an nldd-list of type
 // tree. A step with steps below it is a branch that folds; the depth shows as
-// indentation (a spacer cell per level), as the list asks. A tag says what filled the step in (law, policy, a reduction or
-// the bestuursorgaan, herkomst.js); a click on the step opens the article or
-// the chronolexograms the reduction read. The row is segmented then: the
-// chevron folds, the rest opens the sheet.
+// indentation (a spacer cell per level), as the list asks. A tag says what
+// filled the step in (law, policy, a reduction or the bestuursorgaan,
+// herkomst.js); a click on the step opens the article or the chronolexograms
+// the reduction read. The row is segmented then: the chevron folds, the rest
+// opens the sheet.
 import { computed, ref } from 'vue';
 import { stapTekst } from '../logboek.js';
 import { herkomstVan, klikbaar, SOORTEN, toonHerkomst } from '../herkomst.js';
@@ -16,6 +17,9 @@ const props = defineProps({
   // its key.
   knoop: { type: Object, required: true },
   diepte: { type: Number, default: 0 },
+  // The day of the decision, for the version of an article it opens; without
+  // it, the play date.
+  datum: { type: String, default: null },
 });
 
 const open = ref(true);
@@ -34,7 +38,7 @@ const knop = computed(() => klikbaar(herkomst.value));
     @click.stop="tak && !knop && (open = !open)"
   >
     <nldd-spacer-cell v-for="n in diepte" :key="n" size="24"></nldd-spacer-cell>
-    <nldd-list-item-segment v-if="tak && knop" button disclosure accessible-label="Open of dicht" @click.stop="open = !open">
+    <nldd-list-item-segment v-if="tak && knop" button disclosure accessible-label="Onderliggende stappen" @click.stop="open = !open">
       <nldd-icon-cell disclosure icon="chevron-right" size="16" color="secondary"></nldd-icon-cell>
     </nldd-list-item-segment>
     <template v-else>
@@ -42,7 +46,7 @@ const knop = computed(() => klikbaar(herkomst.value));
       <nldd-spacer-cell v-else size="16"></nldd-spacer-cell>
       <nldd-spacer-cell size="8"></nldd-spacer-cell>
     </template>
-    <nldd-list-item-segment v-if="knop" button width="full" @click.stop="toonHerkomst(herkomst)">
+    <nldd-list-item-segment v-if="knop" button width="full" @click.stop="toonHerkomst({ ...herkomst, datum })">
       <nldd-text-cell :text="tekst.tekst" :supporting-text="tekst.toelichting"></nldd-text-cell>
       <nldd-cell width="fit-content">
         <nldd-tag size="sm" :color="tag.kleur" :text="tag.tekst"></nldd-tag>
@@ -60,6 +64,7 @@ const knop = computed(() => klikbaar(herkomst.value));
       slot="children"
       :knoop="k"
       :diepte="diepte + 1"
+      :datum="datum"
     />
   </nldd-list-item>
 </template>

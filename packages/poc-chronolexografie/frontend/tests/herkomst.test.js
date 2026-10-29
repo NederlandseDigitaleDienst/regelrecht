@@ -1,5 +1,15 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { gelezenGrammen, herkomstVan, klikbaar, laag, leden } from '../src/herkomst.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// The bundle: two versions of the policy, each with its own article 1.
+vi.mock('../src/api.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  bestanden: async () => ({
+    'corpus/regulation/nl/uitvoeringsbeleid/beleid_parkeren/2026-01-01.yaml': "articles:\n  - number: '1'\n    text: oud\n",
+    'corpus/regulation/nl/uitvoeringsbeleid/beleid_parkeren/2027-01-01.yaml': "articles:\n  - number: '1'\n    text: nieuw\n",
+  }),
+}));
+
+import { artikelTekst, gelezenGrammen, herkomstVan, klikbaar, laag, leden } from '../src/herkomst.js';
 import { state } from '../src/state.js';
 
 beforeEach(() => {
@@ -82,5 +92,24 @@ describe('leden', () => {
 
   it('splits a folded text on single newlines', () => {
     expect(leden('FICTIEF.\n1 Het college oordeelt.\n2 Zelf.')).toEqual(['FICTIEF.', '1 Het college oordeelt.', '2 Zelf.']);
+  });
+});
+
+describe('artikelTekst', () => {
+  it('takes the version valid on the given day, or the play date', async () => {
+    state.datum = '2027-03-01';
+    expect(await artikelTekst('beleid_parkeren', '1')).toBe('nieuw');
+    expect(await artikelTekst('beleid_parkeren', '1', '2026-06-01')).toBe('oud');
+  });
+
+  it('takes the first version before any is valid, and gives null for what it lacks', async () => {
+    expect(await artikelTekst('beleid_parkeren', '1', '2025-01-01')).toBe('oud');
+    expect(await artikelTekst('beleid_parkeren', '9')).toBeNull();
+    expect(await artikelTekst('onbekend', '1')).toBeNull();
+  });
+
+  it('gives null for a case from a source, whose regelwerken are not in the bundle', async () => {
+    state.casus.bron = 'napp';
+    expect(await artikelTekst('beleid_parkeren', '1', '2026-06-01')).toBeNull();
   });
 });

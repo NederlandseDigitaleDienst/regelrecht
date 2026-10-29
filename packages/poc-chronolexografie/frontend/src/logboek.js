@@ -131,7 +131,7 @@ export function stapTekst(stap) {
 }
 
 /**
- * De keten als boom. Each step gets a `nummer` (`1`, `1.2`, `1.2.3`) that
+ * The chain as a tree. Each step gets a `nummer` (`1`, `1.2`, `1.2.3`) that
  * serves as its key; the chain does not show it.
  */
 export function genummerd(stappen, prefix = '') {

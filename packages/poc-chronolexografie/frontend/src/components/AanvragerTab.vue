@@ -11,6 +11,7 @@ import { computed, ref } from 'vue';
 import { api } from '../api.js';
 import { beroepApi } from '../beroep.js';
 import { artikelNaam } from '../logboek.js';
+import { melding } from '../melding.js';
 import {
   aanvragen,
   bezwaarBasis,
@@ -65,6 +66,8 @@ const indieningVelden = computed(() => {
 });
 
 function start(soort, besluit) {
+  // The sheet shows a refusal of its own submission, not one from before.
+  state.fout = '';
   indieningVorm.wis(besluit.id);
   tegen.value = { soort, besluit };
 }
@@ -213,6 +216,14 @@ async function indienenTegen() {
               :veld="veld"
               @update:model-value="indieningVorm.zet(tegen.besluit.id, veld.naam, $event)"
             />
+            <!-- The banner of the page sits behind the sheet. -->
+            <nldd-inline-dialog
+              v-if="state.fout"
+              icon="warning"
+              icon-color="critical"
+              text="Deze stap lukt niet"
+              :supporting-text="melding(state.fout)"
+            ></nldd-inline-dialog>
             <nldd-button-group>
               <nldd-button
                 appearance="primary"

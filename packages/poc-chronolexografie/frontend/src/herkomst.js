@@ -80,9 +80,13 @@ let bundel = null;
 
 /**
  * The text of article `artikel` of the regelwerk `wet`, in the version valid
- * on the play date, or null when the bundle does not hold it.
+ * on `op` (the play date when not given), or null when the bundle does not
+ * hold it. Before its first version, the first one. A case from a source runs
+ * on the source's own regelwerken, which the bundle does not hold, so there it
+ * is null rather than a text of the bundle that may differ.
  */
-export async function artikelTekst(wet, artikel) {
+export async function artikelTekst(wet, artikel, op = state.datum) {
+  if (state.casus?.bron) return null;
   bundel ??= bestanden().catch((e) => {
     bundel = null;
     throw e;
@@ -94,7 +98,7 @@ export async function artikelTekst(wet, artikel) {
     .filter((p) => p.startsWith(`corpus/${map}/`) && p.endsWith('.yaml'))
     .sort();
   const datum = (p) => p.split('/').at(-1).replace('.yaml', '');
-  const pad = versies.filter((p) => datum(p) <= state.datum).at(-1) ?? versies.at(-1);
+  const pad = versies.filter((p) => datum(p) <= op).at(-1) ?? versies[0];
   if (!pad) return null;
   const gevonden = load(alle[pad])?.articles?.find((a) => String(a.number) === String(artikel));
   return gevonden?.text ?? null;
