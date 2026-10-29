@@ -1699,13 +1699,20 @@ fn bestreden<'a>(cell: &'a Cellen, bezwaar: &str) -> Result<&'a Gram> {
 }
 
 /// The names of the findings the authority can give anew on an objection
-/// against `bestreden` ([`opnieuw_te_vinden`]).
-fn opnieuw_te_vinden_namen(
+/// against the decision `bestreden` finds ([`opnieuw_te_vinden`]), for a
+/// preview with `bevindingen`. Without any finding there is nothing to pass
+/// on, and the contested decision is not looked up. The form gives none on
+/// an objection that is not admissible ([`heroverweging`]).
+fn opnieuw_gevraagd<'a>(
     corpus: &Corpus,
-    cell: &Cellen,
-    bestreden: &Gram,
+    cell: &'a Cellen,
+    bevindingen: &Map<String, Value>,
+    bestreden: impl FnOnce() -> Result<&'a Gram>,
 ) -> Result<Vec<String>> {
-    Ok(opnieuw_te_vinden(corpus, cell, bestreden)?
+    if bevindingen.is_empty() {
+        return Ok(Vec::new());
+    }
+    Ok(opnieuw_te_vinden(corpus, cell, bestreden()?)?
         .iter()
         .filter_map(|v| v["naam"].as_str().map(str::to_string))
         .collect())
@@ -1959,7 +1966,7 @@ pub fn voorvertoning_op_bezwaar(
     bevindingen: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Voorvertoning<Value>> {
-    let gevraagd = opnieuw_te_vinden_namen(corpus, cell, bestreden(cell, bezwaar)?)?;
+    let gevraagd = opnieuw_gevraagd(corpus, cell, bevindingen, || bestreden(cell, bezwaar))?;
     voorvertonen(corpus, cell, bevindingen, &gevraagd, on, |c, b| {
         beslissen_op_bezwaar(corpus, c, bezwaar, b, on)
     })
@@ -2400,8 +2407,9 @@ pub fn voorvertoning_na_uitspraak(
     bevindingen: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Voorvertoning<Value>> {
-    let bestreden = na_uitspraak(corpus, cell, ontvangst)?[3];
-    let gevraagd = opnieuw_te_vinden_namen(corpus, cell, bestreden)?;
+    let gevraagd = opnieuw_gevraagd(corpus, cell, bevindingen, || {
+        Ok(na_uitspraak(corpus, cell, ontvangst)?[3])
+    })?;
     voorvertonen(corpus, cell, bevindingen, &gevraagd, on, |c, b| {
         opnieuw_beslissen_op_bezwaar(corpus, c, ontvangst, b, on)
     })
@@ -3585,10 +3593,11 @@ mod tests {
         assert!(genomen.waarom.bevindingen.contains(&term.to_string()));
     }
 
-    /// A business in the city centre with two valid permits applies for a
-    /// third and is refused on the maximum: the college found the hardship
-    /// clause (art. 6 of the parking ordinance) not to apply. The business
-    /// objects. The cells as they stand then, and the objection.
+    /// A home care business in the city centre (the case's third
+    /// registration) with two valid permits applies for a third and is
+    /// refused on the maximum: the college found the hardship clause (art. 6
+    /// of the parking ordinance) not to apply. The business objects. The
+    /// cells as they stand then, and the objection.
     fn hardheid_bezwaar(corpus: &Corpus) -> (Cellen, String) {
         let mut cell = corpus.cell().unwrap();
         let voorbeeld = &corpus.casus.voorbeeld;
@@ -3601,6 +3610,7 @@ mod tests {
         ] {
             let mut velden = voorbeeld.aanvraag.clone();
             velden.insert("kvk_nummer".into(), json!("99990044"));
+            velden.insert("naam_aanvrager".into(), json!("Thuiszorg De Linde"));
             velden.insert("kenteken".into(), json!(kenteken));
             let app = aanvragen(corpus, &mut cell, &velden, day(dag)).unwrap();
             let bevindingen = map(json!({ hardheid: false }));
@@ -3612,10 +3622,11 @@ mod tests {
             json!(false)
         );
         let mut velden = voorbeeld.bezwaar.clone();
-        velden.insert(
-            "dagtekening_bezwaar_of_beroepschrift".into(),
-            json!("2026-11-01"),
-        );
+        velden.extend(map(json!({
+            "naam_indiener": "Thuiszorg De Linde",
+            "gronden_bezwaar_of_beroep": "de wijkverpleging rijdt dagelijks met drie auto's naar cliënten",
+            "dagtekening_bezwaar_of_beroepschrift": "2026-11-01",
+        })));
         let bezwaar = bezwaren(corpus, &mut cell, &besluit.id, &velden, day("2026-11-01")).unwrap();
         (cell, bezwaar.id)
     }
@@ -3652,6 +3663,65 @@ mod tests {
                     "{oordeel}: {pad}"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn the_preview_after_a_judgment_takes_a_finding_a_policy_declares() {
+        // As above, deciding on the objection again after a judgment: the
+        // objection unfounded, the court annuls and orders a new decision,
+        // and the college finds the hardship clause anew.
+        let corpus = casus("bedrijfsparkeervergunning");
+        let (mut cell, bezwaar) = hardheid_bezwaar(&corpus);
+        let ongegrond =
+            beslissen_op_bezwaar(&corpus, &mut cell, &bezwaar, &Map::new(), day("2026-11-20"))
+                .unwrap();
+        let op_bezwaar = ongegrond["beslissing"]["id"].as_str().unwrap().to_string();
+        let mut velden = corpus.casus.voorbeeld.beroep.clone();
+        velden.insert(
+            "dagtekening_bezwaar_of_beroepschrift".into(),
+            json!("2026-12-01"),
+        );
+        let ingesteld =
+            beroep_instellen(&corpus, &mut cell, &op_bezwaar, &velden, day("2026-12-01")).unwrap();
+        let mut gegrond = uitspraak_bevindingen(&corpus, &[]);
+        gegrond.extend(map(json!({
+            "rechtsregel_geschonden": true,
+            "geschonden_rechtsregel": "artikel 3:46 van de Algemene wet bestuursrecht",
+            "rechtsgevolgen_in_stand": false,
+            "uitspraak_treedt_in_de_plaats": false,
+            "termijn_nieuw_besluit": "2027-02-25",
+        })));
+        let gedaan = uitspraak_doen(
+            &corpus,
+            &mut cell,
+            &ingesteld.id,
+            &gegrond,
+            day("2027-01-11"),
+        )
+        .unwrap();
+        let ontvangst = toezenden(
+            &corpus,
+            &mut cell,
+            gedaan["uitspraak"]["id"].as_str().unwrap(),
+            day("2027-01-11"),
+        )
+        .unwrap();
+        assert_eq!(ontvangst.fields["opdracht_nieuw_besluit"], json!(true));
+
+        let op = day("2027-01-18");
+        let bevindingen = map(json!({ "toepassing_leidt_tot_onaanvaardbare_gevolgen": true }));
+        let voorlopig = voorvertoning_na_uitspraak(&corpus, &cell, &ontvangst.id, &bevindingen, op)
+            .unwrap()
+            .voorlopig
+            .unwrap();
+        let genomen =
+            opnieuw_beslissen_op_bezwaar(&corpus, &mut cell, &ontvangst.id, &bevindingen, op)
+                .unwrap();
+        let herroepen = "/beslissing/outputs/bestreden_besluit_herroepen";
+        assert_eq!(voorlopig.pointer(herroepen), Some(&json!(true)));
+        for pad in [herroepen, "/nieuw_besluit/outputs", "/waarom/keten"] {
+            assert_eq!(voorlopig.pointer(pad), genomen.pointer(pad), "{pad}");
         }
     }
 
