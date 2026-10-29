@@ -54,7 +54,7 @@
     "tab": "bestuursorgaan",
     "date": "2026-10-22",
     "todo": "Het formulier staat ingevuld uit het scenario: \"toepassing leidt tot onaanvaardbare gevolgen\" Nee. Het bedrijf zit op het maximum, dus het formulier vraagt het oordeel van het college over de hardheidsclausule (artikel 6 van de fictieve verordening). Klik bij de tweede aanvraag op Besluit nemen.",
-    "seen": "Afgewezen: het bedrijf heeft al één geldige vergunning, en er werkt één persoon. Bij het besluit staat \"aantal werkzame personen volgens handelsregister: 1\".",
+    "seen": "Afgewezen: het bedrijf heeft al één geldige vergunning, en er werkt één persoon. In het Logboek staat bij het besluit \"aantal werkzame personen volgens handelsregister: 1\".",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
@@ -116,7 +116,7 @@
     "tab": "bestuursorgaan",
     "date": "2026-10-20",
     "todo": "Klik op Besluit nemen.",
-    "seen": "Afgewezen: uit het handelsregister blijkt niet dat het bedrijf in een vergunninggebied is gevestigd. Bij het besluit staat \"postcode vestiging volgens handelsregister: 7720 BC\".",
+    "seen": "Afgewezen: uit het handelsregister blijkt niet dat het bedrijf in een vergunninggebied is gevestigd. In het Logboek staat bij het besluit \"postcode vestiging volgens handelsregister: 7720 BC\".",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
@@ -194,7 +194,7 @@
     "tab": "bestuursorgaan",
     "date": "2026-10-27",
     "todo": "Het formulier staat ingevuld uit het scenario: \"toepassing leidt tot onaanvaardbare gevolgen\" Nee. Het bedrijf heeft twee geldige vergunningen, het maximum in de binnenstad. Nu vraagt het formulier het oordeel van het college over de hardheidsclausule (artikel 6 van de fictieve verordening). De engine kan dat oordeel niet uitrekenen, en het bedrijf heeft nog geen bijzondere omstandigheden aangevoerd. Klik op Besluit nemen.",
-    "seen": "Afgewezen. Bij het besluit staat \"toepassing leidt tot onaanvaardbare gevolgen\": Nee. Dat oordeel staat als gegeven bij het besluit in de kroniek, naast wat de Kamer van Koophandel en de eigen kroniek antwoordden.",
+    "seen": "Afgewezen. In het Logboek staat bij het besluit \"toepassing leidt tot onaanvaardbare gevolgen\": Nee. Dat oordeel staat als gegeven bij het besluit in de kroniek, naast wat de Kamer van Koophandel en de eigen kroniek antwoordden.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {

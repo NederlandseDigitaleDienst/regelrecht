@@ -38,7 +38,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "todo": "Het formulier staat ingevuld uit het scenario: \"specifieke aard beroep ouder\" Nee. Het hoofd vindt het beroep niet bijzonder genoeg. Klik op Besluit nemen.",
-    "seen": "Onder Besluiten staat Afgewezen; bij Aanvrager staat de aanvraag op Afgewezen.",
+    "seen": "Bij Aanvrager staat de aanvraag op Afgewezen.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
@@ -92,7 +92,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "todo": "Klik bij de tweede aanvraag op Besluit nemen.",
-    "seen": "Het verlof is geweigerd: de school antwoordt uit haar eigen kroniek dat de jongere dit schooljaar al verlof kreeg. Klik onder Besluiten op Waarom? voor het spoor.",
+    "seen": "Het verlof is geweigerd: de school antwoordt uit haar eigen kroniek dat de jongere dit schooljaar al verlof kreeg. In het Logboek staat bij het besluit de keten.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {

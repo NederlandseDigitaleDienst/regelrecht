@@ -192,16 +192,16 @@ scenarios:
           Het formulier vraagt de vier criteria niet: het advies van de GGD
           geeft ze. Klik op Besluit nemen.
     eind: >-
-      Onder Besluiten staat Toegewezen: de kaart is verstrekt en vermeldt de
-      bestuurder. Ze is geldig tot en met 19 oktober 2031, vijf jaar vanaf de
-      dag van het besluit (BABW artikel 51). Bij het besluit staat "langdurige
-      loopbeperking: ja", ingevuld door het fictieve beleid van Wilgendaal
-      (artikel 6) uit het advies. In het Logboek staat dat de GGD Wilgendaal
-      het advies gaf en antwoordde dat het onderzoek plaatsvond: de gemeente
-      vroeg het aan de cel die de wet en het beleid daarvoor bevoegd maken.
-      Het onderzoek en het advies staan in de kroniek van de GGD, onder Andere
-      cellen. Het besluit zelf staat onder Kroniek, in de kroniek van de
-      gemeente, na de aanvraag waarop het berust.
+      Toegewezen: de kaart is verstrekt en vermeldt de bestuurder. Ze is
+      geldig tot en met 19 oktober 2031, vijf jaar vanaf de dag van het
+      besluit (BABW artikel 51). In het Logboek staat bij het besluit
+      "langdurige loopbeperking: ja", ingevuld door het fictieve beleid van
+      Wilgendaal (artikel 6) uit het advies. Daar staat ook dat de GGD
+      Wilgendaal het advies gaf en antwoordde dat het onderzoek plaatsvond: de
+      gemeente vroeg het aan de cel die de wet en het beleid daarvoor bevoegd
+      maken. Het onderzoek en het advies staan in de kroniek van de GGD, onder
+      Andere cellen. Het besluit zelf staat onder Kroniek, in de kroniek van
+      de gemeente, na de aanvraag waarop het berust.
   - naam: Het advies vindt geen criterium
     samenvatting: >-
       Het advies van de GGD vindt geen enkel criterium, en de kaart wordt
@@ -223,9 +223,9 @@ scenarios:
       fictieve beleid), en kan daar niet van afwijken: een beleid dat een
       begrip invult gaat voor een oordeel van het college (RFC-045). Of het
       college per geval van zijn beleid mag afwijken (Awb 4:84), is niet
-      gebouwd. Bij het besluit staat geen antwoord over een eerdere kaart:
-      artikel 49 leest het beleid over een tweede kaart alleen voor een
-      aanvrager die aan een criterium voldoet.
+      gebouwd. In het Logboek staat bij het besluit geen antwoord over een
+      eerdere kaart: artikel 49 leest het beleid over een tweede kaart alleen
+      voor een aanvrager die aan een criterium voldoet.
   - naam: Een tweede kaart naast een geldige
     samenvatting: >-
       Wie al een geldige kaart heeft, krijgt er geen tweede bij.
@@ -462,10 +462,10 @@ scenarios:
           Klik op Besluit nemen.
     eind: >-
       Toegewezen, zonder nieuw onderzoek (Regeling gehandicaptenparkeerkaart,
-      artikel 2, tweede lid, onder a). Bij het besluit staat "aanvrager eerder
-      gehandicaptenparkeerkaart verstrekt: ja", ingevuld door het beleid van
-      Wilgendaal met het antwoord van de cel. Laat je ze uit, dan volgt de
-      melding van het vorige scenario.
+      artikel 2, tweede lid, onder a). In het Logboek staat bij het besluit
+      "aanvrager eerder gehandicaptenparkeerkaart verstrekt: ja", ingevuld
+      door het beleid van Wilgendaal met het antwoord van de cel. Laat je ze
+      uit, dan volgt de melding van het vorige scenario.
   - naam: Beroep ongegrond
     samenvatting: >-
       Na een ongegrond bezwaar gaat de aanvrager in beroep, en de rechter

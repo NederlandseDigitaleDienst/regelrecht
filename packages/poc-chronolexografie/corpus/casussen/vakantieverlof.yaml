@@ -115,8 +115,7 @@ scenarios:
           nemen. Of het verlof buiten de schoolvakanties valt, vraagt het
           formulier niet: dat antwoordt de school zelf.
     eind: >-
-      Onder Besluiten staat Toegewezen. Bij Aanvrager staat de aanvraag op
-      Toegewezen.
+      Bij Aanvrager staat de aanvraag op Toegewezen.
   - naam: 'Afwijzing, bezwaar en heroverweging: gegrond'
     samenvatting: >-
       Het hoofd weigert het verlof, maar na het bezwaar van de ouder krijgt de
@@ -131,8 +130,7 @@ scenarios:
           Het hoofd vindt het beroep niet bijzonder genoeg. Klik op Besluit
           nemen.
         gezien: >-
-          Onder Besluiten staat Afgewezen; bij Aanvrager staat de aanvraag op
-          Afgewezen.
+          Bij Aanvrager staat de aanvraag op Afgewezen.
       - stap: bezwaar
         datum: 2026-11-01
         tekst: >-
@@ -174,8 +172,8 @@ scenarios:
           Klik bij de tweede aanvraag op Besluit nemen.
         gezien: >-
           Het verlof is geweigerd: de school antwoordt uit haar eigen kroniek
-          dat de jongere dit schooljaar al verlof kreeg. Klik onder Besluiten
-          op Waarom? voor het spoor.
+          dat de jongere dit schooljaar al verlof kreeg. In het Logboek staat
+          bij het besluit de keten.
       - stap: bezwaar
         datum: 2026-11-01
         op: 2
@@ -373,10 +371,10 @@ scenarios:
           hoofd nu of het verlof buiten de schoolvakanties valt. Klik op
           Besluit nemen.
     eind: >-
-      Het verlof wordt geweigerd. Bij het besluit staat "verlof valt buiten
-      schoolvakanties volgens hoofd: nee" als bevinding van het bestuursorgaan
-      bij artikel 4 van het beleid; het beleid vulde er artikel 13a mee in,
-      omdat de school geen antwoord had.
+      Het verlof wordt geweigerd. In het Logboek staat bij het besluit "verlof
+      valt buiten schoolvakanties volgens hoofd: nee" als bevinding van het
+      bestuursorgaan bij artikel 4 van het beleid; het beleid vulde er artikel
+      13a mee in, omdat de school geen antwoord had.
   - naam: Bezwaar ongegrond, beroep gegrond, nieuw besluit op bezwaar
     samenvatting: >-
       Na een ongegrond bezwaar gaat de ouder in beroep; de rechter vernietigt
