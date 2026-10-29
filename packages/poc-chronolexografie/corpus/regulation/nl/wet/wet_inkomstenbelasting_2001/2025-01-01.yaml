@@ -1,0 +1,181 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$id: wet_inkomstenbelasting_2001
+regulatory_layer: WET
+publication_date: '2001-12-15'
+valid_from: '2025-01-01'
+bwb_id: BWBR0011353
+url: https://wetten.overheid.nl/BWBR0011353/2025-01-01
+name: Wet inkomstenbelasting 2001
+competent_authority:
+  name: Belastingdienst
+
+articles:
+  - number: '3.1'
+    text: |-
+      Belastbaar inkomen uit werk en woning is het inkomen uit werk en woning verminderd met de te verrekenen
+      verliezen uit werk en woning.
+    url: https://wetten.overheid.nl/BWBR0011353/2025-01-01#Artikel3.1
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: loon_uit_dienstbetrekking
+            type: number
+            source: {}
+          - name: uitkeringen_en_pensioenen
+            type: number
+            source: {}
+          - name: winst_uit_onderneming
+            type: number
+            source: {}
+          - name: resultaat_overige_werkzaamheden
+            type: number
+            source: {}
+          - name: eigen_woning
+            type: number
+            source: {}
+        output:
+          - name: box1_inkomen
+            type: amount
+            type_spec:
+              unit: eurocent
+        actions:
+          - output: box1_inkomen
+            value:
+              operation: ADD
+              values:
+                - $loon_uit_dienstbetrekking
+                - $uitkeringen_en_pensioenen
+                - $winst_uit_onderneming
+                - $resultaat_overige_werkzaamheden
+                - $eigen_woning
+
+  - number: '4.12'
+    text: |-
+      Inkomen uit aanmerkelijk belang is het gezamenlijke bedrag van de reguliere voordelen en de
+      vervreemdingsvoordelen verminderd met de te verrekenen verliezen uit aanmerkelijk belang.
+    url: https://wetten.overheid.nl/BWBR0011353/2025-01-01#Artikel4.12
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: reguliere_voordelen
+            type: number
+            source: {}
+          - name: vervreemdingsvoordelen
+            type: number
+            source: {}
+        output:
+          - name: box2_inkomen
+            type: amount
+            type_spec:
+              unit: eurocent
+        actions:
+          - output: box2_inkomen
+            value:
+              operation: ADD
+              values:
+                - $reguliere_voordelen
+                - $vervreemdingsvoordelen
+
+  - number: '5.2'
+    text: >-
+      Rendementsgrondslag is de waarde van de bezittingen verminderd met de waarde van de schulden. De
+      rendementsgrondslag aan het begin van het kalenderjaar (peildatum 1 januari) wordt als uitgangspunt genomen.
+    url: https://wetten.overheid.nl/BWBR0011353/2025-01-01#Artikel5.2
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: spaargeld
+            type: number
+            source: {}
+          - name: beleggingen
+            type: number
+            source: {}
+          - name: onroerend_goed
+            type: number
+            source: {}
+          - name: schulden
+            type: number
+            source: {}
+        output:
+          - name: rendementsgrondslag
+            type: amount
+            type_spec:
+              unit: eurocent
+        actions:
+          - output: rendementsgrondslag
+            value:
+              operation: SUBTRACT
+              values:
+                - operation: ADD
+                  values:
+                    - $spaargeld
+                    - $beleggingen
+                    - $onroerend_goed
+                - $schulden
+
+  - number: '2.18'
+    text: |-
+      Verzamelinkomen is het gezamenlijke bedrag van:
+
+      a. het inkomen uit werk en woning;
+
+      b. het inkomen uit aanmerkelijk belang en
+
+      c. het belastbare inkomen uit sparen en beleggen, verminderd met daarin begrepen te conserveren inkomen
+    url: https://wetten.overheid.nl/BWBR0011353/2025-01-01#Artikel2.18
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: box1_inkomen
+            type: amount
+            type_spec:
+              unit: eurocent
+            source:
+              regulation: wet_inkomstenbelasting_2001
+              output: box1_inkomen
+              parameters:
+                bsn: $bsn
+          - name: box2_inkomen
+            type: amount
+            type_spec:
+              unit: eurocent
+            source:
+              regulation: wet_inkomstenbelasting_2001
+              output: box2_inkomen
+              parameters:
+                bsn: $bsn
+        # TODO: box3_inkomen requires Art 5.2a (forfaitair rendement) and
+        # Art 5.5 (heffingsvrij vermogen) to be implemented — see #383
+        output:
+          - name: verzamelinkomen
+            type: amount
+            type_spec:
+              unit: eurocent
+        actions:
+          # Art 2.18: the sum of onderdeel a (inkomen uit werk en woning) and
+          # onderdeel b (inkomen uit aanmerkelijk belang). Onderdeel c (belastbare
+          # inkomen uit sparen en beleggen, verminderd met te conserveren inkomen)
+          # is temporarily excluded until Art 5.2a/5.5 exist (#383).
+          - output: verzamelinkomen
+            value:
+              operation: ADD
+              values:
+                - $box1_inkomen
+                - $box2_inkomen
