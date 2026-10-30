@@ -19,7 +19,7 @@ import { load } from 'js-yaml';
 import YamlNode from '@regelrecht/frontend-shared/components/YamlNode.vue';
 import { bestanden as haalBestanden } from '../api.js';
 import SchemaOverzicht from './SchemaOverzicht.vue';
-import { keten as ketenVan } from './schema.js';
+import { CASUSSEN, keten as ketenVan } from './schema.js';
 import { bronnen, casus, intro, keten, openPaden, steps } from './uitleg.js';
 import { useUitleg } from './useUitleg.js';
 
@@ -67,7 +67,7 @@ const stukken = (zin) =>
     .map((s) => (s.startsWith('`') ? { code: s.slice(1, -1) } : { tekst: s }));
 
 /** The case file, which the picture starts from. */
-const casusPad = `packages/poc-chronolexografie/casussen/${casus}.yaml`;
+const casusPad = `${CASUSSEN}${casus}.yaml`;
 /** The picture, once the files are there. */
 const plaatje = computed(() => (alle.value?.[casusPad] ? ketenVan(alle.value, casus, keten.start) : null));
 

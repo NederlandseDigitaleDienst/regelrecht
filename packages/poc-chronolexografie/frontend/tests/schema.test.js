@@ -6,11 +6,12 @@ import { createSSRApp, h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import SchemaOverzicht from '../src/presentation/SchemaOverzicht.vue';
 import { LIJNSOORTEN, keten } from '../src/presentation/schema.js';
+import { CORPUS } from '../src/corpus.js';
 import { keten as ketenUitleg } from '../src/presentation/uitleg.js';
 
 const repo = fileURLToPath(new URL('../../../../', import.meta.url));
 
-/** The YAML files of the corpus and the cases, per path, as the bundle has them. */
+/** The YAML files of the corpus of the poc, per path, as the bundle has them (scripts/copy-assets.js). */
 function bundel() {
   const alle = {};
   const lees = (dir) => {
@@ -23,7 +24,7 @@ function bundel() {
       }
     }
   };
-  for (const d of ['corpus/regulation', 'corpus/cells', 'packages/poc-chronolexografie/casussen']) lees(join(repo, d));
+  lees(join(repo, CORPUS));
   return alle;
 }
 const alle = bundel();
