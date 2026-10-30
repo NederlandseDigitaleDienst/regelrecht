@@ -137,10 +137,10 @@ andere_cellen:
 # them from here (frontend/src/scenarioGuides.js, scenarioInvoer.js), and
 # tests/scenarios.rs plays every scenario with exactly these values.
 scenarios:
-  - naam: De kaart wordt verstrekt op het advies van de GGD
+  - naam: De kaart op advies van de GGD
     samenvatting: >-
-      Na de aanvraag onderzoekt de GGD de aanvrager en adviseert positief, en
-      het college verstrekt de kaart op dat advies.
+      Het college verstrekt de kaart op het advies dat de GGD in haar eigen
+      kroniek vastlegde.
     stappen:
       - stap: aanvraag
         verhaal: >-
@@ -261,10 +261,10 @@ scenarios:
           bevindingen staan en klik op Beslissen op bezwaar.
     eind: >-
       Ongegrond: de kaart blijft geldig tot en met 19 oktober 2031.
-  - naam: Gegrond bezwaar na een nieuw advies
+  - naam: Bezwaar, en een nieuw advies
     samenvatting: >-
-      Na het bezwaar onderzoekt de GGD opnieuw, en op dat nieuwe advies komt
-      er alsnog een kaart.
+      Na het bezwaar telt het nieuwe advies van de GGD, en komt er alsnog een
+      kaart.
     stappen:
       - stap: aanvraag
         verhaal: >-
@@ -399,9 +399,10 @@ scenarios:
     eind: >-
       Er komt geen besluit maar een melding: het college heeft niet beoordeeld
       of het geneeskundig onderzoek plaatsvond.
-  - naam: Een nieuwe kaart zonder nieuw onderzoek
+  - naam: Vijf jaar later een nieuwe kaart
     samenvatting: >-
-      Wie eerder een kaart kreeg, krijgt een nieuwe zonder nieuw onderzoek.
+      Vijf jaar later vindt de gemeente haar eerdere besluit terug, en is er
+      geen nieuw onderzoek nodig.
     stappen:
       - stap: aanvraag
         verhaal: >-
