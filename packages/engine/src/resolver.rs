@@ -1888,9 +1888,7 @@ impl RuleResolver {
                 if !self.kinds_index.contains_key(&b) {
                     errors.push(format!("kind {key}: broader kind {b} is defined nowhere"));
                 }
-                if self.kind_lineage(key).iter().filter(|k| *k == key).count() > 1
-                    || self.kind_lineage(&b).contains(key)
-                {
+                if self.kind_lineage(&b).contains(key) {
                     errors.push(format!("kind {key}: broader kinds form a cycle"));
                 }
             }
@@ -5365,5 +5363,310 @@ articles:
                 )
             );
         }
+    }
+
+    /// A rulework that defines kinds: a besluit, a beschikking under it, an
+    /// aanvraag that asks for one, a kind of regulations and a kind of items.
+    /// Article 2 is the procedure-free home of the hooks a test adds.
+    fn kinds_law(extra_articles: &str) -> String {
+        format!(
+            r#"
+$id: soortenwet
+regulatory_layer: WET
+publication_date: '2025-01-01'
+procedure:
+  - id: besluitprocedure
+    default: true
+    applies_to:
+      kind: soortenwet/besluit
+    stages:
+      - name: VOORBEREIDING
+      - name: GENOMEN
+        kind: soortenwet/besluit
+      - name: BEKEND
+  - id: bijzondere_procedure
+    applies_to:
+      kind: soortenwet/besluit
+    stages:
+      - name: GENOMEN
+articles:
+  - number: '1'
+    text: Begrippen.
+    machine_readable:
+      kinds:
+        - id: besluit
+        - id: beschikking
+          broader: besluit
+        - id: aanvraag
+          requests: besluit
+        - id: regeling
+          level: regulation
+        - id: bijdrage
+{extra_articles}"#
+        )
+    }
+
+    fn hook_article(number: &str, applies_to: &str) -> String {
+        format!(
+            r#"  - number: '{number}'
+    text: Een hook.
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            {applies_to}
+      execution:
+        output:
+          - name: uit_{number}
+            type: number
+        actions:
+          - output: uit_{number}
+            value: 1
+"#
+        )
+    }
+
+    fn kinds_resolver(extra_articles: &str) -> RuleResolver {
+        let mut resolver = RuleResolver::new();
+        resolver.load_from_yaml(&kinds_law(extra_articles)).unwrap();
+        resolver
+    }
+
+    fn fired(resolver: &RuleResolver, dt: Option<&str>, stage: &str) -> Vec<String> {
+        resolver
+            .find_hooks(HookPoint::PostActions, "soortenwet/beschikking", dt, stage)
+            .iter()
+            .map(|h| format!("{}#{}", h.law_id(), h.article_number()))
+            .collect()
+    }
+
+    #[test]
+    fn a_hook_on_a_kind_without_stage_fires_where_the_item_comes_into_being() {
+        let r = kinds_resolver(&hook_article("2", "kind: soortenwet/besluit"));
+        assert_eq!(fired(&r, None, "GENOMEN"), vec!["soortenwet#2"]);
+        assert!(fired(&r, None, "VOORBEREIDING").is_empty());
+    }
+
+    #[test]
+    fn a_hook_on_a_kind_with_a_stage_fires_at_that_stage_only() {
+        let r = kinds_resolver(&hook_article(
+            "2",
+            "kind: soortenwet/besluit\n            stage: BEKEND",
+        ));
+        assert_eq!(fired(&r, None, "BEKEND"), vec!["soortenwet#2"]);
+        assert!(fired(&r, None, "GENOMEN").is_empty());
+    }
+
+    #[test]
+    fn a_hook_on_a_kind_narrows_by_decision_type() {
+        let r = kinds_resolver(&hook_article(
+            "2",
+            "kind: soortenwet/besluit\n            decision_type: TOEKENNING",
+        ));
+        assert_eq!(
+            fired(&r, Some("TOEKENNING"), "GENOMEN"),
+            vec!["soortenwet#2"]
+        );
+        assert!(fired(&r, Some("AFWIJZING"), "GENOMEN").is_empty());
+    }
+
+    /// One article with hooks on a kind and on the wider kind fires once;
+    /// another article of the law, and the same number in another law, each
+    /// fire too.
+    #[test]
+    fn hooks_on_a_lineage_come_back_once_per_article() {
+        let both = format!(
+            "{}{}",
+            hook_article("2", "kind: soortenwet/besluit"),
+            hook_article("3", "kind: soortenwet/besluit"),
+        )
+        .replace(
+            "        - hook_point: post_actions\n          applies_to:\n            kind: soortenwet/besluit\n      execution:\n        output:\n          - name: uit_2",
+            "        - hook_point: post_actions\n          applies_to:\n            kind: soortenwet/beschikking\n        - hook_point: post_actions\n          applies_to:\n            kind: soortenwet/besluit\n      execution:\n        output:\n          - name: uit_2",
+        );
+        let mut r = kinds_resolver(&both);
+        r.load_from_yaml(&format!(
+            "$id: anderewet\nregulatory_layer: WET\npublication_date: '2025-01-01'\narticles:\n{}",
+            hook_article("2", "kind: soortenwet/besluit")
+        ))
+        .unwrap();
+        let mut hooks = fired(&r, None, "GENOMEN");
+        hooks.sort();
+        assert_eq!(hooks, vec!["anderewet#2", "soortenwet#2", "soortenwet#3"]);
+    }
+
+    #[test]
+    fn a_named_procedure_on_a_wider_kind_governs_a_narrower_one() {
+        let r = kinds_resolver("");
+        let found = r
+            .find_procedure("soortenwet/beschikking", Some("bijzondere_procedure"))
+            .unwrap();
+        assert_eq!(found.id, "bijzondere_procedure");
+    }
+
+    #[test]
+    fn a_hook_on_a_kind_names_nothing_else() {
+        for other in ["legal_character: BESCHIKKING", "submission: AANVRAAG"] {
+            let filter = format!("kind: soortenwet/besluit\n            {other}");
+            let mut r = RuleResolver::new();
+            let e = r
+                .load_from_yaml(&kinds_law(&hook_article("2", &filter)))
+                .unwrap_err();
+            assert!(e.to_string().contains("names no legal_character"), "{e}");
+        }
+    }
+
+    #[test]
+    fn unloading_a_law_removes_its_kinds_and_no_others() {
+        let mut r = kinds_resolver("");
+        r.load_from_yaml(
+            "$id: anderewet\nregulatory_layer: WET\npublication_date: '2025-01-01'\narticles:\n  - number: '1'\n    text: Begrip.\n    machine_readable:\n      kinds:\n        - id: eigen\n",
+        )
+        .unwrap();
+        assert!(r.unload_law("anderewet"));
+        assert!(r.kind("anderewet/eigen").is_none());
+        assert!(r.kind("soortenwet/besluit").is_some());
+    }
+
+    /// A law with one produces item in article 2, for `validate_kinds`.
+    fn with_item(item: &str) -> RuleResolver {
+        kinds_resolver(&format!(
+            r#"  - number: '2'
+    text: De minister kent een bijdrage toe.
+    machine_readable:
+      execution:
+        produces:
+          - {item}
+        output:
+          - name: x
+            type: number
+        actions:
+          - output: x
+            value: 1
+"#
+        ))
+    }
+
+    fn findings_contain(r: &RuleResolver, wanted: &str) {
+        let findings = r.validate_kinds();
+        assert!(findings.iter().any(|f| f.contains(wanted)), "{findings:?}");
+    }
+
+    #[test]
+    fn valid_kinds_have_no_findings() {
+        let r = with_item("type: soortenwet/bijdrage");
+        assert_eq!(r.validate_kinds(), Vec::<String>::new());
+    }
+
+    #[test]
+    fn an_item_of_an_unknown_kind_is_a_finding() {
+        findings_contain(
+            &with_item("type: soortenwet/onbekend"),
+            "is defined nowhere",
+        );
+    }
+
+    #[test]
+    fn an_item_of_a_kind_of_regulations_is_a_finding() {
+        findings_contain(
+            &with_item("type: soortenwet/regeling"),
+            "a kind of regulations",
+        );
+    }
+
+    #[test]
+    fn a_submission_names_what_it_asks_and_nothing_else_does() {
+        findings_contain(
+            &with_item("type: soortenwet/aanvraag"),
+            "so the item names it with `requests`",
+        );
+        findings_contain(
+            &with_item("type: soortenwet/bijdrage\n            requests: anderewet#1\n            outputs: [x]"),
+            "so the item has no `requests`",
+        );
+    }
+
+    #[test]
+    fn an_item_excerpt_must_be_in_the_text() {
+        let quoted = with_item(
+            "type: soortenwet/bijdrage\n            legal_text_excerpt: kent een bijdrage toe",
+        );
+        assert_eq!(quoted.validate_kinds(), Vec::<String>::new());
+        findings_contain(
+            &with_item("type: soortenwet/bijdrage\n            legal_text_excerpt: staat er niet"),
+            "the excerpt is not in the text",
+        );
+    }
+
+    #[test]
+    fn a_type_that_is_no_kind_is_left_alone() {
+        let r = with_item("type: BESCHIKKING");
+        assert_eq!(r.validate_kinds(), Vec::<String>::new());
+    }
+
+    fn with_membership(claim: &str) -> RuleResolver {
+        kinds_resolver("  - number: '2'\n    text: De bijdrage hangt af van de draagkracht.\n")
+            .with_law(&format!(
+                "$id: lidwet\nregulatory_layer: WET\npublication_date: '2025-01-01'\nmember_of:\n  - {claim}\narticles:\n  - number: '1'\n    text: De bijdrage hangt af van de draagkracht.\n"
+            ))
+    }
+
+    impl RuleResolver {
+        fn with_law(mut self, yaml: &str) -> Self {
+            self.load_from_yaml(yaml).unwrap();
+            self
+        }
+    }
+
+    #[test]
+    fn a_membership_quotes_its_own_text() {
+        let good = with_membership(
+            "kind: soortenwet/regeling\n    legal_text_excerpt: hangt af van de draagkracht",
+        );
+        assert_eq!(good.validate_kinds(), Vec::<String>::new());
+        findings_contain(
+            &with_membership("kind: soortenwet/regeling\n    legal_text_excerpt: iets anders"),
+            "the excerpt is not in the text",
+        );
+        findings_contain(
+            &with_membership("kind: soortenwet/regeling"),
+            "quotes no words",
+        );
+    }
+
+    #[test]
+    fn a_membership_names_a_kind_of_regulations() {
+        findings_contain(
+            &with_membership("kind: soortenwet/bijdrage\n    legal_text_excerpt: draagkracht"),
+            "names a kind of items",
+        );
+        findings_contain(
+            &with_membership("kind: soortenwet/onbekend\n    legal_text_excerpt: draagkracht"),
+            "is defined nowhere",
+        );
+    }
+
+    #[test]
+    fn broader_kinds_must_exist_and_not_circle() {
+        let cycle = r#"
+$id: kringwet
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Begrippen.
+    machine_readable:
+      kinds:
+        - id: a
+          broader: b
+        - id: b
+          broader: a
+        - id: c
+          broader: weg
+"#;
+        let mut r = RuleResolver::new();
+        r.load_from_yaml(cycle).unwrap();
+        findings_contain(&r, "broader kinds form a cycle");
+        findings_contain(&r, "broader kind kringwet/weg is defined nowhere");
     }
 }
