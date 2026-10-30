@@ -13,8 +13,6 @@ const props = defineProps({
   // The guide (scenarioGuides.js) and the scenario of the case YAML it follows.
   guide: { type: Object, required: true },
   scenario: { type: Object, required: true },
-  // Its number on the tab Scenario's.
-  number: { type: Number, required: true },
   // The tabs of the page, `{ id, tekst }`, to name the tab of a step, and
   // the one that is open.
   tabs: { type: Array, required: true },
@@ -42,16 +40,19 @@ const where = computed(() =>
 </script>
 
 <template>
-  <nldd-page sticky-header accessible-label="Uitleg bij het scenario">
-    <nldd-top-title-bar
-      slot="header"
-      heading-level="2"
-      :text="`Scenario ${number}`"
-      :supporting-text="p.finished ? 'Doorlopen' : `Stap ${p.current + 1} van ${total}`"
-    >
-      <!-- Not dismiss-text: the split view hides that button while the guide stands beside the page. -->
-      <nldd-button slot="toolbar" appearance="neutral-tinted" size="sm" text="Verbergen" @click="emit('hide')"></nldd-button>
-    </nldd-top-title-bar>
+  <nldd-page accessible-label="Uitleg bij het scenario">
+    <!-- nldd-title, not nldd-top-title-bar: that bar cuts its title off on one
+         line, and a scenario name is too long for the pane. -->
+    <nldd-container slot="header" padding="16">
+      <nldd-title
+        size="5"
+        heading-level="2"
+        :text="scenario.naam"
+        :supporting-text="p.finished ? 'Doorlopen' : `Stap ${p.current + 1} van ${total}`"
+      >
+        <nldd-button slot="end" appearance="neutral-tinted" size="sm" text="Verbergen" @click="emit('hide')"></nldd-button>
+      </nldd-title>
+    </nldd-container>
 
     <nldd-container padding-inline="16">
       <nldd-progress-bar
@@ -86,7 +87,7 @@ const where = computed(() =>
     </nldd-simple-section>
 
     <nldd-simple-section v-else>
-      <nldd-container gap="12">
+      <nldd-container gap="8">
         <nldd-text v-if="seen" size="sm" color="secondary">{{ seen }}</nldd-text>
         <nldd-title size="4" heading-level="3" :text="current.title" :supporting-text="where"></nldd-title>
         <nldd-text v-if="current.story">{{ current.story }}</nldd-text>
@@ -97,11 +98,13 @@ const where = computed(() =>
             <nldd-text-cell :text="v"></nldd-text-cell>
           </nldd-list-item>
         </nldd-list>
-        <nldd-button-group size="sm">
+        <nldd-button-group size="sm" orientation="horizontal">
           <nldd-button
             v-if="laterDate"
             appearance="primary"
-            :text="`Speeldatum ${longDate(laterDate)}`"
+            start-icon="calendar-event"
+            :text="laterDate.split('-').reverse().join('-')"
+            :accessible-label="`Speeldatum op ${longDate(laterDate)} zetten`"
             @click="state.datum = laterDate"
           ></nldd-button>
           <nldd-button
