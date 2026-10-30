@@ -141,7 +141,7 @@ pub struct Voorbeeld {
 #[serde(deny_unknown_fields)]
 pub struct Scenario {
     pub naam: String,
-    /// The scenario in one sentence, as the tab Scenario's shows it.
+    /// The scenario in one sentence, as the demo cards on the choice screen show it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub samenvatting: Option<String>,
     pub stappen: Vec<Stap>,

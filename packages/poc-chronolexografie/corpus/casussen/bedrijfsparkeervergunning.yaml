@@ -132,22 +132,11 @@ scenarios:
       verleent haar.
     stappen:
       - stap: aanvraag
-        gezien: >-
-          De aanvraag staat onder Mijn aanvragen op In behandeling. De
-          beslistermijn is vier weken (artikel 4 van de fictieve verordening),
-          niet de acht weken van Awb 4:13.
       - stap: besluit
         datum: 2026-10-20
         uitkomst: toegewezen
     eind: >-
-      Toegewezen: de vergunning is verleend, geldig tot en met 19 oktober
-      2027, een jaar vanaf de dag van het besluit (artikel 3 van de fictieve
-      verordening). In het Logboek staat bij het besluit "postcode vestiging
-      volgens handelsregister: 7711 AB", en dat de Kamer van Koophandel dat
-      antwoordde: de gemeente vroeg het aan de cel die het uitvoeringsbesluit
-      daarvoor bevoegd maakt. Daar staat ook "aantal geldige
-      bedrijfsparkeervergunningen: 0", uit de eigen kroniek van de gemeente.
-      De inschrijving staat in de kroniek van de Kamer, onder Andere cellen.
+      Toegewezen: de vergunning geldt tot en met 19 oktober 2027.
   - naam: Het maximum in de schil, en een vergunning na bezwaar
     samenvatting: >-
       In de schil krijgt een bedrijf zoveel vergunningen als er mensen werken,
@@ -161,7 +150,7 @@ scenarios:
         datum: 2026-10-20
         uitkomst: toegewezen
         gezien: >-
-          De vergunning is verleend, geldig tot en met 19 oktober 2027.
+          Toegewezen: de vergunning geldt tot en met 19 oktober 2027.
       - stap: aanvraag
         datum: 2026-10-21
         invoer:
@@ -175,9 +164,8 @@ scenarios:
         tekst: >-
           Klik bij de tweede aanvraag op Besluit nemen.
         gezien: >-
-          Afgewezen: het bedrijf heeft al één geldige vergunning, en er werkt
-          één persoon. In het Logboek staat bij het besluit "aantal werkzame
-          personen volgens handelsregister: 1".
+          Afgewezen: het bedrijf heeft al één vergunning, en er werkt één
+          persoon.
       - stap: bezwaar
         datum: 2026-11-01
         op: 2
@@ -199,7 +187,7 @@ scenarios:
           ingeschreven" op Vastleggen.
         gezien: >-
           De nieuwe inschrijving staat in de kroniek van de Kamer, naast de
-          oude; de gemeente leest haar bij de heroverweging.
+          oude.
       - stap: beslissing_op_bezwaar
         datum: 2026-11-20
         uitkomst: gegrond
@@ -207,9 +195,8 @@ scenarios:
           Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op
           Beslissen op bezwaar.
         gezien: >-
-          Gegrond: de weigering is herroepen (Awb 7:11, tweede lid), en een
-          nieuw besluit verleent de vergunning. Onder Kroniek staan nu drie
-          besluiten onder artikel 2 van de verordening; niets is overschreven.
+          Gegrond: de weigering is herroepen (Awb 7:11), en de vergunning is
+          verleend.
       - stap: aanvraag
         titel: Een derde aanvraag indienen
         datum: 2026-12-01
@@ -225,12 +212,7 @@ scenarios:
         uitkomst: afgewezen
     eind: >-
       Afgewezen: het bedrijf heeft twee geldige vergunningen, en er werken
-      twee mensen. In het Logboek staat bij het besluit "aantal geldige
-      bedrijfsparkeervergunningen: 2". De reductie van de Awb liet de
-      herroepen weigering weg (Awb 7:11, tweede lid). Zo bleven de eerste
-      vergunning en het nieuwe besluit uit de beslissing op bezwaar over; die
-      twee telde de reductie van de gemeente. Zelf kent die reductie geen
-      bezwaar: ze leest alleen de geldende besluiten.
+      twee mensen.
   - naam: Buiten het gebied, en na de verhuizing erin
     samenvatting: >-
       Een bedrijf buiten de vergunninggebieden krijgt geen vergunning, en na
@@ -243,9 +225,7 @@ scenarios:
         datum: 2026-10-20
         uitkomst: afgewezen
         gezien: >-
-          Afgewezen: uit het handelsregister blijkt niet dat het bedrijf in een
-          vergunninggebied is gevestigd. In het Logboek staat bij het besluit
-          "postcode vestiging volgens handelsregister: 7720 BC".
+          Afgewezen: het bedrijf is niet in een vergunninggebied gevestigd.
       - stap: vastleggen
         titel: Nieuwe inschrijving bij de Kamer van Koophandel
         datum: 2026-11-01
@@ -260,8 +240,8 @@ scenarios:
           Klik bij Kamer van Koophandel onder "Vastleggen: Vestiging
           ingeschreven" op Vastleggen.
         gezien: >-
-          De nieuwe inschrijving staat in de kroniek van de Kamer; de oude
-          staat er nog.
+          De nieuwe inschrijving staat in de kroniek van de Kamer, naast de
+          oude.
       - stap: aanvraag
         datum: 2026-11-02
         invoer:
@@ -271,12 +251,8 @@ scenarios:
         tekst: >-
           Klik bij de tweede aanvraag op Besluit nemen.
     eind: >-
-      Toegewezen. Bij het eerste besluit antwoordde de Kamer met de postcode
-      die op 20 oktober gold, bij het tweede met de inschrijving van 1
-      november: zij leest de inschrijving die op de dag van het besluit geldt.
-      De oude inschrijving blijft in haar kroniek staan; niets is
-      overschreven. Het eerste besluit blijft een weigering: een nieuwe
-      inschrijving verandert geen besluit dat al genomen is.
+      Toegewezen: het tweede besluit gaat uit van de nieuwe postcode; het
+      eerste blijft een weigering.
   - naam: Het maximum in de binnenstad, en de hardheidsclausule na bezwaar
     samenvatting: >-
       Een thuiszorgbedrijf in de binnenstad zit op het maximum, en na bezwaar
@@ -290,8 +266,7 @@ scenarios:
         datum: 2026-10-20
         uitkomst: toegewezen
         gezien: >-
-          De vergunning is verleend. Het formulier vroeg geen oordeel: het
-          bedrijf had nog geen vergunning.
+          Toegewezen: de vergunning is verleend.
       - stap: aanvraag
         datum: 2026-10-21
         invoer:
@@ -303,9 +278,7 @@ scenarios:
         tekst: >-
           Klik bij de tweede aanvraag op Besluit nemen.
         gezien: >-
-          Ook deze vergunning is verleend. Bij een bedrijf onder het maximum
-          vraagt het formulier niets over de hardheidsclausule: de regel komt
-          daar niet aan toe.
+          Toegewezen: ook de tweede vergunning is verleend.
       - stap: aanvraag
         titel: Een derde aanvraag indienen
         datum: 2026-10-23
@@ -321,10 +294,7 @@ scenarios:
           toepassing_leidt_tot_onaanvaardbare_gevolgen: false
         uitkomst: afgewezen
         gezien: >-
-          Afgewezen. In het Logboek staat bij het besluit "toepassing leidt tot
-          onaanvaardbare gevolgen": Nee. Dat oordeel staat als gegeven bij het
-          besluit in de kroniek, naast wat de Kamer van Koophandel en de eigen
-          kroniek antwoordden.
+          Afgewezen: het bedrijf zit op het maximum van twee vergunningen.
       - stap: bezwaar
         datum: 2026-11-01
         invoer:
@@ -341,10 +311,8 @@ scenarios:
           Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op
           Beslissen op bezwaar.
         gezien: >-
-          Gegrond: de weigering is herroepen (Awb 7:11, tweede lid), en een
-          nieuw besluit verleent de vergunning. De feiten zijn dezelfde als
-          bij de weigering. Het nieuwe besluit rust op het oordeel van het
-          college, en legt dat vast.
+          Gegrond: de weigering is herroepen (Awb 7:11), en de vergunning is
+          verleend.
       - stap: aanvraag
         titel: Een vierde aanvraag indienen
         datum: 2026-12-01
@@ -359,10 +327,4 @@ scenarios:
           toepassing_leidt_tot_onaanvaardbare_gevolgen: false
         uitkomst: afgewezen
     eind: >-
-      Afgewezen, en in het Logboek staat bij het besluit "aantal geldige
-      bedrijfsparkeervergunningen: 3": de twee eerste vergunningen en het
-      nieuwe besluit uit de beslissing op bezwaar. De weigering telt niet mee:
-      die is herroepen (Awb 7:11, tweede lid). De feiten zijn niet veranderd;
-      het nieuwe besluit rust op het oordeel van het college, en dat staat als
-      gegeven bij het besluit in de kroniek. Een volgende aanvraag vraagt dat
-      oordeel opnieuw: het geldt per geval.
+      Afgewezen: het bedrijf heeft nu drie geldige vergunningen.

@@ -9,7 +9,7 @@
     "date": null,
     "todo": "Klik op Aanvraag indienen.",
     "values": [],
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De beslistermijn is vier weken (artikel 4 van de fictieve verordening), niet de acht weken van Awb 4:13.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
@@ -18,7 +18,7 @@
     "date": "2026-10-20",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    }
   ]
@@ -35,7 +35,7 @@
     "values": [
      "kvk nummer: 99990022"
     ],
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
@@ -44,7 +44,7 @@
     "date": "2026-10-20",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "De vergunning is verleend, geldig tot en met 19 oktober 2027.",
+    "seen": "Toegewezen: de vergunning geldt tot en met 19 oktober 2027.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    },
    {
@@ -67,7 +67,7 @@
     "values": [
      "toepassing leidt tot onaanvaardbare gevolgen: Nee"
     ],
-    "seen": "Afgewezen: het bedrijf heeft al één geldige vergunning, en er werkt één persoon. In het Logboek staat bij het besluit \"aantal werkzame personen volgens handelsregister: 1\".",
+    "seen": "Afgewezen: het bedrijf heeft al één vergunning, en er werkt één persoon.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
@@ -76,7 +76,7 @@
     "date": "2026-11-01",
     "todo": "Klik bij het besluit op de tweede aanvraag op Bezwaar maken en dan op Bezwaar indienen.",
     "values": [],
-    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
    },
    {
@@ -90,7 +90,7 @@
      "aantal werkzame personen: 2",
      "datum inschrijving: 10 november 2026"
     ],
-    "seen": "De nieuwe inschrijving staat in de kroniek van de Kamer, naast de oude; de gemeente leest haar bij de heroverweging.",
+    "seen": "De nieuwe inschrijving staat in de kroniek van de Kamer, naast de oude.",
     "expect": null
    },
    {
@@ -99,7 +99,7 @@
     "date": "2026-11-20",
     "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
     "values": [],
-    "seen": "Gegrond: de weigering is herroepen (Awb 7:11, tweede lid), en een nieuw besluit verleent de vergunning. Onder Kroniek staan nu drie besluiten onder artikel 2 van de verordening; niets is overschreven.",
+    "seen": "Gegrond: de weigering is herroepen (Awb 7:11), en de vergunning is verleend.",
     "expect": "hier hoort het bezwaar gegrond te zijn"
    },
    {
@@ -122,7 +122,7 @@
     "values": [
      "toepassing leidt tot onaanvaardbare gevolgen: Nee"
     ],
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]
@@ -139,7 +139,7 @@
     "values": [
      "kvk nummer: 99990033"
     ],
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
@@ -148,7 +148,7 @@
     "date": "2026-10-20",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "Afgewezen: uit het handelsregister blijkt niet dat het bedrijf in een vergunninggebied is gevestigd. In het Logboek staat bij het besluit \"postcode vestiging volgens handelsregister: 7720 BC\".",
+    "seen": "Afgewezen: het bedrijf is niet in een vergunninggebied gevestigd.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
@@ -162,7 +162,7 @@
      "aantal werkzame personen: 3",
      "datum inschrijving: 1 november 2026"
     ],
-    "seen": "De nieuwe inschrijving staat in de kroniek van de Kamer; de oude staat er nog.",
+    "seen": "De nieuwe inschrijving staat in de kroniek van de Kamer, naast de oude.",
     "expect": null
    },
    {
@@ -182,7 +182,7 @@
     "date": null,
     "todo": "Klik bij de tweede aanvraag op Besluit nemen.",
     "values": [],
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    }
   ]
@@ -199,7 +199,7 @@
     "values": [
      "kvk nummer: 99990044"
     ],
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
@@ -208,7 +208,7 @@
     "date": "2026-10-20",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "De vergunning is verleend. Het formulier vroeg geen oordeel: het bedrijf had nog geen vergunning.",
+    "seen": "Toegewezen: de vergunning is verleend.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    },
    {
@@ -229,7 +229,7 @@
     "date": "2026-10-22",
     "todo": "Klik bij de tweede aanvraag op Besluit nemen.",
     "values": [],
-    "seen": "Ook deze vergunning is verleend. Bij een bedrijf onder het maximum vraagt het formulier niets over de hardheidsclausule: de regel komt daar niet aan toe.",
+    "seen": "Toegewezen: ook de tweede vergunning is verleend.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    },
    {
@@ -252,7 +252,7 @@
     "values": [
      "toepassing leidt tot onaanvaardbare gevolgen: Nee"
     ],
-    "seen": "Afgewezen. In het Logboek staat bij het besluit \"toepassing leidt tot onaanvaardbare gevolgen\": Nee. Dat oordeel staat als gegeven bij het besluit in de kroniek, naast wat de Kamer van Koophandel en de eigen kroniek antwoordden.",
+    "seen": "Afgewezen: het bedrijf zit op het maximum van twee vergunningen.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
@@ -263,7 +263,7 @@
     "values": [
      "gronden bezwaar of beroep: de wijkverpleging rijdt dagelijks met drie auto's naar cliënten"
     ],
-    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
    },
    {
@@ -274,7 +274,7 @@
     "values": [
      "toepassing leidt tot onaanvaardbare gevolgen: Ja"
     ],
-    "seen": "Gegrond: de weigering is herroepen (Awb 7:11, tweede lid), en een nieuw besluit verleent de vergunning. De feiten zijn dezelfde als bij de weigering. Het nieuwe besluit rust op het oordeel van het college, en legt dat vast.",
+    "seen": "Gegrond: de weigering is herroepen (Awb 7:11), en de vergunning is verleend.",
     "expect": "hier hoort het bezwaar gegrond te zijn"
    },
    {
@@ -297,7 +297,7 @@
     "values": [
      "toepassing leidt tot onaanvaardbare gevolgen: Nee"
     ],
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]

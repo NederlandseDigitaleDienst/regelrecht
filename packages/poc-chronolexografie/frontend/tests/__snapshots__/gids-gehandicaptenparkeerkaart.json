@@ -11,7 +11,7 @@
     "values": [
      "bsn aanvrager: 999990032"
     ],
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling, en onder Kroniek als eerste chronolexogram van de gemeente.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
@@ -24,7 +24,7 @@
      "datum onderzoek: 16 oktober 2026",
      "verricht door: Gemeentelijke Gezondheidsdienst"
     ],
-    "seen": "Het onderzoek staat in de kroniek van de GGD, onder Andere cellen. De wet zegt dat er eerst een onderzoek moet zijn (Regeling gehandicaptenparkeerkaart, artikel 2) en dat de GGD het doet (artikel 3). Hoe de gemeente de GGD daarom vraagt, zegt de wet niet; dat verzoek zie je daarom niet in de PoC.",
+    "seen": "Het onderzoek staat in de kroniek van de GGD.",
     "expect": null
    },
    {
@@ -49,7 +49,7 @@
     "date": "2026-10-20",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    }
   ]
@@ -66,7 +66,7 @@
     "values": [
      "bsn aanvrager: 999990068"
     ],
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
@@ -75,7 +75,7 @@
     "date": "2026-10-20",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]
@@ -90,7 +90,7 @@
     "date": null,
     "todo": "Klik op Aanvraag indienen.",
     "values": [],
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
@@ -99,7 +99,7 @@
     "date": "2026-10-20",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "De kaart is verstrekt, geldig tot en met 19 oktober 2031.",
+    "seen": "Toegewezen: de kaart geldt tot en met 19 oktober 2031.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    },
    {
@@ -117,7 +117,7 @@
     "date": null,
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]
@@ -132,7 +132,7 @@
     "date": null,
     "todo": "Klik op Aanvraag indienen.",
     "values": [],
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
@@ -141,7 +141,7 @@
     "date": "2026-10-20",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "De kaart is verstrekt, geldig tot en met 19 oktober 2031.",
+    "seen": "Toegewezen: de kaart geldt tot en met 19 oktober 2031.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    },
    {
@@ -150,7 +150,7 @@
     "date": "2026-11-01",
     "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
     "values": [],
-    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
    },
    {
@@ -176,7 +176,7 @@
     "values": [
      "bsn aanvrager: 999990068"
     ],
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
@@ -185,7 +185,7 @@
     "date": "2026-10-20",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "De kaart is geweigerd: het advies vindt geen criterium.",
+    "seen": "Afgewezen: het advies vindt geen criterium.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
@@ -194,7 +194,7 @@
     "date": "2026-11-01",
     "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
     "values": [],
-    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
    },
    {
@@ -210,7 +210,7 @@
      "permanent rolstoelgebonden: Nee",
      "ernstige beperkingen andere dan loopbeperkingen: Nee"
     ],
-    "seen": "Het nieuwe advies staat in de kroniek van de GGD; de gemeente leest het bij de heroverweging.",
+    "seen": "Het nieuwe advies staat in de kroniek van de GGD.",
     "expect": null
    },
    {
@@ -236,7 +236,7 @@
     "values": [
      "bsn aanvrager: 999990068"
     ],
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
@@ -245,7 +245,7 @@
     "date": "2026-10-20",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "De kaart is geweigerd. Onder Kroniek staat één besluit onder artikel 49, en dat verstrekt geen kaart.",
+    "seen": "Afgewezen: de kaart is geweigerd.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
@@ -254,7 +254,7 @@
     "date": "2026-11-01",
     "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
     "values": [],
-    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
    },
    {
@@ -270,7 +270,7 @@
      "permanent rolstoelgebonden: Nee",
      "ernstige beperkingen andere dan loopbeperkingen: Nee"
     ],
-    "seen": "Het nieuwe advies staat in de kroniek van de GGD; de gemeente leest het bij de heroverweging.",
+    "seen": "Het nieuwe advies staat in de kroniek van de GGD.",
     "expect": null
    },
    {
@@ -279,7 +279,7 @@
     "date": "2026-11-20",
     "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
     "values": [],
-    "seen": "Gegrond: de weigering is herroepen (Awb 7:11, tweede lid). De beslissing op bezwaar nam een nieuw besluit dat de kaart verstrekt, geldig tot en met 19 november 2031. Onder Kroniek staan nu twee besluiten onder artikel 49: de weigering en het nieuwe besluit. Niets is overschreven.",
+    "seen": "Gegrond: de weigering is herroepen (Awb 7:11), en de kaart geldt tot en met 19 november 2031.",
     "expect": "hier hoort het bezwaar gegrond te zijn"
    },
    {
@@ -299,7 +299,7 @@
     "date": null,
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]
@@ -316,7 +316,7 @@
     "values": [
      "bsn aanvrager: 999990032"
     ],
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
@@ -325,7 +325,7 @@
     "date": "2026-10-20",
     "todo": "Laat \"geneeskundig onderzoek heeft plaatsgehad\" op Nog niet beoordeeld en klik op Besluit nemen.",
     "values": [],
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort de cel de stap te weigeren, zonder besluit"
    }
   ]
@@ -340,7 +340,7 @@
     "date": null,
     "todo": "Klik op Aanvraag indienen.",
     "values": [],
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
@@ -349,7 +349,7 @@
     "date": "2026-10-20",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "De kaart is verstrekt, geldig tot en met 19 oktober 2031.",
+    "seen": "Toegewezen: de kaart geldt tot en met 19 oktober 2031.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    },
    {
@@ -372,7 +372,7 @@
      "geneeskundig onderzoek achterwege gelaten: Ja",
      "bekend dat aanvrager nog steeds voldoet: Ja"
     ],
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    }
   ]
@@ -389,7 +389,7 @@
     "values": [
      "bsn aanvrager: 999990068"
     ],
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
@@ -398,7 +398,7 @@
     "date": "2026-10-20",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
@@ -407,7 +407,7 @@
     "date": "2026-11-01",
     "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
     "values": [],
-    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
    },
    {
@@ -425,7 +425,7 @@
     "date": "2026-12-01",
     "todo": "Klik bij de beslissing op bezwaar op Beroep instellen en dan op Beroepschrift indienen.",
     "values": [],
-    "seen": "Het beroep staat in de kroniek van Rechtbank Wilgendaal, met het afschrift dat het bestuursorgaan van zijn beslissing maakte. Rechtbank en bestuursorgaan hebben elk een eigen kroniek; beide staan onder Kroniek.",
+    "seen": "Het beroep staat bij Andere cellen onder Ingekomen beroepen.",
     "expect": null
    },
    {
@@ -434,7 +434,7 @@
     "date": "2027-01-11",
     "todo": "Klik onder Ingekomen beroepen op Uitspraak doen.",
     "values": [],
-    "seen": "De uitspraak staat onder Uitspraken, in de kroniek van de rechtbank. Het bestuursorgaan weet er nog niets van.",
+    "seen": "De uitspraak staat onder Uitspraken.",
     "expect": null
    },
    {
@@ -443,7 +443,7 @@
     "date": null,
     "todo": "Klik bij de uitspraak op Toezenden aan gemeente Wilgendaal.",
     "values": [],
-    "seen": "Het bestuursorgaan legt de ontvangst vast in zijn eigen kroniek (Awb 8:79).",
+    "seen": "Het bestuursorgaan legt de ontvangst vast (Awb 8:79).",
     "expect": null
    }
   ]

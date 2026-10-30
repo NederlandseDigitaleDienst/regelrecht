@@ -135,9 +135,7 @@ scenarios:
           Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op
           Beslissen op bezwaar.
     eind: >-
-      Gegrond: het besluit is herroepen. Er is een nieuw besluit, en dat
-      verleent het verlof. In de Kroniek staan zes chronolexogrammen: de
-      vestiging die de school vooraf vastlegde en vijf uit dit scenario.
+      Gegrond: het besluit is herroepen, en het verlof is alsnog verleend.
   - naam: 'Afwijzing, bezwaar en heroverweging: ongegrond'
     samenvatting: >-
       Een tweede verlof in hetzelfde schooljaar wordt geweigerd, en het
@@ -147,8 +145,7 @@ scenarios:
       - stap: besluit
         uitkomst: toegewezen
         gezien: >-
-          Het verlof is verleend. Bij de tweede aanvraag leest de school dit
-          besluit terug.
+          Toegewezen: het verlof is verleend.
       - stap: aanvraag
         invoer:
           eerste_verlofdag: '2027-05-10'
@@ -158,9 +155,7 @@ scenarios:
         tekst: >-
           Klik bij de tweede aanvraag op Besluit nemen.
         gezien: >-
-          Het verlof is geweigerd: de school antwoordt uit haar eigen kroniek
-          dat de jongere dit schooljaar al verlof kreeg. In het Logboek staat
-          bij het besluit de keten.
+          Afgewezen: de jongere kreeg dit schooljaar al verlof.
       - stap: bezwaar
         datum: 2026-11-01
         op: 2
@@ -174,8 +169,7 @@ scenarios:
           Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat de
           bevinding staan en klik op Beslissen op bezwaar.
     eind: >-
-      Ongegrond: de heroverweging geeft dezelfde uitkomst. Het besluit blijft,
-      er komt geen nieuw besluit.
+      Ongegrond: de weigering blijft staan.
   - naam: 'Bezwaar te laat: niet-ontvankelijk'
     samenvatting: >-
       De ouder maakt pas na de bezwaartermijn bezwaar, en dat wordt niet
@@ -188,18 +182,14 @@ scenarios:
         uitkomst: afgewezen
       - stap: bezwaar
         datum: 2026-12-01
-        gezien: >-
-          De cel legt het bezwaar vast, ook al is het te laat. Of het op tijd
-          is, blijkt pas bij Ontvankelijkheid toetsen (Awb 7:11).
       - stap: beslissing_op_bezwaar
         uitkomst: niet_ontvankelijk
         tekst: >-
           Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op
           Beslissen op bezwaar.
     eind: >-
-      Niet-ontvankelijk: het bezwaar kwam te laat. Er is geen heroverweging,
-      dus geen vragen aan het hoofd. Na Beslissen op bezwaar blijft het
-      besluit staan.
+      Niet-ontvankelijk: het bezwaar kwam te laat, en het besluit blijft
+      staan.
   - naam: Tweede bezwaar tegen een vervangen besluit
     samenvatting: >-
       De ouder maakt twee keer bezwaar tegen hetzelfde besluit, en de cel
@@ -243,9 +233,7 @@ scenarios:
           Klik bij het tweede bezwaar op Ontvankelijkheid toetsen en dan op
           Beslissen op bezwaar.
     eind: >-
-      De cel weigert deze stap: een besluit wordt maar één keer vervangen. De
-      melding noemt het besluit dat het al vervangt; onder Details staat wat
-      de cel zelf meldt. Er komt niets bij in de kroniek.
+      De cel weigert de stap: een besluit wordt maar één keer vervangen.
   - naam: Een herroepen verlof telt niet meer mee
     samenvatting: >-
       Wordt het eerste verlof herroepen, dan telt het niet meer bij het
@@ -261,8 +249,7 @@ scenarios:
       - stap: besluit
         uitkomst: afgewezen
         gezien: >-
-          Verlof B is geweigerd: de school las A in haar kroniek, dus de
-          jongere kreeg dit schooljaar al verlof.
+          Afgewezen: verlof B is geweigerd, want A is al verleend.
       - stap: bezwaar
         datum: 2026-11-01
         op: 1
@@ -294,11 +281,7 @@ scenarios:
           Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat de
           bevinding staan en klik op Beslissen op bezwaar.
     eind: >-
-      Gegrond: B is herroepen, en het nieuwe besluit verleent het verlof. In
-      het Logboek staat bij het besluit "verlof al verleend in schooljaar:
-      nee", ingevuld door het beleid van het hoofd met het antwoord van de
-      cel. Haar reductie sloeg twee besluiten onder artikel 13a over: A, dat
-      herroepen is, en de weigering die ervoor in de plaats kwam.
+      Gegrond: B is herroepen, en het nieuwe besluit verleent het verlof.
   - naam: 'Verlof in de kerstvakantie: geweigerd zonder oordeel van het hoofd'
     samenvatting: >-
       Verlof in de kerstvakantie wordt geweigerd, omdat het vakantierooster
@@ -314,15 +297,7 @@ scenarios:
           Laat "specifieke aard beroep ouder" aan staan en klik op Besluit
           nemen.
     eind: >-
-      Het verlof wordt geweigerd. Het hoofd oordeelde niet over de
-      schoolvakanties: in het Logboek staat bij het besluit "verlof valt
-      buiten schoolvakanties: nee", ingevuld door het beleid van het hoofd met
-      het antwoord van de cel. Haar reductie las de regio Midden en de
-      kerstvakantie van 19 december 2026 tot en met 3 januari 2027 uit de
-      regeling, en de herfst- en voorjaarsvakantie uit het beleid van de
-      school. De regio volgt uit de plaats van vestiging, Utrecht, die de cel
-      binnen die reductie zelf gaf; onderaan het Logboek staat het executogram
-      van de vestiging.
+      Afgewezen: het verlof valt in de kerstvakantie.
   - naam: 'Verlof in een schooljaar dat de school nog niet kent: het hoofd oordeelt'
     samenvatting: >-
       Staat het schooljaar nog niet in het vakantierooster, dan vraagt het
@@ -337,10 +312,8 @@ scenarios:
           verlof_valt_buiten_schoolvakanties_volgens_hoofd: false
         uitkomst: afgewezen
     eind: >-
-      Het verlof wordt geweigerd. In het Logboek staat bij het besluit "verlof
-      valt buiten schoolvakanties volgens hoofd: nee" als bevinding van het
-      bestuursorgaan bij artikel 4 van het beleid; het beleid vulde er artikel
-      13a mee in, omdat de school geen antwoord had.
+      Afgewezen: volgens het hoofd valt het verlof niet buiten de
+      schoolvakanties.
   - naam: Bezwaar ongegrond, beroep gegrond, nieuw besluit op bezwaar
     samenvatting: >-
       Na een ongegrond bezwaar gaat de ouder in beroep; de rechter vernietigt
@@ -370,18 +343,13 @@ scenarios:
         tekst: >-
           Klik bij de uitspraak op Toezenden aan OBS De Klimop.
         gezien: >-
-          De school legt de ontvangst vast in haar eigen kroniek (Awb 8:79).
-          Onder Bestuursorgaan staat nu Na een uitspraak.
+          De school legt de ontvangst vast (Awb 8:79). Onder Bestuursorgaan
+          staat nu Na een uitspraak.
       - stap: opnieuw_beslissen
         datum: 2027-01-18
         invoer:
           specifieke_aard_beroep_ouder: true
         uitkomst: gegrond
     eind: >-
-      Gegrond: de weigering is herroepen, en het nieuwe besluit verleent het
-      verlof van 1 tot en met 5 februari 2027, binnen de termijn van de
-      rechter. De Kroniek toont twee kronieken. In die van de school staan de
-      ontvangst van de uitspraak, ontvangen van de rechtbank, en twee
-      beslissingen op hetzelfde bezwaar; de tweede is genomen na die
-      ontvangst. In die van de rechtbank staan het beroep, met het afschrift
-      dat zij van de school ontving, en de uitspraak.
+      Gegrond: het nieuwe besluit verleent het verlof van 1 tot en met 5
+      februari 2027.

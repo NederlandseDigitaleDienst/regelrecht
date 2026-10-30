@@ -33,9 +33,6 @@ const dismissed = (n) => expectation((k) => k.ongegrond >= n, 'hier hoort het be
 const inadmissible = (n) =>
   expectation((k) => k.nietOntvankelijk >= n, 'hier hoort het bezwaar niet-ontvankelijk te zijn');
 
-const SEEN_OBJECTION =
-  'Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.';
-
 /**
  * Per kind of step: its tab, its title and text when the step gives none,
  * when it is done, given `n`, the how-many-th of its kind it is (for a
@@ -51,7 +48,7 @@ const KINDS = {
     todo: 'Klik op Aanvraag indienen.',
     seen: (n) =>
       n === 1
-        ? 'De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.'
+        ? 'De aanvraag staat onder Mijn aanvragen op In behandeling.'
         : 'De tweede aanvraag staat onder Mijn aanvragen op In behandeling.',
     done: (n) => (k) => k.aanvragen >= n,
   },
@@ -59,7 +56,7 @@ const KINDS = {
     tab: 'bestuursorgaan',
     title: (n) => (n === 1 ? 'Besluit nemen' : 'Besluiten op de tweede aanvraag'),
     todo: 'Klik onder Open aanvragen op Besluit nemen.',
-    seen: () => 'Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.',
+    seen: () => 'Het besluit staat bij Aanvrager onder Mijn aanvragen.',
     done: (n) => (k) => k.decided.length >= n,
     weigering: /no judgement was given|asks '/,
   },
@@ -67,7 +64,7 @@ const KINDS = {
     tab: 'aanvrager',
     title: (n) => (n === 1 ? 'Bezwaar maken' : 'Nog een bezwaar maken'),
     todo: 'Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.',
-    seen: () => SEEN_OBJECTION,
+    seen: () => 'Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.',
     done: (n) => (k) => k.bezwaren >= n,
   },
   beslissing_op_bezwaar: {
@@ -91,23 +88,21 @@ const KINDS = {
     tab: 'aanvrager',
     title: () => 'Beroep instellen',
     todo: 'Klik bij de beslissing op bezwaar op Beroep instellen en dan op Beroepschrift indienen.',
-    seen: () =>
-      'Het beroep staat in de kroniek van Rechtbank Wilgendaal, met het afschrift dat het bestuursorgaan van zijn beslissing maakte. Rechtbank en bestuursorgaan hebben elk een eigen kroniek; beide staan onder Kroniek.',
+    seen: () => 'Het beroep staat bij Andere cellen onder Ingekomen beroepen.',
     done: (n) => (k) => k.beroepen >= n,
   },
   uitspraak: {
     tab: 'andere',
     title: () => 'Uitspraak doen',
     todo: 'Klik onder Ingekomen beroepen op Uitspraak doen.',
-    seen: () =>
-      'De uitspraak staat onder Uitspraken, in de kroniek van de rechtbank. Het bestuursorgaan weet er nog niets van.',
+    seen: () => 'De uitspraak staat onder Uitspraken.',
     done: (n) => (k) => k.uitspraken >= n,
   },
   toezenden: {
     tab: 'andere',
     title: () => 'Toezenden',
     todo: 'Klik bij de uitspraak op Toezenden.',
-    seen: () => 'Het bestuursorgaan legt de ontvangst vast in zijn eigen kroniek (Awb 8:79).',
+    seen: () => 'Het bestuursorgaan legt de ontvangst vast (Awb 8:79).',
     done: (n) => (k) => k.ontvangsten >= n,
   },
   opnieuw_beslissen: {

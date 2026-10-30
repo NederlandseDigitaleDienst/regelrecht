@@ -145,9 +145,6 @@ scenarios:
       - stap: aanvraag
         invoer:
           bsn_aanvrager: '999990032'
-        gezien: >-
-          De aanvraag staat onder Mijn aanvragen op In behandeling, en onder
-          Kroniek als eerste chronolexogram van de gemeente.
       - stap: vastleggen
         titel: Onderzoek door de GGD
         datum: 2026-10-16
@@ -161,11 +158,7 @@ scenarios:
           Klik bij GGD Wilgendaal onder "Vastleggen: Geneeskundig onderzoek
           verricht" op Vastleggen.
         gezien: >-
-          Het onderzoek staat in de kroniek van de GGD, onder Andere cellen.
-          De wet zegt dat er eerst een onderzoek moet zijn (Regeling
-          gehandicaptenparkeerkaart, artikel 2) en dat de GGD het doet
-          (artikel 3). Hoe de gemeente de GGD daarom vraagt, zegt de wet niet;
-          dat verzoek zie je daarom niet in de PoC.
+          Het onderzoek staat in de kroniek van de GGD.
       - stap: vastleggen
         titel: Advies van de GGD
         cel: ggd_wilgendaal
@@ -186,16 +179,7 @@ scenarios:
         datum: 2026-10-20
         uitkomst: toegewezen
     eind: >-
-      Toegewezen: de kaart is verstrekt en vermeldt de bestuurder. Ze is
-      geldig tot en met 19 oktober 2031, vijf jaar vanaf de dag van het
-      besluit (BABW artikel 51). In het Logboek staat bij het besluit
-      "langdurige loopbeperking: ja", ingevuld door het fictieve beleid van
-      Wilgendaal (artikel 6) uit het advies. Daar staat ook dat de GGD
-      Wilgendaal het advies gaf en antwoordde dat het onderzoek plaatsvond: de
-      gemeente vroeg het aan de cel die de wet en het beleid daarvoor bevoegd
-      maken. Het onderzoek en het advies staan in de kroniek van de GGD, onder
-      Andere cellen. Het besluit zelf staat onder Kroniek, in de kroniek van
-      de gemeente, na de aanvraag waarop het berust.
+      Toegewezen: de kaart geldt tot en met 19 oktober 2031.
   - naam: Het advies vindt geen criterium
     samenvatting: >-
       Het advies van de GGD vindt geen enkel criterium, en de kaart wordt
@@ -208,13 +192,7 @@ scenarios:
         datum: 2026-10-20
         uitkomst: afgewezen
     eind: >-
-      Afgewezen. Het college oordeelt zoals het advies (artikel 6 van het
-      fictieve beleid), en kan daar niet van afwijken: een beleid dat een
-      begrip invult gaat voor een oordeel van het college (RFC-045). Of het
-      college per geval van zijn beleid mag afwijken (Awb 4:84), is niet
-      gebouwd. In het Logboek staat bij het besluit geen antwoord over een
-      eerdere kaart: artikel 49 leest het beleid over een tweede kaart alleen
-      voor een aanvrager die aan een criterium voldoet.
+      Afgewezen: het advies vindt geen enkel criterium.
   - naam: Een tweede kaart naast een geldige
     samenvatting: >-
       Wie al een geldige kaart heeft, krijgt er geen tweede bij.
@@ -224,7 +202,7 @@ scenarios:
         datum: 2026-10-20
         uitkomst: toegewezen
         gezien: >-
-          De kaart is verstrekt, geldig tot en met 19 oktober 2031.
+          Toegewezen: de kaart geldt tot en met 19 oktober 2031.
       - stap: aanvraag
         datum: 2027-03-01
         tekst: >-
@@ -232,11 +210,7 @@ scenarios:
       - stap: besluit
         uitkomst: afgewezen
     eind: >-
-      In het Logboek staat bij het tweede besluit "aanvrager heeft geldige
-      gehandicaptenparkeerkaart: ja", ingevuld door het beleid van Wilgendaal
-      met het antwoord van de cel; haar reductie vond het eerste besluit. De
-      keten loopt via artikel 49, het beleid van Wilgendaal en het begrip dat
-      de cel beantwoordde.
+      Afgewezen: de aanvrager heeft al een geldige kaart.
   - naam: Ongegrond bezwaar tegen een verstrekking
     samenvatting: >-
       De aanvrager maakt bezwaar tegen de verstrekte kaart, en de
@@ -247,7 +221,7 @@ scenarios:
         datum: 2026-10-20
         uitkomst: toegewezen
         gezien: >-
-          De kaart is verstrekt, geldig tot en met 19 oktober 2031.
+          Toegewezen: de kaart geldt tot en met 19 oktober 2031.
       - stap: bezwaar
         datum: 2026-11-01
       - stap: beslissing_op_bezwaar
@@ -257,12 +231,7 @@ scenarios:
           Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat alle
           bevindingen staan en klik op Beslissen op bezwaar.
     eind: >-
-      Ongegrond: de heroverweging geeft dezelfde uitkomst, en het besluit
-      blijft geldig tot en met 19 oktober 2031. Opnieuw beslist zou de kaart
-      later aflopen, maar de einddatum is afgeleid en geen uitkomst. Bij de
-      heroverweging laat de cel het bestreden besluit buiten beschouwing,
-      zodat de kaart niet wordt geweigerd vanwege zichzelf. De vier criteria
-      vraagt de heroverweging niet: het advies gaf ze, en dat geldt nog.
+      Ongegrond: de kaart blijft geldig tot en met 19 oktober 2031.
   - naam: Gegrond bezwaar na een nieuw advies
     samenvatting: >-
       Na het bezwaar onderzoekt de GGD opnieuw, en op dat nieuwe advies komt
@@ -275,7 +244,7 @@ scenarios:
         datum: 2026-10-20
         uitkomst: afgewezen
         gezien: >-
-          De kaart is geweigerd: het advies vindt geen criterium.
+          Afgewezen: het advies vindt geen criterium.
       - stap: bezwaar
         datum: 2026-11-01
       - stap: vastleggen
@@ -294,8 +263,7 @@ scenarios:
           Klik bij GGD Wilgendaal onder "Vastleggen: Geneeskundig advies
           uitgebracht" op Vastleggen.
         gezien: >-
-          Het nieuwe advies staat in de kroniek van de GGD; de gemeente leest
-          het bij de heroverweging.
+          Het nieuwe advies staat in de kroniek van de GGD.
       - stap: beslissing_op_bezwaar
         datum: 2026-11-20
         uitkomst: gegrond
@@ -303,12 +271,8 @@ scenarios:
           Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op
           Beslissen op bezwaar.
     eind: >-
-      Gegrond: de weigering is herroepen. Bij de heroverweging telt het advies
-      van het laatste onderzoek voor de aanvraag (artikel 5, derde lid, van
-      het fictieve beleid), dat van 10 november. Het nieuwe besluit verstrekt
-      de kaart, geldig tot en met 19 november 2031, vijf jaar vanaf dat nieuwe
-      besluit. Een andere bevinding van het college over de loopbeperking had
-      niets veranderd: het advies gaat voor.
+      Gegrond: op het nieuwe advies is de kaart verstrekt, geldig tot en met
+      19 november 2031.
   - naam: Een kaart na bezwaar telt bij de volgende aanvraag
     samenvatting: >-
       Na bezwaar komt de kaart er alsnog, en bij de volgende aanvraag weigert
@@ -321,8 +285,7 @@ scenarios:
         datum: 2026-10-20
         uitkomst: afgewezen
         gezien: >-
-          De kaart is geweigerd. Onder Kroniek staat één besluit onder artikel
-          49, en dat verstrekt geen kaart.
+          Afgewezen: de kaart is geweigerd.
       - stap: bezwaar
         datum: 2026-11-01
       - stap: vastleggen
@@ -341,8 +304,7 @@ scenarios:
           Klik bij GGD Wilgendaal onder "Vastleggen: Geneeskundig advies
           uitgebracht" op Vastleggen.
         gezien: >-
-          Het nieuwe advies staat in de kroniek van de GGD; de gemeente leest
-          het bij de heroverweging.
+          Het nieuwe advies staat in de kroniek van de GGD.
       - stap: beslissing_op_bezwaar
         datum: 2026-11-20
         uitkomst: gegrond
@@ -350,11 +312,8 @@ scenarios:
           Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op
           Beslissen op bezwaar.
         gezien: >-
-          Gegrond: de weigering is herroepen (Awb 7:11, tweede lid). De
-          beslissing op bezwaar nam een nieuw besluit dat de kaart verstrekt,
-          geldig tot en met 19 november 2031. Onder Kroniek staan nu twee
-          besluiten onder artikel 49: de weigering en het nieuwe besluit.
-          Niets is overschreven.
+          Gegrond: de weigering is herroepen (Awb 7:11), en de kaart geldt tot
+          en met 19 november 2031.
       - stap: aanvraag
         datum: 2027-03-01
         invoer:
@@ -362,13 +321,7 @@ scenarios:
       - stap: besluit
         uitkomst: afgewezen
     eind: >-
-      Afgewezen: het beleid van de gemeente geeft geen tweede kaart naast een
-      geldige. In het Logboek staat bij het besluit "aanvrager heeft geldige
-      gehandicaptenparkeerkaart: ja". De reductie van de Awb liet de herroepen
-      weigering weg (Awb 7:11, tweede lid), zodat alleen het nieuwe besluit
-      uit de beslissing op bezwaar overbleef. Daarin vond de reductie van de
-      gemeente de kaart. Zelf kent die reductie geen bezwaar: ze leest alleen
-      de geldende besluiten.
+      Afgewezen: de aanvrager heeft al een geldige kaart.
   - naam: Zonder advies oordeelt het college, en zonder onderzoek nog geen kaart
     samenvatting: >-
       Zonder advies oordeelt het college zelf, maar zonder onderzoek komt er
@@ -385,16 +338,8 @@ scenarios:
           Laat "geneeskundig onderzoek heeft plaatsgehad" op Nog niet
           beoordeeld en klik op Besluit nemen.
     eind: >-
-      Er komt geen besluit, maar een melding: het college heeft niet
-      beoordeeld of het geneeskundig onderzoek plaatsvond. De kaart "wordt
-      niet afgegeven alvorens een geneeskundig onderzoek heeft plaatsgehad"
-      (Regeling gehandicaptenparkeerkaart, artikel 2, eerste lid); dat is geen
-      grond om te weigeren, dus het college wacht. De kroniek blijft zoals zij
-      was. Kiest het college Ja, dan stelt het zelf vast dat het onderzoek
-      plaatsvond en volgt de kaart; kiest het Nee, dan weigert het (eigen
-      keuze). Of: onder Andere cellen legt de GGD het onderzoek vast (BSN
-      999990032, een dag op of na de dagtekening), en dan volgt de kaart
-      zonder vaststelling van het college.
+      Er komt geen besluit maar een melding: het college heeft niet beoordeeld
+      of het geneeskundig onderzoek plaatsvond.
   - naam: Een nieuwe kaart zonder nieuw onderzoek
     samenvatting: >-
       Wie eerder een kaart kreeg, krijgt een nieuwe zonder nieuw onderzoek.
@@ -404,7 +349,7 @@ scenarios:
         datum: 2026-10-20
         uitkomst: toegewezen
         gezien: >-
-          De kaart is verstrekt, geldig tot en met 19 oktober 2031.
+          Toegewezen: de kaart geldt tot en met 19 oktober 2031.
       - stap: aanvraag
         datum: 2031-10-20
         invoer:
@@ -415,11 +360,7 @@ scenarios:
           bekend_dat_aanvrager_nog_steeds_voldoet: true
         uitkomst: toegewezen
     eind: >-
-      Toegewezen, zonder nieuw onderzoek (Regeling gehandicaptenparkeerkaart,
-      artikel 2, tweede lid, onder a). In het Logboek staat bij het besluit
-      "aanvrager eerder gehandicaptenparkeerkaart verstrekt: ja", ingevuld
-      door het beleid van Wilgendaal met het antwoord van de cel. Laat je ze
-      uit, dan volgt de melding van het vorige scenario.
+      Toegewezen, zonder nieuw onderzoek.
   - naam: Beroep ongegrond
     samenvatting: >-
       Na een ongegrond bezwaar gaat de aanvrager in beroep, en de rechter
@@ -450,7 +391,4 @@ scenarios:
         tekst: >-
           Klik bij de uitspraak op Toezenden aan gemeente Wilgendaal.
     eind: >-
-      Ongegrond: de rechter vernietigt niets en draagt niets op, en artikel
-      8:72 vroeg hij niets. De gemeente legt de ontvangst vast in haar eigen
-      kroniek, als het afschrift van de uitspraak dat Awb 8:79 vereist. Onder
-      Bestuursorgaan is er niets om opnieuw op te beslissen.
+      Ongegrond: de rechter geeft de gemeente gelijk, en de weigering blijft.
