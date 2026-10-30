@@ -1,7 +1,7 @@
 [
  {
-  "name": "De kaart wordt verstrekt op het advies van de GGD",
-  "summary": "Na de aanvraag onderzoekt de GGD de aanvrager en adviseert positief, en het college verstrekt de kaart op dat advies.",
+  "name": "De kaart op advies van de GGD",
+  "summary": "Het college verstrekt de kaart op het advies dat de GGD in haar eigen kroniek vastlegde.",
   "steps": [
    {
     "title": "Aanvraag indienen",
@@ -179,8 +179,8 @@
   ]
  },
  {
-  "name": "Gegrond bezwaar na een nieuw advies",
-  "summary": "Na het bezwaar onderzoekt de GGD opnieuw, en op dat nieuwe advies komt er alsnog een kaart.",
+  "name": "Bezwaar, en een nieuw advies",
+  "summary": "Na het bezwaar telt het nieuwe advies van de GGD, en komt er alsnog een kaart.",
   "steps": [
    {
     "title": "Aanvraag indienen",
@@ -359,8 +359,8 @@
   ]
  },
  {
-  "name": "Een nieuwe kaart zonder nieuw onderzoek",
-  "summary": "Wie eerder een kaart kreeg, krijgt een nieuwe zonder nieuw onderzoek.",
+  "name": "Vijf jaar later een nieuwe kaart",
+  "summary": "Vijf jaar later vindt de gemeente haar eerdere besluit terug, en is er geen nieuw onderzoek nodig.",
   "steps": [
    {
     "title": "Aanvraag indienen",

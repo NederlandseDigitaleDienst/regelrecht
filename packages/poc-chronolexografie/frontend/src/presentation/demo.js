@@ -1,17 +1,16 @@
 /**
- * The scenarios to play right after the deck, all of the parking card case.
- * The choice screen lists them under "Voor de demo". Each one names a
- * scenario of the case YAML, whose guide scenarioGuides.js builds;
- * tests/presentation.test.js keeps them in step.
+ * The demo scenarios, all of the parking card case, from simple to
+ * involved. The choice screen lists them under the links to the deck and the
+ * explanation page. Each one names a scenario of the case YAML, whose guide
+ * scenarioGuides.js builds; tests/presentation.test.js keeps them in step.
  *
- * - A card on the advice of the GGD: the happy flow, one application and a
- *   decision that lands in the chronicle.
- * - A second card next to a valid one: the reduction finds the first card in
- *   the chronicle.
- * - A card on objection: the reduction of the Awb passes on the decision that
- *   the decision on objection put in place of the revoked refusal, so at the
- *   next application the municipality finds a valid card it did not have
- *   before the objection.
+ * - A card on the advice of the GGD: the happy flow; the decision reads the
+ *   examination and the advice from the GGD's own chronicle.
+ * - An objection and a new advice: the reconsideration reads the chronicle as
+ *   it stands on the day of the decision on objection, so the new advice
+ *   counts.
+ * - A new card five years later: the municipality finds its own decision of
+ *   2026 in its chronicle, so no new examination is needed.
  */
 import { load } from 'js-yaml';
 import yaml from '../../../corpus/casussen/gehandicaptenparkeerkaart.yaml?raw';
@@ -20,9 +19,9 @@ import { guideFor } from '../scenarioGuides.js';
 export const DEMO_CASUS = 'gehandicaptenparkeerkaart';
 
 export const DEMO_SCENARIOS = Object.freeze([
-  'De kaart wordt verstrekt op het advies van de GGD',
-  'Een tweede kaart naast een geldige',
-  'Een kaart na bezwaar telt bij de volgende aanvraag',
+  'De kaart op advies van de GGD',
+  'Bezwaar, en een nieuw advies',
+  'Vijf jaar later een nieuwe kaart',
 ]);
 
 // The case as its YAML has it: the choice screen and the deck show these

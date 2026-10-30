@@ -4,9 +4,9 @@
 // casus met een lege kroniek. Daarboven staat per bron (src/bronnen.js) wat
 // er niet lukte: een bron die er niet is, of een bestand dat niet laadt.
 //
-// At the top: what a demo needs, the presentation and the parking card
-// scenarios that follow it (presentation/demo.js), and the explanation page
-// that shows in YAML how one case hangs together (presentation/uitleg.js).
+// At the top: what a demo needs, the presentation and the explanation page
+// that shows in YAML how one case hangs together (presentation/uitleg.js),
+// and right under them the demo scenarios (presentation/demo.js).
 import { nextTick, onMounted, ref } from 'vue';
 import { demoGuides } from '../presentation/demo.js';
 import { useUitleg } from '../presentation/useUitleg.js';
@@ -53,11 +53,7 @@ const kies = (c) => navigate(() => kiezen(c.id));
 <template>
   <nldd-simple-section>
     <nldd-title slot="header" size="3" text="Voor de demo">
-      <nldd-text slot="supporting-text">
-        Eerst een korte presentatie over chronolexografie, daarna drie scenario's van de
-        gehandicaptenparkeerkaart. Elk scenario begint met een lege kroniek en een gids naast de
-        pagina.
-      </nldd-text>
+      <nldd-text slot="supporting-text">Eerst de presentatie, dan de demoscenario's.</nldd-text>
     </nldd-title>
     <nldd-container gap="16">
       <nldd-button-bar>
@@ -67,10 +63,16 @@ const kies = (c) => navigate(() => kiezen(c.id));
       <!-- `item-min-width`, not `item-width`: @nldd/design-system 0.9.0 renamed
            the attribute (collection.d.ts, @migration), and the old name now
            does nothing. -->
+      <nldd-title
+        size="4"
+        heading-level="2"
+        text="Demoscenario's"
+        supporting-text="Gehandicaptenparkeerkaart, van simpel naar ingewikkeld."
+      ></nldd-title>
       <nldd-collection layout="grid" item-min-width="320px">
         <nldd-card v-for="(g, i) in demo" :key="g.name">
           <nldd-container slot="header" padding="16">
-            <nldd-title size="4" heading-level="2" :overline="`Demo ${i + 1} · gehandicaptenparkeerkaart`" :text="g.name"></nldd-title>
+            <nldd-title size="5" heading-level="3" :overline="`Demo ${i + 1}`" :text="g.name"></nldd-title>
           </nldd-container>
           <nldd-container padding="16">
             <nldd-text>{{ g.summary }}</nldd-text>
