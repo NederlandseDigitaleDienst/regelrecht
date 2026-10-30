@@ -65,6 +65,24 @@ function past(step, doel) {
   }
 }
 
+/** Whether the scenario is at a step of kind `soort` that acts on `doel`. */
+function isHuidigeStap(soort, doel = {}) {
+  const nu = huidigeStap();
+  return !!nu && nu.step.stap.stap === soort && past(nu.step, doel);
+}
+
+/**
+ * Whether the form of `feit` of cell `cel` folds away: the scenario is at a
+ * record step on another form of `cellen` (`state.vormen.andere_cellen`).
+ * At any other step, or in free play, every form stays open.
+ */
+export function ingeklapt(cellen, cel, feit) {
+  if (isHuidigeStap('vastleggen', { cel, feit })) return false;
+  return cellen.some((c) =>
+    (c.handelingen ?? []).some((h) => isHuidigeStap('vastleggen', { cel: c.cel, feit: h.feit })),
+  );
+}
+
 /**
  * The values the form of kind `soort` (a `stap` of the YAML) starts from
  * now, for what it acts on (`doel`), or null when it starts empty: in free
@@ -74,9 +92,8 @@ export function scenarioWaarden(soort, doel = {}) {
   if (!state.casus || !state.scenario) return null;
   const voorbeeld = state.casus.voorbeeld?.[VOORBEELD[soort]] ?? {};
   if (!guideFor(state.casus, state.scenario)) return VOORBEELD[soort] ? { ...voorbeeld } : null;
-  const nu = huidigeStap();
-  if (!nu || nu.step.stap.stap !== soort || !past(nu.step, doel)) return null;
-  return { ...voorbeeld, ...(nu.step.stap.invoer ?? {}) };
+  if (!isHuidigeStap(soort, doel)) return null;
+  return { ...voorbeeld, ...(huidigeStap().step.stap.invoer ?? {}) };
 }
 
 /**
