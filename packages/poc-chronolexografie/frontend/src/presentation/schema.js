@@ -9,11 +9,14 @@
  * A file is a box (`bestanden`), with the names in it that a line starts or
  * ends at (`begrippen`), in the order of their articles. A line (`lijnen`)
  * runs between two names, with the kind of reference (`soort`, see
- * `LIJNSOORTEN` and `keten`). Only files of the case count: its corpus, and
- * the cells it names with their reductions (src/casus.rs). Of a file with
+ * `LIJNSOORTEN` and `keten`). Only files of the case count, as src/casus.rs
+ * counts them: the directories its corpus names, its own regelwerken (under
+ * `casussen/<id>/regulation/nl`), and the cells it names with their
+ * reductions; all under the corpus of the poc (corpus.js). Of a file with
  * more versions, the one valid on the first day of the case shows.
  */
 import { load } from 'js-yaml';
+import { CORPUS } from '../corpus.js';
 
 /** What a box is, after its place in the corpus; the order is the column. */
 export const SOORTEN = [
@@ -27,12 +30,13 @@ export const SOORTEN = [
 export const LIJNSOORTEN = [
   { soort: 'rekent', label: 'rekent met een naam uit hetzelfde regelwerk', yaml: 'actions, source.parameters' },
   { soort: 'vult_in', label: 'vult een open begrip in', yaml: 'implements' },
-  { soort: 'leest', label: 'gebruikt een uitkomst', yaml: 'source.regulation, overrides' },
+  { soort: 'leest', label: 'gebruikt een uitkomst', yaml: 'source.regulation' },
   { soort: 'vraagt', label: 'vraagt een cel, die een reductie aanwijst', yaml: 'source.reduction, answers' },
   { soort: 'kroniek', label: 'leest de kroniek', yaml: 'source.decisions, source.facts' },
 ];
 
-const CASUSSEN = 'packages/poc-chronolexografie/casussen/';
+/** Where the case files are, each `<id>.yaml` with its own regelwerken in `<id>/`. */
+export const CASUSSEN = `${CORPUS}/casussen/`;
 
 /** `<law>#<article>` in its two parts. */
 const splits = (ref) => {
@@ -40,11 +44,14 @@ const splits = (ref) => {
   return { law, article };
 };
 
-/** The versions of each law in the bundle, per `$id`; and the cells. */
-function index(alle, corpus, cellen) {
-  const inScope = (pad) =>
-    corpus.some((dir) => pad.startsWith(`corpus/${dir}/`)) ||
-    cellen.some((cel) => pad.startsWith(`corpus/cells/${cel}/`));
+/** The versions of each law of case `id` in the bundle, per `$id`; and the cells. */
+function index(alle, id, corpus, cellen) {
+  const mappen = [
+    ...corpus.map((dir) => `${CORPUS}/${dir}/`),
+    `${CASUSSEN}${id}/regulation/nl/`,
+    ...cellen.map((cel) => `${CORPUS}/cells/${cel}/`),
+  ];
+  const inScope = (pad) => mappen.some((m) => pad.startsWith(m));
   const wetten = new Map();
   const cel = new Map();
   for (const [pad, tekst] of Object.entries(alle)) {
@@ -83,7 +90,7 @@ function soortVan(doc) {
 function opzet(alle, id) {
   const casus = load(alle[`${CASUSSEN}${id}.yaml`]);
   const cellen = [casus.cel, ...(casus.andere_cellen ?? []).map((c) => c.cel)];
-  const { wetten, cel } = index(alle, casus.corpus, cellen);
+  const { wetten, cel } = index(alle, id, casus.corpus ?? [], cellen);
   const dag = String(casus.speeldatum);
   const wet = (lawId) => (wetten.has(lawId) ? versie(wetten.get(lawId), dag) : null);
 
