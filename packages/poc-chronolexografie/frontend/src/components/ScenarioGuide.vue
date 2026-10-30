@@ -43,7 +43,7 @@ const where = computed(() =>
   <nldd-page accessible-label="Uitleg bij het scenario">
     <!-- nldd-title, not nldd-top-title-bar: that bar cuts its title off on one
          line, and a scenario name is too long for the pane. -->
-    <nldd-container slot="header" padding="16">
+    <nldd-container slot="header" padding-inline="16" padding-block="8">
       <nldd-title
         size="5"
         heading-level="2"
@@ -86,7 +86,7 @@ const where = computed(() =>
       </nldd-container>
     </nldd-simple-section>
 
-    <nldd-simple-section v-else>
+    <nldd-simple-section v-else padding-block="8">
       <nldd-container gap="8">
         <nldd-text v-if="seen" size="sm" color="secondary">{{ seen }}</nldd-text>
         <nldd-title size="4" heading-level="3" :text="current.title" :supporting-text="where"></nldd-title>
