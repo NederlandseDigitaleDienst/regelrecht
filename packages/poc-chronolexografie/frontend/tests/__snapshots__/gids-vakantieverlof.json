@@ -7,16 +7,20 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
-    "todo": "Klik op Aanvraag indienen. De voorbeeldwaarden vragen verlof in de eerste week van februari 2027.",
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "story": "Een ouder vraagt verlof voor de eerste week van februari 2027.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Laat \"specifieke aard beroep ouder\" aan staan en klik op Besluit nemen. Of het verlof buiten de schoolvakanties valt, vraagt het formulier niet: dat antwoordt de school zelf.",
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "story": "Het hoofd vindt het beroep van de ouder bijzonder genoeg.",
+    "todo": "Laat \"specifieke aard beroep ouder\" aan staan en klik op Besluit nemen.",
+    "values": [],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    }
   ]
@@ -29,15 +33,21 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
+    "story": "Een ouder vraagt verlof voor de eerste week van februari 2027.",
     "todo": "Klik op Aanvraag indienen.",
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Het formulier staat ingevuld uit het scenario: \"specifieke aard beroep ouder\" Nee. Het hoofd vindt het beroep niet bijzonder genoeg. Klik op Besluit nemen.",
+    "story": "Het hoofd vindt het beroep van de ouder niet bijzonder genoeg.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [
+     "specifieke aard beroep ouder: Nee"
+    ],
     "seen": "Bij Aanvrager staat de aanvraag op Afgewezen.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
@@ -45,15 +55,21 @@
     "title": "Bezwaar maken",
     "tab": "aanvrager",
     "date": "2026-11-01",
-    "todo": "Klik bij het besluit op Bezwaar maken. De gronden noemen een verklaring van de werkgever. Klik op Bezwaar indienen.",
-    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "story": "De ouder maakt bezwaar, met een verklaring van de werkgever.",
+    "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
    },
    {
     "title": "Beslissen op bezwaar",
     "tab": "bestuursorgaan",
     "date": "2026-11-15",
-    "todo": "Het formulier staat ingevuld uit het scenario: \"specifieke aard beroep ouder\" Ja. Klik onder Open bezwaren op Ontvankelijkheid toetsen: het bezwaar is ontvankelijk. Het hoofd beoordeelt het beroep nu anders. Klik op Beslissen op bezwaar.",
+    "story": "Het hoofd beoordeelt het beroep bij de heroverweging anders.",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "values": [
+     "specifieke aard beroep ouder: Ja"
+    ],
     "seen": "De beslissing staat onder Beslissingen op bezwaar.",
     "expect": "hier hoort het bezwaar gegrond te zijn"
    }
@@ -67,23 +83,32 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
+    "story": "Een ouder vraagt verlof voor februari 2027.",
     "todo": "Klik op Aanvraag indienen.",
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Klik op Besluit nemen.",
-    "seen": "Het verlof is verleend. Bij de tweede aanvraag leest de school dit besluit terug.",
+    "story": "Het hoofd beslist op de aanvraag.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [],
+    "seen": "Toegewezen: het verlof is verleend.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    },
    {
     "title": "Nog een aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
-    "todo": "Het formulier staat ingevuld uit het scenario: \"eerste verlofdag\" 10 mei 2027 en \"laatste verlofdag\" 14 mei 2027. Klik op Aanvraag indienen.",
+    "story": "De ouder vraagt in hetzelfde schooljaar nog verlof, in mei 2027.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [
+     "eerste verlofdag: 10 mei 2027",
+     "laatste verlofdag: 14 mei 2027"
+    ],
     "seen": "De tweede aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
@@ -91,23 +116,29 @@
     "title": "Besluiten op de tweede aanvraag",
     "tab": "bestuursorgaan",
     "date": null,
+    "story": "Het hoofd beslist op de tweede aanvraag.",
     "todo": "Klik bij de tweede aanvraag op Besluit nemen.",
-    "seen": "Het verlof is geweigerd: de school antwoordt uit haar eigen kroniek dat de jongere dit schooljaar al verlof kreeg. In het Logboek staat bij het besluit de keten.",
+    "values": [],
+    "seen": "Afgewezen: de jongere kreeg dit schooljaar al verlof.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
     "title": "Bezwaar maken",
     "tab": "aanvrager",
     "date": "2026-11-01",
-    "todo": "Zoek de tweede aanvraag. Klik bij haar besluit op Bezwaar maken en dan op Bezwaar indienen.",
-    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "story": "De ouder maakt bezwaar tegen de weigering.",
+    "todo": "Klik bij het besluit over de tweede aanvraag op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
    },
    {
     "title": "Beslissen op bezwaar",
     "tab": "bestuursorgaan",
     "date": "2026-11-15",
-    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen. Laat de bevinding staan en klik op Beslissen op bezwaar.",
+    "story": "Het hoofd heroverweegt de weigering.",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat de bevinding staan en klik op Beslissen op bezwaar.",
+    "values": [],
     "seen": "De beslissing staat onder Beslissingen op bezwaar.",
     "expect": "hier hoort het bezwaar ongegrond te zijn"
    }
@@ -121,31 +152,41 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
+    "story": "Een ouder vraagt verlof voor februari 2027.",
     "todo": "Klik op Aanvraag indienen.",
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Het formulier staat ingevuld uit het scenario: \"specifieke aard beroep ouder\" Nee. Klik op Besluit nemen.",
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "story": "Het hoofd vindt het beroep van de ouder niet bijzonder genoeg.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [
+     "specifieke aard beroep ouder: Nee"
+    ],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
     "title": "Bezwaar maken",
     "tab": "aanvrager",
     "date": "2026-12-01",
-    "todo": "De bezwaartermijn van zes weken is voorbij. Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
-    "seen": "De cel legt het bezwaar vast, ook al is het te laat. Of het op tijd is, blijkt pas bij Ontvankelijkheid toetsen (Awb 7:11).",
+    "story": "De ouder maakt bezwaar, maar pas na de termijn van zes weken.",
+    "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
    },
    {
     "title": "Beslissen op bezwaar",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen: het bezwaar kwam te laat. Klik op Beslissen op bezwaar.",
+    "story": "Het hoofd beslist op het bezwaar.",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "values": [],
     "seen": "De beslissing staat onder Beslissingen op bezwaar.",
     "expect": "hier hoort het bezwaar niet-ontvankelijk te zijn"
    }
@@ -159,31 +200,39 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
+    "story": "Een ouder vraagt verlof voor februari 2027.",
     "todo": "Klik op Aanvraag indienen.",
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Klik op Besluit nemen. Het verlof wordt verleend.",
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "story": "Het hoofd beslist op de aanvraag.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    },
    {
     "title": "Bezwaar maken",
     "tab": "aanvrager",
     "date": "2026-11-01",
+    "story": "De ouder maakt bezwaar tegen het besluit.",
     "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
-    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "values": [],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
    },
    {
     "title": "Nog een bezwaar maken",
     "tab": "aanvrager",
     "date": "2026-11-02",
+    "story": "Een dag later maakt de ouder nog een keer bezwaar tegen hetzelfde besluit.",
     "todo": "Klik nog een keer bij hetzelfde besluit op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [],
     "seen": "Er staan twee bezwaren tegen hetzelfde besluit open, onder Bestuursorgaan.",
     "expect": null
    },
@@ -191,15 +240,23 @@
     "title": "Beslissen op het eerste bezwaar",
     "tab": "bestuursorgaan",
     "date": "2026-11-15",
-    "todo": "Het formulier staat ingevuld uit het scenario: \"specifieke aard beroep ouder\" Nee. Klik bij het eerste bezwaar op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
-    "seen": "Gegrond: een weigering komt in de plaats van het besluit. Het tweede bezwaar staat nog open.",
+    "story": "Het hoofd beslist op het eerste bezwaar.",
+    "todo": "Klik bij het eerste bezwaar op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "values": [
+     "specifieke aard beroep ouder: Nee"
+    ],
+    "seen": "Gegrond: een weigering komt in de plaats van het besluit, en het tweede bezwaar staat nog open.",
     "expect": "hier hoort het bezwaar gegrond te zijn"
    },
    {
     "title": "Beslissen op het tweede bezwaar",
     "tab": "bestuursorgaan",
     "date": "2026-11-16",
-    "todo": "Het formulier staat ingevuld uit het scenario: \"specifieke aard beroep ouder\" Nee. Klik bij het tweede bezwaar op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "story": "Het hoofd beslist ook op het tweede bezwaar.",
+    "todo": "Klik bij het tweede bezwaar op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "values": [
+     "specifieke aard beroep ouder: Nee"
+    ],
     "seen": "De beslissing staat onder Beslissingen op bezwaar.",
     "expect": "hier hoort de cel de stap te weigeren"
    }
@@ -213,23 +270,32 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
-    "todo": "Klik op Aanvraag indienen. Dit is verlof A, in de eerste week van februari 2027.",
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "story": "Een ouder vraagt verlof A, voor februari 2027.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Klik op Besluit nemen. Verlof A wordt verleend.",
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "story": "Het hoofd beslist op verlof A.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    },
    {
     "title": "Nog een aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
-    "todo": "Het formulier staat ingevuld uit het scenario: \"eerste verlofdag\" 10 mei 2027 en \"laatste verlofdag\" 14 mei 2027. Klik op Aanvraag indienen. Dit is verlof B.",
+    "story": "De ouder vraagt verlof B, voor mei 2027.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [
+     "eerste verlofdag: 10 mei 2027",
+     "laatste verlofdag: 14 mei 2027"
+    ],
     "seen": "De tweede aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
@@ -237,23 +303,31 @@
     "title": "Besluiten op de tweede aanvraag",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Klik op Besluit nemen.",
-    "seen": "Verlof B is geweigerd: de school las A in haar kroniek, dus de jongere kreeg dit schooljaar al verlof.",
+    "story": "Het hoofd beslist op verlof B.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [],
+    "seen": "Afgewezen: de jongere kreeg dit schooljaar al verlof met de eerste aanvraag.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
     "title": "Bezwaar maken",
     "tab": "aanvrager",
     "date": "2026-11-01",
-    "todo": "Zoek de eerste aanvraag (A). Klik bij haar besluit op Bezwaar maken en dan op Bezwaar indienen.",
-    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "story": "De ouder maakt bezwaar tegen het besluit over A.",
+    "todo": "Klik bij het besluit over de eerste aanvraag (A) op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
    },
    {
     "title": "Beslissen op bezwaar",
     "tab": "bestuursorgaan",
     "date": "2026-11-15",
-    "todo": "Het formulier staat ingevuld uit het scenario: \"specifieke aard beroep ouder\" Nee. Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "story": "Het hoofd heroverweegt het besluit over A.",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "values": [
+     "specifieke aard beroep ouder: Nee"
+    ],
     "seen": "Gegrond: A is herroepen, en een weigering komt in de plaats.",
     "expect": "hier hoort het bezwaar gegrond te zijn"
    },
@@ -261,15 +335,19 @@
     "title": "Bezwaar maken tegen B",
     "tab": "aanvrager",
     "date": "2026-11-20",
-    "todo": "Zoek de tweede aanvraag (B). Klik bij haar besluit op Bezwaar maken en dan op Bezwaar indienen.",
-    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "story": "De ouder maakt bezwaar tegen de weigering van B.",
+    "todo": "Klik bij het besluit over de tweede aanvraag (B) op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
    },
    {
     "title": "Beslissen op het bezwaar tegen B",
     "tab": "bestuursorgaan",
     "date": "2026-12-01",
+    "story": "Het hoofd heroverweegt de weigering van B.",
     "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat de bevinding staan en klik op Beslissen op bezwaar.",
+    "values": [],
     "seen": "De beslissing staat onder Beslissingen op bezwaar.",
     "expect": "hier hoort het bezwaar gegrond te zijn"
    }
@@ -283,16 +361,23 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
-    "todo": "Het formulier staat ingevuld uit het scenario: \"eerste verlofdag\" 21 december 2026 en \"laatste verlofdag\" 23 december 2026. Klik op Aanvraag indienen.",
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "story": "Een ouder vraagt verlof voor drie dagen in de kerstvakantie.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [
+     "eerste verlofdag: 21 december 2026",
+     "laatste verlofdag: 23 december 2026"
+    ],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Het hoofd geeft alleen \"specifieke aard beroep ouder\". Laat die aan staan en klik op Besluit nemen.",
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "story": "Het hoofd beslist op de aanvraag.",
+    "todo": "Laat \"specifieke aard beroep ouder\" aan staan en klik op Besluit nemen.",
+    "values": [],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]
@@ -305,16 +390,25 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
-    "todo": "Het formulier staat ingevuld uit het scenario: \"eerste verlofdag\" 20 december 2027 en \"laatste verlofdag\" 22 december 2027. Klik op Aanvraag indienen.",
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "story": "Een ouder vraagt verlof in december 2027, een schooljaar dat de school nog niet kent.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [
+     "eerste verlofdag: 20 december 2027",
+     "laatste verlofdag: 22 december 2027"
+    ],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Het formulier staat ingevuld uit het scenario: \"verlof valt buiten schoolvakanties volgens hoofd\" Nee. Het vakantierooster van de school reikt nog niet tot schooljaar 2027–2028. De voorvertoning meldt dat. Het formulier vraagt het hoofd nu of het verlof buiten de schoolvakanties valt. Klik op Besluit nemen.",
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "story": "Het hoofd oordeelt dat het verlof in de schoolvakantie valt.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [
+     "verlof valt buiten schoolvakanties volgens hoofd: Nee"
+    ],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]
@@ -327,63 +421,83 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
+    "story": "Een ouder vraagt verlof voor februari 2027.",
     "todo": "Klik op Aanvraag indienen.",
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Het formulier staat ingevuld uit het scenario: \"specifieke aard beroep ouder\" Nee. Klik op Besluit nemen.",
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "story": "Het hoofd vindt het beroep van de ouder niet bijzonder genoeg.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [
+     "specifieke aard beroep ouder: Nee"
+    ],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
     "title": "Bezwaar maken",
     "tab": "aanvrager",
     "date": "2026-11-01",
+    "story": "De ouder maakt bezwaar tegen de weigering.",
     "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
-    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "values": [],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
    },
    {
     "title": "Beslissen op bezwaar",
     "tab": "bestuursorgaan",
     "date": "2026-11-15",
-    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen. Laat de bevinding staan en klik op Beslissen op bezwaar.",
-    "seen": "Ongegrond: de weigering blijft. Bij Aanvrager kun je nu in beroep gaan.",
+    "story": "Het hoofd heroverweegt de weigering.",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat de bevinding staan en klik op Beslissen op bezwaar.",
+    "values": [],
+    "seen": "Ongegrond: de weigering blijft, en bij Aanvrager kun je nu in beroep gaan.",
     "expect": "hier hoort het bezwaar ongegrond te zijn"
    },
    {
     "title": "Beroep instellen",
     "tab": "aanvrager",
     "date": "2026-12-01",
+    "story": "De ouder gaat in beroep bij de rechtbank.",
     "todo": "Klik bij de beslissing op bezwaar op Beroep instellen en dan op Beroepschrift indienen.",
-    "seen": "Het beroep staat in de kroniek van Rechtbank Wilgendaal, met het afschrift dat het bestuursorgaan van zijn beslissing maakte. Rechtbank en bestuursorgaan hebben elk een eigen kroniek; beide staan onder Kroniek.",
+    "values": [],
+    "seen": "Het beroep staat bij Andere cellen onder Ingekomen beroepen.",
     "expect": null
    },
    {
     "title": "Uitspraak doen",
     "tab": "andere",
     "date": "2027-01-11",
-    "todo": "Klik onder Ingekomen beroepen op Uitspraak doen. Volgens de voorbeeldbevindingen schendt de beslissing artikel 7:12, eerste lid, Awb: de motivering is niet deugdelijk. De rechtsgevolgen blijven niet in stand. De school heeft tot en met 25 januari 2027 voor een nieuwe beslissing.",
-    "seen": "De uitspraak staat onder Uitspraken, in de kroniek van de rechtbank. Het bestuursorgaan weet er nog niets van.",
+    "story": "De rechter vindt de motivering niet deugdelijk en vernietigt de beslissing.",
+    "todo": "Klik onder Ingekomen beroepen op Uitspraak doen.",
+    "values": [],
+    "seen": "De uitspraak staat onder Uitspraken.",
     "expect": null
    },
    {
     "title": "Toezenden",
     "tab": "andere",
     "date": null,
+    "story": "De rechtbank stuurt de uitspraak naar de school.",
     "todo": "Klik bij de uitspraak op Toezenden aan OBS De Klimop.",
-    "seen": "De school legt de ontvangst vast in haar eigen kroniek (Awb 8:79). Onder Bestuursorgaan staat nu Na een uitspraak.",
+    "values": [],
+    "seen": "De school legt de ontvangst vast (Awb 8:79), en onder Bestuursorgaan staat nu Na een uitspraak.",
     "expect": null
    },
    {
     "title": "Opnieuw beslissen",
     "tab": "bestuursorgaan",
     "date": "2027-01-18",
-    "todo": "Het formulier staat ingevuld uit het scenario: \"specifieke aard beroep ouder\" Ja. Klik onder Na een uitspraak op Heroverwegen en dan op Opnieuw beslissen op bezwaar.",
+    "story": "Het hoofd beslist opnieuw en vindt het beroep nu wel bijzonder.",
+    "todo": "Klik onder Na een uitspraak op Heroverwegen en dan op Opnieuw beslissen op bezwaar.",
+    "values": [
+     "specifieke aard beroep ouder: Ja"
+    ],
     "seen": "De nieuwe beslissing op bezwaar staat onder Na een uitspraak.",
     "expect": "hier hoort het bezwaar gegrond te zijn"
    }

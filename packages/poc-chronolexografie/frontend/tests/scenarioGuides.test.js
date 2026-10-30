@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { load } from 'js-yaml';
 import { describe, expect, it } from 'vitest';
-import { bouwGids, guideFor, invoerZin } from '../src/scenarioGuides.js';
+import { bouwGids, guideFor, invoerRegels } from '../src/scenarioGuides.js';
 
 // The guides are built from the scenarios of the case YAML; these tests
 // check that every scenario of every case gives a guide the panel can show.
@@ -11,6 +11,9 @@ const casus = (id) => ({
 });
 const CASUSSEN = ['vakantieverlof', 'gehandicaptenparkeerkaart', 'bedrijfsparkeervergunning', 'zorgtoeslag'];
 const TABS = ['aanvrager', 'bestuursorgaan', 'andere'];
+// One sentence: no full stop, question or exclamation mark before the
+// end, except a dot inside a number (€ 1.577).
+const ONE_SENTENCE = /^(?:[^.!?]|\.(?=\d))+[.!?]$/;
 
 describe.each(CASUSSEN)('the guides of %s', (id) => {
   const c = casus(id);
@@ -21,7 +24,11 @@ describe.each(CASUSSEN)('the guides of %s', (id) => {
   });
 
   it('sums up each scenario in one sentence', () => {
-    for (const g of list) expect(g.summary, g.name).toMatch(/^[^.!?]+[.!?]$/);
+    for (const g of list) expect(g.summary, g.name).toMatch(ONE_SENTENCE);
+  });
+
+  it('ends each scenario with one sentence', () => {
+    for (const s of c.scenarios) expect(s.eind, s.naam).toMatch(ONE_SENTENCE);
   });
 
   it('gives every step what the panel shows', () => {
@@ -30,20 +37,20 @@ describe.each(CASUSSEN)('the guides of %s', (id) => {
         const at = `${g.name}, step ${i + 1}`;
         expect(typeof s.title, at).toBe('string');
         expect(TABS, at).toContain(s.tab);
-        expect(s.todo, at).toBeTruthy();
+        expect(s.story, at).toMatch(ONE_SENTENCE);
+        expect(s.todo, at).toMatch(ONE_SENTENCE);
         expect(typeof s.done, at).toBe('function');
         if (s.expect) expect(typeof s.expect.check, at).toBe('function');
-        if (i < g.steps.length - 1) expect(s.seen, at).toBeTruthy();
+        if (i < g.steps.length - 1) expect(s.seen, at).toMatch(ONE_SENTENCE);
       });
     }
   });
 
-  it('names in the text every value a step fills in', () => {
+  it('lists every value a step fills in', () => {
     for (const g of list) {
       for (const s of g.steps) {
-        for (const naam of Object.keys(s.stap.invoer ?? {})) {
-          expect(s.todo, `${g.name}: ${s.title}`).toContain(`"${naam.replaceAll('_', ' ')}"`);
-        }
+        const namen = Object.keys(s.stap.invoer ?? {}).map((naam) => `${naam.replaceAll('_', ' ')}: `);
+        expect(s.values.map((v) => v.slice(0, v.indexOf(': ') + 2)), `${g.name}: ${s.title}`).toEqual(namen);
       }
     }
   });
@@ -65,7 +72,9 @@ describe.each(CASUSSEN)('the guides of %s', (id) => {
         title: s.title,
         tab: s.tab,
         date: s.date ?? null,
+        story: s.story,
         todo: s.todo,
+        values: s.values,
         seen: s.seen,
         expect: s.expect?.text ?? null,
       })),
@@ -74,16 +83,15 @@ describe.each(CASUSSEN)('the guides of %s', (id) => {
   });
 });
 
-describe('invoerZin', () => {
-  it('names each value, with yes or no and a date as the page writes them', () => {
-    expect(invoerZin({ kvk_nummer: '99990022', kenteken: 'ZZ-002-Z' })).toBe(
-      'Het formulier staat ingevuld uit het scenario: "kvk nummer" 99990022 en "kenteken" ZZ-002-Z.',
-    );
-    expect(invoerZin({ specifieke_aard_beroep_ouder: false })).toBe(
-      'Het formulier staat ingevuld uit het scenario: "specifieke aard beroep ouder" Nee.',
-    );
-    expect(invoerZin({ eerste_verlofdag: '2027-05-10' })).toContain('10 mei 2027');
-    expect(invoerZin({})).toBe('');
+describe('invoerRegels', () => {
+  it('gives each value a line, with yes or no and a date as the page writes them', () => {
+    expect(invoerRegels({ kvk_nummer: '99990022', kenteken: 'ZZ-002-Z' })).toEqual([
+      'kvk nummer: 99990022',
+      'kenteken: ZZ-002-Z',
+    ]);
+    expect(invoerRegels({ specifieke_aard_beroep_ouder: false })).toEqual(['specifieke aard beroep ouder: Nee']);
+    expect(invoerRegels({ eerste_verlofdag: '2027-05-10' })).toEqual(['eerste verlofdag: 10 mei 2027']);
+    expect(invoerRegels({})).toEqual([]);
   });
 });
 

@@ -141,7 +141,8 @@ pub struct Voorbeeld {
 #[serde(deny_unknown_fields)]
 pub struct Scenario {
     pub naam: String,
-    /// The scenario in one sentence, as the tab Scenario's shows it.
+    /// The scenario in one sentence, as the demo cards on the choice screen
+    /// show it; only the scenarios of the demo appear there.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub samenvatting: Option<String>,
     pub stappen: Vec<Stap>,
@@ -214,9 +215,14 @@ pub struct Handeling {
     /// the new decision a decision on objection takes in its place.
     #[serde(default, skip_serializing_if = "Map::is_empty")]
     pub uitvoer: Map<String, Value>,
-    /// What the visitor does, beyond what the guide says for every step of
-    /// this kind, and what they see once it is done. The guide puts the
-    /// values of `invoer` before `tekst`.
+    /// What happens in the case at this step, in one sentence, as the guide
+    /// shows it above what the visitor does. Optional, so a source without
+    /// it still loads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verhaal: Option<String>,
+    /// What the visitor does, in one sentence, where it differs from what
+    /// the guide says for every step of this kind; and what they see once
+    /// it is done. The guide lists the values of `invoer` below `tekst`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tekst: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

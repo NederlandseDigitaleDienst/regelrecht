@@ -132,29 +132,15 @@ scenarios:
       verleent haar.
     stappen:
       - stap: aanvraag
-        tekst: >-
-          Klik op Aanvraag indienen. Het kvk nummer in het voorbeeld is van
-          een bakkerij in de binnenstad.
-        gezien: >-
-          De aanvraag staat onder Mijn aanvragen op In behandeling. De
-          beslistermijn is vier weken (artikel 4 van de fictieve verordening),
-          niet de acht weken van Awb 4:13.
+        verhaal: >-
+          Een bakkerij in de binnenstad vraagt een bedrijfsparkeervergunning.
       - stap: besluit
+        verhaal: >-
+          Het college beslist op de aanvraag van de bakkerij.
         datum: 2026-10-20
         uitkomst: toegewezen
-        tekst: >-
-          Het formulier vraagt niets: de Kamer van Koophandel en de eigen
-          kroniek van de gemeente geven wat de regels vragen. Klik op Besluit
-          nemen.
     eind: >-
-      Toegewezen: de vergunning is verleend, geldig tot en met 19 oktober
-      2027, een jaar vanaf de dag van het besluit (artikel 3 van de fictieve
-      verordening). In het Logboek staat bij het besluit "postcode vestiging
-      volgens handelsregister: 7711 AB", en dat de Kamer van Koophandel dat
-      antwoordde: de gemeente vroeg het aan de cel die het uitvoeringsbesluit
-      daarvoor bevoegd maakt. Daar staat ook "aantal geldige
-      bedrijfsparkeervergunningen: 0", uit de eigen kroniek van de gemeente.
-      De inschrijving staat in de kroniek van de Kamer, onder Andere cellen.
+      Toegewezen: de vergunning geldt tot en met 19 oktober 2027.
   - naam: Het maximum in de schil, en een vergunning na bezwaar
     samenvatting: >-
       In de schil krijgt een bedrijf zoveel vergunningen als er mensen werken,
@@ -162,43 +148,48 @@ scenarios:
       volgende aanvraag.
     stappen:
       - stap: aanvraag
+        verhaal: >-
+          Een fietsenmakerij in de schil, waar één persoon werkt, vraagt een
+          vergunning.
         invoer:
           kvk_nummer: '99990022'
-        tekst: >-
-          Klik op Aanvraag indienen. In deze fietsenmakerij in de schil werkt
-          volgens het handelsregister één persoon.
       - stap: besluit
+        verhaal: >-
+          Het college beslist op de eerste aanvraag.
         datum: 2026-10-20
         uitkomst: toegewezen
-        tekst: >-
-          Klik op Besluit nemen.
         gezien: >-
-          De vergunning is verleend, geldig tot en met 19 oktober 2027.
+          Toegewezen: de vergunning geldt tot en met 19 oktober 2027.
       - stap: aanvraag
+        verhaal: >-
+          De fietsenmakerij vraagt een tweede vergunning.
         datum: 2026-10-21
         invoer:
           kvk_nummer: '99990022'
           kenteken: ZZ-002-Z
       - stap: besluit
+        verhaal: >-
+          Het college beslist op de tweede aanvraag.
         datum: 2026-10-22
         invoer:
           toepassing_leidt_tot_onaanvaardbare_gevolgen: false
         uitkomst: afgewezen
         tekst: >-
-          Het bedrijf zit op het maximum, dus het formulier vraagt het oordeel
-          van het college over de hardheidsclausule (artikel 6 van de fictieve
-          verordening). Klik bij de tweede aanvraag op Besluit nemen.
+          Klik bij de tweede aanvraag op Besluit nemen.
         gezien: >-
-          Afgewezen: het bedrijf heeft al één geldige vergunning, en er werkt
-          één persoon. In het Logboek staat bij het besluit "aantal werkzame
-          personen volgens handelsregister: 1".
+          Afgewezen: er werkt één persoon, dus het maximum van één vergunning
+          is bereikt.
       - stap: bezwaar
+        verhaal: >-
+          De fietsenmakerij maakt bezwaar tegen de weigering.
         datum: 2026-11-01
         op: 2
         tekst: >-
-          Zoek de tweede aanvraag. Klik bij haar besluit op Bezwaar maken en
-          dan op Bezwaar indienen.
+          Klik bij het besluit over de tweede aanvraag op Bezwaar maken en dan
+          op Bezwaar indienen.
       - stap: vastleggen
+        verhaal: >-
+          De fietsenmakerij neemt iemand aan en schrijft dat in bij de Kamer.
         titel: Nieuwe inschrijving bij de Kamer van Koophandel
         datum: 2026-11-10
         cel: kamer_van_koophandel
@@ -209,22 +200,25 @@ scenarios:
           aantal_werkzame_personen: 2
           datum_inschrijving: '2026-11-10'
         tekst: >-
-          De fietsenmakerij heeft iemand aangenomen. Klik bij Kamer van
-          Koophandel onder "Vastleggen: Vestiging ingeschreven" op Vastleggen.
+          Klik bij Kamer van Koophandel onder "Vastleggen: Vestiging
+          ingeschreven" op Vastleggen.
         gezien: >-
           De nieuwe inschrijving staat in de kroniek van de Kamer, naast de
-          oude; de gemeente leest haar bij de heroverweging.
+          oude.
       - stap: beslissing_op_bezwaar
+        verhaal: >-
+          Het college heroverweegt de weigering.
         datum: 2026-11-20
         uitkomst: gegrond
         tekst: >-
           Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op
           Beslissen op bezwaar.
         gezien: >-
-          Gegrond: de weigering is herroepen (Awb 7:11, tweede lid), en een
-          nieuw besluit verleent de vergunning. Onder Kroniek staan nu drie
-          besluiten onder artikel 2 van de verordening; niets is overschreven.
+          Gegrond: de weigering is herroepen (Awb 7:11), en de vergunning is
+          verleend.
       - stap: aanvraag
+        verhaal: >-
+          De fietsenmakerij vraagt een derde vergunning.
         titel: Een derde aanvraag indienen
         datum: 2026-12-01
         invoer:
@@ -233,44 +227,35 @@ scenarios:
         gezien: >-
           De derde aanvraag staat onder Mijn aanvragen op In behandeling.
       - stap: besluit
+        verhaal: >-
+          Het college beslist op de derde aanvraag.
         titel: Besluiten op de derde aanvraag
         invoer:
           toepassing_leidt_tot_onaanvaardbare_gevolgen: false
         uitkomst: afgewezen
-        tekst: >-
-          Het bedrijf zit op het maximum, dus het formulier vraagt het oordeel
-          van het college over de hardheidsclausule (artikel 6 van de fictieve
-          verordening). Klik op Besluit nemen.
     eind: >-
-      Afgewezen: het bedrijf heeft twee geldige vergunningen, en er werken
-      twee mensen. In het Logboek staat bij het besluit "aantal geldige
-      bedrijfsparkeervergunningen: 2". De reductie van de Awb liet de
-      herroepen weigering weg (Awb 7:11, tweede lid). Zo bleven de eerste
-      vergunning en het nieuwe besluit uit de beslissing op bezwaar over; die
-      twee telde de reductie van de gemeente. Zelf kent die reductie geen
-      bezwaar: ze leest alleen de geldende besluiten.
+      Afgewezen: er werken twee mensen, dus het maximum van twee vergunningen
+      is bereikt.
   - naam: Buiten het gebied, en na de verhuizing erin
     samenvatting: >-
       Een bedrijf buiten de vergunninggebieden krijgt geen vergunning, en na
       zijn verhuizing naar de binnenstad wel.
     stappen:
       - stap: aanvraag
+        verhaal: >-
+          Een adviesbureau buiten de vergunninggebieden vraagt een vergunning.
         invoer:
           kvk_nummer: '99990033'
-        tekst: >-
-          Klik op Aanvraag indienen. Volgens het handelsregister ligt de
-          vestiging van dit adviesbureau op postcode 7720 BC, in geen van de
-          vergunninggebieden.
       - stap: besluit
+        verhaal: >-
+          Het college beslist op de aanvraag van het adviesbureau.
         datum: 2026-10-20
         uitkomst: afgewezen
-        tekst: >-
-          Klik op Besluit nemen.
         gezien: >-
-          Afgewezen: uit het handelsregister blijkt niet dat het bedrijf in een
-          vergunninggebied is gevestigd. In het Logboek staat bij het besluit
-          "postcode vestiging volgens handelsregister: 7720 BC".
+          Afgewezen: het bedrijf is niet in een vergunninggebied gevestigd.
       - stap: vastleggen
+        verhaal: >-
+          Het adviesbureau verhuist naar de binnenstad.
         titel: Nieuwe inschrijving bij de Kamer van Koophandel
         datum: 2026-11-01
         cel: kamer_van_koophandel
@@ -281,26 +266,26 @@ scenarios:
           aantal_werkzame_personen: 3
           datum_inschrijving: '2026-11-01'
         tekst: >-
-          Het adviesbureau verhuist naar de binnenstad. Klik bij Kamer van
-          Koophandel onder "Vastleggen: Vestiging ingeschreven" op Vastleggen.
+          Klik bij Kamer van Koophandel onder "Vastleggen: Vestiging
+          ingeschreven" op Vastleggen.
         gezien: >-
-          De nieuwe inschrijving staat in de kroniek van de Kamer; de oude
-          staat er nog.
+          De nieuwe inschrijving staat in de kroniek van de Kamer, naast de
+          oude.
       - stap: aanvraag
+        verhaal: >-
+          Het adviesbureau vraagt opnieuw een vergunning.
         datum: 2026-11-02
         invoer:
           kvk_nummer: '99990033'
       - stap: besluit
+        verhaal: >-
+          Het college beslist op de tweede aanvraag.
         uitkomst: toegewezen
         tekst: >-
           Klik bij de tweede aanvraag op Besluit nemen.
     eind: >-
-      Toegewezen. Bij het eerste besluit antwoordde de Kamer met de postcode
-      die op 20 oktober gold, bij het tweede met de inschrijving van 1
-      november: zij leest de inschrijving die op de dag van het besluit geldt.
-      De oude inschrijving blijft in haar kroniek staan; niets is
-      overschreven. Het eerste besluit blijft een weigering: een nieuwe
-      inschrijving verandert geen besluit dat al genomen is.
+      Toegewezen: het tweede besluit gaat uit van de nieuwe postcode; het
+      eerste blijft een weigering.
   - naam: Het maximum in de binnenstad, en de hardheidsclausule na bezwaar
     samenvatting: >-
       Een thuiszorgbedrijf in de binnenstad zit op het maximum, en na bezwaar
@@ -308,34 +293,37 @@ scenarios:
       het nieuwe besluit vastlegt.
     stappen:
       - stap: aanvraag
+        verhaal: >-
+          Een thuiszorgbedrijf in de binnenstad vraagt een vergunning voor
+          zijn wijkverpleging.
         invoer:
           kvk_nummer: '99990044'
-        tekst: >-
-          Klik op Aanvraag indienen. Dit thuiszorgbedrijf in de binnenstad
-          rijdt met zijn wijkverpleging naar cliënten.
       - stap: besluit
+        verhaal: >-
+          Het college beslist op de eerste aanvraag.
         datum: 2026-10-20
         uitkomst: toegewezen
-        tekst: >-
-          Klik op Besluit nemen.
         gezien: >-
-          De vergunning is verleend. Het formulier vroeg geen oordeel: het
-          bedrijf had nog geen vergunning.
+          Toegewezen: de vergunning is verleend.
       - stap: aanvraag
+        verhaal: >-
+          Het thuiszorgbedrijf vraagt een tweede vergunning.
         datum: 2026-10-21
         invoer:
           kvk_nummer: '99990044'
           kenteken: ZZ-002-Z
       - stap: besluit
+        verhaal: >-
+          Het college beslist op de tweede aanvraag.
         datum: 2026-10-22
         uitkomst: toegewezen
         tekst: >-
           Klik bij de tweede aanvraag op Besluit nemen.
         gezien: >-
-          Ook deze vergunning is verleend. Bij een bedrijf onder het maximum
-          vraagt het formulier niets over de hardheidsclausule: de regel komt
-          daar niet aan toe.
+          Toegewezen: ook de tweede vergunning is verleend.
       - stap: aanvraag
+        verhaal: >-
+          Het thuiszorgbedrijf vraagt een derde vergunning.
         titel: Een derde aanvraag indienen
         datum: 2026-10-23
         invoer:
@@ -344,45 +332,43 @@ scenarios:
         gezien: >-
           De derde aanvraag staat onder Mijn aanvragen op In behandeling.
       - stap: besluit
+        verhaal: >-
+          Het college vindt dat het maximum hier geen onaanvaardbare gevolgen
+          heeft.
         titel: Besluiten op de derde aanvraag
         datum: 2026-10-27
         invoer:
           toepassing_leidt_tot_onaanvaardbare_gevolgen: false
         uitkomst: afgewezen
-        tekst: >-
-          Het bedrijf heeft twee geldige vergunningen, het maximum in de
-          binnenstad. Nu vraagt het formulier het oordeel van het college over
-          de hardheidsclausule (artikel 6 van de fictieve verordening). De
-          engine kan dat oordeel niet uitrekenen, en het bedrijf heeft nog
-          geen bijzondere omstandigheden aangevoerd. Klik op Besluit nemen.
         gezien: >-
-          Afgewezen. In het Logboek staat bij het besluit "toepassing leidt tot
-          onaanvaardbare gevolgen": Nee. Dat oordeel staat als gegeven bij het
-          besluit in de kroniek, naast wat de Kamer van Koophandel en de eigen
-          kroniek antwoordden.
+          Afgewezen: het bedrijf zit op het maximum van twee vergunningen.
       - stap: bezwaar
+        verhaal: >-
+          Het thuiszorgbedrijf maakt bezwaar, omdat de wijkverpleging
+          dagelijks met drie auto's rijdt.
         datum: 2026-11-01
         invoer:
           gronden_bezwaar_of_beroep: de wijkverpleging rijdt dagelijks met drie auto's naar cliënten
         tekst: >-
-          Zoek de derde aanvraag en klik bij haar besluit op Bezwaar maken en
-          dan op Bezwaar indienen.
+          Klik bij het besluit over de derde aanvraag op Bezwaar maken en dan
+          op Bezwaar indienen.
       - stap: beslissing_op_bezwaar
+        verhaal: >-
+          Bij de heroverweging vindt het college de gevolgen van het maximum
+          nu wel onaanvaardbaar.
         datum: 2026-11-20
         invoer:
           toepassing_leidt_tot_onaanvaardbare_gevolgen: true
         uitkomst: gegrond
         tekst: >-
-          Klik onder Open bezwaren op Ontvankelijkheid toetsen. Het college
-          oordeelde eerder Nee. Bij de heroverweging (Awb 7:11) weegt het
-          college opnieuw af, met de gronden van het bezwaar. Klik op
+          Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op
           Beslissen op bezwaar.
         gezien: >-
-          Gegrond: de weigering is herroepen (Awb 7:11, tweede lid), en een
-          nieuw besluit verleent de vergunning. De feiten zijn dezelfde als
-          bij de weigering. Het nieuwe besluit rust op het oordeel van het
-          college, en legt dat vast.
+          Gegrond: de weigering is herroepen (Awb 7:11), en de vergunning is
+          verleend.
       - stap: aanvraag
+        verhaal: >-
+          Het thuiszorgbedrijf vraagt een vierde vergunning.
         titel: Een vierde aanvraag indienen
         datum: 2026-12-01
         invoer:
@@ -391,18 +377,13 @@ scenarios:
         gezien: >-
           De vierde aanvraag staat onder Mijn aanvragen op In behandeling.
       - stap: besluit
+        verhaal: >-
+          Het college vindt de gevolgen van het maximum bij deze aanvraag niet
+          onaanvaardbaar.
         titel: Besluiten op de vierde aanvraag
         invoer:
           toepassing_leidt_tot_onaanvaardbare_gevolgen: false
         uitkomst: afgewezen
-        tekst: >-
-          Het formulier vraagt het oordeel opnieuw, want het geldt per geval.
-          Klik op Besluit nemen.
     eind: >-
-      Afgewezen, en in het Logboek staat bij het besluit "aantal geldige
-      bedrijfsparkeervergunningen: 3": de twee eerste vergunningen en het
-      nieuwe besluit uit de beslissing op bezwaar. De weigering telt niet mee:
-      die is herroepen (Awb 7:11, tweede lid). De feiten zijn niet veranderd;
-      het nieuwe besluit rust op het oordeel van het college, en dat staat als
-      gegeven bij het besluit in de kroniek. Een volgende aanvraag vraagt dat
-      oordeel opnieuw: het geldt per geval.
+      Afgewezen: het bedrijf heeft nu drie geldige vergunningen, boven het
+      maximum van twee.
