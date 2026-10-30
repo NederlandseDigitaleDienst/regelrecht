@@ -1007,6 +1007,11 @@ fn verloop(
     Ok(uit)
 }
 
+/// How many days time passes at most in one step: the cell runs the law
+/// for every day, in the visitor's browser, and two years is more than a
+/// case needs.
+const MAX_DAGEN: i64 = 731;
+
 /// Per regelwerk, the `valid_from` of its version in force on a day, if any.
 type Versies = Vec<Option<Option<String>>>;
 
@@ -1028,6 +1033,11 @@ pub fn tijd_verstrijken(corpus: &Corpus, cellen: &mut Cellen, tot: NaiveDate) ->
         return Err(Error::Refused(format!(
             "time passes up to {tot}, but the chronicle already reached {vanaf}: it does not go \
              back in time"
+        )));
+    }
+    if (tot - vanaf).num_days() > MAX_DAGEN {
+        return Err(Error::Refused(format!(
+            "time passes from {vanaf} up to {tot}, more than {MAX_DAGEN} days in one step"
         )));
     }
     let basis = format!("{}#{}", corpus.decision_law(), corpus.decision());
@@ -4091,6 +4101,10 @@ mod tests {
             .is_empty());
         assert!(matches!(
             tijd_verstrijken(&corpus, &mut cell, day("2025-06-01")),
+            Err(Error::Refused(_))
+        ));
+        assert!(matches!(
+            tijd_verstrijken(&corpus, &mut cell, day("9999-12-31")),
             Err(Error::Refused(_))
         ));
         assert_eq!(
