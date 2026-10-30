@@ -1,7 +1,7 @@
 ---
 # Tier C: an article that requires a fact to exist, with the parameters it
 # holds (schema v0.8.7, RFC-051), beside a dependency on another provision.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json
 $id: test_conformance_fact
 regulatory_layer: WET
 bwb_id: BWBR9999998

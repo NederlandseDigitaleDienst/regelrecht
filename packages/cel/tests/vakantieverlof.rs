@@ -141,7 +141,7 @@ fn record(
 #[test]
 fn the_shape_of_the_application_comes_from_the_law() {
     let shape = shape::derive(&service(), LAW, ARTICLE, day("2026-10-13")).unwrap();
-    assert_eq!(shape.kind, "AANVRAAG");
+    assert_eq!(shape.kind, "algemene_wet_bestuursrecht/aanvraag");
     // Art. 13a is also the decision: recording the application runs only
     // the hooks, at the stage AANVRAAG of the Awb procedure.
     assert_eq!(shape.stage.as_deref(), Some("AANVRAAG"));
@@ -176,7 +176,7 @@ fn an_application_is_recorded_with_its_basis_and_the_awb_deadline() {
     let mut cell = cell();
     let gram = record(&mut cell, &application(), "2026-10-13").unwrap();
 
-    assert_eq!(gram.kind, "AANVRAAG");
+    assert_eq!(gram.kind, "algemene_wet_bestuursrecht/aanvraag");
     assert_eq!(gram.basis, "leerplichtwet_1969#13a");
     assert_eq!(gram.recording_actor, RECORDING_ACTOR);
     assert_eq!(gram.recorded_on, day("2026-10-13"));
@@ -435,8 +435,8 @@ fn decide(
 #[test]
 fn the_decision_takes_the_application_and_the_cell_and_the_policy_says_what_the_head_finds() {
     let shape = decision::derive(&service(), LAW, ARTICLE, day("2026-10-20")).unwrap();
-    assert_eq!(shape.kind, "BESCHIKKING");
-    assert_eq!(shape.submission_kind, "AANVRAAG");
+    assert_eq!(shape.kind, "algemene_wet_bestuursrecht/beschikking");
+    assert_eq!(shape.submission_kind, "algemene_wet_bestuursrecht/aanvraag");
     let asked: Vec<(&str, &Source)> = shape
         .inputs
         .iter()
@@ -483,7 +483,7 @@ fn five_school_days_outside_the_first_two_weeks_on_the_ground_of_11f_are_granted
     let app = applied(&mut cell, "2027-02-01", "2027-02-05", "2026-10-13");
     let gram = decide(&mut cell, &app.id, &judgement(true, true), "2026-10-20").unwrap();
 
-    assert_eq!(gram.kind, "BESCHIKKING");
+    assert_eq!(gram.kind, "algemene_wet_bestuursrecht/beschikking");
     assert_eq!(gram.basis, "leerplichtwet_1969#13a");
     assert_eq!(gram.refers_to.as_deref(), Some(app.id.as_str()));
     assert_eq!(gram.recorded_on, day("2026-10-20"));
@@ -715,7 +715,7 @@ fn a_decision_refers_to_an_application_of_this_cell_that_is_not_decided_yet() {
     // A decision is no application to decide on.
     let e = decide(&mut cell, &decided.id, &judgement(true, true), "2026-10-21").unwrap_err();
     assert!(
-        matches!(&e, Error::Refused(m) if m.contains("is a BESCHIKKING")),
+        matches!(&e, Error::Refused(m) if m.contains("is a algemene_wet_bestuursrecht/beschikking")),
         "{e}"
     );
     assert_eq!(cell.grams().len(), 2);
@@ -1291,7 +1291,7 @@ fn profession(judged: bool) -> Map<String, Value> {
 #[test]
 fn the_shape_of_the_objection_comes_from_the_awb() {
     let shape = shape::derive(&service(), AWB, OBJECTION, day("2026-11-01")).unwrap();
-    assert_eq!(shape.kind, "BEZWAAR");
+    assert_eq!(shape.kind, "algemene_wet_bestuursrecht/bezwaar");
     assert_eq!(shape.stage.as_deref(), Some("BEZWAAR"));
     let fields: Vec<(&str, &str)> = shape
         .fields
@@ -1341,8 +1341,8 @@ fn the_shape_of_the_objection_comes_from_the_awb() {
 #[test]
 fn the_decision_on_the_objection_asks_the_contested_decision() {
     let shape = decision::derive(&service(), AWB, OBJECTION, day("2026-11-15")).unwrap();
-    assert_eq!(shape.kind, "BESCHIKKING");
-    assert_eq!(shape.submission_kind, "BEZWAAR");
+    assert_eq!(shape.kind, "algemene_wet_bestuursrecht/beschikking");
+    assert_eq!(shape.submission_kind, "algemene_wet_bestuursrecht/bezwaar");
     assert_eq!(shape.outputs, [ADMISSIBLE, CAUSE, REVOKED, NEW]);
     let source = |name: &str| shape.input(name).map(|i| &i.source);
     assert_eq!(source("bestreden_besluit"), Some(&Source::Application));
@@ -1360,7 +1360,7 @@ fn an_objection_refers_to_the_decision_and_takes_its_period_from_it() {
     assert_eq!(refused.outputs["verlofdagen"], json!(12));
     let gram = object(&mut cell, &refused.id, &objection(&[]), "2026-11-01").unwrap();
 
-    assert_eq!(gram.kind, "BEZWAAR");
+    assert_eq!(gram.kind, "algemene_wet_bestuursrecht/bezwaar");
     assert_eq!(gram.basis, "algemene_wet_bestuursrecht#7:11");
     assert_eq!(gram.refers_to.as_deref(), Some(refused.id.as_str()));
     // The contested decision, by its id.
@@ -1443,7 +1443,7 @@ fn an_objection_against_what_is_no_decision_is_refused() {
     let bezwaar = object(&mut cell, &refused.id, &objection(&[]), "2026-11-01").unwrap();
     let e = object(&mut cell, &bezwaar.id, &objection(&[]), "2026-11-02").unwrap_err();
     assert!(
-        matches!(&e, Error::Refused(m) if m.contains("BEZWAAR under algemene_wet_bestuursrecht#7:11, not a decision")),
+        matches!(&e, Error::Refused(m) if m.contains("algemene_wet_bestuursrecht/bezwaar under algemene_wet_bestuursrecht#7:11, not a decision")),
         "{e}"
     );
 }
@@ -1486,7 +1486,7 @@ fn a_second_application_upheld_on_objection_stands() {
     assert_eq!(decided.len(), 1);
 
     let decision = &decided[0];
-    assert_eq!(decision.kind, "BESCHIKKING");
+    assert_eq!(decision.kind, "algemene_wet_bestuursrecht/beschikking");
     assert_eq!(decision.basis, "algemene_wet_bestuursrecht#7:11");
     assert_eq!(decision.refers_to.as_deref(), Some(bezwaar.id.as_str()));
     // The contested decision by its id; whether the objection came in on
@@ -1533,7 +1533,7 @@ fn grounds_on_objection_lead_the_head_to_judge_anew_and_revoke_the_refusal() {
     assert_eq!(decision.outputs[REVOKED], json!(true));
     // The decision on the objection holds the new decision by its id.
     assert_eq!(decision.outputs[NEW], json!(new.id));
-    assert_eq!(new.kind, "BESCHIKKING");
+    assert_eq!(new.kind, "algemene_wet_bestuursrecht/beschikking");
     assert_eq!(new.basis, "leerplichtwet_1969#13a");
     assert_eq!(new.refers_to.as_deref(), Some(bezwaar.id.as_str()));
     assert_eq!(new.recorded_on, day("2026-11-15"));
@@ -1716,7 +1716,13 @@ fn a_revoked_grant_does_not_count_as_leave_granted() {
     // revoked it; the reduction leaves it out (RFC-050).
     let rows = |basis: &str| {
         serde_json::to_value(
-            regelrecht_cel::reading::rows(&service(), cell.grams(), basis, "BESCHIKKING").unwrap(),
+            regelrecht_cel::reading::rows(
+                &service(),
+                cell.grams(),
+                basis,
+                "algemene_wet_bestuursrecht/beschikking",
+            )
+            .unwrap(),
         )
         .unwrap()
     };
@@ -1981,7 +1987,7 @@ fn a_reduction_reads_the_decisions_on_objection_with_their_own_outcome() {
             &service(),
             cell.grams(),
             "algemene_wet_bestuursrecht#7:11",
-            "BESCHIKKING",
+            "algemene_wet_bestuursrecht/beschikking",
         )
         .unwrap(),
     )

@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.13",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.9.0",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -163,6 +163,44 @@
           }
         },
         "additionalProperties": false
+      }
+    },
+    "member_of": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Since v0.9.0: the kinds of regulation this regulation belongs to, such as a kind a general law defines for the regulations it applies to. Each claim quotes the words of this regulation that make it a member, or cites the provision that declares the membership in so many words.",
+      "items": {
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "$ref": "#/definitions/kindReference",
+            "description": "The kind of regulation, defined with `level: regulation`."
+          },
+          "legal_text_excerpt": {
+            "type": "string",
+            "description": "The words of this regulation that give it the property the kind's definition names, quoted verbatim."
+          },
+          "legal_basis": {
+            "$ref": "#/definitions/legalBasis",
+            "description": "The provision of this regulation that declares the membership in so many words, such as an opt-in."
+          }
+        },
+        "anyOf": [
+          {
+            "required": [
+              "legal_text_excerpt"
+            ]
+          },
+          {
+            "required": [
+              "legal_basis"
+            ]
+          }
+        ]
       }
     },
     "preamble": {
@@ -378,7 +416,7 @@
     },
     "procedure": {
       "type": "array",
-      "description": "AWB-defined procedure lifecycles for administrative decisions (RFC-008).",
+      "description": "Procedure lifecycles for the items of a kind (RFC-008), in the regulation that lays them down.",
       "items": {
         "type": "object",
         "required": [
@@ -398,15 +436,16 @@
           "applies_to": {
             "type": "object",
             "required": [
-              "legal_character"
+              "kind"
             ],
+            "additionalProperties": false,
             "properties": {
-              "legal_character": {
-                "type": "string",
-                "description": "Legal character this procedure governs."
+              "kind": {
+                "$ref": "#/definitions/kindReference",
+                "description": "The kind this procedure governs, with every narrower kind."
               }
             },
-            "description": "Which decisions this procedure governs, matched on the legal character an article declares in `produces`."
+            "description": "Which items this procedure governs, by kind (since v0.9.0)."
           },
           "stages": {
             "type": "array",
@@ -452,12 +491,17 @@
                       }
                     }
                   }
+                },
+                "kind": {
+                  "$ref": "#/definitions/kindReference",
+                  "description": "Since v0.9.0: the kind of what comes into being at this stage, such as the aanvraag at the stage where it is submitted or the besluit at the stage where it is taken. Hooks on a submission of the kind fire here, and so does a hook on a kind without a `stage`."
                 }
               }
             },
             "description": "The lifecycle stages in order, from the application to the final decision. Each names itself and what it needs before it can complete."
           }
-        }
+        },
+        "description": ""
       }
     }
   },
@@ -1151,6 +1195,10 @@
             "required": {
               "type": "boolean",
               "description": "Whether the caller must pass this parameter. Defaults to true: an omitted required parameter is an error. A parameter declared `required: false` that the caller omits resolves to an unknown value that names the parameter (RFC-036), so a law can declare application-form fields another law never passes."
+            },
+            "kind": {
+              "$ref": "#/definitions/kindReference",
+              "description": "Since v0.9.0, on a parameter whose value names an article as `<regulation>#<article>`: the kind the item of that article must be, such as the aanspraak an aanvraag refers to. A call to the article through this parameter fails when it produces nothing of that kind."
             }
           }
         }
@@ -2618,15 +2666,12 @@
                     "legal_character": {
                       "type": "string",
                       "enum": [
-                        "BESCHIKKING",
                         "TOETS",
                         "WAARDEBEPALING",
-                        "BESLUIT_VAN_ALGEMENE_STREKKING",
                         "INFORMATIEF",
-                        "RECHTSPOSITIE",
-                        "UITSPRAAK"
+                        "RECHTSPOSITIE"
                       ],
-                      "description": "Legal character of the output. BESCHIKKING: a besluit not of general scope (Awb art. 1:3 lid 2). RECHTSPOSITIE: a legal position of a person that arises by operation of law, without a besluit and without an aanvraag (voting rights, majority, nationality). UITSPRAAK (since v0.8.10): the judgment of an administrative court on an appeal (Awb 8:70); no besluit, because a court is no bestuursorgaan (Awb 1:1 lid 2 onder c) (RFC-053)."
+                      "description": "Since v0.9.0 only regelrecht's own classification of what an article yields without a legal act of a kind the law defines: TOETS, WAARDEBEPALING, INFORMATIEF, RECHTSPOSITIE. A besluit, a beschikking or an uitspraak is a kind the Awb defines, written in the list form with a kind as `type`. Whether these four stay is open."
                     },
                     "decision_type": {
                       "type": "string",
@@ -2646,30 +2691,6 @@
                     "procedure_id": {
                       "type": "string",
                       "description": "Selects a specific AWB procedure variant. When absent, the default procedure for the legal_character is used."
-                    },
-                    "submission": {
-                      "type": "object",
-                      "required": [
-                        "kind"
-                      ],
-                      "additionalProperties": false,
-                      "properties": {
-                        "kind": {
-                          "type": "string",
-                          "enum": [
-                            "AANVRAAG",
-                            "BEZWAAR",
-                            "BEROEP"
-                          ],
-                          "description": "What the belanghebbende submits. AANVRAAG: a request to take a decision (Awb 1:3 lid 3). BEZWAAR: an objection against a decision, to the authority that took it (Awb 1:5, 6:4 lid 1) (RFC-050). BEROEP (since v0.8.10): an appeal against a decision to the administrative court (Awb 6:4 lid 3, 8:1) (RFC-053)."
-                        }
-                      },
-                      "description": "The article establishes a submission of a belanghebbende, such as an application (RFC-045). Hooks with applies_to.submission fire when the article runs. Independent of the legal character of the article's own outputs. An article that establishes the application and also decides on it may instead write produces as a list, with the application and the decision as separate items (RFC-047).",
-                      "examples": [
-                        {
-                          "kind": "AANVRAAG"
-                        }
-                      ]
                     },
                     "moment": {
                       "type": "object",
@@ -2710,25 +2731,24 @@
                     "$ref": "#/definitions/producedItem"
                   },
                   "minItems": 1,
-                  "description": "Several things the article yields, each its own item with a `type`, such as an application (AANVRAAG) and the decision on it (BESCHIKKING), with the parameters and outputs that belong to each (RFC-047)."
+                  "description": "Several things the article yields, each its own item with a kind as `type`, such as an aanvraag and the beschikking on it, with the parameters and outputs that belong to each (RFC-047)."
                 }
               ],
               "description": "What executing this article yields in legal terms. One object for an article that yields one thing, the form most laws use. A list when the article yields more than one thing, such as an application and the decision on it, each item with its own type, parameters and outputs (RFC-047).",
               "examples": [
                 {
-                  "legal_character": "BESCHIKKING",
-                  "decision_type": "TOEKENNING"
+                  "legal_character": "INFORMATIEF"
                 },
                 [
                   {
-                    "type": "AANVRAAG",
+                    "type": "algemene_wet_bestuursrecht/aanvraag",
                     "requests": "leerplichtwet_1969#13a",
                     "parameters": [
                       "bsn_jongere"
                     ]
                   },
                   {
-                    "type": "BESCHIKKING",
+                    "type": "algemene_wet_bestuursrecht/beschikking",
                     "outputs": [
                       "verlof_verleend"
                     ]
@@ -2788,18 +2808,9 @@
               "applies_to": {
                 "type": "object",
                 "properties": {
-                  "legal_character": {
-                    "type": "string",
-                    "enum": [
-                      "BESCHIKKING",
-                      "TOETS",
-                      "WAARDEBEPALING",
-                      "BESLUIT_VAN_ALGEMENE_STREKKING",
-                      "INFORMATIEF",
-                      "RECHTSPOSITIE",
-                      "UITSPRAAK"
-                    ],
-                    "description": "Match articles that produce this legal character: produces.legal_character in the object form, or an item with this `type` in the list form (RFC-047)."
+                  "kind": {
+                    "$ref": "#/definitions/kindReference",
+                    "description": "Since v0.9.0: match what articles produce of this kind or a narrower one, a decision or a submission alike."
                   },
                   "decision_type": {
                     "type": "string",
@@ -2807,16 +2818,7 @@
                   },
                   "stage": {
                     "type": "string",
-                    "description": "Lifecycle stage at which this hook fires (e.g., BESLUIT, BEKENDMAKING). Defaults to BESLUIT."
-                  },
-                  "submission": {
-                    "type": "string",
-                    "enum": [
-                      "AANVRAAG",
-                      "BEZWAAR",
-                      "BEROEP"
-                    ],
-                    "description": "Match articles that establish a submission of this kind: produces.submission.kind in the object form, or an item with this `type` in the list form (RFC-047). A hook names either legal_character or submission (RFC-045). For an article that follows a procedure, a staged execution fires the hook at the stage named after the kind (RFC-047)."
+                    "description": "The stage of the procedure that governs the item at which this hook fires, as the procedure names it. Without it the hook fires at the stage where the item comes into being (the stage whose `kind` is the item's kind or a wider one), or on every run when no procedure governs the kind."
                   },
                   "established_by": {
                     "$ref": "#/definitions/articleReference",
@@ -2824,51 +2826,9 @@
                   }
                 },
                 "additionalProperties": false,
-                "description": "Which decisions (legal_character, optionally decision_type and stage) or which submissions (submission, optionally established_by, RFC-045) of other articles this hook fires on. A hook names one of the two.",
-                "oneOf": [
-                  {
-                    "required": [
-                      "legal_character"
-                    ],
-                    "not": {
-                      "anyOf": [
-                        {
-                          "required": [
-                            "submission"
-                          ]
-                        },
-                        {
-                          "required": [
-                            "established_by"
-                          ]
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "required": [
-                      "submission"
-                    ],
-                    "not": {
-                      "anyOf": [
-                        {
-                          "required": [
-                            "legal_character"
-                          ]
-                        },
-                        {
-                          "required": [
-                            "stage"
-                          ]
-                        },
-                        {
-                          "required": [
-                            "decision_type"
-                          ]
-                        }
-                      ]
-                    }
-                  }
+                "description": "Which items of other articles this hook fires on: those of a kind (since v0.9.0), optionally narrowed by decision_type, stage or the article that establishes them.",
+                "required": [
+                  "kind"
                 ]
               }
             },
@@ -3024,6 +2984,47 @@
               }
             }
           }
+        },
+        "kinds": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Since v0.9.0: the kinds this article defines. A kind is a concept of the law that other regulations or their items belong to, and that hooks and procedures apply to: the article that defines the concept defines the kind, such as Awb 1:3 for the besluit, the beschikking and the aanvraag.",
+          "items": {
+            "type": "object",
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]+$",
+                "description": "Unique within the regulation; referenced as `<regulation>/<id>`."
+              },
+              "description": {
+                "type": "string",
+                "description": "What the article says the kind is."
+              },
+              "broader": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]+(/[a-z0-9_]+)?$",
+                "description": "The wider kind every member also belongs to, such as the besluit for the beschikking (Awb 1:3 lid 2). A bare id is a kind of this regulation. A hook or procedure on the wider kind applies to the narrower one."
+              },
+              "requests": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]+(/[a-z0-9_]+)?$",
+                "description": "For a kind whose members ask for something, such as the aanvraag (Awb 1:3 lid 3: 'een besluit te nemen'): the kind of what they ask for. A member names it with `requests`, which makes it a submission."
+              },
+              "level": {
+                "type": "string",
+                "enum": [
+                  "item",
+                  "regulation"
+                ],
+                "description": "What the members are: items in `produces` (default) or regulations, which claim membership with `member_of`."
+              }
+            }
+          }
         }
       },
       "additionalProperties": false
@@ -3111,24 +3112,12 @@
       "additionalProperties": false,
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "AANVRAAG",
-            "BEZWAAR",
-            "BEROEP",
-            "BESCHIKKING",
-            "TOETS",
-            "WAARDEBEPALING",
-            "BESLUIT_VAN_ALGEMENE_STREKKING",
-            "INFORMATIEF",
-            "RECHTSPOSITIE",
-            "UITSPRAAK"
-          ],
-          "description": "What this item is: a submission of a belanghebbende (AANVRAAG: a request to take a decision, Awb 1:3 lid 3; BEZWAAR: an objection against a decision, Awb 1:5, RFC-050; BEROEP: an appeal to the administrative court, Awb 8:1, since v0.8.10, RFC-053) or a decision with its legal character (BESCHIKKING, TOETS, UITSPRAAK, ...). An article lists at most one item of each type, so the article and the type together name the item (RFC-047). Hooks with applies_to.submission match a submission type, hooks with applies_to.legal_character a decision type."
+          "$ref": "#/definitions/kindReference",
+          "description": "The kind of what this item is, such as an aanvraag or a beschikking, as a kind some article defines (since v0.9.0; before, a closed list of submission kinds and legal characters). An item of a kind that asks for something (`requests` on the kind) is a submission and names what it asks for with `requests`; any other item is a decision or another thing the article yields. Hooks with applies_to.kind match the kind and every wider one. An article lists at most one item of each type."
         },
         "requests": {
           "$ref": "#/definitions/articleReference",
-          "description": "Only on a submission: the article whose decision it asks for, as `<regulation>#<article>`, also when that is this article (Awb 1:3 lid 3, Awb 4:2 lid 1 onder c). The target is that article's decision: the item with a decision type in the list form, or the article itself in the object form with a legal_character. The loader checks a target in the same law; a target in another law is checked when it is used (RFC-047)."
+          "description": "Only on an item of a kind that asks for something: the article whose decision it asks for, as `<regulation>#<article>`, also when that is this article (Awb 1:3 lid 3, Awb 4:2 lid 1 onder c)."
         },
         "parameters": {
           "type": "array",
@@ -3205,20 +3194,18 @@
               }
             }
           ]
+        },
+        "legal_text_excerpt": {
+          "type": "string",
+          "description": "Since v0.9.0: the words of this regulation that make the item a member of its kind, quoted verbatim, where the kind follows from a property the regulation states rather than from the article itself."
         }
       },
       "allOf": [
         {
           "if": {
-            "properties": {
-              "type": {
-                "enum": [
-                  "AANVRAAG",
-                  "BEZWAAR",
-                  "BEROEP"
-                ]
-              }
-            }
+            "required": [
+              "requests"
+            ]
           },
           "then": {
             "not": {
@@ -3240,20 +3227,13 @@
                 }
               ]
             }
-          },
-          "else": {
-            "not": {
-              "required": [
-                "requests"
-              ]
-            }
           }
         }
       ],
-      "description": "One thing that executing this article yields, when produces is a list (RFC-047): a submission, such as an application with what it contains and the decision it asks for, or a decision with the outputs that belong to it. `type` selects which hooks fire and, for a decision, with `procedure_id` the Awb procedure.",
+      "description": "One thing that executing this article yields, when produces is a list (RFC-047): a submission, such as an application with what it contains and the decision it asks for, or a decision with the outputs that belong to it. Since v0.9.0 `type` is a kind; an item with `requests` is a submission and has no decision_type, procedure_id or derived. `type` selects which hooks fire and, for a decision, with `procedure_id` the procedure.",
       "examples": [
         {
-          "type": "AANVRAAG",
+          "type": "algemene_wet_bestuursrecht/aanvraag",
           "requests": "leerplichtwet_1969#13a",
           "parameters": [
             "bsn_jongere",
@@ -3262,7 +3242,7 @@
           ]
         },
         {
-          "type": "BESCHIKKING",
+          "type": "algemene_wet_bestuursrecht/beschikking",
           "decision_type": "TOEKENNING",
           "outputs": [
             "verlof_verleend"
@@ -3290,6 +3270,11 @@
           "description": "INSTANCE = specific organization (default), CATEGORY = must be resolved per context."
         }
       }
+    },
+    "kindReference": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+/[a-z0-9_]+$",
+      "description": "A kind that an article of a regulation defines under `kinds`, as `<regulation>/<id>` (since v0.9.0). The schema knows no kind by name."
     }
   }
 }

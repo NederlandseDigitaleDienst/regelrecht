@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.8/schema/v0.5.8/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json
 $id: algemene_wet_inkomensafhankelijke_regelingen
 regulatory_layer: WET
 publication_date: '2022-12-27'
@@ -16,6 +16,19 @@ articles:
       personen aanspraak geven op een financiële bijdrage van het Rijk in kosten of bijdrageverplichtingen, waarbij de
       hoogte van de bijdrage in die regelingen afhankelijk is gesteld van draagkracht.
     url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel1
+    machine_readable:
+      # Lid 3 vestigt de soort waarop deze wet ingrijpt (lid 1). Een soort van
+      # regelingen: een regeling claimt het lidmaatschap met `member_of`, met
+      # de woorden waarin zij de eigenschap van lid 3 heeft. Lid 2 (regelingen
+      # van vóór 2006 alleen als zij het zelf bepalen) is niet gemodelleerd.
+      kinds:
+        - id: inkomensafhankelijke_regeling
+          level: regulation
+          description: >-
+            Een bij of krachtens wet vastgestelde regeling die natuurlijke
+            personen aanspraak geeft op een financiële bijdrage van het Rijk in
+            kosten of bijdrageverplichtingen, waarbij de hoogte van de bijdrage
+            afhankelijk is gesteld van draagkracht (lid 3).
   - number: '2'
     text: |-
       1 In deze wet en de daarop berustende bepalingen, alsmede in inkomensafhankelijke regelingen, wordt verstaan onder:
@@ -140,6 +153,14 @@ articles:
         bwb_id: BWBR0003738
         artikel: '14'
     machine_readable:
+      # Lid 1, onderdeel h, vestigt de tegemoetkoming: de bijdrage die een
+      # inkomensafhankelijke regeling geeft. Een aanvraag (artikel 15) verwijst
+      # naar een tegemoetkoming, en artikel 14 kent haar toe.
+      kinds:
+        - id: tegemoetkoming
+          description: >-
+            Een financiële bijdrage van het Rijk op grond van een
+            inkomensafhankelijke regeling (lid 1, onderdeel h).
       execution:
         output:
           # Lid 1, onderdeel b: "berekeningsjaar: het kalenderjaar waarop de
@@ -473,6 +494,47 @@ articles:
       tegemoetkoming uitsluitend toegekend aan de aanvrager. 3. Het bedrag van de tegemoetkoming wordt rekenkundig
       afgerond op hele euro’s. 4. Een tegemoetkoming wordt niet toegekend indien deze minder dan € 24. zou bedragen.
     url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel14
+    machine_readable:
+      # Lid 1: een tegemoetkoming wordt toegekend, dus bij beschikking (Awb
+      # 1:3), op aanvraag (artikel 15), door de Belastingdienst/Toeslagen.
+      # Welke tegemoetkoming, zegt de aanvraag: zij verwijst naar het artikel
+      # van de inkomensafhankelijke regeling dat de aanspraak geeft, zoals
+      # artikel 2 van de Wet op de zorgtoeslag. De beschikking kent toe wat
+      # dat artikel berekent. De Awb grijpt erop in via de soort beschikking.
+      # Lid 2 tot en met 4 zijn niet gemodelleerd.
+      competent_authority:
+        name: Belastingdienst/Toeslagen
+      execution:
+        produces:
+          - type: algemene_wet_bestuursrecht/beschikking
+            decision_type: TOEKENNING
+        parameters:
+          - name: tegemoetkoming
+            type: string
+            kind: algemene_wet_inkomensafhankelijke_regelingen/tegemoetkoming
+            description: >-
+              Het artikel dat de aanspraak geeft waarom de aanvraag vraagt, als
+              `<regelwerk>#<artikel>`; het item dat het voortbrengt is een
+              tegemoetkoming (artikel 2, eerste lid, onder h).
+          - name: bsn
+            type: string
+            description: >-
+              Het burgerservicenummer van de aanvrager. Eigen keuze: de wet zegt
+              niet waarmee de aanvrager wordt aangeduid.
+        input:
+          - name: aanspraak
+            type: decision
+            source:
+              article: $tegemoetkoming
+              parameters:
+                bsn: $bsn
+        output:
+          - name: toegekende_tegemoetkoming
+            type: decision
+            description: De tegemoetkoming die de beschikking toekent (lid 1).
+        actions:
+          - output: toegekende_tegemoetkoming
+            value: $aanspraak
   - number: '15'
     text: >-
       Artikel 15. Aanvraag tegemoetkoming 1. Een aanvraag om een tegemoetkoming met betrekking tot een berekeningsjaar
@@ -492,6 +554,25 @@ articles:
       volzin vast te stellen algemene maatregel van bestuur wordt niet eerder gedaan dan vier weken nadat het ontwerp aan
       beide kamers der Staten-Generaal is overgelegd.
     url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel15
+    machine_readable:
+      # Lid 1: "een aanvraag om een tegemoetkoming". Dit artikel vestigt die
+      # aanvraag. Zij vraagt het besluit waarmee artikel 14 de tegemoetkoming
+      # toekent (Awb 1:3, derde lid: een verzoek een besluit te nemen), en
+      # zij verwijst naar de aanspraak waarom zij vraagt. De termijn van lid
+      # 1 en lid 2 tot en met 7 zijn niet gemodelleerd.
+      execution:
+        produces:
+          - type: algemene_wet_bestuursrecht/aanvraag
+            requests: algemene_wet_inkomensafhankelijke_regelingen#14
+            parameters:
+              - tegemoetkoming
+        parameters:
+          - name: tegemoetkoming
+            type: string
+            kind: algemene_wet_inkomensafhankelijke_regelingen/tegemoetkoming
+            description: >-
+              Het artikel dat de aanspraak geeft waarom de aanvraag vraagt, als
+              `<regelwerk>#<artikel>`, zoals wet_op_de_zorgtoeslag#2.
   - number: '16'
     text: >-
       Artikel 16. Voorschot op tegemoetkoming 1. Indien de tegemoetkoming naar verwachting niet binnen acht weken na

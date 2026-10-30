@@ -5,7 +5,7 @@
 # and calls the article a decision value names, with that decision's fields
 # merged under what is given anew; both get a decision value back;
 # article 3 calls a fixed article for one output of its decision.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json
 $id: test_conformance_article_call
 regulatory_layer: WET
 publication_date: '2026-10-15'
@@ -20,10 +20,10 @@ articles:
     machine_readable:
       execution:
         produces:
-          - type: AANVRAAG
+          - type: algemene_wet_bestuursrecht/aanvraag
             requests: test_conformance_article_call#1
             parameters: [dagen]
-          - type: BESCHIKKING
+          - type: algemene_wet_bestuursrecht/beschikking
             outputs: [verleend]
             derived: [dagen_over]
         parameters:

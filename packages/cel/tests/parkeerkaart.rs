@@ -253,7 +253,7 @@ fn apply_and_decide(cell: &mut Cell, bsn: &str, walking: bool, on: &str) -> Gram
 #[test]
 fn the_shape_of_the_application_comes_from_the_babw_and_the_awb() {
     let shape = shape::derive(&service(), LAW, ARTICLE, day("2026-10-13")).unwrap();
-    assert_eq!(shape.kind, "AANVRAAG");
+    assert_eq!(shape.kind, "algemene_wet_bestuursrecht/aanvraag");
     assert_eq!(shape.stage.as_deref(), Some("AANVRAAG"));
     assert_eq!(
         shape.requests.as_deref(),
@@ -287,7 +287,7 @@ fn the_shape_of_the_application_comes_from_the_babw_and_the_awb() {
 fn an_application_is_recorded_with_the_awb_deadline() {
     let mut cell = cell();
     let gram = applied(&mut cell, APPLICANT, "2026-10-13");
-    assert_eq!(gram.kind, "AANVRAAG");
+    assert_eq!(gram.kind, "algemene_wet_bestuursrecht/aanvraag");
     assert_eq!(gram.recording_actor, RECORDING_ACTOR);
     assert_eq!(gram.fields["kaart_als_bestuurder"], json!(true));
     assert_eq!(
@@ -307,7 +307,7 @@ fn an_application_is_recorded_with_the_awb_deadline() {
 #[test]
 fn the_decision_takes_the_application_and_the_cell_and_the_policy_says_what_the_college_finds() {
     let shape = decision::derive(&service(), LAW, ARTICLE, day("2026-10-20")).unwrap();
-    assert_eq!(shape.kind, "BESCHIKKING");
+    assert_eq!(shape.kind, "algemene_wet_bestuursrecht/beschikking");
     // The outcome; the last day of validity is derived, no outcome (RFC-050).
     assert_eq!(
         shape.outputs,
@@ -398,7 +398,7 @@ fn a_driver_with_a_long_term_walking_limitation_gets_a_card_for_five_years() {
     reported(&mut cell, APPLICANT, "2026-10-16", "2026-10-19");
     let gram = decide(&mut cell, &app.id, true, "2026-10-20");
 
-    assert_eq!(gram.kind, "BESCHIKKING");
+    assert_eq!(gram.kind, "algemene_wet_bestuursrecht/beschikking");
     assert_eq!(gram.refers_to.as_deref(), Some(app.id.as_str()));
     assert_eq!(
         gram.outputs["gehandicaptenparkeerkaart_verstrekt"],
@@ -961,7 +961,10 @@ fn the_cell_answers_the_policy_and_explains_the_card_it_counted() {
     // and the second application.
     assert_eq!(answer.records_read, 3);
     let second_application = &cell.grams()[2];
-    assert_eq!(second_application.kind, "AANVRAAG");
+    assert_eq!(
+        second_application.kind,
+        "algemene_wet_bestuursrecht/aanvraag"
+    );
     assert_eq!(
         answer.last_record.as_deref(),
         Some(second_application.id.as_str())

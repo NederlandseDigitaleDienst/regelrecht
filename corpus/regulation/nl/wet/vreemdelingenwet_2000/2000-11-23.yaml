@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.0/schema/v0.5.0/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json
 $id: vreemdelingenwet_2000
 regulatory_layer: WET
 publication_date: '2026-01-01'
@@ -19,7 +19,7 @@ articles:
     machine_readable:
       execution:
         produces:
-          legal_character: BESCHIKKING
+          - type: algemene_wet_bestuursrecht/beschikking
         output:
           - name: minister_is_bevoegd
             type: boolean

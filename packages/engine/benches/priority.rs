@@ -31,6 +31,7 @@ fn make_law(id: &str, layer: RegulatoryLayer, valid_from: &str) -> ArticleBasedL
         jaar: None,
         legal_basis: None,
         procedure: None,
+        member_of: None,
         preamble: None,
         articles: vec![],
         content_hash: None,

@@ -3,7 +3,7 @@
 # application it establishes, with what it contains and the decision it asks
 # for, and the decision on it, with the outputs that belong to it. Article 2
 # establishes an application for a decision another law takes.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json
 $id: test_conformance_produces_list
 regulatory_layer: WET
 publication_date: '2026-10-14'
@@ -18,11 +18,11 @@ articles:
     machine_readable:
       execution:
         produces:
-          - type: AANVRAAG
+          - type: algemene_wet_bestuursrecht/aanvraag
             requests: test_conformance_produces_list#1
             parameters:
               - dagen
-          - type: BESCHIKKING
+          - type: algemene_wet_bestuursrecht/beschikking
             decision_type: TOEKENNING
             procedure_id: beschikking
             outputs:
@@ -42,7 +42,7 @@ articles:
     machine_readable:
       execution:
         produces:
-          - type: AANVRAAG
+          - type: algemene_wet_bestuursrecht/aanvraag
             requests: andere_wet#3
             parameters:
               - adres
