@@ -51,6 +51,10 @@ articles:
       # rest gaat over de termijnen die nog komen. Een termijn die niet in
       # zijn maand werd uitbetaald, gaat zo op in de termijnen erna.
       #
+      # Dit artikel vult het termijnbedrag van artikel 22; dat bedrag is ook
+      # wat de Dienst uitbetaalt. Alleen een artikel dat een open begrip
+      # vult, kan de antwoorden van de cel gebruiken (RFC-048).
+      #
       # Uitbetaald wordt er alleen als de termijn er is: dan geeft dit
       # artikel de maand en het bedrag van de uitbetaling (het feit
       # uitbetaling_termijn van artikel 22). Anders zijn ze leeg. De dag van

@@ -13,7 +13,7 @@
 // staan de bevindingen ingevuld zoals de stap ze geeft (scenarioInvoer.js).
 import { computed, reactive, ref } from 'vue';
 import { api } from '../api.js';
-import { artikelNaam } from '../logboek.js';
+import { artikelNaam, toon } from '../logboek.js';
 import { stilBegrippen } from '../stil.js';
 import {
   aanvragen,
@@ -136,13 +136,12 @@ const tijdFeiten = computed(() =>
 );
 const verstreken = ref(null);
 async function laatVerstrijken() {
-  const tot = state.datum;
   const vastgelegd = await tijdVerstrijken();
-  if (vastgelegd) verstreken.value = { tot, vastgelegd };
+  if (vastgelegd) verstreken.value = { tot: state.tijdTot, vastgelegd };
 }
 const vastgelegdTekst = (g) =>
   `${longDate(g.recorded_on)}: ${Object.entries(g.fields ?? {})
-    .map(([k, v]) => `${leesbaar(k)} ${v}`)
+    .map(([k, v]) => `${leesbaar(k)} ${toon(v)}`)
     .join(', ')}`;
 
 const uitkomstOpBezwaar = (uit) =>
@@ -302,8 +301,8 @@ const uitkomstOpBezwaar = (uit) =>
     <nldd-title slot="header" size="3" text="Tijd">
       <nldd-text slot="supporting-text">
         Sommige feiten ontstaan doordat de tijd verstrijkt: {{ tijdFeiten.join('; ') }}. Klik
-        op Tijd laten verstrijken: de cel loopt elke dag af vanaf haar laatste chronolexogram tot
-        en met de speeldatum, en legt elk feit vast op de dag waarop het ontstaat.
+        op Tijd laten verstrijken: de cel loopt elke dag af vanaf haar laatste vastlegging tot en
+        met de speeldatum, en legt elk feit vast op de dag waarop het ontstaat.
       </nldd-text>
     </nldd-title>
     <nldd-container gap="12">

@@ -63,6 +63,18 @@ Feature: In welke maanden het voorschot wordt uitbetaald
     Then output "laatste_termijn" is false
     Then output "resterende_termijnen" equals 8
 
+  Scenario: Verleend op 31 oktober: nog twee termijnen, met een deel ineens
+    Given the following parameters:
+      | dagtekening_voorschot   | 2025-10-31 |
+      | berekeningsjaar         | 2025       |
+      | maand                   | 2025-10-31 |
+      | voor_het_eerst_verleend | true       |
+    When I evaluate outputs "aantal_termijnen, maanden_ineens, laatste_termijn" of "algemene_wet_inkomensafhankelijke_regelingen"
+    Then the execution succeeds
+    Then output "aantal_termijnen" equals 2
+    Then output "maanden_ineens" equals 10
+    Then output "laatste_termijn" is false
+
   Scenario: Verleend na 31 oktober: het hele voorschot in één bedrag
     Given the following parameters:
       | dagtekening_voorschot   | 2025-11-03 |

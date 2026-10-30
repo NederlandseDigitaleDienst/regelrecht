@@ -1007,6 +1007,9 @@ fn verloop(
     Ok(uit)
 }
 
+/// Per regelwerk, the `valid_from` of its version in force on a day, if any.
+type Versies = Vec<Option<Option<String>>>;
+
 /// Time passes up to and including `tot` (`tijd_verstrijkt`): the case's
 /// own cell records every fact that time brings ([`verloop`]) on each day
 /// from the day of its last chronolexogram on, as an executogram of that
@@ -1029,8 +1032,31 @@ pub fn tijd_verstrijken(corpus: &Corpus, cellen: &mut Cellen, tot: NaiveDate) ->
     }
     let basis = format!("{}#{}", corpus.decision_law(), corpus.decision());
     let mut vastgelegd = Vec::new();
+    // What time brings changes only with the versions in force: derive it
+    // again when one of them changes, not every day.
+    let mut afgeleid: Option<(Versies, Vec<Verloop>)> = None;
     for dag in vanaf.iter_days().take_while(|d| *d <= tot) {
-        for v in verloop(&service, corpus, &cellen.eigen, dag)? {
+        let versies: Versies = corpus
+            .afleiding
+            .regelwerken
+            .iter()
+            .map(|id| {
+                service
+                    .resolver()
+                    .get_law_for_date(id, Some(dag))
+                    .map(|law| law.valid_from.clone())
+            })
+            .collect();
+        if afgeleid
+            .as_ref()
+            .is_none_or(|(eerder, _)| *eerder != versies)
+        {
+            afgeleid = Some((versies, verloop(&service, corpus, &cellen.eigen, dag)?));
+        }
+        let Some((_, verlopen)) = &afgeleid else {
+            continue;
+        };
+        for v in verlopen {
             let uitvoer: Vec<&str> = v.uitvoer.iter().map(String::as_str).collect();
             for reeks in v.reeksen(cellen.eigen.grams(), &basis, dag) {
                 let (cell, sfeer) = cellen.splits();
