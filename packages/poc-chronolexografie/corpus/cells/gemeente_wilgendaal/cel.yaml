@@ -8,8 +8,15 @@ category: college van burgemeester en wethouders
 # Welke antwoorden de cel geeft, en uit welke eigen reductie (reductions/,
 # RFC-048). Het derde hoort bij de bedrijfsparkeervergunning: hoeveel geldige
 # vergunningen een bedrijf heeft (het fictieve beleid
-# bedrijfsparkeervergunning, artikel 2).
+# bedrijfsparkeervergunning, artikel 2). De rest leest de adviezen die de
+# gemeente van de GGD ontving (artikel 5 van het fictieve beleid
+# gehandicaptenparkeerkaart).
 answers:
   aanvrager_heeft_geldige_gehandicaptenparkeerkaart: reductie_geldige_gehandicaptenparkeerkaart
   aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt: reductie_geldige_gehandicaptenparkeerkaart
   aantal_geldige_bedrijfsparkeervergunningen: reductie_geldige_bedrijfsparkeervergunningen
+  geneeskundig_onderzoek_heeft_plaatsgehad: reductie_geneeskundig_onderzoek
+  advies_langdurige_loopbeperking: reductie_geneeskundig_advies
+  advies_continu_afhankelijk_van_hulp_bestuurder: reductie_geneeskundig_advies
+  advies_permanent_rolstoelgebonden: reductie_geneeskundig_advies
+  advies_ernstige_beperkingen_andere_dan_loopbeperkingen: reductie_geneeskundig_advies

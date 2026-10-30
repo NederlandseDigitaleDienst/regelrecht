@@ -310,24 +310,24 @@ mod tests {
         );
     }
 
-    /// The own regelwerk of the case of the parking card, by its path under
-    /// [`CORPUS`].
-    const GGD_BELEID: &str = "casussen/gehandicaptenparkeerkaart/regulation/nl/uitvoeringsbeleid/\
-         beleid_geneeskundig_advies_ggd_wilgendaal/2026-01-01.yaml";
+    /// The own regelwerk of the case of the business permit, by its path
+    /// under [`CORPUS`].
+    const KVK_BELEID: &str = "casussen/bedrijfsparkeervergunning/regulation/nl/uitvoeringsbeleid/\
+         beleid_handelsregister_kamer_van_koophandel/2026-01-01.yaml";
 
     #[test]
     fn the_own_regelwerken_of_a_case_count_without_being_named() {
         // Moved to the shared regulation and named by no case, the policy
         // counts for none, and the case that needs it no longer loads.
         let e = verplaatst(
-            GGD_BELEID,
-            "regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_ggd_wilgendaal/2026-01-01.yaml",
+            KVK_BELEID,
+            "regulation/nl/uitvoeringsbeleid/beleid_handelsregister_kamer_van_koophandel/2026-01-01.yaml",
             str::to_string,
         );
         assert!(
             e.contains(
-                "case 'gehandicaptenparkeerkaart' needs regelwerk \
-                 'beleid_geneeskundig_advies_ggd_wilgendaal', which is not in the corpus"
+                "case 'bedrijfsparkeervergunning' needs regelwerk \
+                 'beleid_handelsregister_kamer_van_koophandel', which is not in the corpus"
             ),
             "{e}"
         );
@@ -336,10 +336,10 @@ mod tests {
     #[test]
     fn a_case_that_names_the_own_regelwerken_of_another_is_refused() {
         let mut files = gebundeld();
-        let pad = format!("{CASUSSEN}/bedrijfsparkeervergunning.yaml");
+        let pad = format!("{CASUSSEN}/gehandicaptenparkeerkaart.yaml");
         let tekst = files[&pad].replacen(
             "corpus:\n",
-            "corpus:\n  - casussen/gehandicaptenparkeerkaart/regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_ggd_wilgendaal\n",
+            "corpus:\n  - casussen/bedrijfsparkeervergunning/regulation/nl/uitvoeringsbeleid/beleid_handelsregister_kamer_van_koophandel\n",
             1,
         );
         files.insert(pad, tekst);
@@ -360,8 +360,8 @@ mod tests {
     #[test]
     fn own_regelwerken_without_a_case_are_refused() {
         let e = verplaatst(
-            GGD_BELEID,
-            "casussen/los/regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_ggd_wilgendaal/2026-01-01.yaml",
+            KVK_BELEID,
+            "casussen/los/regulation/nl/uitvoeringsbeleid/beleid_handelsregister_kamer_van_koophandel/2026-01-01.yaml",
             str::to_string,
         );
         assert!(e.contains("no case los.yaml"), "{e}");

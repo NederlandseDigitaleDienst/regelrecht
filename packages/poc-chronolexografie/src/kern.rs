@@ -219,10 +219,16 @@ impl Corpus {
     /// school's own holidays in its policy, the cell answers whether leave
     /// falls outside the school holidays and the head is not asked.
     pub fn cell(&self) -> Result<Cellen> {
-        let eigen = self.begonnen(&self.casus.cel, &self.cell_dir, self.casus.begin.as_ref())?;
+        let mut eigen =
+            self.begonnen(&self.casus.cel, &self.cell_dir, self.casus.begin.as_ref())?;
+        let service = self.service()?;
         let mut andere: Vec<Cell> = Vec::new();
         for (a, dir) in self.casus.andere_cellen.iter().zip(&self.andere_dirs) {
-            andere.push(self.begonnen(&a.cel, dir, a.begin.as_ref())?);
+            let cel = self.begonnen(&a.cel, dir, a.begin.as_ref())?;
+            for gram in cel.grams() {
+                afleveren(&service, &mut eigen, gram)?;
+            }
+            andere.push(cel);
         }
         Ok(Cellen { eigen, andere })
     }
@@ -679,9 +685,11 @@ fn oordelen_van_de_rechter(
 }
 
 /// What each other cell of the sphere records by hand (RFC-052): the facts
-/// whose executograms its reductions read (`source.facts`), each with the
-/// fields the article that requires it lists. For the parking card: the GGD
-/// records the medical examination (Regeling art. 3).
+/// whose executograms its reductions read (`source.facts`) and the facts of
+/// the regelwerken of the case that name it as who establishes them
+/// (`competent_authority`), each with the fields the article that requires
+/// it lists. For the parking card: the GGD records its advice (the
+/// municipality's fictitious policy, art. 5).
 fn handelingen(
     service: &LawExecutionService,
     corpus: &Corpus,
@@ -699,6 +707,20 @@ fn handelingen(
                         if !feiten.contains(f) {
                             feiten.push(f.clone());
                         }
+                    }
+                }
+            }
+        }
+        for (id, _, _) in &corpus.regelwerken {
+            for article in service
+                .resolver()
+                .get_law(id)
+                .iter()
+                .flat_map(|w| &w.articles)
+            {
+                for f in shape::facts_established_by(id, article, cell.authority()) {
+                    if !feiten.contains(&f) {
+                        feiten.push(f);
                     }
                 }
             }
@@ -722,8 +744,8 @@ fn handelingen(
 
 /// Another cell of the sphere records an executogram of the fact `feit`
 /// (`<regulation>#<article>#<fact>`) on `on` (RFC-051, RFC-052), such as the
-/// GGD recording that it examined the applicant. The case's own cell
-/// records nothing.
+/// GGD recording its advice. The case's own cell records nothing itself:
+/// what the fact sends it arrives on its own ([`afleveren`]).
 pub fn vastleggen(
     corpus: &Corpus,
     cellen: &mut Cellen,
@@ -753,7 +775,33 @@ pub fn vastleggen(
         .iter_mut()
         .find(|c| c.recording_actor() == cel)
         .ok_or_else(|| Error::Refused(format!("'{cel}' is no other cell of this case")))?;
-    cell.record_executogram(&service, feit, velden, on)
+    let gram = cell.record_executogram(&service, feit, velden, on)?;
+    afleveren(&service, &mut cellen.eigen, &gram)?;
+    Ok(gram)
+}
+
+/// Deliver the executogram `gram` of another cell to the case's cell: where
+/// the article of its fact requires a receipt the case's cell establishes
+/// ([`shape::receipt_of`]), that cell records it in its own chronicle on the
+/// same day, with the same values, and reads it from there. So the advice of
+/// the GGD reaches the municipality without a step of its own. The receipt
+/// holds no link to `gram`: a chronicle only keeps `received` on the receipt
+/// of a copy of a decision (RFC-053), and an advice is none.
+fn afleveren(service: &LawExecutionService, eigen: &mut Cell, gram: &Gram) -> Result<()> {
+    let Some(fact) = &gram.fact else {
+        return Ok(());
+    };
+    let feit = format!("{}#{fact}", gram.basis);
+    let on = gram.recorded_on;
+    if let Some(ontvangst) = shape::receipt_of(service, &feit, on, eigen.authority())? {
+        let velden: Map<String, Value> = gram
+            .fields
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        eigen.record_executogram(service, &ontvangst, &velden, on)?;
+    }
+    Ok(())
 }
 
 /// The applicant applies: record the application under the case's article,
@@ -3411,7 +3459,7 @@ mod tests {
                 "algemene_wet_bestuursrecht",
                 "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal",
                 "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal",
-                "beleid_geneeskundig_advies_ggd_wilgendaal",
+                "beleid_geneeskundig_advies_gemeente_wilgendaal",
                 "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw",
                 "parkeerverordening_gemeente_wilgendaal",
                 "reductie_algemene_wet_bestuursrecht",
@@ -3444,12 +3492,15 @@ mod tests {
                 "algemene_wet_bestuursrecht",
                 "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal",
                 "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal",
+                "beleid_geneeskundig_advies_gemeente_wilgendaal",
                 "beleid_handelsregister_kamer_van_koophandel",
                 "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw",
                 "parkeerverordening_gemeente_wilgendaal",
                 "reductie_algemene_wet_bestuursrecht",
                 "reductie_geldige_bedrijfsparkeervergunningen",
                 "reductie_geldige_gehandicaptenparkeerkaart",
+                "reductie_geneeskundig_advies",
+                "reductie_geneeskundig_onderzoek",
                 "reductie_vestiging_in_handelsregister",
                 "regeling_gehandicaptenparkeerkaart",
                 "uitvoeringsbesluit_parkeren_gemeente_wilgendaal",
@@ -4057,6 +4108,34 @@ mod tests {
     }
 
     #[test]
+    fn parkeerkaart_an_advice_reaches_the_municipality_without_a_step() {
+        let (corpus, mut cell) = kaart();
+        // What the GGD knew before the first scenario was delivered too.
+        let vooraf = cell.grams().len();
+        assert_eq!(vooraf, 2);
+        let gram = vastleggen(
+            &corpus,
+            &mut cell,
+            "ggd_wilgendaal",
+            ADVIES,
+            &advies("999990032", "2026-10-16", true),
+            day("2026-10-16"),
+        )
+        .unwrap();
+        assert_eq!(gram.recording_actor, "ggd_wilgendaal");
+        assert_eq!(cell.andere[0].grams().last().unwrap().id, gram.id);
+
+        let ontvangen = &cell.grams()[vooraf];
+        assert_eq!(ontvangen.recording_actor, "gemeente_wilgendaal");
+        assert_eq!(
+            ontvangen.fact.as_deref(),
+            Some("geneeskundig_advies_ontvangen")
+        );
+        assert_eq!(ontvangen.recorded_on, day("2026-10-16"));
+        assert_eq!(ontvangen.fields, gram.fields);
+    }
+
+    #[test]
     fn parkeerkaart_the_advice_of_the_ggd_decides_the_criteria() {
         // Scenarios 1 and 2 of the case: the policy fills the four criteria
         // from the GGD's advice, and the college's finding gives way.
@@ -4110,7 +4189,7 @@ mod tests {
             .find(|a| a["antwoord"] == json!("advies_langdurige_loopbeperking"))
             .unwrap_or_else(|| panic!("{:#?}", kaart.waarom.antwoorden));
         assert_eq!(antwoord["reductie"], json!("reductie_geneeskundig_advies"));
-        assert_eq!(antwoord["door"], json!("ggd_wilgendaal"));
+        assert_eq!(antwoord["door"], json!("gemeente_wilgendaal"));
         assert_eq!(antwoord["waarde"], json!(true));
         // The preview asks the college nothing on the criteria.
         let mut aanvraag = corpus.casus.voorbeeld.aanvraag.clone();
@@ -4161,10 +4240,11 @@ mod tests {
                 .cloned()
                 .unwrap_or_else(|| panic!("{begrip}: {:#?}", kaart.waarom.antwoorden))
         };
-        let ggd = antwoord("geneeskundig_onderzoek_heeft_plaatsgehad");
-        assert_eq!(ggd["door"], json!("ggd_wilgendaal"));
-        // Another cell's answer has no explanation in this cell.
-        assert_eq!(ggd["keer"], Value::Null);
+        // The municipality answers from the advice it received.
+        assert_eq!(
+            antwoord("geneeskundig_onderzoek_heeft_plaatsgehad")["door"],
+            json!("gemeente_wilgendaal")
+        );
         assert_eq!(
             antwoord("aanvrager_heeft_geldige_gehandicaptenparkeerkaart")["door"],
             json!("gemeente_wilgendaal")
@@ -4255,12 +4335,12 @@ mod tests {
 
         // The log, newest first: art. 49 runs, the policy fills its term,
         // and in it the cell answers. The GGD's advice from the case file is
-        // in the GGD's own chronicle; the log shows it too, as the fact it
-        // is: four steps of the municipality and two executograms of the
-        // GGD.
+        // in the GGD's own chronicle and, as received, in the municipality's;
+        // the log shows both, as the facts they are: six entries of the
+        // municipality and two executograms of the GGD.
         let log = serde_json::to_value(logboek(&corpus, &cell).unwrap()).unwrap();
         let stappen = log.as_array().unwrap();
-        assert_eq!(stappen.len(), 6);
+        assert_eq!(stappen.len(), 8);
         let ggd = stappen
             .iter()
             .filter(|h| h["gram"]["recording_actor"] == json!("ggd_wilgendaal"))
@@ -4301,6 +4381,28 @@ mod tests {
         assert_eq!(
             besluit.besluit.outputs["gehandicaptenparkeerkaart_verstrekt"],
             json!(false)
+        );
+
+        // The other way round: the college leaves the examination out, but
+        // no card of 2026 is in the chronicle. Then nobody can say a card was
+        // issued before, and the college is asked.
+        let (corpus, mut cell) = kaart();
+        let mut aanvraag = corpus.casus.voorbeeld.aanvraag.clone();
+        aanvraag.insert("dagtekening".into(), json!("2031-10-20"));
+        let app = aanvragen(&corpus, &mut cell, &aanvraag, day("2031-10-20")).unwrap();
+        let mut bevindingen = corpus.casus.voorbeeld.bevindingen.clone();
+        for term in [
+            "geneeskundig_onderzoek_achterwege_gelaten",
+            "bekend_dat_aanvrager_nog_steeds_voldoet",
+        ] {
+            bevindingen.insert(term.into(), json!(true));
+        }
+        let e = besluiten(&corpus, &mut cell, &app.id, &bevindingen, day("2031-10-20"))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            e.contains("aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt_volgens_college"),
+            "{e}"
         );
 
         // After the card of 2026 expired, the college leaves the

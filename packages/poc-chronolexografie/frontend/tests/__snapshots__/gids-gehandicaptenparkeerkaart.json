@@ -1,7 +1,7 @@
 [
  {
   "name": "De kaart op advies van de GGD",
-  "summary": "Het college verstrekt de kaart op het advies dat de GGD in haar eigen kroniek vastlegde.",
+  "summary": "Het college verstrekt de kaart op het advies dat het van de GGD ontving.",
   "steps": [
    {
     "title": "Aanvraag indienen",
@@ -29,7 +29,7 @@
      "permanent rolstoelgebonden: Nee",
      "ernstige beperkingen andere dan loopbeperkingen: Nee"
     ],
-    "seen": "Het advies staat in de kroniek van de GGD.",
+    "seen": "Het advies staat in de kroniek van de GGD en van de gemeente.",
     "expect": null
    },
    {
@@ -214,7 +214,7 @@
      "permanent rolstoelgebonden: Nee",
      "ernstige beperkingen andere dan loopbeperkingen: Nee"
     ],
-    "seen": "Het nieuwe advies staat in de kroniek van de GGD.",
+    "seen": "Het nieuwe advies staat in de kroniek van de GGD en van de gemeente.",
     "expect": null
    },
    {
@@ -279,7 +279,7 @@
      "permanent rolstoelgebonden: Nee",
      "ernstige beperkingen andere dan loopbeperkingen: Nee"
     ],
-    "seen": "Het nieuwe advies staat in de kroniek van de GGD.",
+    "seen": "Het nieuwe advies staat in de kroniek van de GGD en van de gemeente.",
     "expect": null
    },
    {
