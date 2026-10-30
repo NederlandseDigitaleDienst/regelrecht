@@ -479,6 +479,43 @@ fn beleid_laat_oordelen(
         .find(|t| t.id == term && t.declared_by() == waar && t.asks_finding())
 }
 
+/// The fields the article of `gram` gives it itself: the parameters of its
+/// fact (`requires`), or those of the submission or the outputs of the
+/// decision it is (`produces`). So not what a hook adds, such as the term of
+/// Awb 6:8, nor the data derived for a decision. Empty when its article is
+/// not in the corpus or does not produce it.
+fn eigen_velden(service: &LawExecutionService, gram: &Gram) -> Vec<String> {
+    let Some(article) = gram.basis.split_once('#').and_then(|(law_id, number)| {
+        service
+            .resolver()
+            .get_law_for_date(law_id, Some(gram.recorded_on))?
+            .find_article_by_number(number)
+    }) else {
+        return Vec::new();
+    };
+    if let Some(fact) = &gram.fact {
+        return article
+            .required_fact(fact)
+            .and_then(|r| r.parameters.clone())
+            .unwrap_or_default();
+    }
+    let kind = Some(gram.kind.as_str());
+    let items = article.get_produced();
+    if let Some(item) = items.iter().find(|p| p.submission_kind() == kind) {
+        let eigen = article.parameters_of(*item).into_iter();
+        let uit = item.listed_outputs().into_iter().flatten();
+        return eigen.map(str::to_string).chain(uit.cloned()).collect();
+    }
+    items
+        .iter()
+        .find(|p| p.legal_character() == kind)
+        .map(|item| article.outputs_of(*item))
+        .unwrap_or_default()
+        .into_iter()
+        .map(str::to_string)
+        .collect()
+}
+
 /// What the law asks on `on`: the fields of the application, the deciding
 /// authority's findings on it and the fields of the objection. All of it is
 /// derived from the law, for this cell: a term the cell answers from its
@@ -578,6 +615,11 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
             "uitvoer": op_bezwaar.outputs,
         },
         "andere_cellen": handelingen(&service, corpus, cell, on)?,
+        "eigen_velden": std::iter::once(&cell.eigen)
+            .chain(&cell.andere)
+            .flat_map(|c| c.grams())
+            .map(|g| (g.id.clone(), json!(eigen_velden(&service, g))))
+            .collect::<Map<String, Value>>(),
     });
     if let Some(b) = &corpus.afleiding.beroep {
         let beroep = shape::derive(&service, &b.law, &b.article, on)?;
@@ -4129,6 +4171,38 @@ mod tests {
             "permanent_rolstoelgebonden": false,
             "ernstige_beperkingen_andere_dan_loopbeperkingen": false,
         }))
+    }
+
+    #[test]
+    fn parkeerkaart_own_fields_leave_out_hooks_and_derived_data() {
+        let (corpus, mut cell) = kaart_onderzocht();
+        let kaart = kaart_besluit(&corpus, &mut cell, "2026-10-13", "2026-10-20", true);
+        let aanvraag = kaart.besluit.refers_to.clone().unwrap();
+        let velden = vormen(&corpus, &cell, day("2026-10-20")).unwrap();
+        let eigen = |id: &str| velden["eigen_velden"][id].clone();
+        // The decision: not `termijn_*` (Awb 6:8), not `motivering_vereist`
+        // (Awb 3:46), not the derived `kaart_geldig_tot`.
+        assert_eq!(
+            eigen(&kaart.besluit.id),
+            json!([
+                "gehandicaptenparkeerkaart_verstrekt",
+                "kaart_vermeldt_bestuurder",
+                "kaart_vermeldt_passagier"
+            ])
+        );
+        // The application: not the fields of Awb 4:2.
+        assert_eq!(
+            eigen(&aanvraag),
+            json!([
+                "bsn_aanvrager",
+                "kaart_als_bestuurder",
+                "kaart_als_passagier"
+            ])
+        );
+        // The advice, in both chronicles: the parameters of its fact.
+        for gram in [&cell.grams()[0], &cell.andere[0].grams()[0]] {
+            assert_eq!(eigen(&gram.id).as_array().unwrap().len(), 6, "{}", gram.id);
+        }
     }
 
     #[test]

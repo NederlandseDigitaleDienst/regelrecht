@@ -398,17 +398,23 @@ export function waarde(v) {
 // Het id van een chronolexogram: een UUID.
 const GRAM_ID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 
+// Wat geen eigen waarde is: leeg, een verwijzing, de kopie van een besluit.
+const isMetadata = (w) => w == null || isBesluitwaarde(w) || GRAM_ID.test(w);
+
 /**
- * Wat een chronolexogram zelf vastlegt, als `naam: waarde`: de uitvoer van een
- * besluit, anders de velden. Niet de metadata (id, wie en wanneer), de invoer
- * die een besluit overneemt, een lege waarde, of een verwijzing: het id van
- * een ander chronolexogram of de kopie van een besluit.
+ * De hoofdvelden van een chronolexogram als `naam: waarde`: bij een besluit
+ * de uitkomst van de casus (`casus.uitkomst`), bij de rest de velden die zijn
+ * artikel hem zelf geeft (`vormen.eigen_velden`, niet wat een hook toevoegt)
+ * en die geen metadata zijn. Blijven er meer dan twee over, dan geen: dan is
+ * niet te zeggen welke de hoofdzaak zijn.
  */
-export function eigenWaarden(gram) {
-  const uit = Object.keys(gram.outputs ?? {}).length ? gram.outputs : (gram.fields ?? {});
-  return Object.entries(uit)
-    .filter(([, w]) => w != null && !isBesluitwaarde(w) && !GRAM_ID.test(w))
-    .map(([naam, w]) => `${naam}: ${typeof w === 'string' ? w : waarde(w)}`);
+export function hoofdvelden(gram) {
+  const waarden = { ...gram.fields, ...gram.outputs };
+  const uitkomst = state.casus?.uitkomst;
+  const namen = uitkomst in (gram.outputs ?? {}) ? [uitkomst] : (state.vormen?.eigen_velden?.[gram.id] ?? []);
+  const eigen = namen.filter((naam) => !isMetadata(waarden[naam]));
+  if (eigen.length > 2) return [];
+  return eigen.map((naam) => `${naam}: ${typeof waarden[naam] === 'string' ? waarden[naam] : waarde(waarden[naam])}`);
 }
 
 /** JSON zoals de kroniek het bewaart, met elk decimaal als het getal zelf. */

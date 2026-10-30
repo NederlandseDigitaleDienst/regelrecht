@@ -1,9 +1,9 @@
 <script setup>
-// One chronolexogram of a chronicle: its fact and the values it records in
-// view, the gram itself as highlighted JSON behind a button. The Kroniek tab
+// One chronolexogram of a chronicle: its fact and main fields in view, the
+// gram itself as highlighted JSON behind a button. The Kroniek tab
 // and the sheet with the grams a reduction read both show a gram this way.
 import { computed, ref } from 'vue';
-import { alsJson, eigenWaarden, kort } from '../state.js';
+import { alsJson, hoofdvelden, kort } from '../state.js';
 
 const props = defineProps({
   gram: { type: Object, required: true },
@@ -12,6 +12,7 @@ const props = defineProps({
 });
 
 const open = ref(false);
+const labels = computed(() => hoofdvelden(props.gram));
 const naam = computed(() => `${props.gram.kind} ${kort(props.gram.id)}`);
 const kop = computed(() => props.gram.fact ?? naam.value);
 const boven = computed(() =>
@@ -33,8 +34,8 @@ const boven = computed(() =>
         @click="open = !open"
       ></nldd-button>
     </nldd-title>
-    <nldd-container layout="wrap" gap="4">
-      <nldd-tag v-for="w in eigenWaarden(gram)" :key="w" size="sm" :text="w"></nldd-tag>
+    <nldd-container v-if="labels.length" layout="wrap" gap="4">
+      <nldd-tag v-for="w in labels" :key="w" size="sm" :text="w"></nldd-tag>
     </nldd-container>
     <nldd-code-viewer v-if="open" language="json" appearance="box-tinted">{{ alsJson(gram) }}</nldd-code-viewer>
   </nldd-container>
