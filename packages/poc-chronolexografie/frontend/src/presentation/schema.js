@@ -191,8 +191,9 @@ function namenIn(waarde, uit = new Set()) {
  * day of the decision), not something the chain decides. An open term that
  * nothing in the case fills in ends the chain: someone decides it per case.
  * Once drawn, the picture is made simpler (`eenvoudig`): an output that only
- * passes on an input is one name with it, and a reduction shows only what it
- * reads and what it answers.
+ * passes on an input is one name with it, as is an input that only takes an
+ * output of its own file, inputs that are the same are one name, and a
+ * reduction shows only what it reads and what it answers.
  */
 export function keten(alle, id, { law, article, naam }) {
   const { wet, cel, cellen, celBestand, wetBestand, begrip, lijn, artikelVan, metUitvoer, metFeit, invullers, uitkomst } = opzet(alle, id);
@@ -306,6 +307,11 @@ export function keten(alle, id, { law, article, naam }) {
  *    lines into the input drawn into it, of the same kind. Not when the
  *    input is used by something else in the picture as well; `doorgaven`
  *    holds the candidates.
+ *  - An input that only takes an output of its own file is that output: what
+ *    uses the input, uses the output. A source of another file stays, because
+ *    the input is where the line into the box ends.
+ *  - Inputs in one file with the same name and the same sources are one name:
+ *    the first.
  *  - A reduction shows only the names that connect to another file: what it
  *    reads and what it answers. The steps in between are how it reduces, not
  *    what the chain needs; a `rekent` line from each name it reads to each
@@ -315,16 +321,56 @@ export function keten(alle, id, { law, article, naam }) {
 function eenvoudig({ bestanden, lijnen }, doorgaven) {
   const id = (e) => `${e.pad}|${e.begrip}`;
 
-  const samen = new Map();
-  for (const d of doorgaven) {
-    const van = lijnen.filter((l) => id(l.van) === id({ pad: d.pad, begrip: d.in }));
-    if (van.length === 1 && id(van[0].naar) === id({ pad: d.pad, begrip: d.uit })) {
-      samen.set(id({ pad: d.pad, begrip: d.in }), { pad: d.pad, begrip: d.uit });
-    }
+  const weg = new Set();
+  let na = lijnen;
+  /** Let names take the place of others (`plek`: by id, the name that stays). */
+  const vervang = (plek) => {
+    const ander = (e) => plek.get(id(e)) ?? e;
+    na = na.map((l) => ({ ...l, van: ander(l.van), naar: ander(l.naar) })).filter((l) => id(l.van) !== id(l.naar));
+    for (const k of plek.keys()) weg.add(k);
+  };
+  const naarToe = (e) => na.filter((l) => id(l.naar) === id(e));
+
+  vervang(
+    new Map(
+      doorgaven
+        .map((d) => ({ uit: { pad: d.pad, begrip: d.uit }, invoer: { pad: d.pad, begrip: d.in } }))
+        .filter(({ uit, invoer }) => {
+          const van = na.filter((l) => id(l.van) === id(invoer));
+          return van.length === 1 && id(van[0].naar) === id(uit);
+        })
+        .map(({ uit, invoer }) => [id(invoer), uit]),
+    ),
+  );
+
+  const invoeren = bestanden.flatMap((b) =>
+    b.begrippen.filter((g) => g.rol === 'input').map((g) => ({ pad: b.pad, begrip: g.key, naam: g.naam })),
+  );
+  const isInvoer = new Set(invoeren.map(id));
+  vervang(
+    new Map(
+      na
+        .filter(
+          (l) =>
+            isInvoer.has(id(l.naar)) &&
+            l.van.pad === l.naar.pad &&
+            ['source.output', 'source.regulation'].includes(l.yaml) &&
+            naarToe(l.naar).length === 1,
+        )
+        .map((l) => [id(l.naar), l.van]),
+    ),
+  );
+
+  const eerste = new Map();
+  const dubbel = new Map();
+  for (const e of invoeren) {
+    const bronnen = naarToe(e).map((l) => `${l.soort}|${id(l.van)}`).sort();
+    if (weg.has(id(e)) || !bronnen.length) continue;
+    const k = JSON.stringify([e.pad, e.naam, bronnen]);
+    if (eerste.has(k)) dubbel.set(id(e), { pad: e.pad, begrip: eerste.get(k).begrip });
+    else eerste.set(k, e);
   }
-  const na = lijnen
-    .filter((l) => !samen.has(id(l.van)))
-    .map((l) => (samen.has(id(l.naar)) ? { ...l, naar: samen.get(id(l.naar)) } : l));
+  vervang(dubbel);
 
   const soort = new Map(bestanden.map((b) => [b.pad, b.soort]));
   const buiten = new Set(na.filter((l) => l.van.pad !== l.naar.pad).flatMap((l) => [id(l.van), id(l.naar)]));
@@ -359,7 +405,7 @@ function eenvoudig({ bestanden, lijnen }, doorgaven) {
   return {
     bestanden: bestanden.map((b) => ({
       ...b,
-      begrippen: b.begrippen.filter((g) => !samen.has(id({ pad: b.pad, begrip: g.key })) && !tussen({ pad: b.pad, begrip: g.key })),
+      begrippen: b.begrippen.filter((g) => !weg.has(id({ pad: b.pad, begrip: g.key })) && !tussen({ pad: b.pad, begrip: g.key })),
     })),
     lijnen: uit,
   };
