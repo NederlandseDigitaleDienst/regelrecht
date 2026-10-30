@@ -5,9 +5,10 @@
 // that name stands out. The lines between those names are drawn over the
 // boxes in an SVG, from where the names stand once the page is laid out; they
 // are drawn again when the picture changes size.
-// Every name carries its step in the chain. The buttons walk through those
-// steps: what is yet to come fades, the step itself stands out, and a sentence
-// says what it is. Pointing at a name, or focusing it, shows only its own
+// Every name carries its step in the chain, counted from the question at the
+// end of it. The buttons walk through those steps, against the arrows: what is
+// yet to come fades, the step itself stands out with its lines to what asked
+// for it, and a sentence says what it is. Pointing at a name, or focusing it, shows only its own
 // lines, also during a step; letting go brings the step back.
 //
 // The lines are a picture: a screen reader gets, per name, its step and the
@@ -136,10 +137,10 @@ function teken() {
 
 const zichtbaar = (p) => {
   if (actief.value) return p.van === actief.value || p.naar === actief.value;
-  return !beeld.value || beeld.value.gehad.has(p.naar);
+  return !beeld.value || beeld.value.gehad.has(p.van);
 };
 /** The lines that stand out: those of the name pointed at, or else of the step. */
-const opvallend = (p) => (actief.value ? zichtbaar(p) : Boolean(beeld.value?.nu.has(p.naar)));
+const opvallend = (p) => (actief.value ? zichtbaar(p) : Boolean(beeld.value?.nu.has(p.van)));
 /** The name that stands out, by the same rule. */
 const aan = (k) => (actief.value ? actief.value === k : Boolean(beeld.value?.nu.has(k)));
 /** The lines drawn over the boxes: those that stand out. */

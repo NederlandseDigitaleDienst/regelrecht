@@ -20,10 +20,10 @@ import { CORPUS } from '../corpus.js';
 
 /** What a box is, after its place in the corpus; the order is the column. */
 export const SOORTEN = [
-  { soort: 'wet', label: 'Wet en regeling', waar: 'wet en regeling' },
-  { soort: 'beleid', label: 'Beleid', waar: 'het beleid' },
-  { soort: 'cel', label: 'Cel', waar: 'de cel' },
-  { soort: 'reductie', label: 'Reductie', waar: 'de reductie' },
+  { soort: 'wet', label: 'Wet en regeling' },
+  { soort: 'beleid', label: 'Beleid' },
+  { soort: 'cel', label: 'Cel' },
+  { soort: 'reductie', label: 'Reductie' },
 ];
 
 /** The kinds of line, in the order of the legend. */
@@ -114,10 +114,10 @@ function opzet(alle, id) {
     return c && bestand(c.pad, { id: naam, titel: c.doc.name ?? naam, soort: 'cel' });
   };
 
-  /** A name in a box: `naam` in article `artikel`, as a `rol`. */
-  function begrip(box, { naam, artikel = null, rol }) {
+  /** A name in a box: `naam` in article `artikel`, as a `rol`; `omschrijving` is what the law says it is. */
+  function begrip(box, { naam, artikel = null, rol, omschrijving }) {
     const key = `${artikel ?? ''}#${rol}#${naam}`;
-    if (!box.begrippen.has(key)) box.begrippen.set(key, { key, naam, artikel, rol });
+    if (!box.begrippen.has(key)) box.begrippen.set(key, { key, naam, artikel, rol, omschrijving });
     return key;
   }
   function lijn(soort, van, vanBegrip, naar, naarBegrip, yaml) {
@@ -279,7 +279,7 @@ export function keten(alle, id, { law, article, naam }) {
         if (doel) lijn('kroniek', wetBestand(doel), { naam: `besluiten onder artikel ${dArt}`, artikel: dArt, rol: 'decisions' }, box, uit.begrip, 'source.decisions');
       }
     } else if (mr.open_terms?.some((t) => t.id === naam)) {
-      uit = { box, begrip: hier('open_term') };
+      uit = { box, begrip: { ...hier('open_term'), omschrijving: mr.open_terms.find((t) => t.id === naam).description } };
       klaar.set(k, uit);
       // Draw the term even when nothing fills it in: then the chain ends here.
       begrip(box, uit.begrip);
@@ -415,20 +415,21 @@ function eenvoudig({ bestanden, lijnen }, doorgaven) {
 }
 
 /**
- * The order of the chain: a line runs from what is needed to what uses it, so
- * a name no line ends at is step 1, and any other name comes one step after
- * the last thing it uses (the longest path to it). Names that can be worked
- * out at the same moment share a step, and what comes out of the whole chain
- * has the highest number. `stappen` is how many there are.
+ * The order of the chain, from the question it answers: a line runs from what
+ * is needed to what uses it, so the name no line starts at is step 1, and any
+ * other name comes one step after the last name that uses it (the longest
+ * path from there). A name that is needed at the same moment as another
+ * shares its step, and the sources of the chain have the highest numbers.
+ * `stappen` is how many there are.
  */
 function genummerd({ bestanden, lijnen }) {
-  const bronnen = new Map();
-  for (const l of lijnen) bronnen.set(id(l.naar), [...(bronnen.get(id(l.naar)) ?? []), id(l.van)]);
+  const gebruikers = new Map();
+  for (const l of lijnen) gebruikers.set(id(l.van), [...(gebruikers.get(id(l.van)) ?? []), id(l.naar)]);
   const stap = new Map();
   const nummer = (k) => {
     if (!stap.has(k)) {
-      stap.set(k, 1); // A name that needs itself ends the walk here.
-      stap.set(k, 1 + Math.max(0, ...(bronnen.get(k) ?? []).map(nummer)));
+      stap.set(k, 1); // A name that uses itself ends the walk here.
+      stap.set(k, 1 + Math.max(0, ...(gebruikers.get(k) ?? []).map(nummer)));
     }
     return stap.get(k);
   };
@@ -451,13 +452,63 @@ export function stapBeeld({ bestanden }, n) {
 /** The step `stapje` away from `stap` (null is the whole picture), within the chain. */
 export const andereStap = (stap, stapje, stappen) => Math.min(stappen, Math.max(1, (stap ?? 0) + stapje));
 
-/** What step `n` of `schema` is, in one sentence; with null, the whole picture. */
-export function stapZin({ bestanden, stappen }, n) {
+/**
+ * What a step can say a name is, after the line that leaves it: one, many, and
+ * where it comes from. `vraagt` is the cell's side, `vraagt_reductie` the
+ * reduction's. The order is the order in the sentence.
+ */
+const HERKOMST = {
+  rekent: ['naam', 'namen', 'uit hetzelfde regelwerk'],
+  vult_in: ['invulling', 'invullingen', 'uit een andere regeling'],
+  leest: ['uitkomst', 'uitkomsten', 'uit een andere regeling'],
+  vraagt: ['vraag', 'vragen', 'aan een cel'],
+  vraagt_reductie: ['antwoord', 'antwoorden', 'van een reductie'],
+  kroniek: ['bron', 'bronnen', 'uit de kroniek'],
+};
+/** How long a sentence may be with the names in it: two lines above the picture. */
+const LANG = 150;
+
+const leesbaar = (naam) => naam.replaceAll('_', ' ');
+const opsomming = (delen) => [delen.slice(0, -1).join(', '), ...delen.slice(-1)].filter(Boolean).join(' en ');
+
+/** The question a name puts: what the law says it is, or else its name. */
+function vraag({ naam, omschrijving }) {
+  const tekst = (omschrijving ?? '').replace(/\s+/g, ' ').trim().replace(/\s*\([^()]*\)\.?$/, '').replace(/\.$/, '');
+  const klein = tekst.charAt(0).toLowerCase() + tekst.slice(1);
+  if (klein.startsWith('of ')) return `${klein}?`;
+  return `wat is ${klein || leesbaar(naam)}?`;
+}
+
+/**
+ * What step `n` of `schema` is, in one sentence, from the question: step 1
+ * asks it, a later step says what the steps before it need and where that
+ * comes from, and the last says that the chain is at its source. With null,
+ * the whole picture.
+ */
+export function stapZin({ bestanden, lijnen, stappen }, n) {
   if (!n) return `Het hele schema, in ${stappen} stappen.`;
-  const delen = SOORTEN.flatMap(({ soort, waar }) => {
-    const hier = bestanden.filter((b) => b.soort === soort).flatMap((b) => b.begrippen.filter((g) => g.stap === n));
-    return hier.length ? [`in ${waar} ${[...new Set(hier.map((g) => g.naam))].join(', ')}`] : [];
-  });
-  const plek = n === 1 ? ', het begin' : n === stappen ? ', het einde' : '';
-  return `Stap ${n} van ${stappen}${plek}: ${delen.join('; ')}.`;
+  const kop = `Stap ${n} van ${stappen}`;
+  const hier = new Map(
+    bestanden.flatMap((b) => b.begrippen.filter((g) => g.stap === n).map((g) => [sleutel(b.pad, g.key), { ...g, soort: b.soort }])),
+  );
+  if (n === 1) return `${kop}, de vraag: ${vraag([...hier.values()][0])}`;
+
+  const per = new Map();
+  for (const l of lijnen) {
+    const g = hier.get(id(l.van));
+    if (!g) continue;
+    const k = l.soort === 'vraagt' && g.soort === 'reductie' ? 'vraagt_reductie' : l.soort;
+    per.set(k, (per.get(k) ?? new Set()).add(leesbaar(g.naam)));
+  }
+  const zin = (metNamen) => {
+    const delen = Object.entries(HERKOMST)
+      .filter(([k]) => per.has(k))
+      .map(([k, [een, veel, waar]]) => {
+        const namen = [...per.get(k)];
+        const deel = `${namen.length === 1 ? `een ${een}` : `${namen.length} ${veel}`} ${waar}`;
+        return metNamen ? `${deel} (${namen.join(', ')})` : deel;
+      });
+    return `${kop}, ${n === stappen ? 'hier komt de keten bij de bron uit' : 'daarvoor is nodig'}: ${opsomming(delen)}.`;
+  };
+  return zin(true).length <= LANG ? zin(true) : zin(false);
 }
