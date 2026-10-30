@@ -1,7 +1,7 @@
 <script setup>
 // The guide beside the page, short enough to read at a glance: how far the
-// visitor is in the scenario, what the last step left behind, and the one
-// thing to do now, with the values it takes. How far they are comes from the
+// visitor is in the scenario, what the last step left behind, what happens
+// in the case now, and the one thing to do, with the values it takes. How far they are comes from the
 // chronicles (scenarioProgress.js), so free play in between counts too; a
 // step that departs from the scenario gives a warning, not a block. On a
 // narrow screen the split view shows this as a sheet.
@@ -89,6 +89,7 @@ const where = computed(() =>
       <nldd-container gap="12">
         <nldd-text v-if="seen" size="sm" color="secondary">{{ seen }}</nldd-text>
         <nldd-title size="4" heading-level="3" :text="current.title" :supporting-text="where"></nldd-title>
+        <nldd-text v-if="current.story">{{ current.story }}</nldd-text>
         <nldd-text>{{ current.todo }}</nldd-text>
         <nldd-list v-if="current.values.length" dividers="never" accessible-label="Waarden uit het scenario">
           <nldd-list-item v-for="v in current.values" :key="v" size="sm">

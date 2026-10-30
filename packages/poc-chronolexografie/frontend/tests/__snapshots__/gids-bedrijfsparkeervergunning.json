@@ -7,6 +7,7 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
+    "story": "Een bakkerij in de binnenstad vraagt een bedrijfsparkeervergunning.",
     "todo": "Klik op Aanvraag indienen.",
     "values": [],
     "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
@@ -16,6 +17,7 @@
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": "2026-10-20",
+    "story": "Het college beslist op de aanvraag van de bakkerij.",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
     "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
@@ -31,6 +33,7 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
+    "story": "Een fietsenmakerij in de schil, waar één persoon werkt, vraagt een vergunning.",
     "todo": "Klik op Aanvraag indienen.",
     "values": [
      "kvk nummer: 99990022"
@@ -42,6 +45,7 @@
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": "2026-10-20",
+    "story": "Het college beslist op de eerste aanvraag.",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
     "seen": "Toegewezen: de vergunning geldt tot en met 19 oktober 2027.",
@@ -51,6 +55,7 @@
     "title": "Nog een aanvraag indienen",
     "tab": "aanvrager",
     "date": "2026-10-21",
+    "story": "De fietsenmakerij vraagt een tweede vergunning.",
     "todo": "Klik op Aanvraag indienen.",
     "values": [
      "kvk nummer: 99990022",
@@ -63,6 +68,7 @@
     "title": "Besluiten op de tweede aanvraag",
     "tab": "bestuursorgaan",
     "date": "2026-10-22",
+    "story": "Het college beslist op de tweede aanvraag.",
     "todo": "Klik bij de tweede aanvraag op Besluit nemen.",
     "values": [
      "toepassing leidt tot onaanvaardbare gevolgen: Nee"
@@ -74,6 +80,7 @@
     "title": "Bezwaar maken",
     "tab": "aanvrager",
     "date": "2026-11-01",
+    "story": "De fietsenmakerij maakt bezwaar tegen de weigering.",
     "todo": "Klik bij het besluit over de tweede aanvraag op Bezwaar maken en dan op Bezwaar indienen.",
     "values": [],
     "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
@@ -83,6 +90,7 @@
     "title": "Nieuwe inschrijving bij de Kamer van Koophandel",
     "tab": "andere",
     "date": "2026-11-10",
+    "story": "De fietsenmakerij neemt iemand aan en schrijft dat in bij de Kamer.",
     "todo": "Klik bij Kamer van Koophandel onder \"Vastleggen: Vestiging ingeschreven\" op Vastleggen.",
     "values": [
      "kvk nummer: 99990022",
@@ -97,6 +105,7 @@
     "title": "Beslissen op bezwaar",
     "tab": "bestuursorgaan",
     "date": "2026-11-20",
+    "story": "Het college heroverweegt de weigering.",
     "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
     "values": [],
     "seen": "Gegrond: de weigering is herroepen (Awb 7:11), en de vergunning is verleend.",
@@ -106,6 +115,7 @@
     "title": "Een derde aanvraag indienen",
     "tab": "aanvrager",
     "date": "2026-12-01",
+    "story": "De fietsenmakerij vraagt een derde vergunning.",
     "todo": "Klik op Aanvraag indienen.",
     "values": [
      "kvk nummer: 99990022",
@@ -118,6 +128,7 @@
     "title": "Besluiten op de derde aanvraag",
     "tab": "bestuursorgaan",
     "date": null,
+    "story": "Het college beslist op de derde aanvraag.",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [
      "toepassing leidt tot onaanvaardbare gevolgen: Nee"
@@ -135,6 +146,7 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
+    "story": "Een adviesbureau buiten de vergunninggebieden vraagt een vergunning.",
     "todo": "Klik op Aanvraag indienen.",
     "values": [
      "kvk nummer: 99990033"
@@ -146,6 +158,7 @@
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": "2026-10-20",
+    "story": "Het college beslist op de aanvraag van het adviesbureau.",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
     "seen": "Afgewezen: het bedrijf is niet in een vergunninggebied gevestigd.",
@@ -155,6 +168,7 @@
     "title": "Nieuwe inschrijving bij de Kamer van Koophandel",
     "tab": "andere",
     "date": "2026-11-01",
+    "story": "Het adviesbureau verhuist naar de binnenstad.",
     "todo": "Klik bij Kamer van Koophandel onder \"Vastleggen: Vestiging ingeschreven\" op Vastleggen.",
     "values": [
      "kvk nummer: 99990033",
@@ -169,6 +183,7 @@
     "title": "Nog een aanvraag indienen",
     "tab": "aanvrager",
     "date": "2026-11-02",
+    "story": "Het adviesbureau vraagt opnieuw een vergunning.",
     "todo": "Klik op Aanvraag indienen.",
     "values": [
      "kvk nummer: 99990033"
@@ -180,6 +195,7 @@
     "title": "Besluiten op de tweede aanvraag",
     "tab": "bestuursorgaan",
     "date": null,
+    "story": "Het college beslist op de tweede aanvraag.",
     "todo": "Klik bij de tweede aanvraag op Besluit nemen.",
     "values": [],
     "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
@@ -195,6 +211,7 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
+    "story": "Een thuiszorgbedrijf in de binnenstad vraagt een vergunning voor zijn wijkverpleging.",
     "todo": "Klik op Aanvraag indienen.",
     "values": [
      "kvk nummer: 99990044"
@@ -206,6 +223,7 @@
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": "2026-10-20",
+    "story": "Het college beslist op de eerste aanvraag.",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
     "seen": "Toegewezen: de vergunning is verleend.",
@@ -215,6 +233,7 @@
     "title": "Nog een aanvraag indienen",
     "tab": "aanvrager",
     "date": "2026-10-21",
+    "story": "Het thuiszorgbedrijf vraagt een tweede vergunning.",
     "todo": "Klik op Aanvraag indienen.",
     "values": [
      "kvk nummer: 99990044",
@@ -227,6 +246,7 @@
     "title": "Besluiten op de tweede aanvraag",
     "tab": "bestuursorgaan",
     "date": "2026-10-22",
+    "story": "Het college beslist op de tweede aanvraag.",
     "todo": "Klik bij de tweede aanvraag op Besluit nemen.",
     "values": [],
     "seen": "Toegewezen: ook de tweede vergunning is verleend.",
@@ -236,6 +256,7 @@
     "title": "Een derde aanvraag indienen",
     "tab": "aanvrager",
     "date": "2026-10-23",
+    "story": "Het thuiszorgbedrijf vraagt een derde vergunning.",
     "todo": "Klik op Aanvraag indienen.",
     "values": [
      "kvk nummer: 99990044",
@@ -248,6 +269,7 @@
     "title": "Besluiten op de derde aanvraag",
     "tab": "bestuursorgaan",
     "date": "2026-10-27",
+    "story": "Het college vindt dat het maximum hier geen onaanvaardbare gevolgen heeft.",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [
      "toepassing leidt tot onaanvaardbare gevolgen: Nee"
@@ -259,6 +281,7 @@
     "title": "Bezwaar maken",
     "tab": "aanvrager",
     "date": "2026-11-01",
+    "story": "Het thuiszorgbedrijf maakt bezwaar, omdat de wijkverpleging dagelijks met drie auto's rijdt.",
     "todo": "Klik bij het besluit over de derde aanvraag op Bezwaar maken en dan op Bezwaar indienen.",
     "values": [
      "gronden bezwaar of beroep: de wijkverpleging rijdt dagelijks met drie auto's naar cliënten"
@@ -270,6 +293,7 @@
     "title": "Beslissen op bezwaar",
     "tab": "bestuursorgaan",
     "date": "2026-11-20",
+    "story": "Bij de heroverweging vindt het college de gevolgen van het maximum nu wel onaanvaardbaar.",
     "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
     "values": [
      "toepassing leidt tot onaanvaardbare gevolgen: Ja"
@@ -281,6 +305,7 @@
     "title": "Een vierde aanvraag indienen",
     "tab": "aanvrager",
     "date": "2026-12-01",
+    "story": "Het thuiszorgbedrijf vraagt een vierde vergunning.",
     "todo": "Klik op Aanvraag indienen.",
     "values": [
      "kvk nummer: 99990044",
@@ -293,6 +318,7 @@
     "title": "Besluiten op de vierde aanvraag",
     "tab": "bestuursorgaan",
     "date": null,
+    "story": "Het college vindt de gevolgen van het maximum bij deze aanvraag niet onaanvaardbaar.",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [
      "toepassing leidt tot onaanvaardbare gevolgen: Nee"

@@ -34,6 +34,7 @@ describe.each(CASUSSEN)('the guides of %s', (id) => {
         const at = `${g.name}, step ${i + 1}`;
         expect(typeof s.title, at).toBe('string');
         expect(TABS, at).toContain(s.tab);
+        expect(s.story, at).toMatch(/^[^.!?]+[.!?]$/);
         expect(s.todo, at).toMatch(/^[^.!?]+[.!?]$/);
         expect(typeof s.done, at).toBe('function');
         if (s.expect) expect(typeof s.expect.check, at).toBe('function');
@@ -68,6 +69,7 @@ describe.each(CASUSSEN)('the guides of %s', (id) => {
         title: s.title,
         tab: s.tab,
         date: s.date ?? null,
+        story: s.story,
         todo: s.todo,
         values: s.values,
         seen: s.seen,

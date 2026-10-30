@@ -9,7 +9,8 @@
  * plain text and has no guide; the tab Scenario's shows those instead.
  *
  * A built step: `title`, the `tab` it happens on, the play date it wants
- * (`date`, optional), what to do in one sentence (`todo`), the values the
+ * (`date`, optional), what happens in the case (`story`, from `verhaal`),
+ * what to do in one sentence (`todo`), the values the
  * form takes from the scenario (`values`, one line each), what the visitor
  * sees once it is done (`seen`), when it is done (`done`, a test on
  * scenarioProgress.counts()), optionally what the scenario expects of it
@@ -201,6 +202,7 @@ export function bouwGids(scenario, casus = null) {
       title: stap.titel ?? kind.title(stap.stap === 'besluit' ? doel : n),
       tab: kind.tab,
       date: stap.datum ?? undefined,
+      story: stap.verhaal ?? '',
       todo: stap.tekst ?? kind.todo,
       values: invoerRegels(stap.invoer),
       seen: stap.gezien ?? kind.seen(stap.stap === 'besluit' ? doel : n),

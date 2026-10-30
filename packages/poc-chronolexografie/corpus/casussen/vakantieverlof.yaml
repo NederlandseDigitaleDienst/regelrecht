@@ -105,7 +105,11 @@ scenarios:
       Een ouder vraagt verlof in februari, en het hoofd verleent het.
     stappen:
       - stap: aanvraag
+        verhaal: >-
+          Een ouder vraagt verlof voor de eerste week van februari 2027.
       - stap: besluit
+        verhaal: >-
+          Het hoofd vindt het beroep van de ouder bijzonder genoeg.
         uitkomst: toegewezen
         tekst: >-
           Laat "specifieke aard beroep ouder" aan staan en klik op Besluit
@@ -118,15 +122,23 @@ scenarios:
       jongere bij heroverweging alsnog verlof.
     stappen:
       - stap: aanvraag
+        verhaal: >-
+          Een ouder vraagt verlof voor de eerste week van februari 2027.
       - stap: besluit
+        verhaal: >-
+          Het hoofd vindt het beroep van de ouder niet bijzonder genoeg.
         invoer:
           specifieke_aard_beroep_ouder: false
         uitkomst: afgewezen
         gezien: >-
           Bij Aanvrager staat de aanvraag op Afgewezen.
       - stap: bezwaar
+        verhaal: >-
+          De ouder maakt bezwaar, met een verklaring van de werkgever.
         datum: 2026-11-01
       - stap: beslissing_op_bezwaar
+        verhaal: >-
+          Het hoofd beoordeelt het beroep bij de heroverweging anders.
         datum: 2026-11-15
         invoer:
           specifieke_aard_beroep_ouder: true
@@ -142,27 +154,39 @@ scenarios:
       bezwaar daartegen houdt geen stand.
     stappen:
       - stap: aanvraag
+        verhaal: >-
+          Een ouder vraagt verlof voor februari 2027.
       - stap: besluit
+        verhaal: >-
+          Het hoofd beslist op de aanvraag.
         uitkomst: toegewezen
         gezien: >-
           Toegewezen: het verlof is verleend.
       - stap: aanvraag
+        verhaal: >-
+          De ouder vraagt in hetzelfde schooljaar nog verlof, in mei 2027.
         invoer:
           eerste_verlofdag: '2027-05-10'
           laatste_verlofdag: '2027-05-14'
       - stap: besluit
+        verhaal: >-
+          Het hoofd beslist op de tweede aanvraag.
         uitkomst: afgewezen
         tekst: >-
           Klik bij de tweede aanvraag op Besluit nemen.
         gezien: >-
           Afgewezen: de jongere kreeg dit schooljaar al verlof.
       - stap: bezwaar
+        verhaal: >-
+          De ouder maakt bezwaar tegen de weigering.
         datum: 2026-11-01
         op: 2
         tekst: >-
           Klik bij het besluit over de tweede aanvraag op Bezwaar maken en dan
           op Bezwaar indienen.
       - stap: beslissing_op_bezwaar
+        verhaal: >-
+          Het hoofd heroverweegt de weigering.
         datum: 2026-11-15
         uitkomst: ongegrond
         tekst: >-
@@ -176,13 +200,21 @@ scenarios:
       heroverwogen.
     stappen:
       - stap: aanvraag
+        verhaal: >-
+          Een ouder vraagt verlof voor februari 2027.
       - stap: besluit
+        verhaal: >-
+          Het hoofd vindt het beroep van de ouder niet bijzonder genoeg.
         invoer:
           specifieke_aard_beroep_ouder: false
         uitkomst: afgewezen
       - stap: bezwaar
+        verhaal: >-
+          De ouder maakt bezwaar, maar pas na de termijn van zes weken.
         datum: 2026-12-01
       - stap: beslissing_op_bezwaar
+        verhaal: >-
+          Het hoofd beslist op het bezwaar.
         uitkomst: niet_ontvankelijk
         tekst: >-
           Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op
@@ -196,11 +228,20 @@ scenarios:
       vervangt een besluit maar één keer.
     stappen:
       - stap: aanvraag
+        verhaal: >-
+          Een ouder vraagt verlof voor februari 2027.
       - stap: besluit
+        verhaal: >-
+          Het hoofd beslist op de aanvraag.
         uitkomst: toegewezen
       - stap: bezwaar
+        verhaal: >-
+          De ouder maakt bezwaar tegen het besluit.
         datum: 2026-11-01
       - stap: bezwaar
+        verhaal: >-
+          Een dag later maakt de ouder nog een keer bezwaar tegen hetzelfde
+          besluit.
         datum: 2026-11-02
         op: 1
         tekst: >-
@@ -210,6 +251,8 @@ scenarios:
           Er staan twee bezwaren tegen hetzelfde besluit open, onder
           Bestuursorgaan.
       - stap: beslissing_op_bezwaar
+        verhaal: >-
+          Het hoofd beslist op het eerste bezwaar.
         titel: Beslissen op het eerste bezwaar
         datum: 2026-11-15
         op: 1
@@ -223,6 +266,8 @@ scenarios:
           Gegrond: een weigering komt in de plaats van het besluit, en het
           tweede bezwaar staat nog open.
       - stap: beslissing_op_bezwaar
+        verhaal: >-
+          Het hoofd beslist ook op het tweede bezwaar.
         titel: Beslissen op het tweede bezwaar
         datum: 2026-11-16
         op: 2
@@ -240,24 +285,36 @@ scenarios:
       tweede.
     stappen:
       - stap: aanvraag
+        verhaal: >-
+          Een ouder vraagt verlof A, voor februari 2027.
       - stap: besluit
+        verhaal: >-
+          Het hoofd beslist op verlof A.
         uitkomst: toegewezen
       - stap: aanvraag
+        verhaal: >-
+          De ouder vraagt verlof B, voor mei 2027.
         invoer:
           eerste_verlofdag: '2027-05-10'
           laatste_verlofdag: '2027-05-14'
       - stap: besluit
+        verhaal: >-
+          Het hoofd beslist op verlof B.
         uitkomst: afgewezen
         gezien: >-
           Afgewezen: de jongere kreeg dit schooljaar al verlof met de eerste
           aanvraag.
       - stap: bezwaar
+        verhaal: >-
+          De ouder maakt bezwaar tegen het besluit over A.
         datum: 2026-11-01
         op: 1
         tekst: >-
           Klik bij het besluit over de eerste aanvraag (A) op Bezwaar maken en
           dan op Bezwaar indienen.
       - stap: beslissing_op_bezwaar
+        verhaal: >-
+          Het hoofd heroverweegt het besluit over A.
         datum: 2026-11-15
         invoer:
           specifieke_aard_beroep_ouder: false
@@ -268,6 +325,8 @@ scenarios:
         gezien: >-
           Gegrond: A is herroepen, en een weigering komt in de plaats.
       - stap: bezwaar
+        verhaal: >-
+          De ouder maakt bezwaar tegen de weigering van B.
         titel: Bezwaar maken tegen B
         datum: 2026-11-20
         op: 2
@@ -275,6 +334,8 @@ scenarios:
           Klik bij het besluit over de tweede aanvraag (B) op Bezwaar maken en
           dan op Bezwaar indienen.
       - stap: beslissing_op_bezwaar
+        verhaal: >-
+          Het hoofd heroverweegt de weigering van B.
         titel: Beslissen op het bezwaar tegen B
         datum: 2026-12-01
         uitkomst: gegrond
@@ -289,10 +350,14 @@ scenarios:
       van de school laat zien dat die dagen in een schoolvakantie vallen.
     stappen:
       - stap: aanvraag
+        verhaal: >-
+          Een ouder vraagt verlof voor drie dagen in de kerstvakantie.
         invoer:
           eerste_verlofdag: '2026-12-21'
           laatste_verlofdag: '2026-12-23'
       - stap: besluit
+        verhaal: >-
+          Het hoofd beslist op de aanvraag.
         uitkomst: afgewezen
         tekst: >-
           Laat "specifieke aard beroep ouder" aan staan en klik op Besluit
@@ -305,10 +370,15 @@ scenarios:
       formulier het hoofd of het verlof buiten de schoolvakanties valt.
     stappen:
       - stap: aanvraag
+        verhaal: >-
+          Een ouder vraagt verlof in december 2027, een schooljaar dat de
+          school nog niet kent.
         invoer:
           eerste_verlofdag: '2027-12-20'
           laatste_verlofdag: '2027-12-22'
       - stap: besluit
+        verhaal: >-
+          Het hoofd oordeelt dat het verlof in de schoolvakantie valt.
         invoer:
           verlof_valt_buiten_schoolvakanties_volgens_hoofd: false
         uitkomst: afgewezen
@@ -321,13 +391,21 @@ scenarios:
       en het hoofd beslist opnieuw.
     stappen:
       - stap: aanvraag
+        verhaal: >-
+          Een ouder vraagt verlof voor februari 2027.
       - stap: besluit
+        verhaal: >-
+          Het hoofd vindt het beroep van de ouder niet bijzonder genoeg.
         invoer:
           specifieke_aard_beroep_ouder: false
         uitkomst: afgewezen
       - stap: bezwaar
+        verhaal: >-
+          De ouder maakt bezwaar tegen de weigering.
         datum: 2026-11-01
       - stap: beslissing_op_bezwaar
+        verhaal: >-
+          Het hoofd heroverweegt de weigering.
         datum: 2026-11-15
         uitkomst: ongegrond
         tekst: >-
@@ -337,16 +415,25 @@ scenarios:
           Ongegrond: de weigering blijft, en bij Aanvrager kun je nu in beroep
           gaan.
       - stap: beroep
+        verhaal: >-
+          De ouder gaat in beroep bij de rechtbank.
         datum: 2026-12-01
       - stap: uitspraak
+        verhaal: >-
+          De rechter vindt de motivering niet deugdelijk en vernietigt de
+          beslissing.
         datum: 2027-01-11
       - stap: toezenden
+        verhaal: >-
+          De rechtbank stuurt de uitspraak naar de school.
         tekst: >-
           Klik bij de uitspraak op Toezenden aan OBS De Klimop.
         gezien: >-
           De school legt de ontvangst vast (Awb 8:79), en onder Bestuursorgaan
           staat nu Na een uitspraak.
       - stap: opnieuw_beslissen
+        verhaal: >-
+          Het hoofd beslist opnieuw en vindt het beroep nu wel bijzonder.
         datum: 2027-01-18
         invoer:
           specifieke_aard_beroep_ouder: true
