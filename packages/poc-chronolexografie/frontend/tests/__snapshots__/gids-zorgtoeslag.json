@@ -170,7 +170,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "story": "De Dienst verleent een voorschot van € 1.577 over 2025.",
-    "todo": "Klik onder Open aanvragen bij het voorschot op Besluit nemen.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen: Awir artikel 16.",
     "values": [],
     "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
@@ -208,7 +208,7 @@
     "tab": "bestuursorgaan",
     "date": "2025-03-14",
     "story": "De Dienst verleent op 14 maart een voorschot van € 1.577.",
-    "todo": "Klik onder Open aanvragen bij het voorschot op Besluit nemen.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen: Awir artikel 16.",
     "values": [],
     "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
@@ -244,7 +244,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "story": "De Dienst verwacht een inkomen van € 30.000.",
-    "todo": "Klik onder Open aanvragen bij het voorschot op Besluit nemen.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen: Awir artikel 16.",
     "values": [
      "toetsingsinkomen: 3000000"
     ],

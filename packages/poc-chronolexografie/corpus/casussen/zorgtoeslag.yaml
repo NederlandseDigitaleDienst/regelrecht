@@ -184,7 +184,7 @@ scenarios:
         verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
       - stap: besluit
         artikel: algemene_wet_inkomensafhankelijke_regelingen#16
-        tekst: Klik onder Open aanvragen bij het voorschot op Besluit nemen.
+        tekst: 'Klik onder Open aanvragen op Besluit nemen: Awir artikel 16.'
         verhaal: De Dienst verleent een voorschot van € 1.577 over 2025.
         uitkomst: toegewezen
         uitvoer:
@@ -208,7 +208,7 @@ scenarios:
           dagtekening: '2025-03-07'
       - stap: besluit
         artikel: algemene_wet_inkomensafhankelijke_regelingen#16
-        tekst: Klik onder Open aanvragen bij het voorschot op Besluit nemen.
+        tekst: 'Klik onder Open aanvragen op Besluit nemen: Awir artikel 16.'
         verhaal: De Dienst verleent op 14 maart een voorschot van € 1.577.
         datum: 2025-03-14
         uitkomst: toegewezen
@@ -231,7 +231,7 @@ scenarios:
         verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
       - stap: besluit
         artikel: algemene_wet_inkomensafhankelijke_regelingen#16
-        tekst: Klik onder Open aanvragen bij het voorschot op Besluit nemen.
+        tekst: 'Klik onder Open aanvragen op Besluit nemen: Awir artikel 16.'
         verhaal: De Dienst verwacht een inkomen van € 30.000.
         invoer:
           toetsingsinkomen: 3000000
