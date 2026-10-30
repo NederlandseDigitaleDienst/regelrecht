@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { hervatten, state, stap, verversen } from '../src/state.js';
+import { eigenWaarden, hervatten, state, stap, verversen } from '../src/state.js';
 
 // The cell is not loaded here: the API hands back a fixed case and an empty
 // chronicle, and the saved game is an opaque value.
@@ -86,5 +86,26 @@ describe('stap', () => {
       throw new Error('already replaces');
     });
     expect(state.refusals).toEqual([]);
+  });
+});
+
+describe('eigenWaarden', () => {
+  it('gives the outputs of a decision, not the input it took over', () => {
+    const besluit = { fields: { bsn_aanvrager: '1' }, outputs: { verstrekt: true, tot: '2031-10-19' } };
+    expect(eigenWaarden(besluit)).toEqual(['verstrekt: true', 'tot: 2031-10-19']);
+  });
+
+  it('gives the fields of an executogram, which has no outputs', () => {
+    expect(eigenWaarden({ fields: { bsn_aanvrager: '1', onderzocht: false } })).toEqual([
+      'bsn_aanvrager: 1',
+      'onderzocht: false',
+    ]);
+    expect(eigenWaarden({ fields: { aantal: 2 }, outputs: {} })).toEqual(['aantal: 2']);
+  });
+
+  it('leaves out references and empty values', () => {
+    const kopie = { basis: 'awb#1', fields: {}, findings: {}, outputs: {} };
+    const id = '01a18d9a-0916-72f7-b24a-f062a8205051';
+    expect(eigenWaarden({ fields: { besluit: kopie, bestreden: id, leeg: null, zaak: 'x' } })).toEqual(['zaak: x']);
   });
 });

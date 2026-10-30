@@ -395,6 +395,22 @@ export function waarde(v) {
   return JSON.stringify(v);
 }
 
+// Het id van een chronolexogram: een UUID.
+const GRAM_ID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
+
+/**
+ * Wat een chronolexogram zelf vastlegt, als `naam: waarde`: de uitvoer van een
+ * besluit, anders de velden. Niet de metadata (id, wie en wanneer), de invoer
+ * die een besluit overneemt, een lege waarde, of een verwijzing: het id van
+ * een ander chronolexogram of de kopie van een besluit.
+ */
+export function eigenWaarden(gram) {
+  const uit = Object.keys(gram.outputs ?? {}).length ? gram.outputs : (gram.fields ?? {});
+  return Object.entries(uit)
+    .filter(([, w]) => w != null && !isBesluitwaarde(w) && !GRAM_ID.test(w))
+    .map(([naam, w]) => `${naam}: ${typeof w === 'string' ? w : waarde(w)}`);
+}
+
 /** JSON zoals de kroniek het bewaart, met elk decimaal als het getal zelf. */
 export function alsJson(v) {
   const merk = '\u0000';
