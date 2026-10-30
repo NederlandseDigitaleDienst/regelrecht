@@ -190,6 +190,9 @@ function namenIn(waarde, uit = new Set()) {
  * Parameters are left out: they are what the case gives (a KvK number, the
  * day of the decision), not something the chain decides. An open term that
  * nothing in the case fills in ends the chain: someone decides it per case.
+ * Once drawn, the picture is made simpler (`eenvoudig`): an output that only
+ * passes on an input is one name with it, and a reduction shows only what it
+ * reads and what it answers.
  */
 export function keten(alle, id, { law, article, naam }) {
   const { wet, cel, cellen, celBestand, wetBestand, begrip, lijn, artikelVan, metUitvoer, metFeit, invullers, uitkomst } = opzet(alle, id);
@@ -222,6 +225,10 @@ export function keten(alle, id, { law, article, naam }) {
       for (const v of namenIn(actie.value)) {
         const d = knoop(lawId, nummer, v, gegeven);
         if (d) lijn('rekent', d.box, d.begrip, box, uit.begrip, 'actions');
+        // An output that is just an input of its own article: a candidate to merge.
+        if (d && actie.value === `$${v}` && d.box === box && d.begrip.rol === 'input') {
+          doorgaven.push({ pad: box.pad, uit: begrip(box, uit.begrip), in: begrip(box, d.begrip) });
+        }
       }
     } else if (invoer) {
       uit = { box, begrip: hier('input') };
@@ -281,7 +288,79 @@ export function keten(alle, id, { law, article, naam }) {
     return uit;
   }
   let volgorde = 0;
+  const doorgaven = [];
 
   const doel = knoop(law, String(article), naam);
-  return { ...uitkomst(), doel: doel && { pad: doel.box.pad, begrip: `${doel.begrip.artikel ?? ''}#${doel.begrip.rol}#${doel.begrip.naam}` } };
+  return {
+    ...eenvoudig(uitkomst(), doorgaven),
+    doel: doel && { pad: doel.box.pad, begrip: `${doel.begrip.artikel ?? ''}#${doel.begrip.rol}#${doel.begrip.naam}` },
+  };
+}
+
+/**
+ * The picture made as simple as it can be without losing a step of the law,
+ * once it is drawn:
+ *
+ *  - An output that only passes on an input of its own article
+ *    (`value: $input`) and that input become one name: the output, with the
+ *    lines into the input drawn into it, of the same kind. Not when the
+ *    input is used by something else in the picture as well; `doorgaven`
+ *    holds the candidates.
+ *  - A reduction shows only the names that connect to another file: what it
+ *    reads and what it answers. The steps in between are how it reduces, not
+ *    what the chain needs; a `rekent` line from each name it reads to each
+ *    name it answers that this feeds takes their place. In a law or policy
+ *    the steps in between are its reasoning, so they stay.
+ */
+function eenvoudig({ bestanden, lijnen }, doorgaven) {
+  const id = (e) => `${e.pad}|${e.begrip}`;
+
+  const samen = new Map();
+  for (const d of doorgaven) {
+    const van = lijnen.filter((l) => id(l.van) === id({ pad: d.pad, begrip: d.in }));
+    if (van.length === 1 && id(van[0].naar) === id({ pad: d.pad, begrip: d.uit })) {
+      samen.set(id({ pad: d.pad, begrip: d.in }), { pad: d.pad, begrip: d.uit });
+    }
+  }
+  const na = lijnen
+    .filter((l) => !samen.has(id(l.van)))
+    .map((l) => (samen.has(id(l.naar)) ? { ...l, naar: samen.get(id(l.naar)) } : l));
+
+  const soort = new Map(bestanden.map((b) => [b.pad, b.soort]));
+  const buiten = new Set(na.filter((l) => l.van.pad !== l.naar.pad).flatMap((l) => [id(l.van), id(l.naar)]));
+  const tussen = (e) => soort.get(e.pad) === 'reductie' && !buiten.has(id(e));
+  const verder = new Map();
+  for (const l of na) if (tussen(l.van)) verder.set(id(l.van), [...(verder.get(id(l.van)) ?? []), l.naar]);
+
+  const uit = [];
+  const gezien = new Set();
+  const voeg = (l) => {
+    const k = `${id(l.van)}|${id(l.naar)}`;
+    if (k !== `${id(l.van)}|${id(l.van)}` && !gezien.has(k)) uit.push(l), gezien.add(k);
+  };
+  for (const l of na) {
+    if (tussen(l.van)) continue;
+    if (!tussen(l.naar)) {
+      voeg(l);
+      continue;
+    }
+    // Through the steps in between, to every name that stays.
+    const bezocht = new Set();
+    const rij = [l.naar];
+    while (rij.length) {
+      const e = rij.pop();
+      if (bezocht.has(id(e))) continue;
+      bezocht.add(id(e));
+      if (tussen(e)) rij.push(...(verder.get(id(e)) ?? []));
+      else voeg({ soort: 'rekent', yaml: 'actions', van: l.van, naar: e });
+    }
+  }
+
+  return {
+    bestanden: bestanden.map((b) => ({
+      ...b,
+      begrippen: b.begrippen.filter((g) => !samen.has(id({ pad: b.pad, begrip: g.key })) && !tussen({ pad: b.pad, begrip: g.key })),
+    })),
+    lijnen: uit,
+  };
 }
