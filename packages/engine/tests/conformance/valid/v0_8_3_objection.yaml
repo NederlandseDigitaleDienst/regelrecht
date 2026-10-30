@@ -2,7 +2,7 @@
 # Tier C: an objection as a kind of submission (schema v0.8.3, RFC-050). The
 # article that decides on the objection establishes it, as a list item of
 # type BEZWAAR, and a hook applies to every objection.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: test_conformance_objection
 regulatory_layer: WET
 publication_date: '2026-10-14'

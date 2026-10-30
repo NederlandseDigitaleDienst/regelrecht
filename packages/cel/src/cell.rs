@@ -1488,7 +1488,9 @@ impl Cell {
         for (name, value) in &gram.fields {
             if shape.input(name).is_some() {
                 fields.insert(name.clone(), value.clone());
-            } else if used.contains(name) && shape.finding(name, &self.authority).is_some() {
+            } else if used.contains(name) {
+                // A finding on a term of the decision, or one given for an
+                // article it called; the engine applies it there anew.
                 findings.insert(name.clone(), value.clone());
             }
         }

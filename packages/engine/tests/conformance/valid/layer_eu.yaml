@@ -1,6 +1,6 @@
 ---
 # Tier C: celex_nummer and eli, required by the schema for EU instruments.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: test_conformance_eu_verordening
 regulatory_layer: EU_VERORDENING
 publication_date: '2025-01-01'
