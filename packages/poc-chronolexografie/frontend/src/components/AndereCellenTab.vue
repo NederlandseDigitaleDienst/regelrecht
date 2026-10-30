@@ -7,11 +7,14 @@
 // feit vereist. Wat een andere cel vóór het eerste scenario wist, komt
 // uit de casus. De rechtbank is ook een andere cel (RFC-053): zij krijgt
 // hier de beroepen en de uitspraken (RechterCel.vue). Volg je een scenario,
-// dan staat het formulier van de stap ingevuld (scenarioInvoer.js).
+// dan staat het formulier van de stap ingevuld en klappen de andere
+// formulieren in (scenarioInvoer.js); die kun je zelf weer openen, tot de
+// volgende stap.
+import { reactive, watch } from 'vue';
 import { api } from '../api.js';
 import { artikelNaam } from '../logboek.js';
 import { hoofdletter, leesbaar, state, stap } from '../state.js';
-import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
+import { formulier, huidigeStap, ingeklapt, scenarioWaarden } from '../scenarioInvoer.js';
 import RechterCel from './RechterCel.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
@@ -23,6 +26,15 @@ const vorm = formulier((k) => {
   return scenarioWaarden('vastleggen', doel(cel, feit));
 });
 const velden = (cel, basis) => vorm.waarden(sleutel(cel, basis));
+
+// De ingeklapte formulieren die de bezoeker zelf opende, tot de volgende stap.
+const geopend = reactive({});
+watch(
+  () => huidigeStap()?.index,
+  () => Object.keys(geopend).forEach((k) => delete geopend[k]),
+);
+const inklapbaar = (cel, feit) => ingeklapt(state.vormen.andere_cellen, cel, feit);
+const zichtbaar = (cel, feit) => !inklapbaar(cel, feit) || !!geopend[sleutel(cel, feit)];
 
 // `regeling_x#3#geneeskundig_onderzoek_verricht` → `Geneeskundig onderzoek verricht (… artikel 3)`.
 const naam = (feit) => {
@@ -60,15 +72,27 @@ async function vastleggen(cel, handeling) {
       <nldd-container gap="16" max-width="560px">
         <nldd-card v-for="h in c.handelingen" :key="h.feit">
           <nldd-container padding="16" gap="12">
-            <nldd-title size="5" :text="`Vastleggen: ${naam(h.feit)}`"></nldd-title>
-            <VeldInvoer
-              v-for="veld in h.velden"
-              :key="veld.naam"
-              :model-value="velden(c.cel, h.feit)[veld.naam]"
-              :veld="veld"
-              @update:model-value="vorm.zet(sleutel(c.cel, h.feit), veld.naam, $event)"
-            />
-            <nldd-button appearance="primary" text="Vastleggen" @click="vastleggen(c.cel, h)"></nldd-button>
+            <nldd-title size="5" :text="`Vastleggen: ${naam(h.feit)}`">
+              <nldd-button
+                v-if="inklapbaar(c.cel, h.feit)"
+                slot="end"
+                appearance="neutral-tinted"
+                size="sm"
+                :text="zichtbaar(c.cel, h.feit) ? 'Inklappen' : 'Openen'"
+                :expanded="zichtbaar(c.cel, h.feit)"
+                @click="geopend[sleutel(c.cel, h.feit)] = !geopend[sleutel(c.cel, h.feit)]"
+              ></nldd-button>
+            </nldd-title>
+            <template v-if="zichtbaar(c.cel, h.feit)">
+              <VeldInvoer
+                v-for="veld in h.velden"
+                :key="veld.naam"
+                :model-value="velden(c.cel, h.feit)[veld.naam]"
+                :veld="veld"
+                @update:model-value="vorm.zet(sleutel(c.cel, h.feit), veld.naam, $event)"
+              />
+              <nldd-button appearance="primary" text="Vastleggen" @click="vastleggen(c.cel, h)"></nldd-button>
+            </template>
           </nldd-container>
         </nldd-card>
         <nldd-text size="sm" color="secondary">
