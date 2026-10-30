@@ -2606,6 +2606,50 @@ fn a_finding_under_the_name_of_an_input_of_the_called_article_wins_over_its_sour
 }
 
 #[test]
+fn a_decision_value_of_an_article_without_a_decision_is_refused_with_an_output_too() {
+    const LEEST: &str = r#"
+$id: wet_leest
+regulatory_layer: WET
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: Leest een uitvoer uit een besluitwaarde.
+    machine_readable:
+      execution:
+        parameters:
+          - name: besluit
+            type: decision
+        input:
+          - name: register
+            type: boolean
+            nullable: true
+            source:
+              article: $besluit
+              output: register_bijgehouden
+        output:
+          - name: bijgehouden
+            type: boolean
+            nullable: true
+        actions:
+          - output: bijgehouden
+            value: $register
+"#;
+    let mut service = service();
+    service.load_law(LEEST).unwrap();
+    let besluit = json!({"basis": "wet_verlof#3", "taken_on": "wet_verlof#3", "fields": {}, "findings": {}, "outputs": {}});
+    let e = service
+        .evaluate_law_output(
+            "wet_leest",
+            "bijgehouden",
+            params(json!({"besluit": besluit})),
+            DATE,
+        )
+        .unwrap_err();
+    assert!(e.to_string().contains("takes no decision"), "{e}");
+}
+
+#[test]
 fn a_finding_no_called_article_reads_is_still_not_asked() {
     let e = verwijzing()
         .evaluate_law_with_findings(

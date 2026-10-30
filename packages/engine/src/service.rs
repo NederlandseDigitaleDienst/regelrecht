@@ -6119,7 +6119,11 @@ impl LawExecutionService {
             .iter()
             .filter(|i| !declared.contains_key(&i.name) && !findings.contains_key(&i.name))
             .filter_map(|i| {
-                let value = res_ctx.findings.get(&i.name)?;
+                let value = res_ctx
+                    .findings
+                    .get(&i.name)
+                    .or_else(|| given_findings.get(&i.name))
+                    .filter(|value| !value.is_null())?;
                 Some((i.name.clone(), value.clone()))
             })
             .collect();
