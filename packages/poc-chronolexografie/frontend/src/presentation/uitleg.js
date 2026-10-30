@@ -74,7 +74,7 @@ export const keten = {
   title: 'Hoe het maximum bepaald wordt',
   start: { law: 'parkeerverordening_gemeente_wilgendaal', article: '2', naam: 'maximum_bedrijfsparkeervergunningen_bereikt' },
   text: [
-    'Dit schema begint bij de vraag die beantwoord moet worden, het open begrip `maximum_bedrijfsparkeervergunningen_bereikt` uit de verordening. Die waarde staat links, omlijnd. Daarna volg je wat daarvoor nodig is, tot de keten bij de bronnen uitkomt. Elke naam heeft daarom een stapnummer, en met de knop Volgende stap loop je de keten na.',
+    'Dit schema begint bij de vraag die beantwoord moet worden, het open begrip `maximum_bedrijfsparkeervergunningen_bereikt` uit de verordening. Die waarde staat links, omlijnd. Daarna volg je wat daarvoor nodig is, tot de keten bij de bronnen uitkomt. Met de knop Volgende stap loop je eerst één pad helemaal uit, elke naam heeft daarvoor een stapnummer. De laatste stap toont in één keer de andere invoer, want die werkt op dezelfde manier.',
     'Elke lijn loopt van wat nodig is naar wat het gebruikt, ook binnen één bestand, dus de stappen gaan tegen de pijlen in. Parameters zoals het KvK-nummer en de dag van het besluit staan er niet in: die geeft de casus.',
   ],
 };
