@@ -65,20 +65,8 @@ export const intro = {
 };
 
 /**
- * The overview above the steps (SchemaOverzicht.vue): its boxes and lines come
- * from the files themselves (schema.js), so only its heading and text are here.
- */
-export const overzicht = {
-  overline: 'Overzicht',
-  title: 'Alle bestanden in één beeld',
-  text: [
-    'Elk blok is een YAML-bestand van deze casus, elke lijn een verwijzing van een naam in het ene bestand naar een naam in het andere. Wijs een naam aan om alleen zijn eigen lijnen te zien.',
-    'Het schema komt uit de bestanden zelf: de app volgt vanaf de casus elke verwijzing, zoals `implements` en `source`.',
-  ],
-};
-
-/**
- * The picture of one value under the overview: `start` is the name it
+ * The picture of one value above the steps (SchemaOverzicht.vue): its boxes
+ * and lines come from the files themselves (schema.js); `start` is the name it
  * follows back, `law#article` and its name, as the files write it.
  */
 export const keten = {

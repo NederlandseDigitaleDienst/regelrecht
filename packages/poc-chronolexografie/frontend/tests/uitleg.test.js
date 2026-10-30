@@ -113,7 +113,7 @@ describe('the page', () => {
 
   it('is a page of the app: a section per step, a tree per panel', async () => {
     const html = await renderToString(createSSRApp({ render: () => h(UitlegPagina, { bestanden }) }));
-    expect(html.match(/<nldd-simple-section/g)).toHaveLength(steps.length + 4);
+    expect(html.match(/<nldd-simple-section/g)).toHaveLength(steps.length + 3);
     expect(html).toContain('Naar de casus');
     expect(html.match(/class="yaml-tree"/g)).toHaveLength(panels.length);
     expect(html).toContain('Naar de casuskeuze');
@@ -139,7 +139,7 @@ describe('the page', () => {
 
   it('loads the files when none are given, and says so until they are there', async () => {
     const html = await renderToString(createSSRApp({ render: () => h(UitlegPagina) }));
-    expect(html.match(/De YAML wordt geladen/g)).toHaveLength(panels.length + 2);
+    expect(html.match(/De YAML wordt geladen/g)).toHaveLength(panels.length + 1);
   });
 });
 
