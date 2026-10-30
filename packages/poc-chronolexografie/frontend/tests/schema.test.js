@@ -105,34 +105,32 @@ describe('the picture of one value', () => {
     const stapVan = (bestand, naam) => alleNamen.find((g) => g.map === bestand && g.naam === naam).stap;
     const eind = (e) => sleutel(e.pad, e.begrip);
 
-    it('gives every name a step, one after the last thing it uses', () => {
+    it('gives every name a step, one after the last name that uses it', () => {
       const stap = new Map(alleNamen.map((g) => [sleutel(g.pad, g.key), g.stap]));
       for (const n of stap.values()) expect(n).toBeGreaterThanOrEqual(1);
-      for (const l of k.lijnen) expect(stap.get(eind(l.van))).toBeLessThan(stap.get(eind(l.naar)));
+      for (const l of k.lijnen) expect(stap.get(eind(l.van))).toBeGreaterThan(stap.get(eind(l.naar)));
       for (const [naam, n] of stap) {
-        const bronnen = k.lijnen.filter((l) => eind(l.naar) === naam).map((l) => stap.get(eind(l.van)));
-        expect(n).toBe(1 + Math.max(0, ...bronnen));
+        const gebruikers = k.lijnen.filter((l) => eind(l.van) === naam).map((l) => stap.get(eind(l.naar)));
+        expect(n).toBe(1 + Math.max(0, ...gebruikers));
       }
     });
 
-    it('starts at what uses nothing, among which the sources in the chronicle', () => {
-      expect(stapVan('parkeerverordening_gemeente_wilgendaal', 'besluiten onder artikel 2')).toBe(1);
-      expect(stapVan('algemene_wet_bestuursrecht', 'besluiten onder artikel 7:11')).toBe(1);
-      expect(stapVan('algemene_wet_bestuursrecht', 'afschrift_van_de_uitspraak')).toBe(1);
-      expect(stapVan('beleid_handelsregister_kamer_van_koophandel', 'vestiging_ingeschreven')).toBe(1);
+    it('starts at the value itself, alone', () => {
+      const eerste = alleNamen.filter((g) => g.stap === 1);
+      expect(eerste.map((g) => sleutel(g.pad, g.key))).toEqual([eind(k.doel)]);
     });
 
-    it('ends at the value itself, alone', () => {
+    it('ends at sources, which take nothing in', () => {
       const laatste = alleNamen.filter((g) => g.stap === k.stappen);
-      expect(laatste.map((g) => sleutel(g.pad, g.key))).toEqual([eind(k.doel)]);
+      expect(laatste.length).toBeGreaterThan(0);
+      for (const g of laatste) expect(k.lijnen.some((l) => eind(l.naar) === sleutel(g.pad, g.key))).toBe(false);
+      expect(stapVan('algemene_wet_bestuursrecht', 'afschrift_van_de_uitspraak')).toBeGreaterThan(stapVan('reductie_algemene_wet_bestuursrecht', 'uitspraken'));
     });
 
-    it('gives names that can be worked out at the same moment the same step', () => {
+    it('gives names that are needed at the same moment the same step', () => {
       const awb = 'reductie_algemene_wet_bestuursrecht';
       expect(stapVan(awb, 'besluiten')).toBe(stapVan(awb, 'uitspraken'));
       expect(stapVan(awb, 'besluiten')).toBe(stapVan(awb, 'beslissingen_op_bezwaar'));
-      const kvk = 'reductie_vestiging_in_handelsregister';
-      expect(stapVan(kvk, 'postcode_vestiging')).toBe(stapVan(kvk, 'aantal_werkzame_personen'));
     });
 
     it('walks from the whole picture to the end and stops there', () => {
@@ -149,26 +147,45 @@ describe('the picture of one value', () => {
         const { nu, gehad } = stapBeeld(k, n);
         expect(nu.size).toBeGreaterThan(0);
         expect([...gehad].sort()).toEqual([...eerder, ...nu].sort());
-        // A line into this step comes from what has been.
-        for (const l of k.lijnen.filter((x) => nu.has(eind(x.naar)))) expect(eerder.has(eind(l.van))).toBe(true);
+        // A line out of this step goes to what asked for it, which has been.
+        for (const l of k.lijnen.filter((x) => nu.has(eind(x.van)))) expect(eerder.has(eind(l.naar))).toBe(true);
         eerder = gehad;
       }
       expect(eerder.size).toBe(alleNamen.length);
     });
 
-    it('says in one sentence what a step is, from the data', () => {
+    it('asks the question first, in the words of the law', () => {
       expect(stapZin(k, null)).toBe(`Het hele schema, in ${k.stappen} stappen.`);
-      expect(stapZin(k, 1)).toContain(`Stap 1 van ${k.stappen}, het begin:`);
-      expect(stapZin(k, 1)).toContain('in het beleid');
-      expect(stapZin(k, 1)).toContain('vestiging_ingeschreven');
-      expect(stapZin(k, k.stappen)).toBe(`Stap ${k.stappen} van ${k.stappen}, het einde: in wet en regeling maximum_bedrijfsparkeervergunningen_bereikt.`);
-      for (let n = 1; n <= k.stappen; n++) expect(stapZin(k, n).match(/\./g)).toHaveLength(1);
+      expect(stapZin(k, 1)).toBe(
+        `Stap 1 van ${k.stappen}, de vraag: of het bedrijf op de dag van het besluit al het maximum aantal geldige bedrijfsparkeervergunningen heeft dat het college vaststelt?`,
+      );
+    });
+
+    it('says what a step needs and where it comes from, briefly', () => {
+      const zinnen = Array.from({ length: k.stappen - 1 }, (_, i) => stapZin(k, i + 2));
+      for (const z of zinnen.slice(0, -1)) expect(z).toContain(', daarvoor is nodig: ');
+      expect(zinnen.at(-1)).toContain(', hier komt de keten bij de bron uit: ');
+      for (const z of zinnen) {
+        expect(z.length).toBeLessThanOrEqual(150);
+        expect(z).not.toContain('_');
+        expect(z.match(/\.$/g)).toHaveLength(1);
+      }
+      // Every kind of origin in this chain comes up.
+      const alles = zinnen.join(' ');
+      for (const waar of ['uit hetzelfde regelwerk', 'uit een andere regeling', 'aan een cel', 'van een reductie', 'uit de kroniek']) expect(alles).toContain(waar);
+    });
+
+    it('counts instead of naming when a sentence would run too long', () => {
+      const naam = 'een_naam_die_niet_kort_is_en_die_de_zin_lang_genoeg_maakt';
+      const bestanden = [{ pad: 'a', soort: 'wet', begrippen: [1, 2, 3, 4].map((i) => ({ key: `k${i}`, naam: `${naam}_${i}`, stap: 2 })) }];
+      const lijnen = [1, 2, 3, 4].map((i) => ({ soort: 'kroniek', van: { pad: 'a', begrip: `k${i}` }, naar: { pad: 'a', begrip: 'k' } }));
+      expect(stapZin({ bestanden, lijnen, stappen: 3 }, 2)).toBe('Stap 2 van 3, daarvoor is nodig: 4 bronnen uit de kroniek.');
     });
 
     it('draws the steps and the buttons', async () => {
       const html = await renderToString(createSSRApp({ render: () => h(SchemaOverzicht, { schema: k, label: 'x' }) }));
       expect(html.match(/<nldd-badge/g)).toHaveLength(alleNamen.length);
-      expect(html).toContain('Stap 1; naar');
+      expect(html).toContain(`Stap ${k.stappen}; naar`);
       for (const knop of ['Vorige stap', 'Volgende stap', 'Toon alles']) expect(html).toContain(`text="${knop}"`);
       expect(html).toContain('aria-live="polite"');
       expect(html).toContain(stapZin(k, null));
