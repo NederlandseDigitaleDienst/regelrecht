@@ -458,9 +458,9 @@ fn a_reduction_does_not_act_on_law() {
 fn a_reduction_fills_no_open_term() {
     // Its cell gives it as a named answer, which a policy binds (RFC-048).
     // Schema v0.8.5 to v0.8.8 allowed `implements` on a reduction; v0.8.9
-    // removed it, and the engine runs every file with the latest semantics,
-    // so a file under any version, or none, is refused with the replacement
-    // named.
+    // removed it, and for now the engine runs every file with the latest
+    // semantics, so a file under any version, or none, is refused with the
+    // replacement named.
     let implements = "      implements:\n        - law: leerplichtwet_1969\n          \
                       article: 13a\n          open_term: verlof_al_verleend_in_schooljaar\n";
     let says = "a REDUCTIE fills no open term (implements), which schema v0.8.9 removed; its \

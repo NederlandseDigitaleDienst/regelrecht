@@ -25,9 +25,11 @@
 //! (`execution.produces`) and delegates nothing (`open_terms`). It names no
 //! holder (`competent_authority`): it sits with its cell, or with none.
 //!
-//! The engine has no behavior that depends on the schema version a file
-//! names: every file runs with the semantics of the latest version. A
-//! construct a later version removed is refused with its replacement named:
+//! For now the engine has no behavior that depends on the schema version a
+//! file names: every file runs with the semantics of the latest version.
+//! That works because the 0.x versions have not really been released yet, so
+//! a later one can still remove a construct. A removed construct is refused
+//! with its replacement named:
 //! `source.executograms` (v0.8.6), which v0.8.7 replaced by `source.facts`;
 //! `implements` on a reduction (v0.8.5 to v0.8.8), which v0.8.9 replaced by
 //! a named answer that a policy binds with `source.reduction`; and `combine`
@@ -62,9 +64,10 @@ use regelrecht_law_model::{
 };
 
 /// Refuse a construct that a later schema version removed, naming what
-/// replaced it. The engine runs every file with the semantics of the latest
-/// version, so it cannot run such a construct; dropping it silently would run
-/// the file without it. So far there are three: `source.executograms`
+/// replaced it. For now the engine runs every file with the semantics of the
+/// latest version (see the module docs), so it cannot run such a construct;
+/// dropping it silently would run the file without it. So far there are
+/// three: `source.executograms`
 /// (v0.8.6), which v0.8.7 replaced by `source.facts` (RFC-051); `implements`
 /// on a `REDUCTIE` (v0.8.5 to v0.8.8), which v0.8.9 replaced by a named
 /// answer of the cell that a policy binds to the term (`source.reduction`,

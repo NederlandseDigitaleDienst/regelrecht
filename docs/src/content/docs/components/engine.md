@@ -270,7 +270,7 @@ Three more bound the fuzzy search that anchors a note to law text. The sliding-w
 
 `SUPPORTED_SCHEMAS` lists the schema versions this engine build accepts. A law whose `$schema` names a version outside that list is refused at load time, with an error that lists the supported versions. A law without `$schema` is not checked against the list.
 
-The list holds every released schema version. `just validate` checks a rulework against the schema its `$schema` names, and the engine runs it with the semantics of the latest version. The engine has no behavior that depends on the version. A construct that a later version removed is refused at load, with an error that names its replacement. So a v0.8.6 rulework that reads `source.executograms` is told to use `source.facts`, which replaced it in v0.8.7. A reduction with `implements`, which v0.8.5 to v0.8.8 allowed, is told to give its value as a named answer of its cell. Since v0.8.9 a policy binds that answer to the term with `source.reduction`. A `combine` on an open term or in a `source`, which v0.8.13 removed, is told that one question goes to one cell.
+The list holds every schema version in the repository. For now the engine treats them alike: `just validate` checks a rulework against the schema its `$schema` names, and the engine runs it with the semantics of the latest version. That works because these 0.x versions have not really been released yet, so a later one can still remove a construct. A rulework that uses a removed construct is refused at load, and the error names the replacement. A v0.8.6 rulework that reads `source.executograms`, for example, is told to use `source.facts`.
 
 ## Execution Receipt
 
