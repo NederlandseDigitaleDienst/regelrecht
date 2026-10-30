@@ -1,0 +1,122 @@
+[
+ {
+  "name": "Voorschot wordt verleend",
+  "summary": "Een alleenstaande vraagt zorgtoeslag aan, en de Dienst Toeslagen verleent een voorschot.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "todo": "Klik op Aanvraag indienen. De aanvraag noemt het burgerservicenummer en het berekeningsjaar 2025.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "todo": "De Dienst verwacht een toetsingsinkomen van € 25.000, geen toeslagpartner, een zorgverzekering en een vermogen onder de grens. Klik op Besluit nemen.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   }
+  ]
+ },
+ {
+  "name": "Niet verzekerd: geen voorschot",
+  "summary": "De Dienst verwacht dat de aanvrager geen zorgverzekering heeft, en verleent geen voorschot.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "todo": "Klik op Aanvraag indienen.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "todo": "Het formulier staat ingevuld uit het scenario: \"vermoedelijk verzekerd\" Nee. De Dienst vindt geen zorgverzekering voor 2025. Klik op Besluit nemen.",
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   }
+  ]
+ },
+ {
+  "name": "Inkomen te hoog, bezwaar gegrond",
+  "summary": "Bij het verwachte inkomen is er geen voorschot, maar na het bezwaar verwacht de Dienst minder en verleent hij er alsnog een.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "todo": "Klik op Aanvraag indienen.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "todo": "Het formulier staat ingevuld uit het scenario: \"vermoedelijk toetsingsinkomen\" 4500000. De Dienst verwacht een toetsingsinkomen van € 45.000. Klik op Besluit nemen.",
+    "seen": "Afgewezen: bij dat inkomen is de normpremie hoger dan de standaardpremie, dus de zorgtoeslag is nihil.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   },
+   {
+    "title": "Bezwaar maken",
+    "tab": "aanvrager",
+    "date": "2025-01-20",
+    "todo": "Klik bij het besluit op Bezwaar maken. De gronden zeggen dat het inkomen in 2025 daalt. Klik op Bezwaar indienen.",
+    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "expect": null
+   },
+   {
+    "title": "Beslissen op bezwaar",
+    "tab": "bestuursorgaan",
+    "date": "2025-02-03",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"vermoedelijk toetsingsinkomen\" 3000000. Klik onder Open bezwaren op Ontvankelijkheid toetsen: het bezwaar is ontvankelijk. De Dienst verwacht nu € 30.000. Klik op Beslissen op bezwaar.",
+    "seen": "De beslissing staat onder Beslissingen op bezwaar.",
+    "expect": "hier hoort het bezwaar gegrond te zijn"
+   }
+  ]
+ },
+ {
+  "name": "Bezwaar zonder nieuwe feiten: ongegrond",
+  "summary": "De aanvrager maakt bezwaar tegen een verleend voorschot, maar de Dienst verwacht hetzelfde en het voorschot blijft.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "todo": "Klik op Aanvraag indienen.",
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "todo": "Klik op Besluit nemen.",
+    "seen": "Toegewezen, met een voorschotbedrag van 157700 eurocent (€ 1.577).",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   },
+   {
+    "title": "Bezwaar maken",
+    "tab": "aanvrager",
+    "date": "2025-01-20",
+    "todo": "Het formulier staat ingevuld uit het scenario: \"gronden bezwaar of beroep\" het voorschot is te laag. Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
+    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "expect": null
+   },
+   {
+    "title": "Beslissen op bezwaar",
+    "tab": "bestuursorgaan",
+    "date": "2025-02-03",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen. Laat de bevindingen staan en klik op Beslissen op bezwaar.",
+    "seen": "De beslissing staat onder Beslissingen op bezwaar.",
+    "expect": "hier hoort het bezwaar ongegrond te zijn"
+   }
+  ]
+ }
+]

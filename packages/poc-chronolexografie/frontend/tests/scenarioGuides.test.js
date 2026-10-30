@@ -9,7 +9,7 @@ const casus = (id) => ({
   id,
   ...load(readFileSync(new URL(`../../corpus/casussen/${id}.yaml`, import.meta.url), 'utf8')),
 });
-const CASUSSEN = ['vakantieverlof', 'gehandicaptenparkeerkaart', 'bedrijfsparkeervergunning'];
+const CASUSSEN = ['vakantieverlof', 'gehandicaptenparkeerkaart', 'bedrijfsparkeervergunning', 'zorgtoeslag'];
 const TABS = ['aanvrager', 'bestuursorgaan', 'andere'];
 
 describe.each(CASUSSEN)('the guides of %s', (id) => {

@@ -209,6 +209,11 @@ pub struct Handeling {
     /// What the step comes to, where the scenario expects something.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub uitkomst: Option<Uitkomst>,
+    /// Outputs of the decision the step takes, by name, with the value the
+    /// scenario expects, such as an amount: of the decision itself, or of
+    /// the new decision a decision on objection takes in its place.
+    #[serde(default, skip_serializing_if = "Map::is_empty")]
+    pub uitvoer: Map<String, Value>,
     /// What the visitor does, beyond what the guide says for every step of
     /// this kind, and what they see once it is done. The guide puts the
     /// values of `invoer` before `tekst`.

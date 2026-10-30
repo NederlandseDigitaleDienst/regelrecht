@@ -3458,6 +3458,160 @@ mod tests {
     }
 
     #[test]
+    fn zorgtoeslag_the_application_asks_for_the_advance_and_the_policy_its_amount() {
+        // Awir art. 15 establishes the application and asks for the
+        // decision of art. 16, the advance, which the Dienst Toeslagen takes
+        // as the article names it. Its open term, the amount the allowance
+        // is expected to come to, is filled by the Dienst's policy, which
+        // reads the Wet op de zorgtoeslag; that law reads the standard
+        // premium from its regeling, and the Awir, the Zvw and the Wet IB
+        // 2001 are read by the articles of these laws.
+        let zorg = casus("zorgtoeslag");
+        let a = &zorg.afleiding;
+        assert_eq!(
+            (a.decision_law.as_str(), a.decision.as_str()),
+            ("algemene_wet_inkomensafhankelijke_regelingen", "16")
+        );
+        assert_eq!(a.objection, "7:11");
+        assert!(a.beroep.is_none(), "no court among the cells of this case");
+        assert_eq!(a.rol, "Dienst Toeslagen");
+        let mut ids = a.regelwerken.clone();
+        ids.sort();
+        assert_eq!(
+            ids,
+            [
+                "algemene_wet_bestuursrecht",
+                "algemene_wet_inkomensafhankelijke_regelingen",
+                "algemene_wet_inzake_rijksbelastingen",
+                "beleid_zorgtoeslag_dienst_toeslagen",
+                "regeling_standaardpremie",
+                "wet_inkomstenbelasting_2001",
+                "wet_op_de_zorgtoeslag",
+                "zorgverzekeringswet",
+            ]
+        );
+    }
+
+    #[test]
+    fn zorgtoeslag_the_preview_asks_each_estimate_of_the_dienst() {
+        // The deciding article asks no finding of its own: its open term is
+        // filled by the policy, which leaves each estimate to the Dienst.
+        // The preview asks them one at a time, as the case reaches them.
+        let corpus = casus("zorgtoeslag");
+        let mut cell = corpus.cell().unwrap();
+        let op = day("2025-01-06");
+        let vormen = vormen(&corpus, &cell, op).unwrap();
+        assert_eq!(vormen["besluit"]["bevindingen"], json!([]));
+        let velden = map(json!({
+            "bsn": "999993653",
+            "berekeningsjaar": 2025,
+            "aanvraag_ondertekend": true,
+            "naam_aanvrager": "S. de Vries",
+            "adres_aanvrager": "Voorbeeldlaan 7",
+            "dagtekening": "2025-01-03",
+            "gevraagde_beschikking": "zorgtoeslag over 2025",
+        }));
+        let app = aanvragen(&corpus, &mut cell, &velden, op).unwrap();
+
+        let leeg = voorvertoning_besluit(&corpus, &cell, &app.id, &Map::new(), op).unwrap();
+        let eerste = namen(&leeg.stil);
+        assert_eq!(eerste.len(), 1);
+        assert!(eerste[0].starts_with("vermoedelijk_"), "{eerste:?}");
+        assert_eq!(
+            leeg.stil[0]["basis"],
+            json!("beleid_zorgtoeslag_dienst_toeslagen#1")
+        );
+        assert!(leeg.voorlopig.is_none());
+
+        let oordelen = map(json!({
+            "vermoedelijk_toetsingsinkomen": 2500000,
+            "vermoedelijk_heeft_toeslagpartner": false,
+            "vermoedelijk_toetsingsinkomen_toeslagpartner": 0,
+            "vermoedelijk_verzekerd": true,
+            "vermoedelijk_vermogen_onder_grens": true,
+        }));
+        let alle = voorvertoning_besluit(&corpus, &cell, &app.id, &oordelen, op).unwrap();
+        assert_eq!(alle.stil.len(), 5);
+        let besluit = alle.voorlopig.unwrap().besluit;
+        assert_eq!(besluit.outputs["voorschot_verleend"], json!(true));
+        assert_eq!(besluit.outputs["voorschotbedrag"], json!(157700));
+        assert!(cell.kronieken()[0].iter().all(|g| g.kind != "BESCHIKKING"));
+    }
+
+    /// The advance on an application for 2025 received on `ontvangen`,
+    /// with the Dienst's estimates over the defaults: a single person,
+    /// insured, with assets under the limit and an income of € 25.000.
+    fn voorschot(ontvangen: &str, verwachting: Value) -> std::collections::BTreeMap<String, Value> {
+        let corpus = casus("zorgtoeslag");
+        let mut cell = corpus.cell().unwrap();
+        let op = day(ontvangen);
+        let velden = map(json!({
+            "bsn": "999993653",
+            "berekeningsjaar": 2025,
+            "aanvraag_ondertekend": true,
+            "naam_aanvrager": "S. de Vries",
+            "adres_aanvrager": "Voorbeeldlaan 7",
+            "dagtekening": ontvangen,
+            "gevraagde_beschikking": "zorgtoeslag over 2025",
+        }));
+        let app = aanvragen(&corpus, &mut cell, &velden, op).unwrap();
+        let mut oordelen = map(json!({
+            "vermoedelijk_toetsingsinkomen": 2500000,
+            "vermoedelijk_heeft_toeslagpartner": false,
+            "vermoedelijk_toetsingsinkomen_toeslagpartner": 0,
+            "vermoedelijk_verzekerd": true,
+            "vermoedelijk_vermogen_onder_grens": true,
+        }));
+        oordelen.extend(map(verwachting));
+        besluiten(&corpus, &mut cell, &app.id, &oordelen, op)
+            .unwrap()
+            .besluit
+            .outputs
+    }
+
+    #[test]
+    fn zorgtoeslag_each_condition_of_the_advance_decides_it() {
+        let bedrag = |o: &std::collections::BTreeMap<String, Value>| o["voorschotbedrag"].clone();
+        let verleend =
+            |o: &std::collections::BTreeMap<String, Value>| o["voorschot_verleend"].clone();
+
+        // A partner: twice the standard premium, the partner percentage of
+        // the threshold, and 13,7% of the joint income above it.
+        let partner = voorschot(
+            "2025-01-06",
+            json!({
+                "vermoedelijk_heeft_toeslagpartner": true,
+                "vermoedelijk_toetsingsinkomen_toeslagpartner": 1000000,
+            }),
+        );
+        assert_eq!(bedrag(&partner), json!(208800));
+
+        // Assets above the limit: no entitlement, so no advance.
+        let vermogen = voorschot(
+            "2025-01-06",
+            json!({ "vermoedelijk_vermogen_onder_grens": false }),
+        );
+        assert_eq!(
+            (bedrag(&vermogen), verleend(&vermogen)),
+            (json!(0), json!(false))
+        );
+
+        // Awir 14 lid 5: an allowance of € 20 is under € 24.
+        let klein = voorschot(
+            "2025-01-06",
+            json!({ "vermoedelijk_toetsingsinkomen": 3956800 }),
+        );
+        assert_eq!((bedrag(&klein), verleend(&klein)), (json!(0), json!(false)));
+
+        // Awir 16 lid 1: an application from 1 April of the next year on
+        // gets no advance; the day before it does.
+        let laat = voorschot("2026-04-01", json!({}));
+        assert_eq!((bedrag(&laat), verleend(&laat)), (json!(0), json!(false)));
+        let tijdig = voorschot("2026-03-31", json!({}));
+        assert_eq!(bedrag(&tijdig), json!(157700));
+    }
+
+    #[test]
     fn the_preview_of_a_decision_is_the_decision_and_records_nothing() {
         let corpus = corpus();
         let mut cell = corpus.cell().unwrap();
