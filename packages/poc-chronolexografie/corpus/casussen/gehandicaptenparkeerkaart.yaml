@@ -34,8 +34,9 @@ speeldatum: 2026-10-13
 # Fictieve voorbeeldgegevens. Volg je een scenario, dan begint elk formulier
 # hiermee, met de waarden van de stap erover; bij vrij spelen blijft het leeg.
 # Een BSN uit de testreeks; een kaart als bestuurder. De vier criteria vult
-# het beleid uit het advies van de GGD; het formulier vraagt ze alleen zonder
-# advies, en dan is het voorbeeld alleen een langdurige loopbeperking. Het
+# het beleid uit het advies van de GGD; het formulier vraagt ze alleen als
+# het college het onderzoek achterwege laat, en dan is het voorbeeld alleen
+# een langdurige loopbeperking. Het
 # college laat het onderzoek niet achterwege (Regeling
 # gehandicaptenparkeerkaart, artikel 2, tweede lid): die drie bevindingen
 # staan uit.
@@ -351,10 +352,10 @@ scenarios:
         uitkomst: afgewezen
     eind: >-
       Afgewezen: de aanvrager heeft al een geldige kaart.
-  - naam: Zonder advies oordeelt het college, en zonder onderzoek nog geen kaart
+  - naam: Zonder onderzoek geen kaart
     samenvatting: >-
-      Zonder advies oordeelt het college zelf, maar zonder onderzoek komt er
-      nog geen kaart.
+      Heeft de GGD de aanvrager niet onderzocht, dan weigert het college de
+      kaart.
     stappen:
       - stap: aanvraag
         verhaal: >-
@@ -363,16 +364,11 @@ scenarios:
           bsn_aanvrager: '999990032'
       - stap: besluit
         verhaal: >-
-          Het college oordeelt zelf, maar weet niet of er een onderzoek was.
-        titel: Besluit nemen zonder oordeel over het onderzoek
+          Het college beslist op de aanvraag.
         datum: 2026-10-20
-        uitkomst: geweigerd
-        tekst: >-
-          Laat "geneeskundig onderzoek heeft plaatsgehad" op Nog niet
-          beoordeeld en klik op Besluit nemen.
+        uitkomst: afgewezen
     eind: >-
-      Er komt geen besluit maar een melding: het college heeft niet beoordeeld
-      of het geneeskundig onderzoek plaatsvond.
+      Afgewezen: er is geen onderzoek, dus de kaart mag niet worden afgegeven.
   - naam: Vijf jaar later een nieuwe kaart
     samenvatting: >-
       Vijf jaar later vindt de gemeente haar eerdere besluit terug, en is er

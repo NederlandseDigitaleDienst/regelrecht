@@ -14,8 +14,8 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
   Een kaart wordt niet afgegeven voordat een geneeskundig onderzoek heeft
   plaatsgehad (artikel 2, eerste lid, van de regeling). Hier stelt het
   college dat vast; in de cel van de gemeente vraagt het beleid het aan de
-  cel van de GGD, die het uit de onderzoeken haalt die zij vastlegde. Weet
-  niemand het, dan faalt het besluit.
+  cel van de GGD, die het uit de adviezen haalt die zij vastlegde. Weet
+  niemand het, dan was er geen onderzoek, en weigert het college de kaart.
 
   Background:
     Given the calculation date is "2026-10-20"
@@ -179,11 +179,10 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
     Then output "kaart_vermeldt_bestuurder" is true
     Then output "kaart_vermeldt_passagier" is false
 
-  Scenario: Zonder geneeskundig onderzoek wordt de kaart nog niet afgegeven
+  Scenario: Zonder geneeskundig onderzoek wordt de kaart geweigerd
     # Artikel 2, eerste lid, van de regeling: "wordt niet afgegeven alvorens
-    # een geneeskundig onderzoek heeft plaatsgehad". Geen weigering: zonder
-    # vaststelling dat het onderzoek plaatsvond, kan het college niet
-    # beslissen.
+    # een geneeskundig onderzoek heeft plaatsgehad". Eigen keuze: dan weigert
+    # het college, en vraagt niemand het college naar de criteria.
     Given the following parameters:
       | bsn_aanvrager                                     | 999990020 |
       | kaart_als_bestuurder                              | true |
@@ -197,7 +196,8 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | permanent_rolstoelgebonden_volgens_college                        | false |
       | ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college   | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
-    Then the execution fails with "geneeskundig_onderzoek_heeft_plaatsgehad"
+    Then the execution succeeds
+    Then output "gehandicaptenparkeerkaart_verstrekt" is false
 
   Scenario: Wie eerder een kaart kreeg en nog steeds voldoet, krijgt een kaart zonder nieuw onderzoek
     # Artikel 2, tweede lid, onder a: het college weet dat de aanvrager nog
@@ -263,4 +263,5 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
       | permanent_rolstoelgebonden_volgens_college                        | false |
       | ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college   | false |
     When I evaluate outputs "gehandicaptenparkeerkaart_verstrekt, kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot" of "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw"
-    Then the execution fails with "geneeskundig_onderzoek_heeft_plaatsgehad"
+    Then the execution succeeds
+    Then output "gehandicaptenparkeerkaart_verstrekt" is false

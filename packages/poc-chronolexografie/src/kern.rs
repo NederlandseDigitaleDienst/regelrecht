@@ -4279,73 +4279,31 @@ mod tests {
 
     #[test]
     fn parkeerkaart_without_a_report_no_card_and_lid_2_without_a_new_one() {
-        // Scenario 6 of the case: an applicant of whom the municipality has
-        // no report from the GGD gets no decision; the chronicle stays as it
-        // was (Regeling art. 2 lid 1).
+        // An applicant the GGD did not examine: no advice and the examination
+        // not left out means no examination, so the preview and the decision
+        // are a plain refusal and ask the college nothing (Regeling art. 2
+        // lid 1).
         let (corpus, mut cell) = kaart();
         let mut aanvraag = corpus.casus.voorbeeld.aanvraag.clone();
         aanvraag.insert("bsn_aanvrager".into(), json!("999990032"));
         let app = aanvragen(&corpus, &mut cell, &aanvraag, day("2026-10-13")).unwrap();
-        let voor = cell.grams().len();
-        let e = besluiten(
+        let voorlopig =
+            voorvertoning_besluit(&corpus, &cell, &app.id, &Map::new(), day("2026-10-20")).unwrap();
+        assert!(voorlopig.stil.is_empty(), "{:?}", voorlopig.stil);
+        let besluit = besluiten(
             &corpus,
             &mut cell,
             &app.id,
             &corpus.casus.voorbeeld.bevindingen,
             day("2026-10-20"),
         )
-        .unwrap_err();
-        assert!(
-            e.to_string()
-                .contains("geneeskundig_onderzoek_heeft_plaatsgehad"),
-            "{e}"
-        );
-        assert_eq!(cell.grams().len(), voor);
-        // The form asks the college the four criteria, since the GGD gave
-        // no advice and the policy then leaves them to the college, and
-        // about the examination, since the GGD, which the law makes
-        // competent, is silent for this application too, and the policy
-        // leaves that to the college as well.
-        let voor = voorvertoning_besluit(
-            &corpus,
-            &cell,
-            &app.id,
-            &corpus.casus.voorbeeld.bevindingen,
-            day("2026-10-20"),
-        )
         .unwrap();
-        let stil: Vec<(&Value, &Value)> = voor
-            .stil
-            .iter()
-            .map(|v| (&v["naam"], &v["beleid"]))
-            .collect();
-        // Art. 49 passes all four criteria to art. 1 of the Regeling, so
-        // all four are asked, one by one, before the examination.
-        let beleid = json!(true);
         assert_eq!(
-            stil,
-            [
-                (
-                    &json!("continu_afhankelijk_van_hulp_bestuurder_volgens_college"),
-                    &beleid
-                ),
-                (
-                    &json!("ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college"),
-                    &beleid
-                ),
-                (&json!("langdurige_loopbeperking_volgens_college"), &beleid),
-                (
-                    &json!("permanent_rolstoelgebonden_volgens_college"),
-                    &beleid
-                ),
-                (
-                    &json!("geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college"),
-                    &beleid
-                )
-            ]
+            besluit.besluit.outputs["gehandicaptenparkeerkaart_verstrekt"],
+            json!(false)
         );
 
-        // Scenario 7: after the card of 2026 expired, the college leaves the
+        // After the card of 2026 expired, the college leaves the
         // examination out for an applicant it knows still qualifies (lid 2
         // onder a); the cell answers that a card was issued before.
         let (corpus, mut cell) = kaart();

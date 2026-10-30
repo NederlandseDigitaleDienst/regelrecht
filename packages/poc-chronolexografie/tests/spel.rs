@@ -396,8 +396,8 @@ fn the_preview_answers_a_refusal_as_a_state_and_records_nothing() {
 
 #[test]
 fn the_ggd_records_an_examination_and_the_card_follows() {
-    // Scenario "zonder onderzoek", continued: the GGD records the
-    // examination in its own cell, and then the college can issue the card
+    // Scenario "zonder onderzoek", continued: before the GGD records its
+    // advice the preview is a refusal; with it the college issues the card
     // (RFC-052).
     let mut spel = spel_met("gehandicaptenparkeerkaart");
     let casus = spel.casus().unwrap();
@@ -406,9 +406,15 @@ fn the_ggd_records_an_examination_and_the_card_follows() {
     let bevindingen = map(&casus["voorbeeld"]["bevindingen"]);
     let ingediend = spel.aanvragen(&aanvraag, dag("2026-10-13")).unwrap();
     let op = ingediend["id"].as_str().unwrap().to_string();
-    assert!(spel
-        .besluiten(&op, &bevindingen, dag("2026-10-20"))
-        .is_err());
+    let uitkomst = casus["uitkomst"].as_str().unwrap().to_string();
+    let voorlopig = spel
+        .voorvertoning_besluit(&op, &Map::new(), dag("2026-10-20"))
+        .unwrap();
+    assert_eq!(
+        voorlopig["voorlopig"]["besluit"]["outputs"][&uitkomst],
+        json!(false)
+    );
+    assert_eq!(voorlopig["stil"], json!([]));
 
     let vormen = spel.vormen(dag("2026-10-16")).unwrap();
     let ggd = &vormen["andere_cellen"][0];
