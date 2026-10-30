@@ -6117,7 +6117,6 @@ impl LawExecutionService {
         let for_inputs: BTreeMap<String, Value> = article
             .get_inputs()
             .iter()
-            .filter(|i| !declared.contains_key(&i.name) && !findings.contains_key(&i.name))
             .filter_map(|i| {
                 let value = res_ctx
                     .findings

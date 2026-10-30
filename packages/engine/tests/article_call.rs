@@ -2650,6 +2650,30 @@ articles:
 }
 
 #[test]
+fn the_trace_says_a_finding_on_an_input_wins_and_stays_silent_without_one() {
+    let render = |findings: serde_json::Value| {
+        let call = regelrecht_engine::Call {
+            findings: params(findings),
+            ..Default::default()
+        };
+        verwijzing()
+            .evaluate_law_with_trace_in(
+                "wet_aanvraag",
+                &["toegekend"],
+                params(json!({"gevraagd": "wet_bedrag#1"})),
+                call,
+                DATE,
+            )
+            .unwrap()
+            .trace
+            .unwrap()
+            .render_box_drawing()
+    };
+    assert!(render(json!({"inkomen": 500})).contains("on inkomen wins"));
+    assert!(!render(json!({})).contains("found for this case"));
+}
+
+#[test]
 fn a_finding_no_called_article_reads_is_still_not_asked() {
     let e = verwijzing()
         .evaluate_law_with_findings(
