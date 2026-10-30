@@ -1,6 +1,22 @@
 ---
 schema_version: '1.0'
 sources:
+  # Example rulework with a machine version, written by hand in the editor.
+  # Small, so the public library loads all of it; above the central corpus,
+  # so it wins for a version both supply. Not established law: the library
+  # labels every law from here as an example, and new trajecten leave it out.
+  - id: example
+    name: Voorbeeldregelwerken
+    type: github
+    github:
+      owner: NederlandseDigitaleDienst
+      repo: regelrecht-corpus-example
+      branch: main
+      path: regulation/nl
+    scopes: []
+    priority: 1
+    load_all: true
+    library_only: true
   - id: minbzk-central
     name: Centrale Regelrecht Corpus
     type: github
@@ -11,4 +27,6 @@ sources:
       path: regulation/nl
     scopes: []
     priority: 2
+    # Text only on purpose: no law from here counts as enriched.
+    enriched: false
     # Auth by convention: CORPUS_AUTH_MINBZK_CENTRAL_TOKEN

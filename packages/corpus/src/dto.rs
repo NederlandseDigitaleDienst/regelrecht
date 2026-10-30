@@ -66,6 +66,19 @@ pub struct PaginationParams {
     /// `?source=…&offset=…` would otherwise keep receiving page one.
     #[serde(default)]
     pub source: Option<String>,
+    /// Only laws whose current version is enriched (carries `machine_readable`
+    /// and comes from a source not marked `enriched: false`). Narrows like
+    /// [`source`](Self::source), but keeps `offset` paging when sent alone, so
+    /// the library's overview can page through the enriched laws.
+    #[serde(default)]
+    pub enriched: bool,
+    /// Only laws whose body is loaded in the index, leaving out the ones held
+    /// by path until someone opens them. Those carry no name, so a caller that
+    /// lists laws for their display names sends this and gets the few that
+    /// have one, instead of a page of the whole corpus. Narrows like
+    /// [`enriched`](Self::enriched).
+    #[serde(default)]
+    pub loaded: bool,
 }
 
 impl PaginationParams {
@@ -148,6 +161,9 @@ mod tests {
             priority,
             auth_ref: None,
             strict_auth: false,
+            enriched: None,
+            load_all: false,
+            library_only: false,
         }
     }
 

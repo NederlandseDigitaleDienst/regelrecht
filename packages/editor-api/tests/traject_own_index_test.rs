@@ -192,6 +192,8 @@ fn ids_query() -> Query<PaginationParams> {
         q: None,
         ids: Some(LAW_ID.to_string()),
         source: None,
+        enriched: false,
+        loaded: false,
     })
 }
 

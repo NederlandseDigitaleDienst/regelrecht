@@ -42,7 +42,8 @@ struct TreeFile {
     sha: Option<String>,
 }
 
-/// Fetch only laws matching the given `$id` set from a GitHub source.
+/// Fetch the laws matching the given `$id` set from a GitHub source, or every
+/// law when `law_ids` is `None`.
 ///
 /// Uses the Trees API (1 call) to discover file paths, matches them against
 /// `law_ids` by extracting the law directory name from the path
@@ -52,10 +53,10 @@ pub async fn fetch_source_filtered(
     client: &GithubClient,
     source: &GitHubSource,
     token: Option<&str>,
-    law_ids: &HashSet<String>,
+    law_ids: Option<&HashSet<String>>,
     today: &str,
 ) -> Result<FetchResult> {
-    if law_ids.is_empty() {
+    if law_ids.is_some_and(HashSet::is_empty) {
         return Ok(FetchResult::Fetched(Vec::new()));
     }
 
@@ -74,12 +75,12 @@ pub async fn fetch_source_filtered(
         None => return Ok(FetchResult::NotModified),
     };
 
-    let best_per_law = group_best_versions(&all_paths, base_path, Some(law_ids), today);
+    let best_per_law = group_best_versions(&all_paths, base_path, law_ids, today);
 
     tracing::info!(
         matched = best_per_law.len(),
-        requested = law_ids.len(),
-        "fetching filtered laws from GitHub"
+        requested = law_ids.map(HashSet::len),
+        "fetching laws from GitHub"
     );
 
     let mut files = Vec::new();
@@ -403,6 +404,9 @@ mod tests {
             priority: 1,
             auth_ref: None,
             strict_auth: false,
+            enriched: None,
+            load_all: false,
+            library_only: false,
         };
         let mut map = crate::source_map::SourceMap::new("2026-06-01");
         map.load_source(&source).expect("load local source");

@@ -32,7 +32,7 @@ use uuid::Uuid;
 use regelrecht_editor_api::accounts::AccountRecord;
 use regelrecht_editor_api::corpus_handlers::{
     get_corpus_law, get_traject_corpus_law, get_traject_scenario, list_traject_corpus_laws,
-    list_traject_scenarios, save_law, save_scenario,
+    list_traject_scenarios, save_law, save_scenario, CorpusLawsResponse,
 };
 use regelrecht_editor_api::github_oauth::GithubOAuth;
 use regelrecht_editor_api::state::AppState;
@@ -338,7 +338,7 @@ async fn ttl_refresh_picks_up_upstream_laws_and_reconciles_saves() {
     // test scheduling-dependent and flaky.
     let mut indexed = false;
     for _ in 0..50 {
-        let Json(entries) = list_traject_corpus_laws(
+        let CorpusLawsResponse(entries, _) = list_traject_corpus_laws(
             State(state.clone()),
             Extension(test_account()),
             session_for(&sub).await,
@@ -349,6 +349,8 @@ async fn ttl_refresh_picks_up_upstream_laws_and_reconciles_saves() {
                 q: None,
                 ids: None,
                 source: None,
+                enriched: false,
+                loaded: false,
             }),
             HeaderMap::new(),
         )

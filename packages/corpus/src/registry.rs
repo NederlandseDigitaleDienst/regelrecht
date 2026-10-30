@@ -177,6 +177,8 @@ impl CorpusRegistry {
     /// Uses the Trees API (1 call per GitHub source) to discover paths,
     /// then fetches only the files matching `law_ids`. This keeps startup
     /// fast and avoids burning rate limits on thousands of unused files.
+    /// A source marked `load_all` is the exception: it is small by design,
+    /// so every law in it is fetched.
     #[cfg(feature = "github")]
     pub async fn load_favorites_async(
         &self,
@@ -198,14 +200,25 @@ impl CorpusRegistry {
             map.laws().map(|l| l.law_id.clone()).collect();
         let missing: std::collections::HashSet<String> =
             law_ids.difference(&local_ids).cloned().collect();
+        let any_load_all = self
+            .sources
+            .iter()
+            .any(|s| s.load_all && matches!(s.source_type, SourceType::GitHub { .. }));
 
-        if missing.is_empty() {
+        if missing.is_empty() && !any_load_all {
             tracing::info!("all favorites available locally, skipping GitHub fetch");
             return Ok(map);
         }
 
         for source in &self.sources {
             if let SourceType::GitHub { github } = &source.source_type {
+                // A `load_all` source is fetched whole; any other only for the
+                // listed laws that no local source already provides.
+                let filter = if source.load_all {
+                    None
+                } else {
+                    Some(&missing)
+                };
                 let token = crate::auth::CredentialResolver::new(auth_file)
                     .resolve_source(source)?
                     .into_token();
@@ -213,7 +226,7 @@ impl CorpusRegistry {
                     &client,
                     github,
                     token.as_deref(),
-                    &missing,
+                    filter,
                     today,
                 )
                 .await?
@@ -381,6 +394,107 @@ impl CorpusRegistry {
             }
         }
         Ok(())
+    }
+}
+
+impl CorpusRegistry {
+    /// Add every law of each GitHub source to `map` by path only (no body),
+    /// for the laws `map` does not hold yet. The editor's public library loads
+    /// the bodies of a few laws up front ([`Self::load_favorites_async`]) and
+    /// uses this to make the rest of each source findable; a body is fetched
+    /// when someone opens the law.
+    ///
+    /// Skipped, so what was loaded stays as it is: a source marked `load_all`
+    /// (already loaded whole), a law the same source already supplied, and a
+    /// law a local source provides (a local copy hides the GitHub versions of
+    /// that law, as in [`Self::load_favorites_async`]). A law the map refuses
+    /// (two sources at equal priority) is logged and left out rather than
+    /// failing the source; call this after [`SourceMap::prefer_version_in_force`],
+    /// whose insert refuses such a law before recording it as a version. Returns a [`SourceIndexFailure`] per source that
+    /// could not be enumerated.
+    #[cfg(feature = "github")]
+    pub async fn index_github_sources_into(
+        &self,
+        map: &mut SourceMap,
+        auth_file: Option<&Path>,
+    ) -> Vec<SourceIndexFailure> {
+        let mut failed = Vec::new();
+        let client = match regelrecht_github::GithubClient::new() {
+            Ok(client) => client,
+            Err(e) => {
+                for source in &self.sources {
+                    if matches!(source.source_type, SourceType::GitHub { .. }) && !source.load_all {
+                        failed.push(SourceIndexFailure {
+                            source_id: source.id.clone(),
+                            error: e.to_string(),
+                        });
+                    }
+                }
+                return failed;
+            }
+        };
+        let local_ids: std::collections::HashSet<&str> = self
+            .sources
+            .iter()
+            .filter(|s| matches!(s.source_type, SourceType::Local { .. }))
+            .map(|s| s.id.as_str())
+            .collect();
+        let today = map.reference_date().to_string();
+
+        for source in &self.sources {
+            let SourceType::GitHub { github } = &source.source_type else {
+                continue;
+            };
+            if source.load_all {
+                continue;
+            }
+            let listed = async {
+                let token = crate::auth::CredentialResolver::new(auth_file)
+                    .resolve_source(source)?
+                    .into_token();
+                crate::github::list_source_law_paths(&client, github, token.as_deref(), &today)
+                    .await
+            }
+            .await;
+            let paths = match listed {
+                Ok(paths) => paths,
+                Err(e) => {
+                    tracing::warn!(source_id = %source.id, error = %e, "failed to index corpus source, skipping");
+                    failed.push(SourceIndexFailure {
+                        source_id: source.id.clone(),
+                        error: e.to_string(),
+                    });
+                    continue;
+                }
+            };
+            let mut added = 0usize;
+            for (law_id, path, sha) in paths {
+                let held = map.get_law_versions(&law_id).is_some_and(|versions| {
+                    versions.iter().any(|v| {
+                        v.source_id == source.id || local_ids.contains(v.source_id.as_str())
+                    })
+                });
+                if held {
+                    continue;
+                }
+                match map.load_metadata_entry(
+                    &law_id,
+                    &path,
+                    github.path.as_deref(),
+                    &source.id,
+                    &source.name,
+                    source.priority,
+                    sha.as_deref(),
+                ) {
+                    Ok(()) => added += 1,
+                    Err(e) => {
+                        tracing::warn!(source_id = %source.id, law_id = %law_id, error = %e, "law left out of the index");
+                    }
+                }
+            }
+            tracing::info!(source_id = %source.id, added, "indexed corpus source by path");
+        }
+        failed
     }
 }
 

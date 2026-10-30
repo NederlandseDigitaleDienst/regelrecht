@@ -142,6 +142,45 @@ async fn create_inserts_traject_with_creator_as_owner_and_writable_own_source() 
 }
 
 #[tokio::test]
+async fn create_leaves_library_only_sources_out_of_the_traject() {
+    let db = TestDb::new().await;
+    let state = empty_state(db.pool.clone());
+    // Fictional coordinates; the seeding only copies rows, nothing is fetched.
+    state.corpus.write().await.registry = regelrecht_corpus::CorpusRegistry::from_yaml(
+        r#"
+schema_version: '1.0'
+sources:
+  - id: example
+    name: Voorbeeldregelwerken
+    type: github
+    github: { owner: example-org, repo: regelrecht-corpus-example, branch: main }
+    priority: 1
+    load_all: true
+    library_only: true
+  - id: central
+    name: Centraal
+    type: github
+    github: { owner: example-org, repo: regelrecht-corpus, branch: main }
+    priority: 2
+"#,
+    )
+    .unwrap();
+    let alice = seed_account_record(&db.pool, "alice@test.local", "Alice").await;
+
+    let traject_id = create_traject(&state, &alice, "Zonder voorbeelden").await;
+
+    let seeded: Vec<(String,)> = sqlx::query_as(
+        "SELECT source_id FROM traject_corpus_sources
+         WHERE traject_id = $1 AND is_writable_own = FALSE ORDER BY source_id",
+    )
+    .bind(traject_id)
+    .fetch_all(&db.pool)
+    .await
+    .unwrap();
+    assert_eq!(seeded, vec![("central".to_string(),)]);
+}
+
+#[tokio::test]
 async fn create_rejects_empty_name() {
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());

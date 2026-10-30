@@ -42,8 +42,8 @@ export function vueRouter(route: () => unknown, router?: Overrides<[]>) {
   };
 }
 
-export function auth() {
-  return { useAuth: () => ({ authenticated: ref(true), login: vi.fn() }) };
+export function auth(overrides?: Overrides<[]>) {
+  return { useAuth: () => ({ authenticated: ref(true), login: vi.fn(), ...apply(overrides, []) }) };
 }
 
 export function trajectsModule<A extends unknown[]>(overrides?: Overrides<A>) {

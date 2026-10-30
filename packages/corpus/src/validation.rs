@@ -268,6 +268,9 @@ mod tests {
             priority,
             auth_ref: None,
             strict_auth: false,
+            enriched: None,
+            load_all: false,
+            library_only: false,
         }
     }
 

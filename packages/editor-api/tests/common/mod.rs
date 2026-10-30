@@ -183,3 +183,17 @@ pub async fn verified_session(sub: &str, email: &str) -> Session {
 pub async fn session_for(sub: &str) -> Session {
     verified_session(sub, TEST_EMAIL).await
 }
+
+/// A GitHub Contents API answer for one file, base64-encoded as GitHub sends
+/// it, for a wiremock stub of `/repos/{repo}/contents/{path}`.
+pub fn contents_file_json(name: &str, api_path: &str, body: &str) -> serde_json::Value {
+    use base64::Engine as _;
+    serde_json::json!({
+        "name": name,
+        "path": api_path,
+        "sha": format!("sha-{name}"),
+        "type": "file",
+        "content": base64::engine::general_purpose::STANDARD.encode(body),
+        "encoding": "base64",
+    })
+}
