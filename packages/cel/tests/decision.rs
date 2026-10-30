@@ -1,4 +1,4 @@
-//! A cell decides on an application under a small fictional law (RFC-047):
+//! A cell decides on an application under a small fictional law (RFC-046):
 //! a norm the law leaves to the deciding authority per case, a regulation
 //! that fills it for some cases and is silent for others, and what a stage
 //! requires of the cell.
@@ -290,7 +290,7 @@ fn a_stage_of_the_application_that_requires_more_than_a_date_is_a_setup_error() 
 
 /// The application holds the parameters its item lists, and the hooks on
 /// it; a parameter of the article it does not list is no field of it, and
-/// the decision asks it of the deciding authority (RFC-047).
+/// the decision asks it of the deciding authority (RFC-045 §5).
 #[test]
 fn the_application_holds_what_its_item_lists() {
     let special = SPECIAL_LAW.replace(
@@ -517,7 +517,7 @@ fn an_application_whose_decision_cannot_be_derived_is_still_recorded() {
 }
 
 /// Data derived for the decision (an output the decision item lists under
-/// `derived`, RFC-050) is computed at every stage of the decision, so a hook
+/// `derived`, RFC-045 §1) is computed at every stage of the decision, so a hook
 /// that reads it as a parameter gets it from the execution: it is no input of
 /// the decision.
 #[test]

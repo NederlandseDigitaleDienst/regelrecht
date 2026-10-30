@@ -210,7 +210,7 @@ articles:
     url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
     machine_readable:
       # Het begrip noemt wie bevoegd is: de GGD of de aangewezen deskundige
-      # (competent_authority, RFC-052). Zwijgt de GGD, dan geldt het eigen
+      # (competent_authority, RFC-051). Zwijgt de GGD, dan geldt het eigen
       # open begrip hieronder.
       open_terms:
         - id: geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college

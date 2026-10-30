@@ -64,7 +64,7 @@ voorbeeld:
     indiener_is_belanghebbende: true
     rechtsregel_geschonden: false
 
-# De andere cellen van de sfeer (RFC-052). Het open begrip zegt wie bevoegd
+# De andere cellen van de sfeer (RFC-048). Het open begrip zegt wie bevoegd
 # is: de Kamer van Koophandel voor wat het handelsregister vermeldt (artikel 2
 # en 3 van het fictieve uitvoeringsbesluit parkeren van Wilgendaal). Elke cel
 # legt bij elke start en reset opnieuw vast wat zij vóór het eerste scenario

@@ -104,7 +104,7 @@ articles:
       execution:
         # Lid 1: de vergunning wordt verleend op aanvraag van het bedrijf. Dit
         # artikel brengt twee dingen voort, zoals artikel 49 van het BABW
-        # (RFC-047): de aanvraag, waar de Awb op haakt, en het verlenen of
+        # (RFC-045 §1): de aanvraag, waar de Awb op haakt, en het verlenen of
         # weigeren, een beschikking die de procedure van de Awb volgt.
         produces:
           - type: AANVRAAG
@@ -114,7 +114,7 @@ articles:
               - kenteken
           # De uitkomst is of het college de vergunning verleent. De laatste
           # geldige dag volgt uit de dag van verlening (artikel 3) en is
-          # afgeleid (RFC-050): zij staat bij het besluit, maar telt niet als
+          # afgeleid (RFC-045 §7): zij staat bij het besluit, maar telt niet als
           # uitkomst. Een heroverweging op bezwaar (Awb 7:11) valt later, en
           # dus ook de laatste geldige dag. Omdat die dag afgeleid is, maakt
           # alleen dat verschil de heroverweging niet tot een ander besluit.

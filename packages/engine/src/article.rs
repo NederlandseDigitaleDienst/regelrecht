@@ -119,6 +119,7 @@ impl LawLoad for ArticleBasedLaw {
         // Validate array sizes after parsing
         validate_array_sizes(&law)?;
         reject_literal_operations(&law)?;
+        crate::load_check::reject_removed_constructs(&law)?;
         crate::load_check::reject_misplaced_reduction(&law)?;
         crate::load_check::reject_misplaced_article_call(&law)?;
         crate::load_check::reject_misplaced_competence(&law)?;

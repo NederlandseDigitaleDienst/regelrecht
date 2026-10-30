@@ -1,5 +1,5 @@
 <script setup>
-// De andere cellen van de casus (RFC-052): wie de wet bevoegd maakt voor een
+// De andere cellen van de casus (RFC-048): wie de wet bevoegd maakt voor een
 // waarde die het bestuursorgaan nodig heeft, zoals de GGD voor het
 // geneeskundig onderzoek. Elke cel houdt haar eigen kroniek bij en
 // antwoordt daaruit. Een cel die een feit vastlegt (een executogram,

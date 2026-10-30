@@ -1,5 +1,5 @@
 ---
-# parameters_from lists $-references (schema v0.8.4, RFC-050).
+# parameters_from lists $-references (schema v0.8.4, RFC-045 §6).
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.4/schema/v0.8.4/schema.json
 $id: test_conformance_parameters_from_not_a_reference
 regulatory_layer: WET

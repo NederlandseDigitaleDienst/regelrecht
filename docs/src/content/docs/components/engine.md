@@ -270,6 +270,8 @@ Three more bound the fuzzy search that anchors a note to law text. The sliding-w
 
 `SUPPORTED_SCHEMAS` lists the schema versions this engine build accepts. A law whose `$schema` names a version outside that list is refused at load time, with an error that lists the supported versions. A law without `$schema` is not checked against the list.
 
+The list holds every schema version in the repository, and the engine runs them all on one code path: `just validate` checks a rulework against the schema its `$schema` names, and the engine has no behavior per version. Not every version was issued for use. Some held a construct that was later rejected, and others were replaced before anything used them. The engine does not support such a construct: a rulework that uses one is refused at load, and the error names the replacement. A rulework that reads `source.executograms`, for example, is told to use `source.facts`.
+
 ## Execution Receipt
 
 The engine can produce an Execution Receipt: a JSON document that captures everything needed to reproduce a specific execution result. The receipt includes `engine_version`, `schema_version`, and `regulation_hash` alongside the regular `ArticleResult` fields. This allows independent verification of past decisions.

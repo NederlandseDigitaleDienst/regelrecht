@@ -11,7 +11,7 @@ articles:
     text: >-
       Het artikel noemt als bevoegd gezag een lijst. Op een artikel zegt
       competent_authority wie beslist (RFC-002): één bevoegd gezag. Een lijst
-      van wie mag antwoorden hoort bij een open begrip of een feit (RFC-052).
+      van wie mag antwoorden hoort bij een open begrip of een feit (RFC-051).
     url: https://example.invalid/law/artikel/1
     machine_readable:
       competent_authority:

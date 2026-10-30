@@ -13,7 +13,7 @@
 //! item per type, each with its own parameters and outputs. The loader
 //! refuses a list with two items of one type, an output given to two items
 //! or to none, a parameter or output the article lacks, or a submission that
-//! requests a decision this law does not take (RFC-047).
+//! requests a decision this law does not take (RFC-045 §1).
 //!
 //! A reduction (`regulatory_layer: REDUCTIE`, schema v0.8.2) is no
 //! regulation: a cell's reading of its own chronicle (RFC-048), which the
@@ -23,10 +23,17 @@
 //! act on law: it fills no open term (`implements`), hooks onto nothing
 //! (`hooks`), replaces no output (`overrides`), takes no decision
 //! (`execution.produces`) and delegates nothing (`open_terms`). It names no
-//! holder (`competent_authority`): it sits with its cell, or with none. Schema
-//! v0.8.5 to v0.8.8 allowed `implements` on a reduction; a file that names
-//! one of them is held to that schema, and the engine gives the declaration
-//! no meaning ([`crate::resolver`]).
+//! holder (`competent_authority`): it sits with its cell, or with none.
+//!
+//! The engine has no behavior per schema version: every file runs on one code
+//! path. Not every version was issued for use, and the engine does not
+//! support a construct that was later rejected. Such a construct is refused
+//! with its replacement named:
+//! `source.executograms` (v0.8.6), which v0.8.7 replaced by `source.facts`;
+//! `implements` on a reduction (v0.8.5 to v0.8.8), which v0.8.9 replaced by
+//! a named answer that a policy binds with `source.reduction`; and `combine`
+//! on an open term or in a `source` (v0.8.8 to v0.8.12), which v0.8.13
+//! removed, since one question goes to one cell.
 //!
 //! The policy of the authority that decides binds an open term to an answer
 //! (schema v0.8.9, RFC-048): a policy article that fills the term
@@ -40,52 +47,93 @@
 //! The loader refuses any of these the other way round, and a `decisions`
 //! beside another way to the value.
 //!
-//! A call to an article (`source.article`, schema v0.8.4, RFC-050) stands
+//! A call to an article (`source.article`, schema v0.8.4, RFC-045 §6) stands
 //! apart from `regulation`, `decisions` and `endpoint`, and only such a call
 //! takes `parameters_from`.
 //!
 //! Who may answer an open term, or establish a fact, sits on that term or
-//! fact (`competent_authority`, schema v0.8.8, RFC-052); on an article the
+//! fact (`competent_authority`, schema v0.8.8, RFC-051); on an article the
 //! field keeps its meaning of RFC-002, who decides, and names one authority.
 
 use crate::answer::ChronicleRead;
 use crate::article::ArticleBasedLaw;
 use crate::error::{EngineError, Result};
 use regelrecht_law_model::{
-    parse_schema_version, ActionOperation, ActionValue, CompetentAuthority, MachineReadable,
-    RegulatoryLayer,
+    ActionOperation, ActionValue, CompetentAuthority, MachineReadable, RegulatoryLayer,
 };
 
-/// The schema versions in which a `REDUCTIE` may have `implements`: from
-/// v0.8.5, until v0.8.9 made the reduction a named answer.
-const REDUCTION_IMPLEMENTS: (u32, u32, u32) = (0, 8, 5);
-const REDUCTION_ANSWERS: (u32, u32, u32) = (0, 8, 9);
+/// Refuse a construct that a later schema version removed, naming what
+/// replaced it. The engine runs every file on one code path (see the module
+/// docs), so it cannot run such a construct; dropping it silently would run
+/// the file without it. So far there are three: `source.executograms`
+/// (v0.8.6), which v0.8.7 replaced by `source.facts` (RFC-051); `implements`
+/// on a `REDUCTIE` (v0.8.5 to v0.8.8), which v0.8.9 replaced by a named
+/// answer of the cell that a policy binds to the term (`source.reduction`,
+/// RFC-048); and `combine` on an open term (v0.8.8) or in a `source`
+/// (v0.8.9), which v0.8.13 removed: one question goes to one cell, and an
+/// article makes one outcome of the answers of different cells (RFC-048 §4).
+pub(crate) fn reject_removed_constructs(law: &ArticleBasedLaw) -> Result<()> {
+    let refuse = |why: String| Err(EngineError::LoadError(format!("law '{}' {why}", law.id)));
+    let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
+    for (where_, section) in sections(law) {
+        if reduction && section.implements.is_some() {
+            return refuse(format!(
+                "{where_}: a REDUCTIE fills no open term (implements), which schema v0.8.9 \
+                 removed; its cell gives it as a named answer, which a policy binds to the term \
+                 with source.reduction (RFC-048)"
+            ));
+        }
+        for term in section.open_terms.iter().flatten() {
+            if term.combine.is_some() {
+                return refuse(format!(
+                    "{where_}: open term '{}' has combine, which schema v0.8.13 removed; one \
+                     question goes to one cell, and an article makes one outcome of the answers \
+                     of different cells (RFC-048 §4)",
+                    term.id
+                ));
+            }
+        }
+        for input in inputs(section) {
+            if input
+                .source
+                .as_ref()
+                .is_some_and(|source| source.combine.is_some())
+            {
+                return refuse(format!(
+                    "{where_}: input '{}' has source.combine, which schema v0.8.13 removed; one \
+                     question goes to one cell, and an article makes one outcome of the answers \
+                     of different cells (RFC-048 §4)",
+                    input.name
+                ));
+            }
+            if input
+                .source
+                .as_ref()
+                .is_some_and(|source| source.executograms.is_some())
+            {
+                return refuse(format!(
+                    "{where_}: input '{}' reads source.executograms, which schema v0.8.7 \
+                     replaced; use source.facts (RFC-051)",
+                    input.name
+                ));
+            }
+        }
+    }
+    Ok(())
+}
 
 /// Refuse a reading of a chronicle (`source.decisions`, `source.facts`)
 /// outside a `REDUCTIE`, the keys that act on law and a holder
 /// (`competent_authority`) in a `REDUCTIE`, and a misplaced answer of a
-/// cell (`source.reduction`, RFC-048). A `REDUCTIE`
-/// may have `implements` only under a `$schema` from v0.8.5 to v0.8.8. An
-/// answer is taken only in a `UITVOERINGSBELEID` that names its holder, by
-/// an article that fills an open term, from schema v0.8.9; it stands apart
-/// from every other way to a value.
+/// cell (`source.reduction`, RFC-048). An answer is taken only in a
+/// `UITVOERINGSBELEID` that names its holder, by an article that fills an
+/// open term; it stands apart from every other way to a value.
 pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
     let refuse = |why: String| Err(EngineError::LoadError(format!("law '{}' {why}", law.id)));
     let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
     let policy = law.regulatory_layer == RegulatoryLayer::Uitvoeringsbeleid;
-    let version = law.schema_version().and_then(parse_schema_version);
-    // A file without `$schema` is held to the current version.
-    let implements_allowed =
-        version.is_some_and(|v| (REDUCTION_IMPLEMENTS..REDUCTION_ANSWERS).contains(&v));
-    let answers_allowed = version.is_none_or(|v| v >= REDUCTION_ANSWERS);
     for (where_, section) in sections(law) {
         if reduction {
-            if section.implements.is_some() && !implements_allowed {
-                return refuse(format!(
-                    "{where_}: a REDUCTIE fills no open term (implements); its cell gives it as \
-                     a named answer, which a policy binds to the term (RFC-048)"
-                ));
-            }
             if let Some(key) = acts_on_law(section) {
                 return refuse(format!(
                     "{where_}: a REDUCTIE is no regulation and does not act on law ({key})"
@@ -117,13 +165,6 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
                         "{where_}: input '{}' takes the answer '{answer}' of a cell; only the \
                          UITVOERINGSBELEID of the authority that decides binds a term to an \
                          answer (RFC-048)",
-                        input.name
-                    ));
-                }
-                if !answers_allowed {
-                    return refuse(format!(
-                        "{where_}: input '{}' takes the answer '{answer}' of a cell, which a \
-                         policy does only from schema v0.8.9",
                         input.name
                     ));
                 }
@@ -239,7 +280,7 @@ pub(crate) fn chronicle_read(source: &regelrecht_law_model::Source) -> Option<Ch
     }
 }
 
-/// Refuse a call to an article (`source.article`, schema v0.8.4, RFC-050)
+/// Refuse a call to an article (`source.article`, schema v0.8.4, RFC-045 §6)
 /// beside another way to the value (`regulation`, `decisions`, `endpoint`),
 /// and `parameters_from` without `article`, which nothing would receive.
 pub(crate) fn reject_misplaced_article_call(law: &ArticleBasedLaw) -> Result<()> {
@@ -276,7 +317,7 @@ pub(crate) fn reject_misplaced_article_call(law: &ArticleBasedLaw) -> Result<()>
     Ok(())
 }
 
-/// Refuse competence where it does not belong (RFC-052):
+/// Refuse competence where it does not belong (RFC-051):
 ///
 /// - an article names one competent authority (RFC-002), never a list;
 /// - an open term or a fact names its competent authorities by name, one or
@@ -286,7 +327,7 @@ pub(crate) fn reject_misplaced_competence(law: &ArticleBasedLaw) -> Result<()> {
     for (where_, section) in sections(law) {
         let refuse = |why: String| {
             Err(EngineError::LoadError(format!(
-                "law '{}' {where_}: {why} (RFC-052)",
+                "law '{}' {where_}: {why} (RFC-051)",
                 law.id
             )))
         };
@@ -453,9 +494,9 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
     Ok(())
 }
 
-/// Refuse an article whose `produces` list (schema v0.8.1, RFC-047) has two
+/// Refuse an article whose `produces` list (schema v0.8.1, RFC-045 §1) has two
 /// items of one type, gives an output to two items (as one of its
-/// `outputs`, or as data `derived` for the decision, RFC-050), lists
+/// `outputs`, or as data `derived` for the decision, RFC-045 §1), lists
 /// `derived` on an item that is no decision, names a
 /// parameter or output the article lacks, or has a submission that requests
 /// a decision this law does not take. One item per type makes article and
@@ -468,13 +509,13 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
 /// An output that no item lists, beside a decision that lists its own,
 /// belongs to no item: it is an output of the article that another article
 /// may read, not part of the decision, and only computed when read
-/// (RFC-052).
+/// (RFC-045 §1).
 pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
     for article in law.articles.iter().filter(|a| a.produces_list()) {
         let produced = article.get_produced();
         let refuse = |why: String| {
             Err(EngineError::LoadError(format!(
-                "law '{}': article {} {why} (RFC-047)",
+                "law '{}': article {} {why} (RFC-045 §1)",
                 law.id, article.number
             )))
         };
@@ -534,14 +575,14 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
             .find(|p| p.legal_character().is_none() && p.listed_derived().is_some())
         {
             return refuse(format!(
-                "lists derived outputs on its {}; only a decision has derived data (RFC-050)",
+                "lists derived outputs on its {}; only a decision has derived data (RFC-045 §1)",
                 item.submission_kind().unwrap_or("item")
             ));
         }
         // Without a decision, an output no submission lists would be read by
         // nothing the article produces: refused, so a forgotten or misspelt
         // output fails. Beside a decision that lists its outputs, it belongs
-        // to no item (RFC-052).
+        // to no item (RFC-045 §1).
         if article.get_decision().is_none() {
             if let Some(name) = article
                 .get_outputs()
@@ -906,7 +947,7 @@ articles:
     }
 
     /// An output the decision lists under `derived` is data derived for it
-    /// (RFC-050): the article loads, and it is no output of the decision,
+    /// (RFC-045 §1): the article loads, and it is no output of the decision,
     /// also when the decision lists no `outputs` of its own.
     #[test]
     fn an_output_the_decision_derives_is_no_output_of_it() {
@@ -928,7 +969,7 @@ articles:
     }
 
     /// An output beside a decision that lists its own outputs belongs to no
-    /// item (RFC-052): the article loads, and the output is neither an
+    /// item (RFC-045 §1): the article loads, and the output is neither an
     /// output of the decision nor derived data for it.
     #[test]
     fn an_output_beside_the_decision_belongs_to_no_item() {

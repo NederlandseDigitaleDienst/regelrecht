@@ -1,7 +1,7 @@
 <script setup>
 // Eerst de keuze van een casus (CasusKeuze.vue). Daarna één pagina met zes
 // tabbladen: de scenario's, de aanvrager, het bestuursorgaan, de kroniek,
-// de reductie en het logboek, en bij een casus met andere cellen (RFC-052)
+// de reductie en het logboek, en bij een casus met andere cellen (RFC-048)
 // een zevende voor die cellen, de rechtbank daaronder (RFC-053). Bovenaan
 // de speeldatum, die voor elke stap geldt, een knop die de kroniek terugzet
 // op wat de cel vooraf vastlegde (meestal niets) en een knop terug naar de
@@ -50,7 +50,7 @@ import { DEMO_CASUS } from './presentation/demo.js';
 import { startIndex, usePresentation } from './presentation/usePresentation.js';
 
 // Het tabblad Andere cellen staat er alleen bij een casus met andere cellen
-// (RFC-052).
+// (RFC-048).
 const tabs = computed(() => [
   { id: 'scenarios', tekst: "Scenario's" },
   { id: 'aanvrager', tekst: 'Aanvrager' },

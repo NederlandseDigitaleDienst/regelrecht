@@ -48,7 +48,7 @@ pub struct Corpus {
     files: Arc<dyn Files>,
 }
 
-/// The cell of the case and the other cells of its sphere (RFC-052). It
+/// The cell of the case and the other cells of its sphere (RFC-048). It
 /// reads as the case's cell; a step that decides passes the others along.
 #[derive(Debug)]
 pub struct Cellen {
@@ -296,7 +296,7 @@ impl Corpus {
     }
 
     /// The paths of the cells the case runs under `cells/` of the corpus: its own,
-    /// and the other cells of its sphere (RFC-052), the court among them.
+    /// and the other cells of its sphere (RFC-048), the court among them.
     pub fn cellen(&self) -> impl Iterator<Item = &str> {
         std::iter::once(self.casus.cel.as_str())
             .chain(self.casus.andere_cellen.iter().map(|a| a.cel.as_str()))
@@ -678,7 +678,7 @@ fn oordelen_van_de_rechter(
     Ok(uit)
 }
 
-/// What each other cell of the sphere records by hand (RFC-052): the facts
+/// What each other cell of the sphere records by hand (RFC-048): the facts
 /// whose executograms its reductions read (`source.facts`), each with the
 /// fields the article that requires it lists. For the parking card: the GGD
 /// records the medical examination (Regeling art. 3).
@@ -721,7 +721,7 @@ fn handelingen(
 }
 
 /// Another cell of the sphere records an executogram of the fact `feit`
-/// (`<regulation>#<article>#<fact>`) on `on` (RFC-051, RFC-052), such as the
+/// (`<regulation>#<article>#<fact>`) on `on` (RFC-051), such as the
 /// GGD recording that it examined the applicant. The case's own cell
 /// records nothing.
 pub fn vastleggen(
@@ -1096,7 +1096,7 @@ fn stappen_van(node: &PathNode, spoor: &Spoor<'_>) -> Result<Vec<Stap>> {
                 .find(|f| f.term == node.name && f.law_id == wet && f.article == artikel)
                 .map(|f| f.filled_by.clone());
             // The policy bound the term to the answer of one or more cells
-            // (RFC-048, RFC-052): each answer has a node below this one. The
+            // (RFC-048): each answer has a node below this one. The
             // explanation is of the case's own cell, and only where its
             // answer counted (not silent).
             let antwoorden = antwoorden_van(node);
@@ -1175,7 +1175,7 @@ pub struct Handeling {
 /// The log of the case, newest first: every chronolexogram of the case's
 /// cell as an action ([`Handeling`]), and the executograms of the other
 /// cells of the sphere, such as a registration by the Chamber of Commerce
-/// or an examination by the GGD (RFC-051, RFC-052). They are facts the
+/// or an examination by the GGD (RFC-051). They are facts the
 /// decisions read through the answers of those cells. The other cells'
 /// decisions stay out: why they came out so, is their own reasoning. Nothing
 /// of it is stored apart from the chronicles; a refused step recorded
@@ -1545,7 +1545,7 @@ pub struct Besluit {
 }
 
 /// Decide on the submission `op` under `law_id#article` with the deciding
-/// authority's `bevindingen` (RFC-050): the decision on it first, then a
+/// authority's `bevindingen` (RFC-045 §5): the decision on it first, then a
 /// decision it takes in turn.
 fn beslissen(
     corpus: &Corpus,
@@ -1620,7 +1620,7 @@ pub fn besluiten(
 }
 
 /// The applicant objects to the decision `besluit`: a submission under Awb
-/// 7:11 that refers to it (RFC-050).
+/// 7:11 that refers to it (RFC-045 §7).
 pub fn bezwaren(
     corpus: &Corpus,
     cell: &mut Cellen,

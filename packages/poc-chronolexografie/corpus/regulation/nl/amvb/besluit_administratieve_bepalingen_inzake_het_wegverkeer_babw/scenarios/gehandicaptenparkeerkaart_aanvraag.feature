@@ -3,7 +3,7 @@ Feature: De aanvraag om een gehandicaptenparkeerkaart, met de Awb erop
   (RFC-045). De Awb haakt op elke aanvraag: artikel 4:2 zegt wat de aanvraag
   ten minste bevat, artikel 4:13 wanneer de redelijke beslistermijn in ieder
   geval is verstreken. Buiten de procedure van de Awb voert de engine het
-  artikel in één keer uit, met het besluit erop (RFC-047). Daarom staan de
+  artikel in één keer uit, met het besluit erop (RFC-045). Daarom staan de
   oordelen van het college erbij.
 
   Background:

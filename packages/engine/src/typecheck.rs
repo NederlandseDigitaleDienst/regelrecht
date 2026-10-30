@@ -44,7 +44,7 @@
 //! - **N5** An input that takes another output must be nullable when that
 //!   output is, and when the call that fetches it is skipped for a required
 //!   parameter that may be null and that the target does not declare
-//!   nullable. For a call to an article (RFC-050), whose required
+//!   nullable. For a call to an article (RFC-045 §6), whose required
 //!   parameters are known only at run time, any reference under
 //!   `parameters` that may be null, and any `parameters_from`, counts so.
 //!   An article that implements a required open term without a
@@ -58,11 +58,11 @@
 //!   one type here, and so are `date` and `string`, since dates arrive as ISO
 //!   strings.
 //! - **T4** A literal assigned to an output has the output's type.
-//! - **T5** A call to an article (`source.article`, RFC-050) without
+//! - **T5** A call to an article (`source.article`, RFC-045 §6) without
 //!   `output` yields a decision value, so the input is of type `decision`.
 //!   What it merges (`parameters_from`) is an object, and a `$`-reference
 //!   that names the article is a string, or a decision value that is
-//!   called anew (RFC-050). A fixed target the checker can
+//!   called anew (RFC-045 §6). A fixed target the checker can
 //!   consult takes a decision, and an `output` is one of that decision; a
 //!   target of this law also exists. A target taken from a value is known
 //!   only at run time: the checker then knows the input is a decision value
@@ -170,7 +170,7 @@ enum Ty {
     Date,
     Array,
     Object,
-    /// A decision value `{basis, fields, findings, outputs}` (RFC-050): an object
+    /// A decision value `{basis, fields, findings, outputs}` (RFC-045 §6): an object
     /// whose fields the checker does not type, like any object.
     Decision,
 }
@@ -613,7 +613,7 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
     }
 
     /// T5 and N5: an input that calls the decision of an
-    /// article (RFC-050).
+    /// article (RFC-045 §6).
     fn check_article_call(&mut self, input: &crate::article::Input, source: &Source, target: &str) {
         let name = &input.name;
         if source.output.is_none() && input.input_type != ParameterType::Decision {
@@ -668,7 +668,7 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
             }
             match declared_root(self, target) {
                 // A decision value is called anew with its own fields and
-                // findings (RFC-050); a required field it holds as null
+                // findings (RFC-045 §6); a required field it holds as null
                 // skips the call, as `parameters_from` may.
                 Some(Ty::Decision) if !input.is_nullable() => self.report(
                     Rule::N5,
