@@ -53,6 +53,8 @@ describe('the picture of one value', () => {
     const html = await renderToString(createSSRApp({ render: () => h(SchemaOverzicht, { schema: k, label: 'x' }) }));
     expect(html.match(/<nldd-box/g)).toHaveLength(k.bestanden.length);
     expect(html.match(/data-begrip=/g)).toHaveLength(k.bestanden.reduce((n, b) => n + b.begrippen.length, 0));
+    // The title, not the name of the directory.
+    expect(html).not.toMatch(/<code[^>]*>parkeerverordening_gemeente_wilgendaal</);
   });
 
   it('starts at the open term of the regulation and marks it', () => {
@@ -79,6 +81,10 @@ describe('the picture of one value', () => {
     expect(namen('beleid_bedrijfsparkeervergunning_gemeente_wilgendaal')).not.toContain('antwoord_aantal_werkzame_personen');
     expect(namen('beleid_bedrijfsparkeervergunning_gemeente_wilgendaal')).not.toContain('antwoord_postcode');
     expect(heeft(k, 'vraagt', ['kamer_van_koophandel', 'aantal_werkzame_personen'], ['beleid_bedrijfsparkeervergunning_gemeente_wilgendaal', 'aantal_werkzame_personen_volgens_handelsregister'])).toBe(true);
+    // An input that only takes an output of its own file is that output.
+    const besluit = 'uitvoeringsbesluit_parkeren_gemeente_wilgendaal';
+    expect(namen(besluit)).not.toContain('vergunninggebied');
+    expect(heeft(k, 'rekent', [besluit, 'vergunninggebied_van_vestiging'], [besluit, 'maximum_bedrijfsparkeervergunningen'])).toBe(true);
     // An output that computes something keeps its input.
     expect(namen('beleid_bedrijfsparkeervergunning_gemeente_wilgendaal')).toContain('antwoord_aantal_geldig');
   });
@@ -87,6 +93,9 @@ describe('the picture of one value', () => {
     const awb = 'reductie_algemene_wet_bestuursrecht';
     expect(namen(awb)).not.toContain('vernietigde_besluiten');
     expect(heeft(k, 'rekent', [awb, 'besluiten'], [awb, 'geldende_besluiten'])).toBe(true);
+    // The same input in two articles is one name, with one line to the chronicle.
+    expect(namen(awb).filter((n) => n === 'uitspraken')).toHaveLength(1);
+    expect(k.lijnen.filter((l) => l.soort === 'kroniek' && l.naar.begrip.endsWith('#uitspraken'))).toHaveLength(1);
     // A law keeps its steps in between.
     expect(namen('uitvoeringsbesluit_parkeren_gemeente_wilgendaal')).toContain('maximum_bedrijfsparkeervergunningen');
   });

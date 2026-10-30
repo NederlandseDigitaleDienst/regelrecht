@@ -44,7 +44,6 @@ const ROL = {
   andere_cellen: 'andere cel',
 };
 /** The directory a file is in: the name of the regelwerk or the cell. */
-const map = (pad) => pad.split('/').at(-2);
 const sleutel = (pad, begrip) => `${pad}|${begrip}`;
 
 const titels = computed(() => new Map(s.value.bestanden.map((b) => [b.pad, b.titel])));
@@ -160,10 +159,7 @@ watch(s, async () => {
           <nldd-text size="sm" color="secondary">{{ k.label }}</nldd-text>
           <nldd-box v-for="b in k.bestanden" :key="b.pad">
             <nldd-container padding="12" gap="8">
-              <nldd-container gap="2">
-                <nldd-text size="sm" weight="bold">{{ b.titel }}</nldd-text>
-                <nldd-text size="sm" color="secondary"><code>{{ map(b.pad) }}</code></nldd-text>
-              </nldd-container>
+              <nldd-text size="sm" weight="bold">{{ b.titel }}</nldd-text>
               <ul :class="['begrippen', { baan: binnen.has(b.pad) }]">
                 <li
                   v-for="g in b.begrippen"
