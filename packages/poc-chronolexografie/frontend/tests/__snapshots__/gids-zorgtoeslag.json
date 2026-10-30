@@ -159,24 +159,30 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
+    "story": "Een alleenstaande vraagt zorgtoeslag aan voor 2025.",
     "todo": "Klik op Aanvraag indienen.",
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Klik op Besluit nemen. Het voorschot is € 1.577 over 2025.",
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "story": "De Dienst verleent een voorschot van € 1.577 over 2025.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    },
    {
     "title": "Tijd laten verstrijken",
     "tab": "bestuursorgaan",
     "date": "2025-06-30",
+    "story": "Het halfjaar gaat voorbij en de Dienst betaalt elke maand uit.",
     "todo": "Klik onder Tijd op Tijd laten verstrijken.",
-    "seen": "Het voorschot is in januari verleend, dus het gaat in elf termijnen, van januari tot en met november (artikel 22, tweede lid). Elke termijn betaalt de Dienst op de twintigste van de maand.",
+    "values": [],
+    "seen": "Wat de cel onderweg vastlegde, staat in de Kroniek en het Logboek, elk op de dag waarop het ontstond.",
     "expect": null
    }
   ]
@@ -189,24 +195,32 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": "2025-03-10",
-    "todo": "Het formulier staat ingevuld uit het scenario: \"dagtekening\" 7 maart 2025. Klik op Aanvraag indienen.",
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "story": "Een alleenstaande vraagt in maart zorgtoeslag aan voor 2025.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [
+     "dagtekening: 7 maart 2025"
+    ],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": "2025-03-14",
+    "story": "De Dienst verleent op 14 maart een voorschot van € 1.577.",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "values": [],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    },
    {
     "title": "Tijd laten verstrijken",
     "tab": "bestuursorgaan",
     "date": "2025-06-30",
+    "story": "Het voorjaar gaat voorbij en de Dienst betaalt elke maand uit.",
     "todo": "Klik onder Tijd op Tijd laten verstrijken.",
-    "seen": "Wat de cel onderweg vastlegde, staat in de Kroniek en het Logboek, elk op de dag waarop het ontstond.",
+    "values": [],
+    "seen": "In maart komt januari tot en met maart in één bedrag mee (Awir 22, vierde lid).",
     "expect": null
    }
   ]
@@ -219,39 +233,53 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
+    "story": "Een alleenstaande vraagt zorgtoeslag aan voor 2025.",
     "todo": "Klik op Aanvraag indienen.",
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Het formulier staat ingevuld uit het scenario: \"vermoedelijk toetsingsinkomen\" 3000000. De Dienst verwacht een toetsingsinkomen van € 30.000. Klik op Besluit nemen.",
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "story": "De Dienst verwacht een inkomen van € 30.000.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [
+     "vermoedelijk toetsingsinkomen: 3000000"
+    ],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    },
    {
     "title": "Tijd laten verstrijken",
     "tab": "bestuursorgaan",
     "date": "2025-02-10",
+    "story": "Op 20 januari betaalt de Dienst de eerste termijn uit.",
     "todo": "Klik onder Tijd op Tijd laten verstrijken.",
-    "seen": "Op 20 januari betaalde de Dienst de eerste termijn uit: € 1.331 in elf termijnen is 12100 eurocent (€ 121) per maand.",
+    "values": [],
+    "seen": "Uitbetaald: € 121, een elfde van het voorschot van € 1.331.",
     "expect": null
    },
    {
     "title": "Bezwaar maken",
     "tab": "aanvrager",
     "date": "2025-02-10",
-    "todo": "Het formulier staat ingevuld uit het scenario: \"gronden bezwaar of beroep\" mijn inkomen blijft in 2025 rond € 25.000. Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
-    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "story": "De aanvrager maakt bezwaar, omdat het inkomen rond € 25.000 blijft.",
+    "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [
+     "gronden bezwaar of beroep: mijn inkomen blijft in 2025 rond € 25.000"
+    ],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
    },
    {
     "title": "Tijd laten verstrijken",
     "tab": "bestuursorgaan",
     "date": "2025-03-13",
-    "todo": "Een bezwaar schort de betaling niet op. Klik onder Tijd op Tijd laten verstrijken.",
+    "story": "Het bezwaar schort de betaling niet op.",
+    "todo": "Klik onder Tijd op Tijd laten verstrijken.",
+    "values": [],
     "seen": "Wat de cel onderweg vastlegde, staat in de Kroniek en het Logboek, elk op de dag waarop het ontstond.",
     "expect": null
    },
@@ -259,7 +287,11 @@
     "title": "Beslissen op bezwaar",
     "tab": "bestuursorgaan",
     "date": "2025-03-14",
-    "todo": "Het formulier staat ingevuld uit het scenario: \"vermoedelijk toetsingsinkomen\" 2500000. Klik onder Open bezwaren op Ontvankelijkheid toetsen: het bezwaar is ontvankelijk. De Dienst verwacht nu € 25.000. Klik op Beslissen op bezwaar.",
+    "story": "De Dienst verwacht nu een inkomen van € 25.000.",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "values": [
+     "vermoedelijk toetsingsinkomen: 2500000"
+    ],
     "seen": "De beslissing staat onder Beslissingen op bezwaar.",
     "expect": "hier hoort het bezwaar gegrond te zijn"
    },
@@ -267,7 +299,9 @@
     "title": "Tijd laten verstrijken",
     "tab": "bestuursorgaan",
     "date": "2025-06-30",
+    "story": "Tot eind juni betaalt de Dienst uit op het nieuwe voorschot.",
     "todo": "Klik onder Tijd op Tijd laten verstrijken.",
+    "values": [],
     "seen": "Wat de cel onderweg vastlegde, staat in de Kroniek en het Logboek, elk op de dag waarop het ontstond.",
     "expect": null
    }

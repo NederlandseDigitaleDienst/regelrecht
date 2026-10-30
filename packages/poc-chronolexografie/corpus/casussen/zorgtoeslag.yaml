@@ -193,7 +193,7 @@ scenarios:
         uitvoer:
           maand: ['2025-01-01', '2025-02-01', '2025-03-01', '2025-04-01', '2025-05-01', '2025-06-01']
           uitbetaald_bedrag: [14336, 14336, 14336, 14336, 14336, 14336]
-    eind: 'Zes termijnen van € 143,36 uitbetaald, samen € 860,16.'
+    eind: Zes termijnen van € 143,36 uitbetaald, samen € 860,16.
   - naam: Voorschot in de loop van het jaar
     samenvatting: >-
       De aanvraag komt in maart binnen, dus het deel van het voorschot over
@@ -216,7 +216,7 @@ scenarios:
         uitvoer:
           maand: ['2025-03-01', '2025-04-01', '2025-05-01', '2025-06-01']
           uitbetaald_bedrag: [52566, 13141, 13141, 13142]
-        gezien: 'In maart komt januari tot en met maart in één bedrag mee (Awir 22, vierde lid).'
+        gezien: In maart komt januari tot en met maart in één bedrag mee (Awir 22, vierde lid).
     eind: 'Uitbetaald: € 525,66 in maart, daarna termijnen van € 131,41 en € 131,42.'
   - naam: Voorschot hoger na bezwaar
     samenvatting: >-
