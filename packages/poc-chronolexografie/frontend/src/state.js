@@ -42,6 +42,10 @@ export const state = reactive({
   // How often a scenario began in this tab: a restart starts the forms
   // anew, even at the same step (scenarioInvoer.js).
   begonnen: 0,
+  // The last day up to which time passed (`api.tijdVerstrijkt`), or null.
+  // Time may pass without the cell recording anything, so the chronicle
+  // does not say it; the guide does need it (scenarioGuides.js).
+  tijdTot: null,
 });
 
 /** Het artikel waaronder de casus op een aanvraag besluit, `<wet>#<artikel>`. */
@@ -81,6 +85,7 @@ async function bewaar() {
         datum: state.datum,
         scenario: state.scenario,
         refusals: state.refusals,
+        tijdTot: state.tijdTot,
       }),
     );
   } catch {
@@ -121,9 +126,9 @@ export async function hervatten(casusId) {
   const spelTotNu = bewaard();
   if (!spelTotNu) return 'none';
   try {
-    const { casus, spel: bewaardSpel, datum, scenario, refusals } = JSON.parse(spelTotNu);
+    const { casus, spel: bewaardSpel, datum, scenario, refusals, tijdTot } = JSON.parse(spelTotNu);
     if (!casusId || casus !== casusId) return 'none';
-    await openen(await api.herstellen(bewaardSpel), datum, { scenario, refusals });
+    await openen(await api.herstellen(bewaardSpel), datum, { scenario, refusals, tijdTot });
     return 'resumed';
   } catch (e) {
     // Laadde de cel niet (het netwerk, een deploy), dan blijft het spel
@@ -149,9 +154,14 @@ export async function kiezen(id) {
   }
 }
 
-async function openen(casus, datum = casus.speeldatum, { scenario = null, refusals = [] } = {}) {
+async function openen(
+  casus,
+  datum = casus.speeldatum,
+  { scenario = null, refusals = [], tijdTot = null } = {},
+) {
   state.scenario = scenario;
   state.refusals = refusals;
+  state.tijdTot = tijdTot;
   state.vormen = null;
   state.grammen = [];
   state.rechter = [];
@@ -179,6 +189,7 @@ export async function beginScenario(naam) {
   state.datum = state.casus.speeldatum;
   state.scenario = naam;
   state.refusals = [];
+  state.tijdTot = null;
   state.begonnen += 1;
   await bewaar();
   return true;
@@ -224,6 +235,21 @@ export async function stap(actie) {
     await bewaar().catch(() => {});
     return null;
   }
+}
+
+/**
+ * Laat de tijd verstrijken tot en met de speeldatum (`api.tijdVerstrijkt`).
+ * Geeft de executogrammen die de cel onderweg vastlegde, of `null` bij een
+ * fout.
+ */
+export async function tijdVerstrijken() {
+  const tot = state.datum;
+  const vastgelegd = await stap(() => api.tijdVerstrijkt(tot));
+  if (vastgelegd) {
+    state.tijdTot = tot;
+    await bewaar();
+  }
+  return vastgelegd;
 }
 
 export const verwijstNaar = (id) => state.grammen.filter((g) => g.refers_to === id);
@@ -275,7 +301,10 @@ export const herroepen = (besluit) =>
 /** Wat een chronolexogram is in het proces, zoals het dossier en het logboek het noemen. */
 export function rol(g) {
   if (g.kind === 'AANVRAAG') return 'Aanvraag';
-  if (g.kind === 'EXECUTOGRAM') return g.received ? 'Ontvangst uitspraak' : 'Executogram';
+  if (g.kind === 'EXECUTOGRAM') {
+    if (g.received) return 'Ontvangst uitspraak';
+    return g.fact ? hoofdletter(leesbaar(g.fact)) : 'Executogram';
+  }
   if (g.kind === 'BEROEP') return 'Beroep';
   if (g.kind === 'UITSPRAAK') return 'Uitspraak';
   if (g.kind === 'BEZWAAR') return 'Bezwaar';

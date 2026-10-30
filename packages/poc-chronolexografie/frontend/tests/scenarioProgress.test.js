@@ -159,3 +159,25 @@ describe('progress', () => {
     expect(state.refusals).toHaveLength(0);
   });
 });
+
+describe('time passing', () => {
+  // A step `tijd_verstrijkt` of the zorgtoeslag case: it may record
+  // nothing, so it is done once time passed up to its date, which the page
+  // keeps in `state.tijdTot`.
+  const zorg = {
+    id: 'zorgtoeslag',
+    scenarios: load(readFileSync(new URL('../../corpus/casussen/zorgtoeslag.yaml', import.meta.url), 'utf8'))
+      .scenarios,
+  };
+  const step = guideFor(zorg, 'Termijnen van het voorschot').steps.find((s) => s.stap.stap === 'tijd_verstrijkt');
+
+  it('is done once time passed up to the date of the step', () => {
+    state.tijdTot = null;
+    expect(step.done(counts())).toBe(false);
+    state.tijdTot = '2025-06-01';
+    expect(step.done(counts())).toBe(false);
+    state.tijdTot = '2025-06-30';
+    expect(step.done(counts())).toBe(true);
+    state.tijdTot = null;
+  });
+});

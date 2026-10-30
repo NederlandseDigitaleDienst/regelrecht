@@ -1,0 +1,99 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$id: reductie_uitbetaalde_voorschotten
+regulatory_layer: REDUCTIE
+publication_date: '2024-12-01'
+valid_from: '2025-01-01'
+# Geen regelgeving: een reductie van de Dienst Toeslagen over zijn eigen
+# kroniek (RFC-022 §4.1, RFC-048, RFC-051). Ze leest de executogrammen van
+# het feit uitbetaling_termijn, dat artikel 22 van de Awir vereist: elke
+# termijn van een voorschot die de Dienst uitbetaalde. De cel van de Dienst
+# geeft haar uitvoer als de antwoorden uitbetaald_voorschot en
+# voorschot_uitbetaald_deze_maand (cel.yaml, answers). Artikel 2 van het
+# beleid van de Dienst (beleid_zorgtoeslag_dienst_toeslagen) rekent er de
+# volgende termijn mee uit. Wat over een berekeningsjaar is uitbetaald, is
+# ook wat de Dienst verrekent met de tegemoetkoming (artikel 24, tweede lid).
+# Er is geen bekendmaking; de url wijst naar artikel 22.
+url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel22
+name: Uitbetaalde voorschotten bij de Dienst Toeslagen (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving. Het systeem van de Dienst Toeslagen telt door middel
+      van een chronolexografische reductie op zijn eigen kroniek op wat het
+      van het voorschot over een berekeningsjaar aan de belanghebbende
+      uitbetaalde: de som van de uitbetaalde termijnen. Het kijkt ook of het
+      in de maand van vandaag al een termijn uitbetaalde.
+    url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel22
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            description: Het burgerservicenummer van de belanghebbende.
+          - name: berekeningsjaar
+            type: number
+            description: Het berekeningsjaar waarop het voorschot betrekking heeft.
+        input:
+          # De uitbetaalde termijnen, één rij per executogram, met bsn,
+          # berekeningsjaar, maand en uitbetaald_bedrag.
+          - name: uitbetalingen
+            type: array
+            source:
+              facts: algemene_wet_inkomensafhankelijke_regelingen#22#uitbetaling_termijn
+        output:
+          - name: uitbetaald_voorschot
+            type: amount
+            type_spec:
+              unit: eurocent
+            description: >-
+              Wat de Dienst van het voorschot over het berekeningsjaar aan de
+              belanghebbende uitbetaalde; nihil als hij nog niets uitbetaalde.
+          - name: voorschot_uitbetaald_deze_maand
+            type: boolean
+            description: >-
+              Of de Dienst in de maand van de rekendatum al een termijn van
+              het voorschot over het berekeningsjaar uitbetaalde.
+        actions:
+          - output: uitbetaald_voorschot
+            value:
+              operation: FOREACH
+              collection: $uitbetalingen
+              as: uitbetaling
+              filter:
+                operation: AND
+                conditions:
+                  - operation: EQUALS
+                    subject: $uitbetaling.bsn
+                    value: $bsn
+                  - operation: EQUALS
+                    subject: $uitbetaling.berekeningsjaar
+                    value: $berekeningsjaar
+              body: $uitbetaling.uitbetaald_bedrag
+              combine: ADD
+          - output: voorschot_uitbetaald_deze_maand
+            value:
+              operation: FOREACH
+              collection: $uitbetalingen
+              as: uitbetaling
+              filter:
+                operation: AND
+                conditions:
+                  - operation: EQUALS
+                    subject: $uitbetaling.bsn
+                    value: $bsn
+                  - operation: EQUALS
+                    subject: $uitbetaling.berekeningsjaar
+                    value: $berekeningsjaar
+                  - operation: EQUALS
+                    subject:
+                      operation: DATE_DIFF
+                      from: $uitbetaling.maand
+                      to:
+                        operation: START_OF
+                        date: $referencedate
+                        in: month
+                      in: days
+                    value: 0
+              body: true
+              combine: OR

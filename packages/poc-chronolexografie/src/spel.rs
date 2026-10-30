@@ -182,6 +182,12 @@ impl Spel {
         ok(self.met(|c, cell| kern::vastleggen(c, cell, cel, feit, velden, datum))?)
     }
 
+    /// Time passes up to and including `datum` ([`kern::tijd_verstrijken`]):
+    /// what the case's cell records on the way.
+    pub fn tijd_verstrijkt(&mut self, datum: NaiveDate) -> Antwoord {
+        ok(self.met(|c, cell| kern::tijd_verstrijken(c, cell, datum))?)
+    }
+
     /// Decide on the application `op`, with the deciding authority's
     /// findings for this case (RFC-050).
     pub fn besluiten(

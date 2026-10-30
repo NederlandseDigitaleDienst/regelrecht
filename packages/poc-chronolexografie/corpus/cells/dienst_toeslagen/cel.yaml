@@ -5,3 +5,13 @@
 # artikelen noemen de Dienst bij naam (competent_authority). De gegevens in
 # deze cel zijn verzonnen.
 name: Dienst Toeslagen
+# Welke antwoorden de cel geeft, en uit welke eigen reductie (reductions/,
+# RFC-048): de naam van het antwoord is de uitvoer van die reductie. Geen
+# logica; het beleid van de Dienst koppelt de antwoorden aan het open begrip
+# termijnbedrag van artikel 22 van de Awir.
+answers:
+  geldend_voorschotbedrag: reductie_geldend_voorschot
+  dagtekening_geldend_voorschot: reductie_geldend_voorschot
+  voorschot_voor_het_eerst_verleend: reductie_geldend_voorschot
+  uitbetaald_voorschot: reductie_uitbetaalde_voorschotten
+  voorschot_uitbetaald_deze_maand: reductie_uitbetaalde_voorschotten

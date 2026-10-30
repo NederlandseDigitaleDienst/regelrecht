@@ -35,7 +35,7 @@ const BELEID =
 const CEL = `${CORPUS}/cells/gemeente_wilgendaal/cel.yaml`;
 const REDUCTIE =
   `${CORPUS}/cells/gemeente_wilgendaal/reductions/reductie_geldige_bedrijfsparkeervergunningen/2026-01-01.yaml`;
-const AWB = `${CORPUS}/cells/reductions/reductie_algemene_wet_bestuursrecht/2026-01-01.yaml`;
+const AWB = `${CORPUS}/cells/reductions/reductie_algemene_wet_bestuursrecht/1994-01-01.yaml`;
 const KVK_CEL = `${CORPUS}/cells/kamer_van_koophandel/cel.yaml`;
 const KVK_REDUCTIE =
   `${CORPUS}/cells/kamer_van_koophandel/reductions/reductie_vestiging_in_handelsregister/2026-01-01.yaml`;

@@ -701,6 +701,15 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
             "uitvoer": op_bezwaar.outputs,
         },
         "andere_cellen": handelingen(&service, corpus, cell, on)?,
+        // What the case's own cell records as time passes ([`verloop`]).
+        "tijd": verloop(&service, corpus, &cell.eigen, on)?
+            .iter()
+            .map(|v| json!({
+                "feit": v.feit,
+                "basis": v.basis(),
+                "velden": v.velden.iter().map(veld).collect::<Vec<_>>(),
+            }))
+            .collect::<Vec<_>>(),
     });
     if let Some(b) = &corpus.afleiding.beroep {
         let beroep = shape::derive(&service, &b.law, &b.article, on)?;
@@ -819,21 +828,8 @@ fn handelingen(
 ) -> Result<Vec<Value>> {
     let mut uit = Vec::new();
     for (cell, andere) in cellen.andere.iter().zip(&corpus.casus.andere_cellen) {
-        let mut feiten: Vec<String> = Vec::new();
-        // Only a reduction reads a chronicle (RFC-048).
-        for (_, reduction) in reducties_in(&|id: &str| service.resolver().get_law(id), &[cell]) {
-            for article in &reduction.articles {
-                for input in article.get_inputs() {
-                    if let Some(f) = input.source.as_ref().and_then(|s| s.facts.as_ref()) {
-                        if !feiten.contains(f) {
-                            feiten.push(f.clone());
-                        }
-                    }
-                }
-            }
-        }
         let mut acts = Vec::new();
-        for feit in feiten {
+        for feit in gelezen_feiten(service, cell) {
             let velden: Vec<Value> = shape::fact_fields(service, &feit, on, None)?
                 .iter()
                 .map(veld)
@@ -847,6 +843,251 @@ fn handelingen(
         }));
     }
     Ok(uit)
+}
+
+/// The facts whose executograms the reductions of `cell` read
+/// (`source.facts`), each once, in the order of its catalogue. Only a
+/// reduction reads a chronicle (RFC-048).
+fn gelezen_feiten(service: &LawExecutionService, cell: &Cell) -> Vec<String> {
+    let mut feiten: Vec<String> = Vec::new();
+    for (_, reduction) in reducties_in(&|id: &str| service.resolver().get_law(id), &[cell]) {
+        for article in &reduction.articles {
+            for input in article.get_inputs() {
+                if let Some(f) = input.source.as_ref().and_then(|s| s.facts.as_ref()) {
+                    if !feiten.contains(f) {
+                        feiten.push(f.clone());
+                    }
+                }
+            }
+        }
+    }
+    feiten
+}
+
+/// A fact the case's own cell records as time passes ([`tijd_verstrijken`]),
+/// and the article that says when: the fact `feit`
+/// (`<regulation>#<article>#<fact>`) with its fields, and the article
+/// `law#article` whose outputs and parameters hold every one of them.
+#[derive(Debug, Clone)]
+struct Verloop {
+    feit: String,
+    velden: Vec<shape::Field>,
+    law: String,
+    article: String,
+    /// The fields that are outputs of the article, and its parameters with
+    /// whether each is required.
+    uitvoer: Vec<String>,
+    parameters: Vec<(String, bool)>,
+}
+
+impl Verloop {
+    fn basis(&self) -> String {
+        format!("{}#{}", self.law, self.article)
+    }
+
+    /// The parameters to run the article with on `on`: per decision of the
+    /// case's cell under one of `bases` taken up to that day, the values its
+    /// fields and outputs hold under the names of the article's
+    /// parameters, each set once. A decision that lacks a required one is
+    /// none the article speaks of.
+    fn reeksen(&self, grams: &[Gram], bases: &[String], on: NaiveDate) -> Vec<Map<String, Value>> {
+        let mut uit: Vec<Map<String, Value>> = Vec::new();
+        for gram in grams
+            .iter()
+            .filter(|g| bases.contains(&g.basis) && g.refers_to.is_some() && g.recorded_on <= on)
+        {
+            let mut reeks = Map::new();
+            let mut heel = true;
+            for (naam, verplicht) in &self.parameters {
+                match gram
+                    .outputs
+                    .get(naam)
+                    .or_else(|| gram.fields.get(naam))
+                    .filter(|v| !v.is_null())
+                {
+                    Some(v) => {
+                        reeks.insert(naam.clone(), v.clone());
+                    }
+                    None => heel &= !verplicht,
+                }
+            }
+            if heel && !uit.contains(&reeks) {
+                uit.push(reeks);
+            }
+        }
+        uit
+    }
+}
+
+/// What the case's own cell records as time passes, on `on`: the facts its
+/// reductions read (`source.facts`), each with the one article that holds
+/// all of its fields, some as outputs and the rest as parameters. That
+/// article says per day whether the fact arises: it gives a value for each
+/// field that cannot be absent, or the fact does not arise that day. The
+/// article that requires the fact is not it (its parameters are the
+/// fact), and neither is a reduction or an article that takes a decision.
+/// A fact without such an article is not one time brings, such as where a
+/// school is established; a fact whose article is not in force on `on` is
+/// none yet.
+fn verloop(
+    service: &LawExecutionService,
+    corpus: &Corpus,
+    cell: &Cell,
+    on: NaiveDate,
+) -> Result<Vec<Verloop>> {
+    let mut uit = Vec::new();
+    for feit in gelezen_feiten(service, cell) {
+        let velden = match shape::fact_fields(service, &feit, on, None) {
+            Ok(velden) => velden,
+            // The article that requires it has no version in force yet.
+            Err(Error::Refused(_)) => continue,
+            Err(e) => return Err(e),
+        };
+        let (eist, _) = shape::split_fact(&feit)?;
+        let mut gevonden: Vec<Verloop> = Vec::new();
+        for id in &corpus.afleiding.regelwerken {
+            let Some(law) = service
+                .resolver()
+                .get_law_for_date(id, Some(on))
+                .filter(|l| l.regulatory_layer != regelrecht_engine::RegulatoryLayer::Reductie)
+            else {
+                continue;
+            };
+            for article in &law.articles {
+                if format!("{id}#{}", article.number) == eist || article.get_decision().is_some() {
+                    continue;
+                }
+                let Some(execution) = article.get_execution_spec() else {
+                    continue;
+                };
+                let outputs: Vec<&str> = execution
+                    .output
+                    .iter()
+                    .flatten()
+                    .map(|o| o.name.as_str())
+                    .collect();
+                let parameters: Vec<(String, bool)> = article
+                    .get_parameters()
+                    .iter()
+                    .map(|p| (p.name.clone(), p.required != Some(false)))
+                    .collect();
+                let uitvoer: Vec<String> = velden
+                    .iter()
+                    .filter(|v| outputs.contains(&v.name.as_str()))
+                    .map(|v| v.name.clone())
+                    .collect();
+                let alle = velden.iter().all(|v| {
+                    outputs.contains(&v.name.as_str())
+                        || parameters.iter().any(|(p, _)| *p == v.name)
+                });
+                if alle && !uitvoer.is_empty() {
+                    gevonden.push(Verloop {
+                        feit: feit.clone(),
+                        velden: velden.clone(),
+                        law: id.clone(),
+                        article: article.number.clone(),
+                        uitvoer,
+                        parameters,
+                    });
+                }
+            }
+        }
+        match gevonden.len() {
+            0 => {}
+            1 => uit.extend(gevonden),
+            _ => {
+                return Err(Error::Setup(format!(
+                    "both {} and {} hold the fact {feit}; which says when it arises is unclear",
+                    gevonden[0].basis(),
+                    gevonden[1].basis()
+                )))
+            }
+        }
+    }
+    Ok(uit)
+}
+
+/// How many days time passes at most in one step: the cell runs the law
+/// for every day, in the visitor's browser, and two years is more than a
+/// case needs.
+const MAX_DAGEN: i64 = 731;
+
+/// Per regelwerk, the `valid_from` of its version in force on a day, if any.
+type Versies = Vec<Option<Option<String>>>;
+
+/// Time passes up to and including `tot` (`tijd_verstrijkt`): the case's
+/// own cell records every fact that time brings ([`verloop`]) on each day
+/// from the day of its last chronolexogram on, as an executogram of that
+/// day (RFC-051). Per day and per decision of the case it runs the article
+/// that says whether the fact arises, with the decision's values for its
+/// parameters, as the cell knows things that day ([`Cell::evaluate_on`]):
+/// what it recorded earlier that day counts. The chronicle does not go back
+/// in time, so a day before its last chronolexogram is refused; what fell
+/// due on a day another step skipped, the article decides about on the next
+/// day it is asked. Time that passed without a record leaves no trace in
+/// the chronicle: a later step may still be dated within it.
+pub fn tijd_verstrijken(corpus: &Corpus, cellen: &mut Cellen, tot: NaiveDate) -> Result<Vec<Gram>> {
+    let service = corpus.service()?;
+    let vanaf = cellen.eigen.grams().last().map_or(tot, |g| g.recorded_on);
+    if tot < vanaf {
+        return Err(Error::Refused(format!(
+            "time passes up to {tot}, but the chronicle already reached {vanaf}: it does not go \
+             back in time"
+        )));
+    }
+    if (tot - vanaf).num_days() > MAX_DAGEN {
+        return Err(Error::Refused(format!(
+            "time passes from {vanaf} up to {tot}, more than {MAX_DAGEN} days in one step"
+        )));
+    }
+    let mut vastgelegd = Vec::new();
+    // What time brings changes only with the versions in force: derive it
+    // again when one of them changes, not every day.
+    let mut afgeleid: Option<(Versies, Vec<Verloop>)> = None;
+    for dag in vanaf.iter_days().take_while(|d| *d <= tot) {
+        let versies: Versies = corpus
+            .afleiding
+            .regelwerken
+            .iter()
+            .map(|id| {
+                service
+                    .resolver()
+                    .get_law_for_date(id, Some(dag))
+                    .map(|law| law.valid_from.clone())
+            })
+            .collect();
+        if afgeleid
+            .as_ref()
+            .is_none_or(|(eerder, _)| *eerder != versies)
+        {
+            afgeleid = Some((versies, verloop(&service, corpus, &cellen.eigen, dag)?));
+        }
+        let Some((_, verlopen)) = &afgeleid else {
+            continue;
+        };
+        for v in verlopen {
+            let uitvoer: Vec<&str> = v.uitvoer.iter().map(String::as_str).collect();
+            for reeks in v.reeksen(cellen.eigen.grams(), &corpus.afleiding.besluiten, dag) {
+                let (cell, sfeer) = cellen.splits();
+                let uit = cell.evaluate_on(&service, &sfeer, &v.law, &uitvoer, &reeks, dag)?;
+                let mut velden = Map::new();
+                let mut ontstaat = true;
+                for veld in &v.velden {
+                    let waarde = uit
+                        .get(&veld.name)
+                        .or_else(|| reeks.get(&veld.name))
+                        .cloned()
+                        .unwrap_or(Value::Null);
+                    ontstaat &= veld.nullable || !waarde.is_null();
+                    velden.insert(veld.name.clone(), waarde);
+                }
+                if ontstaat {
+                    vastgelegd.push(cell.record_executogram(&service, &v.feit, &velden, dag)?);
+                }
+            }
+        }
+    }
+    Ok(vastgelegd)
 }
 
 /// Another cell of the sphere records an executogram of the fact `feit`
@@ -3653,7 +3894,9 @@ mod tests {
         // article the application names, so the case's own Wet op de
         // zorgtoeslag runs without an article of the Awir naming it; that
         // law reads the standard premium from its regeling, and the Awir,
-        // the Zvw and the Wet IB 2001 are read by its articles.
+        // the Zvw and the Wet IB 2001 are read by its articles. The cell's reductions
+        // come with its catalogue, and the one of the Awb with them: the
+        // policy pays the termijnen on the advance that stands.
         let zorg = casus("zorgtoeslag");
         let a = &zorg.afleiding;
         assert_eq!(
@@ -3672,6 +3915,9 @@ mod tests {
                 "algemene_wet_inkomensafhankelijke_regelingen",
                 "algemene_wet_inzake_rijksbelastingen",
                 "beleid_zorgtoeslag_dienst_toeslagen",
+                "reductie_algemene_wet_bestuursrecht",
+                "reductie_geldend_voorschot",
+                "reductie_uitbetaalde_voorschotten",
                 "regeling_standaardpremie",
                 "wet_inkomstenbelasting_2001",
                 "wet_op_de_zorgtoeslag",
@@ -3761,6 +4007,155 @@ mod tests {
             .unwrap()
             .besluit
             .outputs
+    }
+
+    /// The cell's answer `antwoord` of its reduction `reductie` for the
+    /// advance of the example applicant over 2025, on `op`.
+    fn antwoord_voorschot(
+        cell: &Cellen,
+        corpus: &Corpus,
+        reductie: &str,
+        antwoord: &str,
+        op: &str,
+    ) -> Value {
+        let service = corpus.service().unwrap();
+        let parameters = map(json!({ "bsn": "999993653", "berekeningsjaar": 2025 }));
+        cell.eigen
+            .evaluate_on(
+                &service,
+                &cell.sfeer(),
+                reductie,
+                &[antwoord],
+                &parameters,
+                day(op),
+            )
+            .unwrap()[antwoord]
+            .clone()
+    }
+
+    #[test]
+    fn zorgtoeslag_time_pays_the_termijnen_and_the_cell_answers_the_sum() {
+        // The payment of a termijn is a fact Awir 22 requires; the policy of
+        // the Dienst says when it arises and how much, and the cell records
+        // it as time passes, one per month on the 20th. Its reduction sums
+        // what was paid: the balance PR 3 sets off against the allowance.
+        let corpus = casus("zorgtoeslag");
+        let mut cell = corpus.cell().unwrap();
+        let op = day("2025-01-06");
+        let tijd = vormen(&corpus, &cell, op).unwrap()["tijd"].clone();
+        assert_eq!(
+            tijd.pointer("/0/feit"),
+            Some(&json!(
+                "algemene_wet_inkomensafhankelijke_regelingen#22#uitbetaling_termijn"
+            ))
+        );
+        assert_eq!(
+            tijd.pointer("/0/basis"),
+            Some(&json!("beleid_zorgtoeslag_dienst_toeslagen#2"))
+        );
+        let velden = map(json!({
+            "bsn": "999993653",
+            "berekeningsjaar": 2025,
+            "gevraagde_tegemoetkoming": "wet_op_de_zorgtoeslag#2",
+            "aanvraag_ondertekend": true,
+            "naam_aanvrager": "S. de Vries",
+            "adres_aanvrager": "Voorbeeldlaan 7",
+            "dagtekening": "2025-01-03",
+            "gevraagde_beschikking": "zorgtoeslag over 2025",
+        }));
+        let app = aanvragen(&corpus, &mut cell, &velden, op).unwrap();
+        // Before a decision, time brings nothing.
+        assert!(tijd_verstrijken(&corpus, &mut cell, op).unwrap().is_empty());
+        let oordelen = map(json!({
+            "toetsingsinkomen": 2500000,
+            "heeft_toeslagpartner": false,
+            "toetsingsinkomen_toeslagpartner": 0,
+            "is_verzekerde": true,
+            "vermogen_onder_grens": true,
+        }));
+        besluiten_onder(&corpus, &mut cell, &app.id, VOORSCHOT, &oordelen, op).unwrap();
+        let uitbetaald = "reductie_uitbetaalde_voorschotten";
+        assert_eq!(
+            antwoord_voorschot(
+                &cell,
+                &corpus,
+                uitbetaald,
+                "uitbetaald_voorschot",
+                "2025-01-06"
+            ),
+            json!(0)
+        );
+
+        let eerste = tijd_verstrijken(&corpus, &mut cell, day("2025-03-19")).unwrap();
+        let dagen: Vec<String> = eerste.iter().map(|g| g.recorded_on.to_string()).collect();
+        assert_eq!(dagen, ["2025-01-20", "2025-02-20"]);
+        assert!(eerste.iter().all(|g| g.kind == EXECUTOGRAM
+            && g.basis == "algemene_wet_inkomensafhankelijke_regelingen#22"
+            && g.fact.as_deref() == Some("uitbetaling_termijn")));
+        // Passing time again from where the chronicle is pays no termijn
+        // twice, and a day before it is refused.
+        let tweede = tijd_verstrijken(&corpus, &mut cell, day("2025-06-30")).unwrap();
+        assert_eq!(tweede.len(), 4);
+        assert!(tijd_verstrijken(&corpus, &mut cell, day("2025-06-30"))
+            .unwrap()
+            .is_empty());
+        assert!(matches!(
+            tijd_verstrijken(&corpus, &mut cell, day("2025-06-01")),
+            Err(Error::Refused(_))
+        ));
+        assert!(matches!(
+            tijd_verstrijken(&corpus, &mut cell, day("9999-12-31")),
+            Err(Error::Refused(_))
+        ));
+        assert_eq!(
+            antwoord_voorschot(
+                &cell,
+                &corpus,
+                uitbetaald,
+                "uitbetaald_voorschot",
+                "2025-06-30"
+            ),
+            json!(6 * 14336)
+        );
+        // To the end of the year: the last termijn, in November, pays what
+        // remains, so the termijnen add up to the advance.
+        tijd_verstrijken(&corpus, &mut cell, day("2025-12-31")).unwrap();
+        assert_eq!(
+            antwoord_voorschot(
+                &cell,
+                &corpus,
+                uitbetaald,
+                "uitbetaald_voorschot",
+                "2025-12-31"
+            ),
+            json!(157700)
+        );
+        let laatste = cell.grams().last().unwrap();
+        assert_eq!(laatste.recorded_on, day("2025-11-20"));
+        let geldend = "reductie_geldend_voorschot";
+        assert_eq!(
+            antwoord_voorschot(
+                &cell,
+                &corpus,
+                geldend,
+                "geldend_voorschotbedrag",
+                "2025-12-31"
+            ),
+            json!(157700)
+        );
+    }
+
+    #[test]
+    fn a_case_without_a_fact_time_brings_has_nothing_to_pass() {
+        // The school records where it is established, but no article says
+        // that time brings it about.
+        let corpus = corpus();
+        let mut cell = corpus.cell().unwrap();
+        let op = corpus.casus.speeldatum;
+        assert_eq!(vormen(&corpus, &cell, op).unwrap()["tijd"], json!([]));
+        let voor = cell.grams().len();
+        assert!(tijd_verstrijken(&corpus, &mut cell, op).unwrap().is_empty());
+        assert_eq!(cell.grams().len(), voor);
     }
 
     #[test]

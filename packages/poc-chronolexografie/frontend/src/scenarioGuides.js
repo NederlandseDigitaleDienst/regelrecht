@@ -114,6 +114,15 @@ const KINDS = {
     done: (n) => (k) => k.redecisions >= n,
     weigering: /already replaces/,
   },
+  tijd_verstrijkt: {
+    tab: 'bestuursorgaan',
+    title: () => 'Tijd laten verstrijken',
+    todo: 'Klik onder Tijd op Tijd laten verstrijken.',
+    seen: () =>
+      'Wat de cel onderweg vastlegde, staat in de Kroniek en het Logboek, elk op de dag waarop het ontstond.',
+    // Done once time passed up to the step's date; it may record nothing.
+    done: (n, stap) => (k) => k.tijdTot !== '' && k.tijdTot >= String(stap.datum ?? ''),
+  },
 };
 
 // `regeling#3#geneeskundig_onderzoek_verricht` → `geneeskundig_onderzoek_verricht`.

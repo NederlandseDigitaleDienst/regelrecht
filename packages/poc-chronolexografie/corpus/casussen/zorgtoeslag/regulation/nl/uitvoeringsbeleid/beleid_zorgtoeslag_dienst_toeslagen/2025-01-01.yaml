@@ -11,6 +11,9 @@ valid_from: '2025-01-01'
 # Dit beleid koppelt geen wetten: welke regeling het bedrag geeft, volgt uit de
 # aanvraag (artikel 15 van de Awir). Het zegt alleen hoe de Dienst zijn
 # schatting maakt. Dat is uitvoering; de regels staan in de wet.
+# Artikel 2 zegt hoe hoog een termijn van het voorschot is en op welke dag
+# de Dienst die uitbetaalt. Artikel 22 van de Awir zegt alleen in welke
+# maand een termijn valt.
 url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel16
 name: Voorschot zorgtoeslag bij de Dienst Toeslagen (fictief beleid)
 competent_authority:
@@ -25,3 +28,323 @@ articles:
       wat de aanvrager opgaf (artikel 15, tweede lid, van de Awir) en wat hij
       zelf weet.
     url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel16
+  - number: '2'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. De
+      Dienst Toeslagen betaalt de termijn van een maand uit op de twintigste
+      van die maand, of later in die maand als het voorschot pas dan is
+      verleend. Hij betaalt uit op het voorschot dat op die dag geldt, en
+      niet meer dan één keer per maand. Een termijn is wat van dat voorschot
+      nog niet is uitbetaald, gedeeld door het aantal termijnen dat volgens
+      artikel 22 van de Algemene wet inkomensafhankelijke regelingen nog
+      komt, naar beneden afgerond op hele centen. De laatste termijn is wat
+      dan nog rest. Gaat volgens het vierde lid van dat artikel een deel van
+      het voorschot in één bedrag, dan komt dat deel bij de eerste termijn:
+      het voorschot naar rato van de maanden waarop het betrekking heeft,
+      rekenkundig afgerond op hele centen.
+    url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel22
+    machine_readable:
+      # Wat de Dienst al uitbetaalde en welk voorschot geldt, ontleent hij
+      # aan zijn eigen administratie: de antwoorden die hieronder staan
+      # (source.reduction, RFC-048). Zo volgen de termijnen een voorschot dat na bezwaar in de
+      # plaats van het eerste kwam: wat al is uitbetaald telt mee, en de
+      # rest gaat over de termijnen die nog komen. Een termijn die niet in
+      # zijn maand werd uitbetaald, gaat zo op in de termijnen erna.
+      #
+      # Dit artikel vult het termijnbedrag van artikel 22; dat bedrag is ook
+      # wat de Dienst uitbetaalt. Alleen een artikel dat een open begrip
+      # vult, kan de antwoorden van de cel gebruiken (RFC-048).
+      #
+      # Uitbetaald wordt er alleen als de termijn er is: dan geeft dit
+      # artikel de maand en het bedrag van de uitbetaling (het feit
+      # uitbetaling_termijn van artikel 22). Anders zijn ze leeg. De dag van
+      # uitbetaling is de rekendatum ($referencedate).
+      implements:
+        - law: algemene_wet_inkomensafhankelijke_regelingen
+          article: '22'
+          open_term: termijnbedrag
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            description: Het burgerservicenummer van de belanghebbende.
+          - name: berekeningsjaar
+            type: number
+            description: Het berekeningsjaar waarop het voorschot betrekking heeft.
+        input:
+          # Het voorschot dat geldt, en de dagtekening van zijn beschikking.
+          - name: geldend_voorschotbedrag
+            type: amount
+            nullable: true
+            source:
+              reduction: geldend_voorschotbedrag
+              parameters:
+                bsn: $bsn
+                berekeningsjaar: $berekeningsjaar
+          - name: dagtekening_geldend_voorschot
+            type: date
+            nullable: true
+            source:
+              reduction: dagtekening_geldend_voorschot
+              parameters:
+                bsn: $bsn
+                berekeningsjaar: $berekeningsjaar
+          # Of over het berekeningsjaar niet eerder een voorschot is verleend.
+          - name: voorschot_voor_het_eerst_verleend
+            type: boolean
+            nullable: true
+            source:
+              reduction: voorschot_voor_het_eerst_verleend
+              parameters:
+                bsn: $bsn
+                berekeningsjaar: $berekeningsjaar
+          # Wat de Dienst over het berekeningsjaar al uitbetaalde.
+          - name: uitbetaald_voorschot
+            type: amount
+            nullable: true
+            source:
+              reduction: uitbetaald_voorschot
+              parameters:
+                bsn: $bsn
+                berekeningsjaar: $berekeningsjaar
+          # Of de Dienst in de maand van vandaag al uitbetaalde.
+          - name: voorschot_uitbetaald_deze_maand
+            type: boolean
+            nullable: true
+            source:
+              reduction: voorschot_uitbetaald_deze_maand
+              parameters:
+                bsn: $bsn
+                berekeningsjaar: $berekeningsjaar
+          # Wat artikel 22 zegt over de maand van vandaag.
+          - name: termijn_in_maand
+            type: boolean
+            nullable: true
+            source:
+              regulation: algemene_wet_inkomensafhankelijke_regelingen
+              output: termijn_in_maand
+              parameters:
+                dagtekening_voorschot: $dagtekening_geldend_voorschot
+                berekeningsjaar: $berekeningsjaar
+                maand: $referencedate
+                voor_het_eerst_verleend: $voorschot_voor_het_eerst_verleend
+          - name: eerste_termijn
+            type: boolean
+            nullable: true
+            source:
+              regulation: algemene_wet_inkomensafhankelijke_regelingen
+              output: eerste_termijn
+              parameters:
+                dagtekening_voorschot: $dagtekening_geldend_voorschot
+                berekeningsjaar: $berekeningsjaar
+                maand: $referencedate
+                voor_het_eerst_verleend: $voorschot_voor_het_eerst_verleend
+          - name: laatste_termijn
+            type: boolean
+            nullable: true
+            source:
+              regulation: algemene_wet_inkomensafhankelijke_regelingen
+              output: laatste_termijn
+              parameters:
+                dagtekening_voorschot: $dagtekening_geldend_voorschot
+                berekeningsjaar: $berekeningsjaar
+                maand: $referencedate
+                voor_het_eerst_verleend: $voorschot_voor_het_eerst_verleend
+          - name: resterende_termijnen
+            type: number
+            nullable: true
+            source:
+              regulation: algemene_wet_inkomensafhankelijke_regelingen
+              output: resterende_termijnen
+              parameters:
+                dagtekening_voorschot: $dagtekening_geldend_voorschot
+                berekeningsjaar: $berekeningsjaar
+                maand: $referencedate
+                voor_het_eerst_verleend: $voorschot_voor_het_eerst_verleend
+          - name: maanden_ineens
+            type: number
+            nullable: true
+            source:
+              regulation: algemene_wet_inkomensafhankelijke_regelingen
+              output: maanden_ineens
+              parameters:
+                dagtekening_voorschot: $dagtekening_geldend_voorschot
+                berekeningsjaar: $berekeningsjaar
+                maand: $referencedate
+                voor_het_eerst_verleend: $voorschot_voor_het_eerst_verleend
+        output:
+          - name: nog_uit_te_betalen
+            type: amount
+            nullable: true
+            type_spec:
+              unit: eurocent
+            description: Wat van het geldende voorschot nog niet is uitbetaald.
+          - name: deel_ineens
+            type: amount
+            type_spec:
+              unit: eurocent
+            description: >-
+              Het deel van het voorschot dat in één bedrag gaat (artikel 22,
+              vierde en vijfde lid); nihil buiten de eerste termijn.
+          - name: termijnbedrag
+            type: amount
+            nullable: true
+            type_spec:
+              unit: eurocent
+            description: Het bedrag van de termijn in de maand van vandaag.
+          - name: termijn_wordt_uitbetaald
+            type: boolean
+            description: Of de Dienst vandaag een termijn uitbetaalt.
+          - name: maand
+            type: date
+            nullable: true
+            description: De eerste dag van de maand van de uitbetaalde termijn.
+          - name: uitbetaald_bedrag
+            type: amount
+            nullable: true
+            type_spec:
+              unit: eurocent
+            description: Het bedrag dat de Dienst vandaag uitbetaalt.
+        actions:
+          # Zonder geldend voorschot, of zonder termijn in deze maand, is er
+          # niets uit te betalen: elk antwoord kan leeg zijn, en elk wordt
+          # eerst daarop getoetst.
+          - output: nog_uit_te_betalen
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $geldend_voorschotbedrag
+                    value: null
+                  then: null
+                - when:
+                    operation: EQUALS
+                    subject: $uitbetaald_voorschot
+                    value: null
+                  then: $geldend_voorschotbedrag
+              default:
+                operation: SUBTRACT
+                values:
+                  - $geldend_voorschotbedrag
+                  - $uitbetaald_voorschot
+          - output: deel_ineens
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $geldend_voorschotbedrag
+                    value: null
+                  then: 0
+                - when:
+                    operation: EQUALS
+                    subject: $maanden_ineens
+                    value: null
+                  then: 0
+                - when:
+                    operation: EQUALS
+                    subject: $eerste_termijn
+                    value: null
+                  then: 0
+                - when: $eerste_termijn
+                  then:
+                    operation: ROUND
+                    precision: 0
+                    value:
+                      operation: DIVIDE
+                      values:
+                        - operation: MULTIPLY
+                          values:
+                            - $geldend_voorschotbedrag
+                            - $maanden_ineens
+                        - 12
+              default: 0
+          # De laatste termijn is wat nog rest; een andere het deel ineens en
+          # het gelijke deel van de rest over de termijnen die nog komen.
+          - output: termijnbedrag
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $termijn_in_maand
+                    value: null
+                  then: null
+                - when:
+                    operation: NOT
+                    value: $termijn_in_maand
+                  then: null
+                - when:
+                    operation: EQUALS
+                    subject: $nog_uit_te_betalen
+                    value: null
+                  then: null
+                - when:
+                    operation: EQUALS
+                    subject: $laatste_termijn
+                    value: null
+                  then: null
+                - when:
+                    operation: EQUALS
+                    subject: $resterende_termijnen
+                    value: null
+                  then: null
+                - when: $laatste_termijn
+                  then: $nog_uit_te_betalen
+              default:
+                operation: ADD
+                values:
+                  - $deel_ineens
+                  - operation: FLOOR
+                    precision: 0
+                    value:
+                      operation: DIVIDE
+                      values:
+                        - operation: SUBTRACT
+                          values:
+                            - $nog_uit_te_betalen
+                            - $deel_ineens
+                        - $resterende_termijnen
+          # Uitbetaald wordt op of na de twintigste, één keer per maand, en
+          # alleen een bedrag boven nihil.
+          - output: termijn_wordt_uitbetaald
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $termijnbedrag
+                    value: null
+                  then: false
+              default:
+                operation: AND
+                conditions:
+                  - operation: NOT
+                    value:
+                      operation: EQUALS
+                      subject: $voorschot_uitbetaald_deze_maand
+                      value: true
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject: $referencedate.day
+                    value: 20
+                  - operation: GREATER_THAN
+                    subject: $termijnbedrag
+                    value: 0
+          - output: maand
+            value:
+              operation: IF
+              cases:
+                - when: $termijn_wordt_uitbetaald
+                  then:
+                    operation: START_OF
+                    date: $referencedate
+                    in: month
+              default: null
+          - output: uitbetaald_bedrag
+            value:
+              operation: IF
+              cases:
+                - when: $termijn_wordt_uitbetaald
+                  then: $termijnbedrag
+              default: null

@@ -2,8 +2,8 @@
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
 $id: reductie_algemene_wet_bestuursrecht
 regulatory_layer: REDUCTIE
-publication_date: '2025-12-01'
-valid_from: '2026-01-01'
+publication_date: '1994-01-01'
+valid_from: '1994-01-01'
 # Geen regelgeving: een reductie die alleen volgt wat de Awb zegt over
 # besluiten die herroepen of vernietigd zijn (Awb 7:11, tweede lid, en 8:72),
 # en over het besluit dat de uitspraak in de plaats stelt (Awb 8:72, derde
@@ -13,7 +13,10 @@ valid_from: '2026-01-01'
 # (source.regulation) met het artikel waarvan zij de besluiten wil weten
 # (`basis`). De Awb-reductie leest dan uit de kroniek van de uitvoerder op
 # wiens kroniek ze wordt toegepast: de cel die de aanroepende reductie draait.
-# Er is geen bekendmaking; de url wijst naar artikel 8:72.
+# Er is geen bekendmaking; de url wijst naar artikel 8:72. Ze geldt vanaf
+# dezelfde dag als de versie van de Awb die ze volgt (1994-01-01), zodat ze
+# ook een casus in een eerder jaar dan 2026 bedient; de publicatiedatum is
+# die dag ook, omdat er geen bekendmaking is.
 url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
 name: Besluiten die nog gelden, naar de Algemene wet bestuursrecht (reductie)
 articles:

@@ -52,6 +52,8 @@ export function counts() {
           g.fact === fact &&
           Object.entries(velden).every(([k, v]) => g.fields?.[k] === v),
       ).length,
+    // The last day up to which time passed, or '' when it did not.
+    tijdTot: state.tijdTot ?? '',
     refusals: state.refusals,
   };
 }
