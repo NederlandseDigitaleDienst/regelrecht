@@ -126,7 +126,7 @@ function regels(h) {
       <nldd-text slot="supporting-text">
         Wat er gebeurde, de nieuwste stap bovenaan. Elke stap is een chronolexogram uit de
         kroniek. Ook een feit dat een andere cel vastlegde, zoals een inschrijving bij de Kamer
-        van Koophandel of een onderzoek van de GGD, staat erin; besluiten van een andere cel
+        van Koophandel of een advies van de GGD, staat erin; besluiten van een andere cel
         niet, want hun waarom is van die cel. Klik op een stap om te zien waarom zij er is. Bij
         een besluit staat ook waarom het zo uitviel: de cel neemt het opnieuw en laat zien welke
         artikelen meeliepen en wie elk open begrip invulde. Een stap die de cel weigerde, legde

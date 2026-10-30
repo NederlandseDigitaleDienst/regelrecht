@@ -17,6 +17,7 @@ corpus:
   - regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart
   - regulation/nl/gemeentelijke_verordening/wilgendaal/parkeerverordening_gemeente_wilgendaal
   - regulation/nl/uitvoeringsbeleid/beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_gemeente_wilgendaal
   - regulation/nl/gemeentelijke_verordening/wilgendaal/uitvoeringsbesluit_parkeren_gemeente_wilgendaal
   - regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal
   - cells/reductions/reductie_algemene_wet_bestuursrecht
@@ -87,7 +88,8 @@ voorbeeld:
 #   van de voorbeeldaanvraag (5 oktober), en bracht dezelfde dag haar advies
 #   uit: een langdurige loopbeperking, verder niets. Dat advies is het feit
 #   dat artikel 5 van het fictieve beleid van Wilgendaal vereist, en geldt
-#   ook als bewijs van het onderzoek.
+#   ook als bewijs van het onderzoek. Het gaat als bericht naar de gemeente,
+#   die het in haar eigen kroniek vastlegt.
 # - Een tweede aanvrager (BSN 999990068) onderzocht zij ook op 9 oktober;
 #   haar advies vindt geen enkel criterium.
 andere_cellen:
@@ -129,8 +131,8 @@ andere_cellen:
 scenarios:
   - naam: De kaart op advies van de GGD
     samenvatting: >-
-      Het college verstrekt de kaart op het advies dat de GGD in haar eigen
-      kroniek vastlegde.
+      Het college verstrekt de kaart op het advies dat het van de GGD
+      ontving.
     stappen:
       - stap: aanvraag
         verhaal: >-
@@ -155,12 +157,14 @@ scenarios:
           Klik bij GGD Wilgendaal onder "Vastleggen: Geneeskundig advies
           uitgebracht" op Vastleggen.
         gezien: >-
-          Het advies staat in de kroniek van de GGD.
+          Het advies staat in de kroniek van de GGD en van de gemeente.
       - stap: besluit
         verhaal: >-
           Het college beslist op de aanvraag.
         datum: 2026-10-20
         uitkomst: toegewezen
+        uitvoer:
+          kaart_geldig_tot: '2031-10-19'
     eind: >-
       Toegewezen: de kaart geldt tot en met 19 oktober 2031.
   - naam: Het advies vindt geen criterium
@@ -276,12 +280,14 @@ scenarios:
           Klik bij GGD Wilgendaal onder "Vastleggen: Geneeskundig advies
           uitgebracht" op Vastleggen.
         gezien: >-
-          Het nieuwe advies staat in de kroniek van de GGD.
+          Het nieuwe advies staat in de kroniek van de GGD en van de gemeente.
       - stap: beslissing_op_bezwaar
         verhaal: >-
           Het college heroverweegt de weigering.
         datum: 2026-11-20
         uitkomst: gegrond
+        uitvoer:
+          kaart_geldig_tot: '2031-11-19'
         tekst: >-
           Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op
           Beslissen op bezwaar.
@@ -328,7 +334,7 @@ scenarios:
           Klik bij GGD Wilgendaal onder "Vastleggen: Geneeskundig advies
           uitgebracht" op Vastleggen.
         gezien: >-
-          Het nieuwe advies staat in de kroniek van de GGD.
+          Het nieuwe advies staat in de kroniek van de GGD en van de gemeente.
       - stap: beslissing_op_bezwaar
         verhaal: >-
           Het college heroverweegt de weigering.
@@ -398,6 +404,8 @@ scenarios:
           geneeskundig_onderzoek_achterwege_gelaten: true
           bekend_dat_aanvrager_nog_steeds_voldoet: true
         uitkomst: toegewezen
+        uitvoer:
+          kaart_geldig_tot: '2036-10-19'
     eind: >-
       Toegewezen: het college liet het onderzoek achterwege, omdat de
       aanvrager eerder een kaart kreeg en nog steeds voldoet.

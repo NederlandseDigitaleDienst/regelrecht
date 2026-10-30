@@ -4,27 +4,26 @@ $id: reductie_geneeskundig_onderzoek
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'
-# Geen regelgeving: een reductie van de (fictieve) GGD Wilgendaal over haar
-# eigen kroniek (RFC-022 §4.1, RFC-048, RFC-051). Ze leest de executogrammen
-# van het feit dat artikel 5 van het fictieve beleid
+# Geen regelgeving: een reductie van de (fictieve) gemeente Wilgendaal over
+# haar eigen kroniek (RFC-022 §4.1, RFC-048, RFC-051). Ze leest de
+# executogrammen van het feit dat artikel 5 van het fictieve beleid
 # beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal vereist: de adviezen
-# die de GGD uitbracht. Eigen keuze van deze PoC: een advies noemt de aanvrager
-# en de dag van het onderzoek, en geldt daarmee ook als bewijs dat het
-# onderzoek plaatsvond. De cel van de GGD geeft haar uitvoer als het antwoord
-# geneeskundig_onderzoek_heeft_plaatsgehad (cel.yaml, answers). Het beleid van
-# de gemeente die beslist, koppelt dat antwoord aan het open begrip van dat
-# artikel; daarvoor is de GGD bevoegd (competent_authority van dat begrip,
-# RFC-052). Er is geen bekendmaking; de url wijst naar dat artikel.
+# die de gemeente van de GGD ontving. Eigen keuze van deze PoC: een advies
+# noemt de aanvrager en de dag van het onderzoek, en geldt daarmee ook als
+# bewijs dat het onderzoek plaatsvond. De cel van de gemeente geeft haar
+# uitvoer als het antwoord geneeskundig_onderzoek_heeft_plaatsgehad (cel.yaml,
+# answers). Artikel 4 van het beleid koppelt dat antwoord aan het open begrip
+# van artikel 3 van de regeling. Er is geen bekendmaking; de url wijst naar
+# dat artikel.
 url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
-name: Geneeskundig onderzoek bij de GGD Wilgendaal (reductie)
+name: Geneeskundig onderzoek volgens de gemeente Wilgendaal (reductie)
 articles:
   - number: '1'
     text: >-
-      Geen regelgeving. Het systeem van de GGD kijkt door middel van een
-      chronolexografische reductie op zijn eigen kroniek of het voor deze
-      aanvraag een geneeskundig onderzoek verrichtte. Een geneeskundig
-      onderzoek heeft voor deze aanvraag plaatsgehad als de GGD advies
-      uitbracht over dezelfde aanvrager, van een onderzoek op of na de
+      Geen regelgeving. Het systeem van de gemeente kijkt door middel van een
+      chronolexografische reductie op zijn eigen kroniek of voor deze aanvraag
+      een geneeskundig onderzoek plaatsvond. Dat is zo als de gemeente een
+      advies ontving over dezelfde aanvrager, van een onderzoek op of na de
       dagtekening van de aanvraag en uiterlijk op de dag van afgifte. Vindt het systeem er geen,
       dan zwijgt het, en stelt het college het vast.
     url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
@@ -49,13 +48,13 @@ articles:
           - name: onderzoeken
             type: array
             source:
-              facts: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
+              facts: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_ontvangen
         output:
           - name: geneeskundig_onderzoek_heeft_plaatsgehad
             type: boolean
             nullable: true
             description: >-
-              Waar, als de GGD een onderzoek voor deze aanvraag verrichtte;
+              Waar, als de gemeente een advies van een onderzoek voor deze aanvraag ontving;
               anders afwezig.
         actions:
           # Zonder dagtekening valt niet te zeggen of een onderzoek bij deze

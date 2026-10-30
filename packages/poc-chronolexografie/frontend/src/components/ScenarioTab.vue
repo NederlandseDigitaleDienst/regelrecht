@@ -18,11 +18,9 @@ const scenarios = computed(() =>
 );
 const metGids = computed(() => scenarios.value.filter((s) => s.guide));
 const zonderGids = computed(() => scenarios.value.filter((s) => !s.guide));
-// How many chronolexograms the cell records beforehand (RFC-051).
-const vooraf = computed(() => {
-  const b = state.casus.begin;
-  return b?.executogrammen?.length ?? 0;
-});
+// How many chronolexograms the cell holds before the first scenario: what it
+// records itself (RFC-051) and what it received from other cells.
+const vooraf = computed(() => state.grammen.filter((g) => g.recorded_on < state.casus.speeldatum).length);
 const eerste = computed(() => longDate(state.casus.speeldatum));
 
 async function begin(s) {

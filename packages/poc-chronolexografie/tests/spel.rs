@@ -154,7 +154,10 @@ fn two_games_are_apart_and_a_reset_touches_only_its_own() {
         soorten(&tweede_verlof.kroniek().unwrap()),
         ["EXECUTOGRAM", "AANVRAAG"]
     );
-    assert_eq!(soorten(&kaart.kroniek().unwrap()), ["AANVRAAG"]);
+    assert_eq!(
+        soorten(&kaart.kroniek().unwrap()),
+        ["EXECUTOGRAM", "EXECUTOGRAM", "AANVRAAG"]
+    );
 }
 
 #[test]
@@ -191,7 +194,7 @@ fn a_saved_game_plays_on_where_it_was() {
     kapot["kronieken"][0][0]["recording_actor"] = json!("iemand_anders");
     let e = terug.herstellen(kapot).unwrap_err();
     assert!(e.to_string().contains("was recorded by"), "{e}");
-    assert_eq!(soorten(&terug.kroniek().unwrap()).len(), 2);
+    assert_eq!(soorten(&terug.kroniek().unwrap()).len(), 4);
     let mut te_weinig = bewaard;
     te_weinig["kronieken"] = json!([[]]);
     assert!(terug.herstellen(te_weinig).is_err());
@@ -386,9 +389,12 @@ fn the_preview_answers_a_refusal_as_a_state_and_records_nothing() {
     assert!(geweigerd.get("voorlopig").is_none());
 
     let kroniek = spel.kroniek().unwrap();
-    // The application; the GGD's examination from the case file is in the
-    // GGD's own chronicle (RFC-052).
-    assert_eq!(soorten(&kroniek), ["AANVRAAG"]);
+    // The application, after the two advices from the case file the
+    // municipality received; the GGD keeps them in its own chronicle too.
+    assert_eq!(
+        soorten(&kroniek),
+        ["EXECUTOGRAM", "EXECUTOGRAM", "AANVRAAG"]
+    );
     let ggd = &kroniek["andere"][0];
     assert_eq!(ggd["cel"], json!("ggd_wilgendaal"));
     assert_eq!(ggd["grammen"][0]["kind"], json!("EXECUTOGRAM"));
@@ -590,9 +596,19 @@ fn parkeerkaart_the_ggd_examines_after_the_application_and_the_card_follows() {
         )
         .unwrap();
     assert_eq!(besluit["besluit"]["outputs"][&uitkomst], json!(true));
-    // The decision is in the municipality's chronicle, after the application.
+    // The decision is in the municipality's chronicle, after the application
+    // and the advice it received.
     let kroniek = spel.kroniek().unwrap();
-    assert_eq!(soorten(&kroniek), ["AANVRAAG", "BESCHIKKING"]);
+    assert_eq!(
+        soorten(&kroniek),
+        [
+            "EXECUTOGRAM",
+            "EXECUTOGRAM",
+            "AANVRAAG",
+            "EXECUTOGRAM",
+            "BESCHIKKING"
+        ]
+    );
 }
 
 /// The answer of the cell's sphere to `begrip` in the reasons of `besluit`.

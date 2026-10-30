@@ -4,8 +4,8 @@
  * explanation page. Each one names a scenario of the case YAML, whose guide
  * scenarioGuides.js builds; tests/presentation.test.js keeps them in step.
  *
- * - A card on the advice of the GGD: the happy flow; the decision reads the
- *   examination and the advice from the GGD's own chronicle.
+ * - A card on the advice of the GGD: the happy flow; the advice arrives as a
+ *   message, and the decision reads it from the municipality's own chronicle.
  * - An objection and a new advice: the reconsideration reads the chronicle as
  *   it stands on the day of the decision on objection, so the new advice
  *   counts.

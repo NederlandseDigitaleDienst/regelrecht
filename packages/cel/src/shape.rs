@@ -337,6 +337,52 @@ fn required_fact<'s>(
     Ok((article, required))
 }
 
+/// The facts of `article` of `law_id` that name `authority` as who
+/// establishes them (`competent_authority`), as `<law>#<article>#<fact>`.
+pub fn facts_established_by(law_id: &str, article: &Article, authority: &Authority) -> Vec<String> {
+    article
+        .get_requires()
+        .iter()
+        .filter(|r| names(r, authority))
+        .filter_map(|r| r.fact.as_ref())
+        .map(|fact| format!("{law_id}#{}#{fact}", article.number))
+        .collect()
+}
+
+/// The fact in which the cell of `receiver` records that it received `fact`,
+/// a fact another cell established: the fact of the same article, on `day`,
+/// that holds the same parameters and names `receiver` as who establishes it.
+/// `None` when the article requires no such fact.
+pub fn receipt_of(
+    service: &LawExecutionService,
+    fact: &str,
+    day: NaiveDate,
+    receiver: &Authority,
+) -> Result<Option<String>> {
+    let (basis, name) = split_fact(fact)?;
+    let (article, required) = required_fact(service, fact, day)?;
+    if names(required, receiver) {
+        return Ok(None);
+    }
+    Ok(article
+        .get_requires()
+        .iter()
+        .filter(|r| r.fact.as_deref() != Some(name) && r.parameters == required.parameters)
+        .find(|r| names(r, receiver))
+        .and_then(|r| r.fact.as_ref())
+        .map(|receipt| format!("{basis}#{receipt}")))
+}
+
+/// Whether the `requires` entry `required` names `authority` as who
+/// establishes its fact.
+fn names(required: &ArticleRequirement, authority: &Authority) -> bool {
+    required
+        .competent_authority
+        .as_ref()
+        .and_then(|competent| competent.named())
+        .is_some_and(|named| authority.is_named_by(named))
+}
+
 /// Refuse to record `fact` in the cell of `authority` when its `requires`
 /// entry names who establishes it and does not name this cell.
 fn refuse_incompetent_fact(

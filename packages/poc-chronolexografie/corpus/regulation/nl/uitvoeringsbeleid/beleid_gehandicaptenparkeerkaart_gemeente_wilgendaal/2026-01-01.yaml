@@ -9,8 +9,8 @@ valid_from: '2026-01-01'
 # url wijst daarom naar het artikel dat dit beleid uitwerkt.
 # Artikel 2 tot en met 4 en artikel 7 koppelen open begrippen aan de
 # antwoorden van cellen (source.reduction, RFC-048): het college ontleent wat
-# het anders per aanvraag vaststelt aan wat zijn eigen cel of de cel van de
-# GGD uit haar kroniek haalt.
+# het anders per aanvraag vaststelt aan wat zijn eigen cel uit haar kroniek
+# haalt. Daar staan ook de adviezen die het van de GGD ontving (artikel 5).
 # Buiten de cellen geeft een koppeling niets. Wat dan geldt, zegt elk artikel
 # zelf, met een eigen open begrip (decided_per_case_by): bij artikel 2 en 3
 # stelt het college het zelf vast, bij artikel 4 geldt zonder vaststelling dat
@@ -204,15 +204,15 @@ articles:
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Of
       voor de aanvraag een geneeskundig onderzoek heeft plaatsgehad (artikel
       3, eerste lid, van de Regeling gehandicaptenparkeerkaart), ontleent het
-      college aan het antwoord van de cel van de GGD die het onderzoek
-      verricht. Geeft die cel geen antwoord, dan kan het college het vaststellen
+      college aan het antwoord van zijn eigen cel over de adviezen die het
+      ontving. Geeft die cel geen antwoord, dan kan het college het vaststellen
       op het rapport dat het van het onderzoek kreeg. Doet het dat niet, dan
       heeft er geen onderzoek plaatsgehad.
     url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
     machine_readable:
-      # Het begrip noemt wie bevoegd is: de GGD of de aangewezen deskundige
-      # (competent_authority, RFC-052). Zwijgt de GGD, dan geldt het eigen
-      # open begrip hieronder. Niet verplicht: zonder vaststelling was er
+      # Het begrip noemt wie bevoegd is: het college, dat het advies ontving
+      # (competent_authority, RFC-052). Zwijgt de cel, dan geldt het
+      # eigen open begrip hieronder. Niet verplicht: zonder vaststelling was er
       # geen onderzoek, en weigert het college de kaart (artikel 2 van de
       # regeling, artikel 49 van het BABW). Het vraagt het college dus niets.
       open_terms:
@@ -223,7 +223,7 @@ articles:
           description: >-
             Wat het college op het rapport vaststelt over de vraag of voor de
             aanvraag een geneeskundig onderzoek heeft plaatsgehad, als de cel
-            van de GGD geen antwoord geeft.
+            geen antwoord geeft.
       implements:
         - law: regeling_gehandicaptenparkeerkaart
           article: '3'
@@ -255,7 +255,7 @@ articles:
             type: boolean
             description: >-
               Of voor de aanvraag een geneeskundig onderzoek heeft
-              plaatsgehad: het antwoord van de GGD, of zonder dat wat het
+              plaatsgehad: het antwoord van de cel, of zonder dat wat het
               college vaststelt, of anders niet.
         actions:
           - output: geneeskundig_onderzoek_heeft_plaatsgehad
@@ -283,7 +283,8 @@ articles:
 
       1 Wie het geneeskundig onderzoek verricht (artikel 3, eerste lid, van
       de Regeling gehandicaptenparkeerkaart), brengt het college daarover een
-      schriftelijk geneeskundig advies uit.
+      schriftelijk geneeskundig advies uit. Het college legt het ontvangen
+      advies vast.
 
       2 Het advies vermeldt de aanvrager, de dag van het onderzoek en, voor
       elk gegeven dat artikel 1, eerste lid, onder a tot en met d, van de
@@ -310,8 +311,8 @@ articles:
       # Het advies is een feit (requires, fact), dat vastlegt wie het
       # onderzoek verricht (competent_authority, RFC-051). De parameters heten
       # naar de oordelen van artikel 49 van het BABW. De oordelen uit het
-      # advies zijn open begrippen van dit artikel, met dezelfde bevoegden;
-      # alleen zij antwoorden erop. Hun namen beginnen met advies_, omdat een
+      # advies zijn open begrippen van dit artikel, die het college beantwoordt
+      # uit de adviezen die het ontving. Hun namen beginnen met advies_, omdat een
       # begrip niet zo mag heten als een parameter van hetzelfde artikel.
       # Niet verplicht: zonder advies is er geen oordeel uit het advies, en
       # oordeelt het college zelf (artikel 6, tweede lid).
@@ -319,69 +320,72 @@ articles:
       # onderzoek, zodat onderzoek en advies één handeling zijn. Een echt
       # systeem kan het onderzoek los willen vastleggen, bij artikel 3 van de
       # regeling.
-      # Welk advies telt (lid 3), voert de GGD uit met haar fictieve beleid
-      # beleid_geneeskundig_advies_ggd_wilgendaal, dat haar reductie
-      # aanroept. Dat beleid volgt lid 3 en stelt zelf geen norm.
+      # Het advies gaat als bericht naar het college (lid 1): wie onderzocht,
+      # legt geneeskundig_advies_uitgebracht vast, en de cel van het college
+      # legt in haar eigen kroniek geneeskundig_advies_ontvangen vast, met
+      # dezelfde gegevens. Zo leest het besluit het advies uit de eigen
+      # kroniek, en vraagt het de GGD niets. Een feit van hetzelfde artikel met dezelfde parameters
+      # waarvoor de ontvangende cel bevoegd is, is de ontvangst: dat zegt de
+      # app uit dit artikel, en er is geen aparte stap voor.
+      # Welk advies telt (lid 3), voert het college uit met zijn fictieve
+      # beleid beleid_geneeskundig_advies_gemeente_wilgendaal, dat zijn
+      # reductie aanroept. Dat beleid volgt lid 3 en stelt zelf geen norm.
       open_terms:
         - id: advies_langdurige_loopbeperking
           competent_authority:
-            - name: Gemeentelijke Gezondheidsdienst
-              type: CATEGORY
-            - name: vanwege het gemeentelijk gezag aangewezen deskundige
+            - name: college van burgemeester en wethouders
               type: CATEGORY
           type: boolean
           required: false
           decided_per_case_by: >-
             wie het geneeskundig onderzoek verricht: de Gemeentelijke
             Gezondheidsdienst of de aangewezen deskundige (artikel 3, eerste
-            lid, van de Regeling gehandicaptenparkeerkaart), in het advies
+            lid, van de Regeling gehandicaptenparkeerkaart), in het advies dat
+            het college ontving
           description: >-
             Of de aanvrager volgens het advies dat voor de aanvraag telt een
             langdurige loopbeperking heeft (artikel 1, eerste lid, onder a en
             b, van de regeling).
         - id: advies_continu_afhankelijk_van_hulp_bestuurder
           competent_authority:
-            - name: Gemeentelijke Gezondheidsdienst
-              type: CATEGORY
-            - name: vanwege het gemeentelijk gezag aangewezen deskundige
+            - name: college van burgemeester en wethouders
               type: CATEGORY
           type: boolean
           required: false
           decided_per_case_by: >-
             wie het geneeskundig onderzoek verricht: de Gemeentelijke
             Gezondheidsdienst of de aangewezen deskundige (artikel 3, eerste
-            lid, van de Regeling gehandicaptenparkeerkaart), in het advies
+            lid, van de Regeling gehandicaptenparkeerkaart), in het advies dat
+            het college ontving
           description: >-
             Of de aanvrager volgens het advies voor het vervoer van deur tot
             deur continu afhankelijk is van de hulp van de bestuurder (artikel
             1, eerste lid, onder b, van de regeling).
         - id: advies_permanent_rolstoelgebonden
           competent_authority:
-            - name: Gemeentelijke Gezondheidsdienst
-              type: CATEGORY
-            - name: vanwege het gemeentelijk gezag aangewezen deskundige
+            - name: college van burgemeester en wethouders
               type: CATEGORY
           type: boolean
           required: false
           decided_per_case_by: >-
             wie het geneeskundig onderzoek verricht: de Gemeentelijke
             Gezondheidsdienst of de aangewezen deskundige (artikel 3, eerste
-            lid, van de Regeling gehandicaptenparkeerkaart), in het advies
+            lid, van de Regeling gehandicaptenparkeerkaart), in het advies dat
+            het college ontving
           description: >-
             Of de aanvrager volgens het advies permanent rolstoelgebonden is
             (artikel 1, eerste lid, onder c, van de regeling).
         - id: advies_ernstige_beperkingen_andere_dan_loopbeperkingen
           competent_authority:
-            - name: Gemeentelijke Gezondheidsdienst
-              type: CATEGORY
-            - name: vanwege het gemeentelijk gezag aangewezen deskundige
+            - name: college van burgemeester en wethouders
               type: CATEGORY
           type: boolean
           required: false
           decided_per_case_by: >-
             wie het geneeskundig onderzoek verricht: de Gemeentelijke
             Gezondheidsdienst of de aangewezen deskundige (artikel 3, eerste
-            lid, van de Regeling gehandicaptenparkeerkaart), in het advies
+            lid, van de Regeling gehandicaptenparkeerkaart), in het advies dat
+            het college ontving
           description: >-
             Of de aanvrager volgens het advies aantoonbare ernstige
             beperkingen heeft, andere dan loopbeperkingen (artikel 1, eerste
@@ -397,6 +401,21 @@ articles:
             - name: Gemeentelijke Gezondheidsdienst
               type: CATEGORY
             - name: vanwege het gemeentelijk gezag aangewezen deskundige
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - datum_onderzoek
+            - langdurige_loopbeperking
+            - continu_afhankelijk_van_hulp_bestuurder
+            - permanent_rolstoelgebonden
+            - ernstige_beperkingen_andere_dan_loopbeperkingen
+        - fact: geneeskundig_advies_ontvangen
+          description: >-
+            Dat het college het advies ontving dat wie het geneeskundig
+            onderzoek verrichtte uitbracht, met wat dat advies vermeldt (lid 1
+            en 2).
+          competent_authority:
+            - name: college van burgemeester en wethouders
               type: CATEGORY
           parameters:
             - bsn_aanvrager
@@ -493,7 +512,7 @@ articles:
       # het college laat (implements, RFC-045), uit het advies van artikel 5.
       # Dat advies leest dit artikel bij artikel 5 (source.regulation), zodat
       # de engine de begrippen daar vraagt aan wie ze mag beantwoorden: de
-      # GGD of de aangewezen deskundige (RFC-051).
+      # cel van het college, uit de adviezen die zij ontving (RFC-051).
       # Lid 2: zonder advies over een gegeven geldt het oordeel van het
       # college zelf, een eigen open begrip van dit artikel per gegeven
       # (decided_per_case_by), dat de engine alleen vraagt als het advies er
@@ -724,14 +743,14 @@ articles:
     text: >-
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Wat
       het advies dat voor de aanvraag telt over elk gegeven zegt (artikel 5),
-      ontleent het college aan het antwoord van de cel van de GGD die het
-      onderzoek verricht. Geeft die cel geen antwoord, dan stelt het college
-      vast wat het schriftelijke advies opgeeft.
+      ontleent het college aan het antwoord van zijn eigen cel over de
+      adviezen die het ontving. Geeft die cel geen antwoord, dan stelt het
+      college vast wat het schriftelijke advies opgeeft.
     url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
     machine_readable:
-      # De begrippen van artikel 5 noemen wie bevoegd is: de GGD of de
-      # aangewezen deskundige (competent_authority). Zwijgt de cel van de GGD,
-      # dan stelt het college vast wat het schriftelijke advies (artikel 5,
+      # De begrippen van artikel 5 noemen wie bevoegd is: het college, dat het
+      # advies ontving (competent_authority). Zwijgt zijn cel, dan
+      # stelt het college vast wat het schriftelijke advies (artikel 5,
       # eerste lid) opgeeft: een eigen open begrip per gegeven, niet
       # verplicht. Geen wet of beleid laat dat oordeel aan de GGD, dus
       # beantwoordt het college het, de houder van dit beleid. Stelt het
@@ -744,28 +763,28 @@ articles:
           decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
           description: >-
             Wat het college vaststelt dat het advies opgeeft over
-            een langdurige loopbeperking, als de cel van de GGD geen antwoord geeft.
+            een langdurige loopbeperking, als de cel geen antwoord geeft.
         - id: advies_continu_afhankelijk_van_hulp_bestuurder_volgens_college
           type: boolean
           required: false
           decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
           description: >-
             Wat het college vaststelt dat het advies opgeeft over
-            de hulp van de bestuurder, als de cel van de GGD geen antwoord geeft.
+            de hulp van de bestuurder, als de cel geen antwoord geeft.
         - id: advies_permanent_rolstoelgebonden_volgens_college
           type: boolean
           required: false
           decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
           description: >-
             Wat het college vaststelt dat het advies opgeeft over
-            rolstoelgebondenheid, als de cel van de GGD geen antwoord geeft.
+            rolstoelgebondenheid, als de cel geen antwoord geeft.
         - id: advies_ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college
           type: boolean
           required: false
           decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
           description: >-
             Wat het college vaststelt dat het advies opgeeft over
-            andere ernstige beperkingen, als de cel van de GGD geen antwoord geeft.
+            andere ernstige beperkingen, als de cel geen antwoord geeft.
       implements:
         - law: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
           article: '5'
