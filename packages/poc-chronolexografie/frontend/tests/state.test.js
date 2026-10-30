@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { hervatten, state, stap, verversen } from '../src/state.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { hervatten, hoofdvelden, state, stap, verversen } from '../src/state.js';
 
 // The cell is not loaded here: the API hands back a fixed case and an empty
 // chronicle, and the saved game is an opaque value.
@@ -86,5 +86,40 @@ describe('stap', () => {
       throw new Error('already replaces');
     });
     expect(state.refusals).toEqual([]);
+  });
+});
+
+describe('hoofdvelden', () => {
+  const met = (eigen_velden) => {
+    state.casus = { uitkomst: 'verstrekt' };
+    state.vormen = { eigen_velden };
+  };
+  afterEach(() => {
+    state.casus = null;
+    state.vormen = null;
+  });
+
+  it('gives only the outcome of the case for a decision', () => {
+    met({ b: ['verstrekt', 'vermeldt', 'nog_een'] });
+    const besluit = { id: 'b', fields: { bsn: '1' }, outputs: { verstrekt: true, vermeldt: true, nog_een: 1 } };
+    expect(hoofdvelden(besluit)).toEqual(['verstrekt: true']);
+  });
+
+  it('gives at most two own fields, and none when there are more', () => {
+    met({ twee: ['kenteken', 'kvk'], drie: ['a', 'b', 'c'] });
+    expect(hoofdvelden({ id: 'twee', fields: { kenteken: 'AB', kvk: '1', hook: 'x' } })).toEqual(['kenteken: AB', 'kvk: 1']);
+    expect(hoofdvelden({ id: 'drie', fields: { a: 1, b: 2, c: 3 } })).toEqual([]);
+  });
+
+  it('counts no metadata: empty values, references and copies of a decision', () => {
+    const kopie = { basis: 'awb#1', fields: {}, findings: {}, outputs: {} };
+    const id = '01a18d9a-0916-72f7-b24a-f062a8205051';
+    met({ g: ['leeg', 'ander', 'besluit', 'zaak'] });
+    expect(hoofdvelden({ id: 'g', fields: { leeg: null, ander: id, besluit: kopie, zaak: 'x' } })).toEqual(['zaak: x']);
+  });
+
+  it('gives nothing for a gram the law gives no fields', () => {
+    met({});
+    expect(hoofdvelden({ id: 'g', fields: { a: 1 } })).toEqual([]);
   });
 });

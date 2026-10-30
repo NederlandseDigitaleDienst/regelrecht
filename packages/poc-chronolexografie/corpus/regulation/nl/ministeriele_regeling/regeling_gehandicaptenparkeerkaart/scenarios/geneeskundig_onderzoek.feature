@@ -3,7 +3,7 @@ Feature: Geen kaart voordat het geneeskundig onderzoek heeft plaatsgehad
   alvorens een geneeskundig onderzoek heeft plaatsgehad. Dat stelt de
   verstrekkende instantie vast op het rapport van de GGD of de aangewezen
   deskundige (artikel 3, eerste lid); in een cel van de GGD haalt haar
-  reductie het uit de onderzoeken die zij vastlegde, en het beleid van het
+  reductie het uit de adviezen die zij vastlegde, en het beleid van het
   college koppelt het begrip aan dat antwoord (RFC-048). Of eerder een kaart is
   verstrekt, zegt de verstrekkende instantie (lid 2, onder a en b). Het tweede lid laat het
   onderzoek achterwege bij wie eerder een kaart kreeg, als de verstrekkende
@@ -29,9 +29,9 @@ Feature: Geen kaart voordat het geneeskundig onderzoek heeft plaatsgehad
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_mag_worden_afgegeven" is true
 
-  Scenario: Zonder vaststelling over het onderzoek valt er niets te beslissen
-    # Geen weigering: de regeling verbiedt de afgifte vóór het onderzoek,
-    # en wie niet weet of het plaatsvond, kan niet verder.
+  Scenario: Zonder vaststelling over het onderzoek mag de kaart niet worden afgegeven
+    # Eigen keuze: zonder antwoord en zonder vaststelling was er geen
+    # onderzoek. Artikel 49 van het BABW weigert de kaart dan.
     Given the following parameters:
       | bsn_aanvrager                                                | 999990020  |
       | dagtekening_aanvraag                                         | 2026-10-12 |
@@ -40,7 +40,8 @@ Feature: Geen kaart voordat het geneeskundig onderzoek heeft plaatsgehad
       | bekend_dat_aanvrager_nog_steeds_voldoet                      | null       |
       | keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet | null       |
     When I evaluate "gehandicaptenparkeerkaart_mag_worden_afgegeven" of "regeling_gehandicaptenparkeerkaart"
-    Then the execution fails with "geneeskundig_onderzoek_heeft_plaatsgehad"
+    Then the execution succeeds
+    Then output "gehandicaptenparkeerkaart_mag_worden_afgegeven" is false
 
   Scenario: Stelt het college vast dat er geen onderzoek was, dan mag de kaart niet worden afgegeven
     # Eigen keuze: bijvoorbeeld omdat de aanvrager niet verscheen. Artikel 49
@@ -104,7 +105,7 @@ Feature: Geen kaart voordat het geneeskundig onderzoek heeft plaatsgehad
     Then the execution succeeds
     Then output "gehandicaptenparkeerkaart_mag_worden_afgegeven" is true
 
-  Scenario: Wie het onderzoek niet achterwege laat, wacht erop, ook bij een eerdere kaart
+  Scenario: Wie het onderzoek niet achterwege laat, krijgt zonder onderzoek geen kaart, ook bij een eerdere kaart
     Given the following parameters:
       | bsn_aanvrager                                                | 999990020  |
       | dagtekening_aanvraag                                         | 2026-10-12 |
@@ -113,4 +114,5 @@ Feature: Geen kaart voordat het geneeskundig onderzoek heeft plaatsgehad
       | bekend_dat_aanvrager_nog_steeds_voldoet                      | true       |
       | keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet | true       |
     When I evaluate "gehandicaptenparkeerkaart_mag_worden_afgegeven" of "regeling_gehandicaptenparkeerkaart"
-    Then the execution fails with "geneeskundig_onderzoek_heeft_plaatsgehad"
+    Then the execution succeeds
+    Then output "gehandicaptenparkeerkaart_mag_worden_afgegeven" is false

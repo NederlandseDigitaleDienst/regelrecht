@@ -17,6 +17,7 @@ corpus:
   - regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart
   - regulation/nl/gemeentelijke_verordening/wilgendaal/parkeerverordening_gemeente_wilgendaal
   - regulation/nl/uitvoeringsbeleid/beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_gemeente_wilgendaal
   - regulation/nl/gemeentelijke_verordening/wilgendaal/uitvoeringsbesluit_parkeren_gemeente_wilgendaal
   - regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal
   - cells/reductions/reductie_algemene_wet_bestuursrecht
@@ -34,8 +35,9 @@ speeldatum: 2026-10-13
 # Fictieve voorbeeldgegevens. Volg je een scenario, dan begint elk formulier
 # hiermee, met de waarden van de stap erover; bij vrij spelen blijft het leeg.
 # Een BSN uit de testreeks; een kaart als bestuurder. De vier criteria vult
-# het beleid uit het advies van de GGD; het formulier vraagt ze alleen zonder
-# advies, en dan is het voorbeeld alleen een langdurige loopbeperking. Het
+# het beleid uit het advies van de GGD; het formulier vraagt ze alleen als
+# het college het onderzoek achterwege laat, en dan is het voorbeeld alleen
+# een langdurige loopbeperking. Het
 # college laat het onderzoek niet achterwege (Regeling
 # gehandicaptenparkeerkaart, artikel 2, tweede lid): die drie bevindingen
 # staan uit.
@@ -78,50 +80,17 @@ voorbeeld:
 # De andere cellen die de casus meeneemt (RFC-052). Het open begrip zegt wie
 # bevoegd is: de GGD of de aangewezen deskundige voor het onderzoek (Regeling
 # gehandicaptenparkeerkaart, artikel 3). De engine vraagt alleen een cel die
-# het begrip noemt, en één cel per vraag. Elke cel legt bij elke start en
-# reset opnieuw vast wat zij vóór het eerste scenario wist, via de cel zoals
-# elke stap.
+# het begrip noemt, en één cel per vraag.
 #
-# - De GGD onderzocht de voorbeeldaanvrager op 9 oktober, na de dagtekening
-#   van de voorbeeldaanvraag (5 oktober), dus het onderzoek telt voor die
-#   aanvraag. Een executogram van het feit dat artikel 3 vereist; dat
-#   artikel zegt ook wat het bevat. Dezelfde dag bracht zij haar advies uit:
-#   een langdurige loopbeperking, verder niets (het feit dat artikel 5 van
-#   het fictieve beleid van Wilgendaal vereist).
-# - Een tweede aanvrager (BSN 999990068) onderzocht zij ook op 9 oktober;
-#   haar advies vindt geen enkel criterium.
+# De GGD begint met een lege kroniek: een advies gaat over één aanvrager, en
+# elk scenario volgt één aanvrager, die van de voorbeeldaanvraag. Een scenario
+# legt zijn adviezen daarom zelf vast, als stap, met het BSN van die aanvraag.
+# Een advies is het feit dat artikel 5 van het fictieve beleid van Wilgendaal
+# vereist, en geldt ook als bewijs van het onderzoek. Het gaat als bericht
+# naar de gemeente, die het in haar eigen kroniek vastlegt.
 andere_cellen:
   - cel: ggd_wilgendaal
     cel_naam: GGD Wilgendaal
-    begin:
-      datum: 2026-10-09
-      executogrammen:
-        - feit: regeling_gehandicaptenparkeerkaart#3#geneeskundig_onderzoek_verricht
-          velden:
-            bsn_aanvrager: '999990020'
-            datum_onderzoek: '2026-10-09'
-            verricht_door: Gemeentelijke Gezondheidsdienst
-        - feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
-          velden:
-            bsn_aanvrager: '999990020'
-            datum_onderzoek: '2026-10-09'
-            langdurige_loopbeperking: true
-            continu_afhankelijk_van_hulp_bestuurder: false
-            permanent_rolstoelgebonden: false
-            ernstige_beperkingen_andere_dan_loopbeperkingen: false
-        - feit: regeling_gehandicaptenparkeerkaart#3#geneeskundig_onderzoek_verricht
-          velden:
-            bsn_aanvrager: '999990068'
-            datum_onderzoek: '2026-10-09'
-            verricht_door: Gemeentelijke Gezondheidsdienst
-        - feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
-          velden:
-            bsn_aanvrager: '999990068'
-            datum_onderzoek: '2026-10-09'
-            langdurige_loopbeperking: false
-            continu_afhankelijk_van_hulp_bestuurder: false
-            permanent_rolstoelgebonden: false
-            ernstige_beperkingen_andere_dan_loopbeperkingen: false
   # De bestuursrechter (RFC-053): ook een andere cel, met een eigen kroniek.
   # Dat zij de rechter is, zegt haar cel.yaml (categorie "de
   # bestuursrechter", wie volgens Awb 8:70 beslist). Het artikel van het
@@ -137,40 +106,24 @@ andere_cellen:
 # them from here (frontend/src/scenarioGuides.js, scenarioInvoer.js), and
 # tests/scenarios.rs plays every scenario with exactly these values.
 scenarios:
-  - naam: De kaart wordt verstrekt op het advies van de GGD
+  - naam: De kaart op advies van de GGD
     samenvatting: >-
-      Na de aanvraag onderzoekt de GGD de aanvrager en adviseert positief, en
-      het college verstrekt de kaart op dat advies.
+      Het college verstrekt de kaart op het advies dat het van de GGD
+      ontving.
     stappen:
       - stap: aanvraag
         verhaal: >-
           Iemand met een loopbeperking vraagt een gehandicaptenparkeerkaart.
-        invoer:
-          bsn_aanvrager: '999990032'
-      - stap: vastleggen
+      - &advies_loopbeperking
+        stap: vastleggen
         verhaal: >-
-          De GGD onderzoekt de aanvrager.
-        titel: Onderzoek door de GGD
+          De GGD onderzoekt de aanvrager en adviseert.
+        titel: Onderzoek en advies van de GGD
         datum: 2026-10-16
-        cel: ggd_wilgendaal
-        feit: regeling_gehandicaptenparkeerkaart#3#geneeskundig_onderzoek_verricht
-        invoer:
-          bsn_aanvrager: '999990032'
-          datum_onderzoek: '2026-10-16'
-          verricht_door: Gemeentelijke Gezondheidsdienst
-        tekst: >-
-          Klik bij GGD Wilgendaal onder "Vastleggen: Geneeskundig onderzoek
-          verricht" op Vastleggen.
-        gezien: >-
-          Het onderzoek staat in de kroniek van de GGD.
-      - stap: vastleggen
-        verhaal: >-
-          De GGD adviseert dat er een langdurige loopbeperking is.
-        titel: Advies van de GGD
         cel: ggd_wilgendaal
         feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
         invoer:
-          bsn_aanvrager: '999990032'
+          bsn_aanvrager: '999990020'
           datum_onderzoek: '2026-10-16'
           langdurige_loopbeperking: true
           continu_afhankelijk_van_hulp_bestuurder: false
@@ -180,12 +133,14 @@ scenarios:
           Klik bij GGD Wilgendaal onder "Vastleggen: Geneeskundig advies
           uitgebracht" op Vastleggen.
         gezien: >-
-          Het advies staat ook in de kroniek van de GGD.
+          Het advies staat in de kroniek van de GGD en van de gemeente.
       - stap: besluit
         verhaal: >-
           Het college beslist op de aanvraag.
         datum: 2026-10-20
         uitkomst: toegewezen
+        uitvoer:
+          kaart_geldig_tot: '2031-10-19'
     eind: >-
       Toegewezen: de kaart geldt tot en met 19 oktober 2031.
   - naam: Het advies vindt geen criterium
@@ -195,10 +150,27 @@ scenarios:
     stappen:
       - stap: aanvraag
         verhaal: >-
-          Een aanvrager vraagt een kaart, maar het advies van de GGD vindt
-          geen criterium.
+          Een aanvrager vraagt een kaart.
+      - &advies_geen_criterium
+        stap: vastleggen
+        verhaal: >-
+          De GGD onderzoekt de aanvrager en vindt geen criterium.
+        titel: Onderzoek en advies van de GGD
+        datum: 2026-10-16
+        cel: ggd_wilgendaal
+        feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
         invoer:
-          bsn_aanvrager: '999990068'
+          bsn_aanvrager: '999990020'
+          datum_onderzoek: '2026-10-16'
+          langdurige_loopbeperking: false
+          continu_afhankelijk_van_hulp_bestuurder: false
+          permanent_rolstoelgebonden: false
+          ernstige_beperkingen_andere_dan_loopbeperkingen: false
+        tekst: >-
+          Klik bij GGD Wilgendaal onder "Vastleggen: Geneeskundig advies
+          uitgebracht" op Vastleggen.
+        gezien: >-
+          Het advies staat in de kroniek van de GGD en van de gemeente.
       - stap: besluit
         verhaal: >-
           Het college beslist op de aanvraag.
@@ -213,6 +185,7 @@ scenarios:
       - stap: aanvraag
         verhaal: >-
           Iemand met een loopbeperking vraagt een kaart.
+      - *advies_loopbeperking
       - stap: besluit
         verhaal: >-
           Het college beslist op de aanvraag.
@@ -240,6 +213,7 @@ scenarios:
       - stap: aanvraag
         verhaal: >-
           Iemand met een loopbeperking vraagt een kaart.
+      - *advies_loopbeperking
       - stap: besluit
         verhaal: >-
           Het college beslist op de aanvraag.
@@ -261,17 +235,15 @@ scenarios:
           bevindingen staan en klik op Beslissen op bezwaar.
     eind: >-
       Ongegrond: de kaart blijft geldig tot en met 19 oktober 2031.
-  - naam: Gegrond bezwaar na een nieuw advies
+  - naam: Bezwaar, en een nieuw advies
     samenvatting: >-
-      Na het bezwaar onderzoekt de GGD opnieuw, en op dat nieuwe advies komt
-      er alsnog een kaart.
+      Na het bezwaar telt het nieuwe advies van de GGD, en komt er alsnog een
+      kaart.
     stappen:
       - stap: aanvraag
         verhaal: >-
-          Een aanvrager vraagt een kaart, maar het advies van de GGD vindt
-          geen criterium.
-        invoer:
-          bsn_aanvrager: '999990068'
+          Een aanvrager vraagt een kaart.
+      - *advies_geen_criterium
       - stap: besluit
         verhaal: >-
           Het college beslist op de aanvraag.
@@ -283,15 +255,16 @@ scenarios:
         verhaal: >-
           De aanvrager maakt bezwaar tegen de weigering.
         datum: 2026-11-01
-      - stap: vastleggen
+      - &nieuw_advies
+        stap: vastleggen
         verhaal: >-
           De GGD onderzoekt opnieuw en vindt nu een langdurige loopbeperking.
-        titel: Nieuw advies van de GGD
+        titel: Nieuw onderzoek en advies
         datum: 2026-11-10
         cel: ggd_wilgendaal
         feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
         invoer:
-          bsn_aanvrager: '999990068'
+          bsn_aanvrager: '999990020'
           datum_onderzoek: '2026-11-10'
           langdurige_loopbeperking: true
           continu_afhankelijk_van_hulp_bestuurder: false
@@ -301,12 +274,14 @@ scenarios:
           Klik bij GGD Wilgendaal onder "Vastleggen: Geneeskundig advies
           uitgebracht" op Vastleggen.
         gezien: >-
-          Het nieuwe advies staat in de kroniek van de GGD.
+          Het nieuwe advies staat in de kroniek van de GGD en van de gemeente.
       - stap: beslissing_op_bezwaar
         verhaal: >-
           Het college heroverweegt de weigering.
         datum: 2026-11-20
         uitkomst: gegrond
+        uitvoer:
+          kaart_geldig_tot: '2031-11-19'
         tekst: >-
           Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op
           Beslissen op bezwaar.
@@ -320,10 +295,8 @@ scenarios:
     stappen:
       - stap: aanvraag
         verhaal: >-
-          Een aanvrager vraagt een kaart, maar het advies van de GGD vindt
-          geen criterium.
-        invoer:
-          bsn_aanvrager: '999990068'
+          Een aanvrager vraagt een kaart.
+      - *advies_geen_criterium
       - stap: besluit
         verhaal: >-
           Het college beslist op de aanvraag.
@@ -335,25 +308,7 @@ scenarios:
         verhaal: >-
           De aanvrager maakt bezwaar tegen de weigering.
         datum: 2026-11-01
-      - stap: vastleggen
-        verhaal: >-
-          De GGD onderzoekt opnieuw en vindt nu een langdurige loopbeperking.
-        titel: Nieuw advies van de GGD
-        datum: 2026-11-10
-        cel: ggd_wilgendaal
-        feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
-        invoer:
-          bsn_aanvrager: '999990068'
-          datum_onderzoek: '2026-11-10'
-          langdurige_loopbeperking: true
-          continu_afhankelijk_van_hulp_bestuurder: false
-          permanent_rolstoelgebonden: false
-          ernstige_beperkingen_andere_dan_loopbeperkingen: false
-        tekst: >-
-          Klik bij GGD Wilgendaal onder "Vastleggen: Geneeskundig advies
-          uitgebracht" op Vastleggen.
-        gezien: >-
-          Het nieuwe advies staat in de kroniek van de GGD.
+      - *nieuw_advies
       - stap: beslissing_op_bezwaar
         verhaal: >-
           Het college heroverweegt de weigering.
@@ -369,43 +324,36 @@ scenarios:
         verhaal: >-
           Dezelfde aanvrager vraagt in maart 2027 nog een kaart.
         datum: 2027-03-01
-        invoer:
-          bsn_aanvrager: '999990068'
       - stap: besluit
         verhaal: >-
           Het college beslist op de tweede aanvraag.
         uitkomst: afgewezen
     eind: >-
       Afgewezen: de aanvrager heeft al een geldige kaart.
-  - naam: Zonder advies oordeelt het college, en zonder onderzoek nog geen kaart
+  - naam: Zonder onderzoek geen kaart
     samenvatting: >-
-      Zonder advies oordeelt het college zelf, maar zonder onderzoek komt er
-      nog geen kaart.
+      Heeft de GGD de aanvrager niet onderzocht, dan weigert het college de
+      kaart.
     stappen:
       - stap: aanvraag
         verhaal: >-
           Iemand vraagt een kaart, maar de GGD heeft hem niet onderzocht.
-        invoer:
-          bsn_aanvrager: '999990032'
       - stap: besluit
         verhaal: >-
-          Het college oordeelt zelf, maar weet niet of er een onderzoek was.
-        titel: Besluit nemen zonder oordeel over het onderzoek
+          Het college beslist op de aanvraag.
         datum: 2026-10-20
-        uitkomst: geweigerd
-        tekst: >-
-          Laat "geneeskundig onderzoek heeft plaatsgehad" op Nog niet
-          beoordeeld en klik op Besluit nemen.
+        uitkomst: afgewezen
     eind: >-
-      Er komt geen besluit maar een melding: het college heeft niet beoordeeld
-      of het geneeskundig onderzoek plaatsvond.
-  - naam: Een nieuwe kaart zonder nieuw onderzoek
+      Afgewezen: er is geen onderzoek, dus de kaart mag niet worden afgegeven.
+  - naam: Vijf jaar later een nieuwe kaart
     samenvatting: >-
-      Wie eerder een kaart kreeg, krijgt een nieuwe zonder nieuw onderzoek.
+      Vijf jaar later vindt de gemeente haar eerdere besluit terug, en is er
+      geen nieuw onderzoek nodig.
     stappen:
       - stap: aanvraag
         verhaal: >-
           Iemand met een loopbeperking vraagt een kaart.
+      - *advies_loopbeperking
       - stap: besluit
         verhaal: >-
           Het college beslist op de aanvraag.
@@ -427,6 +375,8 @@ scenarios:
           geneeskundig_onderzoek_achterwege_gelaten: true
           bekend_dat_aanvrager_nog_steeds_voldoet: true
         uitkomst: toegewezen
+        uitvoer:
+          kaart_geldig_tot: '2036-10-19'
     eind: >-
       Toegewezen: het college liet het onderzoek achterwege, omdat de
       aanvrager eerder een kaart kreeg en nog steeds voldoet.
@@ -437,10 +387,8 @@ scenarios:
     stappen:
       - stap: aanvraag
         verhaal: >-
-          Een aanvrager vraagt een kaart, maar het advies van de GGD vindt
-          geen criterium.
-        invoer:
-          bsn_aanvrager: '999990068'
+          Een aanvrager vraagt een kaart.
+      - *advies_geen_criterium
       - stap: besluit
         verhaal: >-
           Het college beslist op de aanvraag.

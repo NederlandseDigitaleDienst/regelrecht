@@ -126,10 +126,7 @@ async function opnieuw() {
 
 // The guide of the scenario that began, if it has one.
 const guide = computed(() => guideFor(state.casus, state.scenario));
-const scenarioIndex = computed(
-  () => state.casus?.scenarios.findIndex((s) => s.naam === state.scenario) ?? -1,
-);
-const scenario = computed(() => state.casus?.scenarios[scenarioIndex.value]);
+const scenario = computed(() => state.casus?.scenarios.find((s) => s.naam === state.scenario));
 const showGuide = ref(true);
 const split = ref(null);
 // Whether the split view put the inspector in a sheet, for lack of room.
@@ -319,7 +316,6 @@ function toTab(id) {
             <ScenarioGuide
               :guide="guide"
               :scenario="scenario"
-              :number="scenarioIndex + 1"
               :tabs="tabs"
               :tab="tab"
               @tab="toTab"

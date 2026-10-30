@@ -147,14 +147,13 @@ articles:
       [ref4]: https://wetten.overheid.nl/BWBR0012625#Artikel1
     url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel2
     machine_readable:
-      # Lid 1 is een voorwaarde voor de afgifte, geen grond om te weigeren: de
-      # kaart "wordt niet afgegeven alvorens" het onderzoek heeft
-      # plaatsgehad. Artikel 49 van het BABW vraagt dit artikel alleen voor
-      # een kaart die het anders zou verstrekken. Weet niemand dat er een
-      # onderzoek was, dan is er geen antwoord en faalt het besluit: het
-      # college kan nog niet beslissen, het weigert niet. De oordelen over de
-      # criteria van artikel 1 velt het college na het onderzoek, bij artikel
-      # 49 van het BABW (decided_per_case_by daar).
+      # Lid 1: de kaart "wordt niet afgegeven alvorens" het onderzoek heeft
+      # plaatsgehad. Eigen keuze van deze PoC: is er geen onderzoek en is het
+      # niet achterwege gelaten, dan weigert het college de kaart. Artikel 49
+      # van het BABW vraagt dit artikel als eerste, zodat een weigering het
+      # college niet naar de criteria vraagt. De oordelen over de criteria van
+      # artikel 1 velt het college na het onderzoek, bij artikel 49 van het
+      # BABW (decided_per_case_by daar).
       # Lid 2 onder c (kortstondig verblijf, artikel 49, derde lid, van het
       # BABW: het CBR) en lid 3 (een instelling, artikel 49, tweede lid) zijn
       # niet gemodelleerd: die leden van artikel 49 zijn het ook niet, dus
@@ -296,24 +295,21 @@ articles:
     url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
     machine_readable:
       # Lid 1 zegt wie het geneeskundig onderzoek verricht: de GGD of de
-      # aangewezen deskundige. Besluit van de eigenaar (20-10): het onderzoek
-      # staat als feit (requires, fact) bij dit artikel, dat het omschrijft,
-      # en niet bij artikel 2, eerste lid, dat eist dat het heeft
-      # plaatsgehad. Het feit is de handeling ("wordt het geneeskundig
-      # onderzoek verricht door", lid 1), niet de uitkomst; daarom heet het
-      # geneeskundig_onderzoek_verricht. Wat het bevat: wiens handicap is
-      # onderzocht (artikel 2, eerste lid: "de handicap van de aanvrager"),
-      # wanneer, en door wie
-      # (lid 1 noemt de twee mogelijkheden; de naam van een aangewezen
-      # deskundige verschilt per geval, dus vrije tekst). Wanneer het feit
-      # ontstaat of wie het vastlegt, zegt de regeling niet. Lid 2 (de
-      # Minister, met een arts) is niet gemodelleerd: de minister geeft hier
-      # geen kaarten af.
-      # Wie het onderzoek verricht, stelt het vast (competent_authority op
-      # het feit, RFC-052), en alleen die antwoordt op de vraag of het
-      # plaatsvond (competent_authority op het begrip). Eigen keuze: het
-      # begrip noemt zelf dezelfde twee, in plaats van ze af te leiden uit
-      # het feit dat de reductie leest die het antwoord geeft (RFC-048); dat
+      # aangewezen deskundige. Eigen keuze van deze PoC: het onderzoek heeft
+      # geen eigen feit. Het advies dat wie onderzocht uitbrengt (artikel 5
+      # van het fictieve beleid van Wilgendaal) geldt ook als bewijs dat het
+      # onderzoek plaatsvond, want het noemt de aanvrager en de dag van het
+      # onderzoek. Zo is onderzoek en advies voor de bezoeker één handeling.
+      # Een echt systeem kan het onderzoek los willen vastleggen, bijvoorbeeld
+      # omdat een onderzoek zonder advies kan eindigen. Lid 2 (de Minister,
+      # met een arts) is niet gemodelleerd: de minister geeft hier geen
+      # kaarten af.
+      # Eigen keuze van deze PoC: op de vraag of het onderzoek plaatsvond,
+      # antwoordt het college uit zijn eigen kroniek, op het advies dat het
+      # ontving, en niet wie het onderzoek verrichtte (competent_authority op
+      # het begrip, RFC-052). Eigen keuze: het begrip noemt het college zelf,
+      # in plaats van het af te leiden uit het feit dat de reductie leest die
+      # het antwoord geeft (RFC-048); dat
       # vraagt geen koppeling tussen begrip en feit in de engine. Eigen keuze: alleen de categorie is
       # gemodelleerd; of het de GGD van de gemeente is die de kaart afgeeft,
       # is open. Dit artikel beslist niets en noemt dus geen bevoegd gezag
@@ -326,57 +322,29 @@ articles:
         # eerder een kaart kreeg, dat veronderstelt een onderzoek per
         # aanvraag. Wie het onderzoek verricht, beantwoordt het
         # (competent_authority); vult het beleid van het college het begrip,
-        # dan zegt dat beleid ook wat geldt als die zwijgt, zoals een
-        # vaststelling van het college op het rapport. Eigen keuze: is er
-        # geen onderzoek (false), bijvoorbeeld omdat de aanvrager niet
-        # verschijnt, dan wordt de kaart geweigerd.
+        # dan zegt dat beleid ook wat geldt als die zwijgt: dan was er geen
+        # onderzoek. Eigen keuze: is er geen onderzoek (false), bijvoorbeeld
+        # omdat de aanvrager niet verschijnt, dan wordt de kaart geweigerd.
         - id: geneeskundig_onderzoek_heeft_plaatsgehad
           competent_authority:
-            - name: Gemeentelijke Gezondheidsdienst
-              type: CATEGORY
-            - name: vanwege het gemeentelijk gezag aangewezen deskundige
+            - name: college van burgemeester en wethouders
               type: CATEGORY
           type: boolean
           required: true
           decided_per_case_by: >-
-            wie het geneeskundig onderzoek verricht: de Gemeentelijke
-            Gezondheidsdienst of de aangewezen deskundige (artikel 3, eerste
-            lid)
+            het college, op het advies van wie het geneeskundig onderzoek
+            verricht: de Gemeentelijke Gezondheidsdienst of de aangewezen
+            deskundige (artikel 3, eerste lid)
           description: >-
             Of op of na de dagtekening van de aanvraag en uiterlijk op de dag
             van afgifte een geneeskundig onderzoek heeft plaatsgehad met
             betrekking tot de handicap van de aanvrager (artikel 2, eerste
             lid).
-      requires:
-        - fact: geneeskundig_onderzoek_verricht
-          description: >-
-            Dat een geneeskundig onderzoek met betrekking tot de handicap van
-            de aanvrager is verricht door de GGD of de aangewezen deskundige:
-            voor wie, op welke dag en door wie. Het feit houdt geen uitkomst
-            van het onderzoek.
-          competent_authority:
-            - name: Gemeentelijke Gezondheidsdienst
-              type: CATEGORY
-            - name: vanwege het gemeentelijk gezag aangewezen deskundige
-              type: CATEGORY
-          parameters:
-            - bsn_aanvrager
-            - datum_onderzoek
-            - verricht_door
       execution:
         parameters:
           - name: bsn_aanvrager
             type: string
             description: Burgerservicenummer van de aanvrager wiens handicap is onderzocht.
-          - name: datum_onderzoek
-            type: date
-            description: De dag waarop het geneeskundig onderzoek plaatsvond.
-          - name: verricht_door
-            type: string
-            description: >-
-              Wie het onderzoek verrichtte: de Gemeentelijke Gezondheidsdienst,
-              of bij externe advisering de vanwege het gemeentelijk gezag
-              aangewezen deskundige (lid 1).
           # Waarvoor artikel 2 het onderzoek vraagt: de aanvraag en de dag
           # van afgifte. Geen gegeven van het onderzoek zelf.
           - name: dagtekening_aanvraag

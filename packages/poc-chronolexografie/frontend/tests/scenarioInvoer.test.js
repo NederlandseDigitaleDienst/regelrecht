@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import { load } from 'js-yaml';
 import { nextTick } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { formulier, scenarioWaarden } from '../src/scenarioInvoer.js';
+import { formulier, ingeklapt, scenarioWaarden } from '../src/scenarioInvoer.js';
 import { state } from '../src/state.js';
 
 vi.mock('../src/api.js', () => ({ api: {} }));
@@ -30,6 +30,54 @@ describe('the forms in free play', () => {
   it('start empty', () => {
     expect(scenarioWaarden('aanvraag')).toBeNull();
     expect(formulier(() => scenarioWaarden('aanvraag')).waarden('aanvraag')).toEqual({});
+  });
+});
+
+describe('the record forms of the other cells', () => {
+  const ANDERE = { cel: 'x', handelingen: [{ feit: 'wet#1#ander_feit' }] };
+  const stappen = (feit) => [
+    { stap: 'vastleggen', cel: 'kamer_van_koophandel', feit, invoer: { postcode: '7711 AC' } },
+    { stap: 'vastleggen', cel: 'x', feit: 'wet#1#ander_feit' },
+  ];
+  const FEIT = 'beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven';
+  const cellen = [{ cel: 'kamer_van_koophandel', handelingen: [{ feit: FEIT }, { feit: 'wet#2#tweede' }] }, ANDERE];
+  const metStappen = (lijst) => {
+    Object.assign(state, {
+      casus: { ...casus, scenarios: [{ naam: 'Vouwen', stappen: lijst, eind: 'Klaar.' }], andere_cellen: [] },
+      scenario: 'Vouwen',
+    });
+  };
+
+  it('all stay open in free play', () => {
+    expect(ingeklapt(cellen, 'kamer_van_koophandel', FEIT)).toBe(false);
+    expect(ingeklapt(cellen, 'x', 'wet#1#ander_feit')).toBe(false);
+  });
+
+  it('fold all but the form of the step, in every cell', () => {
+    metStappen(stappen(FEIT));
+    expect(ingeklapt(cellen, 'kamer_van_koophandel', FEIT)).toBe(false);
+    expect(ingeklapt(cellen, 'kamer_van_koophandel', 'wet#2#tweede')).toBe(true);
+    expect(ingeklapt(cellen, 'x', 'wet#1#ander_feit')).toBe(true);
+  });
+
+  it('follow the scenario to the form of the next step', () => {
+    metStappen(stappen(FEIT));
+    state.andere = [
+      { cel: 'kamer_van_koophandel', grammen: [{ kind: 'EXECUTOGRAM', fact: 'vestiging_ingeschreven' }] },
+    ];
+    expect(ingeklapt(cellen, 'x', 'wet#1#ander_feit')).toBe(false);
+    expect(ingeklapt(cellen, 'kamer_van_koophandel', FEIT)).toBe(true);
+  });
+
+  it('stay open at a step on another tab', () => {
+    metStappen([{ stap: 'aanvraag' }, ...stappen(FEIT)]);
+    expect(ingeklapt(cellen, 'kamer_van_koophandel', FEIT)).toBe(false);
+    expect(ingeklapt(cellen, 'x', 'wet#1#ander_feit')).toBe(false);
+  });
+
+  it('stay open at a record step whose form is not there', () => {
+    metStappen(stappen('wet#9#onbekend'));
+    expect(ingeklapt(cellen, 'kamer_van_koophandel', FEIT)).toBe(false);
   });
 });
 

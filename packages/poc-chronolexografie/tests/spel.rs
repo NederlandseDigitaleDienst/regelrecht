@@ -40,6 +40,32 @@ fn soorten(k: &Value) -> Vec<String> {
         .collect()
 }
 
+/// The GGD examines `bsn` on `onderzocht` and records its advice, which
+/// finds a long-term walking limitation or none.
+fn advies(spel: &mut Spel, bsn: &str, onderzocht: &str, loopbeperking: bool) {
+    spel.vastleggen(
+        "ggd_wilgendaal",
+        "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht",
+        &map(&json!({
+            "bsn_aanvrager": bsn,
+            "datum_onderzoek": onderzocht,
+            "langdurige_loopbeperking": loopbeperking,
+            "continu_afhankelijk_van_hulp_bestuurder": false,
+            "permanent_rolstoelgebonden": false,
+            "ernstige_beperkingen_andere_dan_loopbeperkingen": false,
+        })),
+        dag(onderzocht),
+    )
+    .unwrap();
+}
+
+/// The BSN of the example application of `casus`.
+fn voorbeeld_bsn(casus: &Value) -> &str {
+    casus["voorbeeld"]["aanvraag"]["bsn_aanvrager"]
+        .as_str()
+        .unwrap()
+}
+
 #[test]
 fn the_forms_come_from_the_chosen_case() {
     let mut spel = spel_met("vakantieverlof");
@@ -161,6 +187,7 @@ fn two_games_are_apart_and_a_reset_touches_only_its_own() {
 fn a_saved_game_plays_on_where_it_was() {
     let mut spel = spel_met("gehandicaptenparkeerkaart");
     let casus = spel.casus().unwrap();
+    advies(&mut spel, voorbeeld_bsn(&casus), "2026-10-16", true);
     let aanvraag = spel
         .aanvragen(&map(&casus["voorbeeld"]["aanvraag"]), dag("2026-10-20"))
         .unwrap();
@@ -191,7 +218,7 @@ fn a_saved_game_plays_on_where_it_was() {
     kapot["kronieken"][0][0]["recording_actor"] = json!("iemand_anders");
     let e = terug.herstellen(kapot).unwrap_err();
     assert!(e.to_string().contains("was recorded by"), "{e}");
-    assert_eq!(soorten(&terug.kroniek().unwrap()).len(), 2);
+    assert_eq!(soorten(&terug.kroniek().unwrap()).len(), 3);
     let mut te_weinig = bewaard;
     te_weinig["kronieken"] = json!([[]]);
     assert!(terug.herstellen(te_weinig).is_err());
@@ -321,6 +348,7 @@ fn parkeerkaart_a_second_card_next_to_a_valid_one() {
     let bevindingen = map(&casus["voorbeeld"]["bevindingen"]);
     let uitkomst = casus["uitkomst"].as_str().unwrap().to_string();
 
+    advies(&mut spel, voorbeeld_bsn(&casus), "2026-10-16", true);
     let mut besluiten = Vec::new();
     for datum in ["2026-10-20", "2027-03-01"] {
         let gram = spel.aanvragen(&aanvraag, dag(datum)).unwrap();
@@ -359,6 +387,7 @@ fn the_preview_answers_a_refusal_as_a_state_and_records_nothing() {
     let mut spel = spel_met("gehandicaptenparkeerkaart");
     let casus = spel.casus().unwrap();
     let datum = dag("2026-10-20");
+    advies(&mut spel, voorbeeld_bsn(&casus), "2026-10-16", true);
     let aanvraag = spel
         .aanvragen(&map(&casus["voorbeeld"]["aanvraag"]), datum)
         .unwrap();
@@ -386,9 +415,9 @@ fn the_preview_answers_a_refusal_as_a_state_and_records_nothing() {
     assert!(geweigerd.get("voorlopig").is_none());
 
     let kroniek = spel.kroniek().unwrap();
-    // The application; the GGD's examination from the case file is in the
-    // GGD's own chronicle (RFC-052).
-    assert_eq!(soorten(&kroniek), ["AANVRAAG"]);
+    // The application, after the advice the municipality received; the GGD
+    // keeps it in its own chronicle too.
+    assert_eq!(soorten(&kroniek), ["EXECUTOGRAM", "AANVRAAG"]);
     let ggd = &kroniek["andere"][0];
     assert_eq!(ggd["cel"], json!("ggd_wilgendaal"));
     assert_eq!(ggd["grammen"][0]["kind"], json!("EXECUTOGRAM"));
@@ -396,8 +425,8 @@ fn the_preview_answers_a_refusal_as_a_state_and_records_nothing() {
 
 #[test]
 fn the_ggd_records_an_examination_and_the_card_follows() {
-    // Scenario "zonder onderzoek", continued: the GGD records the
-    // examination in its own cell, and then the college can issue the card
+    // Scenario "zonder onderzoek", continued: before the GGD records its
+    // advice the preview is a refusal; with it the college issues the card
     // (RFC-052).
     let mut spel = spel_met("gehandicaptenparkeerkaart");
     let casus = spel.casus().unwrap();
@@ -406,16 +435,23 @@ fn the_ggd_records_an_examination_and_the_card_follows() {
     let bevindingen = map(&casus["voorbeeld"]["bevindingen"]);
     let ingediend = spel.aanvragen(&aanvraag, dag("2026-10-13")).unwrap();
     let op = ingediend["id"].as_str().unwrap().to_string();
-    assert!(spel
-        .besluiten(&op, &bevindingen, dag("2026-10-20"))
-        .is_err());
+    let uitkomst = casus["uitkomst"].as_str().unwrap().to_string();
+    let voorlopig = spel
+        .voorvertoning_besluit(&op, &Map::new(), dag("2026-10-20"))
+        .unwrap();
+    assert_eq!(
+        voorlopig["voorlopig"]["besluit"]["outputs"][&uitkomst],
+        json!(false)
+    );
+    assert_eq!(voorlopig["stil"], json!([]));
 
     let vormen = spel.vormen(dag("2026-10-16")).unwrap();
     let ggd = &vormen["andere_cellen"][0];
     assert_eq!(ggd["cel"], json!("ggd_wilgendaal"));
-    // The GGD records the examination (Regeling art. 3) and its advice
-    // (the municipality's fictitious policy, art. 5).
-    let feit = "regeling_gehandicaptenparkeerkaart#3#geneeskundig_onderzoek_verricht";
+    // The GGD records its advice (the municipality's fictitious policy, art.
+    // 5), which also proves the examination.
+    let feit =
+        "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht";
     let feiten: Vec<&Value> = ggd["handelingen"]
         .as_array()
         .unwrap()
@@ -429,7 +465,10 @@ fn the_ggd_records_an_examination_and_the_card_follows() {
         &map(&json!({
             "bsn_aanvrager": "999990032",
             "datum_onderzoek": "2026-10-16",
-            "verricht_door": "Gemeentelijke Gezondheidsdienst",
+            "langdurige_loopbeperking": true,
+            "continu_afhankelijk_van_hulp_bestuurder": false,
+            "permanent_rolstoelgebonden": false,
+            "ernstige_beperkingen_andere_dan_loopbeperkingen": false,
         })),
         dag("2026-10-16"),
     )
@@ -478,20 +517,7 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
             dag("2026-11-01"),
         )
         .unwrap();
-    spel.vastleggen(
-        "ggd_wilgendaal",
-        "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht",
-        &map(&json!({
-            "bsn_aanvrager": BSN,
-            "datum_onderzoek": "2026-11-10",
-            "langdurige_loopbeperking": true,
-            "continu_afhankelijk_van_hulp_bestuurder": false,
-            "permanent_rolstoelgebonden": false,
-            "ernstige_beperkingen_andere_dan_loopbeperkingen": false,
-        })),
-        dag("2026-11-10"),
-    )
-    .unwrap();
+    advies(&mut spel, BSN, "2026-11-10", true);
     let gegrond = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
@@ -558,31 +584,7 @@ fn parkeerkaart_the_ggd_examines_after_the_application_and_the_card_follows() {
     let uitkomst = casus["uitkomst"].as_str().unwrap().to_string();
 
     let ingediend = spel.aanvragen(&aanvraag, dag("2026-10-13")).unwrap();
-    spel.vastleggen(
-        "ggd_wilgendaal",
-        "regeling_gehandicaptenparkeerkaart#3#geneeskundig_onderzoek_verricht",
-        &map(&json!({
-            "bsn_aanvrager": BSN,
-            "datum_onderzoek": "2026-10-16",
-            "verricht_door": "Gemeentelijke Gezondheidsdienst",
-        })),
-        dag("2026-10-16"),
-    )
-    .unwrap();
-    spel.vastleggen(
-        "ggd_wilgendaal",
-        "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht",
-        &map(&json!({
-            "bsn_aanvrager": BSN,
-            "datum_onderzoek": "2026-10-16",
-            "langdurige_loopbeperking": true,
-            "continu_afhankelijk_van_hulp_bestuurder": false,
-            "permanent_rolstoelgebonden": false,
-            "ernstige_beperkingen_andere_dan_loopbeperkingen": false,
-        })),
-        dag("2026-10-16"),
-    )
-    .unwrap();
+    advies(&mut spel, BSN, "2026-10-16", true);
     let besluit = spel
         .besluiten(
             ingediend["id"].as_str().unwrap(),
@@ -591,9 +593,13 @@ fn parkeerkaart_the_ggd_examines_after_the_application_and_the_card_follows() {
         )
         .unwrap();
     assert_eq!(besluit["besluit"]["outputs"][&uitkomst], json!(true));
-    // The decision is in the municipality's chronicle, after the application.
+    // The decision is in the municipality's chronicle, after the application
+    // and the advice it received.
     let kroniek = spel.kroniek().unwrap();
-    assert_eq!(soorten(&kroniek), ["AANVRAAG", "BESCHIKKING"]);
+    assert_eq!(
+        soorten(&kroniek),
+        ["AANVRAAG", "EXECUTOGRAM", "BESCHIKKING"]
+    );
 }
 
 /// The answer of the cell's sphere to `begrip` in the reasons of `besluit`.

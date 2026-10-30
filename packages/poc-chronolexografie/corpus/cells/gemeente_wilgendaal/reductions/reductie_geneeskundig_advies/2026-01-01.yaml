@@ -4,26 +4,24 @@ $id: reductie_geneeskundig_advies
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'
-# Geen regelgeving: een reductie van de (fictieve) GGD Wilgendaal over haar
-# eigen kroniek (RFC-048). Ze leest de executogrammen van het feit dat
+# Geen regelgeving: een reductie van de (fictieve) gemeente Wilgendaal over
+# haar eigen kroniek (RFC-048). Ze leest de executogrammen van het feit dat
 # artikel 5 van het fictieve beleid
-# beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal vereist: de
-# adviezen die de GGD het college uitbracht. Welk advies telt, zegt het
-# fictieve beleid van de GGD (beleid_geneeskundig_advies_ggd_wilgendaal);
-# deze reductie geeft het de adviezen mee (source.regulation). De cel van de
-# GGD geeft haar vier uitvoeren als antwoorden (cel.yaml, answers). Artikel 7
-# van het beleid van de gemeente koppelt die aan de open begrippen van
-# artikel 5; daarvoor is de GGD bevoegd (competent_authority). Er is geen
-# bekendmaking; de url wijst naar artikel 3 van de regeling, dat zegt wie
-# onderzoekt.
+# beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal vereist: de adviezen
+# die de gemeente van de GGD ontving. Welk advies telt, zegt het fictieve
+# beleid beleid_geneeskundig_advies_gemeente_wilgendaal; deze reductie geeft
+# het de adviezen mee (source.regulation). De cel van de gemeente geeft haar
+# vier uitvoeren als antwoorden (cel.yaml, answers). Artikel 7 van het beleid
+# koppelt die aan de open begrippen van artikel 5. Er is geen bekendmaking; de
+# url wijst naar artikel 3 van de regeling, dat zegt wie onderzoekt.
 url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
-name: Geneeskundig advies van de GGD Wilgendaal (reductie)
+name: Ontvangen geneeskundig advies bij de gemeente Wilgendaal (reductie)
 articles:
   - number: '1'
     text: >-
-      Geen regelgeving. Het systeem van de GGD kijkt door middel van een
+      Geen regelgeving. Het systeem van de gemeente kijkt door middel van een
       chronolexografische reductie op zijn eigen kroniek welke adviezen het
-      over de aanvrager uitbracht, en past daarop het beleid van de GGD toe:
+      over de aanvrager ontving, en past daarop het beleid toe:
       het advies van het laatste onderzoek voor de aanvraag telt. Vindt het
       systeem er geen, dan zwijgt het, en oordeelt het college zelf.
     url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
@@ -43,17 +41,17 @@ articles:
             type: date
             description: De dag waarop het college op de aanvraag besluit.
         input:
-          # De uitgebrachte adviezen, één rij per executogram, met
+          # De ontvangen adviezen, één rij per executogram, met
           # bsn_aanvrager, datum_onderzoek en de vier gegevens.
           - name: adviezen
             type: array
             source:
-              facts: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
+              facts: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_ontvangen
           - name: volgens_beleid_langdurige_loopbeperking
             type: boolean
             nullable: true
             source:
-              regulation: beleid_geneeskundig_advies_ggd_wilgendaal
+              regulation: beleid_geneeskundig_advies_gemeente_wilgendaal
               output: advies_langdurige_loopbeperking
               parameters:
                 bsn_aanvrager: $bsn_aanvrager
@@ -64,7 +62,7 @@ articles:
             type: boolean
             nullable: true
             source:
-              regulation: beleid_geneeskundig_advies_ggd_wilgendaal
+              regulation: beleid_geneeskundig_advies_gemeente_wilgendaal
               output: advies_continu_afhankelijk_van_hulp_bestuurder
               parameters:
                 bsn_aanvrager: $bsn_aanvrager
@@ -75,7 +73,7 @@ articles:
             type: boolean
             nullable: true
             source:
-              regulation: beleid_geneeskundig_advies_ggd_wilgendaal
+              regulation: beleid_geneeskundig_advies_gemeente_wilgendaal
               output: advies_permanent_rolstoelgebonden
               parameters:
                 bsn_aanvrager: $bsn_aanvrager
@@ -86,7 +84,7 @@ articles:
             type: boolean
             nullable: true
             source:
-              regulation: beleid_geneeskundig_advies_ggd_wilgendaal
+              regulation: beleid_geneeskundig_advies_gemeente_wilgendaal
               output: advies_ernstige_beperkingen_andere_dan_loopbeperkingen
               parameters:
                 bsn_aanvrager: $bsn_aanvrager
