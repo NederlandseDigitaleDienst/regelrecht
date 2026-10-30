@@ -1,10 +1,10 @@
 <script setup>
 // A picture of YAML files on the explanation page: every file as a box, in a
 // column per kind, with the names in it that a line starts or ends at; the
-// boxes and lines come from schema.js (`schema` for the whole case, `keten`
-// for one value). With `doel`, that name stands out. The lines between those
-// names are drawn over the boxes in an SVG, from where the names stand once
-// the page is laid out; they are drawn again when the overview changes size.
+// boxes and lines come from `keten` in schema.js, for one value. With `doel`,
+// that name stands out. The lines between those names are drawn over the
+// boxes in an SVG, from where the names stand once the page is laid out; they
+// are drawn again when the picture changes size.
 // Pointing at a name, or focusing it, shows only its own lines.
 //
 // The lines are a picture: a screen reader gets, per name, the names it
@@ -13,7 +13,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { LIJNSOORTEN, SOORTEN } from './schema.js';
 
 const props = defineProps({
-  /** The boxes and lines, from `schema` or `keten` in schema.js. */
+  /** The boxes and lines, from `keten` in schema.js. */
   schema: { type: Object, required: true },
   /** What the picture shows, for a screen reader. */
   label: { type: String, required: true },
