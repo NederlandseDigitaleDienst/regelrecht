@@ -12,9 +12,9 @@ valid_from: '2026-01-01'
 # het anders per aanvraag vaststelt aan wat zijn eigen cel of de cel van de
 # GGD uit haar kroniek haalt.
 # Buiten de cellen geeft een koppeling niets. Wat dan geldt, zegt elk artikel
-# zelf, met een eigen open begrip (decided_per_case_by) dat de engine alleen
-# vraagt als de cellen zwijgen: bij artikel 2 tot en met 4 stelt het college
-# het zelf vast, bij artikel 7 stelt het vast wat het advies opgeeft.
+# zelf, met een eigen open begrip (decided_per_case_by): bij artikel 2 en 3
+# stelt het college het zelf vast, bij artikel 4 geldt zonder vaststelling dat
+# er geen onderzoek was, bij artikel 7 stelt het vast wat het advies opgeeft.
 # Artikel 5 en 6 gaan over het geneeskundig advies.
 url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
 name: Gehandicaptenparkeerkaart in de gemeente Wilgendaal (fictief beleid)
@@ -205,17 +205,20 @@ articles:
       voor de aanvraag een geneeskundig onderzoek heeft plaatsgehad (artikel
       3, eerste lid, van de Regeling gehandicaptenparkeerkaart), ontleent het
       college aan het antwoord van de cel van de GGD die het onderzoek
-      verricht. Geeft die cel geen antwoord, dan stelt het college het vast op
-      het rapport dat het van het onderzoek kreeg.
+      verricht. Geeft die cel geen antwoord, dan kan het college het vaststellen
+      op het rapport dat het van het onderzoek kreeg. Doet het dat niet, dan
+      heeft er geen onderzoek plaatsgehad.
     url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
     machine_readable:
       # Het begrip noemt wie bevoegd is: de GGD of de aangewezen deskundige
       # (competent_authority, RFC-052). Zwijgt de GGD, dan geldt het eigen
-      # open begrip hieronder.
+      # open begrip hieronder. Niet verplicht: zonder vaststelling was er
+      # geen onderzoek, en weigert het college de kaart (artikel 2 van de
+      # regeling, artikel 49 van het BABW). Het vraagt het college dus niets.
       open_terms:
         - id: geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college
           type: boolean
-          required: true
+          required: false
           decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
           description: >-
             Wat het college op het rapport vaststelt over de vraag of voor de
@@ -253,18 +256,27 @@ articles:
             description: >-
               Of voor de aanvraag een geneeskundig onderzoek heeft
               plaatsgehad: het antwoord van de GGD, of zonder dat wat het
-              college vaststelt.
+              college vaststelt, of anders niet.
         actions:
           - output: geneeskundig_onderzoek_heeft_plaatsgehad
             value:
               operation: IF
               cases:
                 - when:
-                    operation: EQUALS
-                    subject: $antwoord_onderzoek
-                    value: null
+                    operation: NOT
+                    value:
+                      operation: EQUALS
+                      subject: $antwoord_onderzoek
+                      value: null
+                  then: $antwoord_onderzoek
+                - when:
+                    operation: NOT
+                    value:
+                      operation: EQUALS
+                      subject: $geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college
+                      value: null
                   then: $geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college
-              default: $antwoord_onderzoek
+              default: false
   - number: '5'
     text: >-
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid.
@@ -469,7 +481,8 @@ articles:
       onder a tot en met d, van de Regeling gehandicaptenparkeerkaart vraagt
       zoals het advies dat voor de aanvraag telt (artikel 5).
 
-      2 Is er voor de aanvraag geen advies, dan oordeelt het college zelf.
+      2 Is er voor de aanvraag geen advies omdat het college het onderzoek
+      achterwege liet, dan oordeelt het college zelf.
 
       3 Het advies geeft een medische grond voor een kaart als de aanvrager
       volgens het advies als bestuurder of als passagier voor een kaart in

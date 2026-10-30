@@ -147,14 +147,13 @@ articles:
       [ref4]: https://wetten.overheid.nl/BWBR0012625#Artikel1
     url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel2
     machine_readable:
-      # Lid 1 is een voorwaarde voor de afgifte, geen grond om te weigeren: de
-      # kaart "wordt niet afgegeven alvorens" het onderzoek heeft
-      # plaatsgehad. Artikel 49 van het BABW vraagt dit artikel alleen voor
-      # een kaart die het anders zou verstrekken. Weet niemand dat er een
-      # onderzoek was, dan is er geen antwoord en faalt het besluit: het
-      # college kan nog niet beslissen, het weigert niet. De oordelen over de
-      # criteria van artikel 1 velt het college na het onderzoek, bij artikel
-      # 49 van het BABW (decided_per_case_by daar).
+      # Lid 1: de kaart "wordt niet afgegeven alvorens" het onderzoek heeft
+      # plaatsgehad. Eigen keuze van deze PoC: is er geen onderzoek en is het
+      # niet achterwege gelaten, dan weigert het college de kaart. Artikel 49
+      # van het BABW vraagt dit artikel als eerste, zodat een weigering het
+      # college niet naar de criteria vraagt. De oordelen over de criteria van
+      # artikel 1 velt het college na het onderzoek, bij artikel 49 van het
+      # BABW (decided_per_case_by daar).
       # Lid 2 onder c (kortstondig verblijf, artikel 49, derde lid, van het
       # BABW: het CBR) en lid 3 (een instelling, artikel 49, tweede lid) zijn
       # niet gemodelleerd: die leden van artikel 49 zijn het ook niet, dus
@@ -321,10 +320,9 @@ articles:
         # eerder een kaart kreeg, dat veronderstelt een onderzoek per
         # aanvraag. Wie het onderzoek verricht, beantwoordt het
         # (competent_authority); vult het beleid van het college het begrip,
-        # dan zegt dat beleid ook wat geldt als die zwijgt, zoals een
-        # vaststelling van het college op het rapport. Eigen keuze: is er
-        # geen onderzoek (false), bijvoorbeeld omdat de aanvrager niet
-        # verschijnt, dan wordt de kaart geweigerd.
+        # dan zegt dat beleid ook wat geldt als die zwijgt: dan was er geen
+        # onderzoek. Eigen keuze: is er geen onderzoek (false), bijvoorbeeld
+        # omdat de aanvrager niet verschijnt, dan wordt de kaart geweigerd.
         - id: geneeskundig_onderzoek_heeft_plaatsgehad
           competent_authority:
             - name: Gemeentelijke Gezondheidsdienst

@@ -317,8 +317,8 @@
   ]
  },
  {
-  "name": "Zonder advies oordeelt het college, en zonder onderzoek nog geen kaart",
-  "summary": "Zonder advies oordeelt het college zelf, maar zonder onderzoek komt er nog geen kaart.",
+  "name": "Zonder onderzoek geen kaart",
+  "summary": "Heeft de GGD de aanvrager niet onderzocht, dan weigert het college de kaart.",
   "steps": [
    {
     "title": "Aanvraag indienen",
@@ -333,14 +333,14 @@
     "expect": null
    },
    {
-    "title": "Besluit nemen zonder oordeel over het onderzoek",
+    "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": "2026-10-20",
-    "story": "Het college oordeelt zelf, maar weet niet of er een onderzoek was.",
-    "todo": "Laat \"geneeskundig onderzoek heeft plaatsgehad\" op Nog niet beoordeeld en klik op Besluit nemen.",
+    "story": "Het college beslist op de aanvraag.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
     "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
-    "expect": "hier hoort de cel de stap te weigeren, zonder besluit"
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]
  },
