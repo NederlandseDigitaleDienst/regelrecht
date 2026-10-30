@@ -605,7 +605,10 @@ fn combine_is_refused_with_one_cell_named() {
         );
         refused(
             &changed(
-                &corpus("regulation/nl/wet/leerplichtwet_1969/2026-08-01.yaml"),
+                &std::fs::read_to_string(
+                    repo_corpus_dir().join("regulation/nl/wet/leerplichtwet_1969/2026-08-01.yaml"),
+                )
+                .unwrap(),
                 "          type: date\n          required: true\n          description: De eerste dag",
                 &format!(
                     "          type: date\n          required: true\n          combine: {value}\n          description: De eerste dag"
