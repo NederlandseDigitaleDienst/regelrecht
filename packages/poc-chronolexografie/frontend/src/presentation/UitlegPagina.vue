@@ -11,11 +11,16 @@
 // The choice screen opens it, and so does an address with `?uitleg`
 // (useUitleg.js); the button at the top goes back to the choice screen, the
 // one at the bottom opens the case the page follows.
-import { nextTick, onMounted, ref } from 'vue';
+// Above the steps, a picture follows one value of that case back through its
+// files: every file a box, every reference a line (SchemaOverzicht.vue),
+// from the same bundle.
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { load } from 'js-yaml';
 import YamlNode from '@regelrecht/frontend-shared/components/YamlNode.vue';
 import { bestanden as haalBestanden } from '../api.js';
-import { bronnen, casus, intro, openPaden, steps } from './uitleg.js';
+import SchemaOverzicht from './SchemaOverzicht.vue';
+import { CASUSSEN, keten as ketenVan } from './schema.js';
+import { bronnen, casus, intro, keten, openPaden, steps } from './uitleg.js';
 import { useUitleg } from './useUitleg.js';
 
 const props = defineProps({
@@ -26,6 +31,8 @@ const emit = defineEmits(['terug', 'casus']);
 
 /** The parsed files of the panels, per path, once they are there. */
 const docs = ref(props.bestanden ? lees(props.bestanden) : null);
+/** All files as text, for the picture, once they are there. */
+const alle = ref(props.bestanden);
 const fout = ref(false);
 function lees(alle) {
   return Object.fromEntries(bronnen.map((pad) => [pad, load(alle[pad])]));
@@ -33,7 +40,8 @@ function lees(alle) {
 onMounted(async () => {
   if (docs.value) return;
   try {
-    docs.value = lees(await haalBestanden());
+    alle.value = await haalBestanden();
+    docs.value = lees(alle.value);
   } catch {
     fout.value = true;
   }
@@ -58,6 +66,11 @@ const stukken = (zin) =>
     .filter(Boolean)
     .map((s) => (s.startsWith('`') ? { code: s.slice(1, -1) } : { tekst: s }));
 
+/** The case file, which the picture starts from. */
+const casusPad = `${CASUSSEN}${casus}.yaml`;
+/** The picture, once the files are there. */
+const plaatje = computed(() => (alle.value?.[casusPad] ? ketenVan(alle.value, casus, keten.start) : null));
+
 /** The file of a panel, short: its last three parts. */
 const kortPad = (source) => source.split('/').slice(-3).join('/');
 </script>
@@ -73,6 +86,16 @@ const kortPad = (source) => source.split('/').slice(-3).join('/');
           <template v-for="(s, i) in stukken(intro.lead)" :key="i"><code v-if="s.code">{{ s.code }}</code><template v-else>{{ s.tekst }}</template></template>
         </nldd-text>
       </nldd-title>
+    </nldd-container>
+  </nldd-simple-section>
+  <nldd-simple-section>
+    <nldd-title slot="header" size="3" heading-level="2" :overline="keten.overline" :text="keten.title"></nldd-title>
+    <nldd-container gap="12">
+      <nldd-text v-for="(t, j) in keten.text" :key="j">
+        <template v-for="(st, k) in stukken(t)" :key="k"><code v-if="st.code">{{ st.code }}</code><template v-else>{{ st.tekst }}</template></template>
+      </nldd-text>
+      <SchemaOverzicht v-if="plaatje" :schema="plaatje" :label="keten.title" />
+      <nldd-text v-else size="sm" color="secondary">{{ fout ? 'De YAML kwam niet binnen. Herlaad de pagina om het opnieuw te proberen.' : 'De YAML wordt geladen.' }}</nldd-text>
     </nldd-container>
   </nldd-simple-section>
   <nldd-simple-section v-for="(s, i) in steps" :key="s.title">
