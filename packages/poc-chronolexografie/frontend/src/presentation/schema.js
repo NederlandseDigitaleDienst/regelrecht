@@ -20,10 +20,10 @@ import { CORPUS } from '../corpus.js';
 
 /** What a box is, after its place in the corpus; the order is the column. */
 export const SOORTEN = [
-  { soort: 'wet', label: 'Wet en regeling' },
-  { soort: 'beleid', label: 'Beleid' },
-  { soort: 'cel', label: 'Cel' },
-  { soort: 'reductie', label: 'Reductie' },
+  { soort: 'wet', label: 'Wet en regeling', waar: 'wet en regeling' },
+  { soort: 'beleid', label: 'Beleid', waar: 'het beleid' },
+  { soort: 'cel', label: 'Cel', waar: 'de cel' },
+  { soort: 'reductie', label: 'Reductie', waar: 'de reductie' },
 ];
 
 /** The kinds of line, in the order of the legend. */
@@ -37,6 +37,10 @@ export const LIJNSOORTEN = [
 
 /** Where the case files are, each `<id>.yaml` with its own regelwerken in `<id>/`. */
 export const CASUSSEN = `${CORPUS}/casussen/`;
+
+/** A name in a box as one string: `begrip` is its key in `begrippen`. */
+export const sleutel = (pad, begrip) => `${pad}|${begrip}`;
+const id = (e) => sleutel(e.pad, e.begrip);
 
 /** `<law>#<article>` in its two parts. */
 const splits = (ref) => {
@@ -193,7 +197,8 @@ function namenIn(waarde, uit = new Set()) {
  * Once drawn, the picture is made simpler (`eenvoudig`): an output that only
  * passes on an input is one name with it, as is an input that only takes an
  * output of its own file, inputs that are the same are one name, and a
- * reduction shows only what it reads and what it answers.
+ * reduction shows only what it reads and what it answers. Every name then
+ * gets its step in the chain (`genummerd`).
  */
 export function keten(alle, id, { law, article, naam }) {
   const { wet, cel, cellen, celBestand, wetBestand, begrip, lijn, artikelVan, metUitvoer, metFeit, invullers, uitkomst } = opzet(alle, id);
@@ -293,7 +298,7 @@ export function keten(alle, id, { law, article, naam }) {
 
   const doel = knoop(law, String(article), naam);
   return {
-    ...eenvoudig(uitkomst(), doorgaven),
+    ...genummerd(eenvoudig(uitkomst(), doorgaven)),
     doel: doel && { pad: doel.box.pad, begrip: `${doel.begrip.artikel ?? ''}#${doel.begrip.rol}#${doel.begrip.naam}` },
   };
 }
@@ -319,8 +324,6 @@ export function keten(alle, id, { law, article, naam }) {
  *    the steps in between are its reasoning, so they stay.
  */
 function eenvoudig({ bestanden, lijnen }, doorgaven) {
-  const id = (e) => `${e.pad}|${e.begrip}`;
-
   const weg = new Set();
   let na = lijnen;
   /** Let names take the place of others (`plek`: by id, the name that stays). */
@@ -409,4 +412,52 @@ function eenvoudig({ bestanden, lijnen }, doorgaven) {
     })),
     lijnen: uit,
   };
+}
+
+/**
+ * The order of the chain: a line runs from what is needed to what uses it, so
+ * a name no line ends at is step 1, and any other name comes one step after
+ * the last thing it uses (the longest path to it). Names that can be worked
+ * out at the same moment share a step, and what comes out of the whole chain
+ * has the highest number. `stappen` is how many there are.
+ */
+function genummerd({ bestanden, lijnen }) {
+  const bronnen = new Map();
+  for (const l of lijnen) bronnen.set(id(l.naar), [...(bronnen.get(id(l.naar)) ?? []), id(l.van)]);
+  const stap = new Map();
+  const nummer = (k) => {
+    if (!stap.has(k)) {
+      stap.set(k, 1); // A name that needs itself ends the walk here.
+      stap.set(k, 1 + Math.max(0, ...(bronnen.get(k) ?? []).map(nummer)));
+    }
+    return stap.get(k);
+  };
+  const uit = bestanden.map((b) => ({
+    ...b,
+    begrippen: b.begrippen.map((g) => ({ ...g, stap: nummer(sleutel(b.pad, g.key)) })),
+  }));
+  return { bestanden: uit, lijnen, stappen: Math.max(...stap.values()) };
+}
+
+/** The names of `schema` by key: those of step `n`, and those up to and with it. */
+export function stapBeeld({ bestanden }, n) {
+  const namen = bestanden.flatMap((b) => b.begrippen.map((g) => ({ k: sleutel(b.pad, g.key), stap: g.stap })));
+  return {
+    nu: new Set(namen.filter((g) => g.stap === n).map((g) => g.k)),
+    gehad: new Set(namen.filter((g) => g.stap <= n).map((g) => g.k)),
+  };
+}
+
+/** The step `stapje` away from `stap` (null is the whole picture), within the chain. */
+export const andereStap = (stap, stapje, stappen) => Math.min(stappen, Math.max(1, (stap ?? 0) + stapje));
+
+/** What step `n` of `schema` is, in one sentence; with null, the whole picture. */
+export function stapZin({ bestanden, stappen }, n) {
+  if (!n) return `Het hele schema, in ${stappen} stappen.`;
+  const delen = SOORTEN.flatMap(({ soort, waar }) => {
+    const hier = bestanden.filter((b) => b.soort === soort).flatMap((b) => b.begrippen.filter((g) => g.stap === n));
+    return hier.length ? [`in ${waar} ${[...new Set(hier.map((g) => g.naam))].join(', ')}`] : [];
+  });
+  const plek = n === 1 ? ', het begin' : n === stappen ? ', het einde' : '';
+  return `Stap ${n} van ${stappen}${plek}: ${delen.join('; ')}.`;
 }

@@ -5,12 +5,15 @@
 // that name stands out. The lines between those names are drawn over the
 // boxes in an SVG, from where the names stand once the page is laid out; they
 // are drawn again when the picture changes size.
-// Pointing at a name, or focusing it, shows only its own lines.
+// Every name carries its step in the chain. The buttons walk through those
+// steps: what is yet to come fades, the step itself stands out, and a sentence
+// says what it is. Pointing at a name, or focusing it, shows only its own
+// lines, also during a step; letting go brings the step back.
 //
-// The lines are a picture: a screen reader gets, per name, the names it
-// points to and is pointed to from, in words.
+// The lines are a picture: a screen reader gets, per name, its step and the
+// names it points to and is pointed to from, in words.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { LIJNSOORTEN, SOORTEN } from './schema.js';
+import { LIJNSOORTEN, SOORTEN, andereStap, sleutel, stapBeeld, stapZin } from './schema.js';
 
 const props = defineProps({
   /** The boxes and lines, from `keten` in schema.js. */
@@ -43,15 +46,13 @@ const ROL = {
   cel: 'cel',
   andere_cellen: 'andere cel',
 };
-/** The directory a file is in: the name of the regelwerk or the cell. */
-const sleutel = (pad, begrip) => `${pad}|${begrip}`;
 
 const titels = computed(() => new Map(s.value.bestanden.map((b) => [b.pad, b.titel])));
 const namen = computed(
   () => new Map(s.value.bestanden.flatMap((b) => b.begrippen.map((g) => [sleutel(b.pad, g.key), g.naam]))),
 );
-/** The lines of a name, in words, for a screen reader. */
-function inWoorden(pad, key) {
+/** A name's step and lines, in words, for a screen reader. */
+function inWoorden(pad, { key, stap }) {
   const k = sleutel(pad, key);
   const uit = s.value.lijnen
     .filter((l) => sleutel(l.van.pad, l.van.begrip) === k)
@@ -59,7 +60,7 @@ function inWoorden(pad, key) {
   const in_ = s.value.lijnen
     .filter((l) => sleutel(l.naar.pad, l.naar.begrip) === k)
     .map((l) => `van ${namen.value.get(sleutel(l.van.pad, l.van.begrip))} in ${titels.value.get(l.van.pad)}`);
-  return [...uit, ...in_].join('; ');
+  return [`Stap ${stap}`, ...uit, ...in_].join('; ');
 }
 
 const vlak = ref(null);
@@ -67,6 +68,23 @@ const maat = ref({ w: 0, h: 0 });
 /** Each line with where it runs, once the page is laid out. */
 const paden = ref([]);
 const actief = ref(null);
+/** The step on show; null shows the whole picture. */
+const stap = ref(null);
+const beeld = computed(() => (stap.value ? stapBeeld(s.value, stap.value) : null));
+const vorigeKnop = ref(null);
+const volgendeKnop = ref(null);
+
+/** Go to step `n`, from the button in `event`. */
+async function ga(n, event) {
+  const knop = event.currentTarget;
+  stap.value = n;
+  await nextTick();
+  // A button that just turned off has lost the keyboard focus: hand it on.
+  if (!knop.disabled) return;
+  const ander = (n === s.value.stappen ? vorigeKnop : volgendeKnop).value;
+  await ander?.updateComplete;
+  ander?.focus();
+}
 
 /**
  * A line from (ax, ay), leaving to the side `uit` (1 right, -1 left), to
@@ -116,12 +134,19 @@ function teken() {
   });
 }
 
-const zichtbaar = (p) => !actief.value || p.van === actief.value || p.naar === actief.value;
-/** The lines drawn over the boxes: those of the name pointed at. */
+const zichtbaar = (p) => {
+  if (actief.value) return p.van === actief.value || p.naar === actief.value;
+  return !beeld.value || beeld.value.gehad.has(p.naar);
+};
+/** The lines that stand out: those of the name pointed at, or else of the step. */
+const opvallend = (p) => (actief.value ? zichtbaar(p) : Boolean(beeld.value?.nu.has(p.naar)));
+/** The name that stands out, by the same rule. */
+const aan = (k) => (actief.value ? actief.value === k : Boolean(beeld.value?.nu.has(k)));
+/** The lines drawn over the boxes: those that stand out. */
 // The lines within a file run inside its box, so they are always on top.
-const boven = computed(() => paden.value.filter((p) => p.binnen || (actief.value && zichtbaar(p))));
+const boven = computed(() => paden.value.filter((p) => p.binnen || opvallend(p)));
 const verbonden = computed(() => {
-  if (!actief.value) return null;
+  if (!actief.value) return beeld.value?.gehad ?? null;
   const set = new Set([actief.value]);
   for (const p of paden.value) if (zichtbaar(p)) set.add(p.van).add(p.naar);
   return set;
@@ -152,6 +177,17 @@ watch(s, async () => {
         <nldd-text size="sm">{{ l.label }} <code>{{ l.yaml }}</code></nldd-text>
       </li>
     </ul>
+    <!-- Walks through the chain; the sentence is read out as it changes. -->
+    <div class="bediening">
+      <nldd-button-bar>
+        <nldd-button ref="vorigeKnop" appearance="neutral-tinted" text="Vorige stap" :disabled="stap <= 1 || undefined" @click="ga(andereStap(stap, -1, s.stappen), $event)"></nldd-button>
+        <nldd-button ref="volgendeKnop" appearance="primary" text="Volgende stap" :disabled="stap === s.stappen || undefined" @click="ga(andereStap(stap, 1, s.stappen), $event)"></nldd-button>
+        <nldd-button appearance="neutral-tinted" text="Toon alles" :disabled="!stap || undefined" @click="ga(null, $event)"></nldd-button>
+      </nldd-button-bar>
+      <div aria-live="polite">
+        <nldd-text size="sm">{{ stapZin(s, stap) }}</nldd-text>
+      </div>
+    </div>
     <!-- The overview is wider than a phone; it scrolls on its own, not the page. -->
     <div class="rol" tabindex="0" role="group" :aria-label="label">
       <div ref="vlak" class="vlak">
@@ -165,16 +201,19 @@ watch(s, async () => {
                   v-for="g in b.begrippen"
                   :key="g.key"
                   :data-begrip="sleutel(b.pad, g.key)"
-                  :class="{ uit: verbonden && !verbonden.has(sleutel(b.pad, g.key)), aan: actief === sleutel(b.pad, g.key), doel: doel === sleutel(b.pad, g.key) }"
+                  :class="{ uit: verbonden && !verbonden.has(sleutel(b.pad, g.key)), aan: aan(sleutel(b.pad, g.key)), doel: doel === sleutel(b.pad, g.key) }"
                   tabindex="0"
                   @mouseenter="actief = sleutel(b.pad, g.key)"
                   @mouseleave="actief = null"
                   @focus="actief = sleutel(b.pad, g.key)"
                   @blur="actief = null"
                 >
-                  <nldd-text size="sm" color="secondary">{{ g.artikel && !['artikel', 'decisions'].includes(g.rol) ? `art. ${g.artikel} · ` : '' }}{{ ROL[g.rol] ?? g.rol }}</nldd-text>
+                  <span class="kop">
+                    <nldd-badge size="sm" color="neutral" :number="g.stap" decorative></nldd-badge>
+                    <nldd-text size="sm" color="secondary">{{ g.artikel && !['artikel', 'decisions'].includes(g.rol) ? `art. ${g.artikel} · ` : '' }}{{ ROL[g.rol] ?? g.rol }}</nldd-text>
+                  </span>
                   <code>{{ g.naam }}</code>
-                  <nldd-visually-hidden>{{ inWoorden(b.pad, g.key) }}</nldd-visually-hidden>
+                  <nldd-visually-hidden>{{ inWoorden(b.pad, g) }}</nldd-visually-hidden>
                 </li>
               </ul>
             </nldd-container>
@@ -196,7 +235,7 @@ watch(s, async () => {
               <path d="M 0 0 L 10 5 L 0 10 z" :class="['punt', l.soort]" />
             </marker>
           </defs>
-          <path v-for="p in boven" :key="p.i" :d="p.d" :class="['lijn', p.soort, { uit: !zichtbaar(p), dik: actief && zichtbaar(p) }]" :marker-end="`url(#pijl-boven-${p.soort})`" />
+          <path v-for="p in boven" :key="p.i" :d="p.d" :class="['lijn', p.soort, { uit: !zichtbaar(p), dik: opvallend(p) }]" :marker-end="`url(#pijl-boven-${p.soort})`" />
         </svg>
       </div>
     </div>
@@ -208,6 +247,22 @@ watch(s, async () => {
  * grid of columns, lists without bullets, and the lines over them. */
 .rol {
   overflow-x: auto;
+}
+.bediening {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+  background: var(--semantics-surfaces-base-background-color);
+}
+/* The buttons stay in reach on a picture taller than the screen; on a phone
+ * they would cover too much of it. */
+@media (min-width: 48rem) {
+  .bediening {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+  }
 }
 .vlak {
   position: relative;
@@ -246,6 +301,11 @@ watch(s, async () => {
   border-radius: 4px;
   cursor: default;
   transition: opacity 0.15s;
+}
+.kop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .begrippen li.aan {
   background: var(--semantics-surfaces-base-background-color);
@@ -317,17 +377,10 @@ code {
 .kroniek {
   --kleur: var(--primitives-color-donkergroen-600);
 }
-.casus,
-.casus {
-  --kleur: var(--primitives-color-coolgray-500);
-}
 .lijn.vraagt {
   stroke-dasharray: 6 4;
 }
 .lijn.kroniek {
   stroke-dasharray: 2 3;
-}
-.lijn.casus {
-  stroke-dasharray: 1 4;
 }
 </style>
