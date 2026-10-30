@@ -35,7 +35,9 @@ const laterDate = computed(() => {
   return d && d > state.datum ? d : null;
 });
 const where = computed(() =>
-  [tabText(current.value.tab), current.value.date && longDate(current.value.date)].filter(Boolean).join(' · '),
+  [current.value && tabText(current.value.tab), current.value?.date && longDate(current.value.date)]
+    .filter(Boolean)
+    .join(' · '),
 );
 </script>
 
@@ -98,7 +100,7 @@ const where = computed(() =>
           <nldd-button
             v-if="laterDate"
             appearance="primary"
-            :text="`Naar ${longDate(laterDate)}`"
+            :text="`Speeldatum ${longDate(laterDate)}`"
             @click="state.datum = laterDate"
           ></nldd-button>
           <nldd-button

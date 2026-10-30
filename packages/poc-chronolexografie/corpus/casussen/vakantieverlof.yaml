@@ -160,7 +160,7 @@ scenarios:
         datum: 2026-11-01
         op: 2
         tekst: >-
-          Klik bij het besluit op de tweede aanvraag op Bezwaar maken en dan
+          Klik bij het besluit over de tweede aanvraag op Bezwaar maken en dan
           op Bezwaar indienen.
       - stap: beslissing_op_bezwaar
         datum: 2026-11-15
@@ -220,8 +220,8 @@ scenarios:
           Klik bij het eerste bezwaar op Ontvankelijkheid toetsen en dan op
           Beslissen op bezwaar.
         gezien: >-
-          Gegrond: een weigering komt in de plaats van het besluit. Het tweede
-          bezwaar staat nog open.
+          Gegrond: een weigering komt in de plaats van het besluit, en het
+          tweede bezwaar staat nog open.
       - stap: beslissing_op_bezwaar
         titel: Beslissen op het tweede bezwaar
         datum: 2026-11-16
@@ -249,12 +249,13 @@ scenarios:
       - stap: besluit
         uitkomst: afgewezen
         gezien: >-
-          Afgewezen: verlof B is geweigerd, want A is al verleend.
+          Afgewezen: de jongere kreeg dit schooljaar al verlof met de eerste
+          aanvraag.
       - stap: bezwaar
         datum: 2026-11-01
         op: 1
         tekst: >-
-          Klik bij het besluit op de eerste aanvraag (A) op Bezwaar maken en
+          Klik bij het besluit over de eerste aanvraag (A) op Bezwaar maken en
           dan op Bezwaar indienen.
       - stap: beslissing_op_bezwaar
         datum: 2026-11-15
@@ -271,7 +272,7 @@ scenarios:
         datum: 2026-11-20
         op: 2
         tekst: >-
-          Klik bij het besluit op de tweede aanvraag (B) op Bezwaar maken en
+          Klik bij het besluit over de tweede aanvraag (B) op Bezwaar maken en
           dan op Bezwaar indienen.
       - stap: beslissing_op_bezwaar
         titel: Beslissen op het bezwaar tegen B
@@ -333,7 +334,7 @@ scenarios:
           Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat de
           bevinding staan en klik op Beslissen op bezwaar.
         gezien: >-
-          Ongegrond: de weigering blijft. Bij Aanvrager kun je nu in beroep
+          Ongegrond: de weigering blijft, en bij Aanvrager kun je nu in beroep
           gaan.
       - stap: beroep
         datum: 2026-12-01
@@ -343,7 +344,7 @@ scenarios:
         tekst: >-
           Klik bij de uitspraak op Toezenden aan OBS De Klimop.
         gezien: >-
-          De school legt de ontvangst vast (Awb 8:79). Onder Bestuursorgaan
+          De school legt de ontvangst vast (Awb 8:79), en onder Bestuursorgaan
           staat nu Na een uitspraak.
       - stap: opnieuw_beslissen
         datum: 2027-01-18

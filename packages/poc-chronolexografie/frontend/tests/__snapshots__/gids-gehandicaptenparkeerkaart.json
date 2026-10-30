@@ -245,7 +245,7 @@
     "date": "2026-10-20",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "Afgewezen: de kaart is geweigerd.",
+    "seen": "Afgewezen: het advies vindt geen criterium.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
@@ -416,7 +416,7 @@
     "date": "2026-11-20",
     "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat alle bevindingen staan en klik op Beslissen op bezwaar.",
     "values": [],
-    "seen": "Ongegrond: de weigering blijft. Bij Aanvrager kun je nu in beroep gaan.",
+    "seen": "Ongegrond: de weigering blijft, en bij Aanvrager kun je nu in beroep gaan.",
     "expect": "hier hoort het bezwaar ongegrond te zijn"
    },
    {

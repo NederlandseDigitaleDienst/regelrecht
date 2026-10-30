@@ -116,7 +116,7 @@
     "title": "Bezwaar maken",
     "tab": "aanvrager",
     "date": "2026-11-01",
-    "todo": "Klik bij het besluit op de tweede aanvraag op Bezwaar maken en dan op Bezwaar indienen.",
+    "todo": "Klik bij het besluit over de tweede aanvraag op Bezwaar maken en dan op Bezwaar indienen.",
     "values": [],
     "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
@@ -224,7 +224,7 @@
     "values": [
      "specifieke aard beroep ouder: Nee"
     ],
-    "seen": "Gegrond: een weigering komt in de plaats van het besluit. Het tweede bezwaar staat nog open.",
+    "seen": "Gegrond: een weigering komt in de plaats van het besluit, en het tweede bezwaar staat nog open.",
     "expect": "hier hoort het bezwaar gegrond te zijn"
    },
    {
@@ -280,14 +280,14 @@
     "date": null,
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "Afgewezen: verlof B is geweigerd, want A is al verleend.",
+    "seen": "Afgewezen: de jongere kreeg dit schooljaar al verlof met de eerste aanvraag.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
     "title": "Bezwaar maken",
     "tab": "aanvrager",
     "date": "2026-11-01",
-    "todo": "Klik bij het besluit op de eerste aanvraag (A) op Bezwaar maken en dan op Bezwaar indienen.",
+    "todo": "Klik bij het besluit over de eerste aanvraag (A) op Bezwaar maken en dan op Bezwaar indienen.",
     "values": [],
     "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
@@ -307,7 +307,7 @@
     "title": "Bezwaar maken tegen B",
     "tab": "aanvrager",
     "date": "2026-11-20",
-    "todo": "Klik bij het besluit op de tweede aanvraag (B) op Bezwaar maken en dan op Bezwaar indienen.",
+    "todo": "Klik bij het besluit over de tweede aanvraag (B) op Bezwaar maken en dan op Bezwaar indienen.",
     "values": [],
     "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
@@ -418,7 +418,7 @@
     "date": "2026-11-15",
     "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat de bevinding staan en klik op Beslissen op bezwaar.",
     "values": [],
-    "seen": "Ongegrond: de weigering blijft. Bij Aanvrager kun je nu in beroep gaan.",
+    "seen": "Ongegrond: de weigering blijft, en bij Aanvrager kun je nu in beroep gaan.",
     "expect": "hier hoort het bezwaar ongegrond te zijn"
    },
    {
@@ -445,7 +445,7 @@
     "date": null,
     "todo": "Klik bij de uitspraak op Toezenden aan OBS De Klimop.",
     "values": [],
-    "seen": "De school legt de ontvangst vast (Awb 8:79). Onder Bestuursorgaan staat nu Na een uitspraak.",
+    "seen": "De school legt de ontvangst vast (Awb 8:79), en onder Bestuursorgaan staat nu Na een uitspraak.",
     "expect": null
    },
    {

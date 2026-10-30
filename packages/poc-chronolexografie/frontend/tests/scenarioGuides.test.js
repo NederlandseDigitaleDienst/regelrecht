@@ -24,6 +24,10 @@ describe.each(CASUSSEN)('the guides of %s', (id) => {
     for (const g of list) expect(g.summary, g.name).toMatch(/^[^.!?]+[.!?]$/);
   });
 
+  it('ends each scenario with one sentence', () => {
+    for (const s of c.scenarios) expect(s.eind, s.naam).toMatch(/^[^.!?]+[.!?]$/);
+  });
+
   it('gives every step what the panel shows', () => {
     for (const g of list) {
       g.steps.forEach((s, i) => {
@@ -33,7 +37,7 @@ describe.each(CASUSSEN)('the guides of %s', (id) => {
         expect(s.todo, at).toMatch(/^[^.!?]+[.!?]$/);
         expect(typeof s.done, at).toBe('function');
         if (s.expect) expect(typeof s.expect.check, at).toBe('function');
-        if (i < g.steps.length - 1) expect(s.seen, at).toBeTruthy();
+        if (i < g.steps.length - 1) expect(s.seen, at).toMatch(/^[^.!?]+[.!?]$/);
       });
     }
   });

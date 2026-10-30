@@ -285,7 +285,7 @@ scenarios:
         datum: 2026-10-20
         uitkomst: afgewezen
         gezien: >-
-          Afgewezen: de kaart is geweigerd.
+          Afgewezen: het advies vindt geen criterium.
       - stap: bezwaar
         datum: 2026-11-01
       - stap: vastleggen
@@ -360,7 +360,8 @@ scenarios:
           bekend_dat_aanvrager_nog_steeds_voldoet: true
         uitkomst: toegewezen
     eind: >-
-      Toegewezen, zonder nieuw onderzoek.
+      Toegewezen: het college liet het onderzoek achterwege, omdat de
+      aanvrager eerder een kaart kreeg en nog steeds voldoet.
   - naam: Beroep ongegrond
     samenvatting: >-
       Na een ongegrond bezwaar gaat de aanvrager in beroep, en de rechter
@@ -381,7 +382,7 @@ scenarios:
           Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat alle
           bevindingen staan en klik op Beslissen op bezwaar.
         gezien: >-
-          Ongegrond: de weigering blijft. Bij Aanvrager kun je nu in beroep
+          Ongegrond: de weigering blijft, en bij Aanvrager kun je nu in beroep
           gaan.
       - stap: beroep
         datum: 2026-12-01

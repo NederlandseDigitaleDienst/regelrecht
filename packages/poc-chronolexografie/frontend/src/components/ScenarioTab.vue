@@ -36,18 +36,26 @@ async function begin(s) {
       slot="header"
       size="3"
       text="Scenario's"
-      :supporting-text="`Begint op ${eerste}, ${
+      :supporting-text="`Elk scenario begint op ${eerste}, ${
         vooraf ? `met ${vooraf === 1 ? 'één chronolexogram' : `${vooraf} chronolexogrammen`} in de kroniek` : 'met een lege kroniek'
       }.`"
     ></nldd-title>
     <nldd-container gap="16">
       <nldd-list v-if="metGids.length" appearance="box-tinted" accessible-label="Scenario's">
-        <nldd-list-item v-for="s in metGids" :key="s.naam" button size="sm" @click="begin(s)">
+        <nldd-list-item v-for="s in metGids" :key="s.naam" size="sm">
           <nldd-text-cell :overline="`Scenario ${s.nummer}`" :text="s.naam"></nldd-text-cell>
           <nldd-cell v-if="state.scenario === s.naam">
             <nldd-tag color="accent" text="Bezig"></nldd-tag>
           </nldd-cell>
-          <nldd-icon-cell icon="chevron-right" color="secondary" size="20"></nldd-icon-cell>
+          <nldd-cell>
+            <nldd-button
+              appearance="secondary"
+              size="sm"
+              :text="state.scenario === s.naam ? 'Opnieuw' : 'Begin'"
+              :accessible-label="`Scenario ${s.nummer} ${state.scenario === s.naam ? 'opnieuw beginnen' : 'beginnen'}`"
+              @click="begin(s)"
+            ></nldd-button>
+          </nldd-cell>
         </nldd-list-item>
       </nldd-list>
       <nldd-card v-for="s in zonderGids" :key="s.naam">

@@ -67,14 +67,14 @@
     "values": [
      "toepassing leidt tot onaanvaardbare gevolgen: Nee"
     ],
-    "seen": "Afgewezen: het bedrijf heeft al één vergunning, en er werkt één persoon.",
+    "seen": "Afgewezen: er werkt één persoon, dus het maximum van één vergunning is bereikt.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
     "title": "Bezwaar maken",
     "tab": "aanvrager",
     "date": "2026-11-01",
-    "todo": "Klik bij het besluit op de tweede aanvraag op Bezwaar maken en dan op Bezwaar indienen.",
+    "todo": "Klik bij het besluit over de tweede aanvraag op Bezwaar maken en dan op Bezwaar indienen.",
     "values": [],
     "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
@@ -259,7 +259,7 @@
     "title": "Bezwaar maken",
     "tab": "aanvrager",
     "date": "2026-11-01",
-    "todo": "Klik bij het besluit op de derde aanvraag op Bezwaar maken en dan op Bezwaar indienen.",
+    "todo": "Klik bij het besluit over de derde aanvraag op Bezwaar maken en dan op Bezwaar indienen.",
     "values": [
      "gronden bezwaar of beroep: de wijkverpleging rijdt dagelijks met drie auto's naar cliënten"
     ],

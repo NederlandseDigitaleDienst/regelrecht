@@ -164,13 +164,13 @@ scenarios:
         tekst: >-
           Klik bij de tweede aanvraag op Besluit nemen.
         gezien: >-
-          Afgewezen: het bedrijf heeft al één vergunning, en er werkt één
-          persoon.
+          Afgewezen: er werkt één persoon, dus het maximum van één vergunning
+          is bereikt.
       - stap: bezwaar
         datum: 2026-11-01
         op: 2
         tekst: >-
-          Klik bij het besluit op de tweede aanvraag op Bezwaar maken en dan
+          Klik bij het besluit over de tweede aanvraag op Bezwaar maken en dan
           op Bezwaar indienen.
       - stap: vastleggen
         titel: Nieuwe inschrijving bij de Kamer van Koophandel
@@ -211,8 +211,8 @@ scenarios:
           toepassing_leidt_tot_onaanvaardbare_gevolgen: false
         uitkomst: afgewezen
     eind: >-
-      Afgewezen: het bedrijf heeft twee geldige vergunningen, en er werken
-      twee mensen.
+      Afgewezen: er werken twee mensen, dus het maximum van twee vergunningen
+      is bereikt.
   - naam: Buiten het gebied, en na de verhuizing erin
     samenvatting: >-
       Een bedrijf buiten de vergunninggebieden krijgt geen vergunning, en na
@@ -300,8 +300,8 @@ scenarios:
         invoer:
           gronden_bezwaar_of_beroep: de wijkverpleging rijdt dagelijks met drie auto's naar cliënten
         tekst: >-
-          Klik bij het besluit op de derde aanvraag op Bezwaar maken en dan op
-          Bezwaar indienen.
+          Klik bij het besluit over de derde aanvraag op Bezwaar maken en dan
+          op Bezwaar indienen.
       - stap: beslissing_op_bezwaar
         datum: 2026-11-20
         invoer:
@@ -327,4 +327,5 @@ scenarios:
           toepassing_leidt_tot_onaanvaardbare_gevolgen: false
         uitkomst: afgewezen
     eind: >-
-      Afgewezen: het bedrijf heeft nu drie geldige vergunningen.
+      Afgewezen: het bedrijf heeft nu drie geldige vergunningen, boven het
+      maximum van twee.
