@@ -198,7 +198,7 @@ function namenIn(waarde, uit = new Set()) {
  * passes on an input is one name with it, as is an input that only takes an
  * output of its own file, inputs that are the same are one name, and a
  * reduction shows only what it reads and what it answers. Every name then
- * gets its step in the chain (`genummerd`).
+ * gets its step (`genummerd`).
  */
 export function keten(alle, id, { law, article, naam }) {
   const { wet, cel, cellen, celBestand, wetBestand, begrip, lijn, artikelVan, metUitvoer, metFeit, invullers, uitkomst } = opzet(alle, id);
@@ -296,11 +296,9 @@ export function keten(alle, id, { law, article, naam }) {
   let volgorde = 0;
   const doorgaven = [];
 
-  const doel = knoop(law, String(article), naam);
-  return {
-    ...genummerd(eenvoudig(uitkomst(), doorgaven)),
-    doel: doel && { pad: doel.box.pad, begrip: `${doel.begrip.artikel ?? ''}#${doel.begrip.rol}#${doel.begrip.naam}` },
-  };
+  const start = knoop(law, String(article), naam);
+  const doel = start && { pad: start.box.pad, begrip: `${start.begrip.artikel ?? ''}#${start.begrip.rol}#${start.begrip.naam}` };
+  return { ...genummerd(eenvoudig(uitkomst(), doorgaven), doel), doel };
 }
 
 /**
@@ -415,38 +413,92 @@ function eenvoudig({ bestanden, lijnen }, doorgaven) {
 }
 
 /**
- * The order of the chain, from the question it answers: a line runs from what
- * is needed to what uses it, so the name no line starts at is step 1, and any
- * other name comes one step after the last name that uses it (the longest
- * path from there). A name that is needed at the same moment as another
- * shares its step, and the sources of the chain have the highest numbers.
- * `stappen` is how many there are.
+ * The order of the chain, from the question it answers. A step is a group of
+ * names: those of one article that `rekent` lines hold together, or all of a
+ * reduction. The steps first walk one path, from `doel` along the longest way
+ * over these groups, to the sources at the end of it, which are one step
+ * together. Of two ways that are as long, the path takes the one with the most
+ * sources behind it. Everything else is one last step, `reststap`; without
+ * anything else there is none (null). `stappen` is how many there are.
  */
-function genummerd({ bestanden, lijnen }) {
-  const gebruikers = new Map();
-  for (const l of lijnen) gebruikers.set(id(l.van), [...(gebruikers.get(id(l.van)) ?? []), id(l.naar)]);
-  const stap = new Map();
-  const nummer = (k) => {
-    if (!stap.has(k)) {
-      stap.set(k, 1); // A name that uses itself ends the walk here.
-      stap.set(k, 1 + Math.max(0, ...(gebruikers.get(k) ?? []).map(nummer)));
+function genummerd({ bestanden, lijnen }, doel) {
+  const namen = bestanden.flatMap((b) => b.begrippen.map((g) => ({ k: sleutel(b.pad, g.key), soort: b.soort, pad: b.pad, artikel: g.artikel })));
+  const ouder = new Map(namen.map((g) => [g.k, g.k]));
+  const wortel = (k) => (ouder.get(k) === k ? k : wortel(ouder.get(k)));
+  const samen = (a, b) => ouder.set(wortel(a), wortel(b));
+  const artikel = new Map(namen.map((g) => [g.k, g.artikel]));
+  for (const g of namen) {
+    const eerste = namen.find((x) => x.pad === g.pad);
+    if (g.soort === 'reductie') samen(g.k, eerste.k);
+  }
+  for (const l of lijnen) {
+    if (l.soort === 'rekent' && l.van.pad === l.naar.pad && artikel.get(id(l.van)) === artikel.get(id(l.naar))) samen(id(l.van), id(l.naar));
+  }
+
+  // What each group needs, as groups.
+  const voor = new Map();
+  for (const l of lijnen) {
+    const [van, naar] = [wortel(id(l.van)), wortel(id(l.naar))];
+    if (van !== naar) voor.set(naar, (voor.get(naar) ?? new Set()).add(van));
+  }
+  const nodig = (g) => [...(voor.get(g) ?? [])];
+  const lengtes = new Map();
+  const lengte = (g) => {
+    if (!lengtes.has(g)) {
+      lengtes.set(g, 0); // A group that needs itself ends the walk here.
+      lengtes.set(g, 1 + Math.max(-1, ...nodig(g).map(lengte)));
     }
-    return stap.get(k);
+    return lengtes.get(g);
   };
-  const uit = bestanden.map((b) => ({
-    ...b,
-    begrippen: b.begrippen.map((g) => ({ ...g, stap: nummer(sleutel(b.pad, g.key)) })),
-  }));
-  return { bestanden: uit, lijnen, stappen: Math.max(...stap.values()) };
+  const bronnen = new Map();
+  const bronnenVan = (g) => {
+    if (!bronnen.has(g)) {
+      bronnen.set(g, new Set());
+      bronnen.set(g, new Set(nodig(g).length ? nodig(g).flatMap((x) => [...bronnenVan(x)]) : [g]));
+    }
+    return bronnen.get(g);
+  };
+
+  const pad = [];
+  const gehad = new Set();
+  for (let g = doel && wortel(id(doel)); g && !gehad.has(g); ) {
+    gehad.add(g);
+    pad.push([g]);
+    const verder = nodig(g).filter((x) => !gehad.has(x));
+    if (verder.length && verder.every((x) => !nodig(x).length)) {
+      pad.push(verder);
+      break;
+    }
+    g = verder.reduce((a, b) => (lengte(b) - lengte(a) || bronnenVan(b).size - bronnenVan(a).size) > 0 ? b : a, verder[0]);
+  }
+  const stap = new Map(pad.flatMap((groepen, i) => groepen.map((g) => [g, i + 1])));
+  const reststap = namen.some((g) => !stap.has(wortel(g.k))) ? pad.length + 1 : null;
+  return {
+    bestanden: bestanden.map((b) => ({
+      ...b,
+      begrippen: b.begrippen.map((g) => ({ ...g, stap: stap.get(wortel(sleutel(b.pad, g.key))) ?? reststap })),
+    })),
+    lijnen,
+    stappen: reststap ?? pad.length,
+    reststap,
+  };
 }
 
-/** The names of `schema` by key: those of step `n`, and those up to and with it. */
+/**
+ * What step `n` of `schema` shows: the names by key of the step (`nu`) and of
+ * it and those before it (`gehad`), and of a line, by the keys of its ends,
+ * whether it belongs to the step (`nu`), to one before it (`gehad`), or to what
+ * is yet to come (null).
+ */
 export function stapBeeld({ bestanden }, n) {
   const namen = bestanden.flatMap((b) => b.begrippen.map((g) => ({ k: sleutel(b.pad, g.key), stap: g.stap })));
-  return {
-    nu: new Set(namen.filter((g) => g.stap === n).map((g) => g.k)),
-    gehad: new Set(namen.filter((g) => g.stap <= n).map((g) => g.k)),
+  const nu = new Set(namen.filter((g) => g.stap === n).map((g) => g.k));
+  const gehad = new Set(namen.filter((g) => g.stap <= n).map((g) => g.k));
+  const lijn = ({ van, naar }) => {
+    if (!gehad.has(van) || !gehad.has(naar)) return null;
+    return nu.has(van) || nu.has(naar) ? 'nu' : 'gehad';
   };
+  return { nu, gehad, lijn };
 }
 
 /** The step `stapje` away from `stap` (null is the whole picture), within the chain. */
@@ -481,26 +533,36 @@ function vraag({ naam, omschrijving }) {
 
 /**
  * What step `n` of `schema` is, in one sentence, from the question: step 1
- * asks it, a later step says what the steps before it need and where that
- * comes from, and the last says that the chain is at its source. With null,
- * the whole picture.
+ * asks it, a later step says what the step before it needs and where that
+ * comes from, the last of the path says that the chain is at its source, and
+ * `reststap` that everything else works the same way, and where it ends up.
+ * With null, the whole picture.
  */
-export function stapZin({ bestanden, lijnen, stappen }, n) {
+export function stapZin({ bestanden, lijnen, stappen, reststap }, n) {
   if (!n) return `Het hele schema, in ${stappen} stappen.`;
   const kop = `Stap ${n} van ${stappen}`;
   const hier = new Map(
-    bestanden.flatMap((b) => b.begrippen.filter((g) => g.stap === n).map((g) => [sleutel(b.pad, g.key), { ...g, soort: b.soort }])),
+    bestanden.flatMap((b) => b.begrippen.filter((g) => g.stap === n).map((g) => [sleutel(b.pad, g.key), { ...g, soort: b.soort, titel: b.titel }])),
   );
+  const kortOfLang = (zin) => (zin(true).length <= LANG ? zin(true) : zin(false));
+  if (n === reststap) {
+    const cellen = [...new Set([...hier.values()].filter((g) => g.soort === 'cel').map((g) => g.titel))];
+    const via = cellen.length ? ` via ${opsomming(cellen)}` : '';
+    const uitKroniek = lijnen.filter((l) => l.soort === 'kroniek' && hier.has(id(l.van)));
+    const namen = [...new Set(uitKroniek.map((l) => leesbaar(hier.get(id(l.van)).naam)))];
+    return kortOfLang((metNamen) => `${kop}, de andere invoer werkt op dezelfde manier en komt${via} bij de bron uit${metNamen && namen.length ? ` (${namen.join(', ')})` : ''}.`);
+  }
   if (n === 1) return `${kop}, de vraag: ${vraag([...hier.values()][0])}`;
 
   const per = new Map();
   for (const l of lijnen) {
     const g = hier.get(id(l.van));
-    if (!g) continue;
+    if (!g || hier.has(id(l.naar))) continue;
     const k = l.soort === 'vraagt' && g.soort === 'reductie' ? 'vraagt_reductie' : l.soort;
     per.set(k, (per.get(k) ?? new Set()).add(leesbaar(g.naam)));
   }
-  const zin = (metNamen) => {
+  const laatste = n === (reststap ? reststap - 1 : stappen);
+  return kortOfLang((metNamen) => {
     const delen = Object.entries(HERKOMST)
       .filter(([k]) => per.has(k))
       .map(([k, [een, veel, waar]]) => {
@@ -508,7 +570,6 @@ export function stapZin({ bestanden, lijnen, stappen }, n) {
         const deel = `${namen.length === 1 ? `een ${een}` : `${namen.length} ${veel}`} ${waar}`;
         return metNamen ? `${deel} (${namen.join(', ')})` : deel;
       });
-    return `${kop}, ${n === stappen ? 'hier komt de keten bij de bron uit' : 'daarvoor is nodig'}: ${opsomming(delen)}.`;
-  };
-  return zin(true).length <= LANG ? zin(true) : zin(false);
+    return `${kop}, ${laatste ? 'hier komt de keten bij de bron uit' : 'daarvoor is nodig'}: ${opsomming(delen)}.`;
+  });
 }

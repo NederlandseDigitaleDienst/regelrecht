@@ -105,13 +105,13 @@ describe('the picture of one value', () => {
     const stapVan = (bestand, naam) => alleNamen.find((g) => g.map === bestand && g.naam === naam).stap;
     const eind = (e) => sleutel(e.pad, e.begrip);
 
-    it('gives every name a step, one after the last name that uses it', () => {
-      const stap = new Map(alleNamen.map((g) => [sleutel(g.pad, g.key), g.stap]));
-      for (const n of stap.values()) expect(n).toBeGreaterThanOrEqual(1);
-      for (const l of k.lijnen) expect(stap.get(eind(l.van))).toBeGreaterThan(stap.get(eind(l.naar)));
-      for (const [naam, n] of stap) {
-        const gebruikers = k.lijnen.filter((l) => eind(l.van) === naam).map((l) => stap.get(eind(l.naar)));
-        expect(n).toBe(1 + Math.max(0, ...gebruikers));
+    const beleid = 'beleid_bedrijfsparkeervergunning_gemeente_wilgendaal';
+    const besluit = 'uitvoeringsbesluit_parkeren_gemeente_wilgendaal';
+
+    it('gives every name a step', () => {
+      for (const g of alleNamen) {
+        expect(g.stap).toBeGreaterThanOrEqual(1);
+        expect(g.stap).toBeLessThanOrEqual(k.stappen);
       }
     });
 
@@ -120,17 +120,51 @@ describe('the picture of one value', () => {
       expect(eerste.map((g) => sleutel(g.pad, g.key))).toEqual([eind(k.doel)]);
     });
 
-    it('ends at sources, which take nothing in', () => {
-      const laatste = alleNamen.filter((g) => g.stap === k.stappen);
-      expect(laatste.length).toBeGreaterThan(0);
-      for (const g of laatste) expect(k.lijnen.some((l) => eind(l.naar) === sleutel(g.pad, g.key))).toBe(false);
-      expect(stapVan('algemene_wet_bestuursrecht', 'afschrift_van_de_uitspraak')).toBeGreaterThan(stapVan('reductie_algemene_wet_bestuursrecht', 'uitspraken'));
+    it('takes the names of an article that compute together as one step', () => {
+      const stap = stapVan(beleid, 'aantal_geldige_bedrijfsparkeervergunningen');
+      expect(stapVan(beleid, 'antwoord_aantal_geldig')).toBe(stap);
+      expect(stapVan(beleid, 'aantal_geldige_bedrijfsparkeervergunningen_volgens_college')).toBe(stap);
+      expect(alleNamen.filter((g) => g.stap === stap)).toHaveLength(3);
     });
 
-    it('gives names that are needed at the same moment the same step', () => {
+    it('takes a reduction as one step, also over its articles', () => {
       const awb = 'reductie_algemene_wet_bestuursrecht';
-      expect(stapVan(awb, 'besluiten')).toBe(stapVan(awb, 'uitspraken'));
-      expect(stapVan(awb, 'besluiten')).toBe(stapVan(awb, 'beslissingen_op_bezwaar'));
+      const stap = stapVan(awb, 'geldende_besluiten');
+      for (const naam of ['besluiten', 'beslissingen_op_bezwaar', 'uitspraken']) expect(stapVan(awb, naam)).toBe(stap);
+    });
+
+    it('does not take a source into the group of its article', () => {
+      expect(stapVan('parkeerverordening_gemeente_wilgendaal', 'besluiten onder artikel 2')).toBeGreaterThan(1);
+    });
+
+    it('walks the longest path, on a tie the one with the most sources', () => {
+      const pad = [beleid, 'gemeente_wilgendaal', 'reductie_geldige_bedrijfsparkeervergunningen', 'reductie_algemene_wet_bestuursrecht'];
+      const stappen = pad.map((b) => alleNamen.find((g) => g.map === b && g.stap < k.reststap)?.stap);
+      expect(stappen).toEqual([3, 4, 5, 6]);
+    });
+
+    it('ends the path at its sources, together', () => {
+      const laatste = alleNamen.filter((g) => g.stap === k.reststap - 1);
+      expect(laatste.map((g) => g.naam).sort()).toEqual(['afschrift_van_de_uitspraak', 'besluiten onder artikel 2', 'besluiten onder artikel 7:11']);
+      for (const g of laatste) expect(k.lijnen.some((l) => eind(l.naar) === sleutel(g.pad, g.key))).toBe(false);
+    });
+
+    it('shows all the rest in one last step', () => {
+      expect(k.reststap).toBe(k.stappen);
+      expect(stapVan(beleid, 'aantal_werkzame_personen_volgens_handelsregister')).toBe(k.reststap);
+      expect(stapVan(beleid, 'postcode_vestiging_volgens_handelsregister')).toBe(k.reststap);
+      expect(stapVan(besluit, 'vergunninggebied_van_postcode')).toBe(k.reststap);
+      expect(stapVan(besluit, 'vergunninggebied_van_vestiging')).toBe(k.reststap);
+      expect(stapVan('kamer_van_koophandel', 'postcode_vestiging')).toBe(k.reststap);
+      expect(stapVan('reductie_vestiging_in_handelsregister', 'inschrijvingen')).toBe(k.reststap);
+      expect(stapVan('beleid_handelsregister_kamer_van_koophandel', 'vestiging_ingeschreven')).toBe(k.reststap);
+    });
+
+    it('has no rest step when the path takes in everything', () => {
+      const een = keten(alle, 'bedrijfsparkeervergunning', { law: beleid, article: '1', naam: 'postcode_vestiging_volgens_handelsregister' });
+      expect(een.reststap).toBeNull();
+      expect(Math.max(...een.bestanden.flatMap((b) => b.begrippen.map((g) => g.stap)))).toBe(een.stappen);
+      expect(stapZin(een, een.stappen)).toContain('hier komt de keten bij de bron uit');
     });
 
     it('walks from the whole picture to the end and stops there', () => {
@@ -147,11 +181,20 @@ describe('the picture of one value', () => {
         const { nu, gehad } = stapBeeld(k, n);
         expect(nu.size).toBeGreaterThan(0);
         expect([...gehad].sort()).toEqual([...eerder, ...nu].sort());
-        // A line out of this step goes to what asked for it, which has been.
-        for (const l of k.lijnen.filter((x) => nu.has(eind(x.van)))) expect(eerder.has(eind(l.naar))).toBe(true);
         eerder = gehad;
       }
       expect(eerder.size).toBe(alleNamen.length);
+    });
+
+    it('lights every line in exactly one step, and keeps it after that', () => {
+      for (const l of k.lijnen) {
+        const lijn = { van: eind(l.van), naar: eind(l.naar) };
+        const standen = Array.from({ length: k.stappen }, (_, i) => stapBeeld(k, i + 1).lijn(lijn));
+        expect(standen.filter((x) => x === 'nu')).toHaveLength(1);
+        const nu = standen.indexOf('nu');
+        expect(standen.slice(0, nu).every((x) => x === null)).toBe(true);
+        expect(standen.slice(nu + 1).every((x) => x === 'gehad')).toBe(true);
+      }
     });
 
     it('asks the question first, in the words of the law', () => {
@@ -162,17 +205,22 @@ describe('the picture of one value', () => {
     });
 
     it('says what a step needs and where it comes from, briefly', () => {
-      const zinnen = Array.from({ length: k.stappen - 1 }, (_, i) => stapZin(k, i + 2));
+      const zinnen = Array.from({ length: k.reststap - 2 }, (_, i) => stapZin(k, i + 2));
       for (const z of zinnen.slice(0, -1)) expect(z).toContain(', daarvoor is nodig: ');
       expect(zinnen.at(-1)).toContain(', hier komt de keten bij de bron uit: ');
-      for (const z of zinnen) {
+      for (const z of [...zinnen, stapZin(k, k.reststap)]) {
         expect(z.length).toBeLessThanOrEqual(150);
         expect(z).not.toContain('_');
         expect(z.match(/\.$/g)).toHaveLength(1);
       }
-      // Every kind of origin in this chain comes up.
       const alles = zinnen.join(' ');
-      for (const waar of ['uit hetzelfde regelwerk', 'uit een andere regeling', 'aan een cel', 'van een reductie', 'uit de kroniek']) expect(alles).toContain(waar);
+      for (const waar of ['uit een andere regeling', 'aan een cel', 'van een reductie', 'uit de kroniek']) expect(alles).toContain(waar);
+    });
+
+    it('says of the rest that it works the same way, and where it ends up', () => {
+      expect(stapZin(k, k.reststap)).toBe(
+        `Stap ${k.reststap} van ${k.stappen}, de andere invoer werkt op dezelfde manier en komt via Kamer van Koophandel bij de bron uit (vestiging ingeschreven).`,
+      );
     });
 
     it('counts instead of naming when a sentence would run too long', () => {
