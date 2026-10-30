@@ -305,7 +305,7 @@ articles:
       # Eigen keuze van deze PoC: op de vraag of het onderzoek plaatsvond,
       # antwoordt het college uit zijn eigen kroniek, op het advies dat het
       # ontving, en niet wie het onderzoek verrichtte (competent_authority op
-      # het begrip, RFC-052). Eigen keuze: het begrip noemt het college zelf,
+      # het begrip, RFC-051). Eigen keuze: het begrip noemt het college zelf,
       # in plaats van het af te leiden uit het feit dat de reductie leest die
       # het antwoord geeft (RFC-048); dat
       # vraagt geen koppeling tussen begrip en feit in de engine. Eigen keuze: alleen de categorie is
