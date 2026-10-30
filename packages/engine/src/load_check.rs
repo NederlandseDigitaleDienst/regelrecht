@@ -509,8 +509,16 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
                         .to_string(),
                 );
             }
-            if let Some(twice) = also.iter().find(|t| Some(t.as_str()) == item.requests()) {
+            if let Some(twice) = also.iter().enumerate().find_map(|(i, t)| {
+                (Some(t.as_str()) == item.requests() || also[..i].contains(t)).then_some(t)
+            }) {
                 return refuse(format!("requests '{twice}' under also_requests as well"));
+            }
+            if let Some(no) = also
+                .iter()
+                .find(|t| !regelrecht_law_model::is_article_reference(t))
+            {
+                return refuse(format!("also_requests names '{no}', no article reference"));
             }
             let targets = item
                 .requests()
@@ -1036,6 +1044,14 @@ articles:
             (
                 "          - type: AANVRAAG\n            requests: lijst#1\n            also_requests: [lijst#1]\n          - type: BESCHIKKING",
                 "under also_requests as well",
+            ),
+            (
+                "          - type: AANVRAAG\n            requests: lijst#1\n            also_requests: [ander#1, ander#1]\n          - type: BESCHIKKING",
+                "under also_requests as well",
+            ),
+            (
+                "          - type: AANVRAAG\n            requests: lijst#1\n            also_requests: [geen]\n          - type: BESCHIKKING",
+                "no article reference",
             ),
             (
                 "          - type: AANVRAAG\n            parameters: [p]",

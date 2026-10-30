@@ -1978,11 +1978,11 @@ impl Article {
     /// Every article whose decision the submission of this article leads
     /// to: [`Self::requested_decision`] first, then those of `also_requests`.
     pub fn requested_decisions(&self, own: &str) -> Vec<String> {
-        let mut uit: Vec<String> = self.requested_decision(own).into_iter().collect();
+        let mut decisions: Vec<String> = self.requested_decision(own).into_iter().collect();
         if let Some(submission) = self.get_submission() {
-            uit.extend(submission.also_requests().iter().cloned());
+            decisions.extend(submission.also_requests().iter().cloned());
         }
-        uit
+        decisions
     }
 
     /// The names of the outputs that belong to `item`, one of
