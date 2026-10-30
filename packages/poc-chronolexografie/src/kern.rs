@@ -4063,6 +4063,30 @@ mod tests {
         (corpus, cell)
     }
 
+    /// The parking card case where the GGD examined two applicants on 9
+    /// October: the example applicant has a long-term walking limitation,
+    /// [`ZONDER_CRITERIUM`] meets no criterion. The day is the same, so only
+    /// the BSN tells their advices apart.
+    fn kaart_onderzocht() -> (Corpus, Cellen) {
+        let (corpus, mut cell) = kaart();
+        let voorbeeld = corpus.casus.voorbeeld.aanvraag["bsn_aanvrager"].clone();
+        for (bsn, loopbeperking) in [
+            (voorbeeld.as_str().unwrap(), true),
+            (ZONDER_CRITERIUM, false),
+        ] {
+            vastleggen(
+                &corpus,
+                &mut cell,
+                "ggd_wilgendaal",
+                ADVIES,
+                &advies(bsn, "2026-10-09", loopbeperking),
+                day("2026-10-09"),
+            )
+            .unwrap();
+        }
+        (corpus, cell)
+    }
+
     /// Apply with the case's example values on `aangevraagd` and decide on
     /// `besloten` with its example findings, `loopbeperking` changed.
     fn kaart_besluit(
@@ -4110,9 +4134,7 @@ mod tests {
     #[test]
     fn parkeerkaart_an_advice_reaches_the_municipality_without_a_step() {
         let (corpus, mut cell) = kaart();
-        // What the GGD knew before the first scenario was delivered too.
         let vooraf = cell.grams().len();
-        assert_eq!(vooraf, 2);
         let gram = vastleggen(
             &corpus,
             &mut cell,
@@ -4139,7 +4161,7 @@ mod tests {
     fn parkeerkaart_the_advice_of_the_ggd_decides_the_criteria() {
         // Scenarios 1 and 2 of the case: the policy fills the four criteria
         // from the GGD's advice, and the college's finding gives way.
-        let (corpus, mut cell) = kaart();
+        let (corpus, mut cell) = kaart_onderzocht();
         // The GGD offers the advice as an act of its own.
         let vormen = vormen(&corpus, &cell, day("2026-10-13")).unwrap();
         let ggd = vormen["andere_cellen"]
@@ -4218,7 +4240,7 @@ mod tests {
     fn parkeerkaart_synthesis_answers_of_two_cells_make_one_decision() {
         // Synthesis (RFC-048): the decision takes the answers of different
         // cells to different questions and makes one outcome of them.
-        let (corpus, mut cell) = kaart();
+        let (corpus, mut cell) = kaart_onderzocht();
         // The GGD and the court (RFC-053).
         assert_eq!(cell.andere.len(), 2);
         let voorbeeld = &corpus.casus.voorbeeld;
@@ -4293,7 +4315,7 @@ mod tests {
         // while it is valid is refused, because the municipality's policy
         // gives no second card. Whether there is a valid one, the cell
         // answers from its chronicle.
-        let (corpus, mut cell) = kaart();
+        let (corpus, mut cell) = kaart_onderzocht();
         let eerste = kaart_besluit(&corpus, &mut cell, "2026-10-13", "2026-10-20", true).besluit;
         assert_eq!(eerste.outputs[corpus.casus.uitkomst.as_str()], json!(true));
         assert_eq!(eerste.outputs["kaart_geldig_tot"], json!("2031-10-19"));
@@ -4334,8 +4356,8 @@ mod tests {
         assert!(spoor.contains(&eerste.id), "{spoor}");
 
         // The log, newest first: art. 49 runs, the policy fills its term,
-        // and in it the cell answers. The GGD's advice from the case file is
-        // in the GGD's own chronicle and, as received, in the municipality's;
+        // and in it the cell answers. The GGD's advices are in the GGD's own
+        // chronicle and, as received, in the municipality's;
         // the log shows both, as the facts they are: six entries of the
         // municipality and two executograms of the GGD.
         let log = serde_json::to_value(logboek(&corpus, &cell).unwrap()).unwrap();
@@ -4362,8 +4384,8 @@ mod tests {
         // An applicant the GGD did not examine: no advice and the examination
         // not left out means no examination, so the preview and the decision
         // are a plain refusal and ask the college nothing (Regeling art. 2
-        // lid 1).
-        let (corpus, mut cell) = kaart();
+        // lid 1). The advices about the others do not count for him.
+        let (corpus, mut cell) = kaart_onderzocht();
         let mut aanvraag = corpus.casus.voorbeeld.aanvraag.clone();
         aanvraag.insert("bsn_aanvrager".into(), json!("999990032"));
         let app = aanvragen(&corpus, &mut cell, &aanvraag, day("2026-10-13")).unwrap();
@@ -4408,7 +4430,7 @@ mod tests {
         // After the card of 2026 expired, the college leaves the
         // examination out for an applicant it knows still qualifies (lid 2
         // onder a); the cell answers that a card was issued before.
-        let (corpus, mut cell) = kaart();
+        let (corpus, mut cell) = kaart_onderzocht();
         kaart_besluit(&corpus, &mut cell, "2026-10-13", "2026-10-20", true);
         let mut aanvraag = corpus.casus.voorbeeld.aanvraag.clone();
         aanvraag.insert("dagtekening".into(), json!("2031-10-20"));
@@ -4450,7 +4472,7 @@ mod tests {
     fn parkeerkaart_objections_ongegrond_keeps_the_validity_gegrond_grants() {
         // Scenario 4: an unfounded objection against a grant leaves it
         // standing with its own validity.
-        let (corpus, mut cell) = kaart();
+        let (corpus, mut cell) = kaart_onderzocht();
         let verstrekt = kaart_besluit(&corpus, &mut cell, "2026-10-13", "2026-10-20", true).besluit;
         let bezwaar = kaart_bezwaar(&corpus, &mut cell, &verstrekt.id, "2026-11-01");
         let toets = heroverweging(&corpus, &cell, &bezwaar.id, day("2026-11-20")).unwrap();
@@ -4479,7 +4501,7 @@ mod tests {
         // walking limitation; at the heroverweging the new advice counts,
         // the refusal is revoked and a card valid from the new decision
         // takes its place.
-        let (corpus, mut cell) = kaart();
+        let (corpus, mut cell) = kaart_onderzocht();
         let mut aanvraag = corpus.casus.voorbeeld.aanvraag.clone();
         aanvraag.insert("bsn_aanvrager".into(), json!(ZONDER_CRITERIUM));
         let app = aanvragen(&corpus, &mut cell, &aanvraag, day("2026-10-13")).unwrap();
