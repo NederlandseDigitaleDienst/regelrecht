@@ -26,10 +26,10 @@ const boven = computed(() =>
         slot="end"
         appearance="neutral-tinted"
         size="sm"
-        text="Code"
+        text="Bekijk"
         expandable
         :expanded="open"
-        :accessible-label="`Code van ${naam}`"
+        :accessible-label="`Bekijk ${naam}`"
         @click="open = !open"
       ></nldd-button>
     </nldd-title>
