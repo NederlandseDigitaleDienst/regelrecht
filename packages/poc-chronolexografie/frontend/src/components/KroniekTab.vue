@@ -1,6 +1,6 @@
 <script setup>
 // The chronicle of the cell: every chronolexogram, in the order it was
-// recorded, as the chronicle keeps it (RFC-046), as JSON (GramCode.vue).
+// recorded (RFC-046), with its fact and values in view (GramCode.vue).
 // Below it the chronicles of the other cells of the case (RFC-052): each
 // cell keeps its own; the bestuursorgaan asks them, but does not write in
 // them. The court is one of them (RFC-053).
