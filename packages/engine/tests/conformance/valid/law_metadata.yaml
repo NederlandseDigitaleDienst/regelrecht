@@ -1,7 +1,7 @@
 ---
 # Tier C: every document-level property the schema defines for a national law,
 # plus the article-level containers (placement) and structured references.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json
 $id: test_conformance_law_metadata
 uuid: 00000000-0000-4000-8000-000000000001
 regulatory_layer: WET
@@ -37,9 +37,10 @@ procedure:
   - id: beschikking
     default: true
     applies_to:
-      legal_character: BESCHIKKING
+      kind: algemene_wet_bestuursrecht/beschikking
     stages:
       - name: AANVRAAG
+        kind: algemene_wet_bestuursrecht/aanvraag
         description: Belanghebbende dient een aanvraag in.
         requires:
           - name: aanvraag_datum

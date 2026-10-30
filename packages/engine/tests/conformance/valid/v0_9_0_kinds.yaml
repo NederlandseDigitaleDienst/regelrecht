@@ -1,0 +1,103 @@
+---
+# Tier C: kinds that an article defines (schema v0.9.0), a regulation that
+# claims to be of a kind of regulation (`member_of`), an item of a kind with
+# the words that make it one, and a hook on a kind at a named stage.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json
+$id: test_conformance_kinds
+regulatory_layer: WET
+publication_date: '2026-10-30'
+valid_from: '2026-10-30'
+bwb_id: BWBR0099993
+name: Testwet soorten
+url: https://example.invalid/kinds
+member_of:
+  - kind: test_conformance_kinds/regeling_naar_draagkracht
+    legal_text_excerpt: De hoogte van de bijdrage hangt af van de draagkracht.
+  - kind: test_conformance_kinds/regeling_naar_draagkracht
+    legal_basis:
+      law: Testwet soorten
+      bwb_id: BWBR0099993
+      article: '2'
+      paragraph: '2'
+articles:
+  - number: '1'
+    url: https://example.invalid/kinds/1
+    text: >-
+      1 Onder besluit wordt verstaan: een beslissing. 2 Onder beschikking wordt
+      verstaan: een besluit dat niet van algemene strekking is. 3 Onder verzoek
+      wordt verstaan: een verzoek een besluit te nemen. 4 Onder regeling naar
+      draagkracht wordt verstaan: een regeling waarin de hoogte van een
+      bijdrage afhangt van de draagkracht.
+    machine_readable:
+      kinds:
+        - id: besluit
+          description: Een beslissing (lid 1).
+        - id: beschikking
+          broader: besluit
+          description: Een besluit dat niet van algemene strekking is (lid 2).
+        - id: verzoek
+          requests: test_conformance_kinds/besluit
+          description: Een verzoek een besluit te nemen (lid 3).
+        - id: regeling_naar_draagkracht
+          level: regulation
+          description: Een regeling waarin de bijdrage afhangt van de draagkracht (lid 4).
+        - id: bijdrage
+          level: item
+  - number: '2'
+    url: https://example.invalid/kinds/2
+    text: >-
+      1 Op verzoek kent de minister een bijdrage toe. De hoogte van de bijdrage
+      hangt af van de draagkracht. 2 Deze wet is een regeling naar draagkracht.
+    machine_readable:
+      execution:
+        produces:
+          - type: test_conformance_kinds/bijdrage
+            legal_text_excerpt: Op verzoek kent de minister een bijdrage toe.
+        output:
+          - name: bijdrage
+            type: number
+        actions:
+          - output: bijdrage
+            value: 100
+  - number: '3'
+    url: https://example.invalid/kinds/3
+    text: Een besluit wordt gemotiveerd.
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            kind: test_conformance_kinds/besluit
+            stage: BESLUIT
+      execution:
+        output:
+          - name: gemotiveerd
+            type: boolean
+        actions:
+          - output: gemotiveerd
+            value: true
+  - number: '4'
+    url: https://example.invalid/kinds/4
+    text: De minister deelt de draagkracht mee op de dag van ontvangst.
+    machine_readable:
+      execution:
+        produces:
+          legal_character: INFORMATIEF
+          moment:
+            parameter: datum_ontvangst
+            legal_basis:
+              law: Testwet soorten
+              bwb_id: BWBR0099993
+              article: '4'
+        parameters:
+          - name: datum_ontvangst
+            type: date
+          - name: bijdrage_waarom_gevraagd
+            type: string
+            required: false
+            kind: test_conformance_kinds/bijdrage
+        output:
+          - name: meegedeeld
+            type: boolean
+        actions:
+          - output: meegedeeld
+            value: true

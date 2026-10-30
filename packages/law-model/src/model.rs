@@ -271,6 +271,11 @@ pub struct Parameter {
     pub temporal: Option<Temporal>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub legal_basis: Option<ProvisionReference>,
+    /// Since schema v0.9.0, on a parameter whose value names an article
+    /// (`<regulation>#<article>`): the kind that article's item must be, as
+    /// `<regulation>/<id>`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
 }
 
 impl Parameter {
@@ -412,9 +417,86 @@ impl From<Produces> for ProducesList {
     }
 }
 
-/// The kinds of submission a produced item's `type` can name (RFC-045). Any
-/// other `type` is a legal character.
+/// The kinds of submission a produced item's `type` can name (RFC-045) up
+/// to schema v0.8.13. Any other `type` is a legal character. Since v0.9.0 a
+/// `type` is a reference to a kind that a regulation defines
+/// ([`is_kind_reference`]), and an item of a kind that asks for a decision
+/// says which with `requests`: that, and not this list, makes it a
+/// submission.
 pub const SUBMISSION_KINDS: &[&str] = &["AANVRAAG", "BEZWAAR", "BEROEP"];
+
+/// Whether `s` is a reference to a kind (schema v0.9.0): `<regulation>/<id>`,
+/// the kind with that id that an article of that regulation defines under
+/// `kinds`, such as `algemene_wet_bestuursrecht/beschikking`.
+pub fn is_kind_reference(s: &str) -> bool {
+    let Some((regulation, id)) = s.split_once('/') else {
+        return false;
+    };
+    let word = |w: &str| {
+        !w.is_empty()
+            && w.chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+    };
+    word(regulation) && word(id)
+}
+
+/// A kind that an article defines (schema v0.9.0): a concept of the law that
+/// other regulations can belong to and that a regulation can intervene in,
+/// such as the beschikking of Awb 1:3 lid 2 or the inkomensafhankelijke
+/// regeling of Awir 1 lid 3. The schema knows no kind by name.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct KindDefinition {
+    /// The id, unique within the regulation; referenced as
+    /// `<regulation>/<id>`.
+    pub id: String,
+    /// What the article says the kind is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// The wider kind every member of this kind also belongs to, such as the
+    /// besluit for the beschikking (Awb 1:3 lid 2). A bare id is a kind of
+    /// this regulation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub broader: Option<String>,
+    /// For a kind whose members ask for something, such as the aanvraag of
+    /// Awb 1:3 lid 3 ("een besluit te nemen"): the kind of what they ask for.
+    /// A member says which with `requests`, which is what makes it a
+    /// submission.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requests: Option<String>,
+    /// What the members of the kind are: items an article produces (the
+    /// default) or whole regulations (`regulation`), such as the
+    /// inkomensafhankelijke regeling.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub level: Option<KindLevel>,
+}
+
+/// What the members of a kind are (schema v0.9.0).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum KindLevel {
+    /// Items in `produces`.
+    Item,
+    /// Regulations, through `member_of`.
+    Regulation,
+}
+
+/// A regulation's claim that it belongs to a kind of regulation (schema
+/// v0.9.0), with its own words for it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct KindMembership {
+    /// The kind, as `<regulation>/<id>`.
+    pub kind: String,
+    /// The words of this regulation that make it a member, quoted
+    /// verbatim: the property the kind's definition names.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub legal_text_excerpt: Option<String>,
+    /// The provision of this regulation that declares the membership in so
+    /// many words, such as an opt-in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub legal_basis: Option<ProvisionReference>,
+}
 
 /// One item of `produces` in the list form (schema v0.8.1, RFC-047): a
 /// submission, such as an application, or a decision, each with what it
@@ -459,12 +541,23 @@ pub struct ProducedItem {
     /// The moment that counts in law for this item (RFC-045).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub moment: Option<Moment>,
+    /// Since schema v0.9.0, with a `type` that is a kind: the words of this
+    /// regulation that make the item a member of the kind, quoted verbatim.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub legal_text_excerpt: Option<String>,
 }
 
 impl ProducedItem {
-    /// Whether `type` names a submission kind rather than a legal character.
+    /// Whether this item is a submission. Up to schema v0.8.13: `type` names
+    /// one of [`SUBMISSION_KINDS`]. Since v0.9.0, with a kind as `type`: the
+    /// item names what it asks for with `requests`; the resolver checks that
+    /// its kind is one whose members ask for something.
     pub fn is_submission(&self) -> bool {
-        SUBMISSION_KINDS.contains(&self.item_type.as_str())
+        if is_kind_reference(&self.item_type) {
+            self.requests.is_some()
+        } else {
+            SUBMISSION_KINDS.contains(&self.item_type.as_str())
+        }
     }
 }
 
@@ -1266,6 +1359,11 @@ pub struct HookFilter {
     /// either this or `legal_character`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub submission: Option<String>,
+    /// Since schema v0.9.0, in place of `legal_character` and `submission`:
+    /// match what articles produce of this kind or of a narrower one, as
+    /// `<regulation>/<id>`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
     /// With `submission`: only the submission that this article establishes
     /// (`<regulation>#<article>`, without a paragraph). A hook without it
     /// applies to every submission of the kind.
@@ -1513,13 +1611,34 @@ pub struct Stage {
     /// External inputs required to enter this stage
     #[serde(default)]
     pub requires: Option<Vec<StageRequirement>>,
+    /// Since schema v0.9.0: the kind of what comes into being at this stage,
+    /// such as the aanvraag at the stage where it is submitted or the
+    /// besluit at the stage where it is taken. A hook on a kind without a
+    /// `stage` fires here, and so do the hooks on a submission of the kind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
 }
 
 /// Filter for which legal character a procedure applies to
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProcedureAppliesTo {
-    /// Legal character (e.g., "BESCHIKKING")
-    pub legal_character: String,
+    /// Legal character (e.g., "BESCHIKKING"), up to schema v0.8.13.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub legal_character: Option<String>,
+    /// Since schema v0.9.0: the kind the procedure governs, with every
+    /// narrower kind, as `<regulation>/<id>`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+}
+
+impl ProcedureAppliesTo {
+    /// What the procedure is filed under: its kind, or its legal character.
+    pub fn key(&self) -> &str {
+        self.kind
+            .as_deref()
+            .or(self.legal_character.as_deref())
+            .unwrap_or_default()
+    }
 }
 
 /// A procedure definition — an AWB-defined lifecycle for a legal character (RFC-008)
@@ -1754,6 +1873,9 @@ pub struct MachineReadable {
     /// Document properties this article establishes (schema v0.7.0)
     #[serde(default)]
     pub declares: Option<Vec<Declaration>>,
+    /// Kinds this article defines (schema v0.9.0)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kinds: Option<Vec<KindDefinition>>,
 }
 
 /// Represents a single article in a law
@@ -2113,6 +2235,9 @@ pub struct ArticleBasedLaw {
     /// AWB-defined procedure lifecycles (RFC-008)
     #[serde(default)]
     pub procedure: Option<Vec<ProcedureDefinition>>,
+    /// Kinds of regulation this regulation belongs to (schema v0.9.0)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub member_of: Option<Vec<KindMembership>>,
     /// Aanhef preceding article 1. Carries the "Gelet op"-chain, and the schema
     /// allows it a `machine_readable` section of its own.
     #[serde(default, skip_serializing_if = "Option::is_none")]

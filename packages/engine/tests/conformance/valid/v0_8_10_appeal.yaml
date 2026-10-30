@@ -4,7 +4,7 @@
 # article that decides on the appeal establishes it, as a list item of type
 # BEROEP, and the judgment is an item of type UITSPRAAK. A hook applies to
 # every appeal, and a procedure governs the judgment.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json
 $id: test_conformance_appeal
 regulatory_layer: WET
 publication_date: '2026-10-20'
@@ -15,10 +15,12 @@ url: https://example.invalid/appeal
 procedure:
   - id: beroep
     applies_to:
-      legal_character: UITSPRAAK
+      kind: algemene_wet_bestuursrecht/uitspraak
     stages:
       - name: BEROEP
+        kind: algemene_wet_bestuursrecht/beroep
       - name: UITSPRAAK
+        kind: algemene_wet_bestuursrecht/uitspraak
         requires:
           - name: uitspraak_datum
             type: date
@@ -29,9 +31,9 @@ articles:
     machine_readable:
       execution:
         produces:
-          - type: BEROEP
+          - type: algemene_wet_bestuursrecht/beroep
             requests: test_conformance_appeal#1
-          - type: UITSPRAAK
+          - type: algemene_wet_bestuursrecht/uitspraak
             outputs:
               - beroep_gegrond
         output:
@@ -47,7 +49,7 @@ articles:
       hooks:
         - hook_point: pre_actions
           applies_to:
-            submission: BEROEP
+            kind: algemene_wet_bestuursrecht/beroep
       execution:
         parameters:
           - name: ondertekend
@@ -65,7 +67,7 @@ articles:
       hooks:
         - hook_point: post_actions
           applies_to:
-            legal_character: UITSPRAAK
+            kind: algemene_wet_bestuursrecht/uitspraak
             stage: UITSPRAAK
       execution:
         output:

@@ -341,7 +341,7 @@ fn the_court_records_the_appeal_with_the_copy_it_received() {
         .unwrap();
     let appeal = appealed(&mut court, &copy).unwrap();
 
-    assert_eq!(appeal.kind, "BEROEP");
+    assert_eq!(appeal.kind, "algemene_wet_bestuursrecht/beroep");
     assert_eq!(appeal.basis, "algemene_wet_bestuursrecht#8:70");
     assert_eq!(appeal.refers_to, None);
     assert_eq!(
@@ -405,7 +405,7 @@ fn an_appeal_received_after_the_period_is_inadmissible() {
 fn the_court_annuls_the_decision_and_orders_a_new_one() {
     let case = case(&well_founded());
     let judgment = &case.judgment;
-    assert_eq!(judgment.kind, "UITSPRAAK");
+    assert_eq!(judgment.kind, "algemene_wet_bestuursrecht/uitspraak");
     assert_eq!(judgment.refers_to.as_deref(), Some(case.appeal.id.as_str()));
     assert_eq!(judgment.outputs["beroep_ontvankelijk"], json!(true));
     assert_eq!(judgment.outputs["beroep_gegrond"], json!(true));

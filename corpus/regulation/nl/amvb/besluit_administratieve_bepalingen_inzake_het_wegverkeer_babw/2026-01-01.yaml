@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.8/schema/v0.8.8/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json
 $id: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
 regulatory_layer: AMVB
 publication_date: '2025-10-10'
@@ -1084,7 +1084,7 @@ articles:
         # wat zij bevat en het besluit dat zij vraagt. En het verstrekken of
         # weigeren, een beschikking die de procedure van de Awb volgt.
         produces:
-          - type: AANVRAAG
+          - type: algemene_wet_bestuursrecht/aanvraag
             requests: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
             parameters:
               - bsn_aanvrager
@@ -1096,7 +1096,7 @@ articles:
           # besluit, maar telt niet als uitkomst. Een heroverweging op bezwaar
           # (Awb 7:11) valt op een andere dag; die geeft geen aanleiding
           # alleen omdat de kaart dan later zou aflopen.
-          - type: BESCHIKKING
+          - type: algemene_wet_bestuursrecht/beschikking
             decision_type: TOEKENNING
             outputs:
               - gehandicaptenparkeerkaart_verstrekt

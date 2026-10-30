@@ -30,7 +30,7 @@ use crate::answer::{
 };
 use crate::article::{
     Article, ArticleBasedLaw, CompetentAuthority, Execution, HookPoint, Input, MachineReadable,
-    NamedAuthority, ProcedureDefinition, Stage, StageRequirement,
+    NamedAuthority, ProcedureDefinition, Produced, Stage, StageRequirement,
 };
 use crate::config;
 use crate::context::{LazyInputs, RuleContext};
@@ -187,12 +187,19 @@ struct Bound {
 /// names the stage, and at every other stage those of the decision with
 /// the data derived for it, the outputs it lists under `derived` (RFC-050). `None`,
 /// every output, for an article that produces one thing.
-fn outputs_at_stage<'a>(article: &'a Article, stage: &str) -> Option<Vec<&'a str>> {
+fn outputs_at_stage<'a>(
+    article: &'a Article,
+    stage: &str,
+    receives: impl Fn(&str) -> bool,
+) -> Option<Vec<&'a str>> {
     if !article.produces_list() {
         return None;
     }
     let produced = article.get_produced();
-    if let Some(submission) = produced.iter().find(|p| p.submission_kind() == Some(stage)) {
+    if let Some(submission) = produced.iter().find(|p| {
+        p.submission_kind()
+            .is_some_and(|k| k == stage || receives(k))
+    }) {
         return Some(article.outputs_of(*submission));
     }
     let decision = article.get_decision()?;
@@ -2434,20 +2441,24 @@ impl LawExecutionService {
         else {
             return Ok(None);
         };
-        // In a procedure the hooks wait for the stage named after the kind;
-        // a procedure without that stage would never fire them.
+        // In a procedure the hooks wait for the stage that receives the
+        // kind; a procedure without that stage would never fire them.
         let stage = match self.procedure_of(law_id, article)? {
             None => None,
-            Some(procedure) if procedure.stages.iter().any(|s| s.name == kind) => {
-                Some(kind.clone())
-            }
-            Some(procedure) => {
-                return Err(EngineError::InvalidOperation(format!(
-                    "{law_id} article {article_number} establishes an {kind} and follows \
-                     procedure '{}', which has no stage {kind} for the hooks on it to fire at",
-                    procedure.id
-                )))
-            }
+            Some(procedure) => match procedure
+                .stages
+                .iter()
+                .find(|s| self.stage_receives(s, &kind))
+            {
+                Some(s) => Some(s.name.clone()),
+                None => {
+                    return Err(EngineError::InvalidOperation(format!(
+                        "{law_id} article {article_number} establishes an {kind} and follows \
+                         procedure '{}', which has no stage {kind} for the hooks on it to fire at",
+                        procedure.id
+                    )))
+                }
+            },
         };
         let articles = self.taking_part(law, article, ref_date, |hook_point| {
             self.resolver
@@ -2661,7 +2672,7 @@ impl LawExecutionService {
         self.note_declaration_versions(&mut res_ctx);
         let outputs = outputs
             .map(<[&str]>::to_vec)
-            .or_else(|| outputs_at_stage(article, &stage.name));
+            .or_else(|| outputs_at_stage(article, &stage.name, |k| self.stage_receives(stage, k)));
         let mut result = self.evaluate_article_with_service(
             article,
             law,
@@ -2728,6 +2739,17 @@ impl LawExecutionService {
             }
         }
         articles
+    }
+
+    /// Whether `stage` is the stage at which a submission of kind `kind`
+    /// comes in: the stage named after it (up to schema v0.8.13), or since
+    /// v0.9.0 the stage whose `kind` is the kind or a wider one.
+    fn stage_receives(&self, stage: &Stage, kind: &str) -> bool {
+        stage.name == kind
+            || stage
+                .kind
+                .as_ref()
+                .is_some_and(|k| self.resolver.kind_lineage(kind).contains(k))
     }
 
     /// The procedure that the decision `article` of `law_id` produces
@@ -2910,7 +2932,8 @@ impl LawExecutionService {
         // A stage accumulates the outputs it computes for the stages after
         // it: every output, or for an article that produces several things
         // those of the thing this stage is about (RFC-047).
-        let stage_outputs = outputs_at_stage(article, &stage.name);
+        let stage_outputs =
+            outputs_at_stage(article, &stage.name, |k| self.stage_receives(stage, k));
 
         // Execute the article with stage-aware hook firing.
         let result = self.evaluate_article_with_service(
@@ -3272,10 +3295,24 @@ impl LawExecutionService {
             ),
             None => Vec::new(),
         };
+        let procedure = if staged {
+            self.procedure_of(&law.id, article).ok().flatten()
+        } else {
+            None
+        };
+        let at_its_stage = |kind: &str| {
+            !staged
+                || kind == stage
+                || procedure.is_some_and(|p| {
+                    p.stages
+                        .iter()
+                        .any(|s| s.name == stage && self.stage_receives(s, kind))
+                })
+        };
         if let Some(kind) = article
             .get_submission()
             .and_then(|p| p.submission_kind())
-            .filter(|k| !staged || *k == stage)
+            .filter(|k| at_its_stage(k))
         {
             for h in self
                 .resolver
@@ -6022,6 +6059,31 @@ impl LawExecutionService {
                 format!("{caller} calls the decision of {target}, which takes no decision"),
             );
         };
+        // Schema v0.9.0: a parameter that says of which kind the article it
+        // names must be, such as the tegemoetkoming an aanvraag refers to.
+        if let Some(wanted) = named_by.strip_prefix('$').and_then(|name| {
+            law.articles
+                .iter()
+                .filter(|a| a.get_inputs().iter().any(|i| std::ptr::eq(i, input)))
+                .flat_map(|a| a.get_parameters())
+                .find(|p| p.name == name)
+                .and_then(|p| p.kind.as_deref())
+        }) {
+            let member = article.get_produced().into_iter().any(|p| match p {
+                Produced::Item(i) => self
+                    .resolver
+                    .kind_lineage(&i.item_type)
+                    .iter()
+                    .any(|k| k == wanted),
+                Produced::Object(_) => false,
+            });
+            if !member {
+                return refuse(
+                    res_ctx,
+                    format!("{caller} names {target}, which produces nothing of kind {wanted}"),
+                );
+            }
+        }
         let decided = article.outputs_of(decision);
         let computed: Vec<&str> = match output {
             None => decided.clone(),
@@ -6754,11 +6816,11 @@ articles:
         .unwrap();
         let article = &law.articles[0];
         assert_eq!(
-            outputs_at_stage(article, "AANVRAAG"),
+            outputs_at_stage(article, "AANVRAAG", |_| false),
             Some(vec!["compleet"])
         );
         assert_eq!(
-            outputs_at_stage(article, "BESLUIT"),
+            outputs_at_stage(article, "BESLUIT", |_| false),
             Some(vec!["verleend", "afgeleid"])
         );
     }

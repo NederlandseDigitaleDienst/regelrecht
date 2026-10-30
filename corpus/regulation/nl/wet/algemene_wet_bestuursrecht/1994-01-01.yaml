@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.10/schema/v0.8.10/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json
 $id: algemene_wet_bestuursrecht
 regulatory_layer: WET
 publication_date: '2026-01-01'
@@ -11,10 +11,15 @@ url: https://wetten.overheid.nl/BWBR0005537/2024-01-01
 procedure:
   - id: beschikking
     default: true
+    # De procedure geldt voor de beschikking van artikel 1:3, tweede lid. Elke
+    # stap noemt de soort van wat er ontstaat, als die soort er een is: de
+    # aanvraag (1:3, derde lid) in de stap AANVRAAG, het besluit (1:3, eerste
+    # lid) in de stap BESLUIT. Een hook op een soort zonder stap vuurt daar.
     applies_to:
-      legal_character: BESCHIKKING
+      kind: algemene_wet_bestuursrecht/beschikking
     stages:
       - name: AANVRAAG
+        kind: algemene_wet_bestuursrecht/aanvraag
         description: Belanghebbende dient aanvraag in (AWB 4:1)
         requires:
           - name: aanvraag_datum
@@ -27,6 +32,7 @@ procedure:
             type: date
 
       - name: BESLUIT
+        kind: algemene_wet_bestuursrecht/besluit
         description: Bestuursorgaan neemt besluit (AWB 1:3)
         requires:
           - name: besluit_datum
@@ -39,6 +45,7 @@ procedure:
             type: date
 
       - name: BEZWAAR
+        kind: algemene_wet_bestuursrecht/bezwaar
         description: Bezwaarperiode (AWB 6:4 e.v.)
 
   - id: beroep
@@ -47,12 +54,14 @@ procedure:
     # onder c). Het beroep volgt daarom een eigen procedure.
     default: true
     applies_to:
-      legal_character: UITSPRAAK
+      kind: algemene_wet_bestuursrecht/uitspraak
     stages:
       - name: BEROEP
+        kind: algemene_wet_bestuursrecht/beroep
         description: Belanghebbende stelt beroep in bij de bestuursrechter (AWB 6:4 lid 3, 8:1)
 
       - name: UITSPRAAK
+        kind: algemene_wet_bestuursrecht/uitspraak
         description: De bestuursrechter doet uitspraak (AWB 8:66, 8:70)
         requires:
           - name: uitspraak_datum
@@ -65,6 +74,69 @@ procedure:
             type: date
 
 articles:
+  - number: '1:3'
+    text: |-
+      1 Onder besluit wordt verstaan: een schriftelijke beslissing van een
+      bestuursorgaan, inhoudende een publiekrechtelijke rechtshandeling.
+      2 Onder beschikking wordt verstaan: een besluit dat niet van algemene
+      strekking is, met inbegrip van de afwijzing van een aanvraag daarvan.
+      3 Onder aanvraag wordt verstaan: een verzoek van een belanghebbende, een
+      besluit te nemen.
+      4 Onder beleidsregel wordt verstaan: een bij besluit vastgestelde
+      algemene regel, niet zijnde een algemeen verbindend voorschrift, omtrent
+      de afweging van belangen, de vaststelling van feiten of de uitleg van
+      wettelijke voorschriften bij het gebruik van een bevoegdheid van een
+      bestuursorgaan.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel1:3
+    machine_readable:
+      # Dit artikel vestigt de soorten waarop de Awb ingrijpt. Een bijzondere
+      # wet die een beschikking geeft, zegt dat met `type:
+      # algemene_wet_bestuursrecht/beschikking` in `produces`; de hooks en de
+      # procedure van de Awb vinden haar via die soort. Lid 4 (beleidsregel)
+      # is niet gemodelleerd: geen hook in dit corpus grijpt erop in.
+      kinds:
+        - id: besluit
+          description: >-
+            Een schriftelijke beslissing van een bestuursorgaan, inhoudende een
+            publiekrechtelijke rechtshandeling (lid 1).
+        - id: beschikking
+          broader: besluit
+          description: >-
+            Een besluit dat niet van algemene strekking is, met inbegrip van de
+            afwijzing van een aanvraag daarvan (lid 2).
+        - id: aanvraag
+          requests: besluit
+          description: >-
+            Een verzoek van een belanghebbende, een besluit te nemen (lid 3).
+  - number: '1:5'
+    text: |-
+      1 Onder het maken van bezwaar wordt verstaan: het gebruik maken van de
+      ingevolge een wettelijk voorschrift bestaande bevoegdheid, voorziening
+      tegen een besluit te vragen bij het bestuursorgaan dat het besluit heeft
+      genomen.
+      2 Onder het instellen van administratief beroep wordt verstaan: het
+      gebruik maken van de ingevolge een wettelijk voorschrift bestaande
+      bevoegdheid, voorziening tegen een besluit te vragen bij een ander
+      bestuursorgaan dan hetwelk het besluit heeft genomen.
+      3 Onder het instellen van beroep wordt verstaan: het instellen van
+      administratief beroep, dan wel van beroep bij een bestuursrechter.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel1:5
+    machine_readable:
+      # Het bezwaar vraagt een voorziening bij het bestuursorgaan dat het
+      # besluit nam: de beslissing op bezwaar, zelf een besluit (artikel
+      # 7:11). Het beroep vraagt, bij een bestuursrechter, de uitspraak van
+      # artikel 8:70. Lid 2 (administratief beroep) is niet gemodelleerd.
+      kinds:
+        - id: bezwaar
+          requests: besluit
+          description: >-
+            Voorziening tegen een besluit vragen bij het bestuursorgaan dat het
+            besluit heeft genomen (lid 1).
+        - id: beroep
+          requests: uitspraak
+          description: >-
+            Het instellen van administratief beroep, dan wel van beroep bij een
+            bestuursrechter (lid 3).
   - number: '3:46'
     text: |-
       Een besluit dient te berusten op een deugdelijke motivering.
@@ -73,7 +145,7 @@ articles:
       hooks:
         - hook_point: pre_actions
           applies_to:
-            legal_character: BESCHIKKING
+            kind: algemene_wet_bestuursrecht/besluit
             stage: BESLUIT
       execution:
         output:
@@ -102,7 +174,7 @@ articles:
       hooks:
         - hook_point: pre_actions
           applies_to:
-            submission: AANVRAAG
+            kind: algemene_wet_bestuursrecht/aanvraag
       execution:
         parameters:
           - name: aanvraag_ondertekend
@@ -168,7 +240,7 @@ articles:
       hooks:
         - hook_point: post_actions
           applies_to:
-            submission: AANVRAAG
+            kind: algemene_wet_bestuursrecht/aanvraag
       execution:
         produces:
           moment:
@@ -246,10 +318,10 @@ articles:
       hooks:
         - hook_point: pre_actions
           applies_to:
-            submission: BEZWAAR
+            kind: algemene_wet_bestuursrecht/bezwaar
         - hook_point: pre_actions
           applies_to:
-            submission: BEROEP
+            kind: algemene_wet_bestuursrecht/beroep
       execution:
         parameters:
           - name: bezwaar_of_beroepschrift_ondertekend
@@ -314,7 +386,7 @@ articles:
       hooks:
         - hook_point: post_actions
           applies_to:
-            legal_character: BESCHIKKING
+            kind: algemene_wet_bestuursrecht/besluit
             stage: BESLUIT
       execution:
         output:
@@ -334,7 +406,7 @@ articles:
       hooks:
         - hook_point: post_actions
           applies_to:
-            legal_character: BESCHIKKING
+            kind: algemene_wet_bestuursrecht/besluit
             stage: BEKENDMAKING
       execution:
         parameters:
@@ -389,10 +461,10 @@ articles:
       hooks:
         - hook_point: post_actions
           applies_to:
-            submission: BEZWAAR
+            kind: algemene_wet_bestuursrecht/bezwaar
         - hook_point: post_actions
           applies_to:
-            submission: BEROEP
+            kind: algemene_wet_bestuursrecht/beroep
       execution:
         produces:
           moment:
@@ -499,7 +571,7 @@ articles:
       hooks:
         - hook_point: post_actions
           applies_to:
-            submission: BEZWAAR
+            kind: algemene_wet_bestuursrecht/bezwaar
       execution:
         parameters:
           - name: termijn_einddatum
@@ -546,11 +618,11 @@ articles:
         # een beschikking. Bezwaar tegen een ander besluit is niet
         # gemodelleerd.
         produces:
-          - type: BEZWAAR
+          - type: algemene_wet_bestuursrecht/bezwaar
             requests: algemene_wet_bestuursrecht#7:11
             parameters:
               - bestreden_besluit
-          - type: BESCHIKKING
+          - type: algemene_wet_bestuursrecht/beschikking
             outputs:
               - bezwaar_ontvankelijk
               - heroverweging_geeft_aanleiding
@@ -718,6 +790,12 @@ articles:
       competent_authority:
         name: de bestuursrechter
         type: CATEGORY
+      # Eigen keuze: de soort uitspraak staat hier, in het artikel dat zegt
+      # waartoe zij strekt. De Awb definieert de uitspraak nergens; zij doet
+      # haar (artikel 8:66) en zegt hier wat zij inhoudt.
+      kinds:
+        - id: uitspraak
+          description: De uitspraak van de bestuursrechter op het beroep.
       # De uitspraak op het beroep, zoals artikel 7:11 de beslissing op het
       # bezwaar is (RFC-050). Onder a is niet gemodelleerd: de bevoegdheid
       # (artikelen 8:6 en 8:7) staat niet in dit corpus, dus de
@@ -762,13 +840,13 @@ articles:
         # bestreden besluit. En de uitspraak erop, met wat zij inhoudt. De
         # uitspraak is geen besluit: een orgaan dat met rechtspraak is
         # belast, is geen bestuursorgaan (artikel 1:1, tweede lid, onder c).
-        # Daarom de soort UITSPRAAK, met de procedure beroep hierboven.
+        # Daarom de soort uitspraak, met de procedure beroep hierboven.
         produces:
-          - type: BEROEP
+          - type: algemene_wet_bestuursrecht/beroep
             requests: algemene_wet_bestuursrecht#8:70
             parameters:
               - bestreden_besluit
-          - type: UITSPRAAK
+          - type: algemene_wet_bestuursrecht/uitspraak
             outputs:
               - beroep_ontvankelijk
               - beroep_gegrond

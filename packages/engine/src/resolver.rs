@@ -20,7 +20,8 @@
 //! to prevent memory exhaustion attacks.
 
 use crate::article::{
-    Article, ArticleBasedLaw, HookFilter, HookPoint, LawLoad, OpenTerm, ProcedureDefinition,
+    is_kind_reference, Article, ArticleBasedLaw, HookFilter, HookPoint, KindDefinition, KindLevel,
+    LawLoad, OpenTerm, ProcedureDefinition, Produced,
 };
 use crate::config;
 use crate::error::{EngineError, Result};
@@ -337,7 +338,7 @@ fn declaration_fingerprint(law: &ArticleBasedLaw) -> Vec<String> {
             parts.push(format!(
                 "procedure\0{}\0{}\0{}",
                 proc_def.id,
-                proc_def.applies_to.legal_character,
+                proc_def.applies_to.key(),
                 proc_def.default.unwrap_or(false)
             ));
         }
@@ -355,6 +356,9 @@ fn declaration_fingerprint(law: &ArticleBasedLaw) -> Vec<String> {
                     decl.applies_to.submission,
                     decl.applies_to.established_by
                 ));
+                if let Some(kind) = &decl.applies_to.kind {
+                    parts.push(format!("hook-kind\0{}\0{kind}", article.number));
+                }
             }
         }
         if let Some(overrides) = article.get_overrides() {
@@ -402,11 +406,54 @@ impl HookEntry {
 }
 
 /// What a hook is filed under in the hooks index: the legal character of a
-/// decision (RFC-007) or the kind of a submission (RFC-045).
+/// decision (RFC-007), the kind of a submission (RFC-045), or since schema
+/// v0.9.0 a kind that a regulation defines, which covers both.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum HookTarget {
     Decision(String),
     Submission(String),
+    Kind(String),
+}
+
+/// A kind that an article defines (schema v0.9.0), in the kinds index.
+#[derive(Debug, Clone)]
+pub struct KindEntry {
+    /// The regulation that defines the kind.
+    pub law_id: String,
+    /// The article that defines it.
+    pub article_number: String,
+    /// The definition.
+    pub definition: KindDefinition,
+}
+
+impl KindEntry {
+    /// The wider kind as a full reference: a bare id names a kind of the
+    /// defining regulation.
+    pub fn broader(&self) -> Option<String> {
+        self.definition.broader.as_deref().map(|b| {
+            if is_kind_reference(b) {
+                b.to_string()
+            } else {
+                format!("{}/{b}", self.law_id)
+            }
+        })
+    }
+
+    /// What its members ask for, as a full reference.
+    pub fn requests(&self) -> Option<String> {
+        self.definition.requests.as_deref().map(|r| {
+            if is_kind_reference(r) {
+                r.to_string()
+            } else {
+                format!("{}/{r}", self.law_id)
+            }
+        })
+    }
+
+    /// Whether the members are regulations rather than items.
+    pub fn of_regulations(&self) -> bool {
+        self.definition.level == Some(KindLevel::Regulation)
+    }
 }
 
 /// Resolves cross-law references and provides law registry functionality.
@@ -465,6 +512,9 @@ pub struct RuleResolver {
     procedure_index: HashMap<(String, String), (ProcedureDefinition, String)>,
     /// Maps legal_character -> default procedure_id for that character.
     procedure_defaults: HashMap<String, String>,
+    /// Kinds index (schema v0.9.0): `<regulation>/<id>` -> the defining
+    /// article. Built, like the hooks index, from the newest version.
+    kinds_index: HashMap<String, KindEntry>,
     /// Law ids that have more than one loaded version where the declarations
     /// differ between versions (hooks, overrides, procedures). Kept so
     /// [`Self::declarations_from_another_version`] can answer in O(size of this
@@ -525,6 +575,7 @@ impl RuleResolver {
             overrides_index: HashMap::new(),
             procedure_index: HashMap::new(),
             procedure_defaults: HashMap::new(),
+            kinds_index: HashMap::new(),
             versioned_declarers: HashSet::new(),
         }
     }
@@ -728,6 +779,22 @@ impl RuleResolver {
             };
             for decl in hooks {
                 let f = &decl.applies_to;
+                if f.kind.is_some() {
+                    let problem = if f.legal_character.is_some() || f.submission.is_some() {
+                        Some("a hook on a kind names no legal_character or submission")
+                    } else if !f.kind.as_deref().is_some_and(is_kind_reference) {
+                        Some("applies_to.kind is no reference to a kind (<regulation>/<id>)")
+                    } else {
+                        None
+                    };
+                    if let Some(problem) = problem {
+                        return Err(EngineError::LoadError(format!(
+                            "law '{}' article {}: {problem}",
+                            law.id, article.number
+                        )));
+                    }
+                    continue;
+                }
                 let problem = match (&f.legal_character, &f.submission) {
                     (None, None) => Some(
                         "hook declares neither applies_to.legal_character nor \
@@ -1463,6 +1530,9 @@ impl RuleResolver {
         }
         self.overrides_index.retain(|_, v| !v.is_empty());
 
+        // Remove old kinds defined by this law
+        self.kinds_index.retain(|_, entry| entry.law_id != law_id);
+
         // Remove old procedure index entries defined by this law
         self.procedure_index
             .retain(|_, (_, defining_law)| defining_law != law_id);
@@ -1478,23 +1548,36 @@ impl RuleResolver {
                 // Procedure index (top-level)
                 if let Some(procedures) = &law.procedure {
                     for proc_def in procedures {
-                        let key = (
-                            proc_def.applies_to.legal_character.clone(),
-                            proc_def.id.clone(),
-                        );
+                        let key = (proc_def.applies_to.key().to_string(), proc_def.id.clone());
                         self.procedure_index
                             .insert(key, (proc_def.clone(), law_id.to_string()));
 
                         if proc_def.default.unwrap_or(false) {
-                            self.procedure_defaults.insert(
-                                proc_def.applies_to.legal_character.clone(),
-                                proc_def.id.clone(),
-                            );
+                            self.procedure_defaults
+                                .insert(proc_def.applies_to.key().to_string(), proc_def.id.clone());
                         }
                     }
                 }
 
                 for article in &law.articles {
+                    // Kinds index (schema v0.9.0)
+                    for def in article
+                        .machine_readable
+                        .as_ref()
+                        .and_then(|mr| mr.kinds.as_ref())
+                        .into_iter()
+                        .flatten()
+                    {
+                        self.kinds_index.insert(
+                            format!("{law_id}/{}", def.id),
+                            KindEntry {
+                                law_id: law_id.to_string(),
+                                article_number: article.number.clone(),
+                                definition: def.clone(),
+                            },
+                        );
+                    }
+
                     // Output index
                     if let Some(exec) = article.get_execution_spec() {
                         if let Some(outputs) = &exec.output {
@@ -1538,10 +1621,11 @@ impl RuleResolver {
                     if let Some(hook_decls) = article.get_hooks() {
                         for decl in hook_decls {
                             let f = &decl.applies_to;
-                            let target = match (&f.legal_character, &f.submission) {
-                                (Some(lc), _) => HookTarget::Decision(lc.clone()),
-                                (None, Some(kind)) => HookTarget::Submission(kind.clone()),
-                                (None, None) => continue,
+                            let target = match (&f.kind, &f.legal_character, &f.submission) {
+                                (Some(kind), _, _) => HookTarget::Kind(kind.clone()),
+                                (None, Some(lc), _) => HookTarget::Decision(lc.clone()),
+                                (None, None, Some(kind)) => HookTarget::Submission(kind.clone()),
+                                (None, None, None) => continue,
                             };
                             let entry = HookEntry {
                                 law_id: law_id.to_string(),
@@ -1599,6 +1683,9 @@ impl RuleResolver {
             entries.retain(|r| r.law_id != law_id);
         }
         self.overrides_index.retain(|_, v| !v.is_empty());
+
+        // Remove kinds defined by this law
+        self.kinds_index.retain(|_, entry| entry.law_id != law_id);
 
         // Remove procedure index entries defined by this law
         self.procedure_index
@@ -1693,6 +1780,9 @@ impl RuleResolver {
         decision_type: Option<&str>,
         stage: &str,
     ) -> Vec<&HookEntry> {
+        if is_kind_reference(legal_character) {
+            return self.find_kind_hooks(hook_point, legal_character, decision_type, stage);
+        }
         let key = (
             hook_point,
             HookTarget::Decision(legal_character.to_string()),
@@ -1705,6 +1795,224 @@ impl RuleResolver {
             .iter()
             .filter(|entry| hook_filter_admits(&entry.filter, decision_type, stage))
             .collect()
+    }
+
+    /// The kind `kind` and every wider kind, from narrow to wide (schema
+    /// v0.9.0). A kind that no loaded regulation defines is its own lineage;
+    /// [`Self::validate_kinds`] reports it. A cycle in `broader` ends the
+    /// walk.
+    pub fn kind_lineage(&self, kind: &str) -> Vec<String> {
+        let mut lineage = vec![kind.to_string()];
+        let mut current = self.kinds_index.get(kind);
+        while let Some(entry) = current {
+            let Some(broader) = entry.broader() else {
+                break;
+            };
+            if lineage.contains(&broader) {
+                break;
+            }
+            current = self.kinds_index.get(&broader);
+            lineage.push(broader);
+        }
+        lineage
+    }
+
+    /// The kind `kind` as an article defines it (schema v0.9.0).
+    pub fn kind(&self, kind: &str) -> Option<&KindEntry> {
+        self.kinds_index.get(kind)
+    }
+
+    /// The stage of the procedure that governs `kind` at which an item of
+    /// that kind comes into being: the stage whose `kind` is the kind or a
+    /// wider one. `None` when no procedure governs the kind.
+    fn establishing_stage(&self, kind: &str) -> Option<&str> {
+        let lineage = self.kind_lineage(kind);
+        let procedure = self.find_procedure(kind, None)?;
+        procedure
+            .stages
+            .iter()
+            .find(|s| s.kind.as_ref().is_some_and(|k| lineage.contains(k)))
+            .map(|s| s.name.as_str())
+    }
+
+    /// The hooks on an item of kind `kind` at this stage (schema v0.9.0):
+    /// those on the kind and on every wider kind. A hook without a `stage`
+    /// fires at the stage where the item comes into being, or on every run
+    /// when no procedure governs the kind.
+    fn find_kind_hooks(
+        &self,
+        hook_point: HookPoint,
+        kind: &str,
+        decision_type: Option<&str>,
+        stage: &str,
+    ) -> Vec<&HookEntry> {
+        let establishing = self.establishing_stage(kind);
+        let mut found: Vec<&HookEntry> = Vec::new();
+        for k in self.kind_lineage(kind) {
+            let Some(entries) = self.hooks_index.get(&(hook_point, HookTarget::Kind(k))) else {
+                continue;
+            };
+            for entry in entries {
+                let at_stage = match entry.filter.stage.as_deref() {
+                    Some(s) => s == stage,
+                    None => establishing.is_none_or(|e| e == stage),
+                };
+                let of_type = entry
+                    .filter
+                    .decision_type
+                    .as_deref()
+                    .is_none_or(|dt| decision_type == Some(dt));
+                if at_stage
+                    && of_type
+                    && !found.iter().any(|h| {
+                        h.law_id == entry.law_id && h.article_number == entry.article_number
+                    })
+                {
+                    found.push(entry);
+                }
+            }
+        }
+        found
+    }
+
+    /// What is wrong with the kinds in the loaded laws (schema v0.9.0): a
+    /// reference to a kind no loaded regulation defines, a cycle in
+    /// `broader`, an item whose `requests` does not match whether its kind
+    /// asks for something, a membership at the wrong level, and an excerpt
+    /// that is not in the regulation's text. One line per finding.
+    pub fn validate_kinds(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+        let normalize = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
+        for (key, entry) in &self.kinds_index {
+            if let Some(b) = entry.broader() {
+                if !self.kinds_index.contains_key(&b) {
+                    errors.push(format!("kind {key}: broader kind {b} is defined nowhere"));
+                }
+                if self.kind_lineage(&b).contains(key) {
+                    errors.push(format!("kind {key}: broader kinds form a cycle"));
+                }
+            }
+            if let Some(r) = entry.requests() {
+                if !self.kinds_index.contains_key(&r) {
+                    errors.push(format!("kind {key}: requested kind {r} is defined nowhere"));
+                }
+            }
+        }
+        let mut ids: Vec<&String> = self.law_versions.keys().collect();
+        ids.sort();
+        for id in ids {
+            let Some(law) = self.get_law(id) else {
+                continue;
+            };
+            let text = normalize(
+                &law.articles
+                    .iter()
+                    .map(|a| a.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            );
+            let excerpt_ok = |e: &str| text.contains(&normalize(e));
+            for m in law.member_of.iter().flatten() {
+                match self.kinds_index.get(&m.kind) {
+                    None => errors.push(format!("{id}: member_of {} is defined nowhere", m.kind)),
+                    Some(entry) if !entry.of_regulations() => errors.push(format!(
+                        "{id}: member_of {} names a kind of items, not of regulations",
+                        m.kind
+                    )),
+                    Some(_) => {}
+                }
+                match (&m.legal_text_excerpt, &m.legal_basis) {
+                    (None, None) => errors.push(format!(
+                        "{id}: member_of {} quotes no words of {id} and cites no provision",
+                        m.kind
+                    )),
+                    (Some(e), _) if !excerpt_ok(e) => errors.push(format!(
+                        "{id}: member_of {}: the excerpt is not in the text of {id}",
+                        m.kind
+                    )),
+                    _ => {}
+                }
+            }
+            for article in &law.articles {
+                for item in article.get_produced().into_iter().filter_map(|p| match p {
+                    Produced::Item(i) => Some(i),
+                    Produced::Object(_) => None,
+                }) {
+                    if !is_kind_reference(&item.item_type) {
+                        continue;
+                    }
+                    let at = format!("{id} article {}", article.number);
+                    let Some(entry) = self.kinds_index.get(&item.item_type) else {
+                        errors.push(format!("{at}: kind {} is defined nowhere", item.item_type));
+                        continue;
+                    };
+                    if entry.of_regulations() {
+                        errors.push(format!(
+                            "{at}: kind {} is a kind of regulations, not of items",
+                            item.item_type
+                        ));
+                    }
+                    let asks = self.kind_lineage(&item.item_type).iter().any(|k| {
+                        self.kinds_index
+                            .get(k)
+                            .is_some_and(|e| e.requests().is_some())
+                    });
+                    match (asks, item.requests.is_some()) {
+                        (true, false) => errors.push(format!(
+                            "{at}: a {} asks for something, so the item names it with `requests`",
+                            item.item_type
+                        )),
+                        (false, true) => errors.push(format!(
+                            "{at}: a {} asks for nothing, so the item has no `requests`",
+                            item.item_type
+                        )),
+                        _ => {}
+                    }
+                    if let Some(e) = &item.legal_text_excerpt {
+                        if !excerpt_ok(e) {
+                            errors.push(format!("{at}: the excerpt is not in the text of {id}"));
+                        }
+                    }
+                }
+                for p in article.get_parameters() {
+                    if let Some(k) = &p.kind {
+                        if !self.kinds_index.contains_key(k) {
+                            errors.push(format!(
+                                "{id} article {}: parameter {} of kind {k}, which is defined nowhere",
+                                article.number, p.name
+                            ));
+                        }
+                    }
+                }
+                for decl in article.get_hooks().into_iter().flatten() {
+                    if let Some(k) = &decl.applies_to.kind {
+                        if !self.kinds_index.contains_key(k) {
+                            errors.push(format!(
+                                "{id} article {}: hook on kind {k}, which is defined nowhere",
+                                article.number
+                            ));
+                        }
+                    }
+                }
+            }
+            for proc_def in law.procedure.iter().flatten() {
+                for k in proc_def
+                    .applies_to
+                    .kind
+                    .iter()
+                    .chain(proc_def.stages.iter().filter_map(|s| s.kind.as_ref()))
+                {
+                    if !self.kinds_index.contains_key(k) {
+                        errors.push(format!(
+                            "{id} procedure {}: kind {k} is defined nowhere",
+                            proc_def.id
+                        ));
+                    }
+                }
+            }
+        }
+        errors.sort();
+        errors
     }
 
     /// Find the hooks at `hook_point` on a submission of `kind` that article
@@ -1720,13 +2028,22 @@ impl RuleResolver {
         law_id: &str,
         article_number: &str,
     ) -> Vec<&HookEntry> {
-        let key = (hook_point, HookTarget::Submission(kind.to_string()));
-        let Some(entries) = self.hooks_index.get(&key) else {
-            return Vec::new();
+        let targets: Vec<HookTarget> = if is_kind_reference(kind) {
+            self.kind_lineage(kind)
+                .into_iter()
+                .map(HookTarget::Kind)
+                .collect()
+        } else {
+            vec![HookTarget::Submission(kind.to_string())]
         };
+        let entries: Vec<&HookEntry> = targets
+            .into_iter()
+            .filter_map(|target| self.hooks_index.get(&(hook_point, target)))
+            .flatten()
+            .collect();
         let mut hooks: Vec<&HookEntry> = Vec::new();
         for e in entries
-            .iter()
+            .into_iter()
             .filter(|e| submission_filter_admits(&e.filter, law_id, article_number))
         {
             // An article with two matching hooks at this point (one on every
@@ -1793,6 +2110,25 @@ impl RuleResolver {
         legal_character: &str,
         procedure_id: Option<&str>,
     ) -> std::result::Result<&ProcedureDefinition, ProcedureMiss> {
+        // A kind is governed by the procedure of the narrowest kind in its
+        // lineage that has one (schema v0.9.0).
+        let governing;
+        let legal_character = if is_kind_reference(legal_character) {
+            governing = self
+                .kind_lineage(legal_character)
+                .into_iter()
+                .find(|k| {
+                    self.procedure_defaults.contains_key(k)
+                        || procedure_id.is_some_and(|id| {
+                            self.procedure_index
+                                .contains_key(&(k.clone(), id.to_string()))
+                        })
+                })
+                .unwrap_or_else(|| legal_character.to_string());
+            governing.as_str()
+        } else {
+            legal_character
+        };
         let (proc_id, named) = match procedure_id {
             Some(id) => (id.to_string(), true),
             None => match self.procedure_defaults.get(legal_character) {
@@ -5027,5 +5363,310 @@ articles:
                 )
             );
         }
+    }
+
+    /// A rulework that defines kinds: a besluit, a beschikking under it, an
+    /// aanvraag that asks for one, a kind of regulations and a kind of items.
+    /// Article 2 is the procedure-free home of the hooks a test adds.
+    fn kinds_law(extra_articles: &str) -> String {
+        format!(
+            r#"
+$id: soortenwet
+regulatory_layer: WET
+publication_date: '2025-01-01'
+procedure:
+  - id: besluitprocedure
+    default: true
+    applies_to:
+      kind: soortenwet/besluit
+    stages:
+      - name: VOORBEREIDING
+      - name: GENOMEN
+        kind: soortenwet/besluit
+      - name: BEKEND
+  - id: bijzondere_procedure
+    applies_to:
+      kind: soortenwet/besluit
+    stages:
+      - name: GENOMEN
+articles:
+  - number: '1'
+    text: Begrippen.
+    machine_readable:
+      kinds:
+        - id: besluit
+        - id: beschikking
+          broader: besluit
+        - id: aanvraag
+          requests: besluit
+        - id: regeling
+          level: regulation
+        - id: bijdrage
+{extra_articles}"#
+        )
+    }
+
+    fn hook_article(number: &str, applies_to: &str) -> String {
+        format!(
+            r#"  - number: '{number}'
+    text: Een hook.
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            {applies_to}
+      execution:
+        output:
+          - name: uit_{number}
+            type: number
+        actions:
+          - output: uit_{number}
+            value: 1
+"#
+        )
+    }
+
+    fn kinds_resolver(extra_articles: &str) -> RuleResolver {
+        let mut resolver = RuleResolver::new();
+        resolver.load_from_yaml(&kinds_law(extra_articles)).unwrap();
+        resolver
+    }
+
+    fn fired(resolver: &RuleResolver, dt: Option<&str>, stage: &str) -> Vec<String> {
+        resolver
+            .find_hooks(HookPoint::PostActions, "soortenwet/beschikking", dt, stage)
+            .iter()
+            .map(|h| format!("{}#{}", h.law_id(), h.article_number()))
+            .collect()
+    }
+
+    #[test]
+    fn a_hook_on_a_kind_without_stage_fires_where_the_item_comes_into_being() {
+        let r = kinds_resolver(&hook_article("2", "kind: soortenwet/besluit"));
+        assert_eq!(fired(&r, None, "GENOMEN"), vec!["soortenwet#2"]);
+        assert!(fired(&r, None, "VOORBEREIDING").is_empty());
+    }
+
+    #[test]
+    fn a_hook_on_a_kind_with_a_stage_fires_at_that_stage_only() {
+        let r = kinds_resolver(&hook_article(
+            "2",
+            "kind: soortenwet/besluit\n            stage: BEKEND",
+        ));
+        assert_eq!(fired(&r, None, "BEKEND"), vec!["soortenwet#2"]);
+        assert!(fired(&r, None, "GENOMEN").is_empty());
+    }
+
+    #[test]
+    fn a_hook_on_a_kind_narrows_by_decision_type() {
+        let r = kinds_resolver(&hook_article(
+            "2",
+            "kind: soortenwet/besluit\n            decision_type: TOEKENNING",
+        ));
+        assert_eq!(
+            fired(&r, Some("TOEKENNING"), "GENOMEN"),
+            vec!["soortenwet#2"]
+        );
+        assert!(fired(&r, Some("AFWIJZING"), "GENOMEN").is_empty());
+    }
+
+    /// One article with hooks on a kind and on the wider kind fires once;
+    /// another article of the law, and the same number in another law, each
+    /// fire too.
+    #[test]
+    fn hooks_on_a_lineage_come_back_once_per_article() {
+        let both = format!(
+            "{}{}",
+            hook_article("2", "kind: soortenwet/besluit"),
+            hook_article("3", "kind: soortenwet/besluit"),
+        )
+        .replace(
+            "        - hook_point: post_actions\n          applies_to:\n            kind: soortenwet/besluit\n      execution:\n        output:\n          - name: uit_2",
+            "        - hook_point: post_actions\n          applies_to:\n            kind: soortenwet/beschikking\n        - hook_point: post_actions\n          applies_to:\n            kind: soortenwet/besluit\n      execution:\n        output:\n          - name: uit_2",
+        );
+        let mut r = kinds_resolver(&both);
+        r.load_from_yaml(&format!(
+            "$id: anderewet\nregulatory_layer: WET\npublication_date: '2025-01-01'\narticles:\n{}",
+            hook_article("2", "kind: soortenwet/besluit")
+        ))
+        .unwrap();
+        let mut hooks = fired(&r, None, "GENOMEN");
+        hooks.sort();
+        assert_eq!(hooks, vec!["anderewet#2", "soortenwet#2", "soortenwet#3"]);
+    }
+
+    #[test]
+    fn a_named_procedure_on_a_wider_kind_governs_a_narrower_one() {
+        let r = kinds_resolver("");
+        let found = r
+            .find_procedure("soortenwet/beschikking", Some("bijzondere_procedure"))
+            .unwrap();
+        assert_eq!(found.id, "bijzondere_procedure");
+    }
+
+    #[test]
+    fn a_hook_on_a_kind_names_nothing_else() {
+        for other in ["legal_character: BESCHIKKING", "submission: AANVRAAG"] {
+            let filter = format!("kind: soortenwet/besluit\n            {other}");
+            let mut r = RuleResolver::new();
+            let e = r
+                .load_from_yaml(&kinds_law(&hook_article("2", &filter)))
+                .unwrap_err();
+            assert!(e.to_string().contains("names no legal_character"), "{e}");
+        }
+    }
+
+    #[test]
+    fn unloading_a_law_removes_its_kinds_and_no_others() {
+        let mut r = kinds_resolver("");
+        r.load_from_yaml(
+            "$id: anderewet\nregulatory_layer: WET\npublication_date: '2025-01-01'\narticles:\n  - number: '1'\n    text: Begrip.\n    machine_readable:\n      kinds:\n        - id: eigen\n",
+        )
+        .unwrap();
+        assert!(r.unload_law("anderewet"));
+        assert!(r.kind("anderewet/eigen").is_none());
+        assert!(r.kind("soortenwet/besluit").is_some());
+    }
+
+    /// A law with one produces item in article 2, for `validate_kinds`.
+    fn with_item(item: &str) -> RuleResolver {
+        kinds_resolver(&format!(
+            r#"  - number: '2'
+    text: De minister kent een bijdrage toe.
+    machine_readable:
+      execution:
+        produces:
+          - {item}
+        output:
+          - name: x
+            type: number
+        actions:
+          - output: x
+            value: 1
+"#
+        ))
+    }
+
+    fn findings_contain(r: &RuleResolver, wanted: &str) {
+        let findings = r.validate_kinds();
+        assert!(findings.iter().any(|f| f.contains(wanted)), "{findings:?}");
+    }
+
+    #[test]
+    fn valid_kinds_have_no_findings() {
+        let r = with_item("type: soortenwet/bijdrage");
+        assert_eq!(r.validate_kinds(), Vec::<String>::new());
+    }
+
+    #[test]
+    fn an_item_of_an_unknown_kind_is_a_finding() {
+        findings_contain(
+            &with_item("type: soortenwet/onbekend"),
+            "is defined nowhere",
+        );
+    }
+
+    #[test]
+    fn an_item_of_a_kind_of_regulations_is_a_finding() {
+        findings_contain(
+            &with_item("type: soortenwet/regeling"),
+            "a kind of regulations",
+        );
+    }
+
+    #[test]
+    fn a_submission_names_what_it_asks_and_nothing_else_does() {
+        findings_contain(
+            &with_item("type: soortenwet/aanvraag"),
+            "so the item names it with `requests`",
+        );
+        findings_contain(
+            &with_item("type: soortenwet/bijdrage\n            requests: anderewet#1\n            outputs: [x]"),
+            "so the item has no `requests`",
+        );
+    }
+
+    #[test]
+    fn an_item_excerpt_must_be_in_the_text() {
+        let quoted = with_item(
+            "type: soortenwet/bijdrage\n            legal_text_excerpt: kent een bijdrage toe",
+        );
+        assert_eq!(quoted.validate_kinds(), Vec::<String>::new());
+        findings_contain(
+            &with_item("type: soortenwet/bijdrage\n            legal_text_excerpt: staat er niet"),
+            "the excerpt is not in the text",
+        );
+    }
+
+    #[test]
+    fn a_type_that_is_no_kind_is_left_alone() {
+        let r = with_item("type: BESCHIKKING");
+        assert_eq!(r.validate_kinds(), Vec::<String>::new());
+    }
+
+    fn with_membership(claim: &str) -> RuleResolver {
+        kinds_resolver("  - number: '2'\n    text: De bijdrage hangt af van de draagkracht.\n")
+            .with_law(&format!(
+                "$id: lidwet\nregulatory_layer: WET\npublication_date: '2025-01-01'\nmember_of:\n  - {claim}\narticles:\n  - number: '1'\n    text: De bijdrage hangt af van de draagkracht.\n"
+            ))
+    }
+
+    impl RuleResolver {
+        fn with_law(mut self, yaml: &str) -> Self {
+            self.load_from_yaml(yaml).unwrap();
+            self
+        }
+    }
+
+    #[test]
+    fn a_membership_quotes_its_own_text() {
+        let good = with_membership(
+            "kind: soortenwet/regeling\n    legal_text_excerpt: hangt af van de draagkracht",
+        );
+        assert_eq!(good.validate_kinds(), Vec::<String>::new());
+        findings_contain(
+            &with_membership("kind: soortenwet/regeling\n    legal_text_excerpt: iets anders"),
+            "the excerpt is not in the text",
+        );
+        findings_contain(
+            &with_membership("kind: soortenwet/regeling"),
+            "quotes no words",
+        );
+    }
+
+    #[test]
+    fn a_membership_names_a_kind_of_regulations() {
+        findings_contain(
+            &with_membership("kind: soortenwet/bijdrage\n    legal_text_excerpt: draagkracht"),
+            "names a kind of items",
+        );
+        findings_contain(
+            &with_membership("kind: soortenwet/onbekend\n    legal_text_excerpt: draagkracht"),
+            "is defined nowhere",
+        );
+    }
+
+    #[test]
+    fn broader_kinds_must_exist_and_not_circle() {
+        let cycle = r#"
+$id: kringwet
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Begrippen.
+    machine_readable:
+      kinds:
+        - id: a
+          broader: b
+        - id: b
+          broader: a
+        - id: c
+          broader: weg
+"#;
+        let mut r = RuleResolver::new();
+        r.load_from_yaml(cycle).unwrap();
+        findings_contain(&r, "broader kinds form a cycle");
+        findings_contain(&r, "broader kind kringwet/weg is defined nowhere");
     }
 }

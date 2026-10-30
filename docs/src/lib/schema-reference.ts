@@ -683,7 +683,7 @@ export function otherSubStructures(): Record<string, SubStructure[]> {
 
   return {
     'law-file': [
-      ...expandInline(schema, '', ['preamble', 'procedure']),
+      ...expandInline(schema, '', ['preamble', 'procedure', 'member_of']),
     ],
     articles: expandInline(article, 'articles[].', ['placement', 'references']),
     procedure: expandInline(
@@ -1038,12 +1038,12 @@ export function legalBasisFields(): Field[] {
 }
 
 /**
- * A string definition (`articleReference`, `variableReference`): no field
+ * A string definition (`articleReference`, `kindReference`, `variableReference`): no field
  * table, only the description and the pattern. Each has its own section
  * because a field links to it (`established_by`, `parameters_from`).
  */
 export function stringDefinition(
-  name: 'articleReference' | 'variableReference',
+  name: 'articleReference' | 'kindReference' | 'variableReference',
 ): { description: string; pattern: string } {
   const node = defs[name] ?? {};
   return {
@@ -1121,6 +1121,7 @@ export function referenceHeadings(): { depth: number; slug: string; text: string
   }
   h(3, 'legal-basis', 'Legal basis');
   h(3, 'article-reference', 'Article reference');
+  h(3, 'kind-reference', 'Kind reference');
   h(3, 'variable-reference', 'Variable reference');
 
   // Everything otherSubStructures() renders, at the depth the component uses.

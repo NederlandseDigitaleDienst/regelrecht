@@ -1028,7 +1028,7 @@ fn handelt_op(ander: &Regelwerk, werk: &Regelwerk) -> bool {
             werk.artikelen().any(|a| {
                 a.get_produced()
                     .into_iter()
-                    .any(|x| x.legal_character() == Some(p.applies_to.legal_character.as_str()))
+                    .any(|x| x.legal_character() == Some(p.applies_to.key()))
             })
         });
     vult || haakt || procedure

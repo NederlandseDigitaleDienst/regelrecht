@@ -2,7 +2,7 @@
 # Tier C: an objection as a kind of submission (schema v0.8.3, RFC-050). The
 # article that decides on the objection establishes it, as a list item of
 # type BEZWAAR, and a hook applies to every objection.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json
 $id: test_conformance_objection
 regulatory_layer: WET
 publication_date: '2026-10-14'
@@ -17,9 +17,9 @@ articles:
     machine_readable:
       execution:
         produces:
-          - type: BEZWAAR
+          - type: algemene_wet_bestuursrecht/bezwaar
             requests: test_conformance_objection#1
-          - type: BESCHIKKING
+          - type: algemene_wet_bestuursrecht/beschikking
             outputs:
               - bestreden_besluit_herroepen
         output:
@@ -35,7 +35,7 @@ articles:
       hooks:
         - hook_point: pre_actions
           applies_to:
-            submission: BEZWAAR
+            kind: algemene_wet_bestuursrecht/bezwaar
       execution:
         parameters:
           - name: ondertekend
