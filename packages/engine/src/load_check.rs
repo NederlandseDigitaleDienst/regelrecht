@@ -501,10 +501,21 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
             types.push(ty);
         }
         for item in &produced {
+            let also = item.also_requests();
+            if !also.is_empty() && item.requests().is_none() {
+                return refuse(
+                    "lists also_requests without requests; a submission requests its own \
+                     decision first"
+                        .to_string(),
+                );
+            }
+            if let Some(twice) = also.iter().find(|t| Some(t.as_str()) == item.requests()) {
+                return refuse(format!("requests '{twice}' under also_requests as well"));
+            }
             let targets = item
                 .requests()
                 .into_iter()
-                .chain(item.also_requests().iter().map(String::as_str));
+                .chain(also.iter().map(String::as_str));
             for target in targets {
                 if item.submission_kind().is_none() {
                     return refuse(format!(
@@ -1015,8 +1026,16 @@ articles:
                 "which takes no decision",
             ),
             (
-                "          - type: AANVRAAG\n            also_requests: [lijst#2]\n          - type: BESCHIKKING",
+                "          - type: AANVRAAG\n            requests: lijst#1\n            also_requests: [lijst#2]\n          - type: BESCHIKKING",
                 "this law has no article 2",
+            ),
+            (
+                "          - type: AANVRAAG\n            also_requests: [lijst#1]\n          - type: BESCHIKKING",
+                "without requests",
+            ),
+            (
+                "          - type: AANVRAAG\n            requests: lijst#1\n            also_requests: [lijst#1]\n          - type: BESCHIKKING",
+                "under also_requests as well",
             ),
             (
                 "          - type: AANVRAAG\n            parameters: [p]",

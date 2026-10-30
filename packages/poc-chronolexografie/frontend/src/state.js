@@ -327,8 +327,10 @@ export function dossier(aanvraag) {
 export function geldendBesluit(aanvraag) {
   const besluiten = dossier(aanvraag)
     .map((s) => s.gram)
-    .filter((g) => besluitBases().includes(g.basis) && g.refers_to);
-  return besluiten.filter((b) => !herroepen(b)).at(-1) ?? null;
+    .filter((g) => g.refers_to && !herroepen(g));
+  // Het gevraagde besluit gaat voor op een besluit waartoe de aanvraag ook leidt.
+  const onder = besluitBases().map((basis) => besluiten.filter((g) => g.basis === basis).at(-1));
+  return onder.find(Boolean) ?? null;
 }
 
 /**

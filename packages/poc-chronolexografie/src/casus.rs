@@ -726,6 +726,26 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
         cells.get(1..).unwrap_or_default(),
     )?;
 
+    let besluiten = besluiten(regelwerken, &casus.id, law, article)?;
+    if let Some((basis, uitkomst)) = casus.uitkomst_per_besluit.iter().find(|(basis, uitkomst)| {
+        !besluiten.contains(basis)
+            || !basis.split_once('#').is_some_and(|(l, a)| {
+                regelwerken.get(l).is_some_and(|w| {
+                    w.artikelen().any(|x| {
+                        x.number == a
+                            && x.get_decision()
+                                .is_some_and(|d| x.outputs_of(d).contains(&uitkomst.as_str()))
+                    })
+                })
+            })
+    }) {
+        return Err(Error::Setup(format!(
+            "case '{}': uitkomst_per_besluit names '{uitkomst}' for {basis}, which is no output \
+             of a decision the application leads to",
+            casus.id
+        )));
+    }
+
     let werk = regelwerken
         .get(&decision_law)
         .ok_or_else(|| Error::Setup(format!("'{decision_law}' is not in the corpus")))?;
@@ -739,7 +759,7 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
     Ok(Afleiding {
         law: law.to_string(),
         article: article.to_string(),
-        besluiten: besluiten(regelwerken, &casus.id, law, article)?,
+        besluiten,
         decision_law,
         decision,
         objection_law,

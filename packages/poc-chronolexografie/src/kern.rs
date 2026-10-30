@@ -3829,18 +3829,35 @@ mod tests {
             "is_verzekerde": true,
             "vermogen_onder_grens": true,
         }));
-        besluiten_onder(&corpus, &mut cell, &app.id, VOORSCHOT, &oordelen, op).unwrap();
+        let voorschot =
+            besluiten_onder(&corpus, &mut cell, &app.id, VOORSCHOT, &oordelen, op).unwrap();
         assert!(matches!(
             besluiten_onder(&corpus, &mut cell, &app.id, VOORSCHOT, &oordelen, op),
             Err(Error::Refused(_))
         ));
-        let toekenning = besluiten(&corpus, &mut cell, &app.id, &oordelen, op).unwrap();
+        // On an objection the form asks the same values again: the advance
+        // reaches the named article through art. 14.
+        let bezwaar = bezwaren(
+            &corpus,
+            &mut cell,
+            &voorschot.besluit.id,
+            &bezwaar_velden("2025-01-10"),
+            day("2025-01-10"),
+        )
+        .unwrap();
+        let heroverweging = heroverweging(&corpus, &cell, &bezwaar.id, day("2025-01-20")).unwrap();
+        assert_eq!(
+            namen(heroverweging["bevindingen"].as_array().unwrap()).len(),
+            5
+        );
+        let later = day("2025-01-20");
+        let toekenning = besluiten(&corpus, &mut cell, &app.id, &oordelen, later).unwrap();
         assert_eq!(
             toekenning.besluit.outputs["tegemoetkomingbedrag"],
             json!(157700)
         );
         assert!(matches!(
-            besluiten_onder(&corpus, &mut cell, &app.id, "wet#1", &oordelen, op),
+            besluiten_onder(&corpus, &mut cell, &app.id, "wet#1", &oordelen, later),
             Err(Error::Refused(_))
         ));
     }

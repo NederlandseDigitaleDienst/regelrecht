@@ -1160,7 +1160,7 @@ articles:
       # Op dezelfde aanvraag verleent de Dienst ook het voorschot: artikel 16,
       # eerste lid, geeft het aan de belanghebbende "die een aanvraag voor een
       # tegemoetkoming indient" (also_requests). Het voorschot staat op
-      # zichzelf: de toekenning wacht op de aanslag.
+      # zichzelf: de toekenning volgt later (artikel 19).
       execution:
         produces:
           - type: AANVRAAG

@@ -35,7 +35,7 @@ uitkomst_per_besluit:
 # bevindingen, onder de namen die dat artikel vraagt. Het bedrag volgt uit dat
 # artikel en de standaardpremie voor 2025. Tegen het voorschot staat bezwaar
 # open. De toekenning (Awir artikel 14) staat op dezelfde aanvraag open; zij
-# wacht op de aanslag, en de scenario's spelen haar niet. De betaling in
+# volgt later (Awir artikel 19), en de scenario's spelen haar niet. De betaling in
 # termijnen speelt deze casus nog niet na.
 
 # Wat de bezoeker leest.
@@ -86,7 +86,7 @@ scenarios:
         verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
       - stap: besluit
         artikel: algemene_wet_inkomensafhankelijke_regelingen#16
-        tekst: Klik onder Open aanvragen bij het voorschot op Besluit nemen.
+        tekst: 'Klik onder Open aanvragen op Besluit nemen: Awir artikel 16.'
         verhaal: >-
           De Dienst verwacht een inkomen van € 25.000 en vindt een
           zorgverzekering.
@@ -103,7 +103,7 @@ scenarios:
         verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
       - stap: besluit
         artikel: algemene_wet_inkomensafhankelijke_regelingen#16
-        tekst: Klik onder Open aanvragen bij het voorschot op Besluit nemen.
+        tekst: 'Klik onder Open aanvragen op Besluit nemen: Awir artikel 16.'
         verhaal: De Dienst vindt geen zorgverzekering voor 2025.
         invoer:
           is_verzekerde: false
@@ -120,7 +120,7 @@ scenarios:
         verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
       - stap: besluit
         artikel: algemene_wet_inkomensafhankelijke_regelingen#16
-        tekst: Klik onder Open aanvragen bij het voorschot op Besluit nemen.
+        tekst: 'Klik onder Open aanvragen op Besluit nemen: Awir artikel 16.'
         verhaal: De Dienst verwacht een inkomen van € 45.000.
         invoer:
           toetsingsinkomen: 4500000
@@ -152,7 +152,7 @@ scenarios:
         verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
       - stap: besluit
         artikel: algemene_wet_inkomensafhankelijke_regelingen#16
-        tekst: Klik onder Open aanvragen bij het voorschot op Besluit nemen.
+        tekst: 'Klik onder Open aanvragen op Besluit nemen: Awir artikel 16.'
         verhaal: De Dienst beslist op de aanvraag.
         uitkomst: toegewezen
         gezien: 'Toegewezen: het voorschot is € 1.577.'

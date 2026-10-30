@@ -18,7 +18,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "story": "De Dienst verwacht een inkomen van € 25.000 en vindt een zorgverzekering.",
-    "todo": "Klik onder Open aanvragen bij het voorschot op Besluit nemen.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen: Awir artikel 16.",
     "values": [],
     "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
@@ -44,7 +44,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "story": "De Dienst vindt geen zorgverzekering voor 2025.",
-    "todo": "Klik onder Open aanvragen bij het voorschot op Besluit nemen.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen: Awir artikel 16.",
     "values": [
      "is verzekerde: Nee"
     ],
@@ -72,7 +72,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "story": "De Dienst verwacht een inkomen van € 45.000.",
-    "todo": "Klik onder Open aanvragen bij het voorschot op Besluit nemen.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen: Awir artikel 16.",
     "values": [
      "toetsingsinkomen: 4500000"
     ],
@@ -122,7 +122,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "story": "De Dienst beslist op de aanvraag.",
-    "todo": "Klik onder Open aanvragen bij het voorschot op Besluit nemen.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen: Awir artikel 16.",
     "values": [],
     "seen": "Toegewezen: het voorschot is € 1.577.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
