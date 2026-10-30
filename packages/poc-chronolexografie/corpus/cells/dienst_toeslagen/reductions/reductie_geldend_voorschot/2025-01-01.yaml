@@ -1,0 +1,130 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$id: reductie_geldend_voorschot
+regulatory_layer: REDUCTIE
+publication_date: '2024-12-01'
+valid_from: '2025-01-01'
+# Geen regelgeving: een reductie van de Dienst Toeslagen over zijn eigen
+# kroniek (RFC-022 §4.1, RFC-048). Ze zoekt het voorschot dat geldt. Welke
+# besluiten onder artikel 16 van de Awir gelden, vraagt zij aan de reductie
+# van de Awb (reductie_algemene_wet_bestuursrecht), die uit dezelfde kroniek
+# leest: een voorschot dat een beslissing op bezwaar herriep, geldt niet
+# meer, het voorschot dat zij in de plaats nam wel. De cel van de Dienst
+# geeft haar uitvoer als de antwoorden geldend_voorschotbedrag,
+# dagtekening_geldend_voorschot en voorschot_voor_het_eerst_verleend
+# (cel.yaml, answers). Artikel 2 van het beleid van de Dienst
+# (beleid_zorgtoeslag_dienst_toeslagen) betaalt er de termijnen op uit. Er
+# is geen bekendmaking; de url wijst naar artikel 22.
+url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel22
+name: Geldend voorschot bij de Dienst Toeslagen (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving. Het systeem van de Dienst Toeslagen kijkt door middel
+      van een chronolexografische reductie op zijn eigen kroniek welk
+      voorschot over een berekeningsjaar aan de belanghebbende geldt, met de
+      dagtekening van de beschikking die het verleende. Welke besluiten
+      gelden, volgt uit de Awb (7:11 en 8:72). Het kijkt ook of er over dat
+      berekeningsjaar eerder een voorschot werd verleend (artikel 22, vierde
+      lid): telt het meer dan één verleend voorschot, ook een dat niet meer
+      geldt, dan is het geldende niet het eerste.
+    url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel22
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            description: Het burgerservicenummer van de belanghebbende.
+          - name: berekeningsjaar
+            type: number
+            description: Het berekeningsjaar waarop het voorschot betrekking heeft.
+        input:
+          # De voorschotten die gelden, één rij per besluit, met de gegevens
+          # en de uitvoer van het besluit onder hun eigen naam: onder meer
+          # bsn, berekeningsjaar, voorschotbedrag, voorschot_verleend en
+          # besluit_datum (de dag van het besluit, Awb 1:3).
+          - name: geldende_voorschotten
+            type: array
+            source:
+              regulation: reductie_algemene_wet_bestuursrecht
+              output: geldende_besluiten
+              parameters:
+                basis: algemene_wet_inkomensafhankelijke_regelingen#16
+          # Alle voorschotten, ook die welke niet meer gelden.
+          - name: voorschotten
+            type: array
+            source:
+              decisions: algemene_wet_inkomensafhankelijke_regelingen#16
+        output:
+          - name: geldend_voorschot
+            type: object
+            nullable: true
+            description: >-
+              Het besluit dat het voorschot verleent dat geldt; leeg als geen
+              besluit dat geldt een voorschot verleent.
+          - name: geldend_voorschotbedrag
+            type: amount
+            nullable: true
+            type_spec:
+              unit: eurocent
+          - name: dagtekening_geldend_voorschot
+            type: date
+            nullable: true
+          - name: verleende_voorschotten
+            type: number
+            description: >-
+              Hoeveel voorschotten over het berekeningsjaar zijn verleend, ook
+              die welke niet meer gelden.
+          - name: voorschot_voor_het_eerst_verleend
+            type: boolean
+        actions:
+          # Een besluit dat geen voorschot verleent (nihil), geeft niets uit
+          # te betalen. Eén verleend voorschot per belanghebbende en
+          # berekeningsjaar; twee die gelden weigert ONLY.
+          - output: geldend_voorschot
+            value:
+              operation: FOREACH
+              collection: $geldende_voorschotten
+              as: besluit
+              filter:
+                operation: AND
+                conditions:
+                  - operation: EQUALS
+                    subject: $besluit.bsn
+                    value: $bsn
+                  - operation: EQUALS
+                    subject: $besluit.berekeningsjaar
+                    value: $berekeningsjaar
+                  - operation: EQUALS
+                    subject: $besluit.voorschot_verleend
+                    value: true
+              body: $besluit
+              combine: ONLY
+          - output: geldend_voorschotbedrag
+            value: $geldend_voorschot.voorschotbedrag
+          - output: dagtekening_geldend_voorschot
+            value: $geldend_voorschot.besluit_datum
+          - output: verleende_voorschotten
+            value:
+              operation: FOREACH
+              collection: $voorschotten
+              as: besluit
+              filter:
+                operation: AND
+                conditions:
+                  - operation: EQUALS
+                    subject: $besluit.bsn
+                    value: $bsn
+                  - operation: EQUALS
+                    subject: $besluit.berekeningsjaar
+                    value: $berekeningsjaar
+                  - operation: EQUALS
+                    subject: $besluit.voorschot_verleend
+                    value: true
+              body: 1
+              combine: ADD
+          - output: voorschot_voor_het_eerst_verleend
+            value:
+              operation: LESS_THAN_OR_EQUAL
+              subject: $verleende_voorschotten
+              value: 1

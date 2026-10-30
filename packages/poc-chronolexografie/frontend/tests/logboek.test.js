@@ -245,3 +245,11 @@ describe('opsomming', () => {
     expect(opsomming(['A', 'B', 'C'])).toBe('A, B en C');
   });
 });
+
+describe('een feit dat de tijd brengt', () => {
+  it('heet naar zijn feit', () => {
+    const termijn = { kind: 'EXECUTOGRAM', basis: 'awir#22', fact: 'uitbetaling_termijn', fields: { uitbetaald_bedrag: 14336 }, outputs: {} };
+    expect(rol(termijn)).toBe('Uitbetaling termijn');
+    expect(uitslag(termijn)).toEqual({ tekst: 'vastgelegd', kleur: 'neutral' });
+  });
+});

@@ -1615,6 +1615,229 @@ articles:
 
       b. de schuld waarvoor beslag is gelegd niet geheel is voldaan.
     url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel22
+    machine_readable:
+      # Het artikel zegt voor een maand of daarin een termijn van het
+      # voorschot wordt uitbetaald, uit de dagtekening van de beschikking die
+      # het voorschot verleent. Een maand telt hier als het aantal maanden na
+      # januari van het berekeningsjaar: december ervoor is -1, november 10.
+      #
+      # Niet gemodelleerd: lid 3 (aanspraak voor een deel van het
+      # berekeningsjaar). Het artikel gaat uit van een aanspraak over het hele
+      # berekeningsjaar, die dus in januari ontstaat (lid 4). Lid 6
+      # (interregionaal of internationaal recht) en lid 7 (beslag) evenmin.
+      #
+      # Hoe hoog een termijn is, zegt het artikel niet: alleen in hoeveel
+      # termijnen het voorschot wordt uitbetaald. Daarom een open begrip, dat
+      # het uitvoeringsbeleid van de Dienst Toeslagen vult. Het bedrag staat
+      # in het feit van de uitbetaling; dit artikel rekent er zelf niet mee.
+      open_terms:
+        - id: termijnbedrag
+          type: amount
+          required: false
+          description: >-
+            Het bedrag van de termijn die in de gevraagde maand wordt
+            uitbetaald. De wet zegt in hoeveel termijnen het voorschot wordt
+            uitbetaald, niet hoe hoog elke termijn is.
+      # De uitbetaling van een termijn (lid 1 en 2), of van het deel dat in
+      # één bedrag wordt uitbetaald (lid 4 en 5), is een feit: dit artikel
+      # zegt dat zij plaatsvindt, in welke maand. Wat het feit bevat: aan wie
+      # (bij burgerservicenummer, eigen keuze), over welk berekeningsjaar, in
+      # welke maand en welk bedrag. Wie uitbetaalt, zegt artikel 25, eerste
+      # lid: de Dienst Toeslagen.
+      requires:
+        - fact: uitbetaling_termijn
+          description: >-
+            De uitbetaling van een termijn van het voorschot over het
+            berekeningsjaar: aan wie, de eerste dag van de maand van de
+            termijn (maand) en het uitbetaalde bedrag.
+          parameters:
+            - bsn
+            - berekeningsjaar
+            - maand
+            - uitbetaald_bedrag
+          competent_authority:
+            name: Dienst Toeslagen
+      execution:
+        parameters:
+          - name: dagtekening_voorschot
+            type: date
+            required: true
+            description: De dagtekening van de beschikking die het voorschot verleent.
+          - name: berekeningsjaar
+            type: number
+            required: true
+            description: Het berekeningsjaar waarop het voorschot betrekking heeft.
+          - name: maand
+            type: date
+            required: true
+            description: >-
+              Een dag in de maand waarnaar gevraagd wordt; in het feit van de
+              uitbetaling de eerste dag van de maand van de termijn.
+          - name: voor_het_eerst_verleend
+            type: boolean
+            required: true
+            description: >-
+              Of de beschikking over het berekeningsjaar voor het eerst een
+              voorschot verleent (lid 4).
+          # Alleen voor het feit van de uitbetaling.
+          - name: bsn
+            type: string
+            required: false
+            description: Het burgerservicenummer van de belanghebbende aan wie wordt uitbetaald.
+          - name: uitbetaald_bedrag
+            type: amount
+            required: false
+            description: Het bedrag dat in de maand is uitbetaald.
+        output:
+          - name: maand_dagtekening
+            type: number
+            description: De maand van dagtekening, geteld vanaf januari van het berekeningsjaar.
+          - name: gevraagde_maand
+            type: number
+            description: De gevraagde maand, geteld vanaf januari van het berekeningsjaar.
+          - name: maand_eerste_termijn
+            type: number
+          - name: maand_laatste_termijn
+            type: number
+          - name: aantal_termijnen
+            type: number
+          - name: resterende_termijnen
+            type: number
+            description: >-
+              Het aantal termijnen vanaf de gevraagde maand tot en met de
+              laatste.
+          - name: maanden_ineens
+            type: number
+            description: >-
+              Over hoeveel maanden het voorschot in één bedrag wordt
+              uitbetaald in de maand van dagtekening (lid 4 en 5).
+          - name: termijn_in_maand
+            type: boolean
+          - name: eerste_termijn
+            type: boolean
+          - name: laatste_termijn
+            type: boolean
+        actions:
+          - output: maand_dagtekening
+            value:
+              operation: DATE_DIFF
+              from:
+                operation: DATE
+                year: $berekeningsjaar
+                month: 1
+                day: 1
+              to:
+                operation: START_OF
+                date: $dagtekening_voorschot
+                in: month
+              in: months
+          - output: gevraagde_maand
+            value:
+              operation: DATE_DIFF
+              from:
+                operation: DATE
+                year: $berekeningsjaar
+                month: 1
+                day: 1
+              to:
+                operation: START_OF
+                date: $maand
+                in: month
+              in: months
+          # Lid 1: een voorschot dat vóór de aanvang van het berekeningsjaar
+          # wordt verleend, gaat in 12 termijnen vanaf december daarvoor.
+          # Lid 2 en 5: anders is de eerste termijn in de maand van
+          # dagtekening.
+          - output: maand_eerste_termijn
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: LESS_THAN
+                    subject: $maand_dagtekening
+                    value: 0
+                  then: -1
+              default: $maand_dagtekening
+          # Lid 1 en 2: de laatste termijn valt in november. Twaalf termijnen
+          # vanaf december; of "zoveel termijnen als er na de maand van
+          # dagtekening nog kalendermaanden van dat jaar overblijven", de
+          # eerste in de maand van dagtekening. Lid 5: na 31 oktober één
+          # bedrag in de maand van dagtekening, hier één termijn.
+          - output: maand_laatste_termijn
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: GREATER_THAN
+                    subject: $maand_dagtekening
+                    value: 9
+                  then: $maand_dagtekening
+              default: 10
+          - output: aantal_termijnen
+            value:
+              operation: ADD
+              values:
+                - operation: SUBTRACT
+                  values:
+                    - $maand_laatste_termijn
+                    - $maand_eerste_termijn
+                - 1
+          - output: resterende_termijnen
+            value:
+              operation: ADD
+              values:
+                - operation: SUBTRACT
+                  values:
+                    - $maand_laatste_termijn
+                    - $gevraagde_maand
+                - 1
+          # Lid 4: verleent de beschikking voor het eerst een voorschot over
+          # het berekeningsjaar en ligt haar dagtekening na januari, dan gaat
+          # het deel over de verstreken maanden, met de maand van
+          # dagtekening, in één bedrag. Lid 5: na 31 oktober het hele
+          # voorschot.
+          - output: maanden_ineens
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: GREATER_THAN
+                    subject: $maand_dagtekening
+                    value: 9
+                  then: 12
+                - when:
+                    operation: AND
+                    conditions:
+                      - $voor_het_eerst_verleend
+                      - operation: GREATER_THAN
+                        subject: $maand_dagtekening
+                        value: 0
+                  then:
+                    operation: ADD
+                    values:
+                      - $maand_dagtekening
+                      - 1
+              default: 0
+          - output: termijn_in_maand
+            value:
+              operation: AND
+              conditions:
+                - operation: GREATER_THAN_OR_EQUAL
+                  subject: $gevraagde_maand
+                  value: $maand_eerste_termijn
+                - operation: LESS_THAN_OR_EQUAL
+                  subject: $gevraagde_maand
+                  value: $maand_laatste_termijn
+          - output: eerste_termijn
+            value:
+              operation: EQUALS
+              subject: $gevraagde_maand
+              value: $maand_eerste_termijn
+          - output: laatste_termijn
+            value:
+              operation: EQUALS
+              subject: $gevraagde_maand
+              value: $maand_laatste_termijn
   - number: '23'
     text: >-
       1 De Dienst Toeslagen kan de uitbetaling van een voorschot geheel of gedeeltelijk opschorten indien:

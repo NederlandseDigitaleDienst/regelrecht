@@ -118,6 +118,11 @@ impl Poc {
         )
     }
 
+    #[wasm_bindgen(js_name = tijdVerstrijkt)]
+    pub fn tijd_verstrijkt(&mut self, datum: &str) -> Result<String, JsError> {
+        antwoord(self.spel.tijd_verstrijkt(dag(datum)?))
+    }
+
     pub fn besluiten(
         &mut self,
         op: &str,

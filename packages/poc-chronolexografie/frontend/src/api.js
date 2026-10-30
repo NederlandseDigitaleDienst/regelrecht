@@ -91,6 +91,9 @@ export const api = {
   // Een andere cel van de casus legt een handeling vast, zoals de GGD een
   // geneeskundig onderzoek (RFC-052).
   vastleggen: (cel, feit, velden, datum) => roep((p) => p.vastleggen(cel, feit, json(velden), datum)),
+  // De tijd verstrijkt tot en met `datum`: de cel van de casus legt vast wat
+  // de tijd brengt, zoals de uitbetaling van een termijn.
+  tijdVerstrijkt: (datum) => roep((p) => p.tijdVerstrijkt(datum)),
   // Zonder `basis` het besluit dat de aanvraag vraagt; met `basis` een ander
   // besluit waartoe zij leidt.
   besluiten: (op, bevindingen, datum, basis) =>

@@ -20,6 +20,7 @@ corpus:
   - regulation/nl/wet/algemene_wet_inzake_rijksbelastingen
   - regulation/nl/wet/wet_inkomstenbelasting_2001
   - regulation/nl/wet/zorgverzekeringswet
+  - cells/reductions/reductie_algemene_wet_bestuursrecht
 # De uitvoer die zegt of het besluit het gevraagde toewijst. De wet merkt die
 # niet aan: decision_type TOEKENNING zegt wat voor besluit het is, niet welke
 # van zijn uitvoer de toewijzing is.
@@ -35,8 +36,16 @@ uitkomst_per_besluit:
 # bevindingen, onder de namen die dat artikel vraagt. Het bedrag volgt uit dat
 # artikel en de standaardpremie voor 2025. Tegen het voorschot staat bezwaar
 # open. De toekenning (Awir artikel 14) staat op dezelfde aanvraag open; zij
-# volgt later (Awir artikel 19), en de scenario's spelen haar niet. De betaling in
-# termijnen speelt deze casus nog niet na.
+# volgt later (Awir artikel 19), en de scenario's spelen haar niet.
+
+# De Dienst betaalt het voorschot in termijnen uit (Awir artikel 22), als de
+# tijd verstrijkt: per maand een termijn, op het voorschot dat dan geldt.
+# Hoe hoog een termijn is en op welke dag hij komt, zegt het fictieve beleid
+# van de Dienst (artikel 2). Een voorschot dat vóór 2025 is verleend, met de
+# eerste termijn in december 2024 (artikel 22, eerste lid), speelt deze
+# casus niet: het corpus heeft alleen de versies van 2025, en een besluit in
+# 2024 vindt geen wet die dan geldt.
+
 
 # Wat de bezoeker leest.
 titel: Voorschot zorgtoeslag
@@ -166,3 +175,93 @@ scenarios:
         datum: 2025-02-03
         uitkomst: ongegrond
     eind: 'Ongegrond: het voorschot blijft € 1.577.'
+  - naam: Termijnen van het voorschot
+    samenvatting: >-
+      De Dienst Toeslagen verleent in januari een voorschot en betaalt het
+      elke maand in een termijn uit.
+    stappen:
+      - stap: aanvraag
+        verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
+      - stap: besluit
+        verhaal: De Dienst verleent een voorschot van € 1.577 over 2025.
+        uitkomst: toegewezen
+        uitvoer:
+          voorschotbedrag: 157700
+      - stap: tijd_verstrijkt
+        verhaal: Het halfjaar gaat voorbij en de Dienst betaalt elke maand uit.
+        datum: 2025-06-30
+        uitvoer:
+          maand: ['2025-01-01', '2025-02-01', '2025-03-01', '2025-04-01', '2025-05-01', '2025-06-01']
+          uitbetaald_bedrag: [14336, 14336, 14336, 14336, 14336, 14336]
+    eind: 'Zes termijnen van € 143,36 uitbetaald, samen € 860,16.'
+  - naam: Voorschot in de loop van het jaar
+    samenvatting: >-
+      De aanvraag komt in maart binnen, dus het deel van het voorschot over
+      januari tot en met maart gaat in één keer en de rest in termijnen.
+    stappen:
+      - stap: aanvraag
+        verhaal: Een alleenstaande vraagt in maart zorgtoeslag aan voor 2025.
+        datum: 2025-03-10
+        invoer:
+          dagtekening: '2025-03-07'
+      - stap: besluit
+        verhaal: De Dienst verleent op 14 maart een voorschot van € 1.577.
+        datum: 2025-03-14
+        uitkomst: toegewezen
+        uitvoer:
+          voorschotbedrag: 157700
+      - stap: tijd_verstrijkt
+        verhaal: Het voorjaar gaat voorbij en de Dienst betaalt elke maand uit.
+        datum: 2025-06-30
+        uitvoer:
+          maand: ['2025-03-01', '2025-04-01', '2025-05-01', '2025-06-01']
+          uitbetaald_bedrag: [52566, 13141, 13141, 13142]
+        gezien: 'In maart komt januari tot en met maart in één bedrag mee (Awir 22, vierde lid).'
+    eind: 'Uitbetaald: € 525,66 in maart, daarna termijnen van € 131,41 en € 131,42.'
+  - naam: Voorschot hoger na bezwaar
+    samenvatting: >-
+      Na een bezwaar verhoogt de Dienst het voorschot, en de termijnen erna
+      gaan uit van het nieuwe voorschot.
+    stappen:
+      - stap: aanvraag
+        verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
+      - stap: besluit
+        verhaal: De Dienst verwacht een inkomen van € 30.000.
+        invoer:
+          vermoedelijk_toetsingsinkomen: 3000000
+        uitkomst: toegewezen
+        uitvoer:
+          voorschotbedrag: 133100
+      - stap: tijd_verstrijkt
+        verhaal: Op 20 januari betaalt de Dienst de eerste termijn uit.
+        datum: 2025-02-10
+        uitvoer:
+          uitbetaald_bedrag: [12100]
+        gezien: 'Uitbetaald: € 121, een elfde van het voorschot van € 1.331.'
+      - stap: bezwaar
+        verhaal: De aanvrager maakt bezwaar, omdat het inkomen rond € 25.000 blijft.
+        datum: 2025-02-10
+        invoer:
+          gronden_bezwaar_of_beroep: mijn inkomen blijft in 2025 rond € 25.000
+      - stap: tijd_verstrijkt
+        verhaal: Het bezwaar schort de betaling niet op.
+        datum: 2025-03-13
+        uitvoer:
+          uitbetaald_bedrag: [12100]
+      - stap: beslissing_op_bezwaar
+        verhaal: De Dienst verwacht nu een inkomen van € 25.000.
+        datum: 2025-03-14
+        invoer:
+          vermoedelijk_toetsingsinkomen: 2500000
+        uitkomst: gegrond
+        uitvoer:
+          voorschotbedrag: 157700
+        tekst: >-
+          Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op
+          Beslissen op bezwaar.
+      - stap: tijd_verstrijkt
+        verhaal: Tot eind juni betaalt de Dienst uit op het nieuwe voorschot.
+        datum: 2025-06-30
+        uitvoer:
+          uitbetaald_bedrag: [14833, 14833, 14833, 14833]
+    eind: 'Wat van € 1.577 nog rest, gaat over de termijnen erna: € 148,33 per maand.'

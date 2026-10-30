@@ -314,6 +314,24 @@ fn speel(casus_id: &str, index: usize) {
                     assert_eq!(op_bezwaar(&genomen["beslissing"]), v, "{waar}");
                 }
             }
+            "tijd_verstrijkt" => {
+                assert!(
+                    !vormen["tijd"].as_array().unwrap().is_empty(),
+                    "{waar}: no fact of this case arises as time passes"
+                );
+                let vastgelegd = spel
+                    .tijd_verstrijkt(datum)
+                    .unwrap_or_else(|e| panic!("{waar}: {e}"));
+                for (naam, verwacht) in map(&stap["uitvoer"]) {
+                    let kreeg: Vec<Value> = vastgelegd
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|g| g["fields"][&naam].clone())
+                        .collect();
+                    assert_eq!(Value::Array(kreeg), verwacht, "{waar}: field '{naam}'");
+                }
+            }
             soort => panic!("{waar}: unknown step '{soort}'"),
         }
     }

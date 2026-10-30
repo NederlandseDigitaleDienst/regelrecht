@@ -671,6 +671,36 @@ impl Cell {
         Ok(self.chronicle.append(gram)?.clone())
     }
 
+    /// The outputs `outputs` of `law_id`, evaluated on `on` with
+    /// `parameters`, as this cell knows things that day: from what it
+    /// recorded up to and including `on`, it gives the named answers a
+    /// policy takes, and a reduction the rows of its chronicle; the cells of
+    /// `sphere` answer as they knew things then (RFC-052). Nothing is
+    /// recorded.
+    pub fn evaluate_on(
+        &self,
+        service: &LawExecutionService,
+        sphere: &[&Cell],
+        law_id: &str,
+        outputs: &[&str],
+        parameters: &Map<String, serde_json::Value>,
+        on: NaiveDate,
+    ) -> Result<BTreeMap<String, serde_json::Value>> {
+        let reader = self.known_on(on);
+        let others = known_on(sphere, on);
+        let answerers = Answerers::new(&reader, &others);
+        let date = on.to_string();
+        let call = Call {
+            chronicle: Some(&reader),
+            ..answerers.call(BTreeMap::new())
+        };
+        let result =
+            service.evaluate_law_in(law_id, outputs, engine_values(parameters)?, call, &date)?;
+        let mut values = BTreeMap::new();
+        collect_outputs(&result, &mut values)?;
+        Ok(values)
+    }
+
     /// A copy of the decision `id` for another cell (RFC-053): the
     /// chronolexogram, its decision value from a replay in this cell
     /// ([`Cell::decision_value`]), and what the submission it was taken on

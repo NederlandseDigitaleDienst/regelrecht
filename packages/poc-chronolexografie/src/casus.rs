@@ -222,7 +222,9 @@ pub struct Handeling {
     pub uitkomst: Option<Uitkomst>,
     /// Outputs of the decision the step takes, by name, with the value the
     /// scenario expects, such as an amount: of the decision itself, or of
-    /// the new decision a decision on objection takes in its place.
+    /// the new decision a decision on objection takes in its place. When
+    /// time passes: per field of the executograms the cell records, their
+    /// values in the order recorded.
     #[serde(default, skip_serializing_if = "Map::is_empty")]
     pub uitvoer: Map<String, Value>,
     /// What happens in the case at this step, in one sentence, as the guide
@@ -254,6 +256,9 @@ pub enum Soort {
     Toezenden,
     /// The authority decides on the objection again after a judgment.
     OpnieuwBeslissen,
+    /// Time passes up to the step's date: the case's cell records what time
+    /// brings, such as the payment of a termijn (`kern::tijd_verstrijken`).
+    TijdVerstrijkt,
 }
 
 /// What a step comes to.

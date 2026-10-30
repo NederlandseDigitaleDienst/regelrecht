@@ -82,6 +82,10 @@ function regels(h) {
       toelichting: `${celNaam(g.recording_actor)} legde het feit ${leesbaar(g.fact ?? '')} vast, dat ${g.basis} vereist (een executogram, RFC-051). Een reductie van die cel leest het terug.`,
     });
   } else uit.push({ naam: 'Reden', waarde: 'geen', toelichting: 'dit is het begin van een dossier' });
+  // Wat het feit bevat, zoals het bedrag van een uitbetaalde termijn.
+  if (g.kind === 'EXECUTOGRAM' && !g.received) {
+    for (const [k, v] of Object.entries(g.fields ?? {})) uit.push({ naam: leesbaar(k), waarde: toon(v) });
+  }
   const bij = genomenBij(g.id, state.grammen);
   if (bij) {
     uit.push({

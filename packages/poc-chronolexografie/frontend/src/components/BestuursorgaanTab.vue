@@ -11,7 +11,7 @@
 // bezwaar komen ze uit het bestreden besluit: de bevindingen die het
 // gebruikte, met wat het bestuursorgaan toen vond. Volg je een scenario, dan
 // staan de bevindingen ingevuld zoals de stap ze geeft (scenarioInvoer.js).
-import { computed, reactive } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { api } from '../api.js';
 import { artikelNaam } from '../logboek.js';
 import { stilBegrippen } from '../stil.js';
@@ -24,9 +24,12 @@ import {
   alsJson,
   jaNee,
   kort,
+  leesbaar,
+  longDate,
   samenvatting,
   state,
   stap,
+  tijdVerstrijken,
   zonderLeeg,
 } from '../state.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
@@ -119,6 +122,28 @@ async function beslisOpBezwaar(bz) {
     delete toetsen[bz.id];
   }
 }
+
+// Wat de cel vastlegt als de tijd verstrijkt (`vormen.tijd`): per feit het
+// artikel dat zegt wanneer het ontstaat, zoals de uitbetaling van een
+// termijn. Een casus zonder zo'n feit toont dit niet.
+const tijd = computed(() => state.vormen?.tijd ?? []);
+const tijdFeiten = computed(() =>
+  tijd.value.map((t) => {
+    const [wet, nummer, feit] = t.feit.split('#');
+    const [bwet, bnummer] = t.basis.split('#');
+    return `${leesbaar(feit)} (${artikelNaam(wet, nummer)}, wanneer: ${artikelNaam(bwet, bnummer)})`;
+  }),
+);
+const verstreken = ref(null);
+async function laatVerstrijken() {
+  const tot = state.datum;
+  const vastgelegd = await tijdVerstrijken();
+  if (vastgelegd) verstreken.value = { tot, vastgelegd };
+}
+const vastgelegdTekst = (g) =>
+  `${longDate(g.recorded_on)}: ${Object.entries(g.fields ?? {})
+    .map(([k, v]) => `${leesbaar(k)} ${v}`)
+    .join(', ')}`;
 
 const uitkomstOpBezwaar = (uit) =>
   uit.bezwaar_ontvankelijk === false
@@ -270,6 +295,31 @@ const uitkomstOpBezwaar = (uit) =>
         </template>
         </nldd-container>
       </nldd-card>
+    </nldd-container>
+  </nldd-simple-section>
+
+  <nldd-simple-section v-if="tijd.length">
+    <nldd-title slot="header" size="3" text="Tijd">
+      <nldd-text slot="supporting-text">
+        Sommige feiten ontstaan doordat de tijd verstrijkt: {{ tijdFeiten.join('; ') }}. Klik
+        op Tijd laten verstrijken: de cel loopt elke dag af vanaf haar laatste chronolexogram tot
+        en met de speeldatum, en legt elk feit vast op de dag waarop het ontstaat.
+      </nldd-text>
+    </nldd-title>
+    <nldd-container gap="12">
+      <nldd-container>
+        <nldd-button
+          appearance="primary"
+          :text="`Tijd laten verstrijken tot ${longDate(state.datum)}`"
+          @click="laatVerstrijken"
+        ></nldd-button>
+      </nldd-container>
+      <nldd-inline-dialog
+        v-if="verstreken"
+        icon="info"
+        :text="`Tot en met ${longDate(verstreken.tot)}: ${verstreken.vastgelegd.length} vastgelegd`"
+        :supporting-text="verstreken.vastgelegd.map(vastgelegdTekst).join(' · ') || 'Er ontstond niets.'"
+      ></nldd-inline-dialog>
     </nldd-container>
   </nldd-simple-section>
 

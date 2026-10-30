@@ -188,7 +188,7 @@ test('chronolexografie volgt zijn eigen corpus en zijn frontend', () => {
     `${corpus}/casussen/vakantieverlof/regulation/nl/wet/leerplichtwet_1969/2026-08-01.yaml`,
     `${corpus}/regulation/nl/wet/algemene_wet_bestuursrecht/1994-01-01.yaml`,
     `${corpus}/cells/obs_de_klimop/cel.yaml`,
-    `${corpus}/cells/reductions/reductie_algemene_wet_bestuursrecht/2026-01-01.yaml`,
+    `${corpus}/cells/reductions/reductie_algemene_wet_bestuursrecht/1994-01-01.yaml`,
     'packages/poc-chronolexografie/frontend/src/App.vue',
   ]) {
     const geraakt = namesOf([pad]);
