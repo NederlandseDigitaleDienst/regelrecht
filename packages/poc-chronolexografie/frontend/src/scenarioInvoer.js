@@ -22,6 +22,9 @@ const VOORBEELD = {
   bezwaar: 'bezwaar',
   beroep: 'beroep',
   uitspraak: 'uitspraak',
+  // The mededeling after an interim judgment has no example values of its
+  // own: a step gives what it fills in.
+  mededelen: 'mededeling',
 };
 
 // The step of the scenario the visitor is at, once for every form.

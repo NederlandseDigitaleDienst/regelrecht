@@ -1,5 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { binnenTermijn, openOntvangsten, ontvangstVan, uitspraakOp } from '../src/beroep.js';
+import {
+  besluitNa,
+  binnenTermijn,
+  onderLopendBeroep,
+  openOntvangsten,
+  openTussenuitspraken,
+  ontvangstVan,
+  standVan,
+  uitspraakOp,
+} from '../src/beroep.js';
 import { dossier, geldendBesluit, isBesluit, isBesluitwaarde, rol, state, waarde } from '../src/state.js';
 
 // Ids verzonnen, op de laatste acht tekens na herkenbaar; de vormen zoals de
@@ -30,6 +39,7 @@ beforeEach(() => {
     beslissing_op_bezwaar: 'awb#7:11',
     beroep: 'awb#8:70',
     ontvangst: 'awb#8:79#afschrift_van_de_uitspraak',
+    mededeling: 'awb#8:51b#mededeling_over_herstel',
     uitkomst: 'toegekend',
     rechter: { cel: 'rechtbank', cel_naam: 'Rechtbank' },
   };
@@ -104,6 +114,73 @@ describe('het beroep in twee kronieken', () => {
     expect(binnenTermijn(ontvangst, '2027-01-18')).toBe(true);
     expect(binnenTermijn(ontvangst, '2027-01-26')).toBe(false);
     expect(binnenTermijn({ fields: {} }, '2027-01-26')).toBeNull();
+  });
+});
+
+describe('de bestuurlijke lus', () => {
+  // De rechtbank doet een tussenuitspraak (Awb 8:51a), de school herstelt met
+  // een nieuwe beslissing en deelt dat mee (8:51b), en de rechtbank doet
+  // einduitspraak op hetzelfde beroep.
+  const tussen = { ...uitspraak, outputs: { tussenuitspraak: true, termijn_herstel_einddatum: '2027-02-22' } };
+  const ontvangenTussen = {
+    ...ontvangst,
+    received: { from: 'rechtbank', id: tussen.id },
+    fields: { tussenuitspraak: true, opdracht_nieuw_besluit: false, termijn_herstel_einddatum: '2027-02-22' },
+  };
+  const herstel = { ...ongegrond, id: id('00007777'), after: ontvangenTussen.id };
+  const mededeling = {
+    id: id('00008888'),
+    kind: 'EXECUTOGRAM',
+    basis: 'awb#8:51b',
+    fact: 'mededeling_over_herstel',
+    refers_to: tussen.id,
+    received: { from: 'school', id: herstel.id },
+    fields: { wijze_waarop_gebrek_is_hersteld: null, vervangend_besluit: { basis: 'awb#7:11' } },
+  };
+  const eind = { id: id('00009999'), kind: 'UITSPRAAK', basis: 'awb#8:70', refers_to: beroep.id, after: mededeling.id, outputs: { tussenuitspraak: false } };
+
+  it('het beroep wacht na de tussenuitspraak op herstel, en staat na de mededeling weer open', () => {
+    state.rechter = [beroep];
+    expect(standVan(beroep.id)).toBe('open');
+    state.rechter.push(tussen);
+    expect(standVan(beroep.id)).toBe('herstel');
+    state.rechter.push(mededeling);
+    expect(standVan(beroep.id)).toBe('einde');
+    state.rechter.push(eind);
+    expect(standVan(beroep.id)).toBe('klaar');
+  });
+
+  it('een ontvangen tussenuitspraak is open tot de mededeling, en vraagt geen nieuw besluit op', () => {
+    state.rechter = [beroep, tussen];
+    state.grammen.push(ontvangenTussen);
+    expect(openTussenuitspraken()).toEqual([ontvangenTussen]);
+    expect(openOntvangsten()).toEqual([]);
+    state.grammen.push(herstel);
+    expect(besluitNa(ontvangenTussen.id)).toEqual(herstel);
+    state.rechter.push(mededeling);
+    expect(openTussenuitspraken()).toEqual([]);
+  });
+
+  it('tegen de nieuwe beslissing loopt het beroep al (Awb 6:19)', () => {
+    state.rechter = [beroep, tussen];
+    expect(onderLopendBeroep(herstel.id)).toBe(false);
+    state.rechter.push(mededeling);
+    expect(onderLopendBeroep(herstel.id)).toBe(true);
+    expect(onderLopendBeroep(ongegrond.id)).toBe(false);
+  });
+
+  it('het dossier toont tussenuitspraak, mededeling en einduitspraak uit de kroniek van de rechtbank', () => {
+    state.rechter = [beroep, tussen, mededeling, eind];
+    state.grammen.push(ontvangenTussen, herstel);
+    const rechtbank = dossier(aanvraag)
+      .filter((s) => s.rechter)
+      .map((s) => s.rol);
+    expect(rechtbank).toEqual(['Beroep', 'Tussenuitspraak', 'Mededeling over herstel', 'Einduitspraak']);
+  });
+
+  it('de termijn voor het herstel', () => {
+    expect(binnenTermijn(ontvangenTussen, '2027-02-22', 'termijn_herstel_einddatum')).toBe(true);
+    expect(binnenTermijn(ontvangenTussen, '2027-02-23', 'termijn_herstel_einddatum')).toBe(false);
   });
 });
 

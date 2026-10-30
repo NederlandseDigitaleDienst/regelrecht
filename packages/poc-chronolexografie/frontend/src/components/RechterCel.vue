@@ -11,8 +11,22 @@
 // worden (Voorvertoning.vue), zoals bij een besluit onder Bestuursorgaan.
 // Na de uitspraak zendt de rechtbank een afschrift toe, en de cel van de
 // casus legt de ontvangst vast.
+//
+// De bestuurlijke lus (Awb 8:51a): geeft de rechtbank het bestuursorgaan de
+// gelegenheid een gebrek te herstellen, dan is de uitspraak een
+// tussenuitspraak. Het beroep wacht dan op de mededeling van het
+// bestuursorgaan (8:51b). Komt die, dan staat het beroep weer open en doet
+// de rechtbank einduitspraak op hetzelfde beroep; de cel neemt dan de
+// nieuwe beslissing mee die met de mededeling kwam (6:19).
 import { computed, reactive } from 'vue';
-import { beroepApi, ontvangstVan, uitspraakOp } from '../beroep.js';
+import {
+  beroepApi,
+  isTussenuitspraak,
+  mededelingOp,
+  ontvangstVan,
+  standVan,
+  uitsprakenOp,
+} from '../beroep.js';
 import { artikelNaam } from '../logboek.js';
 import { isBesluitwaarde, kort, leesbaar, state, stap, waarde, zonderLeeg } from '../state.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
@@ -29,7 +43,22 @@ const gelezenArtikelen = computed(() =>
   [...new Set(gelezen.value.map((b) => b.basis))].map((g) => artikelNaam(...g.split('#'))).join(', '),
 );
 
-const open = computed(() => state.rechter.filter((g) => g.kind === 'BEROEP' && !uitspraakOp(g.id)));
+const beroepen = computed(() => state.rechter.filter((g) => g.kind === 'BEROEP'));
+// Een beroep zonder uitspraak, of na een tussenuitspraak met de mededeling
+// van het bestuursorgaan: de rechtbank doet (eind)uitspraak.
+const open = computed(() => beroepen.value.filter((g) => ['open', 'einde'].includes(standVan(g.id))));
+// Een beroep na een tussenuitspraak, zonder mededeling: het wacht op herstel.
+const wachtend = computed(() => beroepen.value.filter((g) => standVan(g.id) === 'herstel'));
+const laatste = (beroep) => uitsprakenOp(beroep.id).at(-1);
+const mededeling = (beroep) => mededelingOp(laatste(beroep)?.id);
+// Wat de mededeling houdt: hoe het gebrek is hersteld, of de nieuwe
+// beslissing die het bestreden besluit verving.
+const gemeld = (m) =>
+  Object.entries(m.fields ?? {})
+    .filter(([, w]) => w !== null)
+    .map(([naam, w]) => ({ naam, w }));
+const soortUitspraak = (u) =>
+  isTussenuitspraak(u) ? 'Tussenuitspraak' : u.after ? 'Einduitspraak' : 'Uitspraak';
 const uitspraken = computed(() => state.rechter.filter((g) => g.kind === 'UITSPRAAK'));
 
 // Per beroep de bevindingen van de rechter.
@@ -62,7 +91,10 @@ const uitvoer = (g) => Object.entries(g.outputs ?? {}).map(([naam, w]) => ({ naa
         draagt het afschrift van de beslissing op bezwaar dat {{ state.casus.cel_naam }} maakte.
         De rechtbank oordeelt op de grondslag van de overgelegde stukken (Awb 8:69). Voorziet zij
         zelf in de zaak (Awb 8:72, derde lid, onder b), dan neemt zij die beslissing opnieuw, met
-        haar eigen bevindingen. De bevindingen hieronder zijn haar oordeel.
+        haar eigen bevindingen. Ziet zij een gebrek dat het bestuursorgaan kan herstellen, dan kan
+        zij het daartoe de gelegenheid geven (Awb 8:51a): dan doet zij een tussenuitspraak, en na
+        de mededeling van het bestuursorgaan einduitspraak op hetzelfde beroep. De bevindingen
+        hieronder zijn haar oordeel.
       </nldd-text>
     </nldd-title>
     <nldd-inline-dialog
@@ -78,7 +110,24 @@ const uitvoer = (g) => Object.entries(g.outputs ?? {}).map(([naam, w]) => ({ naa
             size="5"
             :text="`Beroep ${kort(b.id)} tegen beslissing ${kort(b.received.id)} van ${state.casus.cel_naam}`"
             :supporting-text="`ontvangen ${b.recorded_on} · ${b.fields.gronden_bezwaar_of_beroep ?? ''}`"
-          ></nldd-title>
+          >
+            <nldd-tag v-if="mededeling(b)" slot="end" color="accent" text="Einduitspraak na herstel"></nldd-tag>
+          </nldd-title>
+          <template v-if="mededeling(b)">
+            <nldd-text size="sm">
+              Na de tussenuitspraak {{ kort(laatste(b).id) }} ontving de rechtbank op
+              {{ mededeling(b).recorded_on }} de mededeling van {{ state.casus.cel_naam }} (Awb 8:51b).
+              {{ mededeling(b).received
+                ? 'Die bracht een nieuwe beslissing op bezwaar mee: het beroep gaat daar ook over (Awb 6:19).'
+                : 'Er kwam geen nieuwe beslissing mee.' }}
+            </nldd-text>
+            <nldd-list v-if="gemeld(mededeling(b)).length" appearance="box-base">
+              <nldd-list-item v-for="r in gemeld(mededeling(b))" :key="r.naam" size="sm">
+                <nldd-text-cell :text="leesbaar(r.naam)"></nldd-text-cell>
+                <nldd-text-cell :text="typeof r.w === 'string' ? r.w : waarde(r.w)"></nldd-text-cell>
+              </nldd-list-item>
+            </nldd-list>
+          </template>
           <nldd-list appearance="box-base">
             <nldd-list-item v-for="u in uitvoer(b)" :key="u.naam" size="sm">
               <nldd-text-cell :text="leesbaar(u.naam)"></nldd-text-cell>
@@ -97,8 +146,10 @@ const uitvoer = (g) => Object.entries(g.outputs ?? {}).map(([naam, w]) => ({ naa
               <template v-if="gelezen.length">
                 <nldd-text size="sm" color="secondary">
                   Wat {{ gelezenArtikelen }} vraagt, telt alleen als de uitspraak dat artikel leest:
-                  bij een gegrond beroep, en wat het bestreden besluit vraagt alleen als de rechtbank
-                  zelf in de zaak voorziet.
+                  de gelegenheid tot herstel bij een gebrek, wat artikel 8:72 vraagt bij een gegrond
+                  beroep, het oordeel over een nieuwe beslissing alleen als die met de mededeling
+                  kwam, en wat het bestreden besluit vraagt alleen als de rechtbank zelf in de zaak
+                  voorziet.
                 </nldd-text>
                 <VeldInvoer
                   v-for="o in gelezen"
@@ -117,6 +168,24 @@ const uitvoer = (g) => Object.entries(g.outputs ?? {}).map(([naam, w]) => ({ naa
     </nldd-container>
   </nldd-simple-section>
 
+  <nldd-simple-section v-if="wachtend.length">
+    <nldd-title slot="header" size="3" text="Wacht op herstel">
+      <nldd-text slot="supporting-text">
+        Beroepen met een tussenuitspraak. Zodra {{ state.casus.cel_naam }} meedeelt of en hoe zij
+        het gebrek herstelde, staan ze weer onder Ingekomen beroepen.
+      </nldd-text>
+    </nldd-title>
+    <nldd-list appearance="box-base">
+      <nldd-list-item v-for="b in wachtend" :key="b.id" size="sm">
+        <nldd-text-cell :text="`Beroep ${kort(b.id)}`"></nldd-text-cell>
+        <nldd-text-cell
+          width="fit-content"
+          :text="`herstel t/m ${laatste(b).outputs.termijn_herstel_einddatum ?? 'zonder termijn'}`"
+        ></nldd-text-cell>
+      </nldd-list-item>
+    </nldd-list>
+  </nldd-simple-section>
+
   <nldd-simple-section>
     <nldd-title slot="header" size="3" text="Uitspraken">
       <nldd-text slot="supporting-text">
@@ -130,8 +199,8 @@ const uitvoer = (g) => Object.entries(g.outputs ?? {}).map(([naam, w]) => ({ naa
         <nldd-container padding="16" gap="12">
           <nldd-title
             size="5"
-            :text="`Uitspraak ${kort(u.id)} op beroep ${kort(u.refers_to)} (${u.recorded_on})`"
-            :supporting-text="u.outputs.uitspraak_strekt_tot"
+            :text="`${soortUitspraak(u)} ${kort(u.id)} op beroep ${kort(u.refers_to)} (${u.recorded_on})`"
+            :supporting-text="u.outputs.uitspraak_strekt_tot ?? 'gelegenheid tot herstel van het gebrek'"
           >
             <nldd-tag
               v-if="ontvangstVan(u.id)"

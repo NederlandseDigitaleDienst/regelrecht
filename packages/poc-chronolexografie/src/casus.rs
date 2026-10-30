@@ -233,6 +233,9 @@ pub enum Soort {
     Toezenden,
     /// The authority decides on the objection again after a judgment.
     OpnieuwBeslissen,
+    /// The authority tells the court whether and how it repaired the
+    /// defect an interim judgment named (Awb 8:51b).
+    Mededelen,
 }
 
 /// What a step comes to.
@@ -622,6 +625,13 @@ pub struct Beroep {
     /// judgment, `<law>#<article>#<fact>`: what the cell records when it
     /// receives a copy of one (`Cell::record_receipt`).
     pub ontvangst: String,
+    /// The fact in which the court records what the administrative body
+    /// tells it after an interim judgment (Awb 8:51b), when the law has
+    /// one: a fact that holds a parameter of the article that decides on
+    /// the appeal (the decision that replaced the contested one, 6:19). The
+    /// court takes it when it gives judgment again after that record
+    /// (`Cell::decide_after`).
+    pub mededeling: Option<String>,
     /// The court: the other cell of the case that the competent authority of
     /// the article that decides on the appeal names ("de bestuursrechter",
     /// on Awb 8:70).
@@ -757,10 +767,12 @@ fn beroep(
         }
     };
     let ontvangst = ontvangst(regelwerken, casus, gevonden, &law, &article)?;
+    let mededeling = mededeling(regelwerken, casus, gevonden, &law, &article)?;
     Ok(Some(Beroep {
         law,
         article,
         ontvangst,
+        mededeling,
         rechter,
     }))
 }
@@ -901,6 +913,48 @@ fn ontvangst(
         ))),
         (Some(a), Some(b)) => Err(Error::Setup(format!(
             "case '{casus}': both {a} and {b} hold the judgment of {law}#{article}"
+        ))),
+    }
+}
+
+/// The fact the court records after an interim judgment ([`Beroep::mededeling`]):
+/// one that the regelwerken require whose parameters include a parameter of
+/// `law#article`, the article that decides on the appeal. None when no
+/// regelwerk requires one; two are an error.
+fn mededeling(
+    regelwerken: &Regelwerken,
+    casus: &str,
+    gevonden: &[String],
+    law: &str,
+    article: &str,
+) -> Result<Option<String>> {
+    let parameters: BTreeSet<&str> = regelwerken
+        .get(law)
+        .into_iter()
+        .flat_map(|w| w.artikelen())
+        .filter(|a| a.number == article)
+        .flat_map(|a| a.get_parameters().iter().map(|p| p.name.as_str()))
+        .collect();
+    let mut feiten = BTreeSet::new();
+    for id in gevonden {
+        for a in regelwerken.get(id).into_iter().flat_map(|w| w.artikelen()) {
+            for r in a.get_requires() {
+                let (Some(feit), Some(velden)) = (&r.fact, &r.parameters) else {
+                    continue;
+                };
+                if velden.iter().any(|v| parameters.contains(v.as_str())) {
+                    feiten.insert(format!("{id}#{}#{feit}", a.number));
+                }
+            }
+        }
+    }
+    let mut feiten = feiten.into_iter();
+    match (feiten.next(), feiten.next()) {
+        (None, _) => Ok(None),
+        (Some(a), None) => Ok(Some(a)),
+        (Some(a), Some(b)) => Err(Error::Setup(format!(
+            "case '{casus}': both {a} and {b} hold what {law}#{article} takes when it gives \
+             judgment again"
         ))),
     }
 }

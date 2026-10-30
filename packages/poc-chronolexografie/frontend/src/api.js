@@ -116,6 +116,10 @@ export const api = {
     roep((p) => p.opnieuwBeslissenOpBezwaar(ontvangst, json(bevindingen), datum)),
   voorvertoningNaUitspraak: (ontvangst, bevindingen, datum) =>
     roep((p) => p.voorvertoningNaUitspraak(ontvangst, json(bevindingen), datum)),
+  // Het bestuursorgaan deelt de rechtbank mee of en hoe het een gebrek
+  // herstelde na een tussenuitspraak (Awb 8:51b).
+  herstelMeedelen: (ontvangst, velden, datum) =>
+    roep((p) => p.herstelMeedelen(ontvangst, json(velden), datum)),
   logboek: () => roep((p) => p.logboek()),
   reset: () => roep((p) => p.reset()),
   // Het spel tot nu toe (de casus en de kroniek van elke cel), om een

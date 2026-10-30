@@ -323,6 +323,18 @@ impl Spel {
         })?)
     }
 
+    /// The authority tells the court whether and how it repaired the defect
+    /// the interim judgment received in `ontvangst` named (Awb 8:51b,
+    /// [`kern::herstel_meedelen`]).
+    pub fn herstel_meedelen(
+        &mut self,
+        ontvangst: &str,
+        velden: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| kern::herstel_meedelen(c, cell, ontvangst, velden, datum))?)
+    }
+
     pub fn reducties(&mut self, datum: NaiveDate) -> Antwoord {
         ok(self.met(|c, cell| kern::reducties(c, cell, datum))?)
     }

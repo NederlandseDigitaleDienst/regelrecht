@@ -365,6 +365,7 @@ impl Corpus {
             "rechter": rechter,
             "beroep": a.beroep.as_ref().map(|b| format!("{}#{}", b.law, b.article)),
             "ontvangst": a.beroep.as_ref().map(|b| b.ontvangst.clone()),
+            "mededeling": a.beroep.as_ref().and_then(|b| b.mededeling.clone()),
             "rol": a.rol,
             "regelwerken": self.regelwerken.iter().map(|(id, naam, map)| json!({
                 "id": id,
@@ -596,6 +597,17 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
             "bevindingen": bevindingen,
             "uitvoer": uitspraak.outputs,
         });
+        // What the administrative body tells the court after an interim
+        // judgment (Awb 8:51b), as it fills it in: a decision it took
+        // comes with its copy, not from the form.
+        if let Some(feit) = &b.mededeling {
+            let velden: Vec<Value> = shape::fact_fields(&service, feit, on, None)?
+                .iter()
+                .filter(|f| f.type_ != ParameterType::Decision)
+                .map(veld)
+                .collect();
+            vormen["mededeling"] = json!({ "feit": feit, "velden": velden });
+        }
     }
     Ok(vormen)
 }
@@ -2192,6 +2204,23 @@ pub fn beroep_instellen(
     on: NaiveDate,
 ) -> Result<Gram> {
     let beroep = corpus.beroep()?;
+    // A decision the court already holds because the administrative body
+    // replaced the contested one with it while the appeal ran: that appeal
+    // covers it (Awb 6:19 lid 1), so no new appeal is recorded.
+    let (rechter, _) = cellen.op(&beroep.rechter)?;
+    let eigen = cellen.eigen.recording_actor();
+    if let Some(m) = rechter.grams().iter().find(|g| {
+        g.kind == EXECUTOGRAM
+            && g.received
+                .as_ref()
+                .is_some_and(|r| r.from == eigen && r.id == besluit)
+    }) {
+        return Err(Error::Refused(format!(
+            "the decision '{besluit}' is already before the court: it came with '{}', and the \
+             appeal that concerns covers it",
+            m.id
+        )));
+    }
     let afschrift = cellen.afschrift(&mut corpus.service()?, &cellen.sfeer(), besluit)?;
     let (rechter, sfeer) = cellen.splits_op(&beroep.rechter)?;
     rechter.record_submission(
@@ -2206,7 +2235,10 @@ pub fn beroep_instellen(
 }
 
 /// The court gives judgment on the appeal `beroep` with its `bevindingen`,
-/// as any decision. A finding on an article the judgment reads, such as
+/// as any decision. On an appeal it has given judgment on, such as an
+/// interim judgment (Awb 8:51a, 8:80a), it gives judgment again after what
+/// the administrative body told it about that judgment (8:51b,
+/// [`opnieuw_na`]): the final judgment on the same appeal. A finding on an article the judgment reads, such as
 /// Awb 8:72, or on a decision it calls anew (8:72 lid 3 onder b), is asked
 /// only when it reads that article: a finding the engine reports as asked
 /// by none is not given, and the answer names it under `niet_gevraagd`.
@@ -2219,6 +2251,10 @@ pub fn uitspraak_doen(
     on: NaiveDate,
 ) -> Result<Value> {
     let b = corpus.beroep()?;
+    let after = {
+        let (rechter, _) = cellen.op(&b.rechter)?;
+        opnieuw_na(b, rechter, beroep)?
+    };
     let neem = |cellen: &mut Cellen, gegeven: &Map<String, Value>| -> Result<Vec<Gram>> {
         let (rechter, sfeer) = cellen.splits_op(&b.rechter)?;
         decide(
@@ -2228,7 +2264,7 @@ pub fn uitspraak_doen(
             &b.law,
             &b.article,
             beroep,
-            None,
+            after.as_deref(),
             gegeven,
             on,
         )
@@ -2260,6 +2296,139 @@ pub fn uitspraak_doen(
         "niet_gevraagd": niet_gevraagd,
         "waarom": waarom,
     }))
+}
+
+/// The judgments of the court on the appeal `beroep`, in order.
+fn uitspraken_op<'c>(rechter: &'c Cell, beroep: &str) -> Vec<&'c Gram> {
+    rechter
+        .grams()
+        .iter()
+        .filter(|g| g.kind != EXECUTOGRAM && g.refers_to.as_deref() == Some(beroep))
+        .collect()
+}
+
+/// What the court gives judgment on the appeal `beroep` after: nothing for
+/// the first judgment, and otherwise the record of what the administrative
+/// body told it about the last one ([`crate::casus::Beroep::mededeling`],
+/// Awb 8:51b), the latest if there are more. Refused when the appeal has a
+/// judgment and no such record follows it: the court gives judgment once,
+/// and again only after an interim judgment and the body's answer to it.
+fn opnieuw_na(b: &Beroep, rechter: &Cell, beroep: &str) -> Result<Option<String>> {
+    let Some(laatste) = uitspraken_op(rechter, beroep).last().copied() else {
+        return Ok(None);
+    };
+    let mededeling = b.mededeling.as_deref().map(shape::split_fact).transpose()?;
+    rechter
+        .grams()
+        .iter()
+        .rev()
+        .find(|g| {
+            g.refers_to.as_deref() == Some(laatste.id.as_str())
+                && mededeling.is_some_and(|(basis, feit)| {
+                    g.kind == EXECUTOGRAM && g.basis == basis && g.fact.as_deref() == Some(feit)
+                })
+        })
+        .map(|g| Some(g.id.clone()))
+        .ok_or_else(|| {
+            Error::Refused(format!(
+                "the appeal '{beroep}' has a judgment, '{}'; the court gives judgment again only \
+                 after the administrative body told it whether and how it repaired the defect \
+                 that judgment named",
+                laatste.id
+            ))
+        })
+}
+
+/// The administrative body tells the court whether and how it repaired the
+/// defect that the interim judgment received in `ontvangst` named (Awb
+/// 8:51b), on `on`. The court records it as the fact the law requires for
+/// it ([`crate::casus::Beroep::mededeling`]), referring to that judgment.
+/// When the body took a new decision on the objection after the receipt
+/// (Awb 6:19 lid 3), the mededeling is the receipt of a copy of it
+/// ([`Cell::record_receipt`]), and `velden` stays empty; otherwise it holds
+/// `velden`, such as how the body repaired the defect without a new decision
+/// ([`Cell::record_executogram_about`]). Nothing at all means it did not use
+/// the opportunity.
+///
+/// Refused: a receipt that is not one of a judgment of the court, a judgment
+/// the court has given judgment on again, and a second mededeling on the same
+/// judgment.
+pub fn herstel_meedelen(
+    corpus: &Corpus,
+    cellen: &mut Cellen,
+    ontvangst: &str,
+    velden: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<Gram> {
+    let b = corpus.beroep()?;
+    let feit = b.mededeling.as_deref().ok_or_else(|| {
+        Error::Refused(format!(
+            "the law of the case '{}' requires no fact for what the administrative body tells \
+             the court after an interim judgment",
+            corpus.casus.id
+        ))
+    })?;
+    let [receipt, ..] = na_uitspraak(corpus, &cellen.eigen, ontvangst)?;
+    let uitspraak = receipt
+        .received
+        .as_ref()
+        .filter(|r| r.from == b.rechter)
+        .map(|r| r.id.clone())
+        .ok_or_else(|| {
+            Error::Refused(format!(
+                "'{ontvangst}' is no receipt of a judgment of the court"
+            ))
+        })?;
+    let herstel = cellen
+        .eigen
+        .grams()
+        .iter()
+        .find(|g| g.after.as_deref() == Some(ontvangst))
+        .map(|g| g.id.clone());
+    {
+        let (rechter, _) = cellen.op(&b.rechter)?;
+        let beroep = rechter
+            .grams()
+            .iter()
+            .find(|g| g.id == uitspraak)
+            .and_then(|g| g.refers_to.as_deref())
+            .ok_or_else(|| Error::Refused(format!("'{uitspraak}' is no judgment of the court")))?;
+        if uitspraken_op(rechter, beroep).last().map(|g| g.id.as_str()) != Some(uitspraak.as_str())
+        {
+            return Err(Error::Refused(format!(
+                "the court has given judgment on '{beroep}' again after '{uitspraak}'"
+            )));
+        }
+        let (basis, naam) = shape::split_fact(feit)?;
+        if let Some(m) = rechter.grams().iter().find(|g| {
+            g.refers_to.as_deref() == Some(uitspraak.as_str())
+                && g.basis == basis
+                && g.fact.as_deref() == Some(naam)
+        }) {
+            return Err(Error::Refused(format!(
+                "the court has the mededeling on '{uitspraak}' already, in '{}'",
+                m.id
+            )));
+        }
+    }
+    let mut service = corpus.service()?;
+    match herstel {
+        Some(besluit) => {
+            if !velden.is_empty() {
+                return Err(Error::Refused(format!(
+                    "the administrative body repaired the defect with the decision '{besluit}', \
+                     which goes to the court as its copy; the mededeling holds nothing else"
+                )));
+            }
+            let afschrift = cellen.afschrift(&mut service, &cellen.sfeer(), &besluit)?;
+            let (rechter, _) = cellen.splits_op(&b.rechter)?;
+            rechter.record_receipt(&service, feit, &afschrift, &uitspraak, on)
+        }
+        None => {
+            let (rechter, _) = cellen.splits_op(&b.rechter)?;
+            rechter.record_executogram_about(&service, feit, &uitspraak, velden, on)
+        }
+    }
 }
 
 /// Why the court's judgment `id` came out as it did, as [`waarom`] in the
@@ -4404,6 +4573,12 @@ mod tests {
                 "indiener_is_belanghebbende",
                 "rechtsregel_geschonden",
                 "geschonden_rechtsregel",
+                // The bestuurlijke lus (Awb 8:51a, 8:80a) and the judgment
+                // on a decision that replaced the contested one (6:19).
+                "gelegenheid_tot_herstel",
+                "termijn_herstel",
+                "wijze_waarop_gebrek_kan_worden_hersteld",
+                "rechtsregel_geschonden_door_vervangend_besluit",
                 "rechtsgevolgen_in_stand",
                 "uitspraak_treedt_in_de_plaats",
                 "termijn_nieuw_besluit",

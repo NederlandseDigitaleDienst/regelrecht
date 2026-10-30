@@ -264,7 +264,9 @@ fn speel(casus_id: &str, index: usize) {
             "uitspraak" => {
                 let beroep = kies(&stand.beroepen, &stap["op"], |l| l.len().checked_sub(1));
                 let bevindingen = met(&voorbeeld["uitspraak"], invoer);
-                let gedaan = spel.uitspraak_doen(&beroep, &bevindingen, datum).unwrap();
+                let gedaan = spel
+                    .uitspraak_doen(&beroep, &bevindingen, datum)
+                    .unwrap_or_else(|e| panic!("{waar}: {e}"));
                 stand
                     .uitspraken
                     .push(gedaan["uitspraak"]["id"].as_str().unwrap().to_string());
@@ -285,6 +287,19 @@ fn speel(casus_id: &str, index: usize) {
                 if let Some(v) = verwacht {
                     assert_eq!(op_bezwaar(&genomen["beslissing"]), v, "{waar}");
                 }
+            }
+            "mededelen" => {
+                let ontvangst = kies(&stand.ontvangsten, &stap["op"], |l| l.len().checked_sub(1));
+                let velden = map(invoer);
+                let vorm = &vormen["mededeling"]["velden"];
+                for naam in velden.keys() {
+                    assert!(
+                        namen(vorm).contains(naam),
+                        "{waar}: the form asks no '{naam}'"
+                    );
+                }
+                spel.herstel_meedelen(&ontvangst, &velden, datum)
+                    .unwrap_or_else(|e| panic!("{waar}: {e}"));
             }
             soort => panic!("{waar}: unknown step '{soort}'"),
         }

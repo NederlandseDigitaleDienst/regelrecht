@@ -8,7 +8,7 @@
  * on the objection, so a guide folds it into that step), and a step the cell
  * refuses, which `state.refusals` keeps (state.js).
  */
-import { isOntvangst } from './beroep.js';
+import { isMededeling, isOntvangst } from './beroep.js';
 import {
   aanvragen,
   besluitOp,
@@ -44,6 +44,8 @@ export function counts() {
     beroepen: state.rechter.filter((g) => g.kind === 'BEROEP').length,
     uitspraken: state.rechter.filter((g) => g.kind === 'UITSPRAAK').length,
     ontvangsten: state.grammen.filter(isOntvangst).length,
+    // What the authority told the court after an interim judgment (Awb 8:51b).
+    mededelingen: state.rechter.filter(isMededeling).length,
     /** Executograms of fact `fact` in the other cells whose fields match `velden`. */
     executogrammen: (fact, velden = {}) =>
       andere.filter(
