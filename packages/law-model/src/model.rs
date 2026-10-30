@@ -450,6 +450,10 @@ pub struct ProducedItem {
         deserialize_with = "optional_article_reference"
     )]
     pub requests: Option<String>,
+    /// For a submission: further articles whose decision it leads to, beside
+    /// `requests`, such as the advance on an allowance (schema v0.8.14).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub also_requests: Option<Vec<String>>,
     /// For a decision: the kind of decision.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub decision_type: Option<String>,
@@ -544,6 +548,15 @@ impl<'a> Produced<'a> {
         match self {
             Self::Object(_) => None,
             Self::Item(i) => i.requests.as_deref(),
+        }
+    }
+
+    /// For a submission in the list form: the further articles whose decision
+    /// it leads to, beside [`Self::requests`].
+    pub fn also_requests(self) -> &'a [String] {
+        match self {
+            Self::Object(_) => &[],
+            Self::Item(i) => i.also_requests.as_deref().unwrap_or_default(),
         }
     }
 
@@ -1960,6 +1973,16 @@ impl Article {
             None if !self.produces_list() && self.get_decision().is_some() => Some(own.to_string()),
             None => None,
         }
+    }
+
+    /// Every article whose decision the submission of this article leads
+    /// to: [`Self::requested_decision`] first, then those of `also_requests`.
+    pub fn requested_decisions(&self, own: &str) -> Vec<String> {
+        let mut uit: Vec<String> = self.requested_decision(own).into_iter().collect();
+        if let Some(submission) = self.get_submission() {
+            uit.extend(submission.also_requests().iter().cloned());
+        }
+        uit
     }
 
     /// The names of the outputs that belong to `item`, one of

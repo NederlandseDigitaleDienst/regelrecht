@@ -3130,6 +3130,15 @@
           "$ref": "#/definitions/articleReference",
           "description": "Only on a submission: the article whose decision it asks for, as `<regulation>#<article>`, also when that is this article (Awb 1:3 lid 3, Awb 4:2 lid 1 onder c). The target is that article's decision: the item with a decision type in the list form, or the article itself in the object form with a legal_character. The loader checks a target in the same law; a target in another law is checked when it is used (RFC-047)."
         },
+        "also_requests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/articleReference"
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "Since v0.8.14, only on a submission beside `requests`: further articles whose decision it leads to, such as the advance on an allowance that an application for that allowance also starts (Awir 15 and 16). Each decision stands on its own: taking one leaves the others open. The loader checks a target in the same law; a target in another law is checked when it is used."
+        },
         "parameters": {
           "type": "array",
           "items": {

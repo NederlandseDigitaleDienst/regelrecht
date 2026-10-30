@@ -501,32 +501,36 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
             types.push(ty);
         }
         for item in &produced {
-            let Some(target) = item.requests() else {
-                continue;
-            };
-            if item.submission_kind().is_none() {
-                return refuse(format!(
-                    "requests '{target}' on a decision; only a submission requests a decision"
-                ));
-            }
-            let Some((regulation, number)) = target.split_once('#') else {
-                continue;
-            };
-            if regulation != law.id {
-                continue;
-            }
-            match law.find_article_by_number(number) {
-                None => {
+            let targets = item
+                .requests()
+                .into_iter()
+                .chain(item.also_requests().iter().map(String::as_str));
+            for target in targets {
+                if item.submission_kind().is_none() {
                     return refuse(format!(
-                        "requests the decision of '{target}', but this law has no article {number}"
-                    ))
+                        "requests '{target}' on a decision; only a submission requests a decision"
+                    ));
                 }
-                Some(a) if a.get_decision().is_none() => {
-                    return refuse(format!(
-                        "requests the decision of '{target}', which takes no decision"
-                    ))
+                let Some((regulation, number)) = target.split_once('#') else {
+                    continue;
+                };
+                if regulation != law.id {
+                    continue;
                 }
-                Some(_) => {}
+                match law.find_article_by_number(number) {
+                    None => {
+                        return refuse(format!(
+                            "requests the decision of '{target}', but this law has no article \
+                             {number}"
+                        ))
+                    }
+                    Some(a) if a.get_decision().is_none() => {
+                        return refuse(format!(
+                            "requests the decision of '{target}', which takes no decision"
+                        ))
+                    }
+                    Some(_) => {}
+                }
             }
         }
         if let Some(item) = produced
@@ -1009,6 +1013,10 @@ articles:
             (
                 "          - type: AANVRAAG\n            requests: lijst#1",
                 "which takes no decision",
+            ),
+            (
+                "          - type: AANVRAAG\n            also_requests: [lijst#2]\n          - type: BESCHIKKING",
+                "this law has no article 2",
             ),
             (
                 "          - type: AANVRAAG\n            parameters: [p]",

@@ -17,6 +17,7 @@ import { artikelNaam } from '../logboek.js';
 import { stilBegrippen } from '../stil.js';
 import {
   aanvragen,
+  besluitBases,
   besluitBasis,
   beslissingOp,
   besluitOp,
@@ -43,7 +44,15 @@ const artikel = computed(() => {
   return artikelNaam(wet, nummer);
 });
 
-const open = computed(() => aanvragen().filter((a) => !besluitOp(a.id)));
+// De besluiten waartoe de aanvraag leidt en die er nog niet zijn; één besluit
+// heeft geen eigen naam nodig op de knop.
+const openBesluiten = (a) => besluitBases().filter((basis) => !besluitOp(a.id, basis));
+const open = computed(() => aanvragen().filter((a) => openBesluiten(a).length));
+const knop = (basis) => {
+  if (besluitBases().length === 1) return 'Besluit nemen';
+  const [wet, nummer] = basis.split('#');
+  return `Besluit nemen: ${artikelNaam(wet, nummer)}`;
+};
 const openBezwaren = computed(() =>
   state.grammen.filter((g) => g.kind === 'BEZWAAR' && !beslissingOp(g.id)),
 );
@@ -67,8 +76,8 @@ const uit = () => {
 const oordeelVoor = (id) => ({ ...uit(), ...zonderLeeg(besluitVorm.waarden(id)) });
 const zetOordeel = (id, naam, waarde) => besluitVorm.zet(id, naam, waarde);
 
-async function besluit(a) {
-  const antwoord = await stap(() => api.besluiten(a.id, oordeelVoor(a.id), state.datum));
+async function besluit(a, basis) {
+  const antwoord = await stap(() => api.besluiten(a.id, oordeelVoor(a.id), state.datum, basis));
   if (antwoord) besluitVorm.wis(a.id);
 }
 
@@ -158,13 +167,24 @@ const uitkomstOpBezwaar = (uit) =>
               :model-value="besluitVorm.waarden(a.id)[v.naam]"
               @update:model-value="zetOordeel(a.id, v.naam, $event)"
             />
-            <nldd-button appearance="primary" text="Besluit nemen" @click="besluit(a)"></nldd-button>
+            <nldd-button
+              v-for="basis in openBesluiten(a)"
+              :key="basis"
+              appearance="primary"
+              :text="knop(basis)"
+              @click="besluit(a, basis)"
+            ></nldd-button>
           </nldd-container>
-          <Voorvertoning
-            :op="a.id"
-            :bevindingen="oordeelVoor(a.id)"
-            @stil="meldStil(a.id, $event)"
-          />
+          <nldd-container gap="12">
+            <Voorvertoning
+              v-for="basis in openBesluiten(a)"
+              :key="basis"
+              :op="a.id"
+              :basis="basis"
+              :bevindingen="oordeelVoor(a.id)"
+              @stil="meldStil(a.id, $event)"
+            />
+          </nldd-container>
         </nldd-container>
         </nldd-container>
       </nldd-card>

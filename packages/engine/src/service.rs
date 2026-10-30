@@ -2399,10 +2399,7 @@ impl LawExecutionService {
             };
             for article in &law.articles {
                 let own = format!("{id}#{}", article.number);
-                if article
-                    .requested_decision(&own)
-                    .is_some_and(|t| t == target)
-                {
+                if article.requested_decisions(&own).contains(&target) {
                     found.push(own);
                 }
             }

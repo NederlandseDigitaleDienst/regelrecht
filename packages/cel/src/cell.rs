@@ -169,10 +169,11 @@ impl Cell {
             // A decision taken again names a chronolexogram before it that
             // refers to the last decision on the same submission.
             if let Some(after) = gram.after.as_deref() {
-                let last = gram
-                    .refers_to
-                    .as_deref()
-                    .and_then(|on| decisions_on(before, on).last().copied());
+                let last = gram.refers_to.as_deref().and_then(|on| {
+                    decisions_on(before, on)
+                        .into_iter()
+                        .rfind(|g| g.basis == gram.basis)
+                });
                 let later = before.iter().find(|g| g.id == after);
                 let follows = later.zip(last).is_some_and(|(later, last)| {
                     later.refers_to.as_deref() == Some(last.id.as_str())
@@ -964,6 +965,7 @@ impl Cell {
         // Taken again, the decision sets aside every earlier one on it.
         let set_aside: Vec<String> = decisions_on(self.grams(), &applied.id)
             .iter()
+            .filter(|g| g.basis == shape.basis())
             .map(|g| g.id.clone())
             .collect();
         let decisions = self.decision_values(service, sphere, &shape, &applied, on)?;
@@ -1700,7 +1702,11 @@ impl Cell {
                 shape.basis()
             )));
         }
-        let last = decisions_on(self.grams(), id).last().copied();
+        // A submission may lead to several decisions (`also_requests`): each
+        // stands on its own.
+        let last = decisions_on(self.grams(), id)
+            .into_iter()
+            .rfind(|g| g.basis == shape.basis());
         match (last, after) {
             (None, None) => Ok(gram),
             (Some(decided), None) => Err(refused(format!(

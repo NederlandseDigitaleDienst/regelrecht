@@ -47,11 +47,19 @@ export const state = reactive({
 /** Het artikel waaronder de casus op een aanvraag besluit, `<wet>#<artikel>`. */
 export const besluitBasis = () => state.casus?.besluit;
 
+/** Elk artikel waaronder de casus op een aanvraag besluit: het gevraagde eerst. */
+export const besluitBases = () =>
+  state.casus?.besluiten?.map((b) => b.basis) ?? [besluitBasis()];
+
 /** Het artikel van de beslissing op bezwaar (Awb 7:11). */
 export const bezwaarBasis = () => state.casus?.beslissing_op_bezwaar;
 
 /** Of een besluit het gevraagde toewijst, volgens de uitvoer die de casus noemt. */
-export const toegewezen = (g) => g?.outputs?.[state.casus?.uitkomst];
+export const toegewezen = (g) => g?.outputs?.[uitkomstVan(g)];
+
+/** De uitvoer die zegt of besluit `g` toewijst: per artikel, of die van de casus. */
+export const uitkomstVan = (g) =>
+  state.casus?.besluiten?.find((b) => b.basis === g?.basis)?.uitkomst ?? state.casus?.uitkomst;
 
 // Het spel van dit tabblad, bewaard zodat een herladen tabblad verder gaat
 // waar het was. Elk tabblad speelt zijn eigen spel, in het geheugen van de
@@ -222,9 +230,14 @@ export const verwijstNaar = (id) => state.grammen.filter((g) => g.refers_to === 
 
 export const aanvragen = () => state.grammen.filter((g) => g.kind === 'AANVRAAG');
 
-/** Het besluit op een aanvraag, als het er is. */
-export const besluitOp = (id) =>
-  verwijstNaar(id).find((g) => g.basis === besluitBasis() && g.kind !== 'BEZWAAR');
+/**
+ * Het besluit op een aanvraag, als het er is: onder `basis`, of zonder die het
+ * eerste onder een artikel van de casus.
+ */
+export const besluitOp = (id, basis) =>
+  verwijstNaar(id).find(
+    (g) => (basis ? g.basis === basis : besluitBases().includes(g.basis)) && g.kind !== 'BEZWAAR',
+  );
 
 /**
  * Of beslissing `b` het besluit `id` nam: een beslissing op bezwaar noemt
@@ -281,29 +294,31 @@ export function rol(g) {
 export function dossier(aanvraag) {
   const stap = (gram, rechter = false) => ({ gram, rol: rol(gram), rechter });
   const stappen = [stap(aanvraag)];
-  let besluit = besluitOp(aanvraag.id);
-  while (besluit) {
-    stappen.push(stap(besluit));
-    let volgende = null;
-    for (const bezwaar of bezwarenTegen(besluit.id)) {
-      stappen.push(stap(bezwaar));
-      for (const beslissing of beslissingenOp(bezwaar.id)) {
-        stappen.push(stap(beslissing));
-        for (const beroep of beroepenTegen(beslissing.id)) {
-          stappen.push(stap(beroep, true));
-          const uitspraak = uitspraakOp(beroep.id);
-          if (uitspraak) stappen.push(stap(uitspraak, true));
+  for (const basis of besluitBases()) {
+    let besluit = besluitOp(aanvraag.id, basis);
+    while (besluit) {
+      stappen.push(stap(besluit));
+      let volgende = null;
+      for (const bezwaar of bezwarenTegen(besluit.id)) {
+        stappen.push(stap(bezwaar));
+        for (const beslissing of beslissingenOp(bezwaar.id)) {
+          stappen.push(stap(beslissing));
+          for (const beroep of beroepenTegen(beslissing.id)) {
+            stappen.push(stap(beroep, true));
+            const uitspraak = uitspraakOp(beroep.id);
+            if (uitspraak) stappen.push(stap(uitspraak, true));
+          }
+          for (const ontvangst of ontvangstenBij(beslissing.id)) stappen.push(stap(ontvangst));
         }
-        for (const ontvangst of ontvangstenBij(beslissing.id)) stappen.push(stap(ontvangst));
+        // Het dossier volgt het besluit dat de laatste beslissing op het
+        // bezwaar nam. Een besluit dat een eerdere, door de rechter
+        // vernietigde beslissing nam, geldt niet meer en staat alleen in de
+        // kroniek.
+        const laatste = geldendeBeslissingOp(bezwaar.id);
+        volgende = (laatste && genomenDoor(laatste)[0]) ?? volgende;
       }
-      // Het dossier volgt het besluit dat de laatste beslissing op het
-      // bezwaar nam. Een besluit dat een eerdere, door de rechter
-      // vernietigde beslissing nam, geldt niet meer en staat alleen in de
-      // kroniek.
-      const laatste = geldendeBeslissingOp(bezwaar.id);
-      volgende = (laatste && genomenDoor(laatste)[0]) ?? volgende;
+      besluit = volgende;
     }
-    besluit = volgende;
   }
   return stappen;
 }
@@ -312,7 +327,7 @@ export function dossier(aanvraag) {
 export function geldendBesluit(aanvraag) {
   const besluiten = dossier(aanvraag)
     .map((s) => s.gram)
-    .filter((g) => g.basis === besluitBasis() && g.refers_to);
+    .filter((g) => besluitBases().includes(g.basis) && g.refers_to);
   return besluiten.filter((b) => !herroepen(b)).at(-1) ?? null;
 }
 

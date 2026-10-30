@@ -1,0 +1,61 @@
+---
+# Tier C: a submission that leads to a second decision beside the one it
+# requests (`also_requests`, schema v0.8.14), each taken on its own.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: test_conformance_also_requests
+regulatory_layer: WET
+publication_date: '2026-10-14'
+valid_from: '2026-10-14'
+bwb_id: BWBR0099981
+name: Testwet aanvraag met twee besluiten
+url: https://example.invalid/also-requests
+articles:
+  - number: '1'
+    url: https://example.invalid/also-requests/1
+    text: Op aanvraag wordt een bedrag toegekend en vooraf een voorschot verleend.
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: test_conformance_also_requests#2
+            also_requests:
+              - test_conformance_also_requests#3
+            parameters:
+              - bedrag
+        parameters:
+          - name: bedrag
+            type: number
+  - number: '2'
+    url: https://example.invalid/also-requests/2
+    text: Het bedrag wordt toegekend.
+    machine_readable:
+      execution:
+        produces:
+          legal_character: BESCHIKKING
+          decision_type: TOEKENNING
+        parameters:
+          - name: bedrag
+            type: number
+        output:
+          - name: toegekend
+            type: number
+        actions:
+          - output: toegekend
+            value: $bedrag
+  - number: '3'
+    url: https://example.invalid/also-requests/3
+    text: Een voorschot wordt verleend.
+    machine_readable:
+      execution:
+        produces:
+          legal_character: BESCHIKKING
+          decision_type: TOEKENNING
+        parameters:
+          - name: bedrag
+            type: number
+        output:
+          - name: voorschot
+            type: number
+        actions:
+          - output: voorschot
+            value: $bedrag

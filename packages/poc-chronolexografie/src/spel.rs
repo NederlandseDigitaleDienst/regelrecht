@@ -193,6 +193,31 @@ impl Spel {
         ok(self.met(|c, cell| kern::besluiten(c, cell, op, bevindingen, datum))?)
     }
 
+    /// Take the decision `basis` the application `op` leads to, when it
+    /// leads to more than one ([`kern::besluiten_onder`]).
+    pub fn besluiten_onder(
+        &mut self,
+        op: &str,
+        basis: &str,
+        bevindingen: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| kern::besluiten_onder(c, cell, op, basis, bevindingen, datum))?)
+    }
+
+    /// A preview of the decision `basis`, as [`Spel::voorvertoning_besluit`].
+    pub fn voorvertoning_besluit_onder(
+        &mut self,
+        op: &str,
+        basis: &str,
+        bevindingen: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| {
+            kern::voorvertoning_besluit_onder(c, cell, op, basis, bevindingen, datum)
+        })?)
+    }
+
     pub fn waarom(&mut self, id: &str) -> Antwoord {
         ok(self.met(|c, cell| kern::waarom(c, cell, id))?)
     }

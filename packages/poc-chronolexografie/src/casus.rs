@@ -12,7 +12,7 @@
 //! the text a visitor reads: a description, example values for the forms and
 //! the scenarios.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
@@ -59,6 +59,11 @@ pub struct Casus {
     /// kind of decision it is, not which of its outputs is the grant, and
     /// both decisions have more than one boolean output.
     pub uitkomst: String,
+    /// The same for another decision the application leads to
+    /// (`also_requests`), by its article: the one `uitkomst` names is that
+    /// of the decision it requests.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub uitkomst_per_besluit: BTreeMap<String, String>,
     pub titel: String,
     /// The cell's name as the visitor reads it.
     pub cel_naam: String,
@@ -156,7 +161,7 @@ pub struct Scenario {
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum Stap {
-    Handeling(Handeling),
+    Handeling(Box<Handeling>),
     Tekst(String),
 }
 
@@ -168,7 +173,7 @@ impl<'de> Deserialize<'de> for Stap {
         match Value::deserialize(d)? {
             Value::String(tekst) => Ok(Self::Tekst(tekst)),
             v => serde_json::from_value(v)
-                .map(Self::Handeling)
+                .map(|h| Self::Handeling(Box::new(h)))
                 .map_err(serde::de::Error::custom),
         }
     }
@@ -196,6 +201,11 @@ pub struct Handeling {
     /// the last application, an appeal on the last decision on objection.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub op: Option<usize>,
+    /// For [`Soort::Besluit`]: the article of the decision, when the
+    /// application leads to more than one (`also_requests`); without one,
+    /// the decision it requests.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub artikel: Option<String>,
     /// For [`Soort::Vastleggen`]: the other cell that records, and the fact
     /// it records (`<regulation>#<article>#<fact>`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -608,6 +618,9 @@ pub struct Afleiding {
     /// that its item names, which may be the application itself.
     pub decision_law: String,
     pub decision: String,
+    /// Every decision the application leads to, `<law>#<article>`: the one it
+    /// requests first, then those of `also_requests`.
+    pub besluiten: Vec<String>,
     /// The article that establishes the objection (`type: BEZWAAR`), and
     /// decides on it: Awb 7:11 for both cases.
     pub objection_law: String,
@@ -726,6 +739,7 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
     Ok(Afleiding {
         law: law.to_string(),
         article: article.to_string(),
+        besluiten: besluiten(regelwerken, &casus.id, law, article)?,
         decision_law,
         decision,
         objection_law,
@@ -786,6 +800,41 @@ fn beroep(
         ontvangst,
         rechter,
     }))
+}
+
+/// Every decision the application under `law#article` leads to
+/// ([`regelrecht_law_model::Article::requested_decisions`]), each an article
+/// of the case's corpus that takes a decision.
+fn besluiten(
+    regelwerken: &Regelwerken,
+    casus: &str,
+    law: &str,
+    article: &str,
+) -> Result<Vec<String>> {
+    let eigen = format!("{law}#{article}");
+    let aanvraag = regelwerken
+        .get(law)
+        .and_then(|w| w.nieuwste().articles.iter().find(|a| a.number == article));
+    let doelen = aanvraag
+        .map(|a| a.requested_decisions(&eigen))
+        .unwrap_or_default();
+    for doel in &doelen {
+        let neemt = doel.split_once('#').is_some_and(|(l, a)| {
+            regelwerken.get(l).is_some_and(|w| {
+                w.nieuwste()
+                    .articles
+                    .iter()
+                    .any(|x| x.number == a && x.get_decision().is_some())
+            })
+        });
+        if !neemt {
+            return Err(Error::Setup(format!(
+                "case '{casus}': {eigen} leads to the decision of {doel}, which its corpus does \
+                 not hold as an article that takes a decision"
+            )));
+        }
+    }
+    Ok(doelen)
 }
 
 /// The article whose decision the application under `law#article` asks

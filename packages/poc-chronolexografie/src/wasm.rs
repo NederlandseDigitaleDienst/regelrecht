@@ -130,6 +130,38 @@ impl Poc {
         )
     }
 
+    #[wasm_bindgen(js_name = besluitenOnder)]
+    pub fn besluiten_onder(
+        &mut self,
+        op: &str,
+        basis: &str,
+        bevindingen: &str,
+        datum: &str,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.besluiten_onder(
+            op,
+            basis,
+            &kaart("bevindingen", bevindingen)?,
+            dag(datum)?,
+        ))
+    }
+
+    #[wasm_bindgen(js_name = voorvertoningBesluitOnder)]
+    pub fn voorvertoning_besluit_onder(
+        &mut self,
+        op: &str,
+        basis: &str,
+        bevindingen: &str,
+        datum: &str,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.voorvertoning_besluit_onder(
+            op,
+            basis,
+            &kaart("bevindingen", bevindingen)?,
+            dag(datum)?,
+        ))
+    }
+
     #[wasm_bindgen(js_name = voorvertoningBesluit)]
     pub fn voorvertoning_besluit(
         &mut self,

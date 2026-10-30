@@ -183,7 +183,10 @@ fn speel(casus_id: &str, index: usize) {
                 let op = stand.aanvragen[doel].0.clone();
                 let bevindingen = met(&voorbeeld["bevindingen"], invoer);
                 alles_gevuld(&vormen["besluit"]["bevindingen"], &bevindingen, &waar);
-                let genomen = spel.besluiten(&op, &bevindingen, datum);
+                let genomen = match stap["artikel"].as_str() {
+                    Some(basis) => spel.besluiten_onder(&op, basis, &bevindingen, datum),
+                    None => spel.besluiten(&op, &bevindingen, datum),
+                };
                 if verwacht == Some("geweigerd") {
                     let e = genomen
                         .err()
@@ -195,6 +198,12 @@ fn speel(casus_id: &str, index: usize) {
                 stand.aanvragen[doel].1 =
                     Some(genomen["besluit"]["id"].as_str().unwrap().to_string());
                 uitvoer_klopt(stap, &genomen["besluit"], &waar);
+                let uitkomst = casus["besluiten"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|b| b["basis"] == genomen["besluit"]["basis"])
+                    .map_or(uitkomst, |b| b["uitkomst"].as_str().unwrap());
                 let toegewezen = genomen["besluit"]["outputs"][uitkomst] == json!(true);
                 if let Some(v) = verwacht {
                     let kreeg = if toegewezen {
