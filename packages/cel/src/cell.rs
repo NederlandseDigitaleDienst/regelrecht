@@ -1446,11 +1446,11 @@ impl Cell {
     /// - under `findings`, the deciding authority's findings for this case
     ///   ([`Cell::findings`], from a replay) on the open terms of the
     ///   decision: of the deciding article, and of a policy that fills one of
-    ///   its terms and leaves a case to the authority (RFC-048 §2);
+    ///   its terms and leaves a case to the authority (RFC-048 §2), and those
+    ///   given for an article the decision called, which a call anew needs
+    ///   again;
     /// - no value a regulation filled: a call anew reads the regulation in
     ///   force on its own day;
-    /// - no finding given for an article the decision called: that is
-    ///   recorded with the decision that article produced, the new decision;
     /// - under `fields`, the parameters.
     ///
     /// Data derived for the decision is no part of it. A decision the fields
