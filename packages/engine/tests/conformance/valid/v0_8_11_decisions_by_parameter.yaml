@@ -3,7 +3,7 @@
 # the article its parameter names (schema v0.8.11, RFC-048). It has no
 # chronicle of its own: it reads that of the cell that runs the reduction
 # calling it.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: test_conformance_decisions_by_parameter
 regulatory_layer: REDUCTIE
 publication_date: '2026-10-24'

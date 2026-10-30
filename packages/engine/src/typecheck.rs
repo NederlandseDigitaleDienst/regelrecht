@@ -710,21 +710,28 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
         };
         // The decision is checked in the version at hand, as N5 checks the
         // output of a `regulation` reference.
-        let Some(decision) = target_article.get_decision() else {
+        let decision = target_article.get_decision();
+        if decision.is_none() && source.output.is_none() {
             self.report(
                 Rule::T5,
                 format!("'{name}' calls the decision of {target}, which takes no decision"),
             );
             return;
-        };
+        }
         if let Some(output) = &source.output {
-            if !target_article
-                .outputs_of(decision)
-                .contains(&output.as_str())
-            {
+            let (gives, what) = match decision {
+                Some(decision) => (
+                    target_article
+                        .outputs_of(decision)
+                        .contains(&output.as_str()),
+                    "no output of its decision",
+                ),
+                None => (target_article.find_output(output).is_some(), "no output"),
+            };
+            if !gives {
                 self.report(
                     Rule::T5,
-                    format!("'{name}' takes '{output}' from {target}, which is no output of its decision"),
+                    format!("'{name}' takes '{output}' from {target}, which is {what}"),
                 );
                 return;
             }

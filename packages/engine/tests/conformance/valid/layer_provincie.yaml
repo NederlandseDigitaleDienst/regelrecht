@@ -1,6 +1,6 @@
 ---
 # Tier C: provincie_code (one layer per fixture: the conditional required-rules are mutually exclusive).
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: test_conformance_provinciale_verordening
 regulatory_layer: PROVINCIALE_VERORDENING
 publication_date: '2025-01-01'

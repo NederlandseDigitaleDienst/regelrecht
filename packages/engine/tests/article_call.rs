@@ -1,7 +1,9 @@
 //! A call to an article (`source.article`, schema v0.8.4, RFC-050): the
 //! article comes from the law or from a value, its parameters from
 //! `parameters_from` with `parameters` on top, and without `output` the
-//! input is a decision value `{basis, fields, findings, outputs}`.
+//! input is a decision value `{basis, fields, findings, outputs}`. Since
+//! v0.8.14 a reference may name an article that takes no decision, for one
+//! output.
 //! A decision value as the target is called anew with its own fields and
 //! findings, and the caller's findings win over those. Also the strict
 //! `EQUALS` on lists and records that compares two such values.
@@ -432,10 +434,10 @@ fn a_call_from_a_fixed_reference_with_output_returns_that_value() {
 #[test]
 fn a_call_from_a_value_with_output_takes_an_output_of_the_decision() {
     let service = service();
-    // Article 3 decides nothing, so it is refused, output or not.
+    // Article 3 decides nothing: a reference to it gives the output named.
     let besluit = json!({"basis": "wet_verlof#3", "taken_on": "wet_verlof#3", "fields": {}, "findings": {}, "outputs": {}});
-    let message = error(&service, "register_ok", json!({"besluit": besluit}));
-    assert!(message.contains("takes no decision"), "{message}");
+    let value = evaluate(&service, "register_ok", json!({"besluit": besluit}));
+    assert_eq!(value.unwrap(), Value::Bool(true));
     // Article 1 decides, but register_bijgehouden is none of its outputs.
     let message = error(
         &service,
@@ -2473,4 +2475,214 @@ fn a_finding_on_a_policys_own_term_the_call_does_not_reach_is_dropped_quietly() 
         !trace.contains("applies to an article the call runs"),
         "{trace}"
     );
+}
+
+/// A law that gives an amount but decides nothing, with an input it reads
+/// from another law, and the law that reads it through a reference. The
+/// source of `inkomen` has no value of its own here.
+const REGELING: &str = r#"
+$id: wet_bedrag
+regulatory_layer: WET
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: De aanspraak is tien procent van het inkomen.
+    machine_readable:
+      execution:
+        input:
+          - name: inkomen
+            type: number
+            source:
+              regulation: wet_register
+              output: geregistreerd_inkomen
+        output:
+          - name: bedrag
+            type: number
+        actions:
+          - output: bedrag
+            value:
+              operation: DIVIDE
+              values: [$inkomen, 10]
+"#;
+
+const REGISTER: &str = r#"
+$id: wet_register
+regulatory_layer: WET
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: Het register houdt het inkomen bij.
+    machine_readable:
+      execution:
+        output:
+          - name: geregistreerd_inkomen
+            type: number
+        actions:
+          - output: geregistreerd_inkomen
+            value: 1000
+"#;
+
+const AANVRAAG: &str = r#"
+$id: wet_aanvraag
+regulatory_layer: WET
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: De tegemoetkoming is het bedrag uit het genoemde artikel.
+    machine_readable:
+      execution:
+        parameters:
+          - name: gevraagd
+            type: string
+        input:
+          - name: gelezen
+            type: number
+            source:
+              article: $gevraagd
+              output: bedrag
+        output:
+          - name: toegekend
+            type: number
+        actions:
+          - output: toegekend
+            value: $gelezen
+"#;
+
+fn verwijzing() -> LawExecutionService {
+    let mut service = LawExecutionService::new();
+    for law in [REGELING, REGISTER, AANVRAAG] {
+        service.load_law(law).unwrap();
+    }
+    service
+}
+
+#[test]
+fn a_reference_reads_a_named_output_of_an_article_that_takes_no_decision() {
+    let result = verwijzing()
+        .evaluate_law_output(
+            "wet_aanvraag",
+            "toegekend",
+            params(json!({"gevraagd": "wet_bedrag#1"})),
+            DATE,
+        )
+        .unwrap();
+    assert_eq!(
+        result.outputs["toegekend"],
+        Value::Decimal(Decimal::from(100))
+    );
+}
+
+#[test]
+fn an_output_the_article_without_a_decision_lacks_is_refused() {
+    let e = verwijzing()
+        .evaluate_law_output(
+            "wet_aanvraag",
+            "toegekend",
+            params(json!({"gevraagd": "wet_register#1"})),
+            DATE,
+        )
+        .unwrap_err();
+    assert!(e.to_string().contains("has no such output"), "{e}");
+}
+
+#[test]
+fn a_finding_under_the_name_of_an_input_of_the_called_article_wins_over_its_source() {
+    let result = verwijzing()
+        .evaluate_law_with_findings(
+            "wet_aanvraag",
+            &["toegekend"],
+            params(json!({"gevraagd": "wet_bedrag#1"})),
+            params(json!({"inkomen": 500})),
+            DATE,
+        )
+        .unwrap();
+    assert_eq!(
+        result.outputs["toegekend"],
+        Value::Decimal(Decimal::from(50))
+    );
+}
+
+#[test]
+fn a_decision_value_of_an_article_without_a_decision_is_refused_with_an_output_too() {
+    const LEEST: &str = r#"
+$id: wet_leest
+regulatory_layer: WET
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: Leest een uitvoer uit een besluitwaarde.
+    machine_readable:
+      execution:
+        parameters:
+          - name: besluit
+            type: decision
+        input:
+          - name: register
+            type: boolean
+            nullable: true
+            source:
+              article: $besluit
+              output: register_bijgehouden
+        output:
+          - name: bijgehouden
+            type: boolean
+            nullable: true
+        actions:
+          - output: bijgehouden
+            value: $register
+"#;
+    let mut service = service();
+    service.load_law(LEEST).unwrap();
+    let besluit = json!({"basis": "wet_verlof#3", "taken_on": "wet_verlof#3", "fields": {}, "findings": {}, "outputs": {}});
+    let e = service
+        .evaluate_law_output(
+            "wet_leest",
+            "bijgehouden",
+            params(json!({"besluit": besluit})),
+            DATE,
+        )
+        .unwrap_err();
+    assert!(e.to_string().contains("takes no decision"), "{e}");
+}
+
+#[test]
+fn the_trace_says_a_finding_on_an_input_wins_and_stays_silent_without_one() {
+    let render = |findings: serde_json::Value| {
+        let call = regelrecht_engine::Call {
+            findings: params(findings),
+            ..Default::default()
+        };
+        verwijzing()
+            .evaluate_law_with_trace_in(
+                "wet_aanvraag",
+                &["toegekend"],
+                params(json!({"gevraagd": "wet_bedrag#1"})),
+                call,
+                DATE,
+            )
+            .unwrap()
+            .trace
+            .unwrap()
+            .render_box_drawing()
+    };
+    assert!(render(json!({"inkomen": 500})).contains("on inkomen wins"));
+    assert!(!render(json!({})).contains("found for this case"));
+}
+
+#[test]
+fn a_finding_no_called_article_reads_is_still_not_asked() {
+    let e = verwijzing()
+        .evaluate_law_with_findings(
+            "wet_aanvraag",
+            &["toegekend"],
+            params(json!({"gevraagd": "wet_bedrag#1"})),
+            params(json!({"iets_anders": 500})),
+            DATE,
+        )
+        .unwrap_err();
+    assert!(matches!(e, EngineError::FindingsNotAsked { .. }), "{e}");
 }

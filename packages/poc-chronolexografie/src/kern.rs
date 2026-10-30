@@ -430,6 +430,109 @@ fn in_te_vullen(shape: &shape::Shape) -> Vec<Value> {
         .collect()
 }
 
+/// What the authority gives for the article an application names: the
+/// decision under `law_id#article`, or an article it reads an output of
+/// (`source.regulation`), reads that article (`source.article:
+/// $<parameter>`), `velden` holds the reference under the same name, and an
+/// input of that article the authority gives goes in under its name, over
+/// its source. Which inputs the authority gives the law does not say, since a
+/// source may answer them elsewhere: those the case's example findings name
+/// ([`Casus::voorbeeld`]).
+fn genoemde_invoer(
+    service: &LawExecutionService,
+    corpus: &Corpus,
+    law_id: &str,
+    article: &str,
+    velden: &BTreeMap<String, Value>,
+    on: NaiveDate,
+) -> Vec<shape::Field> {
+    let mut uit: Vec<shape::Field> = Vec::new();
+    let mut gelezen = vec![(law_id.to_string(), article.to_string())];
+    let mut i = 0;
+    while i < gelezen.len() {
+        let (law, number) = gelezen[i].clone();
+        i += 1;
+        let Some(leest) = shape::article_on(service, &law, &number, on) else {
+            continue;
+        };
+        for source in leest.get_inputs().iter().filter_map(|i| i.source.as_ref()) {
+            if let (Some(verder), Some(output)) = (&source.regulation, &source.output) {
+                if let Some(a) = service
+                    .resolver()
+                    .get_article_by_output(verder, output, Some(on))
+                {
+                    let waar = (verder.clone(), a.number.clone());
+                    if !gelezen.contains(&waar) {
+                        gelezen.push(waar);
+                    }
+                }
+            }
+            let Some(naam) = source.article.as_deref().and_then(|a| a.strip_prefix('$')) else {
+                continue;
+            };
+            let Some((genoemde_wet, nummer)) = velden
+                .get(naam)
+                .and_then(Value::as_str)
+                .and_then(|r| r.split_once('#'))
+            else {
+                continue;
+            };
+            let Some(genoemd) = shape::article_on(service, genoemde_wet, nummer, on) else {
+                continue;
+            };
+            for input in genoemd.get_inputs() {
+                if corpus.casus.voorbeeld.bevindingen.contains_key(&input.name)
+                    && !uit.iter().any(|f| f.name == input.name)
+                {
+                    uit.push(shape::Field {
+                        name: input.name.clone(),
+                        type_: input.input_type,
+                        nullable: input.is_nullable(),
+                        declared_by: vec![format!("{genoemde_wet}#{nummer}")],
+                    });
+                }
+            }
+        }
+    }
+    uit
+}
+
+/// Refuse a decision under `law_id#article` on the application with `velden`
+/// that lacks a value [`genoemde_invoer`] asks of the authority, or holds one
+/// of the wrong type: the engine would give an unknown outcome, or calculate
+/// with it.
+fn genoemde_invoer_gegeven(
+    service: &LawExecutionService,
+    corpus: &Corpus,
+    law_id: &str,
+    article: &str,
+    velden: &BTreeMap<String, Value>,
+    bevindingen: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<()> {
+    for field in genoemde_invoer(service, corpus, law_id, article, velden, on) {
+        match bevindingen.get(&field.name) {
+            None => {
+                return Err(Error::Refused(format!(
+                    "the decision asks '{}' of the deciding authority ({})",
+                    field.name,
+                    field.first_declared_by()
+                )))
+            }
+            Some(value) if !shape::fits(&field, value) => {
+                return Err(Error::Refused(format!(
+                    "'{}' is {value}, which does not fit a {:?} ({})",
+                    field.name,
+                    field.type_,
+                    field.first_declared_by()
+                )))
+            }
+            Some(_) => {}
+        }
+    }
+    Ok(())
+}
+
 /// The findings the deciding article of `shape` asks of `wie`, the
 /// authority that decides: not those of a policy that fills one of its
 /// terms.
@@ -1605,6 +1708,21 @@ pub fn besluiten(
     bevindingen: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Besluit> {
+    let velden = cell
+        .grams()
+        .iter()
+        .find(|g| g.id == aanvraag)
+        .map(|g| g.fields.clone())
+        .unwrap_or_default();
+    genoemde_invoer_gegeven(
+        &corpus.service()?,
+        corpus,
+        corpus.decision_law(),
+        corpus.decision(),
+        &velden,
+        bevindingen,
+        on,
+    )?;
     let besluit = beslissen(
         corpus,
         cell,
@@ -1727,11 +1845,23 @@ fn opnieuw_te_vinden(corpus: &Corpus, cell: &Cellen, bestreden: &Gram) -> Result
     let mut service = corpus.service()?;
     let shape = decision::derive(&service, law_id, article, bestreden.recorded_on)?;
     let mut bevindingen = Vec::new();
+    let genoemd = genoemde_invoer(
+        &service,
+        corpus,
+        law_id,
+        article,
+        &bestreden.fields,
+        bestreden.recorded_on,
+    );
     for naam in cell.findings(&mut service, &cell.sfeer(), &bestreden.id)? {
-        let Some(term) = shape.finding(&naam, cell.authority()) else {
-            continue;
+        let field = match shape.finding(&naam, cell.authority()) {
+            Some(term) => decision::finding_field(term),
+            None => match genoemd.iter().find(|f| f.name == naam) {
+                Some(field) => field.clone(),
+                None => continue,
+            },
         };
-        let mut v = veld(&decision::finding_field(term));
+        let mut v = veld(&field);
         v["eerder"] = bestreden.fields.get(&naam).cloned().unwrap_or(Value::Null);
         bevindingen.push(v);
     }
@@ -1948,9 +2078,26 @@ pub fn voorvertoning_besluit(
     bevindingen: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Voorvertoning<Besluit>> {
-    voorvertonen(corpus, cell, bevindingen, &[], on, |c, b| {
+    let service = corpus.service()?;
+    let velden = cell
+        .grams()
+        .iter()
+        .find(|g| g.id == aanvraag)
+        .map(|g| g.fields.clone())
+        .unwrap_or_default();
+    let genoemd = genoemde_invoer(
+        &service,
+        corpus,
+        corpus.decision_law(),
+        corpus.decision(),
+        &velden,
+        on,
+    );
+    let mut uit = voorvertonen(corpus, cell, bevindingen, &[], on, |c, b| {
         besluiten(corpus, c, aanvraag, b, on)
-    })
+    })?;
+    uit.stil.extend(genoemd.iter().map(veld));
+    Ok(uit)
 }
 
 /// What the decision on the objection `bezwaar` would be with these
@@ -3458,19 +3605,19 @@ mod tests {
     }
 
     #[test]
-    fn zorgtoeslag_the_application_asks_for_the_advance_and_the_policy_its_amount() {
+    fn zorgtoeslag_the_application_asks_for_the_allowance_of_the_article_it_names() {
         // Awir art. 15 establishes the application and asks for the
-        // decision of art. 16, the advance, which the Dienst Toeslagen takes
-        // as the article names it. Its open term, the amount the allowance
-        // is expected to come to, is filled by the Dienst's policy, which
-        // reads the Wet op de zorgtoeslag; that law reads the standard
-        // premium from its regeling, and the Awir, the Zvw and the Wet IB
-        // 2001 are read by the articles of these laws.
+        // decision of art. 14, the allowance, which the Dienst Toeslagen
+        // takes as the article names it. Art. 14 reads the amount from the
+        // article the application names, so the case's own Wet op de
+        // zorgtoeslag runs without an article of the Awir naming it; that
+        // law reads the standard premium from its regeling, and the Awir,
+        // the Zvw and the Wet IB 2001 are read by its articles.
         let zorg = casus("zorgtoeslag");
         let a = &zorg.afleiding;
         assert_eq!(
             (a.decision_law.as_str(), a.decision.as_str()),
-            ("algemene_wet_inkomensafhankelijke_regelingen", "16")
+            ("algemene_wet_inkomensafhankelijke_regelingen", "14")
         );
         assert_eq!(a.objection, "7:11");
         assert!(a.beroep.is_none(), "no court among the cells of this case");
@@ -3505,6 +3652,7 @@ mod tests {
         let velden = map(json!({
             "bsn": "999993653",
             "berekeningsjaar": 2025,
+            "gevraagde_tegemoetkoming": "wet_op_de_zorgtoeslag#2",
             "aanvraag_ondertekend": true,
             "naam_aanvrager": "S. de Vries",
             "adres_aanvrager": "Voorbeeldlaan 7",
@@ -3514,27 +3662,29 @@ mod tests {
         let app = aanvragen(&corpus, &mut cell, &velden, op).unwrap();
 
         let leeg = voorvertoning_besluit(&corpus, &cell, &app.id, &Map::new(), op).unwrap();
-        let eerste = namen(&leeg.stil);
-        assert_eq!(eerste.len(), 1);
-        assert!(eerste[0].starts_with("vermoedelijk_"), "{eerste:?}");
-        assert_eq!(
-            leeg.stil[0]["basis"],
-            json!("beleid_zorgtoeslag_dienst_toeslagen#1")
-        );
+        assert_eq!(namen(&leeg.stil).len(), 5);
+        assert_eq!(leeg.stil[0]["basis"], json!("wet_op_de_zorgtoeslag#2"));
         assert!(leeg.voorlopig.is_none());
+        assert!(leeg.geweigerd.unwrap().contains("asks '"));
+        // The decision itself refuses as well: without them the engine would
+        // give an unknown outcome.
+        assert!(matches!(
+            besluiten(&corpus, &mut cell, &app.id, &Map::new(), op),
+            Err(Error::Refused(_))
+        ));
 
         let oordelen = map(json!({
-            "vermoedelijk_toetsingsinkomen": 2500000,
-            "vermoedelijk_heeft_toeslagpartner": false,
-            "vermoedelijk_toetsingsinkomen_toeslagpartner": 0,
-            "vermoedelijk_verzekerd": true,
-            "vermoedelijk_vermogen_onder_grens": true,
+            "toetsingsinkomen": 2500000,
+            "heeft_toeslagpartner": false,
+            "toetsingsinkomen_toeslagpartner": 0,
+            "is_verzekerde": true,
+            "vermogen_onder_grens": true,
         }));
         let alle = voorvertoning_besluit(&corpus, &cell, &app.id, &oordelen, op).unwrap();
         assert_eq!(alle.stil.len(), 5);
         let besluit = alle.voorlopig.unwrap().besluit;
-        assert_eq!(besluit.outputs["voorschot_verleend"], json!(true));
-        assert_eq!(besluit.outputs["voorschotbedrag"], json!(157700));
+        assert_eq!(besluit.outputs["tegemoetkoming_toegekend"], json!(true));
+        assert_eq!(besluit.outputs["tegemoetkomingbedrag"], json!(157700));
         assert!(cell.kronieken()[0].iter().all(|g| g.kind != "BESCHIKKING"));
     }
 
@@ -3548,6 +3698,7 @@ mod tests {
         let velden = map(json!({
             "bsn": "999993653",
             "berekeningsjaar": 2025,
+            "gevraagde_tegemoetkoming": "wet_op_de_zorgtoeslag#2",
             "aanvraag_ondertekend": true,
             "naam_aanvrager": "S. de Vries",
             "adres_aanvrager": "Voorbeeldlaan 7",
@@ -3556,11 +3707,11 @@ mod tests {
         }));
         let app = aanvragen(&corpus, &mut cell, &velden, op).unwrap();
         let mut oordelen = map(json!({
-            "vermoedelijk_toetsingsinkomen": 2500000,
-            "vermoedelijk_heeft_toeslagpartner": false,
-            "vermoedelijk_toetsingsinkomen_toeslagpartner": 0,
-            "vermoedelijk_verzekerd": true,
-            "vermoedelijk_vermogen_onder_grens": true,
+            "toetsingsinkomen": 2500000,
+            "heeft_toeslagpartner": false,
+            "toetsingsinkomen_toeslagpartner": 0,
+            "is_verzekerde": true,
+            "vermogen_onder_grens": true,
         }));
         oordelen.extend(map(verwachting));
         besluiten(&corpus, &mut cell, &app.id, &oordelen, op)
@@ -3570,45 +3721,33 @@ mod tests {
     }
 
     #[test]
-    fn zorgtoeslag_each_condition_of_the_advance_decides_it() {
-        let bedrag = |o: &std::collections::BTreeMap<String, Value>| o["voorschotbedrag"].clone();
+    fn zorgtoeslag_each_condition_of_the_allowance_decides_it() {
+        let bedrag =
+            |o: &std::collections::BTreeMap<String, Value>| o["tegemoetkomingbedrag"].clone();
         let verleend =
-            |o: &std::collections::BTreeMap<String, Value>| o["voorschot_verleend"].clone();
+            |o: &std::collections::BTreeMap<String, Value>| o["tegemoetkoming_toegekend"].clone();
 
         // A partner: twice the standard premium, the partner percentage of
         // the threshold, and 13,7% of the joint income above it.
         let partner = voorschot(
             "2025-01-06",
             json!({
-                "vermoedelijk_heeft_toeslagpartner": true,
-                "vermoedelijk_toetsingsinkomen_toeslagpartner": 1000000,
+                "heeft_toeslagpartner": true,
+                "toetsingsinkomen_toeslagpartner": 1000000,
             }),
         );
         assert_eq!(bedrag(&partner), json!(208800));
 
         // Assets above the limit: no entitlement, so no advance.
-        let vermogen = voorschot(
-            "2025-01-06",
-            json!({ "vermoedelijk_vermogen_onder_grens": false }),
-        );
+        let vermogen = voorschot("2025-01-06", json!({ "vermogen_onder_grens": false }));
         assert_eq!(
             (bedrag(&vermogen), verleend(&vermogen)),
             (json!(0), json!(false))
         );
 
         // Awir 14 lid 5: an allowance of € 20 is under € 24.
-        let klein = voorschot(
-            "2025-01-06",
-            json!({ "vermoedelijk_toetsingsinkomen": 3956800 }),
-        );
+        let klein = voorschot("2025-01-06", json!({ "toetsingsinkomen": 3956800 }));
         assert_eq!((bedrag(&klein), verleend(&klein)), (json!(0), json!(false)));
-
-        // Awir 16 lid 1: an application from 1 April of the next year on
-        // gets no advance; the day before it does.
-        let laat = voorschot("2026-04-01", json!({}));
-        assert_eq!((bedrag(&laat), verleend(&laat)), (json!(0), json!(false)));
-        let tijdig = voorschot("2026-03-31", json!({}));
-        assert_eq!(bedrag(&tijdig), json!(157700));
     }
 
     #[test]

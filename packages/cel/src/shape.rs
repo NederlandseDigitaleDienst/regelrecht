@@ -367,7 +367,7 @@ fn refuse_incompetent_fact(
     )))
 }
 
-pub(crate) fn article_on<'s>(
+pub fn article_on<'s>(
     service: &'s LawExecutionService,
     law_id: &str,
     number: &str,

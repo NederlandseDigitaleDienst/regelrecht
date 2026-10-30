@@ -177,6 +177,8 @@ for lid, doc in laws.items():
             reg, out = src.get('regulation'), src.get('output')
             if reg is None and out is None:
                 continue  # data-registry binding (source: {})
+            if reg is None and src.get('article'):
+                continue  # a call to an article: the engine checks it when it runs
             if reg is None:  # intra-law reference
                 if out not in law_outputs.get(lid, set()):
                     dangling.append(f'{lid} art {num}: intra-law {out} bestaat niet')

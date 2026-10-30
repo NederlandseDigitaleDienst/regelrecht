@@ -5896,11 +5896,17 @@ impl LawExecutionService {
     /// date, at stage BESLUIT, as a cross-law call does, and computes the
     /// outputs of its decision item. Without `output` the input is the
     /// decision value `{basis, fields, findings, outputs}`; with it,
-    /// that one output.
+    /// that one output. An article that takes no decision can be called
+    /// for one `output` it declares: the law names it by reference, such as
+    /// the article an application names, and it has no decision value.
+    ///
+    /// A finding the caller gave under the name of an input of the article
+    /// is passed under that name, so it wins over the input's source.
     ///
     /// Refused at run time: a target that is no article reference, an
-    /// article not in force on the date, an article that takes no decision,
-    /// an `output` that is not one of that decision, and a merged value that
+    /// article not in force on the date, an article that takes no decision
+    /// without an `output`, an `output` that is not one of its decision or,
+    /// without a decision, not one of the article, and a merged value that
     /// is no object. A null merged value adds nothing. A target that is null
     /// or unknown, or a merged value that is unknown, is no call: the input
     /// is that null or unknown, as for a call skipped for a parameter
@@ -5927,6 +5933,7 @@ impl LawExecutionService {
         let named_by = target;
         let mut passed = BTreeMap::new();
         let mut given_findings = BTreeMap::new();
+        let mut from_value = false;
         let target = match named_by.strip_prefix('$') {
             None => named_by.to_string(),
             Some(path) => match context.resolve(path)? {
@@ -5935,6 +5942,7 @@ impl LawExecutionService {
                     let (basis, fields, findings) = decision_parts(value, named_by, &caller)?;
                     passed = fields;
                     given_findings = findings;
+                    from_value = true;
                     basis
                 }
                 value @ (Value::Null | Value::Unknown(_)) => {
@@ -6016,23 +6024,47 @@ impl LawExecutionService {
                     return Err(e);
                 }
             };
-        let Some(decision) = article.get_decision() else {
-            return refuse(
-                res_ctx,
-                format!("{caller} calls the decision of {target}, which takes no decision"),
-            );
-        };
-        let decided = article.outputs_of(decision);
-        let computed: Vec<&str> = match output {
-            None => decided.clone(),
-            Some(output) if decided.contains(&output) => vec![output],
-            Some(output) => {
+        // An article that takes a decision gives the outputs of that
+        // decision. Any other gives the output the call names.
+        let computed: Vec<&str> = match (article.get_decision(), output) {
+            (Some(decision), None) => article.outputs_of(decision),
+            (Some(decision), Some(output)) if article.outputs_of(decision).contains(&output) => {
+                vec![output]
+            }
+            (Some(_), Some(output)) => {
                 return refuse(
                     res_ctx,
                     format!(
                     "{caller} takes '{output}' from {target}, which is no output of its decision"
                 ),
                 )
+            }
+            (None, None) => {
+                return refuse(
+                    res_ctx,
+                    format!(
+                        "{caller} calls the decision of {target}, which takes no decision; name \
+                         the output it reads"
+                    ),
+                )
+            }
+            // A decision value was taken under an article that decides.
+            (None, Some(_)) if from_value => {
+                return refuse(
+                    res_ctx,
+                    format!("{caller} calls the decision of {target}, which takes no decision"),
+                )
+            }
+            (None, Some(output)) => {
+                if article.find_output(output).is_none() {
+                    return refuse(
+                        res_ctx,
+                        format!(
+                            "{caller} takes '{output}' from {target}, which has no such output"
+                        ),
+                    );
+                }
+                vec![output]
             }
         };
 
@@ -6076,6 +6108,28 @@ impl LawExecutionService {
         }
         let from_caller = res_ctx.findings_for(target_law, article, &filled)?;
         findings.extend(from_caller.clone());
+        // A finding the caller gave under the name of an input of the called
+        // article is the authority's own value for it in this case: it goes
+        // in under that name and wins over the input's source, as any value
+        // passed under an input's name does. So an authority can give what
+        // a law it applies would otherwise read, without either law naming
+        // the other's concepts.
+        let for_inputs: BTreeMap<String, Value> = article
+            .get_inputs()
+            .iter()
+            .filter_map(|i| {
+                let value = res_ctx
+                    .findings
+                    .get(&i.name)
+                    .or_else(|| given_findings.get(&i.name))
+                    .filter(|value| !value.is_null())?;
+                Some((i.name.clone(), value.clone()))
+            })
+            .collect();
+        for name in for_inputs.keys() {
+            res_ctx.findings_asked.insert(name.clone());
+        }
+        findings.extend(for_inputs.clone());
         // A finding of the decision value on a term of another article the
         // call runs, such as the open term a policy declares for a case its
         // cell is silent on (RFC-048 §2), applies there as a caller's
@@ -6103,7 +6157,7 @@ impl LawExecutionService {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect();
-        if !from_caller.is_empty() {
+        if !from_caller.is_empty() || !for_inputs.is_empty() {
             let _found = res_ctx.trace_guard(
                 format!("{target} (found for this case)"),
                 PathNodeType::Resolve,
@@ -6112,6 +6166,7 @@ impl LawExecutionService {
                 "{target}: the finding given for this execution on {} wins",
                 from_caller
                     .keys()
+                    .chain(for_inputs.keys())
                     .map(String::as_str)
                     .collect::<Vec<_>>()
                     .join(", ")
