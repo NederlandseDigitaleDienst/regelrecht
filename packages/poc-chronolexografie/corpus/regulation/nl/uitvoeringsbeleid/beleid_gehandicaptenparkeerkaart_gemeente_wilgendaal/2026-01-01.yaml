@@ -296,17 +296,17 @@ articles:
       # bepaalt dus wie het vraagt. Een protocol van de GGD bindt het college
       # niet, en de GGD vult geen begrip van artikel 49 in.
       # Het advies is een feit (requires, fact), dat vastlegt wie het
-      # onderzoek verricht (competent_authority, RFC-051), zoals het feit van
-      # het onderzoek zelf bij artikel 3 van de regeling. De parameters heten
+      # onderzoek verricht (competent_authority, RFC-051). De parameters heten
       # naar de oordelen van artikel 49 van het BABW. De oordelen uit het
       # advies zijn open begrippen van dit artikel, met dezelfde bevoegden;
       # alleen zij antwoorden erop. Hun namen beginnen met advies_, omdat een
       # begrip niet zo mag heten als een parameter van hetzelfde artikel.
       # Niet verplicht: zonder advies is er geen oordeel uit het advies, en
       # oordeelt het college zelf (artikel 6, tweede lid).
-      # Eigen keuze: een advies telt niet als bewijs van het onderzoek zelf.
-      # Of het onderzoek plaatsvond, blijft het feit van artikel 3 van de
-      # regeling; de GGD legt beide vast.
+      # Eigen keuze van deze PoC: een advies geldt ook als bewijs van het
+      # onderzoek, zodat onderzoek en advies één handeling zijn. Een echt
+      # systeem kan het onderzoek los willen vastleggen, bij artikel 3 van de
+      # regeling.
       # Welk advies telt (lid 3), voert de GGD uit met haar fictieve beleid
       # beleid_geneeskundig_advies_ggd_wilgendaal, dat haar reductie
       # aanroept. Dat beleid volgt lid 3 en stelt zelf geen norm.

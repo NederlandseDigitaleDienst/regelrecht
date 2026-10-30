@@ -413,9 +413,10 @@ fn the_ggd_records_an_examination_and_the_card_follows() {
     let vormen = spel.vormen(dag("2026-10-16")).unwrap();
     let ggd = &vormen["andere_cellen"][0];
     assert_eq!(ggd["cel"], json!("ggd_wilgendaal"));
-    // The GGD records the examination (Regeling art. 3) and its advice
-    // (the municipality's fictitious policy, art. 5).
-    let feit = "regeling_gehandicaptenparkeerkaart#3#geneeskundig_onderzoek_verricht";
+    // The GGD records its advice (the municipality's fictitious policy, art.
+    // 5), which also proves the examination.
+    let feit =
+        "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht";
     let feiten: Vec<&Value> = ggd["handelingen"]
         .as_array()
         .unwrap()
@@ -429,7 +430,10 @@ fn the_ggd_records_an_examination_and_the_card_follows() {
         &map(&json!({
             "bsn_aanvrager": "999990032",
             "datum_onderzoek": "2026-10-16",
-            "verricht_door": "Gemeentelijke Gezondheidsdienst",
+            "langdurige_loopbeperking": true,
+            "continu_afhankelijk_van_hulp_bestuurder": false,
+            "permanent_rolstoelgebonden": false,
+            "ernstige_beperkingen_andere_dan_loopbeperkingen": false,
         })),
         dag("2026-10-16"),
     )
@@ -558,17 +562,6 @@ fn parkeerkaart_the_ggd_examines_after_the_application_and_the_card_follows() {
     let uitkomst = casus["uitkomst"].as_str().unwrap().to_string();
 
     let ingediend = spel.aanvragen(&aanvraag, dag("2026-10-13")).unwrap();
-    spel.vastleggen(
-        "ggd_wilgendaal",
-        "regeling_gehandicaptenparkeerkaart#3#geneeskundig_onderzoek_verricht",
-        &map(&json!({
-            "bsn_aanvrager": BSN,
-            "datum_onderzoek": "2026-10-16",
-            "verricht_door": "Gemeentelijke Gezondheidsdienst",
-        })),
-        dag("2026-10-16"),
-    )
-    .unwrap();
     spel.vastleggen(
         "ggd_wilgendaal",
         "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht",
