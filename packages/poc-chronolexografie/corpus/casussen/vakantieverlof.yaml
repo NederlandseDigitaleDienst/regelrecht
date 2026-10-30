@@ -430,3 +430,136 @@ scenarios:
       beslissingen op hetzelfde bezwaar; de tweede is genomen na die
       ontvangst. In die van de rechtbank staan het beroep, met het afschrift
       dat zij van de school ontving, en de uitspraak.
+  - naam: 'Bestuurlijke lus: herstel met een nieuwe beslissing op bezwaar'
+    samenvatting: >-
+      De rechter laat de school een gebrek in de motivering herstellen, en
+      oordeelt in hetzelfde beroep ook over de nieuwe beslissing op bezwaar.
+    stappen:
+      - stap: aanvraag
+      - stap: besluit
+        invoer:
+          specifieke_aard_beroep_ouder: false
+        uitkomst: afgewezen
+        tekst: >-
+          Klik op Besluit nemen.
+      - stap: bezwaar
+        datum: 2026-11-01
+      - stap: beslissing_op_bezwaar
+        datum: 2026-11-15
+        uitkomst: ongegrond
+        tekst: >-
+          Klik onder Open bezwaren op Ontvankelijkheid toetsen. Laat de
+          bevinding staan en klik op Beslissen op bezwaar.
+      - stap: beroep
+        datum: 2026-12-01
+      - stap: uitspraak
+        titel: Tussenuitspraak doen
+        datum: 2027-01-11
+        invoer:
+          gelegenheid_tot_herstel: true
+          termijn_herstel: '2027-02-22'
+          wijze_waarop_gebrek_kan_worden_hersteld: een nieuwe beslissing op bezwaar met een deugdelijke motivering
+        tekst: >-
+          De rechtbank ziet hetzelfde gebrek als in het vorige scenario,
+          maar geeft de school de kans het te herstellen (Awb 8:51a). Klik
+          onder Ingekomen beroepen op Uitspraak doen.
+        gezien: >-
+          De uitspraak is een tussenuitspraak: het beroep is nog niet gegrond
+          of ongegrond, en er is niets vernietigd. Het beroep staat onder
+          Wacht op herstel.
+      - stap: toezenden
+        tekst: >-
+          Klik bij de tussenuitspraak op Toezenden aan OBS De Klimop.
+        gezien: >-
+          Onder Bestuursorgaan staat nu Na een tussenuitspraak, met het gebrek
+          en de termijn.
+      - stap: opnieuw_beslissen
+        titel: Herstellen met een nieuwe beslissing
+        datum: 2027-02-08
+        uitkomst: ongegrond
+        tekst: >-
+          Klik onder Na een tussenuitspraak op Heroverwegen. Het hoofd blijft
+          bij zijn oordeel en motiveert het nu wel. Klik op Opnieuw beslissen
+          op bezwaar.
+        gezien: >-
+          De nieuwe beslissing op hetzelfde bezwaar weigert het verlof
+          opnieuw. Zij is genomen na de ontvangst van de tussenuitspraak.
+      - stap: mededelen
+        tekst: >-
+          Klik onder Na een tussenuitspraak op Meedelen aan Rechtbank
+          Wilgendaal. De nieuwe beslissing gaat mee (Awb 6:19, derde lid).
+      - stap: uitspraak
+        titel: Einduitspraak doen
+        datum: 2027-03-08
+        invoer:
+          rechtsregel_geschonden_door_vervangend_besluit: false
+        tekst: >-
+          Het beroep staat weer onder Ingekomen beroepen, met de nieuwe
+          beslissing erbij. De rechtbank vindt die beslissing wel deugdelijk
+          gemotiveerd. Klik op Uitspraak doen.
+      - stap: toezenden
+        tekst: >-
+          Klik bij de einduitspraak op Toezenden aan OBS De Klimop.
+    eind: >-
+      De einduitspraak verklaart het beroep tegen de eerste beslissing op
+      bezwaar gegrond en vernietigt die, zonder opdracht voor een nieuw
+      besluit: de nieuwe beslissing is er al. Het beroep tegen die nieuwe
+      beslissing is ongegrond, dus de weigering blijft. In de kroniek van de
+      rechtbank staan op hetzelfde beroep de tussenuitspraak, de mededeling
+      met de nieuwe beslissing en de einduitspraak. Tegen de nieuwe
+      beslissing staat geen nieuw beroep open: het lopende beroep ging er al
+      over (Awb 6:19, eerste lid).
+  - naam: 'Bestuurlijke lus: herstel met een aanvulling op de motivering'
+    samenvatting: >-
+      De school herstelt het gebrek zonder nieuw besluit, en de rechter laat
+      de rechtsgevolgen van de beslissing op bezwaar in stand.
+    stappen:
+      - stap: aanvraag
+      - stap: besluit
+        invoer:
+          specifieke_aard_beroep_ouder: false
+        uitkomst: afgewezen
+        tekst: >-
+          Klik op Besluit nemen.
+      - stap: bezwaar
+        datum: 2026-11-01
+      - stap: beslissing_op_bezwaar
+        datum: 2026-11-15
+        uitkomst: ongegrond
+        tekst: >-
+          Klik onder Open bezwaren op Ontvankelijkheid toetsen. Laat de
+          bevinding staan en klik op Beslissen op bezwaar.
+      - stap: beroep
+        datum: 2026-12-01
+      - stap: uitspraak
+        titel: Tussenuitspraak doen
+        datum: 2027-01-11
+        invoer:
+          gelegenheid_tot_herstel: true
+          termijn_herstel: '2027-02-22'
+        tekst: >-
+          Klik onder Ingekomen beroepen op Uitspraak doen. De rechtbank zegt
+          niet hoe de school het gebrek moet herstellen.
+      - stap: toezenden
+        tekst: >-
+          Klik bij de tussenuitspraak op Toezenden aan OBS De Klimop.
+      - stap: mededelen
+        datum: 2027-02-01
+        invoer:
+          wijze_waarop_gebrek_is_hersteld: aanvullende motivering van de beslissing op bezwaar
+        tekst: >-
+          De school neemt geen nieuwe beslissing. Klik onder Na een
+          tussenuitspraak op Meedelen aan Rechtbank Wilgendaal.
+      - stap: uitspraak
+        titel: Einduitspraak doen
+        datum: 2027-03-01
+        invoer:
+          rechtsgevolgen_in_stand: true
+        tekst: >-
+          De aanvulling herstelt het gebrek. Klik onder Ingekomen beroepen op
+          Uitspraak doen.
+    eind: >-
+      Het beroep is gegrond, want de beslissing op bezwaar had het gebrek.
+      De rechtbank vernietigt haar, maar laat de rechtsgevolgen in stand (Awb
+      8:72, derde lid, onder a). Er komt geen nieuw besluit, en de weigering
+      blijft.

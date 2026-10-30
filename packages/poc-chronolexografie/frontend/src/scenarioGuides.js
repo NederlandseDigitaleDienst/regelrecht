@@ -117,6 +117,14 @@ const KINDS = {
     done: (n) => (k) => k.redecisions >= n,
     weigering: /already replaces/,
   },
+  mededelen: {
+    tab: 'bestuursorgaan',
+    title: () => 'Meedelen aan de rechtbank',
+    todo: 'Klik onder Na een tussenuitspraak op Meedelen aan de rechtbank.',
+    seen: () =>
+      'De rechtbank legt de mededeling vast in haar eigen kroniek, bij de tussenuitspraak (Awb 8:51b). Het beroep staat weer onder Ingekomen beroepen.',
+    done: (n) => (k) => k.mededelingen >= n,
+  },
 };
 
 // `regeling#3#geneeskundig_onderzoek_verricht` → `geneeskundig_onderzoek_verricht`.

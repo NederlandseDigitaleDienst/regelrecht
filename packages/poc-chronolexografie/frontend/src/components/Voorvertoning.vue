@@ -127,8 +127,19 @@ const regels = (g) =>
         :supporting-text="reden(geweigerd)"
       ></nldd-inline-dialog>
       <template v-else-if="voorlopig">
-        <nldd-title v-if="uitspraak" size="6" text="Uitspraak" :supporting-text="regels(uitspraak)">
-          <nldd-badge slot="end" size="sm" color="neutral" :text="hoofdletter(toon(uitspraak.outputs.uitspraak_strekt_tot))"></nldd-badge>
+        <!-- Een tussenuitspraak strekt nog nergens toe (Awb 8:80a). -->
+        <nldd-title
+          v-if="uitspraak"
+          size="6"
+          :text="uitspraak.outputs.tussenuitspraak ? 'Tussenuitspraak' : 'Uitspraak'"
+          :supporting-text="regels(uitspraak)"
+        >
+          <nldd-badge
+            slot="end"
+            size="sm"
+            color="neutral"
+            :text="uitspraak.outputs.tussenuitspraak ? 'Gelegenheid tot herstel' : hoofdletter(toon(uitspraak.outputs.uitspraak_strekt_tot))"
+          ></nldd-badge>
         </nldd-title>
         <nldd-title v-if="opBezwaar" size="6" text="Beslissing op bezwaar" :supporting-text="regels(beslissing)">
           <nldd-badge slot="end" size="sm" :color="opBezwaar.kleur" :text="opBezwaar.tekst"></nldd-badge>

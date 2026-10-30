@@ -39,6 +39,7 @@ import CasusKeuze from './components/CasusKeuze.vue';
 import HerkomstSheet from './components/HerkomstSheet.vue';
 import KroniekTab from './components/KroniekTab.vue';
 import LogboekTab from './components/LogboekTab.vue';
+import NaTussenuitspraak from './components/NaTussenuitspraak.vue';
 import NaUitspraak from './components/NaUitspraak.vue';
 import ScenarioGuide from './components/ScenarioGuide.vue';
 import ScenarioTab from './components/ScenarioTab.vue';
@@ -306,6 +307,7 @@ function toTab(id) {
                 <ScenarioTab v-if="tab === 'scenarios'" @start="started" />
                 <AanvragerTab v-else-if="tab === 'aanvrager'" />
                 <template v-else-if="tab === 'bestuursorgaan'">
+                  <NaTussenuitspraak v-if="state.casus.mededeling" />
                   <NaUitspraak v-if="state.casus.beroep" />
                   <BestuursorgaanTab />
                 </template>

@@ -15,7 +15,14 @@
  */
 import { reactive } from 'vue';
 import { api } from './api.js';
-import { beroepenTegen, ontvangstenBij, uitspraakOp } from './beroep.js';
+import {
+  beroepenTegen,
+  isMededeling,
+  isTussenuitspraak,
+  mededelingOp,
+  ontvangstenBij,
+  uitsprakenOp,
+} from './beroep.js';
 
 export const state = reactive({
   // De gekozen casus, zoals `api.casus` haar geeft; null op het keuzescherm.
@@ -262,9 +269,13 @@ export const herroepen = (besluit) =>
 /** Wat een chronolexogram is in het proces, zoals het dossier en het logboek het noemen. */
 export function rol(g) {
   if (g.kind === 'AANVRAAG') return 'Aanvraag';
+  if (isMededeling(g)) return 'Mededeling over herstel';
   if (g.kind === 'EXECUTOGRAM') return g.received ? 'Ontvangst uitspraak' : 'Executogram';
   if (g.kind === 'BEROEP') return 'Beroep';
-  if (g.kind === 'UITSPRAAK') return 'Uitspraak';
+  if (g.kind === 'UITSPRAAK') {
+    if (isTussenuitspraak(g)) return 'Tussenuitspraak';
+    return g.after ? 'Einduitspraak' : 'Uitspraak';
+  }
   if (g.kind === 'BEZWAAR') return 'Bezwaar';
   if (g.basis === bezwaarBasis()) return 'Beslissing op bezwaar';
   const op = state.grammen.find((x) => x.id === g.refers_to);
@@ -276,7 +287,8 @@ export function rol(g) {
  * aanvraag, het besluit erop, en per bezwaar elke beslissing en het besluit
  * dat in de plaats van het herroepene kwam. Na een beslissing op bezwaar het
  * beroep en de uitspraak uit de kroniek van de rechtbank (`rechter: true`)
- * en de ontvangst van die uitspraak.
+ * en de ontvangst van die uitspraak; na een tussenuitspraak ook de
+ * mededeling en de einduitspraak, uit diezelfde kroniek.
  */
 export function dossier(aanvraag) {
   const stap = (gram, rechter = false) => ({ gram, rol: rol(gram), rechter });
@@ -291,8 +303,13 @@ export function dossier(aanvraag) {
         stappen.push(stap(beslissing));
         for (const beroep of beroepenTegen(beslissing.id)) {
           stappen.push(stap(beroep, true));
-          const uitspraak = uitspraakOp(beroep.id);
-          if (uitspraak) stappen.push(stap(uitspraak, true));
+          // Na een tussenuitspraak de mededeling van het bestuursorgaan en
+          // de einduitspraak op hetzelfde beroep (Awb 8:51a, 8:51b).
+          for (const uitspraak of uitsprakenOp(beroep.id)) {
+            stappen.push(stap(uitspraak, true));
+            const mededeling = mededelingOp(uitspraak.id);
+            if (mededeling) stappen.push(stap(mededeling, true));
+          }
         }
         for (const ontvangst of ontvangstenBij(beslissing.id)) stappen.push(stap(ontvangst));
       }

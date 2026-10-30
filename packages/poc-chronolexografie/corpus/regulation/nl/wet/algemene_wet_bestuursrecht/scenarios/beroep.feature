@@ -20,7 +20,10 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
   rechtsregel schendt en welke, of de rechtsgevolgen in stand blijven, en de
   termijn voor het nieuwe besluit. De eerste twee scenario's rekenen artikel
   6:9 bij het beroepschrift ook uit en geven dezelfde uitkomst mee aan
-  artikel 8:70; de scenario's daarna geven alleen die uitkomst mee.
+  artikel 8:70; de scenario's daarna geven alleen die uitkomst mee. Geen van
+  deze beroepen kent een besluit dat het bestreden besluit verving (artikel
+  6:19): vervangend_besluit is leeg, zoals de cel het bij een eerste
+  uitspraak meegeeft. Zie bestuurlijke_lus.feature voor dat geval.
 
   Background:
     Given the calculation date is "2027-01-11"
@@ -40,6 +43,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
       | termijn_einddatum | 2026-12-27 |
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
       | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
+      | vervangend_besluit | null |
     Given the following findings:
       | indiener_is_belanghebbende | true |
       | rechtsregel_geschonden | false |
@@ -59,6 +63,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
       | termijn_einddatum | 2026-12-27 |
       | bezwaar_of_beroepschrift_tijdig_ingediend | false |
       | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
+      | vervangend_besluit | null |
     When I evaluate outputs "uitspraak_strekt_tot, geschonden_geoordeelde_rechtsregel, bestreden_besluit_vernietigd, rechtsgevolgen_vernietigd, opdracht_nieuw_besluit, termijn_nieuw_besluit_einddatum, uitspraak_in_de_plaats" of "algemene_wet_bestuursrecht"
     Then the execution succeeds
     Then output "bezwaar_of_beroepschrift_tijdig_ingediend" is false
@@ -74,6 +79,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
       | bestreden_besluit | {"basis": "leerplichtwet_1969#13a", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar_volgens_hoofd": false, "specifieke_aard_beroep_ouder": true, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": true}} |
+      | vervangend_besluit | null |
     Given the following findings:
       | indiener_is_belanghebbende | true |
       | rechtsregel_geschonden | false |
@@ -89,6 +95,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
       | bestreden_besluit | {"basis": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar_volgens_hoofd": false, "specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}} |
+      | vervangend_besluit | null |
     When I evaluate outputs "uitspraak_strekt_tot, geschonden_geoordeelde_rechtsregel, bestreden_besluit_vernietigd, rechtsgevolgen_vernietigd, opdracht_nieuw_besluit, termijn_nieuw_besluit_einddatum, uitspraak_in_de_plaats" of "algemene_wet_bestuursrecht"
     Then the execution succeeds
     Then output "beroep_ontvankelijk" is false
@@ -100,6 +107,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
       | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
+      | vervangend_besluit | null |
     Given the following findings:
       | indiener_is_belanghebbende | false |
     When I evaluate outputs "uitspraak_strekt_tot, geschonden_geoordeelde_rechtsregel, bestreden_besluit_vernietigd, rechtsgevolgen_vernietigd, opdracht_nieuw_besluit, termijn_nieuw_besluit_einddatum, uitspraak_in_de_plaats" of "algemene_wet_bestuursrecht"
@@ -111,6 +119,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
       | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
+      | vervangend_besluit | null |
     Given the following findings:
       | indiener_is_belanghebbende | true |
       | rechtsregel_geschonden | false |
@@ -131,6 +140,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
       | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
+      | vervangend_besluit | null |
     Given the following findings:
       | indiener_is_belanghebbende | true |
       | rechtsregel_geschonden | true |
@@ -155,6 +165,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
       | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
+      | vervangend_besluit | null |
     Given the following findings:
       | indiener_is_belanghebbende | true |
       | rechtsregel_geschonden | true |
@@ -172,6 +183,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
       | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
+      | vervangend_besluit | null |
     Given the following findings:
       | indiener_is_belanghebbende | true |
       | rechtsregel_geschonden | true |
@@ -191,6 +203,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
       | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
+      | vervangend_besluit | null |
     Given the following findings:
       | indiener_is_belanghebbende | true |
     When I evaluate outputs "uitspraak_strekt_tot, geschonden_geoordeelde_rechtsregel, bestreden_besluit_vernietigd, rechtsgevolgen_vernietigd, opdracht_nieuw_besluit, termijn_nieuw_besluit_einddatum, uitspraak_in_de_plaats" of "algemene_wet_bestuursrecht"
@@ -200,6 +213,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
       | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
+      | vervangend_besluit | null |
     Given the following findings:
       | indiener_is_belanghebbende | true |
       | rechtsregel_geschonden | true |
@@ -217,6 +231,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
       | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bestreden_besluit": {"basis": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}}, "bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
+      | vervangend_besluit | null |
     Given the following findings:
       | indiener_is_belanghebbende | true |
       | rechtsregel_geschonden | true |
@@ -241,6 +256,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
       | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bestreden_besluit": {"basis": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}}, "bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
+      | vervangend_besluit | null |
     Given the following findings:
       | indiener_is_belanghebbende | true |
       | rechtsregel_geschonden | true |

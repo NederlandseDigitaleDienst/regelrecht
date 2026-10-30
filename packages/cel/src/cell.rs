@@ -186,13 +186,14 @@ impl Cell {
                     )));
                 }
             }
-            // The receipt of a copy refers to a chronolexogram before it that
-            // is no executogram. Whether that is a decision needs the law,
-            // which `Cell::record_receipt` has and opening does not.
-            if let (Some(_), Some(on)) = (gram.received.as_ref(), gram.refers_to.as_deref()) {
+            // An executogram that refers, such as the receipt of a copy,
+            // refers to a chronolexogram before it that is no executogram.
+            // Whether that is a decision needs the law, which
+            // `Cell::record_receipt` has and opening does not.
+            if let (true, Some(on)) = (gram.kind == EXECUTOGRAM, gram.refers_to.as_deref()) {
                 if !before.iter().any(|g| g.id == on && g.kind != EXECUTOGRAM) {
                     return Err(setup(format!(
-                        "the receipt '{}' in the chronicle of '{recording_actor}' refers to \
+                        "the executogram '{}' in the chronicle of '{recording_actor}' refers to \
                          '{on}', which is not a chronolexogram before it or is an executogram",
                         gram.id
                     )));
@@ -672,10 +673,14 @@ impl Cell {
 
     /// A copy of the decision `id` for another cell (RFC-053): the
     /// chronolexogram, its decision value from a replay in this cell
-    /// ([`Cell::decision_value`]), and what the submission it was taken on
-    /// had received from another cell. Only the cell that took a decision
-    /// can build its value; the replay asks the cells of `sphere` as the
-    /// decision did. Refused for what is no decision.
+    /// ([`Cell::decision_value`]), and what it answers of another cell
+    /// (`about`). That is what the submission it was taken on had received,
+    /// such as the decision an appeal contests; for a submission of its own,
+    /// what the chronolexogram it was taken after had received, such as a
+    /// new decision on objection after an interim judgment (Awb 8:51a). Only the
+    /// cell that took a decision can build its value; the replay asks the
+    /// cells of `sphere` as the decision did. Refused for what is no
+    /// decision.
     pub fn afschrift(
         &self,
         service: &mut LawExecutionService,
@@ -684,11 +689,12 @@ impl Cell {
     ) -> Result<Afschrift> {
         let gram = self.decision_gram(service, id)?.clone();
         let value = self.nested_value(service, sphere, &gram)?;
-        let about = gram
-            .refers_to
-            .as_deref()
-            .and_then(|submission| self.grams().iter().find(|g| g.id == submission))
-            .and_then(|submission| submission.received.clone());
+        let received_by = |id: Option<&str>| {
+            id.and_then(|id| self.grams().iter().find(|g| g.id == id))
+                .and_then(|g| g.received.clone())
+        };
+        let about =
+            received_by(gram.refers_to.as_deref()).or_else(|| received_by(gram.after.as_deref()));
         Ok(Afschrift {
             from: self.recording_actor.clone(),
             gram,
@@ -749,6 +755,13 @@ impl Cell {
     /// decision it concerns and holds what it received; that is what this
     /// adds to [`Cell::record_executogram`].
     ///
+    /// A field of the fact of type `decision` that the copied chronolexogram
+    /// does not hold by name holds the copy's decision value: the receiving
+    /// cell cannot replay the decision, so it keeps the decision itself, as
+    /// a submission with a copy does ([`Cell::record_submission`]). That is
+    /// how a court keeps the decision that replaces the contested one while
+    /// the appeal runs (Awb 6:19). The fact may hold one such field.
+    ///
     /// Refused, besides what [`Cell::record_executogram`] refuses: a copy of
     /// what is no decision or that this cell made, a `refers_to` that is no
     /// decision of this cell, a copy that does not concern it (its `about`
@@ -787,22 +800,107 @@ impl Cell {
         }
         let declared = shape::fact_fields(service, fact, on, Some(&self.authority))?;
         let what = format!("receipt of {fact}");
-        let supplied: Map<String, serde_json::Value> = declared
+        let mut supplied: Map<String, serde_json::Value> = declared
             .iter()
             .filter_map(|f| received.held(&f.name).map(|v| (f.name.clone(), v.clone())))
             .collect();
+        let decisions: Vec<&Field> = declared
+            .iter()
+            .filter(|f| f.type_ == ParameterType::Decision && !supplied.contains_key(&f.name))
+            .collect();
+        match decisions.as_slice() {
+            [] => {}
+            [field] => {
+                supplied.insert(field.name.clone(), copy.value.clone());
+            }
+            several => {
+                return Err(setup(format!(
+                    "{fact} holds {} decisions the copy of '{}' does not hold by name ({}); \
+                     the receipt keeps the copied decision in one",
+                    several.len(),
+                    received.id,
+                    several
+                        .iter()
+                        .map(|f| f.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )))
+            }
+        }
         let fields = whole(&declared, &supplied, &what)?;
+        self.append_executogram(
+            fact,
+            fields,
+            Some(refers_to),
+            Some(Received {
+                from: copy.from.clone(),
+                id: received.id.clone(),
+            }),
+            on,
+        )
+    }
+
+    /// Record an executogram of the fact `fact` that concerns the decision
+    /// `refers_to` of this cell, on `on`, with the values `supplied` (RFC-051,
+    /// RFC-053): what another party tells the cell about that decision
+    /// without sending a decision of its own, such as the administrative
+    /// body telling the court whether and how it repaired the defect the
+    /// court's interim judgment named (Awb 8:51b). With a decision, the
+    /// party sends a copy of it, and the cell records the receipt
+    /// ([`Cell::record_receipt`]).
+    ///
+    /// Refused, besides what [`Cell::record_executogram`] refuses: a
+    /// `refers_to` that is no decision of this cell, and a date before that
+    /// decision. A field of type `decision` is never supplied: a decision
+    /// comes with its copy.
+    pub fn record_executogram_about(
+        &mut self,
+        service: &LawExecutionService,
+        fact: &str,
+        refers_to: &str,
+        supplied: &Map<String, serde_json::Value>,
+        on: NaiveDate,
+    ) -> Result<Gram> {
+        let decision = self.decision_gram(service, refers_to)?;
+        if on < decision.recorded_on {
+            return Err(refused(format!(
+                "'{refers_to}', recorded on {}, cannot be followed by an executogram on {on}",
+                decision.recorded_on
+            )));
+        }
+        let declared = shape::fact_fields(service, fact, on, Some(&self.authority))?;
+        if let Some(field) = declared
+            .iter()
+            .find(|f| f.type_ == ParameterType::Decision && supplied.contains_key(&f.name))
+        {
+            return Err(refused(format!(
+                "'{}' of {fact} is a decision; it comes with the copy of that decision, which \
+                 the cell records as a receipt",
+                field.name
+            )));
+        }
+        let fields = whole(&declared, supplied, &format!("executogram of {fact}"))?;
+        self.append_executogram(fact, fields, Some(refers_to), None, on)
+    }
+
+    /// Append an executogram of `fact` with `fields`, referring to
+    /// `refers_to` and holding `received` where given.
+    fn append_executogram(
+        &mut self,
+        fact: &str,
+        fields: Values,
+        refers_to: Option<&str>,
+        received: Option<Received>,
+        on: NaiveDate,
+    ) -> Result<Gram> {
         let (basis, name) = shape::split_fact(fact)?;
         let gram = Gram {
             id: uuid::Uuid::now_v7().to_string(),
             kind: EXECUTOGRAM.to_string(),
             basis: basis.to_string(),
             fact: Some(name.to_string()),
-            refers_to: Some(refers_to.to_string()),
-            received: Some(Received {
-                from: copy.from.clone(),
-                id: received.id.clone(),
-            }),
+            refers_to: refers_to.map(str::to_string),
+            received,
             after: None,
             recording_actor: self.recording_actor.clone(),
             recorded_on: on,
@@ -1033,7 +1131,8 @@ impl Cell {
             )));
         }
         check_decision_supplied(&shape, supplied)?;
-        let inputs = asked(&shape, &applied, &decisions, supplied, on)?;
+        let supplied = self.with_after(&shape, after, supplied)?;
+        let inputs = asked(&shape, &applied, &decisions, &supplied, on)?;
         let (mut fields, mut outputs) = take(service, &shape, inputs, findings, &answerers, on)?;
         for (name, (id, _)) in decisions {
             fields.insert(name, serde_json::Value::String(id));
@@ -1086,6 +1185,51 @@ impl Cell {
         }];
         grams.extend(taken);
         Ok(self.chronicle.append_all(grams)?.to_vec())
+    }
+
+    /// What the deciding authority supplies, with what the chronolexogram
+    /// `after` holds of the decision's other parameters (by name), when it
+    /// is given: that chronolexogram lets the cell decide again, and what
+    /// came in with it is part of the case. A court that decides on an
+    /// appeal again after the administrative body told it how it repaired a
+    /// defect (Awb 8:51b) so takes the decision that replaced the contested
+    /// one (Awb 6:19), as the receipt of that mededeling keeps it. A
+    /// decision value among them comes in as kept, not by its id. Refused:
+    /// a value the authority supplies that `after` holds as well.
+    fn with_after(
+        &self,
+        shape: &DecisionShape,
+        after: Option<&str>,
+        supplied: &Map<String, serde_json::Value>,
+    ) -> Result<Map<String, serde_json::Value>> {
+        let mut uit = supplied.clone();
+        let Some(later) = after.and_then(|id| self.grams().iter().find(|g| g.id == id)) else {
+            return Ok(uit);
+        };
+        for input in shape.inputs.iter().filter(|i| i.source == Source::Supplied) {
+            let Some(value) = later.fields.get(&input.field.name) else {
+                continue;
+            };
+            if supplied.contains_key(&input.field.name) {
+                return Err(refused(format!(
+                    "'{}' of the decision of {} comes from '{}', which it is taken after",
+                    input.field.name,
+                    shape.basis(),
+                    later.id
+                )));
+            }
+            if !shape::fits(&input.field, value) {
+                return Err(setup(format!(
+                    "'{}' of '{}' is {value}, which does not fit a {:?} ({})",
+                    input.field.name,
+                    later.id,
+                    input.field.type_,
+                    input.field.first_declared_by()
+                )));
+            }
+            uit.insert(input.field.name.clone(), value.clone());
+        }
+        Ok(uit)
     }
 
     /// Why the decision `id` came out as it did: the decision taken again
@@ -2229,20 +2373,14 @@ fn check_executogram(gram: &Gram, recording_actor: &str) -> Result<()> {
             gram.id
         )))
     };
-    match (gram.refers_to.is_some(), gram.received.is_some()) {
-        (true, false) => {
-            return refused_as(
-                "refers to a chronolexogram without having received one (only the receipt of \
-                 a copy refers to the decision it concerns)",
-            )
-        }
-        (false, true) => {
-            return refused_as(
-                "holds what it received but refers to no decision (the receipt of a copy \
-                 refers to the decision it concerns)",
-            )
-        }
-        _ => {}
+    // An executogram that concerns a decision of this cell without a copy,
+    // such as a mededeling after an interim judgment (Awb 8:51b), refers to
+    // it too ([`Cell::record_executogram_about`]).
+    if gram.received.is_some() && gram.refers_to.is_none() {
+        return refused_as(
+            "holds what it received but refers to no decision (the receipt of a copy refers to \
+             the decision it concerns)",
+        );
     }
     if gram.after.is_some() {
         return refused_as("names `after`, which only a decision taken again does");

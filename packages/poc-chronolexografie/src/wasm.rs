@@ -284,6 +284,19 @@ impl Poc {
         ))
     }
 
+    #[wasm_bindgen(js_name = herstelMeedelen)]
+    pub fn herstel_meedelen(
+        &mut self,
+        ontvangst: &str,
+        velden: &str,
+        datum: &str,
+    ) -> Result<String, JsError> {
+        antwoord(
+            self.spel
+                .herstel_meedelen(ontvangst, &kaart("velden", velden)?, dag(datum)?),
+        )
+    }
+
     pub fn reducties(&mut self, datum: &str) -> Result<String, JsError> {
         antwoord(self.spel.reducties(dag(datum)?))
     }

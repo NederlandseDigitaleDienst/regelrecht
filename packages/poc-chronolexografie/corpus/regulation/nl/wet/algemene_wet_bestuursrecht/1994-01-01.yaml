@@ -433,6 +433,69 @@ articles:
                 in: days
               value: 0
 
+  - number: '6:19'
+    text: |-
+      1. Het bezwaar of beroep heeft van rechtswege mede betrekking op een
+      besluit tot intrekking, wijziging of vervanging van het bestreden
+      besluit, tenzij partijen daarbij onvoldoende belang hebben.
+      2. Het eerste lid geldt ook indien het bezwaar is gemaakt of het beroep
+      is ingesteld nadat het bestuursorgaan het bestreden besluit heeft
+      ingetrokken, gewijzigd of vervangen.
+      3. Het bestuursorgaan stelt het nieuwe besluit onverwijld ter
+      beschikking aan het orgaan waarbij het beroep aanhangig is.
+      4. Indien een ander orgaan een bezwaar- of beroepschrift tegen het
+      nieuwe besluit ontvangt, zendt het dit met toepassing van artikel 6:15,
+      eerste en tweede lid, door.
+      5. De bestuursrechter kan het beroep tegen het nieuwe besluit echter
+      verwijzen naar een ander orgaan, indien behandeling door dit orgaan
+      gewenst is.
+      6. Intrekking of vervanging van het bestreden besluit staat niet in de
+      weg aan vernietiging van dat besluit indien de indiener van het bezwaar-
+      of beroepschrift daarbij belang heeft.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel6:19
+    machine_readable:
+      # Alleen het beroep, en alleen het besluit dat het bestuursorgaan
+      # neemt nadat de bestuursrechter het in de gelegenheid stelde een gebrek
+      # te herstellen (artikel 8:51a): dat besluit vervangt de beslissing op
+      # bezwaar waartegen het beroep loopt. Lid 1: het beroep heeft er van
+      # rechtswege mede betrekking op, dus de bestuursrechter oordeelt er in
+      # dezelfde zaak over. Lid 3: het bestuursorgaan stelt het ter
+      # beschikking; het gaat mee met de mededeling van artikel 8:51b. Niet
+      # gemodelleerd: "tenzij partijen daarbij onvoldoende belang hebben" (lid
+      # 1), de intrekking en de wijziging, het bezwaar, en de leden 2, 4, 5 en
+      # 6. Lid 6 zit in artikel 8:70: is het beroep tegen het vervangen
+      # besluit gegrond, dan vernietigt de bestuursrechter het nog (eigen
+      # keuze: de indiener heeft daarbij belang).
+      competent_authority:
+        name: de bestuursrechter
+        type: CATEGORY
+      open_terms:
+        # Eigen keuze, zoals bij artikel 8:70: het beroep tegen het nieuwe
+        # besluit is gegrond als het een rechtsregel schendt (artikel 8:77,
+        # tweede lid). Dat oordeel is aan de bestuursrechter.
+        - id: rechtsregel_geschonden_door_vervangend_besluit
+          type: boolean
+          required: true
+          decided_per_case_by: de bestuursrechter (artikel 6:19, eerste lid)
+          description: >-
+            Of het besluit dat het bestreden besluit hangende het beroep
+            verving, een geschreven of ongeschreven rechtsregel of een
+            algemeen rechtsbeginsel schendt.
+      execution:
+        parameters:
+          - name: vervangend_besluit
+            type: decision
+            description: >-
+              Het besluit tot vervanging van het bestreden besluit waarop het
+              beroep van rechtswege mede betrekking heeft (lid 1).
+        output:
+          - name: beroep_tegen_vervangend_besluit_gegrond
+            type: boolean
+            description: Of het beroep, voor zover het het vervangende besluit betreft, gegrond is.
+        actions:
+          - output: beroep_tegen_vervangend_besluit_gegrond
+            value: $rechtsregel_geschonden_door_vervangend_besluit
+
   - number: '7:1'
     text: |-
       1. Degene aan wie het recht is toegekend beroep bij een bestuursrechter in
@@ -703,6 +766,116 @@ articles:
     # dat open begrip staat bij artikel 8:70, waar de ontvankelijkheid wordt
     # bepaald.
 
+  - number: 8:51a
+    text: |-
+      1. De bestuursrechter kan het bestuursorgaan in de gelegenheid stellen
+      een gebrek in het bestreden besluit te herstellen of te laten herstellen.
+      De vorige volzin vindt geen toepassing, indien belanghebbenden die niet
+      als partij aan het geding deelnemen daardoor onevenredig kunnen worden
+      benadeeld.
+      2. De bestuursrechter bepaalt de termijn waarbinnen het bestuursorgaan
+      het gebrek kan herstellen. Hij kan deze termijn verlengen.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:51a
+    machine_readable:
+      # De bestuurlijke lus. Bevoegd gezag (RFC-002): de bestuursrechter
+      # stelt in de gelegenheid en bepaalt de termijn. Artikel 8:70 leest dit
+      # artikel alleen als de bestuursrechter een gebrek ziet: een rechtsregel
+      # die het bestreden besluit schendt. Niet gemodelleerd: de tweede
+      # volzin van lid 1, het laten herstellen door een ander, en het
+      # verlengen van de termijn (lid 2, tweede volzin).
+      competent_authority:
+        name: de bestuursrechter
+        type: CATEGORY
+      open_terms:
+        # Lid 1: "kan". Zonder dit oordeel stelt de bestuursrechter het
+        # bestuursorgaan niet in de gelegenheid: dat is de gewone gang.
+        - id: gelegenheid_tot_herstel
+          type: boolean
+          required: false
+          decided_per_case_by: de bestuursrechter (artikel 8:51a, eerste lid)
+          description: >-
+            Of de bestuursrechter het bestuursorgaan in de gelegenheid stelt
+            het gebrek in het bestreden besluit te herstellen.
+        # Lid 2: "bepaalt de termijn". Alleen gevraagd als de bestuursrechter
+        # in de gelegenheid stelt.
+        - id: termijn_herstel
+          type: date
+          required: true
+          decided_per_case_by: de bestuursrechter (artikel 8:51a, tweede lid)
+          description: >-
+            De laatste dag van de termijn waarbinnen het bestuursorgaan het
+            gebrek kan herstellen (lid 2).
+      execution:
+        output:
+          - name: bestuursorgaan_in_gelegenheid_gesteld
+            type: boolean
+            description: Of de bestuursrechter het bestuursorgaan in de gelegenheid stelt het gebrek te herstellen (lid 1).
+          - name: gestelde_termijn_herstel
+            type: date
+            nullable: true
+            description: De laatste dag van de termijn voor het herstel (lid 2).
+        actions:
+          - output: bestuursorgaan_in_gelegenheid_gesteld
+            value:
+              operation: EQUALS
+              subject: $gelegenheid_tot_herstel
+              value: true
+          - output: gestelde_termijn_herstel
+            value:
+              operation: IF
+              cases:
+                - when: $bestuursorgaan_in_gelegenheid_gesteld
+                  then: $termijn_herstel
+              default: null
+
+  - number: 8:51b
+    text: |-
+      1. Het bestuursorgaan deelt de bestuursrechter zo spoedig mogelijk mede
+      of het gebruik maakt van de gelegenheid om het gebrek te herstellen of
+      te laten herstellen.
+      2. Indien het bestuursorgaan overgaat tot herstel van het gebrek, deelt
+      het de bestuursrechter zo spoedig mogelijk schriftelijk mede op welke
+      wijze het gebrek is hersteld.
+      3. Partijen kunnen binnen vier weken na verzending van de mededeling
+      bedoeld in het tweede lid, schriftelijk hun zienswijze over de wijze
+      waarop het gebrek is hersteld, naar voren brengen. De bestuursrechter
+      kan deze termijn verlengen.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:51b
+    machine_readable:
+      # Dat de bestuursrechter de mededeling van het bestuursorgaan heeft, is
+      # een feit dat dit artikel omschrijft (requires, fact), zoals het
+      # afschrift van de uitspraak bij artikel 8:79. De bestuursrechter legt
+      # het vast (eigen keuze); het feit noemt geen competent_authority. Lid
+      # 1 en 2 in één mededeling. Wie herstelt met een nieuw besluit, stelt
+      # dat besluit ter beschikking (artikel 6:19, derde lid): de mededeling
+      # houdt het. Wie herstelt zonder nieuw besluit, zoals met een
+      # aanvulling op de motivering, zegt hoe. Wie de gelegenheid niet
+      # gebruikt, deelt alleen dat mee: de mededeling houdt dan geen van
+      # beide. Lid 3 (zienswijzen) is niet gemodelleerd.
+      requires:
+        - fact: mededeling_over_herstel
+          description: >-
+            De mededeling van het bestuursorgaan aan de bestuursrechter of en
+            op welke wijze het het gebrek herstelde.
+          parameters:
+            - wijze_waarop_gebrek_is_hersteld
+            - vervangend_besluit
+      execution:
+        parameters:
+          - name: wijze_waarop_gebrek_is_hersteld
+            type: string
+            nullable: true
+            required: false
+            description: Op welke wijze het bestuursorgaan het gebrek herstelde, zonder nieuw besluit (lid 2).
+          - name: vervangend_besluit
+            type: decision
+            nullable: true
+            required: false
+            description: >-
+              Het besluit waarmee het bestuursorgaan het gebrek herstelde en
+              het bestreden besluit verving (lid 2, met artikel 6:19, derde
+              lid).
+
   - number: 8:70
     text: |-
       De uitspraak strekt tot:
@@ -779,6 +952,10 @@ articles:
               - opdracht_nieuw_besluit
               - termijn_nieuw_besluit_einddatum
               - uitspraak_in_de_plaats
+              - tussenuitspraak
+              - termijn_herstel_einddatum
+              - wijze_van_herstel
+              - uitspraak_over_vervangend_besluit
         parameters:
           # Artikel 8:1: beroep "tegen een besluit"; het beroepschrift
           # omschrijft het (artikel 6:5, eerste lid, onder c). Het is een
@@ -791,7 +968,48 @@ articles:
           - name: bezwaar_of_beroepschrift_tijdig_ingediend
             type: boolean
             description: Of het beroepschrift tijdig is ingediend (artikel 6:9).
+          # Artikel 6:19, eerste lid: het besluit dat het bestreden besluit
+          # verving nadat de bestuursrechter het bestuursorgaan in de
+          # gelegenheid stelde een gebrek te herstellen. Het beroep heeft er
+          # van rechtswege mede betrekking op. Leeg bij de eerste uitspraak:
+          # het komt met de mededeling van artikel 8:51b.
+          - name: vervangend_besluit
+            type: decision
+            nullable: true
+            required: false
+            description: >-
+              Het besluit dat het bestreden besluit hangende het beroep verving
+              (artikel 6:19, eerste lid).
         input:
+          # De bestuurlijke lus (artikel 8:51a): alleen gelezen als het beroep
+          # ontvankelijk is en de bestuursrechter een gebrek ziet.
+          - name: bestuursorgaan_in_gelegenheid_gesteld
+            type: boolean
+            source:
+              regulation: algemene_wet_bestuursrecht
+              output: bestuursorgaan_in_gelegenheid_gesteld
+          - name: gestelde_termijn_herstel
+            type: date
+            nullable: true
+            source:
+              regulation: algemene_wet_bestuursrecht
+              output: gestelde_termijn_herstel
+          - name: vermelde_wijze_van_herstel
+            type: string
+            nullable: true
+            source:
+              regulation: algemene_wet_bestuursrecht
+              output: vermelde_wijze_van_herstel
+          # Het oordeel over het vervangende besluit (artikel 6:19). Alleen
+          # gelezen als er een is.
+          - name: beroep_tegen_vervangend_besluit_gegrond
+            type: boolean
+            nullable: true
+            source:
+              regulation: algemene_wet_bestuursrecht
+              output: beroep_tegen_vervangend_besluit_gegrond
+              parameters:
+                vervangend_besluit: $vervangend_besluit
           # Wat artikel 8:72 aan een gegrondverklaring verbindt. Eigen keuze:
           # de uitspraak neemt het over, zodat het deel is van de uitspraak
           # en niet van een haak, die buiten de uitkomst van het besluit
@@ -805,6 +1023,7 @@ articles:
               output: vernietiging_bestreden_besluit
               parameters:
                 bestreden_besluit: $bestreden_besluit
+                vervangend_besluit: $vervangend_besluit
           - name: vernietiging_rechtsgevolgen
             type: boolean
             source:
@@ -812,6 +1031,7 @@ articles:
               output: vernietiging_rechtsgevolgen
               parameters:
                 bestreden_besluit: $bestreden_besluit
+                vervangend_besluit: $vervangend_besluit
           - name: opdracht_tot_nieuw_besluit
             type: boolean
             source:
@@ -819,6 +1039,7 @@ articles:
               output: opdracht_tot_nieuw_besluit
               parameters:
                 bestreden_besluit: $bestreden_besluit
+                vervangend_besluit: $vervangend_besluit
           - name: gestelde_termijn_nieuw_besluit
             type: date
             nullable: true
@@ -827,6 +1048,7 @@ articles:
               output: gestelde_termijn_nieuw_besluit
               parameters:
                 bestreden_besluit: $bestreden_besluit
+                vervangend_besluit: $vervangend_besluit
           - name: besluit_in_de_plaats
             type: decision
             nullable: true
@@ -835,6 +1057,7 @@ articles:
               output: in_de_plaats_gesteld_besluit
               parameters:
                 bestreden_besluit: $bestreden_besluit
+                vervangend_besluit: $vervangend_besluit
         output:
           - name: beroep_ontvankelijk
             type: boolean
@@ -852,7 +1075,10 @@ articles:
               over de gronden.
           - name: uitspraak_strekt_tot
             type: string
-            description: Waartoe de uitspraak strekt (onder b, c of d).
+            nullable: true
+            description: >-
+              Waartoe de uitspraak strekt (onder b, c of d). Leeg bij een
+              tussenuitspraak (artikel 8:80a): die strekt nog nergens toe.
           - name: geschonden_geoordeelde_rechtsregel
             type: string
             nullable: true
@@ -884,6 +1110,27 @@ articles:
             description: >-
               Het besluit dat de uitspraak in de plaats van het vernietigde
               stelt (artikel 8:72, derde lid, onder b).
+          - name: tussenuitspraak
+            type: boolean
+            description: >-
+              Of de uitspraak een tussenuitspraak is: de bestuursrechter stelt
+              het bestuursorgaan in de gelegenheid het gebrek te herstellen
+              (artikelen 8:51a en 8:80a, eerste lid).
+          - name: termijn_herstel_einddatum
+            type: date
+            nullable: true
+            description: De laatste dag van de termijn voor het herstel van het gebrek (artikel 8:51a, tweede lid).
+          - name: wijze_van_herstel
+            type: string
+            nullable: true
+            description: Op welke wijze het gebrek kan worden hersteld (artikel 8:80a, tweede lid).
+          - name: uitspraak_over_vervangend_besluit
+            type: string
+            nullable: true
+            description: >-
+              Waartoe de uitspraak strekt voor zover het beroep het besluit
+              betreft dat het bestreden besluit verving (artikel 6:19, eerste
+              lid).
         actions:
           # Eigen keuze: dit artikel zegt niet wanneer een beroep ontvankelijk
           # is. Hier de termijn (artikel 6:9); dat het bestreden besluit op
@@ -905,13 +1152,30 @@ articles:
                   subject: $bestreden_besluit.taken_on
                   value: algemene_wet_bestuursrecht#7:11
                 - $indiener_is_belanghebbende
+          # Artikel 8:80a, eerste lid: stelt de bestuursrechter het
+          # bestuursorgaan in de gelegenheid een gebrek te herstellen (artikel
+          # 8:51a), dan doet hij een tussenuitspraak. Eigen keuze: een gebrek
+          # is een rechtsregel die het bestreden besluit schendt, en de lus
+          # kan alleen bij een ontvankelijk beroep. AND stopt bij de eerste
+          # onwaar, dus artikel 8:51a wordt alleen dan gelezen.
+          - output: tussenuitspraak
+            value:
+              operation: AND
+              conditions:
+                - $beroep_ontvankelijk
+                - $rechtsregel_geschonden
+                - $bestuursorgaan_in_gelegenheid_gesteld
           # Eigen keuze, uit artikel 8:77, tweede lid: gegrond is het beroep
           # als de bestuursrechter oordeelt dat het besluit een rechtsregel
-          # of rechtsbeginsel schendt. Niet-ontvankelijk: geen oordeel.
+          # of rechtsbeginsel schendt. Niet-ontvankelijk: geen oordeel. Een
+          # tussenuitspraak oordeelt nog niet over de gegrondheid: dat doet de
+          # einduitspraak, na het herstel (eigen keuze).
           - output: beroep_gegrond
             value:
               operation: IF
               cases:
+                - when: $tussenuitspraak
+                  then: null
                 - when: $beroep_ontvankelijk
                   then: $rechtsregel_geschonden
               default: null
@@ -919,6 +1183,8 @@ articles:
             value:
               operation: IF
               cases:
+                - when: $tussenuitspraak
+                  then: null
                 - when:
                     operation: NOT
                     value: $beroep_ontvankelijk
@@ -929,14 +1195,19 @@ articles:
                     value: true
                   then: gegrondverklaring van het beroep
               default: ongegrondverklaring van het beroep
+          # Ook de tussenuitspraak vermeldt de geschonden rechtsregel: dat is
+          # het gebrek (artikel 8:80a, derde lid, met 8:77, tweede lid).
           - output: geschonden_geoordeelde_rechtsregel
             value:
               operation: IF
               cases:
                 - when:
-                    operation: EQUALS
-                    subject: $beroep_gegrond
-                    value: true
+                    operation: OR
+                    conditions:
+                      - $tussenuitspraak
+                      - operation: EQUALS
+                        subject: $beroep_gegrond
+                        value: true
                   then: $geschonden_rechtsregel
               default: null
           - output: bestreden_besluit_vernietigd
@@ -977,6 +1248,45 @@ articles:
                 - when: $rechtsgevolgen_vernietigd
                   then: $besluit_in_de_plaats
               default: null
+          - output: termijn_herstel_einddatum
+            value:
+              operation: IF
+              cases:
+                - when: $tussenuitspraak
+                  then: $gestelde_termijn_herstel
+              default: null
+          - output: wijze_van_herstel
+            value:
+              operation: IF
+              cases:
+                - when: $tussenuitspraak
+                  then: $vermelde_wijze_van_herstel
+              default: null
+          # Artikel 6:19, eerste lid: het beroep betreft ook het besluit dat
+          # het bestreden besluit verving. Eigen keuze: de bestuursrechter
+          # oordeelt erover in de einduitspraak op een ontvankelijk beroep,
+          # gegrond of ongegrond zoals onder c en d. De vernietiging van dat
+          # besluit bij een gegrond oordeel is niet gemodelleerd.
+          - output: uitspraak_over_vervangend_besluit
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: OR
+                    conditions:
+                      - $tussenuitspraak
+                      - operation: NOT
+                        value: $beroep_ontvankelijk
+                      - operation: EQUALS
+                        subject: $vervangend_besluit
+                        value: null
+                  then: null
+                - when:
+                    operation: EQUALS
+                    subject: $beroep_tegen_vervangend_besluit_gegrond
+                    value: true
+                  then: gegrondverklaring van het beroep tegen het vervangende besluit
+              default: ongegrondverklaring van het beroep tegen het vervangende besluit
 
   - number: 8:72
     text: |-
@@ -1051,6 +1361,13 @@ articles:
           - name: bestreden_besluit
             type: decision
             description: Het besluit waartegen het beroep is gericht (artikel 8:70).
+          - name: vervangend_besluit
+            type: decision
+            nullable: true
+            required: false
+            description: >-
+              Het besluit dat het bestreden besluit hangende het beroep verving
+              (artikel 6:19, eerste lid), als dat er is.
         input:
           # Lid 3, onder b: wat de bestuursrechter in de plaats van het
           # vernietigde besluit stelt. Eigen keuze: dat is het bestreden
@@ -1114,7 +1431,9 @@ articles:
           # rechtsgevolgen blijven niet in stand en zijn uitspraak treedt niet
           # in de plaats. Het "kan" van lid 4 geldt als de gewone gang. Het
           # besluit waarop het beroep was gericht, is dan weg, en de bezwaren
-          # liggen weer open.
+          # liggen weer open. Ook eigen keuze: verving het bestuursorgaan het
+          # bestreden besluit al hangende het beroep (artikel 6:19), dan is er
+          # geen nieuw besluit op te dragen.
           - output: opdracht_tot_nieuw_besluit
             value:
               operation: AND
@@ -1122,6 +1441,9 @@ articles:
                 - $vernietiging_rechtsgevolgen
                 - operation: EQUALS
                   subject: $in_de_plaats_gesteld_besluit
+                  value: null
+                - operation: EQUALS
+                  subject: $vervangend_besluit
                   value: null
           - output: gestelde_termijn_nieuw_besluit
             value:
@@ -1166,7 +1488,10 @@ articles:
       # het bevat: waartoe de uitspraak strekt (artikel 8:70) en wat zij aan
       # een gegrond beroep verbindt (artikelen 8:72 en 8:77, tweede lid),
       # onder de namen van die uitkomsten, ook het besluit dat de uitspraak
-      # in de plaats van het vernietigde stelt. Wie vastlegt dat een partij
+      # in de plaats van het vernietigde stelt. Een tussenuitspraak gaat
+      # net zo (artikel 8:80a, derde lid), met het gebrek, de termijn en de
+      # wijze van herstel; een einduitspraak na herstel met een nieuw besluit
+      # ook met het oordeel daarover (artikel 6:19). Wie vastlegt dat een partij
       # het afschrift heeft, zegt de wet niet: het artikel laat de griffier
       # het ter beschikking stellen. Daarom noemt het feit geen
       # competent_authority (RFC-051); de partij die het ontvangt, legt het
@@ -1186,11 +1511,17 @@ articles:
             - termijn_nieuw_besluit_einddatum
             - geschonden_geoordeelde_rechtsregel
             - uitspraak_in_de_plaats
+            - tussenuitspraak
+            - termijn_herstel_einddatum
+            - wijze_van_herstel
+            - uitspraak_over_vervangend_besluit
       execution:
         parameters:
           - name: uitspraak_strekt_tot
             type: string
-            description: Waartoe de uitspraak strekt (artikel 8:70).
+            nullable: true
+            required: false
+            description: Waartoe de uitspraak strekt (artikel 8:70); leeg bij een tussenuitspraak.
           - name: bestreden_besluit_vernietigd
             type: boolean
             description: Of de bestuursrechter het bestreden besluit vernietigde (artikel 8:72, eerste lid).
@@ -1221,6 +1552,60 @@ articles:
             description: >-
               Het besluit dat de uitspraak in de plaats van het vernietigde
               stelt (artikel 8:72, derde lid, onder b).
+          - name: tussenuitspraak
+            type: boolean
+            description: Of de uitspraak een tussenuitspraak is (artikel 8:80a, eerste lid).
+          - name: termijn_herstel_einddatum
+            type: date
+            nullable: true
+            required: false
+            description: De laatste dag van de termijn voor het herstel van het gebrek (artikel 8:51a, tweede lid).
+          - name: wijze_van_herstel
+            type: string
+            nullable: true
+            required: false
+            description: Op welke wijze het gebrek kan worden hersteld (artikel 8:80a, tweede lid).
+          - name: uitspraak_over_vervangend_besluit
+            type: string
+            nullable: true
+            required: false
+            description: Waartoe de uitspraak strekt voor het besluit dat het bestreden besluit verving (artikel 6:19).
+
+  - number: 8:80a
+    text: |-
+      1. Als de bestuursrechter artikel 8:51a toepast, doet hij een
+      tussenuitspraak.
+      2. De tussenuitspraak vermeldt zoveel mogelijk op welke wijze het gebrek
+      kan worden hersteld.
+      3. De artikelen 8:72, vierde lid, tweede volzin, aanhef en onder a,
+      8:77, 8:78, 8:79 en 8:119 zijn van overeenkomstige toepassing.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:80a
+    machine_readable:
+      # Lid 1: de tussenuitspraak is een uitspraak op het beroep die artikel
+      # 8:70 doet als de bestuursrechter artikel 8:51a toepast (de uitvoer
+      # tussenuitspraak). Lid 3: artikel 8:77 en 8:79 gelden ook: de
+      # tussenuitspraak vermeldt de geschonden rechtsregel, en het
+      # bestuursorgaan legt de ontvangst van het afschrift vast zoals bij elke
+      # uitspraak. De overige artikelen van lid 3 zijn niet gemodelleerd.
+      competent_authority:
+        name: de bestuursrechter
+        type: CATEGORY
+      open_terms:
+        # Lid 2: "zoveel mogelijk", dus niet verplicht.
+        - id: wijze_waarop_gebrek_kan_worden_hersteld
+          type: string
+          required: false
+          decided_per_case_by: de bestuursrechter (artikel 8:80a, tweede lid)
+          description: Op welke wijze het gebrek kan worden hersteld (lid 2).
+      execution:
+        output:
+          - name: vermelde_wijze_van_herstel
+            type: string
+            nullable: true
+            description: De wijze van herstel die de tussenuitspraak vermeldt (lid 2).
+        actions:
+          - output: vermelde_wijze_van_herstel
+            value: $wijze_waarop_gebrek_kan_worden_hersteld
 
   - number: 8:104
     text: |-

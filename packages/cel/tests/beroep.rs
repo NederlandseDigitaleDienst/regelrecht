@@ -512,6 +512,112 @@ fn the_school_records_the_receipt_of_the_judgment() {
 }
 
 #[test]
+fn a_decision_taken_again_after_a_receipt_answers_what_that_receipt_received() {
+    // The objection holds nothing of another cell, so the copy of the
+    // decision taken again after the receipt of the judgment names that
+    // judgment: it is what the decision answers (an interim judgment, Awb
+    // 8:51a, in the bestuurlijke lus).
+    let mut case = case(&well_founded());
+    let receipt = received(&mut case).unwrap();
+    let again = case
+        .school
+        .decide_after(
+            &mut service(),
+            &[],
+            AWB,
+            OBJECTION,
+            &case.objection.id,
+            &receipt.id,
+            &Map::new(),
+            &object_map(json!({ PROFESSION: false })),
+            day("2027-01-18"),
+        )
+        .unwrap()
+        .remove(0);
+    let copy = case
+        .school
+        .afschrift(&mut service(), &[], &again.id)
+        .unwrap();
+    assert_eq!(
+        copy.about,
+        Some(Received {
+            from: COURT.into(),
+            id: case.judgment.id.clone()
+        })
+    );
+}
+
+#[test]
+fn an_executogram_about_a_decision_refers_to_it_and_reads_back() {
+    // What a party tells a cell about one of its decisions without a copy
+    // of a decision of its own, such as the mededeling of Awb 8:51b, here
+    // with the fact of 8:79 that the corpus has.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("kroniek.jsonl");
+    let mut case = case(&well_founded());
+    let fields = object_map(json!({
+        "uitspraak_strekt_tot": "gegrondverklaring van het beroep",
+        "bestreden_besluit_vernietigd": true,
+        "rechtsgevolgen_vernietigd": true,
+        "opdracht_nieuw_besluit": false,
+    }));
+    let gram = case
+        .school
+        .record_executogram_about(
+            &service(),
+            JUDGMENTS,
+            &case.on_objection.id,
+            &fields,
+            day("2027-01-12"),
+        )
+        .unwrap();
+    assert_eq!(
+        gram.refers_to.as_deref(),
+        Some(case.on_objection.id.as_str())
+    );
+    assert_eq!(gram.received, None);
+    // A decision comes with its copy, not as a supplied value.
+    let mut with_decision = fields.clone();
+    with_decision.insert("uitspraak_in_de_plaats".into(), json!({}));
+    let e = case
+        .school
+        .record_executogram_about(
+            &service(),
+            JUDGMENTS,
+            &case.on_objection.id,
+            &with_decision,
+            day("2027-01-12"),
+        )
+        .unwrap_err();
+    assert!(
+        matches!(&e, Error::Refused(m) if m.contains("comes with the copy")),
+        "{e}"
+    );
+    // Not before the decision it concerns.
+    let e = case
+        .school
+        .record_executogram_about(
+            &service(),
+            JUDGMENTS,
+            &case.on_objection.id,
+            &fields,
+            day("2026-11-01"),
+        )
+        .unwrap_err();
+    assert!(matches!(e, Error::Refused(_)), "{e}");
+    // The chronicle opens again with it.
+    let lines: Vec<String> = case
+        .school
+        .grams()
+        .iter()
+        .map(|g| serde_json::to_string(g).unwrap())
+        .collect();
+    std::fs::write(&path, lines.join("\n") + "\n").unwrap();
+    let again = school_at(&path).unwrap();
+    assert_eq!(again.grams().last(), Some(&gram));
+}
+
+#[test]
 fn after_the_judgment_the_school_decides_on_the_objection_again() {
     // The head decides on 18 January, within the term, and judges the
     // profession anew on the employer's statement: well founded, the

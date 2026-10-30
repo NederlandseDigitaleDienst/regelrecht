@@ -1218,3 +1218,197 @@ fn the_log_holds_the_facts_the_other_cells_recorded() {
         ]
     );
 }
+
+/// The vakantieverlof case up to an appeal against an unfounded decision on
+/// objection: the refusal, the objection, the decision on it and the
+/// appeal, on the case's example values. Returns the appeal and the
+/// decision on objection.
+fn tot_beroep(spel: &mut Spel) -> (String, String) {
+    let casus = spel.casus().unwrap();
+    let voorbeeld = &casus["voorbeeld"];
+    let aanvraag = spel
+        .aanvragen(&map(&voorbeeld["aanvraag"]), dag("2026-10-14"))
+        .unwrap();
+    let besluit = spel
+        .besluiten(
+            aanvraag["id"].as_str().unwrap(),
+            &map(&json!({ "specifieke_aard_beroep_ouder": false })),
+            dag("2026-10-14"),
+        )
+        .unwrap();
+    let mut bezwaar = voorbeeld["bezwaar"].clone();
+    bezwaar["dagtekening_bezwaar_of_beroepschrift"] = json!("2026-11-01");
+    let bezwaar = spel
+        .bezwaren(
+            besluit["besluit"]["id"].as_str().unwrap(),
+            &map(&bezwaar),
+            dag("2026-11-01"),
+        )
+        .unwrap();
+    let ongegrond = spel
+        .beslissen_op_bezwaar(
+            bezwaar["id"].as_str().unwrap(),
+            &Map::new(),
+            dag("2026-11-15"),
+        )
+        .unwrap();
+    let beslissing = ongegrond["beslissing"]["id"].as_str().unwrap().to_string();
+    let mut beroep = voorbeeld["beroep"].clone();
+    beroep["dagtekening_bezwaar_of_beroepschrift"] = json!("2026-12-01");
+    let beroep = spel
+        .beroep_instellen(&beslissing, &map(&beroep), dag("2026-12-01"))
+        .unwrap();
+    (beroep["id"].as_str().unwrap().to_string(), beslissing)
+}
+
+/// The court's findings for an interim judgment: the example values, with
+/// the opportunity to repair the defect by 22 February 2027 (Awb 8:51a).
+fn tussen(spel: &mut Spel) -> Map<String, Value> {
+    let mut bevindingen = map(&spel.casus().unwrap()["voorbeeld"]["uitspraak"]);
+    bevindingen.insert("gelegenheid_tot_herstel".into(), json!(true));
+    bevindingen.insert("termijn_herstel".into(), json!("2027-02-22"));
+    bevindingen
+}
+
+#[test]
+fn the_bestuurlijke_lus_with_a_new_decision_on_objection() {
+    let mut spel = spel_met("vakantieverlof");
+    assert_eq!(
+        spel.casus().unwrap()["mededeling"],
+        json!("algemene_wet_bestuursrecht#8:51b#mededeling_over_herstel")
+    );
+    let (beroep, eerste) = tot_beroep(&mut spel);
+    let bevindingen = tussen(&mut spel);
+    let gedaan = spel
+        .uitspraak_doen(&beroep, &bevindingen, dag("2027-01-11"))
+        .unwrap();
+    let t = &gedaan["uitspraak"];
+    assert_eq!(t["outputs"]["tussenuitspraak"], json!(true));
+    assert_eq!(t["outputs"]["uitspraak_strekt_tot"], Value::Null);
+    assert_eq!(t["outputs"]["bestreden_besluit_vernietigd"], json!(false));
+    assert_eq!(
+        t["outputs"]["termijn_herstel_einddatum"],
+        json!("2027-02-22")
+    );
+    let tussenuitspraak = t["id"].as_str().unwrap().to_string();
+
+    // Without the mededeling there is no final judgment.
+    let e = spel
+        .uitspraak_doen(&beroep, &map(&json!({})), dag("2027-02-01"))
+        .unwrap_err();
+    assert!(e.to_string().contains("only after"), "{e}");
+
+    let ontvangst = spel.toezenden(&tussenuitspraak, dag("2027-01-11")).unwrap();
+    assert_eq!(ontvangst["fields"]["tussenuitspraak"], json!(true));
+    let ontvangst = ontvangst["id"].as_str().unwrap().to_string();
+    // The school repairs the defect with a new decision on the same
+    // objection, with the same outcome.
+    let herstel = spel
+        .opnieuw_beslissen_op_bezwaar(&ontvangst, &Map::new(), dag("2027-02-08"))
+        .unwrap();
+    let herstel = herstel["beslissing"]["id"].as_str().unwrap().to_string();
+    // With a new decision the mededeling holds nothing else.
+    let e = spel
+        .herstel_meedelen(
+            &ontvangst,
+            &map(&json!({ "wijze_waarop_gebrek_is_hersteld": "x" })),
+            dag("2027-02-08"),
+        )
+        .unwrap_err();
+    assert!(e.to_string().contains("holds nothing else"), "{e}");
+    let mededeling = spel
+        .herstel_meedelen(&ontvangst, &Map::new(), dag("2027-02-08"))
+        .unwrap();
+    assert_eq!(mededeling["refers_to"], json!(tussenuitspraak));
+    assert_eq!(mededeling["received"]["id"], json!(herstel));
+    assert_eq!(
+        mededeling["fields"]["vervangend_besluit"]["basis"],
+        json!("algemene_wet_bestuursrecht#7:11")
+    );
+    // A second mededeling on the same interim judgment is refused.
+    assert!(spel
+        .herstel_meedelen(&ontvangst, &Map::new(), dag("2027-02-09"))
+        .is_err());
+    // The new decision falls under the running appeal (Awb 6:19): no new
+    // appeal against it.
+    let beroepschrift = map(&spel.casus().unwrap()["voorbeeld"]["beroep"]);
+    let e = spel
+        .beroep_instellen(&herstel, &beroepschrift, dag("2027-02-10"))
+        .unwrap_err();
+    assert!(e.to_string().contains("already before the court"), "{e}");
+
+    let mut bevindingen = map(&spel.casus().unwrap()["voorbeeld"]["uitspraak"]);
+    bevindingen.insert(
+        "rechtsregel_geschonden_door_vervangend_besluit".into(),
+        json!(false),
+    );
+    let voorlopig = spel
+        .voorvertoning_uitspraak(&beroep, &bevindingen, dag("2027-03-08"))
+        .unwrap();
+    let gedaan = spel
+        .uitspraak_doen(&beroep, &bevindingen, dag("2027-03-08"))
+        .unwrap();
+    let e = &gedaan["uitspraak"];
+    assert_eq!(voorlopig["voorlopig"]["uitspraak"]["outputs"], e["outputs"]);
+    assert_eq!(e["refers_to"], json!(beroep));
+    assert_eq!(e["after"], mededeling["id"]);
+    assert_eq!(e["outputs"]["tussenuitspraak"], json!(false));
+    assert_eq!(
+        e["outputs"]["uitspraak_strekt_tot"],
+        json!("gegrondverklaring van het beroep")
+    );
+    assert_eq!(e["outputs"]["opdracht_nieuw_besluit"], json!(false));
+    assert_eq!(
+        e["outputs"]["uitspraak_over_vervangend_besluit"],
+        json!("ongegrondverklaring van het beroep tegen het vervangende besluit")
+    );
+    spel.waarom_uitspraak(e["id"].as_str().unwrap()).unwrap();
+    let ontvangen = spel
+        .toezenden(e["id"].as_str().unwrap(), dag("2027-03-08"))
+        .unwrap();
+    assert_eq!(ontvangen["refers_to"], json!(eerste));
+
+    let kroniek = spel.kroniek().unwrap();
+    assert_eq!(
+        soorten(&kroniek["andere"][0]),
+        ["BEROEP", "UITSPRAAK", "EXECUTOGRAM", "UITSPRAAK"]
+    );
+    // The game saved and restored reads back, both chronicles whole.
+    let bewaard = spel.bewaren().unwrap();
+    let mut ander = spel_met("vakantieverlof");
+    ander.herstellen(bewaard).unwrap();
+}
+
+#[test]
+fn the_bestuurlijke_lus_with_a_supplemented_motivation() {
+    let mut spel = spel_met("vakantieverlof");
+    let (beroep, _) = tot_beroep(&mut spel);
+    let bevindingen = tussen(&mut spel);
+    let gedaan = spel
+        .uitspraak_doen(&beroep, &bevindingen, dag("2027-01-11"))
+        .unwrap();
+    let ontvangst = spel
+        .toezenden(
+            gedaan["uitspraak"]["id"].as_str().unwrap(),
+            dag("2027-01-11"),
+        )
+        .unwrap();
+    let mededeling = spel
+        .herstel_meedelen(
+            ontvangst["id"].as_str().unwrap(),
+            &map(&json!({ "wijze_waarop_gebrek_is_hersteld": "aanvullende motivering" })),
+            dag("2027-02-01"),
+        )
+        .unwrap();
+    assert!(mededeling.get("received").is_none());
+    assert_eq!(mededeling["fields"]["vervangend_besluit"], Value::Null);
+    let mut bevindingen = map(&spel.casus().unwrap()["voorbeeld"]["uitspraak"]);
+    bevindingen.insert("rechtsgevolgen_in_stand".into(), json!(true));
+    let gedaan = spel
+        .uitspraak_doen(&beroep, &bevindingen, dag("2027-03-01"))
+        .unwrap();
+    let uit = &gedaan["uitspraak"]["outputs"];
+    assert_eq!(uit["bestreden_besluit_vernietigd"], json!(true));
+    assert_eq!(uit["rechtsgevolgen_vernietigd"], json!(false));
+    assert_eq!(uit["uitspraak_over_vervangend_besluit"], Value::Null);
+}

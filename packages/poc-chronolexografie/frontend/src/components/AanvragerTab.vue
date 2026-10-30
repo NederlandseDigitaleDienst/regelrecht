@@ -9,7 +9,7 @@
 // staat ingevuld zolang je een scenario volgt (scenarioInvoer.js).
 import { computed, ref } from 'vue';
 import { api } from '../api.js';
-import { beroepApi } from '../beroep.js';
+import { beroepApi, onderLopendBeroep } from '../beroep.js';
 import { artikelNaam } from '../logboek.js';
 import { melding } from '../melding.js';
 import {
@@ -86,9 +86,10 @@ const beroepArtikel = computed(() =>
 );
 
 // Beroep staat open tegen een beslissing op bezwaar, bij een casus met een
-// rechter.
+// rechter. Niet tegen een beslissing die een bestreden besluit verving terwijl
+// het beroep liep: dat beroep gaat er al over (Awb 6:19).
 const beroepMogelijk = (g) =>
-  !!state.casus.beroep && isBesluit(g) && g.basis === bezwaarBasis();
+  !!state.casus.beroep && isBesluit(g) && g.basis === bezwaarBasis() && !onderLopendBeroep(g.id);
 
 /** De stand van een aanvraag, als tag: tekst en kleur. */
 function stand(a) {
