@@ -886,15 +886,15 @@ impl Verloop {
     }
 
     /// The parameters to run the article with on `on`: per decision of the
-    /// case's cell under `basis` taken up to that day, the values its
+    /// case's cell under one of `bases` taken up to that day, the values its
     /// fields and outputs hold under the names of the article's
     /// parameters, each set once. A decision that lacks a required one is
     /// none the article speaks of.
-    fn reeksen(&self, grams: &[Gram], basis: &str, on: NaiveDate) -> Vec<Map<String, Value>> {
+    fn reeksen(&self, grams: &[Gram], bases: &[String], on: NaiveDate) -> Vec<Map<String, Value>> {
         let mut uit: Vec<Map<String, Value>> = Vec::new();
         for gram in grams
             .iter()
-            .filter(|g| g.basis == basis && g.refers_to.is_some() && g.recorded_on <= on)
+            .filter(|g| bases.contains(&g.basis) && g.refers_to.is_some() && g.recorded_on <= on)
         {
             let mut reeks = Map::new();
             let mut heel = true;
@@ -1040,7 +1040,6 @@ pub fn tijd_verstrijken(corpus: &Corpus, cellen: &mut Cellen, tot: NaiveDate) ->
             "time passes from {vanaf} up to {tot}, more than {MAX_DAGEN} days in one step"
         )));
     }
-    let basis = format!("{}#{}", corpus.decision_law(), corpus.decision());
     let mut vastgelegd = Vec::new();
     // What time brings changes only with the versions in force: derive it
     // again when one of them changes, not every day.
@@ -1068,7 +1067,7 @@ pub fn tijd_verstrijken(corpus: &Corpus, cellen: &mut Cellen, tot: NaiveDate) ->
         };
         for v in verlopen {
             let uitvoer: Vec<&str> = v.uitvoer.iter().map(String::as_str).collect();
-            for reeks in v.reeksen(cellen.eigen.grams(), &basis, dag) {
+            for reeks in v.reeksen(cellen.eigen.grams(), &corpus.afleiding.besluiten, dag) {
                 let (cell, sfeer) = cellen.splits();
                 let uit = cell.evaluate_on(&service, &sfeer, &v.law, &uitvoer, &reeks, dag)?;
                 let mut velden = Map::new();
@@ -4057,6 +4056,7 @@ mod tests {
         let velden = map(json!({
             "bsn": "999993653",
             "berekeningsjaar": 2025,
+            "gevraagde_tegemoetkoming": "wet_op_de_zorgtoeslag#2",
             "aanvraag_ondertekend": true,
             "naam_aanvrager": "S. de Vries",
             "adres_aanvrager": "Voorbeeldlaan 7",
@@ -4067,13 +4067,13 @@ mod tests {
         // Before a decision, time brings nothing.
         assert!(tijd_verstrijken(&corpus, &mut cell, op).unwrap().is_empty());
         let oordelen = map(json!({
-            "vermoedelijk_toetsingsinkomen": 2500000,
-            "vermoedelijk_heeft_toeslagpartner": false,
-            "vermoedelijk_toetsingsinkomen_toeslagpartner": 0,
-            "vermoedelijk_verzekerd": true,
-            "vermoedelijk_vermogen_onder_grens": true,
+            "toetsingsinkomen": 2500000,
+            "heeft_toeslagpartner": false,
+            "toetsingsinkomen_toeslagpartner": 0,
+            "is_verzekerde": true,
+            "vermogen_onder_grens": true,
         }));
-        besluiten(&corpus, &mut cell, &app.id, &oordelen, op).unwrap();
+        besluiten_onder(&corpus, &mut cell, &app.id, VOORSCHOT, &oordelen, op).unwrap();
         let uitbetaald = "reductie_uitbetaalde_voorschotten";
         assert_eq!(
             antwoord_voorschot(

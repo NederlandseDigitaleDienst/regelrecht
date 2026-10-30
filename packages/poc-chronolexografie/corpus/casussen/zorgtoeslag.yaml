@@ -183,6 +183,8 @@ scenarios:
       - stap: aanvraag
         verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
       - stap: besluit
+        artikel: algemene_wet_inkomensafhankelijke_regelingen#16
+        tekst: Klik onder Open aanvragen bij het voorschot op Besluit nemen.
         verhaal: De Dienst verleent een voorschot van € 1.577 over 2025.
         uitkomst: toegewezen
         uitvoer:
@@ -205,6 +207,8 @@ scenarios:
         invoer:
           dagtekening: '2025-03-07'
       - stap: besluit
+        artikel: algemene_wet_inkomensafhankelijke_regelingen#16
+        tekst: Klik onder Open aanvragen bij het voorschot op Besluit nemen.
         verhaal: De Dienst verleent op 14 maart een voorschot van € 1.577.
         datum: 2025-03-14
         uitkomst: toegewezen
@@ -226,9 +230,11 @@ scenarios:
       - stap: aanvraag
         verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
       - stap: besluit
+        artikel: algemene_wet_inkomensafhankelijke_regelingen#16
+        tekst: Klik onder Open aanvragen bij het voorschot op Besluit nemen.
         verhaal: De Dienst verwacht een inkomen van € 30.000.
         invoer:
-          vermoedelijk_toetsingsinkomen: 3000000
+          toetsingsinkomen: 3000000
         uitkomst: toegewezen
         uitvoer:
           voorschotbedrag: 133100
@@ -252,7 +258,7 @@ scenarios:
         verhaal: De Dienst verwacht nu een inkomen van € 25.000.
         datum: 2025-03-14
         invoer:
-          vermoedelijk_toetsingsinkomen: 2500000
+          toetsingsinkomen: 2500000
         uitkomst: gegrond
         uitvoer:
           voorschotbedrag: 157700

@@ -170,7 +170,7 @@
     "tab": "bestuursorgaan",
     "date": null,
     "story": "De Dienst verleent een voorschot van € 1.577 over 2025.",
-    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "todo": "Klik onder Open aanvragen bij het voorschot op Besluit nemen.",
     "values": [],
     "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
@@ -208,7 +208,7 @@
     "tab": "bestuursorgaan",
     "date": "2025-03-14",
     "story": "De Dienst verleent op 14 maart een voorschot van € 1.577.",
-    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "todo": "Klik onder Open aanvragen bij het voorschot op Besluit nemen.",
     "values": [],
     "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
@@ -244,9 +244,9 @@
     "tab": "bestuursorgaan",
     "date": null,
     "story": "De Dienst verwacht een inkomen van € 30.000.",
-    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "todo": "Klik onder Open aanvragen bij het voorschot op Besluit nemen.",
     "values": [
-     "vermoedelijk toetsingsinkomen: 3000000"
+     "toetsingsinkomen: 3000000"
     ],
     "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
@@ -290,7 +290,7 @@
     "story": "De Dienst verwacht nu een inkomen van € 25.000.",
     "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
     "values": [
-     "vermoedelijk toetsingsinkomen: 2500000"
+     "toetsingsinkomen: 2500000"
     ],
     "seen": "De beslissing staat onder Beslissingen op bezwaar.",
     "expect": "hier hoort het bezwaar gegrond te zijn"
