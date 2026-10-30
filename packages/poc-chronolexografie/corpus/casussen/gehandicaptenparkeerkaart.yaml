@@ -265,7 +265,7 @@ scenarios:
       - stap: vastleggen
         verhaal: >-
           De GGD onderzoekt opnieuw en vindt nu een langdurige loopbeperking.
-        titel: Nieuw onderzoek en advies van de GGD
+        titel: Nieuw onderzoek en advies
         datum: 2026-11-10
         cel: ggd_wilgendaal
         feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
@@ -319,7 +319,7 @@ scenarios:
       - stap: vastleggen
         verhaal: >-
           De GGD onderzoekt opnieuw en vindt nu een langdurige loopbeperking.
-        titel: Nieuw onderzoek en advies van de GGD
+        titel: Nieuw onderzoek en advies
         datum: 2026-11-10
         cel: ggd_wilgendaal
         feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
