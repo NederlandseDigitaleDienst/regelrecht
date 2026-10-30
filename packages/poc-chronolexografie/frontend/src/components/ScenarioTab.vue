@@ -14,7 +14,7 @@ import { beginScenario, longDate, state } from '../state.js';
 const emit = defineEmits(['start']);
 
 const scenarios = computed(() =>
-  state.casus.scenarios.map((s, i) => ({ ...s, nummer: i + 1, guide: guideFor(state.casus, s.naam) })),
+  state.casus.scenarios.map((s) => ({ ...s, guide: guideFor(state.casus, s.naam) })),
 );
 const metGids = computed(() => scenarios.value.filter((s) => s.guide));
 const zonderGids = computed(() => scenarios.value.filter((s) => !s.guide));
@@ -43,7 +43,7 @@ async function begin(s) {
     <nldd-container gap="16">
       <nldd-list v-if="metGids.length" appearance="box-tinted" accessible-label="Scenario's">
         <nldd-list-item v-for="s in metGids" :key="s.naam" size="sm">
-          <nldd-text-cell :overline="`Scenario ${s.nummer}`" :text="s.naam"></nldd-text-cell>
+          <nldd-text-cell :text="s.naam"></nldd-text-cell>
           <nldd-cell v-if="state.scenario === s.naam">
             <nldd-tag color="accent" text="Bezig"></nldd-tag>
           </nldd-cell>
@@ -52,7 +52,7 @@ async function begin(s) {
               appearance="secondary"
               size="sm"
               :text="state.scenario === s.naam ? 'Opnieuw' : 'Begin'"
-              :accessible-label="`Scenario ${s.nummer} ${state.scenario === s.naam ? 'opnieuw beginnen' : 'beginnen'}`"
+              :accessible-label="`${s.naam}: ${state.scenario === s.naam ? 'opnieuw beginnen' : 'beginnen'}`"
               @click="begin(s)"
             ></nldd-button>
           </nldd-cell>
@@ -60,7 +60,7 @@ async function begin(s) {
       </nldd-list>
       <nldd-card v-for="s in zonderGids" :key="s.naam">
         <nldd-container padding="16" gap="12">
-          <nldd-title size="5" :overline="`Scenario ${s.nummer}`" :text="s.naam">
+          <nldd-title size="5" :text="s.naam">
             <nldd-tag v-if="state.scenario === s.naam" slot="end" color="accent" text="Bezig"></nldd-tag>
           </nldd-title>
           <nldd-rich-text>
