@@ -11,6 +11,9 @@ const casus = (id) => ({
 });
 const CASUSSEN = ['vakantieverlof', 'gehandicaptenparkeerkaart', 'bedrijfsparkeervergunning', 'zorgtoeslag'];
 const TABS = ['aanvrager', 'bestuursorgaan', 'andere'];
+// One sentence: no full stop, question or exclamation mark before the
+// end, except a dot inside a number (€ 1.577).
+const ONE_SENTENCE = /^(?:[^.!?]|\.(?=\d))+[.!?]$/;
 
 describe.each(CASUSSEN)('the guides of %s', (id) => {
   const c = casus(id);
@@ -21,11 +24,11 @@ describe.each(CASUSSEN)('the guides of %s', (id) => {
   });
 
   it('sums up each scenario in one sentence', () => {
-    for (const g of list) expect(g.summary, g.name).toMatch(/^[^.!?]+[.!?]$/);
+    for (const g of list) expect(g.summary, g.name).toMatch(ONE_SENTENCE);
   });
 
   it('ends each scenario with one sentence', () => {
-    for (const s of c.scenarios) expect(s.eind, s.naam).toMatch(/^[^.!?]+[.!?]$/);
+    for (const s of c.scenarios) expect(s.eind, s.naam).toMatch(ONE_SENTENCE);
   });
 
   it('gives every step what the panel shows', () => {
@@ -34,11 +37,11 @@ describe.each(CASUSSEN)('the guides of %s', (id) => {
         const at = `${g.name}, step ${i + 1}`;
         expect(typeof s.title, at).toBe('string');
         expect(TABS, at).toContain(s.tab);
-        expect(s.story, at).toMatch(/^[^.!?]+[.!?]$/);
-        expect(s.todo, at).toMatch(/^[^.!?]+[.!?]$/);
+        expect(s.story, at).toMatch(ONE_SENTENCE);
+        expect(s.todo, at).toMatch(ONE_SENTENCE);
         expect(typeof s.done, at).toBe('function');
         if (s.expect) expect(typeof s.expect.check, at).toBe('function');
-        if (i < g.steps.length - 1) expect(s.seen, at).toMatch(/^[^.!?]+[.!?]$/);
+        if (i < g.steps.length - 1) expect(s.seen, at).toMatch(ONE_SENTENCE);
       });
     }
   });

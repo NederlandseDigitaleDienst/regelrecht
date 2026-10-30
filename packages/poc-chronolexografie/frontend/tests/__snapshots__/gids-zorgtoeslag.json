@@ -7,16 +7,20 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
-    "todo": "Klik op Aanvraag indienen. De aanvraag noemt het burgerservicenummer en het berekeningsjaar 2025.",
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "story": "Een alleenstaande vraagt zorgtoeslag aan voor 2025.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "De Dienst verwacht een toetsingsinkomen van € 25.000, geen toeslagpartner, een zorgverzekering en een vermogen onder de grens. Klik op Besluit nemen.",
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "story": "De Dienst verwacht een inkomen van € 25.000 en vindt een zorgverzekering.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    }
   ]
@@ -29,16 +33,22 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
+    "story": "Een alleenstaande vraagt zorgtoeslag aan voor 2025.",
     "todo": "Klik op Aanvraag indienen.",
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Het formulier staat ingevuld uit het scenario: \"vermoedelijk verzekerd\" Nee. De Dienst vindt geen zorgverzekering voor 2025. Klik op Besluit nemen.",
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen; de aanvraag staat niet meer op In behandeling.",
+    "story": "De Dienst vindt geen zorgverzekering voor 2025.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [
+     "vermoedelijk verzekerd: Nee"
+    ],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]
@@ -51,31 +61,43 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
+    "story": "Een alleenstaande vraagt zorgtoeslag aan voor 2025.",
     "todo": "Klik op Aanvraag indienen.",
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Het formulier staat ingevuld uit het scenario: \"vermoedelijk toetsingsinkomen\" 4500000. De Dienst verwacht een toetsingsinkomen van € 45.000. Klik op Besluit nemen.",
-    "seen": "Afgewezen: bij dat inkomen is de normpremie hoger dan de standaardpremie, dus de zorgtoeslag is nihil.",
+    "story": "De Dienst verwacht een inkomen van € 45.000.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [
+     "vermoedelijk toetsingsinkomen: 4500000"
+    ],
+    "seen": "Afgewezen: bij dit inkomen is de zorgtoeslag nihil.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
     "title": "Bezwaar maken",
     "tab": "aanvrager",
     "date": "2025-01-20",
-    "todo": "Klik bij het besluit op Bezwaar maken. De gronden zeggen dat het inkomen in 2025 daalt. Klik op Bezwaar indienen.",
-    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "story": "De aanvrager maakt bezwaar, omdat het inkomen in 2025 daalt.",
+    "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
    },
    {
     "title": "Beslissen op bezwaar",
     "tab": "bestuursorgaan",
     "date": "2025-02-03",
-    "todo": "Het formulier staat ingevuld uit het scenario: \"vermoedelijk toetsingsinkomen\" 3000000. Klik onder Open bezwaren op Ontvankelijkheid toetsen: het bezwaar is ontvankelijk. De Dienst verwacht nu € 30.000. Klik op Beslissen op bezwaar.",
+    "story": "De Dienst verwacht nu een inkomen van € 30.000.",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "values": [
+     "vermoedelijk toetsingsinkomen: 3000000"
+    ],
     "seen": "De beslissing staat onder Beslissingen op bezwaar.",
     "expect": "hier hoort het bezwaar gegrond te zijn"
    }
@@ -89,31 +111,41 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
+    "story": "Een alleenstaande vraagt zorgtoeslag aan voor 2025.",
     "todo": "Klik op Aanvraag indienen.",
-    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling. De velden komen uit de wet (het artikel en Awb 4:2); de dag van ontvangst is de speeldatum.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": null,
-    "todo": "Klik op Besluit nemen.",
-    "seen": "Toegewezen, met een voorschotbedrag van 157700 eurocent (€ 1.577).",
+    "story": "De Dienst beslist op de aanvraag.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [],
+    "seen": "Toegewezen: het voorschot is € 1.577.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    },
    {
     "title": "Bezwaar maken",
     "tab": "aanvrager",
     "date": "2025-01-20",
-    "todo": "Het formulier staat ingevuld uit het scenario: \"gronden bezwaar of beroep\" het voorschot is te laag. Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
-    "seen": "Het bezwaar staat in het dossier en verwijst naar het besluit. De cel nam het bestreden besluit en de termijn uit dat besluit. De aanvraag verandert niet.",
+    "story": "De aanvrager vindt het voorschot te laag en maakt bezwaar.",
+    "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [
+     "gronden bezwaar of beroep: het voorschot is te laag"
+    ],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null
    },
    {
     "title": "Beslissen op bezwaar",
     "tab": "bestuursorgaan",
     "date": "2025-02-03",
-    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen. Laat de bevindingen staan en klik op Beslissen op bezwaar.",
+    "story": "De Dienst verwacht bij de heroverweging hetzelfde.",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat de bevindingen staan en klik op Beslissen op bezwaar.",
+    "values": [],
     "seen": "De beslissing staat onder Beslissingen op bezwaar.",
     "expect": "hier hoort het bezwaar ongegrond te zijn"
    }
