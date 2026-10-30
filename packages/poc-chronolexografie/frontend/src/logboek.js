@@ -14,6 +14,7 @@ import { bezwaarBasis, hoofdletter, kort, leesbaar, neemt, state, toegewezen, wa
 // Regelwerken die overal bij hun afkorting heten.
 const AFKORTINGEN = {
   algemene_wet_bestuursrecht: 'Awb',
+  algemene_wet_inkomensafhankelijke_regelingen: 'Awir',
   besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw: 'BABW',
 };
 

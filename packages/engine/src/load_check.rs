@@ -501,32 +501,55 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
             types.push(ty);
         }
         for item in &produced {
-            let Some(target) = item.requests() else {
-                continue;
-            };
-            if item.submission_kind().is_none() {
-                return refuse(format!(
-                    "requests '{target}' on a decision; only a submission requests a decision"
-                ));
+            let also = item.also_requests();
+            if !also.is_empty() && item.requests().is_none() {
+                return refuse(
+                    "lists also_requests without requests; a submission requests its own \
+                     decision first"
+                        .to_string(),
+                );
             }
-            let Some((regulation, number)) = target.split_once('#') else {
-                continue;
-            };
-            if regulation != law.id {
-                continue;
+            if let Some(twice) = also.iter().enumerate().find_map(|(i, t)| {
+                (Some(t.as_str()) == item.requests() || also[..i].contains(t)).then_some(t)
+            }) {
+                return refuse(format!("requests '{twice}' under also_requests as well"));
             }
-            match law.find_article_by_number(number) {
-                None => {
+            if let Some(no) = also
+                .iter()
+                .find(|t| !regelrecht_law_model::is_article_reference(t))
+            {
+                return refuse(format!("also_requests names '{no}', no article reference"));
+            }
+            let targets = item
+                .requests()
+                .into_iter()
+                .chain(also.iter().map(String::as_str));
+            for target in targets {
+                if item.submission_kind().is_none() {
                     return refuse(format!(
-                        "requests the decision of '{target}', but this law has no article {number}"
-                    ))
+                        "requests '{target}' on a decision; only a submission requests a decision"
+                    ));
                 }
-                Some(a) if a.get_decision().is_none() => {
-                    return refuse(format!(
-                        "requests the decision of '{target}', which takes no decision"
-                    ))
+                let Some((regulation, number)) = target.split_once('#') else {
+                    continue;
+                };
+                if regulation != law.id {
+                    continue;
                 }
-                Some(_) => {}
+                match law.find_article_by_number(number) {
+                    None => {
+                        return refuse(format!(
+                            "requests the decision of '{target}', but this law has no article \
+                             {number}"
+                        ))
+                    }
+                    Some(a) if a.get_decision().is_none() => {
+                        return refuse(format!(
+                            "requests the decision of '{target}', which takes no decision"
+                        ))
+                    }
+                    Some(_) => {}
+                }
             }
         }
         if let Some(item) = produced
@@ -1009,6 +1032,26 @@ articles:
             (
                 "          - type: AANVRAAG\n            requests: lijst#1",
                 "which takes no decision",
+            ),
+            (
+                "          - type: AANVRAAG\n            requests: lijst#1\n            also_requests: [lijst#2]\n          - type: BESCHIKKING",
+                "this law has no article 2",
+            ),
+            (
+                "          - type: AANVRAAG\n            also_requests: [lijst#1]\n          - type: BESCHIKKING",
+                "without requests",
+            ),
+            (
+                "          - type: AANVRAAG\n            requests: lijst#1\n            also_requests: [lijst#1]\n          - type: BESCHIKKING",
+                "under also_requests as well",
+            ),
+            (
+                "          - type: AANVRAAG\n            requests: lijst#1\n            also_requests: [ander#1, ander#1]\n          - type: BESCHIKKING",
+                "under also_requests as well",
+            ),
+            (
+                "          - type: AANVRAAG\n            requests: lijst#1\n            also_requests: [geen]\n          - type: BESCHIKKING",
+                "no article reference",
             ),
             (
                 "          - type: AANVRAAG\n            parameters: [p]",

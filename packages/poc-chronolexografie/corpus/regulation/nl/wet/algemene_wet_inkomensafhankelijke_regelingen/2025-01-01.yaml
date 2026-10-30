@@ -1156,10 +1156,17 @@ articles:
       # ontwerpstudie naar soorten regelingen loopt. Tot die klaar is, wijst
       # `requests` naar artikel 14, de toekenning, en leest artikel 14 uit het
       # genoemde artikel.
+      #
+      # Op dezelfde aanvraag verleent de Dienst ook het voorschot: artikel 16,
+      # eerste lid, geeft het aan de belanghebbende "die een aanvraag voor een
+      # tegemoetkoming indient" (also_requests). Het voorschot staat op
+      # zichzelf: de toekenning volgt later (artikel 19).
       execution:
         produces:
           - type: AANVRAAG
             requests: algemene_wet_inkomensafhankelijke_regelingen#14
+            also_requests:
+              - algemene_wet_inkomensafhankelijke_regelingen#16
             parameters:
               - bsn
               - berekeningsjaar
@@ -1357,6 +1364,10 @@ articles:
                 - when:
                     operation: AND
                     conditions:
+                      # Eerst de toekenning: zo gebruikt de engine de
+                      # bevindingen van de Dienst, ook bij een te late
+                      # aanvraag.
+                      - $tegemoetkoming_vermoedelijk_toegekend
                       - operation: LESS_THAN
                         subject: $datum_ontvangst
                         value:
@@ -1368,7 +1379,6 @@ articles:
                               - 1
                           month: 4
                           day: 1
-                      - $tegemoetkoming_vermoedelijk_toegekend
                   then: $vermoedelijke_tegemoetkoming
               default: 0
           - output: voorschot_verleend

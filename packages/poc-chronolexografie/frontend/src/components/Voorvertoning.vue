@@ -19,12 +19,14 @@ import { api } from '../api.js';
 import { beroepApi } from '../beroep.js';
 import { genummerd, toon, uitslag } from '../logboek.js';
 import { vertaling } from '../melding.js';
-import { hoofdletter, leesbaar, state, toegewezen } from '../state.js';
+import { hoofdletter, leesbaar, state, toegewezen, uitkomstVan } from '../state.js';
 import { volger } from '../voorvertoning.js';
 import KetenStap from './KetenStap.vue';
 
 const props = defineProps({
   soort: { type: String, default: 'besluit' },
+  // Bij een aanvraag die tot meer besluiten leidt: het artikel van dit besluit.
+  basis: { type: String, default: undefined },
   // De aanvraag, het bezwaar, de ontvangst van een uitspraak of het beroep
   // waarop beslist wordt.
   op: { type: String, required: true },
@@ -41,7 +43,7 @@ const VRAAG = {
   'na-uitspraak': beroepApi.voorvertoningNaUitspraak,
   uitspraak: beroepApi.voorvertoningUitspraak,
 };
-const vraag = () => VRAAG[props.soort](props.op, { ...props.bevindingen }, state.datum);
+const vraag = () => VRAAG[props.soort](props.op, { ...props.bevindingen }, state.datum, props.basis);
 // Een beslissing op bezwaar, met misschien een nieuw besluit.
 const opBezwaarSoort = computed(() => props.soort === 'bezwaar' || props.soort === 'na-uitspraak');
 const emit = defineEmits(['stil']);
@@ -83,7 +85,7 @@ const keten = computed(() => genummerd(voorlopig.value?.waarom?.keten ?? []));
 function badge(b) {
   const t = toegewezen(b);
   return {
-    tekst: `${hoofdletter(leesbaar(state.casus.uitkomst))}: ${toon(t)}`,
+    tekst: `${hoofdletter(leesbaar(uitkomstVan(b)))}: ${toon(t)}`,
     kleur: t === true ? 'success' : t === false ? 'critical' : 'neutral',
   };
 }
