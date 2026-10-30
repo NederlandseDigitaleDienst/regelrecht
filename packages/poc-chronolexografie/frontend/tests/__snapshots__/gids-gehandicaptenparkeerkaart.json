@@ -16,24 +16,10 @@
     "expect": null
    },
    {
-    "title": "Onderzoek door de GGD",
+    "title": "Onderzoek en advies van de GGD",
     "tab": "andere",
     "date": "2026-10-16",
-    "story": "De GGD onderzoekt de aanvrager.",
-    "todo": "Klik bij GGD Wilgendaal onder \"Vastleggen: Geneeskundig onderzoek verricht\" op Vastleggen.",
-    "values": [
-     "bsn aanvrager: 999990032",
-     "datum onderzoek: 16 oktober 2026",
-     "verricht door: Gemeentelijke Gezondheidsdienst"
-    ],
-    "seen": "Het onderzoek staat in de kroniek van de GGD.",
-    "expect": null
-   },
-   {
-    "title": "Advies van de GGD",
-    "tab": "andere",
-    "date": null,
-    "story": "De GGD adviseert dat er een langdurige loopbeperking is.",
+    "story": "De GGD onderzoekt de aanvrager en adviseert.",
     "todo": "Klik bij GGD Wilgendaal onder \"Vastleggen: Geneeskundig advies uitgebracht\" op Vastleggen.",
     "values": [
      "bsn aanvrager: 999990032",
@@ -43,7 +29,7 @@
      "permanent rolstoelgebonden: Nee",
      "ernstige beperkingen andere dan loopbeperkingen: Nee"
     ],
-    "seen": "Het advies staat ook in de kroniek van de GGD.",
+    "seen": "Het advies staat in de kroniek van de GGD.",
     "expect": null
    },
    {
@@ -215,7 +201,7 @@
     "expect": null
    },
    {
-    "title": "Nieuw advies van de GGD",
+    "title": "Nieuw onderzoek en advies van de GGD",
     "tab": "andere",
     "date": "2026-11-10",
     "story": "De GGD onderzoekt opnieuw en vindt nu een langdurige loopbeperking.",
@@ -280,7 +266,7 @@
     "expect": null
    },
    {
-    "title": "Nieuw advies van de GGD",
+    "title": "Nieuw onderzoek en advies van de GGD",
     "tab": "andere",
     "date": "2026-11-10",
     "story": "De GGD onderzoekt opnieuw en vindt nu een langdurige loopbeperking.",

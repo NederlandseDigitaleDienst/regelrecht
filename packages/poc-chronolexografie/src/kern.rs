@@ -4254,18 +4254,18 @@ mod tests {
         assert!(spoor.contains(&eerste.id), "{spoor}");
 
         // The log, newest first: art. 49 runs, the policy fills its term,
-        // and in it the cell answers. The GGD's examinations and advice from
-        // the case file are in the GGD's own chronicle; the log shows them
-        // too, as the facts they are: four steps of the municipality and
-        // four executograms of the GGD.
+        // and in it the cell answers. The GGD's advice from the case file is
+        // in the GGD's own chronicle; the log shows it too, as the fact it
+        // is: four steps of the municipality and two executograms of the
+        // GGD.
         let log = serde_json::to_value(logboek(&corpus, &cell).unwrap()).unwrap();
         let stappen = log.as_array().unwrap();
-        assert_eq!(stappen.len(), 8);
+        assert_eq!(stappen.len(), 6);
         let ggd = stappen
             .iter()
             .filter(|h| h["gram"]["recording_actor"] == json!("ggd_wilgendaal"))
             .count();
-        assert_eq!(ggd, 4);
+        assert_eq!(ggd, 2);
         assert_eq!(log[0]["gram"]["id"], json!(tweede.besluit.id));
         let keten = &log[0]["waarom"]["keten"];
         assert_eq!(keten[0]["artikel"], json!("49"));

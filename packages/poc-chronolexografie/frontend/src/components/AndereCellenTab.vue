@@ -1,7 +1,7 @@
 <script setup>
 // De andere cellen van de casus (RFC-052): wie de wet bevoegd maakt voor een
 // waarde die het bestuursorgaan nodig heeft, zoals de GGD voor het
-// geneeskundig onderzoek. Elke cel houdt haar eigen kroniek bij en
+// geneeskundig advies. Elke cel houdt haar eigen kroniek bij en
 // antwoordt daaruit. Een cel die een feit vastlegt (een executogram,
 // RFC-051), krijgt hier een formulier; welke velden, zegt het artikel dat het
 // feit vereist. Wat een andere cel vóór het eerste scenario wist, komt
@@ -36,7 +36,7 @@ watch(
 const inklapbaar = (cel, feit) => ingeklapt(state.vormen.andere_cellen, cel, feit);
 const zichtbaar = (cel, feit) => !inklapbaar(cel, feit) || !!geopend[sleutel(cel, feit)];
 
-// `regeling_x#3#geneeskundig_onderzoek_verricht` → `Geneeskundig onderzoek verricht (… artikel 3)`.
+// `beleid_x#5#geneeskundig_advies_uitgebracht` → `Geneeskundig advies uitgebracht (… artikel 5)`.
 const naam = (feit) => {
   const [wet, artikel, wat] = feit.split('#');
   return `${hoofdletter(leesbaar(wat))} (${artikelNaam(wet, artikel)})`;
