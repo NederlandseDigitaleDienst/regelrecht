@@ -158,7 +158,6 @@ articles:
       # BABW: het CBR) en lid 3 (een instelling, artikel 49, tweede lid) zijn
       # niet gemodelleerd: die leden van artikel 49 zijn het ook niet, dus
       # hier vraagt geen kaart erom.
-      # Beide feiten stelt een ander vast dan wie de kaart afgeeft (RFC-052).
       # Of het onderzoek plaatsvond, leest dit artikel bij artikel 3, dat het
       # onderzoek omschrijft. Of eerder een kaart is verstrekt, staat hier in
       # lid 2 zelf; het BABW spreekt nergens van een eerdere kaart.
@@ -221,8 +220,7 @@ articles:
               Of de keurende instantie van oordeel is dat de aanvrager nog
               steeds voldoet aan de criteria van artikel 1 (lid 2, onder b).
         input:
-          # Lid 1: of het onderzoek plaatsvond, zegt wie het verricht
-          # (artikel 3, eerste lid).
+          # Lid 1: of het onderzoek plaatsvond, zegt artikel 3, eerste lid.
           - name: geneeskundig_onderzoek_heeft_plaatsgehad
             type: boolean
             source:
@@ -320,11 +318,11 @@ articles:
         # dagtekening van de aanvraag plaatsvond, en uiterlijk op de dag van
         # afgifte; lid 2 onder a en b laten het onderzoek achterwege bij wie
         # eerder een kaart kreeg, dat veronderstelt een onderzoek per
-        # aanvraag. Wie het onderzoek verricht, beantwoordt het
-        # (competent_authority); vult het beleid van het college het begrip,
-        # dan zegt dat beleid ook wat geldt als die zwijgt: dan was er geen
-        # onderzoek. Eigen keuze: is er geen onderzoek (false), bijvoorbeeld
-        # omdat de aanvrager niet verschijnt, dan wordt de kaart geweigerd.
+        # aanvraag. Het college stelt het vast op het advies
+        # (competent_authority); vult zijn beleid het begrip, dan zegt dat
+        # beleid ook wat geldt als de cel zwijgt: dan was er geen onderzoek.
+        # Eigen keuze: is er geen onderzoek (false), bijvoorbeeld omdat de
+        # aanvrager niet verschijnt, dan wordt de kaart geweigerd.
         - id: geneeskundig_onderzoek_heeft_plaatsgehad
           competent_authority:
             - name: college van burgemeester en wethouders

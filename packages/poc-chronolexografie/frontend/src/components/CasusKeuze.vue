@@ -60,15 +60,15 @@ const kies = (c) => navigate(() => kiezen(c.id));
         <nldd-button appearance="primary" start-icon="guide" text="Presentatie starten" @click="emit('presentatie')"></nldd-button>
         <nldd-button ref="uitlegKnop" appearance="secondary" start-icon="link" text="Hoe het in elkaar zit" @click="emit('uitleg')"></nldd-button>
       </nldd-button-bar>
-      <!-- `item-min-width`, not `item-width`: @nldd/design-system 0.9.0 renamed
-           the attribute (collection.d.ts, @migration), and the old name now
-           does nothing. -->
       <nldd-title
         size="4"
         heading-level="2"
         text="Demoscenario's"
         supporting-text="Gehandicaptenparkeerkaart, van simpel naar ingewikkeld."
       ></nldd-title>
+      <!-- `item-min-width`, not `item-width`: @nldd/design-system 0.9.0 renamed
+           the attribute (collection.d.ts, @migration), and the old name now
+           does nothing. -->
       <nldd-collection layout="grid" item-min-width="320px">
         <nldd-card v-for="(g, i) in demo" :key="g.name">
           <nldd-container slot="header" padding="16">

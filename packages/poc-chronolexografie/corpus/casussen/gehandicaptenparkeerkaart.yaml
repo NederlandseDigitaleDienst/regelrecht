@@ -37,10 +37,9 @@ speeldatum: 2026-10-13
 # Een BSN uit de testreeks; een kaart als bestuurder. De vier criteria vult
 # het beleid uit het advies van de GGD; het formulier vraagt ze alleen als
 # het college het onderzoek achterwege laat, en dan is het voorbeeld alleen
-# een langdurige loopbeperking. Het
-# college laat het onderzoek niet achterwege (Regeling
-# gehandicaptenparkeerkaart, artikel 2, tweede lid): die drie bevindingen
-# staan uit.
+# een langdurige loopbeperking. Het college laat het onderzoek niet
+# achterwege (Regeling gehandicaptenparkeerkaart, artikel 2, tweede lid): die
+# drie bevindingen staan uit.
 voorbeeld:
   aanvraag:
     bsn_aanvrager: '999990020'

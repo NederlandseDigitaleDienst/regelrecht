@@ -395,18 +395,18 @@ export function waarde(v) {
   return JSON.stringify(v);
 }
 
-// Het id van een chronolexogram: een UUID.
+// The id of a chronolexogram: a UUID.
 const GRAM_ID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 
-// Wat geen eigen waarde is: leeg, een verwijzing, de kopie van een besluit.
+// What is no value of the gram itself: empty, a reference, a copy of a decision.
 const isMetadata = (w) => w == null || isBesluitwaarde(w) || GRAM_ID.test(w);
 
 /**
- * De hoofdvelden van een chronolexogram als `naam: waarde`: bij een besluit
- * de uitkomst van de casus (`casus.uitkomst`), bij de rest de velden die zijn
- * artikel hem zelf geeft (`vormen.eigen_velden`, niet wat een hook toevoegt)
- * en die geen metadata zijn. Blijven er meer dan twee over, dan geen: dan is
- * niet te zeggen welke de hoofdzaak zijn.
+ * The main fields of a chronolexogram as `name: value`: for a decision the
+ * outcome of the case (`casus.uitkomst`), otherwise the fields its article
+ * gives it itself (`vormen.eigen_velden`, not what a hook adds) that are no
+ * metadata. With more than two left there are none: nothing says which of
+ * them matter most.
  */
 export function hoofdvelden(gram) {
   const waarden = { ...gram.fields, ...gram.outputs };

@@ -324,9 +324,10 @@ articles:
       # legt geneeskundig_advies_uitgebracht vast, en de cel van het college
       # legt in haar eigen kroniek geneeskundig_advies_ontvangen vast, met
       # dezelfde gegevens. Zo leest het besluit het advies uit de eigen
-      # kroniek, en vraagt het de GGD niets. Een feit van hetzelfde artikel met dezelfde parameters
-      # waarvoor de ontvangende cel bevoegd is, is de ontvangst: dat zegt de
-      # app uit dit artikel, en er is geen aparte stap voor.
+      # kroniek, en vraagt het de GGD niets. Een feit van hetzelfde artikel
+      # met dezelfde parameters waarvoor de ontvangende cel bevoegd is, is de
+      # ontvangst: dat zegt de app uit dit artikel, en er is geen aparte stap
+      # voor.
       # Welk advies telt (lid 3), voert het college uit met zijn fictieve
       # beleid beleid_geneeskundig_advies_gemeente_wilgendaal, dat zijn
       # reductie aanroept. Dat beleid volgt lid 3 en stelt zelf geen norm.
@@ -500,8 +501,8 @@ articles:
       onder a tot en met d, van de Regeling gehandicaptenparkeerkaart vraagt
       zoals het advies dat voor de aanvraag telt (artikel 5).
 
-      2 Is er voor de aanvraag geen advies omdat het college het onderzoek
-      achterwege liet, dan oordeelt het college zelf.
+      2 Is er voor de aanvraag geen advies, bijvoorbeeld omdat het college het
+      onderzoek achterwege liet, dan oordeelt het college zelf.
 
       3 Het advies geeft een medische grond voor een kaart als de aanvrager
       volgens het advies als bestuurder of als passagier voor een kaart in

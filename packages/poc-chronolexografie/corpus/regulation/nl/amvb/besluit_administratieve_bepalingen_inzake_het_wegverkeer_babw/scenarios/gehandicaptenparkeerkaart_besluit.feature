@@ -13,9 +13,9 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
   motivering (3:46) en opent een bezwaartermijn van zes weken (6:7).
   Een kaart wordt niet afgegeven voordat een geneeskundig onderzoek heeft
   plaatsgehad (artikel 2, eerste lid, van de regeling). Hier stelt het
-  college dat vast; in de cel van de gemeente vraagt het beleid het aan de
-  cel van de GGD, die het uit de adviezen haalt die zij vastlegde. Weet
-  niemand het, dan was er geen onderzoek, en weigert het college de kaart.
+  college dat vast; in de cel van de gemeente haalt het beleid het uit de
+  adviezen die zij ontving. Weet niemand het, dan was er geen onderzoek, en
+  weigert het college de kaart.
 
   Background:
     Given the calculation date is "2026-10-20"

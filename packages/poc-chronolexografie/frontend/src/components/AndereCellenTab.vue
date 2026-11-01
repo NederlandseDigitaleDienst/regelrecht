@@ -1,14 +1,14 @@
 <script setup>
 // De andere cellen van de casus (RFC-052): wie de wet bevoegd maakt voor een
 // waarde die het bestuursorgaan nodig heeft, zoals de GGD voor het
-// geneeskundig advies. Elke cel houdt haar eigen kroniek bij. Een cel die een feit vastlegt (een executogram,
-// RFC-051), krijgt hier een formulier; welke velden, zegt het artikel dat het
-// feit vereist. Wat een andere cel vóór het eerste scenario wist, komt
-// uit de casus. De rechtbank is ook een andere cel (RFC-053): zij krijgt
-// hier de beroepen en de uitspraken (RechterCel.vue). Volg je een scenario,
-// dan staat het formulier van de stap ingevuld en klappen de andere
-// formulieren in (scenarioInvoer.js); die kun je zelf weer openen, tot de
-// volgende stap.
+// geneeskundig advies. Elke cel houdt haar eigen kroniek bij. Een cel die een
+// feit vastlegt (een executogram, RFC-051), krijgt hier een formulier; welke
+// velden, zegt het artikel dat het feit vereist. Wat een andere cel vóór het
+// eerste scenario wist, komt uit de casus. De rechtbank is ook een andere cel
+// (RFC-053): zij krijgt hier de beroepen en de uitspraken (RechterCel.vue).
+// Volg je een scenario, dan staat het formulier van de stap ingevuld en
+// klappen de andere formulieren in (scenarioInvoer.js); die kun je zelf weer
+// openen, tot de volgende stap.
 import { reactive, watch } from 'vue';
 import { api } from '../api.js';
 import { artikelNaam } from '../logboek.js';
@@ -26,7 +26,7 @@ const vorm = formulier((k) => {
 });
 const velden = (cel, basis) => vorm.waarden(sleutel(cel, basis));
 
-// De ingeklapte formulieren die de bezoeker zelf opende, tot de volgende stap.
+// The folded forms the visitor opened, until the next step.
 const geopend = reactive({});
 watch(
   () => huidigeStap()?.index,
@@ -75,6 +75,8 @@ async function vastleggen(cel, handeling) {
                 appearance="neutral-tinted"
                 size="sm"
                 :text="zichtbaar(c.cel, h.feit) ? 'Inklappen' : 'Openen'"
+                :accessible-label="`${zichtbaar(c.cel, h.feit) ? 'Inklappen' : 'Openen'} ${naam(h.feit)}`"
+                expandable
                 :expanded="zichtbaar(c.cel, h.feit)"
                 @click="geopend[sleutel(c.cel, h.feit)] = !geopend[sleutel(c.cel, h.feit)]"
               ></nldd-button>

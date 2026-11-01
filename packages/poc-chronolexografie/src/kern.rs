@@ -796,7 +796,7 @@ pub fn vastleggen(
     velden: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Gram> {
-    // Only a fact this cell reads back, as the form offers it.
+    // Only a fact the form offers this cell.
     let service = corpus.service()?;
     let mag = handelingen(&service, corpus, cellen, on)?
         .into_iter()
@@ -808,17 +808,33 @@ pub fn vastleggen(
         });
     if !mag {
         return Err(Error::Refused(format!(
-            "'{cel}' records no fact '{feit}': it is no other cell of this case, or none of its \
-             reductions reads that fact"
+            "'{cel}' records no fact '{feit}': it is no other cell of this case, or that cell does \
+             not record that fact"
         )));
     }
+    // The fact and its receipt land together or not at all: the case's cell
+    // can refuse the receipt after the other cell took the fact. Try it first.
+    leg_vast(&service, &mut cellen.sandbox(), cel, feit, velden, on)?;
+    leg_vast(&service, cellen, cel, feit, velden, on)
+}
+
+/// The cell `cel` records `feit`, and what that sends the case's cell arrives
+/// ([`afleveren`]).
+fn leg_vast(
+    service: &LawExecutionService,
+    cellen: &mut Cellen,
+    cel: &str,
+    feit: &str,
+    velden: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<Gram> {
     let cell = cellen
         .andere
         .iter_mut()
         .find(|c| c.recording_actor() == cel)
         .ok_or_else(|| Error::Refused(format!("'{cel}' is no other cell of this case")))?;
-    let gram = cell.record_executogram(&service, feit, velden, on)?;
-    afleveren(&service, &mut cellen.eigen, &gram)?;
+    let gram = cell.record_executogram(service, feit, velden, on)?;
+    afleveren(service, &mut cellen.eigen, &gram)?;
     Ok(gram)
 }
 
@@ -4206,6 +4222,28 @@ mod tests {
     }
 
     #[test]
+    fn parkeerkaart_a_refused_receipt_leaves_both_chronicles_as_they_were() {
+        // The municipality's chronicle is at 20 October, the GGD's is empty:
+        // only the receipt of an advice of the 16th is refused.
+        let (corpus, mut cell) = kaart();
+        let voorbeeld = corpus.casus.voorbeeld.aanvraag.clone();
+        aanvragen(&corpus, &mut cell, &voorbeeld, day("2026-10-20")).unwrap();
+        let bsn = voorbeeld["bsn_aanvrager"].as_str().unwrap();
+        let e = vastleggen(
+            &corpus,
+            &mut cell,
+            "ggd_wilgendaal",
+            ADVIES,
+            &advies(bsn, "2026-10-16", true),
+            day("2026-10-16"),
+        )
+        .unwrap_err();
+        assert!(e.to_string().contains("back in time"), "{e}");
+        assert_eq!(cell.grams().len(), 1);
+        assert!(cell.andere[0].grams().is_empty());
+    }
+
+    #[test]
     fn parkeerkaart_an_advice_reaches_the_municipality_without_a_step() {
         let (corpus, mut cell) = kaart();
         let vooraf = cell.grams().len();
@@ -4311,17 +4349,18 @@ mod tests {
     }
 
     #[test]
-    fn parkeerkaart_synthesis_answers_of_two_cells_make_one_decision() {
-        // Synthesis (RFC-048): the decision takes the answers of different
-        // cells to different questions and makes one outcome of them.
+    fn parkeerkaart_answers_of_the_municipality_make_one_decision() {
+        // The decision takes the answers to different questions and makes
+        // one outcome of them. Both come from the municipality's own cell:
+        // the advice it received, and its own earlier decisions.
         let (corpus, mut cell) = kaart_onderzocht();
         // The GGD and the court (RFC-053).
         assert_eq!(cell.andere.len(), 2);
         let voorbeeld = &corpus.casus.voorbeeld;
 
-        // The example applicant: the GGD answers that it examined him and
-        // what its advice says, the municipality's own cell that he holds no
-        // valid card; the card follows.
+        // The example applicant: the municipality answers from the advice
+        // it received that he was examined and what it says, and from its
+        // own decisions that he holds no valid card; the card follows.
         let kaart = kaart_besluit(&corpus, &mut cell, "2026-10-13", "2026-10-20", true);
         assert_eq!(
             kaart.besluit.outputs["gehandicaptenparkeerkaart_verstrekt"],
