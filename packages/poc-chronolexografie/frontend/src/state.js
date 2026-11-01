@@ -395,6 +395,28 @@ export function waarde(v) {
   return JSON.stringify(v);
 }
 
+// The id of a chronolexogram: a UUID.
+const GRAM_ID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
+
+// What is no value of the gram itself: empty, a reference, a copy of a decision.
+const isMetadata = (w) => w == null || isBesluitwaarde(w) || GRAM_ID.test(w);
+
+/**
+ * The main fields of a chronolexogram as `name: value`: for a decision the
+ * outcome of the case (`casus.uitkomst`), otherwise the fields its article
+ * gives it itself (`vormen.eigen_velden`, not what a hook adds) that are no
+ * metadata. With more than two left there are none: nothing says which of
+ * them matter most.
+ */
+export function hoofdvelden(gram) {
+  const waarden = { ...gram.fields, ...gram.outputs };
+  const uitkomst = state.casus?.uitkomst;
+  const namen = uitkomst in (gram.outputs ?? {}) ? [uitkomst] : (state.vormen?.eigen_velden?.[gram.id] ?? []);
+  const eigen = namen.filter((naam) => !isMetadata(waarden[naam]));
+  if (eigen.length > 2) return [];
+  return eigen.map((naam) => `${naam}: ${typeof waarden[naam] === 'string' ? waarden[naam] : waarde(waarden[naam])}`);
+}
+
 /** JSON zoals de kroniek het bewaart, met elk decimaal als het getal zelf. */
 export function alsJson(v) {
   const merk = '\u0000';

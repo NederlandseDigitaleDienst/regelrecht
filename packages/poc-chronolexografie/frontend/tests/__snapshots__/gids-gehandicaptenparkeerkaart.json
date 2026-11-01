@@ -1,7 +1,7 @@
 [
  {
-  "name": "De kaart wordt verstrekt op het advies van de GGD",
-  "summary": "Na de aanvraag onderzoekt de GGD de aanvrager en adviseert positief, en het college verstrekt de kaart op dat advies.",
+  "name": "De kaart op advies van de GGD",
+  "summary": "Het college verstrekt de kaart op het advies dat het van de GGD ontving.",
   "steps": [
    {
     "title": "Aanvraag indienen",
@@ -9,41 +9,25 @@
     "date": null,
     "story": "Iemand met een loopbeperking vraagt een gehandicaptenparkeerkaart.",
     "todo": "Klik op Aanvraag indienen.",
-    "values": [
-     "bsn aanvrager: 999990032"
-    ],
+    "values": [],
     "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
-    "title": "Onderzoek door de GGD",
+    "title": "Onderzoek en advies van de GGD",
     "tab": "andere",
     "date": "2026-10-16",
-    "story": "De GGD onderzoekt de aanvrager.",
-    "todo": "Klik bij GGD Wilgendaal onder \"Vastleggen: Geneeskundig onderzoek verricht\" op Vastleggen.",
-    "values": [
-     "bsn aanvrager: 999990032",
-     "datum onderzoek: 16 oktober 2026",
-     "verricht door: Gemeentelijke Gezondheidsdienst"
-    ],
-    "seen": "Het onderzoek staat in de kroniek van de GGD.",
-    "expect": null
-   },
-   {
-    "title": "Advies van de GGD",
-    "tab": "andere",
-    "date": null,
-    "story": "De GGD adviseert dat er een langdurige loopbeperking is.",
+    "story": "De GGD onderzoekt de aanvrager en adviseert.",
     "todo": "Klik bij GGD Wilgendaal onder \"Vastleggen: Geneeskundig advies uitgebracht\" op Vastleggen.",
     "values": [
-     "bsn aanvrager: 999990032",
+     "bsn aanvrager: 999990020",
      "datum onderzoek: 16 oktober 2026",
      "langdurige loopbeperking: Ja",
      "continu afhankelijk van hulp bestuurder: Nee",
      "permanent rolstoelgebonden: Nee",
      "ernstige beperkingen andere dan loopbeperkingen: Nee"
     ],
-    "seen": "Het advies staat ook in de kroniek van de GGD.",
+    "seen": "Het advies staat in de kroniek van de GGD en van de gemeente.",
     "expect": null
    },
    {
@@ -66,12 +50,27 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
-    "story": "Een aanvrager vraagt een kaart, maar het advies van de GGD vindt geen criterium.",
+    "story": "Een aanvrager vraagt een kaart.",
     "todo": "Klik op Aanvraag indienen.",
-    "values": [
-     "bsn aanvrager: 999990068"
-    ],
+    "values": [],
     "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Onderzoek en advies van de GGD",
+    "tab": "andere",
+    "date": "2026-10-16",
+    "story": "De GGD onderzoekt de aanvrager en vindt geen criterium.",
+    "todo": "Klik bij GGD Wilgendaal onder \"Vastleggen: Geneeskundig advies uitgebracht\" op Vastleggen.",
+    "values": [
+     "bsn aanvrager: 999990020",
+     "datum onderzoek: 16 oktober 2026",
+     "langdurige loopbeperking: Nee",
+     "continu afhankelijk van hulp bestuurder: Nee",
+     "permanent rolstoelgebonden: Nee",
+     "ernstige beperkingen andere dan loopbeperkingen: Nee"
+    ],
+    "seen": "Het advies staat in de kroniek van de GGD en van de gemeente.",
     "expect": null
    },
    {
@@ -98,6 +97,23 @@
     "todo": "Klik op Aanvraag indienen.",
     "values": [],
     "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Onderzoek en advies van de GGD",
+    "tab": "andere",
+    "date": "2026-10-16",
+    "story": "De GGD onderzoekt de aanvrager en adviseert.",
+    "todo": "Klik bij GGD Wilgendaal onder \"Vastleggen: Geneeskundig advies uitgebracht\" op Vastleggen.",
+    "values": [
+     "bsn aanvrager: 999990020",
+     "datum onderzoek: 16 oktober 2026",
+     "langdurige loopbeperking: Ja",
+     "continu afhankelijk van hulp bestuurder: Nee",
+     "permanent rolstoelgebonden: Nee",
+     "ernstige beperkingen andere dan loopbeperkingen: Nee"
+    ],
+    "seen": "Het advies staat in de kroniek van de GGD en van de gemeente.",
     "expect": null
    },
    {
@@ -147,6 +163,23 @@
     "expect": null
    },
    {
+    "title": "Onderzoek en advies van de GGD",
+    "tab": "andere",
+    "date": "2026-10-16",
+    "story": "De GGD onderzoekt de aanvrager en adviseert.",
+    "todo": "Klik bij GGD Wilgendaal onder \"Vastleggen: Geneeskundig advies uitgebracht\" op Vastleggen.",
+    "values": [
+     "bsn aanvrager: 999990020",
+     "datum onderzoek: 16 oktober 2026",
+     "langdurige loopbeperking: Ja",
+     "continu afhankelijk van hulp bestuurder: Nee",
+     "permanent rolstoelgebonden: Nee",
+     "ernstige beperkingen andere dan loopbeperkingen: Nee"
+    ],
+    "seen": "Het advies staat in de kroniek van de GGD en van de gemeente.",
+    "expect": null
+   },
+   {
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": "2026-10-20",
@@ -179,19 +212,34 @@
   ]
  },
  {
-  "name": "Gegrond bezwaar na een nieuw advies",
-  "summary": "Na het bezwaar onderzoekt de GGD opnieuw, en op dat nieuwe advies komt er alsnog een kaart.",
+  "name": "Bezwaar, en een nieuw advies",
+  "summary": "Na het bezwaar telt het nieuwe advies van de GGD, en komt er alsnog een kaart.",
   "steps": [
    {
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
-    "story": "Een aanvrager vraagt een kaart, maar het advies van de GGD vindt geen criterium.",
+    "story": "Een aanvrager vraagt een kaart.",
     "todo": "Klik op Aanvraag indienen.",
-    "values": [
-     "bsn aanvrager: 999990068"
-    ],
+    "values": [],
     "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Onderzoek en advies van de GGD",
+    "tab": "andere",
+    "date": "2026-10-16",
+    "story": "De GGD onderzoekt de aanvrager en vindt geen criterium.",
+    "todo": "Klik bij GGD Wilgendaal onder \"Vastleggen: Geneeskundig advies uitgebracht\" op Vastleggen.",
+    "values": [
+     "bsn aanvrager: 999990020",
+     "datum onderzoek: 16 oktober 2026",
+     "langdurige loopbeperking: Nee",
+     "continu afhankelijk van hulp bestuurder: Nee",
+     "permanent rolstoelgebonden: Nee",
+     "ernstige beperkingen andere dan loopbeperkingen: Nee"
+    ],
+    "seen": "Het advies staat in de kroniek van de GGD en van de gemeente.",
     "expect": null
    },
    {
@@ -215,20 +263,20 @@
     "expect": null
    },
    {
-    "title": "Nieuw advies van de GGD",
+    "title": "Nieuw onderzoek en advies",
     "tab": "andere",
     "date": "2026-11-10",
     "story": "De GGD onderzoekt opnieuw en vindt nu een langdurige loopbeperking.",
     "todo": "Klik bij GGD Wilgendaal onder \"Vastleggen: Geneeskundig advies uitgebracht\" op Vastleggen.",
     "values": [
-     "bsn aanvrager: 999990068",
+     "bsn aanvrager: 999990020",
      "datum onderzoek: 10 november 2026",
      "langdurige loopbeperking: Ja",
      "continu afhankelijk van hulp bestuurder: Nee",
      "permanent rolstoelgebonden: Nee",
      "ernstige beperkingen andere dan loopbeperkingen: Nee"
     ],
-    "seen": "Het nieuwe advies staat in de kroniek van de GGD.",
+    "seen": "Het nieuwe advies staat in de kroniek van de GGD en van de gemeente.",
     "expect": null
    },
    {
@@ -251,12 +299,27 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
-    "story": "Een aanvrager vraagt een kaart, maar het advies van de GGD vindt geen criterium.",
+    "story": "Een aanvrager vraagt een kaart.",
     "todo": "Klik op Aanvraag indienen.",
-    "values": [
-     "bsn aanvrager: 999990068"
-    ],
+    "values": [],
     "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Onderzoek en advies van de GGD",
+    "tab": "andere",
+    "date": "2026-10-16",
+    "story": "De GGD onderzoekt de aanvrager en vindt geen criterium.",
+    "todo": "Klik bij GGD Wilgendaal onder \"Vastleggen: Geneeskundig advies uitgebracht\" op Vastleggen.",
+    "values": [
+     "bsn aanvrager: 999990020",
+     "datum onderzoek: 16 oktober 2026",
+     "langdurige loopbeperking: Nee",
+     "continu afhankelijk van hulp bestuurder: Nee",
+     "permanent rolstoelgebonden: Nee",
+     "ernstige beperkingen andere dan loopbeperkingen: Nee"
+    ],
+    "seen": "Het advies staat in de kroniek van de GGD en van de gemeente.",
     "expect": null
    },
    {
@@ -280,20 +343,20 @@
     "expect": null
    },
    {
-    "title": "Nieuw advies van de GGD",
+    "title": "Nieuw onderzoek en advies",
     "tab": "andere",
     "date": "2026-11-10",
     "story": "De GGD onderzoekt opnieuw en vindt nu een langdurige loopbeperking.",
     "todo": "Klik bij GGD Wilgendaal onder \"Vastleggen: Geneeskundig advies uitgebracht\" op Vastleggen.",
     "values": [
-     "bsn aanvrager: 999990068",
+     "bsn aanvrager: 999990020",
      "datum onderzoek: 10 november 2026",
      "langdurige loopbeperking: Ja",
      "continu afhankelijk van hulp bestuurder: Nee",
      "permanent rolstoelgebonden: Nee",
      "ernstige beperkingen andere dan loopbeperkingen: Nee"
     ],
-    "seen": "Het nieuwe advies staat in de kroniek van de GGD.",
+    "seen": "Het nieuwe advies staat in de kroniek van de GGD en van de gemeente.",
     "expect": null
    },
    {
@@ -312,9 +375,7 @@
     "date": "2027-03-01",
     "story": "Dezelfde aanvrager vraagt in maart 2027 nog een kaart.",
     "todo": "Klik op Aanvraag indienen.",
-    "values": [
-     "bsn aanvrager: 999990068"
-    ],
+    "values": [],
     "seen": "De tweede aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
@@ -331,8 +392,8 @@
   ]
  },
  {
-  "name": "Zonder advies oordeelt het college, en zonder onderzoek nog geen kaart",
-  "summary": "Zonder advies oordeelt het college zelf, maar zonder onderzoek komt er nog geen kaart.",
+  "name": "Zonder onderzoek geen kaart",
+  "summary": "Heeft de GGD de aanvrager niet onderzocht, dan weigert het college de kaart.",
   "steps": [
    {
     "title": "Aanvraag indienen",
@@ -340,27 +401,25 @@
     "date": null,
     "story": "Iemand vraagt een kaart, maar de GGD heeft hem niet onderzocht.",
     "todo": "Klik op Aanvraag indienen.",
-    "values": [
-     "bsn aanvrager: 999990032"
-    ],
+    "values": [],
     "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
    },
    {
-    "title": "Besluit nemen zonder oordeel over het onderzoek",
+    "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": "2026-10-20",
-    "story": "Het college oordeelt zelf, maar weet niet of er een onderzoek was.",
-    "todo": "Laat \"geneeskundig onderzoek heeft plaatsgehad\" op Nog niet beoordeeld en klik op Besluit nemen.",
+    "story": "Het college beslist op de aanvraag.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
     "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
-    "expect": "hier hoort de cel de stap te weigeren, zonder besluit"
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]
  },
  {
-  "name": "Een nieuwe kaart zonder nieuw onderzoek",
-  "summary": "Wie eerder een kaart kreeg, krijgt een nieuwe zonder nieuw onderzoek.",
+  "name": "Vijf jaar later een nieuwe kaart",
+  "summary": "Vijf jaar later vindt de gemeente haar eerdere besluit terug, en is er geen nieuw onderzoek nodig.",
   "steps": [
    {
     "title": "Aanvraag indienen",
@@ -370,6 +429,23 @@
     "todo": "Klik op Aanvraag indienen.",
     "values": [],
     "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Onderzoek en advies van de GGD",
+    "tab": "andere",
+    "date": "2026-10-16",
+    "story": "De GGD onderzoekt de aanvrager en adviseert.",
+    "todo": "Klik bij GGD Wilgendaal onder \"Vastleggen: Geneeskundig advies uitgebracht\" op Vastleggen.",
+    "values": [
+     "bsn aanvrager: 999990020",
+     "datum onderzoek: 16 oktober 2026",
+     "langdurige loopbeperking: Ja",
+     "continu afhankelijk van hulp bestuurder: Nee",
+     "permanent rolstoelgebonden: Nee",
+     "ernstige beperkingen andere dan loopbeperkingen: Nee"
+    ],
+    "seen": "Het advies staat in de kroniek van de GGD en van de gemeente.",
     "expect": null
    },
    {
@@ -417,12 +493,27 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
-    "story": "Een aanvrager vraagt een kaart, maar het advies van de GGD vindt geen criterium.",
+    "story": "Een aanvrager vraagt een kaart.",
     "todo": "Klik op Aanvraag indienen.",
-    "values": [
-     "bsn aanvrager: 999990068"
-    ],
+    "values": [],
     "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Onderzoek en advies van de GGD",
+    "tab": "andere",
+    "date": "2026-10-16",
+    "story": "De GGD onderzoekt de aanvrager en vindt geen criterium.",
+    "todo": "Klik bij GGD Wilgendaal onder \"Vastleggen: Geneeskundig advies uitgebracht\" op Vastleggen.",
+    "values": [
+     "bsn aanvrager: 999990020",
+     "datum onderzoek: 16 oktober 2026",
+     "langdurige loopbeperking: Nee",
+     "continu afhankelijk van hulp bestuurder: Nee",
+     "permanent rolstoelgebonden: Nee",
+     "ernstige beperkingen andere dan loopbeperkingen: Nee"
+    ],
+    "seen": "Het advies staat in de kroniek van de GGD en van de gemeente.",
     "expect": null
    },
    {

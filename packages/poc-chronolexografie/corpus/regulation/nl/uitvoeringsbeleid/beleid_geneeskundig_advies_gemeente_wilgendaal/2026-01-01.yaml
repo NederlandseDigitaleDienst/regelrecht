@@ -1,22 +1,23 @@
 ---
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.9/schema/v0.8.9/schema.json
-$id: beleid_geneeskundig_advies_ggd_wilgendaal
+$id: beleid_geneeskundig_advies_gemeente_wilgendaal
 regulatory_layer: UITVOERINGSBELEID
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'
-# FICTIEF beleid van de (fictieve) GGD Wilgendaal, eigen keuze in de
+# FICTIEF beleid van de (fictieve) gemeente Wilgendaal, eigen keuze in de
 # modellering: geen bekendgemaakt beleid, maar een aanname namens de houder.
-# Het zegt welk advies de GGD voor een aanvraag laat tellen, zoals artikel 5,
-# derde lid, van het fictieve beleid
+# Het zegt welk ontvangen advies de gemeente voor een aanvraag laat tellen,
+# zoals artikel 5, derde lid, van het fictieve beleid
 # beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal het vraagt.
-# Het voert die regel van de gemeente uit en stelt zelf geen norm. Het leest
-# geen kroniek: de adviezen krijgt het als parameter. De reductie reductie_geneeskundig_advies van de GGD haalt ze uit
-# haar kroniek en past dit beleid toe (RFC-048). Er is geen bekendmaking; de
-# url wijst naar artikel 3 van de regeling, dat zegt wie onderzoekt.
+# Het voert die regel uit en stelt zelf geen norm. Het leest geen kroniek: de
+# adviezen krijgt het als parameter. De reductie reductie_geneeskundig_advies
+# van de gemeente haalt ze uit haar eigen kroniek en past dit beleid toe
+# (RFC-048). Er is geen bekendmaking; de url wijst naar artikel 3 van de
+# regeling, dat zegt wie onderzoekt.
 url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
-name: Geneeskundig advies van de GGD Wilgendaal (fictief beleid)
+name: Geneeskundig advies in de gemeente Wilgendaal (fictief beleid)
 competent_authority:
-  name: GGD Wilgendaal
+  name: Het college van burgemeester en wethouders van de gemeente Wilgendaal
 articles:
   - number: '1'
     text: >-
@@ -30,7 +31,7 @@ articles:
     machine_readable:
       execution:
         # De parameters van artikel 5 van het beleid van de gemeente, en de
-        # adviezen die de reductie van de GGD uit haar kroniek haalt.
+        # adviezen die de reductie van de gemeente uit haar kroniek haalt.
         parameters:
           - name: bsn_aanvrager
             type: string

@@ -116,7 +116,7 @@ const KINDS = {
   },
 };
 
-// `regeling#3#geneeskundig_onderzoek_verricht` → `geneeskundig_onderzoek_verricht`.
+// `beleid#5#geneeskundig_advies_uitgebracht` → `geneeskundig_advies_uitgebracht`.
 const feitNaam = (feit) => String(feit).split('#').at(-1);
 
 /** How many records of `feit` the other cells of `casus` hold before a scenario. */

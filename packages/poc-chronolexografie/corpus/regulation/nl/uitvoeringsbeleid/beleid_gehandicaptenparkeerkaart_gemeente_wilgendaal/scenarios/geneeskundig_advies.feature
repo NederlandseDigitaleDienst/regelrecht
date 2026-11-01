@@ -3,8 +3,8 @@ Feature: Het college oordeelt zoals het geneeskundig advies
   verricht, brengt het college een advies uit, met per gegeven dat artikel
   1 van de Regeling gehandicaptenparkeerkaart vraagt of het voor de
   aanvrager geldt (artikel 5). Het college oordeelt zoals dat advies; zonder
-  advies oordeelt het zelf (artikel 6). In een cel geeft de GGD het advies
-  als antwoord uit haar kroniek (artikel 7); hier, zonder cel, geeft het
+  advies oordeelt het zelf (artikel 6). In een cel geeft de gemeente het
+  ontvangen advies als antwoord uit haar kroniek (artikel 7); hier, zonder cel, geeft het
   scenario als bevinding wat het college in het advies leest (artikel 7,
   eigen open begrip).
 

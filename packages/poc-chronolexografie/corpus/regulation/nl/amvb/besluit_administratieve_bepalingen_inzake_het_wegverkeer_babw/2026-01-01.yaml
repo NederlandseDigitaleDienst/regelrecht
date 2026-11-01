@@ -1203,15 +1203,15 @@ articles:
           # als beide. Eigen keuze: wie als bestuurder en als passagier vraagt
           # en maar voor een van beide in aanmerking komt, krijgt een kaart met
           # alleen die letter. En het college gebruikt zijn bevoegdheid, zoals
-          # zijn beleid dat invult. Pas dan vraagt het of de kaart al mag
-          # worden afgegeven (artikel 2 van de regeling): een weigering hangt
-          # niet af van het geneeskundig onderzoek, een afgifte wel. Zonder
-          # onderzoek dat iemand kent, faalt het besluit daar (AND stopt bij
-          # de eerste onwaar, dus een weigering vraagt het niet).
+          # zijn beleid dat invult. Eerst komt of de kaart mag worden afgegeven
+          # (artikel 2 van de regeling): zonder onderzoek, en zonder dat het
+          # achterwege is gelaten, weigert het college, en vraagt niemand het
+          # college naar de criteria (AND stopt bij de eerste onwaar).
           - output: gehandicaptenparkeerkaart_verstrekt
             value:
               operation: AND
               conditions:
+                - $gehandicaptenparkeerkaart_mag_worden_afgegeven
                 - operation: OR
                   conditions:
                     - operation: AND
@@ -1223,7 +1223,6 @@ articles:
                         - $kaart_als_passagier
                         - $komt_in_aanmerking_als_passagier
                 - $bevoegdheid_tot_verstrekken_gebruikt
-                - $gehandicaptenparkeerkaart_mag_worden_afgegeven
           - output: kaart_vermeldt_bestuurder
             value:
               operation: AND

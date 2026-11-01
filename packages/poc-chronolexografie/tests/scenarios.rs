@@ -308,6 +308,22 @@ fn speel(casus_id: &str, index: usize) {
             soort => panic!("{waar}: unknown step '{soort}'"),
         }
     }
+    één_aanvrager(&mut spel, &format!("{casus_id}, '{naam}'"));
+}
+
+/// That every chronicle of a played scenario speaks of one applicant: the
+/// visitor reads them all, so an advice about someone else in a chronicle
+/// looks like the advice the decision used, whatever the reduction read.
+fn één_aanvrager(spel: &mut Spel, waar: &str) {
+    let kroniek = spel.kroniek().unwrap();
+    let mut bsns: Vec<Value> = std::iter::once(&kroniek)
+        .chain(kroniek["andere"].as_array().unwrap())
+        .flat_map(|k| k["grammen"].as_array().unwrap())
+        .filter_map(|g| g["fields"].get("bsn_aanvrager").cloned())
+        .collect();
+    bsns.sort_by_key(Value::to_string);
+    bsns.dedup();
+    assert!(bsns.len() <= 1, "{waar}: more than one applicant: {bsns:?}");
 }
 
 /// One test per case; each plays all of its scenarios.

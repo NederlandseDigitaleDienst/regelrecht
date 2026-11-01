@@ -18,7 +18,7 @@ mod common;
 
 use common::{day, object_map};
 
-use regelrecht_cel::{Cell, Error, Gram};
+use regelrecht_cel::{shape, Cell, Error, Gram};
 use regelrecht_engine::{FilledBy, LawExecutionService};
 use serde_json::{json, Map, Value};
 
@@ -547,4 +547,65 @@ fn a_blank_name_or_category_is_an_error() {
             "{e}"
         );
     }
+}
+
+const BERICHT: &str = r#"
+$id: wet_bericht
+regulatory_layer: WET
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+articles:
+  - number: '1'
+    text: De GGD brengt advies uit, het college legt de ontvangst vast.
+    machine_readable:
+      requires:
+        - fact: advies_uitgebracht
+          competent_authority:
+            - {name: Gemeentelijke Gezondheidsdienst, type: CATEGORY}
+          parameters: [bsn]
+        - fact: advies_ontvangen
+          competent_authority:
+            - {name: college, type: CATEGORY}
+          parameters: [bsn]
+        - fact: advies_gearchiveerd
+          competent_authority:
+            - {name: Gemeentelijke Gezondheidsdienst, type: CATEGORY}
+          parameters: [bsn]
+        - fact: iets_anders
+          competent_authority:
+            - {name: college, type: CATEGORY}
+          parameters: [kenteken]
+      execution:
+        parameters:
+          - {name: bsn, type: string}
+          - {name: kenteken, type: string}
+"#;
+
+#[test]
+fn a_receipt_is_the_fact_with_the_same_parameters_the_receiver_establishes() {
+    let service = common::service_of(&[BERICHT]);
+    let day = common::day("2026-06-01");
+    let ontvangst =
+        |feit: &str, cell: &Cell| shape::receipt_of(&service, feit, day, cell.authority()).unwrap();
+    let college = cell_answering("college_x", "college_x", Some("college"), false);
+    let ggd = cell_answering(
+        "ggd_x",
+        "ggd_x",
+        Some("Gemeentelijke Gezondheidsdienst"),
+        false,
+    );
+    let rdw = cell_answering("rdw", "rdw", Some("dienst"), false);
+
+    // `iets_anders` is the college's too, but holds other parameters.
+    assert_eq!(
+        ontvangst("wet_bericht#1#advies_uitgebracht", &college).as_deref(),
+        Some("wet_bericht#1#advies_ontvangen")
+    );
+    // Who established the fact receives nothing, though it establishes
+    // another fact with the same parameters, and neither does a cell the
+    // article does not name.
+    assert_eq!(ontvangst("wet_bericht#1#advies_uitgebracht", &ggd), None);
+    assert_eq!(ontvangst("wet_bericht#1#advies_uitgebracht", &rdw), None);
+    // A fact with no other of the same parameters has no receipt.
+    assert_eq!(ontvangst("wet_bericht#1#iets_anders", &ggd), None);
 }
