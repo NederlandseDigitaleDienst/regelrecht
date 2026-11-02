@@ -55,6 +55,40 @@ static PARAGRAAF_PATTERN: LazyLock<Regex> =
 static AFDELING_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"afdeling=([^&]+)").expect("valid regex"));
 
+#[allow(clippy::expect_used)]
+/// Regex for a CELEX number, the identifier of an EU act on EUR-Lex: sector,
+/// year, document type and number, with an optional suffix (e.g. `32001L0055`,
+/// `32016R0679`, `32019R2088(01)`). BWB marks these with `reeks="Celex"`.
+static CELEX_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[0-9CE][0-9]{4}[A-Z]{1,2}[0-9]{4}(\([0-9]{1,2}\))?$").expect("valid regex")
+});
+
+/// Build the link target for an external reference's `doc` attribute.
+///
+/// - JCI (and other) references to a BWB id link to wetten.overheid.nl.
+/// - A CELEX number links to the act on EUR-Lex.
+/// - An absolute http(s) URL is kept as is.
+///
+/// Anything else (such as BWB's `doc="onbekend"`) has no target the reader can
+/// follow, so it yields `None` and the reference stays plain text instead of
+/// becoming a relative link that leads nowhere.
+fn reference_url(doc: &str) -> Option<String> {
+    if BWB_PATTERN.is_match(doc) {
+        return Some(convert_jci_to_url(doc));
+    }
+    if CELEX_PATTERN.is_match(doc) {
+        // Parentheses would end a markdown link target early.
+        let celex = doc.replace('(', "%28").replace(')', "%29");
+        return Some(format!(
+            "https://eur-lex.europa.eu/legal-content/NL/TXT/?uri=CELEX:{celex}"
+        ));
+    }
+    if doc.starts_with("https://") || doc.starts_with("http://") {
+        return Some(doc.to_string());
+    }
+    None
+}
+
 /// Convert JCI reference to wetten.overheid.nl URL.
 ///
 /// Anchor priority: artikel > hoofdstuk > afdeling > paragraaf
@@ -152,8 +186,7 @@ fn handle_reference_element(node: Node<'_, '_>, context: &mut ParseContext<'_>) 
     }
 
     // Fallback to inline link
-    if !doc_attr.is_empty() {
-        let url = convert_jci_to_url(doc_attr);
+    if let Some(url) = reference_url(doc_attr) {
         return ParseResult::new(format!("[{ref_text}]({url})"));
     }
 
@@ -381,6 +414,43 @@ mod tests {
         assert_eq!(
             result.text,
             "[artikel 4](https://wetten.overheid.nl/BWBR0018451#Artikel4)"
+        );
+    }
+
+    #[test]
+    fn test_extref_celex_links_to_eur_lex() {
+        // Awir art. 1: a directive reference. Both with and without a collector
+        // it must become an absolute EUR-Lex link, never a relative "(32001L0055)".
+        let xml = r#"<extref doc="32001L0055" label="richtlijn" reeks="Celex">Richtlijn 2001/55/EG</extref>"#;
+        let expected = "[Richtlijn 2001/55/EG](https://eur-lex.europa.eu/legal-content/NL/TXT/?uri=CELEX:32001L0055)";
+
+        assert_eq!(parse_and_handle(&ExtrefHandler, xml).text, expected);
+
+        let doc = Document::parse(xml).unwrap();
+        let mut collector = ReferenceCollector::new();
+        let mut context =
+            ParseContext::new("BWBR0000000", "2025-01-01").with_collector(&mut collector);
+        let recurse = |_: Node<'_, '_>, _: &mut ParseContext<'_>| ParseResult::empty();
+        let result = ExtrefHandler.handle(doc.root_element(), &mut context, &recurse);
+        assert_eq!(result.text, expected);
+    }
+
+    #[test]
+    fn test_reference_url() {
+        assert_eq!(
+            reference_url("32019R2088(01)").as_deref(),
+            Some("https://eur-lex.europa.eu/legal-content/NL/TXT/?uri=CELEX:32019R2088%2801%29")
+        );
+        assert_eq!(
+            reference_url("https://example.org/a").as_deref(),
+            Some("https://example.org/a")
+        );
+        // No target to follow: plain text, not a relative link.
+        assert_eq!(reference_url("onbekend"), None);
+        assert_eq!(reference_url(""), None);
+        assert_eq!(
+            parse_and_handle(&ExtrefHandler, r#"<extref doc="onbekend">bijlage</extref>"#).text,
+            "bijlage"
         );
     }
 

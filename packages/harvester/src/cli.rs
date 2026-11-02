@@ -28,9 +28,20 @@ pub enum Commands {
         /// Law identifier: BWB ID (e.g., BWBR0018451) or CVDR ID (e.g., CVDR681386)
         law_id: String,
 
-        /// Effective date in YYYY-MM-DD format (default: today)
-        #[arg(short, long)]
+        /// Date in YYYY-MM-DD format; the version in force on that date is
+        /// harvested (default: today)
+        #[arg(short, long, conflicts_with_all = ["from", "to"])]
         date: Option<String>,
+
+        /// Harvest one version per in-force date from this date on
+        /// (YYYY-MM-DD, inclusive). BWB only. Each version is saved as
+        /// `<valid_from>.yaml`.
+        #[arg(long, requires = "to")]
+        from: Option<String>,
+
+        /// Last in-force date to harvest with `--from` (YYYY-MM-DD, inclusive)
+        #[arg(long, requires = "from")]
+        to: Option<String>,
 
         /// Output directory (default: regulation/nl/)
         #[arg(short, long)]
@@ -53,9 +64,20 @@ pub async fn run() -> Result<()> {
         Commands::Download {
             law_id,
             date,
+            from,
+            to,
             output,
             max_size,
-        } => download_command(&law_id, date.as_deref(), output.as_deref(), max_size).await,
+        } => {
+            let output = output.as_deref();
+            validate_output_dir(output)?;
+            match (from, to) {
+                (Some(from), Some(to)) => {
+                    download_period_command(&law_id, &from, &to, output, max_size).await
+                }
+                _ => download_command(&law_id, date.as_deref(), output, max_size).await,
+            }
+        }
     }
 }
 
@@ -89,22 +111,6 @@ async fn download_command(
         .map(String::from)
         .unwrap_or_else(regelrecht_shared::dates::today_str);
 
-    // Validate output directory exists (if specified) before downloading
-    if let Some(output_dir) = output {
-        if !output_dir.exists() {
-            return Err(HarvesterError::Io(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("Output directory does not exist: {}", output_dir.display()),
-            )));
-        }
-        if !output_dir.is_dir() {
-            return Err(HarvesterError::Io(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                format!("Output path is not a directory: {}", output_dir.display()),
-            )));
-        }
-    }
-
     println!(
         "{} {} ({}) for date {}",
         style("Downloading").bold(),
@@ -137,30 +143,16 @@ async fn download_command(
         }
     };
 
-    pb.set_message("Processing articles...");
-
-    println!("  Title: {}", style(&law.metadata.title).green());
-    println!("  Type: {}", law.metadata.regulatory_layer.as_str());
-    if let Some(creator) = &law.metadata.creator {
-        println!("  Creator: {}", style(creator).cyan());
-    }
-    println!("  Articles: {}", law.articles.len());
-    if !law.warnings.is_empty() {
-        println!("  Warnings: {}", style(law.warnings.len()).yellow().bold());
-    }
-
-    // Save to YAML
-    pb.set_message("Saving YAML...");
-
-    let output_path = match save_yaml(&law, &effective_date, output) {
-        Ok(path) => path,
-        Err(e) => {
-            pb.finish_and_clear();
-            return Err(e);
-        }
-    };
-
     pb.finish_and_clear();
+
+    // BWB resolves the date to the consolidation in force on it; that
+    // consolidation's start date is the version's valid_from.
+    let valid_from = law
+        .metadata
+        .effective_date
+        .clone()
+        .unwrap_or(effective_date);
+    let output_path = report_and_save(&law, &valid_from, output)?;
 
     println!();
     println!(
@@ -169,6 +161,95 @@ async fn download_command(
         output_path.display()
     );
 
+    Ok(())
+}
+
+/// Execute the download command for a period: one version per in-force date.
+async fn download_period_command(
+    law_id: &str,
+    from: &str,
+    to: &str,
+    output: Option<&std::path::Path>,
+    max_size_mb: u64,
+) -> Result<()> {
+    let law_source = build_cli_source(law_id, max_size_mb)?;
+    if law_source.source_type() != source::LawSourceType::Bwb {
+        return Err(HarvesterError::InvalidLawId(format!(
+            "{law_id}: --from/--to needs a BWB id; CVDR has no consolidations per in-force date"
+        )));
+    }
+
+    println!(
+        "{} {} (BWB), every in-force date from {} to {}",
+        style("Downloading").bold(),
+        style(law_id).cyan(),
+        style(from).green(),
+        style(to).green()
+    );
+
+    let client = create_client()?;
+    let laws =
+        crate::harvester::download_law_versions(&client, law_id, from, to, max_size_mb).await?;
+
+    if laws.is_empty() {
+        println!("No in-force dates between {from} and {to}; nothing saved.");
+        return Ok(());
+    }
+
+    for law in &laws {
+        let valid_from = law
+            .metadata
+            .effective_date
+            .clone()
+            .unwrap_or_else(|| from.to_string());
+        println!();
+        println!("{}", style(&valid_from).green().bold());
+        let output_path = report_and_save(law, &valid_from, output)?;
+        println!("  Saved to: {}", output_path.display());
+    }
+
+    println!();
+    println!("{} {} versions", style("Saved").green().bold(), laws.len());
+    Ok(())
+}
+
+/// Print a law's summary and warnings, then save it as `<valid_from>.yaml`.
+fn report_and_save(
+    law: &crate::types::Law,
+    valid_from: &str,
+    output: Option<&std::path::Path>,
+) -> Result<PathBuf> {
+    println!("  Title: {}", style(&law.metadata.title).green());
+    println!("  Type: {}", law.metadata.regulatory_layer.as_str());
+    if let Some(creator) = &law.metadata.creator {
+        println!("  Creator: {}", style(creator).cyan());
+    }
+    println!("  Articles: {}", law.articles.len());
+    if !law.warnings.is_empty() {
+        println!("  Warnings: {}", style(law.warnings.len()).yellow().bold());
+        for warning in &law.warnings {
+            println!("    - {warning}");
+        }
+    }
+    save_yaml(law, valid_from, output)
+}
+
+/// Check that the output directory (if given) exists before downloading.
+fn validate_output_dir(output: Option<&std::path::Path>) -> Result<()> {
+    if let Some(output_dir) = output {
+        if !output_dir.exists() {
+            return Err(HarvesterError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Output directory does not exist: {}", output_dir.display()),
+            )));
+        }
+        if !output_dir.is_dir() {
+            return Err(HarvesterError::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("Output path is not a directory: {}", output_dir.display()),
+            )));
+        }
+    }
     Ok(())
 }
 
@@ -183,11 +264,15 @@ mod tests {
         let Commands::Download {
             law_id,
             date,
+            from,
+            to,
             output,
             max_size,
         } = cli.command;
         assert_eq!(law_id, "BWBR0018451");
         assert!(date.is_none());
+        assert!(from.is_none());
+        assert!(to.is_none());
         assert!(output.is_none());
         assert_eq!(max_size, 100); // Default 100 MB
     }
@@ -227,6 +312,44 @@ mod tests {
 
         let Commands::Download { max_size, .. } = cli.command;
         assert_eq!(max_size, 200);
+    }
+
+    #[test]
+    fn test_cli_parse_download_period() {
+        let cli = Cli::parse_from([
+            "regelrecht-harvester",
+            "download",
+            "BWBR0018472",
+            "--from",
+            "2024-01-01",
+            "--to",
+            "2026-12-31",
+        ]);
+
+        let Commands::Download { from, to, date, .. } = cli.command;
+        assert_eq!(from.as_deref(), Some("2024-01-01"));
+        assert_eq!(to.as_deref(), Some("2026-12-31"));
+        assert!(date.is_none());
+    }
+
+    #[test]
+    fn test_cli_period_rejects_half_or_mixed_dates() {
+        let parse = |args: &[&str]| {
+            let mut argv = vec!["regelrecht-harvester", "download", "BWBR0018472"];
+            argv.extend_from_slice(args);
+            Cli::try_parse_from(argv)
+        };
+        assert!(parse(&["--from", "2024-01-01"]).is_err());
+        assert!(parse(&["--to", "2026-12-31"]).is_err());
+        assert!(parse(&[
+            "--date",
+            "2025-01-01",
+            "--from",
+            "2024-01-01",
+            "--to",
+            "2026-12-31"
+        ])
+        .is_err());
     }
 
     #[test]

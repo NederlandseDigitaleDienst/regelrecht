@@ -207,6 +207,36 @@ pub fn find_bijlage_context(node: Node<'_, '_>) -> Option<BijlageContext> {
     None
 }
 
+/// Find the element that keeps `node` out of force on `date`, if any.
+///
+/// A BWB toestand marks every structural element (artikel, paragraaf,
+/// hoofdstuk, ...) with a `status` and usually an `inwerking` date. An element
+/// that is already enacted but not yet in force has `status="nogniet"`, with an
+/// `inwerking` date once that date is known. This walks from `node` up to the
+/// root and returns the first element that is `nogniet` or whose `inwerking`
+/// lies after `date`. `None` means the node is in force on `date`.
+///
+/// Dates are ISO 8601 (YYYY-MM-DD), so string order is date order.
+///
+/// # Examples
+/// ```
+/// use roxmltree::Document;
+/// use regelrecht_harvester::xml::not_in_force_on;
+///
+/// let xml = r#"<hoofdstuk status="goed"><artikel status="nogniet" inwerking="2026-10-01"/></hoofdstuk>"#;
+/// let doc = Document::parse(xml).unwrap();
+/// let artikel = doc.descendants().find(|n| n.has_tag_name("artikel")).unwrap();
+///
+/// let blocker = not_in_force_on(artikel, "2026-01-01").unwrap();
+/// assert_eq!(blocker.attribute("inwerking"), Some("2026-10-01"));
+/// ```
+pub fn not_in_force_on<'a, 'input>(node: Node<'a, 'input>, date: &str) -> Option<Node<'a, 'input>> {
+    node.ancestors().filter(Node::is_element).find(|n| {
+        n.attribute("status") == Some("nogniet")
+            || n.attribute("inwerking").is_some_and(|from| from > date)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -350,5 +380,28 @@ mod tests {
         let ctx = find_bijlage_context(artikel);
         assert!(ctx.is_some());
         assert_eq!(ctx.unwrap().number, "2");
+    }
+
+    #[test]
+    fn test_not_in_force_on() {
+        let xml = r#"<wet>
+            <artikel id="goed" status="goed" inwerking="2020-01-01"/>
+            <artikel id="later" status="goed" inwerking="2026-10-01"/>
+            <artikel id="nogniet" status="nogniet"/>
+            <hoofdstuk status="nogniet" inwerking="2027-01-01"><artikel id="binnen" status="goed"/></hoofdstuk>
+        </wet>"#;
+        let doc = Document::parse(xml).unwrap();
+        let by_id = |id: &str| {
+            doc.descendants()
+                .find(|n| n.attribute("id") == Some(id))
+                .unwrap()
+        };
+
+        assert!(not_in_force_on(by_id("goed"), "2025-01-01").is_none());
+        assert!(not_in_force_on(by_id("later"), "2025-01-01").is_some());
+        assert!(not_in_force_on(by_id("later"), "2026-10-01").is_none());
+        assert!(not_in_force_on(by_id("nogniet"), "2099-01-01").is_some());
+        let blocker = not_in_force_on(by_id("binnen"), "2026-01-01").unwrap();
+        assert_eq!(get_tag_name(blocker), "hoofdstuk");
     }
 }

@@ -4,7 +4,10 @@
 //! - BWB identifier
 //! - Official title (citeertitel)
 //! - Type of regulation (soort-regeling)
-//! - Publication date
+//!
+//! The publication date of a version is not taken from the WTI: it lists every
+//! amending act of the law, not the one a given version depends on. It comes
+//! from the content XML instead (see `harvester::parse_law`).
 
 use reqwest::Client;
 use roxmltree::Document;
@@ -59,6 +62,7 @@ pub async fn download_wti(client: &Client, bwb_id: &str) -> Result<WtiParseResul
 }
 
 /// Parsed WTI metadata including any warnings encountered.
+#[derive(Debug, Clone)]
 pub struct WtiParseResult {
     /// The extracted metadata.
     pub metadata: LawMetadata,
@@ -85,9 +89,6 @@ pub fn parse_wti_metadata(doc: &Document<'_>) -> WtiParseResult {
     // Regulatory layer from soort-regeling
     let (regulatory_layer, layer_warning) = find_regulatory_layer(doc);
 
-    // Publication date
-    let publication_date = find_publication_date(doc);
-
     let mut warnings = Vec::new();
     if let Some(warning) = layer_warning {
         warnings.push(warning);
@@ -99,7 +100,7 @@ pub fn parse_wti_metadata(doc: &Document<'_>) -> WtiParseResult {
             cvdr_id: None,
             title,
             regulatory_layer,
-            publication_date,
+            publication_date: None,
             effective_date: None,
             valid_to: None,
             creator: None,
@@ -138,14 +139,6 @@ fn find_regulatory_layer(doc: &Document<'_>) -> (RegulatoryLayer, Option<String>
         .unwrap_or((RegulatoryLayer::Wet, None))
 }
 
-/// Find publication date.
-fn find_publication_date(doc: &Document<'_>) -> Option<String> {
-    doc.descendants()
-        .find(|n| n.has_tag_name("publicatiedatum"))
-        .and_then(|n| n.text())
-        .map(|s| s.to_string())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -166,10 +159,8 @@ mod tests {
         assert_eq!(result.metadata.bwb_id, "BWBR0018451");
         assert_eq!(result.metadata.title, "Wet op de zorgtoeslag");
         assert_eq!(result.metadata.regulatory_layer, RegulatoryLayer::Wet);
-        assert_eq!(
-            result.metadata.publication_date,
-            Some("2005-12-29".to_string())
-        );
+        // The WTI is not the source of a version's publication date.
+        assert_eq!(result.metadata.publication_date, None);
         assert!(result.warnings.is_empty());
     }
 

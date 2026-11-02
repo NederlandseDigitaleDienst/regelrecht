@@ -72,7 +72,11 @@ pub fn validate_bwb_id(bwb_id: &str) -> Result<()> {
 
 /// Validate date format (YYYY-MM-DD).
 ///
-/// Rejects dates in the future since BWB won't have consolidated versions for them.
+/// Rejects dates in the future: a single requested date names the version in
+/// force on that day, which cannot be known for a day that has not come yet.
+/// To harvest versions that start in the future (an article that is enacted
+/// but not yet in force), harvest a period; its bounds only need
+/// [`validate_date_format`].
 ///
 /// # Arguments
 /// * `date_str` - Date string to validate
@@ -90,15 +94,9 @@ pub fn validate_bwb_id(bwb_id: &str) -> Result<()> {
 /// assert!(validate_date("2025-13-01").is_err()); // Invalid month
 /// ```
 pub fn validate_date(date_str: &str) -> Result<()> {
-    if !DATE_PATTERN.is_match(date_str) {
-        return Err(HarvesterError::InvalidDate(date_str.to_string()));
-    }
+    let parsed_date = parse_date(date_str)?;
 
-    // Parse and validate it's a real date
-    let parsed_date = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
-        .map_err(|_| HarvesterError::InvalidDate(date_str.to_string()))?;
-
-    // Reject future dates - BWB won't have consolidated versions for them
+    // Reject future dates (see above)
     let today = regelrecht_shared::dates::today();
     if parsed_date > today {
         return Err(HarvesterError::InvalidDate(format!(
@@ -107,6 +105,27 @@ pub fn validate_date(date_str: &str) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Validate that a string is a real date in YYYY-MM-DD format, past or future.
+///
+/// # Examples
+/// ```
+/// use regelrecht_harvester::config::validate_date_format;
+///
+/// assert!(validate_date_format("2099-01-01").is_ok());
+/// assert!(validate_date_format("2025-02-30").is_err());
+/// ```
+pub fn validate_date_format(date_str: &str) -> Result<()> {
+    parse_date(date_str).map(|_| ())
+}
+
+fn parse_date(date_str: &str) -> Result<chrono::NaiveDate> {
+    if !DATE_PATTERN.is_match(date_str) {
+        return Err(HarvesterError::InvalidDate(date_str.to_string()));
+    }
+    chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
+        .map_err(|_| HarvesterError::InvalidDate(date_str.to_string()))
 }
 
 /// Build manifest URL for a law.
@@ -342,6 +361,13 @@ mod tests {
         assert!(validate_date("2025-13-01").is_err()); // Invalid month
         assert!(validate_date("2025-02-30").is_err()); // Invalid day
         assert!(validate_date("2025-00-01").is_err()); // Zero month
+    }
+
+    #[test]
+    fn test_validate_date_rejects_future_but_format_check_does_not() {
+        assert!(validate_date("2999-01-01").is_err());
+        assert!(validate_date_format("2999-01-01").is_ok());
+        assert!(validate_date_format("2999-13-01").is_err());
     }
 
     #[test]
