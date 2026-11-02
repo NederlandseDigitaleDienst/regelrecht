@@ -10,10 +10,13 @@
 // reports each test file outside it.
 //
 // It reads YAML, Justfiles and shell by line, without a parser: the Pre-commit
-// job has Node but no node_modules. That makes it an over-approximation in one
-// direction only. A recipe with a `case` counts as running every branch, and a
-// path mentioned anywhere in a command counts as run. A test it reports really
-// does not appear in CI; a test it passes is at least named there.
+// job has Node but no node_modules. It leans towards counting a test as run. A
+// recipe with a `case` counts as running every branch, `just a b` as running
+// both recipes, and a file counts as run once it is the command or an argument
+// of an interpreter (`node`, `bash`, `python3`, ...). What it cannot model is a
+// condition (`if:` other than a literal `false`) or a trigger: a test in a
+// workflow that only runs on a schedule still counts. Playwright `*.spec.*`
+// files and pytest suites are out of scope.
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -106,10 +109,38 @@ function stripJsComments(text) {
   return out;
 }
 
-function stringList(text, key) {
-  const match = new RegExp(`\\b${key}\\s*:\\s*\\[([^\\]]*)\\]`).exec(text);
-  if (!match) return null;
-  return [...match[1].matchAll(/(['"`])([^'"`]+)\1/g)].map((m) => m[2]);
+/** The text from the bracket at `open` to its partner, skipping strings. */
+function balanced(text, open) {
+  const pair = { '[': ']', '{': '}' }[text[open]];
+  let depth = 0;
+  for (let i = open; i < text.length; i += 1) {
+    const c = text[i];
+    if (c === '"' || c === "'" || c === '`') {
+      i += 1;
+      while (i < text.length && text[i] !== c) i += text[i] === '\\' ? 2 : 1;
+    } else if (c === text[open]) {
+      depth += 1;
+    } else if (c === pair) {
+      depth -= 1;
+      if (depth === 0) return text.slice(open, i + 1);
+    }
+  }
+  return text.slice(open);
+}
+
+/** The string literals of `key: [...]` at the top level of `block`. */
+function stringList(block, key) {
+  const re = new RegExp(`\\b${key}\\s*:\\s*\\[`, 'g');
+  for (let m = re.exec(block); m; m = re.exec(block)) {
+    // Only a key of this object, not of a nested one such as `coverage: {...}`.
+    const before = block.slice(1, m.index);
+    let depth = 0;
+    for (const c of before) depth += c === '{' ? 1 : c === '}' ? -1 : 0;
+    if (depth !== 0) continue;
+    const list = balanced(block, m.index + m[0].length - 1);
+    return [...list.matchAll(/(['"`])((?:(?!\1).)+)\1/g)].map((x) => x[2]);
+  }
+  return null;
 }
 
 /**
@@ -117,13 +148,21 @@ function stringList(text, key) {
  * read from its `test: {...}` block. No config, or no list, means vitest's own
  * default.
  */
+const configCache = new Map();
+
 export function vitestConfig(root, dir) {
+  const key = join(root, dir);
+  if (!configCache.has(key)) configCache.set(key, readVitestConfig(root, dir));
+  return configCache.get(key);
+}
+
+function readVitestConfig(root, dir) {
   for (const name of VITEST_CONFIGS) {
     const file = join(root, dir, name);
     if (!existsSync(file)) continue;
     const text = stripJsComments(readFileSync(file, 'utf8'));
-    const start = text.search(/\btest\s*:\s*\{/);
-    const block = start === -1 ? '' : text.slice(start);
+    const start = /\btest\s*:\s*\{/.exec(text);
+    const block = start ? balanced(text, start.index + start[0].length - 1) : '';
     return {
       file: posix.join(dir, name),
       include: stringList(block, 'include') ?? VITEST_DEFAULT_INCLUDE,
@@ -225,7 +264,7 @@ function matrixValues(lines, job, key) {
   const re = new RegExp(`^\\s*(?:-\\s+)?${escapeRegExp(key)}:\\s*(.*)$`);
   for (let i = job.start; i < job.end; i += 1) {
     const match = re.exec(lines[i]);
-    if (!match) continue;
+    if (!match || insideKey(lines, i, job.start, 'exclude')) continue;
     const raw = match[1].trim();
     if (raw.startsWith('[')) {
       for (const v of raw.slice(1, raw.lastIndexOf(']')).split(',')) values.add(unquote(v));
@@ -240,6 +279,20 @@ function matrixValues(lines, job, key) {
   }
   return [...values].filter((v) => v !== '' && !v.includes('${{'));
 }
+
+/** Whether line `index` sits somewhere below a `key:` line. */
+function insideKey(lines, index, start, key) {
+  let indent = indentOf(lines[index]);
+  for (let i = index - 1; i >= start && indent > 0; i -= 1) {
+    if (isBlankOrComment(lines[i]) || indentOf(lines[i]) >= indent) continue;
+    indent = indentOf(lines[i]);
+    if (new RegExp(`^\\s*(-\\s+)?${key}:`).test(lines[i])) return true;
+  }
+  return false;
+}
+
+/** A literal `if: false`, which GitHub never runs. */
+const NEVER = /^\s*(- )?if:\s*(false|\$\{\{\s*false\s*\}\})\s*$/;
 
 /** `env:` and `defaults.run.working-directory` at one level of nesting. */
 function levelSettings(lines, start, end, indent) {
@@ -269,6 +322,7 @@ export function workflowFragments(text, file) {
   const fragments = [];
   const top = levelSettings(lines, 0, lines.length, 0);
   for (const job of jobBlocks(lines)) {
+    if (job.name && lines.slice(job.start + 1, job.end).some((l) => indentOf(l) === 4 && NEVER.test(l))) continue;
     const jobLevel = job.name ? levelSettings(lines, job.start + 1, job.end, 4) : { env: {}, workingDirectory: null };
     for (let i = job.start; i < job.end; i += 1) {
       const match = /^(\s*)(- )?run:(.*)$/.exec(lines[i]);
@@ -285,14 +339,16 @@ export function workflowFragments(text, file) {
       }
       let stepEnd = i + 1;
       while (stepEnd < job.end && (isBlankOrComment(lines[stepEnd]) || indentOf(lines[stepEnd]) > dashIndent)) stepEnd += 1;
-      const step = { env: {}, workingDirectory: null };
+      const step = { env: {}, workingDirectory: null, never: false };
       for (let j = stepStart; j < stepEnd; j += 1) {
         const line = lines[j].replace(/^(\s*)- /, '$1  ');
         if (indentOf(line) !== keyIndent) continue;
+        if (NEVER.test(line)) step.never = true;
         const wd = /^\s*working-directory:\s*(.+)$/.exec(line);
         if (wd) step.workingDirectory = unquote(wd[1]);
         if (/^\s*env:\s*$/.test(line)) Object.assign(step.env, mappingBelow(lines, j, keyIndent));
       }
+      if (step.never) continue;
       const fragment = {
         source: `${file}:${i + 1}`,
         text: run,
@@ -431,6 +487,9 @@ function unwrapGroup(command) {
   return c.replace(/\s*\}\s*$/, '');
 }
 
+/** Commands whose arguments are files they run. */
+const RUNNERS = new Set(['node', 'bash', 'sh', 'zsh', 'python', 'python3', 'pytest', 'deno', 'bun', 'tsx', 'source', '.']);
+
 function tokens(command) {
   return command.replace(/["']/g, '').split(/\s+/).filter(Boolean);
 }
@@ -456,9 +515,13 @@ export class CiModel {
     return resolve(this.root, cwd);
   }
 
-  /** Records every word of `text` that is a file in the repository, seen from `cwd`. */
-  mention(text, cwd, source) {
-    for (const word of text.split(/[\s'"=():;|&<>`,{}\u0000]+/)) {
+  /**
+   * Records each word that is a file in the repository, seen from `cwd`. With
+   * `dirs`, a directory counts for the test files below it, as `node --test
+   * dir/` runs them.
+   */
+  mention(words, cwd, source, dirs = false) {
+    for (const word of words) {
       if (!/[./]/.test(word) || word.startsWith('-')) continue;
       if (word.includes('*')) {
         const base = toRepo(this.root, this.abs(cwd));
@@ -467,6 +530,13 @@ export class CiModel {
         continue;
       }
       const path = toRepo(this.root, resolve(this.abs(cwd), word));
+      if (dirs && path !== null) {
+        for (const f of this.files) {
+          if (f.startsWith(path === '' ? '' : `${path}/`) && /\.test\.[cm]?[jt]s$/.test(f) && !this.mentions.has(f)) {
+            this.mentions.set(f, source);
+          }
+        }
+      }
       if (path && this.files.has(path)) {
         if (!this.mentions.has(path)) this.mentions.set(path, source);
         // A shell script CI runs counts with what it runs in turn.
@@ -499,7 +569,6 @@ export class CiModel {
       for (const piece of prot.text.split(/&&|\|\||;|\||\bthen\b|\bdo\b|\belse\b/)) {
         const command = unwrapGroup(prot.restore(piece))
           .replace(/\$\(pwd\)|\$\{PWD\}|\$PWD/g, this.abs(lineCwd));
-        this.mention(command, lineCwd, source);
         lineCwd = this.command(command, lineCwd, shellEnv, source, text);
       }
       if (persistentCd) shellCwd = lineCwd;
@@ -507,7 +576,20 @@ export class CiModel {
   }
 
   /** Runs one simple command; returns the directory the next one starts in. */
-  command(command, cwd, env, source, fragmentText) {
+  command(rawCommand, cwd, env, source, fragmentText) {
+    // What a `$(...)` runs, runs too.
+    for (const inner of rawCommand.matchAll(/\$\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g)) {
+      for (const part of inner[1].split(/&&|\|\||;|\|/)) this.command(part, cwd, { ...env }, source, fragmentText);
+    }
+    let command = rawCommand.trim();
+    // Keywords and wrappers in front of the command that runs.
+    for (;;) {
+      const prefix = /^(if|elif|while|until|!|export|exec|time|command|sudo|then|do)\s+/.exec(command)
+        ?? /^(timeout)\s+(-\S+\s+)*\S+\s+/.exec(command)
+        ?? /^(env|xargs|npx)\s+(-\S+\s+)*/.exec(command);
+      if (!prefix || prefix[0] === '') break;
+      command = command.slice(prefix[0].length);
+    }
     // `VAR=value` on its own sets a shell variable for what follows.
     const assignment = /^([A-Za-z_][A-Za-z0-9_]*)=(\$\(.*\)|"[^"]*"|'[^']*'|\S*)$/.exec(command.trim());
     if (assignment) {
@@ -520,12 +602,16 @@ export class CiModel {
       const [name, ...rest] = words.shift().split('=');
       inline[name] = rest.join('=');
     }
-    if (!words.length) return cwd;
-    while (['export', 'exec', 'time', 'env', 'sudo', 'npx', 'command'].includes(words[0])) {
+    while (['env', 'xargs', 'npx'].includes(words[0])) {
       words = words.slice(1);
       while (words[0]?.startsWith('-')) words = words.slice(1);
     }
+    if (!words.length) return cwd;
     const [cmd, ...args] = words;
+    // A file counts as run when it is the command, or an argument of an
+    // interpreter or test runner. `echo` or `git diff` naming it does not run it.
+    this.mention([cmd], cwd, source);
+    if (RUNNERS.has(cmd)) this.mention(args, cwd, source, cmd === 'node' && args.includes('--test'));
     if (cmd === 'cd' && args[0]) {
       const target = toRepo(this.root, resolve(this.abs(cwd), args[0]));
       return target ?? cwd;
@@ -539,9 +625,9 @@ export class CiModel {
   }
 
   justCall(args, source) {
-    const rest = args.filter((a) => !a.includes('=') && !a.startsWith('-'));
-    const name = rest[0];
-    if (name) this.recipe(name, source);
+    // `just a b` runs both when `a` takes no arguments; following every word
+    // that names a recipe errs towards counting a run.
+    for (const name of args.filter((a) => !a.includes('=') && !a.startsWith('-'))) this.recipe(name, source);
   }
 
   recipe(name, source) {
@@ -641,6 +727,7 @@ export class CiModel {
       else if (a.startsWith('-p') && a.length > 2) run.packages.push(a.slice(2));
       else if (a.startsWith('--package=')) run.packages.push(a.split('=')[1]);
       else if (a === '--exclude') run.excludes.push(args[++i]);
+      else if (a.startsWith('--exclude=')) run.excludes.push(a.split('=')[1]);
       else if (a === '--test') run.targets.push(args[++i]);
       else if (a.startsWith('--test=')) run.targets.push(a.split('=')[1]);
       else if (a === '--manifest-path') run.cwd = toRepo(this.root, dirname(resolve(this.abs(cwd), args[++i]))) ?? cwd;
@@ -777,7 +864,7 @@ function regulationDirs(root, run) {
   for (const m of run.fragmentText.matchAll(/\$\(\s*([^\s)]+\.sh)\s*\)/g)) {
     const script = resolve(root, run.cwd, m[1]);
     if (!existsSync(script)) continue;
-    const out = spawnSync('bash', [script], { cwd: root, encoding: 'utf8' });
+    const out = spawnSync('bash', [script], { cwd: resolve(root, run.cwd), encoding: 'utf8' });
     if (out.status !== 0) continue;
     for (const line of out.stdout.split('\n')) {
       const dir = line.trim() && toRepo(root, resolve(root, line.trim()));
@@ -802,7 +889,8 @@ function hasReasonAbove(lines, index, isAttribute, isComment) {
  * runner reads, and skips without a reason.
  */
 export function findOrphans(root, fileList, options = {}) {
-  const files = fileList.filter((f) => existsSync(join(root, f)));
+  // Tracked but deleted from the working tree: tests that are about to go.
+  const files = fileList.filter((f) => !/\.(test\.[a-z]+|feature|rs)$/.test(f) || existsSync(join(root, f)));
   const runners = options.runners ?? BDD_RUNNERS;
   const engine = options.engine ?? ENGINE_BDD;
   const exceptions = (options.exceptions ?? EXCEPTIONS).map((e) => ({ ...e, used: false }));
@@ -915,7 +1003,11 @@ export function findOrphans(root, fileList, options = {}) {
 
 /** Tracked files (staged ones included), as the guard sees the repository. */
 export function trackedFiles(root) {
-  return execFileSync('git', ['-C', root, 'ls-files', '-z', '--cached'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
-    .split('\u0000')
-    .filter(Boolean);
+  const list = (...args) =>
+    execFileSync('git', ['-C', root, 'ls-files', '-z', ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+      .split('\u0000')
+      .filter(Boolean);
+  // Not `--deleted`: that stats every file, which costs seconds on a slow
+  // filesystem. A file deleted but not yet staged is filtered where it is read.
+  return list('--cached');
 }

@@ -84,7 +84,7 @@ A test that no CI job starts never fails, so a missing hook or step goes unnotic
 
 Bucket A over `corpus/regulation` is the one exception, and the guard names it with its reason: that bucket stays out of CI on purpose. The guard runs as a pre-commit hook and therefore in the **Pre-commit** check. Its own suite is `just orphan-tests-test`, with a passing and a failing case for each rule.
 
-It reads YAML and shell line by line, so it errs in one direction. A recipe with a `case` counts as running every branch, and a file a command names counts as run. What it reports is truly absent from CI. Whether a test that runs also tests something is still a question for review.
+It reads YAML and shell line by line and leans towards counting a test as run. A recipe with a `case` counts as running every branch, and a file counts as run once it is the command or an argument of an interpreter such as `node` or `bash`. Only a literal `if: false` takes a step out. Any other condition still counts as a run, and so does a workflow that only runs on a schedule. Playwright `*.spec.*` files and the pytest suites are outside its scope. Whether a test that runs also tests something is still a question for review.
 
 ## Rust Tests
 

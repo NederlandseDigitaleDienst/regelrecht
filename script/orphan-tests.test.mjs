@@ -126,6 +126,41 @@ test('js: an npm script that names the test, reached through a chain, counts', (
   assert.deepEqual(files(findings, 'js'), []);
 });
 
+test('js: a vitest include with a character class, and a coverage include before it, read right', () => {
+  const findings = check({
+    '.github/workflows/ci.yml': workflow({ run: 'npm test -w app' }),
+    'app/package.json': PKG({ test: 'vitest run' }),
+    'app/vitest.config.js': `export default {
+  test: {
+    coverage: { include: ['lib/**'] },
+    include: ['src/**/*.test.[jt]s'],
+  },
+};\n`,
+    'app/src/a.test.ts': '',
+    'app/lib/b.test.ts': '',
+  });
+  assert.deepEqual(files(findings, 'js'), ['app/lib/b.test.ts']);
+});
+
+test('js: node --test over a glob or a directory counts for the files in it', () => {
+  const findings = check({
+    '.github/workflows/ci.yml': workflow({ run: 'node --test script/*.test.mjs\nnode --test tools/' }),
+    'script/a.test.mjs': '',
+    'tools/sub/b.test.mjs': '',
+    'other/c.test.mjs': '',
+  });
+  assert.deepEqual(files(findings, 'js'), ['other/c.test.mjs']);
+});
+
+test('js: an npm pre-script counts as part of the script', () => {
+  const findings = check({
+    '.github/workflows/ci.yml': workflow({ run: 'npm test -w app' }),
+    'app/package.json': PKG({ pretest: 'node --test scripts/a.test.mjs', test: 'echo' }),
+    'app/scripts/a.test.mjs': '',
+  });
+  assert.deepEqual(files(findings, 'js'), []);
+});
+
 // --- Rule 2: shell tests ---------------------------------------------------
 
 test('sh: a hook entry or a workflow step that runs the script passes', () => {
@@ -192,6 +227,57 @@ test('sh: a comment that names the script is no run', () => {
   assert.deepEqual(files(findings, 'sh'), ['script/a.test.sh']);
 });
 
+test('sh: echo or git naming a script does not run it; if and ! in front still do', () => {
+  const findings = check({
+    '.github/workflows/ci.yml': workflow({
+      run: 'echo "skipping script/a.test.sh"\ngit diff -- script/b.test.sh\nif script/c.test.sh; then echo ok; fi\n! bash script/d.test.sh',
+    }),
+    'script/a.test.sh': '',
+    'script/b.test.sh': '',
+    'script/c.test.sh': '',
+    'script/d.test.sh': '',
+  });
+  assert.deepEqual(files(findings, 'sh'), ['script/a.test.sh', 'script/b.test.sh']);
+});
+
+test('sh: a step with if: false never runs', () => {
+  const ci = `name: CI
+on: push
+jobs:
+  t:
+    steps:
+      - name: off
+        if: false
+        run: script/a.test.sh
+      - name: on
+        if: github.event_name == 'push'
+        run: script/b.test.sh
+`;
+  const findings = check({ '.github/workflows/ci.yml': ci, 'script/a.test.sh': '', 'script/b.test.sh': '' });
+  assert.deepEqual(files(findings, 'sh'), ['script/a.test.sh']);
+});
+
+test('sh: a script CI runs counts with what it runs in turn', () => {
+  const findings = check({
+    '.github/workflows/ci.yml': workflow({ run: 'script/all.sh' }),
+    'script/all.sh': '#!/usr/bin/env bash\nbash "$(dirname "$0")/a.test.sh"\n',
+    'script/a.test.sh': '',
+  });
+  assert.deepEqual(files(findings, 'sh'), []);
+});
+
+test('sh: a cd in one line of a plain recipe does not carry to the next', () => {
+  const findings = check({
+    '.github/workflows/ci.yml': workflow({ run: 'just r s' }),
+    Justfile: 'r:\n    cd docs\n    script/a.test.sh\n\ns:\n    #!/usr/bin/env bash\n    cd docs\n    script/b.test.sh\n',
+    'script/a.test.sh': '',
+    'script/b.test.sh': '',
+    'docs/script/b.test.sh': '',
+  });
+  // In the shebang recipe the cd holds, so it runs docs/script/b.test.sh.
+  assert.deepEqual(files(findings, 'sh'), ['script/b.test.sh']);
+});
+
 test('sh: a matrix value fills in the recipe a step calls', () => {
   const ci = `name: CI
 on: push
@@ -215,6 +301,22 @@ jobs:
   assert.deepEqual(files(findings, 'sh'), []);
 });
 
+test('sh: a leg listed under matrix exclude does not run', () => {
+  const ci = `name: CI
+on: push
+jobs:
+  t:
+    strategy:
+      matrix:
+        recipe: [a, b]
+        exclude:
+          - recipe: c
+    steps:
+      - run: just \${{ matrix.recipe }}
+`;
+  assert.deepEqual(workflowFragments(ci, 'ci.yml').map((f) => f.text), ['just a', 'just b']);
+});
+
 // --- Crates ------------------------------------------------------------------
 
 const WORKSPACE = {
@@ -226,7 +328,7 @@ const WORKSPACE = {
 test('crate: a workspace test with an exclude, and that crate under -p elsewhere, covers both', () => {
   const findings = check({
     ...WORKSPACE,
-    '.github/workflows/ci.yml': workflow({ run: 'cd packages && cargo test --workspace --exclude crate-b\ncd packages && cargo test -p crate-b' }),
+    '.github/workflows/ci.yml': workflow({ run: 'cd packages\ncargo test --workspace --exclude crate-b\ncargo test -p crate-b' }),
   });
   assert.deepEqual(files(findings, 'crate'), []);
 });
@@ -244,6 +346,14 @@ test('crate: a run of one target does not count as testing the crate', () => {
   const findings = check({
     ...WORKSPACE,
     '.github/workflows/ci.yml': workflow({ run: 'cargo test -p crate-a\ncargo test --test only', wd: 'packages/b' }),
+  });
+  assert.deepEqual(files(findings, 'crate'), ['packages/b/Cargo.toml']);
+});
+
+test('crate: --exclude=name excludes too', () => {
+  const findings = check({
+    ...WORKSPACE,
+    '.github/workflows/ci.yml': workflow({ run: 'cargo test --workspace --exclude=crate-b', wd: 'packages' }),
   });
   assert.deepEqual(files(findings, 'crate'), ['packages/b/Cargo.toml']);
 });
@@ -292,6 +402,35 @@ test('feature: without a conformance run, bdd/conformance is reported', () => {
     }),
   });
   assert.ok(files(findings, 'feature').includes('bdd/conformance/a.feature'));
+});
+
+test('feature: without BDD_BUCKET the engine runs both buckets over the default corpus', () => {
+  const findings = check({
+    ...ENGINE,
+    '.github/workflows/ci.yml': workflow({ run: 'if cargo test --test bdd; then echo; fi', wd: 'packages/engine' }),
+  });
+  assert.deepEqual(files(findings, 'feature'), [
+    'corpus-poc/napp/scenarios/d.feature',
+    'corpus/demo/law/notes.feature',
+    'corpus/demo/law/scenarios/b.feature',
+  ]);
+});
+
+test('feature: the bucket comes from export, inline assignment and workflow-level env alike', () => {
+  const only = (run, env) => {
+    const ci = workflow({ run, wd: 'packages/engine' });
+    const text = env ? ci.replace('on: push\n', `on: push\nenv:\n  BDD_BUCKET: ${env}\n`) : ci;
+    return files(check({ ...ENGINE, '.github/workflows/ci.yml': text }), 'feature');
+  };
+  const conformanceOnly = [
+    'corpus-poc/napp/scenarios/d.feature',
+    'corpus/demo/law/notes.feature',
+    'corpus/demo/law/scenarios/b.feature',
+    'corpus/regulation/law/scenarios/c.feature',
+  ];
+  assert.deepEqual(only('export BDD_BUCKET=conformance\ncargo test --test bdd'), conformanceOnly);
+  assert.deepEqual(only('BDD_BUCKET=conformance cargo test --test bdd'), conformanceOnly);
+  assert.deepEqual(only('cargo test --test bdd', 'conformance'), conformanceOnly);
 });
 
 test('feature: REGULATION_PATH built from a script in the step is followed', () => {
