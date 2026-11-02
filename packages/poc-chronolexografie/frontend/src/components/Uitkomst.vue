@@ -4,6 +4,7 @@
 // desgewenst waaróm (Waarom.vue).
 import { computed } from 'vue';
 import { leesbaar, toegewezen, waarde } from '../state.js';
+import ArtikelLink from './ArtikelLink.vue';
 import Waarom from './Waarom.vue';
 
 const props = defineProps({
@@ -21,6 +22,9 @@ const uitvoer = computed(() =>
 <template>
   <nldd-container gap="12">
     <nldd-title size="5" :text="titel">
+      <nldd-text slot="supporting-text" size="sm" color="secondary">
+        <ArtikelLink :basis="besluit.basis" :datum="besluit.recorded_on" />
+      </nldd-text>
       <nldd-tag
         slot="end"
         :color="verleend ? 'success' : 'critical'"

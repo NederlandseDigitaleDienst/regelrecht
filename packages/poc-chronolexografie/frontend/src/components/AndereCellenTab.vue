@@ -11,9 +11,9 @@
 // openen, tot de volgende stap.
 import { reactive, watch } from 'vue';
 import { api } from '../api.js';
-import { artikelNaam } from '../logboek.js';
 import { hoofdletter, leesbaar, state, stap } from '../state.js';
 import { formulier, huidigeStap, ingeklapt, scenarioWaarden } from '../scenarioInvoer.js';
+import ArtikelLink from './ArtikelLink.vue';
 import RechterCel from './RechterCel.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
@@ -35,11 +35,10 @@ watch(
 const inklapbaar = (cel, feit) => ingeklapt(state.vormen.andere_cellen, cel, feit);
 const zichtbaar = (cel, feit) => !inklapbaar(cel, feit) || !!geopend[sleutel(cel, feit)];
 
-// `beleid_x#5#geneeskundig_advies_uitgebracht` → `Geneeskundig advies uitgebracht (… artikel 5)`.
-const naam = (feit) => {
-  const [wet, artikel, wat] = feit.split('#');
-  return `${hoofdletter(leesbaar(wat))} (${artikelNaam(wet, artikel)})`;
-};
+// `beleid_x#5#geneeskundig_advies_uitgebracht` → `Geneeskundig advies uitgebracht`;
+// the article that requires the fact (`beleid_x#5`) is a link below it.
+const naam = (feit) => hoofdletter(leesbaar(feit.split('#')[2] ?? ''));
+const artikelVan = (feit) => feit.split('#').slice(0, 2).join('#');
 
 const kroniek = (cel) => state.andere.find((a) => a.cel === cel)?.grammen ?? [];
 
@@ -69,6 +68,9 @@ async function vastleggen(cel, handeling) {
         <nldd-card v-for="h in c.handelingen" :key="h.feit">
           <nldd-container padding="16" gap="12">
             <nldd-title size="5" :text="`Vastleggen: ${naam(h.feit)}`">
+              <nldd-text slot="supporting-text" size="sm" color="secondary">
+                <ArtikelLink :basis="artikelVan(h.feit)" />
+              </nldd-text>
               <nldd-button
                 v-if="inklapbaar(c.cel, h.feit)"
                 slot="end"
