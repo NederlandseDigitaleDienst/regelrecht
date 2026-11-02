@@ -47,7 +47,7 @@ pub struct Gram {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fact: Option<String>,
     /// The chronolexogram it refers to: for a decision, the application or
-    /// objection it is taken on (RFC-046); for an objection, the
+    /// objection it is taken on (RFC-045 §7); for an objection, the
     /// decision it contests; for the receipt of a copy, the decision of this
     /// cell the copy concerns (RFC-053). Absent for any other executogram
     /// (RFC-051), and for a submission that refers to a copy: that one

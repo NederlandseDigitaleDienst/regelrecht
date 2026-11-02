@@ -1329,7 +1329,7 @@ fn decision_parts(
 }
 
 /// Whether `value` fits the type of the open term `term`, as a finding for
-/// it (RFC-045 §6): a boolean, a number for a number, a whole number for an
+/// it (RFC-045 §5): a boolean, a number for a number, a whole number for an
 /// amount (in eurocent), a string for a string, a `YYYY-MM-DD` date for a
 /// date, a list, or an object for an object or a decision.
 /// `null` fits only a term that is not required.

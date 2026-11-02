@@ -1431,7 +1431,7 @@ fn a_card_the_court_granted_counts_as_an_earlier_card_but_not_as_a_valid_one() {
 fn a_municipality_that_gives_the_examination_answer_is_not_asked_for_it() {
     // The examination is the GGD's (Regeling art. 3): the term names who is
     // competent, so the binding asks the GGD and not the municipality, even
-    // where its catalogue gives the answer (RFC-051). Without the GGD the
+    // where its catalogue gives the answer (RFC-048 §4). Without the GGD the
     // college finds it.
     let dir = tempfile::tempdir().unwrap();
     let identity = std::fs::read_to_string(cell_dir().join("cel.yaml")).unwrap();
@@ -1693,7 +1693,7 @@ fn on_objection_a_new_advice_revokes_the_refusal() {
 fn a_municipality_that_gives_the_advice_answer_is_not_asked_for_it() {
     // The advice is the GGD's (policy art. 5): its terms name who is
     // competent, so the binding of art. 7 asks the GGD and not the
-    // municipality, even where its catalogue gives the answer (RFC-051).
+    // municipality, even where its catalogue gives the answer (RFC-048 §4).
     // Without the GGD the college judges the criteria itself.
     let dir = tempfile::tempdir().unwrap();
     let identity = std::fs::read_to_string(cell_dir().join("cel.yaml")).unwrap();

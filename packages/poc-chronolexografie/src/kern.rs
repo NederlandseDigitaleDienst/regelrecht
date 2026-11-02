@@ -726,7 +726,7 @@ fn oordelen_van_de_rechter(
     Ok(uit)
 }
 
-/// What each other cell of the sphere records by hand (RFC-048): the facts
+/// What each other cell of the sphere records by hand (RFC-051 §2): the facts
 /// whose executograms its reductions read (`source.facts`) and the facts of
 /// the regelwerken of the case that name it as who establishes them
 /// (`competent_authority`), each with the fields the article that requires

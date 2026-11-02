@@ -591,10 +591,10 @@ fn executograms_of_v0_8_6_are_refused_with_facts_named() {
     }
 }
 
-/// Schema v0.8.13 removed `combine`, on an open term (v0.8.8) and in a
-/// `source` beside `reduction` (v0.8.9): one question goes to one cell. A
-/// file that still has it is refused at load, whatever version it names,
-/// rather than run without it.
+/// Schema v0.8.13 removed `combine`, on an open term (v0.8.8 to v0.8.12) and
+/// in a `source` beside `reduction` (v0.8.9 to v0.8.12): one question goes to
+/// one cell. A file that still has it is refused at load, whatever version it
+/// names, rather than run without it.
 #[test]
 fn combine_is_refused_with_one_cell_named() {
     for value in ["OR", "~", ""] {
