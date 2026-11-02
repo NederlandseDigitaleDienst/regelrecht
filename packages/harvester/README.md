@@ -76,9 +76,11 @@ regelrecht-harvester download BWBR0020368 --max-size 200
 
 ### Versions and in-force dates
 
-BWB keeps one consolidation (toestand) per date on which an article changes or comes into force. The manifest lists them. With `--date`, the harvester takes the consolidation that covers that date and saves it under the consolidation's own start date, so `--date 2025-03-01` can produce `2025-01-01.yaml`. With `--from` and `--to`, it saves every consolidation that starts in the period as `<valid_from>.yaml`. The period may reach into the future, because BWB publishes a consolidation as soon as its in-force date is fixed; a single `--date` may not.
+BWB keeps one consolidation (toestand) per date on which an article changes or comes into force. The manifest lists them. With `--date`, the harvester takes the consolidation that covers that date. It saves the file under the consolidation's start date, so `--date 2025-03-01` can produce `2025-01-01.yaml`. Without `--date` it uses today.
 
-A version contains only what is in force on its `valid_from`. An article that is enacted but not yet in force (status `nogniet`, or an `inwerking` date after `valid_from`) is left out, with a warning that names the version it does appear in. When BWB has no consolidation yet for that article's in-force date, the warning says so, and no version of that date can be harvested until BWB adds one.
+With `--from` and `--to`, the harvester saves every consolidation that starts in the period as `<valid_from>.yaml`. A consolidation that started before `--from` is not included. The period may reach into the future, because BWB publishes a consolidation as soon as its in-force date is fixed. `--date` must not be in the future.
+
+A version contains only what is in force on its `valid_from`. An article that is enacted but not yet in force (status `nogniet`, or an `inwerking` date after `valid_from`) is left out with a warning. If its in-force date is known, the warning names the version it appears in. When BWB has no consolidation yet for that date, the warning says so, and that version cannot be harvested until BWB adds it.
 
 `publication_date` is the latest `publicatie_bron` among the elements in force in that version. References to EU acts by CELEX number link to EUR-Lex. A reference without a target the reader can follow, such as `doc="onbekend"`, stays plain text.
 

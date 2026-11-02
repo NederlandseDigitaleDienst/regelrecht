@@ -22,7 +22,7 @@ const BWB_ID: &str = "BWBR0018472";
 
 fn fixture(name: &str) -> String {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/versies")
+        .join("tests/fixtures/versions")
         .join(name);
     fs::read_to_string(&path).unwrap_or_else(|e| panic!("Failed to load {}: {e}", path.display()))
 }

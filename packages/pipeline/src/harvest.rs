@@ -158,7 +158,7 @@ pub async fn execute_harvest(
     let source_type = source.name().to_lowercase();
 
     // For BWB, the harvester resolves the date to the consolidation in force on
-    // it via the manifest (no date: the latest one) and returns that
+    // it via the manifest (no date: today) and returns that
     // consolidation's start date as the effective date.
     // For CVDR, use the requested date, the law's metadata date, or today.
     let (law, effective_date) = if source.source_type() == regelrecht_harvester::LawSourceType::Bwb
@@ -166,7 +166,7 @@ pub async fn execute_harvest(
         tracing::info!(law_id = %law_id, date = ?payload.date, "downloading law XML from BWB");
         let max_size_mb = payload
             .max_size_mb
-            .unwrap_or(regelrecht_harvester::config::DEFAULT_MAX_RESPONSE_SIZE / (1024 * 1024));
+            .unwrap_or(regelrecht_harvester::config::DEFAULT_MAX_RESPONSE_SIZE_MB);
         let law = regelrecht_harvester::harvester::download_law_version(
             http_client,
             law_id,

@@ -20,6 +20,9 @@ pub const HTTP_TIMEOUT_SECS: u64 = 30;
 /// Wet op het financieel toezicht (52.6 MB).
 pub const DEFAULT_MAX_RESPONSE_SIZE: u64 = 100 * 1024 * 1024;
 
+/// [`DEFAULT_MAX_RESPONSE_SIZE`] in megabytes, the unit of the `max_size_mb` arguments.
+pub const DEFAULT_MAX_RESPONSE_SIZE_MB: u64 = DEFAULT_MAX_RESPONSE_SIZE / (1024 * 1024);
+
 /// Schema URL for regelrecht YAML files.
 ///
 /// Re-exported from `regelrecht-shared` rather than pinned here: the harvester

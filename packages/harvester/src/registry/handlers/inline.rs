@@ -76,15 +76,16 @@ fn reference_url(doc: &str) -> Option<String> {
     if BWB_PATTERN.is_match(doc) {
         return Some(convert_jci_to_url(doc));
     }
+    // Parentheses would end a markdown link target early.
+    let escape = |target: &str| target.replace('(', "%28").replace(')', "%29");
     if CELEX_PATTERN.is_match(doc) {
-        // Parentheses would end a markdown link target early.
-        let celex = doc.replace('(', "%28").replace(')', "%29");
         return Some(format!(
-            "https://eur-lex.europa.eu/legal-content/NL/TXT/?uri=CELEX:{celex}"
+            "https://eur-lex.europa.eu/legal-content/NL/TXT/?uri=CELEX:{}",
+            escape(doc)
         ));
     }
     if doc.starts_with("https://") || doc.starts_with("http://") {
-        return Some(doc.to_string());
+        return Some(escape(doc));
     }
     None
 }
@@ -442,8 +443,8 @@ mod tests {
             Some("https://eur-lex.europa.eu/legal-content/NL/TXT/?uri=CELEX:32019R2088%2801%29")
         );
         assert_eq!(
-            reference_url("https://example.org/a").as_deref(),
-            Some("https://example.org/a")
+            reference_url("https://example.org/a_(b)").as_deref(),
+            Some("https://example.org/a_%28b%29")
         );
         // No target to follow: plain text, not a relative link.
         assert_eq!(reference_url("onbekend"), None);

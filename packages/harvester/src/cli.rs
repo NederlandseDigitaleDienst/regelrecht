@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 use console::style;
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::config::DEFAULT_MAX_RESPONSE_SIZE;
+use crate::config::DEFAULT_MAX_RESPONSE_SIZE_MB;
 use crate::error::{HarvesterError, Result};
 use crate::http::create_client;
 use crate::source::{self, BwbSource};
@@ -35,7 +35,8 @@ pub enum Commands {
 
         /// Harvest one version per in-force date from this date on
         /// (YYYY-MM-DD, inclusive). BWB only. Each version is saved as
-        /// `<valid_from>.yaml`.
+        /// `<valid_from>.yaml`. The version already in force on this date is
+        /// included only if it starts on it; use `--date` for that one.
         #[arg(long, requires = "to")]
         from: Option<String>,
 
@@ -51,7 +52,7 @@ pub enum Commands {
         ///
         /// Increase this for exceptionally large laws like Wet op het financieel
         /// toezicht (52.6 MB). Most laws are under 5 MB.
-        #[arg(long, default_value_t = DEFAULT_MAX_RESPONSE_SIZE / (1024 * 1024))]
+        #[arg(long, default_value_t = DEFAULT_MAX_RESPONSE_SIZE_MB)]
         max_size: u64,
     },
 }
@@ -188,28 +189,30 @@ async fn download_period_command(
     );
 
     let client = create_client()?;
-    let laws =
-        crate::harvester::download_law_versions(&client, law_id, from, to, max_size_mb).await?;
+    // Each version is saved as soon as it is built, so a failure halfway
+    // keeps the versions before it.
+    let count =
+        crate::harvester::download_law_versions(&client, law_id, from, to, max_size_mb, |law| {
+            let valid_from = law
+                .metadata
+                .effective_date
+                .clone()
+                .unwrap_or_else(|| from.to_string());
+            println!();
+            println!("{}", style(&valid_from).green().bold());
+            let output_path = report_and_save(&law, &valid_from, output)?;
+            println!("  Saved to: {}", output_path.display());
+            Ok(())
+        })
+        .await?;
 
-    if laws.is_empty() {
+    if count == 0 {
         println!("No in-force dates between {from} and {to}; nothing saved.");
         return Ok(());
     }
 
-    for law in &laws {
-        let valid_from = law
-            .metadata
-            .effective_date
-            .clone()
-            .unwrap_or_else(|| from.to_string());
-        println!();
-        println!("{}", style(&valid_from).green().bold());
-        let output_path = report_and_save(law, &valid_from, output)?;
-        println!("  Saved to: {}", output_path.display());
-    }
-
     println!();
-    println!("{} {} versions", style("Saved").green().bold(), laws.len());
+    println!("{} {count} versions", style("Saved").green().bold());
     Ok(())
 }
 

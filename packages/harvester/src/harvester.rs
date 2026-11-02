@@ -5,10 +5,10 @@ use roxmltree::Document;
 use reqwest::Client;
 
 use crate::config::{
-    validate_bwb_id, validate_date, validate_date_format, wetten_url, DEFAULT_MAX_RESPONSE_SIZE,
+    validate_bwb_id, validate_date, validate_date_format, wetten_url, DEFAULT_MAX_RESPONSE_SIZE_MB,
 };
 use crate::content::download_content_xml;
-use crate::error::{HarvesterError, Result};
+use crate::error::{HarvesterError, NoTextReason, Result};
 use crate::manifest::{
     consolidation_dates_between, download_manifest, has_consolidation, resolve_consolidation_date,
     resolve_valid_to, BwbManifest,
@@ -30,13 +30,7 @@ use crate::xml::{
 /// # Returns
 /// A `Law` object containing metadata, articles, and any warnings encountered during parsing
 pub async fn download_law(client: &Client, bwb_id: &str, date: &str) -> Result<Law> {
-    download_law_with_max_size(
-        client,
-        bwb_id,
-        date,
-        DEFAULT_MAX_RESPONSE_SIZE / (1024 * 1024),
-    )
-    .await
+    download_law_with_max_size(client, bwb_id, date, DEFAULT_MAX_RESPONSE_SIZE_MB).await
 }
 
 /// Download and parse a Dutch law with configurable max response size.
@@ -63,7 +57,10 @@ pub async fn download_law_with_max_size(
 /// Download and parse the version of a Dutch law that is in force on `date`.
 ///
 /// The BWB manifest maps `date` to the consolidation (toestand) that covers
-/// it; `None` takes the latest consolidation. The returned law carries that
+/// it; `None` means today. A consolidation that starts after that date is
+/// never taken, also not as the manifest's fallback for a law that has no
+/// consolidation in force yet: harvest a period with
+/// [`download_law_versions`] for that. The returned law carries that
 /// consolidation date as `metadata.effective_date`, which is the version's
 /// `valid_from`.
 ///
@@ -76,11 +73,12 @@ pub async fn download_law_version(
     date: Option<&str>,
     max_size_mb: u64,
 ) -> Result<Law> {
-    if let Some(date) = date {
-        validate_date(date)?;
-    }
+    let date = date
+        .map(str::to_string)
+        .unwrap_or_else(regelrecht_shared::dates::today_str);
+    validate_date(&date)?;
     let (manifest, wti) = download_sources(client, bwb_id).await?;
-    let version_date = resolve_consolidation_date(&manifest, date)?;
+    let version_date = resolve_version_date(&manifest, bwb_id, &date)?;
     download_version(client, bwb_id, &manifest, wti, &version_date, max_size_mb).await
 }
 
@@ -88,21 +86,25 @@ pub async fn download_law_version(
 /// `to` (both inclusive).
 ///
 /// Every consolidation in the BWB manifest starts on a date on which an
-/// article changes or comes into force, so each one becomes a version. The
-/// versions come back in date order, each with its consolidation date as
-/// `metadata.effective_date`. An empty list means the law has no in-force
-/// date in the period. The period may reach into the future.
+/// article changes or comes into force, so each one becomes a version.
+/// `on_version` receives the versions in date order, each with its
+/// consolidation date as `metadata.effective_date`, as soon as it is built,
+/// so a caller can save it before the next download starts. Returns how many
+/// versions there were; `0` means the law has no in-force date in the
+/// period. The period may reach into the future.
 ///
 /// # Errors
-/// Returns an error on an invalid id or date, `from` after `to`, or a failed
-/// download of any version.
+/// Returns an error on an invalid id or date, `from` after `to`, a failed
+/// download of a version, or an error from `on_version`. The versions handed
+/// over before that stay handed over.
 pub async fn download_law_versions(
     client: &Client,
     bwb_id: &str,
     from: &str,
     to: &str,
     max_size_mb: u64,
-) -> Result<Vec<Law>> {
+    mut on_version: impl FnMut(Law) -> Result<()>,
+) -> Result<usize> {
     // The bounds only filter the manifest's dates, so they may lie in the
     // future: BWB publishes a consolidation as soon as its date is set.
     validate_date_format(from)?;
@@ -114,13 +116,30 @@ pub async fn download_law_versions(
         });
     }
     let (manifest, wti) = download_sources(client, bwb_id).await?;
-    let mut laws = Vec::new();
-    for date in consolidation_dates_between(&manifest, from, to) {
+    let dates = consolidation_dates_between(&manifest, from, to);
+    for date in &dates {
         let law =
-            download_version(client, bwb_id, &manifest, wti.clone(), &date, max_size_mb).await?;
-        laws.push(law);
+            download_version(client, bwb_id, &manifest, wti.clone(), date, max_size_mb).await?;
+        on_version(law)?;
     }
-    Ok(laws)
+    Ok(dates.len())
+}
+
+/// The start date of the consolidation in force on `date`.
+///
+/// The manifest falls back to its last consolidation when none covers `date`.
+/// For a law that is enacted but has no consolidation in force yet, that one
+/// starts after `date`: the law has no text on `date`, which is reported as
+/// [`NoTextReason::NotYetInForce`] so the pipeline does not retry it.
+fn resolve_version_date(manifest: &BwbManifest, bwb_id: &str, date: &str) -> Result<String> {
+    let version_date = resolve_consolidation_date(manifest, Some(date))?;
+    if version_date.as_str() > date {
+        return Err(HarvesterError::NoConsolidatedText {
+            bwb_id: bwb_id.to_string(),
+            reason: NoTextReason::NotYetInForce { date: version_date },
+        });
+    }
+    Ok(version_date)
 }
 
 /// Download the manifest and WTI metadata, which every version shares.
@@ -244,15 +263,21 @@ struct NotInForce {
 impl NotInForce {
     fn warning(&self, date: &str, manifest: Option<&BwbManifest>) -> String {
         let number = &self.number;
-        match (&self.in_force_from, manifest) {
+        // A `nogniet` element can carry an `inwerking` that has already passed;
+        // that date says nothing about when the article will apply.
+        let from = self.in_force_from.as_deref().filter(|from| *from > date);
+        match (from, manifest) {
             (None, _) => format!(
                 "Article {number}: not in force on {date} and no in-force date is set yet; left out of this version"
             ),
-            (Some(from), Some(manifest)) if !has_consolidation(manifest, from) => format!(
+            (Some(from), Some(manifest)) if has_consolidation(manifest, from) => format!(
+                "Article {number}: not in force on {date}; left out of this version, it is in the version of {from}"
+            ),
+            (Some(from), Some(_)) => format!(
                 "Article {number}: not in force on {date}; it comes into force on {from}, but BWB has no consolidation for that date yet"
             ),
-            (Some(from), _) => format!(
-                "Article {number}: not in force on {date}; left out of this version, it is in the version of {from}"
+            (Some(from), None) => format!(
+                "Article {number}: not in force on {date}; it comes into force on {from}, left out of this version"
             ),
         }
     }
@@ -434,6 +459,39 @@ fn extract_simple_text(node: roxmltree::Node<'_, '_>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_resolve_version_date_never_takes_a_future_consolidation() {
+        let xml = r#"<work label="BWBR0000001" _latestItem="2027-01-01_0/xml/BWBR0000001_2027-01-01_0.xml">
+            <expression label="2027-01-01_0"><metadata>
+              <datum_inwerkingtreding>2027-01-01</datum_inwerkingtreding>
+            </metadata></expression></work>"#;
+        let manifest = crate::manifest::parse_manifest(xml, "BWBR0000001").unwrap();
+
+        match resolve_version_date(&manifest, "BWBR0000001", "2026-11-02") {
+            Err(HarvesterError::NoConsolidatedText {
+                reason: NoTextReason::NotYetInForce { date },
+                ..
+            }) => assert_eq!(date, "2027-01-01"),
+            other => panic!("expected NotYetInForce, got {other:?}"),
+        }
+        assert_eq!(
+            resolve_version_date(&manifest, "BWBR0000001", "2027-03-01").unwrap(),
+            "2027-01-01"
+        );
+    }
+
+    #[test]
+    fn test_not_in_force_warning_ignores_a_past_inwerking() {
+        let article = NotInForce {
+            number: "13a".to_string(),
+            in_force_from: Some("2020-01-01".to_string()),
+        };
+        assert_eq!(
+            article.warning("2025-01-01", None),
+            "Article 13a: not in force on 2025-01-01 and no in-force date is set yet; left out of this version"
+        );
+    }
 
     #[test]
     fn test_extract_simple_text() {
