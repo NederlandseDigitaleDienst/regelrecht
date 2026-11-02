@@ -160,18 +160,12 @@ RUN npm install -g --ignore-scripts \
     opencode --version && \
     npm cache clean --force
 
-# Copy opencode provider config (VLAM) — the API key is injected at runtime.
-# Not under /etc/opencode: opencode reads that as a system-wide config that
-# overrides the user's, so the demo URL in the file would win over the endpoint
-# the entrypoint writes into ~/.config/opencode.
+# Copy opencode provider config (VLAM); the entrypoint adds the endpoint and the
+# API key at runtime. Not under /etc/opencode: opencode reads that as a
+# system-wide config that overrides the user's, so it would win over what the
+# entrypoint writes into ~/.config/opencode. The provider package the config
+# names (@ai-sdk/openai-compatible) is built into the opencode binary.
 COPY packages/pipeline/opencode.json /opt/opencode/opencode.json
-
-# Install opencode provider plugin in a shared location
-COPY packages/pipeline/opencode-plugins-package.json /opt/opencode-plugins/package.json
-COPY packages/pipeline/opencode-plugins-package-lock.json /opt/opencode-plugins/package-lock.json
-RUN cd /opt/opencode-plugins && \
-    npm ci --ignore-scripts && \
-    npm cache clean --force
 
 COPY --from=builder /build/target/release/regelrecht-enrich-worker /usr/local/bin/
 COPY packages/pipeline/entrypoint-enrich.sh /usr/local/bin/entrypoint-enrich.sh

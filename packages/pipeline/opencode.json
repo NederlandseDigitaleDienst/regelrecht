@@ -5,9 +5,6 @@
     "vlam": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "VLAM (Rijksoverheid)",
-      "options": {
-        "baseURL": "https://api.demo.vlam.ai/v2.1/projects/poc/openai-compatible/v1"
-      },
       "models": {
         "kimi-k3-prepaid": {
           "name": "Kimi K3",

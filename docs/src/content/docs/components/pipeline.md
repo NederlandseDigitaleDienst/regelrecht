@@ -280,15 +280,17 @@ worker's default: a job that names a provider in its payload runs on that one,
 which is how the editor lets a user pick a model per enrichment.
 
 The `opencode` provider talks to VLAM, the language model API of SSC-ICT, and
-the editor shows it under that name. Its model and endpoint live in
-`packages/pipeline/opencode.json`; the model is `kimi-k3-prepaid`. On ZAD the
-component is bound to the platform service `vlam`, which puts `VLAM_API_URL` (a
-proxy into VLAM) in the pod, and the entrypoint points opencode at
-`$VLAM_API_URL/v1`. `VLAM_BASE_URL` overrides that; with neither set, opencode
-falls back to the demo endpoint in the file. The key comes from SSC-ICT, not
-from ZAD, and is set as `VLAM_API_KEY`. At startup the worker logs a
-`VLAM check` line with the model as VLAM lists it and the result of one short
-chat call, so a deploy shows whether the key works.
+the editor shows it under that name. Its model lives in
+`packages/pipeline/opencode.json`; the model is `kimi-k3-prepaid`. The only
+route to VLAM is the platform service `vlam` on ZAD, which puts `VLAM_API_URL`
+(a proxy into VLAM) in the pod; the entrypoint points opencode at
+`$VLAM_API_URL/v1`. Without that service the provider has no endpoint, and the
+worker logs a warning at startup. The key comes from SSC-ICT, not from ZAD, and
+is set as `VLAM_API_KEY`. At startup the worker logs `VLAM check` lines: the
+model as VLAM lists it, the result of one short chat call, and whether the
+model answers a call that offers it a tool. Together they show on every deploy
+whether the key works and whether the model can do the tool calls an
+enrichment depends on.
 
 The LLM subprocess runs with a stripped environment (allowlisted vars only) for security.
 
@@ -351,9 +353,8 @@ without one.
 | `ENRICH_AUTO_ENQUEUE` | off | `true` (or `1`, `yes`, `on`) makes a completed harvest queue enrich jobs; otherwise enrichment is requested explicitly through `POST /api/enrich-jobs` on the [Harvester Admin](./admin) API |
 | `LLM_PROVIDER` | `opencode` | `opencode` or `claude` |
 | `LLM_PATH`, `LLM_MODEL` | none | Fallback binary and model for either provider |
-| `OPENCODE_PATH`, `OPENCODE_MODEL` | the opencode binary, provider default | Binary and model for opencode. In the image the entrypoint sets the path to the platform binary rather than the `opencode` launcher on the `PATH`, because the memory watchdog only sees the process the worker spawns |
+| `OPENCODE_PATH`, `OPENCODE_MODEL` | the opencode binary, provider default | Binary and model for opencode. Unless this or `LLM_PATH` is set, the entrypoint in the image sets the path to the platform build for the CPU (with or without AVX2) |
 | `VLAM_API_KEY` | none | Key for VLAM, used by the opencode provider |
-| `VLAM_BASE_URL` | `$VLAM_API_URL/v1` | OpenAI-compatible base URL of VLAM; `VLAM_API_URL` comes from the ZAD service `vlam` |
 | `CLAUDE_PATH`, `CLAUDE_MODEL` | `claude`, provider default | Binary and model for claude |
 | `LLM_EFFORT` | none | Reasoning effort passed to the provider (`claude --effort`) |
 | `LLM_TIMEOUT_SECS` | 600 (10 min) | Ceiling per agent call |

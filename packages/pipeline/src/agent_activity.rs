@@ -454,6 +454,8 @@ pub fn count_articles(yaml: &str) -> (usize, usize) {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn opencode_steps_and_tool_calls_are_counted() {
         let a = ActivityHandle::new();
@@ -468,8 +470,6 @@ mod tests {
         );
         assert!(!summary.contains("secret"), "{summary}");
     }
-
-    use super::*;
 
     fn assistant(id: &str, content: &str) -> String {
         format!(r#"{{"type":"assistant","message":{{"id":"{id}","content":[{content}]}}}}"#)

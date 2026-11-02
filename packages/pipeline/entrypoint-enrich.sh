@@ -35,12 +35,13 @@ if [ -n "$VLAM_API_KEY" ]; then
 fi
 
 # --- VLAM endpoint ---
-# On ZAD the `vlam` service gives the pod VLAM_API_URL, a proxy to SSC-ICT's
-# VLAM API that speaks the OpenAI API under /v1. VLAM_BASE_URL still wins, so a
-# local run can point somewhere else.
-if [ -z "$VLAM_BASE_URL" ] && [ -n "$VLAM_API_URL" ]; then
-  VLAM_BASE_URL="${VLAM_API_URL%/}/v1"
-  export VLAM_BASE_URL
+# The only route to VLAM is the ZAD `vlam` service: it gives the pod
+# VLAM_API_URL, a proxy to SSC-ICT's VLAM API that speaks the OpenAI API under
+# /v1. Outside ZAD there is no VLAM, and the opencode provider is left without
+# an endpoint rather than pointed at a public one.
+vlam_base=""
+if [ -n "$VLAM_API_URL" ]; then
+  vlam_base="${VLAM_API_URL%/}/v1"
 fi
 
 # --- VLAM check ---
@@ -48,9 +49,11 @@ fi
 # shows it without anyone having to get into the pod. Diagnostic only: it runs
 # in the background so it never delays or stops the worker, and it never
 # prints the key.
-if [ -n "$VLAM_BASE_URL" ] && [ -n "$VLAM_API_KEY" ]; then
-  node -e "
-    const base = process.env.VLAM_BASE_URL.replace(/\/+\$/, '');
+if [ -n "$vlam_base" ] && [ -n "$VLAM_API_KEY" ]; then
+  # In a subshell, so the process is not left a zombie child of the worker
+  # that this script execs into.
+  (VLAM_BASE="$vlam_base" node -e "
+    const base = process.env.VLAM_BASE;
     const model = JSON.parse(require('fs').readFileSync('/opt/opencode/opencode.json', 'utf8'))
       .model.replace(/^vlam\//, '');
     const headers = {
@@ -122,32 +125,28 @@ if [ -n "$VLAM_BASE_URL" ] && [ -n "$VLAM_API_KEY" ]; then
         console.error('VLAM check tools: ' + e.name + ': ' + e.message);
       }
     })();
-  " &
+  " &)
 fi
 
-# Set up opencode config in user-writable location, with the endpoint above in
-# place of the demo URL baked into opencode.json.
+# Set up opencode config in user-writable location, with the endpoint above.
 mkdir -p "$HOME/.config/opencode"
-if [ -n "$VLAM_BASE_URL" ]; then
-  node -e "
-    const fs = require('fs');
-    const config = JSON.parse(fs.readFileSync('/opt/opencode/opencode.json', 'utf8'));
-    config.provider.vlam.options.baseURL = process.env.VLAM_BASE_URL;
-    fs.writeFileSync(process.argv[1], JSON.stringify(config, null, 2));
-  " "$HOME/.config/opencode/opencode.json"
-else
-  echo "WARNING: neither VLAM_BASE_URL nor VLAM_API_URL is set; using the demo API endpoint baked into opencode.json" >&2
-  cp /opt/opencode/opencode.json "$HOME/.config/opencode/opencode.json"
+VLAM_BASE="$vlam_base" node -e "
+  const fs = require('fs');
+  const config = JSON.parse(fs.readFileSync('/opt/opencode/opencode.json', 'utf8'));
+  if (process.env.VLAM_BASE) config.provider.vlam.options = { baseURL: process.env.VLAM_BASE };
+  fs.writeFileSync(process.argv[1], JSON.stringify(config, null, 2));
+" "$HOME/.config/opencode/opencode.json"
+if [ -z "$vlam_base" ]; then
+  echo "WARNING: VLAM_API_URL is not set (no ZAD vlam service); the opencode provider has no endpoint" >&2
 fi
-ln -sf /opt/opencode-plugins/node_modules "$HOME/.config/opencode/node_modules"
 
 # --- opencode binary ---
 # The image carries two opencode builds (see the Dockerfile): one that needs
 # AVX2 and a baseline build without. Use the AVX2 build where the CPU has it,
 # as opencode's own installer would. The worker spawns this binary directly, so
 # its memory watchdog measures opencode itself.
-if [ -z "$OPENCODE_PATH" ]; then
-  oc_root="$(npm root -g 2>/dev/null)"
+if [ -z "$OPENCODE_PATH" ] && [ -z "$LLM_PATH" ]; then
+  oc_root="$(npm root -g 2>/dev/null || true)"
   if grep -qw avx2 /proc/cpuinfo 2>/dev/null; then
     oc_variants="opencode-linux-x64-musl opencode-linux-x64-baseline-musl"
   else
@@ -166,35 +165,6 @@ if [ -z "$OPENCODE_PATH" ]; then
     echo "WARNING: no opencode build found under $oc_root; falling back to opencode on the PATH" >&2
   fi
 fi
-
-# --- Memory sampler (temporary diagnostic) ---
-# A VLAM enrichment kills the pod about 20s after opencode starts, without a
-# log line. Log the container's memory and the largest processes whenever the
-# usage moves by 64 MiB, so the log shows what grows before a kill.
-# Remove once the cause is known.
-(
-  if [ -r /sys/fs/cgroup/memory.current ]; then
-    cur=/sys/fs/cgroup/memory.current; max=/sys/fs/cgroup/memory.max
-  else
-    cur=/sys/fs/cgroup/memory/memory.usage_in_bytes; max=/sys/fs/cgroup/memory/memory.limit_in_bytes
-  fi
-  echo "MEM limit: $(cat "$max" 2>/dev/null); /tmp: $(grep ' /tmp ' /proc/mounts | cut -d' ' -f1,3,4)" >&2
-  last=0
-  while sleep 2; do
-    used=$(cat "$cur" 2>/dev/null) || continue
-    used_mb=$((used / 1048576))
-    diff=$((used_mb - last)); [ "$diff" -lt 0 ] && diff=$((-diff))
-    if [ "$diff" -ge 64 ]; then
-      last=$used_mb
-      top=$(for s in /proc/[0-9]*/status; do
-              awk '/^Name:/{n=$2} /^Pid:/{p=$2} /^VmRSS:/{print $2, p, n}' "$s" 2>/dev/null
-            done | sort -rn | head -3 | awk '{printf "%s(%s) %dMB; ", $3, $2, $1/1024}')
-      echo "MEM ${used_mb}MB tmp=$(df -m /tmp 2>/dev/null | awk 'NR==2{print $3}')MB top: $top" >&2
-    fi
-  done
-) &
-printf '{"dependencies":{"@ai-sdk/openai-compatible":"*"}}' \
-  > "$HOME/.config/opencode/package.json"
 
 # --- Claude auth ---
 # The claude provider authenticates with a personal Claude subscription via

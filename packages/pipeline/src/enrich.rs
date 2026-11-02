@@ -1401,6 +1401,11 @@ async fn watch_memory(pid: Option<u32>, max_rss_mb: u64) -> u64 {
 /// Whether a JSON line from the agent is an error event (`"type":"error"`),
 /// as opencode writes when a model call fails.
 fn is_error_event(line: &str) -> bool {
+    // Lines can be a megabyte of inlined file content; only parse the ones
+    // that can be an error event.
+    if !line.contains(r#""type":"error""#) {
+        return false;
+    }
     serde_json::from_str::<serde_json::Value>(line)
         .ok()
         .and_then(|v| v.get("type").and_then(|t| t.as_str()).map(|t| t == "error"))
