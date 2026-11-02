@@ -160,8 +160,11 @@ RUN npm install -g --ignore-scripts \
     opencode --version && \
     npm cache clean --force
 
-# Copy opencode provider config (VLAM) — the API key is injected at runtime
-COPY packages/pipeline/opencode.json /etc/opencode/opencode.json
+# Copy opencode provider config (VLAM) — the API key is injected at runtime.
+# Not under /etc/opencode: opencode reads that as a system-wide config that
+# overrides the user's, so the demo URL in the file would win over the endpoint
+# the entrypoint writes into ~/.config/opencode.
+COPY packages/pipeline/opencode.json /opt/opencode/opencode.json
 
 # Install opencode provider plugin in a shared location
 COPY packages/pipeline/opencode-plugins-package.json /opt/opencode-plugins/package.json

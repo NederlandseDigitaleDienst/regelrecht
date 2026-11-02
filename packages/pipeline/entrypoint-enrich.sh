@@ -51,7 +51,7 @@ fi
 if [ -n "$VLAM_BASE_URL" ] && [ -n "$VLAM_API_KEY" ]; then
   node -e "
     const base = process.env.VLAM_BASE_URL.replace(/\/+\$/, '');
-    const model = JSON.parse(require('fs').readFileSync('/etc/opencode/opencode.json', 'utf8'))
+    const model = JSON.parse(require('fs').readFileSync('/opt/opencode/opencode.json', 'utf8'))
       .model.replace(/^vlam\//, '');
     const headers = {
       Authorization: 'Bearer ' + process.env.VLAM_API_KEY,
@@ -94,13 +94,13 @@ mkdir -p "$HOME/.config/opencode"
 if [ -n "$VLAM_BASE_URL" ]; then
   node -e "
     const fs = require('fs');
-    const config = JSON.parse(fs.readFileSync('/etc/opencode/opencode.json', 'utf8'));
+    const config = JSON.parse(fs.readFileSync('/opt/opencode/opencode.json', 'utf8'));
     config.provider.vlam.options.baseURL = process.env.VLAM_BASE_URL;
     fs.writeFileSync(process.argv[1], JSON.stringify(config, null, 2));
   " "$HOME/.config/opencode/opencode.json"
 else
   echo "WARNING: neither VLAM_BASE_URL nor VLAM_API_URL is set; using the demo API endpoint baked into opencode.json" >&2
-  cp /etc/opencode/opencode.json "$HOME/.config/opencode/opencode.json"
+  cp /opt/opencode/opencode.json "$HOME/.config/opencode/opencode.json"
 fi
 ln -sf /opt/opencode-plugins/node_modules "$HOME/.config/opencode/node_modules"
 
