@@ -189,10 +189,18 @@ async function resolveTask(taskId: string, action: ResolveAction): Promise<void>
 async function requestEnrich(
   trajectRef: string,
   lawId: string,
+  provider?: string,
 ): Promise<{ alreadyRunning: boolean; tooMany: boolean }> {
+  // Without a provider there is no body, and the deployment's default runs.
+  const init = provider
+    ? {
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider }),
+      }
+    : {};
   const res = await apiFetch(
     `/api/trajects/${encodeURIComponent(trajectRef)}/corpus/laws/${encodeURIComponent(lawId)}/enrich`,
-    { method: 'POST', allowStatuses: [409, 429] }
+    { method: 'POST', allowStatuses: [409, 429], ...init }
   );
   return { alreadyRunning: res.status === 409, tooMany: res.status === 429 };
 }

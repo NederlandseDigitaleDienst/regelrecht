@@ -2188,10 +2188,10 @@ const canEnrichLaw = computed(
 // open, en de pane die je wél ziet moet je verder kunnen helpen.
 const isEnrichPane = (view: string) => view === 'machine' || view === 'yaml';
 
-async function enrichLaw() {
+async function enrichLaw(_trigger?: EventTarget | null, provider?: string) {
   if (!activeTrajectRef.value || !lawId.value) return;
   try {
-    const { alreadyRunning, tooMany } = await requestEnrich();
+    const { alreadyRunning, tooMany } = await requestEnrich(provider);
     if (alreadyRunning) {
       enrichFeedback.value = { variant: 'warning', text: 'Er loopt al een verrijking voor dit regelwerk.' };
     } else if (tooMany) {

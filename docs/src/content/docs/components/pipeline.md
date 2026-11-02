@@ -190,7 +190,9 @@ The hourly budget fails closed. Without `ENRICH_HOURLY_LIMIT`, or with `0`, the
 worker enriches nothing, so a forgotten variable cannot spend a subscription on
 the whole corpus. The cap counts runs for the worker's own `LLM_PROVIDER` per
 clock hour (Europe/Amsterdam), and because it is counted in the `jobs` table it
-survives a restart.
+survives a restart. A job that names another provider in its payload, such as
+an enrichment where the user picked VLAM in the editor, does not count against
+it.
 
 ### Large laws and agent sessions
 
@@ -273,7 +275,20 @@ window has gone quiet.
 
 `LLM_PROVIDER` selects `opencode` (the default) or `claude`. The binary and model
 come from `OPENCODE_PATH` / `OPENCODE_MODEL` or `CLAUDE_PATH` / `CLAUDE_MODEL`,
-with `LLM_PATH` and `LLM_MODEL` as the fallback for either.
+with `LLM_PATH` and `LLM_MODEL` as the fallback for either. `LLM_PROVIDER` is the
+worker's default: a job that names a provider in its payload runs on that one,
+which is how the editor lets a user pick a model per enrichment.
+
+The `opencode` provider talks to VLAM, the language model API of SSC-ICT, and
+the editor shows it under that name. Its model and endpoint live in
+`packages/pipeline/opencode.json`; the model is `kimi-k3-vast`. On ZAD the
+component is bound to the platform service `vlam`, which puts `VLAM_API_URL` (a
+proxy into VLAM) in the pod, and the entrypoint points opencode at
+`$VLAM_API_URL/v1`. `VLAM_BASE_URL` overrides that; with neither set, opencode
+falls back to the demo endpoint in the file. The key comes from SSC-ICT, not
+from ZAD, and is set as `VLAM_API_KEY`. At startup the worker logs a
+`VLAM check` line with the model as VLAM lists it and the result of one short
+chat call, so a deploy shows whether the key works.
 
 The LLM subprocess runs with a stripped environment (allowlisted vars only) for security.
 
@@ -337,6 +352,8 @@ without one.
 | `LLM_PROVIDER` | `opencode` | `opencode` or `claude` |
 | `LLM_PATH`, `LLM_MODEL` | none | Fallback binary and model for either provider |
 | `OPENCODE_PATH`, `OPENCODE_MODEL` | `opencode`, provider default | Binary and model for opencode |
+| `VLAM_API_KEY` | none | Key for VLAM, used by the opencode provider |
+| `VLAM_BASE_URL` | `$VLAM_API_URL/v1` | OpenAI-compatible base URL of VLAM; `VLAM_API_URL` comes from the ZAD service `vlam` |
 | `CLAUDE_PATH`, `CLAUDE_MODEL` | `claude`, provider default | Binary and model for claude |
 | `LLM_EFFORT` | none | Reasoning effort passed to the provider (`claude --effort`) |
 | `LLM_TIMEOUT_SECS` | 600 (10 min) | Ceiling per agent call |

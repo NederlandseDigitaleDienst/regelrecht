@@ -10,6 +10,7 @@ import StatusBadge from './StatusBadge.vue';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
 import { formatDate } from '../formatters';
 import type { Untranslatable } from '../composables/useUntranslatables';
+import { providerLabel } from '../../lib/enrichProviders';
 
 const props = withDefaults(
   defineProps<{
@@ -46,7 +47,7 @@ const infoFields = computed(() => {
     ['Law ID', props.row.law_id],
     ['Article', props.row.article],
     ['Construct', props.row.construct],
-    ['Provider', props.row.provider],
+    ['Provider', props.row.provider && providerLabel(props.row.provider)],
     ['Enrich job', props.row.enrich_job_id],
     ['Captured', formatDate(props.row.created_at)],
   ] satisfies [string, string | null | undefined][]).filter(([, value]) => value != null);

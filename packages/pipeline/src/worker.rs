@@ -1020,8 +1020,8 @@ pub async fn run_enrich_worker(config: WorkerConfig) -> Result<()> {
         // unset) pauses the worker without even querying.
         //
         // The cap keys on the worker's configured provider (LLM_PROVIDER), not
-        // the per-job payload provider — exact for a provider-dedicated worker
-        // (the intended deployment).
+        // the per-job payload provider. A job that names another provider (the
+        // editor lets a user pick one) does not count against this cap.
         let base = config.enrich_hourly_limit;
         let provider = enrich_config.provider.name();
         // `Some((cap, local_hour))` when we must pause; `None` when clear to run.

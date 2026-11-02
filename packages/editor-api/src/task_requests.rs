@@ -40,6 +40,34 @@ pub struct EnrichRequestResponse {
     pub job_id: Uuid,
 }
 
+/// Optional body of the enrich request. Without it, or without `provider`,
+/// the deployment's `TASK_ENRICH_PROVIDER` decides.
+#[derive(serde::Deserialize, Default)]
+pub struct EnrichRequest {
+    #[serde(default)]
+    pub provider: Option<String>,
+}
+
+/// The provider for this request: the one asked for if the pipeline knows
+/// it, the deployment default if none was asked for. An unknown name is a
+/// 400 rather than a silent fallback, so a typo never runs on another model.
+fn resolve_provider(
+    requested: Option<&str>,
+    default: &str,
+) -> Result<String, (StatusCode, String)> {
+    match requested.map(str::trim).filter(|p| !p.is_empty()) {
+        None => Ok(default.to_string()),
+        Some(p) if regelrecht_pipeline::enrich::ENRICH_PROVIDERS.contains(&p) => Ok(p.to_string()),
+        Some(p) => Err((
+            StatusCode::BAD_REQUEST,
+            format!(
+                "Onbekende provider '{p}'; kies uit: {}.",
+                regelrecht_pipeline::enrich::ENRICH_PROVIDERS.join(", ")
+            ),
+        )),
+    }
+}
+
 /// POST /api/trajects/{traject_ref}/corpus/laws/{law_id}/enrich
 pub async fn request_enrich(
     State(state): State<AppState>,
@@ -47,6 +75,7 @@ pub async fn request_enrich(
     Extension(account): Extension<AccountRecord>,
     Path((traject_ref, law_id)): Path<(String, String)>,
     headers: axum::http::HeaderMap,
+    body: Option<Json<EnrichRequest>>,
 ) -> Result<(StatusCode, Json<EnrichRequestResponse>), (StatusCode, String)> {
     let pool = state.pool.as_ref().ok_or((
         StatusCode::SERVICE_UNAVAILABLE,
@@ -57,6 +86,11 @@ pub async fn request_enrich(
     // traject-id voor de payload/taak.
     let traject = require_traject_corpus_from_ref(&state, &session, &traject_ref).await?;
     let traject_id = resolve_traject_ref(pool, &traject_ref).await?;
+    let request = body.map(|Json(r)| r).unwrap_or_default();
+    let provider = resolve_provider(
+        request.provider.as_deref(),
+        &state.config.task_enrich_provider,
+    )?;
 
     // Snapshot de wet zoals de gebruiker hem nu ziet (traject-scope),
     // inclusief het per-request leestoken voor de writable-own source —
@@ -79,7 +113,7 @@ pub async fn request_enrich(
         pass: Default::default(),
         law_id: law_id.clone(),
         yaml_path: yaml_path.clone(),
-        provider: Some(state.config.task_enrich_provider.clone()),
+        provider: Some(provider),
         depth: None,
         requested_by: Some(account.id),
         deliver: Some("task".into()),
@@ -334,6 +368,30 @@ mod tests {
             normalize_bwb_id("BWBV0001000").as_deref(),
             Some("BWBV0001000")
         );
+    }
+
+    #[test]
+    fn resolve_provider_defaults_when_none_is_asked_for() {
+        assert_eq!(resolve_provider(None, "claude").unwrap(), "claude");
+        assert_eq!(resolve_provider(Some("  "), "claude").unwrap(), "claude");
+    }
+
+    #[test]
+    fn resolve_provider_takes_a_known_provider() {
+        assert_eq!(
+            resolve_provider(Some("opencode"), "claude").unwrap(),
+            "opencode"
+        );
+        assert_eq!(
+            resolve_provider(Some("claude"), "opencode").unwrap(),
+            "claude"
+        );
+    }
+
+    #[test]
+    fn resolve_provider_rejects_an_unknown_provider() {
+        let (status, _) = resolve_provider(Some("vlam"), "claude").unwrap_err();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
     }
 
     #[test]

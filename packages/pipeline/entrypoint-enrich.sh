@@ -45,8 +45,9 @@ fi
 
 # --- VLAM check ---
 # Log whether the key works and what the configured model reports, so a deploy
-# shows it without anyone having to get into the pod. Diagnostic only: it never
-# stops the worker, and it never prints the key.
+# shows it without anyone having to get into the pod. Diagnostic only: it runs
+# in the background so it never delays or stops the worker, and it never
+# prints the key.
 if [ -n "$VLAM_BASE_URL" ] && [ -n "$VLAM_API_KEY" ]; then
   node -e "
     const base = process.env.VLAM_BASE_URL.replace(/\/+\$/, '');
@@ -84,7 +85,7 @@ if [ -n "$VLAM_BASE_URL" ] && [ -n "$VLAM_API_KEY" ]; then
         console.error('VLAM check chat: ' + e.name + ': ' + e.message);
       }
     })();
-  " || true
+  " &
 fi
 
 # Set up opencode config in user-writable location, with the endpoint above in
