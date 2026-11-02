@@ -84,6 +84,43 @@ if [ -n "$VLAM_BASE_URL" ] && [ -n "$VLAM_API_KEY" ]; then
       } catch (e) {
         console.error('VLAM check chat: ' + e.name + ': ' + e.message);
       }
+      // An enrichment only works if the model calls tools: it edits the law
+      // through them. Offer one and see whether it is used.
+      try {
+        const res = await fetch(base + '/chat/completions', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model,
+            max_tokens: 400,
+            messages: [{ role: 'user', content: 'Schrijf de tekst hallo naar het bestand a.txt. Gebruik de tool.' }],
+            tools: [{
+              type: 'function',
+              function: {
+                name: 'write_file',
+                description: 'Write text to a file',
+                parameters: {
+                  type: 'object',
+                  properties: { path: { type: 'string' }, text: { type: 'string' } },
+                  required: ['path', 'text'],
+                },
+              },
+            }],
+          }),
+          signal: AbortSignal.timeout(60000),
+        });
+        const body = await res.text();
+        let msg = null;
+        try { msg = JSON.parse(body).choices[0]; } catch {}
+        const calls = msg && msg.message && msg.message.tool_calls;
+        console.error('VLAM check tools: HTTP ' + res.status + ', ' +
+          (calls && calls.length
+            ? 'tool call: ' + flat(JSON.stringify(calls.map((c) => c.function)))
+            : 'no tool call, finish_reason=' + (msg && msg.finish_reason) + ', ' +
+              (msg ? 'content: ' + flat(String(msg.message && msg.message.content)) : 'body: ' + flat(body))));
+      } catch (e) {
+        console.error('VLAM check tools: ' + e.name + ': ' + e.message);
+      }
     })();
   " &
 fi
