@@ -73,8 +73,8 @@ voorbeeld:
 # legt bij elke start en reset opnieuw vast wat zij vóór het eerste scenario
 # wist, via de cel zoals elke stap.
 #
-# - De Kamer begint leeg: het demoscenario schrijft het koeriersbedrijf zelf
-#   in, zodat de kroniek van de Kamer alleen over dit bedrijf gaat.
+# - De Kamer begint leeg: elk scenario schrijft zijn eigen bedrijf zelf in,
+#   zodat de kroniek van de Kamer alleen over dat bedrijf gaat.
 # - De gemeente zelf kent nog geen vergunning. Haar eigen cel begint vóór de
 #   andere cellen, dus een vergunning die ze al verleende, kan dit bestand
 #   niet geven: het besluit zou de Kamer vragen voordat die iets weet. Een
@@ -98,6 +98,22 @@ scenarios:
       Een bakkerij in de binnenstad vraagt een vergunning, en het college
       verleent haar.
     stappen:
+      - stap: vastleggen
+        verhaal: >-
+          Een bakkerij in de binnenstad, waar vier mensen werken, staat ingeschreven bij de Kamer van Koophandel.
+        titel: Inschrijving bij de Kamer van Koophandel
+        cel: kamer_van_koophandel
+        feit: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+        invoer:
+          kvk_nummer: '99990011'
+          postcode: 7711 AB
+          aantal_werkzame_personen: 4
+          datum_inschrijving: '2026-01-05'
+        tekst: >-
+          Klik bij Kamer van Koophandel onder "Vastleggen: Vestiging
+          ingeschreven" op Vastleggen.
+        gezien: >-
+          De inschrijving staat in de kroniek van de Kamer.
       - stap: aanvraag
         verhaal: >-
           Een bakkerij in de binnenstad vraagt een bedrijfsparkeervergunning.
@@ -266,6 +282,22 @@ scenarios:
       Een bedrijf buiten de vergunninggebieden krijgt geen vergunning, en na
       zijn verhuizing naar de binnenstad wel.
     stappen:
+      - stap: vastleggen
+        verhaal: >-
+          Een adviesbureau buiten de vergunninggebieden staat ingeschreven bij de Kamer van Koophandel.
+        titel: Inschrijving bij de Kamer van Koophandel
+        cel: kamer_van_koophandel
+        feit: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+        invoer:
+          kvk_nummer: '99990033'
+          postcode: 7720 BC
+          aantal_werkzame_personen: 3
+          datum_inschrijving: '2026-03-02'
+        tekst: >-
+          Klik bij Kamer van Koophandel onder "Vastleggen: Vestiging
+          ingeschreven" op Vastleggen.
+        gezien: >-
+          De inschrijving staat in de kroniek van de Kamer.
       - stap: aanvraag
         verhaal: >-
           Een adviesbureau buiten de vergunninggebieden vraagt een vergunning.
@@ -317,6 +349,22 @@ scenarios:
       past het college de hardheidsclausule toe: een oordeel van een mens, dat
       het nieuwe besluit vastlegt.
     stappen:
+      - stap: vastleggen
+        verhaal: >-
+          Een thuiszorgbedrijf in de binnenstad, waar twaalf mensen werken, staat ingeschreven bij de Kamer van Koophandel.
+        titel: Inschrijving bij de Kamer van Koophandel
+        cel: kamer_van_koophandel
+        feit: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+        invoer:
+          kvk_nummer: '99990044'
+          postcode: 7711 AA
+          aantal_werkzame_personen: 12
+          datum_inschrijving: '2026-02-16'
+        tekst: >-
+          Klik bij Kamer van Koophandel onder "Vastleggen: Vestiging
+          ingeschreven" op Vastleggen.
+        gezien: >-
+          De inschrijving staat in de kroniek van de Kamer.
       - stap: aanvraag
         verhaal: >-
           Een thuiszorgbedrijf in de binnenstad vraagt een vergunning voor
