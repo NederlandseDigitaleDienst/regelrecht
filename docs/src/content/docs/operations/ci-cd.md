@@ -14,6 +14,9 @@ Continuous integration runs on every push to `main` and every pull request via `
 - **YAML validation** - yamllint + schema validation on corpus files
 - **Pre-commit hooks** - trailing whitespace, end-of-file, merge conflicts,
   and licence information for every file (`reuse lint`, from `REUSE.toml`)
+- **Orphan tests** - the `orphan-tests` hook fails when a test file, a crate
+  or a feature file runs in no CI job, or when a `@wip` or `#[ignore]` carries
+  no reason. What it reads and what it misses: [Testing](/guide/testing#does-the-new-test-run)
 
 ### Tests (on Rust changes)
 
