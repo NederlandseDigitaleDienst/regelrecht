@@ -2,7 +2,7 @@
  * What a law article produces (`execution.produces`), in either form the
  * schema allows: one object, the form most laws use, or a list of produced
  * items, such as an application and the decision on it (schema v0.8.1,
- * RFC-047). A list item says what it is with `type`: a submission kind
+ * RFC-045). A list item says what it is with `type`: a submission kind
  * (`AANVRAAG`) or a legal character (`BESCHIKKING`). The object form says it
  * with `submission.kind` and `legal_character`. Readers go through these
  * helpers so neither form is missed.

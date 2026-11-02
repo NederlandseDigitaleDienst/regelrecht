@@ -89,7 +89,7 @@ export const api = {
   kroniek: () => roep((p) => p.kroniek()),
   aanvragen: (velden, datum) => roep((p) => p.aanvragen(json(velden), datum)),
   // Een andere cel van de casus legt een handeling vast, zoals de GGD een
-  // geneeskundig onderzoek (RFC-052).
+  // geneeskundig onderzoek (RFC-048).
   vastleggen: (cel, feit, velden, datum) => roep((p) => p.vastleggen(cel, feit, json(velden), datum)),
   besluiten: (op, bevindingen, datum) => roep((p) => p.besluiten(op, json(bevindingen), datum)),
   // Wat het besluit zou worden, op een kopie van de cel: er wordt niets

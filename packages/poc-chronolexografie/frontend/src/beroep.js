@@ -1,7 +1,7 @@
 /**
  * Het beroep bij de bestuursrechter (RFC-053): de stappen ervan en wat de app
  * in de twee kronieken leest. De rechtbank is een andere cel van de casus
- * (RFC-052) met een eigen kroniek (`state.rechter`). Het beroep verwijst niet
+ * (RFC-048) met een eigen kroniek (`state.rechter`). Het beroep verwijst niet
  * met `refers_to` naar het bestreden besluit maar draagt wat de rechtbank
  * ontving (`received`); de school legt de ontvangst van een uitspraak vast
  * als executogram dat met `refers_to` naar haar eigen besluit verwijst, en een

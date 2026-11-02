@@ -145,7 +145,7 @@ impl Spel {
     pub fn kroniek(&mut self) -> Antwoord {
         ok(self.met(|c, cell| {
             // The other cells of the sphere, each with its own chronicle
-            // (RFC-052), under the names the case file gives them.
+            // (RFC-048), under the names the case file gives them.
             let andere: Vec<Value> = cell
                 .andere
                 .iter()
@@ -183,7 +183,7 @@ impl Spel {
     }
 
     /// Decide on the application `op`, with the deciding authority's
-    /// findings for this case (RFC-050).
+    /// findings for this case (RFC-045 §5).
     pub fn besluiten(
         &mut self,
         op: &str,

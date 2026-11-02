@@ -29,7 +29,7 @@ pub struct RegelrechtWorld {
     /// Parameters for law execution
     pub parameters: BTreeMap<String, Value>,
     /// What an authority found for this case, apart from the parameters
-    /// (RFC-050)
+    /// (RFC-045 §5)
     pub findings: BTreeMap<String, Value>,
     /// Last execution result (if successful)
     pub result: Option<ArticleResult>,

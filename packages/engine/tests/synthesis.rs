@@ -1169,7 +1169,7 @@ articles:
 
 /// A deciding article with one more output beside its decision: whether a
 /// card was issued before, for the college or the national issuer to say.
-/// The decision does not read it, so it belongs to no item (RFC-052).
+/// The decision does not read it, so it belongs to no item (RFC-045 §1).
 const DECIDING: &str = r#"
 $id: wet_beslissing
 regulatory_layer: WET

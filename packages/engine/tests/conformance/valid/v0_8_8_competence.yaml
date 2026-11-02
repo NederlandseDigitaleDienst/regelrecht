@@ -1,5 +1,5 @@
 ---
-# Tier C: competence on an open term and on a fact (schema v0.8.8, RFC-052).
+# Tier C: competence on an open term and on a fact (schema v0.8.8, RFC-051).
 # The article names who decides; the open term names who may answer it, a
 # list; the fact names who establishes it.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
