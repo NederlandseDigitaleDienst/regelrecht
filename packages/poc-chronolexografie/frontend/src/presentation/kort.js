@@ -1,8 +1,8 @@
 /**
  * The short page (KortPagina.vue), as data: what RegelRecht is and what
- * chronolexografie adds to it, on one screen. A picture of the two layers
- * (KortSchema.vue), one case whose steps carry the numbers of the arrows in
- * the picture, and two short lists. The button at the bottom opens the
+ * chronolexografie adds to it, on one screen. Two short lists, a picture of
+ * the two layers (KortSchema.vue), and one case whose steps carry the numbers
+ * of the arrows in the picture. The button at the bottom opens the
  * explanation page (uitleg.js) for the long version.
  *
  * The words follow the deck (slides.js) and the explanation page: cel,
@@ -105,7 +105,7 @@ export const regelrecht = {
 };
 
 export const chronolexografie = {
-  title: 'Wat chronolexografie toevoegt en mogelijk maakt',
+  title: 'Hoe chronolexografie daarop uitbreidt',
   bullets: [
     'Elke organisatie heeft een cel. Die legt aanvragen, besluiten, bezwaren en beroepen vast in haar eigen kroniek.',
     'Er komt alleen iets bij: een herroepen besluit blijft staan.',

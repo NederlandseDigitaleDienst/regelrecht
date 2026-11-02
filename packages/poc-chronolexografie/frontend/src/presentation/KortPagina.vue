@@ -1,7 +1,7 @@
 <script setup>
 // The short page: what RegelRecht is and what chronolexografie adds, on one
-// screen (kort.js). First a picture of the two layers (KortSchema.vue), then
-// a case whose steps carry the numbers in the picture, then two short lists.
+// screen (kort.js). First two short lists, then a picture of the two layers
+// (KortSchema.vue), then a case whose steps carry the numbers in the picture.
 // The choice screen opens it, and so does an address with `?kort`
 // (useKort.js); the button at the top goes back to the choice screen. The
 // button under the case opens that case, the one at the bottom the
@@ -47,10 +47,20 @@ const stukken = (zin) =>
       <nldd-title size="2" heading-level="1" :overline="intro.overline" :text="intro.title">
         <nldd-text slot="supporting-text">{{ intro.lead }}</nldd-text>
       </nldd-title>
-      <nldd-container gap="8">
-        <KortSchema beschrijving="kort-bijschrift" />
-        <nldd-text id="kort-bijschrift" size="sm" color="secondary">{{ schema.bijschrift }}</nldd-text>
-      </nldd-container>
+    </nldd-container>
+  </nldd-simple-section>
+  <nldd-simple-section v-for="lijst in [regelrecht, chronolexografie]" :key="lijst.title">
+    <nldd-title slot="header" size="3" heading-level="2" :text="lijst.title"></nldd-title>
+    <nldd-rich-text>
+      <ul>
+        <li v-for="b in lijst.bullets" :key="b">{{ b }}</li>
+      </ul>
+    </nldd-rich-text>
+  </nldd-simple-section>
+  <nldd-simple-section>
+    <nldd-container gap="8">
+      <KortSchema beschrijving="kort-bijschrift" />
+      <nldd-text id="kort-bijschrift" size="sm" color="secondary">{{ schema.bijschrift }}</nldd-text>
     </nldd-container>
   </nldd-simple-section>
   <nldd-simple-section>
@@ -69,14 +79,6 @@ const stukken = (zin) =>
         <nldd-button appearance="secondary" :href="casusHref" :text="casusBlok.knop" @click.prevent="emit('casus', casus)"></nldd-button>
       </nldd-button-bar>
     </nldd-container>
-  </nldd-simple-section>
-  <nldd-simple-section v-for="lijst in [regelrecht, chronolexografie]" :key="lijst.title">
-    <nldd-title slot="header" size="3" heading-level="2" :text="lijst.title"></nldd-title>
-    <nldd-rich-text>
-      <ul>
-        <li v-for="b in lijst.bullets" :key="b">{{ b }}</li>
-      </ul>
-    </nldd-rich-text>
   </nldd-simple-section>
   <nldd-simple-section>
     <nldd-button-bar>

@@ -73,20 +73,20 @@ describe('the short page', () => {
     }
   });
 
-  it('is a page of the app: the picture, the case, the two lists and the way on', async () => {
+  it('is a page of the app: the two lists, the picture, the case and the way on', async () => {
     const html = await renderToString(createSSRApp({ render: () => h(KortPagina) }));
-    expect(html.match(/<nldd-simple-section/g)).toHaveLength(5);
+    expect(html.match(/<nldd-simple-section/g)).toHaveLength(6);
     expect(html).toContain('Naar de casuskeuze');
     // The picture, described by its caption.
     expect(html).toMatch(/role="img" aria-describedby="kort-bijschrift"/);
     expect(html).toMatch(/<nldd-text id="kort-bijschrift"/);
     expect(html.match(/class="badge"/g)).toHaveLength(schema.pijlen.filter((p) => p.nummer).length);
-    // The order: picture, case, RegelRecht, chronolexografie, the explanation page.
+    // The order: RegelRecht, chronolexografie, picture, case, the explanation page.
     const at = (s) => html.indexOf(s);
-    expect(at('kort-bijschrift')).toBeLessThan(at(casusBlok.title));
-    expect(at(casusBlok.title)).toBeLessThan(at(regelrecht.title));
     expect(at(regelrecht.title)).toBeLessThan(at(chronolexografie.title));
-    expect(at(chronolexografie.title)).toBeLessThan(at(verder));
+    expect(at(chronolexografie.title)).toBeLessThan(at('kort-bijschrift'));
+    expect(at('kort-bijschrift')).toBeLessThan(at(casusBlok.title));
+    expect(at(casusBlok.title)).toBeLessThan(at(verder));
     expect(html.match(/<li[ >]/g)).toHaveLength(casusBlok.stappen.length + regelrecht.bullets.length + chronolexografie.bullets.length);
     expect(html).toMatch(/<code[^>]*>reductie_geldige_gehandicaptenparkeerkaart<\/code>/);
   });
