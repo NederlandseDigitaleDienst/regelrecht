@@ -710,8 +710,7 @@ fn kvk_schrijft_in(spel: &mut Spel, kvk: &str, postcode: &str, personen: u32, da
 
 #[test]
 fn bedrijfsparkeervergunning_the_maximum_in_the_ring_and_a_permit_on_objection() {
-    // The scenario "Het maximum in de schil, en een vergunning na bezwaar":
-    // one person works at the company, so it gets one permit and a second is
+    // One person works at the company, so it gets one permit and a second is
     // refused. After the objection the Chamber registers two, the refusal is
     // revoked and a permit takes its place (Awb 7:11). At the third
     // application the municipality counts that permit and the first, among

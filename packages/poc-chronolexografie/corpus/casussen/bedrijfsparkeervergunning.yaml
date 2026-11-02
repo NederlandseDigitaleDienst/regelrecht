@@ -36,8 +36,8 @@ speeldatum: 2026-10-13
 # Het KvK-nummer is dat van een verzonnen bakkerij in de binnenstad; de
 # KvK-nummers en het kenteken zijn verzonnen. Een bevinding vraagt het
 # formulier alleen bij een bedrijf op het maximum: het oordeel over de
-# hardheidsclausule. De rest geven de Kamer van Koophandel en de cel van de
-# gemeente.
+# hardheidsclausule, in het voorbeeld niet toegepast. De rest geven de Kamer
+# van Koophandel en de cel van de gemeente.
 voorbeeld:
   aanvraag:
     kvk_nummer: '99990011'
@@ -47,6 +47,8 @@ voorbeeld:
     adres_aanvrager: Kerkstraat 1, 7711 AB Wilgendaal
     dagtekening: '2026-10-05'
     gevraagde_beschikking: bedrijfsparkeervergunning
+  bevindingen:
+    toepassing_leidt_tot_onaanvaardbare_gevolgen: false
   bezwaar:
     bezwaar_of_beroepschrift_ondertekend: true
     naam_indiener: Fietsenmakerij Kade
@@ -142,101 +144,106 @@ scenarios:
         uitkomst: toegewezen
     eind: >-
       Toegewezen: de vergunning geldt tot en met 19 oktober 2027.
-  - naam: Het maximum in de schil, en een vergunning na bezwaar
+  # Een demoscenario (frontend/src/presentation/demo.js). Het bedrijf schrijft
+  # zich in het scenario zelf in, zodat de kroniek van de Kamer alleen over
+  # dit bedrijf iets nieuws laat zien. Geen bezwaar: de tweede vergunning
+  # volgt op een nieuwe aanvraag, na de nieuwe inschrijving.
+  - naam: Een tweede vergunning als het bedrijf groeit
     samenvatting: >-
-      In de schil krijgt een bedrijf zoveel vergunningen als er mensen werken,
-      en na een nieuwe inschrijving telt de vergunning uit het bezwaar bij de
-      volgende aanvraag.
+      Een kapsalon in de schil krijgt een tweede vergunning pas als de Kamer
+      van Koophandel twee werkzame personen vermeldt.
     stappen:
+      - stap: vastleggen
+        verhaal: >-
+          Een kapsalon in de schil, waar één persoon werkt, schrijft zich in
+          bij de Kamer van Koophandel.
+        titel: Inschrijving bij de Kamer van Koophandel
+        cel: kamer_van_koophandel
+        feit: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+        invoer:
+          kvk_nummer: '99990055'
+          postcode: 7713 AB
+          aantal_werkzame_personen: 1
+          datum_inschrijving: '2026-10-01'
+        tekst: >-
+          Klik bij Kamer van Koophandel onder "Vastleggen: Vestiging
+          ingeschreven" op Vastleggen.
+        gezien: >-
+          De inschrijving staat in de kroniek van de Kamer.
       - stap: aanvraag
         verhaal: >-
-          Een fietsenmakerij in de schil, waar één persoon werkt, vraagt een
-          vergunning.
+          De kapsalon vraagt een bedrijfsparkeervergunning.
         invoer:
-          kvk_nummer: '99990022'
+          kvk_nummer: '99990055'
+          naam_aanvrager: Kapsalon De Schil
+          adres_aanvrager: Singel 5, 7713 AB Wilgendaal
       - stap: besluit
         verhaal: >-
-          Het college beslist op de eerste aanvraag.
+          Het college beslist op de aanvraag.
         datum: 2026-10-20
         uitkomst: toegewezen
         gezien: >-
-          Toegewezen: de vergunning geldt tot en met 19 oktober 2027.
+          Toegewezen: er werkt één persoon, dus één vergunning past.
       - stap: aanvraag
         verhaal: >-
-          De fietsenmakerij vraagt een tweede vergunning.
+          De kapsalon vraagt een tweede vergunning, voor een tweede auto.
         datum: 2026-10-21
         invoer:
-          kvk_nummer: '99990022'
+          kvk_nummer: '99990055'
+          naam_aanvrager: Kapsalon De Schil
+          adres_aanvrager: Singel 5, 7713 AB Wilgendaal
           kenteken: ZZ-002-Z
       - stap: besluit
         verhaal: >-
           Het college beslist op de tweede aanvraag.
         datum: 2026-10-22
-        invoer:
-          toepassing_leidt_tot_onaanvaardbare_gevolgen: false
         uitkomst: afgewezen
         tekst: >-
           Klik bij de tweede aanvraag op Besluit nemen.
         gezien: >-
-          Afgewezen: er werkt één persoon, dus het maximum van één vergunning
-          is bereikt.
-      - stap: bezwaar
-        verhaal: >-
-          De fietsenmakerij maakt bezwaar tegen de weigering.
-        datum: 2026-11-01
-        op: 2
-        tekst: >-
-          Klik bij het besluit over de tweede aanvraag op Bezwaar maken en dan
-          op Bezwaar indienen.
+          Afgewezen: de gemeente vindt haar eerste vergunning in haar eigen
+          kroniek, en de Kamer vermeldt één werkzame persoon.
       - stap: vastleggen
         verhaal: >-
-          De fietsenmakerij neemt iemand aan en schrijft dat in bij de Kamer.
+          De kapsalon neemt iemand aan en schrijft dat in bij de Kamer.
         titel: Nieuwe inschrijving bij de Kamer van Koophandel
-        datum: 2026-11-10
+        datum: 2026-11-02
         cel: kamer_van_koophandel
         feit: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
         invoer:
-          kvk_nummer: '99990022'
-          postcode: 7713 AA
+          kvk_nummer: '99990055'
+          postcode: 7713 AB
           aantal_werkzame_personen: 2
-          datum_inschrijving: '2026-11-10'
+          datum_inschrijving: '2026-11-02'
         tekst: >-
           Klik bij Kamer van Koophandel onder "Vastleggen: Vestiging
           ingeschreven" op Vastleggen.
         gezien: >-
           De nieuwe inschrijving staat in de kroniek van de Kamer, naast de
           oude.
-      - stap: beslissing_op_bezwaar
-        verhaal: >-
-          Het college heroverweegt de weigering.
-        datum: 2026-11-20
-        uitkomst: gegrond
-        tekst: >-
-          Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op
-          Beslissen op bezwaar.
-        gezien: >-
-          Gegrond: de weigering is herroepen (Awb 7:11), en de vergunning is
-          verleend.
       - stap: aanvraag
         verhaal: >-
-          De fietsenmakerij vraagt een derde vergunning.
-        titel: Een derde aanvraag indienen
-        datum: 2026-12-01
+          De kapsalon vraagt opnieuw een tweede vergunning.
+        titel: Opnieuw een aanvraag indienen
+        datum: 2026-11-03
         invoer:
-          kvk_nummer: '99990022'
-          kenteken: ZZ-003-Z
+          kvk_nummer: '99990055'
+          naam_aanvrager: Kapsalon De Schil
+          adres_aanvrager: Singel 5, 7713 AB Wilgendaal
+          kenteken: ZZ-002-Z
         gezien: >-
           De derde aanvraag staat onder Mijn aanvragen op In behandeling.
       - stap: besluit
         verhaal: >-
-          Het college beslist op de derde aanvraag.
+          Het college beslist op de nieuwe aanvraag.
         titel: Besluiten op de derde aanvraag
-        invoer:
-          toepassing_leidt_tot_onaanvaardbare_gevolgen: false
-        uitkomst: afgewezen
+        datum: 2026-11-05
+        uitkomst: toegewezen
+        tekst: >-
+          Klik bij de derde aanvraag op Besluit nemen.
     eind: >-
-      Afgewezen: er werken twee mensen, dus het maximum van twee vergunningen
-      is bereikt.
+      Toegewezen: op de dag van het besluit vermeldt de Kamer twee werkzame
+      personen, dus de tweede vergunning past.
   - naam: Buiten het gebied, en na de verhuizing erin
     samenvatting: >-
       Een bedrijf buiten de vergunninggebieden krijgt geen vergunning, en na

@@ -50,7 +50,6 @@ import KortPagina from './presentation/KortPagina.vue';
 import UitlegPagina from './presentation/UitlegPagina.vue';
 import { KORT, useKort } from './presentation/useKort.js';
 import { useUitleg } from './presentation/useUitleg.js';
-import { DEMO_CASUS } from './presentation/demo.js';
 import { startIndex, usePresentation } from './presentation/usePresentation.js';
 
 // Het tabblad Andere cellen staat er alleen bij een casus met andere cellen
@@ -174,18 +173,21 @@ function chooseScenario() {
   hideGuide();
   tab.value = 'scenarios';
 }
+// A scenario opens on the tab of its first step, such as a registration at
+// another cell.
 async function started() {
-  tab.value = 'aanvrager';
+  tab.value = guideFor(state.casus, state.scenario)?.steps[0]?.tab ?? 'aanvrager';
   await openGuide();
 }
 async function restart() {
   if (await beginScenario(state.scenario)) await started();
 }
-// A demo scenario of the parking card, from the choice screen: choose the
-// case if it is not open, then begin the scenario as its own button does.
-function startDemo(naam) {
+// A demo scenario (presentation/demo.js), from the choice screen: choose
+// its case if that is not open, then begin the scenario as its own button
+// does.
+function startDemo({ casus, naam }) {
   return navigate(async (mine) => {
-    if (state.casus?.id !== DEMO_CASUS && !(await kiezen(DEMO_CASUS))) return false;
+    if (state.casus?.id !== casus && !(await kiezen(casus))) return false;
     if (!current(mine) || !(await beginScenario(naam)) || !current(mine)) return false;
     await started();
   });
