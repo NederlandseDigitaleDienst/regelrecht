@@ -13,7 +13,6 @@
 // staan de bevindingen ingevuld zoals de stap ze geeft (scenarioInvoer.js).
 import { computed, reactive } from 'vue';
 import { api } from '../api.js';
-import { artikelNaam } from '../logboek.js';
 import { stilBegrippen } from '../stil.js';
 import {
   aanvragen,
@@ -29,6 +28,7 @@ import {
   zonderLeeg,
 } from '../state.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
+import ArtikelLink from './ArtikelLink.vue';
 import Uitkomst from './Uitkomst.vue';
 import OordeelKeuze from './OordeelKeuze.vue';
 import StilOordeel from './StilOordeel.vue';
@@ -37,11 +37,6 @@ import Waarom from './Waarom.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
 const oordelen = () => state.vormen?.besluit.bevindingen ?? [];
-
-const artikel = computed(() => {
-  const [wet, nummer] = besluitBasis().split('#');
-  return artikelNaam(wet, nummer);
-});
 
 const open = computed(() => aanvragen().filter((a) => !besluitOp(a.id)));
 const openBezwaren = computed(() =>
@@ -123,7 +118,7 @@ const uitkomstOpBezwaar = (uit) =>
   <nldd-simple-section>
     <nldd-title slot="header" size="3" text="Open aanvragen">
       <nldd-text slot="supporting-text">
-        Het bestuursorgaan is hier {{ state.casus.rol }} ({{ artikel }}). Het beslist met de
+        Het bestuursorgaan is hier {{ state.casus.rol }} (<ArtikelLink :basis="besluitBasis()" />). Het beslist met de
         aanvraag, het beleid en de bevindingen hieronder. Wat de cel zelf uit haar
         kroniek beantwoordt, vraagt deze pagina niet.
       </nldd-text>
@@ -176,7 +171,7 @@ const uitkomstOpBezwaar = (uit) =>
       <nldd-text slot="supporting-text">
         Beslissen op bezwaar (Awb 7:11). Eerst de ontvankelijkheid: een bezwaar dat te laat
         kwam, of tegen een besluit op bezwaar, wordt niet heroverwogen. Anders heroverweegt
-        het bestuursorgaan: {{ artikel }} wordt opnieuw toegepast op dezelfde aanvraag. Het kan
+        het bestuursorgaan: <ArtikelLink :basis="besluitBasis()" /> wordt opnieuw toegepast op dezelfde aanvraag. Het kan
         een bevinding opnieuw geven, bijvoorbeeld na nieuwe stukken bij het bezwaar. Verschilt
         de uitkomst, dan herroept de beslissing het besluit en komt er een nieuw besluit. Een
         besluit wordt maar één keer vervangen.
