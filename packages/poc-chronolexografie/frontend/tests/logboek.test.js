@@ -14,6 +14,7 @@ beforeEach(() => {
       { id: 'leerplichtwet_1969', naam: null },
       { id: 'algemene_wet_bestuursrecht', naam: 'Algemene wet bestuursrecht' },
       { id: 'fictief_beleid_met_naam', naam: 'Beleid van de gemeente' },
+      { id: 'wet_met_verwijzing_als_naam', naam: '#wet_naam' },
     ],
   };
 });
@@ -181,6 +182,7 @@ describe('toon en artikelNaam', () => {
     expect(artikelNaam('fictief_beleid', '2')).toBe('Fictief beleid artikel 2');
     expect(wetNaam('fictief_beleid_met_naam')).toBe('Beleid van de gemeente');
     expect(wetNaam('besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw')).toBe('BABW');
+    expect(wetNaam('wet_met_verwijzing_als_naam')).toBe('Wet met verwijzing als naam');
   });
 });
 

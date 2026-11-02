@@ -19,12 +19,13 @@ const AFKORTINGEN = {
 
 /**
  * De naam van een regelwerk: zijn afkorting, de naam die het zelf draagt
- * (`api.casus`), of zijn `$id` leesbaar met een hoofdletter.
+ * (`api.casus`), of zijn `$id` leesbaar met een hoofdletter. Een naam die
+ * naar een waarde van het regelwerk verwijst (`'#wet_naam'`) is geen naam.
  */
 export function wetNaam(wet) {
   if (AFKORTINGEN[wet]) return AFKORTINGEN[wet];
   const naam = state.casus?.regelwerken?.find((r) => r.id === wet)?.naam;
-  if (naam) return naam;
+  if (naam && !naam.startsWith('#')) return naam;
   return hoofdletter(leesbaar(wet));
 }
 

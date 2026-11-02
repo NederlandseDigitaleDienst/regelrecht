@@ -33,6 +33,17 @@ async function tekst(url) {
  */
 export const bestanden = async () => JSON.parse(await tekst(b('/bundel.json')));
 
+let bronnen = null;
+
+/**
+ * De bronnen, één keer opgehaald per tabblad: de cel krijgt ze bij het laden,
+ * het paneel van een artikel leest er de tekst uit bij een casus uit een bron.
+ */
+export function opgehaaldeBronnen() {
+  bronnen ??= haalBronnen(b('/bronnen.json'), (naam) => b(`/bron/${encodeURIComponent(naam)}`));
+  return bronnen;
+}
+
 let laden = null;
 
 /** Het spel van dit tabblad; de eerste keer laadt het de cel. */
@@ -44,14 +55,15 @@ function poc() {
       const wasm = await import(/* @vite-ignore */ url);
       URL.revokeObjectURL(url);
       await wasm.default({ module_or_path: b('/wasm/pkg/regelrecht_poc_chronolexografie_bg.wasm') });
-      const [bundel, bronnen] = await Promise.all([
+      const [bundel, opgehaald] = await Promise.all([
         tekst(b('/bundel.json')),
-        haalBronnen(b('/bronnen.json'), (naam) => b(`/bron/${encodeURIComponent(naam)}`)),
+        opgehaaldeBronnen(),
       ]);
-      return new wasm.Poc(bundel, JSON.stringify(bronnen));
+      return new wasm.Poc(bundel, JSON.stringify(opgehaald));
     } catch (e) {
-      // Een volgende stap probeert het opnieuw.
+      // Een volgende stap probeert het opnieuw, ook de bronnen.
       laden = null;
+      bronnen = null;
       throw new Error(`the cell did not load: ${e?.message ?? e}`);
     }
   })();

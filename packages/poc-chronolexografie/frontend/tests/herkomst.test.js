@@ -1,8 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// The bundle: two versions of the policy, each with its own article 1.
+// The bundle: two versions of the policy, each with its own article 1. A
+// source keys its files by their path in the source, and has its own text.
 vi.mock('../src/api.js', async (importOriginal) => ({
   ...(await importOriginal()),
+  opgehaaldeBronnen: async () => [
+    { naam: 'kapot', fout: 'bron niet beschikbaar' },
+    {
+      naam: 'voorbeeld',
+      bestanden: {
+        'casussen/parkeren.yaml': 'cel: gemeente_wilgendaal\n',
+        'regulation/nl/uitvoeringsbeleid/beleid_parkeren/2026-01-01.yaml': "articles:\n  - number: '1'\n    text: uit de bron\n",
+      },
+    },
+  ],
   bestanden: async () => ({
     'pocs/x/corpus/casussen/parkeren.yaml': 'cel: gemeente_wilgendaal\n',
     'pocs/x/corpus/regulation/nl/uitvoeringsbeleid/beleid_parkeren/2026-01-01.yaml': "articles:\n  - number: '1'\n    text: oud\n",
@@ -10,7 +21,7 @@ vi.mock('../src/api.js', async (importOriginal) => ({
   }),
 }));
 
-import { artikelTekst, gelezenGrammen, herkomstVan, klikbaar, laag, leden } from '../src/herkomst.js';
+import { artikelInhoud, gelezenGrammen, herkomstVan, herkomstVanBasis, klikbaar, laag, leden, machineReadableVan } from '../src/herkomst.js';
 import { state } from '../src/state.js';
 
 beforeEach(() => {
@@ -64,6 +75,8 @@ describe('herkomstVan', () => {
     const antwoord = { answerer: 'kamer_van_koophandel', answer: 'postcode', last_record: 'k2' };
     expect(herkomstVan(begrip({ answer: { law_id: 'beleid_parkeren', article: '1', answers: [antwoord] } }))).toEqual({
       soort: 'reductie',
+      begrip: 'x',
+      waarde: true,
       antwoorden: [antwoord],
     });
     expect(herkomstVan(begrip(null))).toBeNull();
@@ -74,6 +87,23 @@ describe('herkomstVan', () => {
     expect(klikbaar({ soort: 'bevinding' })).toBe(false);
     expect(klikbaar({ soort: 'wet', wet: 'a', artikel: '1' })).toBe(true);
     expect(klikbaar(null)).toBe(false);
+  });
+});
+
+describe('herkomstVanBasis', () => {
+  it('points a chronolexogram at the article it rests on', () => {
+    expect(herkomstVanBasis('beleid_parkeren#2')).toEqual({ soort: 'beleid', wet: 'beleid_parkeren', artikel: '2' });
+    expect(herkomstVanBasis('algemene_wet_bestuursrecht#7:11')).toEqual({
+      soort: 'wet',
+      wet: 'algemene_wet_bestuursrecht',
+      artikel: '7:11',
+    });
+  });
+
+  it('gives null for a basis that names no article', () => {
+    expect(herkomstVanBasis('beleid_parkeren')).toBeNull();
+    expect(herkomstVanBasis('')).toBeNull();
+    expect(herkomstVanBasis(undefined)).toBeNull();
   });
 });
 
@@ -97,21 +127,77 @@ describe('leden', () => {
   });
 });
 
-describe('artikelTekst', () => {
+const tekst = async (...args) => (await artikelInhoud(...args))?.tekst ?? null;
+
+describe('artikelInhoud', () => {
   it('takes the version valid on the given day, or the play date', async () => {
     state.datum = '2027-03-01';
-    expect(await artikelTekst('beleid_parkeren', '1')).toBe('nieuw');
-    expect(await artikelTekst('beleid_parkeren', '1', '2026-06-01')).toBe('oud');
+    expect(await tekst('beleid_parkeren', '1')).toBe('nieuw');
+    expect(await tekst('beleid_parkeren', '1', '2026-06-01')).toBe('oud');
   });
 
   it('takes the first version before any is valid, and gives null for what it lacks', async () => {
-    expect(await artikelTekst('beleid_parkeren', '1', '2025-01-01')).toBe('oud');
-    expect(await artikelTekst('beleid_parkeren', '9')).toBeNull();
-    expect(await artikelTekst('onbekend', '1')).toBeNull();
+    expect(await tekst('beleid_parkeren', '1', '2025-01-01')).toBe('oud');
+    expect(await tekst('beleid_parkeren', '9')).toBeNull();
+    expect(await tekst('onbekend', '1')).toBeNull();
   });
 
-  it('gives null for a case from a source, whose regelwerken are not in the bundle', async () => {
-    state.casus.bron = 'napp';
-    expect(await artikelTekst('beleid_parkeren', '1', '2026-06-01')).toBeNull();
+  it('reads a case from a source from the files of that source, not the bundle', async () => {
+    state.casus.bron = 'voorbeeld';
+    expect(await tekst('beleid_parkeren', '1', '2027-06-01')).toBe('uit de bron');
+  });
+
+  it('gives null for a case from a source that did not load', async () => {
+    state.casus.bron = 'kapot';
+    expect(await tekst('beleid_parkeren', '1')).toBeNull();
+    state.casus.bron = 'onbekend';
+    expect(await tekst('beleid_parkeren', '1')).toBeNull();
+  });
+});
+
+describe('machineReadableVan', () => {
+  const yaml = [
+    'articles:',
+    "  - number: '1'",
+    '    text: Een.',
+    "  - number: '7:11'",
+    '    text: |',
+    '      Bij ontvankelijkheid.',
+    '    # Lid 1, zoals de wet het zegt.',
+    '    machine_readable:',
+    '      execution:',
+    '        # De heroverweging.',
+    '        output:',
+    '          - name: herroepen',
+    '',
+    '    links: []',
+    '  - number: 8',
+    '    machine_readable:',
+    '      definitions: {}',
+    '',
+  ].join('\n');
+
+  it('cuts the block as written, with its comments, dedented to its key', () => {
+    expect(machineReadableVan(yaml, '7:11')).toBe(
+      [
+        '# Lid 1, zoals de wet het zegt.',
+        'machine_readable:',
+        '  execution:',
+        '    # De heroverweging.',
+        '    output:',
+        '      - name: herroepen',
+      ].join('\n'),
+    );
+    expect(machineReadableVan(yaml, 8)).toBe('machine_readable:\n  definitions: {}');
+  });
+
+  it('gives null for an article without one, or one not in the text', () => {
+    expect(machineReadableVan(yaml, '1')).toBeNull();
+    expect(machineReadableVan(yaml, '2')).toBeNull();
+  });
+
+  it('comes with the article from the files of the case', async () => {
+    state.casus.bron = undefined;
+    expect((await artikelInhoud('beleid_parkeren', '1', '2026-06-01')).machineReadable).toBeNull();
   });
 });

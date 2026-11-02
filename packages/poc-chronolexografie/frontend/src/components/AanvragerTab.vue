@@ -27,6 +27,7 @@ import {
   zonderLeeg,
 } from '../state.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
+import ArtikelLink from './ArtikelLink.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
 const aanvraagVorm = formulier(() => scenarioWaarden('aanvraag'));
@@ -156,10 +157,16 @@ async function indienenTegen() {
           </nldd-title>
           <nldd-list>
             <nldd-list-item v-for="s in dossier(a)" :key="s.gram.id" size="sm">
-              <nldd-text-cell
-                :text="`${s.rol} ${kort(s.gram.id)}`"
-                :supporting-text="`${s.gram.recorded_on} · ${s.gram.basis}${s.rechter ? ` · ${state.casus.rechter.cel_naam}` : ''}`"
-              ></nldd-text-cell>
+              <!-- The article each step rests on opens in the sheet of the
+                   chain: the application its establishing article, a
+                   decision the article that took it. -->
+              <nldd-text-cell :text="`${s.rol} ${kort(s.gram.id)}`">
+                <span slot="supporting-text">
+                  {{ s.gram.recorded_on }} ·
+                  <ArtikelLink :basis="s.gram.basis" :datum="s.gram.recorded_on" /><template v-if="s.rechter">
+                    · {{ state.casus.rechter.cel_naam }}</template>
+                </span>
+              </nldd-text-cell>
               <nldd-cell v-if="!s.rechter && isBesluit(s.gram)" width="fit-content">
                 <nldd-button
                   appearance="secondary"
