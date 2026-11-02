@@ -99,24 +99,22 @@ export const casusBlok = {
 export const regelrecht = {
   title: 'Wat RegelRecht is',
   bullets: [
-    'RegelRecht legt een wet of regeling één keer vast als regels die een computer kan uitvoeren, in YAML.',
-    'Per artikel staan de wettekst en de uitvoerbare regels naast elkaar.',
-    'Eén engine voert die regels uit, op een datum die je kiest. Bij elke uitkomst laat hij zien welke artikelen hij gebruikte.',
-    'Laat een artikel iets open, dan vult een andere regel dat open begrip in, zoals een lagere regeling of uitvoeringsbeleid.',
-    'Een artikel kan een uitkomst uit een andere wet gebruiken. De engine volgt die verwijzing zelf.',
-    'De regels zijn een interpretatie van de wet. Bij verschil gaat de wet voor.',
+    'RegelRecht legt een wet één keer vast als uitvoerbare regels.',
+    'Per artikel staan de wettekst en de regels naast elkaar.',
+    'Eén engine voert de regels uit en laat zien welke artikelen hij gebruikte.',
+    'Burger, uitvoerder, wetgever en rechter gebruiken dezelfde regels.',
   ],
 };
 
 export const chronolexografie = {
   title: 'Hoe chronolexografie daarop uitbreidt',
   bullets: [
-    'Elke organisatie heeft een cel. Die legt aanvragen, besluiten, bezwaren en beroepen vast in haar eigen kroniek.',
-    'In de kroniek komt alleen iets bij. Een herroepen besluit blijft staan.',
-    'Een reductie is een rekenregel die de kroniek terugleest. Zo beantwoordt een cel een vraag over wat zij eerder vastlegde.',
-    'Met chronolexografie kan uitvoeringsbeleid een open begrip koppelen aan het antwoord van een cel. Eén vraag gaat naar één cel, en de engine neemt de antwoorden samen.',
-    'Zo telt bij een besluit mee wat de organisatie eerder besloot en wat daarvan na bezwaar of beroep nog geldt. Ook telt mee wat een andere organisatie vastlegde, zoals een advies van de GGD.',
-    'Elk feit staat bij wie het vaststelde. Daardoor kun je een besluit later naspelen, met de wet en de kroniek van die dag.',
+    'Elke organisatie legt haar aanvragen en besluiten vast in de kroniek van haar cel.',
+    'In de kroniek komt alleen iets bij.',
+    'Een reductie is een rekenregel die de kroniek terugleest.',
+    'De RegelRecht-engine gebruikt de uitkomst van een reductie.',
+    'Bijvoorbeeld: hoeveel geldige parkeervergunningen een bedrijf al heeft, voor het maximum per bedrijf.',
+    'Zo kun je een besluit later naspelen met de wet en de kroniek van die dag.',
   ],
 };
 
