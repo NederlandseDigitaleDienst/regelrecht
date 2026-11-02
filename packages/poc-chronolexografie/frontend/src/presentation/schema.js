@@ -29,9 +29,9 @@ export const SOORTEN = [
 
 /** The kinds of line, in the order of the legend. */
 export const LIJNSOORTEN = [
-  { soort: 'rekent', label: 'rekent met een naam uit hetzelfde regelwerk', yaml: 'actions, source.parameters' },
+  { soort: 'rekent', label: 'rekent met een naam uit hetzelfde regelwerk', yaml: 'actions, source.parameters, source.output, source.regulation' },
   { soort: 'vult_in', label: 'vult een open begrip in', yaml: 'implements' },
-  { soort: 'leest', label: 'gebruikt een uitkomst', yaml: 'source.regulation' },
+  { soort: 'leest', label: 'gebruikt een uitkomst uit een ander regelwerk', yaml: 'source.regulation' },
   { soort: 'vraagt', label: 'vraagt een cel, die een reductie aanwijst', yaml: 'source.reduction, answers' },
   { soort: 'kroniek', label: 'leest de kroniek', yaml: 'source.decisions, source.facts' },
 ];
@@ -188,7 +188,9 @@ function namenIn(waarde, uit = new Set()) {
  * along the chain. A line runs from what is needed to what needs it:
  *
  *  - `rekent`: an output is computed from a name in the same article
- *    (`actions`), or an input passes one on (`source.parameters`).
+ *    (`actions`), an input passes one on (`source.parameters`), or an input
+ *    takes an output of its own regelwerk (`source.output`, or
+ *    `source.regulation` that names its own regelwerk).
  *  - `leest`: from an output to the input in another file that takes it
  *    (`source.regulation`).
  *  - `vult_in`: from the output that fills in an open term to the term
@@ -450,7 +452,7 @@ function eenvoudig({ bestanden, lijnen }, doorgaven) {
  * sources behind it. Everything else is one last step, `reststap`; without
  * anything else there is none (null). `stappen` is how many there are.
  */
-function genummerd({ bestanden, lijnen }, doel) {
+export function genummerd({ bestanden, lijnen }, doel) {
   const namen = bestanden.flatMap((b) => b.begrippen.map((g) => ({ k: sleutel(b.pad, g.key), soort: b.soort, pad: b.pad, artikel: g.artikel })));
   const ouder = new Map(namen.map((g) => [g.k, g.k]));
   const wortel = (k) => (ouder.get(k) === k ? k : wortel(ouder.get(k)));
@@ -540,9 +542,9 @@ export const andereStap = (stap, stapje, stappen) => Math.min(stappen, Math.max(
  */
 const HERKOMST = {
   rekent: ['naam', 'namen', 'uit hetzelfde regelwerk'],
-  vult_in: ['invulling', 'invullingen', 'uit een andere regeling'],
-  leest: ['uitkomst', 'uitkomsten', 'uit een andere regeling'],
-  vraagt: ['vraag', 'vragen', 'aan een cel'],
+  vult_in: ['invulling', 'invullingen', 'uit een ander regelwerk'],
+  leest: ['uitkomst', 'uitkomsten', 'uit een ander regelwerk'],
+  vraagt: ['antwoord', 'antwoorden', 'van een cel'],
   vraagt_reductie: ['antwoord', 'antwoorden', 'van een reductie'],
   kroniek: ['bron', 'bronnen', 'uit de kroniek'],
 };
@@ -596,7 +598,10 @@ export function stapZin({ bestanden, lijnen, stappen, reststap }, n) {
       .filter(([k]) => per.has(k))
       .map(([k, [een, veel, waar]]) => {
         const aantal = per.get(k).size;
-        const namen = [...new Set(per.get(k).values())];
+        // Names that are alike are counted, so the names add up to the count.
+        const keer = new Map();
+        for (const naam of per.get(k).values()) keer.set(naam, (keer.get(naam) ?? 0) + 1);
+        const namen = [...keer].map(([naam, aantalKeer]) => (aantalKeer > 1 ? `${naam} ${aantalKeer} keer` : naam));
         const deel = `${aantal === 1 ? `een ${een}` : `${aantal} ${veel}`} ${waar}`;
         return metNamen ? `${deel} (${namen.join(', ')})` : deel;
       });

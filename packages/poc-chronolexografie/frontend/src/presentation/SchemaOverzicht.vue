@@ -74,6 +74,7 @@ const stap = ref(null);
 const beeld = computed(() => (stap.value ? stapBeeld(s.value, stap.value) : null));
 const vorigeKnop = ref(null);
 const volgendeKnop = ref(null);
+const allesKnop = ref(null);
 
 /** Go to step `n`, from the button in `event`. */
 async function ga(n, event) {
@@ -82,7 +83,8 @@ async function ga(n, event) {
   await nextTick();
   // A button that just turned off has lost the keyboard focus: hand it on.
   if (!knop.disabled) return;
-  const ander = (n === s.value.stappen ? vorigeKnop : volgendeKnop).value;
+  // With one step only, the other way is off as well: then back to the whole picture.
+  const ander = [n === s.value.stappen ? vorigeKnop : volgendeKnop, allesKnop].map((r) => r.value).find((x) => x && !x.disabled);
   await ander?.updateComplete;
   ander?.focus();
 }
@@ -183,7 +185,7 @@ watch(s, async () => {
       <nldd-button-bar>
         <nldd-button ref="vorigeKnop" appearance="neutral-tinted" text="Vorige stap" :disabled="stap <= 1 || undefined" @click="ga(andereStap(stap, -1, s.stappen), $event)"></nldd-button>
         <nldd-button ref="volgendeKnop" appearance="primary" text="Volgende stap" :disabled="stap === s.stappen || undefined" @click="ga(andereStap(stap, 1, s.stappen), $event)"></nldd-button>
-        <nldd-button appearance="neutral-tinted" text="Toon alles" :disabled="!stap || undefined" @click="ga(null, $event)"></nldd-button>
+        <nldd-button ref="allesKnop" appearance="neutral-tinted" text="Toon alles" :disabled="!stap || undefined" @click="ga(null, $event)"></nldd-button>
       </nldd-button-bar>
       <div aria-live="polite">
         <nldd-text size="sm">{{ stapZin(s, stap) }}</nldd-text>
@@ -276,6 +278,8 @@ watch(s, async () => {
   padding: 4px 48px 4px 4px;
 }
 .kolom {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -335,10 +339,6 @@ code,
 code {
   font-size: 0.8125rem;
 }
-.kolom {
-  position: relative;
-  z-index: 1;
-}
 .lijnen {
   position: absolute;
   inset: 0;
@@ -363,22 +363,18 @@ code {
 .punt {
   fill: var(--kleur);
 }
-.vult_in,
 .rekent {
   --kleur: var(--primitives-color-coolgray-700);
 }
 .vult_in {
   --kleur: var(--primitives-color-paars-600);
 }
-.leest,
 .leest {
   --kleur: var(--primitives-color-lintblauw-600);
 }
-.vraagt,
 .vraagt {
   --kleur: var(--primitives-color-oranje-600);
 }
-.kroniek,
 .kroniek {
   --kleur: var(--primitives-color-donkergroen-600);
 }

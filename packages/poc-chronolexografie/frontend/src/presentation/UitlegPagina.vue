@@ -68,8 +68,19 @@ const stukken = (zin) =>
 
 /** The case file, which the picture starts from. */
 const casusPad = `${CASUSSEN}${casus}.yaml`;
-/** The picture, once the files are there. */
-const plaatje = computed(() => (alle.value?.[casusPad] ? ketenVan(alle.value, casus, keten.start) : null));
+/**
+ * The picture, once the files are there (`plaatje`); `kapot` when they are
+ * there but do not make one, which costs the picture, not the page.
+ */
+const opbouw = computed(() => {
+  if (!alle.value?.[casusPad]) return {};
+  try {
+    return { plaatje: ketenVan(alle.value, casus, keten.start) };
+  } catch (e) {
+    console.error('Uit deze YAML kan de pagina geen schema maken', e);
+    return { kapot: true };
+  }
+});
 
 /** The file of a panel, short: its last three parts. */
 const kortPad = (source) => source.split('/').slice(-3).join('/');
@@ -94,7 +105,8 @@ const kortPad = (source) => source.split('/').slice(-3).join('/');
       <nldd-text v-for="(t, j) in keten.text" :key="j">
         <template v-for="(st, k) in stukken(t)" :key="k"><code v-if="st.code">{{ st.code }}</code><template v-else>{{ st.tekst }}</template></template>
       </nldd-text>
-      <SchemaOverzicht v-if="plaatje" :schema="plaatje" :label="keten.title" />
+      <SchemaOverzicht v-if="opbouw.plaatje" :schema="opbouw.plaatje" :label="keten.title" />
+      <nldd-text v-else-if="opbouw.kapot" size="sm" color="secondary">Uit deze YAML kan de pagina geen schema maken. De bestanden hieronder kun je wel bekijken.</nldd-text>
       <nldd-text v-else size="sm" color="secondary">{{ fout ? 'De YAML kwam niet binnen. Herlaad de pagina om het opnieuw te proberen.' : 'De YAML wordt geladen.' }}</nldd-text>
     </nldd-container>
   </nldd-simple-section>

@@ -1,32 +1,11 @@
-import { readdirSync, readFileSync, statSync } from 'fs';
-import { join, relative } from 'path';
-import { fileURLToPath } from 'url';
 import { describe, expect, it } from 'vitest';
 import { createSSRApp, h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import SchemaOverzicht from '../src/presentation/SchemaOverzicht.vue';
-import { KRONIEK, LIJNSOORTEN, SOORTEN, andereStap, keten, sleutel, stapBeeld, stapZin } from '../src/presentation/schema.js';
-import { CORPUS } from '../src/corpus.js';
+import { KRONIEK, LIJNSOORTEN, SOORTEN, andereStap, genummerd, keten, sleutel, stapBeeld, stapZin } from '../src/presentation/schema.js';
 import { keten as ketenUitleg } from '../src/presentation/uitleg.js';
+import { bundel } from './bundel.js';
 
-const repo = fileURLToPath(new URL('../../../../', import.meta.url));
-
-/** The YAML files of the corpus of the poc, per path, as the bundle has them (scripts/copy-assets.js). */
-function bundel() {
-  const alle = {};
-  const lees = (dir) => {
-    for (const e of readdirSync(dir)) {
-      const pad = join(dir, e);
-      if (statSync(pad).isDirectory()) {
-        if (e !== 'scenarios') lees(pad);
-      } else if (pad.endsWith('.yaml')) {
-        alle[relative(repo, pad).split('\\').join('/')] = readFileSync(pad, 'utf8');
-      }
-    }
-  };
-  lees(join(repo, CORPUS));
-  return alle;
-}
 const alle = bundel();
 const map = (pad) => (pad === KRONIEK ? KRONIEK : pad.split('/').at(-2));
 const heeft = (s, soort, van, naar) =>
@@ -165,6 +144,21 @@ describe('the picture of one value', () => {
       expect(stapVan(KRONIEK, 'vestiging_ingeschreven')).toBe(k.reststap);
     });
 
+    it('takes, of two paths as long, the one with the most sources behind it', () => {
+      // doel <- a <- (x, y)   and   doel <- b <- z: as long, but a has two sources.
+      const naam = (k) => ({ key: k, naam: k });
+      const bestanden = [
+        { pad: 'w', soort: 'wet', begrippen: ['doel', 'b', 'a'].map(naam) },
+        { pad: 'k', soort: 'kroniek', begrippen: ['z', 'x', 'y'].map(naam) },
+      ];
+      const lijn = (van, naar) => ({ soort: 'leest', van: { pad: van[0], begrip: van[1] }, naar: { pad: naar[0], begrip: naar[1] } });
+      const lijnen = [lijn(['w', 'b'], ['w', 'doel']), lijn(['w', 'a'], ['w', 'doel']), lijn(['k', 'z'], ['w', 'b']), lijn(['k', 'x'], ['w', 'a']), lijn(['k', 'y'], ['w', 'a'])];
+      const r = genummerd({ bestanden, lijnen }, { pad: 'w', begrip: 'doel' });
+      const stap = Object.fromEntries(r.bestanden.flatMap((b) => b.begrippen.map((g) => [g.key, g.stap])));
+      expect(stap).toEqual({ doel: 1, a: 2, x: 3, y: 3, b: 4, z: 4 });
+      expect(r.reststap).toBe(4);
+    });
+
     it('has no rest step when the path takes in everything', () => {
       const een = keten(alle, 'bedrijfsparkeervergunning', { law: beleid, article: '1', naam: 'postcode_vestiging_volgens_handelsregister' });
       expect(een.reststap).toBeNull();
@@ -219,7 +213,11 @@ describe('the picture of one value', () => {
         expect(z.match(/\.$/g)).toHaveLength(1);
       }
       const alles = zinnen.join(' ');
-      for (const waar of ['uit een andere regeling', 'aan een cel', 'van een reductie', 'uit de kroniek']) expect(alles).toContain(waar);
+      for (const waar of ['uit een ander regelwerk', 'van een cel', 'van een reductie', 'uit de kroniek']) expect(alles).toContain(waar);
+      // Names that are alike are counted, so the names add up to the count.
+      expect(stapZin(k, k.reststap - 1)).toBe(
+        `Stap ${k.reststap - 1} van ${k.stappen}, hier komt de keten bij de bron uit: 3 bronnen uit de kroniek (beschikking 2 keer, afschrift van de uitspraak).`,
+      );
     });
 
     it('says of the rest that it works the same way, and where it ends up', () => {

@@ -2,17 +2,19 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { load } from 'js-yaml';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createSSRApp, h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import UitlegPagina from '../src/presentation/UitlegPagina.vue';
 import { matches, nodePaths } from '@regelrecht/frontend-shared/yamlExpand';
-import { bronnen, casus, intro, openPaden, steps } from '../src/presentation/uitleg.js';
+import { bronnen, casus, intro, keten, openPaden, steps } from '../src/presentation/uitleg.js';
 import { asked, createUitleg, withParam } from '../src/presentation/useUitleg.js';
+import { CASUSSEN } from '../src/presentation/schema.js';
+import { bundel } from './bundel.js';
 
 const repo = fileURLToPath(new URL('../../../../', import.meta.url));
 const panels = steps.flatMap((s) => s.panels.map((p) => [`${s.title}: ${p.label}`, p]));
-const texts = [intro.title, intro.lead, ...steps.flatMap((s) => [s.title, ...s.text])];
+const texts = [intro.title, intro.lead, keten.title, ...keten.text, ...steps.flatMap((s) => [s.title, ...s.text])];
 
 describe('the explanation page', () => {
   it.each(panels)('%s shows its whole file, and every path that starts open is there', (_, p) => {
@@ -135,6 +137,27 @@ describe('the page', () => {
     // The whole file, from the root: its identity and its other articles too.
     expect(html).toContain('parkeerverordening_gemeente_wilgendaal');
     expect(html.match(/>\s*\$id\s*</g)?.length ?? 0).toBeGreaterThanOrEqual(panels.filter(([, q]) => !q.source.endsWith('cel.yaml')).length);
+  });
+
+  it('draws the picture of one value from the bundle', async () => {
+    const html = await renderToString(createSSRApp({ render: () => h(UitlegPagina, { bestanden: bundel() }) }));
+    expect(html).toContain('data-begrip=');
+    expect(html).toContain('Volgende stap');
+    expect(html).not.toMatch(/De YAML (wordt geladen|kwam niet binnen)|geen schema maken/);
+  });
+
+  it('loses only the picture when the files cannot make one', async () => {
+    const stuk = { ...bundel(), [`${CASUSSEN}${casus}.yaml`]: 'cel: gemeente_wilgendaal\ncorpus: 5\n' };
+    const fout = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const html = await renderToString(createSSRApp({ render: () => h(UitlegPagina, { bestanden: stuk }) }));
+      expect(html).toContain('Uit deze YAML kan de pagina geen schema maken.');
+      expect(html).not.toContain('kwam niet binnen');
+      expect(html.match(/class="yaml-tree"/g)).toHaveLength(panels.length);
+      expect(fout).toHaveBeenCalledTimes(1);
+    } finally {
+      fout.mockRestore();
+    }
   });
 
   it('loads the files when none are given, and says so until they are there', async () => {
