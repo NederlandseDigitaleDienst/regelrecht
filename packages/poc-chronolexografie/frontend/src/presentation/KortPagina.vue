@@ -5,11 +5,12 @@
 // The choice screen opens it, and so does an address with `?kort`
 // (useKort.js); the button at the top goes back to the choice screen. The
 // button under the case opens that case, the one at the bottom the
-// explanation page (UitlegPagina.vue). Both are links too, so they open in a
-// tab of their own.
+// explanation page (UitlegPagina.vue). Both are links too, so a click with
+// a modifier key opens them in a tab of their own.
 import { nextTick, onMounted, ref } from 'vue';
 import { routePath } from '../route.js';
 import KortSchema from './KortSchema.vue';
+import { stukken } from './stukken.js';
 import { casus, casusBlok, chronolexografie, intro, regelrecht, schema, verder } from './kort.js';
 import { useKort } from './useKort.js';
 import { PARAM as UITLEG } from './useUitleg.js';
@@ -30,12 +31,15 @@ onMounted(async () => {
   terugKnop.value?.focus();
 });
 
-/** A sentence in pieces: plain text, and `name` as code. */
-const stukken = (zin) =>
-  String(zin)
-    .split(/(`[^`]+`)/)
-    .filter(Boolean)
-    .map((s) => (s.startsWith('`') ? { code: s.slice(1, -1) } : { tekst: s }));
+/**
+ * A click on a link the app follows itself; with a modifier key held, the
+ * browser follows it, to a tab or window of its own.
+ */
+function volg(e, doe) {
+  if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  doe();
+}
 </script>
 
 <template>
@@ -76,13 +80,13 @@ const stukken = (zin) =>
         </ol>
       </nldd-rich-text>
       <nldd-button-bar>
-        <nldd-button appearance="secondary" :href="casusHref" :text="casusBlok.knop" @click.prevent="emit('casus', casus)"></nldd-button>
+        <nldd-button appearance="secondary" :href="casusHref" :text="casusBlok.knop" @click="volg($event, () => emit('casus', casus))"></nldd-button>
       </nldd-button-bar>
     </nldd-container>
   </nldd-simple-section>
   <nldd-simple-section>
     <nldd-button-bar>
-      <nldd-button appearance="primary" :href="uitlegHref" :text="verder" @click.prevent="emit('uitleg')"></nldd-button>
+      <nldd-button appearance="primary" :href="uitlegHref" :text="verder" @click="volg($event, () => emit('uitleg'))"></nldd-button>
     </nldd-button-bar>
   </nldd-simple-section>
 </template>

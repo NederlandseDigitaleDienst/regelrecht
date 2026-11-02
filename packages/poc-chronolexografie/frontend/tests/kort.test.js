@@ -52,6 +52,8 @@ describe('the short page', () => {
     }
     // The answer of step 7 is the one the policy asks for in step 6.
     expect(all).toContain('aanvrager_heeft_geldige_gehandicaptenparkeerkaart: reductie_geldige_gehandicaptenparkeerkaart');
+    // The policy asks the cell with `source.reduction` (step 6).
+    expect(all).toContain('reduction: aanvrager_heeft_geldige_gehandicaptenparkeerkaart');
   });
 
   it('says that Wilgendaal is fictional', () => {
@@ -78,7 +80,7 @@ describe('the short page', () => {
     expect(html.match(/<nldd-simple-section/g)).toHaveLength(6);
     expect(html).toContain('Naar de casuskeuze');
     // The picture, described by its caption.
-    expect(html).toMatch(/role="img" aria-describedby="kort-bijschrift"/);
+    expect(html).toMatch(/role="img" aria-label="[^"]+" aria-describedby="kort-bijschrift"/);
     expect(html).toMatch(/<nldd-text id="kort-bijschrift"/);
     expect(html.match(/class="badge"/g)).toHaveLength(schema.pijlen.filter((p) => p.nummer).length);
     // The order: RegelRecht, chronolexografie, picture, case, the explanation page.

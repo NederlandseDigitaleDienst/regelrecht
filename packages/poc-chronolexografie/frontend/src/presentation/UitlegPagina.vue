@@ -19,6 +19,7 @@ import { load } from 'js-yaml';
 import YamlNode from '@regelrecht/frontend-shared/components/YamlNode.vue';
 import { bestanden as haalBestanden } from '../api.js';
 import SchemaOverzicht from './SchemaOverzicht.vue';
+import { stukken } from './stukken.js';
 import { CASUSSEN, keten as ketenVan } from './schema.js';
 import { bronnen, casus, intro, keten, openPaden, steps } from './uitleg.js';
 import { useUitleg } from './useUitleg.js';
@@ -59,12 +60,6 @@ onMounted(async () => {
   terugKnop.value?.focus();
 });
 
-/** A sentence in pieces: plain text, and `name` as code. */
-const stukken = (zin) =>
-  String(zin)
-    .split(/(`[^`]+`)/)
-    .filter(Boolean)
-    .map((s) => (s.startsWith('`') ? { code: s.slice(1, -1) } : { tekst: s }));
 
 /** The case file, which the picture starts from. */
 const casusPad = `${CASUSSEN}${casus}.yaml`;

@@ -18,7 +18,7 @@ const HOOGTE = 64;
 
 <template>
   <!-- The caption describes the picture in words; the SVG itself is one image. -->
-  <div class="schema" role="img" :aria-describedby="beschrijving">
+  <div class="schema" role="img" :aria-label="schema.titel" :aria-describedby="beschrijving">
     <svg :viewBox="`0 0 ${schema.breedte} ${schema.hoogte}`" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <defs>
         <marker
