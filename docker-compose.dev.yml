@@ -79,7 +79,7 @@ services:
       DATABASE_URL: postgresql://regelrecht:regelrecht_dev@postgres:5432/regelrecht_pipeline
       # LLM credentials required for enrich jobs (set in .env)
       LLM_PROVIDER: ${LLM_PROVIDER:-opencode}
-      OPENCODE_MODEL: ${OPENCODE_MODEL:-vlam/ubiops-deployment/bzk-dig-mistralmedium-flexibel//chat-model}
+      OPENCODE_MODEL: ${OPENCODE_MODEL:-vlam/kimi-k3-vast}
       VLAM_API_KEY: ${VLAM_API_KEY:-}
       VLAM_BASE_URL: ${VLAM_BASE_URL:-}
       CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
