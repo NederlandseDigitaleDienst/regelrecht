@@ -110,11 +110,10 @@ export const chronolexografie = {
   title: 'Hoe chronolexografie daarop uitbreidt',
   bullets: [
     'Elke organisatie legt haar aanvragen en besluiten vast in de kroniek van haar cel.',
-    'In de kroniek komt alleen iets bij.',
+    'In de kroniek komt alleen iets bij. Daardoor kun je elk besluit uit het verleden naspelen.',
     'Een reductie is een rekenregel die de kroniek terugleest.',
     'De RegelRecht-engine gebruikt de uitkomst van een reductie.',
     'Bijvoorbeeld: hoeveel geldige parkeervergunningen een bedrijf al heeft, voor het maximum per bedrijf.',
-    'Zo kun je een besluit later naspelen met de wet en de kroniek van die dag.',
   ],
 };
 
