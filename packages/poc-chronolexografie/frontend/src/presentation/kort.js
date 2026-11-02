@@ -30,11 +30,14 @@ export const intro = {
 export const schema = {
   titel: 'Schema van RegelRecht en chronolexografie',
   breedte: 990,
-  hoogte: 620,
+  hoogte: 640,
   lagen: [
-    { id: 'rr', label: 'RegelRecht', y: 0, hoogte: 230 },
-    { id: 'cl', label: 'Chronolexografie', y: 250, hoogte: 370 },
+    { id: 'rr', label: 'RegelRecht', y: 0, hoogte: 250 },
+    { id: 'cl', label: 'Chronolexografie', y: 270, hoogte: 370 },
   ],
+  // The policy is a regelwerk of RegelRecht (its layer UITVOERINGSBELEID) that
+  // chronolexografie binds to the answer of a cell, so it stands on the line
+  // between the bands, in the style of neither.
   vakken: [
     { laag: 'rr', x: 420, y: 30, h: 54, titel: 'Schema', sub: 'schema/latest' },
     { laag: 'rr', x: 20, y: 120, titel: 'Wettekst', sub: 'BWB · CVDR' },
@@ -42,12 +45,12 @@ export const schema = {
     { laag: 'rr', x: 420, y: 120, titel: 'Corpus', sub: 'regelwerken (YAML)' },
     { laag: 'rr', x: 620, y: 120, titel: 'Engine', sub: 'Rust · WASM · trace' },
     { laag: 'rr', x: 820, y: 120, titel: 'Editor, demo', sub: 'frontend · frontend-demo' },
-    { laag: 'cl', x: 220, y: 330, titel: 'Indiener', sub: 'aanvraag · bezwaar' },
-    { laag: 'cl', x: 420, y: 330, titel: 'Cel', sub: 'cel.yaml · packages/cel' },
-    { laag: 'cl', x: 620, y: 330, titel: 'Uitvoeringsbeleid', sub: 'source.reduction' },
-    { laag: 'cl', x: 220, y: 510, titel: 'Andere cel', sub: 'GGD · KvK · rechtbank' },
-    { laag: 'cl', x: 420, y: 510, titel: 'Kroniek', sub: 'alleen aanvullen' },
-    { laag: 'cl', x: 620, y: 510, titel: 'Reductie', sub: 'REDUCTIE · Awb-reductie' },
+    { laag: 'grens', x: 620, y: 228, titel: 'Uitvoeringsbeleid', sub: 'source.reduction' },
+    { laag: 'cl', x: 220, y: 360, titel: 'Indiener', sub: 'aanvraag · bezwaar' },
+    { laag: 'cl', x: 420, y: 360, titel: 'Cel', sub: 'cel.yaml · packages/cel' },
+    { laag: 'cl', x: 220, y: 540, titel: 'Andere cel', sub: 'GGD · KvK · rechtbank' },
+    { laag: 'cl', x: 420, y: 540, titel: 'Kroniek', sub: 'alleen aanvullen' },
+    { laag: 'cl', x: 620, y: 540, titel: 'Reductie', sub: 'REDUCTIE · Awb-reductie' },
   ],
   pijlen: [
     { laag: 'rr', d: 'M170 152 H218' },
@@ -55,21 +58,22 @@ export const schema = {
     { laag: 'rr', d: 'M570 152 H618' },
     { laag: 'rr', d: 'M770 152 H818' },
     { laag: 'rr', d: 'M495 84 V118', label: { x: 503, y: 106, tekst: 'valideert' } },
-    { laag: 'cl', d: 'M370 362 H418', nummer: 1, badge: [394, 362] },
-    { laag: 'cl', d: 'M470 394 V508', nummer: 2, badge: [470, 450] },
-    { laag: 'cl', d: 'M370 542 H418', nummer: 3, badge: [394, 542] },
-    { laag: 'cl', d: 'M520 330 L640 186', nummer: 4, badge: [580, 258] },
-    { laag: 'cl', d: 'M680 184 V328', nummer: 5, badge: [680, 258] },
-    { laag: 'cl', d: 'M620 362 H572', nummer: 6, badge: [596, 362] },
-    { laag: 'cl', d: 'M545 394 L650 508', nummer: 7, badge: [597, 451] },
-    { laag: 'cl', d: 'M620 542 H572', nummer: 8, badge: [596, 542] },
-    { laag: 'cl', d: 'M735 510 V396', nummer: 9, badge: [735, 452] },
-    { laag: 'cl', d: 'M735 330 V186', nummer: 9, badge: [735, 258] },
+    { laag: 'cl', d: 'M370 392 H418', nummer: 1, badge: [394, 392] },
+    { laag: 'cl', d: 'M470 424 V538', nummer: 2, badge: [470, 481] },
+    { laag: 'cl', d: 'M370 572 H418', nummer: 3, badge: [394, 572] },
+    { laag: 'cl', d: 'M520 360 L630 186', nummer: 4, badge: [575, 273] },
+    { laag: 'cl', d: 'M680 184 V226', nummer: 5, badge: [680, 205] },
+    { laag: 'cl', d: 'M640 292 L562 358', nummer: 6, badge: [601, 325] },
+    { laag: 'cl', d: 'M545 424 L650 538', nummer: 7, badge: [597, 481] },
+    { laag: 'cl', d: 'M620 572 H572', nummer: 8, badge: [596, 572] },
+    { laag: 'cl', d: 'M735 540 V294', nummer: 9, badge: [735, 417] },
+    { laag: 'cl', d: 'M735 228 V186', nummer: 9, badge: [735, 207] },
   ],
   bijschrift:
     'Boven staat RegelRecht: de wettekst gaat via de harvester naar het corpus, het schema valideert dat corpus en de engine voert het uit. ' +
-    'Onder staat wat chronolexografie toevoegt. Een cel legt aanvragen en besluiten vast in haar kroniek. ' +
-    'Een reductie leest die kroniek terug zodra het beleid de engine een antwoord van die cel laat vragen.',
+    'Onder staat wat chronolexografie toevoegt. Een cel legt aanvragen en besluiten vast in haar kroniek, en een reductie leest die kroniek terug. ' +
+    'Het uitvoeringsbeleid staat op de grens. Het is een regelwerk in het corpus van RegelRecht. ' +
+    'Chronolexografie laat het een open begrip koppelen aan het antwoord van een cel.',
 };
 
 export const casusBlok = {
@@ -98,7 +102,7 @@ export const regelrecht = {
     'RegelRecht legt een wet of regeling één keer vast als regels die een computer kan uitvoeren, in YAML.',
     'Per artikel staan de wettekst en de uitvoerbare regels naast elkaar.',
     'Eén engine voert die regels uit, op een datum die je kiest. Bij elke uitkomst laat hij zien welke artikelen hij gebruikte.',
-    'Laat een artikel iets open, dan vult een andere regel dat open begrip in, zoals een lagere regeling of beleid.',
+    'Laat een artikel iets open, dan vult een andere regel dat open begrip in, zoals een lagere regeling of uitvoeringsbeleid.',
     'Een artikel kan een uitkomst uit een andere wet gebruiken. De engine volgt die verwijzing zelf.',
     'De regels zijn een interpretatie van de wet. Bij verschil gaat de wet voor.',
   ],
@@ -110,7 +114,7 @@ export const chronolexografie = {
     'Elke organisatie heeft een cel. Die legt aanvragen, besluiten, bezwaren en beroepen vast in haar eigen kroniek.',
     'In de kroniek komt alleen iets bij. Een herroepen besluit blijft staan.',
     'Een reductie is een rekenregel die de kroniek terugleest. Zo beantwoordt een cel een vraag over wat zij eerder vastlegde.',
-    'Het beleid van een organisatie vult een open begrip in met het antwoord van een cel. Eén vraag gaat naar één cel, en de engine neemt de antwoorden samen.',
+    'Met chronolexografie kan uitvoeringsbeleid een open begrip koppelen aan het antwoord van een cel. Eén vraag gaat naar één cel, en de engine neemt de antwoorden samen.',
     'Zo telt bij een besluit mee wat de organisatie eerder besloot en wat daarvan na bezwaar of beroep nog geldt. Ook telt mee wat een andere organisatie vastlegde, zoals een advies van de GGD.',
     'Elk feit staat bij wie het vaststelde. Daardoor kun je een besluit later naspelen, met de wet en de kroniek van die dag.',
   ],

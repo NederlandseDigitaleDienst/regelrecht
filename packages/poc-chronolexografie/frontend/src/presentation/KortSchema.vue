@@ -4,7 +4,8 @@
 // colours are tokens of the design system, so it follows the light and the
 // dark scheme as the page does; the primitives switch with the scheme
 // themselves (light-dark in @nldd/design-system). The badges on the arrows
-// are the numbers of the steps of the case under it.
+// are the numbers of the steps of the case under it. The box of the policy
+// stands on the line between the bands, in the style of neither.
 import { schema } from './kort.js';
 
 defineProps({
@@ -103,6 +104,11 @@ text {
 }
 .vak.cl {
   stroke: var(--primitives-color-oranje-700);
+}
+/* The policy belongs to neither band: it stands on the line between them. */
+.vak.grens {
+  fill: var(--semantics-surfaces-tinted-background-color);
+  stroke: var(--semantics-content-secondary-color);
 }
 .titel {
   font-size: 14px;
