@@ -2328,6 +2328,9 @@ pub async fn fail_enrich_task_job(
     job: &crate::models::Job,
     error: &str,
 ) -> Result<()> {
+    // The reason only reaches the database and the requester's task; log it
+    // too, or the worker log shows a failure without saying why.
+    tracing::warn!(job_id = %job.id, law_id = %job.law_id, error = %error, "enrich task job failed");
     let mut tx = pool.begin().await?;
     job_queue::fail_job_terminal(
         &mut *tx,
@@ -2352,6 +2355,7 @@ pub async fn fail_enrich_task_job_with_retry(
     job: &crate::models::Job,
     error: &str,
 ) -> Result<()> {
+    tracing::warn!(job_id = %job.id, law_id = %job.law_id, attempt = job.attempts, error = %error, "enrich task job failed");
     let mut tx = pool.begin().await?;
     let failed_job = job_queue::fail_job(
         &mut *tx,

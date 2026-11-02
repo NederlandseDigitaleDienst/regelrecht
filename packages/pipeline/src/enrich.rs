@@ -1107,6 +1107,15 @@ pub(crate) async fn run_llm_subprocess(
                                     *r = Some(line.to_string());
                                 }
                             }
+                            // opencode reports a failed model call as an
+                            // `error` event on stdout and can exit without a
+                            // word on stderr. stdout is not logged, so say it
+                            // here, bounded: the event is small, the bodies
+                            // around it are not.
+                            if is_error_event(line) {
+                                let preview: String = line.chars().take(1000).collect();
+                                tracing::warn!(provider = %drain_provider, event = %preview, "agent reported an error");
+                            }
                         });
                         // Bounded preview at debug only (off under the
                         // default "info" subscriber). The leading bytes of a
@@ -1387,6 +1396,15 @@ async fn watch_memory(pid: Option<u32>, max_rss_mb: u64) -> u64 {
             }
         }
     }
+}
+
+/// Whether a JSON line from the agent is an error event (`"type":"error"`),
+/// as opencode writes when a model call fails.
+fn is_error_event(line: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(line)
+        .ok()
+        .and_then(|v| v.get("type").and_then(|t| t.as_str()).map(|t| t == "error"))
+        .unwrap_or(false)
 }
 
 /// Read a process's resident set size (RSS) from `/proc/<pid>/status`, in kB.
@@ -5615,6 +5633,17 @@ related_legislation:
             .related_legislation;
         assert_eq!(related.len(), 1);
         assert_eq!(related[0].bwb_id.as_deref(), Some("BWBR0037841"));
+    }
+
+    #[test]
+    fn is_error_event_spots_an_opencode_error_event() {
+        assert!(is_error_event(
+            r#"{"type":"error","error":{"name":"APIError","data":{"message":"401"}}}"#
+        ));
+        assert!(!is_error_event(
+            r#"{"type":"text","part":{"text":"error"}}"#
+        ));
+        assert!(!is_error_event("not json, mentions \"type\":\"error\""));
     }
 
     #[test]
