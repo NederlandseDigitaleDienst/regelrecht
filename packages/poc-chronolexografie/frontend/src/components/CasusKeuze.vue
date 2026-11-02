@@ -69,21 +69,25 @@ const kies = (c) => navigate(() => kiezen(c.id));
         size="4"
         heading-level="2"
         text="Demoscenario's"
-        supporting-text="Gehandicaptenparkeerkaart, van simpel naar ingewikkeld."
+        supporting-text="Van simpel naar ingewikkeld, in twee casussen."
       ></nldd-title>
       <!-- `item-min-width`, not `item-width`: @nldd/design-system 0.9.0 renamed
            the attribute (collection.d.ts, @migration), and the old name now
            does nothing. -->
       <nldd-collection layout="grid" item-min-width="320px">
-        <nldd-card v-for="(g, i) in demo" :key="g.name">
+        <nldd-card v-for="(d, i) in demo" :key="d.guide.name">
           <nldd-container slot="header" padding="16">
-            <nldd-title size="5" heading-level="3" :overline="`Demo ${i + 1}`" :text="g.name"></nldd-title>
+            <nldd-title size="5" heading-level="3" :overline="`Demo ${i + 1} · ${d.titel}`" :text="d.guide.name"></nldd-title>
           </nldd-container>
           <nldd-container padding="16">
-            <nldd-text>{{ g.summary }}</nldd-text>
+            <nldd-text>{{ d.guide.summary }}</nldd-text>
           </nldd-container>
           <nldd-container slot="footer" padding="16">
-            <nldd-button appearance="secondary" text="Begin dit scenario" @click="emit('demo', g.name)"></nldd-button>
+            <nldd-button
+              appearance="secondary"
+              text="Begin dit scenario"
+              @click="emit('demo', { casus: d.casus, naam: d.guide.name })"
+            ></nldd-button>
           </nldd-container>
         </nldd-card>
       </nldd-collection>
