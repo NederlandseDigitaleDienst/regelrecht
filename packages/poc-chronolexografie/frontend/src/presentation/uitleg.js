@@ -64,6 +64,21 @@ export const intro = {
     'Waar een stap op een artikel rust, staat eerst de tekst van dat artikel. Daarna volgt de YAML die het uitvoerbaar maakt, uit de bestanden zelf. De delen waar het om gaat, staan open. De rest klap je zelf open.',
 };
 
+/**
+ * The picture of one value above the steps (SchemaOverzicht.vue): its boxes
+ * and lines come from the files themselves (schema.js); `start` is the name it
+ * follows back, `law#article` and its name, as the files write it.
+ */
+export const keten = {
+  overline: 'Eén waarde',
+  title: 'Hoe het maximum bepaald wordt',
+  start: { law: 'parkeerverordening_gemeente_wilgendaal', article: '2', naam: 'maximum_bedrijfsparkeervergunningen_bereikt' },
+  text: [
+    'Dit schema begint bij de vraag die beantwoord moet worden, het open begrip `maximum_bedrijfsparkeervergunningen_bereikt` uit de verordening. Die waarde staat links, omlijnd. Daarna volg je wat daarvoor nodig is, tot de keten bij de bronnen uitkomt. Met de knop Volgende stap loop je eerst één pad helemaal uit. Het nummer bij elke naam zegt in welke stap die aan de beurt is. De laatste stap toont in één keer de rest, want die werkt op dezelfde manier.',
+    'Elke lijn loopt van een naam naar de naam die hem nodig heeft, ook binnen één bestand. De stappen gaan dus tegen de richting van de lijnen in. Parameters zoals het KvK-nummer en de dag van het besluit staan er niet in, want de casus geeft ze mee.',
+  ],
+};
+
 export const steps = [
   {
     overline: 'Verordening',
