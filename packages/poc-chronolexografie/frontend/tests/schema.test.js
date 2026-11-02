@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { createSSRApp, h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import SchemaOverzicht from '../src/presentation/SchemaOverzicht.vue';
-import { LIJNSOORTEN, andereStap, keten, sleutel, stapBeeld, stapZin } from '../src/presentation/schema.js';
+import { KRONIEK, LIJNSOORTEN, SOORTEN, andereStap, keten, sleutel, stapBeeld, stapZin } from '../src/presentation/schema.js';
 import { CORPUS } from '../src/corpus.js';
 import { keten as ketenUitleg } from '../src/presentation/uitleg.js';
 
@@ -28,7 +28,7 @@ function bundel() {
   return alle;
 }
 const alle = bundel();
-const map = (pad) => pad.split('/').at(-2);
+const map = (pad) => (pad === KRONIEK ? KRONIEK : pad.split('/').at(-2));
 const heeft = (s, soort, van, naar) =>
   s.lijnen.some((l) => l.soort === soort && map(l.van.pad) === van[0] && l.van.begrip.endsWith(`#${van[1]}`) && map(l.naar.pad) === naar[0] && l.naar.begrip.endsWith(`#${naar[1]}`));
 
@@ -64,10 +64,10 @@ describe('the picture of one value', () => {
 
   it('follows the value back to the chronicles of both cells', () => {
     // The count of permits: the municipality's own decisions, with the Awb.
-    expect(heeft(k, 'kroniek', ['parkeerverordening_gemeente_wilgendaal', 'besluiten onder artikel 2'], ['reductie_algemene_wet_bestuursrecht', 'besluiten'])).toBe(true);
+    expect(heeft(k, 'kroniek', [KRONIEK, 'parkeerverordening_gemeente_wilgendaal#2#'], ['reductie_algemene_wet_bestuursrecht', 'besluiten'])).toBe(true);
     expect(heeft(k, 'vraagt', ['gemeente_wilgendaal', 'aantal_geldige_bedrijfsparkeervergunningen'], ['beleid_bedrijfsparkeervergunning_gemeente_wilgendaal', 'antwoord_aantal_geldig'])).toBe(true);
     // The maximum: where the firm is and how many work there, from the KvK.
-    expect(heeft(k, 'kroniek', ['beleid_handelsregister_kamer_van_koophandel', 'vestiging_ingeschreven'], ['reductie_vestiging_in_handelsregister', 'inschrijvingen'])).toBe(true);
+    expect(heeft(k, 'kroniek', [KRONIEK, 'beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven'], ['reductie_vestiging_in_handelsregister', 'inschrijvingen'])).toBe(true);
     expect(heeft(k, 'rekent', ['uitvoeringsbesluit_parkeren_gemeente_wilgendaal', 'vergunninggebied_van_postcode'], ['uitvoeringsbesluit_parkeren_gemeente_wilgendaal', 'vergunninggebied_van_vestiging'])).toBe(true);
   });
 
@@ -103,6 +103,7 @@ describe('the picture of one value', () => {
   describe('its steps', () => {
     const alleNamen = k.bestanden.flatMap((b) => b.begrippen.map((g) => ({ ...g, pad: b.pad, map: map(b.pad) })));
     const stapVan = (bestand, naam) => alleNamen.find((g) => g.map === bestand && g.naam === naam).stap;
+    const bron = (vorm) => alleNamen.find((g) => g.map === KRONIEK && g.vorm.startsWith(vorm));
     const eind = (e) => sleutel(e.pad, e.begrip);
 
     const beleid = 'beleid_bedrijfsparkeervergunning_gemeente_wilgendaal';
@@ -134,7 +135,7 @@ describe('the picture of one value', () => {
     });
 
     it('does not take a source into the group of its article', () => {
-      expect(stapVan('parkeerverordening_gemeente_wilgendaal', 'besluiten onder artikel 2')).toBeGreaterThan(1);
+      expect(bron('Parkeerverordening').stap).toBeGreaterThan(1);
     });
 
     it('walks the longest path, on a tie the one with the most sources', () => {
@@ -145,7 +146,11 @@ describe('the picture of one value', () => {
 
     it('ends the path at its sources, together', () => {
       const laatste = alleNamen.filter((g) => g.stap === k.reststap - 1);
-      expect(laatste.map((g) => g.naam).sort()).toEqual(['afschrift_van_de_uitspraak', 'besluiten onder artikel 2', 'besluiten onder artikel 7:11']);
+      expect(laatste.map((g) => `${g.naam} · ${g.vorm}`).sort()).toEqual([
+        'afschrift_van_de_uitspraak · Algemene wet bestuursrecht art. 8:79',
+        'beschikking · Algemene wet bestuursrecht art. 7:11',
+        'beschikking · Parkeerverordening Wilgendaal 2026 (fictief) art. 2',
+      ]);
       for (const g of laatste) expect(k.lijnen.some((l) => eind(l.naar) === sleutel(g.pad, g.key))).toBe(false);
     });
 
@@ -157,7 +162,7 @@ describe('the picture of one value', () => {
       expect(stapVan(besluit, 'vergunninggebied_van_vestiging')).toBe(k.reststap);
       expect(stapVan('kamer_van_koophandel', 'postcode_vestiging')).toBe(k.reststap);
       expect(stapVan('reductie_vestiging_in_handelsregister', 'inschrijvingen')).toBe(k.reststap);
-      expect(stapVan('beleid_handelsregister_kamer_van_koophandel', 'vestiging_ingeschreven')).toBe(k.reststap);
+      expect(stapVan(KRONIEK, 'vestiging_ingeschreven')).toBe(k.reststap);
     });
 
     it('has no rest step when the path takes in everything', () => {
@@ -237,6 +242,49 @@ describe('the picture of one value', () => {
       for (const knop of ['Vorige stap', 'Volgende stap', 'Toon alles']) expect(html).toContain(`text="${knop}"`);
       expect(html).toContain('aria-live="polite"');
       expect(html).toContain(stapZin(k, null));
+    });
+  });
+
+  describe('its chronicle', () => {
+    const kroniek = k.bestanden.find((b) => b.pad === KRONIEK);
+
+    it('has one box for every source in the chronicle, in a column of its own, last', () => {
+      expect(k.bestanden.filter((b) => b.soort === 'kroniek')).toEqual([kroniek]);
+      expect(SOORTEN.at(-1).soort).toBe('kroniek');
+      const bronnen = k.lijnen.filter((l) => ['source.decisions', 'source.facts'].includes(l.yaml));
+      expect(bronnen.length).toBeGreaterThan(0);
+      for (const l of bronnen) {
+        expect(l.soort).toBe('kroniek');
+        expect(l.van.pad).toBe(KRONIEK);
+        expect(k.bestanden.find((b) => b.pad === l.naar.pad).soort).toBe('reductie');
+      }
+      expect(kroniek.begrippen.map((g) => `${g.naam} · ${g.vorm}`).sort()).toEqual([
+        'afschrift_van_de_uitspraak · Algemene wet bestuursrecht art. 8:79',
+        'beschikking · Algemene wet bestuursrecht art. 7:11',
+        'beschikking · Parkeerverordening Wilgendaal 2026 (fictief) art. 2',
+        'vestiging_ingeschreven · Inschrijving van een vestiging in het handelsregister (fictief beleid) art. 1',
+      ]);
+    });
+
+    it('leaves no source in the box of the law or policy that gives its form', () => {
+      for (const b of k.bestanden.filter((x) => x.pad !== KRONIEK)) {
+        for (const g of b.begrippen) expect(['kroniek', 'decisions', 'fact']).not.toContain(g.rol);
+      }
+    });
+
+    it('drops the boxes that had nothing else', () => {
+      const mappen = k.bestanden.map((b) => map(b.pad));
+      expect(mappen).not.toContain('algemene_wet_bestuursrecht');
+      expect(mappen).not.toContain('beleid_handelsregister_kamer_van_koophandel');
+      expect(mappen).toContain('parkeerverordening_gemeente_wilgendaal');
+      for (const b of k.bestanden) expect(b.begrippen.length).toBeGreaterThan(0);
+    });
+
+    it('says in its label where the form comes from', async () => {
+      const html = await renderToString(createSSRApp({ render: () => h(SchemaOverzicht, { schema: k, label: 'x' }) }));
+      expect(html).toContain('uit de kroniek');
+      expect(html).toContain('vorm uit Algemene wet bestuursrecht art. 7:11');
+      expect(html).toContain('van beschikking, vorm uit Parkeerverordening Wilgendaal 2026 (fictief) art. 2 in Kroniek');
     });
   });
 

@@ -24,6 +24,7 @@ export const SOORTEN = [
   { soort: 'beleid', label: 'Beleid' },
   { soort: 'cel', label: 'Cel' },
   { soort: 'reductie', label: 'Reductie' },
+  { soort: 'kroniek', label: 'Kroniek' },
 ];
 
 /** The kinds of line, in the order of the legend. */
@@ -41,6 +42,9 @@ export const CASUSSEN = `${CORPUS}/casussen/`;
 /** A name in a box as one string: `begrip` is its key in `begrippen`. */
 export const sleutel = (pad, begrip) => `${pad}|${begrip}`;
 const id = (e) => sleutel(e.pad, e.begrip);
+
+/** The path of the box of the chronicle: it is no file, so it has a name of its own. */
+export const KRONIEK = 'kroniek';
 
 /** `<law>#<article>` in its two parts. */
 const splits = (ref) => {
@@ -114,10 +118,14 @@ function opzet(alle, id) {
     return c && bestand(c.pad, { id: naam, titel: c.doc.name ?? naam, soort: 'cel' });
   };
 
-  /** A name in a box: `naam` in article `artikel`, as a `rol`; `omschrijving` is what the law says it is. */
-  function begrip(box, { naam, artikel = null, rol, omschrijving }) {
-    const key = `${artikel ?? ''}#${rol}#${naam}`;
-    if (!box.begrippen.has(key)) box.begrippen.set(key, { key, naam, artikel, rol, omschrijving });
+  /**
+   * A name in a box: `naam` in article `artikel`, as a `rol`; `omschrijving`
+   * is what the law says it is. A source in the chronicle is told apart by
+   * `bron`, and `vorm` says which article gives it its form.
+   */
+  function begrip(box, { naam, artikel = null, rol, omschrijving, bron, vorm }) {
+    const key = `${artikel ?? ''}#${rol}#${bron ?? naam}`;
+    if (!box.begrippen.has(key)) box.begrippen.set(key, { key, naam, artikel, rol, omschrijving, vorm });
     return key;
   }
   function lijn(soort, van, vanBegrip, naar, naarBegrip, yaml) {
@@ -163,7 +171,7 @@ function opzet(alle, id) {
     lijnen,
   });
 
-  return { cellen, wet, cel, wetBestand, celBestand, begrip, lijn, artikelVan, metUitvoer, metFeit, invullers, uitkomst };
+  return { cellen, wet, cel, bestand, wetBestand, celBestand, begrip, lijn, artikelVan, metUitvoer, metFeit, invullers, uitkomst };
 }
 
 /** Every `$name` a value uses, by the part before a dot. */
@@ -201,8 +209,27 @@ function namenIn(waarde, uit = new Set()) {
  * gets its step (`genummerd`).
  */
 export function keten(alle, id, { law, article, naam }) {
-  const { wet, cel, cellen, celBestand, wetBestand, begrip, lijn, artikelVan, metUitvoer, metFeit, invullers, uitkomst } = opzet(alle, id);
+  const { wet, cel, cellen, bestand, celBestand, wetBestand, begrip, lijn, artikelVan, metUitvoer, metFeit, invullers, uitkomst } = opzet(alle, id);
   const klaar = new Map();
+
+  /** The one box of the chronicle: what the cells recorded, which a reduction reads. */
+  const kroniek = () => bestand(KRONIEK, { id: KRONIEK, titel: 'Kroniek', soort: 'kroniek' });
+  /**
+   * A source in the chronicle, whose form article `artikel` of `w` gives:
+   * the fact `feit` it requires, or else the decisions under it, named after
+   * what it decides (its `produces` that request nothing).
+   */
+  function bron(w, artikel, feit) {
+    const besluit = (artikelVan(w.doc, artikel)?.machine_readable?.execution?.produces ?? [])
+      .filter((p) => !p.requests && p.type)
+      .map((p) => String(p.type).toLowerCase());
+    return {
+      naam: feit ?? ([...new Set(besluit)].join(', ') || 'besluiten'),
+      rol: 'kroniek',
+      bron: `${w.doc.$id}#${artikel}#${feit ?? ''}`,
+      vorm: `${w.doc.name ?? w.doc.$id} art. ${artikel}`,
+    };
+  }
 
   /**
    * The box and name that hold `naam` in article `nummer` of `lawId`, after
@@ -271,12 +298,12 @@ export function keten(alle, id, { law, article, naam }) {
         const [fLaw, fArt, feit] = String(s.facts).split('#');
         const doel = wet(fLaw);
         const art = doel && (metFeit(doel.doc, feit) ?? artikelVan(doel.doc, fArt));
-        if (art) lijn('kroniek', wetBestand(doel), { naam: feit, artikel: String(art.number), rol: 'fact' }, box, uit.begrip, 'source.facts');
+        if (art) lijn('kroniek', kroniek(), bron(doel, String(art.number), feit), box, uit.begrip, 'source.facts');
       } else if (s.decisions) {
         const ref = String(s.decisions).startsWith('$') ? gegeven[String(s.decisions).slice(1)] : s.decisions;
         const { law: dLaw, article: dArt } = splits(ref ?? '');
         const doel = wet(dLaw);
-        if (doel) lijn('kroniek', wetBestand(doel), { naam: `besluiten onder artikel ${dArt}`, artikel: dArt, rol: 'decisions' }, box, uit.begrip, 'source.decisions');
+        if (doel) lijn('kroniek', kroniek(), bron(doel, dArt), box, uit.begrip, 'source.decisions');
       }
     } else if (mr.open_terms?.some((t) => t.id === naam)) {
       uit = { box, begrip: { ...hier('open_term'), omschrijving: mr.open_terms.find((t) => t.id === naam).description } };
@@ -404,10 +431,12 @@ function eenvoudig({ bestanden, lijnen }, doorgaven) {
   }
 
   return {
-    bestanden: bestanden.map((b) => ({
-      ...b,
-      begrippen: b.begrippen.filter((g) => !weg.has(id({ pad: b.pad, begrip: g.key })) && !tussen({ pad: b.pad, begrip: g.key })),
-    })),
+    bestanden: bestanden
+      .map((b) => ({
+        ...b,
+        begrippen: b.begrippen.filter((g) => !weg.has(id({ pad: b.pad, begrip: g.key })) && !tussen({ pad: b.pad, begrip: g.key })),
+      }))
+      .filter((b) => b.begrippen.length),
     lijnen: uit,
   };
 }
@@ -559,15 +588,16 @@ export function stapZin({ bestanden, lijnen, stappen, reststap }, n) {
     const g = hier.get(id(l.van));
     if (!g || hier.has(id(l.naar))) continue;
     const k = l.soort === 'vraagt' && g.soort === 'reductie' ? 'vraagt_reductie' : l.soort;
-    per.set(k, (per.get(k) ?? new Set()).add(leesbaar(g.naam)));
+    per.set(k, (per.get(k) ?? new Map()).set(id(l.van), leesbaar(g.naam)));
   }
   const laatste = n === (reststap ? reststap - 1 : stappen);
   return kortOfLang((metNamen) => {
     const delen = Object.entries(HERKOMST)
       .filter(([k]) => per.has(k))
       .map(([k, [een, veel, waar]]) => {
-        const namen = [...per.get(k)];
-        const deel = `${namen.length === 1 ? `een ${een}` : `${namen.length} ${veel}`} ${waar}`;
+        const aantal = per.get(k).size;
+        const namen = [...new Set(per.get(k).values())];
+        const deel = `${aantal === 1 ? `een ${een}` : `${aantal} ${veel}`} ${waar}`;
         return metNamen ? `${deel} (${namen.join(', ')})` : deel;
       });
     return `${kop}, ${laatste ? 'hier komt de keten bij de bron uit' : 'daarvoor is nodig'}: ${opsomming(delen)}.`;

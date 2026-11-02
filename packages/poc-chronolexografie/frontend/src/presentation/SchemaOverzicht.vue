@@ -42,16 +42,15 @@ const ROL = {
   output: 'uitkomst',
   input: 'invoer',
   answers: 'vraag',
-  fact: 'feit',
-  decisions: 'besluiten',
-  artikel: 'artikel',
-  cel: 'cel',
-  andere_cellen: 'andere cel',
+  kroniek: 'uit de kroniek',
 };
 
 const titels = computed(() => new Map(s.value.bestanden.map((b) => [b.pad, b.titel])));
 const namen = computed(
-  () => new Map(s.value.bestanden.flatMap((b) => b.begrippen.map((g) => [sleutel(b.pad, g.key), g.naam]))),
+  () =>
+    new Map(
+      s.value.bestanden.flatMap((b) => b.begrippen.map((g) => [sleutel(b.pad, g.key), g.vorm ? `${g.naam}, vorm uit ${g.vorm}` : g.naam])),
+    ),
 );
 /** A name's step and lines, in words, for a screen reader. */
 function inWoorden(pad, { key, stap }) {
@@ -197,7 +196,7 @@ watch(s, async () => {
           <nldd-text size="sm" color="secondary">{{ k.label }}</nldd-text>
           <nldd-box v-for="b in k.bestanden" :key="b.pad">
             <nldd-container padding="12" gap="8">
-              <nldd-text size="sm" weight="bold">{{ b.titel }}</nldd-text>
+              <nldd-text class="titel" size="sm" weight="bold">{{ b.titel }}</nldd-text>
               <ul :class="['begrippen', { baan: binnen.has(b.pad) }]">
                 <li
                   v-for="g in b.begrippen"
@@ -212,9 +211,10 @@ watch(s, async () => {
                 >
                   <span class="kop">
                     <nldd-badge size="sm" color="neutral" :number="g.stap" decorative></nldd-badge>
-                    <nldd-text size="sm" color="secondary">{{ g.artikel && !['artikel', 'decisions'].includes(g.rol) ? `art. ${g.artikel} · ` : '' }}{{ ROL[g.rol] ?? g.rol }}</nldd-text>
+                    <nldd-text size="sm" color="secondary">{{ g.artikel ? `art. ${g.artikel} · ` : '' }}{{ ROL[g.rol] ?? g.rol }}</nldd-text>
                   </span>
                   <code>{{ g.naam }}</code>
+                  <nldd-text v-if="g.vorm" size="sm" color="secondary">vorm uit {{ g.vorm }}</nldd-text>
                   <nldd-visually-hidden>{{ inWoorden(b.pad, g) }}</nldd-visually-hidden>
                 </li>
               </ul>
@@ -328,9 +328,12 @@ watch(s, async () => {
   align-items: center;
   gap: 8px;
 }
+code,
+.titel {
+  overflow-wrap: anywhere;
+}
 code {
   font-size: 0.8125rem;
-  overflow-wrap: anywhere;
 }
 .kolom {
   position: relative;
