@@ -21,7 +21,9 @@
 // demo scenarios (startDemo). The button "Presentatie" brings the deck back,
 // on the slide it was last left on, or else on the first. The explanation
 // page (presentation/UitlegPagina.vue) takes the place of the choice screen,
-// from its button or `?uitleg`.
+// from the deck, the short page or `?uitleg`. The short page
+// (presentation/KortPagina.vue) does too, from the button on the choice
+// screen or `?kort`; its button at the bottom opens the explanation page.
 //
 // The address names the case and the scenario (navigation.js), so a link
 // opens a scenario and the browser's back and forward walk the choices.
@@ -44,7 +46,9 @@ import ScenarioGuide from './components/ScenarioGuide.vue';
 import ScenarioTab from './components/ScenarioTab.vue';
 import { guideFor } from './scenarioGuides.js';
 import PresentationDeck from './presentation/PresentationDeck.vue';
+import KortPagina from './presentation/KortPagina.vue';
 import UitlegPagina from './presentation/UitlegPagina.vue';
+import { KORT, useKort } from './presentation/useKort.js';
 import { useUitleg } from './presentation/useUitleg.js';
 import { DEMO_CASUS } from './presentation/demo.js';
 import { startIndex, usePresentation } from './presentation/usePresentation.js';
@@ -79,11 +83,22 @@ onMounted(async () => {
 
 const presentation = usePresentation();
 const uitleg = useUitleg();
+const kort = useKort();
 onMounted(() => {
   const i = startIndex(window.location.search, presentation.total.value);
   if (i !== null) presentation.start(i);
-  // The page belongs to the choice screen; on a case's address it gives way.
-  uitleg.follow({ opCasus: !!parseRoute(window.location.pathname, import.meta.env.BASE_URL).casus });
+  // The pages belong to the choice screen; on a case's address they give way.
+  const opCasus = !!parseRoute(window.location.pathname, import.meta.env.BASE_URL).casus;
+  uitleg.follow({ opCasus });
+  kort.follow({ opCasus });
+});
+// Which page of the choice screen shows, if any; the explanation page wins
+// when the address asks for both.
+const keuzePagina = computed(() => {
+  if (state.casus) return null;
+  if (uitleg.active.value) return 'uitleg';
+  if (kort.active.value) return 'kort';
+  return null;
 });
 watch(() => state.datum, verversen);
 
@@ -179,7 +194,14 @@ function startDemo(naam) {
 // screen, so an open case gives way first.
 async function uitlegVanDek() {
   if (state.casus) await toChoice();
-  uitleg.open();
+  if (kort.active.value) kortNaarUitleg();
+  else uitleg.open();
+}
+// From the short page to the explanation page, on the short page's entry:
+// back from the explanation page returns to where the short page came from.
+function kortNaarUitleg() {
+  uitleg.open({ vervangt: KORT });
+  kort.verlaat();
 }
 function toTab(id) {
   tab.value = id;
@@ -250,7 +272,7 @@ function toTab(id) {
           <nldd-split-view-pane slot="main" has-content>
             <!-- One page per tab, as the editor gets one per route: a new tab
                  starts at its top instead of where the last one was scrolled. -->
-            <nldd-page :key="uitleg.active.value && !state.casus ? 'uitleg' : tab" landmarks="page">
+            <nldd-page :key="keuzePagina ?? tab" landmarks="page">
               <nldd-simple-section v-if="state.fout" padding-block="16">
                 <nldd-banner
                   variant="critical"
@@ -289,14 +311,20 @@ function toTab(id) {
                 </nldd-banner>
               </nldd-simple-section>
               <UitlegPagina
-                v-else-if="uitleg.active.value && !state.casus"
+                v-else-if="keuzePagina === 'uitleg'"
                 @terug="uitleg.close()"
                 @casus="(id) => uitleg.naarCasus(() => navigate(() => kiezen(id)))"
+              />
+              <KortPagina
+                v-else-if="keuzePagina === 'kort'"
+                @terug="kort.close()"
+                @casus="(id) => kort.naarCasus(() => navigate(() => kiezen(id)))"
+                @uitleg="kortNaarUitleg"
               />
               <CasusKeuze
                 v-else-if="!state.casus"
                 @presentatie="presentation.start()"
-                @uitleg="uitleg.open()"
+                @kort="kort.open()"
                 @demo="startDemo"
               />
               <template v-else-if="state.vormen">
