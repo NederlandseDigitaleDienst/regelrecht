@@ -281,7 +281,7 @@ which is how the editor lets a user pick a model per enrichment.
 
 The `opencode` provider talks to VLAM, the language model API of SSC-ICT, and
 the editor shows it under that name. Its model and endpoint live in
-`packages/pipeline/opencode.json`; the model is `kimi-k3-vast`. On ZAD the
+`packages/pipeline/opencode.json`; the model is `kimi-k3-prepaid`. On ZAD the
 component is bound to the platform service `vlam`, which puts `VLAM_API_URL` (a
 proxy into VLAM) in the pod, and the entrypoint points opencode at
 `$VLAM_API_URL/v1`. `VLAM_BASE_URL` overrides that; with neither set, opencode

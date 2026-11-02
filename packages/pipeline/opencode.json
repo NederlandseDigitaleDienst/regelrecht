@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "vlam/kimi-k3-vast",
+  "model": "vlam/kimi-k3-prepaid",
   "provider": {
     "vlam": {
       "npm": "@ai-sdk/openai-compatible",
@@ -9,7 +9,7 @@
         "baseURL": "https://api.demo.vlam.ai/v2.1/projects/poc/openai-compatible/v1"
       },
       "models": {
-        "kimi-k3-vast": {
+        "kimi-k3-prepaid": {
           "name": "Kimi K3",
           "limit": {
             "context": 128000,
