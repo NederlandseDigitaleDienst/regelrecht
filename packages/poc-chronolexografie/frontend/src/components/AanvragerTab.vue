@@ -155,17 +155,19 @@ async function indienenTegen() {
           >
             <nldd-tag slot="end" :color="stand(a).kleur" :text="stand(a).tekst"></nldd-tag>
           </nldd-title>
-          <nldd-list>
+          <!-- The rows are no actions; the link and the buttons in them are
+               (a form, so each keeps its tab stop). -->
+          <nldd-list type="form">
             <nldd-list-item v-for="s in dossier(a)" :key="s.gram.id" size="sm">
               <!-- The article each step rests on opens in the sheet of the
                    chain: the application its establishing article, a
                    decision the article that took it. -->
               <nldd-text-cell :text="`${s.rol} ${kort(s.gram.id)}`">
-                <span slot="supporting-text">
+                <nldd-text slot="supporting-text" size="sm" color="secondary">
                   {{ s.gram.recorded_on }} ·
                   <ArtikelLink :basis="s.gram.basis" :datum="s.gram.recorded_on" /><template v-if="s.rechter">
                     · {{ state.casus.rechter.cel_naam }}</template>
-                </span>
+                </nldd-text>
               </nldd-text-cell>
               <nldd-cell v-if="!s.rechter && isBesluit(s.gram)" width="fit-content">
                 <nldd-button

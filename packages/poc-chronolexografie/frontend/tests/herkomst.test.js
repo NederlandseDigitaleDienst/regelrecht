@@ -10,7 +10,8 @@ vi.mock('../src/api.js', async (importOriginal) => ({
       naam: 'voorbeeld',
       bestanden: {
         'casussen/parkeren.yaml': 'cel: gemeente_wilgendaal\n',
-        'regulation/nl/uitvoeringsbeleid/beleid_parkeren/2026-01-01.yaml': "articles:\n  - number: '1'\n    text: uit de bron\n",
+        'regulation/nl/uitvoeringsbeleid/beleid_parkeren/2026-01-01.yaml':
+          "articles:\n  - number: '1'\n    text: uit de bron\n    machine_readable:\n      # Uit de bron.\n      definitions: {}\n",
       },
     },
   ],
@@ -147,9 +148,9 @@ describe('artikelInhoud', () => {
     expect(await tekst('beleid_parkeren', '1', '2027-06-01')).toBe('uit de bron');
   });
 
-  it('gives null for a case from a source that did not load', async () => {
+  it('says why a source did not load, and gives null for one it does not know', async () => {
     state.casus.bron = 'kapot';
-    expect(await tekst('beleid_parkeren', '1')).toBeNull();
+    await expect(tekst('beleid_parkeren', '1')).rejects.toThrow('bron niet beschikbaar');
     state.casus.bron = 'onbekend';
     expect(await tekst('beleid_parkeren', '1')).toBeNull();
   });
@@ -160,6 +161,9 @@ describe('machineReadableVan', () => {
     'articles:',
     "  - number: '1'",
     '    text: Een.',
+    '    machine_readable:',
+    '      list:',
+    "        - number: '8'",
     "  - number: '7:11'",
     '    text: |',
     '      Bij ontvankelijkheid.',
@@ -168,8 +172,10 @@ describe('machineReadableVan', () => {
     '      execution:',
     '        # De heroverweging.',
     '        output:',
+    '    # Lid 2, op het niveau van het artikel.',
     '          - name: herroepen',
     '',
+    '    # Over de links.',
     '    links: []',
     '  - number: 8',
     '    machine_readable:',
@@ -185,6 +191,7 @@ describe('machineReadableVan', () => {
         '  execution:',
         '    # De heroverweging.',
         '    output:',
+        '# Lid 2, op het niveau van het artikel.',
         '      - name: herroepen',
       ].join('\n'),
     );
@@ -192,12 +199,15 @@ describe('machineReadableVan', () => {
   });
 
   it('gives null for an article without one, or one not in the text', () => {
-    expect(machineReadableVan(yaml, '1')).toBeNull();
+    expect(machineReadableVan(yaml.replace(/    machine_readable:\n      list:\n.*\n/, ''), '1')).toBeNull();
     expect(machineReadableVan(yaml, '2')).toBeNull();
   });
 
   it('comes with the article from the files of the case', async () => {
-    state.casus.bron = undefined;
     expect((await artikelInhoud('beleid_parkeren', '1', '2026-06-01')).machineReadable).toBeNull();
+    state.casus.bron = 'voorbeeld';
+    expect((await artikelInhoud('beleid_parkeren', '1', '2026-06-01')).machineReadable).toBe(
+      'machine_readable:\n  # Uit de bron.\n  definitions: {}',
+    );
   });
 });

@@ -36,8 +36,8 @@ export const bestanden = async () => JSON.parse(await tekst(b('/bundel.json')));
 let bronnen = null;
 
 /**
- * De bronnen, één keer opgehaald per tabblad: de cel krijgt ze bij het laden,
- * het paneel van een artikel leest er de tekst uit bij een casus uit een bron.
+ * The sources, fetched once per tab: the cell gets them when it loads, and
+ * the sheet of an article reads its text from them for a case from a source.
  */
 export function opgehaaldeBronnen() {
   bronnen ??= haalBronnen(b('/bronnen.json'), (naam) => b(`/bron/${encodeURIComponent(naam)}`));
@@ -61,7 +61,7 @@ function poc() {
       ]);
       return new wasm.Poc(bundel, JSON.stringify(opgehaald));
     } catch (e) {
-      // Een volgende stap probeert het opnieuw, ook de bronnen.
+      // A next step tries again, the sources included.
       laden = null;
       bronnen = null;
       throw new Error(`the cell did not load: ${e?.message ?? e}`);

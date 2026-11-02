@@ -22,7 +22,9 @@ const uitvoer = computed(() =>
 <template>
   <nldd-container gap="12">
     <nldd-title size="5" :text="titel">
-      <ArtikelLink slot="supporting-text" :basis="besluit.basis" :datum="besluit.recorded_on" />
+      <nldd-text slot="supporting-text" size="sm" color="secondary">
+        <ArtikelLink :basis="besluit.basis" :datum="besluit.recorded_on" />
+      </nldd-text>
       <nldd-tag
         slot="end"
         :color="verleend ? 'success' : 'critical'"

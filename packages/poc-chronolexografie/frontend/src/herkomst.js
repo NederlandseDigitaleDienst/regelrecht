@@ -100,7 +100,11 @@ let bundel = null;
  */
 async function bestandenVanCasus() {
   const bron = state.casus?.bron;
-  if (bron) return (await opgehaaldeBronnen()).find((b) => b.naam === bron)?.bestanden ?? {};
+  if (bron) {
+    const b = (await opgehaaldeBronnen()).find((x) => x.naam === bron);
+    if (b?.fout) throw new Error(b.fout);
+    return b?.bestanden ?? {};
+  }
   bundel ??= bestanden().catch((e) => {
     bundel = null;
     throw e;
@@ -151,9 +155,16 @@ const inspringing = (regel) => (regel.trim() ? regel.length - regel.trimStart().
 export function machineReadableVan(yaml, artikel) {
   const regels = yaml.split('\n');
   const nummer = /^(\s*)- number:\s*(['"]?)(.*?)\2\s*(#.*)?$/;
-  const begin = regels.findIndex((r) => nummer.exec(r)?.[3] === String(artikel));
+  // The items of `articles` share the indentation of its first one; a
+  // `- number:` deeper in an article is no article.
+  const lijst = regels.findIndex((r) => /^articles:\s*(#.*)?$/.test(r));
+  const eerste = regels.findIndex((r, i) => i > lijst && nummer.test(r));
+  if (lijst < 0 || eerste < 0) return null;
+  const item = nummer.exec(regels[eerste])[1].length;
+  const begin = regels.findIndex(
+    (r, i) => i >= eerste && nummer.exec(r)?.[1].length === item && nummer.exec(r)[3] === String(artikel),
+  );
   if (begin < 0) return null;
-  const item = nummer.exec(regels[begin])[1].length;
   let eind = regels.findIndex((r, i) => i > begin && inspringing(r) !== null && inspringing(r) <= item);
   if (eind < 0) eind = regels.length;
   const sleutel = regels.findIndex(
@@ -162,9 +173,14 @@ export function machineReadableVan(yaml, artikel) {
   if (sleutel < 0) return null;
   let van = sleutel;
   while (van - 1 > begin && inspringing(regels[van - 1]) === item + 2 && regels[van - 1].trim().startsWith('#')) van -= 1;
-  let tot = regels.findIndex((r, i) => i > sleutel && i < eind && inspringing(r) !== null && inspringing(r) <= item + 2);
+  // A comment does not end the block, whatever its indentation; the comments
+  // and blank lines right above the next key do not belong to it.
+  const commentaar = (r) => r.trim().startsWith('#');
+  let tot = regels.findIndex(
+    (r, i) => i > sleutel && i < eind && inspringing(r) !== null && inspringing(r) <= item + 2 && !commentaar(r),
+  );
   if (tot < 0) tot = eind;
-  while (tot > sleutel + 1 && !regels[tot - 1].trim()) tot -= 1;
+  while (tot > sleutel + 1 && (!regels[tot - 1].trim() || commentaar(regels[tot - 1]))) tot -= 1;
   return regels
     .slice(van, tot)
     .map((r) => r.slice(Math.min(item + 2, inspringing(r) ?? item + 2)))

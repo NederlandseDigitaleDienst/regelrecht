@@ -3,7 +3,7 @@
 // application the article that establishes it, for a decision the article
 // that took it. It reads as the chain names an article (`artikelNaam`), and a
 // click opens the article in the sheet of the chain (HerkomstSheet.vue), in
-// the version valid on `datum`.
+// the version valid on `datum`. A basis that names no article shows as it is.
 import { computed } from 'vue';
 import { herkomstVanBasis, toonHerkomst } from '../herkomst.js';
 import { artikelNaam } from '../logboek.js';
@@ -24,4 +24,5 @@ const herkomst = computed(() => herkomstVanBasis(props.basis));
     :text="artikelNaam(herkomst.wet, herkomst.artikel)"
     @click.prevent="toonHerkomst({ ...herkomst, datum })"
   ></nldd-link>
+  <template v-else>{{ basis }}</template>
 </template>

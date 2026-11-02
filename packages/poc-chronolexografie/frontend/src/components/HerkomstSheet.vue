@@ -1,8 +1,9 @@
 <script setup>
-// The sheet a line of the chain opens (herkomst.js): for law or policy the
-// text of the article, with its `machine_readable` as written in the YAML
-// behind a button (UitklapCode.vue), for a reduction per answering cell two parts, the
-// reduction that answered (a link to its article) and the chronicle it read.
+// The sheet a line of the chain opens (herkomst.js). For law or policy it
+// shows the text of the article, with its `machine_readable` as written in
+// the YAML behind a button (UitklapCode.vue). For a reduction, each answering
+// cell gets two parts: the reduction that answered (a link to its article)
+// and the chronicle it read.
 // The heading is the term and its value, as the line of the chain says it.
 // A link to the article of a chronolexogram (ArtikelLink.vue) opens it too.
 // One sheet for the whole app.
@@ -80,10 +81,10 @@ const kop = computed(() => {
           <nldd-container gap="24">
             <nldd-container v-for="(a, i) in h.antwoorden" :key="`${i}-${a.answerer}-${a.answer}`" gap="12">
               <nldd-title size="5" text="Reductie">
-                <span slot="supporting-text">
+                <nldd-text slot="supporting-text" size="sm" color="secondary">
                   {{ celNaam(a.answerer) }} ·
                   <ArtikelLink :basis="`${a.law_id}#${a.article}`" :datum="a.valid_from" />
-                </span>
+                </nldd-text>
               </nldd-title>
               <nldd-title
                 size="5"

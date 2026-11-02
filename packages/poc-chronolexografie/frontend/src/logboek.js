@@ -19,8 +19,9 @@ const AFKORTINGEN = {
 
 /**
  * De naam van een regelwerk: zijn afkorting, de naam die het zelf draagt
- * (`api.casus`), of zijn `$id` leesbaar met een hoofdletter. Een naam die
- * naar een waarde van het regelwerk verwijst (`'#wet_naam'`) is geen naam.
+ * (`api.casus`), of zijn `$id` leesbaar met een hoofdletter.
+ *
+ * A name that refers to a value of the regelwerk (`'#wet_naam'`) is no name.
  */
 export function wetNaam(wet) {
   if (AFKORTINGEN[wet]) return AFKORTINGEN[wet];
