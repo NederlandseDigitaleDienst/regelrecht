@@ -105,32 +105,28 @@ fi
 ln -sf /opt/opencode-plugins/node_modules "$HOME/.config/opencode/node_modules"
 
 # --- opencode binary ---
-# `opencode` on the PATH is a Node launcher that starts the real binary as a
-# child process. The worker's memory watchdog reads the RSS of the process it
-# spawns, so through the launcher it sees a few tens of MB while the binary
-# grows unseen, and the container is OOM-killed before the watchdog acts.
-# Point the worker at the binary itself, chosen the way the launcher chooses
-# it on Alpine: the musl build, or its baseline variant on a CPU without AVX2.
+# The image carries two opencode builds (see the Dockerfile): one that needs
+# AVX2 and a baseline build without. Use the AVX2 build where the CPU has it,
+# as opencode's own installer would. The worker spawns this binary directly, so
+# its memory watchdog measures opencode itself.
 if [ -z "$OPENCODE_PATH" ]; then
-  oc_modules="$(npm root -g 2>/dev/null)/opencode-ai/node_modules"
+  oc_root="$(npm root -g 2>/dev/null)"
   if grep -qw avx2 /proc/cpuinfo 2>/dev/null; then
     oc_variants="opencode-linux-x64-musl opencode-linux-x64-baseline-musl"
   else
-    oc_variants="opencode-linux-x64-baseline-musl opencode-linux-x64-musl"
+    oc_variants="opencode-linux-x64-baseline-musl"
   fi
   for v in $oc_variants; do
-    for dir in "$oc_modules" "$(npm root -g 2>/dev/null)"; do
-      if [ -x "$dir/$v/bin/opencode" ]; then
-        OPENCODE_PATH="$dir/$v/bin/opencode"
-        break 2
-      fi
-    done
+    if [ -x "$oc_root/$v/bin/opencode" ]; then
+      OPENCODE_PATH="$oc_root/$v/bin/opencode"
+      break
+    fi
   done
   if [ -n "$OPENCODE_PATH" ]; then
     export OPENCODE_PATH
     echo "opencode binary: $OPENCODE_PATH" >&2
   else
-    echo "WARNING: opencode binary not found; using the launcher, which the memory watchdog cannot see through" >&2
+    echo "WARNING: no opencode build found under $oc_root; falling back to opencode on the PATH" >&2
   fi
 fi
 
