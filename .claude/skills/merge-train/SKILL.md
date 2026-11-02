@@ -155,7 +155,7 @@ rood te laten worden op een Critical, als tweede net onder het lezen.
 - `CodeQL` en `Analyze (…)` rapporteren niet op een PR die alleen docs raakt.
   Nooit op wachten; ze zijn niet verplicht.
 - `Mutation Testing (diff)` draait alleen bij een wijziging in
-  `packages/engine/**` of `packages/pipeline/**`. Hij is niet verplicht, maar
+  `packages/engine/**`, `packages/pipeline/**` of `packages/cel/**`. Hij is niet verplicht, maar
   rood betekent een ongetest codepad: niet mergen.
 
 Reken op ongeveer zes minuten voor CI en tien voor de review; onder belasting

@@ -239,7 +239,7 @@ Passing the checks above is not enough on its own. Four gates weigh in on whethe
 | **Werkpakket genoemd** | The PR body ends with a `Werkpakket:` line naming a werkpakket from the roadmap. `geen` is allowed with a reason. See [Contributing](./contributing). |
 | **Claude review completed** | The automated review ran to completion for this commit and left no finding marked Critical. There is no override: fix the finding and push again. |
 | **Security update approved** | A Dependabot security update needs an approving review from someone with write access, on the commit being merged. Security updates skip the five-day cooldown, so a human looks at them instead. |
-| **Mutation Testing (diff)** | Reports on whether the tests pin the behavior the change introduces. |
+| **Mutation Testing (diff)** | Reports on whether the tests pin the behavior the change introduces. It runs when a PR changes `packages/engine`, `packages/pipeline` or `packages/cel`, and mutates only the changed lines. |
 
 The full list of required checks on `main` is `Pre-commit`, `WASM Build`, `Protect schema versions`, `Security Audit`, `Test`, `Validate PR title` and `Claude review completed`. That list lives in the branch protection, not in a file; `script/merge-queue-checks.test.mjs` keeps a hand-maintained copy of it (see [the merge queue](#the-merge-queue)).
 

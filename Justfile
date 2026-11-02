@@ -549,9 +549,9 @@ mutants-diff BASE="origin/main":
     #!/usr/bin/env bash
     set -euo pipefail
     diff_file="$(mktemp -t mutants-diff-XXXXXX.diff)"
-    git -C packages diff --relative "{{BASE}}...HEAD" -- engine pipeline > "$diff_file"
+    git -C packages diff --relative "{{BASE}}...HEAD" -- engine pipeline cel > "$diff_file"
     if [ ! -s "$diff_file" ]; then
-        echo "Geen gewijzigde regels in packages/engine of packages/pipeline ten opzichte van {{BASE}}."
+        echo "Geen gewijzigde regels in packages/engine, packages/pipeline of packages/cel ten opzichte van {{BASE}}."
         exit 0
     fi
     cd packages
