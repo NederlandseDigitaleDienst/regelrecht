@@ -18,7 +18,7 @@ const casus = {
     readFileSync(new URL('../../corpus/casussen/bedrijfsparkeervergunning.yaml', import.meta.url), 'utf8'),
   ),
 };
-const GROEI = 'Een tweede vergunning als het bedrijf groeit';
+const GROEI = 'Een koeriersbedrijf groeit, en de hardheidsclausule na bezwaar';
 const aanvraag = { id: 'a1', kind: 'AANVRAAG', basis: 'verordening#2' };
 const besluit = { id: 'b1', kind: 'BESCHIKKING', basis: 'verordening#2', refers_to: 'a1', outputs: { bedrijfsparkeervergunning_verleend: true } };
 

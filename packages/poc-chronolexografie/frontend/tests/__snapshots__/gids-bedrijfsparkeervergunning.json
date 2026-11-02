@@ -26,14 +26,14 @@
   ]
  },
  {
-  "name": "Een tweede vergunning als het bedrijf groeit",
-  "summary": "Een kapsalon in de schil krijgt een tweede vergunning pas als de Kamer van Koophandel twee werkzame personen vermeldt.",
+  "name": "Een koeriersbedrijf groeit, en de hardheidsclausule na bezwaar",
+  "summary": "Een koeriersbedrijf in de schil krijgt zoveel vergunningen als er mensen werken, en na bezwaar past het college de hardheidsclausule toe.",
   "steps": [
    {
     "title": "Inschrijving bij de Kamer van Koophandel",
     "tab": "andere",
     "date": null,
-    "story": "Een kapsalon in de schil, waar één persoon werkt, schrijft zich in bij de Kamer van Koophandel.",
+    "story": "Een koeriersbedrijf in de schil, waar één persoon werkt, schrijft zich in bij de Kamer van Koophandel.",
     "todo": "Klik bij Kamer van Koophandel onder \"Vastleggen: Vestiging ingeschreven\" op Vastleggen.",
     "values": [
      "kvk nummer: 99990055",
@@ -48,11 +48,11 @@
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
-    "story": "De kapsalon vraagt een bedrijfsparkeervergunning.",
+    "story": "Het koeriersbedrijf vraagt een bedrijfsparkeervergunning.",
     "todo": "Klik op Aanvraag indienen.",
     "values": [
      "kvk nummer: 99990055",
-     "naam aanvrager: Kapsalon De Schil",
+     "naam aanvrager: Koeriersbedrijf De Singel",
      "adres aanvrager: Singel 5, 7713 AB Wilgendaal"
     ],
     "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
@@ -62,7 +62,7 @@
     "title": "Besluit nemen",
     "tab": "bestuursorgaan",
     "date": "2026-10-20",
-    "story": "Het college beslist op de aanvraag.",
+    "story": "Het college beslist op de eerste aanvraag.",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
     "seen": "Toegewezen: er werkt één persoon, dus één vergunning past.",
@@ -72,11 +72,11 @@
     "title": "Nog een aanvraag indienen",
     "tab": "aanvrager",
     "date": "2026-10-21",
-    "story": "De kapsalon vraagt een tweede vergunning, voor een tweede auto.",
+    "story": "Het koeriersbedrijf vraagt een tweede vergunning.",
     "todo": "Klik op Aanvraag indienen.",
     "values": [
      "kvk nummer: 99990055",
-     "naam aanvrager: Kapsalon De Schil",
+     "naam aanvrager: Koeriersbedrijf De Singel",
      "adres aanvrager: Singel 5, 7713 AB Wilgendaal",
      "kenteken: ZZ-002-Z"
     ],
@@ -97,7 +97,7 @@
     "title": "Nieuwe inschrijving bij de Kamer van Koophandel",
     "tab": "andere",
     "date": "2026-11-02",
-    "story": "De kapsalon neemt iemand aan en schrijft dat in bij de Kamer.",
+    "story": "Het koeriersbedrijf neemt iemand aan en schrijft dat in bij de Kamer.",
     "todo": "Klik bij Kamer van Koophandel onder \"Vastleggen: Vestiging ingeschreven\" op Vastleggen.",
     "values": [
      "kvk nummer: 99990055",
@@ -112,11 +112,11 @@
     "title": "Een derde aanvraag indienen",
     "tab": "aanvrager",
     "date": "2026-11-03",
-    "story": "De kapsalon vraagt opnieuw een tweede vergunning, in een derde aanvraag.",
+    "story": "Het koeriersbedrijf vraagt opnieuw een tweede vergunning, in een derde aanvraag.",
     "todo": "Klik op Aanvraag indienen.",
     "values": [
      "kvk nummer: 99990055",
-     "naam aanvrager: Kapsalon De Schil",
+     "naam aanvrager: Koeriersbedrijf De Singel",
      "adres aanvrager: Singel 5, 7713 AB Wilgendaal",
      "kenteken: ZZ-002-Z"
     ],
@@ -130,8 +130,59 @@
     "story": "Het college beslist op de derde aanvraag.",
     "todo": "Klik bij de derde aanvraag op Besluit nemen.",
     "values": [],
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
+    "seen": "Toegewezen: de Kamer vermeldt nu twee werkzame personen.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   },
+   {
+    "title": "Een vierde aanvraag indienen",
+    "tab": "aanvrager",
+    "date": "2026-11-06",
+    "story": "Het koeriersbedrijf vraagt een derde vergunning, in een vierde aanvraag.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [
+     "kvk nummer: 99990055",
+     "naam aanvrager: Koeriersbedrijf De Singel",
+     "adres aanvrager: Singel 5, 7713 AB Wilgendaal",
+     "kenteken: ZZ-003-Z"
+    ],
+    "seen": "De vierde aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluiten op de vierde aanvraag",
+    "tab": "bestuursorgaan",
+    "date": "2026-11-09",
+    "story": "Het college beslist op de vierde aanvraag.",
+    "todo": "Klik bij de vierde aanvraag op Besluit nemen.",
+    "values": [],
+    "seen": "Afgewezen: het bedrijf heeft al twee vergunningen, en er werken twee mensen.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   },
+   {
+    "title": "Bezwaar maken",
+    "tab": "aanvrager",
+    "date": "2026-11-16",
+    "story": "Het koeriersbedrijf maakt bezwaar: zonder derde vergunning kan het zijn ritten niet rijden.",
+    "todo": "Klik bij het besluit over de vierde aanvraag op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [
+     "naam indiener: Koeriersbedrijf De Singel",
+     "adres indiener: Singel 5, 7713 AB Wilgendaal",
+     "gronden bezwaar of beroep: als koeriersbedrijf rijden we de hele dag met drie auto's"
+    ],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
+    "expect": null
+   },
+   {
+    "title": "Beslissen op bezwaar",
+    "tab": "bestuursorgaan",
+    "date": "2026-11-30",
+    "story": "Bij de heroverweging vindt het college de gevolgen van het maximum onaanvaardbaar.",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "values": [
+     "toepassing leidt tot onaanvaardbare gevolgen: Ja"
+    ],
+    "seen": "De beslissing staat onder Beslissingen op bezwaar.",
+    "expect": "hier hoort het bezwaar gegrond te zijn"
    }
   ]
  },
