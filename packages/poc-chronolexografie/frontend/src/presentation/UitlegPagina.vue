@@ -60,7 +60,6 @@ onMounted(async () => {
   terugKnop.value?.focus();
 });
 
-
 /** The case file, which the picture starts from. */
 const casusPad = `${CASUSSEN}${casus}.yaml`;
 /**

@@ -31,8 +31,8 @@ export function withParam(href, on, param = PARAM) {
 }
 
 export function createPagina(param) {
-  const asked_ = (search) => asked(search, param);
-  const withParam_ = (href, on) => withParam(href, on, param);
+  const isOpen = (search) => asked(search, param);
+  const withOwnParam = (href, on) => withParam(href, on, param);
   const active = ref(false);
   // Whether the choice screen should take the focus back when it returns:
   // its button that opened the page is gone while the page shows.
@@ -44,7 +44,7 @@ export function createPagina(param) {
   // Back and forward open and close it along with the address.
   const onPop = () => {
     const was = active.value;
-    active.value = asked_(window.location.search);
+    active.value = isOpen(window.location.search);
     if (was && !active.value) terug.value = true;
   };
 
@@ -71,19 +71,19 @@ export function createPagina(param) {
     if (!push || typeof window === 'undefined') return;
     if (vervangt) {
       const { [vervangt]: pushed, ...rest } = window.history.state ?? {};
-      const href = withParam_(withParam(window.location.href, false, vervangt), true);
+      const href = withOwnParam(withParam(window.location.href, false, vervangt), true);
       window.history.replaceState({ ...rest, [param]: pushed || undefined }, '', href);
-    } else if (!asked_(window.location.search)) {
-      window.history.pushState({ ...window.history.state, [param]: true }, '', withParam_(window.location.href, true));
+    } else if (!isOpen(window.location.search)) {
+      window.history.pushState({ ...window.history.state, [param]: true }, '', withOwnParam(window.location.href, true));
     }
   }
 
   function close() {
     active.value = false;
     terug.value = true;
-    if (typeof window === 'undefined' || !asked_(window.location.search)) return;
+    if (typeof window === 'undefined' || !isOpen(window.location.search)) return;
     if (window.history.state?.[param]) window.history.back();
-    else window.history.replaceState(window.history.state, '', withParam_(window.location.href, false));
+    else window.history.replaceState(window.history.state, '', withOwnParam(window.location.href, false));
   }
 
   /**
@@ -92,8 +92,8 @@ export function createPagina(param) {
    */
   function verlaat() {
     active.value = false;
-    if (typeof window !== 'undefined' && asked_(window.location.search)) {
-      window.history.replaceState(window.history.state, '', withParam_(window.location.href, false));
+    if (typeof window !== 'undefined' && isOpen(window.location.search)) {
+      window.history.replaceState(window.history.state, '', withOwnParam(window.location.href, false));
     }
   }
 
@@ -111,7 +111,7 @@ export function createPagina(param) {
    */
   function follow({ opCasus = false } = {}) {
     listen();
-    if (typeof window === 'undefined' || !asked_(window.location.search)) return;
+    if (typeof window === 'undefined' || !isOpen(window.location.search)) return;
     if (opCasus) verlaat();
     else open({ push: false });
   }
