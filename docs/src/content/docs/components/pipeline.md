@@ -351,7 +351,7 @@ without one.
 | `ENRICH_AUTO_ENQUEUE` | off | `true` (or `1`, `yes`, `on`) makes a completed harvest queue enrich jobs; otherwise enrichment is requested explicitly through `POST /api/enrich-jobs` on the [Harvester Admin](./admin) API |
 | `LLM_PROVIDER` | `opencode` | `opencode` or `claude` |
 | `LLM_PATH`, `LLM_MODEL` | none | Fallback binary and model for either provider |
-| `OPENCODE_PATH`, `OPENCODE_MODEL` | `opencode`, provider default | Binary and model for opencode |
+| `OPENCODE_PATH`, `OPENCODE_MODEL` | the opencode binary, provider default | Binary and model for opencode. In the image the entrypoint sets the path to the platform binary rather than the `opencode` launcher on the `PATH`, because the memory watchdog only sees the process the worker spawns |
 | `VLAM_API_KEY` | none | Key for VLAM, used by the opencode provider |
 | `VLAM_BASE_URL` | `$VLAM_API_URL/v1` | OpenAI-compatible base URL of VLAM; `VLAM_API_URL` comes from the ZAD service `vlam` |
 | `CLAUDE_PATH`, `CLAUDE_MODEL` | `claude`, provider default | Binary and model for claude |

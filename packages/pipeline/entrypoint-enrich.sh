@@ -103,6 +103,63 @@ else
   cp /etc/opencode/opencode.json "$HOME/.config/opencode/opencode.json"
 fi
 ln -sf /opt/opencode-plugins/node_modules "$HOME/.config/opencode/node_modules"
+
+# --- opencode binary ---
+# `opencode` on the PATH is a Node launcher that starts the real binary as a
+# child process. The worker's memory watchdog reads the RSS of the process it
+# spawns, so through the launcher it sees a few tens of MB while the binary
+# grows unseen, and the container is OOM-killed before the watchdog acts.
+# Point the worker at the binary itself, chosen the way the launcher chooses
+# it on Alpine: the musl build, or its baseline variant on a CPU without AVX2.
+if [ -z "$OPENCODE_PATH" ]; then
+  oc_modules="$(npm root -g 2>/dev/null)/opencode-ai/node_modules"
+  if grep -qw avx2 /proc/cpuinfo 2>/dev/null; then
+    oc_variants="opencode-linux-x64-musl opencode-linux-x64-baseline-musl"
+  else
+    oc_variants="opencode-linux-x64-baseline-musl opencode-linux-x64-musl"
+  fi
+  for v in $oc_variants; do
+    for dir in "$oc_modules" "$(npm root -g 2>/dev/null)"; do
+      if [ -x "$dir/$v/bin/opencode" ]; then
+        OPENCODE_PATH="$dir/$v/bin/opencode"
+        break 2
+      fi
+    done
+  done
+  if [ -n "$OPENCODE_PATH" ]; then
+    export OPENCODE_PATH
+    echo "opencode binary: $OPENCODE_PATH" >&2
+  else
+    echo "WARNING: opencode binary not found; using the launcher, which the memory watchdog cannot see through" >&2
+  fi
+fi
+
+# --- Memory sampler (temporary diagnostic) ---
+# A VLAM enrichment kills the pod about 20s after opencode starts, without a
+# log line. Log the container's memory and the largest processes whenever the
+# usage moves by 64 MiB, so the log shows what grows before a kill.
+# Remove once the cause is known.
+(
+  if [ -r /sys/fs/cgroup/memory.current ]; then
+    cur=/sys/fs/cgroup/memory.current; max=/sys/fs/cgroup/memory.max
+  else
+    cur=/sys/fs/cgroup/memory/memory.usage_in_bytes; max=/sys/fs/cgroup/memory/memory.limit_in_bytes
+  fi
+  echo "MEM limit: $(cat "$max" 2>/dev/null); /tmp: $(grep ' /tmp ' /proc/mounts | cut -d' ' -f1,3,4)" >&2
+  last=0
+  while sleep 2; do
+    used=$(cat "$cur" 2>/dev/null) || continue
+    used_mb=$((used / 1048576))
+    diff=$((used_mb - last)); [ "$diff" -lt 0 ] && diff=$((-diff))
+    if [ "$diff" -ge 64 ]; then
+      last=$used_mb
+      top=$(for s in /proc/[0-9]*/status; do
+              awk '/^Name:/{n=$2} /^Pid:/{p=$2} /^VmRSS:/{print $2, p, n}' "$s" 2>/dev/null
+            done | sort -rn | head -3 | awk '{printf "%s(%s) %dMB; ", $3, $2, $1/1024}')
+      echo "MEM ${used_mb}MB tmp=$(df -m /tmp 2>/dev/null | awk 'NR==2{print $3}')MB top: $top" >&2
+    fi
+  done
+) &
 printf '{"dependencies":{"@ai-sdk/openai-compatible":"*"}}' \
   > "$HOME/.config/opencode/package.json"
 
