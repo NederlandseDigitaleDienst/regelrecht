@@ -23,9 +23,9 @@ const HOOGTE = 64;
     <svg :viewBox="`0 0 ${schema.breedte} ${schema.hoogte}`" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <defs>
         <marker
-          v-for="l in schema.lagen"
-          :id="`kort-pijl-${l.id}`"
-          :key="l.id"
+          v-for="l in ['rr', 'cl', 'grens']"
+          :id="`kort-pijl-${l}`"
+          :key="l"
           viewBox="0 0 10 10"
           refX="9"
           refY="5"
@@ -33,7 +33,7 @@ const HOOGTE = 64;
           markerHeight="7"
           orient="auto-start-reverse"
         >
-          <path :class="`kop ${l.id}`" d="M0,0 L10,5 L0,10 z" />
+          <path :class="`kop ${l}`" d="M0,0 L10,5 L0,10 z" />
         </marker>
       </defs>
       <g v-for="l in schema.lagen" :key="l.id">
@@ -47,7 +47,7 @@ const HOOGTE = 64;
       </g>
       <g v-for="(p, i) in schema.pijlen" :key="i">
         <path :class="`pijl ${p.laag}`" :d="p.d" :marker-end="`url(#kort-pijl-${p.laag})`" />
-        <text v-if="p.label" class="noot" :x="p.label.x" :y="p.label.y">{{ p.label.tekst }}</text>
+        <text v-if="p.label" class="noot" :x="p.label.x" :y="p.label.y" :text-anchor="p.label.anker ?? 'start'">{{ p.label.tekst }}</text>
       </g>
       <g v-for="(p, i) in schema.pijlen.filter((q) => q.nummer)" :key="`n${i}`">
         <circle class="badge" :cx="p.badge[0]" :cy="p.badge[1]" r="10" />
@@ -131,6 +131,13 @@ text {
 }
 .pijl.cl {
   stroke: var(--primitives-color-oranje-700);
+}
+.pijl.grens {
+  stroke: var(--semantics-content-secondary-color);
+  stroke-dasharray: 5 4;
+}
+.kop.grens {
+  fill: var(--semantics-content-secondary-color);
 }
 .kop.rr {
   fill: var(--semantics-content-color);

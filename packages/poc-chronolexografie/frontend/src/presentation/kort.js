@@ -61,19 +61,22 @@ export const schema = {
     { laag: 'cl', d: 'M370 392 H418', nummer: 1, badge: [394, 392] },
     { laag: 'cl', d: 'M470 424 V538', nummer: 2, badge: [470, 481] },
     { laag: 'cl', d: 'M370 572 H418', nummer: 3, badge: [394, 572] },
-    { laag: 'cl', d: 'M520 360 L630 186', nummer: 4, badge: [575, 273] },
+    { laag: 'cl', d: 'M520 360 L630 186', nummer: 4, badge: [553, 308] },
     { laag: 'cl', d: 'M680 184 V226', nummer: 5, badge: [680, 205] },
     { laag: 'cl', d: 'M640 292 L562 358', nummer: 6, badge: [601, 325] },
     { laag: 'cl', d: 'M545 424 L650 538', nummer: 7, badge: [597, 481] },
     { laag: 'cl', d: 'M620 572 H572', nummer: 8, badge: [596, 572] },
     { laag: 'cl', d: 'M735 540 V294', nummer: 9, badge: [735, 417] },
     { laag: 'cl', d: 'M735 228 V186', nummer: 9, badge: [735, 207] },
+    // The policy fills an open begrip of a law in the corpus (`implements`): a
+    // reference, not a step of the case, so no number.
+    { laag: 'grens', d: 'M620 260 L547 188', label: { x: 562, y: 214, tekst: 'vult open begrip in', anker: 'end' } },
   ],
   bijschrift:
     'Boven staat RegelRecht: de wettekst gaat via de harvester naar het corpus, het schema valideert dat corpus en de engine voert het uit. ' +
     'Onder staat wat chronolexografie toevoegt. Een cel legt aanvragen en besluiten vast in haar kroniek, en een reductie leest die kroniek terug. ' +
-    'Het uitvoeringsbeleid staat op de grens. Het is een regelwerk in het corpus van RegelRecht. ' +
-    'Chronolexografie laat het een open begrip koppelen aan het antwoord van een cel.',
+    'Het uitvoeringsbeleid staat op de grens. Het is een regelwerk in het corpus van RegelRecht en vult een open begrip van een wet in (de gestippelde pijl). ' +
+    'Chronolexografie laat het daarvoor het antwoord van een cel gebruiken.',
 };
 
 export const casusBlok = {

@@ -34,6 +34,14 @@ describe('the short page', () => {
     for (const p of schema.pijlen.filter((q) => q.nummer)) expect(p.badge, `${p.nummer}`).toHaveLength(2);
   });
 
+  it('draws the policy filling an open begrip of a law as a reference, not a step', () => {
+    const verwijzing = schema.pijlen.filter((p) => p.laag === 'grens');
+    expect(verwijzing).toHaveLength(1);
+    expect(verwijzing[0].nummer).toBeUndefined();
+    expect(verwijzing[0].label.tekst).toBe('vult open begrip in');
+    expect(schema.bijschrift).toMatch(/vult een open begrip van een wet in/);
+  });
+
   it('follows a case the app has, with the files its steps name', () => {
     const file = join(corpus, 'casussen', `${casus}.yaml`);
     expect(existsSync(file)).toBe(true);
