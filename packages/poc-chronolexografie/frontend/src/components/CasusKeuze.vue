@@ -69,7 +69,7 @@ const kies = (c) => navigate(() => kiezen(c.id));
         size="4"
         heading-level="2"
         text="Demoscenario's"
-        supporting-text="Van simpel naar ingewikkeld, twee casussen in dezelfde omgeving."
+        supporting-text="Van simpel naar ingewikkeld, in twee casussen."
       ></nldd-title>
       <!-- `item-min-width`, not `item-width`: @nldd/design-system 0.9.0 renamed
            the attribute (collection.d.ts, @migration), and the old name now

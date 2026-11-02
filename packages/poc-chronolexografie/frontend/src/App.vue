@@ -176,7 +176,7 @@ function chooseScenario() {
 // A scenario opens on the tab of its first step, such as a registration at
 // another cell.
 async function started() {
-  tab.value = guideFor(state.casus, state.scenario)?.steps[0]?.tab ?? 'aanvrager';
+  tab.value = guide.value?.steps[0]?.tab ?? 'aanvrager';
   await openGuide();
 }
 async function restart() {

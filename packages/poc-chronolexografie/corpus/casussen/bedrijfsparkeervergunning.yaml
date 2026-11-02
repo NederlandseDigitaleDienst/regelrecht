@@ -34,9 +34,9 @@ speeldatum: 2026-10-13
 # Fictieve voorbeeldgegevens. Volg je een scenario, dan begint elk formulier
 # hiermee, met de waarden van de stap erover; bij vrij spelen blijft het leeg.
 # Het KvK-nummer is dat van een verzonnen bakkerij in de binnenstad; de
-# KvK-nummers en het kenteken zijn verzonnen. Een bevinding vraagt het
-# formulier alleen bij een bedrijf op het maximum: het oordeel over de
-# hardheidsclausule, in het voorbeeld niet toegepast. De rest geven de Kamer
+# KvK-nummers en het kenteken zijn verzonnen. Alleen bij een bedrijf op het
+# maximum vraagt het formulier een bevinding: het oordeel over de
+# hardheidsclausule. Het voorbeeld past die niet toe. De rest geven de Kamer
 # van Koophandel en de cel van de gemeente.
 voorbeeld:
   aanvraag:
@@ -201,8 +201,8 @@ scenarios:
         tekst: >-
           Klik bij de tweede aanvraag op Besluit nemen.
         gezien: >-
-          Afgewezen: de gemeente vindt haar eerste vergunning in haar eigen
-          kroniek, en de Kamer vermeldt één werkzame persoon.
+          Afgewezen: de eerste vergunning staat al in de kroniek van de
+          gemeente, en de Kamer vermeldt één werkzame persoon.
       - stap: vastleggen
         verhaal: >-
           De kapsalon neemt iemand aan en schrijft dat in bij de Kamer.
@@ -223,8 +223,9 @@ scenarios:
           oude.
       - stap: aanvraag
         verhaal: >-
-          De kapsalon vraagt opnieuw een tweede vergunning.
-        titel: Opnieuw een aanvraag indienen
+          De kapsalon vraagt opnieuw een tweede vergunning, in een derde
+          aanvraag.
+        titel: Een derde aanvraag indienen
         datum: 2026-11-03
         invoer:
           kvk_nummer: '99990055'
@@ -235,7 +236,7 @@ scenarios:
           De derde aanvraag staat onder Mijn aanvragen op In behandeling.
       - stap: besluit
         verhaal: >-
-          Het college beslist op de nieuwe aanvraag.
+          Het college beslist op de derde aanvraag.
         titel: Besluiten op de derde aanvraag
         datum: 2026-11-05
         uitkomst: toegewezen
