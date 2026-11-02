@@ -125,7 +125,7 @@ articles:
             nullable: true
             required: false
             description: De dagtekening van de aanvraag (lid 1, onder b).
-          # Afleiden uit `requests` van de aanvraag: open punt in concepts/chronolexography/open-questions.
+          # Afleiden uit `requests` van het vestigende artikel: open punt in concepts/chronolexography/open-questions.
           - name: gevraagde_beschikking
             type: string
             nullable: true
