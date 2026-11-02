@@ -241,6 +241,12 @@ fn assemble_law(
             .map(|article| article.warning(date, manifest)),
     );
 
+    if parsed.publication_date.is_none() {
+        warnings.push(format!(
+            "No publicatie_bron found among the elements in force on {date}; publication_date falls back to valid_from"
+        ));
+    }
+
     let mut metadata = wti_result.metadata;
     metadata.publication_date = parsed.publication_date;
     metadata.effective_date = Some(date.to_string());
@@ -479,6 +485,31 @@ mod tests {
             resolve_version_date(&manifest, "BWBR0000001", "2027-03-01").unwrap(),
             "2027-01-01"
         );
+    }
+
+    #[test]
+    fn test_missing_publication_date_is_warned_about() {
+        let xml = r#"<toestand><artikel label="Artikel 1" status="goed"><kop><nr>1</nr></kop><al>Tekst.</al></artikel></toestand>"#;
+        let wti = WtiParseResult {
+            metadata: crate::types::LawMetadata {
+                bwb_id: "BWBR0000001".to_string(),
+                cvdr_id: None,
+                title: "Test".to_string(),
+                regulatory_layer: crate::types::RegulatoryLayer::Wet,
+                publication_date: None,
+                effective_date: None,
+                valid_to: None,
+                creator: None,
+                scope_code: None,
+            },
+            warnings: Vec::new(),
+        };
+        let law = parse_law(wti, xml, "BWBR0000001", "2025-01-01").unwrap();
+        assert_eq!(law.metadata.publication_date, None);
+        assert!(law
+            .warnings
+            .iter()
+            .any(|w| w.contains("publication_date falls back to valid_from")));
     }
 
     #[test]
