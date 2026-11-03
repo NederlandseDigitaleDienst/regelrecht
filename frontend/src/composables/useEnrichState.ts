@@ -151,10 +151,10 @@ export function useEnrichState({ trajectRef, lawId, articleNumber, reviewActive 
   // `isEnriching` false, slaat de bezig-staat niet om en begint usePollWhile
   // nooit te pollen. Die koppeling hoort hier en niet bij elke aanroeper - daar
   // is hij één keer vergeten.
-  async function requestEnrich() {
+  async function requestEnrich(provider?: string) {
     // Both callers (LibraryView, EditorView) only call this with a traject and
     // a law; nothing here checks that.
-    const result = await requestEnrichRaw(toValue(trajectRef) as string, toValue(lawId) as string);
+    const result = await requestEnrichRaw(toValue(trajectRef) as string, toValue(lawId) as string, provider);
     await refreshTasks();
     return result;
   }

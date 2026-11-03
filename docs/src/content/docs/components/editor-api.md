@@ -101,7 +101,7 @@ The traject-scoped view of the corpus: the global corpus with the traject's own 
 | GET, PUT, DELETE | `.../corpus/laws/{law_id}/scenarios/{filename}` | Reader / Writer (1 MiB) |
 | GET, PUT | `.../corpus/laws/{law_id}/annotations` | Reader / Writer (1 MiB) |
 | POST | `.../corpus/laws/{law_id}/promote` | Writer; copy a law from the central corpus into the traject repo |
-| POST | `.../corpus/laws/{law_id}/enrich` | Writer; request an enrichment task |
+| POST | `.../corpus/laws/{law_id}/enrich` | Writer; request an enrichment task. An optional body `{"provider": "opencode"}` picks the provider; without it `TASK_ENRICH_PROVIDER` decides, and an unknown name returns 400 |
 | POST | `/api/trajects/{traject_ref}/corpus/harvest` | Writer; harvest a law into the traject via a task |
 | GET | `/api/trajects/{traject_ref}/corpus/documents` | Reader |
 | POST | `.../corpus/documents/upload` | Writer; PDF or Word, converted to markdown asynchronously (25 MiB) |
@@ -180,7 +180,7 @@ From `main.rs`, `config.rs` and `packages/shared/src/telemetry.rs`.
 | `HOSTNAME` | set by the platform | Pod hostname. When it names a ZAD deployment, the proxy targets are derived from it and win over the two variables below. |
 | `PIPELINE_API_URL` | none | Pipeline-api base URL when `HOSTNAME` does not yield one (`http://<deployment>-pipelineapi:8000`) |
 | `HARVEST_ADMIN_URL` | none | Harvester-admin base URL when `HOSTNAME` does not yield one (`http://<deployment>-harvester-admin:8000`) |
-| `TASK_ENRICH_PROVIDER` | `claude` | LLM provider for enrichment tasks requested from a traject. Must be one of the pipeline's providers (`opencode`, `claude`); any other value stops startup. |
+| `TASK_ENRICH_PROVIDER` | `claude` | Default LLM provider for enrichment tasks requested from a traject; a request may name another. Must be one of the pipeline's providers (`opencode`, `claude`); any other value stops startup. |
 | `RUST_LOG` | `info` | Log filter |
 | `LOG_FORMAT` | text | `json` for one JSON object per log line |
 | `LOG_SPAN_EVENTS` | on for this service | Span-close timing lines; `none` turns them off |

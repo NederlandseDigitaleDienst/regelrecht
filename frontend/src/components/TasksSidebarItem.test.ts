@@ -13,13 +13,13 @@ describe('TasksSidebarItem', () => {
   });
 
   // Rows go into the mocked JSON response as-is, so they stay untyped here.
-  async function mountItem(tasks: unknown[], running: unknown[] = [], props: { current?: boolean } = {}) {
+  async function mountItem(tasks: unknown[], running: unknown[] = [], props: { current?: boolean; trajectRef?: string } = {}) {
     apiFetch.mockResolvedValue({
       status: 200,
       json: async () => ({ tasks, open_count: tasks.length, running }),
     });
     const { default: TasksSidebarItem } = await import('./TasksSidebarItem.vue');
-    const wrapper = mount(TasksSidebarItem, { props });
+    const wrapper = mount(TasksSidebarItem, { props: { trajectRef: 'traject-abcd1234', ...props } });
     // Flush useTasks' deferred initial load (see comment in useTasks.js) -
     // same flush sequence as TasksListPane.test.js's mountPane().
     await wrapper.vm.$nextTick();
@@ -54,6 +54,13 @@ describe('TasksSidebarItem', () => {
     // Alleen de mislukte taak telt, de review niet.
     expect(badge.attributes('number')).toBe('1');
     expect(badge.attributes('color')).toBeUndefined();
+  });
+
+  it('counts only the priority tasks of this traject', async () => {
+    const elsewhere = { ...FAILED_TASK, id: 't3', traject_id: 'ffff0000-0000-4000-8000-000000000000' };
+    const here = { ...FAILED_TASK, id: 't4', traject_id: 'abcd1234-0000-4000-8000-000000000000' };
+    const wrapper = await mountItem([elsewhere, here], []);
+    expect(wrapper.get('nldd-badge').attributes('number')).toBe('1');
   });
 
   it('laat prioriteit voorgaan op het lopende-signaal', async () => {

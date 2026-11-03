@@ -42,4 +42,28 @@ describe('MachineEmptyState', () => {
       .attributes('supporting-text');
     expect(supporting).toContain('alle artikelen van deze versie');
   });
+
+  describe('choice of model', () => {
+    it('runs the default when the button itself is clicked', async () => {
+      const w = mountEmpty('');
+      await w.find('[data-testid="enrich-btn"]').trigger('action-click');
+      expect(w.emitted('enrich')).toHaveLength(1);
+      expect(w.emitted('enrich')?.[0]?.[1]).toBeUndefined();
+    });
+
+    it('passes the provider picked from the menu, shown under its own name', async () => {
+      const w = mountEmpty('');
+      const vlam = w.find('[data-testid="enrich-with-opencode"]');
+      expect(vlam.attributes('text')).toBe('VLAM');
+      await vlam.trigger('select');
+      expect(w.emitted('enrich')).toHaveLength(1);
+      expect(w.emitted('enrich')?.[0]?.[1]).toBe('opencode');
+    });
+
+    it.each(['login', 'traject'])('offers no menu where the button routes first (%s)', (needs) => {
+      const w = mountEmpty(needs);
+      expect(w.find('nldd-split-button').exists()).toBe(false);
+      expect(w.find('[data-testid="enrich-with-opencode"]').exists()).toBe(false);
+    });
+  });
 });

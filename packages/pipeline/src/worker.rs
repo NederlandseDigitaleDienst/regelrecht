@@ -998,8 +998,8 @@ pub async fn run_enrich_worker(config: WorkerConfig) -> Result<()> {
             }
         }
 
-        // Enforce the per-provider hourly run cap before claiming a job. The cap
-        // is multiplied during the local night window (00:00–08:00 Europe/
+        // Enforce the hourly run cap before claiming a job. The cap is
+        // multiplied during the local night window (00:00–08:00 Europe/
         // Amsterdam) by ENRICH_NIGHT_MULTIPLIER, so bulk enrichment runs mostly
         // overnight. Counted from the durable `jobs` table (not an in-memory
         // counter) so the cap holds across restarts/redeploys.
@@ -1016,15 +1016,17 @@ pub async fn run_enrich_worker(config: WorkerConfig) -> Result<()> {
         // gate on purpose — it is not an LLM run and doesn't touch the token
         // budget, so it must not be throttled by the enrich cap.
         //
-        // Fail-closed: a base limit of 0 (the default when ENRICH_HOURLY_LIMIT is
-        // unset) pauses the worker without even querying.
+        // The cap is on the claude provider, whatever this worker's own
+        // LLM_PROVIDER is: a user picks the provider per request, and claude
+        // runs on a personal subscription token. Other providers (opencode on
+        // VLAM) have no cap for now. Once the claude runs of this hour are used
+        // up, the worker keeps claiming jobs for other providers.
         //
-        // The cap keys on the worker's configured provider (LLM_PROVIDER), not
-        // the per-job payload provider — exact for a provider-dedicated worker
-        // (the intended deployment).
+        // Fail-closed: a base limit of 0 (the default when ENRICH_HOURLY_LIMIT is
+        // unset) holds back every claude job without even querying.
         let base = config.enrich_hourly_limit;
-        let provider = enrich_config.provider.name();
-        // `Some((cap, local_hour))` when we must pause; `None` when clear to run.
+        let provider = CAPPED_PROVIDER;
+        // `Some((cap, local_hour))` when claude must wait; `None` when clear.
         // A base of 0 pauses with a sentinel hour of -1 (renders as window=day).
         let pause: Option<(u32, i32)> = if base == 0 {
             Some((0, -1))
@@ -1045,7 +1047,6 @@ pub async fn run_enrich_worker(config: WorkerConfig) -> Result<()> {
             }
         };
         if let Some((cap, local_hour)) = pause {
-            current_interval = config.max_poll_interval;
             let window = if is_night_hour(local_hour) {
                 "night"
             } else {
@@ -1057,8 +1058,7 @@ pub async fn run_enrich_worker(config: WorkerConfig) -> Result<()> {
                     cap,
                     local_hour,
                     window,
-                    next_poll = ?current_interval,
-                    "hourly enrich limit reached (or ENRICH_HOURLY_LIMIT unset/0), pausing until the next local hour"
+                    "hourly enrich limit reached (or ENRICH_HOURLY_LIMIT unset/0); claude jobs wait for the next local hour, other providers still run"
                 );
                 hourly_limit_pause_logged = true;
             } else {
@@ -1067,18 +1067,20 @@ pub async fn run_enrich_worker(config: WorkerConfig) -> Result<()> {
                     cap,
                     local_hour,
                     window,
-                    "still paused on hourly enrich limit"
+                    "still holding back claude jobs on the hourly enrich limit"
                 );
             }
-            continue;
+        } else {
+            // Not paused this cycle — re-arm the info-level pause log for the next pause.
+            hourly_limit_pause_logged = false;
         }
-        // Not paused this cycle — re-arm the info-level pause log for the next pause.
-        hourly_limit_pause_logged = false;
+        let skip_provider = pause.map(|_| provider);
 
         match process_next_enrich_job(
             &pool,
             &repo_path,
             &enrich_config,
+            skip_provider,
             config.corpus_config.as_ref(),
             config.job_timeout,
             config.exhausted_threshold,
@@ -2328,6 +2330,9 @@ pub async fn fail_enrich_task_job(
     job: &crate::models::Job,
     error: &str,
 ) -> Result<()> {
+    // The reason only reaches the database and the requester's task; log it
+    // too, or the worker log shows a failure without saying why.
+    tracing::warn!(job_id = %job.id, law_id = %job.law_id, error = %error, "enrich task job failed");
     let mut tx = pool.begin().await?;
     job_queue::fail_job_terminal(
         &mut *tx,
@@ -2352,6 +2357,7 @@ pub async fn fail_enrich_task_job_with_retry(
     job: &crate::models::Job,
     error: &str,
 ) -> Result<()> {
+    tracing::warn!(job_id = %job.id, law_id = %job.law_id, attempt = job.attempts, error = %error, "enrich task job failed");
     let mut tx = pool.begin().await?;
     let failed_job = job_queue::fail_job(
         &mut *tx,
@@ -2678,6 +2684,10 @@ fn bound_llm_timeout(config: &mut crate::enrich::EnrichConfig, job_timeout: Dura
 /// other call of a run gets one. See [`bound_llm_timeout`].
 const TRANSLATE_SHARE_WEIGHT: u32 = 3;
 
+/// The provider the hourly enrich cap applies to: claude runs on a personal
+/// subscription token. opencode (VLAM) has no cap for now.
+const CAPPED_PROVIDER: &str = "claude";
+
 /// Process the next available enrich job.
 ///
 /// Returns the [`JobOutcome`]: `Processed` when a job was handled, `Idle` when
@@ -2692,13 +2702,16 @@ async fn process_next_enrich_job(
     pool: &PgPool,
     repo_path: &Path,
     enrich_config: &EnrichConfig,
+    skip_provider: Option<&str>,
     corpus_config: Option<&CorpusConfig>,
     job_timeout: Duration,
     exhausted_threshold: i32,
     http_client: &Client,
     related_harvest_max_depth: u32,
 ) -> Result<JobOutcome> {
-    let job = match job_queue::claim_job(pool, Some(JobType::Enrich)).await? {
+    let job = match job_queue::claim_enrich_job(pool, skip_provider, enrich_config.provider.name())
+        .await?
+    {
         Some(job) => job,
         None => return Ok(JobOutcome::Idle),
     };
@@ -3539,7 +3552,9 @@ mod tests {
         let claims: Vec<usize> = lines
             .iter()
             .enumerate()
-            .filter(|(_, l)| l.contains("job_queue::claim_job("))
+            .filter(|(_, l)| {
+                l.contains("job_queue::claim_job(") || l.contains("job_queue::claim_enrich_job(")
+            })
             .map(|(i, _)| i)
             .collect();
         assert!(!claims.is_empty(), "the worker claims jobs");

@@ -123,7 +123,7 @@ const emit = defineEmits<{
   'open-edit': [payload: OpenEditPayload];
   'init-mr': [];
   /** Ask for a generated proposal instead of writing one by hand. */
-  'enrich': [trigger: EventTarget | null];
+  'enrich': [trigger: EventTarget | null, provider?: string];
   /** Open the task list filtered to this law, while a run is pending. */
   'view-tasks': [];
   /** Open review-modus voor de klaarstaande taak. */
@@ -411,7 +411,7 @@ function addOutput() {
     :can-create="canCreate"
     :create-href="createHref"
     :enrich-error="enrichError"
-    @enrich="emit('enrich', $event)"
+    @enrich="(trigger: EventTarget | null, provider?: string) => emit('enrich', trigger, provider)"
     @write="emit('init-mr')"
     @create="emit('create-mr', $event)"
     @view-tasks="emit('view-tasks')"

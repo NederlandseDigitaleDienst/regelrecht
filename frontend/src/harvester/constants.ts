@@ -3,6 +3,7 @@ import type { Job, JobSummary } from './composables/useJobs';
 import type { LawEntry } from './composables/useLawEntries';
 import type { Untranslatable } from './composables/useUntranslatables';
 import type { Marking } from './composables/useMarkings';
+import { ENRICH_PROVIDER_OPTIONS, providerLabel } from '../lib/enrichProviders';
 
 /** A column of the harvester's DataTable/GroupedTable, over rows of type `Row`. */
 export interface TableColumn<Row = unknown> {
@@ -30,6 +31,8 @@ export interface ColumnFilter {
   type?: 'text';
   label?: string;
   options?: readonly string[];
+  /** Display text for an option, when it should not be the raw value. */
+  optionLabel?: (value: string) => string;
 }
 
 /** Labels for the sort directions a sort-menu item offers. */
@@ -141,9 +144,8 @@ export const GROUPED_COLUMNS: TableColumn<JobSummary>[] = [
 // Untranslatables (RFC-012): one row per legal construct the enrichment agent
 // could not express with the engine's current operation set. Atomic grain -
 // grouped views (per construct / per law) are aggregation over this same list.
-// Keep in sync with ENRICH_PROVIDERS in packages/pipeline/src/enrich.rs - a
-// provider added there but not here still displays, only its filter option is missing.
-export const UNTRANSLATABLE_PROVIDERS = ['opencode', 'claude'];
+// The provider ids from the pipeline, shown under the names in enrichProviders.
+export const UNTRANSLATABLE_PROVIDERS = ENRICH_PROVIDER_OPTIONS.map((o) => o.id);
 
 export const UNTRANSLATABLE_COLUMNS: TableColumn<Untranslatable>[] = [
   {
@@ -185,11 +187,11 @@ export const UNTRANSLATABLE_COLUMNS: TableColumn<Untranslatable>[] = [
   {
     key: 'provider',
     label: 'Provider',
-    filter: { options: UNTRANSLATABLE_PROVIDERS },
+    filter: { options: UNTRANSLATABLE_PROVIDERS, optionLabel: providerLabel },
     width: 'fit-content',
     minWidth: '80px',
     hideBelow: '640px',
-    text: (row) => row.provider || '—',
+    text: (row) => (row.provider ? providerLabel(row.provider) : '—'),
   },
 ];
 
@@ -245,11 +247,11 @@ export const MARKING_COLUMNS: TableColumn<Marking>[] = [
   {
     key: 'provider',
     label: 'Provider',
-    filter: { options: MARKING_PROVIDERS },
+    filter: { options: MARKING_PROVIDERS, optionLabel: providerLabel },
     width: 'fit-content',
     minWidth: '100px',
     hideBelow: '640px',
-    text: (row) => row.provider || '—',
+    text: (row) => (row.provider ? providerLabel(row.provider) : '—'),
   },
   {
     key: 'accepted',

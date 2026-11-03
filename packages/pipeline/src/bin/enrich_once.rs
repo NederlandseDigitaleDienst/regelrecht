@@ -330,7 +330,10 @@ async fn main() -> ExitCode {
     let provider = match args.provider.as_str() {
         "claude" => LlmProvider::Claude {
             path: "claude".into(),
-            model: args.model.clone(),
+            model: Some(regelrecht_pipeline::enrich::claude_model(
+                args.model.clone(),
+                None,
+            )),
         },
         "opencode" => LlmProvider::OpenCode {
             path: "opencode".into(),

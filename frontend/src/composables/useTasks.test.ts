@@ -90,6 +90,25 @@ describe('useTasks', () => {
     expect(r2.tooMany).toBe(true);
   });
 
+  it('requestEnrich sends no body without a provider, so the deployment default runs', async () => {
+    apiFetch.mockResolvedValueOnce({ status: 202 });
+    const { useTasks } = await import('./useTasks');
+    const { requestEnrich } = useTasks();
+    await requestEnrich('traject-abcd1234', 'test_wet');
+    const init = apiFetch.mock.calls.find(([url]) => String(url).endsWith('/enrich'))?.[1];
+    expect(init?.body).toBeUndefined();
+  });
+
+  it('requestEnrich sends the chosen provider as JSON', async () => {
+    apiFetch.mockResolvedValueOnce({ status: 202 });
+    const { useTasks } = await import('./useTasks');
+    const { requestEnrich } = useTasks();
+    await requestEnrich('traject-abcd1234', 'test_wet', 'opencode');
+    const init = apiFetch.mock.calls.find(([url]) => String(url).endsWith('/enrich'))?.[1];
+    expect(init?.headers).toEqual({ 'Content-Type': 'application/json' });
+    expect(JSON.parse(init?.body as string)).toEqual({ provider: 'opencode' });
+  });
+
   it('useTaskActions triggert geen fetch bij aanroep (geen poll voor niet-badge/sheet-callers)', async () => {
     const { useTaskActions } = await import('./useTasks');
     const actions = useTaskActions();

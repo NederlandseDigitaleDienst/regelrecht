@@ -15,12 +15,16 @@
  * bedoeling.
  */
 import { computed } from 'vue';
-import { useTasks } from '../composables/useTasks';
+import { useTrajectTasks } from '../composables/useTasks';
 import { isPrioriteit } from '../lib/taskCategories';
 
-withDefaults(defineProps<{ current?: boolean }>(), { current: false });
+const props = withDefaults(
+  defineProps<{ current?: boolean; trajectRef?: string | null }>(),
+  { current: false, trajectRef: null },
+);
 
-const { tasks } = useTasks();
+// Only this traject's tasks: the badge points at the panel, which shows no others.
+const { tasks } = useTrajectTasks(() => props.trajectRef);
 
 // Uit de lijst geteld, niet uit `open_count`: dat is het servertotaal van álle
 // open taken en zegt niets over prioriteit. De lijst is server-side op 100

@@ -144,6 +144,26 @@ impl ActivityHandle {
             self.with(|a| a.model = Some(model));
             return;
         }
+        // opencode writes its own events: `step_start` opens a model step and
+        // `tool_use` reports a finished tool call. Without these the summary
+        // of an opencode run reads "0 turns, 0 tool calls" whatever it did.
+        if line.contains(r#""type":"step_start""#) || line.contains(r#""type":"tool_use""#) {
+            if let Ok(event) = serde_json::from_str::<serde_json::Value>(line) {
+                match event.get("type").and_then(serde_json::Value::as_str) {
+                    Some("step_start") => {
+                        self.with(|a| a.turns += 1);
+                        return;
+                    }
+                    Some("tool_use") => {
+                        if let Some(tool) = opencode_tool_summary(&event) {
+                            self.record_tool(tool);
+                        }
+                        return;
+                    }
+                    _ => {}
+                }
+            }
+        }
         // Only assistant messages are read. A tool result can be a whole
         // file; skip parsing what cannot be one. The CLI does not promise
         // key order, so look for the pair anywhere; `classify` checks the
@@ -162,15 +182,21 @@ impl ActivityHandle {
                 a.turns += 1;
                 a.last_message_id = message_id;
             }
-            for tool in tools {
-                a.tool_calls += 1;
-                tracing::info!(call = a.call.as_deref().unwrap_or("agent"), tool = %tool, "agent tool call");
-                a.last_tool = Some(tool.clone());
-                if a.recent.len() == RECENT_EVENTS {
-                    a.recent.pop_front();
-                }
-                a.recent.push_back(tool);
+        });
+        for tool in tools {
+            self.record_tool(tool);
+        }
+    }
+
+    fn record_tool(&self, tool: String) {
+        self.with(|a| {
+            a.tool_calls += 1;
+            tracing::info!(call = a.call.as_deref().unwrap_or("agent"), tool = %tool, "agent tool call");
+            a.last_tool = Some(tool.clone());
+            if a.recent.len() == RECENT_EVENTS {
+                a.recent.pop_front();
             }
+            a.recent.push_back(tool);
         });
     }
 
@@ -227,9 +253,8 @@ pub fn is_result_event(line: &str) -> bool {
 }
 
 /// The model named in the claude CLI's `init` event, the first line of a
-/// stream-json run. This is what actually runs: the worker passes a model only
-/// when `CLAUDE_MODEL` is set, and otherwise the CLI picks one from its version
-/// and the subscription behind the token.
+/// stream-json run. This is what actually runs, as the CLI reports it; the
+/// worker asks for `CLAUDE_MODEL` or `DEFAULT_CLAUDE_MODEL` in `enrich.rs`.
 pub fn init_model(line: &str) -> Option<String> {
     if !line.contains(r#""subtype":"init""#) {
         return None;
@@ -323,6 +348,31 @@ fn classify(event: &serde_json::Value) -> Option<Event> {
     Some(Event::Assistant { message_id, tools })
 }
 
+/// `name target (status)` for an opencode `tool_use` event. The target is the
+/// file path only, for the same reason as [`tool_summary`]: never the content
+/// of a write, a search pattern or a shell command.
+fn opencode_tool_summary(event: &serde_json::Value) -> Option<String> {
+    let part = event.get("part")?;
+    let name = part.get("tool")?.as_str()?;
+    let state = part.get("state");
+    let status = state
+        .and_then(|s| s.get("status"))
+        .and_then(serde_json::Value::as_str);
+    let target = state
+        .and_then(|s| s.get("input"))
+        .and_then(|i| i.get("filePath"))
+        .and_then(serde_json::Value::as_str);
+    let mut out = name.to_string();
+    if let Some(t) = target {
+        out.push(' ');
+        out.push_str(t);
+    }
+    if let Some(st) = status.filter(|st| *st != "completed") {
+        out.push_str(&format!(" ({st})"));
+    }
+    Some(out)
+}
+
 /// `Name target`, where the target is the file, URL or skill the tool works
 /// on. Only names the worker or the corpus already has: never the content of
 /// a write, and never a search pattern or a shell command, which the model
@@ -404,6 +454,21 @@ pub fn count_articles(yaml: &str) -> (usize, usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn opencode_steps_and_tool_calls_are_counted() {
+        let a = ActivityHandle::new();
+        a.record_line(r#"{"type":"step_start","part":{"type":"step-start"}}"#);
+        a.record_line(r#"{"type":"tool_use","part":{"type":"tool","tool":"edit","state":{"status":"completed","input":{"filePath":"law.yaml","oldString":"secret"}}}}"#);
+        a.record_line(r#"{"type":"tool_use","part":{"type":"tool","tool":"write","state":{"status":"error"}}}"#);
+        let summary = a.summary();
+        assert!(summary.contains("1 turns, 2 tool calls"), "{summary}");
+        assert!(
+            summary.contains("edit law.yaml | write (error)"),
+            "{summary}"
+        );
+        assert!(!summary.contains("secret"), "{summary}");
+    }
 
     fn assistant(id: &str, content: &str) -> String {
         format!(r#"{{"type":"assistant","message":{{"id":"{id}","content":[{content}]}}}}"#)

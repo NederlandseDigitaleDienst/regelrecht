@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, inject } from 'vue';
+import { ENRICH_PROVIDER_OPTIONS } from '../lib/enrichProviders';
 
 // De lege staat van de Machine- en YAML-panes, op één plek.
 //
@@ -50,7 +51,9 @@ const props = withDefaults(defineProps<{
 });
 
 const emit = defineEmits<{
-  enrich: [button: EventTarget | null];
+  /** `provider` is set only when the user picked one from the menu; without
+   *  it the deployment's default runs. */
+  enrich: [button: EventTarget | null, provider?: string];
   /** Machine-versie hier ter plekke aanmaken. */
   write: [];
   /** Naar de editor om hem daar aan te maken. Payload is het knopelement, zodat
@@ -125,8 +128,35 @@ const emptyText = computed(() => {
     :variant="enrichError ? 'alert' : undefined"
     :supporting-text="enrichError || (canEnrich ? emptyText : undefined)"
   >
+    <!-- Where the enrichment runs here, the chevron offers a choice of model
+         as an advanced option; the button itself runs the default. Where it
+         routes to login or a traject first there is nothing to choose yet. -->
+    <nldd-split-button
+      v-if="canEnrich && actsHere"
+      slot="actions"
+      appearance="secondary"
+      size="md"
+      icon="ai"
+      width="full"
+      data-testid="enrich-btn"
+      :text="enrichLabel"
+      @action-click="emit('enrich', $event.currentTarget)"
+    >
+      <nldd-menu>
+        <nldd-menu-group text="Verrijk met">
+          <nldd-menu-item
+            v-for="option in ENRICH_PROVIDER_OPTIONS"
+            :key="option.id"
+            :text="option.label"
+            :details="option.model"
+            :data-testid="`enrich-with-${option.id}`"
+            @select="emit('enrich', null, option.id)"
+          ></nldd-menu-item>
+        </nldd-menu-group>
+      </nldd-menu>
+    </nldd-split-button>
     <nldd-button
-      v-if="canEnrich"
+      v-else-if="canEnrich"
       slot="actions"
       appearance="secondary"
       size="md"

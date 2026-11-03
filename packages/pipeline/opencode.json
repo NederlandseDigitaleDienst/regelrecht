@@ -1,18 +1,16 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "model": "vlam/kimi-k3-prepaid",
   "provider": {
     "vlam": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "VLAM (Rijksoverheid)",
-      "options": {
-        "baseURL": "https://api.demo.vlam.ai/v2.1/projects/poc/openai-compatible/v1"
-      },
       "models": {
-        "ubiops-deployment/bzk-dig-mistralmedium-flexibel//chat-model": {
-          "name": "VLAM Mistral Medium",
+        "kimi-k3-prepaid": {
+          "name": "Kimi K3",
           "limit": {
-            "context": 32000,
-            "output": 8192
+            "context": 128000,
+            "output": 16384
           }
         }
       }

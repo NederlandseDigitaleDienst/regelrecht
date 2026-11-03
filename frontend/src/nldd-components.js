@@ -61,6 +61,7 @@ import '@nldd/design-system/side-by-side-split-view';
 import '@nldd/design-system/simple-section';
 import '@nldd/design-system/spacer';
 import '@nldd/design-system/spacer-cell';
+import '@nldd/design-system/split-button';
 import '@nldd/design-system/split-view-pane';
 import '@nldd/design-system/switch';
 import '@nldd/design-system/switch-field';
