@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { isRawDefinition, type ExecutionAction, type ExecutionField, type MachineReadableSection, type RawDefinition } from '../lib/lawFormat';
+import { formatDefinitionValue } from '../lib/definitionForm';
 import { computed, inject, ref, toRef, watch, nextTick } from 'vue';
 import { humanize } from '../utils/outputFormat';
 import { decisionOf } from '@regelrecht/frontend-shared/produces';
@@ -257,23 +258,8 @@ function onProducesChange(key: string, event: Event) {
   updateProduces(key, (event.target as HTMLSelectElement).value);
 }
 
-function formatValue(val: unknown, unit: string | undefined): string {
-  if (typeof val === 'number') {
-    if (unit === 'eurocent') {
-      return (val / 100).toLocaleString('nl-NL', { style: 'currency', currency: 'EUR' });
-    }
-    if (val > 0 && val < 1 && !unit) {
-      return (val * 100).toLocaleString('nl-NL', { maximumFractionDigits: 3 }) + '%';
-    }
-  }
-  // A list definition value (YAML sequence) renders here; String([...])
-  // joins with a bare comma ("a,b,c") which has no break opportunity and
-  // pushes the column width. Use comma + space so it can wrap.
-  if (Array.isArray(val)) return val.join(', ');
-  // A YAML-null value renders as empty, not as the word "null".
-  if (val == null) return '';
-  return String(val);
-}
+// Formatting follows the unit and nothing else; see lib/definitionForm.
+const formatValue = formatDefinitionValue;
 
 // structuredClone throws DataCloneError on Vue reactive proxies; YAML data is JSON-safe.
 function snapshot<T>(value: T): T {
@@ -519,6 +505,7 @@ function addOutput() {
           <nldd-cell v-if="editable">
             <RowActionsMenu
               :accessible-label="`Acties voor definitie ${def.name}`"
+              :edit-testid="`def-${def.name}-edit-btn`"
               :delete-testid="`def-${def.name}-delete-btn`"
               @edit="editDef(def.name)"
               @delete="deleteDef(def.name)"

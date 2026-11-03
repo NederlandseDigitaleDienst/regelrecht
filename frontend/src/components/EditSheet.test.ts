@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { nextTick } from 'vue';
+import type { DefinitionForm } from '../lib/definitionForm';
 import EditSheet, { type EditSheetItem } from './EditSheet.vue';
 
 /** A source.parameters row as the tests read and write it. */
@@ -17,12 +18,14 @@ interface TestFormValues {
   sourceRegulation: string;
   sourceOutput: string;
   sourceParameters: TestParamRow[];
+  def?: DefinitionForm;
 }
 
 /** The script-setup bindings the tests drive through wrapper.vm. */
 interface EditSheetVm {
   values: TestFormValues;
   save(): void;
+  onDefTypeChange(event: { target: { value: string } }): void;
   allLaws: { law_id: string }[];
   availableOutputs: unknown[];
   onLawComboChange(event: { detail: { value: string } }): Promise<void>;
@@ -139,6 +142,74 @@ describe('EditSheet', () => {
       const events = wrapper.emitted('save');
       expect(firstSave(events).section).toBe('add-definition');
       expect(firstSave(events).key).toBe('foo');
+    });
+  });
+
+  describe('structured definition', () => {
+    // The sheet sets `def` for a definition item; a missing one is a failure here.
+    function defOf(wrapper: SheetWrapper): DefinitionForm {
+      const def = wrapper.vm.values.def;
+      if (!def) throw new Error('no definition form');
+      return def;
+    }
+
+    it('saves a type and unit picked for a bare value', async () => {
+      const wrapper = mountSheet();
+      await setItem(wrapper, { section: 'definition', key: 'percentage', rawDef: 13.7 });
+
+      const def = defOf(wrapper);
+      expect(def.type).toBe('');
+      def.type = 'number';
+      def.unit = 'percentage';
+      wrapper.vm.save();
+      await nextTick();
+
+      expect(firstSave(wrapper.emitted('save')).data).toEqual({
+        value: 13.7,
+        type: 'number',
+        type_spec: { unit: 'percentage' },
+      });
+    });
+
+    // Through the dropdown's own handler: tagging an existing eurocent
+    // constant as Bedrag must not move it by a factor of 100.
+    it('keeps the stored number when the dropdown makes a bare number an amount', async () => {
+      const wrapper = mountSheet();
+      await setItem(wrapper, { section: 'definition', key: 'drempelinkomen', rawDef: 3971900 });
+
+      wrapper.vm.onDefTypeChange({ target: { value: 'amount' } });
+      expect(defOf(wrapper).number).toBe(39719);
+      wrapper.vm.save();
+      await nextTick();
+
+      expect(firstSave(wrapper.emitted('save')).data).toEqual({
+        value: 3971900,
+        type: 'amount',
+        type_spec: { unit: 'eurocent' },
+      });
+    });
+
+    it('keeps a bare value bare while it has no type', async () => {
+      const wrapper = mountSheet();
+      await setItem(wrapper, { section: 'definition', key: 'aandeel', rawDef: 0.04273 });
+
+      defOf(wrapper).number = 0.05;
+      wrapper.vm.save();
+      await nextTick();
+
+      expect(firstSave(wrapper.emitted('save')).data).toBe(0.05);
+    });
+
+    it('starts a new definition as a structured number', async () => {
+      const wrapper = mountSheet();
+      await setItem(wrapper, { section: 'add-definition', isNew: true });
+
+      wrapper.vm.values.name = 'termijn';
+      defOf(wrapper).number = 4;
+      wrapper.vm.save();
+      await nextTick();
+
+      expect(firstSave(wrapper.emitted('save')).data).toEqual({ value: 4, type: 'number' });
     });
   });
 
