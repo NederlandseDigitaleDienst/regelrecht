@@ -19,11 +19,19 @@ machine_readable:
     - article: "11"             # Same-law article reference
 
   definitions:                  # Constants (optional, arbitrary keys)
-    CONSTANT_NAME:
-      value: 211200             # Any literal value
+    standaardpremie_vast:       # Structured: value, type, and a unit for a quantity (RFC-023)
+      value: 211200             # € 2.112 in eurocent
+      type: amount              # string | number | boolean | amount | date | array
+      type_spec:
+        unit: eurocent          # amount: always eurocent
       description: "Description"
-    # Or simple key-value:
-    simple_key: "simple value"
+    termijn_rapportage:
+      value: 4                  # "vier jaar"
+      type: number
+      type_spec:
+        unit: years             # number: ratio | percentage | years | months | weeks | days
+    # A bare `simple_key: "simple value"` is valid but carries no type; write
+    # the structured form.
 
   open_terms:                   # The law leaves the content open (optional)
     - id: standaardpremie
