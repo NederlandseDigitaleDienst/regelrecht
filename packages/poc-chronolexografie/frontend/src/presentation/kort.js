@@ -102,8 +102,8 @@ export const casusBlok = {
 export const regelrecht = {
   title: 'RegelRecht',
   bullets: [
-    'RegelRecht maakt wetten machine-uitvoerbaar.',
-    'Die uitvoerbare wetten zijn openbaar.',
+    'Wetten worden machine-uitvoerbaar vastgelegd.',
+    'Iedereen kan ze inzien.',
     'Burger, uitvoerder, wetgever en rechter kennen en gebruiken dezelfde wet.',
   ],
 };
