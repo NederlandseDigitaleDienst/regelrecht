@@ -1,5 +1,5 @@
 ---
-# Casus: het voorschot op de zorgtoeslag bij de Dienst Toeslagen.
+# Casus: de zorgtoeslag bij de Dienst Toeslagen.
 #
 # Configuratie is alleen wat niet uit de wet volgt, en het corpus: welke
 # regelwerken in deze casus gelden. Het besluit dat de aanvraag vraagt, het
@@ -23,19 +23,19 @@ corpus:
 # De uitvoer die zegt of het besluit het gevraagde toewijst. De wet merkt die
 # niet aan: decision_type TOEKENNING zegt wat voor besluit het is, niet welke
 # van zijn uitvoer de toewijzing is.
-uitkomst: voorschot_verleend
+uitkomst: tegemoetkoming_toegekend
 
 # Een verzekerde vraagt zorgtoeslag aan over 2025 (Awir artikel 15). De
-# Dienst Toeslagen verleent op die aanvraag een voorschot tot het bedrag
-# waarop de zorgtoeslag vermoedelijk wordt vastgesteld (Awir artikel 16). Per
-# aanvraag schat de Dienst in wat hij daarvoor verwacht, zoals het
-# toetsingsinkomen. Het bedrag zelf volgt uit de Wet op de zorgtoeslag en de
-# standaardpremie voor 2025. Tegen het voorschot staat bezwaar open. De
-# betaling in termijnen en de toekenning na de aanslag inkomstenbelasting
-# speelt deze casus nog niet na.
+# aanvraag noemt het artikel dat de aanspraak geeft, artikel 2 van de Wet op de
+# zorgtoeslag. De Dienst Toeslagen kent de tegemoetkoming toe (Awir artikel
+# 14), en leest het bedrag uit dat artikel, met de standaardpremie voor 2025.
+# Wat de Dienst daarvoor weet, geeft hij als zijn eigen bevindingen, onder de
+# namen die dat artikel vraagt. Tegen het besluit staat bezwaar open. Het
+# voorschot (Awir artikel 16) en de betaling in termijnen speelt deze casus
+# nog niet na.
 
 # Wat de bezoeker leest.
-titel: Voorschot zorgtoeslag
+titel: Zorgtoeslag
 cel_naam: Dienst Toeslagen
 speeldatum: 2025-01-06
 
@@ -49,31 +49,34 @@ voorbeeld:
   aanvraag:
     bsn: '999993653'
     berekeningsjaar: 2025
+    # Welke tegemoetkoming de aanvraag vraagt: het artikel dat de aanspraak
+    # geeft (Awir artikel 15, tijdelijke keuze).
+    gevraagde_tegemoetkoming: wet_op_de_zorgtoeslag#2
     aanvraag_ondertekend: true
     naam_aanvrager: S. de Vries
     adres_aanvrager: Voorbeeldlaan 7, 1234 AB Wilgendaal
     dagtekening: '2025-01-03'
     gevraagde_beschikking: zorgtoeslag over 2025
   bevindingen:
-    vermoedelijk_toetsingsinkomen: 2500000
-    vermoedelijk_heeft_toeslagpartner: false
-    vermoedelijk_toetsingsinkomen_toeslagpartner: 0
-    vermoedelijk_verzekerd: true
-    vermoedelijk_vermogen_onder_grens: true
+    toetsingsinkomen: 2500000
+    heeft_toeslagpartner: false
+    toetsingsinkomen_toeslagpartner: 0
+    is_verzekerde: true
+    vermogen_onder_grens: true
   bezwaar:
     bezwaar_of_beroepschrift_ondertekend: true
     naam_indiener: S. de Vries
     adres_indiener: Voorbeeldlaan 7, 1234 AB Wilgendaal
-    omschrijving_bestreden_besluit: voorschot zorgtoeslag over 2025
+    omschrijving_bestreden_besluit: zorgtoeslag over 2025
     gronden_bezwaar_of_beroep: >-
       mijn inkomen daalt in 2025: ik werk vanaf februari vier dagen in plaats
       van vijf
 
 scenarios:
-  - naam: Voorschot wordt verleend
+  - naam: Zorgtoeslag wordt toegekend
     samenvatting: >-
       Een alleenstaande vraagt zorgtoeslag aan, en de Dienst Toeslagen
-      verleent een voorschot.
+      kent die toe.
     stappen:
       - stap: aanvraag
         verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
@@ -83,37 +86,37 @@ scenarios:
           zorgverzekering.
         uitkomst: toegewezen
         uitvoer:
-          voorschotbedrag: 157700
-    eind: 'Toegewezen: het voorschot is € 1.577 over 2025.'
-  - naam: 'Niet verzekerd: geen voorschot'
+          tegemoetkomingbedrag: 157700
+    eind: 'Toegewezen: de zorgtoeslag is € 1.577 over 2025.'
+  - naam: 'Niet verzekerd: geen zorgtoeslag'
     samenvatting: >-
       De Dienst verwacht dat de aanvrager geen zorgverzekering heeft, en
-      verleent geen voorschot.
+      kent geen zorgtoeslag toe.
     stappen:
       - stap: aanvraag
         verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
       - stap: besluit
         verhaal: De Dienst vindt geen zorgverzekering voor 2025.
         invoer:
-          vermoedelijk_verzekerd: false
+          is_verzekerde: false
         uitkomst: afgewezen
         uitvoer:
-          voorschotbedrag: 0
+          tegemoetkomingbedrag: 0
     eind: 'Afgewezen: zonder zorgverzekering is er geen zorgtoeslag.'
   - naam: Inkomen te hoog, bezwaar gegrond
     samenvatting: >-
-      Bij het verwachte inkomen is er geen voorschot, maar na het bezwaar
-      verwacht de Dienst minder en verleent hij er alsnog een.
+      Bij het verwachte inkomen is er geen zorgtoeslag, maar na het bezwaar
+      verwacht de Dienst minder en kent hij die alsnog toe.
     stappen:
       - stap: aanvraag
         verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
       - stap: besluit
         verhaal: De Dienst verwacht een inkomen van € 45.000.
         invoer:
-          vermoedelijk_toetsingsinkomen: 4500000
+          toetsingsinkomen: 4500000
         uitkomst: afgewezen
         uitvoer:
-          voorschotbedrag: 0
+          tegemoetkomingbedrag: 0
         gezien: 'Afgewezen: bij dit inkomen is de zorgtoeslag nihil.'
       - stap: bezwaar
         verhaal: De aanvrager maakt bezwaar, omdat het inkomen in 2025 daalt.
@@ -122,32 +125,32 @@ scenarios:
         verhaal: De Dienst verwacht nu een inkomen van € 30.000.
         datum: 2025-02-03
         invoer:
-          vermoedelijk_toetsingsinkomen: 3000000
+          toetsingsinkomen: 3000000
         uitkomst: gegrond
         uitvoer:
-          voorschotbedrag: 133100
+          tegemoetkomingbedrag: 133100
         tekst: >-
           Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op
           Beslissen op bezwaar.
-    eind: 'Gegrond: het nieuwe besluit verleent een voorschot van € 1.331 over 2025.'
+    eind: 'Gegrond: het nieuwe besluit kent € 1.331 toe over 2025.'
   - naam: 'Bezwaar zonder nieuwe feiten: ongegrond'
     samenvatting: >-
-      De aanvrager maakt bezwaar tegen een verleend voorschot, maar de Dienst
-      verwacht hetzelfde en het voorschot blijft.
+      De aanvrager maakt bezwaar tegen de toekenning, maar de Dienst
+      verwacht hetzelfde en het bedrag blijft.
     stappen:
       - stap: aanvraag
         verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
       - stap: besluit
         verhaal: De Dienst beslist op de aanvraag.
         uitkomst: toegewezen
-        gezien: 'Toegewezen: het voorschot is € 1.577.'
+        gezien: 'Toegewezen: de zorgtoeslag is € 1.577.'
       - stap: bezwaar
-        verhaal: De aanvrager vindt het voorschot te laag en maakt bezwaar.
+        verhaal: De aanvrager vindt de zorgtoeslag te laag en maakt bezwaar.
         datum: 2025-01-20
         invoer:
-          gronden_bezwaar_of_beroep: het voorschot is te laag
+          gronden_bezwaar_of_beroep: de zorgtoeslag is te laag
       - stap: beslissing_op_bezwaar
         verhaal: De Dienst verwacht bij de heroverweging hetzelfde.
         datum: 2025-02-03
         uitkomst: ongegrond
-    eind: 'Ongegrond: het voorschot blijft € 1.577.'
+    eind: 'Ongegrond: de zorgtoeslag blijft € 1.577.'

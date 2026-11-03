@@ -3,7 +3,7 @@
 # application it establishes, with what it contains and the decision it asks
 # for, and the decision on it, with the outputs that belong to it. Article 2
 # establishes an application for a decision another law takes.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: test_conformance_produces_list
 regulatory_layer: WET
 publication_date: '2026-10-14'

@@ -1,7 +1,7 @@
 [
  {
-  "name": "Voorschot wordt verleend",
-  "summary": "Een alleenstaande vraagt zorgtoeslag aan, en de Dienst Toeslagen verleent een voorschot.",
+  "name": "Zorgtoeslag wordt toegekend",
+  "summary": "Een alleenstaande vraagt zorgtoeslag aan, en de Dienst Toeslagen kent die toe.",
   "steps": [
    {
     "title": "Aanvraag indienen",
@@ -26,8 +26,8 @@
   ]
  },
  {
-  "name": "Niet verzekerd: geen voorschot",
-  "summary": "De Dienst verwacht dat de aanvrager geen zorgverzekering heeft, en verleent geen voorschot.",
+  "name": "Niet verzekerd: geen zorgtoeslag",
+  "summary": "De Dienst verwacht dat de aanvrager geen zorgverzekering heeft, en kent geen zorgtoeslag toe.",
   "steps": [
    {
     "title": "Aanvraag indienen",
@@ -46,7 +46,7 @@
     "story": "De Dienst vindt geen zorgverzekering voor 2025.",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [
-     "vermoedelijk verzekerd: Nee"
+     "is verzekerde: Nee"
     ],
     "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
@@ -55,7 +55,7 @@
  },
  {
   "name": "Inkomen te hoog, bezwaar gegrond",
-  "summary": "Bij het verwachte inkomen is er geen voorschot, maar na het bezwaar verwacht de Dienst minder en verleent hij er alsnog een.",
+  "summary": "Bij het verwachte inkomen is er geen zorgtoeslag, maar na het bezwaar verwacht de Dienst minder en kent hij die alsnog toe.",
   "steps": [
    {
     "title": "Aanvraag indienen",
@@ -74,7 +74,7 @@
     "story": "De Dienst verwacht een inkomen van € 45.000.",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [
-     "vermoedelijk toetsingsinkomen: 4500000"
+     "toetsingsinkomen: 4500000"
     ],
     "seen": "Afgewezen: bij dit inkomen is de zorgtoeslag nihil.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
@@ -96,7 +96,7 @@
     "story": "De Dienst verwacht nu een inkomen van € 30.000.",
     "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
     "values": [
-     "vermoedelijk toetsingsinkomen: 3000000"
+     "toetsingsinkomen: 3000000"
     ],
     "seen": "De beslissing staat onder Beslissingen op bezwaar.",
     "expect": "hier hoort het bezwaar gegrond te zijn"
@@ -105,7 +105,7 @@
  },
  {
   "name": "Bezwaar zonder nieuwe feiten: ongegrond",
-  "summary": "De aanvrager maakt bezwaar tegen een verleend voorschot, maar de Dienst verwacht hetzelfde en het voorschot blijft.",
+  "summary": "De aanvrager maakt bezwaar tegen de toekenning, maar de Dienst verwacht hetzelfde en het bedrag blijft.",
   "steps": [
    {
     "title": "Aanvraag indienen",
@@ -124,17 +124,17 @@
     "story": "De Dienst beslist op de aanvraag.",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "Toegewezen: het voorschot is € 1.577.",
+    "seen": "Toegewezen: de zorgtoeslag is € 1.577.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    },
    {
     "title": "Bezwaar maken",
     "tab": "aanvrager",
     "date": "2025-01-20",
-    "story": "De aanvrager vindt het voorschot te laag en maakt bezwaar.",
+    "story": "De aanvrager vindt de zorgtoeslag te laag en maakt bezwaar.",
     "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
     "values": [
-     "gronden bezwaar of beroep: het voorschot is te laag"
+     "gronden bezwaar of beroep: de zorgtoeslag is te laag"
     ],
     "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
     "expect": null

@@ -643,9 +643,9 @@ pub struct Beroep {
 /// other cells of its sphere, whose reductions read regelwerken of their
 /// own.
 ///
-/// The regelwerken are those the article's law reaches, and the reductions
-/// the catalogues of the cells name (`cel.yaml`, `answers`, RFC-048), with
-/// what they reach. A regelwerk reaches another when it reads from it
+/// The regelwerken are those the article's law reaches, the reductions the
+/// catalogues of the cells name (`cel.yaml`, `answers`, RFC-048) and the
+/// case's own regelwerken, with what they reach. A regelwerk reaches another when it reads from it
 /// (`source.regulation`, `source.article`, `source.decisions`), and when the
 /// other is in the corpus to act on it: it implements one of its open terms,
 /// such as the policy that binds a term to an answer of a cell, or has a
@@ -667,6 +667,18 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
     for id in cells.iter().flat_map(|cell| cell.answers().values()) {
         if !gevonden.contains(id) {
             gevonden.push(id.clone());
+        }
+    }
+    // The case's own regelwerken run: an application may name one of them by
+    // reference, which no article says before the application is there.
+    let eigen = format!("{}/", eigen_map(&casus.id));
+    for werk in regelwerken
+        .werken
+        .iter()
+        .filter(|w| w.map.starts_with(&eigen))
+    {
+        if !gevonden.iter().any(|id| id == werk.id()) {
+            gevonden.push(werk.id().to_string());
         }
     }
 

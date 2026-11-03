@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: algemene_wet_inkomensafhankelijke_regelingen
 regulatory_layer: WET
 publication_date: '2024-12-24'
@@ -933,15 +933,27 @@ articles:
       [ref2]: https://wetten.overheid.nl/BWBR0002320#HoofdstukV
     url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel14
     machine_readable:
-      # Lid 4 en 5: het bedrag van een tegemoetkoming wordt afgerond op hele
-      # euro's, en een tegemoetkoming van minder dan € 24 wordt niet
-      # toegekend. Wie het bedrag van een tegemoetkoming nodig heeft, zoals
-      # het voorschot van artikel 16, vraagt het hier op met het bedrag dat
-      # de inkomensafhankelijke regeling berekent.
+      # Lid 1: de Dienst Toeslagen kent de tegemoetkoming op aanvraag toe.
+      # Dit artikel is voor deze poc het besluit dat de aanvraag van artikel
+      # 15 vraagt (tijdelijke keuze, zie daar). Dat de toekenning pas volgt
+      # op de aanslag inkomstenbelasting (artikel 19), is hier niet
+      # gemodelleerd.
+      #
+      # Hoe hoog de tegemoetkoming is, zegt deze wet niet: dat zegt de
+      # inkomensafhankelijke regeling. Dit artikel leest het bedrag uit het
+      # artikel dat de aanvraag noemt (gevraagde_tegemoetkoming), onder het
+      # woord van deze wet: tegemoetkoming. Geen van beide wetten noemt zo
+      # de begrippen van de andere; de koppeling is de verwijzing in de
+      # aanvraag.
+      #
+      # Lid 4 en 5: het bedrag wordt afgerond op hele euro's, en een
+      # tegemoetkoming van minder dan € 24 wordt niet toegekend.
       # Eigen keuze: lid 5 toetst het afgeronde bedrag; de wet zegt niet of
       # "minder dan € 24 zou bedragen" vóór of na de afronding van lid 4
       # geldt.
-      # De leden 1 tot en met 3, 6 en 7 zijn niet gemodelleerd.
+      # De leden 2, 3, 6 en 7 zijn niet gemodelleerd.
+      competent_authority:
+        name: Dienst Toeslagen
       definitions:
         minimum_tegemoetkoming:
           value: 2400
@@ -949,33 +961,82 @@ articles:
           type_spec:
             unit: eurocent
       execution:
+        produces:
+          - type: BESCHIKKING
+            decision_type: TOEKENNING
+            outputs:
+              - tegemoetkomingbedrag
+              - tegemoetkoming_toegekend
+            derived:
+              - afgeronde_tegemoetkoming
         parameters:
-          - name: berekende_tegemoetkoming
-            type: amount
-            required: true
+          # Uit de aanvraag (artikel 15).
+          - name: bsn
+            type: string
+            description: Het burgerservicenummer van de belanghebbende.
+          - name: berekeningsjaar
+            type: number
+            description: Het berekeningsjaar waarop de tegemoetkoming betrekking heeft.
+          - name: gevraagde_tegemoetkoming
+            type: string
             description: >-
-              Het bedrag van de tegemoetkoming zoals de inkomensafhankelijke
-              regeling het berekent, vóór de afronding van lid 4.
+              Het artikel dat de aanspraak geeft op de gevraagde
+              tegemoetkoming, als <regelwerk>#<artikel>.
+        input:
+          - name: aanspraak_op_tegemoetkoming
+            type: boolean
+            source:
+              article: $gevraagde_tegemoetkoming
+              output: aanspraak_op_tegemoetkoming
+              parameters:
+                bsn: $bsn
+          - name: hoogte_tegemoetkoming
+            type: amount
+            source:
+              article: $gevraagde_tegemoetkoming
+              output: hoogte_tegemoetkoming
+              parameters:
+                bsn: $bsn
+            type_spec:
+              unit: eurocent
         output:
           - name: afgeronde_tegemoetkoming
             type: amount
             type_spec:
               unit: eurocent
-          - name: tegemoetkoming_wordt_toegekend
+          - name: tegemoetkoming_toegekend
             type: boolean
+            description: Of de Dienst Toeslagen de tegemoetkoming toekent.
+          - name: tegemoetkomingbedrag
+            type: amount
+            type_spec:
+              unit: eurocent
+            description: >-
+              De tegemoetkoming over het berekeningsjaar, in hele euro's (lid
+              4); nihil als zij niet wordt toegekend.
         actions:
           # Lid 4: rekenkundig afgerond op hele euro's.
           - output: afgeronde_tegemoetkoming
             value:
               operation: ROUND
               precision: -2
-              value: $berekende_tegemoetkoming
+              value: $hoogte_tegemoetkoming
           # Lid 5: niet toegekend als het minder dan € 24 zou bedragen.
-          - output: tegemoetkoming_wordt_toegekend
+          - output: tegemoetkoming_toegekend
             value:
-              operation: GREATER_THAN_OR_EQUAL
-              subject: $afgeronde_tegemoetkoming
-              value: $minimum_tegemoetkoming
+              operation: AND
+              conditions:
+                - $aanspraak_op_tegemoetkoming
+                - operation: GREATER_THAN_OR_EQUAL
+                  subject: $afgeronde_tegemoetkoming
+                  value: $minimum_tegemoetkoming
+          - output: tegemoetkomingbedrag
+            value:
+              operation: IF
+              cases:
+                - when: $tegemoetkoming_toegekend
+                  then: $afgeronde_tegemoetkoming
+              default: 0
     references:
       - id: ref1
         bwb_id: BWBR0002320
@@ -1050,18 +1111,6 @@ articles:
       # dagtekening en ondertekening vraagt Awb 4:2 erbij, de dag van
       # ontvangst Awb 4:13.
       #
-      # Welk besluit de aanvraag vraagt (`requests`): het voorschot van
-      # artikel 16. Eigen keuze, met deze reden. De aanvraag vraagt om een
-      # tegemoetkoming, en die kent de Dienst Toeslagen toe (artikel 14,
-      # eerste lid), maar pas binnen zes maanden na de aanslag
-      # inkomstenbelasting over het berekeningsjaar (artikel 19). Het besluit
-      # dat de aanvraag zelf in gang zet, is het voorschot: de Dienst
-      # verleent het de belanghebbende "die een aanvraag voor een
-      # tegemoetkoming indient" (artikel 16, eerste lid), zonder dat die er
-      # nog om vraagt. De toekenning volgt op de aanslag, niet op een stap
-      # van de aanvrager. Een aanvraag noemt in het formaat één besluit, dus
-      # dat is hier het voorschot.
-      #
       # Lid 1, eerste volzin: de aanvraag kan worden ingediend tot 1
       # september van het jaar na het berekeningsjaar. Eigen keuze: zij is
       # ingediend op de dag dat de Dienst haar ontvangt (Awb 4:13, eerste
@@ -1071,13 +1120,25 @@ articles:
       # verstrekt de benodigde informatie) is wat de Dienst Toeslagen
       # gebruikt voor zijn oordeel bij het voorschot; die gegevens staan
       # daarom niet in de aanvraag, maar bij dat oordeel.
+      #
+      # Tijdelijke keuze voor deze poc. De aanvraag noemt welke tegemoetkoming
+      # zij vraagt (gevraagde_tegemoetkoming), als verwijzing naar het artikel
+      # dat de aanspraak geeft, zoals wet_op_de_zorgtoeslag#2. Lid 1 spreekt
+      # van "een aanvraag om een tegemoetkoming"; welke, zegt de wet daar
+      # niet met zoveel woorden. De lezing van de wet is: de aanvraag is er
+      # een op de aanspraak van artikel 2, eerste lid, van de Wet op de
+      # zorgtoeslag, en de Awir grijpt daarop in met hooks. Een generieke
+      # ontwerpstudie naar soorten regelingen loopt. Tot die klaar is, wijst
+      # `requests` naar artikel 14, de toekenning, en leest artikel 14 uit het
+      # genoemde artikel.
       execution:
         produces:
           - type: AANVRAAG
-            requests: algemene_wet_inkomensafhankelijke_regelingen#16
+            requests: algemene_wet_inkomensafhankelijke_regelingen#14
             parameters:
               - bsn
               - berekeningsjaar
+              - gevraagde_tegemoetkoming
             outputs:
               - aanvraag_binnen_termijn
         parameters:
@@ -1092,6 +1153,12 @@ articles:
             description: >-
               Het berekeningsjaar waarop de gevraagde tegemoetkoming
               betrekking heeft (lid 1; artikel 2, eerste lid, onder b).
+          - name: gevraagde_tegemoetkoming
+            type: string
+            description: >-
+              De tegemoetkoming waarom de aanvraag vraagt, als het artikel dat
+              de aanspraak erop geeft: <regelwerk>#<artikel>, zoals
+              wet_op_de_zorgtoeslag#2. Tijdelijke keuze, zie hierboven.
           - name: datum_ontvangst
             type: date
             description: De dag waarop de Dienst Toeslagen de aanvraag ontving.
@@ -1181,21 +1248,12 @@ articles:
       # open.
       competent_authority:
         name: Dienst Toeslagen
-      # Hoe de Dienst het vermoedelijke bedrag bepaalt, zegt deze wet niet:
-      # de tegemoetkoming berekent de inkomensafhankelijke regeling, en wat
-      # de Dienst daarvoor verwacht, oordeelt hij per aanvraag. Daarom een
-      # open begrip, dat de Dienst per geval invult. Zijn uitvoeringsbeleid
-      # kan het vullen met de berekening van de regeling op de gegevens die
-      # hij verwacht.
-      open_terms:
-        - id: vermoedelijke_tegemoetkoming
-          type: amount
-          required: true
-          decided_per_case_by: Dienst Toeslagen (artikel 16, eerste lid)
-          description: >-
-            Het bedrag waarop de tegemoetkoming over het berekeningsjaar
-            vermoedelijk zal worden vastgesteld (lid 1), vóór de afronding van
-            artikel 14, vierde lid.
+      # Het vermoedelijke bedrag is de toekenning van artikel 14, op wat de
+      # Dienst voor het berekeningsjaar verwacht. Die verwachting is de eigen
+      # schatting van de Dienst: "vermoedelijk" in lid 1. Hij geeft haar als
+      # zijn bevindingen, onder de namen die het artikel uit de aanvraag
+      # vraagt, en de engine geeft ze aan dat artikel door. Deze wet noemt de
+      # begrippen van de regeling niet, en de regeling niet die van deze wet.
       execution:
         produces:
           - type: BESCHIKKING
@@ -1204,15 +1262,20 @@ articles:
               - voorschotbedrag
               - voorschot_verleend
         parameters:
-          # Uit de aanvraag (artikel 15). Het burgerservicenummer gebruikt dit
-          # artikel zelf niet; wie het vermoedelijke bedrag bepaalt, heeft
-          # het nodig.
+          # Uit de aanvraag (artikel 15). Het burgerservicenummer en de
+          # gevraagde tegemoetkoming gebruikt dit artikel alleen om artikel 14
+          # te vragen.
           - name: bsn
             type: string
             description: Het burgerservicenummer van de belanghebbende.
           - name: berekeningsjaar
             type: number
             description: Het berekeningsjaar waarop de tegemoetkoming betrekking heeft.
+          - name: gevraagde_tegemoetkoming
+            type: string
+            description: >-
+              Het artikel dat de aanspraak geeft op de gevraagde
+              tegemoetkoming, als <regelwerk>#<artikel>.
           # Het moment van de aanvraag (Awb 4:13, eerste lid). Eigen keuze:
           # een aanvraag is ingediend (lid 1) op de dag dat de Dienst haar
           # ontvangt.
@@ -1220,22 +1283,26 @@ articles:
             type: date
             description: De dag waarop de Dienst Toeslagen de aanvraag ontving.
         input:
-          - name: afgeronde_tegemoetkoming
+          - name: vermoedelijke_tegemoetkoming
             type: amount
             source:
               regulation: algemene_wet_inkomensafhankelijke_regelingen
-              output: afgeronde_tegemoetkoming
+              output: tegemoetkomingbedrag
               parameters:
-                berekende_tegemoetkoming: $vermoedelijke_tegemoetkoming
+                bsn: $bsn
+                berekeningsjaar: $berekeningsjaar
+                gevraagde_tegemoetkoming: $gevraagde_tegemoetkoming
             type_spec:
               unit: eurocent
-          - name: tegemoetkoming_wordt_toegekend
+          - name: tegemoetkoming_vermoedelijk_toegekend
             type: boolean
             source:
               regulation: algemene_wet_inkomensafhankelijke_regelingen
-              output: tegemoetkoming_wordt_toegekend
+              output: tegemoetkoming_toegekend
               parameters:
-                berekende_tegemoetkoming: $vermoedelijke_tegemoetkoming
+                bsn: $bsn
+                berekeningsjaar: $berekeningsjaar
+                gevraagde_tegemoetkoming: $gevraagde_tegemoetkoming
         output:
           - name: voorschotbedrag
             type: amount
@@ -1276,8 +1343,8 @@ articles:
                               - 1
                           month: 4
                           day: 1
-                      - $tegemoetkoming_wordt_toegekend
-                  then: $afgeronde_tegemoetkoming
+                      - $tegemoetkoming_vermoedelijk_toegekend
+                  then: $vermoedelijke_tegemoetkoming
               default: 0
           - output: voorschot_verleend
             value:
