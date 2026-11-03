@@ -2048,6 +2048,12 @@ impl RuleResolver {
                             article.number, decl.law, decl.article, decl.output
                         );
                         check_boolean_output(&mut errors, &at, article, when);
+                        // A conditional replacement would apply after the
+                        // actions that read the replaced value; only a void
+                        // takes `when` in this example.
+                        if !decl.voids {
+                            errors.push(format!("{at}: `when` is only for an override that voids"));
+                        }
                     }
                 }
                 for p in article.get_parameters() {

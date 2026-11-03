@@ -1,0 +1,69 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json
+$id: wet_op_de_huurtoeslag
+regulatory_layer: WET
+# De datum van de wet zelf (Wet van 24 april 1997).
+publication_date: '1997-04-24'
+valid_from: '2026-01-01'
+bwb_id: BWBR0008659
+url: https://wetten.overheid.nl/BWBR0008659/2026-01-01
+name: Wet op de huurtoeslag
+# Een wet van vóór 2006: de Awir geldt er alleen voor omdat zij het zelf
+# bepaalt (Awir art. 1 lid 2), en dat doet artikel 1a, eerste lid. Artikel 7,
+# eerste lid, maakt haar daarnaast een regeling waarin de draagkracht van de
+# medebewoners van belang is: een kenmerk waarop Awir art. 7 lid 2 inhaakt.
+member_of:
+  - kind: algemene_wet_inkomensafhankelijke_regelingen/inkomensafhankelijke_regeling
+    legal_text_excerpt: >-
+      Op deze wet is de Algemene wet inkomensafhankelijke regelingen, met
+      uitzondering van artikel 6, eerste en tweede lid, van toepassing.
+  - kind: algemene_wet_inkomensafhankelijke_regelingen/regeling_met_draagkracht_medebewoners
+    legal_text_excerpt: >-
+      Het recht op en de hoogte van de huurtoeslag is afhankelijk van de
+      draagkracht, waaronder begrepen het vermogen, van de huurder, diens
+      partner en de medebewoners.
+# Alleen de artikelen die het voorbeeld van een kenmerk van een lid nodig
+# heeft.
+articles:
+  - number: 1a
+    text: >-
+      1. Op deze wet is de Algemene wet inkomensafhankelijke regelingen, met uitzondering van artikel 6, eerste en
+      tweede lid, van toepassing.
+
+
+      2. De uitvoering van het toekennen, uitbetalen en terugvorderen van een huurtoeslag is opgedragen aan de Dienst
+      Toeslagen.
+
+
+      3. In afwijking van artikel 3 van de Algemene wet inkomensafhankelijke regelingen wordt in deze wet en de daarop
+      berustende bepalingen de partner uitsluitend als partner aangemerkt indien deze in de basisregistratie personen op
+      het adres van de huurder staat ingeschreven.
+    url: https://wetten.overheid.nl/BWBR0008659/2026-01-01#Artikel1a
+  - number: '7'
+    text: >-
+      1. Het recht op en de hoogte van de huurtoeslag is afhankelijk van de draagkracht, waaronder begrepen het vermogen,
+      van de huurder, diens partner en de medebewoners.
+
+
+      2. Ten aanzien van een bepaalde woning kan slechts aan één huurder een huurtoeslag worden toegekend.
+    url: https://wetten.overheid.nl/BWBR0008659/2026-01-01#Artikel7
+    machine_readable:
+      # Lid 1: het recht op huurtoeslag, een tegemoetkoming in de zin van
+      # Awir art. 2 lid 1 onder h. Waarvan het afhangt, is hier alleen
+      # vastgelegd, niet berekend; de Awir-hooks vuren erop, en Awir 7 lid 2
+      # door het kenmerk dat deze wet in lid 1 vastlegt. Lid 2 is niet
+      # gemodelleerd.
+      execution:
+        produces:
+          - type: algemene_wet_inkomensafhankelijke_regelingen/tegemoetkoming
+            legal_text_excerpt: Het recht op en de hoogte van de huurtoeslag
+        output:
+          - name: recht_afhankelijk_van_draagkracht
+            type: boolean
+            description: >-
+              Dat het recht op en de hoogte van de huurtoeslag afhangen van de
+              draagkracht van de huurder, zijn partner en de medebewoners
+              (lid 1).
+        actions:
+          - output: recht_afhankelijk_van_draagkracht
+            value: true

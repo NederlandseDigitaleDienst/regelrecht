@@ -112,10 +112,10 @@ struct ResolutionContext<'a> {
     /// The law that initiated the current execution chain (for override scoping).
     /// Overrides only apply when declared by this law.
     contextual_law_id: Option<String>,
-    /// The laws whose articles are executing now, outermost first (schema
-    /// v0.9.0). An override from another law applies while that law is in
-    /// this chain.
-    law_chain: Vec<String>,
+    /// The laws whose items the hooks now executing fire on, innermost last
+    /// (schema v0.9.0). An override from the law of that item applies to
+    /// the hook's outputs, wherever the execution started.
+    hook_item_laws: Vec<String>,
     /// Where the engine is right now: the innermost provision being evaluated
     /// (RFC-039). Every trace step pushed while this is set inherits it as its
     /// `anchor`, so a step can name its article without each push site having
@@ -296,7 +296,7 @@ impl<'a> ResolutionContext<'a> {
             trace: None,
             cache: HashMap::new(),
             contextual_law_id: None,
-            law_chain: Vec::new(),
+            hook_item_laws: Vec::new(),
             anchor: None,
             delegation_refusals: Vec::new(),
             declaration_version_notes: Vec::new(),
@@ -3525,7 +3525,12 @@ impl LawExecutionService {
                     .flatten()
                     .flat_map(|hook| {
                         declared_parameter_names(hook.article)
-                            .chain(self.override_parameter_names(hook.article, hook.law, res_ctx))
+                            .chain(self.override_parameter_names(
+                                hook.article,
+                                hook.law,
+                                &law.id,
+                                res_ctx,
+                            ))
                             .collect::<Vec<_>>()
                     })
                     .collect()
@@ -3557,7 +3562,12 @@ impl LawExecutionService {
                 .iter()
                 .filter(|(output, _)| computed.is_none_or(|c| c.contains(*output)))
                 .flat_map(|(_, parameters)| parameters.iter().cloned());
-            post_hooks.iter().cloned().chain(replacing).collect()
+            post_hooks
+                .iter()
+                .cloned()
+                .chain(replacing)
+                .chain(plan.conditional.iter().cloned())
+                .collect()
         };
 
         let Some(requested) = requested_outputs else {
@@ -3655,21 +3665,42 @@ impl LawExecutionService {
         plan
     }
 
-    /// The parameters that the applicable overrides of `article`'s outputs
-    /// declare, as [`Self::override_plan`] selects them. A hook passes them
-    /// on to the lex specialis that runs inside it, and to no one else.
+    /// The parameters that the overrides of hook article `article`'s
+    /// outputs declare, for the overrides that apply when the hook fires on
+    /// an item of `item_law`: from the hook's own law, from the law that
+    /// started the execution, or from `item_law` (schema v0.9.0). A hook
+    /// passes them on to the lex specialis that runs inside it. Read from
+    /// the newest version, like the overrides index, so the demand may ask
+    /// for a name an override not in force on the date does not read.
     fn override_parameter_names(
         &self,
         article: &Article,
         law: &ArticleBasedLaw,
+        item_law: &str,
         res_ctx: &ResolutionContext<'_>,
     ) -> BTreeSet<String> {
-        let plan = self.override_plan(article, law, res_ctx);
-        plan.replacing
-            .into_values()
-            .flatten()
-            .chain(plan.conditional)
-            .collect()
+        let mut names = BTreeSet::new();
+        for output in crate::demand::action_outputs(article) {
+            for reference in self
+                .resolver
+                .find_overrides(&law.id, &article.number, output)
+            {
+                let applies = reference.law_id == law.id
+                    || reference.law_id == item_law
+                    || Some(&reference.law_id) == res_ctx.contextual_law_id.as_ref();
+                if !applies {
+                    continue;
+                }
+                if let Some(overriding) = self
+                    .resolver
+                    .get_law(&reference.law_id)
+                    .and_then(|l| l.find_article_by_number(&reference.article_number))
+                {
+                    names.extend(declared_parameter_names(overriding));
+                }
+            }
+        }
+        names
     }
 
     /// The kinds the decision of `article` belongs to besides its `type`
@@ -3752,12 +3783,15 @@ impl LawExecutionService {
             let hook_key = hook_key(&hook_entry.law_id, &hook_entry.article_number);
 
             // Filter parameters: only pass parameters declared by the hook article (least privilege)
+            // The overrides on this hook's outputs include those of the law
+            // whose item it fires on (schema v0.9.0).
+            res_ctx.hook_item_laws.push(law.id.clone());
             let mut hook_params = Self::filter_parameters_for_article(hook_article, parameters);
             // A lex specialis on the hook's own outputs runs inside the hook
             // and receives the hook's parameters. It also gets the ones it
             // declares itself: the Wet kinderopvang needs to know what changed
             // to decide whether Awir 5 applies, which Awir 5 never asks.
-            for name in self.override_parameter_names(hook_article, hook_law, res_ctx) {
+            for name in self.override_parameter_names(hook_article, hook_law, &law.id, res_ctx) {
                 if let Some(value) = parameters.get(&name) {
                     hook_params.entry(name).or_insert_with(|| value.clone());
                 }
@@ -3788,6 +3822,7 @@ impl LawExecutionService {
 
             // Leave scope (even on error)
             res_ctx.leave(&hook_key);
+            res_ctx.hook_item_laws.pop();
 
             // If a hook fires (stage matches), it must succeed.
             // A missing variable means the law cannot be applied — that's an error.
@@ -3969,16 +4004,16 @@ impl LawExecutionService {
             .resolver
             .find_overrides(&law.id, &article.number, output_name);
 
-        // An override from another law applies while that law is executing,
-        // anywhere in the chain (schema v0.9.0): a Vreemdelingenwet
-        // exclusion on Awb 6:7 applies to the hook on a Vreemdelingenwet
-        // beschikking and not to one on a Participatiewet beschikking, and a
-        // Wkb exclusion of Awir 4 applies to the hook on the Wkb's own
-        // tegemoetkoming, also when another law calls the Wkb on the way.
-        // Until v0.9.0 only the law that started the execution counted
-        // (RFC-007, "contextual law"). That rule stays: a procedure resumed
-        // stage by stage carries the law that started it, which is then no
-        // longer in the chain. The chain adds to it.
+        // An override from another law applies within the execution that
+        // law started (RFC-007, "contextual law"); that is also how a
+        // procedure resumed stage by stage keeps the law that started it.
+        // Since schema v0.9.0 it also applies to a hook that fires on an
+        // item the overriding law produces itself, wherever the execution
+        // started: a Wkb exclusion of Awir 4 applies to the hook on the
+        // Wkb's own tegemoetkoming, also when another law calls the Wkb on
+        // the way. A Vreemdelingenwet exclusion on Awb 6:7 still reaches the
+        // hook on a Vreemdelingenwet beschikking only, never one on a
+        // Participatiewet beschikking, even when the Vw calls the Pw.
         //
         // An article overriding an output of its own law is a different
         // claim. There is no other law to be protected from, and the
@@ -3994,7 +4029,7 @@ impl LawExecutionService {
             .filter(|ovr| {
                 ovr.law_id == law.id
                     || Some(&ovr.law_id) == res_ctx.contextual_law_id.as_ref()
-                    || res_ctx.law_chain.contains(&ovr.law_id)
+                    || res_ctx.hook_item_laws.last() == Some(&ovr.law_id)
             })
             .collect();
 
@@ -4339,10 +4374,8 @@ impl LawExecutionService {
         res_ctx: &mut ResolutionContext<'_>,
     ) -> Result<ArticleResult> {
         let outer_anchor = res_ctx.enter_anchor(Some(LegalAnchor::from_article(law, article)));
-        res_ctx.law_chain.push(law.id.clone());
         let result =
             self.evaluate_article_body(article, law, parameters, requested_outputs, stage, res_ctx);
-        res_ctx.law_chain.pop();
         // Restored before the `?`: an error must not leave the caller anchored
         // to the article that failed.
         res_ctx.enter_anchor(outer_anchor);

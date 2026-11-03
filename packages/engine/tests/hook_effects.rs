@@ -619,13 +619,13 @@ fn a_hook_fires_on_an_item_computed_for_another_law() {
     );
 }
 
-/// An override from a law applies while that law executes anywhere in the
-/// chain, not only when it started the execution: the member voids the
-/// hook's output on its own item, also when another law calls it on the
-/// way (the Wkb read by another law). Until v0.9.0 only the law that started
+/// An override from a law applies to a hook that fires on that law's own
+/// item, not only when that law started the execution: the member voids the
+/// hook's output on its own item, also when another law calls it on the way
+/// (the Wkb read by another law). Until v0.9.0 only the law that started
 /// the execution counted (RFC-007), and this override was lost.
 #[test]
-fn an_override_applies_where_its_law_executes_in_the_chain() {
+fn an_override_applies_to_the_hook_on_its_own_item_in_a_nested_call() {
     let mut service = service();
     service
         .load_law(&format!(
@@ -763,4 +763,77 @@ articles:
             "spoed: {spoed:?}"
         );
     }
+}
+
+/// A hook that filters on a characteristic of the member, in the shape of
+/// Awir 7 lid 2: the characteristic is a narrower kind of regulations, and a
+/// regulation that has it claims it in its own words.
+#[test]
+fn a_hook_filters_on_a_characteristic_the_member_claims() {
+    let mut service = service();
+    service
+        .load_law(&format!(
+            r#"$schema: {SCHEMA}
+$id: kenmerk_test_wet
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Indien in een belastingwet is bepaald dat ook de medebewoners meetellen, tellen hun inkomens mee.
+    machine_readable:
+      kinds:
+        - id: belastingwet_met_medebewoners
+          level: regulation
+          broader: algemene_belasting_test_wet/belastingwet
+      hooks:
+        - hook_point: pre_actions
+          applies_to:
+            kind: kenmerk_test_wet/belastingwet_met_medebewoners
+      execution:
+        output:
+          - name: medebewoners_tellen_mee
+            type: boolean
+        actions:
+          - output: medebewoners_tellen_mee
+            value: true
+"#
+        ))
+        .unwrap();
+    member(
+        &mut service,
+        "met_kenmerk_test_wet",
+        "member_of:\n  - kind: algemene_belasting_test_wet/belastingwet\n    legal_text_excerpt: de heffing\n  - kind: kenmerk_test_wet/belastingwet_met_medebewoners\n    legal_text_excerpt: de heffing",
+        "          - type: algemene_test_wet/beschikking",
+    );
+    // Claiming the narrower kind alone suffices; it implies the wider one.
+    member(
+        &mut service,
+        "alleen_kenmerk_test_wet",
+        "member_of:\n  - kind: kenmerk_test_wet/belastingwet_met_medebewoners\n    legal_text_excerpt: de heffing",
+        "          - type: algemene_test_wet/beschikking",
+    );
+    assert_eq!(
+        outputs(&service, "alleen_kenmerk_test_wet")
+            .outputs
+            .get("medebewoners_tellen_mee"),
+        Some(&Value::Bool(true))
+    );
+    member(
+        &mut service,
+        "zonder_kenmerk_test_wet",
+        "member_of:\n  - kind: algemene_belasting_test_wet/belastingwet\n    legal_text_excerpt: de heffing",
+        "          - type: algemene_test_wet/beschikking",
+    );
+    assert_eq!(
+        outputs(&service, "met_kenmerk_test_wet")
+            .outputs
+            .get("medebewoners_tellen_mee"),
+        Some(&Value::Bool(true))
+    );
+    assert_eq!(
+        outputs(&service, "zonder_kenmerk_test_wet")
+            .outputs
+            .get("medebewoners_tellen_mee"),
+        None
+    );
 }

@@ -2837,7 +2837,7 @@
             "properties": {
               "law": {
                 "type": "string",
-                "description": "The `$id` of the law whose output is being replaced: lex specialis written down. An override from another law applies while that law is executing, anywhere in the chain of the current execution: a Vreemdelingenwet override on Awb 6:7 applies to the hook on a Vreemdelingenwet beschikking, and a Wet op het kindgebonden budget override on Awir 4 applies to the hook on its own tegemoetkoming, also when another law calls the Wkb on the way. Until v0.9.0 only the law that started the execution counted (RFC-007); that still counts, also for a procedure resumed stage by stage. An override on an output of its own law applies whatever the chain (RFC-041). The engine does not check that the override is legally valid."
+                "description": "The `$id` of the law whose output is being replaced: lex specialis written down. An override from another law applies within the execution that law started (RFC-007), and since v0.9.0 also to a hook that fires on an item that law produces itself, wherever the execution started: a Wet op het kindgebonden budget override on Awir 4 applies to the hook on its own tegemoetkoming, also when another law calls the Wkb on the way. An override on an output of its own law applies whatever the context (RFC-041). The engine does not check that the override is legally valid."
               },
               "article": {
                 "type": "string",
@@ -2857,7 +2857,7 @@
               },
               "when": {
                 "type": "string",
-                "description": "Since v0.9.0: the override applies only where this boolean output of the overriding article is true; false, null or unknown leave the overridden output as it is. The Wet kinderopvang voids Awir 5 only \"op wijzigingen in de kosten van kinderopvang per kind\". The overriding article runs with the parameters the overridden article receives, and with those it declares itself."
+                "description": "Since v0.9.0, with `voids`: the override applies only where this boolean output of the overriding article is true; false, null or unknown leave the overridden output as it is. The Wet kinderopvang voids Awir 5 only \"op wijzigingen in de kosten van kinderopvang per kind\". The overriding article runs with the parameters the overridden article receives, and with those it declares itself."
               }
             },
             "additionalProperties": false,

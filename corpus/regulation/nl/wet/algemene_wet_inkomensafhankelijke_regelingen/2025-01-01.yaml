@@ -471,6 +471,37 @@ articles:
       10.1](jci1.3:c:BWBR0011353&artikel=10.1) en [10.2 van de Wet inkomstenbelasting
       2001](jci1.3:c:BWBR0011353&artikel=10.2) van overeenkomstige toepassing.
     url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel7
+    machine_readable:
+      # Lid 2 grijpt in op een kenmerk van het lid: "Indien in een
+      # inkomensafhankelijke regeling is bepaald dat [...] ook de draagkracht
+      # van medebewoners van belang is". Die regelingen zijn een smallere
+      # soort van inkomensafhankelijke regelingen; een regeling claimt haar
+      # met haar eigen woorden (`member_of`), en de hook filtert erop. De
+      # tekst van lid 3 tot en met 5 in dit bestand wijkt af van de tekst
+      # die op 2025-01-01 gold; alleen lid 2 is gemodelleerd en dat lid is
+      # gelijk. Lid 1 en 3 tot en met 6 zijn niet gemodelleerd.
+      kinds:
+        - id: regeling_met_draagkracht_medebewoners
+          level: regulation
+          broader: inkomensafhankelijke_regeling
+          description: >-
+            Een inkomensafhankelijke regeling waarin is bepaald dat naast de
+            draagkracht van de belanghebbende en diens partner ook de
+            draagkracht van medebewoners van belang is (lid 2).
+      hooks:
+        - hook_point: pre_actions
+          applies_to:
+            kind: algemene_wet_inkomensafhankelijke_regelingen/regeling_met_draagkracht_medebewoners
+      execution:
+        output:
+          - name: toetsingsinkomen_medebewoners_in_aanmerking
+            type: boolean
+            description: >-
+              Of mede het toetsingsinkomen van de medebewoners in aanmerking
+              wordt genomen (lid 2). Hoeveel dat is, is niet gemodelleerd.
+        actions:
+          - output: toetsingsinkomen_medebewoners_in_aanmerking
+            value: true
   - number: '8'
     text: |-
       1 Toetsingsinkomen is: het op het berekeningsjaar betrekking hebbende inkomensgegeven.
