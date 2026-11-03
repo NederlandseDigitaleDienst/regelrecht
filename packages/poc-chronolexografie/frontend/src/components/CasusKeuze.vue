@@ -4,11 +4,13 @@
 // casus met een lege kroniek. Daarboven staat per bron (src/bronnen.js) wat
 // er niet lukte: een bron die er niet is, of een bestand dat niet laadt.
 //
-// At the top: what a demo needs, the presentation and the parking card
-// scenarios that follow it (presentation/demo.js), and the explanation page
-// that shows in YAML how one case hangs together (presentation/uitleg.js).
+// At the top: what a demo needs, the presentation and the short page that
+// says what RegelRecht and chronolexografie are (presentation/kort.js), and
+// right under them the demo scenarios (presentation/demo.js). The short page
+// links on to the explanation page (presentation/uitleg.js).
 import { nextTick, onMounted, ref } from 'vue';
 import { demoGuides } from '../presentation/demo.js';
+import { useKort } from '../presentation/useKort.js';
 import { useUitleg } from '../presentation/useUitleg.js';
 import { api } from '../api.js';
 import { bronMeldingen, herkomst } from '../bronnen.js';
@@ -16,17 +18,20 @@ import { artikelNaam } from '../logboek.js';
 import { navigate } from '../navigation.js';
 import { hoofdletter, kiezen, state } from '../state.js';
 
-const emit = defineEmits(['presentatie', 'uitleg', 'demo']);
+const emit = defineEmits(['presentatie', 'kort', 'demo']);
 const demo = demoGuides();
 const casussen = ref([]);
-const uitlegKnop = ref(null);
+const kortKnop = ref(null);
+const kort = useKort();
 const uitleg = useUitleg();
-// Back from the explanation page, the focus returns to its button.
+// Back from the short page, or from the explanation page it leads to, the
+// focus returns to the button of the short page.
 onMounted(async () => {
-  if (!uitleg.terug.value) return;
+  if (!kort.terug.value && !uitleg.terug.value) return;
+  kort.terug.value = false;
   uitleg.terug.value = false;
   await nextTick();
-  uitlegKnop.value?.focus();
+  kortKnop.value?.focus();
 });
 const bronnen = ref([]);
 
@@ -53,30 +58,36 @@ const kies = (c) => navigate(() => kiezen(c.id));
 <template>
   <nldd-simple-section>
     <nldd-title slot="header" size="3" text="Voor de demo">
-      <nldd-text slot="supporting-text">
-        Eerst een korte presentatie over chronolexografie, daarna drie scenario's van de
-        gehandicaptenparkeerkaart. Elk scenario begint met een lege kroniek en een gids naast de
-        pagina.
-      </nldd-text>
+      <nldd-text slot="supporting-text">Eerst de presentatie, dan de demoscenario's.</nldd-text>
     </nldd-title>
     <nldd-container gap="16">
       <nldd-button-bar>
         <nldd-button appearance="primary" start-icon="guide" text="Presentatie starten" @click="emit('presentatie')"></nldd-button>
-        <nldd-button ref="uitlegKnop" appearance="secondary" start-icon="link" text="Hoe het in elkaar zit" @click="emit('uitleg')"></nldd-button>
+        <nldd-button ref="kortKnop" appearance="secondary" start-icon="link" text="In het kort" @click="emit('kort')"></nldd-button>
       </nldd-button-bar>
+      <nldd-title
+        size="4"
+        heading-level="2"
+        text="Demoscenario's"
+        supporting-text="Van simpel naar ingewikkeld, in twee casussen."
+      ></nldd-title>
       <!-- `item-min-width`, not `item-width`: @nldd/design-system 0.9.0 renamed
            the attribute (collection.d.ts, @migration), and the old name now
            does nothing. -->
       <nldd-collection layout="grid" item-min-width="320px">
-        <nldd-card v-for="(g, i) in demo" :key="g.name">
+        <nldd-card v-for="(d, i) in demo" :key="d.guide.name">
           <nldd-container slot="header" padding="16">
-            <nldd-title size="4" heading-level="2" :overline="`Demo ${i + 1} · gehandicaptenparkeerkaart`" :text="g.name"></nldd-title>
+            <nldd-title size="5" heading-level="3" :overline="`Demo ${i + 1} · ${d.titel}`" :text="d.guide.name"></nldd-title>
           </nldd-container>
           <nldd-container padding="16">
-            <nldd-text>{{ g.summary }}</nldd-text>
+            <nldd-text>{{ d.guide.summary }}</nldd-text>
           </nldd-container>
           <nldd-container slot="footer" padding="16">
-            <nldd-button appearance="secondary" text="Begin dit scenario" @click="emit('demo', g.name)"></nldd-button>
+            <nldd-button
+              appearance="secondary"
+              text="Begin dit scenario"
+              @click="emit('demo', { casus: d.casus, naam: d.guide.name })"
+            ></nldd-button>
           </nldd-container>
         </nldd-card>
       </nldd-collection>

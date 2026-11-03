@@ -20,11 +20,13 @@ const AFKORTINGEN = {
 /**
  * De naam van een regelwerk: zijn afkorting, de naam die het zelf draagt
  * (`api.casus`), of zijn `$id` leesbaar met een hoofdletter.
+ *
+ * A name that refers to a value of the regelwerk (`'#wet_naam'`) is no name.
  */
 export function wetNaam(wet) {
   if (AFKORTINGEN[wet]) return AFKORTINGEN[wet];
   const naam = state.casus?.regelwerken?.find((r) => r.id === wet)?.naam;
-  if (naam) return naam;
+  if (naam && !naam.startsWith('#')) return naam;
   return hoofdletter(leesbaar(wet));
 }
 
@@ -57,7 +59,7 @@ export const gelezen = (p, grammen) =>
 /**
  * De cel die een begrip beantwoordde, zoals de bezoeker haar kent: de naam
  * uit de casus (OBS De Klimop, gemeente Wilgendaal, GGD Wilgendaal) als zij
- * de cel van de casus of een andere cel van de casus is (RFC-052), anders
+ * de cel van de casus of een andere cel van de casus is (RFC-048), anders
  * haar id.
  */
 export const celNaam = (cel) =>
@@ -67,7 +69,7 @@ export const celNaam = (cel) =>
 
 /**
  * De kroniek van de cel `cel`: die van de casus, of die van een andere cel
- * van de casus (RFC-052), om daar het laatst gelezen chronolexogram te
+ * van de casus (RFC-048), om daar het laatst gelezen chronolexogram te
  * vinden.
  */
 export const grammenVan = (cel, grammen) =>

@@ -186,11 +186,15 @@ The enrich worker:
 4. Computes coverage score (the stored `law_entries.coverage_score` is the cumulative fraction of articles with `machine_readable`; the per-run delta rides in the job result)
 5. Pushes the result to a per-provider branch (`enrich/` followed by the provider name, `opencode` or `claude`) for review
 
-The hourly budget fails closed. Without `ENRICH_HOURLY_LIMIT`, or with `0`, the
-worker enriches nothing, so a forgotten variable cannot spend a subscription on
-the whole corpus. The cap counts runs for the worker's own `LLM_PROVIDER` per
-clock hour (Europe/Amsterdam), and because it is counted in the `jobs` table it
-survives a restart.
+The hourly budget applies to the `claude` provider, which runs on a personal
+subscription token, whatever the worker's own `LLM_PROVIDER` is: a user picks
+the provider per enrichment in the editor. It counts claude runs per clock hour
+(Europe/Amsterdam), and because it is counted in the `jobs` table it survives a
+restart. Once the claude runs of the hour are used up, claude jobs wait for the
+next hour and the worker keeps running jobs for other providers. The `opencode`
+provider (VLAM) has no cap for now. The budget fails closed: without
+`ENRICH_HOURLY_LIMIT`, or with `0`, no claude job runs, so a forgotten variable
+cannot spend the subscription on the whole corpus.
 
 ### Large laws and agent sessions
 
@@ -269,11 +273,48 @@ With `ENRICH_WINDOW_CONCURRENCY` above 1 the windows of a job share one view
 of the agent: the counts add up, and the stall check fires only once every
 window has gone quiet.
 
+### Definitions and units
+
+The `law-generate` skill writes every constant in `definitions` in the
+structured form, with a `type` and, for a quantity, a `type_spec.unit`
+(RFC-023). Money is `type: amount` with `unit: eurocent`.
+
+The deterministic check `definition-type` reports a definition that holds a
+number without a `type`, because nothing then says whether 0.137 is a share or
+a factor, or whether 3971900 is cents. Its findings go back to the agent as a
+feedback round.
+
 ### LLM Providers
 
 `LLM_PROVIDER` selects `opencode` (the default) or `claude`. The binary and model
 come from `OPENCODE_PATH` / `OPENCODE_MODEL` or `CLAUDE_PATH` / `CLAUDE_MODEL`,
-with `LLM_PATH` and `LLM_MODEL` as the fallback for either.
+with `LLM_PATH` and `LLM_MODEL` as the fallback for either. `LLM_PROVIDER` is the
+worker's default: a job that names a provider in its payload runs on that one,
+which is how the editor lets a user pick a model per enrichment.
+
+The `opencode` provider talks to VLAM, the language model API of SSC-ICT, and
+the editor shows it under that name. Its model lives in
+`packages/pipeline/opencode.json`; the model is `kimi-k3-prepaid`. The only
+route to VLAM is the platform service `vlam` on ZAD, which puts `VLAM_API_URL`
+(a proxy into VLAM) in the pod; the entrypoint points opencode at
+`$VLAM_API_URL/v1`. Without that service the provider has no endpoint, and the
+worker logs a warning at startup. The key comes from SSC-ICT, not from ZAD, and
+is set as `VLAM_API_KEY`. At startup the worker logs `VLAM check` lines: the
+model as VLAM lists it, the result of one short chat call, and whether the
+model answers a call that offers it a tool. Together they show on every deploy
+whether the key works and whether the model can do the tool calls an
+enrichment depends on.
+
+opencode sends the model's output limit (`limit.output` in `opencode.json`,
+32000 for Kimi K3) as `max_tokens` on every call, and the chat call in the
+check asks for the same limit, so a deploy also shows whether VLAM accepts it.
+Kimi K3 reasons before it acts, and the reasoning counts against that limit. A
+step that runs into it ends without a tool call, and opencode then stops as if
+the work were done. The worker logs every opencode step with why it ended and
+the tokens it used, warns on `agent step cut off by the output limit`, and the
+error of a run that produced nothing says how many steps were cut off. 32000 is
+also opencode's own ceiling: a higher limit needs
+`OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX` as well as `limit.output`.
 
 The LLM subprocess runs with a stripped environment (allowlisted vars only) for security.
 
@@ -283,12 +324,13 @@ The image pins the claude CLI (`packages/pipeline/Dockerfile`, version
 because the wrapper package `@anthropic-ai/claude-code` only puts the binary in
 place from a postinstall script, which the install skips.
 
-Without `CLAUDE_MODEL` and `LLM_EFFORT` the CLI chooses for itself, and the
-stripped environment keeps its own variables (`ANTHROPIC_MODEL`,
-`CLAUDE_CODE_EFFORT_LEVEL`) out. Which model that is depends on the CLI
-version and the subscription behind the token; 2.1.303 started without a token
-names Opus 5.5. The effort it picks also depends on a server-side setting, and
-the CLI reports it nowhere. Set both on the enrich worker to know what runs.
+The claude provider runs Opus 5.5 (`claude-opus-5-5`) unless `CLAUDE_MODEL` or
+`LLM_MODEL` names another model. Left to itself the CLI picks a model from its
+version and the subscription behind the token, and that choice moved from Opus
+to Sonnet without a change on our side. The stripped environment keeps the
+CLI's own variables (`ANTHROPIC_MODEL`, `CLAUDE_CODE_EFFORT_LEVEL`) out.
+Without `LLM_EFFORT` the CLI picks the effort too; that depends on a
+server-side setting, and the CLI reports it nowhere.
 The CLI does report the model, in the `init` event at the start of the
 stream-json output. The worker records it: per call in the job result's
 `agent_calls`, as `models` on the result, as `model` in `.enrichment.yaml`
@@ -331,13 +373,14 @@ without one.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `ENRICH_HOURLY_LIMIT` | 0 (paused) | Enrich runs per clock hour for this worker's provider; must be set for the worker to enrich at all |
+| `ENRICH_HOURLY_LIMIT` | 0 (claude paused) | Claude enrich runs per clock hour; must be set for claude jobs to run at all. opencode runs are not capped |
 | `ENRICH_NIGHT_MULTIPLIER` | 1 | Multiplier on the hourly limit between 00:00 and 08:00 (Europe/Amsterdam) |
 | `ENRICH_AUTO_ENQUEUE` | off | `true` (or `1`, `yes`, `on`) makes a completed harvest queue enrich jobs; otherwise enrichment is requested explicitly through `POST /api/enrich-jobs` on the [Harvester Admin](./admin) API |
 | `LLM_PROVIDER` | `opencode` | `opencode` or `claude` |
 | `LLM_PATH`, `LLM_MODEL` | none | Fallback binary and model for either provider |
-| `OPENCODE_PATH`, `OPENCODE_MODEL` | `opencode`, provider default | Binary and model for opencode |
-| `CLAUDE_PATH`, `CLAUDE_MODEL` | `claude`, provider default | Binary and model for claude |
+| `OPENCODE_PATH`, `OPENCODE_MODEL` | the opencode binary, provider default | Binary and model for opencode. Unless this or `LLM_PATH` is set, the entrypoint in the image sets the path to the platform build for the CPU (with or without AVX2) |
+| `VLAM_API_KEY` | none | Key for VLAM, used by the opencode provider |
+| `CLAUDE_PATH`, `CLAUDE_MODEL` | `claude`, `claude-opus-5-5` | Binary and model for claude |
 | `LLM_EFFORT` | none | Reasoning effort passed to the provider (`claude --effort`) |
 | `LLM_TIMEOUT_SECS` | 600 (10 min) | Ceiling per agent call |
 | `CLAUDE_CODE_OAUTH_TOKEN` | none | Subscription token for the claude provider; several comma-separated tokens are rotated over time |

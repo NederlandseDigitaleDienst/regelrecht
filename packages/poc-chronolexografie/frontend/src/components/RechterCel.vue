@@ -13,21 +13,18 @@
 // casus legt de ontvangst vast.
 import { computed, reactive } from 'vue';
 import { beroepApi, ontvangstVan, uitspraakOp } from '../beroep.js';
-import { artikelNaam } from '../logboek.js';
 import { isBesluitwaarde, kort, leesbaar, state, stap, waarde, zonderLeeg } from '../state.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
+import ArtikelLink from './ArtikelLink.vue';
 import VeldInvoer from './VeldInvoer.vue';
 import Voorvertoning from './Voorvertoning.vue';
 
-const artikel = computed(() => artikelNaam(...state.casus.beroep.split('#')));
 const vorm = computed(() => state.vormen?.uitspraak ?? { bevindingen: [], basis: '' });
 // De bevindingen op het artikel van het beroep zelf, en die op een artikel
 // dat het leest.
 const eigen = computed(() => vorm.value.bevindingen.filter((b) => b.basis === vorm.value.basis));
 const gelezen = computed(() => vorm.value.bevindingen.filter((b) => b.basis !== vorm.value.basis));
-const gelezenArtikelen = computed(() =>
-  [...new Set(gelezen.value.map((b) => b.basis))].map((g) => artikelNaam(...g.split('#'))).join(', '),
-);
+const gelezenArtikelen = computed(() => [...new Set(gelezen.value.map((b) => b.basis))]);
 
 const open = computed(() => state.rechter.filter((g) => g.kind === 'BEROEP' && !uitspraakOp(g.id)));
 const uitspraken = computed(() => state.rechter.filter((g) => g.kind === 'UITSPRAAK'));
@@ -58,7 +55,7 @@ const uitvoer = (g) => Object.entries(g.outputs ?? {}).map(([naam, w]) => ({ naa
   <nldd-simple-section>
     <nldd-title slot="header" size="3" :text="`Ingekomen beroepen bij ${state.casus.rechter.cel_naam}`">
       <nldd-text slot="supporting-text">
-        De rechtbank beslist op een beroep onder {{ artikel }}, in haar eigen cel. Het beroep
+        De rechtbank beslist op een beroep onder <ArtikelLink :basis="state.casus.beroep" />, in haar eigen cel. Het beroep
         draagt het afschrift van de beslissing op bezwaar dat {{ state.casus.cel_naam }} maakte.
         De rechtbank oordeelt op de grondslag van de overgelegde stukken (Awb 8:69). Voorziet zij
         zelf in de zaak (Awb 8:72, derde lid, onder b), dan neemt zij die beslissing opnieuw, met
@@ -96,7 +93,11 @@ const uitvoer = (g) => Object.entries(g.outputs ?? {}).map(([naam, w]) => ({ naa
               />
               <template v-if="gelezen.length">
                 <nldd-text size="sm" color="secondary">
-                  Wat {{ gelezenArtikelen }} vraagt, telt alleen als de uitspraak dat artikel leest:
+                  Wat
+                  <template v-for="(g, i) in gelezenArtikelen" :key="g"
+                    ><template v-if="i">, </template><ArtikelLink :basis="g"
+                  /></template>
+                  vraagt, telt alleen als de uitspraak dat artikel leest:
                   bij een gegrond beroep, en wat het bestreden besluit vraagt alleen als de rechtbank
                   zelf in de zaak voorziet.
                 </nldd-text>

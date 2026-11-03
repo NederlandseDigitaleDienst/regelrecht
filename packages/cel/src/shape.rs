@@ -3,7 +3,7 @@
 //! The engine names the articles that take part in a submission
 //! ([`LawExecutionService::submission`]): the article that establishes it and
 //! the hooks on it. What they ask is what the application holds: the
-//! parameters the submission item lists when `produces` is a list (RFC-047),
+//! parameters the submission item lists when `produces` is a list (RFC-045 §1),
 //! every parameter of the establishing article in the object form, and every
 //! parameter of each hook. But one: a `produces.moment` on one of them names
 //! the moment that counts,
@@ -11,7 +11,7 @@
 //! part of the application (RFC-045); the cell fills it, not the applicant.
 //! And what a hook on the submission outputs, such as whether an objection
 //! came in on time (Awb 6:9), is what the submission gives, not what it
-//! asks (RFC-050).
+//! asks (RFC-045).
 
 use chrono::NaiveDate;
 use regelrecht_engine::{Article, Authority, LawExecutionService, ParameterType};
@@ -64,7 +64,7 @@ pub struct Shape {
     pub article: String,
     /// The outputs of the establishing article: executing them runs it.
     /// Empty when the article follows a procedure: its outputs are then the
-    /// decision on the application (RFC-047), and recording the application
+    /// decision on the application (RFC-045 §4), and recording the application
     /// runs only the hooks, at [`Shape::stage`].
     pub outputs: Vec<String>,
     /// The stage of the article's procedure at which the hooks on the
@@ -78,12 +78,12 @@ pub struct Shape {
     pub fields: Vec<Field>,
     pub moment: Option<Moment>,
     /// The article whose decision the application asks for,
-    /// `<regulation>#<article>` (`requests`, RFC-047); `None` when the law
+    /// `<regulation>#<article>` (`requests`, RFC-045 §1); `None` when the law
     /// names none.
     pub requests: Option<String>,
     /// The outputs of the hooks on the submission: what recording it gives.
     /// A parameter of that name is no field; a decision takes it from the
-    /// chronolexogram's `outputs` (RFC-050).
+    /// chronolexogram's `outputs` (RFC-046).
     pub given: Vec<String>,
 }
 
@@ -147,7 +147,7 @@ pub fn derive(
         }
         // The establishing article contributes what its submission
         // contains: in the list form of `produces` the item's own
-        // `parameters`, in the object form every parameter (RFC-047). A
+        // `parameters`, in the object form every parameter (RFC-045 §1). A
         // hook contributes every parameter it declares.
         let item = found.get_submission().filter(|_| part.hook_point.is_none());
         if let Some(item) = item.filter(|_| shape.stage.is_none()) {
@@ -266,7 +266,7 @@ pub fn split_fact(fact: &str) -> Result<(&str, &str)> {
 ///
 /// With `recorder`, the cell of that authority is about to record an
 /// instance: refused first when the fact names who establishes it
-/// (`competent_authority`, schema v0.8.8, RFC-052) and does not name this
+/// (`competent_authority`, schema v0.8.8, RFC-051) and does not name this
 /// cell. A fact without one may be recorded by any cell.
 pub fn fact_fields(
     service: &LawExecutionService,
@@ -335,6 +335,52 @@ fn required_fact<'s>(
         ))
     })?;
     Ok((article, required))
+}
+
+/// The facts of `article` of `law_id` that name `authority` as who
+/// establishes them (`competent_authority`), as `<law>#<article>#<fact>`.
+pub fn facts_established_by(law_id: &str, article: &Article, authority: &Authority) -> Vec<String> {
+    article
+        .get_requires()
+        .iter()
+        .filter(|r| names(r, authority))
+        .filter_map(|r| r.fact.as_ref())
+        .map(|fact| format!("{law_id}#{}#{fact}", article.number))
+        .collect()
+}
+
+/// The fact in which the cell of `receiver` records that it received `fact`,
+/// a fact another cell established: the fact of the same article, on `day`,
+/// that holds the same parameters and names `receiver` as who establishes it.
+/// `None` when the article requires no such fact.
+pub fn receipt_of(
+    service: &LawExecutionService,
+    fact: &str,
+    day: NaiveDate,
+    receiver: &Authority,
+) -> Result<Option<String>> {
+    let (basis, name) = split_fact(fact)?;
+    let (article, required) = required_fact(service, fact, day)?;
+    if names(required, receiver) {
+        return Ok(None);
+    }
+    Ok(article
+        .get_requires()
+        .iter()
+        .filter(|r| r.fact.as_deref() != Some(name) && r.parameters == required.parameters)
+        .find(|r| names(r, receiver))
+        .and_then(|r| r.fact.as_ref())
+        .map(|receipt| format!("{basis}#{receipt}")))
+}
+
+/// Whether the `requires` entry `required` names `authority` as who
+/// establishes its fact.
+fn names(required: &ArticleRequirement, authority: &Authority) -> bool {
+    required
+        .competent_authority
+        .as_ref()
+        .and_then(|competent| competent.named())
+        .is_some_and(|named| authority.is_named_by(named))
 }
 
 /// Refuse to record `fact` in the cell of `authority` when its `requires`
@@ -414,7 +460,7 @@ pub fn fits(field: &Field, value: &serde_json::Value) -> bool {
 /// outputs}`: the article that decided (`<regulation>#<article>`), and
 /// three objects. A decision the cell gives from its chronicle also holds
 /// `taken_on`: the article of the submission it was taken on, also
-/// `<regulation>#<article>` (RFC-050). A value an article gives
+/// `<regulation>#<article>` (RFC-045 §6). A value an article gives
 /// (`source.article`) holds no `taken_on`. Nothing else.
 pub(crate) fn is_decision_value(value: &serde_json::Map<String, serde_json::Value>) -> bool {
     let reference = |key: &str| {

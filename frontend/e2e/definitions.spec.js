@@ -34,8 +34,8 @@ test.describe('Definitions', () => {
     // Verify YAML
     const yaml = await readYamlPane(page);
     expect(yaml.definitions).toHaveProperty('verantwoordelijke_autoriteit');
-    // New definitions from EditSheet always store as {value: N} format
-    expect(yaml.definitions.verantwoordelijke_autoriteit).toEqual({ value: 42 });
+    // A new definition starts structured, as a number (RFC-023)
+    expect(yaml.definitions.verantwoordelijke_autoriteit).toEqual({ value: 42, type: 'number' });
   });
 
   test('add numeric definitions to article 2', async ({ page }) => {
@@ -59,6 +59,6 @@ test.describe('Definitions', () => {
 
     // Verify YAML
     const yaml = await readYamlPane(page);
-    expect(yaml.definitions.drempelinkomen_alleenstaande).toEqual({ value: 3971900 });
+    expect(yaml.definitions.drempelinkomen_alleenstaande).toEqual({ value: 3971900, type: 'number' });
   });
 });

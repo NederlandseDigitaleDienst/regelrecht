@@ -141,25 +141,31 @@ FROM runtime-base AS enrich-worker
 RUN apk add --no-cache git nodejs npm tini pandoc-cli poppler-utils
 
 # Install opencode and claude CLI globally (pinned versions for reproducibility).
-# The claude CLI is a native binary. Its npm wrapper (@anthropic-ai/claude-code)
-# copies the binary into place in a postinstall script, which --ignore-scripts
-# skips, leaving a stub that only prints an error. So install the platform
-# package for this image (x86_64, musl for Alpine) and link its binary onto the
-# PATH. `claude --version` fails the build if the binary does not run here.
-RUN npm install -g --ignore-scripts opencode-ai@1.2.25 @anthropic-ai/claude-code-linux-x64-musl@2.1.303 && \
+# Both are native binaries whose npm wrappers (opencode-ai,
+# @anthropic-ai/claude-code) copy the binary into place in a postinstall
+# script, which --ignore-scripts skips, leaving a stub that only prints an
+# error. So install the platform packages for this image (x86_64, musl for
+# Alpine) and link the binaries onto the PATH.
+# opencode comes in two builds: one for CPUs with AVX2 and a baseline build for
+# those without. Both are installed; the entrypoint picks one at runtime, since
+# the CPU that builds the image need not be the one that runs it. The PATH gets
+# the baseline build, which runs on either. `--version` fails the build if a
+# binary does not run here.
+RUN npm install -g --ignore-scripts \
+      opencode-linux-x64-musl@1.19.5 opencode-linux-x64-baseline-musl@1.19.5 \
+      @anthropic-ai/claude-code-linux-x64-musl@2.1.303 && \
     ln -s "$(npm root -g)/@anthropic-ai/claude-code-linux-x64-musl/claude" /usr/local/bin/claude && \
+    ln -s "$(npm root -g)/opencode-linux-x64-baseline-musl/bin/opencode" /usr/local/bin/opencode && \
     claude --version && \
+    opencode --version && \
     npm cache clean --force
 
-# Copy opencode provider config (VLAM) — the API key is injected at runtime
-COPY packages/pipeline/opencode.json /etc/opencode/opencode.json
-
-# Install opencode provider plugin in a shared location
-COPY packages/pipeline/opencode-plugins-package.json /opt/opencode-plugins/package.json
-COPY packages/pipeline/opencode-plugins-package-lock.json /opt/opencode-plugins/package-lock.json
-RUN cd /opt/opencode-plugins && \
-    npm ci --ignore-scripts && \
-    npm cache clean --force
+# Copy opencode provider config (VLAM); the entrypoint adds the endpoint and the
+# API key at runtime. Not under /etc/opencode: opencode reads that as a
+# system-wide config that overrides the user's, so it would win over what the
+# entrypoint writes into ~/.config/opencode. The provider package the config
+# names (@ai-sdk/openai-compatible) is built into the opencode binary.
+COPY packages/pipeline/opencode.json /opt/opencode/opencode.json
 
 COPY --from=builder /build/target/release/regelrecht-enrich-worker /usr/local/bin/
 COPY packages/pipeline/entrypoint-enrich.sh /usr/local/bin/entrypoint-enrich.sh

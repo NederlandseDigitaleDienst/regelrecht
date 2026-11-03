@@ -34,23 +34,154 @@ if [ -n "$VLAM_API_KEY" ]; then
   chmod 600 "$HOME/.local/share/opencode/auth.json"
 fi
 
-# Set up opencode config in user-writable location.
-# If VLAM_BASE_URL is set, override the demo URL baked into opencode.json.
-mkdir -p "$HOME/.config/opencode"
-if [ -n "$VLAM_BASE_URL" ]; then
-  node -e "
-    const fs = require('fs');
-    const config = JSON.parse(fs.readFileSync('/etc/opencode/opencode.json', 'utf8'));
-    config.provider.vlam.options.baseURL = process.env.VLAM_BASE_URL;
-    fs.writeFileSync(process.argv[1], JSON.stringify(config, null, 2));
-  " "$HOME/.config/opencode/opencode.json"
-else
-  echo "WARNING: VLAM_BASE_URL is not set — using demo API endpoint baked into opencode.json" >&2
-  cp /etc/opencode/opencode.json "$HOME/.config/opencode/opencode.json"
+# --- VLAM endpoint ---
+# The only route to VLAM is the ZAD `vlam` service: it gives the pod
+# VLAM_API_URL, a proxy to SSC-ICT's VLAM API that speaks the OpenAI API under
+# /v1. Outside ZAD there is no VLAM, and the opencode provider is left without
+# an endpoint rather than pointed at a public one.
+vlam_base=""
+if [ -n "$VLAM_API_URL" ]; then
+  vlam_base="${VLAM_API_URL%/}/v1"
 fi
-ln -sf /opt/opencode-plugins/node_modules "$HOME/.config/opencode/node_modules"
-printf '{"dependencies":{"@ai-sdk/openai-compatible":"*"}}' \
-  > "$HOME/.config/opencode/package.json"
+
+# --- VLAM check ---
+# Log whether the key works and what the configured model reports, so a deploy
+# shows it without anyone having to get into the pod. Diagnostic only: it runs
+# in the background so it never delays or stops the worker, and it never
+# prints the key.
+if [ -n "$vlam_base" ] && [ -n "$VLAM_API_KEY" ]; then
+  # In a subshell, so the process is not left a zombie child of the worker
+  # that this script execs into.
+  (VLAM_BASE="$vlam_base" node -e "
+    const base = process.env.VLAM_BASE;
+    const config = JSON.parse(require('fs').readFileSync('/opt/opencode/opencode.json', 'utf8'));
+    const model = config.model.replace(/^vlam\//, '');
+    // The output limit opencode sends as max_tokens on every call. Asking for
+    // it here shows on each deploy whether VLAM accepts it; the answer itself
+    // stays short.
+    // Falls back to a small value, with a note, when the config does not name
+    // the model's limit, so the other checks still run.
+    const configured = config.provider?.vlam?.models?.[model]?.limit?.output;
+    const maxOutput = configured ?? 20;
+    if (configured === undefined) console.error('VLAM check: no limit.output for ' + model + ' in opencode.json');
+    const headers = {
+      Authorization: 'Bearer ' + process.env.VLAM_API_KEY,
+      'Content-Type': 'application/json',
+    };
+    const flat = (s) => s.replace(/\s+/g, ' ').slice(0, 400);
+    (async () => {
+      try {
+        const res = await fetch(base + '/models', { headers, signal: AbortSignal.timeout(10000) });
+        const body = await res.text();
+        let entry = null;
+        try { entry = (JSON.parse(body).data || []).find((m) => m.id === model) || 'not listed'; } catch {}
+        console.error('VLAM check models: HTTP ' + res.status + ', ' + model + ': ' +
+          (entry ? JSON.stringify(entry) : flat(body)));
+      } catch (e) {
+        console.error('VLAM check models: ' + e.name + ': ' + e.message);
+      }
+      try {
+        const res = await fetch(base + '/chat/completions', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ model, max_tokens: maxOutput, messages: [{ role: 'user', content: 'Antwoord met alleen: OK' }] }),
+          signal: AbortSignal.timeout(60000),
+        });
+        const body = await res.text();
+        let answer = null;
+        let usage = '';
+        try {
+          const parsed = JSON.parse(body);
+          answer = parsed.choices[0].message.content;
+          const u = parsed.usage || {};
+          const reasoning = u.completion_tokens_details && u.completion_tokens_details.reasoning_tokens;
+          usage = ', finish_reason=' + parsed.choices[0].finish_reason +
+            ', completion_tokens=' + u.completion_tokens +
+            (reasoning !== undefined ? ', reasoning_tokens=' + reasoning : '');
+        } catch {}
+        console.error('VLAM check chat (max_tokens ' + maxOutput + '): HTTP ' + res.status + usage + ', ' +
+          (answer !== null ? 'answer: ' + flat(String(answer)) : 'body: ' + flat(body)));
+      } catch (e) {
+        console.error('VLAM check chat: ' + e.name + ': ' + e.message);
+      }
+      // An enrichment only works if the model calls tools: it edits the law
+      // through them. Offer one and see whether it is used.
+      try {
+        const res = await fetch(base + '/chat/completions', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model,
+            max_tokens: 400,
+            messages: [{ role: 'user', content: 'Schrijf de tekst hallo naar het bestand a.txt. Gebruik de tool.' }],
+            tools: [{
+              type: 'function',
+              function: {
+                name: 'write_file',
+                description: 'Write text to a file',
+                parameters: {
+                  type: 'object',
+                  properties: { path: { type: 'string' }, text: { type: 'string' } },
+                  required: ['path', 'text'],
+                },
+              },
+            }],
+          }),
+          signal: AbortSignal.timeout(60000),
+        });
+        const body = await res.text();
+        let msg = null;
+        try { msg = JSON.parse(body).choices[0]; } catch {}
+        const calls = msg && msg.message && msg.message.tool_calls;
+        console.error('VLAM check tools: HTTP ' + res.status + ', ' +
+          (calls && calls.length
+            ? 'tool call: ' + flat(JSON.stringify(calls.map((c) => c.function)))
+            : 'no tool call, finish_reason=' + (msg && msg.finish_reason) + ', ' +
+              (msg ? 'content: ' + flat(String(msg.message && msg.message.content)) : 'body: ' + flat(body))));
+      } catch (e) {
+        console.error('VLAM check tools: ' + e.name + ': ' + e.message);
+      }
+    })();
+  " &)
+fi
+
+# Set up opencode config in user-writable location, with the endpoint above.
+mkdir -p "$HOME/.config/opencode"
+VLAM_BASE="$vlam_base" node -e "
+  const fs = require('fs');
+  const config = JSON.parse(fs.readFileSync('/opt/opencode/opencode.json', 'utf8'));
+  if (process.env.VLAM_BASE) config.provider.vlam.options = { baseURL: process.env.VLAM_BASE };
+  fs.writeFileSync(process.argv[1], JSON.stringify(config, null, 2));
+" "$HOME/.config/opencode/opencode.json"
+if [ -z "$vlam_base" ]; then
+  echo "WARNING: VLAM_API_URL is not set (no ZAD vlam service); the opencode provider has no endpoint" >&2
+fi
+
+# --- opencode binary ---
+# The image carries two opencode builds (see the Dockerfile): one that needs
+# AVX2 and a baseline build without. Use the AVX2 build where the CPU has it,
+# as opencode's own installer would. The worker spawns this binary directly, so
+# its memory watchdog measures opencode itself.
+if [ -z "$OPENCODE_PATH" ] && [ -z "$LLM_PATH" ]; then
+  oc_root="$(npm root -g 2>/dev/null || true)"
+  if grep -qw avx2 /proc/cpuinfo 2>/dev/null; then
+    oc_variants="opencode-linux-x64-musl opencode-linux-x64-baseline-musl"
+  else
+    oc_variants="opencode-linux-x64-baseline-musl"
+  fi
+  for v in $oc_variants; do
+    if [ -x "$oc_root/$v/bin/opencode" ]; then
+      OPENCODE_PATH="$oc_root/$v/bin/opencode"
+      break
+    fi
+  done
+  if [ -n "$OPENCODE_PATH" ]; then
+    export OPENCODE_PATH
+    echo "opencode binary: $OPENCODE_PATH" >&2
+  else
+    echo "WARNING: no opencode build found under $oc_root; falling back to opencode on the PATH" >&2
+  fi
+fi
 
 # --- Claude auth ---
 # The claude provider authenticates with a personal Claude subscription via

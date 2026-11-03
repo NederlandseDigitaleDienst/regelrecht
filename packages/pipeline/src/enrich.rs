@@ -1107,6 +1107,15 @@ pub(crate) async fn run_llm_subprocess(
                                     *r = Some(line.to_string());
                                 }
                             }
+                            // opencode reports a failed model call as an
+                            // `error` event on stdout and can exit without a
+                            // word on stderr. stdout is not logged, so say it
+                            // here, bounded: the event is small, the bodies
+                            // around it are not.
+                            if is_error_event(line) {
+                                let preview: String = line.chars().take(1000).collect();
+                                tracing::warn!(provider = %drain_provider, event = %preview, "agent reported an error");
+                            }
                         });
                         // Bounded preview at debug only (off under the
                         // default "info" subscriber). The leading bytes of a
@@ -1387,6 +1396,20 @@ async fn watch_memory(pid: Option<u32>, max_rss_mb: u64) -> u64 {
             }
         }
     }
+}
+
+/// Whether a JSON line from the agent is an error event (`"type":"error"`),
+/// as opencode writes when a model call fails.
+fn is_error_event(line: &str) -> bool {
+    // Lines can be a megabyte of inlined file content; only parse the ones
+    // that can be an error event.
+    if !line.contains(r#""type":"error""#) {
+        return false;
+    }
+    serde_json::from_str::<serde_json::Value>(line)
+        .ok()
+        .and_then(|v| v.get("type").and_then(|t| t.as_str()).map(|t| t == "error"))
+        .unwrap_or(false)
 }
 
 /// Read a process's resident set size (RSS) from `/proc/<pid>/status`, in kB.
@@ -2385,9 +2408,10 @@ impl EnrichConfig {
                 .or_else(|_| std::env::var("LLM_PATH"))
                 .unwrap_or_else(|_| "claude".into())
                 .into(),
-            model: std::env::var("CLAUDE_MODEL")
-                .or_else(|_| std::env::var("LLM_MODEL"))
-                .ok(),
+            model: Some(claude_model(
+                std::env::var("CLAUDE_MODEL").ok(),
+                std::env::var("LLM_MODEL").ok(),
+            )),
         };
 
         // Feedback rounds per gate. A bad spec is not worth failing a worker
@@ -3031,6 +3055,20 @@ pub fn progress_file_path(yaml_abs: &Path) -> PathBuf {
         .parent()
         .unwrap_or(Path::new("."))
         .join(".enrichment-progress.json")
+}
+
+/// The model the claude provider runs when nothing names one. Without it the
+/// CLI picks for itself, which depends on its version and the subscription
+/// behind the token, and has moved from Opus to Sonnet before.
+pub const DEFAULT_CLAUDE_MODEL: &str = "claude-opus-5-5";
+
+/// The claude model: `CLAUDE_MODEL`, then `LLM_MODEL`, then
+/// [`DEFAULT_CLAUDE_MODEL`]. An empty value counts as unset.
+pub fn claude_model(claude_model: Option<String>, llm_model: Option<String>) -> String {
+    claude_model
+        .filter(|m| !m.trim().is_empty())
+        .or_else(|| llm_model.filter(|m| !m.trim().is_empty()))
+        .unwrap_or_else(|| DEFAULT_CLAUDE_MODEL.to_string())
 }
 
 /// Allowlisted environment variable prefixes/names that are safe to pass to the
@@ -5002,9 +5040,10 @@ pub async fn execute_enrich_with_runner(
                 return Err(PipelineError::Enrich(format!(
                     "{CHUNK_NO_OUTPUT_MARKER}: no new machine_readable additions in the window, \
                      no chunk_report referencing this window, no new markings or untranslatables \
-                     in the window (entries {} of {})",
+                     in the window (entries {} of {}){}",
                     numbers.join(", "),
-                    articles_before
+                    articles_before,
+                    config.activity.summary()
                 )));
             }
         }
@@ -5615,6 +5654,25 @@ related_legislation:
             .related_legislation;
         assert_eq!(related.len(), 1);
         assert_eq!(related[0].bwb_id.as_deref(), Some("BWBR0037841"));
+    }
+
+    #[test]
+    fn is_error_event_spots_an_opencode_error_event() {
+        assert!(is_error_event(
+            r#"{"type":"error","error":{"name":"APIError","data":{"message":"401"}}}"#
+        ));
+        assert!(!is_error_event(
+            r#"{"type":"text","part":{"text":"error"}}"#
+        ));
+        assert!(!is_error_event("not json, mentions \"type\":\"error\""));
+    }
+
+    #[test]
+    fn claude_model_defaults_to_opus_and_yields_to_the_env() {
+        assert_eq!(claude_model(None, None), "claude-opus-5-5");
+        assert_eq!(claude_model(Some(" ".into()), None), "claude-opus-5-5");
+        assert_eq!(claude_model(None, Some("x".into())), "x");
+        assert_eq!(claude_model(Some("y".into()), Some("x".into())), "y");
     }
 
     #[test]

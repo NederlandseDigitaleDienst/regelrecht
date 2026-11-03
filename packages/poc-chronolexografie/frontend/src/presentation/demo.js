@@ -1,33 +1,41 @@
 /**
- * The scenarios to play right after the deck, all of the parking card case.
- * The choice screen lists them under "Voor de demo". Each one names a
- * scenario of the case YAML, whose guide scenarioGuides.js builds;
- * tests/presentation.test.js keeps them in step.
+ * The demo scenarios, from simple to involved, over two cases that run in
+ * the same environment. The choice screen lists them under the links to the
+ * deck and the explanation page. Each one names a case and a scenario of its
+ * YAML, whose guide scenarioGuides.js builds; tests/presentation.test.js
+ * keeps them in step.
  *
- * - A card on the advice of the GGD: the happy flow, one application and a
- *   decision that lands in the chronicle.
- * - A second card next to a valid one: the reduction finds the first card in
- *   the chronicle.
- * - A card on objection: the reduction of the Awb passes on the decision that
- *   the decision on objection put in place of the revoked refusal, so at the
- *   next application the municipality finds a valid card it did not have
- *   before the objection.
+ * - A card on the advice of the GGD: the happy flow; the advice arrives as a
+ *   message, and the decision reads it from the municipality's own chronicle.
+ * - An objection and a new advice: the reconsideration reads the chronicle as
+ *   it stands on the day of the decision on objection, so the new advice
+ *   counts.
+ * - A courier company grows, and the hardship clause on objection: the
+ *   municipality counts its own earlier permits in its chronicle, and reads
+ *   the number of people at work from the chronicle of the Chamber of
+ *   Commerce as it stands on the day of the decision; on objection the
+ *   college judges that the maximum has unacceptable consequences.
  */
 import { load } from 'js-yaml';
-import yaml from '../../../corpus/casussen/gehandicaptenparkeerkaart.yaml?raw';
+import parkeerkaart from '../../../corpus/casussen/gehandicaptenparkeerkaart.yaml?raw';
+import bedrijfsparkeervergunning from '../../../corpus/casussen/bedrijfsparkeervergunning.yaml?raw';
 import { guideFor } from '../scenarioGuides.js';
 
-export const DEMO_CASUS = 'gehandicaptenparkeerkaart';
-
 export const DEMO_SCENARIOS = Object.freeze([
-  'De kaart wordt verstrekt op het advies van de GGD',
-  'Een tweede kaart naast een geldige',
-  'Een kaart na bezwaar telt bij de volgende aanvraag',
+  { casus: 'gehandicaptenparkeerkaart', naam: 'De kaart op advies van de GGD' },
+  { casus: 'gehandicaptenparkeerkaart', naam: 'Bezwaar, en een nieuw advies' },
+  { casus: 'bedrijfsparkeervergunning', naam: 'Een koeriersbedrijf groeit, en de hardheidsclausule na bezwaar' },
 ]);
 
-// The case as its YAML has it: the choice screen and the deck show these
-// scenarios before any case is loaded.
-const casus = { id: DEMO_CASUS, ...load(yaml) };
+// The cases as their YAML has them: the choice screen shows these scenarios
+// before any case is loaded.
+const YAML = { gehandicaptenparkeerkaart: parkeerkaart, bedrijfsparkeervergunning };
+const casussen = Object.fromEntries(Object.entries(YAML).map(([id, y]) => [id, { id, ...load(y) }]));
 
-/** The demo scenarios with their guide, in order. */
-export const demoGuides = () => DEMO_SCENARIOS.map((naam) => guideFor(casus, naam));
+/** The demo scenarios in order, each its case (`casus`, `titel`) with its guide. */
+export const demoGuides = () =>
+  DEMO_SCENARIOS.map(({ casus, naam }) => ({
+    casus,
+    titel: casussen[casus].titel,
+    guide: guideFor(casussen[casus], naam),
+  }));

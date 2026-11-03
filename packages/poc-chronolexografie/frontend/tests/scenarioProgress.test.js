@@ -16,7 +16,7 @@ vi.mock('../src/api.js', () => ({
 }));
 
 // Made-up ids, recognisable by their last characters; the shapes as the cell
-// records them (RFC-046, RFC-047, RFC-053).
+// records them (RFC-046, RFC-053).
 const id = (tail) => `019a0000-0000-7000-8000-0000${tail}`;
 const casus = {
   id: 'vakantieverlof',
@@ -80,7 +80,7 @@ describe('counts', () => {
     const advies = (bsn) => ({ kind: 'EXECUTOGRAM', fact: 'geneeskundig_advies_uitgebracht', fields: { bsn_aanvrager: bsn } });
     state.andere = [{ cel: 'ggd', grammen: [advies('1'), advies('2'), advies('2')] }];
     expect(counts().executogrammen('geneeskundig_advies_uitgebracht', { bsn_aanvrager: '2' })).toBe(2);
-    expect(counts().executogrammen('geneeskundig_onderzoek_verricht')).toBe(0);
+    expect(counts().executogrammen('ander_feit')).toBe(0);
   });
 
   it('counts a late objection as inadmissible, not as dismissed', () => {

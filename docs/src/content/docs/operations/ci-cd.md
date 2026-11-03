@@ -14,6 +14,10 @@ Continuous integration runs on every push to `main` and every pull request via `
 - **YAML validation** - yamllint + schema validation on corpus files
 - **Pre-commit hooks** - trailing whitespace, end-of-file, merge conflicts,
   and licence information for every file (`reuse lint`, from `REUSE.toml`)
+- **Orphan tests** - the `orphan-tests` hook fails when a test file, a crate
+  or a feature file runs in no CI job, or when a `@wip` or `#[ignore]` carries
+  no reason. [Testing](/guide/testing#does-the-new-test-run) describes what it
+  reads and what it misses
 
 ### Tests (on Rust changes)
 
@@ -239,7 +243,7 @@ Passing the checks above is not enough on its own. Four gates weigh in on whethe
 | **Werkpakket genoemd** | The PR body ends with a `Werkpakket:` line naming a werkpakket from the roadmap. `geen` is allowed with a reason. See [Contributing](./contributing). |
 | **Claude review completed** | The automated review ran to completion for this commit and left no finding marked Critical. There is no override: fix the finding and push again. |
 | **Security update approved** | A Dependabot security update needs an approving review from someone with write access, on the commit being merged. Security updates skip the five-day cooldown, so a human looks at them instead. |
-| **Mutation Testing (diff)** | Reports on whether the tests pin the behavior the change introduces. |
+| **Mutation Testing (diff)** | Reports on whether the tests pin the behavior the change introduces. It runs when a PR changes `packages/engine`, `packages/pipeline` or `packages/cel`, and mutates only the changed lines. |
 
 The full list of required checks on `main` is `Pre-commit`, `WASM Build`, `Protect schema versions`, `Security Audit`, `Test`, `Validate PR title` and `Claude review completed`. That list lives in the branch protection, not in a file; `script/merge-queue-checks.test.mjs` keeps a hand-maintained copy of it (see [the merge queue](#the-merge-queue)).
 

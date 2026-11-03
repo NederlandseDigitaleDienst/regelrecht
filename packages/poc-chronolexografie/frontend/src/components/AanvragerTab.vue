@@ -10,7 +10,6 @@
 import { computed, ref } from 'vue';
 import { api } from '../api.js';
 import { beroepApi } from '../beroep.js';
-import { artikelNaam } from '../logboek.js';
 import { melding } from '../melding.js';
 import {
   aanvragen,
@@ -27,15 +26,11 @@ import {
   zonderLeeg,
 } from '../state.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
+import ArtikelLink from './ArtikelLink.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
 const aanvraagVorm = formulier(() => scenarioWaarden('aanvraag'));
 const aanvraag = computed(() => aanvraagVorm.waarden('aanvraag'));
-
-const artikel = computed(() => {
-  const [wet, nummer] = state.casus.besluit.split('#');
-  return artikelNaam(wet, nummer);
-});
 
 async function indienen() {
   if (await stap(() => api.aanvragen(zonderLeeg(aanvraag.value), state.datum))) {
@@ -81,10 +76,6 @@ const kop = computed(() => {
     : `Bezwaar tegen besluit ${kort(t.besluit.id)}`;
 });
 
-const beroepArtikel = computed(() =>
-  state.casus.beroep ? artikelNaam(...state.casus.beroep.split('#')) : '',
-);
-
 // Beroep staat open tegen een beslissing op bezwaar, bij een casus met een
 // rechter.
 const beroepMogelijk = (g) =>
@@ -120,7 +111,8 @@ async function indienenTegen() {
     <nldd-container slot="left" gap="16">
       <nldd-title size="3" :text="`Aanvraag: ${state.casus.titel.toLowerCase()}`">
         <nldd-text slot="supporting-text">
-          {{ artikel }}. De velden komen uit de wet: wat het artikel vraagt en wat de Algemene wet
+          <ArtikelLink :basis="state.casus.besluit" />. De velden komen uit de wet: wat het
+          artikel vraagt en wat de Algemene wet
           bestuursrecht erbij eist (artikel 4:2). Een leeg veld laat je weg; de cel legt de
           aanvraag dan vast met dat gegeven als ontbrekend. De dag van ontvangst is de speeldatum
           (Awb 4:13).
@@ -154,12 +146,20 @@ async function indienenTegen() {
           >
             <nldd-tag slot="end" :color="stand(a).kleur" :text="stand(a).tekst"></nldd-tag>
           </nldd-title>
-          <nldd-list>
+          <!-- The rows are no actions; the link and the buttons in them are
+               (a form, so each keeps its tab stop). -->
+          <nldd-list type="form">
             <nldd-list-item v-for="s in dossier(a)" :key="s.gram.id" size="sm">
-              <nldd-text-cell
-                :text="`${s.rol} ${kort(s.gram.id)}`"
-                :supporting-text="`${s.gram.recorded_on} · ${s.gram.basis}${s.rechter ? ` · ${state.casus.rechter.cel_naam}` : ''}`"
-              ></nldd-text-cell>
+              <!-- The article each step rests on opens in the sheet of the
+                   chain: the application its establishing article, a
+                   decision the article that took it. -->
+              <nldd-text-cell :text="`${s.rol} ${kort(s.gram.id)}`">
+                <nldd-text slot="supporting-text" size="sm" color="secondary">
+                  {{ s.gram.recorded_on }} ·
+                  <ArtikelLink :basis="s.gram.basis" :datum="s.gram.recorded_on" /><template v-if="s.rechter">
+                    · {{ state.casus.rechter.cel_naam }}</template>
+                </nldd-text>
+              </nldd-text-cell>
               <nldd-cell v-if="!s.rechter && isBesluit(s.gram)" width="fit-content">
                 <nldd-button
                   appearance="secondary"
@@ -205,7 +205,7 @@ async function indienenTegen() {
             </nldd-text>
             <nldd-text v-else color="secondary">
               Het beroepschrift gaat naar {{ state.casus.rechter.cel_naam }}, een eigen cel met een eigen
-              kroniek. De velden komen uit de wet: {{ beroepArtikel }}, met artikel 6:5 dat erop haakt.
+              kroniek. De velden komen uit de wet: <ArtikelLink :basis="state.casus.beroep" />, met artikel 6:5 dat erop haakt.
               {{ state.casus.cel_naam }} maakt een afschrift van haar beslissing, en de rechtbank legt het
               beroep vast met wat zij ontving. De beroepstermijn neemt zij uit dat afschrift.
             </nldd-text>

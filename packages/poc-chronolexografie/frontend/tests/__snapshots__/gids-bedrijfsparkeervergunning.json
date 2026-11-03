@@ -26,17 +26,34 @@
   ]
  },
  {
-  "name": "Het maximum in de schil, en een vergunning na bezwaar",
-  "summary": "In de schil krijgt een bedrijf zoveel vergunningen als er mensen werken, en na een nieuwe inschrijving telt de vergunning uit het bezwaar bij de volgende aanvraag.",
+  "name": "Een koeriersbedrijf groeit, en de hardheidsclausule na bezwaar",
+  "summary": "Een koeriersbedrijf in de schil krijgt zoveel vergunningen als er mensen werken, en na bezwaar past het college de hardheidsclausule toe.",
   "steps": [
+   {
+    "title": "Inschrijving bij de Kamer van Koophandel",
+    "tab": "andere",
+    "date": null,
+    "story": "Een koeriersbedrijf in de schil, waar één persoon werkt, schrijft zich in bij de Kamer van Koophandel.",
+    "todo": "Klik bij Kamer van Koophandel onder \"Vastleggen: Vestiging ingeschreven\" op Vastleggen.",
+    "values": [
+     "kvk nummer: 99990055",
+     "postcode: 7713 AB",
+     "aantal werkzame personen: 1",
+     "datum inschrijving: 1 oktober 2026"
+    ],
+    "seen": "De inschrijving staat in de kroniek van de Kamer.",
+    "expect": null
+   },
    {
     "title": "Aanvraag indienen",
     "tab": "aanvrager",
     "date": null,
-    "story": "Een fietsenmakerij in de schil, waar één persoon werkt, vraagt een vergunning.",
+    "story": "Het koeriersbedrijf vraagt een bedrijfsparkeervergunning.",
     "todo": "Klik op Aanvraag indienen.",
     "values": [
-     "kvk nummer: 99990022"
+     "kvk nummer: 99990055",
+     "naam aanvrager: Koeriersbedrijf De Singel",
+     "adres aanvrager: Singel 5, 7713 AB Wilgendaal"
     ],
     "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
@@ -48,17 +65,19 @@
     "story": "Het college beslist op de eerste aanvraag.",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "Toegewezen: de vergunning geldt tot en met 19 oktober 2027.",
+    "seen": "Toegewezen: er werkt één persoon, dus één vergunning past.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    },
    {
     "title": "Nog een aanvraag indienen",
     "tab": "aanvrager",
     "date": "2026-10-21",
-    "story": "De fietsenmakerij vraagt een tweede vergunning.",
+    "story": "Het koeriersbedrijf vraagt een tweede vergunning.",
     "todo": "Klik op Aanvraag indienen.",
     "values": [
-     "kvk nummer: 99990022",
+     "kvk nummer: 99990055",
+     "naam aanvrager: Koeriersbedrijf De Singel",
+     "adres aanvrager: Singel 5, 7713 AB Wilgendaal",
      "kenteken: ZZ-002-Z"
     ],
     "seen": "De tweede aanvraag staat onder Mijn aanvragen op In behandeling.",
@@ -70,56 +89,36 @@
     "date": "2026-10-22",
     "story": "Het college beslist op de tweede aanvraag.",
     "todo": "Klik bij de tweede aanvraag op Besluit nemen.",
-    "values": [
-     "toepassing leidt tot onaanvaardbare gevolgen: Nee"
-    ],
-    "seen": "Afgewezen: er werkt één persoon, dus het maximum van één vergunning is bereikt.",
-    "expect": "hier hoort het besluit de aanvraag af te wijzen"
-   },
-   {
-    "title": "Bezwaar maken",
-    "tab": "aanvrager",
-    "date": "2026-11-01",
-    "story": "De fietsenmakerij maakt bezwaar tegen de weigering.",
-    "todo": "Klik bij het besluit over de tweede aanvraag op Bezwaar maken en dan op Bezwaar indienen.",
     "values": [],
-    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
-    "expect": null
+    "seen": "Afgewezen: de eerste vergunning staat al in de kroniek van de gemeente, en de Kamer vermeldt één werkzame persoon.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
    },
    {
     "title": "Nieuwe inschrijving bij de Kamer van Koophandel",
     "tab": "andere",
-    "date": "2026-11-10",
-    "story": "De fietsenmakerij neemt iemand aan en schrijft dat in bij de Kamer.",
+    "date": "2026-11-02",
+    "story": "Het koeriersbedrijf neemt iemand aan en schrijft dat in bij de Kamer.",
     "todo": "Klik bij Kamer van Koophandel onder \"Vastleggen: Vestiging ingeschreven\" op Vastleggen.",
     "values": [
-     "kvk nummer: 99990022",
-     "postcode: 7713 AA",
+     "kvk nummer: 99990055",
+     "postcode: 7713 AB",
      "aantal werkzame personen: 2",
-     "datum inschrijving: 10 november 2026"
+     "datum inschrijving: 2 november 2026"
     ],
     "seen": "De nieuwe inschrijving staat in de kroniek van de Kamer, naast de oude.",
     "expect": null
    },
    {
-    "title": "Beslissen op bezwaar",
-    "tab": "bestuursorgaan",
-    "date": "2026-11-20",
-    "story": "Het college heroverweegt de weigering.",
-    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
-    "values": [],
-    "seen": "Gegrond: de weigering is herroepen (Awb 7:11), en de vergunning is verleend.",
-    "expect": "hier hoort het bezwaar gegrond te zijn"
-   },
-   {
     "title": "Een derde aanvraag indienen",
     "tab": "aanvrager",
-    "date": "2026-12-01",
-    "story": "De fietsenmakerij vraagt een derde vergunning.",
+    "date": "2026-11-03",
+    "story": "Het koeriersbedrijf vraagt opnieuw een tweede vergunning, in een derde aanvraag.",
     "todo": "Klik op Aanvraag indienen.",
     "values": [
-     "kvk nummer: 99990022",
-     "kenteken: ZZ-003-Z"
+     "kvk nummer: 99990055",
+     "naam aanvrager: Koeriersbedrijf De Singel",
+     "adres aanvrager: Singel 5, 7713 AB Wilgendaal",
+     "kenteken: ZZ-002-Z"
     ],
     "seen": "De derde aanvraag staat onder Mijn aanvragen op In behandeling.",
     "expect": null
@@ -127,14 +126,63 @@
    {
     "title": "Besluiten op de derde aanvraag",
     "tab": "bestuursorgaan",
-    "date": null,
+    "date": "2026-11-05",
     "story": "Het college beslist op de derde aanvraag.",
-    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "todo": "Klik bij de derde aanvraag op Besluit nemen.",
+    "values": [],
+    "seen": "Toegewezen: de Kamer vermeldt nu twee werkzame personen.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   },
+   {
+    "title": "Een vierde aanvraag indienen",
+    "tab": "aanvrager",
+    "date": "2026-11-06",
+    "story": "Het koeriersbedrijf vraagt een derde vergunning, in een vierde aanvraag.",
+    "todo": "Klik op Aanvraag indienen.",
     "values": [
-     "toepassing leidt tot onaanvaardbare gevolgen: Nee"
+     "kvk nummer: 99990055",
+     "naam aanvrager: Koeriersbedrijf De Singel",
+     "adres aanvrager: Singel 5, 7713 AB Wilgendaal",
+     "kenteken: ZZ-003-Z"
     ],
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
+    "seen": "De vierde aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluiten op de vierde aanvraag",
+    "tab": "bestuursorgaan",
+    "date": "2026-11-09",
+    "story": "Het college beslist op de vierde aanvraag.",
+    "todo": "Klik bij de vierde aanvraag op Besluit nemen.",
+    "values": [],
+    "seen": "Afgewezen: het bedrijf heeft al twee vergunningen, en er werken twee mensen.",
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   },
+   {
+    "title": "Bezwaar maken",
+    "tab": "aanvrager",
+    "date": "2026-11-16",
+    "story": "Het koeriersbedrijf maakt bezwaar: zonder derde vergunning kan het zijn ritten niet rijden.",
+    "todo": "Klik bij het besluit over de vierde aanvraag op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [
+     "naam indiener: Koeriersbedrijf De Singel",
+     "adres indiener: Singel 5, 7713 AB Wilgendaal",
+     "gronden bezwaar of beroep: als koeriersbedrijf rijden we de hele dag met drie auto's"
+    ],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
+    "expect": null
+   },
+   {
+    "title": "Beslissen op bezwaar",
+    "tab": "bestuursorgaan",
+    "date": "2026-11-30",
+    "story": "Bij de heroverweging vindt het college de gevolgen van het maximum onaanvaardbaar.",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "values": [
+     "toepassing leidt tot onaanvaardbare gevolgen: Ja"
+    ],
+    "seen": "De beslissing staat onder Beslissingen op bezwaar.",
+    "expect": "hier hoort het bezwaar gegrond te zijn"
    }
   ]
  },

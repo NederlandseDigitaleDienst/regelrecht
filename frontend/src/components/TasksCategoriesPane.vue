@@ -28,7 +28,7 @@
  * één interval (consumers-teller in useTasks).
  */
 import { computed, toRef } from 'vue';
-import { useTasks } from '../composables/useTasks';
+import { useTrajectTasks } from '../composables/useTasks';
 import { useCorpusLaws } from '../composables/useCorpusLaws';
 import {
   categoryCounts,
@@ -57,7 +57,7 @@ interface CategorySelection {
 
 const emit = defineEmits<{ select: [selection: CategorySelection] }>();
 
-const { tasks, running } = useTasks();
+const { tasks, running } = useTrajectTasks(() => props.trajectRef);
 const { displayName } = useCorpusLaws(toRef(props, 'trajectRef'));
 
 const counts = computed(() => categoryCounts(tasks.value, running.value));

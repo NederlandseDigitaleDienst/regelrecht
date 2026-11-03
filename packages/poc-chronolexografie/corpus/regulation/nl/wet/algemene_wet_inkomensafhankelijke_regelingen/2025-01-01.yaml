@@ -2,7 +2,7 @@
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
 $id: algemene_wet_inkomensafhankelijke_regelingen
 regulatory_layer: WET
-publication_date: '2022-12-27'
+publication_date: '2024-12-24'
 valid_from: '2025-01-01'
 bwb_id: BWBR0018472
 url: https://wetten.overheid.nl/BWBR0018472/2025-01-01
@@ -888,31 +888,6 @@ articles:
       - id: ref1
         bwb_id: BWBR0005537
         artikel: 2:14
-  - number: 13a
-    text: |-
-      1 In afwijking van [artikel 2:7, tweede lid, van de Algemene wet bestuursrecht][ref1] kunnen
-      bij ministeriële regeling berichten, groepen van belanghebbenden of partijen als bedoeld in
-      [artikel 38, eerste, vierde of negende lid][ref2], of omstandigheden worden aangewezen waarvoor, voor wie,
-      onderscheidenlijk waaronder, geldt dat een belanghebbende of een partij als bedoeld in artikel 38, eerste, vierde
-      of negende lid, berichten uitsluitend langs elektronische weg dan wel uitsluitend anders dan langs elektronische
-      weg aan de Dienst Toeslagen verzendt.
-
-      2 Het ontwerp van een ministeriële regeling als bedoeld in het eerste lid wordt ten minste vier weken voordat de
-      regeling wordt vastgesteld, overgelegd aan de beide kamers der Staten-Generaal.
-
-
-      [ref1]: https://wetten.overheid.nl/BWBR0005537#Artikel27
-      [ref2]: https://wetten.overheid.nl/BWBR0018472#Artikel38
-    url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel13a
-    references:
-      - id: ref1
-        bwb_id: BWBR0005537
-        artikel: 2:7
-      - id: ref2
-        bwb_id: BWBR0018472
-        artikel: '38'
-        hoofdstuk: '2'
-        paragraaf: '5'
   - number: 13b
     text: >-
       1 Bij het vaststellen van een beschikking op grond van deze wet, de daarop berustende bepalingen of een

@@ -952,7 +952,7 @@ articles:
       # Bevoegd gezag (RFC-002), wie op de aanvraag beslist: het college
       # (lid 1). Eigen keuze: alleen de categorie is gemodelleerd; welk
       # college, zegt lid 1 (de gemeente van inschrijving), en dat is open
-      # (RFC-052). Het CBR (lid 3) is niet gemodelleerd.
+      # (RFC-051). Het CBR (lid 3) is niet gemodelleerd.
       competent_authority:
         name: college van burgemeester en wethouders
         type: CATEGORY
@@ -1080,7 +1080,7 @@ articles:
       execution:
         # Lid 1: de kaart wordt verstrekt op aanvraag van de gehandicapte. Dit
         # artikel brengt twee dingen voort, zoals artikel 13a van de
-        # Leerplichtwet 1969 (RFC-047). De aanvraag, waar de Awb op haakt, met
+        # Leerplichtwet 1969 (RFC-045 §1). De aanvraag, waar de Awb op haakt, met
         # wat zij bevat en het besluit dat zij vraagt. En het verstrekken of
         # weigeren, een beschikking die de procedure van de Awb volgt.
         produces:
@@ -1092,7 +1092,7 @@ articles:
               - kaart_als_passagier
           # De uitkomst is of het college een kaart verstrekt, en welke
           # letters zij draagt. De laatste geldige dag volgt uit de dag van
-          # afgifte (artikel 51) en is afgeleid (RFC-050): zij staat bij het
+          # afgifte (artikel 51) en is afgeleid (RFC-045 §7): zij staat bij het
           # besluit, maar telt niet als uitkomst. Een heroverweging op bezwaar
           # (Awb 7:11) valt op een andere dag; die geeft geen aanleiding
           # alleen omdat de kaart dan later zou aflopen.
@@ -1203,15 +1203,15 @@ articles:
           # als beide. Eigen keuze: wie als bestuurder en als passagier vraagt
           # en maar voor een van beide in aanmerking komt, krijgt een kaart met
           # alleen die letter. En het college gebruikt zijn bevoegdheid, zoals
-          # zijn beleid dat invult. Pas dan vraagt het of de kaart al mag
-          # worden afgegeven (artikel 2 van de regeling): een weigering hangt
-          # niet af van het geneeskundig onderzoek, een afgifte wel. Zonder
-          # onderzoek dat iemand kent, faalt het besluit daar (AND stopt bij
-          # de eerste onwaar, dus een weigering vraagt het niet).
+          # zijn beleid dat invult. Eerst komt of de kaart mag worden afgegeven
+          # (artikel 2 van de regeling): zonder onderzoek, en zonder dat het
+          # achterwege is gelaten, weigert het college, en vraagt niemand het
+          # college naar de criteria (AND stopt bij de eerste onwaar).
           - output: gehandicaptenparkeerkaart_verstrekt
             value:
               operation: AND
               conditions:
+                - $gehandicaptenparkeerkaart_mag_worden_afgegeven
                 - operation: OR
                   conditions:
                     - operation: AND
@@ -1223,7 +1223,6 @@ articles:
                         - $kaart_als_passagier
                         - $komt_in_aanmerking_als_passagier
                 - $bevoegdheid_tot_verstrekken_gebruikt
-                - $gehandicaptenparkeerkaart_mag_worden_afgegeven
           - output: kaart_vermeldt_bestuurder
             value:
               operation: AND

@@ -9,7 +9,7 @@
  *
  * Wat in welke stap zit (aanvraag, besluit, bezwaar, beslissing op bezwaar)
  * leest dit bestand uit de kroniek af aan `kind`, `basis` en `refers_to`,
- * zoals de cel ze vastlegt (RFC-046, RFC-047, RFC-050). Onder welk artikel
+ * zoals de cel ze vastlegt (RFC-045, RFC-046). Onder welk artikel
  * het besluit valt en onder welk de beslissing op bezwaar, zegt de casus
  * (`api.casus`); het spel leidt het af uit de wet.
  */
@@ -22,7 +22,7 @@ export const state = reactive({
   casus: null,
   datum: '',
   grammen: [],
-  // De kronieken van de andere cellen van de casus (RFC-052), elk met
+  // De kronieken van de andere cellen van de casus (RFC-048), elk met
   // `cel`, `cel_naam` en `grammen`; leeg bij een casus zonder.
   andere: [],
   // De kroniek van de rechtbank (RFC-053): die van de andere cel die
@@ -393,6 +393,28 @@ export function waarde(v) {
     return [`besluit onder ${v.basis}`, ...uitvoer].join('; ');
   }
   return JSON.stringify(v);
+}
+
+// The id of a chronolexogram: a UUID.
+const GRAM_ID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
+
+// What is no value of the gram itself: empty, a reference, a copy of a decision.
+const isMetadata = (w) => w == null || isBesluitwaarde(w) || GRAM_ID.test(w);
+
+/**
+ * The main fields of a chronolexogram as `name: value`: for a decision the
+ * outcome of the case (`casus.uitkomst`), otherwise the fields its article
+ * gives it itself (`vormen.eigen_velden`, not what a hook adds) that are no
+ * metadata. With more than two left there are none: nothing says which of
+ * them matter most.
+ */
+export function hoofdvelden(gram) {
+  const waarden = { ...gram.fields, ...gram.outputs };
+  const uitkomst = state.casus?.uitkomst;
+  const namen = uitkomst in (gram.outputs ?? {}) ? [uitkomst] : (state.vormen?.eigen_velden?.[gram.id] ?? []);
+  const eigen = namen.filter((naam) => !isMetadata(waarden[naam]));
+  if (eigen.length > 2) return [];
+  return eigen.map((naam) => `${naam}: ${typeof waarden[naam] === 'string' ? waarden[naam] : waarde(waarden[naam])}`);
 }
 
 /** JSON zoals de kroniek het bewaart, met elk decimaal als het getal zelf. */

@@ -1,4 +1,4 @@
-//! The decision on an application, in one article (RFC-047).
+//! The decision on an application, in one article (RFC-045).
 //!
 //! An article that establishes an application and is the decision on it
 //! follows a procedure. The hooks on the application fire at the stage named
@@ -507,7 +507,7 @@ fn walking_the_procedure_asks_the_judgement_only_at_the_decision() {
     );
 }
 
-/// A stage takes the head's finding apart from the parameters (RFC-050),
+/// A stage takes the head's finding apart from the parameters (RFC-045 §5),
 /// and refuses one no article of the stage asks.
 #[test]
 fn a_stage_takes_a_finding_apart_from_the_parameters() {

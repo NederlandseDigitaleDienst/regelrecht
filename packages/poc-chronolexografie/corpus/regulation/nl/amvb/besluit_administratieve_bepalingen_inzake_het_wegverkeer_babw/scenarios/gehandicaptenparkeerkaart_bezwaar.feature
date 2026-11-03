@@ -4,7 +4,7 @@ Feature: Het bezwaar tegen een besluit op een gehandicaptenparkeerkaart
   er een andere uitkomst uit dan in het bestreden besluit, dan geeft de
   heroverweging aanleiding het te herroepen (tweede lid). De uitkomst is of
   het college een kaart verstrekt, en met welke letters. De laatste geldige
-  dag is afgeleid (derived, RFC-050): een heroverweging op een latere dag
+  dag is afgeleid (derived, RFC-045 §7): een heroverweging op een latere dag
   geeft een kaart die later afloopt, maar dat alleen is geen aanleiding. De
   eerste twee scenario's tonen alleen de heroverweging, het derde ook wat
   artikel 7:11 ermee doet. De keten van bezwaarschrift naar beslissing en

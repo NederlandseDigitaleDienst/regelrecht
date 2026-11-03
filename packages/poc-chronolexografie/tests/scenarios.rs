@@ -6,6 +6,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::collections::BTreeSet;
 use std::path::Path;
 
 use chrono::NaiveDate;
@@ -152,6 +153,7 @@ fn speel(casus_id: &str, index: usize) {
     // Per kind, how many steps of it came so far: without `op`, the n-th
     // decision step acts on the n-th application, as the guide counts.
     let mut geteld: std::collections::HashMap<String, usize> = Default::default();
+    let vooraf = gram_ids(&mut spel);
     for (i, stap) in scenario["stappen"].as_array().unwrap().iter().enumerate() {
         let waar = format!("{casus_id}, '{naam}', step {}", i + 1);
         assert!(
@@ -307,6 +309,58 @@ fn speel(casus_id: &str, index: usize) {
             }
             soort => panic!("{waar}: unknown step '{soort}'"),
         }
+    }
+    één_aanvrager(&mut spel, &vooraf, &format!("{casus_id}, '{naam}'"));
+}
+
+/// The ids of the grams in every chronicle of `spel`: its own cell's and
+/// those of the other cells.
+fn gram_ids(spel: &mut Spel) -> std::collections::HashSet<Value> {
+    let kroniek = spel.kroniek().unwrap();
+    std::iter::once(&kroniek)
+        .chain(kroniek["andere"].as_array().unwrap())
+        .flat_map(|k| k["grammen"].as_array().unwrap())
+        .map(|g| g["id"].clone())
+        .collect()
+}
+
+/// That every chronicle of a played scenario speaks of one applicant: the
+/// visitor reads them all, so an advice about someone else in a chronicle
+/// looks like the advice the decision used, whatever the reduction read.
+/// The applicant is known by the fields the application shares with what
+/// another cell records: the BSN in the advice of the GGD, the KvK number in
+/// the registration at the Chamber. The grams of `vooraf`, recorded before
+/// the scenario (the case's `begin`), are the world every scenario starts
+/// from, not part of it.
+fn één_aanvrager(spel: &mut Spel, vooraf: &std::collections::HashSet<Value>, waar: &str) {
+    let casus = spel.casus().unwrap();
+    let vormen = spel.vormen(dag(&casus["speeldatum"])).unwrap();
+    let aanvraag = map(&casus["voorbeeld"]["aanvraag"]);
+    let sleutels: BTreeSet<String> = vormen["andere_cellen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|c| c["handelingen"].as_array().unwrap())
+        .flat_map(|h| namen(&h["velden"]))
+        .filter(|naam| aanvraag.contains_key(naam))
+        .collect();
+    let kroniek = spel.kroniek().unwrap();
+    let grammen: Vec<&Value> = std::iter::once(&kroniek)
+        .chain(kroniek["andere"].as_array().unwrap())
+        .flat_map(|k| k["grammen"].as_array().unwrap())
+        .filter(|g| !vooraf.contains(&g["id"]))
+        .collect();
+    for sleutel in &sleutels {
+        let mut waarden: Vec<&Value> = grammen
+            .iter()
+            .filter_map(|g| g["fields"].get(sleutel))
+            .collect();
+        waarden.sort_by_key(|v| v.to_string());
+        waarden.dedup();
+        assert!(
+            waarden.len() <= 1,
+            "{waar}: more than one applicant by '{sleutel}': {waarden:?}"
+        );
     }
 }
 

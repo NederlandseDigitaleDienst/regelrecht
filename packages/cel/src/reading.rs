@@ -42,7 +42,7 @@
 //! keeps it. A decision value a row holds, such as the decision a judgment
 //! set in place, is a row in turn.
 //! So a reduction can link a decision to another that refers to it, such as
-//! a decision on an objection to the decision it contests (RFC-050). A row
+//! a decision on an objection to the decision it contests (RFC-048 §6). A row
 //! holds only what its own chronolexogram holds: whether another decision
 //! revoked it, a reduction reads from the rows of that other decision.
 
@@ -207,7 +207,7 @@ struct Parts<'p> {
 /// names, then the article it was taken under ([`ROW_BASIS`]) and the
 /// id of the chronolexogram `gram` that holds it ([`ROW_ID`]). A decision
 /// value in a field or output (`{basis, fields, findings, outputs}`,
-/// RFC-050), such as the decision a judgment sets in place, is a row in
+/// RFC-045 §6), such as the decision a judgment sets in place, is a row in
 /// turn, with the id of `gram`; such a row holds every output its article
 /// declares, null where the value has none (RFC-036). `label` names what
 /// the row is of, for an error.
@@ -355,7 +355,7 @@ pub struct Asked {
 /// silent. A reduction the service does not hold is an error.
 pub struct Reader<'c> {
     recording_actor: &'c str,
-    /// Who the cell is, for the engine's routing on competence (RFC-052).
+    /// Who the cell is, for the engine's routing on competence (RFC-048 §4).
     authority: &'c Authority,
     /// The catalogue: per answer, the `$id` of the reduction.
     answers: &'c BTreeMap<String, String>,
@@ -480,7 +480,7 @@ impl<'c> Reader<'c> {
         // The reduction may call rulework that binds a term to an answer of
         // this cell too, such as a regulation that asks where the school is
         // established (RFC-051): the cell answers it there as well. Inside a
-        // reduction the cell asks only itself (RFC-052): synthesis happens
+        // reduction the cell asks only itself (RFC-048 §4): synthesis happens
         // at the consumer, never in a cell.
         // The reduction reads the cell's chronicle, and so does every
         // reduction it calls ([`ChronicleSource`]).

@@ -69,7 +69,7 @@ If neither names an authority, whoever carries out the article gives the finding
 
 Art. 13a of the Leerplichtwet 1969 says that the head of the school grants the leave. So the head gives the findings on the open terms of art. 13a.
 
-The fictitious policy of Wilgendaal lets the college judge four medical criteria when the GGD has given no advice. No law makes the GGD the judge of those criteria, and the terms name no authority. So the college gives those findings, as the holder of the policy.
+The fictitious policy of Wilgendaal lets the college judge four medical criteria when there is no advice, for instance because it left out the examination. No law makes the GGD the judge of those criteria, and the terms name no authority. So the college gives those findings, as the holder of the policy.
 
 A cell gives findings only on the terms it answers. It refuses a finding on a term that another authority answers. [RFC-048](/rfcs/rfc-048) §2 sets out the rule.
 

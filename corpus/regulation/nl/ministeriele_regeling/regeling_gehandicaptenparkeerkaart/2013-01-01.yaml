@@ -159,7 +159,7 @@ articles:
       # BABW: het CBR) en lid 3 (een instelling, artikel 49, tweede lid) zijn
       # niet gemodelleerd: die leden van artikel 49 zijn het ook niet, dus
       # hier vraagt geen kaart erom.
-      # Beide feiten stelt een ander vast dan wie de kaart afgeeft (RFC-052).
+      # Beide feiten stelt een ander vast dan wie de kaart afgeeft (RFC-051).
       # Of het onderzoek plaatsvond, leest dit artikel bij artikel 3, dat het
       # onderzoek omschrijft. Of eerder een kaart is verstrekt, staat hier in
       # lid 2 zelf; het BABW spreekt nergens van een eerdere kaart.
@@ -310,7 +310,7 @@ articles:
       # Minister, met een arts) is niet gemodelleerd: de minister geeft hier
       # geen kaarten af.
       # Wie het onderzoek verricht, stelt het vast (competent_authority op
-      # het feit, RFC-052), en alleen die antwoordt op de vraag of het
+      # het feit, RFC-051), en alleen die antwoordt op de vraag of het
       # plaatsvond (competent_authority op het begrip). Eigen keuze: het
       # begrip noemt zelf dezelfde twee, in plaats van ze af te leiden uit
       # het feit dat de reductie leest die het antwoord geeft (RFC-048); dat

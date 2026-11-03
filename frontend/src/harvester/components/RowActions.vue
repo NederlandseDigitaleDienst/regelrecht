@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { RE_HARVESTABLE_STATUSES, ENRICHABLE_STATUSES } from '../constants';
 import { apiFetch } from '@regelrecht/frontend-shared';
 import type { LawEntry } from '../composables/useLawEntries';
+import { providerLabel } from '../../lib/enrichProviders';
 
 const props = defineProps<{
   row: LawEntry;
@@ -74,7 +75,7 @@ async function onEnrich() {
       return;
     }
     const result = (await response.json()) as EnrichJobsCreated;
-    alert(`Created ${result.job_ids.length} enrich job(s) for ${result.providers.join(', ')}`);
+    alert(`Created ${result.job_ids.length} enrich job(s) for ${result.providers.map(providerLabel).join(', ')}`);
     emit('action-complete');
   } catch (err) {
     alert('Enrich failed: ' + (err as Error).message);

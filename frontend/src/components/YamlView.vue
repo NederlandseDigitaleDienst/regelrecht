@@ -46,7 +46,7 @@ const emit = defineEmits<{
    *  anchor the login popover to it. */
   'create-mr': [anchor: EventTarget | null];
   /** Ask for a generated proposal instead of writing one by hand. */
-  enrich: [anchor: EventTarget | null];
+  enrich: [anchor: EventTarget | null, provider?: string];
   /** Open the task list filtered to this law, while a run is pending. */
   'view-tasks': [];
   /** Open review-modus voor de klaarstaande taak. */
@@ -77,7 +77,7 @@ const yamlText = computed(() => {
     :can-create="canCreate"
     :create-href="createHref"
     :enrich-error="enrichError"
-    @enrich="emit('enrich', $event)"
+    @enrich="(trigger: EventTarget | null, provider?: string) => emit('enrich', trigger, provider)"
     @create="emit('create-mr', $event)"
     @view-tasks="emit('view-tasks')"
     @review="emit('review')"

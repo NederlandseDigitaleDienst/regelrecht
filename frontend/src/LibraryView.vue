@@ -175,7 +175,7 @@ const enrichNeeds = computed(() => {
 
 const enrichError = ref('');
 
-async function enrichSelectedLaw(anchorEl: EventTarget | null) {
+async function enrichSelectedLaw(anchorEl: EventTarget | null, provider?: string) {
   if (!selectedLawId.value) return;
   if (!authenticated.value || !activeTrajectRef.value) {
     // openEditor regelt beide: login-popover op deze knop, of de editor-route
@@ -188,7 +188,7 @@ async function enrichSelectedLaw(anchorEl: EventTarget | null) {
     // requestEnrich ververst zelf de takenlijst, dus de pane staat daarna in de
     // bezig-staat. alreadyRunning heeft daarom geen eigen melding nodig: dat is
     // precies wat de pane dan toont.
-    const { alreadyRunning, tooMany } = await requestEnrich();
+    const { alreadyRunning, tooMany } = await requestEnrich(provider);
     if (tooMany) enrichError.value = 'Je hebt te veel verrijkingen tegelijk lopen.';
     else if (!alreadyRunning) enrichError.value = '';
   } catch {
@@ -2236,7 +2236,7 @@ watch(activeTrajectRef, () => {
                         <nldd-spacer-cell size="8"></nldd-spacer-cell>
                         <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
                       </nldd-list-item>
-                      <TasksSidebarItem :current="isTakenMode" @click="goToTaken" />
+                      <TasksSidebarItem :current="isTakenMode" :traject-ref="activeTrajectRef" @click="goToTaken" />
                     </nldd-list>
                     <nldd-spacer size="24"></nldd-spacer>
                   </template>

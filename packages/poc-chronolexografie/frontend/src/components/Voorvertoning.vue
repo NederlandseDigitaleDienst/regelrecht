@@ -21,6 +21,7 @@ import { genummerd, toon, uitslag } from '../logboek.js';
 import { vertaling } from '../melding.js';
 import { hoofdletter, leesbaar, state, toegewezen } from '../state.js';
 import { volger } from '../voorvertoning.js';
+import ArtikelLink from './ArtikelLink.vue';
 import KetenStap from './KetenStap.vue';
 
 const props = defineProps({
@@ -138,6 +139,9 @@ const regels = (g) =>
           size="6"
           :text="opBezwaarSoort ? 'Nieuw besluit' : 'Besluit'"
         >
+          <nldd-text slot="supporting-text" size="sm" color="secondary">
+            <ArtikelLink :basis="besluit.basis" :datum="besluit.recorded_on" />
+          </nldd-text>
           <nldd-badge slot="end" size="sm" :color="badge(besluit).kleur" :text="badge(besluit).tekst"></nldd-badge>
         </nldd-title>
         <nldd-text v-else-if="opBezwaarSoort" size="sm" color="secondary">

@@ -74,8 +74,8 @@ repos:
         files: ^(corpus/(regulation|demo/regulation)|packages/poc-chronolexografie/corpus/(regulation|cells|casussen/[^/]+/regulation))/.*\.yaml$
         # Skip dot-prefixed sidecars (.enrichment.yaml, .enrichment-result.yaml):
         # enrichment metadata/result envelopes, not law files.
-        # A cell's identity (cells/*/cel.yaml, RFC-052) is no rulework; the
-        # cell checks it when it opens.
+        # A cell's identity (cells/*/cel.yaml, RFC-046 §2) is no rulework;
+        # the cell checks it when it opens.
         exclude: (^|/)\.[^/]*\.yaml$|^packages/poc-chronolexografie/corpus/cells/[^/]+/cel\.yaml$
         types: [yaml]
 
@@ -174,6 +174,23 @@ repos:
         language: system
         pass_filenames: false
         files: ^script/(check-)?nldd-slots(\.test)?\.mjs$
+
+      # Op alles wat bepaalt of een test draait: de tests zelf, de feature-
+      # bestanden, de Rust-bronnen (voor #[ignore]) en de plekken die CI
+      # vertellen wat het draait.
+      - id: orphan-tests
+        name: Elke test draait ergens in CI
+        entry: just orphan-tests
+        language: system
+        pass_filenames: false
+        files: (\.(test\.(ts|js|mjs|sh)|feature|rs)$|(^|/)test-[^/]*\.sh$|^\.github/|^\.pre-commit-config\.yaml$|^Justfile$|(^|/)package\.json$|(^|/)(vite|vitest)\.config\.|(^|/)Cargo\.toml$|^script/)
+
+      - id: orphan-tests-tests
+        name: De weestest-guard doet wat hij belooft
+        entry: just orphan-tests-test
+        language: system
+        pass_filenames: false
+        files: ^script/(check-)?orphan-tests(\.test)?\.mjs$
 
       - id: awb-parity
         name: De Awb zegt in beide corpora hetzelfde

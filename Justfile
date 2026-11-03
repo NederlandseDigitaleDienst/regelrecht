@@ -204,6 +204,18 @@ nldd-slots:
 nldd-slots-test:
     node --test script/nldd-slots.test.mjs
 
+# A test that runs nowhere stays green because it never starts. This guard
+# reads what CI runs (workflow steps, pre-commit hooks, and the recipes and npm
+# scripts they reach) and fails on a test outside it, a crate no `cargo test`
+# covers, a feature file no BDD runner reads, and a skip without a reason.
+[doc("Check that every test runs somewhere in CI")]
+orphan-tests:
+    node script/check-orphan-tests.mjs
+
+[doc("Check the orphan-test guard")]
+orphan-tests-test:
+    node --test script/orphan-tests.test.mjs
+
 # De Awb staat in twee corpora en moet daar hetzelfde zeggen. Het overzetten
 # ging twee keer mis op een weggevallen laatste regel — één keer de termijn in
 # artikel 6:8, waardoor de einddatum van de bezwaartermijn gelijk werd aan de
@@ -258,7 +270,7 @@ preview-environments-test:
 # container-backed suites; on a machine without a daemon, swap `test` for
 # `test-no-docker`.
 [doc("Run all quality checks, exactly what CI runs (needs Docker)")]
-check: format lint build-check validate validate-annotations deploy-filters-test ghcr-cleanup-test precompress-test security-headers-test first-load-test ci-gate-test merge-queue-checks-test nldd-imports-test nldd-slots nldd-slots-test dockerfile-consistency-test deploy-gate-test deployed-urls-test preview-environments-test advisories-report-test dev-preflight-test test
+check: format lint build-check validate validate-annotations deploy-filters-test ghcr-cleanup-test precompress-test security-headers-test first-load-test ci-gate-test merge-queue-checks-test nldd-imports-test nldd-slots nldd-slots-test orphan-tests orphan-tests-test dockerfile-consistency-test deploy-gate-test deployed-urls-test preview-environments-test advisories-report-test dev-preflight-test test
 
 # --- Tests ---
 
@@ -549,9 +561,9 @@ mutants-diff BASE="origin/main":
     #!/usr/bin/env bash
     set -euo pipefail
     diff_file="$(mktemp -t mutants-diff-XXXXXX.diff)"
-    git -C packages diff --relative "{{BASE}}...HEAD" -- engine pipeline > "$diff_file"
+    git -C packages diff --relative "{{BASE}}...HEAD" -- engine pipeline cel > "$diff_file"
     if [ ! -s "$diff_file" ]; then
-        echo "Geen gewijzigde regels in packages/engine of packages/pipeline ten opzichte van {{BASE}}."
+        echo "Geen gewijzigde regels in packages/engine, packages/pipeline of packages/cel ten opzichte van {{BASE}}."
         exit 0
     fi
     cd packages

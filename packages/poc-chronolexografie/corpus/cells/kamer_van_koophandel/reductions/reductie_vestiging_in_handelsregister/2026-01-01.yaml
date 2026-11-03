@@ -14,7 +14,7 @@ valid_from: '2026-01-01'
 # beleid bedrijfsparkeervergunning van Wilgendaal koppelt ze aan de open
 # begrippen van artikel 2 en 3 van het fictieve uitvoeringsbesluit parkeren;
 # daarvoor is de Kamer bevoegd (competent_authority van die begrippen,
-# RFC-052). De url wijst naar artikel 11 van de
+# RFC-051 §2). De url wijst naar artikel 11 van de
 # Handelsregisterwet 2007.
 url: https://wetten.overheid.nl/BWBR0021777/2025-07-16#Artikel11
 name: Vestiging in het handelsregister (reductie)

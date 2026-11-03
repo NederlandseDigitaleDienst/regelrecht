@@ -1,5 +1,5 @@
 //! A submission that refers to a decision, and a decision that takes
-//! another in turn (RFC-050, slice 4b-2), under toy laws written for the
+//! another in turn (RFC-046, slice 4b-2), under toy laws written for the
 //! cell: no corpus, no Awb.
 //!
 //! The cell fills the field of type `decision` from `refers_to` and keeps
@@ -867,7 +867,7 @@ fn heroverweging_with_findings() -> String {
         )
 }
 
-/// The decision value keeps the findings apart from the fields (RFC-050):
+/// The decision value keeps the findings apart from the fields (RFC-045 §6):
 /// which of the gram's fields are findings follows from the open terms of
 /// the deciding article. A finding not given anew stays that of the
 /// decision, and one given anew, apart from the parameters, reaches the
