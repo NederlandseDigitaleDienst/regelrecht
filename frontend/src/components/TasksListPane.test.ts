@@ -163,6 +163,32 @@ describe('TasksListPane', () => {
     return event;
   }
 
+  it('lists only the work of this traject, also for a law enriched in two', async () => {
+    const here = { ...LAW_TASK, id: 'h1', traject_id: 'abcd1234-0000-4000-8000-000000000000' };
+    const reviewElsewhere = { ...LAW_TASK, id: 'e1', traject_id: 'ffff0000-0000-4000-8000-000000000000' };
+    // A failed task from the other traject must not show up here: its
+    // "Probeer opnieuw" would enrich the law in this traject instead.
+    const failedElsewhere = {
+      id: 'e2',
+      task_type: 'job_failed',
+      title: 'Verrijking mislukt: test_wet',
+      traject_id: 'ffff0000-0000-4000-8000-000000000000',
+      payload: { law_id: 'test_wet', traject_ref: 'ander-ffff0000', error: 'boom' },
+    };
+    const runningElsewhere = {
+      job_id: 'j9',
+      job_type: 'enrich',
+      law_id: 'test_wet',
+      traject_ref: 'ander-ffff0000',
+    };
+    const wrapper = await mountPane([here, reviewElsewhere, failedElsewhere], [runningElsewhere], {
+      categorie: 'wet',
+      lawId: 'test_wet',
+    });
+    expect(wrapper.findAll('nldd-list-item')).toHaveLength(1);
+    expect(itemLabels(wrapper)).not.toContain('Probeer opnieuw');
+  });
+
   it('geeft elke rij één Acties-knop in plaats van losse knoppen', async () => {
     const wrapper = await mountPane([LAW_TASK, DOC_TASK]);
     expect(wrapper.findAll('nldd-button')).toHaveLength(0);

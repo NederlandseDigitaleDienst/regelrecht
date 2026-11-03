@@ -7,10 +7,11 @@
  * zijn laagfrequent; na eigen acties (enrich-aanvraag, resolve) wordt direct
  * ge-refreshed.
  */
-import { ref, computed, watch, onUnmounted, getCurrentInstance } from 'vue';
-import type { WatchSource } from 'vue';
+import { ref, computed, watch, onUnmounted, getCurrentInstance, toValue } from 'vue';
+import type { MaybeRefOrGetter, WatchSource } from 'vue';
 import { apiFetch } from '@regelrecht/frontend-shared';
 import type { RunningJob, Task, TaskPayload } from '../lib/taskCategories';
+import { jobInTraject, taskInTraject } from '../lib/taskReview';
 
 /** The payload fields read in the editor; the backend stores free-form JSON. */
 export interface TaskRecordPayload extends TaskPayload {
@@ -244,6 +245,24 @@ export function useTasks() {
     fetchJobTasks,
     applyEnrichment,
     requestEnrich,
+  };
+}
+
+/**
+ * useTrajectTasks - useTasks(), narrowed to one traject. The task list is
+ * account-wide; every view inside a traject (the task panel, its list, the
+ * sidebar badge) reads it through here, so work from another traject never
+ * shows up there, not even for the same law. Without a traject nothing
+ * matches.
+ */
+export function useTrajectTasks(trajectRef: MaybeRefOrGetter<string | null | undefined>) {
+  // `openCount` is the account-wide server total; it would read as this
+  // traject's count, so it is left out.
+  const { openCount: _accountWide, ...all } = useTasks();
+  return {
+    ...all,
+    tasks: computed(() => all.tasks.value.filter((t) => taskInTraject(t, toValue(trajectRef)))),
+    running: computed(() => all.running.value.filter((j) => jobInTraject(j, toValue(trajectRef)))),
   };
 }
 

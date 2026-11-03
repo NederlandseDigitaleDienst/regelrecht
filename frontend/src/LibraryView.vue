@@ -2236,7 +2236,7 @@ watch(activeTrajectRef, () => {
                         <nldd-spacer-cell size="8"></nldd-spacer-cell>
                         <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
                       </nldd-list-item>
-                      <TasksSidebarItem :current="isTakenMode" @click="goToTaken" />
+                      <TasksSidebarItem :current="isTakenMode" :traject-ref="activeTrajectRef" @click="goToTaken" />
                     </nldd-list>
                     <nldd-spacer size="24"></nldd-spacer>
                   </template>
