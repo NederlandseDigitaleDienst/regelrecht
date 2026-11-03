@@ -4,9 +4,8 @@
 # the words that make it one, an item that claims a further kind
 # (`member_of` on an item), a hook on a kind at a named stage, and an
 # article that excludes that hook for a kind and only in some cases
-# (`excludes` with `kind` and `when`), and a kind of organizations with an
-# organization that claims it (`organizations`), and a hook that takes away
-# what the item yields (`voids` on a hook).
+# (`excludes` with `kind` and `when`), and a hook that takes away what the
+# item yields (`voids` on a hook).
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json
 $id: test_conformance_kinds
 regulatory_layer: WET
@@ -48,8 +47,6 @@ articles:
           description: Een regeling waarin de bijdrage afhangt van de draagkracht (lid 4).
         - id: bijdrage
           level: item
-        - id: zelfstandig_orgaan
-          level: organization
   - number: '2'
     url: https://example.invalid/kinds/2
     text: >-
@@ -138,16 +135,6 @@ articles:
               operation: LESS_THAN
               subject: $bedrag
               value: 100
-  - number: '6'
-    url: https://example.invalid/kinds/6
-    text: Er is een Testautoriteit. Zij is een zelfstandig orgaan.
-    machine_readable:
-      organizations:
-        - id: testautoriteit
-          name: Testautoriteit
-          member_of:
-            - kind: test_conformance_kinds/zelfstandig_orgaan
-              legal_text_excerpt: Zij is een zelfstandig orgaan.
   - number: '7'
     url: https://example.invalid/kinds/7
     text: Wie geen verblijfsrecht heeft, kan geen aanspraak maken op een bijdrage.

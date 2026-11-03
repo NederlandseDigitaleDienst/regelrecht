@@ -21,8 +21,7 @@
 
 use crate::article::{
     is_kind_reference, Article, ArticleBasedLaw, ExclusionDeclaration, HookFilter, HookPoint,
-    KindDefinition, KindLevel, LawLoad, OpenTerm, OrganizationDeclaration, ProcedureDefinition,
-    Produced,
+    KindDefinition, KindLevel, LawLoad, OpenTerm, ProcedureDefinition, Produced,
 };
 use crate::config;
 use crate::error::{EngineError, Result};
@@ -385,21 +384,6 @@ fn declaration_fingerprint(law: &ArticleBasedLaw) -> Vec<String> {
                 article.number, decl.law, decl.article, decl.kind, decl.when
             ));
         }
-        for decl in article.get_organizations() {
-            let kinds: Vec<&str> = decl
-                .member_of
-                .iter()
-                .flatten()
-                .map(|m| m.kind.as_str())
-                .collect();
-            parts.push(format!(
-                "organization\0{}\0{}\0{}\0{}",
-                article.number,
-                decl.id,
-                decl.name,
-                kinds.join(",")
-            ));
-        }
     }
     parts.sort();
     parts
@@ -476,25 +460,6 @@ pub struct ExclusionEntry {
     pub declaration: ExclusionDeclaration,
 }
 
-/// An organization that an article establishes (schema v0.9.0), in the
-/// organizations index.
-#[derive(Debug, Clone)]
-pub struct OrganizationEntry {
-    /// The regulation that establishes it.
-    pub law_id: String,
-    /// The article that establishes it.
-    pub article_number: String,
-    /// The declaration.
-    pub declaration: OrganizationDeclaration,
-}
-
-impl OrganizationEntry {
-    /// The organization as a reference, `<regulation>/<id>`.
-    pub fn reference(&self) -> String {
-        format!("{}/{}", self.law_id, self.declaration.id)
-    }
-}
-
 /// A kind that an article defines (schema v0.9.0), in the kinds index.
 #[derive(Debug, Clone)]
 pub struct KindEntry {
@@ -535,8 +500,7 @@ impl KindEntry {
         self.definition.level.unwrap_or(KindLevel::Item)
     }
 
-    /// The members, in plural, for a finding: "items", "regulations",
-    /// "organizations".
+    /// The members, in plural, for a finding: "items" or "regulations".
     pub fn members(&self) -> &'static str {
         Self::members_of(self.level())
     }
@@ -545,7 +509,6 @@ impl KindEntry {
         match level {
             KindLevel::Item => "items",
             KindLevel::Regulation => "regulations",
-            KindLevel::Organization => "organizations",
         }
     }
 }
@@ -613,9 +576,6 @@ pub struct RuleResolver {
     /// articles that say it does not apply. Built, like the hooks index,
     /// from the newest version.
     exclusions_index: HashMap<(String, String), Vec<ExclusionEntry>>,
-    /// Organizations index (schema v0.9.0): `<regulation>/<id>` -> the
-    /// establishing article. Built from the newest version.
-    organizations_index: HashMap<String, OrganizationEntry>,
     /// Law ids that have more than one loaded version where the declarations
     /// differ between versions (hooks, overrides, procedures). Kept so
     /// [`Self::declarations_from_another_version`] can answer in O(size of this
@@ -678,7 +638,6 @@ impl RuleResolver {
             procedure_defaults: HashMap::new(),
             kinds_index: HashMap::new(),
             exclusions_index: HashMap::new(),
-            organizations_index: HashMap::new(),
             versioned_declarers: HashSet::new(),
         }
     }
@@ -1636,7 +1595,6 @@ impl RuleResolver {
         // Remove old kinds defined by this law
         self.kinds_index.retain(|_, entry| entry.law_id != law_id);
         self.remove_exclusions_of(law_id);
-        self.organizations_index.retain(|_, e| e.law_id != law_id);
 
         // Remove old procedure index entries defined by this law
         self.procedure_index
@@ -1744,18 +1702,6 @@ impl RuleResolver {
                         }
                     }
 
-                    // Organizations index (schema v0.9.0)
-                    for decl in article.get_organizations() {
-                        self.organizations_index.insert(
-                            format!("{law_id}/{}", decl.id),
-                            OrganizationEntry {
-                                law_id: law_id.to_string(),
-                                article_number: article.number.clone(),
-                                declaration: decl.clone(),
-                            },
-                        );
-                    }
-
                     // Exclusions index (schema v0.9.0)
                     for decl in article.get_exclusions() {
                         self.exclusions_index
@@ -1816,7 +1762,6 @@ impl RuleResolver {
         // Remove kinds defined by this law
         self.kinds_index.retain(|_, entry| entry.law_id != law_id);
         self.remove_exclusions_of(law_id);
-        self.organizations_index.retain(|_, e| e.law_id != law_id);
 
         // Remove procedure index entries defined by this law
         self.procedure_index
@@ -2136,37 +2081,13 @@ impl RuleResolver {
                         );
                     }
                 }
-                for org in article.get_organizations() {
-                    let at = format!("{id} article {}: organization {}", article.number, org.id);
-                    if self.kinds_index.contains_key(&format!("{id}/{}", org.id)) {
-                        errors.push(format!("{at}: a kind of {id} has the same id"));
-                    }
-                    if self.organizations_index.values().any(|e| {
-                        e.declaration.name == org.name
-                            && e.reference() != format!("{id}/{}", org.id)
-                    }) {
-                        errors.push(format!("{at}: another organization is named {}", org.name));
-                    }
-                    for m in org.member_of.iter().flatten() {
-                        self.check_membership(
-                            &mut errors,
-                            &at,
-                            id,
-                            m,
-                            KindLevel::Organization,
-                            &excerpt_ok,
-                        );
-                    }
-                }
                 for decl in article.get_exclusions() {
                     let at = format!(
                         "{id} article {}: excludes {}#{}",
                         article.number, decl.law, decl.article
                     );
                     if let Some(k) = &decl.kind {
-                        if !self.kinds_index.contains_key(k)
-                            && !self.organizations_index.contains_key(k)
-                        {
+                        if !self.kinds_index.contains_key(k) {
                             errors.push(format!("{at} for kind {k}, which is defined nowhere"));
                         }
                     }
@@ -2207,9 +2128,7 @@ impl RuleResolver {
                 }
                 for decl in article.get_hooks().into_iter().flatten() {
                     if let Some(k) = &decl.applies_to.kind {
-                        if !self.kinds_index.contains_key(k)
-                            && !self.organizations_index.contains_key(k)
-                        {
+                        if !self.kinds_index.contains_key(k) {
                             errors.push(format!(
                                 "{id} article {}: hook on kind {k}, which is defined nowhere",
                                 article.number
@@ -2302,14 +2221,6 @@ impl RuleResolver {
             .get(&(law_id.to_string(), article.to_string()))
             .map(Vec::as_slice)
             .unwrap_or(&[])
-    }
-
-    /// The organization that some article establishes under this `name`
-    /// (schema v0.9.0), as `competent_authority` names it.
-    pub fn organization_named(&self, name: &str) -> Option<&OrganizationEntry> {
-        self.organizations_index
-            .values()
-            .find(|e| e.declaration.name == name)
     }
 
     fn remove_exclusions_of(&mut self, law_id: &str) {

@@ -3008,10 +3008,9 @@
                 "type": "string",
                 "enum": [
                   "item",
-                  "regulation",
-                  "organization"
+                  "regulation"
                 ],
-                "description": "What the members are: items in `produces` (default), regulations, which claim membership with `member_of`, or organizations, which an article establishes under `organizations` and which claim membership there."
+                "description": "What the members are: items in `produces` (default) or regulations, which claim membership with `member_of`."
               }
             }
           }
@@ -3039,7 +3038,7 @@
               },
               "kind": {
                 "$ref": "#/definitions/kindReference",
-                "description": "Only items of this kind or a narrower one, including items that claim it with `member_of`, items of a regulation that does, and items of an organization that does. It may also name one organization (`<regulation>/<id>` under `organizations`): only what that organization produces. Without it, only items this regulation produces."
+                "description": "Only items of this kind or a narrower one, including items that claim it with `member_of` and items of a regulation that does. Without it, only items this regulation produces."
               },
               "when": {
                 "type": "string",
@@ -3048,38 +3047,6 @@
               "legal_text_excerpt": {
                 "type": "string",
                 "description": "The words of this article that establish the exclusion, quoted verbatim."
-              }
-            }
-          }
-        },
-        "organizations": {
-          "type": "array",
-          "minItems": 1,
-          "description": "Since v0.9.0: the organizations this article establishes, such as \"Er is een Autoriteit Consument en Markt.\" An article whose `competent_authority` names one by its `name` acts as that organization: what it produces belongs to the organization and to every kind the organization claims, so a hook on a kind of organizations (the zelfstandig bestuursorgaan of the Kaderwet zbo) fires on it, and an exclusion can name the organization as its `kind`.",
-          "items": {
-            "type": "object",
-            "required": [
-              "id",
-              "name"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "id": {
-                "type": "string",
-                "pattern": "^[a-z0-9_]+$",
-                "description": "Unique within the regulation; referenced as `<regulation>/<id>`, like a kind."
-              },
-              "name": {
-                "type": "string",
-                "description": "The name the law gives the organization, as `competent_authority` names it."
-              },
-              "member_of": {
-                "type": "array",
-                "minItems": 1,
-                "description": "The kinds of organization it belongs to (`level: organization`), each claimed with the words of this regulation.",
-                "items": {
-                  "$ref": "#/definitions/kindMembership"
-                }
               }
             }
           }
