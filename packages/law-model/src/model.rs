@@ -1598,6 +1598,12 @@ pub struct OverrideDeclaration {
     /// [`OverrideDeclarationFields`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub legal_text_excerpt: Option<String>,
+    /// Since schema v0.9.0: the override applies only where this boolean
+    /// output of the overriding article is true. The Wet kinderopvang
+    /// excludes Awir 5 only "op wijzigingen in de kosten van kinderopvang
+    /// per kind".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub when: Option<String>,
 }
 
 /// The wire shape of an [`OverrideDeclaration`], before the one rule the field
@@ -1619,6 +1625,8 @@ struct OverrideDeclarationFields {
     voids: bool,
     #[serde(default)]
     legal_text_excerpt: Option<String>,
+    #[serde(default)]
+    when: Option<String>,
 }
 
 impl TryFrom<OverrideDeclarationFields> for OverrideDeclaration {
@@ -1638,6 +1646,7 @@ impl TryFrom<OverrideDeclarationFields> for OverrideDeclaration {
             output: fields.output,
             voids: fields.voids,
             legal_text_excerpt: fields.legal_text_excerpt,
+            when: fields.when,
         })
     }
 }
@@ -1928,40 +1937,6 @@ pub struct MachineReadable {
     /// Kinds this article defines (schema v0.9.0)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kinds: Option<Vec<KindDefinition>>,
-    /// Hooks this article switches off (schema v0.9.0): "artikel 4 van de
-    /// Awir is niet van toepassing".
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub excludes: Option<Vec<ExclusionDeclaration>>,
-}
-
-/// A statement that a hook article of a general law does not apply (schema
-/// v0.9.0): "Artikel 4 van de Algemene wet inkomensafhankelijke regelingen is
-/// niet van toepassing" (Wet op het kindgebonden budget, art. 1 lid 3).
-///
-/// Without `kind` it applies to what the excluding regulation itself
-/// produces: a member law saying of itself that a provision of the general
-/// law does not apply to it. With `kind` it applies to every item of that
-/// kind, which is how a general law limits its own reach (Awb 1:6) and how
-/// one general law switches off another for its members (AWR 1 lid 3).
-/// With `when` it applies only where that output of the excluding article
-/// is true: the Wet kinderopvang excludes Awir 5 only "op wijzigingen in de
-/// kosten van kinderopvang per kind".
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ExclusionDeclaration {
-    /// The `$id` of the law whose hook article is excluded.
-    pub law: String,
-    /// The hook article that does not apply.
-    pub article: String,
-    /// Only items of this kind, or of a narrower one, as `<regulation>/<id>`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub kind: Option<String>,
-    /// Only where this boolean output of the excluding article is true.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub when: Option<String>,
-    /// The words of the excluding article that establish the exclusion,
-    /// verbatim.
-    pub legal_text_excerpt: String,
 }
 
 /// Represents a single article in a law
@@ -2095,14 +2070,6 @@ impl Article {
         self.machine_readable
             .as_ref()
             .and_then(|mr| mr.hooks.as_ref())
-    }
-
-    /// Get the exclusions declared by this article (schema v0.9.0).
-    pub fn get_exclusions(&self) -> &[ExclusionDeclaration] {
-        self.machine_readable
-            .as_ref()
-            .and_then(|mr| mr.excludes.as_deref())
-            .unwrap_or_default()
     }
 
     /// Get override declarations from this article.

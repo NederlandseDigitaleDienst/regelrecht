@@ -33,7 +33,8 @@ articles:
       # Lid 1, tweede volzin, wijst ontheffingen en vergunningen aan bij wet
       # of AMvB: een lijst, dus een verwijzing en geen hook; niet
       # gemodelleerd. Lid 2 geeft andere regelingen de ruimte af te wijken;
-      # een regeling die dat doet, sluit dit artikel uit met `excludes`. Lid 3
+      # een regeling die dat doet, laat `geen_aanspraak` vervallen met een
+      # override met `voids`. Lid 3
       # is niet gemodelleerd. Deze tekst geldt ongewijzigd sinds ten minste
       # 2002 en nog op 2026-01-01.
       kinds:

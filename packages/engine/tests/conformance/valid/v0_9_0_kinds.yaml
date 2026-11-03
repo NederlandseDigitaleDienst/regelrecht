@@ -3,8 +3,8 @@
 # claims to be of a kind of regulation (`member_of`), an item of a kind with
 # the words that make it one, an item that claims a further kind
 # (`member_of` on an item), a hook on a kind at a named stage, and an
-# article that excludes that hook for a kind and only in some cases
-# (`excludes` with `kind` and `when`), and a hook that takes away what the
+# article that voids that hook's output only in some cases (an override
+# with `when`), and a hook that takes away what the
 # item yields (`voids` on a hook).
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json
 $id: test_conformance_kinds
@@ -113,10 +113,11 @@ articles:
     text: >-
       Artikel 3 is niet van toepassing op een bijdrage onder de honderd euro.
     machine_readable:
-      excludes:
+      overrides:
         - law: test_conformance_kinds
           article: '3'
-          kind: test_conformance_kinds/bijdrage
+          output: gemotiveerd
+          voids: true
           when: kleine_bijdrage
           legal_text_excerpt: >-
             Artikel 3 is niet van toepassing op een bijdrage onder de honderd

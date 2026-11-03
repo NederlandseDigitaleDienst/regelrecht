@@ -1,17 +1,13 @@
-//! Exclusions and several kinds per item (schema v0.9.0), on synthetic laws.
+//! Overrides on hook outputs, hooks that void, and several kinds per item
+//! (schema v0.9.0), on synthetic laws.
 //!
-//! The corpus shows the exclusion by a member law (the Wet op het
-//! kindgebonden budget and the Wet kinderopvang on the Awir, in the BDD
-//! scenarios next to the Wet kinderopvang). These laws show the two other
-//! forms with the same construct, and an item that falls under three general
-//! laws at once:
-//!
-//! - a general law limiting its own reach, as Awb 1:6 does: an exclusion with
-//!   a `kind` that some items claim;
-//! - a general law switching off another for its members, as AWR 1 lid 3
-//!   does for parts of the Awb: an exclusion with a `kind` of regulations;
-//! - a vergunning that is a beschikking, is prepared with a public procedure
-//!   and falls under an integrity screening: one `type` and two `member_of`.
+//! The corpus shows a member law setting aside a hook of a general law with
+//! an override that voids (the Wet op het kindgebonden budget and the Wet
+//! kinderopvang on the Awir, in the BDD scenarios next to the Wet
+//! kinderopvang). These laws show the rest: an override that applies only in
+//! some cases (`when`), an override from a law that another law calls on the
+//! way, a hook that takes away what a decision yields, and an item that
+//! falls under three general laws at once.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -23,8 +19,7 @@ const SCHEMA: &str = "https://raw.githubusercontent.com/NederlandseDigitaleDiens
 /// A general law in the shape of the Awb: it defines the besluit, the
 /// beschikking and a besluit prepared with a public procedure, hooks a
 /// motivering onto every besluit and a ter-inzage-legging onto the public
-/// procedure, and in article 5 excludes its own motivering for acts of
-/// prosecution, in the shape of Awb 1:6.
+/// procedure.
 const ALGEMEEN: &str = r#"
 $id: algemene_test_wet
 regulatory_layer: WET
@@ -71,16 +66,6 @@ articles:
         actions:
           - output: ter_inzage_gelegd
             value: true
-  - number: '5'
-    text: Artikel 2 is niet van toepassing op de opsporing en vervolging van strafbare feiten.
-    machine_readable:
-      kinds:
-        - id: opsporing_en_vervolging
-      excludes:
-        - law: algemene_test_wet
-          article: '2'
-          kind: algemene_test_wet/opsporing_en_vervolging
-          legal_text_excerpt: Artikel 2 is niet van toepassing op de opsporing en vervolging van strafbare feiten.
 "#;
 
 /// A second general law, in the shape of the Wet Bibob: it hooks an
@@ -113,24 +98,18 @@ articles:
 "#;
 
 /// A third general law in the shape of the AWR: it defines a kind of
-/// regulations and switches article 2 of the general law off for them, as
-/// AWR 1 lid 3 switches off titel 5.2 Awb for the heffing of rijksbelastingen.
+/// regulations.
 const BELASTING: &str = r#"
 $id: algemene_belasting_test_wet
 regulatory_layer: WET
 publication_date: '2025-01-01'
 articles:
   - number: '1'
-    text: Een belastingwet is een wet betreffende de heffing van rijksbelastingen. Met betrekking tot de heffing van rijksbelastingen blijft artikel 2 van de algemene test wet buiten toepassing.
+    text: Een belastingwet is een wet betreffende de heffing van rijksbelastingen.
     machine_readable:
       kinds:
         - id: belastingwet
           level: regulation
-      excludes:
-        - law: algemene_test_wet
-          article: '2'
-          kind: algemene_belasting_test_wet/belastingwet
-          legal_text_excerpt: Met betrekking tot de heffing van rijksbelastingen blijft artikel 2 van de algemene test wet buiten toepassing.
 "#;
 
 fn service() -> LawExecutionService {
@@ -227,161 +206,7 @@ fn without_a_claim_only_the_hooks_on_its_type_fire() {
     assert_eq!(result.outputs.get("integriteit_getoetst"), None);
 }
 
-/// Awb 1:6: the general law limits its own reach for items of a kind it
-/// defines. The excluded hook does not run, and the ground is recorded.
-#[test]
-fn a_general_law_excludes_its_own_hook_for_a_kind() {
-    let mut service = service();
-    member(
-        &mut service,
-        "strafvordering_test_wet",
-        "",
-        r#"          - type: algemene_test_wet/beschikking
-            member_of:
-              - kind: algemene_test_wet/opsporing_en_vervolging
-                legal_text_excerpt: de vervolging"#,
-    );
-    let result = outputs(&service, "strafvordering_test_wet");
-    assert_eq!(result.outputs.get("motivering_vereist"), None);
-    match result.output_provenance.get("motivering_vereist") {
-        Some(OutputProvenance::Voided {
-            law_id,
-            article,
-            grounds,
-        }) => {
-            assert_eq!(law_id, "algemene_test_wet");
-            assert_eq!(article, "5");
-            assert!(grounds.as_deref().unwrap().contains("opsporing"));
-        }
-        other => panic!("expected the ground of the exclusion, got {other:?}"),
-    }
-}
-
-/// AWR 1 lid 3: one general law switches a hook of another off for the
-/// regulations of its kind, and only for those.
-#[test]
-fn a_general_law_excludes_a_hook_of_another_for_its_members() {
-    let mut service = service();
-    member(
-        &mut service,
-        "heffings_test_wet",
-        "member_of:\n  - kind: algemene_belasting_test_wet/belastingwet\n    legal_text_excerpt: de heffing",
-        "          - type: algemene_test_wet/beschikking",
-    );
-    member(
-        &mut service,
-        "andere_test_wet",
-        "",
-        "          - type: algemene_test_wet/beschikking",
-    );
-    let excluded = outputs(&service, "heffings_test_wet");
-    assert_eq!(excluded.outputs.get("motivering_vereist"), None);
-    assert!(matches!(
-        excluded.output_provenance.get("motivering_vereist"),
-        Some(OutputProvenance::Voided { law_id, .. }) if law_id == "algemene_belasting_test_wet"
-    ));
-    let applied = outputs(&service, "andere_test_wet");
-    assert_eq!(
-        applied.outputs.get("motivering_vereist"),
-        Some(&Value::Bool(true))
-    );
-}
-
-/// An exclusion whose words are not in the article, or whose target is no
-/// hook, is reported.
-#[test]
-fn a_wrong_exclusion_is_reported() {
-    let mut service = service();
-    service
-        .load_law(&format!(
-            r#"$schema: {SCHEMA}
-$id: foute_test_wet
-regulatory_layer: WET
-publication_date: '2025-01-01'
-articles:
-  - number: '1'
-    text: Artikel 1 van de algemene test wet is niet van toepassing.
-    machine_readable:
-      excludes:
-        - law: algemene_test_wet
-          article: '1'
-          when: bestaat_niet
-          legal_text_excerpt: Artikel 3 is niet van toepassing.
-"#
-        ))
-        .unwrap();
-    let findings = service.resolver().validate_kinds();
-    let at = "foute_test_wet article 1: excludes algemene_test_wet#1";
-    assert!(
-        findings.contains(&format!(
-            "{at}: the excerpt is not in the text of the article"
-        )),
-        "{findings:?}"
-    );
-    assert!(
-        findings.contains(&format!("{at}, which declares no hooks")),
-        "{findings:?}"
-    );
-    assert!(
-        findings.contains(&format!(
-            "{at} when bestaat_niet, which the article does not output"
-        )),
-        "{findings:?}"
-    );
-}
-
-/// An exclusion from a regulation that is not in force yet does not apply:
-/// the general rule does, and the hook fires. Once it is in force, it
-/// applies.
-#[test]
-fn an_exclusion_applies_only_while_in_force() {
-    let mut service = service();
-    service
-        .load_law(&format!(
-            r#"$schema: {SCHEMA}
-$id: latere_test_wet
-regulatory_layer: WET
-publication_date: '2030-01-01'
-valid_from: '2030-01-01'
-articles:
-  - number: '1'
-    text: Artikel 2 van de algemene test wet is niet van toepassing op een vergunning.
-    machine_readable:
-      excludes:
-        - law: algemene_test_wet
-          article: '2'
-          kind: integriteitstoets_test_wet/vergunning
-          legal_text_excerpt: Artikel 2 van de algemene test wet is niet van toepassing op een vergunning.
-"#
-        ))
-        .unwrap();
-    member(
-        &mut service,
-        "vergunningen_test_wet",
-        "",
-        "          - type: integriteitstoets_test_wet/vergunning",
-    );
-    let before = outputs(&service, "vergunningen_test_wet");
-    assert_eq!(
-        before.outputs.get("motivering_vereist"),
-        Some(&Value::Bool(true))
-    );
-    let after = service
-        .evaluate_law_output(
-            "vergunningen_test_wet",
-            "beslist",
-            BTreeMap::new(),
-            "2031-01-01",
-        )
-        .unwrap();
-    assert_eq!(after.outputs.get("motivering_vereist"), None);
-    assert!(matches!(
-        after.output_provenance.get("motivering_vereist"),
-        Some(OutputProvenance::Voided { law_id, .. }) if law_id == "latere_test_wet"
-    ));
-}
-
-/// Every claim of membership and every exclusion is held against what is
+/// Every claim of membership and every conditional override is held against what is
 /// defined and against the words of the regulation.
 #[test]
 fn wrong_memberships_are_reported() {
@@ -420,10 +245,11 @@ articles:
   - number: '2'
     text: Artikel 2 van de algemene test wet is niet van toepassing.
     machine_readable:
-      excludes:
+      overrides:
         - law: algemene_test_wet
           article: '2'
-          kind: algemene_test_wet/bestaat_niet
+          output: motivering_vereist
+          voids: true
           when: geval
           legal_text_excerpt: Artikel 2 van de algemene test wet is niet van toepassing.
       execution:
@@ -445,15 +271,14 @@ articles:
         format!("{item}: member_of algemene_belasting_test_wet/belastingwet names a kind of regulations, not of items"),
         format!("{item}: member_of algemene_test_wet/besluit quotes no words of claims_test_wet and cites no provision"),
         format!("{item}: member_of algemene_test_wet/besluit: the excerpt is not in the text of claims_test_wet"),
-        "claims_test_wet article 2: excludes algemene_test_wet#2 for kind algemene_test_wet/bestaat_niet, which is defined nowhere".to_string(),
-        "claims_test_wet article 2: excludes algemene_test_wet#2 when geval, which is not a boolean".to_string(),
+        "claims_test_wet article 2: overrides algemene_test_wet#2 motivering_vereist when geval, which is not a boolean".to_string(),
     ] {
         assert!(findings.contains(&expected), "missing {expected:?} in {findings:#?}");
     }
 }
 
 /// A `when` that yields something other than true, false or nothing is an
-/// error, not a silent "no exclusion".
+/// error, not a silent "the override does not apply".
 #[test]
 fn a_when_that_is_no_truth_value_is_an_error() {
     let mut service = service();
@@ -479,9 +304,11 @@ articles:
   - number: '2'
     text: Artikel 2 van de algemene test wet is in bepaalde gevallen niet van toepassing.
     machine_readable:
-      excludes:
+      overrides:
         - law: algemene_test_wet
           article: '2'
+          output: motivering_vereist
+          voids: true
           when: geval
           legal_text_excerpt: Artikel 2 van de algemene test wet is in bepaalde gevallen niet van toepassing.
       execution:
@@ -503,43 +330,9 @@ articles:
     );
 }
 
-/// Loading a regulation again without its exclusion takes the exclusion
-/// away: the index does not keep what the newest version no longer says.
-#[test]
-fn a_reloaded_regulation_without_its_exclusion_excludes_nothing() {
-    let mut service = service();
-    let strafvordering = |claim: bool| {
-        let member_of = if claim {
-            "\n            member_of:\n              - kind: algemene_test_wet/opsporing_en_vervolging\n                legal_text_excerpt: de vervolging"
-        } else {
-            ""
-        };
-        format!("          - type: algemene_test_wet/beschikking{member_of}")
-    };
-    member(&mut service, "herlaad_test_wet", "", &strafvordering(true));
-    assert_eq!(
-        outputs(&service, "herlaad_test_wet")
-            .outputs
-            .get("motivering_vereist"),
-        None
-    );
-    // The general law again, with article 5 but without its exclusion.
-    let start = ALGEMEEN.find("      excludes:").unwrap();
-    let without = format!("{}\n", &ALGEMEEN[..start].trim_end());
-    service
-        .load_law(&format!("$schema: {SCHEMA}\n{}", without.trim_start()))
-        .unwrap();
-    assert_eq!(
-        outputs(&service, "herlaad_test_wet")
-            .outputs
-            .get("motivering_vereist"),
-        Some(&Value::Bool(true))
-    );
-}
-
 /// A hook that takes away what the item yields, in the shape of Vw 2000
 /// art. 10: lid 1 is the hook with `voids`, and a regulation that uses the
-/// room of lid 2 to deviate excludes it.
+/// room of lid 2 to deviate voids the hook's `when`.
 const KOPPELING: &str = r#"
 $id: koppeling_test_wet
 regulatory_layer: WET
@@ -575,8 +368,8 @@ articles:
 "#;
 
 fn toekenning(service: &mut LawExecutionService, id: &str, deviates: bool) {
-    let excludes = if deviates {
-        "\n      excludes:\n        - law: koppeling_test_wet\n          article: '1'\n          legal_text_excerpt: Artikel 1 van de koppeling test wet is niet van toepassing."
+    let overrides = if deviates {
+        "\n      overrides:\n        - law: koppeling_test_wet\n          article: '1'\n          output: geen_aanspraak\n          voids: true\n          legal_text_excerpt: Artikel 1 van de koppeling test wet is niet van toepassing."
     } else {
         ""
     };
@@ -594,7 +387,7 @@ publication_date: '2025-01-01'
 articles:
   - number: '1'
     text: {text}
-    machine_readable:{excludes}
+    machine_readable:{overrides}
       execution:
         produces:
           - type: algemene_test_wet/beschikking
@@ -642,7 +435,7 @@ fn a_hook_takes_away_what_the_decision_yields_unless_a_law_deviates() {
         refused.to_string().contains("kan geen aanspraak maken"),
         "{refused}"
     );
-    // A law that deviates (Vw 2000 art. 10 lid 2) excludes the hook.
+    // A law that deviates (Vw 2000 art. 10 lid 2) voids the hook's `when`.
     let deviating = run("studie_test_wet", false).unwrap();
     assert_eq!(deviating.outputs.get("bijdrage"), Some(&Value::Int(100)));
 }
@@ -778,4 +571,196 @@ articles:
         )
         .unwrap();
     assert_eq!(undecided.outputs.get("bijdrage"), Some(&Value::Int(100)));
+}
+
+/// A law that reads an output of another law, in the shape of a law that
+/// reads the kindgebonden budget: it calls `bijdrage_test_wet` on the way.
+const LEZER: &str = r#"
+$id: lezer_test_wet
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Het inkomen omvat de bijdrage.
+    machine_readable:
+      execution:
+        input:
+          - name: bijdrage
+            type: number
+            source:
+              regulation: bijdrage_test_wet
+              output: bijdrage
+        output:
+          - name: inkomen
+            type: number
+        actions:
+          - output: inkomen
+            value: $bijdrage
+"#;
+
+/// A hook fires on the item of a law that another law calls on the way,
+/// not only on the law the execution starts with: Awir 4 applies wherever
+/// an inkomensafhankelijke regeling is applied.
+#[test]
+fn a_hook_fires_on_an_item_computed_for_another_law() {
+    let mut service = service();
+    toekenning(&mut service, "bijdrage_test_wet", false);
+    service
+        .load_law(&format!("$schema: {SCHEMA}\n{}", LEZER.trim_start()))
+        .unwrap();
+    let result = service
+        .evaluate_law_output_with_trace("lezer_test_wet", "inkomen", BTreeMap::new(), "2025-06-01")
+        .unwrap();
+    assert_eq!(result.outputs.get("inkomen"), Some(&Value::Int(100)));
+    let trace = result.trace.unwrap().render_box_drawing();
+    assert!(
+        trace.contains("algemene_test_wet:2"),
+        "the hook on every besluit did not fire on the nested beschikking:\n{trace}"
+    );
+}
+
+/// An override from a law applies while that law executes anywhere in the
+/// chain, not only when it started the execution: the member voids the
+/// hook's output on its own item, also when another law calls it on the
+/// way (the Wkb read by another law). Until v0.9.0 only the law that started
+/// the execution counted (RFC-007), and this override was lost.
+#[test]
+fn an_override_applies_where_its_law_executes_in_the_chain() {
+    let mut service = service();
+    service
+        .load_law(&format!(
+            r#"$schema: {SCHEMA}
+$id: bijdrage_test_wet
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Het bestuursorgaan kent een bijdrage toe.
+    machine_readable:
+      execution:
+        produces:
+          - type: algemene_test_wet/beschikking
+        output:
+          - name: bijdrage
+            type: number
+        actions:
+          - output: bijdrage
+            value: 100
+  - number: '2'
+    text: Artikel 2 van de algemene test wet is niet van toepassing.
+    machine_readable:
+      overrides:
+        - law: algemene_test_wet
+          article: '2'
+          output: motivering_vereist
+          voids: true
+          legal_text_excerpt: Artikel 2 van de algemene test wet is niet van toepassing.
+"#
+        ))
+        .unwrap();
+    service
+        .load_law(&format!("$schema: {SCHEMA}\n{}", LEZER.trim_start()))
+        .unwrap();
+    // Started by the member itself.
+    let direct = service
+        .evaluate_law_output(
+            "bijdrage_test_wet",
+            "bijdrage",
+            BTreeMap::new(),
+            "2025-06-01",
+        )
+        .unwrap();
+    assert_eq!(direct.outputs.get("motivering_vereist"), None);
+    assert!(matches!(
+        direct.output_provenance.get("motivering_vereist"),
+        Some(OutputProvenance::Voided { .. })
+    ));
+    // Called by another law on the way: the hook fires on the member's
+    // item, and the member's override still applies there.
+    let nested = service
+        .evaluate_law_output_with_trace("lezer_test_wet", "inkomen", BTreeMap::new(), "2025-06-01")
+        .unwrap();
+    assert_eq!(nested.outputs.get("inkomen"), Some(&Value::Int(100)));
+    let trace = nested.trace.unwrap().render_box_drawing();
+    assert!(
+        trace.contains("bijdrage_test_wet:2 voids algemene_test_wet:2.motivering_vereist"),
+        "the member's override did not apply in the nested call:\n{trace}"
+    );
+}
+
+/// An override with `when` applies only where its condition holds: the Wet
+/// kinderopvang sets Awir 5 aside only for changes in the costs per child.
+#[test]
+fn an_override_with_when_applies_only_where_it_holds() {
+    let mut service = service();
+    service
+        .load_law(&format!(
+            r#"$schema: {SCHEMA}
+$id: voorwaarde_test_wet
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Het bestuursorgaan beslist.
+    machine_readable:
+      execution:
+        produces:
+          - type: algemene_test_wet/beschikking
+        output:
+          - name: beslist
+            type: boolean
+        actions:
+          - output: beslist
+            value: true
+  - number: '2'
+    text: Artikel 2 van de algemene test wet is niet van toepassing op een spoedeisend besluit.
+    machine_readable:
+      overrides:
+        - law: algemene_test_wet
+          article: '2'
+          output: motivering_vereist
+          voids: true
+          when: spoedeisend_besluit
+          legal_text_excerpt: Artikel 2 van de algemene test wet is niet van toepassing op een spoedeisend besluit.
+      execution:
+        parameters:
+          - name: spoed
+            type: boolean
+            required: false
+        output:
+          - name: spoedeisend_besluit
+            type: boolean
+        actions:
+          - output: spoedeisend_besluit
+            value:
+              operation: EQUALS
+              subject: $spoed
+              value: true
+"#
+        ))
+        .unwrap();
+    assert_eq!(service.resolver().validate_kinds(), Vec::<String>::new());
+    let run = |spoed: Option<bool>| {
+        let mut params = BTreeMap::new();
+        if let Some(spoed) = spoed {
+            params.insert("spoed".to_string(), Value::Bool(spoed));
+        }
+        service
+            .evaluate_law_output("voorwaarde_test_wet", "beslist", params, "2025-06-01")
+            .unwrap()
+    };
+    // The hook article declares no `spoed`; the override gets it anyway.
+    let urgent = run(Some(true));
+    assert_eq!(urgent.outputs.get("motivering_vereist"), None);
+    assert!(matches!(
+        urgent.output_provenance.get("motivering_vereist"),
+        Some(OutputProvenance::Voided { .. })
+    ));
+    for spoed in [Some(false), None] {
+        assert_eq!(
+            run(spoed).outputs.get("motivering_vereist"),
+            Some(&Value::Bool(true)),
+            "spoed: {spoed:?}"
+        );
+    }
 }

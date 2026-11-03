@@ -2808,7 +2808,7 @@
                   "legal_text_excerpt"
                 ],
                 "additionalProperties": false,
-                "description": "Since v0.9.0: where the hook's output `when` is true, what the item it fires on yields does not arise. The item's outputs get the same `Voided` provenance an override with `voids` gives, with this ground; the decision itself, and what other hooks attach to it, remain. For a hook that sets a condition on every member of a kind without naming their outputs: Vw 2000 art. 10 lid 1, \"De vreemdeling die geen rechtmatig verblijf heeft, kan geen aanspraak maken op toekenning van verstrekkingen, voorzieningen en uitkeringen bij wege van een beschikking van een bestuursorgaan.\" A regulation that may deviate (art. 10 lid 2) does so with `excludes`.",
+                "description": "Since v0.9.0: where the hook's output `when` is true, what the item it fires on yields does not arise. The item's outputs get the same `Voided` provenance an override with `voids` gives, with this ground; the decision itself, and what other hooks attach to it, remain. For a hook that sets a condition on every member of a kind without naming their outputs: Vw 2000 art. 10 lid 1, \"De vreemdeling die geen rechtmatig verblijf heeft, kan geen aanspraak maken op toekenning van verstrekkingen, voorzieningen en uitkeringen bij wege van een beschikking van een bestuursorgaan.\" A regulation that may deviate (art. 10 lid 2) voids the hook's `when` output with an override.",
                 "properties": {
                   "when": {
                     "type": "string",
@@ -2837,7 +2837,7 @@
             "properties": {
               "law": {
                 "type": "string",
-                "description": "The `$id` of the law whose output is being replaced: lex specialis written down. An override from another law fires only when that law is the one being executed, so with no such context it does not apply (RFC-007). An override on an output of its own law applies whatever the contextual law is, because an exclusion in the same law is not a claim about the asking law (RFC-041). The engine does not check that the override is legally valid."
+                "description": "The `$id` of the law whose output is being replaced: lex specialis written down. An override from another law applies while that law is executing, anywhere in the chain of the current execution: a Vreemdelingenwet override on Awb 6:7 applies to the hook on a Vreemdelingenwet beschikking, and a Wet op het kindgebonden budget override on Awir 4 applies to the hook on its own tegemoetkoming, also when another law calls the Wkb on the way. Until v0.9.0 only the law that started the execution counted (RFC-007); that still counts, also for a procedure resumed stage by stage. An override on an output of its own law applies whatever the chain (RFC-041). The engine does not check that the override is legally valid."
               },
               "article": {
                 "type": "string",
@@ -2854,6 +2854,10 @@
               "legal_text_excerpt": {
                 "type": "string",
                 "description": "The words of this article that establish the override, quoted verbatim, as `markings` already do. A closed vocabulary was considered and rejected: it would make the agent translate the statute into a category, which is the interpretive step this format exists to avoid. A quotation only has to be copied, and a check can hold it against the article's own text."
+              },
+              "when": {
+                "type": "string",
+                "description": "Since v0.9.0: the override applies only where this boolean output of the overriding article is true; false, null or unknown leave the overridden output as it is. The Wet kinderopvang voids Awir 5 only \"op wijzigingen in de kosten van kinderopvang per kind\". The overriding article runs with the parameters the overridden article receives, and with those it declares itself."
               }
             },
             "additionalProperties": false,
@@ -3011,42 +3015,6 @@
                   "regulation"
                 ],
                 "description": "What the members are: items in `produces` (default) or regulations, which claim membership with `member_of`."
-              }
-            }
-          }
-        },
-        "excludes": {
-          "type": "array",
-          "minItems": 1,
-          "description": "Since v0.9.0: hook articles of a general law that do not apply, as this article says: \"Artikel 4 van de Algemene wet inkomensafhankelijke regelingen is niet van toepassing.\" Without `kind` the exclusion covers what this regulation itself produces; with `kind` every item of that kind, which is how a general law limits its own reach (Awb 1:6) or switches off another for its members (AWR 1 lid 3). The excluded hook does not run, and its outputs are recorded as not arising, with the quoted ground. Unlike an override it is not scoped to the law that started the execution: it travels with the item the hook would fire on.",
-          "items": {
-            "type": "object",
-            "required": [
-              "law",
-              "article",
-              "legal_text_excerpt"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "law": {
-                "type": "string",
-                "description": "The `$id` of the law whose hook article does not apply."
-              },
-              "article": {
-                "type": "string",
-                "description": "The hook article that does not apply."
-              },
-              "kind": {
-                "$ref": "#/definitions/kindReference",
-                "description": "Only items of this kind or a narrower one, including items that claim it with `member_of` and items of a regulation that does. Without it, only items this regulation produces."
-              },
-              "when": {
-                "type": "string",
-                "description": "Only where this boolean output of this article is true, for an exclusion the law limits to some cases: the Wet kinderopvang excludes Awir 5 only \"op wijzigingen in de kosten van kinderopvang per kind\". The article runs with the parameters the hook would receive."
-              },
-              "legal_text_excerpt": {
-                "type": "string",
-                "description": "The words of this article that establish the exclusion, quoted verbatim."
               }
             }
           }

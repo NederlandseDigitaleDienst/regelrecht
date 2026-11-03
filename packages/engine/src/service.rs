@@ -29,8 +29,8 @@ use crate::answer::{
     AnswerProvenance, AnswerRequest, Authority, Call, Chronicle, ChronicleRead, OpenTermAnswerer,
 };
 use crate::article::{
-    is_kind_reference, Article, ArticleBasedLaw, CompetentAuthority, Execution, HookPoint, Input,
-    MachineReadable, NamedAuthority, ProcedureDefinition, Produced, Stage, StageRequirement,
+    Article, ArticleBasedLaw, CompetentAuthority, Execution, HookPoint, Input, MachineReadable,
+    NamedAuthority, ProcedureDefinition, Produced, Stage, StageRequirement,
 };
 use crate::config;
 use crate::context::{LazyInputs, RuleContext};
@@ -112,6 +112,10 @@ struct ResolutionContext<'a> {
     /// The law that initiated the current execution chain (for override scoping).
     /// Overrides only apply when declared by this law.
     contextual_law_id: Option<String>,
+    /// The laws whose articles are executing now, outermost first (schema
+    /// v0.9.0). An override from another law applies while that law is in
+    /// this chain.
+    law_chain: Vec<String>,
     /// Where the engine is right now: the innermost provision being evaluated
     /// (RFC-039). Every trace step pushed while this is set inherits it as its
     /// `anchor`, so a step can name its article without each push site having
@@ -292,6 +296,7 @@ impl<'a> ResolutionContext<'a> {
             trace: None,
             cache: HashMap::new(),
             contextual_law_id: None,
+            law_chain: Vec::new(),
             anchor: None,
             delegation_refusals: Vec::new(),
             declaration_version_notes: Vec::new(),
@@ -868,6 +873,9 @@ struct OverridePlan {
     /// Per such output, the declared parameters the override's rule for that
     /// output may read: see [`rule_reads`]. At most `replacing`.
     rule_reads: BTreeMap<String, BTreeSet<String>>,
+    /// The declared parameters of the applicable overrides with `when`
+    /// (schema v0.9.0), which run after the actions.
+    conditional: BTreeSet<String>,
 }
 
 /// An article's inputs and open terms, each resolved the first time it is
@@ -3515,7 +3523,11 @@ impl LawExecutionService {
                 hooks
                     .into_iter()
                     .flatten()
-                    .flat_map(|hook| declared_parameter_names(hook.article))
+                    .flat_map(|hook| {
+                        declared_parameter_names(hook.article)
+                            .chain(self.override_parameter_names(hook.article, hook.law, res_ctx))
+                            .collect::<Vec<_>>()
+                    })
                     .collect()
             })
             .unwrap_or_default()
@@ -3611,7 +3623,13 @@ impl LawExecutionService {
             else {
                 continue;
             };
-            if declaration.is_some_and(|d| d.voids) {
+            // An override with `when` (schema v0.9.0) may or may not apply:
+            // the output is computed as usual, and the override decides
+            // afterwards. What it declares, it receives.
+            if declaration.is_some_and(|d| d.when.is_some()) {
+                plan.conditional
+                    .extend(declared_parameter_names(ovr_article));
+            } else if declaration.is_some_and(|d| d.voids) {
                 plan.voided.insert(output.to_string());
             } else {
                 plan.replacing.insert(
@@ -3637,113 +3655,21 @@ impl LawExecutionService {
         plan
     }
 
-    /// The exclusion that switches off hook article `hook_article` of
-    /// `hook_law` on what `article` of `law` produces, if one applies
-    /// (schema v0.9.0).
-    ///
-    /// An exclusion without `kind` applies to what its own regulation
-    /// produces: the Wet op het kindgebonden budget says of itself that Awir
-    /// 4 does not apply. One with `kind` applies to every item of that kind,
-    /// by its `type`, by `member_of` on the item, or by `member_of` on its
-    /// regulation. Unlike an override it does not depend on the law that
-    /// started the execution: it travels with the item, so it also holds
-    /// when the Awir asks the Wet kinderopvang for the tegemoetkoming.
-    ///
-    /// With `when`, the excluding article runs with the parameters the hook
-    /// would receive and the exclusion applies where that output is true.
-    /// False, null or unknown (no case of the kind the law names, or no
-    /// case at all) leaves the hook to fire.
-    fn applicable_exclusion(
+    /// The parameters that the applicable overrides of `article`'s outputs
+    /// declare, as [`Self::override_plan`] selects them. A hook passes them
+    /// on to the lex specialis that runs inside it, and to no one else.
+    fn override_parameter_names(
         &self,
-        hook_law: &str,
-        hook_article: &str,
         article: &Article,
         law: &ArticleBasedLaw,
-        parameters: &BTreeMap<String, Value>,
-        res_ctx: &mut ResolutionContext<'_>,
-    ) -> Result<Option<crate::resolver::ExclusionEntry>> {
-        let candidates = self.resolver.find_exclusions(hook_law, hook_article);
-        if candidates.is_empty() {
-            return Ok(None);
-        }
-        let kinds = self.item_kinds(article, law);
-        let ref_date = res_ctx.reference_date();
-        for entry in candidates {
-            let decl = &entry.declaration;
-            let in_scope = match &decl.kind {
-                Some(k) => kinds.contains(k),
-                None => entry.law_id == law.id,
-            };
-            if !in_scope {
-                continue;
-            }
-            // The index is built from the newest version, so the excluding
-            // regulation and article must be in force on this date, as for
-            // a hook or an override. If not, the general rule applies, and
-            // the trace says why.
-            let excluding = self
-                .resolver
-                .get_law_for_date_reported(&entry.law_id, ref_date)
-                .map_err(|reason| reason.describe())
-                .and_then(|l| {
-                    l.find_article_by_number(&entry.article_number)
-                        .map(|a| (l, a))
-                        .ok_or_else(|| {
-                            format!("article {} is not in this version", entry.article_number)
-                        })
-                });
-            let (excl_law, excl_article) = match excluding {
-                Ok(found) => found,
-                Err(reason) => {
-                    let _guard = res_ctx.trace_guard(
-                        format!("{}:{}", entry.law_id, entry.article_number),
-                        PathNodeType::HookResolution,
-                    );
-                    res_ctx.trace_set_message(format!(
-                        "Exclusion of {hook_law}:{hook_article} by {}:{} not in force: {reason}",
-                        entry.law_id, entry.article_number
-                    ));
-                    continue;
-                }
-            };
-            let Some(when) = &decl.when else {
-                return Ok(Some(entry.clone()));
-            };
-            let key = format!("exclusion:{}:{}", entry.law_id, entry.article_number);
-            if res_ctx.is_visited(&key) {
-                return Err(EngineError::CircularReference(format!(
-                    "{}:{} decides whether it excludes {hook_law}:{hook_article} \
-                     while it is already deciding that",
-                    entry.law_id, entry.article_number
-                )));
-            }
-            res_ctx.enter(key.clone());
-            let result = self.evaluate_article_with_service(
-                excl_article,
-                excl_law,
-                Self::filter_parameters_for_article(excl_article, parameters),
-                Some(&[when.as_str()]),
-                "BESLUIT", // an exclusion is not procedure-aware
-                res_ctx,
-            );
-            res_ctx.leave(&key);
-            match result?.outputs.get(when) {
-                Some(Value::Bool(true)) => return Ok(Some(entry.clone())),
-                // Not a case the law names, or nothing known about the
-                // case: the general rule applies.
-                Some(Value::Bool(false)) | Some(Value::Null) | Some(Value::Unknown(_)) => {}
-                other => {
-                    return Err(EngineError::InvalidOperation(format!(
-                        "{}:{} excludes {hook_law}:{hook_article} when {when}, \
-                         which is {} instead of true or false",
-                        entry.law_id,
-                        entry.article_number,
-                        other.map_or_else(|| "not computed".to_string(), ToString::to_string)
-                    )))
-                }
-            }
-        }
-        Ok(None)
+        res_ctx: &ResolutionContext<'_>,
+    ) -> BTreeSet<String> {
+        let plan = self.override_plan(article, law, res_ctx);
+        plan.replacing
+            .into_values()
+            .flatten()
+            .chain(plan.conditional)
+            .collect()
     }
 
     /// The kinds the decision of `article` belongs to besides its `type`
@@ -3759,33 +3685,6 @@ impl LawExecutionService {
             .chain(law.member_of.iter().flatten())
             .map(|m| m.kind.clone())
             .collect()
-    }
-
-    /// Every kind what `article` of `law` produces belongs to (schema
-    /// v0.9.0): the lineage of each item's `type`, and of each further kind
-    /// of its decision (see [`Self::further_kinds`]).
-    fn item_kinds(&self, article: &Article, law: &ArticleBasedLaw) -> Vec<String> {
-        let mut kinds: Vec<String> = Vec::new();
-        let mut add = |k: &str| {
-            for k in self.resolver.kind_lineage(k) {
-                if !kinds.contains(&k) {
-                    kinds.push(k);
-                }
-            }
-        };
-        for produced in article.get_produced() {
-            if let Produced::Item(item) = produced {
-                if is_kind_reference(&item.item_type) {
-                    add(&item.item_type);
-                }
-            }
-        }
-        // The further kinds the hooks fire on, as `hooks_firing_on` reads
-        // them.
-        for k in self.further_kinds(article, law) {
-            add(&k);
-        }
-        kinds
     }
 
     /// Fire hooks that match the given article's `produces` annotation.
@@ -3852,53 +3751,17 @@ impl LawExecutionService {
             let hook_article_number = &hook_entry.article_number;
             let hook_key = hook_key(&hook_entry.law_id, &hook_entry.article_number);
 
-            // Schema v0.9.0: a regulation may say this hook does not apply.
-            // It then does not run, and what it would have produced is
-            // recorded as not arising, with the words that say so.
-            if let Some(exclusion) = self.applicable_exclusion(
-                hook_law_id,
-                hook_article_number,
-                article,
-                law,
-                parameters,
-                res_ctx,
-            )? {
-                let _guard = res_ctx.trace_guard(
-                    format!("{}:{}", exclusion.law_id, exclusion.article_number),
-                    PathNodeType::HookResolution,
-                );
-                res_ctx.trace_set_message(format!(
-                    "Exclusion: {}:{} excludes hook {}:{} on {}",
-                    exclusion.law_id,
-                    exclusion.article_number,
-                    hook_law_id,
-                    hook_article_number,
-                    on
-                ));
-                for output in hook_article
-                    .get_execution_spec()
-                    .and_then(|e| e.output.as_ref())
-                    .into_iter()
-                    .flatten()
-                {
-                    // A value another hook produced for the same name keeps
-                    // its own provenance; otherwise the ground is recorded.
-                    if !hook_outputs.contains_key(&output.name) {
-                        hook_provenance.insert(
-                            output.name.clone(),
-                            OutputProvenance::Voided {
-                                law_id: exclusion.law_id.clone(),
-                                article: exclusion.article_number.clone(),
-                                grounds: Some(exclusion.declaration.legal_text_excerpt.clone()),
-                            },
-                        );
-                    }
-                }
-                continue;
-            }
-
             // Filter parameters: only pass parameters declared by the hook article (least privilege)
-            let hook_params = Self::filter_parameters_for_article(hook_article, parameters);
+            let mut hook_params = Self::filter_parameters_for_article(hook_article, parameters);
+            // A lex specialis on the hook's own outputs runs inside the hook
+            // and receives the hook's parameters. It also gets the ones it
+            // declares itself: the Wet kinderopvang needs to know what changed
+            // to decide whether Awir 5 applies, which Awir 5 never asks.
+            for name in self.override_parameter_names(hook_article, hook_law, res_ctx) {
+                if let Some(value) = parameters.get(&name) {
+                    hook_params.entry(name).or_insert_with(|| value.clone());
+                }
+            }
 
             // Trace the hook execution (guard auto-pops on all exit paths)
             let _guard = res_ctx.trace_guard(
@@ -3930,7 +3793,16 @@ impl LawExecutionService {
             // A missing variable means the law cannot be applied — that's an error.
             let result = hook_result?;
 
-            if let Some(void) = &hook_entry.voids {
+            // A regulation that deviates voids the hook's `when` (Vw 2000
+            // art. 10 lid 2): then there is nothing to take away.
+            let deviated = matches!(
+                hook_entry
+                    .voids
+                    .as_ref()
+                    .and_then(|v| result.output_provenance.get(&v.when)),
+                Some(OutputProvenance::Voided { .. })
+            );
+            if let Some(void) = hook_entry.voids.as_ref().filter(|_| !deviated) {
                 match result.outputs.get(&void.when) {
                     Some(Value::Bool(true)) => {
                         res_ctx.trace_set_message(format!(
@@ -4097,9 +3969,16 @@ impl LawExecutionService {
             .resolver
             .find_overrides(&law.id, &article.number, output_name);
 
-        // An override from another law applies only within the execution
-        // that law started: a Vreemdelingenwet exclusion on Awb 6:7 is not
-        // a Participatiewet case (RFC-007, "contextual law").
+        // An override from another law applies while that law is executing,
+        // anywhere in the chain (schema v0.9.0): a Vreemdelingenwet
+        // exclusion on Awb 6:7 applies to the hook on a Vreemdelingenwet
+        // beschikking and not to one on a Participatiewet beschikking, and a
+        // Wkb exclusion of Awir 4 applies to the hook on the Wkb's own
+        // tegemoetkoming, also when another law calls the Wkb on the way.
+        // Until v0.9.0 only the law that started the execution counted
+        // (RFC-007, "contextual law"). That rule stays: a procedure resumed
+        // stage by stage carries the law that started it, which is then no
+        // longer in the chain. The chain adds to it.
         //
         // An article overriding an output of its own law is a different
         // claim. There is no other law to be protected from, and the
@@ -4113,7 +3992,9 @@ impl LawExecutionService {
         let applicable: Vec<_> = overrides
             .iter()
             .filter(|ovr| {
-                ovr.law_id == law.id || Some(&ovr.law_id) == res_ctx.contextual_law_id.as_ref()
+                ovr.law_id == law.id
+                    || Some(&ovr.law_id) == res_ctx.contextual_law_id.as_ref()
+                    || res_ctx.law_chain.contains(&ovr.law_id)
             })
             .collect();
 
@@ -4328,6 +4209,20 @@ impl LawExecutionService {
             ovr_law_id, ovr_article_number, law.id, article.number, output_name
         ));
 
+        // Schema v0.9.0: an override that applies only in some cases runs
+        // its article for `when` first. Not true: the output stays as it is.
+        if let Some(when) = declaration.and_then(|d| d.when.as_deref()) {
+            let applies =
+                self.override_condition(ovr_law, ovr_article, &ovr_key, when, parameters, res_ctx)?;
+            if !applies {
+                res_ctx.trace_set_message(format!(
+                    "Lex specialis: {}:{} does not apply to {}:{}.{} ({when} is not true)",
+                    ovr_law_id, ovr_article_number, law.id, article.number, output_name
+                ));
+                return Ok(OverrideOutcome::NotApplied);
+            }
+        }
+
         if let Some(decl) = declaration.filter(|d| d.voids) {
             res_ctx.trace_set_message(format!(
                 "Lex specialis: {}:{} voids {}:{}.{}",
@@ -4373,6 +4268,49 @@ impl LawExecutionService {
         ))
     }
 
+    /// Whether the condition `when` of an override holds: the overriding
+    /// article runs with the parameters it declares, out of those the
+    /// overridden article received. True applies the override; false, null
+    /// or unknown (no case of the kind the law names, or nothing known about
+    /// the case) leave the output as it is; anything else is an error.
+    fn override_condition(
+        &self,
+        ovr_law: &ArticleBasedLaw,
+        ovr_article: &Article,
+        ovr_key: &str,
+        when: &str,
+        parameters: &BTreeMap<String, Value>,
+        res_ctx: &mut ResolutionContext<'_>,
+    ) -> Result<bool> {
+        let key = format!("{ovr_key}:when");
+        if res_ctx.is_visited(&key) {
+            return Err(EngineError::CircularReference(format!(
+                "{}:{} decides whether it applies while it is already deciding that",
+                ovr_law.id, ovr_article.number
+            )));
+        }
+        res_ctx.enter(key.clone());
+        let result = self.evaluate_article_with_service(
+            ovr_article,
+            ovr_law,
+            Self::filter_parameters_for_article(ovr_article, parameters),
+            Some(&[when]),
+            "BESLUIT", // override articles are not procedure-aware
+            res_ctx,
+        );
+        res_ctx.leave(&key);
+        match result?.outputs.get(when) {
+            Some(Value::Bool(applies)) => Ok(*applies),
+            Some(Value::Null) | Some(Value::Unknown(_)) => Ok(false),
+            other => Err(EngineError::InvalidOperation(format!(
+                "{}:{} overrides when {when}, which is {} instead of true or false",
+                ovr_law.id,
+                ovr_article.number,
+                other.map_or_else(|| "not computed".to_string(), ToString::to_string)
+            ))),
+        }
+    }
+
     /// Execute an article with ServiceProvider support.
     ///
     /// The `stage` parameter controls which lifecycle stage hooks fire at.
@@ -4401,8 +4339,10 @@ impl LawExecutionService {
         res_ctx: &mut ResolutionContext<'_>,
     ) -> Result<ArticleResult> {
         let outer_anchor = res_ctx.enter_anchor(Some(LegalAnchor::from_article(law, article)));
+        res_ctx.law_chain.push(law.id.clone());
         let result =
             self.evaluate_article_body(article, law, parameters, requested_outputs, stage, res_ctx);
+        res_ctx.law_chain.pop();
         // Restored before the `?`: an error must not leave the caller anchored
         // to the article that failed.
         res_ctx.enter_anchor(outer_anchor);

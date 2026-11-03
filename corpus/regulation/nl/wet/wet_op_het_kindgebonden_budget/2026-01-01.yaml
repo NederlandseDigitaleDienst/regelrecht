@@ -49,11 +49,14 @@ articles:
     machine_readable:
       # Lid 3: Awir artikel 4 (het begrip kind) geldt niet voor deze wet, die
       # het kind via de kinderbijslag bepaalt (artikel 2, eerste lid). De
-      # uitsluiting is volledig. Lid 4 en 5 wijken af van de Awir en zijn
+      # uitsluiting is volledig: Awir 4 heeft één uitkomst, en die vervalt
+      # (een override met `voids`). Lid 4 en 5 wijken af van de Awir en zijn
       # niet gemodelleerd.
-      excludes:
+      overrides:
         - law: algemene_wet_inkomensafhankelijke_regelingen
           article: '4'
+          output: is_kind
+          voids: true
           legal_text_excerpt: >-
             Artikel 4 van de Algemene wet inkomensafhankelijke regelingen is
             niet van toepassing.

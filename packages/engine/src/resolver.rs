@@ -20,8 +20,8 @@
 //! to prevent memory exhaustion attacks.
 
 use crate::article::{
-    is_kind_reference, Article, ArticleBasedLaw, ExclusionDeclaration, HookFilter, HookPoint,
-    KindDefinition, KindLevel, LawLoad, OpenTerm, ProcedureDefinition, Produced,
+    is_kind_reference, Article, ArticleBasedLaw, HookFilter, HookPoint, KindDefinition, KindLevel,
+    LawLoad, OpenTerm, ProcedureDefinition, Produced,
 };
 use crate::config;
 use crate::error::{EngineError, Result};
@@ -370,19 +370,10 @@ fn declaration_fingerprint(law: &ArticleBasedLaw) -> Vec<String> {
         if let Some(overrides) = article.get_overrides() {
             for decl in overrides {
                 parts.push(format!(
-                    "override\0{}\0{}\0{}\0{}",
-                    article.number, decl.law, decl.article, decl.output
+                    "override\0{}\0{}\0{}\0{}\0{:?}",
+                    article.number, decl.law, decl.article, decl.output, decl.when
                 ));
             }
-        }
-        // Schema v0.9.0: the exclusions index is built from the newest
-        // version too, so a version that excludes differently must be
-        // noticed like one that hooks differently.
-        for decl in article.get_exclusions() {
-            parts.push(format!(
-                "exclude\0{}\0{}\0{}\0{:?}\0{:?}",
-                article.number, decl.law, decl.article, decl.kind, decl.when
-            ));
         }
     }
     parts.sort();
@@ -390,7 +381,7 @@ fn declaration_fingerprint(law: &ArticleBasedLaw) -> Vec<String> {
 }
 
 /// A finding when `name` is not a boolean output of `article`: the `when`
-/// of an exclusion or of a hook that voids (schema v0.9.0).
+/// of an override or of a hook that voids (schema v0.9.0).
 fn check_boolean_output(errors: &mut Vec<String>, at: &str, article: &Article, name: &str) {
     let output = article
         .get_execution_spec()
@@ -446,18 +437,6 @@ enum HookTarget {
     Decision(String),
     Submission(String),
     Kind(String),
-}
-
-/// An article saying that a hook article does not apply (schema v0.9.0), in
-/// the exclusions index.
-#[derive(Debug, Clone)]
-pub struct ExclusionEntry {
-    /// The regulation that declares the exclusion.
-    pub law_id: String,
-    /// The article that declares it.
-    pub article_number: String,
-    /// The declaration.
-    pub declaration: ExclusionDeclaration,
 }
 
 /// A kind that an article defines (schema v0.9.0), in the kinds index.
@@ -572,10 +551,6 @@ pub struct RuleResolver {
     /// Kinds index (schema v0.9.0): `<regulation>/<id>` -> the defining
     /// article. Built, like the hooks index, from the newest version.
     kinds_index: HashMap<String, KindEntry>,
-    /// Exclusions index (schema v0.9.0): (hook law, hook article) -> the
-    /// articles that say it does not apply. Built, like the hooks index,
-    /// from the newest version.
-    exclusions_index: HashMap<(String, String), Vec<ExclusionEntry>>,
     /// Law ids that have more than one loaded version where the declarations
     /// differ between versions (hooks, overrides, procedures). Kept so
     /// [`Self::declarations_from_another_version`] can answer in O(size of this
@@ -637,7 +612,6 @@ impl RuleResolver {
             procedure_index: HashMap::new(),
             procedure_defaults: HashMap::new(),
             kinds_index: HashMap::new(),
-            exclusions_index: HashMap::new(),
             versioned_declarers: HashSet::new(),
         }
     }
@@ -1594,7 +1568,6 @@ impl RuleResolver {
 
         // Remove old kinds defined by this law
         self.kinds_index.retain(|_, entry| entry.law_id != law_id);
-        self.remove_exclusions_of(law_id);
 
         // Remove old procedure index entries defined by this law
         self.procedure_index
@@ -1702,18 +1675,6 @@ impl RuleResolver {
                         }
                     }
 
-                    // Exclusions index (schema v0.9.0)
-                    for decl in article.get_exclusions() {
-                        self.exclusions_index
-                            .entry((decl.law.clone(), decl.article.clone()))
-                            .or_default()
-                            .push(ExclusionEntry {
-                                law_id: law_id.to_string(),
-                                article_number: article.number.clone(),
-                                declaration: decl.clone(),
-                            });
-                    }
-
                     // Overrides index
                     if let Some(ovr_decls) = article.get_overrides() {
                         for decl in ovr_decls {
@@ -1761,7 +1722,6 @@ impl RuleResolver {
 
         // Remove kinds defined by this law
         self.kinds_index.retain(|_, entry| entry.law_id != law_id);
-        self.remove_exclusions_of(law_id);
 
         // Remove procedure index entries defined by this law
         self.procedure_index
@@ -2081,39 +2041,13 @@ impl RuleResolver {
                         );
                     }
                 }
-                for decl in article.get_exclusions() {
-                    let at = format!(
-                        "{id} article {}: excludes {}#{}",
-                        article.number, decl.law, decl.article
-                    );
-                    if let Some(k) = &decl.kind {
-                        if !self.kinds_index.contains_key(k) {
-                            errors.push(format!("{at} for kind {k}, which is defined nowhere"));
-                        }
-                    }
-                    if !normalize(&article.text).contains(&normalize(&decl.legal_text_excerpt)) {
-                        errors.push(format!(
-                            "{at}: the excerpt is not in the text of the article"
-                        ));
-                    }
+                for decl in article.get_overrides().into_iter().flatten() {
                     if let Some(when) = &decl.when {
-                        check_boolean_output(
-                            &mut errors,
-                            &format!("{at} when {when}"),
-                            article,
-                            when,
+                        let at = format!(
+                            "{id} article {}: overrides {}#{} {} when {when}",
+                            article.number, decl.law, decl.article, decl.output
                         );
-                    }
-                    // A target in a regulation that is not loaded cannot be
-                    // checked here; the exclusion then simply never meets it.
-                    if let Some(target) = self.get_law(&decl.law) {
-                        match target.find_article_by_number(&decl.article) {
-                            None => errors.push(format!("{at}, which does not exist")),
-                            Some(a) if a.get_hooks().is_none_or(Vec::is_empty) => {
-                                errors.push(format!("{at}, which declares no hooks"))
-                            }
-                            Some(_) => {}
-                        }
+                        check_boolean_output(&mut errors, &at, article, when);
                     }
                 }
                 for p in article.get_parameters() {
@@ -2211,23 +2145,6 @@ impl RuleResolver {
             }
         }
         hooks
-    }
-
-    /// The exclusions of hook article `article` of `law_id` (schema v0.9.0),
-    /// whichever regulation declares them. Whether one applies to an item is
-    /// for the caller, which knows the item.
-    pub(crate) fn find_exclusions(&self, law_id: &str, article: &str) -> &[ExclusionEntry] {
-        self.exclusions_index
-            .get(&(law_id.to_string(), article.to_string()))
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
-    }
-
-    fn remove_exclusions_of(&mut self, law_id: &str) {
-        for entries in self.exclusions_index.values_mut() {
-            entries.retain(|e| e.law_id != law_id);
-        }
-        self.exclusions_index.retain(|_, v| !v.is_empty());
     }
 
     /// Find overrides for a specific article output.

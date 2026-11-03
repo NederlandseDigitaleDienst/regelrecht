@@ -36,13 +36,16 @@ articles:
     machine_readable:
       # Lid 2: Awir artikel 5 geldt niet voor wijzigingen in de kosten van
       # kinderopvang per kind. Voor elke andere wijziging geldt het wel. De
-      # uitsluiting is dus gedeeltelijk: zij geldt waar de uitkomst
-      # `wijziging_in_kosten_van_kinderopvang_per_kind` waar is. Lid 1 en de
-      # onderdelen a (een fictie) en b (een afwijking van Awir 15) zijn niet
-      # gemodelleerd.
-      excludes:
+      # uitsluiting is dus gedeeltelijk: een override die de uitkomst van
+      # Awir 5 laat vervallen waar `wijziging_in_kosten_van_kinderopvang_per_kind`
+      # waar is. Awir 5 heeft één uitkomst; vervalt die, dan heeft het artikel
+      # niets meer te zeggen. Lid 1 en de onderdelen a (een fictie) en b (een
+      # afwijking van Awir 15) zijn niet gemodelleerd.
+      overrides:
         - law: algemene_wet_inkomensafhankelijke_regelingen
           article: '5'
+          output: wijziging_in_aanmerking_vanaf
+          voids: true
           when: wijziging_in_kosten_van_kinderopvang_per_kind
           legal_text_excerpt: >-
             met uitzondering van artikel 5 van die wet op wijzigingen in de
@@ -98,7 +101,7 @@ articles:
     machine_readable:
       # Lid 1 geeft de aanspraak: een tegemoetkoming in de zin van Awir
       # artikel 2, eerste lid, onder h. Daarop vuren de hooks van de Awir,
-      # behalve waar artikel 1.3, tweede lid, er een uitsluit. Lid 2 en 3 en
+      # behalve waar artikel 1.3, tweede lid, er een laat vervallen. Lid 2 en 3 en
       # de hoogte (artikel 1.7 en 1.8) zijn niet gemodelleerd.
       execution:
         produces:
