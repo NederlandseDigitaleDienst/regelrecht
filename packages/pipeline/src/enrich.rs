@@ -5040,9 +5040,10 @@ pub async fn execute_enrich_with_runner(
                 return Err(PipelineError::Enrich(format!(
                     "{CHUNK_NO_OUTPUT_MARKER}: no new machine_readable additions in the window, \
                      no chunk_report referencing this window, no new markings or untranslatables \
-                     in the window (entries {} of {})",
+                     in the window (entries {} of {}){}",
                     numbers.join(", "),
-                    articles_before
+                    articles_before,
+                    config.activity.summary()
                 )));
             }
         }

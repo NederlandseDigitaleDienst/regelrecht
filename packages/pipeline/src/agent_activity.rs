@@ -64,6 +64,10 @@ struct Activity {
     /// windows side by side the last one to start wins.
     model: Option<String>,
     recent: VecDeque<String>,
+    /// opencode model steps that ended on `length`: cut off by the output
+    /// limit rather than finished. A count, not "the last step", because the
+    /// calls of one job (windows side by side, gate rounds) share this state.
+    steps_cut_off: u32,
 }
 
 /// Shared view of the agent's activity. Cheap to clone; every clone sees the
@@ -144,10 +148,14 @@ impl ActivityHandle {
             self.with(|a| a.model = Some(model));
             return;
         }
-        // opencode writes its own events: `step_start` opens a model step and
-        // `tool_use` reports a finished tool call. Without these the summary
-        // of an opencode run reads "0 turns, 0 tool calls" whatever it did.
-        if line.contains(r#""type":"step_start""#) || line.contains(r#""type":"tool_use""#) {
+        // opencode writes its own events: `step_start` opens a model step,
+        // `tool_use` reports a finished tool call and `step_finish` says why a
+        // step ended. Without these the summary of an opencode run reads
+        // "0 turns, 0 tool calls" whatever it did.
+        if line.contains(r#""type":"step_start""#)
+            || line.contains(r#""type":"tool_use""#)
+            || line.contains(r#""type":"step_finish""#)
+        {
             if let Ok(event) = serde_json::from_str::<serde_json::Value>(line) {
                 match event.get("type").and_then(serde_json::Value::as_str) {
                     Some("step_start") => {
@@ -158,6 +166,10 @@ impl ActivityHandle {
                         if let Some(tool) = opencode_tool_summary(&event) {
                             self.record_tool(tool);
                         }
+                        return;
+                    }
+                    Some("step_finish") => {
+                        self.record_step_finish(&event);
                         return;
                     }
                     _ => {}
@@ -186,6 +198,36 @@ impl ActivityHandle {
         for tool in tools {
             self.record_tool(tool);
         }
+    }
+
+    /// Log why an opencode model step ended and what it used. The reason and
+    /// the token counts only: the model's own text can quote a document that
+    /// is not public, the same reason `tool_summary` leaves content out.
+    fn record_step_finish(&self, event: &serde_json::Value) {
+        let step = step_finish_fields(event);
+        self.with(|a| {
+            let call = a.call.as_deref().unwrap_or("agent");
+            if step.reason == "length" {
+                a.steps_cut_off += 1;
+                tracing::warn!(
+                    call,
+                    reason = %step.reason,
+                    input = step.input,
+                    output = step.output,
+                    reasoning = step.reasoning,
+                    "agent step cut off by the output limit"
+                );
+            } else {
+                tracing::info!(
+                    call,
+                    reason = %step.reason,
+                    input = step.input,
+                    output = step.output,
+                    reasoning = step.reasoning,
+                    "agent step finished"
+                );
+            }
+        });
     }
 
     fn record_tool(&self, tool: String) {
@@ -233,8 +275,13 @@ impl ActivityHandle {
                     a.recent.iter().cloned().collect::<Vec<_>>().join(" | ")
                 )
             };
+            let step_end = if a.steps_cut_off > 0 {
+                format!(", {} step(s) cut off by the output limit", a.steps_cut_off)
+            } else {
+                String::new()
+            };
             format!(
-                "{ACTIVITY_MARKER} {} turns, {} tool calls{idle}{recent}",
+                "{ACTIVITY_MARKER} {} turns, {} tool calls{idle}{recent}{step_end}",
                 a.turns, a.tool_calls
             )
         })
@@ -348,6 +395,38 @@ fn classify(event: &serde_json::Value) -> Option<Event> {
     Some(Event::Assistant { message_id, tools })
 }
 
+/// What an opencode `step_finish` event says about the step.
+#[derive(Debug, PartialEq, Eq)]
+struct StepFinish {
+    reason: String,
+    input: u64,
+    output: u64,
+    reasoning: u64,
+}
+
+/// Read a `step_finish` event; a missing field reads as `unknown` or 0.
+fn step_finish_fields(event: &serde_json::Value) -> StepFinish {
+    let part = event.get("part");
+    let reason = part
+        .and_then(|p| p.get("reason"))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("unknown")
+        .to_string();
+    let tokens = part.and_then(|p| p.get("tokens"));
+    let count = |key: &str| {
+        tokens
+            .and_then(|t| t.get(key))
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(0)
+    };
+    StepFinish {
+        reason,
+        input: count("input"),
+        output: count("output"),
+        reasoning: count("reasoning"),
+    }
+}
+
 /// `name target (status)` for an opencode `tool_use` event. The target is the
 /// file path only, for the same reason as [`tool_summary`]: never the content
 /// of a write, a search pattern or a shell command.
@@ -454,6 +533,53 @@ pub fn count_articles(yaml: &str) -> (usize, usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn step_finish_fields_reads_reason_and_tokens() {
+        let event: serde_json::Value = serde_json::from_str(
+            r#"{"type":"step_finish","part":{"reason":"length","tokens":{"input":50000,"output":16384,"reasoning":12000,"cache":{"read":0}}}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            step_finish_fields(&event),
+            StepFinish {
+                reason: "length".into(),
+                input: 50000,
+                output: 16384,
+                reasoning: 12000
+            }
+        );
+        let bare: serde_json::Value = serde_json::from_str(r#"{"type":"step_finish"}"#).unwrap();
+        assert_eq!(
+            step_finish_fields(&bare),
+            StepFinish {
+                reason: "unknown".into(),
+                input: 0,
+                output: 0,
+                reasoning: 0
+            }
+        );
+    }
+
+    #[test]
+    fn steps_cut_off_by_the_output_limit_are_counted_across_calls() {
+        let a = ActivityHandle::new();
+        let cut = r#"{"type":"step_finish","part":{"reason":"length","tokens":{"output":32000}}}"#;
+        a.record_line(cut);
+        // A later call that ends normally must not hide the cut-off one.
+        a.record_line(r#"{"type":"step_finish","part":{"reason":"stop"}}"#);
+        assert!(
+            a.summary()
+                .contains("1 step(s) cut off by the output limit"),
+            "{}",
+            a.summary()
+        );
+        a.record_line(cut);
+        assert!(a.summary().contains("2 step(s) cut off"), "{}", a.summary());
+        let clean = ActivityHandle::new();
+        clean.record_line(r#"{"type":"step_finish","part":{"reason":"stop"}}"#);
+        assert!(!clean.summary().contains("cut off"), "{}", clean.summary());
+    }
 
     #[test]
     fn opencode_steps_and_tool_calls_are_counted() {
