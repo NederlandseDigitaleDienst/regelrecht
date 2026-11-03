@@ -506,11 +506,6 @@ impl KindEntry {
         })
     }
 
-    /// Whether the members are regulations rather than items.
-    pub fn of_regulations(&self) -> bool {
-        self.definition.level == Some(KindLevel::Regulation)
-    }
-
     /// What the members are: items unless the definition says otherwise.
     pub fn level(&self) -> KindLevel {
         self.definition.level.unwrap_or(KindLevel::Item)
@@ -2284,11 +2279,6 @@ impl RuleResolver {
         self.organizations_index
             .values()
             .find(|e| e.declaration.name == name)
-    }
-
-    /// The organization `<regulation>/<id>` (schema v0.9.0).
-    pub fn organization(&self, reference: &str) -> Option<&OrganizationEntry> {
-        self.organizations_index.get(reference)
     }
 
     fn remove_exclusions_of(&mut self, law_id: &str) {

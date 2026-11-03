@@ -655,8 +655,9 @@ fn a_reloaded_regulation_without_its_exclusion_excludes_nothing() {
             .get("motivering_vereist"),
         None
     );
-    // The general law again, without article 5.
-    let without = ALGEMEEN[..ALGEMEEN.find("  - number: '5'").unwrap()].to_string();
+    // The general law again, with article 5 but without its exclusion.
+    let start = ALGEMEEN.find("      excludes:").unwrap();
+    let without = format!("{}\n", &ALGEMEEN[..start].trim_end());
     service
         .load_law(&format!("$schema: {SCHEMA}\n{}", without.trim_start()))
         .unwrap();
@@ -666,4 +667,173 @@ fn a_reloaded_regulation_without_its_exclusion_excludes_nothing() {
             .get("motivering_vereist"),
         Some(&Value::Bool(true))
     );
+}
+
+/// An override on the output of a hook receives the parameters it declares
+/// itself, when it applies: the hook article asks for none of them.
+#[test]
+fn an_override_on_a_hook_output_receives_its_own_parameters() {
+    let mut service = service();
+    service
+        .load_law(&format!("$schema: {SCHEMA}\n{}", KADER.trim_start()))
+        .unwrap();
+    let law = instelling("afwijkende_test_wet", "Afwijkende autoriteit", true).replace(
+        "  - number: '3'",
+        r#"  - number: '4'
+    text: In afwijking van artikel 2 van de kader test wet kan de minister alleen een algemeen besluit vernietigen.
+    machine_readable:
+      overrides:
+        - law: kader_test_wet
+          article: '2'
+          output: vernietigbaar
+      execution:
+        parameters:
+          - name: algemeen
+            type: boolean
+            required: false
+        output:
+          - name: vernietigbaar
+            type: boolean
+        actions:
+          - output: vernietigbaar
+            value:
+              operation: EQUALS
+              subject: $algemeen
+              value: true
+  - number: '3'"#,
+    );
+    service.load_law(&law).unwrap();
+    let run = |algemeen: bool| {
+        let mut params = BTreeMap::new();
+        params.insert("algemeen".to_string(), Value::Bool(algemeen));
+        service
+            .evaluate_law_output("afwijkende_test_wet", "beslist", params, "2025-06-01")
+            .unwrap()
+    };
+    assert_eq!(
+        run(true).outputs.get("vernietigbaar"),
+        Some(&Value::Bool(true))
+    );
+    let narrowed = run(false);
+    assert_eq!(
+        narrowed.outputs.get("vernietigbaar"),
+        Some(&Value::Bool(false))
+    );
+    assert!(matches!(
+        narrowed.output_provenance.get("vernietigbaar"),
+        Some(OutputProvenance::Override { .. })
+    ));
+}
+
+/// A hook may name one organization rather than a kind of them, and an
+/// organization that is unloaded no longer draws its hooks.
+#[test]
+fn a_hook_on_one_organization_fires_until_it_is_unloaded() {
+    let mut service = service();
+    service
+        .load_law(&format!(
+            r#"$schema: {SCHEMA}
+$id: toezicht_test_wet
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Een besluit van de Testautoriteit wordt gemeld.
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            kind: zbo_test_wet/orgaan
+      execution:
+        output:
+          - name: gemeld
+            type: boolean
+        actions:
+          - output: gemeld
+            value: true
+"#
+        ))
+        .unwrap();
+    service
+        .load_law(&format!("$schema: {SCHEMA}\n{}", KADER.trim_start()))
+        .unwrap();
+    service
+        .load_law(&instelling("zbo_test_wet", "Testautoriteit", true))
+        .unwrap();
+    service
+        .load_law(&instelling("dienst_test_wet", "Testdienst", false))
+        .unwrap();
+    assert_eq!(service.resolver().validate_kinds(), Vec::<String>::new());
+    let gemeld = |service: &LawExecutionService, law: &str| {
+        service
+            .evaluate_law_output(law, "beslist", BTreeMap::new(), "2025-06-01")
+            .unwrap()
+            .outputs
+            .get("gemeld")
+            .cloned()
+    };
+    assert_eq!(gemeld(&service, "zbo_test_wet"), Some(Value::Bool(true)));
+    assert_eq!(gemeld(&service, "dienst_test_wet"), None);
+    // Unloading the regulation that establishes an organization takes the
+    // organization away; its name in a competent_authority of another
+    // regulation is then only a name.
+    service
+        .load_law(&format!(
+            r#"$schema: {SCHEMA}
+$id: orgaan_test_wet
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Er is een Losse autoriteit. Zij is niet ondergeschikt aan een minister.
+    machine_readable:
+      organizations:
+        - id: orgaan
+          name: Losse autoriteit
+          member_of:
+            - kind: kader_test_wet/zelfstandig_bestuursorgaan
+              legal_text_excerpt: Zij is niet ondergeschikt aan een minister.
+"#
+        ))
+        .unwrap();
+    service
+        .load_law(&format!(
+            r#"$schema: {SCHEMA}
+$id: losse_besluit_test_wet
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: De Losse autoriteit beslist.
+    machine_readable:
+      competent_authority:
+        name: Losse autoriteit
+      execution:
+        produces:
+          - type: algemene_test_wet/beschikking
+        output:
+          - name: beslist
+            type: boolean
+        actions:
+          - output: beslist
+            value: true
+"#
+        ))
+        .unwrap();
+    let vernietigbaar = |service: &LawExecutionService| {
+        service
+            .evaluate_law_output(
+                "losse_besluit_test_wet",
+                "beslist",
+                BTreeMap::new(),
+                "2025-06-01",
+            )
+            .unwrap()
+            .outputs
+            .get("vernietigbaar")
+            .cloned()
+    };
+    assert_eq!(vernietigbaar(&service), Some(Value::Bool(true)));
+    assert!(service.unload_law("orgaan_test_wet"));
+    assert_eq!(vernietigbaar(&service), None);
 }
