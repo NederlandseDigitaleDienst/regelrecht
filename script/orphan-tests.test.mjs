@@ -301,6 +301,34 @@ jobs:
   assert.deepEqual(files(findings, 'sh'), []);
 });
 
+test('sh: a hook whose files are all excluded, or a job header with a comment, read right', () => {
+  const findings = check({
+    '.pre-commit-config.yaml': `repos:
+  - repo: local
+    hooks:
+      - id: a
+        entry: script/a.test.sh
+        language: system
+        files: ^script/
+        exclude: ^script/
+`,
+    '.github/workflows/ci.yml': `name: CI
+on: push
+jobs:
+  off:
+    if: false
+    steps:
+      - run: echo
+  real:  # the job that runs
+    steps:
+      - run: script/b.test.sh
+`,
+    'script/a.test.sh': '',
+    'script/b.test.sh': '',
+  });
+  assert.deepEqual(files(findings, 'sh'), ['script/a.test.sh']);
+});
+
 test('sh: a leg listed under matrix exclude does not run', () => {
   const ci = `name: CI
 on: push
@@ -356,6 +384,24 @@ test('crate: --exclude=name excludes too', () => {
     '.github/workflows/ci.yml': workflow({ run: 'cargo test --workspace --exclude=crate-b', wd: 'packages' }),
   });
   assert.deepEqual(files(findings, 'crate'), ['packages/b/Cargo.toml']);
+});
+
+test('crate: cargo test --no-run builds but tests nothing', () => {
+  const findings = check({
+    ...WORKSPACE,
+    '.github/workflows/ci.yml': workflow({ run: 'cargo test --no-run --workspace', wd: 'packages' }),
+  });
+  assert.deepEqual(files(findings, 'crate'), ['packages/a/Cargo.toml', 'packages/b/Cargo.toml']);
+});
+
+test('crate: a glob in members expands to the crates under it', () => {
+  const findings = check({
+    'packages/Cargo.toml': '[workspace]\nmembers = ["crates/*"]\n',
+    'packages/crates/x/Cargo.toml': '[package]\nname = "x"\n',
+    'packages/crates/y/Cargo.toml': '[package]\nname = "y"\n',
+    '.github/workflows/ci.yml': workflow({ run: 'cargo test -p x', wd: 'packages' }),
+  });
+  assert.deepEqual(files(findings, 'crate'), ['packages/crates/y/Cargo.toml']);
 });
 
 // --- Rule 3: feature files ---------------------------------------------------
@@ -431,6 +477,50 @@ test('feature: the bucket comes from export, inline assignment and workflow-leve
   assert.deepEqual(only('export BDD_BUCKET=conformance\ncargo test --test bdd'), conformanceOnly);
   assert.deepEqual(only('BDD_BUCKET=conformance cargo test --test bdd'), conformanceOnly);
   assert.deepEqual(only('cargo test --test bdd', 'conformance'), conformanceOnly);
+});
+
+test('feature: a recipe inherits the env of the step that calls it', () => {
+  const findings = check({
+    ...ENGINE,
+    Justfile: 'bdd:\n    cd packages/engine && REGULATION_PATH=../../corpus/demo cargo test --test bdd\n',
+    '.github/workflows/ci.yml': workflow({ run: 'just bdd', env: { BDD_BUCKET: 'conformance' } }),
+  });
+  assert.ok(files(findings, 'feature').includes('corpus/demo/law/scenarios/b.feature'));
+  assert.ok(!files(findings, 'feature').includes('bdd/conformance/a.feature'));
+});
+
+test('feature: a shell variable without export does not reach cargo or a recipe', () => {
+  const recipe = 'bdd:\n    cd packages/engine && cargo test --test bdd\n';
+  const run = (lines) =>
+    files(check({ ...ENGINE, Justfile: recipe, '.github/workflows/ci.yml': workflow({ run: lines }) }), 'feature');
+  // Without export the run sees bucket `all`, which reads the default corpus/regulation too.
+  const c = 'corpus/regulation/law/scenarios/c.feature';
+  assert.ok(!run('BDD_BUCKET=conformance\njust bdd').includes(c));
+  assert.ok(!run('BDD_BUCKET=conformance\ncd packages/engine\ncargo test --test bdd').includes(c));
+  assert.ok(run('BDD_BUCKET=conformance\nexport BDD_BUCKET\njust bdd').includes(c));
+  assert.ok(run('export X=1 BDD_BUCKET=conformance\njust bdd').includes(c));
+});
+
+test('feature: an export on one line of a plain recipe is gone on the next', () => {
+  const findings = check({
+    ...ENGINE,
+    Justfile: 'bdd:\n    export BDD_BUCKET=conformance\n    cd packages/engine && cargo test --test bdd\n',
+    '.github/workflows/ci.yml': workflow({ run: 'just bdd' }),
+  });
+  assert.ok(!files(findings, 'feature').includes('corpus/regulation/law/scenarios/c.feature'));
+});
+
+test('feature: a REGULATION_PATH a step builds from a script reaches the recipe it calls', () => {
+  const findings = check({
+    ...ENGINE,
+    'script/dirs.sh': '#!/usr/bin/env bash\necho corpus/demo\n',
+    Justfile: 'bdd:\n    cd packages/engine && cargo test --test bdd\n',
+    '.github/workflows/ci.yml': workflow({
+      run: 'DIRS=$(script/dirs.sh)\nREGULATION_PATH=$(echo "$DIRS" | paste -sd:)\nexport REGULATION_PATH\nexport BDD_BUCKET=corpus\njust bdd',
+    }),
+  });
+  assert.ok(!files(findings, 'feature').includes('corpus/demo/law/scenarios/b.feature'));
+  assert.ok(files(findings, 'feature').includes('bdd/conformance/a.feature'));
 });
 
 test('feature: REGULATION_PATH built from a script in the step is followed', () => {

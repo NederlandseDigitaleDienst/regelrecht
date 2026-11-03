@@ -74,17 +74,17 @@ just build-check  # cargo check over the whole workspace
 
 ## Does the new test run?
 
-A test that no CI job starts never fails, so a missing hook or step goes unnoticed for months. A test audit found seventeen of them. `just orphan-tests` (`script/check-orphan-tests.mjs`) reads what CI runs: the steps in `.github/workflows/`, the pre-commit hooks, and every `Justfile` recipe and npm script those reach. It fails on any of these:
+A test that no CI job starts never fails, so a missing hook or step goes unnoticed for months. An audit of the repository in October 2026 found seventeen. `just orphan-tests` (`script/check-orphan-tests.mjs`) reads what CI runs: the steps in `.github/workflows/`, the pre-commit hooks, and every `Justfile` recipe and npm script those reach. It fails on any of these:
 
 - a `*.test.ts`, `*.test.js` or `*.test.mjs` file that no command names and that no vitest run in CI picks up through its config's `include` and `exclude`
-- a `*.test.sh` file that no hook or step runs, directly or through a recipe that one of them calls
+- a `*.test.sh` or `test-*.sh` script that no hook or step runs, directly or through a recipe that one of them calls
 - a workspace crate that no `cargo test` in CI covers
-- a `.feature` file outside every directory a BDD runner in CI reads: the engine buckets, as `BDD_BUCKET` and `REGULATION_PATH` set them per step, and the PoC runners listed in `BDD_RUNNERS` in `script/orphan-tests.mjs`
+- a `.feature` file that no BDD runner in CI reads. The engine reads the directories that `BDD_BUCKET` and `REGULATION_PATH` select per step; the PoC runners are listed in `BDD_RUNNERS` in `script/orphan-tests.mjs`
 - a `@wip` tag or an `#[ignore]` without a comment that says why, above it or on the same line (`#[ignore = "..."]` counts too)
 
-Bucket A over `corpus/regulation` is the one exception, and the guard names it with its reason: that bucket stays out of CI on purpose. The guard runs as a pre-commit hook and therefore in the **Pre-commit** check. Its own suite is `just orphan-tests-test`, with a passing and a failing case for each rule.
+The guard skips one directory, `corpus/regulation`, because bucket A over the live laws stays out of CI on purpose. `EXCEPTIONS` in `script/orphan-tests.mjs` records that reason. The guard runs as a pre-commit hook and therefore in the **Pre-commit** check. Its own suite is `just orphan-tests-test`, with a passing and a failing case for each rule.
 
-It reads YAML and shell line by line and leans towards counting a test as run. A recipe with a `case` counts as running every branch, and a file counts as run once it is the command or an argument of an interpreter such as `node` or `bash`. Only a literal `if: false` takes a step out. Any other condition still counts as a run, and so does a workflow that only runs on a schedule. Playwright `*.spec.*` files and the pytest suites are outside its scope. Whether a test that runs also tests something is still a question for review.
+It reads YAML and shell line by line and leans towards counting a test as run. A recipe with a `case` counts as running every branch, and a file counts as run once it is the command or an argument of an interpreter such as `node` or `bash`. The vitest `include` and `exclude` lists and the cargo flags that narrow a run (`--no-run`, `--lib`, `--test`) decide what a run covers. Beyond those, a test drops out only through a literal `if: false` on its step or job, a leg under a matrix `exclude`, or a hook that CI never runs. Any other condition still counts as a run. So does a workflow that only runs on a schedule, and so does a step with `continue-on-error`. Playwright `*.spec.*` files and the pytest suites are outside its scope. Whether a test that runs also tests something is still a question for review.
 
 ## Rust Tests
 

@@ -16,7 +16,8 @@ Continuous integration runs on every push to `main` and every pull request via `
   and licence information for every file (`reuse lint`, from `REUSE.toml`)
 - **Orphan tests** - the `orphan-tests` hook fails when a test file, a crate
   or a feature file runs in no CI job, or when a `@wip` or `#[ignore]` carries
-  no reason. What it reads and what it misses: [Testing](/guide/testing#does-the-new-test-run)
+  no reason. [Testing](/guide/testing#does-the-new-test-run) describes what it
+  reads and what it misses
 
 ### Tests (on Rust changes)
 

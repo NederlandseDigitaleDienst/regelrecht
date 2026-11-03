@@ -15,8 +15,8 @@
 // both recipes, and a file counts as run once it is the command or an argument
 // of an interpreter (`node`, `bash`, `python3`, ...). What it cannot model is a
 // condition (`if:` other than a literal `false`) or a trigger: a test in a
-// workflow that only runs on a schedule still counts. Playwright `*.spec.*`
-// files and pytest suites are out of scope.
+// workflow that only runs on a schedule, or a step with `continue-on-error`,
+// still counts. Playwright `*.spec.*` files and pytest suites are out of scope.
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -249,7 +249,7 @@ function jobBlocks(lines) {
   const jobs = [];
   for (let i = jobsAt + 1; i < lines.length; i += 1) {
     if (/^\S/.test(lines[i]) && !isBlankOrComment(lines[i])) break;
-    const match = /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(lines[i]);
+    const match = /^ {2}([A-Za-z0-9_-]+):\s*(#.*)?$/.exec(lines[i]);
     if (match) {
       if (jobs.length) jobs[jobs.length - 1].end = i;
       jobs.push({ name: match[1], start: i, end: lines.length });
@@ -395,9 +395,10 @@ export function precommitFragments(text, files, file = '.pre-commit-config.yaml'
       const stages = keys.stages.replace(/[[\]]/g, '').split(',').map((s) => s.trim());
       if (!stages.includes('pre-commit') && !stages.includes('commit')) continue;
     }
-    if (keys.files) {
-      const re = new RegExp(keys.files);
-      if (![...files].some((f) => re.test(f))) continue;
+    if (keys.files || keys.exclude) {
+      const re = new RegExp(keys.files ?? '');
+      const ex = keys.exclude ? new RegExp(keys.exclude) : null;
+      if (![...files].some((f) => re.test(f) && !(ex && ex.test(f)))) continue;
     }
     const args = keys.args ? keys.args.replace(/[[\]]/g, ' ').replace(/,/g, ' ') : '';
     fragments.push({
@@ -509,6 +510,9 @@ export class CiModel {
     this.vitest = [];
     this.cargo = [];
     this.seen = new Set();
+    // The environment of the command being followed, which a recipe, npm
+    // script or shell script it starts inherits.
+    this.env = {};
   }
 
   abs(cwd) {
@@ -546,18 +550,22 @@ export class CiModel {
   }
 
   script(path, source) {
-    const key = `sh:${path}`;
+    const key = `sh:${path}:${JSON.stringify(this.env)}`;
     if (this.seen.has(key)) return;
     this.seen.add(key);
     const text = readFileSync(join(this.root, path), 'utf8')
       .replace(/\$\(dirname\s+"?\$0"?\)|\$\{0%\/\*\}|\$\{BASH_SOURCE\[0\]%\/\*\}/g, dirname(join(this.root, path)));
-    this.fragment({ source, text, cwd: '', env: {}, persistentCd: true });
+    this.fragment({ source, text, cwd: '', env: { ...this.env }, persistentCd: true });
   }
 
   fragment({ source, text, cwd, env, persistentCd }) {
     const ROOT = this.root;
     let shellCwd = cwd;
-    const shellEnv = { ...env };
+    // What a command started from here sees (`exported`), and plain shell
+    // variables, which only `$NAME` in this shell sees. Like the directory,
+    // both reset per line in a recipe whose lines each get their own shell.
+    const freshShell = () => ({ exported: { ...env }, vars: {} });
+    let shell = freshShell();
     const joined = text
       .replace(/\\\n/g, ' ')
       .replace(/\$\{\{\s*github\.workspace\s*\}\}|\$\{GITHUB_WORKSPACE\}|\$GITHUB_WORKSPACE/g, ROOT);
@@ -565,25 +573,29 @@ export class CiModel {
       const line = stripShellComment(rawLine);
       if (line.trim() === '' || line.startsWith('#!')) continue;
       let lineCwd = shellCwd;
+      if (!persistentCd) shell = freshShell();
       const prot = protectSubstitutions(line);
       for (const piece of prot.text.split(/&&|\|\||;|\||\bthen\b|\bdo\b|\belse\b/)) {
         const command = unwrapGroup(prot.restore(piece))
           .replace(/\$\(pwd\)|\$\{PWD\}|\$PWD/g, this.abs(lineCwd));
-        lineCwd = this.command(command, lineCwd, shellEnv, source, text);
+        lineCwd = this.command(command, lineCwd, shell, source, text);
       }
       if (persistentCd) shellCwd = lineCwd;
     }
   }
 
   /** Runs one simple command; returns the directory the next one starts in. */
-  command(rawCommand, cwd, env, source, fragmentText) {
+  command(rawCommand, cwd, shell, source, fragmentText) {
     // What a `$(...)` runs, runs too.
     for (const inner of rawCommand.matchAll(/\$\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g)) {
-      for (const part of inner[1].split(/&&|\|\||;|\|/)) this.command(part, cwd, { ...env }, source, fragmentText);
+      const sub = { exported: { ...shell.exported }, vars: { ...shell.vars } };
+      for (const part of inner[1].split(/&&|\|\||;|\|/)) this.command(part, cwd, sub, source, fragmentText);
     }
     let command = rawCommand.trim();
+    let exporting = false;
     // Keywords and wrappers in front of the command that runs.
     for (;;) {
+      if (/^export\s+/.test(command)) exporting = true;
       const prefix = /^(if|elif|while|until|!|export|exec|time|command|sudo|then|do)\s+/.exec(command)
         ?? /^(timeout)\s+(-\S+\s+)*\S+\s+/.exec(command)
         ?? /^(env|xargs|npx)\s+(-\S+\s+)*/.exec(command);
@@ -591,9 +603,33 @@ export class CiModel {
       command = command.slice(prefix[0].length);
     }
     // `VAR=value` on its own sets a shell variable for what follows.
-    const assignment = /^([A-Za-z_][A-Za-z0-9_]*)=(\$\(.*\)|"[^"]*"|'[^']*'|\S*)$/.exec(command.trim());
-    if (assignment) {
-      env[assignment[1]] = assignment[2].replace(/^["']|["']$/g, '');
+    // The value is pinned where it is set: variables it names are filled in,
+    // and a script it substitutes gets an absolute path, so a recipe that
+    // inherits it still finds that script.
+    const ASSIGN = /^([A-Za-z_][A-Za-z0-9_]*)=(\$\(.*\)|"[^"]*"|'[^']*'|\S*)$/;
+    const assignments = exporting
+      ? command.trim().split(/\s+(?=[A-Za-z_][A-Za-z0-9_]*=)/).map((part) => ASSIGN.exec(part))
+      : [ASSIGN.exec(command.trim())];
+    if (assignments.every(Boolean)) {
+      for (const [, name, raw] of assignments) {
+        const known = { ...shell.vars, ...shell.exported };
+        const value = raw.startsWith("'")
+          ? raw.slice(1, -1)
+          : raw
+              .replace(/^"|"$/g, '')
+              // `${NAME:-default}` and other operators stay as they are.
+              .replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (m, a, b) => known[a ?? b] ?? m)
+              .replace(/\$\(\s*([^\s)]+\.sh)\s*\)/g, (_, p) => `$(${resolve(this.abs(cwd), p)})`);
+        if (exporting || name in shell.exported) shell.exported[name] = value;
+        else shell.vars[name] = value;
+      }
+      return cwd;
+    }
+    // `export NAME` hands an existing shell variable to what follows.
+    if (exporting && /^[A-Za-z_][A-Za-z0-9_]*(\s+[A-Za-z_][A-Za-z0-9_]*)*$/.test(command.trim())) {
+      for (const name of command.trim().split(/\s+/)) {
+        if (name in shell.vars) shell.exported[name] = shell.vars[name];
+      }
       return cwd;
     }
     let words = tokens(command);
@@ -608,6 +644,17 @@ export class CiModel {
     }
     if (!words.length) return cwd;
     const [cmd, ...args] = words;
+    const allEnv = { ...shell.exported, ...inline };
+    const outer = this.env;
+    this.env = allEnv;
+    try {
+      return this.dispatch(cmd, args, cwd, allEnv, source, fragmentText);
+    } finally {
+      this.env = outer;
+    }
+  }
+
+  dispatch(cmd, args, cwd, allEnv, source, fragmentText) {
     // A file counts as run when it is the command, or an argument of an
     // interpreter or test runner. `echo` or `git diff` naming it does not run it.
     this.mention([cmd], cwd, source);
@@ -616,7 +663,6 @@ export class CiModel {
       const target = toRepo(this.root, resolve(this.abs(cwd), args[0]));
       return target ?? cwd;
     }
-    const allEnv = { ...env, ...inline };
     if (cmd === 'just') this.justCall(args, source);
     else if (cmd === 'npm') this.npmCall(args, cwd, source);
     else if (cmd === 'vitest') this.vitestCall(args, cwd, source);
@@ -632,7 +678,7 @@ export class CiModel {
 
   recipe(name, source) {
     const recipe = this.just.recipes.get(name);
-    const key = `just:${name}`;
+    const key = `just:${name}:${JSON.stringify(this.env)}`;
     if (!recipe || this.seen.has(key)) return;
     this.seen.add(key);
     for (const dep of recipe.deps) this.recipe(dep, source);
@@ -644,7 +690,7 @@ export class CiModel {
       source: `${source} → just ${name}`,
       text: body,
       cwd: '',
-      env: {},
+      env: { ...this.env },
       persistentCd: recipe.shebang,
     });
   }
@@ -679,7 +725,7 @@ export class CiModel {
   }
 
   npmScript(pkgDir, script, source) {
-    const key = `npm:${pkgDir}#${script}`;
+    const key = `npm:${pkgDir}#${script}:${JSON.stringify(this.env)}`;
     if (this.seen.has(key)) return;
     this.seen.add(key);
     const file = join(this.root, pkgDir, 'package.json');
@@ -691,7 +737,7 @@ export class CiModel {
         source: `${source} → npm run ${name} (${pkgDir || '.'})`,
         text: scripts[name],
         cwd: pkgDir,
-        env: {},
+        env: { ...this.env },
         persistentCd: true,
       });
     }
@@ -722,6 +768,8 @@ export class CiModel {
     for (let i = 0; i < args.length; i += 1) {
       const a = args[i];
       if (a === '--') break;
+      // Builds the tests without running them.
+      if (a === '--no-run') return;
       if (a === '--workspace' || a === '--all') run.workspace = true;
       else if (a === '-p' || a === '--package') run.packages.push(args[++i]);
       else if (a.startsWith('-p') && a.length > 2) run.packages.push(a.slice(2));
@@ -766,7 +814,12 @@ export function cargoWorkspace(root, files) {
     const block = /^members\s*=\s*\[([^\]]*)\]/m.exec(text);
     if (!block) continue;
     const base = posix.dirname(manifest);
-    const members = [...block[1].replace(/#.*$/gm, '').matchAll(/"([^"]+)"/g)].map((m) => posix.join(base, m[1]));
+    const members = [...block[1].replace(/#.*$/gm, '').matchAll(/"([^"]+)"/g)].flatMap((m) => {
+      const member = posix.join(base, m[1]);
+      if (!member.includes('*')) return [member];
+      const re = globToRegExp(`${member}/Cargo.toml`);
+      return [...files].filter((f) => re.test(f)).map((f) => posix.dirname(f));
+    });
     return {
       dir: base === '.' ? '' : base,
       crates: members.map((dir) => {
@@ -861,7 +914,7 @@ function regulationDirs(root, run) {
   // Built by a script in the same step, as for the chronolexografie PoC: run
   // the scripts the step substitutes and take their lines as directories.
   const dirs = [];
-  for (const m of run.fragmentText.matchAll(/\$\(\s*([^\s)]+\.sh)\s*\)/g)) {
+  for (const m of `${value} ${run.fragmentText}`.matchAll(/\$\(\s*([^\s)]+\.sh)\s*\)/g)) {
     const script = resolve(root, run.cwd, m[1]);
     if (!existsSync(script)) continue;
     const out = spawnSync('bash', [script], { cwd: resolve(root, run.cwd), encoding: 'utf8' });
