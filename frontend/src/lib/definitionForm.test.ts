@@ -148,6 +148,29 @@ describe('definitionForm', () => {
       expect(fromForm(form, raw)).toEqual({ value: 3971900 });
     });
 
+    it.each([0.04273, 13.7, 0.5])('keeps %s exact when it becomes an amount and back', (n) => {
+      const form = toForm(n);
+      changeType(form, 'amount');
+      expect(fromForm(form, n)).toEqual({ value: n, type: 'amount', type_spec: { unit: 'eurocent' } });
+      changeType(form, 'number');
+      expect(form.number).toBe(n);
+      expect(fromForm(form, n)).toEqual({ value: n, type: 'number' });
+    });
+
+    it('keeps an amount that is not a whole number of cents when nobody retypes it', () => {
+      const raw = { value: 12.5, type: 'amount', type_spec: { unit: 'eurocent' } };
+      const form = toForm(raw);
+      expect(form.number).toBe(0.125);
+      expect(fromForm(form, raw)).toEqual(raw);
+    });
+
+    it('rounds a value the user types to whole cents', () => {
+      const raw = { value: 12.5, type: 'amount', type_spec: { unit: 'eurocent' } };
+      const form = toForm(raw);
+      form.number = 19.999;
+      expect(fromForm(form, raw)).toEqual({ ...raw, value: 2000 });
+    });
+
     it('keeps a unit the form never showed on a definition that never had a type', () => {
       const raw = { value: 150000, type_spec: { unit: 'eurocent' } };
       const form = toForm(raw);

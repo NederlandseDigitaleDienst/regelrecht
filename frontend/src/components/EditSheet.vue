@@ -551,7 +551,13 @@ const sectionLabels: Record<string, string> = {
                          intentional: @input gives live-as-you-type updates;
                          @change delivers the value the field normalises on
                          commit/blur. The assignment is idempotent. -->
+                    <!-- Keyed on the kind: Getal and Bedrag share this field, and
+                         the field remembers its last committed value as a
+                         fallback for a cleared input. A fresh element per kind
+                         keeps a cleared amount from falling back to the
+                         eurocent number shown before the switch. -->
                     <nldd-number-field
+                      :key="defKind ?? ''"
                       :value="def.number"
                       :step="defKind === 'amount' ? '0.01' : '0.000001'"
                       :accessible-label="defLabel"

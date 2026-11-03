@@ -13,7 +13,7 @@
  * one conversion is money, which the corpus stores in eurocent and the user
  * types in euros.
  */
-import { centsToEuros, eurosToCents } from '../utils/currency';
+import { eurosToCents } from '../utils/currency';
 import type { RawDefinition } from './lawFormat';
 
 /** The types the form edits. The schema allows `object` and `decision` too; a
@@ -61,6 +61,10 @@ export interface DefinitionForm {
   valueKind: DefinitionKind;
   /** A number, in euros for an amount. */
   number: number;
+  /** For an amount: the exact eurocent value behind `number`, so a value the
+   *  user did not retype is written back as it was, even when it is not a
+   *  whole number of cents. Null for anything else. */
+  storedCents: number | null;
   text: string;
   bool: boolean;
   /** ISO, yyyy-mm-dd. */
@@ -80,6 +84,19 @@ function asRecord(raw: unknown): Record<string, unknown> | null {
 function unitOf(obj: Record<string, unknown> | null): string | undefined {
   const spec = asRecord(obj?.type_spec);
   return typeof spec?.unit === 'string' ? spec.unit : undefined;
+}
+
+/** Eurocent to euros without rounding; toPrecision drops the float noise of the division. */
+function exactEuros(cents: number): number {
+  return +(cents / 100).toPrecision(15);
+}
+
+/** The eurocent an amount form holds: the stored value while the field still
+ *  shows it, otherwise what the user typed, in whole cents. */
+function amountCents(form: DefinitionForm): number {
+  if (form.storedCents !== null && exactEuros(form.storedCents) === form.number) return form.storedCents;
+  const cents = eurosToCents(form.number);
+  return cents === '' ? 0 : cents;
 }
 
 /** What the value field shows for a value without a type. */
@@ -102,6 +119,7 @@ export function newDefinitionForm(): DefinitionForm {
     unit: '',
     valueKind: 'number',
     number: 0,
+    storedCents: null,
     text: '',
     bool: false,
     date: '',
@@ -171,8 +189,8 @@ export function toForm(raw: RawDefinition | null | undefined): DefinitionForm {
 
   const kind = form.valueKind;
   if (kind === 'amount') {
-    const euros = centsToEuros(value);
-    form.number = euros === '' ? 0 : euros;
+    form.storedCents = value as number;
+    form.number = exactEuros(value as number);
   } else if (kind === 'number') {
     form.number = value as number;
   } else if (kind === 'boolean') {
@@ -192,7 +210,8 @@ export function toForm(raw: RawDefinition | null | undefined): DefinitionForm {
 /**
  * The user picks another type. The stored number never changes by that:
  * between Getal and Bedrag only the display differs (an amount shows its
- * eurocent as euros), so 3971900 stays 3971900 whichever way it is labelled.
+ * eurocent as euros), so 3971900 stays 3971900 whichever way it is labelled,
+ * and 0.04273 stays 0.04273 rather than being rounded to whole cents.
  * Across other kinds the value is carried over as text where it can be, so
  * switching a number to text keeps "13.7" rather than starting from nothing.
  */
@@ -205,18 +224,18 @@ export function changeType(form: DefinitionForm, next: DefinitionType | ''): voi
   if (from === to) return;
   form.valueKind = to;
   if (from === 'number' && to === 'amount') {
-    const euros = centsToEuros(form.number);
-    form.number = euros === '' ? 0 : euros;
+    form.storedCents = form.number;
+    form.number = exactEuros(form.number);
     return;
   }
   if (from === 'amount' && to === 'number') {
-    const cents = eurosToCents(form.number);
-    form.number = cents === '' ? 0 : cents;
+    form.number = amountCents(form);
+    form.storedCents = null;
     return;
   }
   const asText =
     from === 'number' || from === 'amount'
-      ? String(from === 'amount' ? eurosToCents(form.number) : form.number)
+      ? String(from === 'amount' ? amountCents(form) : form.number)
       : from === 'boolean'
         ? String(form.bool)
         : from === 'date'
@@ -227,7 +246,8 @@ export function changeType(form: DefinitionForm, next: DefinitionType | ''): voi
   if (to === 'number' || to === 'amount') {
     const n = Number(asText.replace(',', '.'));
     const stored = Number.isFinite(n) ? n : 0;
-    form.number = to === 'amount' ? (centsToEuros(stored) as number) : stored;
+    form.storedCents = to === 'amount' ? stored : null;
+    form.number = to === 'amount' ? exactEuros(stored) : stored;
   } else if (to === 'boolean') {
     form.bool = asText === 'true';
   } else if (to === 'date') {
@@ -243,7 +263,7 @@ export function changeType(form: DefinitionForm, next: DefinitionType | ''): voi
 /** The value the form holds, in the shape the YAML stores. */
 function valueOf(form: DefinitionForm): unknown {
   const kind = kindOf(form);
-  if (kind === 'amount') return eurosToCents(form.number) === '' ? 0 : eurosToCents(form.number);
+  if (kind === 'amount') return amountCents(form);
   if (kind === 'number') return form.number;
   if (kind === 'boolean') return form.bool;
   if (kind === 'date') return form.date;
