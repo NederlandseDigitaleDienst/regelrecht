@@ -360,6 +360,12 @@ fn declaration_fingerprint(law: &ArticleBasedLaw) -> Vec<String> {
                 if let Some(kind) = &decl.applies_to.kind {
                     parts.push(format!("hook-kind\0{}\0{kind}", article.number));
                 }
+                if let Some(void) = &decl.voids {
+                    parts.push(format!(
+                        "hook-voids\0{}\0{}\0{}",
+                        article.number, void.when, void.legal_text_excerpt
+                    ));
+                }
             }
         }
         if let Some(overrides) = article.get_overrides() {
@@ -399,6 +405,22 @@ fn declaration_fingerprint(law: &ArticleBasedLaw) -> Vec<String> {
     parts
 }
 
+/// A finding when `name` is not a boolean output of `article`: the `when`
+/// of an exclusion or of a hook that voids (schema v0.9.0).
+fn check_boolean_output(errors: &mut Vec<String>, at: &str, article: &Article, name: &str) {
+    let output = article
+        .get_execution_spec()
+        .and_then(|e| e.output.as_ref())
+        .and_then(|o| o.iter().find(|o| o.name == name));
+    match output {
+        None => errors.push(format!("{at}, which the article does not output")),
+        Some(o) if o.output_type != crate::types::ParameterType::Boolean => {
+            errors.push(format!("{at}, which is not a boolean"))
+        }
+        Some(_) => {}
+    }
+}
+
 /// A reference to a law article, used in implements and overrides indexes.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct LawArticleRef {
@@ -411,6 +433,8 @@ pub struct HookEntry {
     pub(crate) law_id: String,
     pub(crate) article_number: String,
     filter: HookFilter,
+    /// What the hook takes away, where it does (schema v0.9.0).
+    pub(crate) voids: Option<crate::article::HookVoid>,
 }
 
 impl HookEntry {
@@ -1711,6 +1735,7 @@ impl RuleResolver {
                                 law_id: law_id.to_string(),
                                 article_number: article.number.clone(),
                                 filter: f.clone(),
+                                voids: decl.voids.clone(),
                             };
                             self.hooks_index
                                 .entry((decl.hook_point, target))
@@ -2151,19 +2176,12 @@ impl RuleResolver {
                         ));
                     }
                     if let Some(when) = &decl.when {
-                        let output = article
-                            .get_execution_spec()
-                            .and_then(|e| e.output.as_ref())
-                            .and_then(|o| o.iter().find(|o| &o.name == when));
-                        match output {
-                            None => errors.push(format!(
-                                "{at} when {when}, which the article does not output"
-                            )),
-                            Some(o) if o.output_type != crate::types::ParameterType::Boolean => {
-                                errors.push(format!("{at} when {when}, which is not a boolean"))
-                            }
-                            Some(_) => {}
-                        }
+                        check_boolean_output(
+                            &mut errors,
+                            &format!("{at} when {when}"),
+                            article,
+                            when,
+                        );
                     }
                     // A target in a regulation that is not loaded cannot be
                     // checked here; the exclusion then simply never meets it.
@@ -2197,6 +2215,19 @@ impl RuleResolver {
                                 article.number
                             ));
                         }
+                    }
+                    if let Some(void) = &decl.voids {
+                        let at = format!(
+                            "{id} article {}: hook voids when {}",
+                            article.number, void.when
+                        );
+                        if !normalize(&article.text).contains(&normalize(&void.legal_text_excerpt))
+                        {
+                            errors.push(format!(
+                                "{at}: the excerpt is not in the text of the article"
+                            ));
+                        }
+                        check_boolean_output(&mut errors, &at, article, &void.when);
                     }
                 }
             }

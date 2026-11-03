@@ -837,3 +837,246 @@ articles:
     assert!(service.unload_law("orgaan_test_wet"));
     assert_eq!(vernietigbaar(&service), None);
 }
+
+/// A hook that takes away what the item yields, in the shape of Vw 2000
+/// art. 10: lid 1 is the hook with `voids`, and a regulation that uses the
+/// room of lid 2 to deviate excludes it.
+const KOPPELING: &str = r#"
+$id: koppeling_test_wet
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: De vreemdeling die geen rechtmatig verblijf heeft, kan geen aanspraak maken op toekenning van verstrekkingen bij beschikking.
+    machine_readable:
+      kinds:
+        - id: toekenning
+          broader: algemene_test_wet/beschikking
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            kind: koppeling_test_wet/toekenning
+          voids:
+            when: geen_aanspraak
+            legal_text_excerpt: kan geen aanspraak maken op toekenning van verstrekkingen bij beschikking.
+      execution:
+        parameters:
+          - name: rechtmatig_verblijf
+            type: boolean
+            required: false
+        output:
+          - name: geen_aanspraak
+            type: boolean
+        actions:
+          - output: geen_aanspraak
+            value:
+              operation: EQUALS
+              subject: $rechtmatig_verblijf
+              value: false
+"#;
+
+fn toekenning(service: &mut LawExecutionService, id: &str, deviates: bool) {
+    let excludes = if deviates {
+        "\n      excludes:\n        - law: koppeling_test_wet\n          article: '1'\n          legal_text_excerpt: Artikel 1 van de koppeling test wet is niet van toepassing."
+    } else {
+        ""
+    };
+    let text = if deviates {
+        "Het bestuursorgaan kent een studiebijdrage toe. Artikel 1 van de koppeling test wet is niet van toepassing."
+    } else {
+        "Het bestuursorgaan kent een bijdrage toe."
+    };
+    service
+        .load_law(&format!(
+            r#"$schema: {SCHEMA}
+$id: {id}
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: {text}
+    machine_readable:{excludes}
+      execution:
+        produces:
+          - type: algemene_test_wet/beschikking
+            member_of:
+              - kind: koppeling_test_wet/toekenning
+                legal_text_excerpt: kent een
+        parameters:
+          - name: rechtmatig_verblijf
+            type: boolean
+            required: false
+        output:
+          - name: bijdrage
+            type: number
+        actions:
+          - output: bijdrage
+            value: 100
+"#
+        ))
+        .unwrap();
+}
+
+#[test]
+fn a_hook_takes_away_what_the_decision_yields_unless_a_law_deviates() {
+    let mut service = service();
+    service
+        .load_law(&format!("$schema: {SCHEMA}\n{}", KOPPELING.trim_start()))
+        .unwrap();
+    toekenning(&mut service, "bijdrage_test_wet", false);
+    toekenning(&mut service, "studie_test_wet", true);
+    assert_eq!(service.resolver().validate_kinds(), Vec::<String>::new());
+    let run = |law: &str, rechtmatig: bool| {
+        let mut params = BTreeMap::new();
+        params.insert("rechtmatig_verblijf".to_string(), Value::Bool(rechtmatig));
+        service.evaluate_law_output(law, "bijdrage", params, "2025-06-01")
+    };
+
+    // With rechtmatig verblijf the decision yields its amount.
+    let granted = run("bijdrage_test_wet", true).unwrap();
+    assert_eq!(granted.outputs.get("bijdrage"), Some(&Value::Int(100)));
+
+    // Without it the amount does not arise, and asking for it gives the
+    // hook's ground.
+    let refused = run("bijdrage_test_wet", false).unwrap_err();
+    assert!(
+        refused.to_string().contains("kan geen aanspraak maken"),
+        "{refused}"
+    );
+    // A law that deviates (Vw 2000 art. 10 lid 2) excludes the hook.
+    let deviating = run("studie_test_wet", false).unwrap();
+    assert_eq!(deviating.outputs.get("bijdrage"), Some(&Value::Int(100)));
+}
+
+/// A hook that voids is held to its words and to a truth value.
+#[test]
+fn a_wrong_void_on_a_hook_is_reported() {
+    let mut service = service();
+    let wrong = KOPPELING
+        .replace("koppeling_test_wet", "foute_koppeling_test_wet")
+        .replace(
+            "legal_text_excerpt: kan geen aanspraak maken op toekenning van verstrekkingen bij beschikking.",
+            "legal_text_excerpt: staat er niet",
+        )
+        .replace("when: geen_aanspraak", "when: bestaat_niet");
+    service
+        .load_law(&format!("$schema: {SCHEMA}\n{}", wrong.trim_start()))
+        .unwrap();
+    let findings = service.resolver().validate_kinds();
+    let at = "foute_koppeling_test_wet article 1: hook voids when bestaat_niet";
+    assert!(
+        findings.contains(&format!(
+            "{at}: the excerpt is not in the text of the article"
+        )),
+        "{findings:?}"
+    );
+    assert!(
+        findings.contains(&format!("{at}, which the article does not output")),
+        "{findings:?}"
+    );
+
+    // At run time a `when` that is no truth value is an error.
+    let mut service = self::service();
+    let text = KOPPELING
+        .replace("          - name: geen_aanspraak\n            type: boolean", "          - name: geen_aanspraak\n            type: string")
+        .replace(
+            "            value:\n              operation: EQUALS\n              subject: $rechtmatig_verblijf\n              value: false",
+            "            value: misschien",
+        );
+    service
+        .load_law(&format!("$schema: {SCHEMA}\n{}", text.trim_start()))
+        .unwrap();
+    toekenning(&mut service, "bijdrage_test_wet", false);
+    let error = service
+        .evaluate_law_output(
+            "bijdrage_test_wet",
+            "bijdrage",
+            BTreeMap::new(),
+            "2025-06-01",
+        )
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("instead of true or false"),
+        "{error}"
+    );
+}
+
+/// What a void takes away is what the decision yields, and only that: the
+/// decision remains, with what other hooks attach to it, and an undecided
+/// case leaves the decision whole.
+#[test]
+fn a_void_takes_only_what_the_decision_yields() {
+    let mut service = service();
+    service
+        .load_law(&format!("$schema: {SCHEMA}\n{}", KOPPELING.trim_start()))
+        .unwrap();
+    service
+        .load_law(&format!(
+            r#"$schema: {SCHEMA}
+$id: gedeeltelijke_test_wet
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Het bestuursorgaan ontvangt de aanvraag en kent een bijdrage toe.
+    machine_readable:
+      execution:
+        produces:
+          - type: algemene_test_wet/beschikking
+            outputs: [bijdrage]
+            member_of:
+              - kind: koppeling_test_wet/toekenning
+                legal_text_excerpt: kent een bijdrage toe
+        parameters:
+          - name: rechtmatig_verblijf
+            type: boolean
+            required: false
+        output:
+          - name: bijdrage
+            type: number
+          - name: ontvangen
+            type: boolean
+        actions:
+          - output: bijdrage
+            value: 100
+          - output: ontvangen
+            value: true
+"#
+        ))
+        .unwrap();
+    let run = |params: BTreeMap<String, Value>| {
+        service
+            .evaluate_law_output("gedeeltelijke_test_wet", "ontvangen", params, "2025-06-01")
+            .unwrap()
+    };
+    let mut params = BTreeMap::new();
+    params.insert("rechtmatig_verblijf".to_string(), Value::Bool(false));
+    let voided = run(params);
+    assert_eq!(voided.outputs.get("ontvangen"), Some(&Value::Bool(true)));
+    assert_eq!(voided.outputs.get("bijdrage"), None);
+    match voided.output_provenance.get("bijdrage") {
+        Some(OutputProvenance::Voided {
+            law_id, grounds, ..
+        }) => {
+            assert_eq!(law_id, "koppeling_test_wet");
+            assert!(grounds.as_deref().unwrap().contains("geen aanspraak"));
+        }
+        other => panic!("expected the ground of the void, got {other:?}"),
+    }
+    // The general law's hook on every besluit still fires.
+    assert_eq!(
+        voided.outputs.get("motivering_vereist"),
+        Some(&Value::Bool(true))
+    );
+
+    // Nothing known about the verblijf: the decision yields what it yields.
+    let undecided = service
+        .evaluate_law(
+            "gedeeltelijke_test_wet",
+            &["ontvangen", "bijdrage"],
+            BTreeMap::new(),
+            "2025-06-01",
+        )
+        .unwrap();
+    assert_eq!(undecided.outputs.get("bijdrage"), Some(&Value::Int(100)));
+}

@@ -27,12 +27,13 @@ pub use model::{
     is_variable_reference, Action, ActionOperation, ActionValue, Article, ArticleBasedLaw,
     ArticleReference, ArticleRequirement, AuthorityType, Case, CombineOp, CompetentAuthority,
     Declaration, DeclaredProperty, Definition, ExclusionDeclaration, Execution, HookDeclaration,
-    HookFilter, HookPoint, ImplementsDeclaration, Input, KindDefinition, KindLevel, KindMembership,
-    LegalBasis, MachineReadable, Marking, MarkingResolution, Moment, NamedAuthority, OpenTerm,
-    OpenTermDefault, OrganizationDeclaration, Output, OverrideDeclaration, Parameter, Placement,
-    PlacementContainer, Preamble, ProcedureAppliesTo, ProcedureDefinition, Produced, ProducedItem,
-    Produces, ProducesList, ProvisionReference, ResolveSpec, Source, Stage, StageRequirement,
-    Submission, Temporal, TypeSpec, UntranslatableEntry, DEFAULT_FOREACH_AS, SUBMISSION_KINDS,
+    HookFilter, HookPoint, HookVoid, ImplementsDeclaration, Input, KindDefinition, KindLevel,
+    KindMembership, LegalBasis, MachineReadable, Marking, MarkingResolution, Moment,
+    NamedAuthority, OpenTerm, OpenTermDefault, OrganizationDeclaration, Output,
+    OverrideDeclaration, Parameter, Placement, PlacementContainer, Preamble, ProcedureAppliesTo,
+    ProcedureDefinition, Produced, ProducedItem, Produces, ProducesList, ProvisionReference,
+    ResolveSpec, Source, Stage, StageRequirement, Submission, Temporal, TypeSpec,
+    UntranslatableEntry, DEFAULT_FOREACH_AS, SUBMISSION_KINDS,
 };
 /// The engine reads a version through the model, not from `regelrecht-shared`
 /// itself: it sits on the model alone.

@@ -9,6 +9,104 @@ bwb_id: BWBR0011823
 url: https://wetten.overheid.nl/BWBR0011823/2024-01-01
 
 articles:
+  - number: '10'
+    text: |-
+      1. De vreemdeling die geen rechtmatig verblijf heeft, kan geen aanspraak maken op toekenning van verstrekkingen,
+      voorzieningen en uitkeringen bij wege van een beschikking van een bestuursorgaan. De eerste volzin is van
+      overeenkomstige toepassing op de bij de wet of algemene maatregel van bestuur aangewezen ontheffingen of
+      vergunningen.
+
+      2. Van het eerste lid kan worden afgeweken indien de aanspraak betrekking heeft op het onderwijs, de verlening van
+      medisch noodzakelijke zorg, de voorkoming van inbreuken op de volksgezondheid, of de rechtsbijstand aan de
+      vreemdeling.
+
+      3. De toekenning van aanspraken geeft geen recht op rechtmatig verblijf.
+    url: https://wetten.overheid.nl/BWBR0011823/2024-01-01#Artikel10
+    machine_readable:
+      # Lid 1, eerste volzin: het koppelingsbeginsel. Een criterium, geen
+      # lijst: de soort is de beschikking die een verstrekking, voorziening of
+      # uitkering toekent, en een regeling claimt die soort met haar eigen
+      # woorden (`member_of` op het item, zoals Awir 14). Het effect is geen
+      # uitkomst erbij maar een uitkomst eraf: de aanspraak ontstaat niet
+      # (`voids` op de hook). De beschikking zelf blijft bestaan, zonder wat
+      # zij toekent; dat zij dan een afwijzing is, is niet gemodelleerd.
+      # Lid 1, tweede volzin, wijst ontheffingen en vergunningen aan bij wet
+      # of AMvB: een lijst, dus een verwijzing en geen hook; niet
+      # gemodelleerd. Lid 2 geeft andere regelingen de ruimte af te wijken;
+      # een regeling die dat doet, sluit dit artikel uit met `excludes`. Lid 3
+      # is niet gemodelleerd. Deze tekst geldt ongewijzigd sinds ten minste
+      # 2002 en nog op 2026-01-01.
+      kinds:
+        - id: toekenning_van_verstrekking
+          broader: algemene_wet_bestuursrecht/beschikking
+          description: >-
+            Een beschikking van een bestuursorgaan die een verstrekking,
+            voorziening of uitkering toekent (lid 1, eerste volzin).
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            kind: vreemdelingenwet_2000/toekenning_van_verstrekking
+          voids:
+            when: geen_aanspraak
+            legal_text_excerpt: >-
+              De vreemdeling die geen rechtmatig verblijf heeft, kan geen
+              aanspraak maken op toekenning van verstrekkingen, voorzieningen
+              en uitkeringen bij wege van een beschikking van een
+              bestuursorgaan.
+      execution:
+        parameters:
+          - name: is_vreemdeling
+            type: boolean
+            required: false
+            description: Of de aanvrager een vreemdeling is (lid 1).
+          - name: heeft_rechtmatig_verblijf
+            type: boolean
+            required: false
+            description: >-
+              Of de vreemdeling rechtmatig verblijf heeft (lid 1; artikel 8
+              bepaalt wanneer, niet gemodelleerd).
+        output:
+          - name: geen_aanspraak
+            type: boolean
+            nullable: true
+            description: >-
+              Of de aanvrager een vreemdeling zonder rechtmatig verblijf is, en
+              dus geen aanspraak kan maken op de toekenning (lid 1). Null als
+              niet vaststaat of hij een vreemdeling is, of, voor een
+              vreemdeling, of hij rechtmatig verblijf heeft: dan neemt de
+              hook de aanspraak niet weg, en de trace laat zien waarom.
+        actions:
+          - output: geen_aanspraak
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $is_vreemdeling
+                    value: false
+                  then: false
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $is_vreemdeling
+                        value: true
+                      - operation: EQUALS
+                        subject: $heeft_rechtmatig_verblijf
+                        value: true
+                  then: false
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $is_vreemdeling
+                        value: true
+                      - operation: EQUALS
+                        subject: $heeft_rechtmatig_verblijf
+                        value: false
+                  then: true
+              default: null
+
   - number: '14'
     text: |-
       1. Onze Minister is bevoegd:

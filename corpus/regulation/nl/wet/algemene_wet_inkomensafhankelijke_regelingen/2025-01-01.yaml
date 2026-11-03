@@ -642,6 +642,18 @@ articles:
         produces:
           - type: algemene_wet_bestuursrecht/beschikking
             decision_type: TOEKENNING
+            # Een beschikking die een tegemoetkoming toekent, en dus een
+            # toekenning van een uitkering bij beschikking in de zin van Vw
+            # 2000 art. 10 lid 1. Artikel 9 van deze wet is niet gemodelleerd.
+            # Het gaat ervan uit dat de Awir alleen rechtmatig verblijf op
+            # grond van Vw art. 8, onderdelen a tot en met e en l, erkent, en
+            # breidt de regel uit tot de partner en de medebewoner. Met één
+            # gegeven "rechtmatig verblijf" in Vw art. 10 krijgt een vreemdeling
+            # met verblijf op grond van art. 8 f, g of h hier dus wel een
+            # tegemoetkoming, waar de Awir die weigert.
+            member_of:
+              - kind: vreemdelingenwet_2000/toekenning_van_verstrekking
+                legal_text_excerpt: Een tegemoetkoming wordt op aanvraag toegekend
         parameters:
           - name: tegemoetkoming
             type: string

@@ -23,7 +23,7 @@ pub use regelrecht_law_model::{
     foreach_binding, is_kind_reference, Action, ActionOperation, ActionValue, Article,
     ArticleBasedLaw, ArticleReference, ArticleRequirement, AuthorityType, Case, CombineOp,
     CompetentAuthority, Declaration, DeclaredProperty, Definition, ExclusionDeclaration, Execution,
-    HookDeclaration, HookFilter, HookPoint, ImplementsDeclaration, Input, KindDefinition,
+    HookDeclaration, HookFilter, HookPoint, HookVoid, ImplementsDeclaration, Input, KindDefinition,
     KindLevel, KindMembership, LegalBasis, MachineReadable, Marking, MarkingResolution,
     NamedAuthority, OpenTerm, OpenTermDefault, OrganizationDeclaration, Output,
     OverrideDeclaration, Parameter, Placement, PlacementContainer, Preamble, ProcedureAppliesTo,

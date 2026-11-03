@@ -1008,6 +1008,15 @@ fn hook_key(law_id: &str, article: &str) -> String {
     format!("hook:{law_id}\0{article}")
 }
 
+/// What the hooks at one point produced: their outputs, the provenance of
+/// each, and the grounds on which a hook takes away what the item yields
+/// (schema v0.9.0).
+type HookRun = (
+    BTreeMap<String, Value>,
+    BTreeMap<String, OutputProvenance>,
+    Vec<OutputProvenance>,
+);
+
 /// A hook that fires on an article: its entry, and its law and article in
 /// force on the date.
 struct FireableHook<'s> {
@@ -3843,21 +3852,24 @@ impl LawExecutionService {
         stage: &str,
         parameters: &BTreeMap<String, Value>,
         res_ctx: &mut ResolutionContext<'_>,
-    ) -> Result<(BTreeMap<String, Value>, BTreeMap<String, OutputProvenance>)> {
+    ) -> Result<HookRun> {
         let mut hook_outputs: BTreeMap<String, Value> = BTreeMap::new();
         let mut hook_provenance: BTreeMap<String, OutputProvenance> = BTreeMap::new();
         // Track which law produced each output for priority resolution
         let mut output_sources: BTreeMap<String, &ArticleBasedLaw> = BTreeMap::new();
+        // Schema v0.9.0: the grounds on which a hook takes away what the
+        // item yields (`voids` on the hook).
+        let mut voids: Vec<OutputProvenance> = Vec::new();
         let hook_point_str = hook_point.as_str();
 
         // Only fire hooks if the article declares what it produces
         let Some((on, hooks)) = self.fireable_hooks(hook_point, article, law, stage, res_ctx)
         else {
-            return Ok((hook_outputs, hook_provenance));
+            return Ok((hook_outputs, hook_provenance, Vec::new()));
         };
 
         if hooks.is_empty() {
-            return Ok((hook_outputs, hook_provenance));
+            return Ok((hook_outputs, hook_provenance, Vec::new()));
         }
 
         tracing::debug!(
@@ -3971,6 +3983,33 @@ impl LawExecutionService {
             // A missing variable means the law cannot be applied — that's an error.
             let result = hook_result?;
 
+            if let Some(void) = &hook_entry.voids {
+                match result.outputs.get(&void.when) {
+                    Some(Value::Bool(true)) => {
+                        res_ctx.trace_set_message(format!(
+                            "Hook {:?} on {} → {}:{} voids what it yields",
+                            hook_point, on, hook_law_id, hook_article_number
+                        ));
+                        voids.push(OutputProvenance::Voided {
+                            law_id: hook_law.id.clone(),
+                            article: hook_article.number.to_string(),
+                            grounds: Some(void.legal_text_excerpt.clone()),
+                        });
+                    }
+                    // Not the case the hook names, or unknown whether it is:
+                    // the item yields what it yields.
+                    Some(Value::Bool(false)) | Some(Value::Null) | Some(Value::Unknown(_)) => {}
+                    other => {
+                        return Err(EngineError::InvalidOperation(format!(
+                            "{hook_law_id}:{hook_article_number} voids what {on} yields when {}, \
+                             which is {} instead of true or false",
+                            void.when,
+                            other.map_or_else(|| "not computed".to_string(), ToString::to_string)
+                        )))
+                    }
+                }
+            }
+
             // A voided output is absent from `outputs` by construction, so
             // walking those alone drops its ground: the hook fires, the law
             // says the output does not arise, and nothing downstream can say
@@ -4023,7 +4062,7 @@ impl LawExecutionService {
             }
         }
 
-        Ok((hook_outputs, hook_provenance))
+        Ok((hook_outputs, hook_provenance, voids))
     }
 
     /// Handle an article's flagged constructs based on the configured mode (RFC-012).
@@ -4497,16 +4536,17 @@ impl LawExecutionService {
         lazy.resolve_names(&demand.read_before_actions)?;
         let mut hook_params = parameters.clone();
         hook_params.extend(lazy.resolved());
-        let (pre_hook_outputs, pre_hook_provenance) = lazy.with_resolution_context(|res_ctx| {
-            self.fire_hooks(
-                HookPoint::PreActions,
-                article,
-                law,
-                stage,
-                &hook_params,
-                res_ctx,
-            )
-        })?;
+        let (pre_hook_outputs, pre_hook_provenance, pre_hook_voids) = lazy
+            .with_resolution_context(|res_ctx| {
+                self.fire_hooks(
+                    HookPoint::PreActions,
+                    article,
+                    law,
+                    stage,
+                    &hook_params,
+                    res_ctx,
+                )
+            })?;
 
         // A replacing override runs where the action sets its output, with
         // what an override at the end would receive: the parameters, what was
@@ -4629,7 +4669,7 @@ impl LawExecutionService {
         for (name, value) in &result.outputs {
             post_params.insert(name.clone(), value.clone());
         }
-        let (post_hook_outputs, post_hook_provenance) = self.fire_hooks(
+        let (post_hook_outputs, post_hook_provenance, post_hook_voids) = self.fire_hooks(
             HookPoint::PostActions,
             article,
             law,
@@ -4679,6 +4719,35 @@ impl LawExecutionService {
                     .output_provenance
                     .entry(name.clone())
                     .or_insert_with(|| prov.clone());
+            }
+        }
+
+        // Schema v0.9.0: a hook that takes away what the decision yields
+        // (Vw 2000 art. 10 lid 1). Its outputs do not arise, on the hook's
+        // ground; the decision itself, and what other hooks attach to it,
+        // remain. That the decision then is a refusal is not modelled: its
+        // decision_type stays what the article says.
+        //
+        // Where several hooks void, the first ground is recorded: the
+        // outcome is the same, and one ground suffices to say why.
+        if let Some(ground) = pre_hook_voids.into_iter().chain(post_hook_voids).next() {
+            // A void takes away what a decision yields. On an article that
+            // produces no decision it would take away nothing while the trace
+            // says it did; that is a modelling error, so it says so.
+            let Some(decision) = article.get_decision() else {
+                return Err(EngineError::InvalidOperation(format!(
+                    "a hook voids what {} article {} yields, but it produces no decision",
+                    law.id, article.number
+                )));
+            };
+            let yielded: Vec<String> = article
+                .outputs_of(decision)
+                .into_iter()
+                .map(str::to_string)
+                .collect();
+            for name in yielded {
+                result.outputs.remove(&name);
+                result.output_provenance.insert(name, ground.clone());
             }
         }
 

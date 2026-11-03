@@ -1566,6 +1566,26 @@ pub struct HookDeclaration {
     pub hook_point: HookPoint,
     /// What triggers this hook
     pub applies_to: HookFilter,
+    /// Since schema v0.9.0: where the hook's output `when` is true, what the
+    /// item it fires on yields does not arise. Vw 2000 art. 10 lid 1: "De
+    /// vreemdeling die geen rechtmatig verblijf heeft, kan geen aanspraak
+    /// maken op toekenning van [...]".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub voids: Option<HookVoid>,
+}
+
+/// The effect of a hook that takes away what the item it fires on yields
+/// (schema v0.9.0), where one of its outputs says so. The outputs of the
+/// item get the `Voided` provenance of an override that voids, with this
+/// ground; the hook names no output of the item, because it does not know
+/// the regulations it fires on.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HookVoid {
+    /// The boolean output of the hook article that decides it.
+    pub when: String,
+    /// The words of the hook article that establish it, verbatim.
+    pub legal_text_excerpt: String,
 }
 
 /// Declaration that an article overrides another article's output (RFC-007, lex specialis)
