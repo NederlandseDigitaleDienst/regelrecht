@@ -380,3 +380,290 @@ articles:
         Some(OutputProvenance::Voided { law_id, .. }) if law_id == "latere_test_wet"
     ));
 }
+
+/// A kind of organizations, in the shape of the Kaderwet zbo: a hook on it
+/// fires on what every member organization decides, and an instellingswet
+/// excludes it for its own organization in some cases.
+const KADER: &str = r#"
+$id: kader_test_wet
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Een zelfstandig bestuursorgaan is een bestuursorgaan dat niet ondergeschikt is aan een minister.
+    machine_readable:
+      kinds:
+        - id: zelfstandig_bestuursorgaan
+          level: organization
+  - number: '2'
+    text: Onze Minister kan een besluit van een zelfstandig bestuursorgaan vernietigen.
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            kind: kader_test_wet/zelfstandig_bestuursorgaan
+      execution:
+        output:
+          - name: vernietigbaar
+            type: boolean
+        actions:
+          - output: vernietigbaar
+            value: true
+"#;
+
+/// An instellingswet: it establishes an organization that is a member, and
+/// an article in which that organization decides. With `uitgesloten` the
+/// exclusion of article 3 holds.
+fn instelling(id: &str, organization: &str, member: bool) -> String {
+    let member_of = if member {
+        "\n          member_of:\n            - kind: kader_test_wet/zelfstandig_bestuursorgaan\n              legal_text_excerpt: is niet ondergeschikt aan een minister"
+    } else {
+        ""
+    };
+    format!(
+        r#"$schema: {SCHEMA}
+$id: {id}
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Er is een {organization}. Zij is niet ondergeschikt aan een minister.
+    machine_readable:
+      organizations:
+        - id: orgaan
+          name: {organization}{member_of}
+  - number: '2'
+    text: De {organization} beslist.
+    machine_readable:
+      competent_authority:
+        name: {organization}
+      execution:
+        produces:
+          - type: algemene_test_wet/beschikking
+        parameters:
+          - name: uitgesloten
+            type: boolean
+            required: false
+        output:
+          - name: beslist
+            type: boolean
+        actions:
+          - output: beslist
+            value: true
+  - number: '3'
+    text: Artikel 2 van de kader test wet is in bepaalde gevallen niet van toepassing.
+    machine_readable:
+      excludes:
+        - law: kader_test_wet
+          article: '2'
+          kind: {id}/orgaan
+          when: geval
+          legal_text_excerpt: Artikel 2 van de kader test wet is in bepaalde gevallen niet van toepassing.
+      execution:
+        parameters:
+          - name: uitgesloten
+            type: boolean
+            required: false
+        output:
+          - name: geval
+            type: boolean
+        actions:
+          - output: geval
+            value:
+              operation: EQUALS
+              subject: $uitgesloten
+              value: true
+"#
+    )
+}
+
+#[test]
+fn a_hook_on_a_kind_of_organizations_fires_on_what_a_member_decides() {
+    let mut service = service();
+    service
+        .load_law(&format!("$schema: {SCHEMA}\n{}", KADER.trim_start()))
+        .unwrap();
+    service
+        .load_law(&instelling("zbo_test_wet", "Testautoriteit", true))
+        .unwrap();
+    service
+        .load_law(&instelling("dienst_test_wet", "Testdienst", false))
+        .unwrap();
+    assert_eq!(service.resolver().validate_kinds(), Vec::<String>::new());
+
+    let run = |law: &str, excluded: bool| {
+        let mut params = BTreeMap::new();
+        params.insert("uitgesloten".to_string(), Value::Bool(excluded));
+        service
+            .evaluate_law_output(law, "beslist", params, "2025-06-01")
+            .unwrap()
+    };
+    let member = run("zbo_test_wet", false);
+    assert_eq!(
+        member.outputs.get("vernietigbaar"),
+        Some(&Value::Bool(true))
+    );
+    let excluded = run("zbo_test_wet", true);
+    assert_eq!(excluded.outputs.get("vernietigbaar"), None);
+    assert!(matches!(
+        excluded.output_provenance.get("vernietigbaar"),
+        Some(OutputProvenance::Voided { .. })
+    ));
+    let other = run("dienst_test_wet", false);
+    assert_eq!(other.outputs.get("vernietigbaar"), None);
+    assert_eq!(other.output_provenance.get("vernietigbaar"), None);
+}
+
+/// Every claim of membership and every exclusion is held against what is
+/// defined and against the words of the regulation.
+#[test]
+fn wrong_memberships_are_reported() {
+    let mut service = service();
+    service
+        .load_law(&format!("$schema: {SCHEMA}\n{}", KADER.trim_start()))
+        .unwrap();
+    service
+        .load_law(&format!(
+            r#"$schema: {SCHEMA}
+$id: claims_test_wet
+regulatory_layer: WET
+publication_date: '2025-01-01'
+member_of:
+  - kind: kader_test_wet/zelfstandig_bestuursorgaan
+    legal_text_excerpt: Het bureau beslist.
+  - kind: kader_test_wet/zelfstandig_bestuursorgaan
+articles:
+  - number: '1'
+    text: Er is een Testbureau. Het bureau beslist.
+    machine_readable:
+      organizations:
+        - id: bureau
+          name: Testbureau
+          member_of:
+            - kind: kader_test_wet/bestaat_niet
+              legal_text_excerpt: Het bureau beslist.
+            - kind: algemene_test_wet/besluit
+              legal_text_excerpt: Het bureau beslist.
+            - kind: kader_test_wet/zelfstandig_bestuursorgaan
+            - kind: kader_test_wet/zelfstandig_bestuursorgaan
+              legal_text_excerpt: staat hier niet
+        - id: tweede_bureau
+          name: Testbureau
+      competent_authority:
+        name: Testbureau
+      execution:
+        produces:
+          - type: algemene_test_wet/beschikking
+            member_of:
+              - kind: algemene_test_wet/bestaat_niet
+                legal_text_excerpt: Het bureau beslist.
+              - kind: kader_test_wet/zelfstandig_bestuursorgaan
+                legal_text_excerpt: Het bureau beslist.
+              - kind: algemene_test_wet/besluit
+              - kind: algemene_test_wet/besluit
+                legal_text_excerpt: staat hier niet
+        output:
+          - name: beslist
+            type: string
+        actions:
+          - output: beslist
+            value: ja
+  - number: '2'
+    text: Artikel 2 van de kader test wet is niet van toepassing.
+    machine_readable:
+      excludes:
+        - law: kader_test_wet
+          article: '2'
+          kind: kader_test_wet/bestaat_niet
+          when: geval
+          legal_text_excerpt: Artikel 2 van de kader test wet is niet van toepassing.
+      execution:
+        output:
+          - name: geval
+            type: string
+        actions:
+          - output: geval
+            value: ja
+"#
+        ))
+        .unwrap();
+    let findings = service.resolver().validate_kinds();
+    let item = "claims_test_wet article 1";
+    let org = "claims_test_wet article 1: organization bureau";
+    for expected in [
+        format!("{item}: member_of algemene_test_wet/bestaat_niet is defined nowhere"),
+        format!("{item}: member_of kader_test_wet/zelfstandig_bestuursorgaan names a kind of organizations, not of items"),
+        format!("{item}: member_of algemene_test_wet/besluit quotes no words of claims_test_wet and cites no provision"),
+        format!("{item}: member_of algemene_test_wet/besluit: the excerpt is not in the text of claims_test_wet"),
+        format!("{org}: member_of kader_test_wet/bestaat_niet is defined nowhere"),
+        format!("{org}: member_of algemene_test_wet/besluit names a kind of items, not of organizations"),
+        format!("{org}: member_of kader_test_wet/zelfstandig_bestuursorgaan quotes no words of claims_test_wet and cites no provision"),
+        format!("{org}: member_of kader_test_wet/zelfstandig_bestuursorgaan: the excerpt is not in the text of claims_test_wet"),
+        format!("{org}: another organization is named Testbureau"),
+        "claims_test_wet: member_of kader_test_wet/zelfstandig_bestuursorgaan names a kind of organizations, not of regulations".to_string(),
+        "claims_test_wet: member_of kader_test_wet/zelfstandig_bestuursorgaan quotes no words of claims_test_wet and cites no provision".to_string(),
+        "claims_test_wet article 2: excludes kader_test_wet#2 for kind kader_test_wet/bestaat_niet, which is defined nowhere".to_string(),
+        "claims_test_wet article 2: excludes kader_test_wet#2 when geval, which is not a boolean".to_string(),
+    ] {
+        assert!(findings.contains(&expected), "missing {expected:?} in {findings:#?}");
+    }
+}
+
+/// A `when` that yields something other than true, false or nothing is an
+/// error, not a silent "no exclusion".
+#[test]
+fn a_when_that_is_no_truth_value_is_an_error() {
+    let mut service = service();
+    service
+        .load_law(&format!("$schema: {SCHEMA}\n{}", KADER.trim_start()))
+        .unwrap();
+    let law = instelling("tekst_test_wet", "Tekstautoriteit", true).replace(
+        "            value:\n              operation: EQUALS\n              subject: $uitgesloten\n              value: true",
+        "            value: misschien",
+    )
+    .replace(
+        "          - name: geval\n            type: boolean",
+        "          - name: geval\n            type: string",
+    );
+    service.load_law(&law).unwrap();
+    let error = service
+        .evaluate_law_output("tekst_test_wet", "beslist", BTreeMap::new(), "2025-06-01")
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("instead of true or false"),
+        "{error}"
+    );
+}
+
+/// Loading a regulation again without its exclusion takes the exclusion
+/// away: the index does not keep what the newest version no longer says.
+#[test]
+fn a_reloaded_regulation_without_its_exclusion_excludes_nothing() {
+    let mut service = service();
+    let strafvordering = |claim: bool| {
+        let member_of = if claim {
+            "\n            member_of:\n              - kind: algemene_test_wet/opsporing_en_vervolging\n                legal_text_excerpt: de vervolging"
+        } else {
+            ""
+        };
+        format!("          - type: algemene_test_wet/beschikking{member_of}")
+    };
+    member(&mut service, "herlaad_test_wet", "", &strafvordering(true));
+    assert_eq!(
+        outputs(&service, "herlaad_test_wet")
+            .outputs
+            .get("motivering_vereist"),
+        None
+    );
+    // The general law again, without article 5.
+    let without = ALGEMEEN[..ALGEMEEN.find("  - number: '5'").unwrap()].to_string();
+    service
+        .load_law(&format!("$schema: {SCHEMA}\n{}", without.trim_start()))
+        .unwrap();
+    assert_eq!(
+        outputs(&service, "herlaad_test_wet")
+            .outputs
+            .get("motivering_vereist"),
+        Some(&Value::Bool(true))
+    );
+}

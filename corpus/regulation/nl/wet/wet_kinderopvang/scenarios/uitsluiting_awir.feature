@@ -33,6 +33,7 @@ Feature: Uitsluiting van Awir-artikelen door een inkomensafhankelijke regeling
     Then output "heeft_aanspraak_op_kindgebonden_budget" is true
     # Awir 4 draait niet: zijn uitkomst ontbreekt, die van Awir 5 niet.
     Then the result contains exactly the outputs "heeft_aanspraak_op_kindgebonden_budget, wijziging_in_aanmerking_vanaf"
+    Then output "is_kind" has voided provenance
 
   Scenario: Awir 5 vuurt voor de kinderopvangtoeslag bij een andere wijziging
     # Een nieuwe partner op 15 maart telt vanaf 1 april.
@@ -57,6 +58,7 @@ Feature: Uitsluiting van Awir-artikelen door een inkomensafhankelijke regeling
     Then output "heeft_aanspraak_op_kinderopvangtoeslag" is true
     # Awir 5 draait niet: zijn uitkomst ontbreekt, die van Awir 4 niet.
     Then the result contains exactly the outputs "heeft_aanspraak_op_kinderopvangtoeslag, is_kind"
+    Then output "wijziging_in_aanmerking_vanaf" has voided provenance
 
   Scenario: Voor het kindgebonden budget geldt Awir 5 ook bij een wijziging in de kosten
     # De uitsluiting van de Wet kinderopvang geldt alleen voor die wet.

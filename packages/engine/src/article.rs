@@ -25,10 +25,11 @@ pub use regelrecht_law_model::{
     CompetentAuthority, Declaration, DeclaredProperty, Definition, ExclusionDeclaration, Execution,
     HookDeclaration, HookFilter, HookPoint, ImplementsDeclaration, Input, KindDefinition,
     KindLevel, KindMembership, LegalBasis, MachineReadable, Marking, MarkingResolution,
-    NamedAuthority, OpenTerm, OpenTermDefault, Output, OverrideDeclaration, Parameter, Placement,
-    PlacementContainer, Preamble, ProcedureAppliesTo, ProcedureDefinition, Produced, ProducedItem,
-    Produces, ProducesList, ProvisionReference, ResolveSpec, Source, Stage, StageRequirement,
-    Temporal, TypeSpec, UntranslatableEntry, DEFAULT_FOREACH_AS,
+    NamedAuthority, OpenTerm, OpenTermDefault, OrganizationDeclaration, Output,
+    OverrideDeclaration, Parameter, Placement, PlacementContainer, Preamble, ProcedureAppliesTo,
+    ProcedureDefinition, Produced, ProducedItem, Produces, ProducesList, ProvisionReference,
+    ResolveSpec, Source, Stage, StageRequirement, Temporal, TypeSpec, UntranslatableEntry,
+    DEFAULT_FOREACH_AS,
 };
 
 /// Engine-side loading of an [`ArticleBasedLaw`] from YAML, with the security

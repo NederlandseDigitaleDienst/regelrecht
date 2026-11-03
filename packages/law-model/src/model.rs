@@ -490,6 +490,26 @@ pub enum KindLevel {
     Item,
     /// Regulations, through `member_of`.
     Regulation,
+    /// Organizations, through `member_of` on the article that establishes
+    /// one (`organizations`): the zelfstandig bestuursorgaan of the Kaderwet
+    /// zbo.
+    Organization,
+}
+
+/// An organization an article establishes (schema v0.9.0): "Er is een
+/// Autoriteit Consument en Markt." An article whose `competent_authority`
+/// names it by `name` acts as this organization, and what it produces
+/// belongs to the organization and to every kind the organization claims.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OrganizationDeclaration {
+    /// Unique within the regulation; referenced as `<regulation>/<id>`.
+    pub id: String,
+    /// The name the law gives it, as `competent_authority` names it.
+    pub name: String,
+    /// The kinds of organization it belongs to, each with its own words.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub member_of: Option<Vec<KindMembership>>,
 }
 
 /// A regulation's claim that it belongs to a kind of regulation (schema
@@ -1908,6 +1928,9 @@ pub struct MachineReadable {
     /// Kinds this article defines (schema v0.9.0)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kinds: Option<Vec<KindDefinition>>,
+    /// Organizations this article establishes (schema v0.9.0).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub organizations: Option<Vec<OrganizationDeclaration>>,
     /// Hooks this article switches off (schema v0.9.0): "artikel 4 van de
     /// Awir is niet van toepassing".
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2075,6 +2098,14 @@ impl Article {
         self.machine_readable
             .as_ref()
             .and_then(|mr| mr.hooks.as_ref())
+    }
+
+    /// Get the organizations this article establishes (schema v0.9.0).
+    pub fn get_organizations(&self) -> &[OrganizationDeclaration] {
+        self.machine_readable
+            .as_ref()
+            .and_then(|mr| mr.organizations.as_deref())
+            .unwrap_or_default()
     }
 
     /// Get the exclusions declared by this article (schema v0.9.0).

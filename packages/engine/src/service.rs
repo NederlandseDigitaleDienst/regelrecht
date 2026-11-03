@@ -181,21 +181,6 @@ struct Bound {
     answers: Vec<AnswerProvenance>,
 }
 
-/// The kinds a decision belongs to besides its `type` (schema v0.9.0): those
-/// it claims with `member_of`, and those its regulation claims. Each one's
-/// own lineage is the resolver's to walk.
-fn further_kinds<'a>(decision: Option<Produced<'a>>, law: &'a ArticleBasedLaw) -> Vec<&'a str> {
-    let on_item = match decision {
-        Some(Produced::Item(item)) => item.member_of.as_deref().unwrap_or_default(),
-        _ => &[],
-    };
-    on_item
-        .iter()
-        .chain(law.member_of.iter().flatten())
-        .map(|m| m.kind.as_str())
-        .collect()
-}
-
 /// The outputs `article` computes at stage `stage` of its procedure
 /// (RFC-045). For an article that produces several things, such as an
 /// application and the decision on it: those of the submission whose kind
@@ -3314,10 +3299,10 @@ impl LawExecutionService {
         // claims with `member_of`, and of those its regulation claims, and
         // the hooks on each of them fire on it too.
         if decision.and_then(|d| d.legal_character()).is_some() {
-            for kind in further_kinds(decision, law) {
+            for kind in self.further_kinds(article, law) {
                 for h in self.resolver.find_hooks(
                     hook_point,
-                    kind,
+                    &kind,
                     decision.and_then(|d| d.decision_type()),
                     stage,
                 ) {
@@ -3521,7 +3506,11 @@ impl LawExecutionService {
                 hooks
                     .into_iter()
                     .flatten()
-                    .flat_map(|hook| declared_parameter_names(hook.article))
+                    .flat_map(|hook| {
+                        declared_parameter_names(hook.article)
+                            .chain(self.override_parameter_names(hook.article, hook.law, res_ctx))
+                            .collect::<Vec<_>>()
+                    })
                     .collect()
             })
             .unwrap_or_default()
@@ -3643,6 +3632,23 @@ impl LawExecutionService {
         plan
     }
 
+    /// The parameters that the overrides of `article`'s outputs declare,
+    /// for the overrides that apply on this execution and are in force, as
+    /// [`Self::override_plan`] selects them. A hook passes them on to the
+    /// lex specialis that runs inside it, and to no one else.
+    fn override_parameter_names(
+        &self,
+        article: &Article,
+        law: &ArticleBasedLaw,
+        res_ctx: &ResolutionContext<'_>,
+    ) -> BTreeSet<String> {
+        self.override_plan(article, law, res_ctx)
+            .replacing
+            .into_values()
+            .flatten()
+            .collect()
+    }
+
     /// The exclusion that switches off hook article `hook_article` of
     /// `hook_law` on what `article` of `law` produces, if one applies
     /// (schema v0.9.0).
@@ -3752,9 +3758,46 @@ impl LawExecutionService {
         Ok(None)
     }
 
+    /// The kinds the decision of `article` belongs to besides its `type`
+    /// (schema v0.9.0): those it claims with `member_of`, those its
+    /// regulation claims, and for each organization its
+    /// `competent_authority` names: the organization itself and the kinds
+    /// it claims. The lineage of each is the resolver's to walk.
+    fn further_kinds(&self, article: &Article, law: &ArticleBasedLaw) -> Vec<String> {
+        let on_item = match article.get_decision() {
+            Some(Produced::Item(item)) => item.member_of.as_deref().unwrap_or_default(),
+            _ => &[],
+        };
+        let mut kinds: Vec<String> = on_item
+            .iter()
+            .chain(law.member_of.iter().flatten())
+            .map(|m| m.kind.clone())
+            .collect();
+        let authorities = article
+            .machine_readable
+            .as_ref()
+            .and_then(|mr| mr.competent_authority.as_ref())
+            .or(law.competent_authority.as_ref())
+            .and_then(|ca| ca.named())
+            .unwrap_or_default();
+        for authority in authorities {
+            if let Some(org) = self.resolver.organization_named(&authority.name) {
+                kinds.push(org.reference());
+                kinds.extend(
+                    org.declaration
+                        .member_of
+                        .iter()
+                        .flatten()
+                        .map(|m| m.kind.clone()),
+                );
+            }
+        }
+        kinds
+    }
+
     /// Every kind what `article` of `law` produces belongs to (schema
     /// v0.9.0): the lineage of each item's `type`, and of each further kind
-    /// of its decision (see [`further_kinds`]).
+    /// of its decision (see [`Self::further_kinds`]).
     fn item_kinds(&self, article: &Article, law: &ArticleBasedLaw) -> Vec<String> {
         let mut kinds: Vec<String> = Vec::new();
         let mut add = |k: &str| {
@@ -3771,10 +3814,10 @@ impl LawExecutionService {
                 }
             }
         }
-        // The further kinds the hooks fire on: the decision's and its
-        // regulation's, as `hooks_firing_on` reads them.
-        for k in further_kinds(article.get_decision(), law) {
-            add(k);
+        // The further kinds the hooks fire on, as `hooks_firing_on` reads
+        // them.
+        for k in self.further_kinds(article, law) {
+            add(&k);
         }
         kinds
     }
@@ -3886,7 +3929,17 @@ impl LawExecutionService {
             }
 
             // Filter parameters: only pass parameters declared by the hook article (least privilege)
-            let hook_params = Self::filter_parameters_for_article(hook_article, parameters);
+            let mut hook_params = Self::filter_parameters_for_article(hook_article, parameters);
+            // A lex specialis on the hook's own outputs runs inside the hook
+            // and receives the hook's parameters. It also gets the ones it
+            // declares itself: Instellingswet ACM art. 10 lid 1 needs to know
+            // whether the besluit is van algemene strekking, which Kaderwet
+            // zbo art. 22 never asks.
+            for name in self.override_parameter_names(hook_article, hook_law, res_ctx) {
+                if let Some(value) = parameters.get(&name) {
+                    hook_params.entry(name).or_insert_with(|| value.clone());
+                }
+            }
 
             // Trace the hook execution (guard auto-pops on all exit paths)
             let _guard = res_ctx.trace_guard(

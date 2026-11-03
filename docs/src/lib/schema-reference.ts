@@ -1040,6 +1040,11 @@ export function legalBasisFields(): Field[] {
   return fieldsOf(defs.legalBasis ?? {});
 }
 
+/** The fields of a membership claim (`kindMembership`, since v0.9.0). */
+export function kindMembershipFields(): Field[] {
+  return fieldsOf(defs.kindMembership ?? {});
+}
+
 /**
  * A string definition (`articleReference`, `kindReference`, `variableReference`): no field
  * table, only the description and the pattern. Each has its own section
@@ -1125,6 +1130,7 @@ export function referenceHeadings(): { depth: number; slug: string; text: string
   h(3, 'legal-basis', 'Legal basis');
   h(3, 'article-reference', 'Article reference');
   h(3, 'kind-reference', 'Kind reference');
+  h(3, 'kind-membership', 'Kind membership');
   h(3, 'variable-reference', 'Variable reference');
 
   // Everything otherSubStructures() renders, at the depth the component uses.
