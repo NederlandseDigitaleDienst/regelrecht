@@ -639,3 +639,142 @@ articles:
         .unwrap_err();
     assert!(e.to_string().contains("while answering it"), "{e}");
 }
+
+/// A fictional law with two inputs on art. 1 and one on art. 2, each
+/// answered by the inspecteur.
+const CHAIN: &str = r#"
+$id: wet_keten_fictief
+regulatory_layer: WET
+publication_date: '2024-01-01'
+valid_from: '2024-01-01'
+url: https://example.org/keten
+articles:
+  - number: '1'
+    text: Tekst.
+    machine_readable:
+      execution:
+        input:
+          - {name: x, type: boolean, source: {competent_authority: {name: inspecteur, type: CATEGORY}}}
+          - {name: w, type: boolean, source: {competent_authority: {name: inspecteur, type: CATEGORY}}}
+        output:
+          - {name: x_uit, type: boolean}
+          - {name: w_uit, type: boolean}
+        actions:
+          - {output: x_uit, value: $x}
+          - {output: w_uit, value: $w}
+  - number: '2'
+    text: Tekst.
+    machine_readable:
+      execution:
+        input:
+          - {name: z, type: boolean, source: {competent_authority: {name: inspecteur, type: CATEGORY}}}
+        output:
+          - {name: z_uit, type: boolean}
+        actions:
+          - {output: z_uit, value: $z}
+"#;
+
+/// A reduction `id` that answers `input` of `article` of the chain law with
+/// `value`, an operand.
+fn chain_reduction(id: &str, article: &str, input: &str, reads_z: bool) -> String {
+    let (read, value) = if reads_z {
+        (
+            "        input:\n          - {name: gelezen, type: boolean, source: {regulation: wet_keten_fictief, output: z_uit}}\n",
+            "$gelezen",
+        )
+    } else {
+        ("", "true")
+    };
+    format!(
+        r#"
+$id: {id}
+regulatory_layer: REDUCTIE
+publication_date: '2024-01-01'
+valid_from: '2024-01-01'
+url: https://example.org/reductie
+articles:
+  - number: '1'
+    text: Geen regelgeving.
+    machine_readable:
+      implements:
+        - {{law: wet_keten_fictief, article: '{article}', input: {input}}}
+      execution:
+{read}        output:
+          - {{name: {input}, type: boolean}}
+        actions:
+          - {{output: {input}, value: {value}}}
+"#
+    )
+}
+
+#[test]
+fn a_reduction_may_ask_its_cell_for_another_input_and_answers_only_its_own() {
+    let rx = chain_reduction("reductie_keten_x", "1", "x", true);
+    let rz = chain_reduction("reductie_keten_z", "2", "z", false);
+    let service = common::service_of(&[CHAIN, &rx, &rz]);
+    let dir = tempfile::tempdir().unwrap();
+    common::write_identity(
+        dir.path(),
+        "name: Inspecteur Oostmeer\ncategory: inspecteur\n",
+    );
+    common::keep_reduction(dir.path(), "reductie_keten_x", &rx);
+    common::keep_reduction(dir.path(), "reductie_keten_z", &rz);
+    let cell = Cell::in_memory("inspecteur_oostmeer", dir.path()).unwrap();
+    cell.check_inputs(&service).unwrap();
+    let answerer = cell.answerer();
+    let call = Call {
+        sphere: vec![&answerer],
+        ..Call::default()
+    };
+    // x is answered by asking the cell for z: a chain, no cycle.
+    let result = service
+        .evaluate_law_in(
+            "wet_keten_fictief",
+            &["x_uit", "w_uit"],
+            BTreeMap::new(),
+            call,
+            "2024-06-01",
+        )
+        .unwrap();
+    assert_eq!(result.outputs["x_uit"], Value::Bool(true));
+    // No reduction implements w, the other input of the same article.
+    assert!(result.outputs["w_uit"].is_unknown(), "{:?}", result.outputs);
+}
+
+#[test]
+fn two_reductions_of_a_cell_for_one_input_are_an_error() {
+    let one = chain_reduction("reductie_keten_een", "2", "z", false);
+    let two = chain_reduction("reductie_keten_twee", "2", "z", false);
+    let service = common::service_of(&[CHAIN, &one, &two]);
+    let dir = tempfile::tempdir().unwrap();
+    common::write_identity(
+        dir.path(),
+        "name: Inspecteur Oostmeer\ncategory: inspecteur\n",
+    );
+    common::keep_reduction(dir.path(), "reductie_keten_een", &one);
+    common::keep_reduction(dir.path(), "reductie_keten_twee", &two);
+    let cell = Cell::in_memory("inspecteur_oostmeer", dir.path()).unwrap();
+    let e = cell.check_inputs(&service).unwrap_err();
+    assert!(
+        e.to_string().contains("one reduction answers an input"),
+        "{e}"
+    );
+    let answerer = cell.answerer();
+    let call = Call {
+        sphere: vec![&answerer],
+        ..Call::default()
+    };
+    let e = service
+        .evaluate_law_in(
+            "wet_keten_fictief",
+            &["z_uit"],
+            BTreeMap::new(),
+            call,
+            "2024-06-01",
+        )
+        .unwrap_err();
+    assert!(
+        e.to_string().contains("2 reductions that answer input 'z'"),
+        "{e}"
+    );
+}
