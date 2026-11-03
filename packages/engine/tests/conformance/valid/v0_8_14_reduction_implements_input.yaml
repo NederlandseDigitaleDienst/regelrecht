@@ -1,0 +1,43 @@
+---
+# Tier C: a reduction that answers an input of a law (schema v0.8.14,
+# RFC-056): implements names the input instead of an open term. It reads the
+# decisions under an article of a regulation whose $id holds '/'.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: test_conformance_reduction_implements_input
+regulatory_layer: REDUCTIE
+publication_date: '2026-11-01'
+valid_from: '2026-11-01'
+url: https://example.invalid/reductie
+articles:
+  - number: '1'
+    text: Geen regelgeving.
+    url: https://example.invalid/reductie/1
+    machine_readable:
+      implements:
+        - law: test_conformance_input_competent_authority
+          article: '1'
+          input: heeft_vergunning
+      execution:
+        parameters:
+          - name: kvk_nummer
+            type: string
+        input:
+          - name: verleningen
+            type: array
+            source:
+              decisions: wet_fictief/vergunningen#2
+        output:
+          - name: heeft_vergunning
+            type: boolean
+        actions:
+          - output: heeft_vergunning
+            value:
+              operation: FOREACH
+              collection: $verleningen
+              as: verlening
+              filter:
+                operation: EQUALS
+                subject: $verlening.kvk_nummer
+                value: $kvk_nummer
+              body: true
+              combine: OR

@@ -102,6 +102,34 @@ pub struct OpenTermFilled {
     pub filled_by: FilledBy,
 }
 
+/// How an input whose source names its competent authority
+/// (`source.competent_authority`, RFC-056) got its value: supplied by the
+/// caller, answered by a cell, or neither. Serialized as
+/// `{"supplied": {"provider"}}`, `{"answered": {...}}` or `"absent"`.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InputResolvedBy {
+    /// The caller supplied it: a data source of the call, by its name, or a
+    /// parameter under the input's name (`provider` is then `None`).
+    Supplied { provider: Option<String> },
+    /// A cell of the call that the source names answered it, from the
+    /// reduction that implements the input.
+    Answered(AnswerProvenance),
+    /// Nobody supplied it and no cell of the call answered it: the input is
+    /// what a `source: {}` input without data is (RFC-036).
+    Absent,
+}
+
+/// One input of one article, whose source names its competent authority,
+/// and how it got its value in an execution (RFC-056).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct CompetentInput {
+    pub law_id: String,
+    pub article: String,
+    pub input: String,
+    pub resolved_by: InputResolvedBy,
+}
+
 /// Result of article execution
 #[derive(Debug, Clone)]
 pub struct ArticleResult {
@@ -147,6 +175,11 @@ pub struct ArticleResult {
     /// be listed twice, once per filler: an implementing article that reads
     /// the output it fills in reads it with the finding in its place.
     pub open_terms: Vec<OpenTermFilled>,
+    /// The inputs whose source names their competent authority (RFC-056)
+    /// that were resolved during this execution, nested calls included, and
+    /// how each got its value. Populated by the service layer,
+    /// independently of tracing.
+    pub competent_inputs: Vec<CompetentInput>,
 }
 
 /// Executes a single article's machine_readable.execution section.
@@ -374,6 +407,7 @@ impl<'a> ArticleEngine<'a> {
             declaration_version_notes: Vec::new(),
             declarations_not_in_force: Vec::new(),
             open_terms: Vec::new(),
+            competent_inputs: Vec::new(),
         };
 
         tracing::debug!(

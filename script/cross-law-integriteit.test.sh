@@ -144,6 +144,51 @@ else
     printf '  ok   op valid_to zelf nog in werking\n'
 fi
 
+# 9. Een reductie die een invoer beantwoordt (RFC-056): de invoer moet bestaan
+#    en een competent_authority noemen. Ontbreekt een van beide, dan beantwoordt
+#    de cel niets.
+afnemer() { # $1 = map, $2 = bron van de invoer
+    mkdir -p "$1"
+    cat >"$1/2026-01-01.yaml" <<YAML
+\$id: afnemer
+valid_from: '2026-01-01'
+articles:
+  - number: '1'
+    machine_readable:
+      execution:
+        input:
+          - name: vergunning
+            source: $2
+YAML
+}
+reductie() { # $1 = map, $2 = invoer
+    mkdir -p "$1"
+    cat >"$1/2026-01-01.yaml" <<YAML
+\$id: reductie
+regulatory_layer: REDUCTIE
+valid_from: '2026-01-01'
+articles:
+  - number: '1'
+    machine_readable:
+      implements:
+        - law: afnemer
+          article: '1'
+          input: $2
+YAML
+}
+c4="$tmp/invoer"
+afnemer "$c4/afnemer" "{competent_authority: {name: inspecteur}}"
+reductie "$c4/reductie" vergunning
+check "invoer met competent_authority → binding klopt" 0 "impl-dangling=0" "$c4" --peildatum 2026-06-01
+c5="$tmp/invoer-onbekend"
+afnemer "$c5/afnemer" "{competent_authority: {name: inspecteur}}"
+reductie "$c5/reductie" andere_invoer
+check "onbekende invoer → dangling" 1 'heeft geen invoer "andere_invoer"' "$c5" --peildatum 2026-06-01
+c6="$tmp/invoer-zonder-bevoegde"
+afnemer "$c6/afnemer" "{}"
+reductie "$c6/reductie" vergunning
+check "invoer zonder competent_authority → dangling" 1 'noemt geen competent_authority' "$c6" --peildatum 2026-06-01
+
 echo ""
 echo "$pass geslaagd, $fail mislukt"
 [ "$fail" -eq 0 ]

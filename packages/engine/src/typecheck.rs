@@ -67,6 +67,10 @@
 //!   target of this law also exists. A target taken from a value is known
 //!   only at run time: the checker then knows the input is a decision value
 //!   and claims nothing about its fields (`$x.outputs.y`), as for rows.
+//! - **T6** A reduction that answers an input (`implements` with `input`,
+//!   RFC-056) declares an output of the input's name, of its type and unit
+//!   (`type_spec.unit`). That the output is nullable only where the input is
+//!   falls under N5, as for any input that takes another output.
 
 use crate::article::{
     foreach_binding, Action, ActionOperation, ActionValue, Article, ArticleBasedLaw, CombineOp,
@@ -90,6 +94,7 @@ pub enum Rule {
     T3,
     T4,
     T5,
+    T6,
 }
 
 impl Rule {
@@ -106,6 +111,7 @@ impl Rule {
             Rule::T3 => "T3",
             Rule::T4 => "T4",
             Rule::T5 => "T5",
+            Rule::T6 => "T6",
         }
     }
 }
@@ -515,7 +521,14 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
             return;
         };
         for declaration in implements {
-            let Some(output) = self.article.find_output(&declaration.open_term) else {
+            if let Some(input) = &declaration.input {
+                self.check_answered_input(declaration, input);
+                continue;
+            }
+            let Some(open_term) = declaration.open_term.as_deref() else {
+                continue;
+            };
+            let Some(output) = self.article.find_output(open_term) else {
                 continue;
             };
             if !output.is_nullable() {
@@ -525,7 +538,7 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                 .law_named(&declaration.law)
                 .and_then(|law| law.find_article_by_number(&declaration.article))
                 .and_then(|article| article.get_open_terms())
-                .and_then(|terms| terms.iter().find(|t| t.id == declaration.open_term))
+                .and_then(|terms| terms.iter().find(|t| t.id == open_term))
             else {
                 continue;
             };
@@ -541,6 +554,74 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                     ),
                 );
             }
+        }
+    }
+
+    /// T6 and N5 for a reduction that answers an input (RFC-056): the
+    /// answer fits the input. The reduction gives an output of the input's
+    /// name, of the input's type and unit, and not nullable where the input
+    /// is not. Only what is declared is held against the target: a law the
+    /// checker cannot consult, or one without that input, makes no claim
+    /// here (the cross-law gate reports an input that is not there).
+    fn check_answered_input(
+        &mut self,
+        declaration: &crate::article::ImplementsDeclaration,
+        name: &str,
+    ) {
+        let Some(input) = self
+            .law_named(&declaration.law)
+            .and_then(|law| law.find_article_by_number(&declaration.article))
+            .and_then(|article| article.get_inputs().iter().find(|i| i.name == name))
+        else {
+            return;
+        };
+        let target = format!(
+            "input '{name}' of {} article {}",
+            declaration.law, declaration.article
+        );
+        let Some(output) = self.article.find_output(name) else {
+            self.location = format!("implements '{name}'");
+            self.report(
+                Rule::T6,
+                format!(
+                    "the reduction answers {target}, but declares no output '{name}'; it \
+                     answers with the output of the input's name"
+                ),
+            );
+            return;
+        };
+        self.location = format!("output '{name}'");
+        if output.output_type != input.input_type {
+            self.report(
+                Rule::T6,
+                format!(
+                    "'{name}' answers {target}, which is {}, but is declared {}",
+                    format!("{:?}", input.input_type).to_lowercase(),
+                    format!("{:?}", output.output_type).to_lowercase()
+                ),
+            );
+        }
+        let unit =
+            |spec: &Option<crate::article::TypeSpec>| spec.as_ref().and_then(|s| s.unit.clone());
+        if unit(&output.type_spec) != unit(&input.type_spec) {
+            let shown = |u: Option<String>| u.unwrap_or_else(|| "no unit".to_string());
+            self.report(
+                Rule::T6,
+                format!(
+                    "'{name}' answers {target}, whose unit is {}, but has {}",
+                    shown(unit(&input.type_spec)),
+                    shown(unit(&output.type_spec))
+                ),
+            );
+        }
+        if output.is_nullable() && !input.is_nullable() {
+            self.report(
+                Rule::N5,
+                format!(
+                    "'{name}' answers {target}, which is never absent, and may be null; \
+                     produce a value for every case or declare the input nullable"
+                ),
+            );
         }
     }
 

@@ -1,0 +1,26 @@
+---
+# Since v0.8.14 an implements entry names an open term or an input, not both
+# (RFC-056).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: test_conformance_implements_open_term_and_input
+regulatory_layer: REDUCTIE
+publication_date: '2026-11-01'
+valid_from: '2026-11-01'
+url: https://example.invalid/reductie
+articles:
+  - number: '1'
+    text: Geen regelgeving.
+    url: https://example.invalid/reductie/1
+    machine_readable:
+      implements:
+        - law: wet_fictief
+          article: '1'
+          open_term: heeft_vergunning
+          input: heeft_vergunning
+      execution:
+        output:
+          - name: heeft_vergunning
+            type: boolean
+        actions:
+          - output: heeft_vergunning
+            value: true

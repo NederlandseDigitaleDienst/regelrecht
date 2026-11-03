@@ -1,6 +1,6 @@
 ---
 $schema: >-
-  https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.8/schema/v0.5.8/schema.json
+  https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: wet_op_de_accijns/accijnsplicht_alcohol
 regulatory_layer: WET
 publication_date: '2024-01-01'
@@ -792,8 +792,14 @@ articles:
             required: true
         input:
           - name: heeft_agp_vergunning_register
-            # De vergunningstatus komt uit het register van de Douane; het canonieke
-            # schema bindt die data buiten de YAML (source: {}).
+            # Of de inspecteur het bedrijf een vergunning verstrekte. Het
+            # artikel noemt zelf wie dat doet ("een vergunning ... verstrekt
+            # door de inspecteur"), dus de bron noemt de inspecteur als
+            # bevoegd gezag (RFC-056). Zit de cel van een inspecteur in de
+            # aanroep, dan beantwoordt die de vraag uit haar eigen kroniek,
+            # met de besluiten onder artikel 43 en 48. Anders levert de
+            # aanroeper de waarde, zoals de demo met het register van de
+            # Douane doet (bindings.yaml), of een scenario met een tabel.
             #
             # Niet nullable: artikel 39 laat een plaats alleen als
             # accijnsgoederenplaats gebruiken indien daartoe een vergunning is
@@ -801,7 +807,12 @@ articles:
             # Geen rij betekent dan geen vergunning, niet 'onbekend' — en dat is
             # ook wat de binding levert (absent: false).
             type: boolean
-            source: {}
+            source:
+              competent_authority:
+                name: inspecteur
+                type: CATEGORY
+              parameters:
+                kvk_nummer: $kvk_nummer
         output:
           - name: heeft_agp_vergunning
             type: boolean
@@ -841,3 +852,152 @@ articles:
     # vergunningstatus is daarom naar artikel 39 verplaatst. Welke plaatsen in
     # aanmerking komen (lid 1 onder b met de bij ministeriële regeling vast te
     # stellen hoeveelheid, lid 2 en lid 3) is niet gemodelleerd.
+  - number: '42'
+    text: >-
+      1. In het verzoek om een vergunning voor een accijnsgoederenplaats worden gegevens
+      verstrekt met betrekking tot:
+        a. de soort of de soorten accijnsgoederen waarvoor de accijnsgoederenplaats is
+      bestemd;
+        b. de hoeveelheid accijnsgoederen, onderscheiden naar de soort, die naar verwachting in
+      de accijnsgoederenplaats per jaar zal worden geproduceerd, verwerkt, dan wel gemiddeld
+      over een jaar zonder verschuldigdheid van accijns voorhanden of opgeslagen zal zijn;
+        c. de persoon op wiens naam de vergunning dient te worden gesteld;
+        d. de administratie en de administratieve organisatie met betrekking tot de als
+      accijnsgoederenplaats aan te merken plaats; en
+        e. de locatie en de inrichting van de als accijnsgoederenplaats aan te wijzen plaats.
+
+      2. Bij ministeriële regeling worden nadere regels gesteld met betrekking tot de gegevens
+      die het verzoek moet bevatten.
+    url: https://wetten.overheid.nl/BWBR0005251/2024-01-01#HoofdstukIII_Afdeling1_Artikel42
+    # Wat het verzoek bevat (lid 1) staat bij artikel 43, dat het verzoek en
+    # het besluit erop voortbrengt: daar wordt het verzoek ingediend en
+    # uitgevoerd. Alleen lid 1 onder c is gemodelleerd, als kvk_nummer.
+  - number: '43'
+    text: >-
+      1. Een verzoek om een vergunning voor een accijnsgoederenplaats wordt door de inspecteur
+      toegewezen tenzij hij gegronde redenen heeft om aan te nemen dat niet zal worden voldaan
+      aan het bepaalde bij of krachtens deze wet.
+
+      2. Een verzoek om een vergunning voor een accijnsgoederenplaats kan worden geweigerd aan
+      degene die in de vijf aan het verzoek voorafgaande jaren onherroepelijk is veroordeeld
+      wegens het niet nakomen van een wettelijke bepaling inzake de accijns.
+    url: https://wetten.overheid.nl/BWBR0005251/2024-01-01#HoofdstukIII_Afdeling1_Artikel43
+    machine_readable:
+      # Lid 1: of de inspecteur gegronde redenen heeft, stelt hij per verzoek
+      # vast. Lid 2, de bevoegdheid te weigeren na een veroordeling, is niet
+      # gemodelleerd.
+      open_terms:
+        - id: gegronde_redenen_om_niet_voldoen_aan_te_nemen
+          type: boolean
+          required: true
+          decided_per_case_by: de inspecteur (eerste lid)
+          description: >-
+            Of de inspecteur gegronde redenen heeft om aan te nemen dat niet zal worden voldaan
+            aan het bepaalde bij of krachtens deze wet.
+      execution:
+        # Lid 1: de inspecteur wijst het verzoek toe, of niet. Dit artikel
+        # brengt twee dingen voort (RFC-045 §1): het verzoek, met wat
+        # artikel 42 het laat bevatten, en de beschikking erop, die de
+        # procedure van de Awb volgt.
+        produces:
+          - type: AANVRAAG
+            requests: wet_op_de_accijns/accijnsplicht_alcohol#43
+            parameters:
+              - kvk_nummer
+          - type: BESCHIKKING
+            decision_type: TOEKENNING
+            outputs:
+              - agp_vergunning_verleend
+        parameters:
+          # Artikel 42, eerste lid, onder c: de persoon op wiens naam de
+          # vergunning komt. Eigen keuze: het bedrijf noemt zich met het
+          # nummer dat de Kamer van Koophandel het toekende, zoals artikel 39
+          # het opzoekt. De gegevens onder a, b, d en e zijn niet
+          # gemodelleerd: artikel 39 leest ze niet.
+          - name: kvk_nummer
+            type: string
+            description: >-
+              Het KVK-nummer van de persoon op wiens naam de vergunning dient te worden
+              gesteld (artikel 42, eerste lid, onder c).
+        output:
+          - name: agp_vergunning_verleend
+            type: boolean
+            description: Of de inspecteur de vergunning voor een accijnsgoederenplaats verleent.
+        actions:
+          - output: agp_vergunning_verleend
+            value:
+              operation: NOT
+              value: $gegronde_redenen_om_niet_voldoen_aan_te_nemen
+            legal_basis:
+              law: Wet op de accijns
+              bwb_id: BWBR0005251
+              article: '43'
+              paragraph: '1'
+              url: >-
+                https://wetten.overheid.nl/BWBR0005251/2024-01-01#HoofdstukIII_Afdeling1_Artikel43
+              juriconnect: jci1.3:c:BWBR0005251&artikel=43&z=2024-01-01&g=2024-01-01
+              explanation: >-
+                Het verzoek wordt toegewezen, tenzij de inspecteur gegronde redenen heeft om aan
+                te nemen dat niet aan de wet zal worden voldaan
+  - number: '48'
+    text: >-
+      De vergunning voor een accijnsgoederenplaats kan door de inspecteur worden ingetrokken
+      ingeval:
+        a. niet wordt voldaan aan de in de vergunning opgenomen voorwaarden;
+        b. geen of niet voldoende zekerheid is gesteld;
+        c. misbruik van de vergunning is gemaakt of een poging daartoe is gedaan;
+        d. de vergunninghouder onherroepelijk is veroordeeld wegens het niet nakomen van een
+      wettelijke bepaling inzake de accijns;
+        e. de vergunninghouder in staat van faillissement verkeert of ten aanzien van hem de
+      schuldsaneringsregeling natuurlijke personen van toepassing is;
+        f. de vergunninghouder daarom verzoekt;
+        g. de vergunning gedurende een aaneengesloten periode van 12 maanden niet is gebruikt.
+    url: https://wetten.overheid.nl/BWBR0005251/2024-01-01#HoofdstukIII_Afdeling1_Artikel48
+    machine_readable:
+      # Alleen onder f: de intrekking op verzoek van de vergunninghouder. Dat
+      # verzoek is een aanvraag, en de cel van de inspecteur legt het besluit
+      # erop vast. De andere gronden zijn intrekkingen die de inspecteur uit
+      # eigen beweging doet, zonder aanvraag; een cel legt nog alleen een
+      # besluit op een indiening vast, dus die zijn niet gemodelleerd.
+      open_terms:
+        - id: intrekking_op_verzoek_toegewezen
+          type: boolean
+          required: true
+          decided_per_case_by: de inspecteur
+          description: >-
+            Of de inspecteur de vergunning op verzoek van de vergunninghouder intrekt; het
+            artikel zegt dat hij dat "kan".
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: wet_op_de_accijns/accijnsplicht_alcohol#48
+            parameters:
+              - vergunning
+          - type: BESCHIKKING
+            outputs:
+              - agp_vergunning_ingetrokken
+        parameters:
+          # Onder f: het verzoek noemt de vergunning die de houder wil laten
+          # intrekken, het besluit van de inspecteur onder artikel 43. De
+          # houder levert het niet als gegeven aan: het is een besluit dat de
+          # inspecteur nam (RFC-045 §6).
+          - name: vergunning
+            type: decision
+            description: Het besluit waarmee de inspecteur de vergunning verleende.
+        output:
+          - name: agp_vergunning_ingetrokken
+            type: boolean
+            description: Of de inspecteur de vergunning intrekt.
+        actions:
+          - output: agp_vergunning_ingetrokken
+            value: $intrekking_op_verzoek_toegewezen
+            legal_basis:
+              law: Wet op de accijns
+              bwb_id: BWBR0005251
+              article: '48'
+              url: >-
+                https://wetten.overheid.nl/BWBR0005251/2024-01-01#HoofdstukIII_Afdeling1_Artikel48
+              juriconnect: jci1.3:c:BWBR0005251&artikel=48&z=2024-01-01&g=2024-01-01
+              explanation: >-
+                Onder f: de inspecteur kan de vergunning intrekken als de vergunninghouder daarom
+                verzoekt

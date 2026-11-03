@@ -172,6 +172,8 @@ pub struct TypeSpec {
 /// - The decision of an article: `article: "<regulation>#<article>"` or a
 ///   `$`-reference that holds one, with `parameters_from` (schema v0.8.4,
 ///   RFC-045)
+/// - A value the competent authority answers from its own records:
+///   `competent_authority` with `parameters` (schema v0.8.14, RFC-056)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Source {
     /// Simple cross-law reference (law ID)
@@ -226,6 +228,16 @@ pub struct Source {
     /// the policy's holder. Without a cell that answers, the value is null.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reduction: Option<String>,
+    /// Who is competent by law to answer this input from its own records
+    /// (schema v0.8.14, RFC-056): one named authority or a list, where the
+    /// article itself names it, with `parameters` as the question it passes.
+    /// It says who is competent, not where the value must come from: the
+    /// caller may still supply it. Where the call holds a cell it names
+    /// whose reduction implements this input (`implements` with `input`),
+    /// the engine asks that cell. It stands alone, without `regulation`,
+    /// `output`, `endpoint`, `decisions`, `facts`, `reduction` or `article`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub competent_authority: Option<CompetentAuthority>,
     /// The article whose decision this input takes (schema v0.8.4, RFC-045):
     /// an article reference `<regulation>#<article>`, or a `$`-reference to
     /// a value that holds one, such as the `basis` of a `decision`
@@ -1232,14 +1244,25 @@ pub struct ArticleRequirement {
 
 /// Declares that this article fills an open term from a higher-level law.
 /// Maps to the "Gelet op" clause in Dutch legislation.
+///
+/// Since schema v0.8.14 (RFC-056) an entry of a `REDUCTIE` names an
+/// [`Self::input`] instead: the reduction answers that input, for the cell
+/// that keeps it. An entry names one of the two; the engine's loader holds
+/// a `REDUCTIE` to inputs and every other rulework to open terms.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ImplementsDeclaration {
     /// The $id of the higher-level law being implemented
     pub law: String,
-    /// Article number in the higher law that declares the open_term
+    /// Article number in the higher law that declares the open_term or the
+    /// input
     pub article: String,
     /// The open_term id being filled
-    pub open_term: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub open_term: Option<String>,
+    /// The input a reduction answers (schema v0.8.14, RFC-056), whose
+    /// source names the competent authority.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input: Option<String>,
     /// Legal reference text (e.g., "Gelet op artikel 4 van de Wet op de zorgtoeslag")
     #[serde(default)]
     pub gelet_op: Option<String>,
@@ -1296,9 +1319,10 @@ pub struct HookFilter {
 
 /// Whether `s` is an article reference of the schema (`articleReference`):
 /// `<regulation>#<article>` with no ` lid <n>` (schema pattern
-/// `^[a-z0-9_]+#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?$`, `not` the
-/// pattern ` lid [0-9]`). An article with a space, such as Kieswet `G 1`, is
-/// one.
+/// `^[a-z0-9_]+(/[a-z0-9_]+)*#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?$`,
+/// `not` the pattern ` lid [0-9]`). An article with a space, such as Kieswet
+/// `G 1`, is one, and so is one of a regulation whose `$id` holds `/`
+/// between its segments (schema v0.8.14), as the demo corpus has.
 pub fn is_article_reference(s: &str) -> bool {
     let Some((regulation, article)) = s.split_once('#') else {
         return false;
@@ -1307,10 +1331,12 @@ pub fn is_article_reference(s: &str) -> bool {
     let names_paragraph = s
         .match_indices(" lid ")
         .any(|(i, m)| s[i + m.len()..].starts_with(|c: char| c.is_ascii_digit()));
-    !regulation.is_empty()
-        && regulation
-            .chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+    let segment = |s: &str| {
+        !s.is_empty()
+            && s.chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+    };
+    regulation.split('/').all(segment)
         && article.starts_with(alnum)
         && article.ends_with(alnum)
         && article

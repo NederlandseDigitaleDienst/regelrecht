@@ -1,0 +1,96 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: reductie_agp_vergunningen
+regulatory_layer: REDUCTIE
+publication_date: '2023-12-01'
+valid_from: '2024-01-01'
+# Geen regelgeving: een reductie van een fictieve inspecteur over zijn eigen
+# kroniek (RFC-022 §4.1, RFC-048). Artikel 39 van de Wet op de accijns noemt
+# de inspecteur als wie de vergunning verstrekt; deze reductie beantwoordt die
+# invoer (RFC-056). Eigen keuze: de besluiten worden direct gelezen, niet via
+# de reductie van de Awb, dus een besluit dat op bezwaar is herroepen telt
+# hier nog mee. Ook eigen keuze: de reductie zoekt op het bedrijf
+# (kvk_nummer), zoals artikel 39 van de demo vraagt, en niet op de plaats
+# waarvoor de vergunning geldt (artikel 42, eerste lid, onder e).
+url: https://wetten.overheid.nl/BWBR0005251/2024-01-01#HoofdstukIII_Afdeling1_Artikel39
+name: Vergunningen voor een accijnsgoederenplaats bij de inspecteur Wilgendaal (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving. Het systeem van de inspecteur kijkt door middel van een
+      chronolexografische reductie op zijn eigen kroniek of hij het bedrijf een
+      vergunning voor een accijnsgoederenplaats verleende (artikel 43 van de Wet
+      op de accijns) die hij niet op verzoek van de vergunninghouder heeft
+      ingetrokken (artikel 48, onder f).
+    url: https://wetten.overheid.nl/BWBR0005251/2024-01-01#HoofdstukIII_Afdeling1_Artikel39
+    machine_readable:
+      implements:
+        - law: wet_op_de_accijns/accijnsplicht_alcohol
+          article: '39'
+          input: heeft_agp_vergunning_register
+      execution:
+        # Wat artikel 39 meegeeft (source.parameters).
+        parameters:
+          - name: kvk_nummer
+            type: string
+            description: Het KVK-nummer van het bedrijf.
+        input:
+          # De besluiten op een verzoek om een vergunning, één rij per besluit.
+          - name: verleningen
+            type: array
+            source:
+              decisions: wet_op_de_accijns/accijnsplicht_alcohol#43
+          # De besluiten op een verzoek om intrekking. Het veld vergunning
+          # houdt de id van het besluit dat de vergunning verleende.
+          - name: intrekkingen
+            type: array
+            source:
+              decisions: wet_op_de_accijns/accijnsplicht_alcohol#48
+        output:
+          - name: ingetrokken_vergunningen
+            type: array
+            description: >-
+              De ids van de besluiten die een vergunning verleenden en die de inspecteur op
+              verzoek heeft ingetrokken.
+          - name: heeft_agp_vergunning_register
+            type: boolean
+            description: >-
+              Of de inspecteur het bedrijf een vergunning verleende die hij niet heeft
+              ingetrokken.
+        actions:
+          # Een intrekking noemt in het veld vergunning de id van het besluit
+          # dat de vergunning verleende. Een geneste FOREACH ziet de
+          # binding van de buitenste niet in zijn filter, dus eerst de ids.
+          - output: ingetrokken_vergunningen
+            value:
+              operation: FOREACH
+              collection: $intrekkingen
+              as: intrekking
+              filter:
+                operation: EQUALS
+                subject: $intrekking.agp_vergunning_ingetrokken
+                value: true
+              body: $intrekking.vergunning
+          # De kroniek is die van de dag waarnaar artikel 39 vraagt: een
+          # besluit van later staat er niet in.
+          - output: heeft_agp_vergunning_register
+            value:
+              operation: FOREACH
+              collection: $verleningen
+              as: verlening
+              filter:
+                operation: AND
+                conditions:
+                  - operation: EQUALS
+                    subject: $verlening.agp_vergunning_verleend
+                    value: true
+                  - operation: EQUALS
+                    subject: $verlening.kvk_nummer
+                    value: $kvk_nummer
+                  - operation: NOT
+                    value:
+                      operation: IN
+                      subject: $verlening.id
+                      value: $ingetrokken_vergunningen
+              body: true
+              combine: OR

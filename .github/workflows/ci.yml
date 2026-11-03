@@ -389,6 +389,13 @@ jobs:
           CHRONO_DIRS=$(script/chrono-regulation-dirs.sh)
           python3 script/cross-law-integriteit.py $CHRONO_DIRS packages/poc-chronolexografie/corpus/cells
 
+      # Het democorpus, met de cel van de inspecteur die artikel 39 van de
+      # Wet op de accijns beantwoordt (RFC-056): die reductie wijst naar een
+      # invoer van de demo.
+      - name: Check cross-law binding integrity (demo)
+        run: |
+          python3 script/cross-law-integriteit.py corpus/demo/regulation packages/cel/tests/fixtures/corpus/cells/inspecteur_wilgendaal
+
   pre-commit:
     name: Pre-commit
     needs: changes

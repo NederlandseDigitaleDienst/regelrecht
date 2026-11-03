@@ -58,6 +58,10 @@ A cell is an organization that keeps its own chronicle and answers questions fro
 
 Wherever that binding runs, the engine asks the one cell in the call that the term names. It does not ask a cell that the term does not name. If the call holds more than one cell that the term names, the decision fails. The engine merges no answers, and which cell of a category answers is an [open question](/concepts/chronolexography/open-questions). For a term without `competent_authority`, the engine asks the cell of the authority that holds the policy. The article's own `competent_authority` plays no part in which cell the engine asks.
 
+## Who answers an input
+
+Since schema v0.8.14, an input's `source` can carry a `competent_authority` too, where the article itself names who establishes the value, as Wet op de accijns art. 39 names the inspecteur for the permit. It says who answers the input from its own records. The engine asks the one cell in the call that it names, and that cell answers with the reduction that implements the input. A value the caller supplies still counts, and both at once are an error ([Chronolexography](/concepts/chronolexography#an-input-the-law-makes-a-cell-answer), [RFC-056](https://github.com/NederlandseDigitaleDienst/regelrecht/pull/1891)).
+
 ## Who gives a finding
 
 A finding is what the authority itself decides on an open norm in a single case. An open term with `decided_per_case_by` needs a finding when no regulation fills it. The field also names the authority in words. The engine reads it only as a marker that the term is judged case by case. Who gives the finding follows from competence:

@@ -26,7 +26,8 @@
 //! ```
 
 use crate::answer::{
-    AnswerProvenance, AnswerRequest, Authority, Call, Chronicle, ChronicleRead, OpenTermAnswerer,
+    AnswerProvenance, AnswerRequest, Authority, Call, Chronicle, ChronicleRead, InputRequest,
+    OpenTermAnswerer,
 };
 use crate::article::{
     Article, ArticleBasedLaw, CompetentAuthority, Execution, HookPoint, Input, MachineReadable,
@@ -35,7 +36,10 @@ use crate::article::{
 use crate::config;
 use crate::context::{LazyInputs, RuleContext};
 use crate::data_source::{DataSource, DataSourceRegistry, DictDataSource};
-use crate::engine::{ArticleEngine, ArticleResult, FilledBy, OpenTermFilled, OutputProvenance};
+use crate::engine::{
+    ArticleEngine, ArticleResult, CompetentInput, FilledBy, InputResolvedBy, OpenTermFilled,
+    OutputProvenance,
+};
 use crate::error::{EngineError, Result};
 use crate::operations::ValueResolver;
 use crate::priority;
@@ -169,6 +173,9 @@ struct ResolutionContext<'a> {
     /// ([`Bound`]): how an open term the binding fills came to its value
     /// ([`FilledBy::Answer`]).
     bound: Vec<Bound>,
+    /// How each input whose source names its competent authority got its
+    /// value (RFC-056, [`ArticleResult::competent_inputs`]).
+    competent_inputs: Vec<CompetentInput>,
 }
 
 /// The answers one input of a binding took (`source.reduction`, RFC-048):
@@ -299,6 +306,7 @@ impl<'a> ResolutionContext<'a> {
             sphere: Vec::new(),
             chronicle: None,
             bound: Vec::new(),
+            competent_inputs: Vec::new(),
         })
     }
 
@@ -1191,37 +1199,42 @@ impl<'a, 'r, 'c> LazyArticleInputs<'a, 'r, 'c> {
                         "parameter from caller".to_string(),
                     ));
                 }
+                // A value passed for an input that a competent cell of the
+                // call answers is one value from two sources (RFC-056).
+                if input
+                    .source
+                    .as_ref()
+                    .is_some_and(|source| source.competent_authority.is_some())
+                {
+                    let context = self.article_context();
+                    if self.asks_a_cell(input)? {
+                        self.resolve_source_keys(input, &context)?;
+                    }
+                    self.with_resolution_context(|res_ctx| {
+                        self.service.check_passed_competent(
+                            self.article,
+                            self.law,
+                            input,
+                            &context,
+                            res_ctx,
+                        )
+                    })?;
+                }
                 Ok(None)
             }
             LazyName::Input(input) => {
                 let context = self.article_context();
                 // A call to another law is keyed on the source's parameters,
                 // which may read other inputs of this article: those are
-                // resolved first, each as its own step. No other way of
-                // resolving an input reads them.
-                if self
-                    .service
-                    .calls_other_law(self.law, input, self.parameters)
+                // resolved first, each as its own step. So is the question to
+                // a competent cell (RFC-056). No other way of resolving an
+                // input reads them.
+                if self.asks_a_cell(input)?
+                    || self
+                        .service
+                        .calls_other_law(self.law, input, self.parameters)
                 {
-                    // A call to an article also reads the value that names
-                    // it and the objects it merges (RFC-045 §6).
-                    let keys = input
-                        .source
-                        .iter()
-                        .flat_map(|source| {
-                            source
-                                .parameters
-                                .iter()
-                                .flat_map(|p| p.values())
-                                .chain(source.article.iter())
-                                .chain(source.parameters_from.iter().flatten())
-                        })
-                        .filter_map(|reference| crate::demand::reference_base(reference));
-                    for key in keys {
-                        if self.owner(key).is_some() {
-                            context.resolve(key)?;
-                        }
-                    }
+                    self.resolve_source_keys(input, &context)?;
                 }
                 let value = self.with_resolution_context(|res_ctx| {
                     self.service.resolve_input(
@@ -1241,6 +1254,52 @@ impl<'a, 'r, 'c> LazyArticleInputs<'a, 'r, 'c> {
                 Ok(Some((value, ResolveType::OpenTerm)))
             }
         }
+    }
+
+    /// Whether resolving `input` asks a cell of the call (RFC-056): its
+    /// source names a competent authority, and the call holds a cell it
+    /// names. Only then are the parameters of the question read, so an input
+    /// no cell answers reads no more than a `source: {}` input does.
+    fn asks_a_cell(&self, input: &Input) -> Result<bool> {
+        let Some(named) = input
+            .source
+            .as_ref()
+            .and_then(|source| source.competent_authority.as_ref())
+            .and_then(|authority| authority.named())
+        else {
+            return Ok(false);
+        };
+        self.with_resolution_context(|res_ctx| {
+            Ok(res_ctx
+                .answerer
+                .into_iter()
+                .chain(res_ctx.sphere.iter().copied())
+                .any(|answerer| answerer.authority().is_named_by(named)))
+        })
+    }
+
+    /// Resolve the values `input`'s source reads, each as its own step: the
+    /// references under `parameters`, and for a call to an article the value
+    /// that names it and the objects it merges (RFC-045 §6).
+    fn resolve_source_keys(&self, input: &Input, context: &RuleContext<'_>) -> Result<()> {
+        let keys = input
+            .source
+            .iter()
+            .flat_map(|source| {
+                source
+                    .parameters
+                    .iter()
+                    .flat_map(|p| p.values())
+                    .chain(source.article.iter())
+                    .chain(source.parameters_from.iter().flatten())
+            })
+            .filter_map(|reference| crate::demand::reference_base(reference));
+        for key in keys {
+            if self.owner(key).is_some() {
+                context.resolve(key)?;
+            }
+        }
+        Ok(())
     }
 
     /// Resolve an open term with the context in hand. Its default reads the
@@ -1629,6 +1688,8 @@ pub struct StageReport {
     pub declarations_not_in_force: Vec<DeclarationNotInForce>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub open_terms: Vec<OpenTermFilled>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub competent_inputs: Vec<CompetentInput>,
 }
 
 impl StageReport {
@@ -1651,6 +1712,7 @@ impl StageReport {
             &res_ctx.declarations_not_in_force,
         );
         add(&mut self.open_terms, &res_ctx.open_terms);
+        add(&mut self.competent_inputs, &res_ctx.competent_inputs);
     }
 
     fn report_into(&self, result: &mut ArticleResult) {
@@ -1664,6 +1726,7 @@ impl StageReport {
             .declarations_not_in_force
             .clone_from(&self.declarations_not_in_force);
         result.open_terms.clone_from(&self.open_terms);
+        result.competent_inputs.clone_from(&self.competent_inputs);
     }
 }
 
@@ -3153,6 +3216,7 @@ impl LawExecutionService {
                     declaration_version_notes: Vec::new(),
                     declarations_not_in_force: Vec::new(),
                     open_terms: Vec::new(),
+                    competent_inputs: Vec::new(),
                 });
             }
         }
@@ -4462,7 +4526,7 @@ impl LawExecutionService {
                 declaring
                     .get_open_terms()?
                     .iter()
-                    .find(|term| term.id == decl.open_term)
+                    .find(|term| decl.open_term.as_deref() == Some(term.id.as_str()))
             })
             .collect();
         let competent = terms.iter().find_map(|term| {
@@ -4582,6 +4646,211 @@ impl LawExecutionService {
             answers: vec![given.provenance],
         });
         Ok(Some(value))
+    }
+
+    /// Resolve an input whose source names who is competent by law to
+    /// answer it from its own records (`source.competent_authority`,
+    /// RFC-056), one of `named`.
+    ///
+    /// The cell is one way to supply the value, never the only one. The
+    /// value the caller supplies in a data source counts as well; one passed
+    /// under the input's name never reaches here
+    /// ([`Self::check_passed_competent`]). The engine asks the one cell of
+    /// the call that `named` names for the input
+    /// ([`OpenTermAnswerer::answer_input`]):
+    ///
+    /// | supplied | a cell answers | the input is |
+    /// |---|---|---|
+    /// | yes | no | the supplied value |
+    /// | no | yes | the cell's answer |
+    /// | yes | yes | an error: the engine does not choose between two sources |
+    /// | no | no | what a `source: {}` input without data is (RFC-036) |
+    ///
+    /// More than one cell of the call that `named` names is an error, as for
+    /// an open term (RFC-048 §4): one question goes to one cell. How the
+    /// input got its value is recorded ([`ArticleResult::competent_inputs`]).
+    #[allow(clippy::too_many_arguments)]
+    fn resolve_competent<'c>(
+        &self,
+        article: &Article,
+        law: &ArticleBasedLaw,
+        input: &crate::article::Input,
+        source: &crate::article::Source,
+        named: &[crate::article::NamedAuthority],
+        context: &RuleContext,
+        parameters: &BTreeMap<String, Value>,
+        res_ctx: &mut ResolutionContext<'c>,
+    ) -> Result<Option<Value>> {
+        let answered =
+            self.ask_competent_cell(article, law, input, source, named, context, res_ctx)?;
+        let supplied = self
+            .data_registry
+            .resolve_for_law(&input.name, parameters, Some(&law.id));
+        let record = |res_ctx: &mut ResolutionContext<'c>, resolved_by: InputResolvedBy| {
+            let entry = CompetentInput {
+                law_id: law.id.clone(),
+                article: article.number.clone(),
+                input: input.name.clone(),
+                resolved_by,
+            };
+            if !res_ctx.competent_inputs.contains(&entry) {
+                res_ctx.competent_inputs.push(entry);
+            }
+        };
+        match (supplied, answered) {
+            (Some(data_match), Some(answer)) => {
+                let message = format!(
+                    "input '{}' of {} is supplied by {} and answered by the cell {}; the \
+                     engine does not choose between two sources for one value (RFC-056)",
+                    input.name, law.id, data_match.source_name, answer.provenance.answerer
+                );
+                let _guard = res_ctx.trace_guard(&input.name, PathNodeType::Resolve);
+                res_ctx.trace_set_message(message.clone());
+                Err(EngineError::InvalidOperation(message))
+            }
+            (Some(data_match), None) => {
+                record(
+                    res_ctx,
+                    InputResolvedBy::Supplied {
+                        provider: Some(data_match.source_name.clone()),
+                    },
+                );
+                Self::supplied_from_data(law, input, data_match, res_ctx)
+            }
+            (None, Some(answer)) => {
+                {
+                    let _guard = res_ctx.trace_guard(&input.name, PathNodeType::Resolve);
+                    res_ctx.trace_set_resolve_type(ResolveType::DataSource);
+                    res_ctx.trace_set_result(answer.value.clone());
+                    res_ctx.trace_set_source(ValueSource {
+                        kind: ResolveType::DataSource,
+                        provider: Some(answer.provenance.answerer.clone()),
+                        scope: Some(law.id.clone()),
+                    });
+                    if let Some(ref ts) = input.type_spec {
+                        res_ctx.trace_set_type_spec(ts.clone());
+                    }
+                    res_ctx.trace_set_answer(answer.provenance.clone());
+                    res_ctx.trace_set_message(format!("Answered by {}", answer.provenance));
+                }
+                if answer.value.is_null() && !input.is_nullable() {
+                    return Err(null_for_non_nullable(
+                        law,
+                        input,
+                        format!("the cell {}", answer.provenance.answerer),
+                    ));
+                }
+                record(res_ctx, InputResolvedBy::Answered(answer.provenance));
+                Ok(Some(answer.value))
+            }
+            (None, None) => {
+                record(res_ctx, InputResolvedBy::Absent);
+                self.resolve_without_data(article, law, input, parameters, res_ctx)
+            }
+        }
+    }
+
+    /// The answer of the one cell of the call that `named` names for
+    /// `input` (RFC-056), or `None` when the call holds no such cell or it
+    /// has no answer for the input. More than one such cell is an error.
+    #[allow(clippy::too_many_arguments)]
+    fn ask_competent_cell(
+        &self,
+        article: &Article,
+        law: &ArticleBasedLaw,
+        input: &crate::article::Input,
+        source: &crate::article::Source,
+        named: &[crate::article::NamedAuthority],
+        context: &RuleContext,
+        res_ctx: &mut ResolutionContext<'_>,
+    ) -> Result<Option<crate::answer::Answer>> {
+        let askees: Vec<&dyn OpenTermAnswerer> = res_ctx
+            .answerer
+            .into_iter()
+            .chain(res_ctx.sphere.iter().copied())
+            .filter(|answerer| answerer.authority().is_named_by(named))
+            .collect();
+        if askees.len() > 1 {
+            let mut names: Vec<&str> = askees.iter().map(|a| a.authority().name.as_str()).collect();
+            names.sort_unstable();
+            let message = format!(
+                "input '{}' of {} is answered by {}, and {} cells of the call are named by it: \
+                 {}; the engine asks one cell, and which one is open (RFC-056)",
+                input.name,
+                law.id,
+                authorities(named),
+                askees.len(),
+                names.join(", ")
+            );
+            let _guard = res_ctx.trace_guard(&input.name, PathNodeType::Resolve);
+            res_ctx.trace_set_message(message.clone());
+            return Err(EngineError::InvalidOperation(message));
+        }
+        let Some(askee) = askees.first().copied() else {
+            return Ok(None);
+        };
+        let parameters = self.build_target_parameters(source.parameters.as_ref(), context)?;
+        let request = InputRequest {
+            law: &law.id,
+            article: &article.number,
+            input: &input.name,
+            parameters: &parameters,
+            calculation_date: res_ctx.calculation_date,
+        };
+        askee.answer_input(self, &request).inspect_err(|e| {
+            let _guard = res_ctx.trace_guard(&input.name, PathNodeType::Resolve);
+            res_ctx.trace_set_message(format!(
+                "Input '{}': the cell {} failed: {e}",
+                input.name,
+                askee.authority().name
+            ));
+        })
+    }
+
+    /// A value the caller passed under the name of an input whose source
+    /// names its competent authority (RFC-056): it counts as supplied, and a
+    /// cell of the call that answers the input as well is an error, as for a
+    /// value from a data source ([`Self::resolve_competent`]).
+    fn check_passed_competent(
+        &self,
+        article: &Article,
+        law: &ArticleBasedLaw,
+        input: &crate::article::Input,
+        context: &RuleContext,
+        res_ctx: &mut ResolutionContext<'_>,
+    ) -> Result<()> {
+        let Some(source) = input.source.as_ref() else {
+            return Ok(());
+        };
+        let Some(named) = source
+            .competent_authority
+            .as_ref()
+            .and_then(|authority| authority.named())
+        else {
+            return Ok(());
+        };
+        if let Some(answer) =
+            self.ask_competent_cell(article, law, input, source, named, context, res_ctx)?
+        {
+            let message = format!(
+                "input '{}' of {} is passed by the caller and answered by the cell {}; the \
+                 engine does not choose between two sources for one value (RFC-056)",
+                input.name, law.id, answer.provenance.answerer
+            );
+            let _guard = res_ctx.trace_guard(&input.name, PathNodeType::Resolve);
+            res_ctx.trace_set_message(message.clone());
+            return Err(EngineError::InvalidOperation(message));
+        }
+        let entry = CompetentInput {
+            law_id: law.id.clone(),
+            article: article.number.clone(),
+            input: input.name.clone(),
+            resolved_by: InputResolvedBy::Supplied { provider: None },
+        };
+        if !res_ctx.competent_inputs.contains(&entry) {
+            res_ctx.competent_inputs.push(entry);
+        }
+        Ok(())
     }
 
     /// The value of an input of `article` that got no answer
@@ -5350,60 +5619,26 @@ impl LawExecutionService {
             None => return Ok(None),
         };
 
+        // Who is competent by law to answer this input from its own records
+        // (RFC-056): the caller may supply it, or a cell of the call that the
+        // source names answers it, never both.
+        if let Some(named) = source
+            .competent_authority
+            .as_ref()
+            .and_then(|authority| authority.named())
+        {
+            return self.resolve_competent(
+                article, law, input, source, named, context, parameters, res_ctx,
+            );
+        }
+
         // Check DataSourceRegistry before cross-law resolution.
         // An empty registry resolves to None, so no separate guard is needed.
         if let Some(data_match) =
             self.data_registry
                 .resolve_for_law(&input.name, parameters, Some(&law.id))
         {
-            tracing::debug!(
-                input = %input.name,
-                source = %data_match.source_name,
-                "Resolved input from data registry"
-            );
-
-            // Trace the data source resolution
-            {
-                let _guard = res_ctx.trace_guard(&input.name, PathNodeType::Resolve);
-                res_ctx.trace_set_resolve_type(ResolveType::DataSource);
-                res_ctx.trace_set_result(data_match.value.clone());
-                // Which organization supplied this fact, in a field
-                // (RFC-039). The message below says the same thing for a
-                // person reading a terminal; it used to be the only place
-                // it was said, so consumers matched a regular expression
-                // against it.
-                res_ctx.trace_set_source(ValueSource {
-                    kind: ResolveType::DataSource,
-                    provider: Some(data_match.source_name.clone()),
-                    scope: data_match.law_scope.clone(),
-                });
-                // The unit the law declares for this input, so a reader
-                // sees an amount and not a bare count of cents (RFC-023,
-                // RFC-039). Only where a declaration carries one; a value
-                // computed mid-expression has none, and version 1 does not
-                // infer one.
-                if let Some(ref ts) = input.type_spec {
-                    res_ctx.trace_set_type_spec(ts.clone());
-                }
-                res_ctx.trace_set_message(format!(
-                    "Resolving from SOURCE {}: {}",
-                    data_match.source_name, data_match.value
-                ));
-            }
-
-            // An explicit null cell is the register's claim that there is
-            // none. The law's declaration says whether that is a value this
-            // input can take; if not, the two contradict each other and the
-            // data is wrong at the boundary (RFC-036).
-            if data_match.value.is_null() && !input.is_nullable() {
-                return Err(null_for_non_nullable(
-                    law,
-                    input,
-                    format!("source {}", data_match.source_name),
-                ));
-            }
-
-            return Ok(Some(data_match.value));
+            return Self::supplied_from_data(law, input, data_match, res_ctx);
         }
 
         // The decisions taken under an article (RFC-048): only a data source
@@ -5603,73 +5838,145 @@ impl LawExecutionService {
                 ))
             }
         } else {
-            // Empty source (source: {}) — resolved from DataSourceRegistry
-            // only, and no source had a value: no matching row, or a row
-            // without this field. The fact exists but nobody has it, so the
-            // input is Unknown for lack of exactly this fact (RFC-036). An
-            // explicit null cell never reaches here: the source answered
-            // "none", and that is absence, a value.
-            //
-            // Unless the register was never asked about anybody: a required
-            // parameter of this article (the lookup key, typically `bsn`)
-            // that the caller did not pass. Then nothing is known about
-            // the fact because the question was malformed, not because
-            // nobody has the answer, and the input stays unresolved as it
-            // did before RFC-036. A reference to it fails, so a forgotten
-            // or misspelled required parameter never becomes an unknown
-            // outcome.
-            let _guard = res_ctx.trace_guard(&input.name, PathNodeType::Resolve);
-            // Nor when the register could not be asked at all: a source
-            // that holds this field keys on a parameter that is unknown
-            // (nobody knows yet whose record to read) or null (there is
-            // nobody to read about). Then the input is that same unknown,
-            // so the outcome names the key and not the field, or that same
-            // null, mirroring the cross-law skip rule (RFC-036).
-            if let Some(blocked) =
-                self.data_registry
-                    .blocked_lookup_for_law(&input.name, parameters, Some(&law.id))
-            {
-                res_ctx.trace_set_resolve_type(ResolveType::DataSource);
-                res_ctx.trace_set_result(blocked.clone());
-                res_ctx.trace_set_message(if blocked.is_unknown() {
-                    format!(
-                        "Input '{}' cannot be looked up, the key is unknown: input is unknown for the same reason",
-                        input.name
-                    )
-                } else {
-                    format!(
-                        "Input '{}' cannot be looked up, the key is null (nobody to look up): input is null",
-                        input.name
-                    )
-                });
-                // Asked about nobody, the register answers with an absence;
-                // the input has to be declared able to take one (RFC-036).
-                if blocked.is_null() && !input.is_nullable() {
-                    return Err(null_for_non_nullable(
-                        law,
-                        input,
-                        "lookup keyed on null".to_string(),
-                    ));
-                }
-                return Ok(Some(blocked));
-            }
-            if let Some(missing) = required_parameter_not_passed(article, parameters) {
-                res_ctx.trace_set_message(format!(
-                    "Input '{}' has empty source and no data source match; left unresolved \
-                     because required parameter '{}' was not passed",
-                    input.name, missing
-                ));
-                return Ok(None);
-            }
-            let unknown = Value::unknown(&law.id, &input.name, MissingKind::NoData);
-            res_ctx.trace_set_resolve_type(ResolveType::DataSource);
-            res_ctx.trace_set_result(unknown.clone());
-            res_ctx.trace_set_message(format!(
-                "Input '{}' has no value in any data source: unknown",
-                input.name
-            ));
-            Ok(Some(unknown))
+            self.resolve_without_data(article, law, input, parameters, res_ctx)
         }
+    }
+
+    /// The value of `input` as the data source `data_match` gives it, with
+    /// its trace: who supplied it (RFC-039), and the unit the law declares.
+    fn supplied_from_data(
+        law: &ArticleBasedLaw,
+        input: &crate::article::Input,
+        data_match: crate::data_source::DataSourceMatch,
+        res_ctx: &mut ResolutionContext<'_>,
+    ) -> Result<Option<Value>> {
+        tracing::debug!(
+            input = %input.name,
+            source = %data_match.source_name,
+            "Resolved input from data registry"
+        );
+
+        // Trace the data source resolution
+        {
+            let _guard = res_ctx.trace_guard(&input.name, PathNodeType::Resolve);
+            res_ctx.trace_set_resolve_type(ResolveType::DataSource);
+            res_ctx.trace_set_result(data_match.value.clone());
+            // Which organization supplied this fact, in a field
+            // (RFC-039). The message below says the same thing for a
+            // person reading a terminal; it used to be the only place
+            // it was said, so consumers matched a regular expression
+            // against it.
+            res_ctx.trace_set_source(ValueSource {
+                kind: ResolveType::DataSource,
+                provider: Some(data_match.source_name.clone()),
+                scope: data_match.law_scope.clone(),
+            });
+            // The unit the law declares for this input, so a reader
+            // sees an amount and not a bare count of cents (RFC-023,
+            // RFC-039). Only where a declaration carries one; a value
+            // computed mid-expression has none, and version 1 does not
+            // infer one.
+            if let Some(ref ts) = input.type_spec {
+                res_ctx.trace_set_type_spec(ts.clone());
+            }
+            res_ctx.trace_set_message(format!(
+                "Resolving from SOURCE {}: {}",
+                data_match.source_name, data_match.value
+            ));
+        }
+
+        // An explicit null cell is the register's claim that there is
+        // none. The law's declaration says whether that is a value this
+        // input can take; if not, the two contradict each other and the
+        // data is wrong at the boundary (RFC-036).
+        if data_match.value.is_null() && !input.is_nullable() {
+            return Err(null_for_non_nullable(
+                law,
+                input,
+                format!("source {}", data_match.source_name),
+            ));
+        }
+
+        Ok(Some(data_match.value))
+    }
+
+    /// The value of an input that no data source answers and that reads
+    /// from nowhere else: a `source: {}` input without data, or an input
+    /// whose competent authority nobody in the call answers for (RFC-056).
+    fn resolve_without_data(
+        &self,
+        article: &Article,
+        law: &ArticleBasedLaw,
+        input: &crate::article::Input,
+        parameters: &BTreeMap<String, Value>,
+        res_ctx: &mut ResolutionContext<'_>,
+    ) -> Result<Option<Value>> {
+        // Empty source (source: {}) — resolved from DataSourceRegistry
+        // only, and no source had a value: no matching row, or a row
+        // without this field. The fact exists but nobody has it, so the
+        // input is Unknown for lack of exactly this fact (RFC-036). An
+        // explicit null cell never reaches here: the source answered
+        // "none", and that is absence, a value.
+        //
+        // Unless the register was never asked about anybody: a required
+        // parameter of this article (the lookup key, typically `bsn`)
+        // that the caller did not pass. Then nothing is known about
+        // the fact because the question was malformed, not because
+        // nobody has the answer, and the input stays unresolved as it
+        // did before RFC-036. A reference to it fails, so a forgotten
+        // or misspelled required parameter never becomes an unknown
+        // outcome.
+        let _guard = res_ctx.trace_guard(&input.name, PathNodeType::Resolve);
+        // Nor when the register could not be asked at all: a source
+        // that holds this field keys on a parameter that is unknown
+        // (nobody knows yet whose record to read) or null (there is
+        // nobody to read about). Then the input is that same unknown,
+        // so the outcome names the key and not the field, or that same
+        // null, mirroring the cross-law skip rule (RFC-036).
+        if let Some(blocked) =
+            self.data_registry
+                .blocked_lookup_for_law(&input.name, parameters, Some(&law.id))
+        {
+            res_ctx.trace_set_resolve_type(ResolveType::DataSource);
+            res_ctx.trace_set_result(blocked.clone());
+            res_ctx.trace_set_message(if blocked.is_unknown() {
+                format!(
+                    "Input '{}' cannot be looked up, the key is unknown: input is unknown for the same reason",
+                    input.name
+                )
+            } else {
+                format!(
+                    "Input '{}' cannot be looked up, the key is null (nobody to look up): input is null",
+                    input.name
+                )
+            });
+            // Asked about nobody, the register answers with an absence;
+            // the input has to be declared able to take one (RFC-036).
+            if blocked.is_null() && !input.is_nullable() {
+                return Err(null_for_non_nullable(
+                    law,
+                    input,
+                    "lookup keyed on null".to_string(),
+                ));
+            }
+            return Ok(Some(blocked));
+        }
+        if let Some(missing) = required_parameter_not_passed(article, parameters) {
+            res_ctx.trace_set_message(format!(
+                "Input '{}' has empty source and no data source match; left unresolved \
+                 because required parameter '{}' was not passed",
+                input.name, missing
+            ));
+            return Ok(None);
+        }
+        let unknown = Value::unknown(&law.id, &input.name, MissingKind::NoData);
+        res_ctx.trace_set_resolve_type(ResolveType::DataSource);
+        res_ctx.trace_set_result(unknown.clone());
+        res_ctx.trace_set_message(format!(
+            "Input '{}' has no value in any data source: unknown",
+            input.name
+        ));
+        Ok(Some(unknown))
     }
 
     /// The keys under which `article` is held back when it reads an output of
