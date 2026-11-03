@@ -235,6 +235,17 @@ steps:
     args: [{name: output, type: string}]
     literals: [override]
 
+  # A voided output does not arise: it is absent from the outputs, and its
+  # provenance carries the ground (RFC-041, and since schema v0.9.0 an
+  # excluded hook).
+  - id: assert_provenance_voided
+    action: assert_provenance
+    keyword: then
+    tier: provenance
+    text: output "{output}" has voided provenance
+    args: [{name: output, type: string}]
+    literals: [voided]
+
   # ---------- tier: untranslatable ----------
   - id: set_untranslatable_mode
     action: set_untranslatable_mode

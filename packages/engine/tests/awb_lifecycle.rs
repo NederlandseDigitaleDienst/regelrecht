@@ -160,7 +160,7 @@ articles:
     machine_readable:
       execution:
         produces:
-          legal_character: BESCHIKKING
+          PRODUCES
         output:
           - name: toegekend
             type: boolean
@@ -176,8 +176,20 @@ articles:
 #[test]
 fn de_termijn_is_een_datum_en_niet_zes_weken() {
     let mut service = load_corpus();
+    // Een Awb die soorten vestigt (schema v0.9.0) grijpt in op een
+    // beschikking van die soort; een Awb zonder soorten, zoals die van het
+    // democorpus, op het rechtskarakter BESCHIKKING.
+    let produces = if service
+        .resolver()
+        .kind("algemene_wet_bestuursrecht/beschikking")
+        .is_some()
+    {
+        "- type: algemene_wet_bestuursrecht/beschikking"
+    } else {
+        "legal_character: BESCHIKKING"
+    };
     service
-        .load_law(WET_ZONDER_AFWIJKING)
+        .load_law(&WET_ZONDER_AFWIJKING.replace("PRODUCES", produces))
         .expect("testwet kon niet worden geladen");
 
     let mut supply = BTreeMap::new();

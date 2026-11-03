@@ -24,6 +24,7 @@ import {
   enumBlocks,
   schemaStats,
   legalBasisFields,
+  kindMembershipFields,
   stringDefinition,
   operandForms,
   articleFields,
@@ -339,6 +340,22 @@ const others = otherSubStructures();
 <p set:html={stringDefinition('articleReference').description} />
 
 <nldd-text size="sm" color="secondary"><code>{stringDefinition('articleReference').pattern}</code></nldd-text>
+
+<h3 id="kind-reference">Kind reference</h3>
+
+<p set:html={stringDefinition('kindReference').description} />
+
+<nldd-text size="sm" color="secondary"><code>{stringDefinition('kindReference').pattern}</code></nldd-text>
+
+<h3 id="kind-membership">Kind membership</h3>
+
+<p>
+  A claim that a regulation or an item belongs to a kind,
+  with the words of the regulation that make it so or the provision that says
+  it in so many words.
+</p>
+
+<SchemaFieldTable fields={kindMembershipFields()} label="Fields of a kind membership" />
 
 <h3 id="variable-reference">Variable reference</h3>
 

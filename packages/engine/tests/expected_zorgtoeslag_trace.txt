@@ -1,8 +1,19 @@
 wet_op_de_zorgtoeslag (2025-01-01 {bsn: 999993653} hoogte_zorgtoeslag)
 ╟──Evaluating rules for wet_op_de_zorgtoeslag (hoogte_zorgtoeslag)
-║   ╟──HOOK: Hook PreActions on BESCHIKKING stage BESLUIT → algemene_wet_bestuursrecht:3:46
-║   ║   ╙──Computing motivering_vereist
-║   ║       └──Result: motivering_vereist = True
+║   ╟──HOOK: Hook PreActions on algemene_wet_inkomensafhankelijke_regelingen/tegemoetkoming stage BESLUIT → algemene_wet_inkomensafhankelijke_regelingen:4
+║   ║   ╙──Computing is_kind
+║   ║       ├──IF(case 0: condition unknown, so the result is unknown (missing: algemene_wet_inkomensafhankelijke_regelingen.in_belangrijke_mate_onderhouden)) = UNKNOWN(in_belangrijke_mate_onderhouden)
+║   ║       │   └──CASE 0: UNKNOWN(in_belangrijke_mate_onderhouden)
+║   ║       │       └──EQUALS with an unknown in an operand: unknown (missing: algemene_wet_inkomensafhankelijke_regelingen.in_belangrijke_mate_onderhouden)
+║   ║       │           └──Resolving from PARAMETERS: $IN_BELANGRIJKE_MATE_ONDERHOUDEN = UNKNOWN(in_belangrijke_mate_onderhouden)
+║   ║       └──Result: is_kind = UNKNOWN(in_belangrijke_mate_onderhouden)
+║   ╟──HOOK: Hook PreActions on algemene_wet_inkomensafhankelijke_regelingen/tegemoetkoming stage BESLUIT → algemene_wet_inkomensafhankelijke_regelingen:5
+║   ║   ╙──Computing wijziging_in_aanmerking_vanaf
+║   ║       ├──IF(case 0: condition unknown, so the result is unknown (missing: algemene_wet_inkomensafhankelijke_regelingen.datum_wijziging)) = UNKNOWN(datum_wijziging)
+║   ║       │   └──CASE 0: UNKNOWN(datum_wijziging)
+║   ║       │       └──EQUALS with an unknown in an operand: unknown (missing: algemene_wet_inkomensafhankelijke_regelingen.datum_wijziging)
+║   ║       │           └──Resolving from PARAMETERS: $DATUM_WIJZIGING = UNKNOWN(datum_wijziging)
+║   ║       └──Result: wijziging_in_aanmerking_vanaf = UNKNOWN(datum_wijziging)
 ║   ╟──Computing in_aanmerking_genomen_toetsingsinkomen
 ║   ║   ├──IF(took default) = 79547
 ║   ║   │   ├──CASE 0: False
@@ -93,53 +104,50 @@ wet_op_de_zorgtoeslag (2025-01-01 {bsn: 999993653} hoogte_zorgtoeslag)
 ║   ║   │                   │       └──Resolving from DATA_SOURCE: $NIET_IN_NEDERLAND_BELASTBAAR_INKOMEN = 0
 ║   ║   │                   └──Result: toetsingsinkomen = 79547
 ║   ║   └──Result: in_aanmerking_genomen_toetsingsinkomen = 79547
-║   ╟──Computing hoogte_zorgtoeslag
-║   ║   ├──Compute ROUND(...) = 157731
-║   ║   │   └──Compute MAX(...) = 157730.97984
-║   ║   │       └──Compute SUBTRACT(...) = 157730.97984
-║   ║   │           ├──IF(took default) = 211200
-║   ║   │           │   ├──CASE 0: False
-║   ║   │           │   │   └──Compute EQUALS(...) = False
-║   ║   │           │   │       └──Resolving from RESOLVED_INPUT: $HEEFT_TOESLAGPARTNER = False
-║   ║   │           │   └──DEFAULT: 211200
-║   ║   │           │       └──Resolving $STANDAARDPREMIE
-║   ║   │           │           ├──Resolving from RESOLVED_INPUT: 211200
-║   ║   │           │           └──Resolving $WET_OP_DE_ZORGTOESLAG#STANDAARDPREMIE
-║   ║   │           │               ├──Resolving from RESOLVED_INPUT: 211200
-║   ║   │           │               └──Computing standaardpremie
-║   ║   │           │                   ├──Resolving $STANDAARDPREMIE
-║   ║   │           │                   │   ├──Resolving from OPEN_TERM: 211200
-║   ║   │           │                   │   └──Delegation: Open term 'standaardpremie' implemented by regeling_standaardpremie article 1: 211200
-║   ║   │           │                   │       ╙──Computing standaardpremie
-║   ║   │           │                   │           └──Result: standaardpremie = 211200
-║   ║   │           │                   └──Result: standaardpremie = 211200
-║   ║   │           └──Compute ADD(...) = 53469.02016
-║   ║   │               ├──Compute MULTIPLY(...) = 53469.02016
-║   ║   │               │   ├──IF(took default) = 0.01896
-║   ║   │               │   │   ├──CASE 0: False
-║   ║   │               │   │   │   └──Compute EQUALS(...) = False
-║   ║   │               │   │   │       └──Resolving from RESOLVED_INPUT: $HEEFT_TOESLAGPARTNER = False
-║   ║   │               │   │   └──DEFAULT: 0.01896
-║   ║   │               │   │       └──Resolving from DEFINITION: $PERCENTAGE_DREMPELINKOMEN_ALLEENSTAANDE = 0.01896
-║   ║   │               │   └──IF(took default) = 2820096
-║   ║   │               │       ├──CASE 0: False
-║   ║   │               │       │   └──Compute EQUALS(...) = False
-║   ║   │               │       │       └──Resolving from RESOLVED_INPUT: $HEEFT_TOESLAGPARTNER = False
-║   ║   │               │       └──DEFAULT: 2820096
-║   ║   │               │           └──Resolving from DEFINITION: $DREMPELINKOMEN_ALLEENSTAANDE = 2820096
-║   ║   │               └──IF(took default) = 0
-║   ║   │                   ├──CASE 0: False
-║   ║   │                   │   └──Compute GREATER_THAN(...) = False
-║   ║   │                   │       ├──Resolving from OUTPUT: $IN_AANMERKING_GENOMEN_TOETSINGSINKOMEN = 79547
-║   ║   │                   │       └──IF(took default) = 2820096
-║   ║   │                   │           ├──CASE 0: False
-║   ║   │                   │           │   └──Compute EQUALS(...) = False
-║   ║   │                   │           │       └──Resolving from RESOLVED_INPUT: $HEEFT_TOESLAGPARTNER = False
-║   ║   │                   │           └──DEFAULT: 2820096
-║   ║   │                   │               └──Resolving from DEFINITION: $DREMPELINKOMEN_ALLEENSTAANDE = 2820096
-║   ║   │                   └──DEFAULT: 0
-║   ║   └──Result: hoogte_zorgtoeslag = 157731
-║   ╙──HOOK: Hook PostActions on BESCHIKKING stage BESLUIT → algemene_wet_bestuursrecht:6:7
-║       ╙──Computing termijn_weken
-║           └──Result: termijn_weken = 6
+║   ╙──Computing hoogte_zorgtoeslag
+║       ├──Compute ROUND(...) = 157731
+║       │   └──Compute MAX(...) = 157730.97984
+║       │       └──Compute SUBTRACT(...) = 157730.97984
+║       │           ├──IF(took default) = 211200
+║       │           │   ├──CASE 0: False
+║       │           │   │   └──Compute EQUALS(...) = False
+║       │           │   │       └──Resolving from RESOLVED_INPUT: $HEEFT_TOESLAGPARTNER = False
+║       │           │   └──DEFAULT: 211200
+║       │           │       └──Resolving $STANDAARDPREMIE
+║       │           │           ├──Resolving from RESOLVED_INPUT: 211200
+║       │           │           └──Resolving $WET_OP_DE_ZORGTOESLAG#STANDAARDPREMIE
+║       │           │               ├──Resolving from RESOLVED_INPUT: 211200
+║       │           │               └──Computing standaardpremie
+║       │           │                   ├──Resolving $STANDAARDPREMIE
+║       │           │                   │   ├──Resolving from OPEN_TERM: 211200
+║       │           │                   │   └──Delegation: Open term 'standaardpremie' implemented by regeling_standaardpremie article 1: 211200
+║       │           │                   │       ╙──Computing standaardpremie
+║       │           │                   │           └──Result: standaardpremie = 211200
+║       │           │                   └──Result: standaardpremie = 211200
+║       │           └──Compute ADD(...) = 53469.02016
+║       │               ├──Compute MULTIPLY(...) = 53469.02016
+║       │               │   ├──IF(took default) = 0.01896
+║       │               │   │   ├──CASE 0: False
+║       │               │   │   │   └──Compute EQUALS(...) = False
+║       │               │   │   │       └──Resolving from RESOLVED_INPUT: $HEEFT_TOESLAGPARTNER = False
+║       │               │   │   └──DEFAULT: 0.01896
+║       │               │   │       └──Resolving from DEFINITION: $PERCENTAGE_DREMPELINKOMEN_ALLEENSTAANDE = 0.01896
+║       │               │   └──IF(took default) = 2820096
+║       │               │       ├──CASE 0: False
+║       │               │       │   └──Compute EQUALS(...) = False
+║       │               │       │       └──Resolving from RESOLVED_INPUT: $HEEFT_TOESLAGPARTNER = False
+║       │               │       └──DEFAULT: 2820096
+║       │               │           └──Resolving from DEFINITION: $DREMPELINKOMEN_ALLEENSTAANDE = 2820096
+║       │               └──IF(took default) = 0
+║       │                   ├──CASE 0: False
+║       │                   │   └──Compute GREATER_THAN(...) = False
+║       │                   │       ├──Resolving from OUTPUT: $IN_AANMERKING_GENOMEN_TOETSINGSINKOMEN = 79547
+║       │                   │       └──IF(took default) = 2820096
+║       │                   │           ├──CASE 0: False
+║       │                   │           │   └──Compute EQUALS(...) = False
+║       │                   │           │       └──Resolving from RESOLVED_INPUT: $HEEFT_TOESLAGPARTNER = False
+║       │                   │           └──DEFAULT: 2820096
+║       │                   │               └──Resolving from DEFINITION: $DREMPELINKOMEN_ALLEENSTAANDE = 2820096
+║       │                   └──DEFAULT: 0
+║       └──Result: hoogte_zorgtoeslag = 157731
 ╙──Result: hoogte_zorgtoeslag = 157731

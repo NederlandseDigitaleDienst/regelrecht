@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.8/schema/v0.5.8/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json
 $id: wet_op_de_zorgtoeslag
 regulatory_layer: WET
 publication_date: '2024-12-20'
@@ -8,6 +8,14 @@ bwb_id: BWBR0018451
 url: https://wetten.overheid.nl/BWBR0018451/2025-01-01
 name: '#wet_naam'
 competent_authority: '#bevoegd_gezag'
+# Artikel 1, tweede lid, geeft deze wet de eigenschap waarmee artikel 1,
+# derde lid, van de Awir de inkomensafhankelijke regeling definieert: de
+# hoogte van de bijdrage hangt af van de draagkracht.
+member_of:
+  - kind: algemene_wet_inkomensafhankelijke_regelingen/inkomensafhankelijke_regeling
+    legal_text_excerpt: >-
+      De hoogte van de zorgtoeslag is afhankelijk van de draagkracht op basis
+      van het inkomen en het vermogen.
 articles:
   - number: '1'
     text: >-
@@ -127,9 +135,14 @@ articles:
           type_spec:
             unit: ratio
       execution:
+        # De aanspraak op zorgtoeslag is een tegemoetkoming in de zin van de
+        # Awir (artikel 1, eerste lid, onder e). Dit artikel geeft geen
+        # besluit; de wet heeft er geen. De aanvraag staat op artikel 15 van
+        # de Awir en verwijst naar dit artikel, en artikel 14 van de Awir
+        # kent de zorgtoeslag toe.
         produces:
-          legal_character: BESCHIKKING
-          decision_type: TOEKENNING
+          - type: algemene_wet_inkomensafhankelijke_regelingen/tegemoetkoming
+            legal_text_excerpt: 'zorgtoeslag: een tegemoetkoming'
         parameters:
           - name: bsn
             type: string

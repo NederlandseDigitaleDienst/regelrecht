@@ -628,10 +628,13 @@ function expandInline(
   return Object.entries(props)
     .filter(([name]) => !only || only.includes(name))
     .map(([name, node]) => {
-      // Either an array of inline objects, or an inline object itself.
+      // Either an array of objects, inline or a shared definition (since
+      // v0.9.0 `member_of` refers to `kindMembership`), or an inline object.
+      const ref = node.items?.$ref?.replace('#/definitions/', '');
+      const items = ref ? defs[ref] : node.items;
       const shape =
-        node.type === 'array' && node.items?.properties
-          ? node.items
+        node.type === 'array' && items?.properties
+          ? items
           : node.type === 'object' && node.properties
             ? node
             : null;
@@ -683,7 +686,7 @@ export function otherSubStructures(): Record<string, SubStructure[]> {
 
   return {
     'law-file': [
-      ...expandInline(schema, '', ['preamble', 'procedure']),
+      ...expandInline(schema, '', ['preamble', 'procedure', 'member_of']),
     ],
     articles: expandInline(article, 'articles[].', ['placement', 'references']),
     procedure: expandInline(
@@ -724,7 +727,7 @@ export function otherSubStructures(): Record<string, SubStructure[]> {
     hooks: expandInline(
       mrs.properties?.hooks?.items ?? {},
       'hooks[].',
-      ['applies_to'],
+      ['applies_to', 'voids'],
     ),
     if: expandInline(defs.ifOperation ?? {}, 'IF.', ['cases']),
   };
@@ -1037,13 +1040,18 @@ export function legalBasisFields(): Field[] {
   return fieldsOf(defs.legalBasis ?? {});
 }
 
+/** The fields of a membership claim (`kindMembership`, since v0.9.0). */
+export function kindMembershipFields(): Field[] {
+  return fieldsOf(defs.kindMembership ?? {});
+}
+
 /**
- * A string definition (`articleReference`, `variableReference`): no field
+ * A string definition (`articleReference`, `kindReference`, `variableReference`): no field
  * table, only the description and the pattern. Each has its own section
  * because a field links to it (`established_by`, `parameters_from`).
  */
 export function stringDefinition(
-  name: 'articleReference' | 'variableReference',
+  name: 'articleReference' | 'kindReference' | 'variableReference',
 ): { description: string; pattern: string } {
   const node = defs[name] ?? {};
   return {
@@ -1121,6 +1129,8 @@ export function referenceHeadings(): { depth: number; slug: string; text: string
   }
   h(3, 'legal-basis', 'Legal basis');
   h(3, 'article-reference', 'Article reference');
+  h(3, 'kind-reference', 'Kind reference');
+  h(3, 'kind-membership', 'Kind membership');
   h(3, 'variable-reference', 'Variable reference');
 
   // Everything otherSubStructures() renders, at the depth the component uses.

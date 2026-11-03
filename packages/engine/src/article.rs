@@ -20,11 +20,12 @@ use std::path::Path;
 
 /// Re-export the canonical document model at the historical `article` path.
 pub use regelrecht_law_model::{
-    foreach_binding, Action, ActionOperation, ActionValue, Article, ArticleBasedLaw,
-    ArticleReference, ArticleRequirement, AuthorityType, Case, CombineOp, CompetentAuthority,
-    Declaration, DeclaredProperty, Definition, Execution, HookDeclaration, HookFilter, HookPoint,
-    ImplementsDeclaration, Input, LegalBasis, MachineReadable, Marking, MarkingResolution,
-    NamedAuthority, OpenTerm, OpenTermDefault, Output, OverrideDeclaration, Parameter, Placement,
+    foreach_binding, is_kind_reference, Action, ActionOperation, ActionValue, Article,
+    ArticleBasedLaw, ArticleReference, ArticleRequirement, AuthorityType, Case, CombineOp,
+    CompetentAuthority, Declaration, DeclaredProperty, Definition, Execution, HookDeclaration,
+    HookFilter, HookPoint, HookVoid, ImplementsDeclaration, Input, KindDefinition, KindLevel,
+    KindMembership, LegalBasis, MachineReadable, Marking, MarkingResolution, NamedAuthority,
+    OpenTerm, OpenTermDefault, Output, OverrideDeclaration, Parameter, Placement,
     PlacementContainer, Preamble, ProcedureAppliesTo, ProcedureDefinition, Produced, ProducedItem,
     Produces, ProducesList, ProvisionReference, ResolveSpec, Source, Stage, StageRequirement,
     Temporal, TypeSpec, UntranslatableEntry, DEFAULT_FOREACH_AS,

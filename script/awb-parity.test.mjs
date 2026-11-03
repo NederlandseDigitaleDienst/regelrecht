@@ -52,7 +52,20 @@ function article(text, number) {
   return text.slice(start, next === -1 ? undefined : next).trimEnd();
 }
 
-const hoofd = fs.readFileSync(HOOFD, 'utf8');
+/**
+ * Voorbeeld van schema v0.9.0: het hoofdcorpus noemt soorten, de demo nog het
+ * rechtskarakter. Vergeleken wordt wat er na die vertaling staat; omzetten van
+ * de demo maakt deze stap overbodig.
+ */
+function withoutKinds(text) {
+  return text
+    .replace(/^ {4}# .*\n/gm, '')
+    .replace(/^ {8}kind: .*\n/gm, '')
+    .replace(/kind: algemene_wet_bestuursrecht\/beschikking/g, 'legal_character: BESCHIKKING')
+    .replace(/kind: algemene_wet_bestuursrecht\/besluit/g, 'legal_character: BESCHIKKING');
+}
+
+const hoofd = withoutKinds(fs.readFileSync(HOOFD, 'utf8'));
 const demo = fs.readFileSync(DEMO, 'utf8');
 
 test('de beschikkingsprocedure is in beide corpora gelijk', () => {

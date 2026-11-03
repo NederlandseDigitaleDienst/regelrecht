@@ -30,7 +30,7 @@ use crate::answer::{
 };
 use crate::article::{
     Article, ArticleBasedLaw, CompetentAuthority, Execution, HookPoint, Input, MachineReadable,
-    NamedAuthority, ProcedureDefinition, Stage, StageRequirement,
+    NamedAuthority, ProcedureDefinition, Produced, Stage, StageRequirement,
 };
 use crate::config;
 use crate::context::{LazyInputs, RuleContext};
@@ -112,6 +112,10 @@ struct ResolutionContext<'a> {
     /// The law that initiated the current execution chain (for override scoping).
     /// Overrides only apply when declared by this law.
     contextual_law_id: Option<String>,
+    /// The laws whose items the hooks now executing fire on, innermost last
+    /// (schema v0.9.0). An override from the law of that item applies to
+    /// the hook's outputs, wherever the execution started.
+    hook_item_laws: Vec<String>,
     /// Where the engine is right now: the innermost provision being evaluated
     /// (RFC-039). Every trace step pushed while this is set inherits it as its
     /// `anchor`, so a step can name its article without each push site having
@@ -187,12 +191,19 @@ struct Bound {
 /// names the stage, and at every other stage those of the decision with
 /// the data derived for it, the outputs it lists under `derived` (RFC-045 §1). `None`,
 /// every output, for an article that produces one thing.
-fn outputs_at_stage<'a>(article: &'a Article, stage: &str) -> Option<Vec<&'a str>> {
+fn outputs_at_stage<'a>(
+    article: &'a Article,
+    stage: &str,
+    receives: impl Fn(&str) -> bool,
+) -> Option<Vec<&'a str>> {
     if !article.produces_list() {
         return None;
     }
     let produced = article.get_produced();
-    if let Some(submission) = produced.iter().find(|p| p.submission_kind() == Some(stage)) {
+    if let Some(submission) = produced.iter().find(|p| {
+        p.submission_kind()
+            .is_some_and(|k| k == stage || receives(k))
+    }) {
         return Some(article.outputs_of(*submission));
     }
     let decision = article.get_decision()?;
@@ -285,6 +296,7 @@ impl<'a> ResolutionContext<'a> {
             trace: None,
             cache: HashMap::new(),
             contextual_law_id: None,
+            hook_item_laws: Vec::new(),
             anchor: None,
             delegation_refusals: Vec::new(),
             declaration_version_notes: Vec::new(),
@@ -861,6 +873,9 @@ struct OverridePlan {
     /// Per such output, the declared parameters the override's rule for that
     /// output may read: see [`rule_reads`]. At most `replacing`.
     rule_reads: BTreeMap<String, BTreeSet<String>>,
+    /// The declared parameters of the applicable overrides with `when`
+    /// (schema v0.9.0), which run after the actions.
+    conditional: BTreeSet<String>,
 }
 
 /// An article's inputs and open terms, each resolved the first time it is
@@ -1000,6 +1015,15 @@ fn implementation_key(law_id: &str, article: &str, implemented: &str) -> String 
 fn hook_key(law_id: &str, article: &str) -> String {
     format!("hook:{law_id}\0{article}")
 }
+
+/// What the hooks at one point produced: their outputs, the provenance of
+/// each, and the grounds on which a hook takes away what the item yields
+/// (schema v0.9.0).
+type HookRun = (
+    BTreeMap<String, Value>,
+    BTreeMap<String, OutputProvenance>,
+    Vec<OutputProvenance>,
+);
 
 /// A hook that fires on an article: its entry, and its law and article in
 /// force on the date.
@@ -2434,20 +2458,24 @@ impl LawExecutionService {
         else {
             return Ok(None);
         };
-        // In a procedure the hooks wait for the stage named after the kind;
-        // a procedure without that stage would never fire them.
+        // In a procedure the hooks wait for the stage that receives the
+        // kind; a procedure without that stage would never fire them.
         let stage = match self.procedure_of(law_id, article)? {
             None => None,
-            Some(procedure) if procedure.stages.iter().any(|s| s.name == kind) => {
-                Some(kind.clone())
-            }
-            Some(procedure) => {
-                return Err(EngineError::InvalidOperation(format!(
-                    "{law_id} article {article_number} establishes an {kind} and follows \
-                     procedure '{}', which has no stage {kind} for the hooks on it to fire at",
-                    procedure.id
-                )))
-            }
+            Some(procedure) => match procedure
+                .stages
+                .iter()
+                .find(|s| self.stage_receives(s, &kind))
+            {
+                Some(s) => Some(s.name.clone()),
+                None => {
+                    return Err(EngineError::InvalidOperation(format!(
+                        "{law_id} article {article_number} establishes an {kind} and follows \
+                         procedure '{}', which has no stage {kind} for the hooks on it to fire at",
+                        procedure.id
+                    )))
+                }
+            },
         };
         let articles = self.taking_part(law, article, ref_date, |hook_point| {
             self.resolver
@@ -2661,7 +2689,7 @@ impl LawExecutionService {
         self.note_declaration_versions(&mut res_ctx);
         let outputs = outputs
             .map(<[&str]>::to_vec)
-            .or_else(|| outputs_at_stage(article, &stage.name));
+            .or_else(|| outputs_at_stage(article, &stage.name, |k| self.stage_receives(stage, k)));
         let mut result = self.evaluate_article_with_service(
             article,
             law,
@@ -2728,6 +2756,17 @@ impl LawExecutionService {
             }
         }
         articles
+    }
+
+    /// Whether `stage` is the stage at which a submission of kind `kind`
+    /// comes in: the stage named after it (up to schema v0.8.13), or since
+    /// v0.9.0 the stage whose `kind` is the kind or a wider one.
+    fn stage_receives(&self, stage: &Stage, kind: &str) -> bool {
+        stage.name == kind
+            || stage
+                .kind
+                .as_ref()
+                .is_some_and(|k| self.resolver.kind_lineage(kind).contains(k))
     }
 
     /// The procedure that the decision `article` of `law_id` produces
@@ -2910,7 +2949,8 @@ impl LawExecutionService {
         // A stage accumulates the outputs it computes for the stages after
         // it: every output, or for an article that produces several things
         // those of the thing this stage is about (RFC-045).
-        let stage_outputs = outputs_at_stage(article, &stage.name);
+        let stage_outputs =
+            outputs_at_stage(article, &stage.name, |k| self.stage_receives(stage, k));
 
         // Execute the article with stage-aware hook firing.
         let result = self.evaluate_article_with_service(
@@ -3272,10 +3312,44 @@ impl LawExecutionService {
             ),
             None => Vec::new(),
         };
+        // Schema v0.9.0: the decision is also a member of the kinds it
+        // claims with `member_of`, and of those its regulation claims, and
+        // the hooks on each of them fire on it too.
+        if decision.and_then(|d| d.legal_character()).is_some() {
+            for kind in self.further_kinds(article, law) {
+                for h in self.resolver.find_hooks(
+                    hook_point,
+                    &kind,
+                    decision.and_then(|d| d.decision_type()),
+                    stage,
+                ) {
+                    if !hooks
+                        .iter()
+                        .any(|e| e.law_id == h.law_id && e.article_number == h.article_number)
+                    {
+                        hooks.push(h);
+                    }
+                }
+            }
+        }
+        let procedure = if staged {
+            self.procedure_of(&law.id, article).ok().flatten()
+        } else {
+            None
+        };
+        let at_its_stage = |kind: &str| {
+            !staged
+                || kind == stage
+                || procedure.is_some_and(|p| {
+                    p.stages
+                        .iter()
+                        .any(|s| s.name == stage && self.stage_receives(s, kind))
+                })
+        };
         if let Some(kind) = article
             .get_submission()
             .and_then(|p| p.submission_kind())
-            .filter(|k| !staged || *k == stage)
+            .filter(|k| at_its_stage(k))
         {
             for h in self
                 .resolver
@@ -3449,7 +3523,16 @@ impl LawExecutionService {
                 hooks
                     .into_iter()
                     .flatten()
-                    .flat_map(|hook| declared_parameter_names(hook.article))
+                    .flat_map(|hook| {
+                        declared_parameter_names(hook.article)
+                            .chain(self.override_parameter_names(
+                                hook.article,
+                                hook.law,
+                                &law.id,
+                                res_ctx,
+                            ))
+                            .collect::<Vec<_>>()
+                    })
                     .collect()
             })
             .unwrap_or_default()
@@ -3479,7 +3562,12 @@ impl LawExecutionService {
                 .iter()
                 .filter(|(output, _)| computed.is_none_or(|c| c.contains(*output)))
                 .flat_map(|(_, parameters)| parameters.iter().cloned());
-            post_hooks.iter().cloned().chain(replacing).collect()
+            post_hooks
+                .iter()
+                .cloned()
+                .chain(replacing)
+                .chain(plan.conditional.iter().cloned())
+                .collect()
         };
 
         let Some(requested) = requested_outputs else {
@@ -3545,7 +3633,13 @@ impl LawExecutionService {
             else {
                 continue;
             };
-            if declaration.is_some_and(|d| d.voids) {
+            // An override with `when` (schema v0.9.0) may or may not apply:
+            // the output is computed as usual, and the override decides
+            // afterwards. What it declares, it receives.
+            if declaration.is_some_and(|d| d.when.is_some()) {
+                plan.conditional
+                    .extend(declared_parameter_names(ovr_article));
+            } else if declaration.is_some_and(|d| d.voids) {
                 plan.voided.insert(output.to_string());
             } else {
                 plan.replacing.insert(
@@ -3571,6 +3665,59 @@ impl LawExecutionService {
         plan
     }
 
+    /// The parameters that the overrides of hook article `article`'s
+    /// outputs declare, for the overrides that apply when the hook fires on
+    /// an item of `item_law`: from the hook's own law, from the law that
+    /// started the execution, or from `item_law` (schema v0.9.0). A hook
+    /// passes them on to the lex specialis that runs inside it. Read from
+    /// the newest version, like the overrides index, so the demand may ask
+    /// for a name an override not in force on the date does not read.
+    fn override_parameter_names(
+        &self,
+        article: &Article,
+        law: &ArticleBasedLaw,
+        item_law: &str,
+        res_ctx: &ResolutionContext<'_>,
+    ) -> BTreeSet<String> {
+        let mut names = BTreeSet::new();
+        for output in crate::demand::action_outputs(article) {
+            for reference in self
+                .resolver
+                .find_overrides(&law.id, &article.number, output)
+            {
+                let applies = reference.law_id == law.id
+                    || reference.law_id == item_law
+                    || Some(&reference.law_id) == res_ctx.contextual_law_id.as_ref();
+                if !applies {
+                    continue;
+                }
+                if let Some(overriding) = self
+                    .resolver
+                    .get_law(&reference.law_id)
+                    .and_then(|l| l.find_article_by_number(&reference.article_number))
+                {
+                    names.extend(declared_parameter_names(overriding));
+                }
+            }
+        }
+        names
+    }
+
+    /// The kinds the decision of `article` belongs to besides its `type`
+    /// (schema v0.9.0): those it claims with `member_of`, and those its
+    /// regulation claims. The lineage of each is the resolver's to walk.
+    fn further_kinds(&self, article: &Article, law: &ArticleBasedLaw) -> Vec<String> {
+        let on_item = match article.get_decision() {
+            Some(Produced::Item(item)) => item.member_of.as_deref().unwrap_or_default(),
+            _ => &[],
+        };
+        on_item
+            .iter()
+            .chain(law.member_of.iter().flatten())
+            .map(|m| m.kind.clone())
+            .collect()
+    }
+
     /// Fire hooks that match the given article's `produces` annotation.
     ///
     /// For each matching hook, executes the hook article and merges its outputs.
@@ -3592,21 +3739,24 @@ impl LawExecutionService {
         stage: &str,
         parameters: &BTreeMap<String, Value>,
         res_ctx: &mut ResolutionContext<'_>,
-    ) -> Result<(BTreeMap<String, Value>, BTreeMap<String, OutputProvenance>)> {
+    ) -> Result<HookRun> {
         let mut hook_outputs: BTreeMap<String, Value> = BTreeMap::new();
         let mut hook_provenance: BTreeMap<String, OutputProvenance> = BTreeMap::new();
         // Track which law produced each output for priority resolution
         let mut output_sources: BTreeMap<String, &ArticleBasedLaw> = BTreeMap::new();
+        // Schema v0.9.0: the grounds on which a hook takes away what the
+        // item yields (`voids` on the hook).
+        let mut voids: Vec<OutputProvenance> = Vec::new();
         let hook_point_str = hook_point.as_str();
 
         // Only fire hooks if the article declares what it produces
         let Some((on, hooks)) = self.fireable_hooks(hook_point, article, law, stage, res_ctx)
         else {
-            return Ok((hook_outputs, hook_provenance));
+            return Ok((hook_outputs, hook_provenance, Vec::new()));
         };
 
         if hooks.is_empty() {
-            return Ok((hook_outputs, hook_provenance));
+            return Ok((hook_outputs, hook_provenance, Vec::new()));
         }
 
         tracing::debug!(
@@ -3633,7 +3783,19 @@ impl LawExecutionService {
             let hook_key = hook_key(&hook_entry.law_id, &hook_entry.article_number);
 
             // Filter parameters: only pass parameters declared by the hook article (least privilege)
-            let hook_params = Self::filter_parameters_for_article(hook_article, parameters);
+            // The overrides on this hook's outputs include those of the law
+            // whose item it fires on (schema v0.9.0).
+            res_ctx.hook_item_laws.push(law.id.clone());
+            let mut hook_params = Self::filter_parameters_for_article(hook_article, parameters);
+            // A lex specialis on the hook's own outputs runs inside the hook
+            // and receives the hook's parameters. It also gets the ones it
+            // declares itself: the Wet kinderopvang needs to know what changed
+            // to decide whether Awir 5 applies, which Awir 5 never asks.
+            for name in self.override_parameter_names(hook_article, hook_law, &law.id, res_ctx) {
+                if let Some(value) = parameters.get(&name) {
+                    hook_params.entry(name).or_insert_with(|| value.clone());
+                }
+            }
 
             // Trace the hook execution (guard auto-pops on all exit paths)
             let _guard = res_ctx.trace_guard(
@@ -3660,10 +3822,47 @@ impl LawExecutionService {
 
             // Leave scope (even on error)
             res_ctx.leave(&hook_key);
+            res_ctx.hook_item_laws.pop();
 
             // If a hook fires (stage matches), it must succeed.
             // A missing variable means the law cannot be applied — that's an error.
             let result = hook_result?;
+
+            // A regulation that deviates voids the hook's `when` (Vw 2000
+            // art. 10 lid 2): then there is nothing to take away.
+            let deviated = matches!(
+                hook_entry
+                    .voids
+                    .as_ref()
+                    .and_then(|v| result.output_provenance.get(&v.when)),
+                Some(OutputProvenance::Voided { .. })
+            );
+            if let Some(void) = hook_entry.voids.as_ref().filter(|_| !deviated) {
+                match result.outputs.get(&void.when) {
+                    Some(Value::Bool(true)) => {
+                        res_ctx.trace_set_message(format!(
+                            "Hook {:?} on {} → {}:{} voids what it yields",
+                            hook_point, on, hook_law_id, hook_article_number
+                        ));
+                        voids.push(OutputProvenance::Voided {
+                            law_id: hook_law.id.clone(),
+                            article: hook_article.number.to_string(),
+                            grounds: Some(void.legal_text_excerpt.clone()),
+                        });
+                    }
+                    // Not the case the hook names, or unknown whether it is:
+                    // the item yields what it yields.
+                    Some(Value::Bool(false)) | Some(Value::Null) | Some(Value::Unknown(_)) => {}
+                    other => {
+                        return Err(EngineError::InvalidOperation(format!(
+                            "{hook_law_id}:{hook_article_number} voids what {on} yields when {}, \
+                             which is {} instead of true or false",
+                            void.when,
+                            other.map_or_else(|| "not computed".to_string(), ToString::to_string)
+                        )))
+                    }
+                }
+            }
 
             // A voided output is absent from `outputs` by construction, so
             // walking those alone drops its ground: the hook fires, the law
@@ -3717,7 +3916,7 @@ impl LawExecutionService {
             }
         }
 
-        Ok((hook_outputs, hook_provenance))
+        Ok((hook_outputs, hook_provenance, voids))
     }
 
     /// Handle an article's flagged constructs based on the configured mode (RFC-012).
@@ -3805,9 +4004,16 @@ impl LawExecutionService {
             .resolver
             .find_overrides(&law.id, &article.number, output_name);
 
-        // An override from another law applies only within the execution
-        // that law started: a Vreemdelingenwet exclusion on Awb 6:7 is not
-        // a Participatiewet case (RFC-007, "contextual law").
+        // An override from another law applies within the execution that
+        // law started (RFC-007, "contextual law"); that is also how a
+        // procedure resumed stage by stage keeps the law that started it.
+        // Since schema v0.9.0 it also applies to a hook that fires on an
+        // item the overriding law produces itself, wherever the execution
+        // started: a Wkb exclusion of Awir 4 applies to the hook on the
+        // Wkb's own tegemoetkoming, also when another law calls the Wkb on
+        // the way. A Vreemdelingenwet exclusion on Awb 6:7 still reaches the
+        // hook on a Vreemdelingenwet beschikking only, never one on a
+        // Participatiewet beschikking, even when the Vw calls the Pw.
         //
         // An article overriding an output of its own law is a different
         // claim. There is no other law to be protected from, and the
@@ -3821,7 +4027,9 @@ impl LawExecutionService {
         let applicable: Vec<_> = overrides
             .iter()
             .filter(|ovr| {
-                ovr.law_id == law.id || Some(&ovr.law_id) == res_ctx.contextual_law_id.as_ref()
+                ovr.law_id == law.id
+                    || Some(&ovr.law_id) == res_ctx.contextual_law_id.as_ref()
+                    || res_ctx.hook_item_laws.last() == Some(&ovr.law_id)
             })
             .collect();
 
@@ -4036,6 +4244,20 @@ impl LawExecutionService {
             ovr_law_id, ovr_article_number, law.id, article.number, output_name
         ));
 
+        // Schema v0.9.0: an override that applies only in some cases runs
+        // its article for `when` first. Not true: the output stays as it is.
+        if let Some(when) = declaration.and_then(|d| d.when.as_deref()) {
+            let applies =
+                self.override_condition(ovr_law, ovr_article, &ovr_key, when, parameters, res_ctx)?;
+            if !applies {
+                res_ctx.trace_set_message(format!(
+                    "Lex specialis: {}:{} does not apply to {}:{}.{} ({when} is not true)",
+                    ovr_law_id, ovr_article_number, law.id, article.number, output_name
+                ));
+                return Ok(OverrideOutcome::NotApplied);
+            }
+        }
+
         if let Some(decl) = declaration.filter(|d| d.voids) {
             res_ctx.trace_set_message(format!(
                 "Lex specialis: {}:{} voids {}:{}.{}",
@@ -4079,6 +4301,49 @@ impl LawExecutionService {
                 article: ovr_article_number.to_string(),
             },
         ))
+    }
+
+    /// Whether the condition `when` of an override holds: the overriding
+    /// article runs with the parameters it declares, out of those the
+    /// overridden article received. True applies the override; false, null
+    /// or unknown (no case of the kind the law names, or nothing known about
+    /// the case) leave the output as it is; anything else is an error.
+    fn override_condition(
+        &self,
+        ovr_law: &ArticleBasedLaw,
+        ovr_article: &Article,
+        ovr_key: &str,
+        when: &str,
+        parameters: &BTreeMap<String, Value>,
+        res_ctx: &mut ResolutionContext<'_>,
+    ) -> Result<bool> {
+        let key = format!("{ovr_key}:when");
+        if res_ctx.is_visited(&key) {
+            return Err(EngineError::CircularReference(format!(
+                "{}:{} decides whether it applies while it is already deciding that",
+                ovr_law.id, ovr_article.number
+            )));
+        }
+        res_ctx.enter(key.clone());
+        let result = self.evaluate_article_with_service(
+            ovr_article,
+            ovr_law,
+            Self::filter_parameters_for_article(ovr_article, parameters),
+            Some(&[when]),
+            "BESLUIT", // override articles are not procedure-aware
+            res_ctx,
+        );
+        res_ctx.leave(&key);
+        match result?.outputs.get(when) {
+            Some(Value::Bool(applies)) => Ok(*applies),
+            Some(Value::Null) | Some(Value::Unknown(_)) => Ok(false),
+            other => Err(EngineError::InvalidOperation(format!(
+                "{}:{} overrides when {when}, which is {} instead of true or false",
+                ovr_law.id,
+                ovr_article.number,
+                other.map_or_else(|| "not computed".to_string(), ToString::to_string)
+            ))),
+        }
     }
 
     /// Execute an article with ServiceProvider support.
@@ -4191,16 +4456,17 @@ impl LawExecutionService {
         lazy.resolve_names(&demand.read_before_actions)?;
         let mut hook_params = parameters.clone();
         hook_params.extend(lazy.resolved());
-        let (pre_hook_outputs, pre_hook_provenance) = lazy.with_resolution_context(|res_ctx| {
-            self.fire_hooks(
-                HookPoint::PreActions,
-                article,
-                law,
-                stage,
-                &hook_params,
-                res_ctx,
-            )
-        })?;
+        let (pre_hook_outputs, pre_hook_provenance, pre_hook_voids) = lazy
+            .with_resolution_context(|res_ctx| {
+                self.fire_hooks(
+                    HookPoint::PreActions,
+                    article,
+                    law,
+                    stage,
+                    &hook_params,
+                    res_ctx,
+                )
+            })?;
 
         // A replacing override runs where the action sets its output, with
         // what an override at the end would receive: the parameters, what was
@@ -4323,7 +4589,7 @@ impl LawExecutionService {
         for (name, value) in &result.outputs {
             post_params.insert(name.clone(), value.clone());
         }
-        let (post_hook_outputs, post_hook_provenance) = self.fire_hooks(
+        let (post_hook_outputs, post_hook_provenance, post_hook_voids) = self.fire_hooks(
             HookPoint::PostActions,
             article,
             law,
@@ -4373,6 +4639,35 @@ impl LawExecutionService {
                     .output_provenance
                     .entry(name.clone())
                     .or_insert_with(|| prov.clone());
+            }
+        }
+
+        // Schema v0.9.0: a hook that takes away what the decision yields
+        // (Vw 2000 art. 10 lid 1). Its outputs do not arise, on the hook's
+        // ground; the decision itself, and what other hooks attach to it,
+        // remain. That the decision then is a refusal is not modelled: its
+        // decision_type stays what the article says.
+        //
+        // Where several hooks void, the first ground is recorded: the
+        // outcome is the same, and one ground suffices to say why.
+        if let Some(ground) = pre_hook_voids.into_iter().chain(post_hook_voids).next() {
+            // A void takes away what a decision yields. On an article that
+            // produces no decision it would take away nothing while the trace
+            // says it did; that is a modelling error, so it says so.
+            let Some(decision) = article.get_decision() else {
+                return Err(EngineError::InvalidOperation(format!(
+                    "a hook voids what {} article {} yields, but it produces no decision",
+                    law.id, article.number
+                )));
+            };
+            let yielded: Vec<String> = article
+                .outputs_of(decision)
+                .into_iter()
+                .map(str::to_string)
+                .collect();
+            for name in yielded {
+                result.outputs.remove(&name);
+                result.output_provenance.insert(name, ground.clone());
             }
         }
 
@@ -6022,6 +6317,31 @@ impl LawExecutionService {
                 format!("{caller} calls the decision of {target}, which takes no decision"),
             );
         };
+        // Schema v0.9.0: a parameter that says of which kind the article it
+        // names must be, such as the tegemoetkoming an aanvraag refers to.
+        if let Some(wanted) = named_by.strip_prefix('$').and_then(|name| {
+            law.articles
+                .iter()
+                .filter(|a| a.get_inputs().iter().any(|i| std::ptr::eq(i, input)))
+                .flat_map(|a| a.get_parameters())
+                .find(|p| p.name == name)
+                .and_then(|p| p.kind.as_deref())
+        }) {
+            let member = article.get_produced().into_iter().any(|p| match p {
+                Produced::Item(i) => self
+                    .resolver
+                    .kind_lineage(&i.item_type)
+                    .iter()
+                    .any(|k| k == wanted),
+                Produced::Object(_) => false,
+            });
+            if !member {
+                return refuse(
+                    res_ctx,
+                    format!("{caller} names {target}, which produces nothing of kind {wanted}"),
+                );
+            }
+        }
         let decided = article.outputs_of(decision);
         let computed: Vec<&str> = match output {
             None => decided.clone(),
@@ -6754,11 +7074,11 @@ articles:
         .unwrap();
         let article = &law.articles[0];
         assert_eq!(
-            outputs_at_stage(article, "AANVRAAG"),
+            outputs_at_stage(article, "AANVRAAG", |_| false),
             Some(vec!["compleet"])
         );
         assert_eq!(
-            outputs_at_stage(article, "BESLUIT"),
+            outputs_at_stage(article, "BESLUIT", |_| false),
             Some(vec!["verleend", "afgeleid"])
         );
     }
