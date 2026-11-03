@@ -54,8 +54,16 @@ if [ -n "$vlam_base" ] && [ -n "$VLAM_API_KEY" ]; then
   # that this script execs into.
   (VLAM_BASE="$vlam_base" node -e "
     const base = process.env.VLAM_BASE;
-    const model = JSON.parse(require('fs').readFileSync('/opt/opencode/opencode.json', 'utf8'))
-      .model.replace(/^vlam\//, '');
+    const config = JSON.parse(require('fs').readFileSync('/opt/opencode/opencode.json', 'utf8'));
+    const model = config.model.replace(/^vlam\//, '');
+    // The output limit opencode sends as max_tokens on every call. Asking for
+    // it here shows on each deploy whether VLAM accepts it; the answer itself
+    // stays short.
+    // Falls back to a small value, with a note, when the config does not name
+    // the model's limit, so the other checks still run.
+    const configured = config.provider?.vlam?.models?.[model]?.limit?.output;
+    const maxOutput = configured ?? 20;
+    if (configured === undefined) console.error('VLAM check: no limit.output for ' + model + ' in opencode.json');
     const headers = {
       Authorization: 'Bearer ' + process.env.VLAM_API_KEY,
       'Content-Type': 'application/json',
@@ -76,14 +84,23 @@ if [ -n "$vlam_base" ] && [ -n "$VLAM_API_KEY" ]; then
         const res = await fetch(base + '/chat/completions', {
           method: 'POST',
           headers,
-          body: JSON.stringify({ model, max_tokens: 20, messages: [{ role: 'user', content: 'Antwoord met alleen: OK' }] }),
+          body: JSON.stringify({ model, max_tokens: maxOutput, messages: [{ role: 'user', content: 'Antwoord met alleen: OK' }] }),
           signal: AbortSignal.timeout(60000),
         });
         const body = await res.text();
         let answer = null;
-        try { answer = JSON.parse(body).choices[0].message.content; } catch {}
-        console.error('VLAM check chat: HTTP ' + res.status + ', ' +
-          (answer !== null ? 'answer: ' + flat(answer) : 'body: ' + flat(body)));
+        let usage = '';
+        try {
+          const parsed = JSON.parse(body);
+          answer = parsed.choices[0].message.content;
+          const u = parsed.usage || {};
+          const reasoning = u.completion_tokens_details && u.completion_tokens_details.reasoning_tokens;
+          usage = ', finish_reason=' + parsed.choices[0].finish_reason +
+            ', completion_tokens=' + u.completion_tokens +
+            (reasoning !== undefined ? ', reasoning_tokens=' + reasoning : '');
+        } catch {}
+        console.error('VLAM check chat (max_tokens ' + maxOutput + '): HTTP ' + res.status + usage + ', ' +
+          (answer !== null ? 'answer: ' + flat(String(answer)) : 'body: ' + flat(body)));
       } catch (e) {
         console.error('VLAM check chat: ' + e.name + ': ' + e.message);
       }

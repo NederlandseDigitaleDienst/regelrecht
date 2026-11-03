@@ -305,6 +305,17 @@ model answers a call that offers it a tool. Together they show on every deploy
 whether the key works and whether the model can do the tool calls an
 enrichment depends on.
 
+opencode sends the model's output limit (`limit.output` in `opencode.json`,
+32000 for Kimi K3) as `max_tokens` on every call, and the chat call in the
+check asks for the same limit, so a deploy also shows whether VLAM accepts it.
+Kimi K3 reasons before it acts, and the reasoning counts against that limit. A
+step that runs into it ends without a tool call, and opencode then stops as if
+the work were done. The worker logs every opencode step with why it ended and
+the tokens it used, warns on `agent step cut off by the output limit`, and the
+error of a run that produced nothing says how many steps were cut off. 32000 is
+also opencode's own ceiling: a higher limit needs
+`OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX` as well as `limit.output`.
+
 The LLM subprocess runs with a stripped environment (allowlisted vars only) for security.
 
 The image pins the claude CLI (`packages/pipeline/Dockerfile`, version

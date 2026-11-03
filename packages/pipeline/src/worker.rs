@@ -3964,11 +3964,15 @@ articles:
         // large law could be terminally exhausted by one hiccupped chunk. Pin
         // the full formatted message, not just the marker, so a rewording that
         // accidentally introduces a classifier marker fails here.
+        // The real error ends with the activity summary; a marker in there
+        // (here in a tool target) must not make it terminal either.
         let chunk_err = PipelineError::Enrich(format!(
             "{}: no new machine_readable additions in the window, no chunk_report \
              referencing this window, no new untranslatables in the window \
-             (articles 15..30 of 324)",
-            crate::enrich::CHUNK_NO_OUTPUT_MARKER
+             (articles 15..30 of 324){} 3 turns, 1 tool calls, recent tools: read \
+             no machine_readable sections.md, 1 step(s) cut off by the output limit",
+            crate::enrich::CHUNK_NO_OUTPUT_MARKER,
+            crate::agent_activity::ACTIVITY_MARKER
         ));
         assert!(
             !is_deterministic_content_failure(&chunk_err.to_string()),
