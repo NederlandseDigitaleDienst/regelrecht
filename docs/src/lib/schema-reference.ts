@@ -727,7 +727,7 @@ export function otherSubStructures(): Record<string, SubStructure[]> {
     hooks: expandInline(
       mrs.properties?.hooks?.items ?? {},
       'hooks[].',
-      ['applies_to'],
+      ['applies_to', 'voids'],
     ),
     if: expandInline(defs.ifOperation ?? {}, 'IF.', ['cases']),
   };

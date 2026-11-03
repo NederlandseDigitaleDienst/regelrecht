@@ -837,3 +837,202 @@ articles:
         None
     );
 }
+
+/// A conditional override on a hook output gets the parameters its `when`
+/// reads in each of the three places it can come from: the hook's own law,
+/// the law that started the execution, and the law whose item the hook
+/// fires on when another law calls it on the way.
+#[test]
+fn a_conditional_override_gets_its_parameters_wherever_it_applies() {
+    let override_article = |law: &str| {
+        format!(
+            r#"  - number: '9'
+    text: Artikel 2 van de algemene test wet is niet van toepassing op een spoedeisend besluit.
+    machine_readable:
+      overrides:
+        - law: algemene_test_wet
+          article: '2'
+          output: motivering_vereist
+          voids: true
+          when: spoedeisend_besluit
+          legal_text_excerpt: Artikel 2 van de algemene test wet is niet van toepassing op een spoedeisend besluit.
+      execution:
+        parameters:
+          - name: spoed_{law}
+            type: boolean
+            required: false
+        output:
+          - name: spoedeisend_besluit
+            type: boolean
+        actions:
+          - output: spoedeisend_besluit
+            value:
+              operation: EQUALS
+              subject: $spoed_{law}
+              value: true
+"#
+        )
+    };
+    let decider = |id: &str, extra: &str| {
+        format!(
+            r#"$schema: {SCHEMA}
+$id: {id}
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Het bestuursorgaan beslist.
+    machine_readable:
+      execution:
+        produces:
+          - type: algemene_test_wet/beschikking
+        parameters:
+          - name: spoed_lid
+            type: boolean
+            required: false
+          - name: spoed_wortel
+            type: boolean
+            required: false
+        output:
+          - name: beslist
+            type: boolean
+        actions:
+          - output: beslist
+            value: true
+{extra}"#
+        )
+    };
+    let mut service = service();
+    // The member voids the hook on its own item.
+    service
+        .load_law(&decider("lid_test_wet", &override_article("lid")))
+        .unwrap();
+    // A plain member, without an override of its own.
+    service.load_law(&decider("gewoon_test_wet", "")).unwrap();
+    // A law that starts the execution, calls a member on the way, and voids
+    // the hook on every item in its execution (RFC-007).
+    let root = |id: &str, called: &str, extra: &str| {
+        format!(
+            r#"$schema: {SCHEMA}
+$id: {id}
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: De uitkomst volgt uit het besluit.
+    machine_readable:
+      execution:
+        parameters:
+          - name: spoed
+            type: boolean
+            required: false
+        input:
+          - name: besluit
+            type: boolean
+            source:
+              regulation: {called}
+              output: beslist
+              parameters:
+                spoed_lid: $spoed
+                spoed_wortel: $spoed
+        output:
+          - name: uitkomst
+            type: boolean
+        actions:
+          - output: uitkomst
+            value: $besluit
+{extra}"#
+        )
+    };
+    service
+        .load_law(&root(
+            "wortel_test_wet",
+            "gewoon_test_wet",
+            &override_article("wortel"),
+        ))
+        .unwrap();
+    service
+        .load_law(&root("aanroeper_test_wet", "lid_test_wet", ""))
+        .unwrap();
+    assert_eq!(service.resolver().validate_kinds(), Vec::<String>::new());
+
+    let voided_in = |law: &str, output: &str, spoed: bool| {
+        let mut params = BTreeMap::new();
+        params.insert("spoed".to_string(), Value::Bool(spoed));
+        let trace = service
+            .evaluate_law_output_with_trace(law, output, params, "2025-06-01")
+            .unwrap()
+            .trace
+            .unwrap()
+            .render_box_drawing();
+        trace.contains("voids algemene_test_wet:2.motivering_vereist")
+    };
+    // The item's law, in a nested call: the member's own override.
+    assert!(voided_in("aanroeper_test_wet", "uitkomst", true));
+    assert!(!voided_in("aanroeper_test_wet", "uitkomst", false));
+    // The law that started the execution.
+    assert!(voided_in("wortel_test_wet", "uitkomst", true));
+    assert!(!voided_in("wortel_test_wet", "uitkomst", false));
+
+    // The hook's own law, voiding its own hook output in some cases.
+    service
+        .load_law(&format!(
+            r#"$schema: {SCHEMA}
+$id: eigen_test_wet
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Bij een besluit wordt een kennisgeving gedaan.
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            kind: algemene_test_wet/beschikking
+      execution:
+        output:
+          - name: kennisgeving
+            type: boolean
+        actions:
+          - output: kennisgeving
+            value: true
+  - number: '2'
+    text: Artikel 1 is niet van toepassing op een spoedeisend besluit.
+    machine_readable:
+      overrides:
+        - law: eigen_test_wet
+          article: '1'
+          output: kennisgeving
+          voids: true
+          when: spoedeisend
+          legal_text_excerpt: Artikel 1 is niet van toepassing op een spoedeisend besluit.
+      execution:
+        parameters:
+          - name: spoed_eigen
+            type: boolean
+            required: false
+        output:
+          - name: spoedeisend
+            type: boolean
+        actions:
+          - output: spoedeisend
+            value:
+              operation: EQUALS
+              subject: $spoed_eigen
+              value: true
+"#
+        ))
+        .unwrap();
+    let kennisgeving = |spoed: bool| {
+        let mut params = BTreeMap::new();
+        params.insert("spoed_eigen".to_string(), Value::Bool(spoed));
+        service
+            .evaluate_law_output("gewoon_test_wet", "beslist", params, "2025-06-01")
+            .unwrap()
+            .outputs
+            .get("kennisgeving")
+            .cloned()
+    };
+    assert_eq!(kennisgeving(true), None);
+    assert_eq!(kennisgeving(false), Some(Value::Bool(true)));
+}
