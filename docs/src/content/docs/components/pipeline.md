@@ -300,12 +300,13 @@ The image pins the claude CLI (`packages/pipeline/Dockerfile`, version
 because the wrapper package `@anthropic-ai/claude-code` only puts the binary in
 place from a postinstall script, which the install skips.
 
-Without `CLAUDE_MODEL` and `LLM_EFFORT` the CLI chooses for itself, and the
-stripped environment keeps its own variables (`ANTHROPIC_MODEL`,
-`CLAUDE_CODE_EFFORT_LEVEL`) out. Which model that is depends on the CLI
-version and the subscription behind the token; 2.1.303 started without a token
-names Opus 5.5. The effort it picks also depends on a server-side setting, and
-the CLI reports it nowhere. Set both on the enrich worker to know what runs.
+The claude provider runs Opus 5.5 (`claude-opus-5-5`) unless `CLAUDE_MODEL` or
+`LLM_MODEL` names another model. Left to itself the CLI picks a model from its
+version and the subscription behind the token, and that choice moved from Opus
+to Sonnet without a change on our side. The stripped environment keeps the
+CLI's own variables (`ANTHROPIC_MODEL`, `CLAUDE_CODE_EFFORT_LEVEL`) out.
+Without `LLM_EFFORT` the CLI picks the effort too; that depends on a
+server-side setting, and the CLI reports it nowhere.
 The CLI does report the model, in the `init` event at the start of the
 stream-json output. The worker records it: per call in the job result's
 `agent_calls`, as `models` on the result, as `model` in `.enrichment.yaml`
@@ -355,7 +356,7 @@ without one.
 | `LLM_PATH`, `LLM_MODEL` | none | Fallback binary and model for either provider |
 | `OPENCODE_PATH`, `OPENCODE_MODEL` | the opencode binary, provider default | Binary and model for opencode. Unless this or `LLM_PATH` is set, the entrypoint in the image sets the path to the platform build for the CPU (with or without AVX2) |
 | `VLAM_API_KEY` | none | Key for VLAM, used by the opencode provider |
-| `CLAUDE_PATH`, `CLAUDE_MODEL` | `claude`, provider default | Binary and model for claude |
+| `CLAUDE_PATH`, `CLAUDE_MODEL` | `claude`, `claude-opus-5-5` | Binary and model for claude |
 | `LLM_EFFORT` | none | Reasoning effort passed to the provider (`claude --effort`) |
 | `LLM_TIMEOUT_SECS` | 600 (10 min) | Ceiling per agent call |
 | `CLAUDE_CODE_OAUTH_TOKEN` | none | Subscription token for the claude provider; several comma-separated tokens are rotated over time |

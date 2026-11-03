@@ -2408,9 +2408,10 @@ impl EnrichConfig {
                 .or_else(|_| std::env::var("LLM_PATH"))
                 .unwrap_or_else(|_| "claude".into())
                 .into(),
-            model: std::env::var("CLAUDE_MODEL")
-                .or_else(|_| std::env::var("LLM_MODEL"))
-                .ok(),
+            model: Some(claude_model(
+                std::env::var("CLAUDE_MODEL").ok(),
+                std::env::var("LLM_MODEL").ok(),
+            )),
         };
 
         // Feedback rounds per gate. A bad spec is not worth failing a worker
@@ -3054,6 +3055,20 @@ pub fn progress_file_path(yaml_abs: &Path) -> PathBuf {
         .parent()
         .unwrap_or(Path::new("."))
         .join(".enrichment-progress.json")
+}
+
+/// The model the claude provider runs when nothing names one. Without it the
+/// CLI picks for itself, which depends on its version and the subscription
+/// behind the token, and has moved from Opus to Sonnet before.
+pub const DEFAULT_CLAUDE_MODEL: &str = "claude-opus-5-5";
+
+/// The claude model: `CLAUDE_MODEL`, then `LLM_MODEL`, then
+/// [`DEFAULT_CLAUDE_MODEL`]. An empty value counts as unset.
+pub fn claude_model(claude_model: Option<String>, llm_model: Option<String>) -> String {
+    claude_model
+        .filter(|m| !m.trim().is_empty())
+        .or_else(|| llm_model.filter(|m| !m.trim().is_empty()))
+        .unwrap_or_else(|| DEFAULT_CLAUDE_MODEL.to_string())
 }
 
 /// Allowlisted environment variable prefixes/names that are safe to pass to the
@@ -5649,6 +5664,14 @@ related_legislation:
             r#"{"type":"text","part":{"text":"error"}}"#
         ));
         assert!(!is_error_event("not json, mentions \"type\":\"error\""));
+    }
+
+    #[test]
+    fn claude_model_defaults_to_opus_and_yields_to_the_env() {
+        assert_eq!(claude_model(None, None), "claude-opus-5-5");
+        assert_eq!(claude_model(Some(" ".into()), None), "claude-opus-5-5");
+        assert_eq!(claude_model(None, Some("x".into())), "x");
+        assert_eq!(claude_model(Some("y".into()), Some("x".into())), "y");
     }
 
     #[test]

@@ -253,9 +253,8 @@ pub fn is_result_event(line: &str) -> bool {
 }
 
 /// The model named in the claude CLI's `init` event, the first line of a
-/// stream-json run. This is what actually runs: the worker passes a model only
-/// when `CLAUDE_MODEL` is set, and otherwise the CLI picks one from its version
-/// and the subscription behind the token.
+/// stream-json run. This is what actually runs, as the CLI reports it; the
+/// worker asks for `CLAUDE_MODEL` or `DEFAULT_CLAUDE_MODEL` in `enrich.rs`.
 pub fn init_model(line: &str) -> Option<String> {
     if !line.contains(r#""subtype":"init""#) {
         return None;
