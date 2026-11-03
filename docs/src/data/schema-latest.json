@@ -170,37 +170,7 @@
       "minItems": 1,
       "description": "Since v0.9.0: the kinds of regulation this regulation belongs to, such as a kind a general law defines for the regulations it applies to. Each claim quotes the words of this regulation that make it a member, or cites the provision that declares the membership in so many words.",
       "items": {
-        "type": "object",
-        "required": [
-          "kind"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "kind": {
-            "$ref": "#/definitions/kindReference",
-            "description": "The kind of regulation, defined with `level: regulation`."
-          },
-          "legal_text_excerpt": {
-            "type": "string",
-            "description": "The words of this regulation that give it the property the kind's definition names, quoted verbatim."
-          },
-          "legal_basis": {
-            "$ref": "#/definitions/legalBasis",
-            "description": "The provision of this regulation that declares the membership in so many words, such as an opt-in."
-          }
-        },
-        "anyOf": [
-          {
-            "required": [
-              "legal_text_excerpt"
-            ]
-          },
-          {
-            "required": [
-              "legal_basis"
-            ]
-          }
-        ]
+        "$ref": "#/definitions/kindMembership"
       }
     },
     "preamble": {
@@ -3025,6 +2995,42 @@
               }
             }
           }
+        },
+        "excludes": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Since v0.9.0: hook articles of a general law that do not apply, as this article says: \"Artikel 4 van de Algemene wet inkomensafhankelijke regelingen is niet van toepassing.\" Without `kind` the exclusion covers what this regulation itself produces; with `kind` every item of that kind, which is how a general law limits its own reach (Awb 1:6) or switches off another for its members (AWR 1 lid 3). The excluded hook does not run, and its outputs are recorded as not arising, with the quoted ground. Unlike an override it is not scoped to the law that started the execution: it travels with the item the hook would fire on.",
+          "items": {
+            "type": "object",
+            "required": [
+              "law",
+              "article",
+              "legal_text_excerpt"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "law": {
+                "type": "string",
+                "description": "The `$id` of the law whose hook article does not apply."
+              },
+              "article": {
+                "type": "string",
+                "description": "The hook article that does not apply."
+              },
+              "kind": {
+                "$ref": "#/definitions/kindReference",
+                "description": "Only items of this kind or a narrower one, including items that claim it with `member_of` and items of a regulation that does. Without it, only items this regulation produces."
+              },
+              "when": {
+                "type": "string",
+                "description": "Only where this boolean output of this article is true, for an exclusion the law limits to some cases: the Wet kinderopvang excludes Awir 5 only \"op wijzigingen in de kosten van kinderopvang per kind\". The article runs with the parameters the hook would receive."
+              },
+              "legal_text_excerpt": {
+                "type": "string",
+                "description": "The words of this article that establish the exclusion, quoted verbatim."
+              }
+            }
+          }
         }
       },
       "additionalProperties": false
@@ -3198,6 +3204,14 @@
         "legal_text_excerpt": {
           "type": "string",
           "description": "Since v0.9.0: the words of this regulation that make the item a member of its kind, quoted verbatim, where the kind follows from a property the regulation states rather than from the article itself."
+        },
+        "member_of": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Since v0.9.0: further kinds of items this item belongs to besides its `type`, each claimed with the words of this regulation. A hook on any of them fires on the item: a vergunning is a beschikking, may be prepared with the uniforme openbare voorbereidingsprocedure and may fall under the Wet Bibob.",
+          "items": {
+            "$ref": "#/definitions/kindMembership"
+          }
         }
       },
       "allOf": [
@@ -3275,6 +3289,39 @@
       "type": "string",
       "pattern": "^[a-z0-9_]+/[a-z0-9_]+$",
       "description": "A kind that an article of a regulation defines under `kinds`, as `<regulation>/<id>` (since v0.9.0). The schema knows no kind by name."
+    },
+    "kindMembership": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/kindReference",
+          "description": "The kind: for a regulation one defined with `level: regulation`, for an item one of items."
+        },
+        "legal_text_excerpt": {
+          "type": "string",
+          "description": "The words of this regulation that give the member the property the kind's definition names, quoted verbatim."
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The provision of this regulation that declares the membership in so many words, such as an opt-in."
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "legal_text_excerpt"
+          ]
+        },
+        {
+          "required": [
+            "legal_basis"
+          ]
+        }
+      ]
     }
   }
 }

@@ -29,8 +29,8 @@ use crate::answer::{
     AnswerProvenance, AnswerRequest, Authority, Call, Chronicle, ChronicleRead, OpenTermAnswerer,
 };
 use crate::article::{
-    Article, ArticleBasedLaw, CompetentAuthority, Execution, HookPoint, Input, MachineReadable,
-    NamedAuthority, ProcedureDefinition, Produced, Stage, StageRequirement,
+    is_kind_reference, Article, ArticleBasedLaw, CompetentAuthority, Execution, HookPoint, Input,
+    MachineReadable, NamedAuthority, ProcedureDefinition, Produced, Stage, StageRequirement,
 };
 use crate::config;
 use crate::context::{LazyInputs, RuleContext};
@@ -179,6 +179,21 @@ struct Bound {
     law_id: String,
     article: String,
     answers: Vec<AnswerProvenance>,
+}
+
+/// The kinds a decision belongs to besides its `type` (schema v0.9.0): those
+/// it claims with `member_of`, and those its regulation claims. Each one's
+/// own lineage is the resolver's to walk.
+fn further_kinds<'a>(decision: Option<Produced<'a>>, law: &'a ArticleBasedLaw) -> Vec<&'a str> {
+    let on_item = match decision {
+        Some(Produced::Item(item)) => item.member_of.as_deref().unwrap_or_default(),
+        _ => &[],
+    };
+    on_item
+        .iter()
+        .chain(law.member_of.iter().flatten())
+        .map(|m| m.kind.as_str())
+        .collect()
 }
 
 /// The outputs `article` computes at stage `stage` of its procedure
@@ -3295,6 +3310,26 @@ impl LawExecutionService {
             ),
             None => Vec::new(),
         };
+        // Schema v0.9.0: the decision is also a member of the kinds it
+        // claims with `member_of`, and of those its regulation claims, and
+        // the hooks on each of them fire on it too.
+        if decision.and_then(|d| d.legal_character()).is_some() {
+            for kind in further_kinds(decision, law) {
+                for h in self.resolver.find_hooks(
+                    hook_point,
+                    kind,
+                    decision.and_then(|d| d.decision_type()),
+                    stage,
+                ) {
+                    if !hooks
+                        .iter()
+                        .any(|e| e.law_id == h.law_id && e.article_number == h.article_number)
+                    {
+                        hooks.push(h);
+                    }
+                }
+            }
+        }
         let procedure = if staged {
             self.procedure_of(&law.id, article).ok().flatten()
         } else {
@@ -3608,6 +3643,142 @@ impl LawExecutionService {
         plan
     }
 
+    /// The exclusion that switches off hook article `hook_article` of
+    /// `hook_law` on what `article` of `law` produces, if one applies
+    /// (schema v0.9.0).
+    ///
+    /// An exclusion without `kind` applies to what its own regulation
+    /// produces: the Wet op het kindgebonden budget says of itself that Awir
+    /// 4 does not apply. One with `kind` applies to every item of that kind,
+    /// by its `type`, by `member_of` on the item, or by `member_of` on its
+    /// regulation. Unlike an override it does not depend on the law that
+    /// started the execution: it travels with the item, so it also holds
+    /// when the Awir asks the Wet kinderopvang for the tegemoetkoming.
+    ///
+    /// With `when`, the excluding article runs with the parameters the hook
+    /// would receive and the exclusion applies where that output is true.
+    /// False, null or unknown (no case of the kind the law names, or no
+    /// case at all) leaves the hook to fire.
+    fn applicable_exclusion(
+        &self,
+        hook_law: &str,
+        hook_article: &str,
+        article: &Article,
+        law: &ArticleBasedLaw,
+        parameters: &BTreeMap<String, Value>,
+        res_ctx: &mut ResolutionContext<'_>,
+    ) -> Result<Option<crate::resolver::ExclusionEntry>> {
+        let candidates = self.resolver.find_exclusions(hook_law, hook_article);
+        if candidates.is_empty() {
+            return Ok(None);
+        }
+        let kinds = self.item_kinds(article, law);
+        let ref_date = res_ctx.reference_date();
+        for entry in candidates {
+            let decl = &entry.declaration;
+            let in_scope = match &decl.kind {
+                Some(k) => kinds.contains(k),
+                None => entry.law_id == law.id,
+            };
+            if !in_scope {
+                continue;
+            }
+            // The index is built from the newest version, so the excluding
+            // regulation and article must be in force on this date, as for
+            // a hook or an override. If not, the general rule applies, and
+            // the trace says why.
+            let excluding = self
+                .resolver
+                .get_law_for_date_reported(&entry.law_id, ref_date)
+                .map_err(|reason| reason.describe())
+                .and_then(|l| {
+                    l.find_article_by_number(&entry.article_number)
+                        .map(|a| (l, a))
+                        .ok_or_else(|| {
+                            format!("article {} is not in this version", entry.article_number)
+                        })
+                });
+            let (excl_law, excl_article) = match excluding {
+                Ok(found) => found,
+                Err(reason) => {
+                    let _guard = res_ctx.trace_guard(
+                        format!("{}:{}", entry.law_id, entry.article_number),
+                        PathNodeType::HookResolution,
+                    );
+                    res_ctx.trace_set_message(format!(
+                        "Exclusion of {hook_law}:{hook_article} by {}:{} not in force: {reason}",
+                        entry.law_id, entry.article_number
+                    ));
+                    continue;
+                }
+            };
+            let Some(when) = &decl.when else {
+                return Ok(Some(entry.clone()));
+            };
+            let key = format!("exclusion:{}:{}", entry.law_id, entry.article_number);
+            if res_ctx.is_visited(&key) {
+                return Err(EngineError::CircularReference(format!(
+                    "{}:{} decides whether it excludes {hook_law}:{hook_article} \
+                     while it is already deciding that",
+                    entry.law_id, entry.article_number
+                )));
+            }
+            res_ctx.enter(key.clone());
+            let result = self.evaluate_article_with_service(
+                excl_article,
+                excl_law,
+                Self::filter_parameters_for_article(excl_article, parameters),
+                Some(&[when.as_str()]),
+                "BESLUIT", // an exclusion is not procedure-aware
+                res_ctx,
+            );
+            res_ctx.leave(&key);
+            match result?.outputs.get(when) {
+                Some(Value::Bool(true)) => return Ok(Some(entry.clone())),
+                // Not a case the law names, or nothing known about the
+                // case: the general rule applies.
+                Some(Value::Bool(false)) | Some(Value::Null) | Some(Value::Unknown(_)) => {}
+                other => {
+                    return Err(EngineError::InvalidOperation(format!(
+                        "{}:{} excludes {hook_law}:{hook_article} when {when}, \
+                         which is {} instead of true or false",
+                        entry.law_id,
+                        entry.article_number,
+                        other.map_or_else(|| "not computed".to_string(), ToString::to_string)
+                    )))
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    /// Every kind what `article` of `law` produces belongs to (schema
+    /// v0.9.0): the lineage of each item's `type`, and of each further kind
+    /// of its decision (see [`further_kinds`]).
+    fn item_kinds(&self, article: &Article, law: &ArticleBasedLaw) -> Vec<String> {
+        let mut kinds: Vec<String> = Vec::new();
+        let mut add = |k: &str| {
+            for k in self.resolver.kind_lineage(k) {
+                if !kinds.contains(&k) {
+                    kinds.push(k);
+                }
+            }
+        };
+        for produced in article.get_produced() {
+            if let Produced::Item(item) = produced {
+                if is_kind_reference(&item.item_type) {
+                    add(&item.item_type);
+                }
+            }
+        }
+        // The further kinds the hooks fire on: the decision's and its
+        // regulation's, as `hooks_firing_on` reads them.
+        for k in further_kinds(article.get_decision(), law) {
+            add(k);
+        }
+        kinds
+    }
+
     /// Fire hooks that match the given article's `produces` annotation.
     ///
     /// For each matching hook, executes the hook article and merges its outputs.
@@ -3668,6 +3839,51 @@ impl LawExecutionService {
             let hook_law_id = &hook_entry.law_id;
             let hook_article_number = &hook_entry.article_number;
             let hook_key = hook_key(&hook_entry.law_id, &hook_entry.article_number);
+
+            // Schema v0.9.0: a regulation may say this hook does not apply.
+            // It then does not run, and what it would have produced is
+            // recorded as not arising, with the words that say so.
+            if let Some(exclusion) = self.applicable_exclusion(
+                hook_law_id,
+                hook_article_number,
+                article,
+                law,
+                parameters,
+                res_ctx,
+            )? {
+                let _guard = res_ctx.trace_guard(
+                    format!("{}:{}", exclusion.law_id, exclusion.article_number),
+                    PathNodeType::HookResolution,
+                );
+                res_ctx.trace_set_message(format!(
+                    "Exclusion: {}:{} excludes hook {}:{} on {}",
+                    exclusion.law_id,
+                    exclusion.article_number,
+                    hook_law_id,
+                    hook_article_number,
+                    on
+                ));
+                for output in hook_article
+                    .get_execution_spec()
+                    .and_then(|e| e.output.as_ref())
+                    .into_iter()
+                    .flatten()
+                {
+                    // A value another hook produced for the same name keeps
+                    // its own provenance; otherwise the ground is recorded.
+                    if !hook_outputs.contains_key(&output.name) {
+                        hook_provenance.insert(
+                            output.name.clone(),
+                            OutputProvenance::Voided {
+                                law_id: exclusion.law_id.clone(),
+                                article: exclusion.article_number.clone(),
+                                grounds: Some(exclusion.declaration.legal_text_excerpt.clone()),
+                            },
+                        );
+                    }
+                }
+                continue;
+            }
 
             // Filter parameters: only pass parameters declared by the hook article (least privilege)
             let hook_params = Self::filter_parameters_for_article(hook_article, parameters);

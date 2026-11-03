@@ -282,24 +282,158 @@ articles:
   - number: '4'
     text: >-
       Artikel 4. Kind 1. Kind is de bloedverwant of aanverwant in de neergaande lijn van de belanghebbende of zijn
-      partner, die in belangrijke mate wordt onderhouden door de belanghebbende of zijn partner en op hetzelfde woonadres
-      als de belanghebbende staat ingeschreven in de gemeentelijke basisadministratie persoonsgegevens. Met een
-      bloedverwant of aanverwant in de neergaande lijn wordt gelijkgesteld een pleegkind. 2. De in het eerste lid
-      opgenomen voorwaarde van inschrijving in de gemeentelijke basisadministratie persoonsgegevens geldt niet gedurende
-      de periode waarin de aldaar bedoelde persoon tegelijkertijd tot de huishoudens van zijn beide ouders behoort en hij
-      op hetzelfde woonadres als een van die ouders staat ingeschreven in de gemeentelijke basisadministratie
-      persoonsgegevens. Voor de toepassing van de eerste volzin behoort iemand tegelijkertijd tot het huishouden van
-      beide ouders indien hij doorgaans ten minste drie gehele dagen per week in elk van beide huishoudens verblijft. 3.
-      Een kind wordt in belangrijke mate onderhouden als bedoeld in het eerste lid indien is voldaan aan de regels
-      gesteld krachtens [artikel 1.5 van de Wet inkomstenbelasting 2001](jci1.3:c:BWBR0011353&artikel=1.5) .
+      partner, die in belangrijke mate wordt onderhouden door de belanghebbende of zijn partner en als ingezetene op
+      hetzelfde woonadres als de belanghebbende is ingeschreven in de basisregistratie personen. Met een bloedverwant of
+      aanverwant in de neergaande lijn wordt gelijkgesteld een pleegkind. 2. De in het eerste lid opgenomen voorwaarde van
+      inschrijving in de basisregistratie personen geldt niet gedurende de periode waarin de aldaar bedoelde persoon
+      tegelijkertijd tot de huishoudens van zijn beide ouders behoort en hij op hetzelfde woonadres als een van die ouders
+      is ingeschreven in de basisregistratie personen. Voor de toepassing van de eerste zin behoort een kind
+      tegelijkertijd tot het huishouden van diens beide ouders indien hij binnen het kalenderjaar in nagenoeg gelijke mate
+      in elk van beide huishoudens verblijft. Aan deze voorwaarde wordt in ieder geval voldaan wanneer het kind 156 dagen
+      van het kalenderjaar in elk van beide huishoudens verblijft. Indien het kind niet gedurende het gehele kalenderjaar,
+      maar wel gedurende ten minste een maand, in elk van beide huishoudens verblijft, wordt het aantal dagen, genoemd in
+      de derde zin, naar tijdsgelang herrekend. 3. Een kind wordt in belangrijke mate onderhouden als bedoeld in het
+      eerste lid indien is voldaan aan de regels gesteld krachtens [artikel 1.5 van de Wet inkomstenbelasting
+      2001](jci1.3:c:BWBR0011353&artikel=1.5) .
     url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel4
+    machine_readable:
+      # Lid 1 legt het begrip kind vast voor elke inkomensafhankelijke
+      # regeling (artikel 1, eerste lid): een hook op de tegemoetkoming van
+      # artikel 2, eerste lid, onder h, die vuurt bij elke regeling die er een
+      # geeft. Een regeling kan het artikel uitsluiten; de Wet op het
+      # kindgebonden budget doet dat in artikel 1, derde lid. Lid 2 (co-ouderschap)
+      # en lid 3 (de regels krachtens de Wet IB 2001) zijn niet gemodelleerd:
+      # of het kind in belangrijke mate wordt onderhouden, is hier een
+      # gegeven. Zonder lid 2 is een kind dat bij beide ouders woont maar
+      # op het adres van de andere ouder staat ingeschreven, hier ten
+      # onrechte geen kind.
+      hooks:
+        - hook_point: pre_actions
+          applies_to:
+            kind: algemene_wet_inkomensafhankelijke_regelingen/tegemoetkoming
+      execution:
+        parameters:
+          - name: bloedverwant_of_aanverwant_in_neergaande_lijn
+            type: boolean
+            required: false
+            nullable: true
+            description: >-
+              Of de persoon een bloedverwant of aanverwant in de neergaande lijn
+              van de belanghebbende of zijn partner is (lid 1, eerste zin).
+          - name: pleegkind
+            type: boolean
+            required: false
+            nullable: true
+            description: Of de persoon een pleegkind is (lid 1, tweede zin).
+          - name: in_belangrijke_mate_onderhouden
+            type: boolean
+            required: false
+            nullable: true
+            description: >-
+              Of de belanghebbende of zijn partner de persoon in belangrijke mate
+              onderhoudt (lid 1; lid 3 is niet gemodelleerd).
+          - name: als_ingezetene_op_woonadres_ingeschreven
+            type: boolean
+            required: false
+            nullable: true
+            description: >-
+              Of de persoon als ingezetene op hetzelfde woonadres als de
+              belanghebbende is ingeschreven in de basisregistratie personen
+              (lid 1).
+        output:
+          - name: is_kind
+            type: boolean
+            nullable: true
+            description: >-
+              Of de persoon een kind is in de zin van lid 1. Onbekend als de run
+              over geen persoon gaat, null als de aanroeper dat zo opgeeft.
+        actions:
+          - output: is_kind
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $in_belangrijke_mate_onderhouden
+                    value: null
+                  then: null
+              default:
+                operation: AND
+                conditions:
+                  - operation: OR
+                    conditions:
+                      - operation: EQUALS
+                        subject: $bloedverwant_of_aanverwant_in_neergaande_lijn
+                        value: true
+                      - operation: EQUALS
+                        subject: $pleegkind
+                        value: true
+                  - $in_belangrijke_mate_onderhouden
+                  - operation: EQUALS
+                    subject: $als_ingezetene_op_woonadres_ingeschreven
+                    value: true
   - number: '5'
     text: >-
-      Artikel 5. Tijdvak partnerschap en medebewonerschap Voor de toepassing van deze wet en de daarop berustende
-      bepalingen, alsmede voor de toepassing van inkomensafhankelijke regelingen, wordt met de aanwezigheid van een
-      partner of medebewoner geen rekening gehouden in de kalendermaand waarin het partnerschap of medebewonerschap
-      aanvangt of eindigt.
+      Artikel 5. Voor de toepassing van deze wet en de daarop berustende bepalingen alsmede voor de toepassing van
+      inkomensafhankelijke regelingen, wordt een wijziging in de omstandigheden en van de leeftijd van de belanghebbende,
+      de partner of een medebewoner die zich voordoet na de eerste dag van de maand, in aanmerking genomen vanaf de
+      eerste dag van de daaropvolgende maand.
     url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel5
+    machine_readable:
+      # Een hook op de tegemoetkoming: het artikel geldt "voor de toepassing
+      # van inkomensafhankelijke regelingen". Een run gaat over hoogstens één
+      # wijziging, met de datum waarop zij zich voordoet. De Wet kinderopvang
+      # sluit het artikel uit voor wijzigingen in de kosten van kinderopvang
+      # per kind (artikel 1.3, tweede lid, van die wet).
+      hooks:
+        - hook_point: pre_actions
+          applies_to:
+            kind: algemene_wet_inkomensafhankelijke_regelingen/tegemoetkoming
+      execution:
+        parameters:
+          - name: datum_wijziging
+            type: date
+            required: false
+            nullable: true
+            description: >-
+              De dag waarop de wijziging in de omstandigheden of van de leeftijd
+              zich voordoet.
+        output:
+          - name: wijziging_in_aanmerking_vanaf
+            type: date
+            nullable: true
+            description: >-
+              De dag vanaf welke de wijziging in aanmerking wordt genomen.
+              Onbekend als de run over geen wijziging gaat, null als de
+              aanroeper dat zo opgeeft.
+        actions:
+          - output: wijziging_in_aanmerking_vanaf
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $datum_wijziging
+                    value: null
+                  then: null
+                # "die zich voordoet na de eerste dag van de maand": vanaf
+                # de eerste dag van de daaropvolgende maand.
+                - when:
+                    operation: GREATER_THAN
+                    subject:
+                      operation: DATE_PART
+                      date: $datum_wijziging
+                      in: day
+                    value: 1
+                  then:
+                    operation: DATE_ADD
+                    date:
+                      operation: START_OF
+                      date: $datum_wijziging
+                      in: month
+                    months: 1
+              # Een wijziging op de eerste dag van de maand telt vanaf die dag.
+              default: $datum_wijziging
   - number: '6'
     text: >-
       Artikel 6. Gelijkstelling met gemeentelijke basisadministratie persoonsgegevens 1. Voor de toepassing van deze wet

@@ -628,10 +628,13 @@ function expandInline(
   return Object.entries(props)
     .filter(([name]) => !only || only.includes(name))
     .map(([name, node]) => {
-      // Either an array of inline objects, or an inline object itself.
+      // Either an array of objects, inline or a shared definition (since
+      // v0.9.0 `member_of` refers to `kindMembership`), or an inline object.
+      const ref = node.items?.$ref?.replace('#/definitions/', '');
+      const items = ref ? defs[ref] : node.items;
       const shape =
-        node.type === 'array' && node.items?.properties
-          ? node.items
+        node.type === 'array' && items?.properties
+          ? items
           : node.type === 'object' && node.properties
             ? node
             : null;

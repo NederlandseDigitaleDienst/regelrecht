@@ -1,7 +1,10 @@
 ---
 # Tier C: kinds that an article defines (schema v0.9.0), a regulation that
 # claims to be of a kind of regulation (`member_of`), an item of a kind with
-# the words that make it one, and a hook on a kind at a named stage.
+# the words that make it one, an item that claims a further kind
+# (`member_of` on an item), a hook on a kind at a named stage, and an
+# article that excludes that hook for a kind and only in some cases
+# (`excludes` with `kind` and `when`).
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json
 $id: test_conformance_kinds
 regulatory_layer: WET
@@ -53,6 +56,9 @@ articles:
         produces:
           - type: test_conformance_kinds/bijdrage
             legal_text_excerpt: Op verzoek kent de minister een bijdrage toe.
+            member_of:
+              - kind: test_conformance_kinds/beschikking
+                legal_text_excerpt: kent de minister een bijdrage toe
         output:
           - name: bijdrage
             type: number
@@ -101,3 +107,30 @@ articles:
         actions:
           - output: meegedeeld
             value: true
+  - number: '5'
+    url: https://example.invalid/kinds/5
+    text: >-
+      Artikel 3 is niet van toepassing op een bijdrage onder de honderd euro.
+    machine_readable:
+      excludes:
+        - law: test_conformance_kinds
+          article: '3'
+          kind: test_conformance_kinds/bijdrage
+          when: kleine_bijdrage
+          legal_text_excerpt: >-
+            Artikel 3 is niet van toepassing op een bijdrage onder de honderd
+            euro.
+      execution:
+        parameters:
+          - name: bedrag
+            type: number
+            required: false
+        output:
+          - name: kleine_bijdrage
+            type: boolean
+        actions:
+          - output: kleine_bijdrage
+            value:
+              operation: LESS_THAN
+              subject: $bedrag
+              value: 100

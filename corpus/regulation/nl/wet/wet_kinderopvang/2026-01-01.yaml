@@ -1,0 +1,152 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json
+$id: wet_kinderopvang
+regulatory_layer: WET
+# De datum van de wet zelf (Wet van 9 juli 2004).
+publication_date: '2004-07-09'
+valid_from: '2026-01-01'
+bwb_id: BWBR0017017
+url: https://wetten.overheid.nl/BWBR0017017/2026-01-01
+name: Wet kinderopvang
+# Een wet van vóór 2006: de Awir geldt er alleen voor omdat zij het zelf
+# bepaalt (Awir artikel 1, tweede lid). Artikel 1.3, tweede lid, doet dat.
+member_of:
+  - kind: algemene_wet_inkomensafhankelijke_regelingen/inkomensafhankelijke_regeling
+    legal_text_excerpt: >-
+      Op deze wet is de Algemene wet inkomensafhankelijke regelingen van
+      toepassing
+# Alleen de artikelen die het voorbeeld van een uitsluiting nodig heeft.
+articles:
+  - number: '1.3'
+    text: >-
+      1. De uitvoering van het toekennen, uitbetalen en terugvorderen van de kinderopvangtoeslag is opgedragen aan de
+      Dienst Toeslagen.
+
+
+      2. Op deze wet is de Algemene wet inkomensafhankelijke regelingen van toepassing met uitzondering van artikel 5 van
+      die wet op wijzigingen in de kosten van kinderopvang per kind, bedoeld in artikel 1.7, eerste lid, onderdeel b, met
+      dien verstande dat: a. in afwijking van artikel 4, derde lid, van de Algemene wet inkomensafhankelijke regelingen
+      een kind voor wie de pleegouder een vergoeding ontvangt op grond van de Jeugdwet, geacht wordt door die pleegouder
+      in belangrijke mate te worden onderhouden; b. in afwijking van artikel 15, eerste lid, van de Algemene wet
+      inkomensafhankelijke regelingen, een ouder over de berekeningsjaren 2014 en volgende geen aanspraak heeft op
+      kinderopvangtoeslag als bedoeld in de artikelen 1.5 en 1.5a over de periode tot de eerste dag van de kalendermaand
+      die drie kalendermaanden gelegen is voor de datum waarop de aanvraag om kinderopvangtoeslag is ingediend bij de
+      Dienst Toeslagen.
+    url: https://wetten.overheid.nl/BWBR0017017/2026-01-01#Artikel1.3
+    machine_readable:
+      # Lid 2: Awir artikel 5 geldt niet voor wijzigingen in de kosten van
+      # kinderopvang per kind. Voor elke andere wijziging geldt het wel. De
+      # uitsluiting is dus gedeeltelijk: zij geldt waar de uitkomst
+      # `wijziging_in_kosten_van_kinderopvang_per_kind` waar is. Lid 1 en de
+      # onderdelen a (een fictie) en b (een afwijking van Awir 15) zijn niet
+      # gemodelleerd.
+      excludes:
+        - law: algemene_wet_inkomensafhankelijke_regelingen
+          article: '5'
+          when: wijziging_in_kosten_van_kinderopvang_per_kind
+          legal_text_excerpt: >-
+            met uitzondering van artikel 5 van die wet op wijzigingen in de
+            kosten van kinderopvang per kind, bedoeld in artikel 1.7, eerste
+            lid, onderdeel b
+      definitions:
+        # Artikel 1.7, eerste lid, onderdeel b: de kosten van kinderopvang
+        # per kind "worden bepaald door: 1º. het aantal uren kinderopvang per
+        # kind in het berekeningsjaar, 2º. de voor die kinderopvang te
+        # betalen prijs, [...] en 3º. de soort kinderopvang". Artikel 1.7
+        # staat hieronder met zijn tekst. De codes zijn een eigen keuze: de
+        # wet noemt de drie bepalende factoren, niet bij een code.
+        bepalend_voor_kosten_per_kind:
+          value:
+            - AANTAL_UREN_KINDEROPVANG
+            - PRIJS_KINDEROPVANG
+            - SOORT_KINDEROPVANG
+      execution:
+        parameters:
+          - name: gewijzigde_omstandigheid
+            type: string
+            required: false
+            nullable: true
+            description: >-
+              Wat er is gewijzigd, zoals PRIJS_KINDEROPVANG of PARTNER. Eigen
+              keuze: de wet noemt de wijziging niet bij een code.
+        output:
+          - name: wijziging_in_kosten_van_kinderopvang_per_kind
+            type: boolean
+            description: >-
+              Of de wijziging een wijziging in de kosten van kinderopvang per
+              kind is, bedoeld in artikel 1.7, eerste lid, onderdeel b.
+        actions:
+          - output: wijziging_in_kosten_van_kinderopvang_per_kind
+            value:
+              operation: IN
+              subject: $gewijzigde_omstandigheid
+              value: $bepalend_voor_kosten_per_kind
+  - number: '1.5'
+    text: >-
+      1. Een ouder heeft aanspraak op een kinderopvangtoeslag in de door hem of zijn partner betaalde kosten, indien het
+      betreft: a. kinderopvang in een geregistreerd kindercentrum; of b. gastouderopvang in een geregistreerde voorziening
+      voor gastouderopvang.
+
+
+      2. Indien het ouderparticipatieopvang in een ouderparticipatiecrèche betreft, heeft de ouder in de aanloopperiode,
+      bedoeld in artikel 1.60b, in afwijking van het eerste lid, geen aanspraak op kinderopvangtoeslag.
+
+
+      3. Een ouder en diens partner die tevens ouder is worden voor de toepassing van deze wet geacht gezamenlijk één
+      aanspraak te hebben.
+    url: https://wetten.overheid.nl/BWBR0017017/2026-01-01#Artikel1.5
+    machine_readable:
+      # Lid 1 geeft de aanspraak: een tegemoetkoming in de zin van Awir
+      # artikel 2, eerste lid, onder h. Daarop vuren de hooks van de Awir,
+      # behalve waar artikel 1.3, tweede lid, er een uitsluit. Lid 2 en 3 en
+      # de hoogte (artikel 1.7 en 1.8) zijn niet gemodelleerd.
+      execution:
+        produces:
+          - type: algemene_wet_inkomensafhankelijke_regelingen/tegemoetkoming
+            legal_text_excerpt: aanspraak op een kinderopvangtoeslag
+        parameters:
+          - name: kinderopvang_in_geregistreerd_kindercentrum
+            type: boolean
+            required: false
+            description: Lid 1, onderdeel a.
+          - name: gastouderopvang_in_geregistreerde_voorziening
+            type: boolean
+            required: false
+            description: Lid 1, onderdeel b.
+        output:
+          - name: heeft_aanspraak_op_kinderopvangtoeslag
+            type: boolean
+        actions:
+          - output: heeft_aanspraak_op_kinderopvangtoeslag
+            value:
+              operation: OR
+              conditions:
+                - operation: EQUALS
+                  subject: $kinderopvang_in_geregistreerd_kindercentrum
+                  value: true
+                - operation: EQUALS
+                  subject: $gastouderopvang_in_geregistreerde_voorziening
+                  value: true
+  - number: '1.7'
+    text: >-
+      1. De hoogte van de kinderopvangtoeslag is afhankelijk van: a. de draagkracht, en b. de kosten van kinderopvang per
+      kind die worden bepaald door: 1º. het aantal uren kinderopvang per kind in het berekeningsjaar, 2º. de voor die
+      kinderopvang te betalen prijs, met inachtneming van het bedrag, bedoeld in het tweede lid, en 3º. de soort
+      kinderopvang.
+
+
+      2. De uurprijs die bij de hoogte van de kinderopvangtoeslag, bedoeld in het eerste lid, in aanmerking wordt
+      genomen gaat een bij algemene maatregel van bestuur vast te stellen bedrag niet te boven. Dat bedrag kan per
+      opvangsoort verschillend worden vastgesteld.
+
+
+      3. Bij algemene maatregel van bestuur kunnen regels worden gesteld over de redelijke verhouding tussen het aantal
+      uren dat de ouder en zijn partner arbeid verrichten, gebruik maken van een voorziening die gericht is op
+      arbeidsinschakeling, of scholing, een opleiding of een cursus volgen, alsmede de in verband daarmee benodigde
+      reistijd, en het aantal uren kinderopvang waarvoor kinderopvangtoeslag kan worden aangevraagd.
+
+
+      4. Het aantal uren kinderopvang dat in aanmerking wordt genomen bij de hoogte van de kinderopvangtoeslag, bedoeld
+      in het eerste lid, gaat een bij algemene maatregel van bestuur vast te stellen maximum, dat per soort
+      kinderopvang of per leeftijdsgroep verschillend kan worden vastgesteld, niet te boven.
+    url: https://wetten.overheid.nl/BWBR0017017/2026-01-01#Artikel1.7

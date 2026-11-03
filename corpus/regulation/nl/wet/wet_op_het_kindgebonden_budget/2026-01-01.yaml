@@ -1,0 +1,159 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.9.0/schema/v0.9.0/schema.json
+$id: wet_op_het_kindgebonden_budget
+regulatory_layer: WET
+# De datum van de wet zelf (Wet van 1 november 2007).
+publication_date: '2007-11-01'
+valid_from: '2026-01-01'
+bwb_id: BWBR0022751
+url: https://wetten.overheid.nl/BWBR0022751/2026-01-01
+name: Wet op het kindgebonden budget
+# Artikel 1, tweede lid, geeft deze wet de eigenschap waarmee Awir artikel
+# 1, derde lid, de inkomensafhankelijke regeling definieert.
+member_of:
+  - kind: algemene_wet_inkomensafhankelijke_regelingen/inkomensafhankelijke_regeling
+    legal_text_excerpt: >-
+      De hoogte van het kindgebonden budget is afhankelijk van de draagkracht
+      op basis van het inkomen en het vermogen.
+# Alleen de artikelen die het voorbeeld van een uitsluiting nodig heeft.
+articles:
+  - number: '1'
+    text: >-
+      1. In deze wet en de daarop berustende bepalingen wordt verstaan onder: a. Onze Minister: Onze Minister van Sociale
+      Zaken en Werkgelegenheid; b. kindgebonden budget: een financiële bijdrage van het Rijk in de kosten voor kinderen;
+      c. ouder: de verzekerde in de zin van de Algemene Kinderbijslagwet; d. drempelinkomen: 108% van het twaalfvoud van
+      het voor de maand januari van het berekeningsjaar geldende in artikel 8, eerste lid, onderdeel b, van de Wet
+      minimumloon en minimumvakantiebijslag bedoelde bedrag per maand.
+
+
+      2. De hoogte van het kindgebonden budget is afhankelijk van de draagkracht op basis van het inkomen en het
+      vermogen.
+
+
+      3. Artikel 4 van de Algemene wet inkomensafhankelijke regelingen is niet van toepassing.
+
+
+      4. In afwijking van artikel 7, derde lid, van de Algemene wet inkomensafhankelijke regelingen, bestaat geen
+      aanspraak op kindgebonden budget indien de rendementsgrondslag, bedoeld in artikel 5.3 van de Wet
+      inkomstenbelasting 2001, van de ouder aan het begin van het berekeningsjaar meer bedraagt dan € 146.011 of, indien
+      de ouder het gehele berekeningsjaar dezelfde partner heeft, de gezamenlijke rendementsgrondslag, bedoeld in artikel
+      5.3 van de Wet inkomstenbelasting 2001, van de ouder en zijn partner aan het begin van het berekeningsjaar meer
+      bedraagt dan € 184.633. Bij de bepaling van de rendementsgrondslag, bedoeld in de vorige zin, wordt geen rekening
+      gehouden met de vrijstelling, bedoeld in artikel 5.13 van de Wet inkomstenbelasting 2001.
+
+
+      5. In afwijking van artikel 9, tweede lid, van de Algemene wet inkomensafhankelijke regelingen, bestaat er wel
+      aanspraak op kindgebonden budget voor een kind dat geen vreemdeling is of dat rechtmatig verblijf houdt in de zin
+      van artikel 8 van de Vreemdelingenwet 2000.
+    url: https://wetten.overheid.nl/BWBR0022751/2026-01-01#Artikel1
+    machine_readable:
+      # Lid 3: Awir artikel 4 (het begrip kind) geldt niet voor deze wet, die
+      # het kind via de kinderbijslag bepaalt (artikel 2, eerste lid). De
+      # uitsluiting is volledig. Lid 4 en 5 wijken af van de Awir en zijn
+      # niet gemodelleerd.
+      excludes:
+        - law: algemene_wet_inkomensafhankelijke_regelingen
+          article: '4'
+          legal_text_excerpt: >-
+            Artikel 4 van de Algemene wet inkomensafhankelijke regelingen is
+            niet van toepassing.
+  - number: '2'
+    text: >-
+      1. Aanspraak op een kindgebonden budget heeft de ouder voor een kind voor wie aan die ouder op grond van artikel 18
+      van de Algemene Kinderbijslagwet kinderbijslag wordt betaald of zou worden betaald indien artikel 7, tweede lid van
+      die wet niet van toepassing zou zijn, met dien verstande dat de aanspraak op een kindgebonden budget bestaat met
+      ingang van de kalendermaand na de maand waarin het kind is geboren dan wel tot het huishouden is gaan behoren tot en
+      met de kalendermaand waarin het kind de leeftijd van 18 jaar bereikt.
+
+
+      2. Het kindgebonden budget bedraagt voor een berekeningsjaar: a. indien de ouder aanspraak heeft voor een kind: €
+      2.580; b. indien de ouder aanspraak heeft voor twee of meer kinderen: € 2.580 per kind voor het tweede of volgende
+      kind.
+
+
+      3. Een ouder heeft aanspraak op een verhoging van het kindgebonden budget in een berekeningsjaar voor een kind met
+      ingang van de kalendermaand na de maand waarin dat kind de leeftijd van 12 jaar heeft bereikt.
+
+
+      4. Voor een kind dat 12 jaar of ouder is, maar jonger is dan 16 jaar bedraagt de verhoging van het kindgebonden
+      budget € 724.
+
+
+      5. Voor een kind dat 16 of 17 jaar is, bedraagt de verhoging van het kindgebonden budget met ingang van de
+      kalendermaand na de maand waarin het kind de leeftijd van 16 jaar heeft bereikt € 964,00.
+
+
+      6. De ouder die geen partner heeft, heeft aanspraak op een verhoging van het kindgebonden budget van € 3.416.
+
+
+      7. Bij een toetsingsinkomen van de ouder die geen partner heeft, van meer dan het drempelinkomen wordt de som van de
+      bedragen waarop recht bestaat op grond van het tweede, vierde, vijfde en zesde lid verminderd met 7,60% van het
+      verschil tussen het toetsingsinkomen en het drempelinkomen.
+
+
+      8. Bij een gezamenlijk toetsingsinkomen van de ouder en zijn partner van meer dan het met € 9.405 verhoogde
+      drempelinkomen wordt de som van de bedragen waarop recht bestaat op grond van het tweede, vierde en vijfde lid
+      verminderd met 7,60% van het verschil tussen het gezamenlijk toetsingsinkomen en het met € 9.405 verhoogde
+      drempelinkomen.
+
+
+      9. Een ouder als bedoeld in het eerste en derde lid en zijn partner die tevens ouder is als bedoeld in het eerste
+      lid worden voor de toepassing van deze wet geacht gezamenlijk één aanspraak te hebben.
+
+
+      10. Indien aan twee ouders kinderbijslag wordt uitbetaald op basis van het recht op kinderbijslag van één van die
+      ouders, heeft alleen de ouder, wiens recht op kinderbijslag wordt uitbetaald aanspraak op een kindgebonden budget.
+
+
+      11. De aanspraak op een kindgebonden budget wordt voor iedere kalendermaand afzonderlijk bepaald.
+
+
+      12. Indien de ouder: a. aanspraak heeft op kindgebonden budget voor een kind, en b. voor dat kind voor de toepassing
+      van de Algemene Kinderbijslagwet een ander land dan Nederland, een van de andere lidstaten van de Europese Unie,
+      een andere staat die partij is bij de Overeenkomst betreffende de Europese Economische Ruimte en Zwitserland als
+      woonland in aanmerking wordt genomen, bedraagt het kindgebonden budget een bij ministeriële regeling vastgesteld
+      percentage van de in het tweede lid, onderdeel a, en vierde tot en met zesde lid bedoelde bedragen. Het percentage
+      wordt zo bepaald dat het een weergave is van de verhouding tussen het kostenniveau van het land dat als woonland in
+      aanmerking wordt genomen en dat van Nederland. Het percentage bedraagt maximaal 100.
+
+
+      13. Indien de ouder: a. aanspraak heeft op kindgebonden budget voor meer dan een kind, en b. voor een of meer van
+      die kinderen voor de toepassing van de Algemene Kinderbijslagwet een ander land dan Nederland, een van de andere
+      lidstaten van de Europese Unie, een andere staat die partij is bij de Overeenkomst betreffende de Europese
+      Economische Ruimte en Zwitserland als woonland in aanmerking wordt genomen, bedraagt het kindgebonden budget een
+      volgens bij ministeriële regeling te stellen regels vastgesteld bedrag. Dat bedrag is gebaseerd op de in het tweede
+      en vierde tot en met zesde lid, opgenomen bedragen en de verhouding tussen het kostenniveau van het land dat als
+      woonland in aanmerking wordt genomen voor het desbetreffende kind of voor de desbetreffende kinderen en dat van
+      Nederland uitgedrukt in procenten. Het percentage bedraagt maximaal 100.
+
+
+      14. Het twaalfde en dertiende lid zijn niet van toepassing indien het een kind betreft dat op de eerste dag van een
+      kalenderkwartaal niet in Nederland woont doch langer dan drie maanden onafgebroken in Nederland verblijft.
+    url: https://wetten.overheid.nl/BWBR0022751/2026-01-01#Artikel2
+    machine_readable:
+      # Lid 1 geeft de aanspraak, een tegemoetkoming in de zin van Awir
+      # artikel 2, eerste lid, onder h. Of het kind meetelt, volgt hier uit de
+      # kinderbijslag, niet uit Awir artikel 4. Uit lid 1 is alleen de
+      # voorwaarde gemodelleerd, niet het tijdvak ("met ingang van de
+      # kalendermaand na [...] tot en met de kalendermaand waarin het kind de
+      # leeftijd van 18 jaar bereikt"). De hoogte (lid 2 tot en met 14) is
+      # niet gemodelleerd.
+      execution:
+        produces:
+          - type: algemene_wet_inkomensafhankelijke_regelingen/tegemoetkoming
+            legal_text_excerpt: Aanspraak op een kindgebonden budget
+        parameters:
+          - name: kinderbijslag_betaald_of_zou_worden_betaald
+            type: boolean
+            required: true
+            description: >-
+              Of aan de ouder voor het kind kinderbijslag wordt betaald op grond
+              van artikel 18 van de Algemene Kinderbijslagwet, of zou worden
+              betaald als artikel 7, tweede lid, van die wet niet van toepassing
+              was (lid 1).
+        output:
+          - name: heeft_aanspraak_op_kindgebonden_budget
+            type: boolean
+        actions:
+          - output: heeft_aanspraak_op_kindgebonden_budget
+            value: $kinderbijslag_betaald_of_zou_worden_betaald
