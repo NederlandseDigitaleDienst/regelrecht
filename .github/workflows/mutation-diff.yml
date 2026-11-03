@@ -6,17 +6,17 @@
 # in de diff staat, en een wijziging hier kan code elders slechter getest maken
 # zonder dat deze job dat ziet.
 #
-# De poort dekt engine, pipeline en cel. De pipeline stond er eerst buiten, terwijl
-# daar de deterministische poorten en de tellers zitten: de code die bepaalt of
-# een vertaling deugt. Twee keer bleek daar een test te staan die zijn eigen
-# regel niet vastpinde, en dat is precies wat een mutant vindt.
+# De poort dekt engine, pipeline en cel. De pipeline stond er eerst buiten,
+# terwijl daar de deterministische poorten en de tellers zitten: de code die
+# bepaalt of een vertaling deugt. Twee keer bleek daar een test te staan die
+# zijn eigen regel niet vastpinde, en dat is precies wat een mutant vindt.
 #
-# De cel kwam er later bij, om dezelfde reden. Ze legt een aanvraag, het besluit
-# en het bezwaar vast in haar kroniek, en een testaudit vond in haar tests
-# asserts die niets vastpinden: een kale `is_err()` die elke fout goedkeurde, en
-# een te laat ingesteld beroep dat nergens getest werd. Wat al in de cel stond
-# maakt de poort niet rood, want --in-diff muteert alleen gewijzigde regels. De
-# PoC-crates (poc-*) blijven erbuiten.
+# De cel kwam er later bij. Ze legt een aanvraag, het besluit en het bezwaar of
+# beroep vast in haar kroniek. Een testaudit (#1767) vond ook daar tests die hun
+# regel niet vastpinden. Een kale `is_err()` keurde elke fout goed, en een te
+# laat ingesteld beroep werd nergens van begin tot eind getest. Wat al in de cel
+# stond maakt de poort niet rood, want --in-diff muteert alleen gewijzigde
+# regels. De PoC-crates (poc-*) blijven erbuiten.
 #
 # De poort draait in drie stappen: `plan` telt de mutanten in de diff en kiest
 # daarmee het aantal shards, `shard` test ze verdeeld over die shards, en
