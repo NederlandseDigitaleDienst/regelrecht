@@ -137,6 +137,7 @@ const emptyText = computed(() => {
       appearance="secondary"
       size="md"
       icon="ai"
+      width="full"
       data-testid="enrich-btn"
       :text="enrichLabel"
       @action-click="emit('enrich', $event.currentTarget)"
