@@ -186,13 +186,15 @@ The enrich worker:
 4. Computes coverage score (the stored `law_entries.coverage_score` is the cumulative fraction of articles with `machine_readable`; the per-run delta rides in the job result)
 5. Pushes the result to a per-provider branch (`enrich/` followed by the provider name, `opencode` or `claude`) for review
 
-The hourly budget fails closed. Without `ENRICH_HOURLY_LIMIT`, or with `0`, the
-worker enriches nothing, so a forgotten variable cannot spend a subscription on
-the whole corpus. The cap counts runs for the worker's own `LLM_PROVIDER` per
-clock hour (Europe/Amsterdam), and because it is counted in the `jobs` table it
-survives a restart. A job that names another provider in its payload, such as
-an enrichment where the user picked VLAM in the editor, does not count against
-it.
+The hourly budget applies to the `claude` provider, which runs on a personal
+subscription token, whatever the worker's own `LLM_PROVIDER` is: a user picks
+the provider per enrichment in the editor. It counts claude runs per clock hour
+(Europe/Amsterdam), and because it is counted in the `jobs` table it survives a
+restart. Once the claude runs of the hour are used up, claude jobs wait for the
+next hour and the worker keeps running jobs for other providers. The `opencode`
+provider (VLAM) has no cap for now. The budget fails closed: without
+`ENRICH_HOURLY_LIMIT`, or with `0`, no claude job runs, so a forgotten variable
+cannot spend the subscription on the whole corpus.
 
 ### Large laws and agent sessions
 
@@ -349,7 +351,7 @@ without one.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `ENRICH_HOURLY_LIMIT` | 0 (paused) | Enrich runs per clock hour for this worker's provider; must be set for the worker to enrich at all |
+| `ENRICH_HOURLY_LIMIT` | 0 (claude paused) | Claude enrich runs per clock hour; must be set for claude jobs to run at all. opencode runs are not capped |
 | `ENRICH_NIGHT_MULTIPLIER` | 1 | Multiplier on the hourly limit between 00:00 and 08:00 (Europe/Amsterdam) |
 | `ENRICH_AUTO_ENQUEUE` | off | `true` (or `1`, `yes`, `on`) makes a completed harvest queue enrich jobs; otherwise enrichment is requested explicitly through `POST /api/enrich-jobs` on the [Harvester Admin](./admin) API |
 | `LLM_PROVIDER` | `opencode` | `opencode` or `claude` |
