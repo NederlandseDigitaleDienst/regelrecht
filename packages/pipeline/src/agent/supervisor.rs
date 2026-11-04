@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use tokio::io::AsyncReadExt;
 
-use super::dialect::{AgentEvent, CommandRequest, CommandSpec, ToolPolicy};
+use super::dialect::{AgentEvent, CommandRequest, CommandSpec, PartKind, PartSizes, ToolPolicy};
 use crate::enrich::{AgentUsage, EnrichConfig, LlmProvider, SessionAction};
 use crate::error::{PipelineError, Result};
 
@@ -253,10 +253,13 @@ pub(crate) async fn run_llm_subprocess(
                         activity.touch();
                         lines.feed(&buf[..n], |line| {
                             for event in dialect.read_line(line) {
+                                let Ok(mut r) = report_writer.lock() else {
+                                    activity.record(&event);
+                                    continue;
+                                };
+                                let event = r.count_parts(event);
                                 activity.record(&event);
-                                if let Ok(mut r) = report_writer.lock() {
-                                    r.take(&drain_provider, event);
-                                }
+                                r.take(&drain_provider, event);
                             }
                         });
                         // Bounded preview at debug only (off under the
@@ -457,9 +460,33 @@ struct StreamReport {
     step_usage: Option<AgentUsage>,
     /// Why the call failed, as the closing event said.
     closing_error: Option<String>,
+    /// What the step in progress has written so far.
+    step_parts: PartSizes,
 }
 
 impl StreamReport {
+    /// Count a part towards the step in progress, and give a step that ends
+    /// the parts it wrote. Kept per call here rather than in the shared
+    /// activity, where windows running side by side would mix their steps.
+    fn count_parts(&mut self, event: AgentEvent) -> AgentEvent {
+        match event {
+            AgentEvent::Part { kind, chars } => {
+                let slot = match kind {
+                    PartKind::Text => &mut self.step_parts.text,
+                    PartKind::Reasoning => &mut self.step_parts.reasoning,
+                    PartKind::ToolInput => &mut self.step_parts.tool_input,
+                };
+                *slot += chars;
+                event
+            }
+            AgentEvent::StepFinished(mut step) => {
+                step.parts = std::mem::take(&mut self.step_parts);
+                AgentEvent::StepFinished(step)
+            }
+            other => other,
+        }
+    }
+
     fn take(&mut self, provider: &str, event: AgentEvent) {
         match event {
             AgentEvent::Model(model) => {
@@ -480,7 +507,10 @@ impl StreamReport {
             AgentEvent::ErrorEvent(preview) => {
                 tracing::warn!(%provider, event = %preview, "agent reported an error");
             }
-            AgentEvent::Turn { .. } | AgentEvent::Tool(_) | AgentEvent::StepFinished(_) => {}
+            AgentEvent::Turn { .. }
+            | AgentEvent::Tool(_)
+            | AgentEvent::StepFinished(_)
+            | AgentEvent::Part { .. } => {}
         }
     }
 }
@@ -644,6 +674,7 @@ fn parse_vmrss_kb(status: &str) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::dialect::StepFinish;
     use super::*;
 
     #[test]
@@ -706,6 +737,41 @@ mod tests {
         assert_eq!(rotation_bucket(at(99)), 0);
         assert_eq!(rotation_bucket(at(100)), 1);
         assert_eq!(rotation_bucket(at(250)), 2);
+    }
+
+    #[test]
+    fn a_step_gets_the_parts_written_since_the_last_one() {
+        let mut report = StreamReport::default();
+        let part = |kind, chars| AgentEvent::Part { kind, chars };
+        let finish = || {
+            AgentEvent::StepFinished(StepFinish {
+                reason: "length".into(),
+                input: 0,
+                output: 0,
+                reasoning: 0,
+                parts: PartSizes::default(),
+            })
+        };
+        report.count_parts(part(PartKind::Reasoning, 900));
+        report.count_parts(part(PartKind::Reasoning, 100));
+        report.count_parts(part(PartKind::Text, 20));
+        report.count_parts(part(PartKind::ToolInput, 5));
+        let AgentEvent::StepFinished(step) = report.count_parts(finish()) else {
+            panic!("a step")
+        };
+        assert_eq!(
+            step.parts,
+            PartSizes {
+                text: 20,
+                reasoning: 1000,
+                tool_input: 5
+            }
+        );
+        // The next step starts from nothing.
+        let AgentEvent::StepFinished(next) = report.count_parts(finish()) else {
+            panic!("a step")
+        };
+        assert_eq!(next.parts, PartSizes::default());
     }
 
     #[test]
