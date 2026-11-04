@@ -29,6 +29,11 @@
 //!   taak-flow-enrich — raakt zelf geen traject-repo aan.
 
 pub mod agent_activity;
+// Two attributes rather than `all(test, unix)`, as in `enrich.rs`: cargo-mutants
+// skips a module marked with a plain `#[cfg(test)]`.
+#[cfg(test)]
+#[cfg(unix)]
+mod agent_stream_fixtures;
 pub mod api;
 mod api_state;
 pub mod config;
