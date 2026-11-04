@@ -44,6 +44,16 @@ path = [
 SPDX-FileCopyrightText = "Staat der Nederlanden (Ministerie van Binnenlandse Zaken en Koninkrijksrelaties)"
 SPDX-License-Identifier = "EUPL-1.2"
 
+# Opgenomen en samengestelde uitvoer van de agent-CLI's waarmee de
+# pipeline-tests een run naspelen. Testdata zoals de .json-fixtures elders,
+# opgenomen met een fictieve opdracht en opgeschoond (zie de README ernaast),
+# dus dezelfde licentie als de code. Alleen deze map: een .jsonl elders krijgt
+# zo geen licentie vanzelf.
+[[annotations]]
+path = "packages/pipeline/tests/fixtures/agent-streams/*.jsonl"
+SPDX-FileCopyrightText = "Staat der Nederlanden (Ministerie van Binnenlandse Zaken en Koninkrijksrelaties)"
+SPDX-License-Identifier = "EUPL-1.2"
+
 # De ondertitels van de opgenomen rondleiding door de demo: de tekst die de
 # presentator (een medewerker, in functie) uitspreekt, ingekort tot
 # ondertitels. Eigen werk, dus dezelfde licentie als de code; de geluids- en
