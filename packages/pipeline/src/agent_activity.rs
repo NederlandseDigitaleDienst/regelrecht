@@ -125,6 +125,12 @@ impl ActivityHandle {
         });
     }
 
+    /// Record the model of a call whose provider does not name it in its
+    /// output (opencode): the one it was told to use.
+    pub fn set_model(&self, model: &str) {
+        self.with(|a| a.model = Some(model.to_string()));
+    }
+
     /// Record that the subprocess wrote something, whatever it was.
     pub fn touch(&self) {
         let now = Instant::now();

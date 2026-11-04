@@ -337,6 +337,15 @@ stream-json output. The worker records it: per call in the job result's
 (which said `default` when no model was set), and in the progress the
 Harvester page shows while a job runs.
 
+opencode writes neither an `init` event nor a closing total. For the model the
+worker records the one opencode was told to use: the entrypoint sets
+`OPENCODE_MODEL` from `opencode.json` when nothing else names one. The usage of
+a call is the sum of its steps' `step_finish` events, with reasoning tokens
+counted as output. An opencode call never continues a session, so an opencode
+job runs with `session_reuse: off` whatever `ENRICH_SESSION_REUSE` says: every
+call is recorded as cold, and no feedback prompt tells it that it wrote the file
+earlier in the same conversation.
+
 ## Configuration
 
 ### Database and workers
