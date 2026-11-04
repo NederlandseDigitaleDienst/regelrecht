@@ -5803,17 +5803,17 @@ related_legislation:
                 cost_millicents: 1230,
             })
         );
-        // Other events, and a text event quoting the type, are not steps.
+        // Other events are not steps.
         assert_eq!(
             AgentUsage::from_opencode_step(r#"{"type":"step_start","part":{}}"#),
             None
         );
-        assert_eq!(
-            AgentUsage::from_opencode_step(
-                r#"{"type":"text","part":{"text":""type":"step_finish""}}"#
-            ),
-            None
-        );
+        // Valid JSON that contains the pair, nested: it passes the cheap
+        // substring check, so only the top-level `type` check rejects it.
+        let nested = r#"{"type":"tool_use","part":{"state":{"output":{"type":"step_finish","tokens":{"input":5}}}}}"#;
+        assert!(serde_json::from_str::<serde_json::Value>(nested).is_ok());
+        assert!(nested.contains(r#""type":"step_finish""#));
+        assert_eq!(AgentUsage::from_opencode_step(nested), None);
     }
 
     #[test]
