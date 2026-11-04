@@ -91,6 +91,28 @@ The first five are the aggregations legal text performs: *het totaal van*, *indi
 
 Two of the empty cases deserve attention. `MIN` and `MAX` return `null` rather than a number, because there is no lowest value of nothing; the law has to handle that. `AND` returns `true` by vacuous truth, so a law that must not read "no items" as "all conditions met" has to check for emptiness itself.
 
+## Playing a collection through
+
+`FOREACH` treats its elements as a set: `ONLY` refuses two, because the order of a collection is nothing a law relies on. A reduction over a chronicle is the exception. There the order is the order in which things became fact, and the law describes a sequence: a decision is taken, then revoked on objection, then revived by a judgment. `FOLD` (schema v0.8.14, [RFC-056](/rfcs/rfc-056)) plays a collection through in its order and keeps a state.
+
+```yaml
+operation: FOLD
+collection: $kroniek     # the rows, in their order
+as: rij                  # the current element
+state: laatste           # the state so far
+initial: null            # the state before the first element
+body:                    # the next state
+  operation: IF
+  cases:
+    - when: {operation: EQUALS, subject: $rij.basis, value: beleid_voorbeeld#1}
+      then: $rij.gemeente
+  default: $laatste
+```
+
+The result is the state after the last element: here the municipality of the last record, so a later record replaces an earlier one. An empty collection gives `initial`.
+
+`as`, `state`, `initial` and `body` are required, and `as` differs from `state`. A fold has no form without `as`. Unlike `FOREACH`, its two names stay visible in a `FOREACH` nested in `body`, so the body can drop the element from a list it keeps, or look up the record an element refers to. A name the nested operation binds itself still shadows them. A `FOREACH` on its own keeps the rule of the section above.
+
 ## Counting
 
 Article 22a Participatiewet computes the kostendelersnorm from *A*, which the text defines as "het aantal kostendelende medebewoners plus de belanghebbende en zijn echtgenoot van 21 jaar of ouder indien hij gehuwd is". Counting is `body: 1` with `combine: ADD`:
@@ -143,10 +165,13 @@ The bound is what keeps termination intact. The position paper [Rules as Execute
 
 Under [quantities](/rfcs/rfc-023) the result carries the unit of `body`: summing eurocents yields eurocents, and `MIN` and `MAX` preserve it the same way. `AND` and `OR` produce a boolean, and without `combine` the result is an array, so neither carries a unit.
 
+A `FOLD` carries the unit of `initial` and `body` together, as `IF` does for its branches: a start in eurocents and a step in days are an error.
+
 Every iteration appears in the [execution trace](./execution-provenance) with its index and the value the body produced, or the element itself where the filter skipped it, under a node reporting how many elements were evaluated and how many were skipped. A total that shows only itself is not an explanation of how it was reached.
 
 ## Further reading
 
 - [Schema Reference](/reference/schema#operations) lists the full operation set.
 - [RFC-016](/rfcs/rfc-016) records why collection operations look like this, and which alternatives were rejected.
+- [RFC-056](/rfcs/rfc-056) adds `FOLD` for a reduction that replays a chronicle.
 - [Markings](./markings) covers what happens when a construct cannot be modeled at all.

@@ -2076,9 +2076,10 @@ fn a_grant_revoked_on_objection_no_longer_counts_on_the_objection_against_the_re
     );
 
     // Step 2: asked why, the cell runs its reduction for that term again,
-    // with its own trace: the Awb reduction counts A among the revoked
-    // decisions and leaves only the refusal in its place standing, which
-    // the filter skips; B itself is not read.
+    // with its own trace: the Awb reduction plays the chronicle through
+    // (RFC-056), drops A at the decision on objection that revoked it, and
+    // leaves only the refusal in its place standing, which the filter
+    // skips; B itself is not read.
     let explained = cell
         .explain_answer(&mut service(), &[], &on_b[0].id, ONCE)
         .unwrap();
@@ -2089,12 +2090,12 @@ fn a_grant_revoked_on_objection_no_longer_counts_on_the_objection_against_the_re
     );
     let why = explained[0].trace.as_ref().unwrap().render_box_drawing();
     assert!(
-        why.contains(&format!("herroepen_besluiten = ['{}']", a.id)),
-        "A is not among the revoked:\n{why}"
+        why.contains("FOLD over"),
+        "the chronicle was not played:\n{why}"
     );
     let standing = why
         .lines()
-        .find(|line| line.contains("Result: besluiten_in_stand ="))
+        .find(|line| line.contains("Result: geldende_besluiten ="))
         .unwrap_or_else(|| panic!("no decisions standing:\n{why}"));
     assert!(!standing.contains(&a.id), "A still stands:\n{why}");
     assert!(
@@ -2238,7 +2239,7 @@ fn the_heads_policy_does_not_ask_the_cell_of_another_school() {
 #[test]
 fn no_cell_gives_the_reduction_of_the_awb_as_its_answer() {
     const AWB_REDUCTION: &str = "reductie_algemene_wet_bestuursrecht";
-    let dir = answers_dir(&[("besluiten_in_stand", AWB_REDUCTION)]);
+    let dir = answers_dir(&[("geldende_besluiten", AWB_REDUCTION)]);
     let e = Cell::in_memory(RECORDING_ACTOR, dir.path()).unwrap_err();
     assert!(
         matches!(&e, Error::Setup(m) if m.contains(AWB_REDUCTION)

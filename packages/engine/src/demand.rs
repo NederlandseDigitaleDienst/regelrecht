@@ -202,6 +202,22 @@ fn visit_value(value: &ActionValue, bound: &BTreeSet<&str>, names: &mut BTreeSet
                     .chain(filter)
                     .for_each(|operand| visit_value(operand, &inner, names));
             }
+            // A FOLD binds its element and its state in `body`, and in what
+            // `body` nests (RFC-056).
+            ActionOperation::Fold {
+                collection,
+                as_name,
+                state,
+                initial,
+                body,
+            } => {
+                visit_value(collection, bound, names);
+                visit_value(initial, bound, names);
+                let mut inner = bound.clone();
+                inner.insert(as_name.as_str());
+                inner.insert(state.as_str());
+                visit_value(body, &inner, names);
+            }
             other => other
                 .operands()
                 .into_iter()

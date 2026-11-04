@@ -268,6 +268,16 @@ fn reject_literal_operations(law: &ArticleBasedLaw) -> Result<()> {
                 walk_action_value(body, where_)?;
                 filter.iter().try_for_each(|v| walk_action_value(v, where_))
             }
+            Op::Fold {
+                collection,
+                initial,
+                body,
+                ..
+            } => {
+                walk_action_value(collection, where_)?;
+                walk_action_value(initial, where_)?;
+                walk_action_value(body, where_)
+            }
             Op::Age {
                 date_of_birth,
                 reference_date,

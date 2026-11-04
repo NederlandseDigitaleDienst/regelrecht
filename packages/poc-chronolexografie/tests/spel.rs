@@ -560,13 +560,9 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
         .hoe_beantwoord(id, "aanvrager_heeft_geldige_gehandicaptenparkeerkaart")
         .unwrap();
     let uitvoer = &hoe["antwoorden"][0]["uitvoer"];
-    assert_eq!(uitvoer["herroepen_besluiten"], json!([refusal]));
-    let geldend: Vec<&str> = uitvoer["geldende_besluiten"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|b| b["id"].as_str().unwrap())
-        .collect();
+    // The fold dropped the refusal at the decision on objection (RFC-056).
+    let geldend = geldend_ids(uitvoer);
+    assert!(!geldend.contains(&refusal), "{uitvoer}");
     assert_eq!(geldend, [nieuw.as_str()]);
 }
 
@@ -791,13 +787,9 @@ fn bedrijfsparkeervergunning_the_maximum_in_the_ring_and_a_permit_on_objection()
         .unwrap();
     let uitvoer = &hoe["antwoorden"][0]["uitvoer"];
     let refusal = geweigerd["besluit"]["id"].as_str().unwrap();
-    assert_eq!(uitvoer["herroepen_besluiten"], json!([refusal]));
-    let geldend: Vec<&str> = uitvoer["geldende_besluiten"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|b| b["id"].as_str().unwrap())
-        .collect();
+    // The fold dropped the refusal at the decision on objection (RFC-056).
+    let geldend = geldend_ids(uitvoer);
+    assert!(!geldend.contains(&refusal), "{uitvoer}");
     assert_eq!(
         geldend,
         [eerste["besluit"]["id"].as_str().unwrap(), nieuw.as_str()]
@@ -1024,10 +1016,19 @@ fn bedrijfsparkeervergunning_the_hardship_clause_on_objection_grants_a_third_per
         )
         .unwrap();
     let uitvoer = &hoe["antwoorden"][0]["uitvoer"];
-    assert_eq!(
-        uitvoer["herroepen_besluiten"],
-        json!([geweigerd["besluit"]["id"]])
-    );
+    let refusal = geweigerd["besluit"]["id"].as_str().unwrap();
+    assert!(!geldend_ids(uitvoer).contains(&refusal), "{uitvoer}");
+}
+
+/// The ids of the decisions that hold, in the output of the reduction of
+/// the Awb.
+fn geldend_ids(uitvoer: &Value) -> Vec<&str> {
+    uitvoer["geldende_besluiten"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| b["id"].as_str().unwrap())
+        .collect()
 }
 
 #[test]

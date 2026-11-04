@@ -18,8 +18,9 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use regelrecht_engine::{
-    Answer, AnswerProvenance, AnswerRequest, ArticleBasedLaw, Authority, Call, ChronicleRead,
-    DataSource, EngineError, FilledBy, LawExecutionService, LawLoad, OpenTermAnswerer, Value,
+    Answer, AnswerProvenance, AnswerRequest, ArticleBasedLaw, Authority, Call, ChronicleEntry,
+    ChronicleRead, DataSource, EngineError, FilledBy, LawExecutionService, LawLoad,
+    OpenTermAnswerer, Value,
 };
 use serde_json::json;
 
@@ -67,9 +68,14 @@ fn policy_yaml() -> String {
 
 /// The reduction, the Awb reduction and the school's policies it calls.
 fn service() -> LawExecutionService {
+    service_with(&awb_reduction_yaml())
+}
+
+/// [`service`], with `awb` as the reduction of the Awb.
+fn service_with(awb: &str) -> LawExecutionService {
     let mut service = LawExecutionService::new();
     service.load_law(&reduction_yaml()).unwrap();
-    service.load_law(&awb_reduction_yaml()).unwrap();
+    service.load_law(awb).unwrap();
     service.load_law(&policy_yaml()).unwrap();
     service
         .load_law(&corpus(&format!(
@@ -97,6 +103,7 @@ fn decision(bsn: &str, first: &str, granted: bool) -> serde_json::Value {
 fn on_objection(contested: &serde_json::Value, revoked: bool) -> serde_json::Value {
     json!({
         "id": format!("bezwaar-{}", contested["id"].as_str().unwrap()),
+        "basis": "algemene_wet_bestuursrecht#7:11",
         "bestreden_besluit": contested["id"],
         "bezwaar_ontvankelijk": true,
         "bestreden_besluit_herroepen": revoked,
@@ -170,8 +177,9 @@ impl DataSource for Decisions {
     }
 }
 
-/// Answer `besluiten` with `decisions` and `beslissingen_op_bezwaar` with
-/// `on_objection`, for `law` only.
+/// Answer the chronicle the Awb reduction reads (`kroniek`, RFC-056) with
+/// `decisions`, then `on_objection`, in that order, and no judgment, for
+/// `law` only.
 fn supply_for(
     service: &mut LawExecutionService,
     law: &str,
@@ -180,13 +188,19 @@ fn supply_for(
 ) {
     service.add_data_source(Box::new(Decisions {
         law: law.to_string(),
-        rows: BTreeMap::from([
-            ("besluiten", Value::from(decisions)),
-            ("beslissingen_op_bezwaar", Value::from(on_objection)),
-            // The judgments the school received (RFC-053): none here.
-            ("uitspraken", Value::from(json!([]))),
-        ]),
+        rows: BTreeMap::from([("kroniek", Value::from(in_order(&[decisions, on_objection])))]),
     }));
+}
+
+/// The rows of `lists`, one list after the other: a chronicle in which
+/// each list was recorded after the one before.
+fn in_order(lists: &[serde_json::Value]) -> serde_json::Value {
+    serde_json::Value::Array(
+        lists
+            .iter()
+            .flat_map(|l| l.as_array().cloned().unwrap_or_default())
+            .collect(),
+    )
 }
 
 /// Answer the decisions under art. 13a, with no decision on an objection.
@@ -286,8 +300,9 @@ fn no_decisions_is_no_leave_granted() {
 
 #[test]
 fn decisions_nobody_supplies_are_an_error_not_an_empty_list() {
-    // The judgments are supplied (RFC-053), the decisions are not.
-    let mut service = service();
+    // The judgments are supplied (RFC-053), the decisions are not. The
+    // reduction of the Awb as a query reads them as separate inputs.
+    let mut service = service_with(&awb_query_yaml());
     service.add_data_source(Box::new(Decisions {
         law: AWB_REDUCTION.to_string(),
         rows: BTreeMap::from([("uitspraken", Value::from(json!([])))]),
@@ -305,8 +320,9 @@ fn decisions_nobody_supplies_are_an_error_not_an_empty_list() {
 #[test]
 fn judgments_nobody_supplies_are_an_error_not_an_empty_list() {
     // The decisions are supplied, the judgments (RFC-053), which are
-    // executograms, are not.
-    let mut service = service();
+    // executograms, are not. The reduction of the Awb as a query reads them
+    // as separate inputs.
+    let mut service = service_with(&awb_query_yaml());
     service.add_data_source(Box::new(Decisions {
         law: AWB_REDUCTION.to_string(),
         rows: BTreeMap::from([
@@ -353,9 +369,10 @@ fn variant(from: &str, to: &str) -> String {
     changed(&reduction_yaml(), from, to)
 }
 
-/// The reduction of the Awb with its layer or its input changed.
+/// The reduction of the Awb as a query, with its layer or its input
+/// changed: it reads a plain `source.decisions` and `source.facts`.
 fn awb_variant(from: &str, to: &str) -> String {
-    changed(&awb_reduction_yaml(), from, to)
+    changed(&awb_query_yaml(), from, to)
 }
 
 fn refused(yaml: &str, says: &str) {
@@ -407,6 +424,7 @@ fn decisions_stand_alone_and_name_an_article() {
 #[test]
 fn decisions_named_by_a_reference_name_a_parameter_of_the_article() {
     // The reduction of the Awb names them by its parameter basis.
+    ArticleBasedLaw::from_yaml_str(&awb_query_yaml()).unwrap();
     ArticleBasedLaw::from_yaml_str(&awb_reduction_yaml()).unwrap();
     for not_a_parameter in ["$besluiten_in_stand", "$basis.wet"] {
         refused(
@@ -579,7 +597,7 @@ fn executograms_of_v0_8_6_are_refused_with_facts_named() {
     // Also a bare key, which reads as null, is refused rather than dropped.
     for value in ["test_stroom_vestigingen", "~", ""] {
         let yaml = changed(
-            &corpus("cells/reductions/reductie_algemene_wet_bestuursrecht/2026-01-01.yaml"),
+            &awb_query_yaml(),
             "decisions: algemene_wet_bestuursrecht#7:11",
             &format!("executograms: {value}"),
         );
@@ -1143,9 +1161,18 @@ const AWB_REDUCTION: &str = "reductie_algemene_wet_bestuursrecht";
 /// The article of the decisions on leave.
 const LEAVE: &str = "leerplichtwet_1969#13a";
 
-/// The Awb reduction from the corpus.
+/// The Awb reduction from the corpus: a fold over the chronicle (RFC-056).
 fn awb_reduction_yaml() -> String {
     corpus(&format!("cells/reductions/{AWB_REDUCTION}/2026-01-01.yaml"))
+}
+
+/// The Awb reduction as it was before RFC-056: a query over three inputs
+/// with set differences (`tests/fixtures`).
+fn awb_query_yaml() -> String {
+    std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/awb_reduction_as_query.yaml"),
+    )
+    .unwrap()
 }
 
 fn awb_service() -> LawExecutionService {
@@ -1202,15 +1229,51 @@ fn value_under(basis: &str, outputs: serde_json::Value) -> serde_json::Value {
     row
 }
 
-/// The output `output` of article 1 of the Awb reduction on these rows.
+/// The decisions under art. 13a that hold, as the fold of the Awb
+/// reduction plays these rows through: the decisions, then those on
+/// objection, then the judgments, in that order of the chronicle.
 fn awb_output(
     decisions: serde_json::Value,
     on_objection: serde_json::Value,
     judgments: serde_json::Value,
-    output: &str,
+) -> serde_json::Value {
+    awb_output_for(decisions, on_objection, judgments, LEAVE)
+}
+
+/// [`awb_output`] for the decisions under `basis`.
+fn awb_output_for(
+    decisions: serde_json::Value,
+    on_objection: serde_json::Value,
+    judgments: serde_json::Value,
+    basis: &str,
 ) -> serde_json::Value {
     let parameters = BTreeMap::from([
-        ("basis".to_string(), Value::String(LEAVE.into())),
+        ("basis".to_string(), Value::String(basis.into())),
+        (
+            "kroniek".to_string(),
+            Value::from(in_order(&[decisions, on_objection, judgments])),
+        ),
+    ]);
+    let result = awb_service()
+        .evaluate_law_output(
+            AWB_REDUCTION,
+            "geldende_besluiten",
+            parameters,
+            "2027-03-01",
+        )
+        .unwrap();
+    serde_json::to_value(&result.outputs["geldende_besluiten"]).unwrap()
+}
+
+/// The same rows through the Awb reduction as a query (before RFC-056).
+fn awb_query_output_for(
+    decisions: serde_json::Value,
+    on_objection: serde_json::Value,
+    judgments: serde_json::Value,
+    basis: &str,
+) -> serde_json::Value {
+    let parameters = BTreeMap::from([
+        ("basis".to_string(), Value::String(basis.into())),
         ("besluiten".to_string(), Value::from(decisions)),
         (
             "beslissingen_op_bezwaar".to_string(),
@@ -1218,24 +1281,46 @@ fn awb_output(
         ),
         ("uitspraken".to_string(), Value::from(judgments)),
     ]);
-    let result = awb_service()
-        .evaluate_law_output(AWB_REDUCTION, output, parameters, "2027-03-01")
+    let mut service = LawExecutionService::new();
+    service.load_law(&awb_query_yaml()).unwrap();
+    let result = service
+        .evaluate_law_output(
+            AWB_REDUCTION,
+            "geldende_besluiten",
+            parameters,
+            "2027-03-01",
+        )
         .unwrap();
-    serde_json::to_value(&result.outputs[output]).unwrap()
+    serde_json::to_value(&result.outputs["geldende_besluiten"]).unwrap()
 }
 
-/// The ids of the decisions that still stand.
+/// The ids of the rows of `rows`, sorted.
+fn ids(rows: &serde_json::Value) -> Vec<String> {
+    let mut ids: Vec<String> = rows
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| row["id"].as_str().unwrap().to_string())
+        .collect();
+    ids.sort();
+    ids
+}
+
+/// The ids of the decisions that hold, sorted. The fold gives the same
+/// decisions as the query did: an assertion of every test that uses this.
 fn standing(
     decisions: serde_json::Value,
     on_objection: serde_json::Value,
     judgments: serde_json::Value,
 ) -> Vec<String> {
-    awb_output(decisions, on_objection, judgments, "besluiten_in_stand")
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|row| row["id"].as_str().unwrap().to_string())
-        .collect()
+    let fold = awb_output(decisions.clone(), on_objection.clone(), judgments.clone());
+    let query = awb_query_output_for(decisions, on_objection, judgments, LEAVE);
+    assert_eq!(
+        ids(&fold),
+        ids(&query),
+        "fold {fold} and query {query} differ"
+    );
+    ids(&fold)
 }
 
 #[test]
@@ -1249,7 +1334,7 @@ fn the_awb_reduction_drops_a_revoked_decision_and_keeps_the_one_in_its_place() {
     );
     assert_eq!(rows, [b["id"].as_str().unwrap()]);
     // The row comes back as it was given.
-    let full = awb_output(json!([b]), json!([]), json!([]), "besluiten_in_stand");
+    let full = awb_output(json!([b]), json!([]), json!([]));
     assert_eq!(full, json!([b]));
 }
 
@@ -1298,25 +1383,9 @@ fn a_revocation_in_the_decision_the_court_set_in_place_holds() {
     let rows = json!([a]);
     let on_objection = json!([revoked_for("x", &a, None)]);
     let judgments = json!([judgment("x", in_place)]);
-    assert_eq!(
-        awb_output(
-            rows.clone(),
-            on_objection.clone(),
-            judgments.clone(),
-            "beslissingen_herroepen_bij_uitspraak"
-        ),
-        json!(["x"])
-    );
-    assert_eq!(
-        awb_output(
-            rows.clone(),
-            on_objection.clone(),
-            judgments.clone(),
-            "herroepen_besluiten"
-        ),
-        json!([a["id"]])
-    );
-    assert!(standing(rows, on_objection, judgments).is_empty());
+    // `a` stays revoked; the grant the decision set in place holds, with the
+    // id of the receipt of the judgment.
+    assert_eq!(standing(rows, on_objection, judgments), ["uitspraak-x"]);
 }
 
 #[test]
@@ -1333,44 +1402,19 @@ fn a_decision_on_objection_the_court_set_in_place_that_upholds_revokes_nothing()
     let on_objection = json!([revoked_for("x", &a, Some(&b))]);
     let judgments = json!([judgment("x", upheld)]);
     assert_eq!(
-        awb_output(
-            rows.clone(),
-            on_objection.clone(),
-            judgments.clone(),
-            "beslissingen_herroepen_bij_uitspraak"
-        ),
-        json!([])
-    );
-    assert_eq!(
-        awb_output(
-            rows.clone(),
-            on_objection.clone(),
-            judgments.clone(),
-            "herroepen_besluiten"
-        ),
-        json!([])
-    );
-    assert_eq!(
         standing(rows, on_objection, judgments),
         [a["id"].as_str().unwrap()]
     );
 }
 
-/// Article 2 of the Awb reduction on `judgments`, for `basis`.
+/// The decisions under `basis` that hold after `judgments` alone, about
+/// decisions the chronicle does not hold: those the court set in place. The
+/// query gives the same.
 fn in_place(judgments: serde_json::Value, basis: &str) -> serde_json::Value {
-    let parameters = BTreeMap::from([
-        ("uitspraken".to_string(), Value::from(judgments)),
-        ("basis".to_string(), Value::String(basis.into())),
-    ]);
-    let result = awb_service()
-        .evaluate_law_output(
-            AWB_REDUCTION,
-            "besluiten_in_de_plaats",
-            parameters,
-            "2027-03-01",
-        )
-        .unwrap();
-    serde_json::to_value(&result.outputs["besluiten_in_de_plaats"]).unwrap()
+    let fold = awb_output_for(json!([]), json!([]), judgments.clone(), basis);
+    let query = awb_query_output_for(json!([]), json!([]), judgments, basis);
+    assert_eq!(fold, query);
+    fold
 }
 
 #[test]
@@ -1416,17 +1460,12 @@ fn a_decision_the_court_set_in_place_under_another_article_revokes_nothing() {
         json!({ "verlof_verleend": false }),
     );
     let judgments = json!([judgment(id, in_place)]);
+    // The decision itself is annulled, so it no longer stands; the refusal
+    // the court set in its place holds, under the id of the receipt.
     assert_eq!(
-        awb_output(
-            json!([a]),
-            json!([]),
-            judgments.clone(),
-            "beslissingen_herroepen_bij_uitspraak"
-        ),
-        json!([])
+        standing(json!([a]), json!([]), judgments),
+        [format!("uitspraak-{id}")]
     );
-    // The decision itself is annulled, so it no longer stands.
-    assert!(standing(json!([a]), json!([]), judgments).is_empty());
 }
 
 // ---------------------------------------------------------------------------
@@ -1471,9 +1510,28 @@ impl regelrecht_engine::Chronicle for Kroniek {
         self.asked
             .borrow_mut()
             .push((law.id.clone(), read.to_string()));
+        let one = |entry: &ChronicleEntry| match entry {
+            ChronicleEntry::Decisions(basis) => self.decisions.get(basis.as_str()).cloned(),
+            ChronicleEntry::Facts(_) => Some(self.judgments.clone()),
+        };
         Ok(match read {
-            ChronicleRead::Decisions(basis) => self.decisions.get(basis).cloned(),
-            ChronicleRead::Facts(_) => Some(self.judgments.clone()),
+            ChronicleRead::Decisions(basis) => one(&ChronicleEntry::Decisions(basis.into())),
+            ChronicleRead::Facts(fact) => one(&ChronicleEntry::Facts(fact.into())),
+            // The rows of each entry after those of the one before: the
+            // fixtures hold the decisions first, then those on objection,
+            // then the judgments, as a chronicle would.
+            ChronicleRead::Chronicle(entries) => entries
+                .iter()
+                .map(one)
+                .collect::<Option<Vec<_>>>()
+                .map(|lists| {
+                    serde_json::Value::Array(
+                        lists
+                            .into_iter()
+                            .flat_map(|l| l.as_array().cloned().unwrap_or_default())
+                            .collect(),
+                    )
+                }),
         }
         .map(Value::from))
     }
@@ -1511,8 +1569,10 @@ fn a_called_reduction_reads_its_rows_from_the_call_s_chronicle() {
         asked.iter().all(|(law, _)| law == AWB_REDUCTION),
         "{asked:?}"
     );
+    // One read: the decisions, those on objection and the judgments, in the
+    // order of the chronicle (RFC-056).
     let reads: std::collections::BTreeSet<&str> = asked.iter().map(|(_, r)| r.as_str()).collect();
-    assert_eq!(reads.len(), 3, "{asked:?}");
+    assert_eq!(reads.len(), 1, "{asked:?}");
 }
 
 #[test]
@@ -1524,10 +1584,12 @@ fn decisions_named_by_a_parameter_are_read_under_its_value() {
         Value::Bool(true)
     );
     // `decisions: $basis` is read under the article the school passes.
-    assert!(chronicle.asked.borrow().contains(&(
-        AWB_REDUCTION.to_string(),
-        format!("the decisions taken under {LEAVE}")
-    )));
+    let asked = chronicle.asked.borrow();
+    assert!(
+        asked.iter().any(|(law, read)| law == AWB_REDUCTION
+            && read.contains(&format!("the decisions taken under {LEAVE},"))),
+        "{asked:?}"
+    );
 }
 
 #[test]
@@ -1629,27 +1691,14 @@ fn the_decisions_that_hold_are_those_in_force_and_those_set_in_place() {
     let b = decision("999990019", "2026-11-05", false);
     let grant = value_under(LEAVE, json!({ "verlof_verleend": true }));
     let judgments = json!([judgment(b["id"].as_str().unwrap(), grant.clone())]);
-    let parameters = BTreeMap::from([
-        ("basis".to_string(), Value::String(LEAVE.into())),
-        ("besluiten".to_string(), Value::from(json!([a, b]))),
-        (
-            "beslissingen_op_bezwaar".to_string(),
-            Value::from(json!([])),
-        ),
-        ("uitspraken".to_string(), Value::from(judgments)),
-    ]);
-    let result = awb_service()
-        .evaluate_law_output(
-            AWB_REDUCTION,
-            "geldende_besluiten",
-            parameters,
-            "2027-03-01",
-        )
-        .unwrap();
     let id = format!("uitspraak-{}", b["id"].as_str().unwrap());
     assert_eq!(
-        serde_json::to_value(&result.outputs["geldende_besluiten"]).unwrap(),
+        awb_output(json!([a, b]), json!([]), judgments.clone()),
         json!([a, with_id(grant, &id)])
+    );
+    assert_eq!(
+        awb_query_output_for(json!([a, b]), json!([]), judgments.clone(), LEAVE),
+        awb_output(json!([a, b]), json!([]), judgments)
     );
 }
 
@@ -1658,14 +1707,8 @@ fn a_parameter_that_names_no_article_is_an_error_not_a_read() {
     // `decisions: $basis` reads only under an article reference.
     let chronicle = Kroniek::with(json!([]), json!([]));
     for not_an_article in [json!("leerplichtwet_1969"), json!(7)] {
-        let parameters = BTreeMap::from([
-            ("basis".to_string(), Value::from(not_an_article.clone())),
-            (
-                "beslissingen_op_bezwaar".to_string(),
-                Value::from(json!([])),
-            ),
-            ("uitspraken".to_string(), Value::from(json!([]))),
-        ]);
+        let parameters =
+            BTreeMap::from([("basis".to_string(), Value::from(not_an_article.clone()))]);
         let call = Call {
             chronicle: Some(&chronicle),
             ..Call::default()
@@ -1673,7 +1716,7 @@ fn a_parameter_that_names_no_article_is_an_error_not_a_read() {
         let e = awb_service()
             .evaluate_law_in(
                 AWB_REDUCTION,
-                &["besluiten_in_stand"],
+                &["geldende_besluiten"],
                 parameters,
                 call,
                 "2027-03-01",

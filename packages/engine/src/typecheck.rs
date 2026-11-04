@@ -1239,6 +1239,38 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                 }
                 Info::present(Some(Ty::Array), "the LIST")
             }
+            ActionOperation::Fold {
+                collection,
+                as_name,
+                state,
+                initial,
+                body,
+            } => {
+                // As for FOREACH, a null collection plays nothing through
+                // and gives `initial`. The state may be an absence, like an
+                // element of a LIST, so neither `initial` nor `body` need be
+                // present. Both names stay bound in what `body` nests.
+                self.check_expr(collection, facts, OPERAND);
+                let initial_info = self.check_expr(initial, facts, ABSENCE_ALLOWED);
+                for name in [as_name, state] {
+                    self.bound.push(Binding {
+                        name: name.clone(),
+                        fields: false,
+                    });
+                }
+                let body_info = self.check_expr(body, facts, ABSENCE_ALLOWED);
+                self.bound.pop();
+                self.bound.pop();
+                Info {
+                    ty: if initial_info.ty == body_info.ty {
+                        body_info.ty
+                    } else {
+                        None
+                    },
+                    nullness: Nullness::Unknown,
+                    describe: "the FOLD".to_string(),
+                }
+            }
             ActionOperation::Foreach {
                 collection,
                 as_name,

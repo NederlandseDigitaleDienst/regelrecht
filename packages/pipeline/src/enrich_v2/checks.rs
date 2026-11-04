@@ -1504,6 +1504,13 @@ fn defined_names_with(doc: &Value, loop_variables: bool) -> BTreeSet<String> {
             let bound = node.get("as").and_then(Value::as_str).unwrap_or("item");
             names.insert(bound.to_string());
         }
+        if loop_variables && node.get("operation").and_then(Value::as_str) == Some("FOLD") {
+            for key in ["as", "state"] {
+                if let Some(bound) = node.get(key).and_then(Value::as_str) {
+                    names.insert(bound.to_string());
+                }
+            }
+        }
         if key == Some("open_terms") {
             for term in node.as_sequence().map(Vec::as_slice).unwrap_or(&[]) {
                 if let Some(id) = term.get("id").and_then(Value::as_str) {
@@ -1593,42 +1600,59 @@ fn variable_name(s: &str) -> Option<&str> {
 /// there as bare locals, so a bare name in that scope may be data rather than
 /// a declaration, and it is skipped; a nested loop with `as` inside it is
 /// still checked. The `collection` of a loop is read in the scope around it.
+/// A `FOLD` binds its `as` and `state` in its `body` and in everything that
+/// body nests, a `FOREACH` among them (RFC-056).
 fn referenced_free_variables(v: &Value) -> BTreeSet<String> {
-    /// `bound` is the `as` of the innermost loop; `skip_bare` is set inside
-    /// a loop without `as`, where a bare name may be a field.
-    fn inner(v: &Value, bound: Option<&str>, skip_bare: bool, out: &mut BTreeSet<String>) {
+    /// `bound` is the `as` of the innermost loop; `folded` the names of the
+    /// FOLDs around it; `skip_bare` is set inside a loop without `as`, where
+    /// a bare name may be a field.
+    fn inner(
+        v: &Value,
+        bound: Option<&str>,
+        folded: &[String],
+        skip_bare: bool,
+        out: &mut BTreeSet<String>,
+    ) {
         match v {
             Value::String(s) => {
                 if let Some(name) = variable_name(s) {
-                    if !skip_bare && bound != Some(name) {
+                    if !skip_bare && bound != Some(name) && !folded.iter().any(|f| f == name) {
                         out.insert(name.to_string());
                     }
                 }
             }
             Value::Mapping(map) => {
-                let foreach = map.get("operation").and_then(Value::as_str) == Some("FOREACH");
+                let operation = map.get("operation").and_then(Value::as_str);
                 let binding = map.get("as").and_then(Value::as_str);
                 for (k, val) in map {
-                    if foreach && matches!(k.as_str(), Some("filter" | "body")) {
-                        match binding {
-                            Some(name) => inner(val, Some(name), false, out),
-                            None => inner(val, None, true, out),
+                    match (operation, k.as_str()) {
+                        (Some("FOREACH"), Some("filter" | "body")) => match binding {
+                            Some(name) => inner(val, Some(name), folded, false, out),
+                            None => inner(val, None, folded, true, out),
+                        },
+                        (Some("FOLD"), Some("body")) => {
+                            let mut names = folded.to_vec();
+                            for key in ["as", "state"] {
+                                if let Some(name) = map.get(key).and_then(Value::as_str) {
+                                    names.push(name.to_string());
+                                }
+                            }
+                            inner(val, None, &names, false, out);
                         }
-                        continue;
+                        _ => inner(val, bound, folded, skip_bare, out),
                     }
-                    inner(val, bound, skip_bare, out);
                 }
             }
             Value::Sequence(seq) => {
                 for item in seq {
-                    inner(item, bound, skip_bare, out);
+                    inner(item, bound, folded, skip_bare, out);
                 }
             }
             _ => {}
         }
     }
     let mut out = BTreeSet::new();
-    inner(v, None, false, &mut out);
+    inner(v, None, &[], false, &mut out);
     out
 }
 

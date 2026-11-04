@@ -155,6 +155,88 @@ pub struct TypeSpec {
     pub max: Option<rust_decimal::Decimal>,
 }
 
+/// One read in `source.chronicle` (schema v0.8.14, RFC-056): the decisions
+/// taken under an article, or the recorded instances of a fact, as
+/// `source.decisions` and `source.facts` read them on their own.
+///
+/// Written as a map with one key, `{decisions: ...}` or `{facts: ...}`,
+/// which YAML does not read as an enum by itself, hence the plain map
+/// ([`ChronicleEntryMap`]) it goes through.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "ChronicleEntryMap", into = "ChronicleEntryMap")]
+pub enum ChronicleEntry {
+    /// `<regulation>#<article>`, or a `$`-reference to a parameter that
+    /// holds one.
+    Decisions(String),
+    /// `<regulation>#<article>#<fact>`.
+    Facts(String),
+}
+
+impl Source {
+    /// Every read of a chronicle this source names, in the order written:
+    /// its `decisions`, its `facts`, or the entries of its `chronicle`
+    /// (RFC-048, RFC-056). Empty for a source that reads no chronicle.
+    pub fn chronicle_reads(&self) -> Vec<ChronicleEntry> {
+        let single = self
+            .decisions
+            .iter()
+            .map(|basis| ChronicleEntry::Decisions(basis.clone()))
+            .chain(
+                self.facts
+                    .iter()
+                    .map(|fact| ChronicleEntry::Facts(fact.clone())),
+            );
+        single
+            .chain(self.chronicle.iter().flatten().cloned())
+            .collect()
+    }
+}
+
+/// How a [`ChronicleEntry`] is written: exactly one of the two keys.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChronicleEntryMap {
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_article_target"
+    )]
+    decisions: Option<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_fact_reference"
+    )]
+    facts: Option<String>,
+}
+
+impl TryFrom<ChronicleEntryMap> for ChronicleEntry {
+    type Error = String;
+
+    fn try_from(map: ChronicleEntryMap) -> Result<Self, Self::Error> {
+        match (map.decisions, map.facts) {
+            (Some(basis), None) => Ok(Self::Decisions(basis)),
+            (None, Some(fact)) => Ok(Self::Facts(fact)),
+            _ => Err("an entry of source.chronicle names decisions or facts, one of them".into()),
+        }
+    }
+}
+
+impl From<ChronicleEntry> for ChronicleEntryMap {
+    fn from(entry: ChronicleEntry) -> Self {
+        match entry {
+            ChronicleEntry::Decisions(basis) => Self {
+                decisions: Some(basis),
+                facts: None,
+            },
+            ChronicleEntry::Facts(fact) => Self {
+                decisions: None,
+                facts: Some(fact),
+            },
+        }
+    }
+}
+
 /// Source specification for input fields
 ///
 /// Defines where an input value comes from. Can be:
@@ -165,6 +247,9 @@ pub struct TypeSpec {
 ///   one (schema v0.8.11), only in a `REDUCTIE`
 /// - The recorded instances of a fact an article requires: `facts:
 ///   "<regulation>#<article>#<fact>"` (schema v0.8.7, RFC-051), only in a
+///   `REDUCTIE`
+/// - Several reads of the chronicle in one list, in its order: `chronicle:
+///   [{decisions: ...}, {facts: ...}]` (schema v0.8.14, RFC-056), only in a
 ///   `REDUCTIE`
 /// - The named answer of a cell: `reduction: "<answer>"` with `parameters`
 ///   (schema v0.8.9, RFC-048), only in a policy article that fills an open
@@ -216,6 +301,17 @@ pub struct Source {
         deserialize_with = "optional_fact_reference"
     )]
     pub facts: Option<String>,
+    /// Several reads of the chronicle in one list (schema v0.8.14,
+    /// RFC-056): the rows each entry gives on its own, merged in the order
+    /// of the chronicle, so a `FOLD` can play them through in the order they
+    /// became facts. Only a data source answers it, as for `decisions`. Only
+    /// a rulework with `regulatory_layer: REDUCTIE` may read it.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_chronicle_entries"
+    )]
+    pub chronicle: Option<Vec<ChronicleEntry>>,
     /// The named answer of a cell this input takes (schema v0.8.9,
     /// RFC-048): the name under which a cell gives it in its catalogue
     /// (`cel.yaml`, `answers`), with `parameters` as the values the cell's
@@ -779,6 +875,24 @@ pub enum ActionOperation {
         combine: Option<CombineOp>,
     },
 
+    /// Play a collection through from `initial`, element by element and in
+    /// the order of the collection (schema v0.8.14, RFC-056). `body` gives
+    /// the next state from the state so far (`state`) and the element
+    /// (`as_name`); the result is the state after the last element.
+    ///
+    /// Unlike FOREACH, both names stay visible in operations nested in
+    /// `body`, a FOREACH among them, so a body can look up the element in a
+    /// list or drop it from the state.
+    #[serde(rename = "FOLD")]
+    Fold {
+        collection: ActionValue,
+        #[serde(rename = "as")]
+        as_name: String,
+        state: String,
+        initial: ActionValue,
+        body: ActionValue,
+    },
+
     // Date
     #[serde(rename = "AGE")]
     Age {
@@ -935,6 +1049,12 @@ impl ActionOperation {
                 filter,
                 ..
             } => [collection, body].into_iter().chain(filter).collect(),
+            ActionOperation::Fold {
+                collection,
+                initial,
+                body,
+                ..
+            } => vec![collection, initial, body],
             ActionOperation::Age {
                 date_of_birth,
                 reference_date,
@@ -984,6 +1104,7 @@ impl ActionOperation {
             ActionOperation::NotIn { .. } => "NOT_IN",
             ActionOperation::List { .. } => "LIST",
             ActionOperation::Foreach { .. } => "FOREACH",
+            ActionOperation::Fold { .. } => "FOLD",
             ActionOperation::Age { .. } => "AGE",
             ActionOperation::DateAdd { .. } => "DATE_ADD",
             ActionOperation::Date { .. } => "DATE",
@@ -1332,6 +1453,21 @@ pub fn is_fact_reference(s: &str) -> bool {
         && fact
             .chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+}
+
+/// Deserialize an optional, non-empty list of [`ChronicleEntry`]s.
+fn optional_chronicle_entries<'de, D>(
+    deserializer: D,
+) -> Result<Option<Vec<ChronicleEntry>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    match Option::<Vec<ChronicleEntry>>::deserialize(deserializer)? {
+        Some(entries) if entries.is_empty() => Err(serde::de::Error::custom(
+            "source.chronicle names no read of the chronicle",
+        )),
+        entries => Ok(entries),
+    }
 }
 
 /// Deserialize an optional string that, when present, must be a fact

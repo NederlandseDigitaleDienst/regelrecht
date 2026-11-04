@@ -403,6 +403,19 @@ pub fn infer_operation_unit(
                 Some(CombineOp::And) | Some(CombineOp::Or) | None => Unit::Unknown,
             })
         }
+        // A FOLD is the state after the last element: `initial` or what
+        // `body` gave, joined as IF joins its branches, so a eurocent start
+        // and a euro step are an error. The state name is not a symbol here,
+        // so a body that adds to it reports the unit of what it adds.
+        Fold {
+            collection,
+            initial,
+            body,
+            ..
+        } => {
+            infer_unit(collection, symbols)?;
+            fold_operands(AlgebraOp::Additive, name, [initial, body], symbols)
+        }
         Age {
             date_of_birth,
             reference_date,
@@ -699,6 +712,31 @@ mod tests {
             filter: None,
             combine,
         }
+    }
+
+    #[test]
+    fn infer_fold_joins_its_start_and_its_step() {
+        let fold = |initial: ActionValue, body: ActionValue| ActionOperation::Fold {
+            collection: var("items"),
+            as_name: "x".to_string(),
+            state: "acc".to_string(),
+            initial,
+            body,
+        };
+        // A start without a unit takes the unit of the step.
+        assert_eq!(
+            infer_operation_unit(
+                &fold(ActionValue::Literal(Value::Int(0)), var("premie")),
+                &symbols()
+            )
+            .unwrap(),
+            Unit::Eurocent
+        );
+        // A eurocent start and a step in days do not make one state.
+        assert!(matches!(
+            infer_operation_unit(&fold(var("premie"), var("dagen")), &symbols()),
+            Err(EngineError::UnitMismatch { .. })
+        ));
     }
 
     #[test]

@@ -1,175 +1,322 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: reductie_algemene_wet_bestuursrecht
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'
+# Geen regelgeving: een reductie die alleen volgt wat de Awb zegt over
+# besluiten die herroepen of vernietigd zijn (Awb 7:11, tweede lid, en 8:72),
+# en over het besluit dat de uitspraak in de plaats stelt (Awb 8:72, derde
+# lid, onder b). Ze hoort bij geen cel: ze staat naast de cellen
+# (cells/reductions/) en heeft geen eigen kroniek. Daarom geeft geen
+# bestuursorgaan haar uitvoer als antwoord. Een andere reductie roept haar aan
+# (source.regulation) met het artikel waarvan zij de besluiten wil weten
+# (`basis`). De Awb-reductie leest dan uit de kroniek van de uitvoerder op
+# wiens kroniek ze wordt toegepast: de cel die de aanroepende reductie draait.
+#
+# Ze speelt de kroniek af (FOLD, RFC-056): ze begint zonder besluiten en
+# werkt per vastlegging, in de volgorde waarin die feit werd, bij welke
+# besluiten nog gelden. Een besluit komt erbij als het genomen is, en gaat
+# eraf als een latere beslissing op bezwaar of uitspraak het treft.
+# Er is geen bekendmaking; de url wijst naar artikel 8:72.
 url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
 name: Besluiten die nog gelden, naar de Algemene wet bestuursrecht (reductie)
 articles:
   - number: '1'
     text: >-
-      Geen regelgeving.
+      Geen regelgeving. Een besluit geldt vanaf het moment dat het genomen
+      is. Het geldt niet meer als een beslissing op bezwaar het herriep (Awb
+      7:11, tweede lid), of als de bestuursrechter het met zijn rechtsgevolgen
+      vernietigde (Awb 8:72, eerste en tweede lid). Vernietigde de
+      bestuursrechter een beslissing op bezwaar met haar rechtsgevolgen, dan
+      geldt haar herroeping niet meer, en ook niet het besluit dat zij in de
+      plaats nam. Treedt de uitspraak in de plaats van de vernietigde
+      beslissing op bezwaar (Awb 8:72, derde lid, onder b) en herroept zij
+      daarmee het bestreden besluit, dan geldt dat besluit niet meer. Voorzag
+      de bestuursrechter zelf in de zaak, dan geldt het besluit dat zijn
+      uitspraak in de plaats stelt als een besluit van het bestuursorgaan;
+      stelde hij een beslissing op bezwaar in de plaats, dan geldt het
+      besluit dat die beslissing in de plaats van het herroepen besluit nam.
     url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
     machine_readable:
       execution:
         parameters:
           - name: basis
             type: string
+            description: >-
+              Het artikel waarop de gevraagde besluiten berusten, als
+              <wet>#<artikel>.
         input:
-          - name: besluiten
+          # De kroniek, voor zover deze reductie haar leest, in haar eigen
+          # volgorde: de dag van vastlegging, en binnen een dag de volgorde
+          # waarin de cel vastlegde (RFC-056). Drie soorten rijen, te kennen
+          # aan hun `basis`:
+          # - een besluit onder het artikel `basis`, met de gegevens en de
+          #   uitvoer onder hun eigen naam en het id van het besluit;
+          # - een beslissing op bezwaar (Awb 7:11): het bestreden besluit bij
+          #   zijn id (bestreden_besluit), of zij het herriep
+          #   (bestreden_besluit_herroepen), en het besluit dat zij in de
+          #   plaats nam (nieuw_besluit), bij zijn id;
+          # - een ontvangen afschrift van een uitspraak (Awb 8:79): wat zij
+          #   inhoudt, het besluit waarover zij gaat (refers_to, RFC-053), en
+          #   het besluit dat zij in de plaats stelt (uitspraak_in_de_plaats),
+          #   zelf een rij met het id van de ontvangst.
+          - name: kroniek
             type: array
             source:
-              decisions: $basis
-          - name: beslissingen_op_bezwaar
-            type: array
-            source:
-              decisions: algemene_wet_bestuursrecht#7:11
-          - name: uitspraken
-            type: array
-            source:
-              facts: algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak
+              chronicle:
+                - decisions: $basis
+                - decisions: algemene_wet_bestuursrecht#7:11
+                - facts: algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak
         output:
-          - name: beslissingen_herroepen_bij_uitspraak
-            type: array
-          - name: herroepen_besluiten
-            type: array
-          - name: besluiten_in_stand
-            type: array
-        actions:
-          - output: vernietigde_besluiten
-            value:
-              operation: FOREACH
-              collection: $uitspraken
-              as: uitspraak
-              filter:
-                operation: EQUALS
-                subject: $uitspraak.rechtsgevolgen_vernietigd
-                value: true
-              body: $uitspraak.refers_to
-          - output: besluiten_van_vernietigde_beslissingen
-            value:
-              operation: FOREACH
-              collection: $beslissingen_op_bezwaar
-              as: beslissing
-              filter:
-                operation: IN
-                subject: $beslissing.id
-                value: $vernietigde_besluiten
-              body: $beslissing.nieuw_besluit
-          - output: beslissingen_herroepen_bij_uitspraak
-            value:
-              operation: FOREACH
-              collection: $uitspraken
-              as: uitspraak
-              filter:
-                operation: AND
-                conditions:
-                  - operation: EQUALS
-                    subject: $uitspraak.uitspraak_in_de_plaats.basis
-                    value: algemene_wet_bestuursrecht#7:11
-                  - operation: EQUALS
-                    subject: $uitspraak.uitspraak_in_de_plaats.bestreden_besluit_herroepen
-                    value: true
-              body: $uitspraak.refers_to
-          - output: herroepen_besluiten
-            value:
-              operation: FOREACH
-              collection: $beslissingen_op_bezwaar
-              as: beslissing
-              filter:
-                operation: OR
-                conditions:
-                  - operation: AND
-                    conditions:
-                      - operation: EQUALS
-                        subject: $beslissing.bestreden_besluit_herroepen
-                        value: true
-                      - operation: NOT
-                        value:
-                          operation: IN
-                          subject: $beslissing.id
-                          value: $vernietigde_besluiten
-                  - operation: IN
-                    subject: $beslissing.id
-                    value: $beslissingen_herroepen_bij_uitspraak
-              body: $beslissing.bestreden_besluit
-          - output: besluiten_in_stand
-            value:
-              operation: FOREACH
-              collection: $besluiten
-              as: besluit
-              filter:
-                operation: AND
-                conditions:
-                  - operation: NOT
-                    value:
-                      operation: IN
-                      subject: $besluit.id
-                      value: $herroepen_besluiten
-                  - operation: NOT
-                    value:
-                      operation: IN
-                      subject: $besluit.id
-                      value: $vernietigde_besluiten
-                  - operation: NOT
-                    value:
-                      operation: IN
-                      subject: $besluit.id
-                      value: $besluiten_van_vernietigde_beslissingen
-              body: $besluit
-  - number: '2'
-    text: >-
-      Geen regelgeving.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
-    machine_readable:
-      execution:
-        input:
-          - name: uitspraken
-            type: array
-            source:
-              facts: algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak
-          - name: besluiten_in_stand
-            type: array
-            source:
-              output: besluiten_in_stand
-        output:
-          - name: besluiten_in_de_plaats
-            type: array
           - name: geldende_besluiten
             type: array
+            description: >-
+              De besluiten onder het artikel `basis` die gelden na de laatste
+              vastlegging, elk als rij: niet herroepen en niet met hun
+              rechtsgevolgen vernietigd, en die welke de bestuursrechter in de
+              plaats stelde.
         actions:
-          - output: besluiten_in_de_plaats
+          # De toestand (`geldend`) is de lijst besluiten die gelden. Elke rij
+          # van de kroniek geeft de volgende toestand. Een rij wordt alleen
+          # gelezen op de velden van haar soort: eerst de `basis`, en IF en
+          # AND stoppen bij het eerste geval dat geldt.
+          - output: geldende_besluiten
             value:
-              operation: FOREACH
-              collection: $uitspraken
-              as: uitspraak
-              filter:
-                operation: OR
-                conditions:
-                  - operation: EQUALS
-                    subject: $uitspraak.uitspraak_in_de_plaats.basis
-                    value: $basis
-                  - operation: AND
-                    conditions:
-                      - operation: EQUALS
-                        subject: $uitspraak.uitspraak_in_de_plaats.basis
-                        value: algemene_wet_bestuursrecht#7:11
-                      - operation: EQUALS
-                        subject: $uitspraak.uitspraak_in_de_plaats.nieuw_besluit.basis
-                        value: $basis
+              operation: FOLD
+              collection: $kroniek
+              as: rij
+              state: geldend
+              initial:
+                operation: LIST
+                items: []
               body:
                 operation: IF
                 cases:
+                  # Een besluit onder `basis` geldt vanaf nu.
                   - when:
                       operation: EQUALS
-                      subject: $uitspraak.uitspraak_in_de_plaats.basis
+                      subject: $rij.basis
                       value: $basis
-                    then: $uitspraak.uitspraak_in_de_plaats
-                default: $uitspraak.uitspraak_in_de_plaats.nieuw_besluit
-          - output: geldende_besluiten
-            value:
-              operation: ADD
-              values:
-                - $besluiten_in_stand
-                - $besluiten_in_de_plaats
+                    then:
+                      operation: ADD
+                      values:
+                        - $geldend
+                        - operation: LIST
+                          items:
+                            - $rij
+                  # Een beslissing op bezwaar die het bestreden besluit
+                  # herroept (Awb 7:11, tweede lid): dat besluit geldt niet
+                  # meer. Het besluit dat zij in de plaats nam, is een eigen
+                  # rij onder `basis`.
+                  - when:
+                      operation: AND
+                      conditions:
+                        - operation: EQUALS
+                          subject: $rij.basis
+                          value: algemene_wet_bestuursrecht#7:11
+                        - operation: EQUALS
+                          subject: $rij.bestreden_besluit_herroepen
+                          value: true
+                    then:
+                      operation: FOREACH
+                      collection: $geldend
+                      as: besluit
+                      filter:
+                        operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $besluit.id
+                          value: $rij.bestreden_besluit
+                      body: $besluit
+                  # Een uitspraak (Awb 8:72) over het besluit of de beslissing
+                  # op bezwaar `refers_to`, in drie stappen van binnen naar
+                  # buiten: wat de vernietiging doet, dan wat een uitspraak in
+                  # de plaats van een beslissing op bezwaar herroept, dan wat
+                  # de uitspraak in de plaats stelt.
+                  - when:
+                      operation: EQUALS
+                      subject: $rij.basis
+                      value: algemene_wet_bestuursrecht#8:79
+                    then:
+                      operation: ADD
+                      values:
+                        - operation: FOREACH
+                          collection:
+                            # Vernietigd met de rechtsgevolgen (Awb 8:72,
+                            # eerste en tweede lid, niet in stand gelaten
+                            # onder derde lid, onder a): het besluit geldt
+                            # niet meer. Was het een beslissing op bezwaar,
+                            # dan geldt ook het besluit niet dat zij in de
+                            # plaats nam, en herleeft het besluit dat zij
+                            # herriep, tenzij de uitspraak het zelf herroept.
+                            operation: IF
+                            cases:
+                              - when:
+                                  operation: EQUALS
+                                  subject: $rij.rechtsgevolgen_vernietigd
+                                  value: true
+                                then:
+                                  operation: ADD
+                                  values:
+                                    - operation: FOREACH
+                                      collection: $geldend
+                                      as: besluit
+                                      filter:
+                                        operation: AND
+                                        conditions:
+                                          - operation: NOT
+                                            value:
+                                              operation: EQUALS
+                                              subject: $besluit.id
+                                              value: $rij.refers_to
+                                          - operation: NOT
+                                            value:
+                                              operation: EQUALS
+                                              subject: $besluit.id
+                                              value:
+                                                # Het nieuwe besluit van de
+                                                # vernietigde beslissing op
+                                                # bezwaar, of null.
+                                                operation: FOREACH
+                                                collection: $kroniek
+                                                as: beslissing
+                                                filter:
+                                                  operation: AND
+                                                  conditions:
+                                                    - operation: EQUALS
+                                                      subject: $beslissing.basis
+                                                      value: algemene_wet_bestuursrecht#7:11
+                                                    - operation: EQUALS
+                                                      subject: $beslissing.id
+                                                      value: $rij.refers_to
+                                                body: $beslissing.nieuw_besluit
+                                                combine: ONLY
+                                      body: $besluit
+                                    - operation: IF
+                                      cases:
+                                        - when:
+                                            operation: AND
+                                            conditions:
+                                              - operation: NOT
+                                                value:
+                                                  operation: AND
+                                                  conditions:
+                                                    - operation: EQUALS
+                                                      subject: $rij.uitspraak_in_de_plaats.basis
+                                                      value: algemene_wet_bestuursrecht#7:11
+                                                    - operation: EQUALS
+                                                      subject: $rij.uitspraak_in_de_plaats.bestreden_besluit_herroepen
+                                                      value: true
+                                              - operation: EQUALS
+                                                subject:
+                                                  operation: FOREACH
+                                                  collection: $kroniek
+                                                  as: beslissing
+                                                  filter:
+                                                    operation: AND
+                                                    conditions:
+                                                      - operation: EQUALS
+                                                        subject: $beslissing.basis
+                                                        value: algemene_wet_bestuursrecht#7:11
+                                                      - operation: EQUALS
+                                                        subject: $beslissing.id
+                                                        value: $rij.refers_to
+                                                  body: $beslissing.bestreden_besluit_herroepen
+                                                  combine: ONLY
+                                                value: true
+                                          # Het herleefde besluit, als zijn
+                                          # rij uit de kroniek.
+                                          then:
+                                            operation: FOREACH
+                                            collection: $kroniek
+                                            as: herleefd
+                                            filter:
+                                              operation: EQUALS
+                                              subject: $herleefd.id
+                                              value:
+                                                operation: FOREACH
+                                                collection: $kroniek
+                                                as: beslissing
+                                                filter:
+                                                  operation: AND
+                                                  conditions:
+                                                    - operation: EQUALS
+                                                      subject: $beslissing.basis
+                                                      value: algemene_wet_bestuursrecht#7:11
+                                                    - operation: EQUALS
+                                                      subject: $beslissing.id
+                                                      value: $rij.refers_to
+                                                body: $beslissing.bestreden_besluit
+                                                combine: ONLY
+                                            body: $herleefd
+                                      default:
+                                        operation: LIST
+                                        items: []
+                            default: $geldend
+                          # Treedt de uitspraak in de plaats van de
+                          # beslissing op bezwaar (Awb 8:72, derde lid, onder
+                          # b) en herroept zij het bestreden besluit (7:11,
+                          # tweede lid), dan geldt dat besluit niet meer.
+                          as: besluit
+                          filter:
+                            operation: NOT
+                            value:
+                              operation: AND
+                              conditions:
+                                - operation: EQUALS
+                                  subject: $rij.uitspraak_in_de_plaats.basis
+                                  value: algemene_wet_bestuursrecht#7:11
+                                - operation: EQUALS
+                                  subject: $rij.uitspraak_in_de_plaats.bestreden_besluit_herroepen
+                                  value: true
+                                - operation: EQUALS
+                                  subject: $besluit.id
+                                  value:
+                                    operation: FOREACH
+                                    collection: $kroniek
+                                    as: beslissing
+                                    filter:
+                                      operation: AND
+                                      conditions:
+                                        - operation: EQUALS
+                                          subject: $beslissing.basis
+                                          value: algemene_wet_bestuursrecht#7:11
+                                        - operation: EQUALS
+                                          subject: $beslissing.id
+                                          value: $rij.refers_to
+                                    body: $beslissing.bestreden_besluit
+                                    combine: ONLY
+                          body: $besluit
+                        # Wat de bestuursrechter in de plaats stelt (Awb
+                        # 8:72, derde lid, onder b): een besluit onder
+                        # `basis`, of een beslissing op bezwaar met zo'n
+                        # nieuw besluit. Eerst de `basis`: een besluit van
+                        # een ander artikel heeft geen nieuw_besluit.
+                        - operation: IF
+                          cases:
+                            - when:
+                                operation: EQUALS
+                                subject: $rij.uitspraak_in_de_plaats.basis
+                                value: $basis
+                              then:
+                                operation: LIST
+                                items:
+                                  - $rij.uitspraak_in_de_plaats
+                            - when:
+                                operation: AND
+                                conditions:
+                                  - operation: EQUALS
+                                    subject: $rij.uitspraak_in_de_plaats.basis
+                                    value: algemene_wet_bestuursrecht#7:11
+                                  - operation: EQUALS
+                                    subject: $rij.uitspraak_in_de_plaats.nieuw_besluit.basis
+                                    value: $basis
+                              then:
+                                operation: LIST
+                                items:
+                                  - $rij.uitspraak_in_de_plaats.nieuw_besluit
+                          default:
+                            operation: LIST
+                            items: []
+                default: $geldend

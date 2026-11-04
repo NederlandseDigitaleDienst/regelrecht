@@ -1,0 +1,50 @@
+---
+# Tier C: a reduction that reads several reads of the chronicle in one list
+# (`source.chronicle`, schema v0.8.14, RFC-056) and plays them through with
+# FOLD: the last recorded value wins.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: test_conformance_fold_chronicle
+regulatory_layer: REDUCTIE
+publication_date: '2026-11-04'
+valid_from: '2026-11-04'
+name: Testreductie laatste vastlegging
+url: https://example.invalid/fold-chronicle
+articles:
+  - number: '1'
+    url: https://example.invalid/fold-chronicle/1
+    text: De gemeente is die van de laatste vastlegging.
+    machine_readable:
+      execution:
+        parameters:
+          - name: basis
+            type: string
+        input:
+          - name: kroniek
+            type: array
+            source:
+              chronicle:
+                - decisions: $basis
+                - decisions: test_conformance_decision#1
+                - facts: test_conformance_fact#1#vestiging
+              description: De besluiten en vestigingen, in de volgorde van de kroniek.
+        output:
+          - name: gemeente
+            type: string
+            nullable: true
+        actions:
+          - output: gemeente
+            value:
+              operation: FOLD
+              collection: $kroniek
+              as: rij
+              state: laatste
+              initial: onbekend
+              body:
+                operation: IF
+                cases:
+                  - when:
+                      operation: EQUALS
+                      subject: $rij.basis
+                      value: test_conformance_fact#1
+                    then: $rij.gemeente
+                default: $laatste

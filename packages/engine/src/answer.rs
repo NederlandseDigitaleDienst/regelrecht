@@ -39,6 +39,7 @@ use crate::article::{ArticleBasedLaw, AuthorityType, NamedAuthority};
 use crate::error::Result;
 use crate::service::LawExecutionService;
 use crate::types::Value;
+use regelrecht_law_model::ChronicleEntry;
 
 /// A named answer the engine asks an answerer for.
 #[derive(Debug, Clone, Copy)]
@@ -138,13 +139,17 @@ pub trait OpenTermAnswerer {
 }
 
 /// What a reduction reads from a chronicle (RFC-048): the decisions taken
-/// under an article (`source.decisions`, `<regulation>#<article>`), or the
+/// under an article (`source.decisions`, `<regulation>#<article>`), the
 /// recorded instances of a fact an article requires (`source.facts`,
-/// `<regulation>#<article>#<fact>`, RFC-051).
+/// `<regulation>#<article>#<fact>`, RFC-051), or the rows of several such
+/// reads in one list, in the order of the chronicle (`source.chronicle`,
+/// RFC-056). An entry of `Chronicle` names its article, never a parameter:
+/// the engine has resolved those.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChronicleRead<'r> {
     Decisions(&'r str),
     Facts(&'r str),
+    Chronicle(&'r [ChronicleEntry]),
 }
 
 impl std::fmt::Display for ChronicleRead<'_> {
@@ -152,6 +157,21 @@ impl std::fmt::Display for ChronicleRead<'_> {
         match self {
             Self::Decisions(basis) => write!(f, "the decisions taken under {basis}"),
             Self::Facts(fact) => write!(f, "the recorded facts {fact}"),
+            Self::Chronicle(entries) => {
+                write!(f, "the chronicle, in its order, of ")?;
+                for (i, entry) in entries.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    match entry {
+                        ChronicleEntry::Decisions(basis) => {
+                            write!(f, "the decisions taken under {basis}")?
+                        }
+                        ChronicleEntry::Facts(fact) => write!(f, "the recorded facts {fact}")?,
+                    }
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -167,7 +187,8 @@ pub trait Chronicle {
 
     /// The rows `read` gives for an input of `law`, on `calculation_date`
     /// (YYYY-MM-DD): one per decision or recorded instance, in the order of
-    /// the chronicle. `None` when
+    /// the chronicle: by the day each was recorded, and within one day in
+    /// the order the keeper recorded them. `None` when
     /// this chronicle does not answer it; the input is then an error, never
     /// an empty list. An error ends the execution, such as a reduction of
     /// another holder than the keeper.

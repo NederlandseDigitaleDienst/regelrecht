@@ -207,6 +207,20 @@ pub trait ValueResolver {
     ) -> Option<Result<Value>> {
         None
     }
+
+    /// Execute a FOLD (RFC-056), if this resolver can create child scopes,
+    /// as for [`Self::execute_foreach_op`].
+    fn execute_fold_op(
+        &self,
+        _collection: &ActionValue,
+        _as_name: &str,
+        _state: &str,
+        _initial: &ActionValue,
+        _body: &ActionValue,
+        _depth: usize,
+    ) -> Option<Result<Value>> {
+        None
+    }
 }
 
 /// Evaluate an ActionValue to a concrete Value.
@@ -278,7 +292,10 @@ pub fn execute_operation<R: ValueResolver>(
                     (ActionOperation::If { .. }, Some(case_info)) => {
                         format!("IF({}) = {}", case_info, format_value_for_trace(value))
                     }
-                    (ActionOperation::Foreach { .. }, Some(summary)) => {
+                    (
+                        ActionOperation::Foreach { .. } | ActionOperation::Fold { .. },
+                        Some(summary),
+                    ) => {
                         format!("{} = {}", summary, format_value_for_trace(value))
                     }
                     (_, Some(why_unknown)) if value.is_unknown() => why_unknown,
@@ -456,6 +473,20 @@ fn execute_operation_internal<R: ValueResolver>(
             .unwrap_or_else(|| {
                 Err(EngineError::InvalidOperation(
                     "FOREACH requires a resolver that supports child scopes".to_string(),
+                ))
+            }),
+
+        ActionOperation::Fold {
+            collection,
+            as_name,
+            state,
+            initial,
+            body,
+        } => resolver
+            .execute_fold_op(collection, as_name, state, initial, body, depth)
+            .unwrap_or_else(|| {
+                Err(EngineError::InvalidOperation(
+                    "FOLD requires a resolver that supports child scopes".to_string(),
                 ))
             }),
 
@@ -1451,19 +1482,7 @@ pub fn execute_foreach(
     // A non-array iterates once. Laws reach the engine with a data source that
     // returned a single record where the law expects a list, and treating that
     // as "one element" matches what the law means better than an error does.
-    let items = match &collection_value {
-        Value::Array(arr) => arr.clone(),
-        Value::Null => Vec::new(),
-        other => vec![other.clone()],
-    };
-
-    if items.len() > crate::config::MAX_ARRAY_SIZE {
-        return Err(EngineError::InvalidOperation(format!(
-            "FOREACH collection size {} exceeds limit {}",
-            items.len(),
-            crate::config::MAX_ARRAY_SIZE,
-        )));
-    }
+    let items = collection_items(&collection_value, "FOREACH")?;
 
     let tracing = context.has_trace();
     let mut results: Vec<Value> = Vec::with_capacity(items.len());
@@ -1561,6 +1580,112 @@ pub fn execute_foreach(
         Some(op) => combine_with(*op, results),
         None => Ok(Value::Array(results)),
     }
+}
+
+/// The elements a FOREACH or a FOLD goes over: an array as it is, null as
+/// none, and any other value as the one element (RFC-016).
+fn collection_items(collection_value: &Value, operation: &str) -> Result<Vec<Value>> {
+    let items = match collection_value {
+        Value::Array(arr) => arr.clone(),
+        Value::Null => Vec::new(),
+        other => vec![other.clone()],
+    };
+    if items.len() > crate::config::MAX_ARRAY_SIZE {
+        return Err(EngineError::InvalidOperation(format!(
+            "{operation} collection size {} exceeds limit {}",
+            items.len(),
+            crate::config::MAX_ARRAY_SIZE,
+        )));
+    }
+    Ok(items)
+}
+
+/// Execute FOLD: play `collection` through from `initial`, in its order
+/// (RFC-056). Each element gives the next state: `body`, evaluated in a
+/// child scope where `as_name` is the element and `state` the state so far.
+/// The result is the state after the last element, `initial` for an empty
+/// collection.
+///
+/// The collection and `initial` are evaluated where the FOLD appears, as
+/// FOREACH evaluates its collection. Unlike FOREACH, the two names are bound
+/// lexically: a FOREACH nested in `body` sees them in its own `filter` and
+/// `body`, so the body can drop the element from the state or look it up in
+/// another list.
+///
+/// An untranslatable collection, start value or state ends the FOLD with
+/// that value (RFC-012), and an unknown collection makes the result unknown
+/// (RFC-036). An unknown state is played on: the body decides what it means,
+/// as an operation on an unknown operand does.
+pub fn execute_fold(
+    collection: &ActionValue,
+    as_name: &str,
+    state: &str,
+    initial: &ActionValue,
+    body: &ActionValue,
+    context: &RuleContext,
+    depth: usize,
+) -> Result<Value> {
+    for name in [as_name, state] {
+        if !is_valid_binding_name(name) {
+            return Err(EngineError::InvalidOperation(format!(
+                "FOLD 'as' and 'state' must be non-empty lowercase identifiers (got '{name}')"
+            )));
+        }
+    }
+    if as_name == state {
+        return Err(EngineError::InvalidOperation(format!(
+            "FOLD binds 'as' and 'state' under the same name '{as_name}'"
+        )));
+    }
+
+    let collection_value = evaluate_value(collection, context, depth)?;
+    if collection_value.is_untranslatable() {
+        return Ok(collection_value);
+    }
+    if let Some(unknown) = propagate_unknown(context, "FOLD", [&collection_value]) {
+        return Ok(unknown);
+    }
+    let items = collection_items(&collection_value, "FOLD")?;
+
+    let mut acc = evaluate_value(initial, context, depth)?;
+    let tracing = context.has_trace();
+    for (index, item) in items.iter().enumerate() {
+        if acc.is_untranslatable() {
+            return Ok(acc);
+        }
+        let mut child = context.create_child();
+        child.set_lexical(as_name.to_string(), item.clone());
+        child.set_lexical(state.to_string(), acc);
+        if tracing {
+            context.trace_push(&format!("ITEM_{index}"), PathNodeType::Operation);
+        }
+        match evaluate_value(body, &child, depth + 1) {
+            Ok(next) => {
+                if tracing {
+                    context.trace_set_result(next.clone());
+                    context.trace_set_message(format!(
+                        "ITEM {index}: {}",
+                        format_value_for_trace(&next)
+                    ));
+                    context.trace_pop();
+                }
+                acc = next;
+            }
+            Err(e) => {
+                if tracing {
+                    context.trace_set_message(format!("ITEM {index}: error: {e}"));
+                    context.trace_pop();
+                }
+                // A state played through part of the collection is not the
+                // answer the law asks for.
+                return Err(e);
+            }
+        }
+    }
+    if tracing {
+        context.trace_set_message(format!("FOLD over {} element(s)", items.len()));
+    }
+    Ok(acc)
 }
 
 /// Combine `results` with `op`: the per-element results of a FOREACH
@@ -4760,6 +4885,188 @@ mod tests {
                 combine: Some(CombineOp::Add),
             };
             let err = execute_operation(&op, &resolver, 0).unwrap_err();
+            assert!(
+                matches!(&err, EngineError::InvalidOperation(m) if m.contains("child scopes")),
+                "got {err:?}"
+            );
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // FOLD (RFC-056)
+    // -------------------------------------------------------------------------
+
+    mod fold {
+        use super::*;
+        use crate::context::RuleContext;
+
+        fn ctx(vars: Vec<(&str, Value)>) -> RuleContext<'static> {
+            let params: BTreeMap<String, Value> =
+                vars.into_iter().map(|(k, v)| (k.to_string(), v)).collect();
+            RuleContext::new(params, "2025-06-15").expect("valid date")
+        }
+
+        fn op(name: ActionOperation) -> ActionValue {
+            ActionValue::Operation(Box::new(name))
+        }
+
+        fn fold(
+            collection: ActionValue,
+            initial: ActionValue,
+            body: ActionValue,
+        ) -> ActionOperation {
+            ActionOperation::Fold {
+                collection,
+                as_name: "x".to_string(),
+                state: "acc".to_string(),
+                initial,
+                body,
+            }
+        }
+
+        fn ints(items: &[i64]) -> Value {
+            Value::Array(items.iter().map(|i| Value::Int(*i)).collect())
+        }
+
+        #[test]
+        fn test_fold_sums_from_its_initial_value() {
+            let context = ctx(vec![("items", ints(&[1, 2, 3]))]);
+            let sum = fold(
+                var("items"),
+                lit(10i64),
+                op(ActionOperation::Add {
+                    values: vec![var("acc"), var("x")],
+                }),
+            );
+            assert_eq!(
+                execute_operation(&sum, &context, 0).unwrap(),
+                Value::Int(16)
+            );
+        }
+
+        #[test]
+        fn test_fold_of_nothing_is_its_initial_value() {
+            let context = ctx(vec![("items", Value::Null)]);
+            let sum = fold(var("items"), lit(7i64), var("x"));
+            assert_eq!(execute_operation(&sum, &context, 0).unwrap(), Value::Int(7));
+        }
+
+        #[test]
+        fn test_fold_plays_the_elements_in_their_order() {
+            // The last element wins: the state is whatever came last.
+            let context = ctx(vec![("items", ints(&[3, 1, 2]))]);
+            let last = fold(var("items"), ActionValue::Literal(Value::Null), var("x"));
+            assert_eq!(
+                execute_operation(&last, &context, 0).unwrap(),
+                Value::Int(2)
+            );
+            // Subtracting is not commutative, so the order shows in the result:
+            // ((0 - 3) - 1) - 2.
+            let minus = fold(
+                var("items"),
+                lit(0i64),
+                op(ActionOperation::Subtract {
+                    values: vec![var("acc"), var("x")],
+                }),
+            );
+            assert_eq!(
+                execute_operation(&minus, &context, 0).unwrap(),
+                Value::Int(-6)
+            );
+        }
+
+        #[test]
+        fn test_a_foreach_in_the_body_sees_the_fold_s_names() {
+            // Drop the element from the state: the FOREACH filter reads `x`,
+            // which a FOREACH alone could not see from an outer scope.
+            let context = ctx(vec![("items", ints(&[1, 2, 1]))]);
+            let toggle = fold(
+                var("items"),
+                op(ActionOperation::List { items: vec![] }),
+                op(ActionOperation::If {
+                    cases: vec![Case {
+                        when: op(ActionOperation::In {
+                            subject: var("x"),
+                            value: Some(var("acc")),
+                            values: None,
+                        }),
+                        then: op(ActionOperation::Foreach {
+                            collection: var("acc"),
+                            as_name: Some("y".to_string()),
+                            filter: Some(op(ActionOperation::Not {
+                                value: op(ActionOperation::Equals {
+                                    subject: var("y"),
+                                    value: var("x"),
+                                }),
+                            })),
+                            body: var("y"),
+                            combine: None,
+                        }),
+                    }],
+                    default: Some(op(ActionOperation::Add {
+                        values: vec![
+                            var("acc"),
+                            op(ActionOperation::List {
+                                items: vec![var("x")],
+                            }),
+                        ],
+                    })),
+                }),
+            );
+            assert_eq!(execute_operation(&toggle, &context, 0).unwrap(), ints(&[2]));
+        }
+
+        #[test]
+        fn test_a_foreach_binding_shadows_the_fold_s_name() {
+            let context = ctx(vec![("items", ints(&[5])), ("other", ints(&[1]))]);
+            let shadowed = fold(
+                var("items"),
+                lit(0i64),
+                op(ActionOperation::Foreach {
+                    collection: var("other"),
+                    as_name: Some("x".to_string()),
+                    filter: None,
+                    body: var("x"),
+                    combine: Some(CombineOp::Add),
+                }),
+            );
+            assert_eq!(
+                execute_operation(&shadowed, &context, 0).unwrap(),
+                Value::Int(1)
+            );
+        }
+
+        #[test]
+        fn test_fold_names_do_not_leak_out() {
+            let context = ctx(vec![("items", ints(&[1]))]);
+            let sum = fold(var("items"), lit(0i64), var("x"));
+            execute_operation(&sum, &context, 0).unwrap();
+            assert!(context.resolve("x").is_err());
+            assert!(context.resolve("acc").is_err());
+        }
+
+        #[test]
+        fn test_fold_refuses_one_name_for_element_and_state() {
+            let context = ctx(vec![("items", ints(&[1]))]);
+            let same = ActionOperation::Fold {
+                collection: var("items"),
+                as_name: "x".to_string(),
+                state: "x".to_string(),
+                initial: lit(0i64),
+                body: var("x"),
+            };
+            let err = execute_operation(&same, &context, 0).unwrap_err();
+            assert!(
+                matches!(&err, EngineError::InvalidOperation(m) if m.contains("same name")),
+                "got {err:?}"
+            );
+        }
+
+        #[test]
+        fn test_fold_needs_a_scoped_resolver() {
+            let resolver = TestResolver::new();
+            let sum = fold(lit(1i64), lit(0i64), var("x"));
+            let err = execute_operation(&sum, &resolver, 0).unwrap_err();
             assert!(
                 matches!(&err, EngineError::InvalidOperation(m) if m.contains("child scopes")),
                 "got {err:?}"

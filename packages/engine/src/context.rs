@@ -67,6 +67,11 @@ pub struct RuleContext<'l> {
     /// Local scope variables (for FOREACH loops)
     local: BTreeMap<String, Value>,
 
+    /// Names a FOLD binds (RFC-056): unlike `local`, a child context keeps
+    /// them, so they stay visible in what a FOLD body nests, a FOREACH
+    /// among them. A local of the same name shadows one.
+    lexical: Rc<BTreeMap<String, Value>>,
+
     /// Reference date for calculations
     reference_date: NaiveDate,
 
@@ -149,6 +154,7 @@ impl<'l> RuleContext<'l> {
             parameters: Rc::new(parameters),
             outputs: Rc::new(BTreeMap::new()),
             local: BTreeMap::new(),
+            lexical: Rc::new(BTreeMap::new()),
             reference_date,
             reference_date_value,
             trace: None,
@@ -225,6 +231,12 @@ impl<'l> RuleContext<'l> {
         self.local.insert(name.into(), value);
     }
 
+    /// Bind a name of a FOLD (RFC-056): visible here and in every child
+    /// context made from this one, unless a local shadows it.
+    pub fn set_lexical(&mut self, name: impl Into<String>, value: Value) {
+        Rc::make_mut(&mut self.lexical).insert(name.into(), value);
+    }
+
     /// Clear all local variables.
     pub fn clear_local(&mut self) {
         self.local.clear();
@@ -274,6 +286,7 @@ impl<'l> RuleContext<'l> {
             parameters: Rc::clone(&self.parameters),
             outputs: Rc::clone(&self.outputs),
             local: BTreeMap::new(), // Child starts with empty local scope
+            lexical: Rc::clone(&self.lexical), // A FOLD's names reach nested bodies
             reference_date: self.reference_date,
             reference_date_value: self.reference_date_value.clone(),
             trace: self.trace.clone(), // Share the same trace builder
@@ -460,7 +473,7 @@ impl<'l> RuleContext<'l> {
         }
 
         // 2. Local scope (FOREACH loop variables)
-        if let Some(value) = self.local.get(path) {
+        if let Some(value) = self.local.get(path).or_else(|| self.lexical.get(path)) {
             self.trace_set_resolve_type(ResolveType::Local);
             return Ok(value.clone());
         }
@@ -559,6 +572,21 @@ impl ValueResolver for RuleContext<'_> {
     ) -> Option<Result<Value>> {
         Some(crate::operations::execute_foreach(
             collection, as_name, body, filter, combine, self, depth,
+        ))
+    }
+
+    /// A FOLD binds its names in a child scope too (RFC-056).
+    fn execute_fold_op(
+        &self,
+        collection: &ActionValue,
+        as_name: &str,
+        state: &str,
+        initial: &ActionValue,
+        body: &ActionValue,
+        depth: usize,
+    ) -> Option<Result<Value>> {
+        Some(crate::operations::execute_fold(
+            collection, as_name, state, initial, body, self, depth,
         ))
     }
 }

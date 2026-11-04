@@ -33,7 +33,7 @@ export const LIJNSOORTEN = [
   { soort: 'vult_in', label: 'vult een open begrip in', yaml: 'implements' },
   { soort: 'leest', label: 'gebruikt een uitkomst uit een ander regelwerk', yaml: 'source.regulation' },
   { soort: 'vraagt', label: 'vraagt een cel, die een reductie aanwijst', yaml: 'source.reduction, answers' },
-  { soort: 'kroniek', label: 'leest de kroniek', yaml: 'source.decisions, source.facts' },
+  { soort: 'kroniek', label: 'leest de kroniek', yaml: 'source.decisions, source.facts, source.chronicle' },
 ];
 
 /** Where the case files are, each `<id>.yaml` with its own regelwerken in `<id>/`. */
@@ -199,7 +199,8 @@ function namenIn(waarde, uit = new Set()) {
  *    its `cel.yaml`), and on to the input that asks it (`source.reduction`).
  *  - `kroniek`: from what a cell recorded to the input that reads it:
  *    decisions under an article (`source.decisions`) or facts an article
- *    requires (`source.facts`).
+ *    requires (`source.facts`), or several of those in the order of the
+ *    chronicle (`source.chronicle`).
  *
  * Parameters are left out: they are what the case gives (a KvK number, the
  * day of the decision), not something the chain decides. An open term that
@@ -296,16 +297,25 @@ export function keten(alle, id, { law, article, naam }) {
           if (d) lijn('vraagt', d.box, d.begrip, celBox, vraag, 'answers');
           lijn('vraagt', celBox, vraag, box, uit.begrip, 'source.reduction');
         }
-      } else if (s.facts) {
-        const [fLaw, fArt, feit] = String(s.facts).split('#');
-        const doel = wet(fLaw);
-        const art = doel && (metFeit(doel.doc, feit) ?? artikelVan(doel.doc, fArt));
-        if (art) lijn('kroniek', kroniek(), bron(doel, String(art.number), feit), box, uit.begrip, 'source.facts');
-      } else if (s.decisions) {
-        const ref = String(s.decisions).startsWith('$') ? gegeven[String(s.decisions).slice(1)] : s.decisions;
-        const { law: dLaw, article: dArt } = splits(ref ?? '');
-        const doel = wet(dLaw);
-        if (doel) lijn('kroniek', kroniek(), bron(doel, dArt), box, uit.begrip, 'source.decisions');
+      } else if (s.facts || s.decisions || Array.isArray(s.chronicle)) {
+        // A read of the chronicle; `source.chronicle` (RFC-056) holds several,
+        // each drawn as its own line, as when they stood on their own.
+        const lezingen = Array.isArray(s.chronicle)
+          ? s.chronicle.map((e) => [e, 'source.chronicle'])
+          : [[s, s.facts ? 'source.facts' : 'source.decisions']];
+        for (const [e, yaml] of lezingen) {
+          if (e.facts) {
+            const [fLaw, fArt, feit] = String(e.facts).split('#');
+            const doel = wet(fLaw);
+            const art = doel && (metFeit(doel.doc, feit) ?? artikelVan(doel.doc, fArt));
+            if (art) lijn('kroniek', kroniek(), bron(doel, String(art.number), feit), box, uit.begrip, yaml);
+          } else if (e.decisions) {
+            const ref = String(e.decisions).startsWith('$') ? gegeven[String(e.decisions).slice(1)] : e.decisions;
+            const { law: dLaw, article: dArt } = splits(ref ?? '');
+            const doel = wet(dLaw);
+            if (doel) lijn('kroniek', kroniek(), bron(doel, dArt), box, uit.begrip, yaml);
+          }
+        }
       }
     } else if (mr.open_terms?.some((t) => t.id === naam)) {
       uit = { box, begrip: { ...hier('open_term'), omschrijving: mr.open_terms.find((t) => t.id === naam).description } };

@@ -43,7 +43,9 @@ describe('the picture of one value', () => {
 
   it('follows the value back to the chronicles of both cells', () => {
     // The count of permits: the municipality's own decisions, with the Awb.
-    expect(heeft(k, 'kroniek', [KRONIEK, 'parkeerverordening_gemeente_wilgendaal#2#'], ['reductie_algemene_wet_bestuursrecht', 'besluiten'])).toBe(true);
+    expect(heeft(k, 'kroniek', [KRONIEK, 'parkeerverordening_gemeente_wilgendaal#2#'], ['reductie_algemene_wet_bestuursrecht', 'kroniek'])).toBe(true);
+    // A permit revoked at the holder's request (art. 5) does not count.
+    expect(heeft(k, 'kroniek', [KRONIEK, 'parkeerverordening_gemeente_wilgendaal#5#'], ['reductie_algemene_wet_bestuursrecht', 'kroniek'])).toBe(true);
     expect(heeft(k, 'vraagt', ['gemeente_wilgendaal', 'aantal_geldige_bedrijfsparkeervergunningen'], ['beleid_bedrijfsparkeervergunning_gemeente_wilgendaal', 'antwoord_aantal_geldig'])).toBe(true);
     // The maximum: where the firm is and how many work there, from the KvK.
     expect(heeft(k, 'kroniek', [KRONIEK, 'beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven'], ['reductie_vestiging_in_handelsregister', 'inschrijvingen'])).toBe(true);
@@ -71,10 +73,12 @@ describe('the picture of one value', () => {
   it('shows of a reduction only what it reads and what it answers', () => {
     const awb = 'reductie_algemene_wet_bestuursrecht';
     expect(namen(awb)).not.toContain('vernietigde_besluiten');
-    expect(heeft(k, 'rekent', [awb, 'besluiten'], [awb, 'geldende_besluiten'])).toBe(true);
-    // The same input in two articles is one name, with one line to the chronicle.
-    expect(namen(awb).filter((n) => n === 'uitspraken')).toHaveLength(1);
-    expect(k.lijnen.filter((l) => l.soort === 'kroniek' && l.naar.begrip.endsWith('#uitspraken'))).toHaveLength(1);
+    expect(heeft(k, 'rekent', [awb, 'kroniek'], [awb, 'geldende_besluiten'])).toBe(true);
+    // One input reads the chronicle in its order (RFC-056), with a line for
+    // each read it holds: the decisions under art. 2 and art. 5, those on
+    // objection and the judgments.
+    expect(namen(awb).filter((n) => n === 'kroniek')).toHaveLength(1);
+    expect(k.lijnen.filter((l) => l.soort === 'kroniek' && l.naar.begrip.endsWith('#kroniek'))).toHaveLength(4);
     // A law keeps its steps in between.
     expect(namen('uitvoeringsbesluit_parkeren_gemeente_wilgendaal')).toContain('maximum_bedrijfsparkeervergunningen');
   });
@@ -110,7 +114,7 @@ describe('the picture of one value', () => {
     it('takes a reduction as one step, also over its articles', () => {
       const awb = 'reductie_algemene_wet_bestuursrecht';
       const stap = stapVan(awb, 'geldende_besluiten');
-      for (const naam of ['besluiten', 'beslissingen_op_bezwaar', 'uitspraken']) expect(stapVan(awb, naam)).toBe(stap);
+      expect(stapVan(awb, 'kroniek')).toBe(stap);
     });
 
     it('does not take a source into the group of its article', () => {
@@ -129,6 +133,7 @@ describe('the picture of one value', () => {
         'afschrift_van_de_uitspraak · Algemene wet bestuursrecht art. 8:79',
         'beschikking · Algemene wet bestuursrecht art. 7:11',
         'beschikking · Parkeerverordening Wilgendaal 2026 (fictief) art. 2',
+        'beschikking · Parkeerverordening Wilgendaal 2026 (fictief) art. 5',
       ]);
       for (const g of laatste) expect(k.lijnen.some((l) => eind(l.naar) === sleutel(g.pad, g.key))).toBe(false);
     });
@@ -216,7 +221,7 @@ describe('the picture of one value', () => {
       for (const waar of ['uit een ander regelwerk', 'van een cel', 'van een reductie', 'uit de kroniek']) expect(alles).toContain(waar);
       // Names that are alike are counted, so the names add up to the count.
       expect(stapZin(k, k.reststap - 1)).toBe(
-        `Stap ${k.reststap - 1} van ${k.stappen}, hier komt de keten bij de bron uit: 3 bronnen uit de kroniek (beschikking 2 keer, afschrift van de uitspraak).`,
+        `Stap ${k.reststap - 1} van ${k.stappen}, hier komt de keten bij de bron uit: 4 bronnen uit de kroniek (beschikking 3 keer, afschrift van de uitspraak).`,
       );
     });
 
@@ -249,7 +254,7 @@ describe('the picture of one value', () => {
     it('has one box for every source in the chronicle, in a column of its own, last', () => {
       expect(k.bestanden.filter((b) => b.soort === 'kroniek')).toEqual([kroniek]);
       expect(SOORTEN.at(-1).soort).toBe('kroniek');
-      const bronnen = k.lijnen.filter((l) => ['source.decisions', 'source.facts'].includes(l.yaml));
+      const bronnen = k.lijnen.filter((l) => ['source.decisions', 'source.facts', 'source.chronicle'].includes(l.yaml));
       expect(bronnen.length).toBeGreaterThan(0);
       for (const l of bronnen) {
         expect(l.soort).toBe('kroniek');
@@ -260,6 +265,7 @@ describe('the picture of one value', () => {
         'afschrift_van_de_uitspraak · Algemene wet bestuursrecht art. 8:79',
         'beschikking · Algemene wet bestuursrecht art. 7:11',
         'beschikking · Parkeerverordening Wilgendaal 2026 (fictief) art. 2',
+        'beschikking · Parkeerverordening Wilgendaal 2026 (fictief) art. 5',
         'vestiging_ingeschreven · Inschrijving van een vestiging in het handelsregister (fictief beleid) art. 1',
       ]);
     });

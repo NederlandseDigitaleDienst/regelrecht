@@ -31,6 +31,7 @@ export const OPERATION_FIELDS: Readonly<Record<string, readonly string[]>> = Obj
   IN: ['subject', 'value', 'values'],
   LIST: ['items'],
   FOREACH: ['collection', 'as', 'filter', 'body', 'combine'],
+  FOLD: ['collection', 'as', 'state', 'initial', 'body'],
   AGE: ['date_of_birth', 'reference_date'],
   DATE_ADD: ['date', 'years', 'months', 'weeks', 'days'],
   DATE: ['year', 'month', 'day'],

@@ -183,8 +183,8 @@ export const steps = [
     overline: 'Reductie',
     title: 'Reductie telt de vergunningen',
     text: [
-      'Eerst vraagt de reductie aan de Awb-reductie uit stap 6 welke besluiten onder artikel 2 van de verordening nog gelden, met dat artikel in `basis`.',
-      'Van elk besluit leest ze `bedrijfsparkeervergunning_verleend`, de uitkomst van toen. Zo telt ze de vergunningen van dit bedrijf die op de dag van het besluit nog gelden.',
+      'Eerst vraagt de reductie aan de Awb-reductie uit stap 6 welke besluiten onder artikel 2 van de verordening nog gelden, met dat artikel in `basis`, en welke intrekkingen op verzoek onder artikel 5.',
+      'Van elk besluit leest ze `bedrijfsparkeervergunning_verleend`, de uitkomst van toen. Zo telt ze de vergunningen van dit bedrijf die op de dag van het besluit nog gelden en die de gemeente niet introk.',
     ],
     panels: [
       {
@@ -203,15 +203,15 @@ export const steps = [
     title: 'Awb-reductie: wat nog geldt',
     text: [
       'De Algemene wet bestuursrecht (Awb) heeft regels voor elk besluit van de overheid, en deze reductie past die toe op de kroniek van de cel die haar aanroept.',
-      'Een besluit telt niet meer mee als de gemeente het na bezwaar zelf terugdraaide (herroepen, Awb 7:11) of als de rechter het vernietigde (Awb 8:72). Een besluit dat ervoor in de plaats kwam, telt wel.',
+      'Ze speelt de kroniek af in de volgorde waarin alles feit werd: een besluit telt mee zodra het genomen is, en valt af als de gemeente het na bezwaar terugdraaide (herroepen, Awb 7:11) of als de rechter het vernietigde (Awb 8:72). Een besluit dat ervoor in de plaats kwam, telt wel.',
     ],
     panels: [
       {
-        label: 'Artikel 1 leest de besluiten, het bezwaar en de uitspraken uit de kroniek; artikel 2 zegt wat geldt',
+        label: 'De besluiten, het bezwaar en de uitspraken in de volgorde van de kroniek, en per vastlegging wat er nog geldt',
         source: AWB,
         open: [
           'articles.1.machine_readable.execution.input.*.source',
-          'articles.2.machine_readable.execution.actions.geldende_besluiten.value.values',
+          'articles.1.machine_readable.execution.actions.geldende_besluiten.value.body.cases.*.when',
         ],
       },
     ],

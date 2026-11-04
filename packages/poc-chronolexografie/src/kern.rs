@@ -18,7 +18,7 @@ use regelrecht_engine::{
     ArticleResult, Authority, EngineError, FilledBy, LawExecutionService, OpenTermFilled,
     ParameterType, PathNode, PathNodeType,
 };
-use regelrecht_law_model::stored;
+use regelrecht_law_model::{stored, ChronicleEntry};
 use serde_json::{json, Map, Value};
 
 use crate::casus::{afleiden, casussen, Afleiding, Beroep, Casus, Regelwerken};
@@ -745,9 +745,11 @@ fn handelingen(
         for (_, reduction) in reducties_in(&|id: &str| service.resolver().get_law(id), &[cell]) {
             for article in &reduction.articles {
                 for input in article.get_inputs() {
-                    if let Some(f) = input.source.as_ref().and_then(|s| s.facts.as_ref()) {
-                        if !feiten.contains(f) {
-                            feiten.push(f.clone());
+                    for lezing in input.source.iter().flat_map(|s| s.chronicle_reads()) {
+                        if let ChronicleEntry::Facts(f) = lezing {
+                            if !feiten.contains(&f) {
+                                feiten.push(f);
+                            }
                         }
                     }
                 }
@@ -2136,23 +2138,29 @@ fn lezingen_van(
         let Some(source) = input.source.as_ref() else {
             continue;
         };
-        let bron = match (&source.decisions, &source.facts) {
-            (Some(basis), _) => match basis.strip_prefix('$') {
-                None => Some(Bron::Besluiten(basis.clone())),
-                Some(naam) => given.get(naam).cloned().map(Bron::Besluiten),
-            },
-            (None, Some(feit)) => Some(Bron::Feiten(feit.clone())),
-            (None, None) => None,
-        };
-        if let Some(bron) = bron {
-            let lezing = Lezing {
-                naam: input.name.clone(),
-                reductie: reduction.id.clone(),
-                bron,
+        // Each read on its own, also those of one `chronicle` (RFC-056),
+        // which the cell gives as one list in the order of the chronicle.
+        let reads = source.chronicle_reads();
+        for read in &reads {
+            let bron = match read {
+                ChronicleEntry::Decisions(basis) => match basis.strip_prefix('$') {
+                    None => Some(Bron::Besluiten(basis.clone())),
+                    Some(naam) => given.get(naam).cloned().map(Bron::Besluiten),
+                },
+                ChronicleEntry::Facts(feit) => Some(Bron::Feiten(feit.clone())),
             };
-            if !uit.contains(&lezing) {
-                uit.push(lezing);
+            if let Some(bron) = bron {
+                let lezing = Lezing {
+                    naam: input.name.clone(),
+                    reductie: reduction.id.clone(),
+                    bron,
+                };
+                if !uit.contains(&lezing) {
+                    uit.push(lezing);
+                }
             }
+        }
+        if !reads.is_empty() {
             continue;
         }
         let (Some(regelwerk), Some(output)) = (&source.regulation, &source.output) else {
@@ -2822,7 +2830,6 @@ mod tests {
         assert_eq!(
             reductie(lid_2)["normen"],
             json!([
-                { "regelwerk": awb, "laag": "REDUCTIE", "artikel": "2" },
                 { "regelwerk": awb, "laag": "REDUCTIE", "artikel": "1" },
                 { "regelwerk": beleid, "laag": "UITVOERINGSBELEID", "artikel": "1" }
             ])
@@ -3147,8 +3154,9 @@ mod tests {
                 && f["filled_by"]["answer"]["answers"][0]["law_id"]
                     == json!("reductie_verlof_al_verleend_in_schooljaar")));
 
-        // How the school answered: the reduction of the Awb counts A among
-        // the revoked decisions, and of the rows under 13a that are not B
+        // How the school answered: the reduction of the Awb plays the
+        // chronicle through (RFC-056) and drops A at the decision on
+        // objection that revoked it; of the rows under 13a that are not B
         // only the refusal in its place stands, which the filter skips.
         let hoe = hoe_beantwoord(
             &corpus,
@@ -3162,14 +3170,10 @@ mod tests {
             eerst["uitvoer"]["verlof_al_verleend_in_schooljaar"],
             json!(false)
         );
-        assert_eq!(eerst["uitvoer"]["herroepen_besluiten"], json!([a.id]));
         let spoor = eerst["spoor"].as_str().unwrap();
+        assert!(spoor.contains("FOLD over"), "{spoor}");
         assert!(
-            spoor.contains(&format!("herroepen_besluiten = ['{}']", a.id)),
-            "{spoor}"
-        );
-        assert!(
-            !eerst["uitvoer"]["besluiten_in_stand"]
+            !eerst["uitvoer"]["geldende_besluiten"]
                 .as_array()
                 .unwrap()
                 .iter()
@@ -3862,22 +3866,9 @@ mod tests {
     fn hardheid_bezwaar(corpus: &Corpus) -> (Cellen, String) {
         let mut cell = corpus.cell().unwrap();
         let voorbeeld = &corpus.casus.voorbeeld;
-        let hardheid = "toepassing_leidt_tot_onaanvaardbare_gevolgen";
-        let mut besluit = None;
-        for (kenteken, dag) in [
-            ("ZZ-001-Z", "2026-10-20"),
-            ("ZZ-002-Z", "2026-10-22"),
-            ("ZZ-003-Z", "2026-10-27"),
-        ] {
-            let mut velden = voorbeeld.aanvraag.clone();
-            velden.insert("kvk_nummer".into(), json!("99990044"));
-            velden.insert("naam_aanvrager".into(), json!("Thuiszorg De Linde"));
-            velden.insert("kenteken".into(), json!(kenteken));
-            let app = aanvragen(corpus, &mut cell, &velden, day(dag)).unwrap();
-            let bevindingen = map(json!({ hardheid: false }));
-            besluit = Some(besluiten(corpus, &mut cell, &app.id, &bevindingen, day(dag)).unwrap());
-        }
-        let besluit = besluit.unwrap().besluit;
+        thuiszorg_vraagt(corpus, &mut cell, "ZZ-001-Z", "2026-10-20");
+        thuiszorg_vraagt(corpus, &mut cell, "ZZ-002-Z", "2026-10-22");
+        let besluit = thuiszorg_vraagt(corpus, &mut cell, "ZZ-003-Z", "2026-10-27");
         assert_eq!(
             besluit.outputs["bedrijfsparkeervergunning_verleend"],
             json!(false)
@@ -3890,6 +3881,121 @@ mod tests {
         })));
         let bezwaar = bezwaren(corpus, &mut cell, &besluit.id, &velden, day("2026-11-01")).unwrap();
         (cell, bezwaar.id)
+    }
+
+    /// The fictitious parking ordinance of Wilgendaal.
+    const ORDINANCE: &str = "parkeerverordening_gemeente_wilgendaal";
+
+    /// The home care business of [`hardheid_bezwaar`] applies for a permit
+    /// for `kenteken` on `dag`, decided the same day.
+    fn thuiszorg_vraagt(corpus: &Corpus, cell: &mut Cellen, kenteken: &str, dag: &str) -> Gram {
+        let mut velden = corpus.casus.voorbeeld.aanvraag.clone();
+        velden.insert("kvk_nummer".into(), json!("99990044"));
+        velden.insert("naam_aanvrager".into(), json!("Thuiszorg De Linde"));
+        velden.insert("kenteken".into(), json!(kenteken));
+        let app = aanvragen(corpus, cell, &velden, day(dag)).unwrap();
+        let bevindingen = map(json!({ "toepassing_leidt_tot_onaanvaardbare_gevolgen": false }));
+        besluiten(corpus, cell, &app.id, &bevindingen, day(dag))
+            .unwrap()
+            .besluit
+    }
+
+    #[test]
+    fn bedrijfsparkeervergunning_a_permit_revoked_at_the_holders_request_no_longer_counts() {
+        // Article 5, under a, of the fictitious ordinance: the college may
+        // revoke a permit at the holder's request. The business holds the
+        // maximum of two, asks for the first to be revoked, and the college
+        // revokes it. At the next application the municipality counts one
+        // valid permit, so the business gets a new one. Before RFC-056 a
+        // revocation was no decision in the chronicle and the permit kept
+        // counting until it expired.
+        let corpus = casus("bedrijfsparkeervergunning");
+        let mut cell = corpus.cell().unwrap();
+        let uitkomst = "bedrijfsparkeervergunning_verleend";
+        let eerste = thuiszorg_vraagt(&corpus, &mut cell, "ZZ-001-Z", "2026-10-20");
+        let tweede = thuiszorg_vraagt(&corpus, &mut cell, "ZZ-002-Z", "2026-10-22");
+        assert_eq!(eerste.outputs[uitkomst], json!(true));
+        assert_eq!(tweede.outputs[uitkomst], json!(true));
+        // Without the revocation, two is the maximum: a third is refused.
+        let zonder = thuiszorg_vraagt(&corpus, &mut cell.sandbox(), "ZZ-009-Z", "2026-11-10");
+        assert_eq!(zonder.outputs[uitkomst], json!(false));
+
+        // The request refers to the permit; the holder supplies what an
+        // application holds (Awb 4:1, 4:2).
+        let mut velden = corpus.casus.voorbeeld.aanvraag.clone();
+        velden.retain(|naam, _| !["kvk_nummer", "kenteken"].contains(&naam.as_str()));
+        velden.insert("naam_aanvrager".into(), json!("Thuiszorg De Linde"));
+        velden.insert("dagtekening".into(), json!("2026-11-02"));
+        velden.insert(
+            "gevraagde_beschikking".into(),
+            json!("intrekking van de bedrijfsparkeervergunning"),
+        );
+        let verzoek = {
+            let (eigen, sfeer) = cell.splits();
+            eigen
+                .record_submission(
+                    &mut corpus.service().unwrap(),
+                    &sfeer,
+                    ORDINANCE,
+                    "5",
+                    Some(regelrecht_cel::Reference::Local(&eerste.id)),
+                    &velden,
+                    day("2026-11-02"),
+                )
+                .unwrap()
+        };
+        assert_eq!(verzoek.refers_to.as_deref(), Some(eerste.id.as_str()));
+        let ingetrokken = beslissen(
+            &corpus,
+            &mut cell,
+            ORDINANCE,
+            "5",
+            &verzoek.id,
+            &map(json!({ "verzoek_om_intrekking_ingewilligd": true })),
+            day("2026-11-03"),
+        )
+        .unwrap()
+        .remove(0);
+        assert_eq!(
+            ingetrokken.outputs["bedrijfsparkeervergunning_ingetrokken"],
+            json!(true)
+        );
+
+        // The revocation is a decision like any other: an objection against
+        // it that succeeds revokes it (Awb 7:11), and the permit counts again.
+        let mut bezwaard = cell.sandbox();
+        let mut velden = corpus.casus.voorbeeld.bezwaar.clone();
+        velden.extend(map(json!({
+            "naam_indiener": "Thuiszorg De Linde",
+            "gronden_bezwaar_of_beroep": "de vergunning is toch nodig",
+            "dagtekening_bezwaar_of_beroepschrift": "2026-11-05",
+        })));
+        let bezwaar = bezwaren(
+            &corpus,
+            &mut bezwaard,
+            &ingetrokken.id,
+            &velden,
+            day("2026-11-05"),
+        )
+        .unwrap();
+        let op_bezwaar = beslissen_op_bezwaar(
+            &corpus,
+            &mut bezwaard,
+            &bezwaar.id,
+            &map(json!({ "verzoek_om_intrekking_ingewilligd": false })),
+            day("2026-11-06"),
+        )
+        .unwrap();
+        assert_eq!(
+            op_bezwaar["beslissing"]["outputs"]["bestreden_besluit_herroepen"],
+            json!(true),
+            "{op_bezwaar}"
+        );
+        let na_bezwaar = thuiszorg_vraagt(&corpus, &mut bezwaard, "ZZ-003-Z", "2026-11-10");
+        assert_eq!(na_bezwaar.outputs[uitkomst], json!(false), "{na_bezwaar:?}");
+
+        let derde = thuiszorg_vraagt(&corpus, &mut cell, "ZZ-003-Z", "2026-11-10");
+        assert_eq!(derde.outputs[uitkomst], json!(true), "{derde:?}");
     }
 
     #[test]

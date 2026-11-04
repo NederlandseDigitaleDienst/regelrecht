@@ -52,8 +52,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use chrono::NaiveDate;
 use regelrecht_engine::{
     Answer as EngineAnswer, AnswerProvenance, AnswerRequest, ArticleBasedLaw, ArticleResult,
-    Authority, Call, Chronicle as ChronicleSource, ChronicleRead, EngineError, LawExecutionService,
-    OpenTermAnswerer, RegulatoryLayer, Value,
+    Authority, Call, Chronicle as ChronicleSource, ChronicleEntry, ChronicleRead, EngineError,
+    LawExecutionService, OpenTermAnswerer, RegulatoryLayer, Value,
 };
 use serde::Serialize;
 use serde_json::Map;
@@ -128,8 +128,74 @@ pub fn bindings(service: &LawExecutionService, day: NaiveDate) -> Vec<Binding> {
     uit
 }
 
+/// One read of [`chronicle_rows_of`]: the decisions under an article of a
+/// legal character, or the instances of a fact (`<regulation>#<article>`
+/// and the fact's name).
+pub enum Read<'r> {
+    Decisions(&'r str, String),
+    Fact(&'r str, &'r str),
+}
+
+impl Read<'_> {
+    /// Whether `gram` is one this read gives a row of.
+    fn takes(&self, gram: &Gram) -> bool {
+        match self {
+            Read::Decisions(basis, kind) => is_decision_under(gram, basis, kind),
+            Read::Fact(basis, name) => is_fact(gram, basis, name),
+        }
+    }
+}
+
+/// Whether `gram` is a decision under `basis` of the legal character `kind`.
+fn is_decision_under(gram: &Gram, basis: &str, kind: &str) -> bool {
+    gram.refers_to.is_some() && gram.kind == kind && gram.basis == basis
+}
+
+/// Whether `gram` is an executogram of the fact `name` of article `basis`.
+fn is_fact(gram: &Gram, basis: &str, name: &str) -> bool {
+    gram.kind == EXECUTOGRAM && gram.basis == basis && gram.fact.as_deref() == Some(name)
+}
+
+/// The rows of every read of `reads` in one list, in the order of the
+/// chronicle (`source.chronicle`, RFC-056): the order in which the cell
+/// recorded them, which is by `recorded_on` and, within one day, the order
+/// of recording, since a chronicle only appends and never goes back in
+/// time ([`crate::chronicle::Chronicle::append`]). A chronolexogram that
+/// more than one read takes gives one row.
+pub fn chronicle_rows_of(
+    service: &LawExecutionService,
+    grams: &[Gram],
+    reads: &[Read<'_>],
+) -> Result<Value> {
+    let grams: Vec<Gram> = grams
+        .iter()
+        .filter_map(|g| {
+            let read = reads.iter().find(|r| r.takes(g))?;
+            Some(match read {
+                Read::Fact(..) => fact_row_gram(g),
+                Read::Decisions(..) => g.clone(),
+            })
+        })
+        .collect();
+    rows_of(service, grams.iter())
+}
+
+/// `gram`, an executogram, with the chronolexogram it refers to as a field
+/// [`ROW_REFERS_TO`], as its row gives it.
+fn fact_row_gram(gram: &Gram) -> Gram {
+    let mut row = gram.clone();
+    row.fields.insert(
+        ROW_REFERS_TO.to_string(),
+        gram.refers_to
+            .clone()
+            .map_or(serde_json::Value::Null, serde_json::Value::String),
+    );
+    row
+}
+
 /// The decisions in `grams` taken under `basis` (`<regulation>#<article>`),
-/// whose legal character is `kind`, as rows (`row`).
+/// whose legal character is `kind`, as rows (`row`), in the order of the
+/// chronicle.
 pub fn rows(
     service: &LawExecutionService,
     grams: &[Gram],
@@ -138,9 +204,7 @@ pub fn rows(
 ) -> Result<Value> {
     rows_of(
         service,
-        grams
-            .iter()
-            .filter(|g| g.refers_to.is_some() && g.kind == kind && g.basis == basis),
+        grams.iter().filter(|g| is_decision_under(g, basis, kind)),
     )
 }
 
@@ -157,17 +221,8 @@ pub fn executogram_rows(
     let (basis, name) = crate::shape::split_fact(fact)?;
     let grams: Vec<Gram> = grams
         .iter()
-        .filter(|g| g.kind == EXECUTOGRAM && g.basis == basis && g.fact.as_deref() == Some(name))
-        .map(|g| {
-            let mut row = g.clone();
-            row.fields.insert(
-                ROW_REFERS_TO.to_string(),
-                g.refers_to
-                    .clone()
-                    .map_or(serde_json::Value::Null, serde_json::Value::String),
-            );
-            row
-        })
+        .filter(|g| is_fact(g, basis, name))
+        .map(fact_row_gram)
         .collect();
     rows_of(service, grams.iter())
 }
@@ -371,7 +426,7 @@ pub struct Reader<'c> {
     /// The rows the reader gave, per read (whether decisions, and the
     /// article or fact) and day: the chronicle does not change while it
     /// reads.
-    read: RefCell<BTreeMap<(bool, String, NaiveDate), Value>>,
+    read: RefCell<BTreeMap<(String, NaiveDate), Value>>,
 }
 
 impl<'c> Reader<'c> {
@@ -523,27 +578,43 @@ impl Reader<'_> {
         read: ChronicleRead<'_>,
         day: NaiveDate,
     ) -> Result<Value> {
-        let key = match read {
-            ChronicleRead::Decisions(basis) => (true, basis.to_string(), day),
-            ChronicleRead::Facts(fact) => (false, fact.to_string(), day),
-        };
+        let key = (read.to_string(), day);
         if let Some(rows) = self.read.borrow().get(&key) {
             return Ok(rows.clone());
         }
+        let checked_fact = |fact: &str| {
+            // A fact its article does not require, the cell never records.
+            crate::shape::fact_fields(service, fact, day, None).map_err(|e| {
+                setup(format!(
+                    "reduction '{}' reads the facts {fact}: {e}",
+                    law.id
+                ))
+            })
+        };
         let rows = match read {
             ChronicleRead::Decisions(basis) => {
                 let kind = decision_kind(service, basis, day)?;
                 rows(service, &self.grams, basis, &kind)?
             }
             ChronicleRead::Facts(fact) => {
-                // A fact its article does not require, the cell never records.
-                crate::shape::fact_fields(service, fact, day, None).map_err(|e| {
-                    setup(format!(
-                        "reduction '{}' reads the facts {fact}: {e}",
-                        law.id
-                    ))
-                })?;
+                checked_fact(fact)?;
                 executogram_rows(service, &self.grams, fact)?
+            }
+            ChronicleRead::Chronicle(entries) => {
+                let mut reads = Vec::with_capacity(entries.len());
+                for entry in entries {
+                    reads.push(match entry {
+                        ChronicleEntry::Decisions(basis) => {
+                            Read::Decisions(basis, decision_kind(service, basis, day)?)
+                        }
+                        ChronicleEntry::Facts(fact) => {
+                            checked_fact(fact)?;
+                            let (basis, name) = crate::shape::split_fact(fact)?;
+                            Read::Fact(basis, name)
+                        }
+                    });
+                }
+                chronicle_rows_of(service, &self.grams, &reads)?
             }
         };
         self.read.borrow_mut().insert(key, rows.clone());
@@ -679,6 +750,50 @@ mod tests {
                 "verlof_verleend": true,
             }])
         );
+    }
+
+    #[test]
+    fn the_rows_of_a_chronicle_come_in_the_order_the_cell_recorded_them() {
+        // RFC-056: the rows of several reads in one list, by the day each
+        // was recorded and, within a day, in the order of recording; not
+        // read by read. A chronolexogram two reads take comes once.
+        const OBJECTION: &str = "algemene_wet_bestuursrecht#7:11";
+        const FACT: &str = "algemene_wet_bestuursrecht#8:79";
+        let mut decision = gram("BESCHIKKING", BASIS, Some("a"));
+        decision.id = "1-decision".into();
+        let mut on_objection = gram("BESCHIKKING", OBJECTION, Some("b"));
+        on_objection.id = "2-objection".into();
+        let mut receipt = gram(EXECUTOGRAM, FACT, Some("1-decision"));
+        receipt.id = "3-receipt".into();
+        receipt.fact = Some("afschrift_van_de_uitspraak".into());
+        receipt.outputs.clear();
+        let mut later = gram("BESCHIKKING", BASIS, Some("c"));
+        later.id = "4-decision".into();
+        later.recorded_on = NaiveDate::from_ymd_opt(2026, 10, 21).unwrap();
+        let grams = [decision, on_objection, receipt, later];
+        let reads = [
+            Read::Fact(FACT, "afschrift_van_de_uitspraak"),
+            Read::Decisions(OBJECTION, "BESCHIKKING".into()),
+            Read::Decisions(BASIS, "BESCHIKKING".into()),
+            Read::Decisions(BASIS, "BESCHIKKING".into()),
+        ];
+        let rows = serde_json::to_value(
+            chronicle_rows_of(&LawExecutionService::new(), &grams, &reads).unwrap(),
+        )
+        .unwrap();
+        let ids: Vec<&str> = rows
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            ids,
+            ["1-decision", "2-objection", "3-receipt", "4-decision"]
+        );
+        // The receipt's row gives the decision it refers to, as under
+        // `source.facts`.
+        assert_eq!(rows[2]["refers_to"], json!("1-decision"));
     }
 
     #[test]

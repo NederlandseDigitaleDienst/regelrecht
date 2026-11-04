@@ -94,6 +94,7 @@ export const OPERATION_LABELS: Record<string, string> = {
   // Verzameling
   LIST: 'lijst',
   FOREACH: 'voor elk',
+  FOLD: 'afspelen',
 };
 
 // DATE_DIFF units are English in the YAML (schema enum); subtitles read in Dutch.
@@ -241,6 +242,8 @@ function getChildOperations(node: OperationNode): OperationNode[] {
   if (isOperationNode(node.collection)) children.push(node.collection);
   if (isOperationNode(node.body)) children.push(node.body);
   if (isOperationNode(node.filter)) children.push(node.filter);
+  // FOLD also holds one in `initial` (RFC-056); `as` and `state` are names.
+  if (isOperationNode(node.initial)) children.push(node.initial);
 
   if (Array.isArray(node.cases)) {
     for (const c of node.cases) {

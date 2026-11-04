@@ -810,6 +810,7 @@ pub(crate) fn action_to_operation(
         Operation::If
         | Operation::List
         | Operation::ForEach
+        | Operation::Fold
         | Operation::Age
         | Operation::DateAdd
         | Operation::Date

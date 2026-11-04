@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.13",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.14",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -684,6 +684,11 @@
                                       "required": [
                                         "facts"
                                       ]
+                                    },
+                                    {
+                                      "required": [
+                                        "chronicle"
+                                      ]
                                     }
                                   ]
                                 }
@@ -718,6 +723,11 @@
                                   {
                                     "required": [
                                       "facts"
+                                    ]
+                                  },
+                                  {
+                                    "required": [
+                                      "chronicle"
                                     ]
                                   }
                                 ]
@@ -1199,7 +1209,7 @@
                       "$ref": "#/definitions/variableReference"
                     }
                   ],
-                  "description": "The decisions taken under an article: `<regulation>#<article>`, or (since v0.8.11) a `$`-reference to a parameter of the reading article that holds one. A list with one row per decision. A row holds the fields, the findings and the outputs of the decision under their own names, the article it was taken under as `basis`, and its `id`. A `decision` value `{basis, fields, findings, outputs}` in a field or an output, such as the decision a judgment sets in place, is a row in turn: with the `id` of the record that holds it, and with every output its article declares, null where the value has none. Only a `REDUCTIE` rulework reads it (RFC-048), and only a data source (or the caller, as a parameter) answers it: the cell that runs the reduction binds the decisions in its chronicle, also for a reduction that one calls; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters` or `endpoint`. Without a source that answers it the input is an error, never an empty list."
+                  "description": "The decisions taken under an article: `<regulation>#<article>`, or (since v0.8.11) a `$`-reference to a parameter of the reading article that holds one. A list with one row per decision. A row holds the fields, the findings and the outputs of the decision under their own names, the article it was taken under as `basis`, and its `id`. A `decision` value `{basis, fields, findings, outputs}` in a field or an output, such as the decision a judgment sets in place, is a row in turn: with the `id` of the record that holds it, and with every output its article declares, null where the value has none. In the order of the chronicle, as under `chronicle` (since v0.8.14). Only a `REDUCTIE` rulework reads it (RFC-048), and only a data source (or the caller, as a parameter) answers it: the cell that runs the reduction binds the decisions in its chronicle, also for a reduction that one calls; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters` or `endpoint`. Without a source that answers it the input is an error, never an empty list."
                 },
                 "facts": {
                   "type": "string",
@@ -1207,7 +1217,49 @@
                   "not": {
                     "pattern": " lid [0-9]"
                   },
-                  "description": "Since v0.8.7 (`executograms` in v0.8.6): the recorded instances of a fact an article requires, `<regulation>#<article>#<fact>`: the article and the `fact` of its `requires` entry, since an article may require more than one fact. A list with one row per recorded instance, holding the parameters the `requires` entry lists, the record's `basis` and `id`, and the decision it refers to as `refers_to`, or null; a `decision` value in it is a row as under `decisions`. Only a `REDUCTIE` rulework reads it (RFC-048), and only a data source (or the caller, as a parameter) answers it: its cell binds the facts it recorded; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters`, `endpoint` or `decisions`. Without a source that answers it the input is an error, never an empty list."
+                  "description": "Since v0.8.7 (`executograms` in v0.8.6): the recorded instances of a fact an article requires, `<regulation>#<article>#<fact>`: the article and the `fact` of its `requires` entry, since an article may require more than one fact. A list with one row per recorded instance, holding the parameters the `requires` entry lists, the record's `basis` and `id`, and the decision it refers to as `refers_to`, or null; a `decision` value in it is a row as under `decisions`. In the order of the chronicle, as under `chronicle` (since v0.8.14). Only a `REDUCTIE` rulework reads it (RFC-048), and only a data source (or the caller, as a parameter) answers it: its cell binds the facts it recorded; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters`, `endpoint` or `decisions`. Without a source that answers it the input is an error, never an empty list."
+                },
+                "chronicle": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "decisions": {
+                        "oneOf": [
+                          {
+                            "$ref": "#/definitions/articleReference"
+                          },
+                          {
+                            "$ref": "#/definitions/variableReference"
+                          }
+                        ],
+                        "description": "The decisions taken under an article, as under `decisions` on the source: `<regulation>#<article>`, or a `$`-reference to a parameter of the reading article that holds one."
+                      },
+                      "facts": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9_]+#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?#[a-z][a-z0-9_]*$",
+                        "not": {
+                          "pattern": " lid [0-9]"
+                        },
+                        "description": "The recorded instances of a fact an article requires, as under `facts` on the source: `<regulation>#<article>#<fact>`."
+                      }
+                    },
+                    "oneOf": [
+                      {
+                        "required": [
+                          "decisions"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "facts"
+                        ]
+                      }
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Since v0.8.14 (RFC-056): the rows of several reads of the chronicle in one list, in the order of the chronicle. Each entry reads `decisions` or `facts` and gives the rows they give on their own; a row of a decision or fact that more than one entry reads comes once. The order is that in which the facts became facts in the chronicle: by the day the cell recorded them (`recorded_on`), and within one day in the order the cell recorded them, which its chronicle keeps. Only a `REDUCTIE` rulework reads it, and only a data source (or the caller, as a parameter) answers it, as for `decisions`. It stands alone, without `regulation`, `output`, `parameters`, `endpoint`, `decisions`, `facts`, `article` or `reduction`."
                 },
                 "reduction": {
                   "type": "string",
@@ -1284,6 +1336,11 @@
                         "required": [
                           "facts"
                         ]
+                      },
+                      {
+                        "required": [
+                          "chronicle"
+                        ]
                       }
                     ]
                   }
@@ -1356,6 +1413,57 @@
                         "required": [
                           "article"
                         ]
+                      },
+                      {
+                        "required": [
+                          "chronicle"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "chronicle": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "regulation"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "output"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "parameters"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "endpoint"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "decisions"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "facts"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "article"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "reduction"
+                        ]
                       }
                     ]
                   }
@@ -1374,6 +1482,19 @@
                 },
                 {
                   "facts": "fictief_beleid_vestiging_obs_de_klimop#1#vestiging"
+                },
+                {
+                  "chronicle": [
+                    {
+                      "decisions": "$basis"
+                    },
+                    {
+                      "decisions": "algemene_wet_bestuursrecht#7:11"
+                    },
+                    {
+                      "facts": "algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak"
+                    }
+                  ]
                 },
                 {
                   "reduction": "verlof_al_verleend_in_schooljaar",
@@ -1848,6 +1969,76 @@
         }
       ]
     },
+    "foldOperation": {
+      "type": "object",
+      "description": "Since v0.8.14: play a collection through from a start value, element by element and in the order of the collection, as a fold (RFC-056). Each element gives the next state from the state so far; the result is the state after the last element.",
+      "required": [
+        "operation",
+        "collection",
+        "as",
+        "state",
+        "initial",
+        "body"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "FOLD",
+          "description": "Operation discriminator. Pins this object to the FOLD form; the engine dispatches on it and the schema rejects any other key combination."
+        },
+        "collection": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Expression evaluating to the array to play through, in its own order. A non-array is a single element; null is an empty collection, which gives `initial`."
+        },
+        "as": {
+          "type": "string",
+          "pattern": "^[a-z_][a-z0-9_]*$",
+          "description": "Name bound to the current element in `body`. Unlike a FOREACH without `as`, the fields of an object element are not bound under their own names (RFC-049)."
+        },
+        "state": {
+          "type": "string",
+          "pattern": "^[a-z_][a-z0-9_]*$",
+          "description": "Name bound to the state so far in `body`: `initial` for the first element, then what `body` gave for the element before. It must differ from `as`."
+        },
+        "initial": {
+          "$ref": "#/definitions/operationValue",
+          "description": "The state before the first element, evaluated in the scope where the FOLD appears."
+        },
+        "body": {
+          "$ref": "#/definitions/operationValue",
+          "description": "Evaluated once per element, with `as` and `state` bound; its value is the next state. The two names stay visible in operations nested in `body`, a FOREACH among them, unless such an operation binds the same name."
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The article this particular step rests on. Set it where one action combines rules from several provisions and the operands come from different articles, so a trace can name the provision behind each step."
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operation": "FOLD",
+          "collection": "$kroniek",
+          "as": "rij",
+          "state": "geldend",
+          "initial": {
+            "operation": "LIST",
+            "items": []
+          },
+          "body": {
+            "operation": "ADD",
+            "values": [
+              "$geldend",
+              {
+                "operation": "LIST",
+                "items": [
+                  "$rij"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
     "ageOperation": {
       "type": "object",
       "description": "Calculate age in complete years between two dates.",
@@ -2079,6 +2270,7 @@
         "IN",
         "LIST",
         "FOREACH",
+        "FOLD",
         "AGE",
         "DATE_ADD",
         "DATE",
@@ -2120,6 +2312,9 @@
         },
         {
           "$ref": "#/definitions/foreachOperation"
+        },
+        {
+          "$ref": "#/definitions/foldOperation"
         },
         {
           "$ref": "#/definitions/ageOperation"

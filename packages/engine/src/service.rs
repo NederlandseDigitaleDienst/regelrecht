@@ -51,6 +51,7 @@ use crate::types::{
 };
 use crate::uri::RegelrechtUri;
 use chrono::NaiveDate;
+use regelrecht_law_model::ChronicleEntry;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -5249,6 +5250,29 @@ impl LawExecutionService {
         Ok(())
     }
 
+    /// The article that the parameter `path` of `decisions: $<path>` holds
+    /// (schema v0.8.11): an article reference, or a type mismatch for any
+    /// other value, null and unknown included.
+    fn chronicle_article(
+        &self,
+        law: &ArticleBasedLaw,
+        input: &Input,
+        reference: &str,
+        path: &str,
+        context: &RuleContext,
+    ) -> Result<String> {
+        match context.resolve(path)? {
+            Value::String(s) if regelrecht_law_model::is_article_reference(&s) => Ok(s),
+            other => Err(EngineError::TypeMismatch {
+                expected: format!(
+                    "an article reference in {reference} for input '{}' of {}",
+                    input.name, law.id
+                ),
+                actual: other.to_string(),
+            }),
+        }
+    }
+
     /// Resolve an input that reads a chronicle (`source.decisions`,
     /// `source.facts`, RFC-048) from the chronicle of the call. The article
     /// of `decisions: $<parameter>` is the value of that parameter, an
@@ -5266,28 +5290,34 @@ impl LawExecutionService {
     ) -> Result<Value> {
         let _guard = res_ctx.trace_guard(&input.name, PathNodeType::Resolve);
         let named;
+        let resolved: Vec<ChronicleEntry>;
         let read = match read {
             ChronicleRead::Decisions(reference) => match reference.strip_prefix('$') {
                 None => read,
-                Some(path) => match context.resolve(path)? {
-                    Value::String(s) if regelrecht_law_model::is_article_reference(&s) => {
-                        named = s;
-                        ChronicleRead::Decisions(&named)
-                    }
-                    other => {
-                        let error = EngineError::TypeMismatch {
-                            expected: format!(
-                                "an article reference in {reference} for input '{}' of {}",
-                                input.name, law.id
-                            ),
-                            actual: other.to_string(),
-                        };
-                        res_ctx.trace_set_message(error.to_string());
-                        return Err(error);
-                    }
-                },
+                Some(path) => {
+                    named = self
+                        .chronicle_article(law, input, reference, path, context)
+                        .inspect_err(|e| res_ctx.trace_set_message(e.to_string()))?;
+                    ChronicleRead::Decisions(&named)
+                }
             },
             ChronicleRead::Facts(_) => read,
+            ChronicleRead::Chronicle(entries) => {
+                resolved = entries
+                    .iter()
+                    .map(|entry| match entry {
+                        ChronicleEntry::Decisions(reference) => match reference.strip_prefix('$') {
+                            None => Ok(entry.clone()),
+                            Some(path) => self
+                                .chronicle_article(law, input, reference, path, context)
+                                .map(ChronicleEntry::Decisions),
+                        },
+                        ChronicleEntry::Facts(_) => Ok(entry.clone()),
+                    })
+                    .collect::<Result<Vec<_>>>()
+                    .inspect_err(|e| res_ctx.trace_set_message(e.to_string()))?;
+                ChronicleRead::Chronicle(&resolved)
+            }
         };
         if let Some(chronicle) = res_ctx.chronicle {
             let rows = chronicle.rows(self, law, read, res_ctx.calculation_date);

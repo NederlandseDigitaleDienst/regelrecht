@@ -76,6 +76,7 @@ pub use engine::{ArticleEngine, ArticleResult, FilledBy, OpenTermFilled, OutputP
 pub use error::{EngineError, ExternalError, Result};
 pub use operations::{evaluate_value, execute_operation, ValueResolver};
 pub use receipt::ExecutionReceipt;
+pub use regelrecht_law_model::ChronicleEntry;
 pub use resolver::{
     DeclarationKind, DeclarationNotInForce, DeclarationsFromOtherVersion, DelegationRefusal,
     HookEntry, ImplementationLookup, ProcedureMiss, RuleResolver,

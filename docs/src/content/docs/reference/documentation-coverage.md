@@ -62,6 +62,7 @@ A reader meets these constructs in a rulework or a running service whatever the 
 | RFC-052 | Superseded: merged into RFC-045, RFC-046, RFC-048 and RFC-051 | [Competent Authority](../concepts/competent-authority#who-answers-an-open-term) |
 | RFC-053 | The appeal to the administrative court (`BEROEP`, `UITSPRAAK`, Awb 8:70 and 8:72) | [Applications, Decisions and Objections](../concepts/administrative-procedures#appeal), [Schema](./schema) |
 | RFC-054 | RegelRijm, a Dutch reading of an action tree (partially built: the reading and the editor pane, not yet the presenter) | [Shared Frontend Package](../components/frontend-shared#regelrijm-regelrijmindex), [Editor](../components/frontend) |
+| RFC-056 | A reduction plays the chronicle through (`FOLD`, `source.chronicle`, the order of the rows; draft, partially built) | [Collections](../concepts/collections#playing-a-collection-through), [Chronolexography](../concepts/chronolexography#answering-from-the-chronicle), [Schema](./schema) |
 
 ## Backlog
 

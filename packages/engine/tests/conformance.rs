@@ -491,6 +491,7 @@ const UNCOVERED_SCHEMA_KEYS: &[(&str, &str)] = &[
     ("datePartOperation.legal_basis", "model drops it"),
     ("dayOfWeekOperation.legal_basis", "model drops it"),
     ("foreachOperation.legal_basis", "model drops it"),
+    ("foldOperation.legal_basis", "model drops it"),
     ("ifOperation.legal_basis", "model drops it"),
     ("inOperation.legal_basis", "model drops it"),
     ("listOperation.legal_basis", "model drops it"),

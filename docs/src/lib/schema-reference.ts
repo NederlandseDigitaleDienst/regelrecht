@@ -210,6 +210,7 @@ const CONCEPTS: Record<string, ConceptLink> = {
 /** Operation definition -> the concept page covering it. */
 const OPERATION_CONCEPTS: Record<string, ConceptLink> = {
   foreachOperation: { href: '/concepts/collections#iterating', label: 'Collections' },
+  foldOperation: { href: '/concepts/collections#playing-a-collection-through', label: 'Collections' },
   listOperation: { href: '/concepts/collections#counting', label: 'Collections' },
   inOperation: { href: '/concepts/collections#counting', label: 'Collections' },
   roundingOperation: {

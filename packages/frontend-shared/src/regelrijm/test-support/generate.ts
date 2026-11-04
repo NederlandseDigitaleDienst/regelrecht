@@ -84,6 +84,8 @@ export function generateAction(rand: () => number, maxDepth = 4): { output: stri
         if (c) n.combine = c;
         return n;
       }
+      case 'FOLD':
+        return { operation: 'FOLD', collection: value(d), as: pick(['item', 'rij', 'x1']), state: pick(['stand', 's2']), initial: value(d), body: value(d) };
       case 'AGE':
         return { operation: 'AGE', date_of_birth: value(d), reference_date: value(d) };
       case 'DATE_ADD': {

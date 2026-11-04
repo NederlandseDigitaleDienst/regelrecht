@@ -139,6 +139,11 @@ export function literalUnits(
         at('filter', null);
         at('body', ['ADD', 'MIN', 'MAX', 'ONLY', undefined].includes(node.combine as string | undefined) ? unit : null);
         return;
+      case 'FOLD':
+        at('collection', null);
+        at('initial', unit);
+        at('body', unit);
+        return;
       case 'ROUND': case 'CEIL': case 'FLOOR':
         at('value', unit);
         return;

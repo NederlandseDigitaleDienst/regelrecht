@@ -1371,7 +1371,8 @@ impl Cell {
 
     /// For each field of type `decision` that the decision of `shape` takes
     /// from the submission `applied`, the id it holds and the decision value
-    /// the engine gets, refreshed on `on` ([`refresh`]).
+    /// the engine gets ([`Cell::nested_value`]), refreshed on `on`
+    /// ([`refresh`]).
     fn decision_values(
         &self,
         service: &mut LawExecutionService,
@@ -1390,7 +1391,10 @@ impl Cell {
                 continue;
             };
             let gram = self.decision_gram(service, id)?.clone();
-            let mut value = self.decision_value(service, sphere, &gram)?;
+            // Nested, so a decision that refers to another decision in turn,
+            // such as a revocation of a permit, can be called anew on
+            // objection with the permit as a decision value (RFC-056).
+            let mut value = self.nested_value(service, sphere, &gram)?;
             refresh(service, &gram, &mut value, on)?;
             values.insert(input.field.name.clone(), (id.clone(), value));
         }

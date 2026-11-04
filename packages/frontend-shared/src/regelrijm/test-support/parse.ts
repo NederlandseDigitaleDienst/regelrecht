@@ -294,6 +294,9 @@ class Parser {
     }
     out.push(...this.dateAdd(pos));
     out.push(...this.aggregate(pos));
+    // FOLD (RFC-056): `de stand S na elke X in C vanaf I, telkens B`.
+    out.push(...this.seq(pos, ['de stand', this.localName, 'na elke', this.localName, 'in', this.closed, 'vanaf', this.closed, ',', 'telkens', this.closed],
+      (s, x, c, i, b) => ({ operation: 'FOLD', collection: c, as: x, state: s, initial: i, body: b })));
     return out;
   });
 

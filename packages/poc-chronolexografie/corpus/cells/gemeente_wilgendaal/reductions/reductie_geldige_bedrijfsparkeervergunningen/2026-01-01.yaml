@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: reductie_geldige_bedrijfsparkeervergunningen
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
@@ -17,8 +17,11 @@ valid_from: '2026-01-01'
 # reductie telt per bedrijf, over beide vergunninggebieden. Artikel 3 van het
 # uitvoeringsbesluit stelt het maximum per gebied vast, maar een vergunning
 # blijft geldig tot zij afloopt of wordt ingetrokken (artikel 5 van de
-# verordening), ook na een verhuizing. Er is geen bekendmaking; de url wijst
-# naar het model van de verordening.
+# verordening), ook na een verhuizing. Een intrekking op verzoek (artikel 5,
+# onder a) is een besluit in de kroniek; de reductie laat de ingetrokken
+# vergunning weg (RFC-056). Een intrekking uit eigen beweging (onder b) kent
+# de cel nog niet. Er is geen bekendmaking; de url wijst naar het model van
+# de verordening.
 url: https://lokaleregelgeving.overheid.nl/CVDR642699
 name: Geldige bedrijfsparkeervergunningen bij de gemeente Wilgendaal (reductie)
 articles:
@@ -30,7 +33,9 @@ articles:
       die op de dag van het besluit nog geldig zijn: verleend in een besluit
       op een aanvraag (artikel 2 van de fictieve parkeerverordening), niet
       herroepen en niet door de bestuursrechter vernietigd (Awb 7:11 en 8:72),
-      en geldig tot en met de dag van het besluit of later. Verleende de
+      niet ingetrokken in een besluit dat geldt (artikel 5 van de fictieve
+      parkeerverordening), en geldig tot en met de dag van het besluit of
+      later. Verleende de
       bestuursrechter zelf een vergunning (Awb 8:72, derde lid, onder b), dan
       telt het systeem die niet: het kent haar geldigheid niet.
     url: https://lokaleregelgeving.overheid.nl/CVDR642699
@@ -57,6 +62,16 @@ articles:
               output: geldende_besluiten
               parameters:
                 basis: parkeerverordening_gemeente_wilgendaal#2
+          # De besluiten op een verzoek om intrekking (artikel 5, onder a)
+          # die gelden. Een intrekking kan zelf herroepen of vernietigd
+          # worden; dan geldt de vergunning weer.
+          - name: geldende_intrekkingsbesluiten
+            type: array
+            source:
+              regulation: reductie_algemene_wet_bestuursrecht
+              output: geldende_besluiten
+              parameters:
+                basis: parkeerverordening_gemeente_wilgendaal#5
         output:
           - name: aantal_geldige_bedrijfsparkeervergunningen
             type: number
@@ -68,9 +83,8 @@ articles:
           # verleende, geldig tot en met de dag van het besluit of later. Een
           # weigering telt niet. Een vergunning die de bestuursrechter zelf
           # verleende, draagt geen vergunning_geldig_tot (null): die wordt
-          # alleen bij een besluit van het college afgeleid. Een ingetrokken
-          # vergunning (artikel 5 van de verordening) ziet deze reductie niet:
-          # een intrekking staat niet als besluit in de kroniek. Met `as` is
+          # alleen bij een besluit van het college afgeleid. Een vergunning
+          # die een geldend besluit introk (artikel 5), telt niet. Met `as` is
           # een besluit alleen als `$besluit.<veld>` te lezen (RFC-049).
           - output: aantal_geldige_bedrijfsparkeervergunningen
             value:
@@ -89,6 +103,19 @@ articles:
                   - operation: EQUALS
                     subject: $besluit.kvk_nummer
                     value: $kvk_nummer
+                  - operation: NOT
+                    value:
+                      operation: IN
+                      subject: $besluit.id
+                      value:
+                        operation: FOREACH
+                        collection: $geldende_intrekkingsbesluiten
+                        as: intrekking
+                        filter:
+                          operation: EQUALS
+                          subject: $intrekking.bedrijfsparkeervergunning_ingetrokken
+                          value: true
+                        body: $intrekking.bedrijfsparkeervergunning
                   - operation: NOT
                     value:
                       operation: EQUALS

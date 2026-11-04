@@ -58,6 +58,7 @@
 use crate::answer::ChronicleRead;
 use crate::article::ArticleBasedLaw;
 use crate::error::{EngineError, Result};
+use regelrecht_law_model::ChronicleEntry;
 use regelrecht_law_model::{
     ActionOperation, ActionValue, CompetentAuthority, MachineReadable, RegulatoryLayer,
 };
@@ -152,6 +153,7 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
                     ("endpoint", source.endpoint.is_some()),
                     ("decisions", source.decisions.is_some()),
                     ("facts", source.facts.is_some()),
+                    ("chronicle", source.chronicle.is_some()),
                     ("article", source.article.is_some()),
                 ];
                 if let Some((key, _)) = beside.iter().find(|(_, present)| *present) {
@@ -199,6 +201,14 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
                     input.name
                 ));
             }
+            if source.chronicle.is_some() && (source.decisions.is_some() || source.facts.is_some())
+            {
+                return refuse(format!(
+                    "{where_}: input '{}' reads {read} and the chronicle besides; several \
+                     reads go into one list under chronicle (RFC-056)",
+                    input.name
+                ));
+            }
             if source.regulation.is_some()
                 || source.output.is_some()
                 || source.parameters.is_some()
@@ -219,11 +229,21 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
             }
             // The article whose decisions it reads may be the value of a
             // parameter (schema v0.8.11): one the article declares itself.
-            if let Some(name) = source
-                .decisions
-                .as_deref()
-                .and_then(|d| d.strip_prefix('$'))
-            {
+            let named =
+                source
+                    .decisions
+                    .iter()
+                    .chain(
+                        source
+                            .chronicle
+                            .iter()
+                            .flatten()
+                            .filter_map(|entry| match entry {
+                                ChronicleEntry::Decisions(basis) => Some(basis),
+                                ChronicleEntry::Facts(_) => None,
+                            }),
+                    );
+            for name in named.filter_map(|d| d.strip_prefix('$')) {
                 let declared = section
                     .execution
                     .as_ref()
@@ -274,10 +294,11 @@ fn acts_on_law(section: &MachineReadable) -> Option<&'static str> {
 /// v0.8.11), or the recorded instances of a fact an article requires
 /// (schema v0.8.7, RFC-051). `None` for an input that reads neither.
 pub(crate) fn chronicle_read(source: &regelrecht_law_model::Source) -> Option<ChronicleRead<'_>> {
-    match (&source.decisions, &source.facts) {
-        (Some(decisions), _) => Some(ChronicleRead::Decisions(decisions)),
-        (None, Some(fact)) => Some(ChronicleRead::Facts(fact)),
-        (None, None) => None,
+    match (&source.decisions, &source.facts, &source.chronicle) {
+        (Some(decisions), _, _) => Some(ChronicleRead::Decisions(decisions)),
+        (None, Some(fact), _) => Some(ChronicleRead::Facts(fact)),
+        (None, None, Some(entries)) => Some(ChronicleRead::Chronicle(entries)),
+        (None, None, None) => None,
     }
 }
 
@@ -304,6 +325,7 @@ pub(crate) fn reject_misplaced_article_call(law: &ArticleBasedLaw) -> Result<()>
                 ("regulation", source.regulation.is_some()),
                 ("decisions", source.decisions.is_some()),
                 ("facts", source.facts.is_some()),
+                ("chronicle", source.chronicle.is_some()),
                 ("endpoint", source.endpoint.is_some()),
             ];
             if let Some((key, _)) = beside.iter().find(|(_, present)| *present) {

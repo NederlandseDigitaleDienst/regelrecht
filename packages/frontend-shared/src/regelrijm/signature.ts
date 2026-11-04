@@ -38,6 +38,8 @@ export function valueKind(node: unknown, unit: Unit | null, declared: ReadonlyMa
     case 'DATE_PART': return PART_KINDS[String(node.in)] ?? 'datumdeel';
     case 'DATE_DIFF': return DIFF_KINDS[String(node.in)] ?? 'tijdsduur';
     case 'LIST': return 'lijst';
+    // The state after the last element is of the kind of the start value.
+    case 'FOLD': return valueKind(node.initial, unit, declared);
     case 'FOREACH':
       if (node.combine === 'AND' || node.combine === 'OR') return 'voorwaarde';
       if (node.combine === undefined) return 'lijst';
@@ -58,7 +60,8 @@ export function valueKind(node: unknown, unit: Unit | null, declared: ReadonlyMa
 
 /**
  * The free references of `node` in reading order, each once: references to
- * a name the subtree binds itself (a FOREACH `as`) and to the article's
+ * a name the subtree binds itself (a FOREACH `as`, a FOLD `as` and `state`)
+ * and to the article's
  * constants are not inputs.
  */
 export function freeInputs(node: unknown, constants: ReadonlySet<string> = new Set()): string[] {
@@ -79,6 +82,9 @@ export function freeInputs(node: unknown, constants: ReadonlySet<string> = new S
       if (v[f] === undefined) continue;
       if (v.operation === 'FOREACH' && (f === 'filter' || f === 'body') && typeof v.as === 'string') {
         visit(v[f], new Set([...bound, v.as]));
+      } else if (v.operation === 'FOLD' && f === 'body') {
+        // A FOLD binds its element and its state in the body (RFC-056).
+        visit(v[f], new Set([...bound, ...[v.as, v.state].filter((x): x is string => typeof x === 'string')]));
       } else if (v.operation === 'IF' && f === 'cases') {
         for (const c of ifCases(v)) {
           if (c.when !== undefined) visit(c.when, bound);

@@ -19,8 +19,8 @@ use chrono::NaiveDate;
 use regelrecht_cel::{identity, Cell, Error, Files};
 use regelrecht_engine::LawLoad;
 use regelrecht_law_model::{
-    Article, ArticleBasedLaw, AuthorityType, CompetentAuthority, HookFilter, NamedAuthority,
-    ProcedureDefinition, RegulatoryLayer,
+    Article, ArticleBasedLaw, AuthorityType, ChronicleEntry, CompetentAuthority, HookFilter,
+    NamedAuthority, ProcedureDefinition, RegulatoryLayer,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -917,7 +917,8 @@ fn ontvangst(
 }
 
 /// The regelwerken `artikelen` read from: `source.regulation`, and the law of
-/// `source.article`, `source.decisions` and `source.facts` (not a
+/// `source.article`, `source.decisions`, `source.facts` and the entries of
+/// `source.chronicle` (not a
 /// `$`-reference, which names the article only when it runs).
 fn leest<'a>(artikelen: impl Iterator<Item = &'a Article>) -> BTreeSet<String> {
     let mut uit = BTreeSet::new();
@@ -926,10 +927,14 @@ fn leest<'a>(artikelen: impl Iterator<Item = &'a Article>) -> BTreeSet<String> {
             if let Some(id) = &source.regulation {
                 uit.insert(id.clone());
             }
-            for verwijzing in [&source.article, &source.decisions, &source.facts]
+            let gelezen: Vec<String> = source
+                .chronicle_reads()
                 .into_iter()
-                .flatten()
-            {
+                .map(|lezing| match lezing {
+                    ChronicleEntry::Decisions(v) | ChronicleEntry::Facts(v) => v,
+                })
+                .collect();
+            for verwijzing in source.article.iter().chain(&gelezen) {
                 if let Some((id, _)) = verwijzing.split_once('#') {
                     if !id.starts_with('$') {
                         uit.insert(id.to_string());
@@ -989,7 +994,10 @@ fn leest_besluiten_onder(regelwerken: &Regelwerken, id: &str, naam: &str, diepte
         .flat_map(|a| a.get_inputs())
         .filter_map(|i| i.source.as_ref())
         .any(|source| {
-            if source.decisions.as_deref() == Some(verwijzing.as_str()) {
+            if source
+                .chronicle_reads()
+                .contains(&ChronicleEntry::Decisions(verwijzing.clone()))
+            {
                 return true;
             }
             let (Some(verder), Some(parameters)) = (&source.regulation, &source.parameters) else {

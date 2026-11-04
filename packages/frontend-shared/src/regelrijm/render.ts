@@ -502,6 +502,19 @@ export class Renderer {
         // it stood as the collection of another FOREACH.
         return { doc: group(head, ' ', b, nest(line, K('over elke'), ' ', x, ' ', K('in'), ' ', c, ...f)), level: LEVEL.ARITH };
       }
+      case 'FOLD': {
+        // RFC-056: the state after playing the collection through, in its
+        // order. Operands in reading order, so fold numbers follow the text.
+        const s = this.localName(String(n.state ?? ''), [...path, 'state']);
+        const x = this.localName(String(n.as ?? ''), [...path, 'as']);
+        const c = at(LEVEL.CLOSED, field('collection'));
+        const i = at(LEVEL.CLOSED, field('initial'));
+        const b = at(LEVEL.CLOSED, field('body'));
+        return {
+          doc: group(K('de stand'), ' ', s, ' ', K('na elke'), ' ', x, ' ', K('in'), ' ', c, nest(line, K('vanaf'), ' ', i, K(','), ' ', K('telkens'), ' ', b)),
+          level: LEVEL.ARITH,
+        };
+      }
       case 'AGE':
         return {
           doc: group(K('het aantal volle jaren tussen'), ' ', at(LEVEL.CLOSED, field('date_of_birth')), ' ', K('en'), ' ', at(LEVEL.CLOSED, field('reference_date'))),

@@ -304,11 +304,61 @@ articles:
       b. wanneer de vergunninghouder geen bedrijf meer uitoefent in het
       vergunninggebied waarvoor de vergunning is verleend.
     url: https://lokaleregelgeving.overheid.nl/CVDR642699
-    # Niet uitvoerbaar gemaakt. Een intrekking is een besluit van het college
-    # uit eigen beweging (onder b) of op verzoek (onder a), zonder aanvraag om
-    # een vergunning. Hoe zo'n besluit ontstaat en wat het met een eerder
-    # besluit doet, is niet gemodelleerd (zie de open punten van de
-    # chronolexografie).
+    # Alleen onder a, de intrekking op verzoek, is uitvoerbaar gemaakt. Het
+    # verzoek is een aanvraag (Awb 1:3, derde lid) die naar de vergunning
+    # verwijst, en het college beslist erop zoals op elke aanvraag. Onder b
+    # neemt het college een besluit uit eigen beweging, zonder aanvraag; dat
+    # kan de cel nog niet (zie de open punten van de chronolexografie). Het
+    # wijzigen van een vergunning is niet gemodelleerd. Dat een ingetrokken
+    # vergunning niet meer telt, leest de reductie van de gemeente uit deze
+    # besluiten (RFC-056).
+    machine_readable:
+      competent_authority:
+        name: college van burgemeester en wethouders
+        type: CATEGORY
+      # "kan intrekken": een bevoegdheid, geen plicht. Of het college het
+      # verzoek inwilligt, oordeelt het per geval.
+      open_terms:
+        - id: verzoek_om_intrekking_ingewilligd
+          type: boolean
+          required: true
+          decided_per_case_by: het college van burgemeester en wethouders
+          description: >-
+            Of het college de bedrijfsparkeervergunning op verzoek van de
+            vergunninghouder intrekt (onder a).
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: parkeerverordening_gemeente_wilgendaal#5
+            parameters:
+              - bedrijfsparkeervergunning
+          - type: BESCHIKKING
+            outputs:
+              - bedrijfsparkeervergunning_ingetrokken
+        parameters:
+          - name: bedrijfsparkeervergunning
+            type: decision
+            description: >-
+              Het besluit waarbij het college de vergunning verleende waarvan
+              de houder om intrekking verzoekt.
+        output:
+          - name: bedrijfsparkeervergunning_ingetrokken
+            type: boolean
+            description: Of het college de bedrijfsparkeervergunning intrekt.
+        actions:
+          # Alleen een verleende vergunning kan worden ingetrokken. Eerst die
+          # toets: AND stopt bij de eerste onwaar, dus bij een verzoek over
+          # een weigering vraagt het besluit geen oordeel van het college.
+          # Dat het verzoek van de vergunninghouder komt, toetst het model
+          # niet: wie een aanvraag indient, legt de cel niet vast.
+          - output: bedrijfsparkeervergunning_ingetrokken
+            value:
+              operation: AND
+              conditions:
+                - operation: EQUALS
+                  subject: $bedrijfsparkeervergunning.outputs.bedrijfsparkeervergunning_verleend
+                  value: true
+                - $verzoek_om_intrekking_ingewilligd
   - number: '6'
     text: >-
       FICTIEF, naar het model van artikel 13 van de Parkeerverordening
