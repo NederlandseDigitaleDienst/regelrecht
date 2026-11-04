@@ -225,4 +225,29 @@ exclude_re = [
     # its own: claim_job, the heartbeat, reap_orphaned_jobs and the
     # processing per job type.
     'worker\.rs.*replace run_(enrich|harvest)_worker -> Result<\(\)> with Ok\(\(\)\)',
+
+    # --- pipeline/src/agent/ -----------------------------------------------
+
+    # Log lines, and nothing else: which of several claude tokens a call uses,
+    # what kind of token it looks like, which options opencode cannot honour,
+    # and the previews of what the agent wrote on stderr and stdout. None of
+    # them changes the command, the result or an error; asserting on them
+    # would pin the wording of a log line. What they report on is killed where
+    # it is decided (select_claude_token, the dialects' command tests).
+    'agent/claude\.rs.*log_token_rotation',
+    'agent/claude\.rs.*replace token_kind ->',
+    'agent/opencode\.rs.*warn_unsupported',
+    'agent/supervisor\.rs.*log_std(err|out)_preview',
+
+    # How often the stall check looks: a quarter of the limit, at least every
+    # 50 ms and at most every 15 s. Looking less often only makes a stall
+    # be noticed later; that it is noticed at all is killed by the stall tests
+    # in enrich.rs. Pinning the cadence would mean timing assertions that
+    # flake under a loaded CI runner.
+    'agent/supervisor\.rs.*replace / with \* in wait_for_silence',
+
+    # terminate warns when killing the direct child fails with anything but
+    # ESRCH (already gone after the group kill). The kill itself is killed by
+    # a_timeout_kills_everything_the_agent_started; this only picks the log.
+    'agent/supervisor\.rs.*replace != with == in terminate',
 ]
