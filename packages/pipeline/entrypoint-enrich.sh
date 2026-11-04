@@ -68,30 +68,46 @@ if [ -n "$vlam_base" ] && [ -n "$VLAM_API_KEY" ]; then
       } catch (e) {
         console.error('VLAM check models: ' + e.name + ': ' + e.message);
       }
-      try {
-        const res = await fetch(base + '/chat/completions', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ model, max_tokens: maxOutput, messages: [{ role: 'user', content: 'Antwoord met alleen: OK' }] }),
-          signal: AbortSignal.timeout(60000),
-        });
-        const body = await res.text();
-        let answer = null;
-        let usage = '';
+      // One short question, asked as plain as can be and then with each
+      // reasoning setting that might apply. VLAM reports no reasoning tokens,
+      // yet answering OK takes some sixty completion tokens: the reasoning is
+      // in there, and it counts against max_tokens. These lines show whether
+      // it comes back as a field of its own and whether a setting shrinks it.
+      // Of a separate reasoning field only its length is printed. A server
+      // that ignores a setting answers as if it were absent, so equal tokens
+      // on two lines do not prove the setting was rejected.
+      const ask = async (label, extra) => {
         try {
-          const parsed = JSON.parse(body);
-          answer = parsed.choices[0].message.content;
-          const u = parsed.usage || {};
-          const reasoning = u.completion_tokens_details && u.completion_tokens_details.reasoning_tokens;
-          usage = ', finish_reason=' + parsed.choices[0].finish_reason +
-            ', completion_tokens=' + u.completion_tokens +
-            (reasoning !== undefined ? ', reasoning_tokens=' + reasoning : '');
-        } catch {}
-        console.error('VLAM check chat (max_tokens ' + maxOutput + '): HTTP ' + res.status + usage + ', ' +
-          (answer !== null ? 'answer: ' + flat(String(answer)) : 'body: ' + flat(body)));
-      } catch (e) {
-        console.error('VLAM check chat: ' + e.name + ': ' + e.message);
-      }
+          const res = await fetch(base + '/chat/completions', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ model, max_tokens: maxOutput, messages: [{ role: 'user', content: 'Antwoord met alleen: OK' }], ...extra }),
+            signal: AbortSignal.timeout(60000),
+          });
+          const body = await res.text();
+          let answer = null;
+          let usage = '';
+          try {
+            const parsed = JSON.parse(body);
+            const message = parsed.choices[0].message;
+            answer = message.content;
+            const u = parsed.usage || {};
+            const reasoning = u.completion_tokens_details && u.completion_tokens_details.reasoning_tokens;
+            const separate = message.reasoning_content ?? message.reasoning;
+            usage = ', finish_reason=' + parsed.choices[0].finish_reason +
+              ', completion_tokens=' + u.completion_tokens +
+              (reasoning !== undefined ? ', reasoning_tokens=' + reasoning : '') +
+              (typeof separate === 'string' ? ', separate_reasoning_chars=' + separate.length : ', no separate reasoning field');
+          } catch {}
+          console.error('VLAM check ' + label + ' (max_tokens ' + maxOutput + '): HTTP ' + res.status + usage + ', ' +
+            (answer !== null ? 'answer: ' + flat(String(answer)) : 'body: ' + flat(body)));
+        } catch (e) {
+          console.error('VLAM check ' + label + ': ' + e.name + ': ' + e.message);
+        }
+      };
+      await ask('chat', {});
+      await ask('chat reasoning_effort=low', { reasoning_effort: 'low' });
+      await ask('chat thinking=false', { chat_template_kwargs: { thinking: false } });
       // An enrichment only works if the model calls tools: it edits the law
       // through them. Offer one and see whether it is used.
       try {

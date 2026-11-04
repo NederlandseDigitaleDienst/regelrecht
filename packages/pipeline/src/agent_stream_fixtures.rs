@@ -189,3 +189,63 @@ async fn a_failed_opencode_run_reports_the_exit_but_not_the_error_event() {
     // here so that changing it is a decision, not a side effect.
     assert!(!err.contains("401"), "{err}");
 }
+
+/// Everything the `tracing` macros write while it is the default subscriber.
+#[derive(Clone, Default)]
+struct CapturedLog(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl std::io::Write for CapturedLog {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        if let Ok(mut log) = self.0.lock() {
+            log.extend_from_slice(buf);
+        }
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for CapturedLog {
+    type Writer = CapturedLog;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        self.clone()
+    }
+}
+
+#[tokio::test]
+async fn a_cut_off_step_logs_what_it_wrote_as_reasoning_and_text() {
+    // The sizes travel from the dialect through the supervisor, which counts
+    // them per call, to the step's log line. A single-threaded runtime keeps
+    // the drain task on this thread, under this subscriber.
+    let log = CapturedLog::default();
+    let subscriber = tracing_subscriber::fmt()
+        .with_writer(log.clone())
+        .with_ansi(false)
+        .finish();
+    let _default = tracing::subscriber::set_default(subscriber);
+
+    let (dir, provider) = opencode("opencode-cut-off.jsonl", 0);
+    let (out, _) = run(&provider, dir.path()).await;
+    out.expect("the run exits 0");
+
+    let text = log
+        .0
+        .lock()
+        .map(|l| String::from_utf8_lossy(&l).into_owned())
+        .unwrap_or_default();
+    let line = text
+        .lines()
+        .find(|l| l.contains("agent step cut off by the output limit"))
+        .unwrap_or_else(|| panic!("no cut-off line in:\n{text}"));
+    let reasoning = "Eerst alle artikelen doorlopen.".chars().count();
+    let written = "Ik begin met artikel 1.".chars().count();
+    assert!(
+        line.contains(&format!("reasoning_chars={reasoning}")),
+        "{line}"
+    );
+    assert!(line.contains(&format!("text_chars={written}")), "{line}");
+    assert!(line.contains("tool_input_chars=0"), "{line}");
+}

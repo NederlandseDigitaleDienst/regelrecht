@@ -110,6 +110,32 @@ pub(crate) struct StepFinish {
     pub input: u64,
     pub output: u64,
     pub reasoning: u64,
+    /// What the step wrote, by kind, as the parts before its end showed it.
+    /// The dialect leaves this empty; the supervisor fills it in, because it
+    /// sees the whole call and the dialect sees one line.
+    pub parts: PartSizes,
+}
+
+/// How much one model step wrote, in characters, by kind. Counts only: the
+/// text itself can quote a document that is not public. Characters are not
+/// tokens, but the split between the kinds is what says where an output limit
+/// went.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct PartSizes {
+    pub text: usize,
+    pub reasoning: usize,
+    /// The arguments of the tool calls that completed or failed. A call the
+    /// limit cut off in the middle counts only if opencode repaired it into
+    /// its `invalid` tool, whose error text carries the partial arguments.
+    pub tool_input: usize,
+}
+
+/// The kind of output a [`AgentEvent::Part`] counts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PartKind {
+    Text,
+    Reasoning,
+    ToolInput,
 }
 
 /// What one line of a provider's stdout means, in terms every provider shares.
@@ -124,6 +150,8 @@ pub(crate) enum AgentEvent {
     Tool(String),
     /// A model step ended, with why and what it used.
     StepFinished(StepFinish),
+    /// A finished part of a step's output, by kind and size.
+    Part { kind: PartKind, chars: usize },
     /// One step's usage; a call without a closing total is the sum of these.
     StepUsage(AgentUsage),
     /// The CLI's closing event: its own total for the call, and the reason

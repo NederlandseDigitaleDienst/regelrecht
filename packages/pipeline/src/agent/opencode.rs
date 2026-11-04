@@ -12,7 +12,8 @@
 use std::path::Path;
 
 use super::dialect::{
-    AgentDialect, AgentEvent, Capabilities, CommandRequest, CommandSpec, StepFinish,
+    AgentDialect, AgentEvent, Capabilities, CommandRequest, CommandSpec, PartKind, PartSizes,
+    StepFinish,
 };
 use crate::enrich::{AgentUsage, LlmProvider, SessionAction};
 use crate::error::{PipelineError, Result};
@@ -48,7 +49,18 @@ impl AgentDialect for OpenCodeDialect {
         if let Some(f) = req.file_arg {
             cmd.arg("-f").arg(f);
         }
-        cmd.arg("--format").arg("json").arg("--dir").arg(req.cwd);
+        // `--thinking` makes opencode write its reasoning parts too, which it
+        // leaves out of `--format json` otherwise. Only their size is read:
+        // without them there is no telling how much of a step's output limit
+        // went to reasoning, since VLAM reports no reasoning tokens. It only
+        // adds output lines; the flag changes nothing in the call itself. The
+        // debug-level stdout preview can now show the start of a reasoning
+        // part, as it already could for text.
+        cmd.arg("--format")
+            .arg("json")
+            .arg("--thinking")
+            .arg("--dir")
+            .arg(req.cwd);
         if let Some(m) = req.model {
             cmd.arg("-m").arg(m);
         }
@@ -62,15 +74,26 @@ impl AgentDialect for OpenCodeDialect {
         if line.contains(r#""type":"step_start""#)
             || line.contains(r#""type":"tool_use""#)
             || line.contains(r#""type":"step_finish""#)
+            || line.contains(r#""type":"text""#)
+            || line.contains(r#""type":"reasoning""#)
         {
             if let Ok(event) = serde_json::from_str::<serde_json::Value>(line) {
                 match event.get("type").and_then(serde_json::Value::as_str) {
                     Some("step_start") => return vec![AgentEvent::Turn { message_id: None }],
                     Some("tool_use") => {
-                        return opencode_tool_summary(&event)
+                        let mut out: Vec<AgentEvent> = opencode_tool_summary(&event)
                             .map(AgentEvent::Tool)
                             .into_iter()
                             .collect();
+                        out.push(AgentEvent::Part {
+                            kind: PartKind::ToolInput,
+                            chars: tool_input_chars(&event),
+                        });
+                        return out;
+                    }
+                    Some("text") => return vec![part_text_size(&event, PartKind::Text)],
+                    Some("reasoning") => {
+                        return vec![part_text_size(&event, PartKind::Reasoning)];
                     }
                     Some("step_finish") => {
                         let mut out = vec![AgentEvent::StepFinished(step_finish_fields(&event))];
@@ -314,7 +337,35 @@ fn step_finish_fields(event: &serde_json::Value) -> StepFinish {
         input: count("input"),
         output: count("output"),
         reasoning: count("reasoning"),
+        parts: PartSizes::default(),
     }
+}
+
+/// The size of a `text` or `reasoning` part, in characters.
+fn part_text_size(event: &serde_json::Value, kind: PartKind) -> AgentEvent {
+    let chars = event
+        .get("part")
+        .and_then(|p| p.get("text"))
+        .and_then(serde_json::Value::as_str)
+        .map_or(0, |t| t.chars().count());
+    AgentEvent::Part { kind, chars }
+}
+
+/// The size of a tool call's arguments as the model wrote them, serialized.
+///
+/// An empty object counts as nothing: it is what opencode leaves on a call it
+/// aborted before any argument arrived, not something the model wrote. A call
+/// whose arguments the output limit cut off shows up in one of two ways, and
+/// neither needs special handling here: as `<tool> (error)` with empty input,
+/// or repaired by opencode into the `invalid` tool, whose error text carries
+/// the partial arguments and so counts at roughly their size.
+fn tool_input_chars(event: &serde_json::Value) -> usize {
+    event
+        .get("part")
+        .and_then(|p| p.get("state"))
+        .and_then(|s| s.get("input"))
+        .filter(|input| input.as_object().is_none_or(|o| !o.is_empty()))
+        .map_or(0, |input| input.to_string().chars().count())
 }
 
 /// `name target (status)` for a `tool_use` event. The target is the file path
@@ -387,6 +438,7 @@ mod tests {
                 "/work/law.yaml",
                 "--format",
                 "json",
+                "--thinking",
                 "--dir",
                 "/work",
                 "-m",
@@ -408,13 +460,74 @@ mod tests {
             read(
                 r#"{"type":"tool_use","part":{"type":"tool","tool":"edit","state":{"status":"completed","input":{"filePath":"law.yaml","oldString":"secret"}}}}"#
             ),
-            [AgentEvent::Tool("edit law.yaml".into())]
+            [
+                AgentEvent::Tool("edit law.yaml".into()),
+                AgentEvent::Part {
+                    kind: PartKind::ToolInput,
+                    chars: r#"{"filePath":"law.yaml","oldString":"secret"}"#.chars().count(),
+                }
+            ]
         );
         assert_eq!(
             read(
                 r#"{"type":"tool_use","part":{"type":"tool","tool":"write","state":{"status":"error"}}}"#
             ),
-            [AgentEvent::Tool("write (error)".into())]
+            [
+                AgentEvent::Tool("write (error)".into()),
+                AgentEvent::Part {
+                    kind: PartKind::ToolInput,
+                    chars: 0,
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn an_aborted_call_counts_no_arguments() {
+        // What opencode writes for a call it aborted before any argument came.
+        let aborted = r#"{"type":"tool_use","part":{"type":"tool","tool":"write","state":{"status":"error","input":{},"error":"Tool execution aborted"}}}"#;
+        assert_eq!(
+            read(aborted),
+            [
+                AgentEvent::Tool("write (error)".into()),
+                AgentEvent::Part {
+                    kind: PartKind::ToolInput,
+                    chars: 0,
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn text_and_reasoning_parts_are_counted_and_never_kept() {
+        assert_eq!(
+            read(
+                r#"{"type":"text","timestamp":1,"sessionID":"s","part":{"type":"text","text":"Klaar: artikel 2"}}"#
+            ),
+            [AgentEvent::Part {
+                kind: PartKind::Text,
+                chars: "Klaar: artikel 2".chars().count(),
+            }]
+        );
+        // Characters, not bytes: an accented word counts its letters.
+        assert_eq!(
+            read(r#"{"type":"reasoning","part":{"type":"reasoning","text":"één"}}"#),
+            [AgentEvent::Part {
+                kind: PartKind::Reasoning,
+                chars: 3,
+            }]
+        );
+        // The pair quoted inside another event is not a part of its own.
+        assert!(
+            read(r#"{"type":"tool_use","part":{"state":{"output":"{\"type\":\"text\"}"}}}"#)
+                .iter()
+                .all(|e| !matches!(
+                    e,
+                    AgentEvent::Part {
+                        kind: PartKind::Text,
+                        ..
+                    }
+                ))
         );
     }
 
@@ -430,7 +543,8 @@ mod tests {
                 reason: "length".into(),
                 input: 50000,
                 output: 16384,
-                reasoning: 12000
+                reasoning: 12000,
+                parts: PartSizes::default(),
             }
         );
         let bare: serde_json::Value = serde_json::from_str(r#"{"type":"step_finish"}"#).unwrap();
@@ -440,7 +554,8 @@ mod tests {
                 reason: "unknown".into(),
                 input: 0,
                 output: 0,
-                reasoning: 0
+                reasoning: 0,
+                parts: PartSizes::default(),
             }
         );
         // Without a part a step still ends, but reports no usage.
@@ -450,7 +565,8 @@ mod tests {
                 reason: "unknown".into(),
                 input: 0,
                 output: 0,
-                reasoning: 0
+                reasoning: 0,
+                parts: PartSizes::default(),
             })]
         );
     }

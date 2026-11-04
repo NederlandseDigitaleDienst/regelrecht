@@ -156,13 +156,17 @@ impl ActivityHandle {
             }),
             AgentEvent::Tool(tool) => self.record_tool(tool.clone()),
             AgentEvent::StepFinished(step) => self.record_step_finish(step),
-            AgentEvent::StepUsage(_) | AgentEvent::Closing { .. } | AgentEvent::ErrorEvent(_) => {}
+            AgentEvent::StepUsage(_)
+            | AgentEvent::Closing { .. }
+            | AgentEvent::ErrorEvent(_)
+            | AgentEvent::Part { .. } => {}
         }
     }
 
-    /// Log why an opencode model step ended and what it used. The reason and
-    /// the token counts only: the model's own text can quote a document that
-    /// is not public, the same reason `tool_summary` leaves content out.
+    /// Log why an opencode model step ended, what it used, and how many
+    /// characters it wrote as text, reasoning and tool input. Counts only:
+    /// the model's own text can quote a document that is not public, the same
+    /// reason `tool_summary` leaves content out.
     fn record_step_finish(&self, step: &StepFinish) {
         self.with(|a| {
             let call = a.call.as_deref().unwrap_or("agent");
@@ -174,6 +178,9 @@ impl ActivityHandle {
                     input = step.input,
                     output = step.output,
                     reasoning = step.reasoning,
+                    text_chars = step.parts.text,
+                    reasoning_chars = step.parts.reasoning,
+                    tool_input_chars = step.parts.tool_input,
                     "agent step cut off by the output limit"
                 );
             } else {
@@ -183,6 +190,9 @@ impl ActivityHandle {
                     input = step.input,
                     output = step.output,
                     reasoning = step.reasoning,
+                    text_chars = step.parts.text,
+                    reasoning_chars = step.parts.reasoning,
+                    tool_input_chars = step.parts.tool_input,
                     "agent step finished"
                 );
             }

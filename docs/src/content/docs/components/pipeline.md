@@ -311,16 +311,40 @@ model answers a call that offers it a tool. Together they show on every deploy
 whether the key works and whether the model can do the tool calls an
 enrichment depends on.
 
+The chat call is asked three times: plainly, with `reasoning_effort: low`, and
+with `chat_template_kwargs: {thinking: false}`. Each line gives the completion
+tokens and whether the reasoning came back in a field of its own, by length
+only. A server that ignores a setting answers as if it were absent, so two
+lines with the same token count do not prove the setting was rejected.
+
 opencode sends the model's output limit (`limit.output` in `opencode.json`,
 32000 for Kimi K3) as `max_tokens` on every call, and the chat call in the
 check asks for the same limit, so a deploy also shows whether VLAM accepts it.
-Kimi K3 reasons before it acts, and the reasoning counts against that limit. A
-step that runs into it ends without a tool call, and opencode then stops as if
-the work were done. The worker logs every opencode step with why it ended and
-the tokens it used, warns on `agent step cut off by the output limit`, and the
-error of a run that produced nothing says how many steps were cut off. 32000 is
-also opencode's own ceiling: a higher limit needs
+32000 is also opencode's own ceiling: a higher limit needs
 `OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX` as well as `limit.output`.
+
+Kimi K3 reasons before it acts, and the reasoning counts against that limit.
+VLAM reports it as zero reasoning tokens all the same: answering `OK` costs
+some sixty completion tokens. A step that runs into the limit ends without
+finishing what it was writing, and opencode then stops as if the work were
+done. The worker warns on `agent step cut off by the output limit`, and the
+error of a run that produced nothing says how many steps were cut off.
+
+Every opencode step is logged with why it ended, the tokens it used, and how
+many characters it wrote as text, as reasoning and as tool arguments
+(`text_chars`, `reasoning_chars`, `tool_input_chars`). Counting needs
+opencode's `--thinking`, which the worker passes; without it opencode leaves
+reasoning out of its output. Characters are not tokens (count three to four
+per token), but the split says where a cut-off step's output went:
+
+- Large `reasoning_chars`: the model was still thinking.
+- Large `text_chars`: it was writing prose, or reasoning inline. If the startup
+  check says VLAM returns no separate reasoning field, reasoning arrives as
+  text.
+- A tool call the limit interrupted shows up as `invalid` with a large
+  `tool_input_chars` on the cut-off step (opencode repairs the half-written
+  call into that tool, with the partial arguments in its error), or as
+  `<tool> (error)` with no arguments just after it.
 
 What differs between the two CLIs lives in one dialect per provider, under
 `packages/pipeline/src/agent/`: the command line, what a line of output means,
