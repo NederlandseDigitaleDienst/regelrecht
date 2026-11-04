@@ -129,10 +129,7 @@ pub(crate) async fn run_llm_subprocess(
         effort: config.effort.as_deref(),
         session,
         env: &safe_env,
-        rotation_bucket: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs() / 100)
-            .unwrap_or(0),
+        rotation_bucket: rotation_bucket(std::time::SystemTime::now()),
     });
 
     // Diagnostic logging: record exactly what will be spawned and which env vars
@@ -204,19 +201,9 @@ pub(crate) async fn run_llm_subprocess(
                     Ok(n) => {
                         activity.touch();
                         let text = String::from_utf8_lossy(&buf[..n]);
-                        let preview: String = text.trim().chars().take(500).collect();
-                        if !preview.is_empty() {
-                            tracing::warn!(provider = %stderr_provider, %preview, "agent stderr");
-                        }
+                        log_stderr_preview(&stderr_provider, &text);
                         if let Ok(mut t) = tail.lock() {
-                            t.push_str(&text);
-                            if t.len() > MAX_STDERR_CAPTURE {
-                                let mut cut = t.len() - MAX_STDERR_CAPTURE;
-                                while cut < t.len() && !t.is_char_boundary(cut) {
-                                    cut += 1;
-                                }
-                                *t = t[cut..].to_string();
-                            }
+                            append_bounded(&mut t, &text, MAX_STDERR_CAPTURE);
                         }
                     }
                 }
@@ -276,23 +263,13 @@ pub(crate) async fn run_llm_subprocess(
                         // default "info" subscriber). The leading bytes of a
                         // read carry the event type and ids, not the large
                         // inlined bodies; lossy is fine for a log preview.
-                        let preview = String::from_utf8_lossy(&buf[..n.min(200)]);
-                        let preview = preview.trim_end();
-                        if !preview.is_empty() {
-                            tracing::debug!(provider = %drain_provider, %preview, "agent stdout");
-                        }
-                        #[allow(clippy::unwrap_used)]
+                        log_stdout_preview(&drain_provider, &buf[..n]);
                         if let Ok(mut tail) = tail_writer.lock() {
-                            tail.push_str(&String::from_utf8_lossy(&buf[..n]));
-                            if tail.len() > MAX_STDOUT_TAIL {
-                                let cut = tail.len() - MAX_STDOUT_TAIL;
-                                let cut = tail
-                                    .char_indices()
-                                    .map(|(i, _)| i)
-                                    .find(|i| *i >= cut)
-                                    .unwrap_or(tail.len());
-                                *tail = tail.split_off(cut);
-                            }
+                            append_bounded(
+                                &mut tail,
+                                &String::from_utf8_lossy(&buf[..n]),
+                                MAX_STDOUT_TAIL,
+                            );
                         }
                     }
                 }
@@ -340,7 +317,7 @@ pub(crate) async fn run_llm_subprocess(
                 activity.summary()
             )));
         }
-        observed_mb = watch_memory(pid, config.max_rss_mb) => {
+        observed_mb = watch_memory(pid, config.max_rss_mb, config.memory_poll_interval) => {
             tracing::error!(
                 provider = %provider_name,
                 pid = ?pid,
@@ -425,6 +402,48 @@ pub(crate) async fn run_llm_subprocess(
             .flatten()
     });
     Ok(AgentRun { usage, model })
+}
+
+/// A number that changes every 100 seconds, for spreading calls over several
+/// credentials (see the claude dialect's token rotation).
+fn rotation_bucket(now: std::time::SystemTime) -> u64 {
+    now.duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() / 100)
+        .unwrap_or(0)
+}
+
+/// Append `text` to a bounded tail, keeping its last `max` bytes at most and
+/// never cutting inside a character. Both pipes keep one: stderr for the error
+/// message, stdout for a closing object the dialect reads after the run.
+fn append_bounded(tail: &mut String, text: &str, max: usize) {
+    tail.push_str(text);
+    let excess = tail.len().saturating_sub(max);
+    // The first character boundary at or after the excess; the end of the
+    // string always is one, so the search cannot come up empty.
+    let cut = (excess..=tail.len())
+        .find(|i| tail.is_char_boundary(*i))
+        .unwrap_or(tail.len());
+    tail.replace_range(..cut, "");
+}
+
+/// Re-log a bounded preview of what the agent wrote on stderr, so it stays
+/// visible in the container logs.
+fn log_stderr_preview(provider: &str, text: &str) {
+    let preview: String = text.trim().chars().take(500).collect();
+    if !preview.is_empty() {
+        tracing::warn!(%provider, %preview, "agent stderr");
+    }
+}
+
+/// A bounded preview of a stdout read, at debug only (off under the default
+/// "info" subscriber). The leading bytes of a read carry the event type and
+/// ids, not the large inlined bodies; lossy is fine for a log preview.
+fn log_stdout_preview(provider: &str, bytes: &[u8]) {
+    let preview = String::from_utf8_lossy(&bytes[..bytes.len().min(200)]);
+    let preview = preview.trim_end();
+    if !preview.is_empty() {
+        tracing::debug!(%provider, %preview, "agent stdout");
+    }
 }
 
 /// What the dialect read off one call's stdout.
@@ -553,7 +572,7 @@ fn kill_process_group(pid: Option<u32>) {
 /// when `pid` is `None` or `max_rss_mb` is 0. We poll `/proc` directly rather
 /// than capping virtual memory with `RLIMIT_AS`: V8 reserves a huge virtual
 /// address space, so a virtual-memory ceiling would crash Node outright.
-async fn watch_memory(pid: Option<u32>, max_rss_mb: u64) -> u64 {
+async fn watch_memory(pid: Option<u32>, max_rss_mb: u64, interval: Duration) -> u64 {
     let pid = match pid {
         Some(p) if max_rss_mb > 0 => p,
         _ => {
@@ -577,18 +596,24 @@ async fn watch_memory(pid: Option<u32>, max_rss_mb: u64) -> u64 {
         unreachable!("pending future never resolves");
     }
 
-    let interval = Duration::from_secs(5);
     loop {
         tokio::time::sleep(interval).await;
         // A missing/unparsable status file means the process is gone; keep
         // looping (harmless) and let `child.wait()` win the select.
         if let Some(rss_kb) = read_vmrss_kb(pid).await {
-            let rss_mb = rss_kb / 1024;
-            if rss_mb > max_rss_mb {
+            if let Some(rss_mb) = over_limit(rss_kb, max_rss_mb) {
                 return rss_mb;
             }
         }
     }
+}
+
+/// The resident set in megabytes, if `rss_kb` kilobytes is over a limit of
+/// `max_mb` megabytes. Whole megabytes, as the limit is set: 50.9 MB is not
+/// over 50.
+fn over_limit(rss_kb: u64, max_mb: u64) -> Option<u64> {
+    let rss_mb = rss_kb / 1024;
+    (rss_mb > max_mb).then_some(rss_mb)
 }
 
 /// Read a process's resident set size (RSS) from `/proc/<pid>/status`, in kB.
@@ -638,6 +663,52 @@ mod tests {
     }
 
     #[test]
+    fn a_tail_keeps_its_last_bytes_up_to_the_limit() {
+        let mut tail = String::new();
+        append_bounded(&mut tail, "abc", 5);
+        assert_eq!(tail, "abc", "under the limit nothing is dropped");
+        append_bounded(&mut tail, "de", 5);
+        assert_eq!(tail, "abcde", "exactly the limit is kept whole");
+        append_bounded(&mut tail, "fg", 5);
+        assert_eq!(tail, "cdefg", "over the limit the oldest bytes go");
+    }
+
+    #[test]
+    fn a_tail_is_never_cut_inside_a_character() {
+        // "é" is two bytes. Keeping the last 3 bytes of "aéé" would start in
+        // the middle of the first "é", so the cut moves forward past it.
+        let mut tail = String::new();
+        append_bounded(&mut tail, "aéé", 3);
+        assert_eq!(tail, "é");
+        // At a boundary the cut stays where it is.
+        let mut tail = String::new();
+        append_bounded(&mut tail, "aéé", 4);
+        assert_eq!(tail, "éé");
+    }
+
+    #[test]
+    fn the_memory_limit_counts_whole_megabytes() {
+        assert_eq!(
+            over_limit(50 * 1024, 50),
+            None,
+            "exactly at the limit is not over"
+        );
+        assert_eq!(over_limit(50 * 1024 + 1023, 50), None, "50.99 MB is 50 MB");
+        assert_eq!(over_limit(51 * 1024, 50), Some(51));
+        assert_eq!(over_limit(200 * 1024 + 512, 50), Some(200));
+        assert_eq!(over_limit(200 * 1024, 1000), None);
+    }
+
+    #[test]
+    fn the_rotation_bucket_changes_every_hundred_seconds() {
+        let at = |secs| std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs);
+        assert_eq!(rotation_bucket(at(0)), 0);
+        assert_eq!(rotation_bucket(at(99)), 0);
+        assert_eq!(rotation_bucket(at(100)), 1);
+        assert_eq!(rotation_bucket(at(250)), 2);
+    }
+
+    #[test]
     fn only_allowlisted_variables_reach_the_agent() {
         for allowed in [
             "PATH",
@@ -652,5 +723,213 @@ mod tests {
         for withheld in ["DATABASE_URL", "ANTHROPIC_API_KEY", "CORPUS_GIT_TOKEN"] {
             assert!(!env_allowed(withheld), "{withheld}");
         }
+    }
+}
+
+/// The supervisor against shell scripts standing in for a provider's CLI.
+// Two attributes rather than `all(test, unix)`: cargo-mutants skips a module
+// marked with a plain `#[cfg(test)]` and would otherwise mutate the helpers.
+#[cfg(test)]
+#[cfg(unix)]
+mod process_tests {
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::Path;
+
+    use super::*;
+
+    /// A fake CLI named `binary` running `body`, in its own temp dir.
+    #[allow(clippy::unwrap_used)] // test setup; a failure here is the failure
+    fn fake(binary: &str, body: &str) -> (tempfile::TempDir, std::path::PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(binary);
+        std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        (dir, path)
+    }
+
+    fn opencode(path: std::path::PathBuf) -> LlmProvider {
+        LlmProvider::OpenCode { path, model: None }
+    }
+
+    async fn run(provider: &LlmProvider, cwd: &Path, config: &EnrichConfig) -> Result<AgentRun> {
+        // The fake CLI was just written; a test forking beside this one can
+        // hold it open for a moment, and exec then fails with ETXTBSY.
+        let mut attempt = 0;
+        loop {
+            let out = run_llm_subprocess(
+                provider,
+                "prompt",
+                None,
+                cwd,
+                config,
+                ToolPolicy {
+                    allow_bash: false,
+                    deny: &[],
+                },
+                SessionAction::Cold,
+            )
+            .await;
+            let busy = matches!(&out, Err(e) if e.to_string().contains("Text file busy"));
+            attempt += 1;
+            if !busy || attempt == 10 {
+                return out;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    }
+
+    fn config(provider: &LlmProvider, timeout: Duration, max_rss_mb: u64) -> EnrichConfig {
+        let mut config = EnrichConfig::for_test(provider.clone());
+        config.timeout = timeout;
+        config.idle_timeout = None;
+        config.max_rss_mb = max_rss_mb;
+        config
+    }
+
+    /// Whether `pid` still runs: present in /proc and not a zombie.
+    fn alive(pid: u32) -> bool {
+        std::fs::read_to_string(format!("/proc/{pid}/stat"))
+            .ok()
+            .and_then(|stat| {
+                // The state follows the command name, which is in parentheses.
+                let after = stat.rsplit_once(')')?.1;
+                after.split_whitespace().next().map(|s| s != "Z")
+            })
+            .unwrap_or(false)
+    }
+
+    #[tokio::test]
+    async fn a_timeout_kills_everything_the_agent_started() {
+        // The agent forks a helper that would outlive it; killing only the
+        // direct child would leave the helper running in the container.
+        let (dir, path) = fake("opencode", "sleep 30 &\necho $! > \"$0.pid\"\nsleep 30");
+        let pid_file = path.with_extension("pid");
+        let provider = opencode(path);
+        let config = config(&provider, Duration::from_millis(700), 0);
+        let err = run(&provider, dir.path(), &config)
+            .await
+            .expect_err("the run times out")
+            .to_string();
+        assert!(err.contains("timed out after"), "{err}");
+
+        let pid: u32 = std::fs::read_to_string(&pid_file)
+            .expect("the helper wrote its pid")
+            .trim()
+            .parse()
+            .expect("a pid");
+        // SIGKILL is delivered at once, but give the kernel a moment.
+        let mut still = alive(pid);
+        for _ in 0..20 {
+            if !still {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            still = alive(pid);
+        }
+        if still {
+            // Do not leave it behind for the next test.
+            // SAFETY: kill(2) on a pid this test started; no memory involved.
+            unsafe {
+                libc::kill(pid as i32, libc::SIGKILL);
+            }
+        }
+        assert!(!still, "the helper the agent forked survived the timeout");
+    }
+
+    /// A CLI that holds 200 MB for `secs` seconds, then exits 0.
+    fn hungry(secs: u32) -> (tempfile::TempDir, LlmProvider) {
+        let (dir, path) = fake(
+            "opencode",
+            &format!(
+                "exec python3 -c 'import time; x = b\"x\" * (200 * 1024 * 1024); time.sleep({secs})'"
+            ),
+        );
+        (dir, opencode(path))
+    }
+
+    #[tokio::test]
+    async fn a_run_over_the_memory_limit_is_killed() {
+        let (dir, provider) = hungry(30);
+        let config = config(&provider, Duration::from_secs(25), 50);
+        let err = run(&provider, dir.path(), &config)
+            .await
+            .expect_err("the run is killed")
+            .to_string();
+        assert!(err.contains("exceeded memory limit of 50 MB"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn a_run_under_the_memory_limit_is_left_alone() {
+        // Long enough for the watchdog to look several times.
+        let (dir, provider) = hungry(1);
+        let config = config(&provider, Duration::from_secs(25), 1000);
+        run(&provider, dir.path(), &config)
+            .await
+            .expect("200 MB is under a 1000 MB limit");
+    }
+
+    #[tokio::test]
+    async fn a_zero_memory_limit_means_no_limit() {
+        let (dir, provider) = hungry(1);
+        let config = config(&provider, Duration::from_secs(25), 0);
+        run(&provider, dir.path(), &config)
+            .await
+            .expect("0 switches the watchdog off");
+    }
+
+    #[tokio::test]
+    async fn a_finished_run_stops_counting_as_in_flight() {
+        let (dir, path) = fake("opencode", "exit 0");
+        let provider = opencode(path);
+        let config = config(&provider, Duration::from_secs(20), 0);
+        config.activity.begin_call("translate");
+        run(&provider, dir.path(), &config)
+            .await
+            .expect("the run succeeds");
+        // With no call in flight the silence clock is off; a call still
+        // counted as running would keep it going and trip the stall check.
+        assert!(config.activity.idle().is_none());
+    }
+
+    #[tokio::test]
+    async fn a_cli_without_a_closing_total_reports_no_usage() {
+        // opencode writes no closing object, and its dialect reads none from
+        // the tail: a run with no steps has no usage, not a zero one.
+        let (dir, path) = fake(
+            "opencode",
+            r#"echo '{"type":"step_start","part":{"type":"step-start"}}'"#,
+        );
+        let provider = opencode(path);
+        let config = config(&provider, Duration::from_secs(20), 0);
+        let run = run(&provider, dir.path(), &config)
+            .await
+            .expect("the run succeeds");
+        assert_eq!(run.usage, None);
+    }
+
+    #[tokio::test]
+    async fn claude_usage_is_read_from_one_closing_object_over_several_lines() {
+        // `--output-format json` writes one object, pretty-printed here so no
+        // single line is an event. It is longer than a kilobyte, so a tail
+        // kept much shorter than the 32 KB it is would cut it in half.
+        let padding = "x".repeat(2000);
+        let body = format!(
+            "cat <<'JSON'\n{{\n  \"type\": \"result\",\n  \"result\": \"{padding}\",\n  \"total_cost_usd\": 0.25,\n  \"usage\": {{\n    \"input_tokens\": 12,\n    \"output_tokens\": 34\n  }}\n}}\nJSON"
+        );
+        let (dir, path) = fake("claude", &body);
+        let provider = LlmProvider::Claude { path, model: None };
+        let config = config(&provider, Duration::from_secs(20), 0);
+        let run = run(&provider, dir.path(), &config)
+            .await
+            .expect("the run succeeds");
+        assert_eq!(
+            run.usage,
+            Some(AgentUsage {
+                input_tokens: 12,
+                output_tokens: 34,
+                cost_millicents: 25_000,
+                ..AgentUsage::default()
+            })
+        );
     }
 }

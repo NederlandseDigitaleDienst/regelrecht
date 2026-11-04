@@ -704,6 +704,9 @@ impl AgentSession {
     }
 }
 
+/// How often a worker's memory watchdog reads the agent's RSS.
+const DEFAULT_MEMORY_POLL_INTERVAL: Duration = Duration::from_secs(5);
+
 /// Default for `ENRICH_AGENT_IDLE_SECS`. Generous on purpose: the claude
 /// provider streams every token, so ten silent minutes means no token at
 /// all, not a long answer. API retries after an overload are the slowest
@@ -1636,6 +1639,9 @@ pub struct EnrichConfig {
     /// kills the process and fails the job instead of letting the agent OOM the
     /// whole container. 0 disables the watchdog.
     pub max_rss_mb: u64,
+    /// How often the memory watchdog reads the agent's RSS. Five seconds in
+    /// a worker; tests that exercise the watchdog shorten it.
+    pub memory_poll_interval: Duration,
     /// Max articles one enrich run may process (`ENRICH_MAX_ARTICLES_PER_RUN`).
     /// 0 disables chunking (whole-law sessions, the pre-chunking behavior).
     /// Default 15: a 600s session empirically enriches ~5–20 articles and the
@@ -1723,6 +1729,8 @@ impl EnrichConfig {
             feedback_timeout: Duration::from_secs(600),
             code_commit: "abc123".to_string(),
             max_rss_mb: 3500,
+            // Short, so tests of the watchdog do not wait five seconds.
+            memory_poll_interval: Duration::from_millis(100),
             // Chunking off by default in tests; chunk tests opt in explicitly.
             max_articles_per_run: 0,
             target_articles: Vec::new(),
@@ -1764,6 +1772,7 @@ impl EnrichConfig {
             feedback_timeout: timeout,
             code_commit: String::new(),
             max_rss_mb: 0,
+            memory_poll_interval: DEFAULT_MEMORY_POLL_INTERVAL,
             max_articles_per_run: max_articles,
             target_articles,
             feedback_rounds,
@@ -1866,6 +1875,7 @@ impl EnrichConfig {
             feedback_timeout: Duration::from_secs(timeout),
             code_commit,
             max_rss_mb,
+            memory_poll_interval: DEFAULT_MEMORY_POLL_INTERVAL,
             max_articles_per_run,
             // A worker walks whole laws; a named entry is a local, targeted
             // instruction and has no env var to arrive through.
@@ -1931,6 +1941,7 @@ impl EnrichConfig {
             feedback_timeout: self.feedback_timeout,
             code_commit: self.code_commit.clone(),
             max_rss_mb: self.max_rss_mb,
+            memory_poll_interval: self.memory_poll_interval,
             max_articles_per_run: self.max_articles_per_run,
             target_articles: self.target_articles.clone(),
             feedback_rounds: self.feedback_rounds,
