@@ -58,13 +58,7 @@ impl AgentDialect for ClaudeDialect {
                 // only the 1-based position and count.
                 cmd.env
                     .push(("CLAUDE_CODE_OAUTH_TOKEN".into(), token.to_string()));
-                if count > 1 {
-                    tracing::info!(
-                        using_token = idx + 1,
-                        of_tokens = count,
-                        "selected claude oauth token (rotating by ~100s)"
-                    );
-                }
+                log_token_rotation(idx, count);
             }
         }
         // Leaving a tool off `--allowedTools` does not take it away: that
@@ -192,6 +186,18 @@ pub(crate) fn provider_from_env(var: impl Fn(&str) -> Option<String>) -> LlmProv
     }
 }
 
+/// Say which of several tokens this call uses, by position only.
+fn log_token_rotation(idx: usize, count: usize) {
+    if count > 1 {
+        tracing::info!(
+            using_token = idx + 1,
+            of_tokens = count,
+            "selected claude oauth token (rotating by ~100s)"
+        );
+    }
+}
+
+/// What kind of token this looks like, for the log, from its non-secret prefix.
 fn token_kind(token: &str) -> &'static str {
     if token.is_empty() {
         "empty"
@@ -460,6 +466,28 @@ mod tests {
     }
 
     #[test]
+    fn the_lane_approves_the_file_tools_and_the_shell_only_when_asked() {
+        let allowed = |allow_bash: bool| {
+            let args = command(
+                ToolPolicy {
+                    allow_bash,
+                    deny: &[],
+                },
+                SessionAction::Cold,
+                &[],
+            )
+            .args_lossy();
+            let at = args
+                .iter()
+                .position(|a| a == "--allowedTools")
+                .expect("an allowlist");
+            args[at + 1].clone()
+        };
+        assert_eq!(allowed(false), "Read,Edit,Write,Grep,Glob");
+        assert_eq!(allowed(true), "Bash,Read,Edit,Write,Grep,Glob");
+    }
+
+    #[test]
     fn the_claude_command_starts_and_resumes_a_session() {
         let id = Uuid::new_v4();
         let args = |action: SessionAction| command(NO_TOOLS, action, &[]).args_lossy();
@@ -668,6 +696,11 @@ mod tests {
         ));
         assert!(!is_result_event(
             r#"{"type":"stream_event","event":{"type":"message_stop"}}"#
+        ));
+        // The pair itself, unescaped, nested in another event: only the parsed
+        // top level decides.
+        assert!(!is_result_event(
+            r#"{"type":"assistant","message":{"content":[{"type":"result"}]}}"#
         ));
         assert!(!is_result_event("not json"));
     }

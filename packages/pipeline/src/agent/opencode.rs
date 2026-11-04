@@ -52,17 +52,7 @@ impl AgentDialect for OpenCodeDialect {
         if let Some(m) = req.model {
             cmd.arg("-m").arg(m);
         }
-        // OpenCode has no effort flag; saying so beats passing an option
-        // it would reject and letting the run fail on a typo in config.
-        if req.effort.is_some() {
-            tracing::warn!("effort is not supported by opencode; ignored");
-        }
-        // Session reuse is a claude-provider affair. Under opencode every
-        // call stays cold, and it says so rather than letting a run be
-        // read as though the windows had been shared.
-        if !matches!(req.session, SessionAction::Cold) {
-            tracing::warn!("session reuse is not wired for opencode; this call runs cold");
-        }
+        warn_unsupported(req);
         cmd
     }
 
@@ -96,6 +86,22 @@ impl AgentDialect for OpenCodeDialect {
             return vec![AgentEvent::ErrorEvent(preview)];
         }
         Vec::new()
+    }
+}
+
+/// Say which asked-for options opencode cannot honour. Logging only: the
+/// command line leaves them out either way.
+fn warn_unsupported(req: &CommandRequest<'_>) {
+    // OpenCode has no effort flag; saying so beats passing an option
+    // it would reject and letting the run fail on a typo in config.
+    if req.effort.is_some() {
+        tracing::warn!("effort is not supported by opencode; ignored");
+    }
+    // Session reuse is a claude-provider affair. Under opencode every
+    // call stays cold, and it says so rather than letting a run be
+    // read as though the windows had been shared.
+    if !matches!(req.session, SessionAction::Cold) {
+        tracing::warn!("session reuse is not wired for opencode; this call runs cold");
     }
 }
 
