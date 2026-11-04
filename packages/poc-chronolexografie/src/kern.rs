@@ -728,12 +728,11 @@ fn oordelen_van_de_rechter(
     Ok(uit)
 }
 
-/// What each other cell of the sphere records by hand (RFC-051 §2), and what
-/// the case's own cell records by hand ([`handelingen_van`]). For the parking
-/// card: the GGD records its advice (the municipality's fictitious policy,
-/// art. 5), the printer the cards it delivers, and the municipality the
-/// print orders it gives and the cards it hands out (its fictitious policy
-/// on issuing the card).
+/// What each other cell of the sphere records by hand (RFC-051 §2), per cell
+/// ([`handelingen_van`]; the case's own cell is under `handelingen` of
+/// [`vormen`]). For the parking card: the GGD records its advice (the
+/// municipality's fictitious policy, art. 5) and the printer the cards it
+/// delivers (its policy on issuing the card, art. 2).
 fn handelingen(
     service: &LawExecutionService,
     corpus: &Corpus,
