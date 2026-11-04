@@ -495,6 +495,45 @@ impl AgentUsage {
         })
     }
 
+    /// The usage of one opencode model step, from its `step_finish` event.
+    /// opencode has no closing event with a total, so a call's usage is the
+    /// sum of its steps. Reasoning tokens are billed as output, so they count
+    /// as output here. `None` for any other line.
+    pub fn from_opencode_step(line: &str) -> Option<Self> {
+        if !line.contains(r#""type":"step_finish""#) {
+            return None;
+        }
+        let v: serde_json::Value = serde_json::from_str(line).ok()?;
+        if v.get("type")?.as_str()? != "step_finish" {
+            return None;
+        }
+        let part = v.get("part")?;
+        let tokens = part.get("tokens");
+        let n = |path: &[&str]| -> u64 {
+            let mut value = match tokens {
+                Some(t) => t,
+                None => return 0,
+            };
+            for key in path {
+                value = match value.get(*key) {
+                    Some(v) => v,
+                    None => return 0,
+                };
+            }
+            value.as_u64().unwrap_or(0)
+        };
+        Some(Self {
+            input_tokens: n(&["input"]),
+            output_tokens: n(&["output"]) + n(&["reasoning"]),
+            cache_read_tokens: n(&["cache", "read"]),
+            cache_write_tokens: n(&["cache", "write"]),
+            cost_millicents: part
+                .get("cost")
+                .and_then(serde_json::Value::as_f64)
+                .map_or(0, |usd| (usd * 100_000.0).round() as u64),
+        })
+    }
+
     /// Add a second run's usage, for reporting a whole chain as one figure.
     #[must_use]
     pub fn plus(self, other: Self) -> Self {
@@ -583,6 +622,16 @@ const REREAD_INSTRUCTION: &str = "Read the article you are about to change from 
      against what you read there, not against what you meant to write. If the finding is right, \
      change the file; do not explain why the earlier choice was defensible.";
 
+/// The session mode a provider can honour. opencode cannot continue a
+/// session (see `run_llm_subprocess`), so every one of its calls runs cold,
+/// and the window says so instead of naming a mode it does not get.
+pub(crate) fn session_reuse_for(provider: &LlmProvider, requested: SessionReuse) -> SessionReuse {
+    match provider {
+        LlmProvider::OpenCode { .. } => SessionReuse::Off,
+        LlmProvider::Claude { .. } => requested,
+    }
+}
+
 /// What one call must do with the window's session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SessionAction {
@@ -611,8 +660,9 @@ pub struct AgentCallRecord {
     pub resumed: bool,
     /// What the provider reported, or `None` when it reported nothing.
     pub usage: Option<AgentUsage>,
-    /// The model the call ran on, as the CLI named it in its `init` event.
-    /// `None` when it named none (opencode, a fake runner).
+    /// The model the call ran on: as the claude CLI named it in its `init`
+    /// event, or for opencode the model it was told to use. `None` when
+    /// neither is known (a fake runner).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
 }
@@ -1005,6 +1055,13 @@ pub(crate) async fn run_llm_subprocess(
     let pid = child.id();
     let activity = config.activity.clone();
     activity.enter();
+    // opencode sends no `init` event naming its model; show the configured one.
+    if let LlmProvider::OpenCode {
+        model: Some(model), ..
+    } = provider
+    {
+        activity.set_model(model);
+    }
     // However this call ends, it stops counting as in flight.
     let _in_flight = ExitOnDrop(activity.clone());
     // Only the claude provider streams per token, so only there does silence
@@ -1073,6 +1130,10 @@ pub(crate) async fn run_llm_subprocess(
     // the usage, and the bounded tail can cut a long one in half.
     let result_line = std::sync::Arc::new(Mutex::new(None::<String>));
     let result_writer = std::sync::Arc::clone(&result_line);
+    // The opencode provider's usage: the sum of its steps' `step_finish`
+    // events, since it writes no closing total.
+    let step_usage = std::sync::Arc::new(Mutex::new(None::<AgentUsage>));
+    let step_usage_writer = std::sync::Arc::clone(&step_usage);
     // The model the CLI names in its `init` event, for the call's record.
     let init_model = std::sync::Arc::new(Mutex::new(None::<String>));
     let model_writer = std::sync::Arc::clone(&init_model);
@@ -1100,6 +1161,14 @@ pub(crate) async fn run_llm_subprocess(
                                 tracing::info!(provider = %drain_provider, %model, "agent session started");
                                 if let Ok(mut m) = model_writer.lock() {
                                     *m = Some(model);
+                                }
+                            }
+                            if let Some(step) = AgentUsage::from_opencode_step(line) {
+                                if let Ok(mut total) = step_usage_writer.lock() {
+                                    *total = Some(match total.take() {
+                                        Some(sum) => sum.plus(step),
+                                        None => step,
+                                    });
                                 }
                             }
                             if crate::agent_activity::is_result_event(line) {
@@ -1252,12 +1321,14 @@ pub(crate) async fn run_llm_subprocess(
         .lock()
         .ok()
         .and_then(|r| r.as_deref().and_then(AgentUsage::from_stdout_tail));
-    let usage = from_result.or_else(|| {
-        stdout_tail
-            .lock()
-            .ok()
-            .and_then(|tail| AgentUsage::from_stdout_tail(&tail))
-    });
+    let usage = from_result
+        .or_else(|| step_usage.lock().ok().and_then(|u| *u))
+        .or_else(|| {
+            stdout_tail
+                .lock()
+                .ok()
+                .and_then(|tail| AgentUsage::from_stdout_tail(&tail))
+        });
     if let Some(u) = usage {
         tracing::info!(
             provider = %provider_name,
@@ -1269,7 +1340,16 @@ pub(crate) async fn run_llm_subprocess(
             "agent run accounted"
         );
     }
-    let model = init_model.lock().ok().and_then(|m| m.clone());
+    // opencode names no model in its output; the one it was told to use is
+    // the best record there is.
+    let model = init_model
+        .lock()
+        .ok()
+        .and_then(|m| m.clone())
+        .or_else(|| match provider {
+            LlmProvider::OpenCode { model, .. } => model.clone(),
+            LlmProvider::Claude { .. } => None,
+        });
     Ok(AgentRun { usage, model })
 }
 
@@ -2345,6 +2425,7 @@ impl EnrichConfig {
         effort: Option<String>,
         session_reuse: SessionReuse,
     ) -> Self {
+        let session_reuse = session_reuse_for(&provider, session_reuse);
         let mut provider_configs = std::collections::HashMap::new();
         provider_configs.insert("claude".to_string(), provider.clone());
         Self {
@@ -2459,6 +2540,7 @@ impl EnrichConfig {
             "claude" => claude_provider.clone(),
             _ => opencode_provider.clone(),
         };
+        let session_reuse = session_reuse_for(&provider, session_reuse);
 
         let mut provider_configs = std::collections::HashMap::new();
         provider_configs.insert("opencode".to_string(), opencode_provider);
@@ -2511,6 +2593,7 @@ impl EnrichConfig {
             );
             self.provider.clone()
         };
+        let session_reuse = session_reuse_for(&provider, self.session_reuse);
 
         Self {
             provider,
@@ -2530,7 +2613,7 @@ impl EnrichConfig {
             // closing pass — the use the field's own doc gives as its reason
             // for existing — did nothing.
             steps: self.steps,
-            session_reuse: self.session_reuse,
+            session_reuse,
             effort: self.effort.clone(),
             activity: self.activity.clone(),
             idle_timeout: self.idle_timeout,
@@ -5673,6 +5756,64 @@ related_legislation:
         assert_eq!(claude_model(Some(" ".into()), None), "claude-opus-5-5");
         assert_eq!(claude_model(None, Some("x".into())), "x");
         assert_eq!(claude_model(Some("y".into()), Some("x".into())), "y");
+    }
+
+    #[test]
+    fn an_opencode_job_runs_without_session_reuse() {
+        let config = EnrichConfig::for_test(LlmProvider::Claude {
+            path: "claude".into(),
+            model: None,
+        });
+        let config = EnrichConfig {
+            session_reuse: SessionReuse::Window,
+            ..config
+        };
+        let mut configs = config.provider_configs.clone();
+        configs.insert(
+            "opencode".to_string(),
+            LlmProvider::OpenCode {
+                path: "opencode".into(),
+                model: None,
+            },
+        );
+        let config = EnrichConfig {
+            provider_configs: configs,
+            ..config
+        };
+        assert_eq!(
+            config.with_provider_override("opencode").session_reuse,
+            SessionReuse::Off
+        );
+        assert_eq!(
+            config.with_provider_override("claude").session_reuse,
+            SessionReuse::Window
+        );
+    }
+
+    #[test]
+    fn opencode_step_usage_counts_reasoning_as_output_and_reads_cost() {
+        let line = r#"{"type":"step_finish","part":{"reason":"tool-calls","cost":0.0123,"tokens":{"input":40000,"output":900,"reasoning":5100,"cache":{"read":30000,"write":10}}}}"#;
+        assert_eq!(
+            AgentUsage::from_opencode_step(line),
+            Some(AgentUsage {
+                input_tokens: 40000,
+                output_tokens: 6000,
+                cache_read_tokens: 30000,
+                cache_write_tokens: 10,
+                cost_millicents: 1230,
+            })
+        );
+        // Other events, and a text event quoting the type, are not steps.
+        assert_eq!(
+            AgentUsage::from_opencode_step(r#"{"type":"step_start","part":{}}"#),
+            None
+        );
+        assert_eq!(
+            AgentUsage::from_opencode_step(
+                r#"{"type":"text","part":{"text":""type":"step_finish""}}"#
+            ),
+            None
+        );
     }
 
     #[test]

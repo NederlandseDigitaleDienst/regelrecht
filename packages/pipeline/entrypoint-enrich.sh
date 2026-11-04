@@ -157,6 +157,17 @@ if [ -z "$vlam_base" ]; then
   echo "WARNING: VLAM_API_URL is not set (no ZAD vlam service); the opencode provider has no endpoint" >&2
 fi
 
+# --- opencode model ---
+# opencode names no model in its output, so the worker records the one it was
+# told to use. Tell it explicitly, from the same file opencode reads, so the
+# job result says which model ran. LLM_MODEL, when set, still applies.
+if [ -z "$OPENCODE_MODEL" ] && [ -z "$LLM_MODEL" ]; then
+  OPENCODE_MODEL="$(node -e "console.log(require('/opt/opencode/opencode.json').model || '')" 2>/dev/null || true)"
+  if [ -n "$OPENCODE_MODEL" ]; then
+    export OPENCODE_MODEL
+  fi
+fi
+
 # --- opencode binary ---
 # The image carries two opencode builds (see the Dockerfile): one that needs
 # AVX2 and a baseline build without. Use the AVX2 build where the CPU has it,
