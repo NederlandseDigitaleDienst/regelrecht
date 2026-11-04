@@ -811,9 +811,7 @@ pub(crate) async fn call_agent(
     // A step whose tools are absent is left out and recorded, rather than
     // asked for and answered with an invention (issue #1036).
     let report = capabilities::plan_report(&plan);
-    if !report.is_empty() {
-        tracing::info!(plan = %report.trim_end(), "enrichment chain planned");
-    }
+    log_chain_plan(&report);
     if let Some((spec, _)) = plan
         .iter()
         .find(|(_, p)| matches!(p, capabilities::StepPlan::Blocked { .. }))
@@ -832,7 +830,7 @@ pub(crate) async fn call_agent(
     // can be run twice over the same laws with only this changed, which is
     // the only way to say what the brief is worth rather than that the
     // numbers moved.
-    let brief = if std::env::var("ENRICH_CONTEXT_BRIEF").as_deref() == Ok("0") {
+    let brief = if brief_withheld(std::env::var("ENRICH_CONTEXT_BRIEF").ok().as_deref()) {
         tracing::info!("context brief withheld by ENRICH_CONTEXT_BRIEF=0");
         None
     } else {
@@ -866,6 +864,19 @@ pub(crate) async fn call_agent(
     let run = runner.run(&call, config).await?;
     end_call(payload, action, run);
     Ok(())
+}
+
+/// Log the chain plan when it says anything: steps left out or degraded.
+fn log_chain_plan(report: &str) {
+    if !report.is_empty() {
+        tracing::info!(plan = %report.trim_end(), "enrichment chain planned");
+    }
+}
+
+/// Whether `ENRICH_CONTEXT_BRIEF` withholds the context brief: only `0`
+/// does; unset or anything else keeps it.
+fn brief_withheld(raw: Option<&str>) -> bool {
+    raw == Some("0")
 }
 
 /// Default runner that spawns a real CLI process.
@@ -6469,6 +6480,14 @@ articles:
         .expect("rounds run");
 
         runner
+    }
+
+    #[test]
+    fn only_zero_withholds_the_context_brief() {
+        assert!(brief_withheld(Some("0")));
+        assert!(!brief_withheld(None));
+        assert!(!brief_withheld(Some("1")));
+        assert!(!brief_withheld(Some("")));
     }
 
     #[tokio::test]
