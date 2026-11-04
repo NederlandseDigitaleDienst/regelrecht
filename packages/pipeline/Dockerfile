@@ -160,11 +160,12 @@ RUN npm install -g --ignore-scripts \
     opencode --version && \
     npm cache clean --force
 
-# Copy opencode provider config (VLAM); the entrypoint adds the endpoint and the
-# API key at runtime. Not under /etc/opencode: opencode reads that as a
-# system-wide config that overrides the user's, so it would win over what the
-# entrypoint writes into ~/.config/opencode. The provider package the config
-# names (@ai-sdk/openai-compatible) is built into the opencode binary.
+# Copy opencode provider config (VLAM); the enrich worker adds the endpoint and
+# the API key at startup (`prepare_worker` in src/agent/opencode.rs). Not under
+# /etc/opencode: opencode reads that as a system-wide config that overrides the
+# user's, so it would win over what the worker writes into ~/.config/opencode.
+# The provider package the config names (@ai-sdk/openai-compatible) is built
+# into the opencode binary.
 COPY packages/pipeline/opencode.json /opt/opencode/opencode.json
 
 COPY --from=builder /build/target/release/regelrecht-enrich-worker /usr/local/bin/

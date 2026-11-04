@@ -296,10 +296,16 @@ The `opencode` provider talks to VLAM, the language model API of SSC-ICT, and
 the editor shows it under that name. Its model lives in
 `packages/pipeline/opencode.json`; the model is `kimi-k3-prepaid`. The only
 route to VLAM is the platform service `vlam` on ZAD, which puts `VLAM_API_URL`
-(a proxy into VLAM) in the pod; the entrypoint points opencode at
-`$VLAM_API_URL/v1`. Without that service the provider has no endpoint, and the
-worker logs a warning at startup. The key comes from SSC-ICT, not from ZAD, and
-is set as `VLAM_API_KEY`. At startup the worker logs `VLAM check` lines: the
+(a proxy into VLAM) in the pod. At startup the enrich worker writes opencode's
+user configuration with `$VLAM_API_URL/v1` as the endpoint. Without that
+service the provider has no endpoint, and the worker logs a warning. The key
+comes from SSC-ICT, not from ZAD, and is set as `VLAM_API_KEY`; the worker
+writes it to opencode's `auth.json`, readable by the worker alone. It does this
+only where the image's `opencode.json` exists, so a worker started on a
+developer's machine leaves their home alone. `enrich-once` never does it and
+runs on the opencode configuration and credentials the developer already has.
+
+Before the worker starts, the image's entrypoint logs `VLAM check` lines: the
 model as VLAM lists it, the result of one short chat call, and whether the
 model answers a call that offers it a tool. Together they show on every deploy
 whether the key works and whether the model can do the tool calls an
@@ -315,6 +321,15 @@ the tokens it used, warns on `agent step cut off by the output limit`, and the
 error of a run that produced nothing says how many steps were cut off. 32000 is
 also opencode's own ceiling: a higher limit needs
 `OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX` as well as `limit.output`.
+
+What differs between the two CLIs lives in one dialect per provider, under
+`packages/pipeline/src/agent/`: the command line, what a line of output means,
+and whether a call can continue a session, stalls when it goes quiet, or names
+its model. Starting the process and watching it is the same for both. The tests
+play recorded output of each provider through it, from
+`packages/pipeline/tests/fixtures/agent-streams/`; the opencode recordings there
+are still assembled by hand
+([#1895](https://github.com/NederlandseDigitaleDienst/regelrecht/issues/1895)).
 
 The LLM subprocess runs with a stripped environment (allowlisted vars only) for security.
 
@@ -338,10 +353,10 @@ stream-json output. The worker records it: per call in the job result's
 Harvester page shows while a job runs.
 
 opencode writes neither an `init` event nor a closing total. For the model the
-worker records the one opencode was told to use: the entrypoint sets
-`OPENCODE_MODEL` from `opencode.json` when nothing else names one. The usage of
-a call is the sum of its steps' `step_finish` events, with reasoning tokens
-counted as output. An opencode call never continues a session, so an opencode
+worker records the one opencode was told to use. When neither `OPENCODE_MODEL`
+nor `LLM_MODEL` names one, the enrich worker takes it from `opencode.json`.
+The usage of a call is the sum of its steps' `step_finish` events, with
+reasoning tokens counted as output. An opencode call never continues a session, so an opencode
 job runs with `session_reuse: off` whatever `ENRICH_SESSION_REUSE` says: every
 call is recorded as cold, and no feedback prompt tells it that it wrote the file
 earlier in the same conversation.

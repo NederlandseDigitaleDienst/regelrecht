@@ -8,11 +8,13 @@ use regelrecht_corpus::{CorpusClient, CorpusConfig};
 use regelrecht_law_model::ArticleBasedLaw;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tokio::io::AsyncReadExt;
 use uuid::Uuid;
 
 use crate::enrich_v2::{capabilities, context};
 use crate::error::{PipelineError, Result};
+// The agent subprocess lives in `crate::agent`; these names stay reachable
+// here because enrich is where every caller meets them.
+pub(crate) use crate::agent::{run_llm_subprocess, AgentRun, ToolPolicy};
 
 /// Per-process cache of branch names already confirmed to exist on the
 /// corpus remote. Branches are never deleted once created, so a positive
@@ -442,98 +444,6 @@ pub struct AgentUsage {
 }
 
 impl AgentUsage {
-    /// Read the usage out of the provider's final JSON object.
-    ///
-    /// Takes the tail of stdout rather than the whole stream: the object we
-    /// want is the last one, and opencode inlines multi-megabyte bodies
-    /// earlier in the stream that nobody should hold in memory to reach it.
-    /// Returns `None` when the tail carries no recognisable object, which is
-    /// the normal case for a provider that reports nothing.
-    #[must_use]
-    pub fn from_stdout_tail(tail: &str) -> Option<Self> {
-        // The whole tail first. `--output-format json` writes one object, and
-        // looking for the last `{` lands inside it: this payload nests
-        // `iterations` and `cache_creation`, so the scan found a fragment with
-        // no `usage` and every figure came out zero.
-        //
-        // The scan stays for the streaming shape, where the closing object
-        // really is the last one on the stream.
-        //
-        // Then line by line from the end, for stream-json: the last line
-        // with a top-level `usage` is the closing `result`. Assistant and
-        // stream events carry theirs nested, and the CLI puts `type`
-        // anywhere in the object, so neither key order nor a `{"type"`
-        // prefix can be relied on.
-        let value: serde_json::Value = serde_json::from_str(tail.trim())
-            .ok()
-            .or_else(|| {
-                tail.lines().rev().find_map(|line| {
-                    let v: serde_json::Value = serde_json::from_str(line.trim()).ok()?;
-                    v.get("usage").is_some().then_some(v)
-                })
-            })
-            .or_else(|| {
-                let start = tail.rfind("{\"type\"").or_else(|| tail.rfind('{'))?;
-                serde_json::from_str(tail[start..].trim()).ok()
-            })?;
-        let usage = value.get("usage")?;
-        let n = |key: &str| {
-            usage
-                .get(key)
-                .and_then(serde_json::Value::as_u64)
-                .unwrap_or(0)
-        };
-        Some(Self {
-            input_tokens: n("input_tokens"),
-            output_tokens: n("output_tokens"),
-            cache_read_tokens: n("cache_read_input_tokens"),
-            cache_write_tokens: n("cache_creation_input_tokens"),
-            cost_millicents: value
-                .get("total_cost_usd")
-                .and_then(serde_json::Value::as_f64)
-                .map_or(0, |usd| (usd * 100_000.0).round() as u64),
-        })
-    }
-
-    /// The usage of one opencode model step, from its `step_finish` event.
-    /// opencode has no closing event with a total, so a call's usage is the
-    /// sum of its steps. Reasoning tokens are billed as output, so they count
-    /// as output here. `None` for any other line.
-    pub fn from_opencode_step(line: &str) -> Option<Self> {
-        if !line.contains(r#""type":"step_finish""#) {
-            return None;
-        }
-        let v: serde_json::Value = serde_json::from_str(line).ok()?;
-        if v.get("type")?.as_str()? != "step_finish" {
-            return None;
-        }
-        let part = v.get("part")?;
-        let tokens = part.get("tokens");
-        let n = |path: &[&str]| -> u64 {
-            let mut value = match tokens {
-                Some(t) => t,
-                None => return 0,
-            };
-            for key in path {
-                value = match value.get(*key) {
-                    Some(v) => v,
-                    None => return 0,
-                };
-            }
-            value.as_u64().unwrap_or(0)
-        };
-        Some(Self {
-            input_tokens: n(&["input"]),
-            output_tokens: n(&["output"]) + n(&["reasoning"]),
-            cache_read_tokens: n(&["cache", "read"]),
-            cache_write_tokens: n(&["cache", "write"]),
-            cost_millicents: part
-                .get("cost")
-                .and_then(serde_json::Value::as_f64)
-                .map_or(0, |usd| (usd * 100_000.0).round() as u64),
-        })
-    }
-
     /// Add a second run's usage, for reporting a whole chain as one figure.
     #[must_use]
     pub fn plus(self, other: Self) -> Self {
@@ -626,9 +536,10 @@ const REREAD_INSTRUCTION: &str = "Read the article you are about to change from 
 /// session (see `run_llm_subprocess`), so every one of its calls runs cold,
 /// and the window says so instead of naming a mode it does not get.
 pub(crate) fn session_reuse_for(provider: &LlmProvider, requested: SessionReuse) -> SessionReuse {
-    match provider {
-        LlmProvider::OpenCode { .. } => SessionReuse::Off,
-        LlmProvider::Claude { .. } => requested,
+    if provider.dialect().capabilities().resumes_sessions {
+        requested
+    } else {
+        SessionReuse::Off
     }
 }
 
@@ -793,6 +704,9 @@ impl AgentSession {
     }
 }
 
+/// How often a worker's memory watchdog reads the agent's RSS.
+const DEFAULT_MEMORY_POLL_INTERVAL: Duration = Duration::from_secs(5);
+
 /// Default for `ENRICH_AGENT_IDLE_SECS`. Generous on purpose: the claude
 /// provider streams every token, so ten silent minutes means no token at
 /// all, not a long answer. API retries after an overload are the slowest
@@ -831,24 +745,6 @@ fn end_call(payload: &EnrichPayload, action: SessionAction, run: AgentRun) {
         session.record(pass_label(&payload.pass), action, run.usage, run.model);
     }
 }
-
-/// What one agent subprocess reported about itself.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(crate) struct AgentRun {
-    /// Token use and cost, from the closing event.
-    pub usage: Option<AgentUsage>,
-    /// The model it ran on, from the `init` event.
-    pub model: Option<String>,
-}
-
-/// Max bytes of the LLM subprocess's stderr to retain for diagnostics. The tail
-/// (most recent output) is kept and appended to the error on a non-zero exit, so
-/// a failure reports the real cause (e.g. an auth `401`) instead of a bare code.
-const MAX_STDERR_CAPTURE: usize = 4096;
-
-/// Max bytes of the agent's stdout to retain, enough to hold the provider's
-/// closing JSON object with the usage figures and nothing before it.
-const MAX_STDOUT_TAIL: usize = 32 * 1024;
 
 /// Default runner that spawns a real CLI process.
 pub struct ProcessLlmRunner;
@@ -961,561 +857,6 @@ impl LlmRunner for ProcessLlmRunner {
         end_call(payload, action, run);
         Ok(())
     }
-}
-
-/// What tools one agent call may use.
-///
-/// Two fields because the provider takes two answers and they are not the same
-/// question. The allowlist decides what is approved without asking; the deny
-/// list decides what is not there at all. Conflating them is how the enrichment
-/// lane came to report a shell-less runtime to an agent that had a shell.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct ToolPolicy<'a> {
-    /// Whether the `claude` provider's allowlist includes `Bash` (enrich keeps
-    /// it off; document-convert needs it so the agent can run/install a
-    /// converter). No effect on `opencode`, which has its own tool model.
-    pub allow_bash: bool,
-    /// Tools withheld outright. Unlike leaving a tool off the allowlist, which
-    /// only means it has to be asked for, this takes it away.
-    pub deny: &'a [String],
-}
-
-impl ToolPolicy<'_> {
-    /// The claude provider's `--allowedTools` value.
-    fn allowed(self) -> &'static str {
-        if self.allow_bash {
-            "Bash,Read,Edit,Write,Grep,Glob"
-        } else {
-            "Read,Edit,Write,Grep,Glob"
-        }
-    }
-
-    /// The claude provider's `--disallowedTools` value, empty when nothing is
-    /// withheld. A caller that did not ask for the shell does not merely fail
-    /// to get it approved: it does not get it.
-    fn denied(self) -> Vec<String> {
-        let mut out: Vec<String> = self.deny.to_vec();
-        if !self.allow_bash {
-            out.push("Bash".to_owned());
-        }
-        out.sort();
-        out.dedup();
-        out
-    }
-}
-
-/// Spawn and supervise an LLM agent subprocess, provider-agnostically.
-///
-/// This is the reusable core lifted out of [`ProcessLlmRunner::run`]: it builds
-/// the command, drains stdout/stderr (retaining a bounded stderr tail for the
-/// error message), and races the child against the configured timeout and the
-/// RSS memory watchdog, killing the whole process group on either. `cwd` is the
-/// working directory the agent runs in (and writes its output into); `file_arg`
-/// is the optional single input file (OpenCode's `-f`). Callers supply their own
-/// `prompt` — enrich and document-convert differ only in that prompt.
-/// `tools` says what this call may use (see [`ToolPolicy`]).
-/// `session` says whether this call opens, continues or ignores a session; a
-/// caller with no window to speak of passes [`SessionAction::Cold`].
-pub(crate) async fn run_llm_subprocess(
-    provider: &LlmProvider,
-    prompt: &str,
-    file_arg: Option<&Path>,
-    cwd: &Path,
-    config: &EnrichConfig,
-    tools: ToolPolicy<'_>,
-    session: SessionAction,
-) -> Result<AgentRun> {
-    let provider_name = provider.name().to_string();
-
-    let mut cmd = build_command(
-        provider,
-        prompt,
-        file_arg,
-        cwd,
-        tools,
-        config.effort.as_deref(),
-        session,
-    );
-
-    // Both streams are piped and drained. stdout is drained-and-discarded: a
-    // verbose agent (e.g. opencode `--format json`) inlines the full body of
-    // every fetched page into its event stream, which would flood container
-    // logs. stderr is drained too — we MUST keep reading both or a full 64 KB
-    // OS pipe buffer blocks the child — but for stderr we also keep a bounded
-    // tail and re-log previews, so the LLM's real error (e.g. an auth 401) is
-    // both visible in the logs and attached to the job's failure.
-    cmd.stderr(std::process::Stdio::piped());
-    cmd.stdout(std::process::Stdio::piped());
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| PipelineError::Enrich(format!("failed to spawn {}: {e}", provider_name)))?;
-
-    // Capture the PID before any wait reaps the child; the memory watchdog
-    // and process-group kill both need it.
-    let pid = child.id();
-    let activity = config.activity.clone();
-    activity.enter();
-    // opencode sends no `init` event naming its model; show the configured one.
-    if let LlmProvider::OpenCode {
-        model: Some(model), ..
-    } = provider
-    {
-        activity.set_model(model);
-    }
-    // However this call ends, it stops counting as in flight.
-    let _in_flight = ExitOnDrop(activity.clone());
-    // Only the claude provider streams per token, so only there does silence
-    // mean the agent stopped. opencode writes an event per finished part and
-    // can be quiet for longer while it writes a large file.
-    let idle_limit = match provider {
-        LlmProvider::Claude { .. } => config.idle_timeout,
-        LlmProvider::OpenCode { .. } => None,
-    };
-
-    // Drain stderr, retaining the last `MAX_STDERR_CAPTURE` bytes for the
-    // error message and re-logging bounded previews so it stays visible.
-    let stderr_tail = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
-    let stderr_task = child.stderr.take().map(|mut stderr| {
-        let tail = stderr_tail.clone();
-        let stderr_provider = provider_name.clone();
-        let activity = activity.clone();
-        tokio::spawn(async move {
-            let mut buf = [0u8; 8192];
-            loop {
-                match stderr.read(&mut buf).await {
-                    Ok(0) | Err(_) => break, // EOF or pipe gone
-                    Ok(n) => {
-                        activity.touch();
-                        let text = String::from_utf8_lossy(&buf[..n]);
-                        let preview: String = text.trim().chars().take(500).collect();
-                        if !preview.is_empty() {
-                            tracing::warn!(provider = %stderr_provider, %preview, "agent stderr");
-                        }
-                        if let Ok(mut t) = tail.lock() {
-                            t.push_str(&text);
-                            if t.len() > MAX_STDERR_CAPTURE {
-                                let mut cut = t.len() - MAX_STDERR_CAPTURE;
-                                while cut < t.len() && !t.is_char_boundary(cut) {
-                                    cut += 1;
-                                }
-                                *t = t[cut..].to_string();
-                            }
-                        }
-                    }
-                }
-            }
-        })
-    });
-    // Read the retained stderr tail, formatted as a "; stderr: …" suffix.
-    let stderr_suffix = || {
-        stderr_tail
-            .lock()
-            .ok()
-            .map(|t| t.trim().to_string())
-            .filter(|t| !t.is_empty())
-            .map(|t| format!("; stderr: {t}"))
-            .unwrap_or_default()
-    };
-
-    // Drain the agent's stdout so it never reaches container logs. We MUST
-    // keep reading it: if the OS pipe buffer (64 KB) fills, the child blocks
-    // indefinitely — the same deadlock the stderr comment above warns about.
-    // The task ends on EOF when the process exits or is killed.
-    // Tail of stdout, kept so the provider's closing JSON object can be read
-    // after the process exits. Bounded: everything before the last object is
-    // of no interest, and the stream can carry megabytes.
-    let stdout_tail = std::sync::Arc::new(Mutex::new(String::new()));
-    let tail_writer = std::sync::Arc::clone(&stdout_tail);
-    // The claude provider's closing `result` event, kept whole: it carries
-    // the usage, and the bounded tail can cut a long one in half.
-    let result_line = std::sync::Arc::new(Mutex::new(None::<String>));
-    let result_writer = std::sync::Arc::clone(&result_line);
-    // The opencode provider's usage: the sum of its steps' `step_finish`
-    // events, since it writes no closing total.
-    let step_usage = std::sync::Arc::new(Mutex::new(None::<AgentUsage>));
-    let step_usage_writer = std::sync::Arc::clone(&step_usage);
-    // The model the CLI names in its `init` event, for the call's record.
-    let init_model = std::sync::Arc::new(Mutex::new(None::<String>));
-    let model_writer = std::sync::Arc::clone(&init_model);
-    let mut stdout_task = None;
-    if let Some(mut stdout) = child.stdout.take() {
-        let drain_provider = provider_name.clone();
-        let activity = activity.clone();
-        stdout_task = Some(tokio::spawn(async move {
-            let mut lines = crate::agent_activity::LineSplitter::default();
-            // Drain in fixed-size chunks rather than whole lines: opencode
-            // inlines multi-MB page bodies as a single JSON line, so a
-            // line reader would allocate the entire body just to log a
-            // 200-char preview — a heap spike on the very worker this
-            // watchdog exists to protect. Reading into a fixed buffer keeps
-            // the pipe empty without ever holding more than `buf`.
-            let mut buf = [0u8; 8192];
-            loop {
-                match stdout.read(&mut buf).await {
-                    Ok(0) | Err(_) => break, // EOF or pipe gone (process exited/killed)
-                    Ok(n) => {
-                        activity.touch();
-                        lines.feed(&buf[..n], |line| {
-                            activity.record_line(line);
-                            if let Some(model) = crate::agent_activity::init_model(line) {
-                                tracing::info!(provider = %drain_provider, %model, "agent session started");
-                                if let Ok(mut m) = model_writer.lock() {
-                                    *m = Some(model);
-                                }
-                            }
-                            if let Some(step) = AgentUsage::from_opencode_step(line) {
-                                if let Ok(mut total) = step_usage_writer.lock() {
-                                    *total = Some(match total.take() {
-                                        Some(sum) => sum.plus(step),
-                                        None => step,
-                                    });
-                                }
-                            }
-                            if crate::agent_activity::is_result_event(line) {
-                                if let Ok(mut r) = result_writer.lock() {
-                                    *r = Some(line.to_string());
-                                }
-                            }
-                            // opencode reports a failed model call as an
-                            // `error` event on stdout and can exit without a
-                            // word on stderr. stdout is not logged, so say it
-                            // here, bounded: the event is small, the bodies
-                            // around it are not.
-                            if is_error_event(line) {
-                                let preview: String = line.chars().take(1000).collect();
-                                tracing::warn!(provider = %drain_provider, event = %preview, "agent reported an error");
-                            }
-                        });
-                        // Bounded preview at debug only (off under the
-                        // default "info" subscriber). The leading bytes of a
-                        // read carry the event type and ids, not the large
-                        // inlined bodies; lossy is fine for a log preview.
-                        let preview = String::from_utf8_lossy(&buf[..n.min(200)]);
-                        let preview = preview.trim_end();
-                        if !preview.is_empty() {
-                            tracing::debug!(provider = %drain_provider, %preview, "agent stdout");
-                        }
-                        #[allow(clippy::unwrap_used)]
-                        if let Ok(mut tail) = tail_writer.lock() {
-                            tail.push_str(&String::from_utf8_lossy(&buf[..n]));
-                            if tail.len() > MAX_STDOUT_TAIL {
-                                let cut = tail.len() - MAX_STDOUT_TAIL;
-                                let cut = tail
-                                    .char_indices()
-                                    .map(|(i, _)| i)
-                                    .find(|i| *i >= cut)
-                                    .unwrap_or(tail.len());
-                                *tail = tail.split_off(cut);
-                            }
-                        }
-                    }
-                }
-            }
-        }));
-    }
-
-    let status = tokio::select! {
-        result = child.wait() => {
-            result.map_err(|e| {
-                PipelineError::Enrich(format!("failed to wait for {}: {e}", provider_name))
-            })?
-        }
-        _ = tokio::time::sleep(config.timeout) => {
-            terminate(&mut child, pid).await;
-            // Abort the drain task rather than leaving it detached: if a
-            // grandchild inherited fd 2 and survived terminate(), the task
-            // would otherwise leak. The tail read below is already populated.
-            if let Some(t) = &stderr_task {
-                t.abort();
-            }
-            return Err(PipelineError::Enrich(format!(
-                "{} timed out after {:?}{}{}",
-                provider_name,
-                config.timeout,
-                stderr_suffix(),
-                activity.summary()
-            )));
-        }
-        silent = wait_for_silence(&activity, idle_limit) => {
-            tracing::error!(
-                provider = %provider_name,
-                silent_secs = silent.as_secs(),
-                "LLM subprocess wrote nothing for too long, killing it as stalled"
-            );
-            terminate(&mut child, pid).await;
-            if let Some(t) = &stderr_task {
-                t.abort();
-            }
-            return Err(PipelineError::Enrich(format!(
-                "{} stalled: no output for {}s{}{}",
-                provider_name,
-                silent.as_secs(),
-                stderr_suffix(),
-                activity.summary()
-            )));
-        }
-        observed_mb = watch_memory(pid, config.max_rss_mb) => {
-            tracing::error!(
-                provider = %provider_name,
-                pid = ?pid,
-                observed_mb,
-                limit_mb = config.max_rss_mb,
-                "LLM subprocess exceeded memory limit, killing to protect the container"
-            );
-            terminate(&mut child, pid).await;
-            if let Some(t) = &stderr_task {
-                t.abort();
-            }
-            return Err(PipelineError::Enrich(format!(
-                "{provider_name} exceeded memory limit of {} MB (RSS {observed_mb} MB), killed{}",
-                config.max_rss_mb, stderr_suffix()
-            )));
-        }
-    };
-
-    // Let stdout drain to its end so the closing event is in, on success for
-    // its usage and on failure for its error text. Bounded: a grandchild
-    // that inherited the pipe could keep it open and never EOF, and this
-    // await sits outside the timeout/memory select!.
-    if let Some(task) = stdout_task {
-        let _ = tokio::time::timeout(Duration::from_secs(2), task).await;
-    }
-
-    if !status.success() {
-        // Give the stderr drain a moment to finish so the tail is complete,
-        // bounded for the same reason as stdout above. Best-effort, like the
-        // tail in the other paths.
-        if let Some(task) = stderr_task {
-            let _ = tokio::time::timeout(Duration::from_secs(2), task).await;
-        }
-        // The claude CLI reports a failed API call in its closing event and
-        // exits 1 with nothing on stderr; without this the reason is lost.
-        let cli_error = result_line
-            .lock()
-            .ok()
-            .and_then(|r| {
-                r.as_deref()
-                    .and_then(crate::agent_activity::result_error_text)
-            })
-            .map(|t| format!(": {t}"))
-            .unwrap_or_default();
-        return Err(PipelineError::Enrich(format!(
-            "{} exited with {}{}{}{}",
-            provider_name,
-            status,
-            cli_error,
-            stderr_suffix(),
-            activity.summary()
-        )));
-    }
-
-    // Success: abort the drain task instead of leaving it detached — same
-    // fd-2/grandchild-leak guard as the timeout/OOM paths. Normally it has
-    // already finished (the child closed stderr on exit); aborting a finished
-    // task is a no-op.
-    if let Some(t) = &stderr_task {
-        t.abort();
-    }
-
-    let from_result = result_line
-        .lock()
-        .ok()
-        .and_then(|r| r.as_deref().and_then(AgentUsage::from_stdout_tail));
-    let usage = from_result
-        .or_else(|| step_usage.lock().ok().and_then(|u| *u))
-        .or_else(|| {
-            stdout_tail
-                .lock()
-                .ok()
-                .and_then(|tail| AgentUsage::from_stdout_tail(&tail))
-        });
-    if let Some(u) = usage {
-        tracing::info!(
-            provider = %provider_name,
-            resumed = session.resumed(),
-            input_tokens = u.input_tokens,
-            output_tokens = u.output_tokens,
-            cache_read_tokens = u.cache_read_tokens,
-            cost_millicents = u.cost_millicents,
-            "agent run accounted"
-        );
-    }
-    // opencode names no model in its output; the one it was told to use is
-    // the best record there is.
-    let model = init_model
-        .lock()
-        .ok()
-        .and_then(|m| m.clone())
-        .or_else(|| match provider {
-            LlmProvider::OpenCode { model, .. } => model.clone(),
-            LlmProvider::Claude { .. } => None,
-        });
-    Ok(AgentRun { usage, model })
-}
-
-/// Marks the agent subprocess as ended when its call returns, by any path.
-struct ExitOnDrop(crate::agent_activity::ActivityHandle);
-
-impl Drop for ExitOnDrop {
-    fn drop(&mut self) {
-        self.0.exit();
-    }
-}
-
-/// Resolve once the agent has written nothing for `limit`, with how long it
-/// has been silent. Never resolves when the check is off.
-async fn wait_for_silence(
-    activity: &crate::agent_activity::ActivityHandle,
-    limit: Option<Duration>,
-) -> Duration {
-    let Some(limit) = limit else {
-        return std::future::pending().await;
-    };
-    // Check a few times per limit, at most every 15 s, so a short limit in a
-    // test still fires promptly.
-    let every = (limit / 4).clamp(Duration::from_millis(50), Duration::from_secs(15));
-    loop {
-        tokio::time::sleep(every).await;
-        if let Some(silent) = activity.idle() {
-            if silent >= limit {
-                return silent;
-            }
-        }
-    }
-}
-
-/// Kill the LLM subprocess and reap it.
-///
-/// Signals the whole process group (negative pid) so any helpers the agent
-/// forked (node workers, git) die too — not just the direct child — then
-/// falls back to `child.kill()` (covers a missing pid) and waits to avoid a
-/// zombie.
-async fn terminate(child: &mut tokio::process::Child, pid: Option<u32>) {
-    kill_process_group(pid);
-    if let Err(e) = child.kill().await {
-        // After the group SIGKILL above the direct child is usually already
-        // gone, so `ESRCH` here is the expected benign race — only a different
-        // error is worth flagging.
-        if e.raw_os_error() != Some(libc::ESRCH) {
-            tracing::warn!(error = %e, "failed to kill LLM process");
-        }
-    }
-    let _ = child.wait().await;
-}
-
-/// Send `SIGKILL` to the entire process group led by `pid`.
-///
-/// The subprocess is spawned as its own process-group leader
-/// (`process_group(0)` in `build_command`), so `kill(-pid, …)` reaps the agent
-/// and everything it forked. A failure (e.g. `ESRCH`) just means the group has
-/// already exited and is ignored.
-fn kill_process_group(pid: Option<u32>) {
-    if let Some(pid) = pid {
-        // Guard against pid 0: `kill(-0, …)` collapses to `kill(0, …)`, which
-        // POSIX routes to the *caller's own* process group — it would SIGKILL
-        // the worker itself. `child.id()` never yields 0 in practice, but the
-        // consequence is catastrophic enough to refuse it defensively.
-        if pid == 0 {
-            return;
-        }
-        // SAFETY: `kill(2)` with a negative pid targets a process group and has
-        // no memory-safety implications; the return value is intentionally
-        // ignored (the group may already be gone). Linux PIDs are capped well
-        // below `i32::MAX` (`pid_max` <= 2^22), so `pid as i32` cannot overflow.
-        unsafe {
-            libc::kill(-(pid as i32), libc::SIGKILL);
-        }
-    }
-}
-
-/// Memory watchdog: resolve with the observed RSS (in MB) once the subprocess
-/// exceeds `max_rss_mb`.
-///
-/// The LLM agent accumulates fetched-page bodies in memory across a run; left
-/// unchecked it climbs to the container's cgroup limit and triggers an OOM kill
-/// of the whole pod. Polling RSS and killing the offender instead turns that
-/// into a clean, retryable job failure.
-///
-/// Disabled (never resolves, letting the `child.wait()`/timeout branches win)
-/// when `pid` is `None` or `max_rss_mb` is 0. We poll `/proc` directly rather
-/// than capping virtual memory with `RLIMIT_AS`: V8 reserves a huge virtual
-/// address space, so a virtual-memory ceiling would crash Node outright.
-async fn watch_memory(pid: Option<u32>, max_rss_mb: u64) -> u64 {
-    let pid = match pid {
-        Some(p) if max_rss_mb > 0 => p,
-        _ => {
-            tracing::debug!("enrich memory watchdog disabled (no pid or zero limit)");
-            std::future::pending::<()>().await;
-            unreachable!("pending future never resolves");
-        }
-    };
-
-    // RSS polling reads `/proc/<pid>/status`, which only exists on Linux (the
-    // deploy target). On a non-Linux dev machine `read_vmrss_kb` would return
-    // `None` every poll and the watchdog would never fire — silently. Make that
-    // degradation explicit and skip the pointless poll loop rather than letting
-    // a developer believe a ceiling is enforced when it is not.
-    if !cfg!(target_os = "linux") {
-        tracing::debug!(
-            "enrich memory watchdog inactive: RSS polling needs /proc (Linux only); \
-             agent runs without a memory ceiling on this platform"
-        );
-        std::future::pending::<()>().await;
-        unreachable!("pending future never resolves");
-    }
-
-    let interval = Duration::from_secs(5);
-    loop {
-        tokio::time::sleep(interval).await;
-        // A missing/unparsable status file means the process is gone; keep
-        // looping (harmless) and let `child.wait()` win the select.
-        if let Some(rss_kb) = read_vmrss_kb(pid).await {
-            let rss_mb = rss_kb / 1024;
-            if rss_mb > max_rss_mb {
-                return rss_mb;
-            }
-        }
-    }
-}
-
-/// Whether a JSON line from the agent is an error event (`"type":"error"`),
-/// as opencode writes when a model call fails.
-fn is_error_event(line: &str) -> bool {
-    // Lines can be a megabyte of inlined file content; only parse the ones
-    // that can be an error event.
-    if !line.contains(r#""type":"error""#) {
-        return false;
-    }
-    serde_json::from_str::<serde_json::Value>(line)
-        .ok()
-        .and_then(|v| v.get("type").and_then(|t| t.as_str()).map(|t| t == "error"))
-        .unwrap_or(false)
-}
-
-/// Read a process's resident set size (RSS) from `/proc/<pid>/status`, in kB.
-/// Returns `None` if the file is missing or unparsable (e.g. the process exited).
-///
-/// This measures only the direct child PID, not the whole process group that
-/// `kill_process_group` SIGKILLs. That asymmetry is intentional: for the current
-/// opencode/Claude agent topology the runaway memory is the accumulated
-/// fetched-page bodies held in the main node process we spawn, so its RSS is the
-/// signal that matters. If a future agent moved that growth into a forked
-/// subprocess, this would need to sum the group's RSS (e.g. walk
-/// `/proc/<pid>/task` / children) to stay accurate.
-async fn read_vmrss_kb(pid: u32) -> Option<u64> {
-    let status = tokio::fs::read_to_string(format!("/proc/{pid}/status"))
-        .await
-        .ok()?;
-    parse_vmrss_kb(&status)
-}
-
-/// Parse the `VmRSS` value (in kB) out of `/proc/<pid>/status` contents.
-fn parse_vmrss_kb(status: &str) -> Option<u64> {
-    status
-        .lines()
-        .find_map(|line| line.strip_prefix("VmRSS:"))
-        .and_then(|rest| rest.split_whitespace().next())
-        .and_then(|kb| kb.parse::<u64>().ok())
 }
 
 /// What kind of run this is. A chain is a sequence of passes over the same
@@ -2220,20 +1561,12 @@ pub enum LlmProvider {
 impl LlmProvider {
     /// Short name used in branch names and metadata.
     pub fn name(&self) -> &str {
-        match self {
-            LlmProvider::OpenCode { .. } => "opencode",
-            LlmProvider::Claude { .. } => "claude",
-        }
+        self.dialect().name()
     }
 
-    /// Model string for metadata (provider-specific default if not set).
+    /// Model string for metadata, `default` if not set.
     pub fn model_str(&self) -> String {
-        match self {
-            LlmProvider::OpenCode { model, .. } => {
-                model.clone().unwrap_or_else(|| "default".into())
-            }
-            LlmProvider::Claude { model, .. } => model.clone().unwrap_or_else(|| "default".into()),
-        }
+        self.model().unwrap_or("default").to_string()
     }
 }
 
@@ -2306,6 +1639,9 @@ pub struct EnrichConfig {
     /// kills the process and fails the job instead of letting the agent OOM the
     /// whole container. 0 disables the watchdog.
     pub max_rss_mb: u64,
+    /// How often the memory watchdog reads the agent's RSS. Five seconds in
+    /// a worker; tests that exercise the watchdog shorten it.
+    pub memory_poll_interval: Duration,
     /// Max articles one enrich run may process (`ENRICH_MAX_ARTICLES_PER_RUN`).
     /// 0 disables chunking (whole-law sessions, the pre-chunking behavior).
     /// Default 15: a 600s session empirically enriches ~5–20 articles and the
@@ -2393,6 +1729,8 @@ impl EnrichConfig {
             feedback_timeout: Duration::from_secs(600),
             code_commit: "abc123".to_string(),
             max_rss_mb: 3500,
+            // Short, so tests of the watchdog do not wait five seconds.
+            memory_poll_interval: Duration::from_millis(100),
             // Chunking off by default in tests; chunk tests opt in explicitly.
             max_articles_per_run: 0,
             target_articles: Vec::new(),
@@ -2434,6 +1772,7 @@ impl EnrichConfig {
             feedback_timeout: timeout,
             code_commit: String::new(),
             max_rss_mb: 0,
+            memory_poll_interval: DEFAULT_MEMORY_POLL_INTERVAL,
             max_articles_per_run: max_articles,
             target_articles,
             feedback_rounds,
@@ -2475,25 +1814,9 @@ impl EnrichConfig {
             .unwrap_or(15);
 
         // Build all provider configs once from env vars
-        let opencode_provider = LlmProvider::OpenCode {
-            path: std::env::var("OPENCODE_PATH")
-                .or_else(|_| std::env::var("LLM_PATH"))
-                .unwrap_or_else(|_| "opencode".into())
-                .into(),
-            model: std::env::var("OPENCODE_MODEL")
-                .or_else(|_| std::env::var("LLM_MODEL"))
-                .ok(),
-        };
-        let claude_provider = LlmProvider::Claude {
-            path: std::env::var("CLAUDE_PATH")
-                .or_else(|_| std::env::var("LLM_PATH"))
-                .unwrap_or_else(|_| "claude".into())
-                .into(),
-            model: Some(claude_model(
-                std::env::var("CLAUDE_MODEL").ok(),
-                std::env::var("LLM_MODEL").ok(),
-            )),
-        };
+        let var = |name: &str| std::env::var(name).ok();
+        let opencode_provider = crate::agent::opencode::provider_from_env(var);
+        let claude_provider = crate::agent::claude::provider_from_env(var);
 
         // Feedback rounds per gate. A bad spec is not worth failing a worker
         // over, but it must not silently read as something else either.
@@ -2552,6 +1875,7 @@ impl EnrichConfig {
             feedback_timeout: Duration::from_secs(timeout),
             code_commit,
             max_rss_mb,
+            memory_poll_interval: DEFAULT_MEMORY_POLL_INTERVAL,
             max_articles_per_run,
             // A worker walks whole laws; a named entry is a local, targeted
             // instruction and has no env var to arrive through.
@@ -2579,6 +1903,22 @@ impl EnrichConfig {
         }
     }
 
+    /// Fill in the opencode model when the environment named none, as
+    /// [`crate::agent::opencode::prepare_worker`] found it in the image's
+    /// configuration. opencode names no model in its output, so this is the
+    /// model a job records for its calls. A model the environment named wins.
+    #[must_use]
+    pub fn with_opencode_default_model(mut self, model: Option<String>) -> Self {
+        let Some(model) = model else {
+            return self;
+        };
+        crate::agent::opencode::fill_default_model(&mut self.provider, &model);
+        for provider in self.provider_configs.values_mut() {
+            crate::agent::opencode::fill_default_model(provider, &model);
+        }
+        self
+    }
+
     /// Return a config with the provider overridden if the payload specifies one.
     ///
     /// Selects from pre-built provider configs — no env vars are re-read.
@@ -2601,6 +1941,7 @@ impl EnrichConfig {
             feedback_timeout: self.feedback_timeout,
             code_commit: self.code_commit.clone(),
             max_rss_mb: self.max_rss_mb,
+            memory_poll_interval: self.memory_poll_interval,
             max_articles_per_run: self.max_articles_per_run,
             target_articles: self.target_articles.clone(),
             feedback_rounds: self.feedback_rounds,
@@ -3152,228 +2493,6 @@ pub fn claude_model(claude_model: Option<String>, llm_model: Option<String>) -> 
         .filter(|m| !m.trim().is_empty())
         .or_else(|| llm_model.filter(|m| !m.trim().is_empty()))
         .unwrap_or_else(|| DEFAULT_CLAUDE_MODEL.to_string())
-}
-
-/// Allowlisted environment variable prefixes/names that are safe to pass to the
-/// LLM subprocess.  Everything else (DATABASE_URL, etc.) is stripped.
-const LLM_ENV_ALLOWLIST: &[&str] = &[
-    "HOME",
-    "PATH",
-    "TERM",
-    "LANG",
-    "USER",
-    "SHELL",
-    "TMPDIR",
-    "XDG_",
-    // Provider-specific auth.
-    //
-    // NOTE: ANTHROPIC_API_KEY is deliberately NOT forwarded. The claude provider
-    // authenticates only with a personal subscription via CLAUDE_CODE_OAUTH_TOKEN.
-    // Keeping ANTHROPIC_API_KEY out of the subprocess env means that even if it is
-    // still set on the worker (e.g. a leftover), it can never reach `claude` and
-    // silently take precedence over the OAuth token — the exact footgun that
-    // makes claude fail auth at startup.
-    "CLAUDE_CODE_OAUTH_TOKEN",
-    "VLAM_API_KEY",
-    "OPENCODE_",
-];
-
-/// Check whether an environment variable name is on the allowlist.
-fn env_allowed(key: &str) -> bool {
-    LLM_ENV_ALLOWLIST
-        .iter()
-        .any(|prefix| key == *prefix || key.starts_with(prefix))
-}
-
-/// Select one Claude OAuth token from a comma-separated list, rotating by a
-/// time `bucket` so consecutive runs spread across several personal
-/// subscriptions (each token has its own usage/rate limits).
-///
-/// `CLAUDE_CODE_OAUTH_TOKEN` may hold multiple tokens separated by commas. The
-/// chosen index is `bucket % n`; callers pass `unix_secs / 100`, so the active
-/// token rotates roughly every 100 seconds. Returns `(index, count, token)`, or
-/// `None` when there are no non-empty tokens. Pure so it can be unit-tested.
-fn select_claude_token(raw: &str, bucket: u64) -> Option<(usize, usize, &str)> {
-    let tokens: Vec<&str> = raw
-        .split(',')
-        .map(|t| t.trim())
-        .filter(|t| !t.is_empty())
-        .collect();
-    if tokens.is_empty() {
-        return None;
-    }
-    let idx = (bucket % tokens.len() as u64) as usize;
-    Some((idx, tokens.len(), tokens[idx]))
-}
-
-/// Build the command for the configured LLM provider.
-///
-/// The subprocess gets a stripped environment: only variables on
-/// `LLM_ENV_ALLOWLIST` are forwarded.  This prevents leaking DATABASE_URL
-/// and other secrets to the LLM process (which may have shell access).
-///
-/// `file_arg` is passed to OpenCode as its `-f` input file (the Claude provider
-/// ignores it and reads via its own tools from `cwd`). Enrich passes the law
-/// YAML; a caller with no single input file passes `None`.
-fn build_command(
-    provider: &LlmProvider,
-    prompt: &str,
-    file_arg: Option<&Path>,
-    cwd: &Path,
-    tools: ToolPolicy<'_>,
-    effort: Option<&str>,
-    session: SessionAction,
-) -> tokio::process::Command {
-    // Collect allowed env vars before creating the command.
-    let safe_env: Vec<(String, String)> =
-        std::env::vars().filter(|(k, _)| env_allowed(k)).collect();
-
-    // Diagnostic logging: record exactly what will be spawned and which env vars
-    // are forwarded (NAMES only — never values). Classify the OAuth token by its
-    // non-secret prefix so a misconfiguration (an API key pasted into the OAuth
-    // slot) is obvious, and flag whether ANTHROPIC_API_KEY is still present in the
-    // worker env even though it is deliberately never forwarded.
-    let forwarded_env: Vec<&str> = safe_env.iter().map(|(k, _)| k.as_str()).collect();
-    let oauth_token_kind = std::env::var("CLAUDE_CODE_OAUTH_TOKEN").ok().map(|t| {
-        if t.is_empty() {
-            "empty"
-        } else if t.starts_with("sk-ant-oat") {
-            "oauth-token (sk-ant-oat…)"
-        } else if t.starts_with("sk-ant-api") {
-            "WRONG: looks like an API key (sk-ant-api…)"
-        } else {
-            "unrecognized-prefix"
-        }
-    });
-    let model = match provider {
-        LlmProvider::OpenCode { model, .. } | LlmProvider::Claude { model, .. } => model.as_deref(),
-    };
-    tracing::info!(
-        provider = provider.name(),
-        model = ?model,
-        effort = ?effort,
-        prompt_chars = prompt.len(),
-        claude_oauth_token_kind = ?oauth_token_kind,
-        anthropic_api_key_present_in_worker_env = std::env::var_os("ANTHROPIC_API_KEY").is_some(),
-        "spawning LLM subprocess"
-    );
-    // The forwarded env var NAMES are static between spawns — keep them at debug
-    // so they don't add a long line to every job's info logs.
-    tracing::debug!(provider = provider.name(), forwarded_env = ?forwarded_env, "forwarded env to LLM subprocess");
-
-    let mut cmd = match provider {
-        LlmProvider::OpenCode { path, model } => {
-            let mut cmd = tokio::process::Command::new(path);
-            cmd.env_clear();
-            cmd.envs(safe_env);
-            cmd.env("NODE_OPTIONS", "--max-old-space-size=512");
-            cmd.arg("run").arg(prompt);
-            if let Some(f) = file_arg {
-                cmd.arg("-f").arg(f);
-            }
-            cmd.arg("--format").arg("json").arg("--dir").arg(cwd);
-            if let Some(ref m) = model {
-                cmd.arg("-m").arg(m);
-            }
-            // OpenCode has no effort flag; saying so beats passing an option
-            // it would reject and letting the run fail on a typo in config.
-            if effort.is_some() {
-                tracing::warn!("effort is not supported by opencode; ignored");
-            }
-            // Session reuse is a claude-provider affair. Under opencode every
-            // call stays cold, and it says so rather than letting a run be
-            // read as though the windows had been shared.
-            if !matches!(session, SessionAction::Cold) {
-                tracing::warn!("session reuse is not wired for opencode; this call runs cold");
-            }
-            cmd
-        }
-        LlmProvider::Claude { path, model } => {
-            let mut cmd = tokio::process::Command::new(path);
-            cmd.env_clear();
-            cmd.envs(safe_env);
-            cmd.env("NODE_OPTIONS", "--max-old-space-size=512");
-            // If CLAUDE_CODE_OAUTH_TOKEN holds several comma-separated tokens,
-            // override the forwarded value with a single one chosen by a
-            // time-rotating index, so load spreads across the subscriptions.
-            if let Ok(raw) = std::env::var("CLAUDE_CODE_OAUTH_TOKEN") {
-                let bucket = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_secs() / 100)
-                    .unwrap_or(0);
-                if let Some((idx, count, token)) = select_claude_token(&raw, bucket) {
-                    // Always apply the selected (trimmed) token — even for a
-                    // single token — so stray whitespace or a trailing comma
-                    // never reaches claude verbatim. Never log the token value;
-                    // only the 1-based position and count.
-                    cmd.env("CLAUDE_CODE_OAUTH_TOKEN", token);
-                    if count > 1 {
-                        tracing::info!(
-                            using_token = idx + 1,
-                            of_tokens = count,
-                            "selected claude oauth token (rotating by ~100s)"
-                        );
-                    }
-                }
-            }
-            // Leaving a tool off `--allowedTools` does not take it away: that
-            // flag auto-approves, and what it omits merely has to be asked for,
-            // which the checkout's own settings then grant. Withholding needs
-            // `--disallowedTools`. Without this the enrichment agent made
-            // twenty `Bash` calls in a session whose plan reported the step as
-            // running degraded for want of a shell.
-            let denied = tools.denied();
-            cmd.arg("-p")
-                .arg(prompt)
-                .arg("--allowedTools")
-                .arg(tools.allowed())
-                // One JSON event per line while the run goes, closing with
-                // the `result` event that carries the token use. The worker
-                // reads the events for progress and to notice a stalled
-                // run; `--include-partial-messages` adds an event per token
-                // so a long answer does not look like silence. stream-json
-                // requires `--verbose` under `-p`.
-                .arg("--output-format")
-                .arg("stream-json")
-                .arg("--verbose")
-                .arg("--include-partial-messages")
-                .current_dir(cwd);
-            if !denied.is_empty() {
-                cmd.arg("--disallowedTools").arg(denied.join(","));
-            }
-            if let Some(ref m) = model {
-                cmd.arg("--model").arg(m);
-            }
-            // Effort rides beside the model because that is how the CLI takes
-            // it: one flag for which model, one for how hard it thinks.
-            if let Some(e) = effort {
-                cmd.arg("--effort").arg(e);
-            }
-            // The window's session. The worker chooses the id rather than
-            // reading it back out of the provider's closing JSON: an id we
-            // hand in is known before the process starts, so a run that dies
-            // before it prints anything still leaves a resumable session, and
-            // nothing has to be parsed to continue.
-            match session {
-                SessionAction::Cold => {}
-                SessionAction::Start(id) => {
-                    cmd.arg("--session-id").arg(id.to_string());
-                }
-                SessionAction::Resume(id) => {
-                    cmd.arg("--resume").arg(id.to_string());
-                }
-            }
-            cmd
-        }
-    };
-
-    // Run the agent as its own process-group leader so a timeout/memory kill can
-    // signal the whole tree (the CLI plus any node workers or git it forks), not
-    // just the direct child. `kill_on_drop` is a backstop: if the worker future
-    // is dropped (panic, early return) the child is reaped rather than orphaned.
-    cmd.process_group(0);
-    cmd.kill_on_drop(true);
-    cmd
 }
 
 /// Result of preparing the per-job enrichment checkout: the client plus the
@@ -5740,22 +4859,41 @@ related_legislation:
     }
 
     #[test]
-    fn is_error_event_spots_an_opencode_error_event() {
-        assert!(is_error_event(
-            r#"{"type":"error","error":{"name":"APIError","data":{"message":"401"}}}"#
-        ));
-        assert!(!is_error_event(
-            r#"{"type":"text","part":{"text":"error"}}"#
-        ));
-        assert!(!is_error_event("not json, mentions \"type\":\"error\""));
-    }
-
-    #[test]
     fn claude_model_defaults_to_opus_and_yields_to_the_env() {
         assert_eq!(claude_model(None, None), "claude-opus-5-5");
         assert_eq!(claude_model(Some(" ".into()), None), "claude-opus-5-5");
         assert_eq!(claude_model(None, Some("x".into())), "x");
         assert_eq!(claude_model(Some("y".into()), Some("x".into())), "y");
+    }
+
+    #[test]
+    fn the_image_model_fills_in_only_where_no_model_was_named() {
+        let opencode = |model: Option<&str>| LlmProvider::OpenCode {
+            path: "opencode".into(),
+            model: model.map(str::to_string),
+        };
+        let mut config = EnrichConfig::for_test(opencode(None));
+        config
+            .provider_configs
+            .insert("opencode".into(), opencode(Some("")));
+        let config = config.with_opencode_default_model(Some("vlam/kimi-k3-prepaid".into()));
+        assert_eq!(config.provider.model(), Some("vlam/kimi-k3-prepaid"));
+        // An empty model counts as none, as it did in the shell.
+        assert_eq!(
+            config.with_provider_override("opencode").provider.model(),
+            Some("vlam/kimi-k3-prepaid")
+        );
+        // claude keeps its own model.
+        assert_eq!(
+            config.with_provider_override("claude").provider.model(),
+            Some("opus")
+        );
+
+        let named = EnrichConfig::for_test(opencode(Some("chosen")))
+            .with_opencode_default_model(Some("vlam/kimi-k3-prepaid".into()));
+        assert_eq!(named.provider.model(), Some("chosen"));
+        let none = EnrichConfig::for_test(opencode(None)).with_opencode_default_model(None);
+        assert_eq!(none.provider.model(), None);
     }
 
     #[test]
@@ -5788,32 +4926,6 @@ related_legislation:
             config.with_provider_override("claude").session_reuse,
             SessionReuse::Window
         );
-    }
-
-    #[test]
-    fn opencode_step_usage_counts_reasoning_as_output_and_reads_cost() {
-        let line = r#"{"type":"step_finish","part":{"reason":"tool-calls","cost":0.0123,"tokens":{"input":40000,"output":900,"reasoning":5100,"cache":{"read":30000,"write":10}}}}"#;
-        assert_eq!(
-            AgentUsage::from_opencode_step(line),
-            Some(AgentUsage {
-                input_tokens: 40000,
-                output_tokens: 6000,
-                cache_read_tokens: 30000,
-                cache_write_tokens: 10,
-                cost_millicents: 1230,
-            })
-        );
-        // Other events are not steps.
-        assert_eq!(
-            AgentUsage::from_opencode_step(r#"{"type":"step_start","part":{}}"#),
-            None
-        );
-        // Valid JSON that contains the pair, nested: it passes the cheap
-        // substring check, so only the top-level `type` check rejects it.
-        let nested = r#"{"type":"tool_use","part":{"state":{"output":{"type":"step_finish","tokens":{"input":5}}}}}"#;
-        assert!(serde_json::from_str::<serde_json::Value>(nested).is_ok());
-        assert!(nested.contains(r#""type":"step_finish""#));
-        assert_eq!(AgentUsage::from_opencode_step(nested), None);
     }
 
     #[test]
@@ -5922,41 +5034,6 @@ articles:
         assert!(ENRICH_PROVIDERS.contains(&"opencode"));
         assert!(ENRICH_PROVIDERS.contains(&"claude"));
         assert_eq!(ENRICH_PROVIDERS.len(), 2);
-    }
-
-    #[test]
-    fn test_select_claude_token() {
-        // empty / whitespace-only -> None
-        assert_eq!(select_claude_token("", 0), None);
-        assert_eq!(select_claude_token("  , ,", 5), None);
-
-        // single token -> always that token, index 0
-        assert_eq!(select_claude_token("tokA", 0), Some((0, 1, "tokA")));
-        assert_eq!(select_claude_token(" tokA ", 999), Some((0, 1, "tokA")));
-
-        // multiple tokens -> rotate by bucket % n, whitespace trimmed
-        assert_eq!(select_claude_token("a, b , c", 0), Some((0, 3, "a")));
-        assert_eq!(select_claude_token("a, b , c", 1), Some((1, 3, "b")));
-        assert_eq!(select_claude_token("a, b , c", 2), Some((2, 3, "c")));
-        assert_eq!(select_claude_token("a, b , c", 3), Some((0, 3, "a")));
-        // large bucket (e.g. unix_secs/100) still wraps correctly
-        assert_eq!(select_claude_token("a,b", 17_000_001), Some((1, 2, "b")));
-    }
-
-    #[test]
-    fn test_parse_vmrss_kb_extracts_value() {
-        let status = "Name:\tnode\nVmPeak:\t 4194304 kB\nVmRSS:\t  2097152 kB\nThreads:\t12\n";
-        assert_eq!(parse_vmrss_kb(status), Some(2_097_152));
-    }
-
-    #[test]
-    fn test_parse_vmrss_kb_missing_or_malformed() {
-        // No VmRSS line.
-        assert_eq!(parse_vmrss_kb("Name:\tnode\nThreads:\t12\n"), None);
-        // VmRSS present but value not numeric.
-        assert_eq!(parse_vmrss_kb("VmRSS:\t  notanumber kB\n"), None);
-        // Empty input.
-        assert_eq!(parse_vmrss_kb(""), None);
     }
 
     #[test]
@@ -7306,89 +6383,6 @@ articles:
         );
         assert_eq!(SessionReuse::default(), SessionReuse::Window);
         assert!(SessionReuse::parse("sometimes").is_err());
-    }
-
-    #[test]
-    fn a_tool_the_lane_does_not_grant_is_denied_and_not_merely_left_off() {
-        // `--allowedTools` auto-approves; it does not withhold. Leaving Bash
-        // off it is what let the enrichment agent make twenty shell calls in a
-        // session whose plan reported the shell as absent. Whatever the
-        // capability planner calls ungranted has to arrive as `--disallowedTools`
-        // or the plan is a description of a runtime that does not exist.
-        let provider = LlmProvider::Claude {
-            path: "claude".into(),
-            model: None,
-        };
-        let args = |allow_bash: bool, deny: &[String]| -> Vec<String> {
-            build_command(
-                &provider,
-                "prompt",
-                None,
-                Path::new("/tmp"),
-                ToolPolicy { allow_bash, deny },
-                None,
-                SessionAction::Cold,
-            )
-            .as_std()
-            .get_args()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect()
-        };
-
-        let lane = args(false, &["WebFetch".to_owned(), "WebSearch".to_owned()]);
-        let at = lane
-            .iter()
-            .position(|a| a == "--disallowedTools")
-            .expect("lane denies something");
-        assert_eq!(lane[at + 1], "Bash,WebFetch,WebSearch");
-
-        // A caller that asked for the shell keeps it.
-        let converter = args(true, &[]);
-        assert!(
-            !converter.iter().any(|a| a == "--disallowedTools"),
-            "document-convert must keep its shell: {converter:?}"
-        );
-    }
-
-    #[test]
-    fn the_claude_command_starts_and_resumes_a_session() {
-        let provider = LlmProvider::Claude {
-            path: "claude".into(),
-            model: None,
-        };
-        let id = Uuid::new_v4();
-        let args = |action: SessionAction| -> Vec<String> {
-            build_command(
-                &provider,
-                "prompt",
-                None,
-                Path::new("/tmp"),
-                ToolPolicy {
-                    allow_bash: false,
-                    deny: &[],
-                },
-                None,
-                action,
-            )
-            .as_std()
-            .get_args()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect()
-        };
-
-        let cold = args(SessionAction::Cold);
-        assert!(!cold.iter().any(|a| a == "--session-id" || a == "--resume"));
-
-        let start = args(SessionAction::Start(id));
-        let at = start
-            .iter()
-            .position(|a| a == "--session-id")
-            .expect("start");
-        assert_eq!(start[at + 1], id.to_string());
-
-        let resume = args(SessionAction::Resume(id));
-        let at = resume.iter().position(|a| a == "--resume").expect("resume");
-        assert_eq!(resume[at + 1], id.to_string());
     }
 
     /// Answers a round like [`MarkingRunner`], but takes the session decision
@@ -8908,68 +7902,6 @@ articles:
                 (spec, capabilities::plan_step(spec, &grant, Some(declared)))
             })
             .collect()
-    }
-
-    #[test]
-    fn usage_is_read_from_the_providers_closing_object() {
-        // The shape the claude CLI emits under `--output-format json`.
-        let tail = r#"{"type":"result","subtype":"success","is_error":false,
-            "duration_ms":812345,"num_turns":42,"result":"done",
-            "total_cost_usd":1.2345,
-            "usage":{"input_tokens":1200,"output_tokens":34567,
-                     "cache_read_input_tokens":980000,"cache_creation_input_tokens":45}}"#;
-        let u = AgentUsage::from_stdout_tail(tail).expect("usage");
-        assert_eq!(u.input_tokens, 1200);
-        assert_eq!(u.output_tokens, 34567);
-        assert_eq!(u.cache_read_tokens, 980_000);
-        // Money as an integer: 1.2345 dollar is 123450 thousandths of a cent.
-        assert_eq!(u.cost_millicents, 123_450);
-    }
-
-    #[test]
-    fn only_the_last_object_in_the_stream_counts() {
-        // The stream carries earlier objects; the accounting is the final one.
-        let tail = concat!(
-            r#"{"type":"assistant","usage":{"input_tokens":1,"output_tokens":1}}"#,
-            "\n",
-            r#"{"type":"result","usage":{"input_tokens":99,"output_tokens":7}}"#,
-        );
-        let u = AgentUsage::from_stdout_tail(tail).expect("usage");
-        assert_eq!(u.input_tokens, 99);
-        assert_eq!(u.output_tokens, 7);
-    }
-
-    #[test]
-    fn usage_is_found_in_a_stream_whatever_the_key_order() {
-        // stream-json as the CLI writes it: the closing event does not start
-        // with `type`, and a stream event with a nested `type` follows it.
-        let tail = concat!(
-            r#"{"type":"assistant","message":{"usage":{"input_tokens":1}}}"#,
-            "\n",
-            r#"{"duration_api_ms":5,"type":"result","total_cost_usd":0.01,"usage":{"input_tokens":42,"output_tokens":7}}"#,
-            "\n",
-            r#"{"type":"stream_event","event":{"type":"message_stop"}}"#,
-            "\n",
-        );
-        let u = AgentUsage::from_stdout_tail(tail).expect("usage");
-        assert_eq!(u.input_tokens, 42);
-        assert_eq!(u.output_tokens, 7);
-        assert_eq!(u.cost_millicents, 1_000);
-    }
-
-    #[test]
-    fn a_truncated_tail_reports_nothing_rather_than_guessing() {
-        // The tail is bounded, so a large stream can cut an object in half.
-        // Half a figure is worse than no figure.
-        assert!(AgentUsage::from_stdout_tail(r#"put_tokens":1200,"output_"#).is_none());
-        assert!(AgentUsage::from_stdout_tail("").is_none());
-        assert!(AgentUsage::from_stdout_tail("no json here at all").is_none());
-    }
-
-    #[test]
-    fn an_object_without_usage_reports_nothing() {
-        // A provider that reports no accounting must not read as zero cost.
-        assert!(AgentUsage::from_stdout_tail(r#"{"type":"result","result":"ok"}"#).is_none());
     }
 
     #[test]

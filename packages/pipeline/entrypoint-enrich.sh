@@ -17,28 +17,16 @@ CORPUS_DIR="${CORPUS_REPO_PATH:-/tmp/corpus-repo}"
 mkdir -p "$CORPUS_DIR"
 export CORPUS_REPO_PATH="$CORPUS_DIR"
 
-# --- OpenCode/VLAM auth ---
-# Write auth.json from VLAM_API_KEY secret so opencode can authenticate
-# with the VLAM API. The provider config (opencode.json) is baked into
-# the image; only the key is injected at runtime.
-if [ -n "$VLAM_API_KEY" ]; then
-  mkdir -p "$HOME/.local/share/opencode"
-  # Use Node.js to safely JSON-encode the API key, avoiding shell injection
-  # and broken JSON from keys containing quotes, backslashes, or percent signs.
-  node -e "
-    const fs = require('fs');
-    const key = process.env.VLAM_API_KEY;
-    const data = {vlam: {type: 'api', key: key}};
-    fs.writeFileSync(process.argv[1], JSON.stringify(data));
-  " "$HOME/.local/share/opencode/auth.json"
-  chmod 600 "$HOME/.local/share/opencode/auth.json"
-fi
+# --- opencode setup ---
+# The worker writes opencode's auth.json (from VLAM_API_KEY), its user config
+# with the endpoint (from VLAM_API_URL) and picks the model to record, at
+# startup: see `prepare_worker` in packages/pipeline/src/agent/opencode.rs.
+# What stays here is the CPU-dependent binary choice and the VLAM check below.
 
-# --- VLAM endpoint ---
+# --- VLAM endpoint, for the check below ---
 # The only route to VLAM is the ZAD `vlam` service: it gives the pod
 # VLAM_API_URL, a proxy to SSC-ICT's VLAM API that speaks the OpenAI API under
-# /v1. Outside ZAD there is no VLAM, and the opencode provider is left without
-# an endpoint rather than pointed at a public one.
+# /v1. The worker points opencode at the same address.
 vlam_base=""
 if [ -n "$VLAM_API_URL" ]; then
   vlam_base="${VLAM_API_URL%/}/v1"
@@ -143,29 +131,6 @@ if [ -n "$vlam_base" ] && [ -n "$VLAM_API_KEY" ]; then
       }
     })();
   " &)
-fi
-
-# Set up opencode config in user-writable location, with the endpoint above.
-mkdir -p "$HOME/.config/opencode"
-VLAM_BASE="$vlam_base" node -e "
-  const fs = require('fs');
-  const config = JSON.parse(fs.readFileSync('/opt/opencode/opencode.json', 'utf8'));
-  if (process.env.VLAM_BASE) config.provider.vlam.options = { baseURL: process.env.VLAM_BASE };
-  fs.writeFileSync(process.argv[1], JSON.stringify(config, null, 2));
-" "$HOME/.config/opencode/opencode.json"
-if [ -z "$vlam_base" ]; then
-  echo "WARNING: VLAM_API_URL is not set (no ZAD vlam service); the opencode provider has no endpoint" >&2
-fi
-
-# --- opencode model ---
-# opencode names no model in its output, so the worker records the one it was
-# told to use. Tell it explicitly, from the same file opencode reads, so the
-# job result says which model ran. LLM_MODEL, when set, still applies.
-if [ -z "$OPENCODE_MODEL" ] && [ -z "$LLM_MODEL" ]; then
-  OPENCODE_MODEL="$(node -e "console.log(require('/opt/opencode/opencode.json').model || '')" 2>/dev/null || true)"
-  if [ -n "$OPENCODE_MODEL" ]; then
-    export OPENCODE_MODEL
-  fi
 fi
 
 # --- opencode binary ---
