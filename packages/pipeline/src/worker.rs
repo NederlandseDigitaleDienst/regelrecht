@@ -870,7 +870,16 @@ pub async fn run_enrich_worker(config: WorkerConfig) -> Result<()> {
     let pool = db::create_pool(&pipeline_config).await?;
     db::ensure_schema(&pool).await?;
 
-    let enrich_config = EnrichConfig::from_env();
+    // opencode's credentials, endpoint and model, which the image's entrypoint
+    // used to write in shell. Only this worker does it: `enrich-once` runs on
+    // a developer's machine with their own opencode configuration.
+    let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
+    let opencode = crate::agent::opencode::prepare_worker(
+        home.as_deref(),
+        std::path::Path::new(crate::agent::opencode::IMAGE_CONFIG),
+        |name| std::env::var(name).ok(),
+    )?;
+    let enrich_config = EnrichConfig::from_env().with_opencode_default_model(opencode.model);
 
     // One shared HTTP client for related-legislation SRU resolution. Built once
     // (connection pooling) and threaded into every enrich job's follow-up hook.

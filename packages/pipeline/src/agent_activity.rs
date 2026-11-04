@@ -11,14 +11,17 @@
 //! [`ActivityHandle`] is shared between the subprocess drain (which records
 //! events), the worker's progress poller (which writes a snapshot to
 //! `jobs.progress`), and the stall watchdog (which stops a run that has gone
-//! silent). Any provider counts as active while it writes to stdout; only the
-//! claude events are read in detail.
+//! silent). Any provider counts as active while it writes to stdout; what its
+//! lines mean is read by the provider's dialect (`crate::agent`) and arrives
+//! here as [`AgentEvent`]s.
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use tokio::time::Instant;
+
+use crate::agent::{AgentEvent, StepFinish};
 
 /// How many recent events a snapshot and an error message carry.
 const RECENT_EVENTS: usize = 8;
@@ -27,9 +30,6 @@ const RECENT_EVENTS: usize = 8;
 /// inlines a whole file) still count as activity but are not read, so one
 /// large event cannot make the worker hold megabytes.
 pub const MAX_EVENT_LINE: usize = 1024 * 1024;
-
-/// The longest tool target kept in a summary.
-const MAX_TARGET_CHARS: usize = 120;
 
 /// Starts the activity summary that ends an agent error message. The worker
 /// classifies errors by substring; [`without_activity`] cuts the summary off
@@ -142,75 +142,28 @@ impl ActivityHandle {
         self.with(|a| a.last_output.map(|t| t.elapsed()))
     }
 
-    /// Read one complete stdout line. Lines that are not claude events are
-    /// ignored; they already counted as activity when they arrived.
-    pub fn record_line(&self, line: &str) {
-        // Partial message chunks arrive per token. They keep the run visibly
-        // alive, which is their whole use here; parsing each would only cost.
-        if line.starts_with(r#"{"type":"stream_event""#) {
-            return;
-        }
-        if let Some(model) = init_model(line) {
-            self.with(|a| a.model = Some(model));
-            return;
-        }
-        // opencode writes its own events: `step_start` opens a model step,
-        // `tool_use` reports a finished tool call and `step_finish` says why a
-        // step ended. Without these the summary of an opencode run reads
-        // "0 turns, 0 tool calls" whatever it did.
-        if line.contains(r#""type":"step_start""#)
-            || line.contains(r#""type":"tool_use""#)
-            || line.contains(r#""type":"step_finish""#)
-        {
-            if let Ok(event) = serde_json::from_str::<serde_json::Value>(line) {
-                match event.get("type").and_then(serde_json::Value::as_str) {
-                    Some("step_start") => {
-                        self.with(|a| a.turns += 1);
-                        return;
-                    }
-                    Some("tool_use") => {
-                        if let Some(tool) = opencode_tool_summary(&event) {
-                            self.record_tool(tool);
-                        }
-                        return;
-                    }
-                    Some("step_finish") => {
-                        self.record_step_finish(&event);
-                        return;
-                    }
-                    _ => {}
+    /// Record what one stdout line meant, as the provider's dialect read it.
+    pub(crate) fn record(&self, event: &AgentEvent) {
+        match event {
+            AgentEvent::Model(model) => self.with(|a| a.model = Some(model.clone())),
+            AgentEvent::Turn { message_id } => self.with(|a| {
+                // The CLI may write one event per content block of the same
+                // message; a turn without an id counts every time.
+                if message_id.is_none() || *message_id != a.last_message_id {
+                    a.turns += 1;
+                    a.last_message_id = message_id.clone();
                 }
-            }
-        }
-        // Only assistant messages are read. A tool result can be a whole
-        // file; skip parsing what cannot be one. The CLI does not promise
-        // key order, so look for the pair anywhere; `classify` checks the
-        // top level.
-        if !line.contains(r#""type":"assistant""#) {
-            return;
-        }
-        let Ok(event) = serde_json::from_str::<serde_json::Value>(line) else {
-            return;
-        };
-        let Some(Event::Assistant { message_id, tools }) = classify(&event) else {
-            return;
-        };
-        self.with(|a| {
-            if message_id.is_none() || message_id != a.last_message_id {
-                a.turns += 1;
-                a.last_message_id = message_id;
-            }
-        });
-        for tool in tools {
-            self.record_tool(tool);
+            }),
+            AgentEvent::Tool(tool) => self.record_tool(tool.clone()),
+            AgentEvent::StepFinished(step) => self.record_step_finish(step),
+            AgentEvent::StepUsage(_) | AgentEvent::Closing { .. } | AgentEvent::ErrorEvent(_) => {}
         }
     }
 
     /// Log why an opencode model step ended and what it used. The reason and
     /// the token counts only: the model's own text can quote a document that
     /// is not public, the same reason `tool_summary` leaves content out.
-    fn record_step_finish(&self, event: &serde_json::Value) {
-        let step = step_finish_fields(event);
+    fn record_step_finish(&self, step: &StepFinish) {
         self.with(|a| {
             let call = a.call.as_deref().unwrap_or("agent");
             if step.reason == "length" {
@@ -294,197 +247,6 @@ impl ActivityHandle {
     }
 }
 
-/// Whether `line` is the claude provider's closing `result` event, which
-/// carries the usage. Checked on the parsed top level: the CLI does not put
-/// `type` first, and a tool result can quote the pair.
-pub fn is_result_event(line: &str) -> bool {
-    line.contains(r#""type":"result""#)
-        && serde_json::from_str::<serde_json::Value>(line)
-            .ok()
-            .and_then(|v| v.get("type")?.as_str().map(|t| t == "result"))
-            .unwrap_or(false)
-}
-
-/// The model named in the claude CLI's `init` event, the first line of a
-/// stream-json run. This is what actually runs, as the CLI reports it; the
-/// worker asks for `CLAUDE_MODEL` or `DEFAULT_CLAUDE_MODEL` in `enrich.rs`.
-pub fn init_model(line: &str) -> Option<String> {
-    if !line.contains(r#""subtype":"init""#) {
-        return None;
-    }
-    let v: serde_json::Value = serde_json::from_str(line).ok()?;
-    if v.get("type")?.as_str()? != "system" || v.get("subtype")?.as_str()? != "init" {
-        return None;
-    }
-    v.get("model")?
-        .as_str()
-        .filter(|m| !m.is_empty())
-        .map(str::to_string)
-}
-
-/// The longest CLI error text kept in a job's error message.
-const MAX_ERROR_TEXT_CHARS: usize = 300;
-
-/// The error the claude CLI reported in its closing `result` event, if it
-/// reported one. A failed API call (rate limit, overload, an expired token)
-/// ends the run with `is_error` set and the reason as text in `result`; the
-/// process then exits 1 with nothing on stderr, so this is the only place
-/// the reason is written down. Some error subtypes carry an `errors` list
-/// instead. One line, cut to a limit, for appending to the job's error.
-pub fn result_error_text(line: &str) -> Option<String> {
-    let v: serde_json::Value = serde_json::from_str(line).ok()?;
-    if v.get("type")?.as_str()? != "result" {
-        return None;
-    }
-    let subtype = v.get("subtype").and_then(serde_json::Value::as_str);
-    let is_error = v.get("is_error").and_then(serde_json::Value::as_bool) == Some(true)
-        || subtype.is_some_and(|s| s.starts_with("error"));
-    if !is_error {
-        return None;
-    }
-    let from_result = v
-        .get("result")
-        .and_then(serde_json::Value::as_str)
-        .filter(|t| !t.trim().is_empty())
-        .map(str::to_string);
-    let from_errors = || {
-        let list: Vec<&str> = v
-            .get("errors")?
-            .as_array()?
-            .iter()
-            .filter_map(serde_json::Value::as_str)
-            .collect();
-        (!list.is_empty()).then(|| list.join("; "))
-    };
-    let text = from_result
-        .or_else(from_errors)
-        .or_else(|| subtype.map(str::to_string))?;
-    let one_line = text.split_whitespace().collect::<Vec<_>>().join(" ");
-    let short: String = one_line.chars().take(MAX_ERROR_TEXT_CHARS).collect();
-    Some(if short.len() < one_line.len() {
-        format!("{short}…")
-    } else {
-        short
-    })
-}
-
-/// The parts of a claude stream-json event this module reads.
-#[derive(Debug, PartialEq, Eq)]
-enum Event {
-    Assistant {
-        message_id: Option<String>,
-        /// One summary per `tool_use` block, e.g. `Edit laws/x/law.yaml`.
-        tools: Vec<String>,
-    },
-}
-
-fn classify(event: &serde_json::Value) -> Option<Event> {
-    if event.get("type")?.as_str()? != "assistant" {
-        return None;
-    }
-    let message = event.get("message")?;
-    let message_id = message
-        .get("id")
-        .and_then(serde_json::Value::as_str)
-        .map(str::to_string);
-    let tools = message
-        .get("content")
-        .and_then(serde_json::Value::as_array)
-        .map(|blocks| {
-            blocks
-                .iter()
-                .filter(|b| b.get("type").and_then(serde_json::Value::as_str) == Some("tool_use"))
-                .map(tool_summary)
-                .collect()
-        })
-        .unwrap_or_default();
-    Some(Event::Assistant { message_id, tools })
-}
-
-/// What an opencode `step_finish` event says about the step.
-#[derive(Debug, PartialEq, Eq)]
-struct StepFinish {
-    reason: String,
-    input: u64,
-    output: u64,
-    reasoning: u64,
-}
-
-/// Read a `step_finish` event; a missing field reads as `unknown` or 0.
-fn step_finish_fields(event: &serde_json::Value) -> StepFinish {
-    let part = event.get("part");
-    let reason = part
-        .and_then(|p| p.get("reason"))
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or("unknown")
-        .to_string();
-    let tokens = part.and_then(|p| p.get("tokens"));
-    let count = |key: &str| {
-        tokens
-            .and_then(|t| t.get(key))
-            .and_then(serde_json::Value::as_u64)
-            .unwrap_or(0)
-    };
-    StepFinish {
-        reason,
-        input: count("input"),
-        output: count("output"),
-        reasoning: count("reasoning"),
-    }
-}
-
-/// `name target (status)` for an opencode `tool_use` event. The target is the
-/// file path only, for the same reason as [`tool_summary`]: never the content
-/// of a write, a search pattern or a shell command.
-fn opencode_tool_summary(event: &serde_json::Value) -> Option<String> {
-    let part = event.get("part")?;
-    let name = part.get("tool")?.as_str()?;
-    let state = part.get("state");
-    let status = state
-        .and_then(|s| s.get("status"))
-        .and_then(serde_json::Value::as_str);
-    let target = state
-        .and_then(|s| s.get("input"))
-        .and_then(|i| i.get("filePath"))
-        .and_then(serde_json::Value::as_str);
-    let mut out = name.to_string();
-    if let Some(t) = target {
-        out.push(' ');
-        out.push_str(t);
-    }
-    if let Some(st) = status.filter(|st| *st != "completed") {
-        out.push_str(&format!(" ({st})"));
-    }
-    Some(out)
-}
-
-/// `Name target`, where the target is the file, URL or skill the tool works
-/// on. Only names the worker or the corpus already has: never the content of
-/// a write, and never a search pattern or a shell command, which the model
-/// composes and which can quote an uploaded document that is not public.
-fn tool_summary(block: &serde_json::Value) -> String {
-    let name = block
-        .get("name")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or("tool");
-    let input = block.get("input");
-    let target = ["file_path", "path", "url", "skill"]
-        .iter()
-        .find_map(|key| input?.get(*key)?.as_str());
-    match target {
-        Some(t) => {
-            let t = t.lines().next().unwrap_or_default();
-            let short: String = t.chars().take(MAX_TARGET_CHARS).collect();
-            if short.len() < t.len() {
-                format!("{name} {short}…")
-            } else {
-                format!("{name} {short}")
-            }
-        }
-        None => name.to_string(),
-    }
-}
-
 /// Splits a byte stream into lines, without ever holding more than
 /// [`MAX_EVENT_LINE`] bytes of one line.
 #[derive(Debug, Default)]
@@ -539,60 +301,56 @@ pub fn count_articles(yaml: &str) -> (usize, usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent::claude::ClaudeDialect;
+    use crate::agent::opencode::OpenCodeDialect;
+    use crate::agent::AgentDialect;
 
-    #[test]
-    fn step_finish_fields_reads_reason_and_tokens() {
-        let event: serde_json::Value = serde_json::from_str(
-            r#"{"type":"step_finish","part":{"reason":"length","tokens":{"input":50000,"output":16384,"reasoning":12000,"cache":{"read":0}}}}"#,
-        )
-        .unwrap();
-        assert_eq!(
-            step_finish_fields(&event),
-            StepFinish {
-                reason: "length".into(),
-                input: 50000,
-                output: 16384,
-                reasoning: 12000
-            }
-        );
-        let bare: serde_json::Value = serde_json::from_str(r#"{"type":"step_finish"}"#).unwrap();
-        assert_eq!(
-            step_finish_fields(&bare),
-            StepFinish {
-                reason: "unknown".into(),
-                input: 0,
-                output: 0,
-                reasoning: 0
-            }
-        );
+    /// Record a line as the supervisor does: read by the dialect, then
+    /// recorded. The parsing itself is tested next to each dialect.
+    fn claude(a: &ActivityHandle, line: &str) {
+        for event in ClaudeDialect.read_line(line) {
+            a.record(&event);
+        }
+    }
+
+    fn opencode(a: &ActivityHandle, line: &str) {
+        for event in OpenCodeDialect.read_line(line) {
+            a.record(&event);
+        }
     }
 
     #[test]
     fn steps_cut_off_by_the_output_limit_are_counted_across_calls() {
         let a = ActivityHandle::new();
         let cut = r#"{"type":"step_finish","part":{"reason":"length","tokens":{"output":32000}}}"#;
-        a.record_line(cut);
+        opencode(&a, cut);
         // A later call that ends normally must not hide the cut-off one.
-        a.record_line(r#"{"type":"step_finish","part":{"reason":"stop"}}"#);
+        opencode(&a, r#"{"type":"step_finish","part":{"reason":"stop"}}"#);
         assert!(
             a.summary()
                 .contains("1 step(s) cut off by the output limit"),
             "{}",
             a.summary()
         );
-        a.record_line(cut);
+        opencode(&a, cut);
         assert!(a.summary().contains("2 step(s) cut off"), "{}", a.summary());
         let clean = ActivityHandle::new();
-        clean.record_line(r#"{"type":"step_finish","part":{"reason":"stop"}}"#);
+        opencode(&clean, r#"{"type":"step_finish","part":{"reason":"stop"}}"#);
         assert!(!clean.summary().contains("cut off"), "{}", clean.summary());
     }
 
     #[test]
     fn opencode_steps_and_tool_calls_are_counted() {
         let a = ActivityHandle::new();
-        a.record_line(r#"{"type":"step_start","part":{"type":"step-start"}}"#);
-        a.record_line(r#"{"type":"tool_use","part":{"type":"tool","tool":"edit","state":{"status":"completed","input":{"filePath":"law.yaml","oldString":"secret"}}}}"#);
-        a.record_line(r#"{"type":"tool_use","part":{"type":"tool","tool":"write","state":{"status":"error"}}}"#);
+        opencode(&a, r#"{"type":"step_start","part":{"type":"step-start"}}"#);
+        opencode(
+            &a,
+            r#"{"type":"tool_use","part":{"type":"tool","tool":"edit","state":{"status":"completed","input":{"filePath":"law.yaml","oldString":"secret"}}}}"#,
+        );
+        opencode(
+            &a,
+            r#"{"type":"tool_use","part":{"type":"tool","tool":"write","state":{"status":"error"}}}"#,
+        );
         let summary = a.summary();
         assert!(summary.contains("1 turns, 2 tool calls"), "{summary}");
         assert!(
@@ -610,20 +368,26 @@ mod tests {
     fn counts_turns_by_message_and_tools_by_block() {
         let a = ActivityHandle::new();
         a.begin_call("translate");
-        a.record_line(&assistant(
-            "m1",
-            r#"{"type":"text","text":"Reading the law"}"#,
-        ));
+        claude(
+            &a,
+            &assistant("m1", r#"{"type":"text","text":"Reading the law"}"#),
+        );
         // The CLI may emit one event per content block of the same message.
-        a.record_line(&assistant(
-            "m1",
-            r#"{"type":"tool_use","name":"Read","input":{"file_path":"laws/x/law.yaml"}}"#,
-        ));
-        a.record_line(&assistant(
-            "m2",
-            r#"{"type":"tool_use","name":"Edit","input":{"file_path":"laws/x/law.yaml","old_string":"a","new_string":"b"}},
+        claude(
+            &a,
+            &assistant(
+                "m1",
+                r#"{"type":"tool_use","name":"Read","input":{"file_path":"laws/x/law.yaml"}}"#,
+            ),
+        );
+        claude(
+            &a,
+            &assistant(
+                "m2",
+                r#"{"type":"tool_use","name":"Edit","input":{"file_path":"laws/x/law.yaml","old_string":"a","new_string":"b"}},
                {"type":"tool_use","name":"Glob","input":{"path":"laws"}}"#,
-        ));
+            ),
+        );
         let s = a.snapshot();
         assert_eq!(s["call"], "translate");
         assert_eq!(s["turns"], 2);
@@ -638,157 +402,42 @@ mod tests {
     #[test]
     fn other_events_change_nothing() {
         let a = ActivityHandle::new();
-        a.record_line(r#"{"type":"stream_event","event":{"type":"content_block_delta"}}"#);
-        a.record_line(r#"{"type":"user","message":{"content":[{"type":"tool_result"}]}}"#);
-        a.record_line(r#"{"type":"result","usage":{"input_tokens":1}}"#);
-        a.record_line("not json");
+        claude(
+            &a,
+            r#"{"type":"stream_event","event":{"type":"content_block_delta"}}"#,
+        );
+        claude(
+            &a,
+            r#"{"type":"user","message":{"content":[{"type":"tool_result"}]}}"#,
+        );
+        claude(&a, r#"{"type":"result","usage":{"input_tokens":1}}"#);
+        claude(&a, "not json");
         let s = a.snapshot();
         assert_eq!(s["turns"], 0);
         assert_eq!(s["tool_calls"], 0);
     }
 
     #[test]
-    fn a_tool_summary_never_carries_written_content() {
-        let block = serde_json::json!({
-            "type": "tool_use", "name": "Write",
-            "input": {"file_path": "laws/x/law.yaml", "content": "secret law text"}
-        });
-        assert_eq!(tool_summary(&block), "Write laws/x/law.yaml");
-    }
-
-    #[test]
-    fn a_long_target_is_cut_to_its_first_line_and_a_limit() {
-        let long = "x".repeat(300);
-        let block =
-            serde_json::json!({"name": "Read", "input": {"file_path": format!("{long}\nsecond")}});
-        let s = tool_summary(&block);
-        assert!(s.starts_with("Read xxx"));
-        assert!(s.ends_with('…'));
-        assert_eq!(s.chars().count(), "Read ".len() + MAX_TARGET_CHARS + 1);
-
-        let short =
-            serde_json::json!({"name": "WebFetch", "input": {"url": "https://example.org\nmore"}});
-        assert_eq!(tool_summary(&short), "WebFetch https://example.org");
-
-        let bare = serde_json::json!({"name": "TodoWrite", "input": {}});
-        assert_eq!(tool_summary(&bare), "TodoWrite");
-    }
-
-    #[test]
-    fn patterns_and_commands_stay_out_of_a_summary() {
-        let grep = serde_json::json!({"name": "Grep", "input": {"pattern": "a quoted phrase"}});
-        assert_eq!(tool_summary(&grep), "Grep");
-        let bash =
-            serde_json::json!({"name": "Bash", "input": {"command": "grep 'draft text' doc.md"}});
-        assert_eq!(tool_summary(&bash), "Bash");
-    }
-
-    #[test]
-    fn the_result_event_is_found_whatever_the_key_order() {
-        assert!(is_result_event(
-            r#"{"duration_api_ms":1,"is_error":false,"type":"result","usage":{}}"#
-        ));
-        assert!(!is_result_event(
-            r#"{"type":"user","message":{"content":[{"text":"\"type\":\"result\""}]}}"#
-        ));
-        assert!(!is_result_event(
-            r#"{"type":"stream_event","event":{"type":"message_stop"}}"#
-        ));
-        assert!(!is_result_event("not json"));
-    }
-
-    #[test]
-    fn the_cli_error_is_read_from_the_result_event() {
-        let line = r#"{"duration_ms":240000,"is_error":true,"type":"result","subtype":"success","result":"API Error: 429 {\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\"}}"}"#;
-        assert_eq!(
-            result_error_text(line).as_deref(),
-            Some(r#"API Error: 429 {"type":"error","error":{"type":"rate_limit_error"}}"#)
-        );
-    }
-
-    #[test]
-    fn an_error_subtype_without_text_falls_back_to_its_errors_or_its_name() {
-        let with_errors = r#"{"type":"result","subtype":"error_during_execution","is_error":false,"errors":["first","second"]}"#;
-        assert_eq!(
-            result_error_text(with_errors).as_deref(),
-            Some("first; second")
-        );
-        let bare = r#"{"type":"result","subtype":"error_max_turns","is_error":false}"#;
-        assert_eq!(result_error_text(bare).as_deref(), Some("error_max_turns"));
-    }
-
-    #[test]
-    fn a_successful_result_has_no_error_text() {
-        let ok = r#"{"type":"result","subtype":"success","is_error":false,"result":"done"}"#;
-        assert_eq!(result_error_text(ok), None);
-        assert_eq!(result_error_text(r#"{"type":"assistant"}"#), None);
-        assert_eq!(result_error_text("not json"), None);
-    }
-
-    #[test]
-    fn the_cli_error_becomes_one_short_line() {
-        let long = format!("API Error:\n  {}", "x".repeat(500));
-        let line =
-            serde_json::json!({"type": "result", "is_error": true, "result": long}).to_string();
-        let text = result_error_text(&line).unwrap();
-        assert!(text.starts_with("API Error: xxx"), "{text}");
-        assert!(!text.contains('\n'));
-        assert!(text.ends_with('…'));
-        assert_eq!(text.chars().count(), MAX_ERROR_TEXT_CHARS + 1);
-    }
-
-    #[test]
-    fn the_model_is_read_from_the_init_event() {
-        let init = r#"{"type":"system","subtype":"init","cwd":"/tmp","model":"claude-opus-5-5","tools":["Read"]}"#;
-        assert_eq!(init_model(init).as_deref(), Some("claude-opus-5-5"));
-        // Any key order, as with the other events.
-        let reordered = r#"{"model":"claude-sonnet-5-5","subtype":"init","type":"system"}"#;
-        assert_eq!(init_model(reordered).as_deref(), Some("claude-sonnet-5-5"));
-        // Other system events, a quoted init in a tool result, and an empty name
-        // say nothing about the model.
-        assert_eq!(
-            init_model(r#"{"type":"system","subtype":"status","model":"x"}"#),
-            None
-        );
-        assert_eq!(
-            init_model(r#"{"type":"user","message":{"content":"\"subtype\":\"init\""}}"#),
-            None
-        );
-        assert_eq!(
-            init_model(r#"{"type":"system","subtype":"init","model":""}"#),
-            None
-        );
-        // `subtype` alone is not enough: the event must be a system event.
-        assert_eq!(
-            init_model(r#"{"type":"user","subtype":"init","model":"x"}"#),
-            None
-        );
-    }
-
-    #[test]
     fn the_snapshot_names_the_model() {
         let a = ActivityHandle::new();
         assert!(a.snapshot()["model"].is_null());
-        a.record_line(r#"{"type":"system","subtype":"init","model":"claude-opus-5-5"}"#);
-        assert_eq!(a.snapshot()["model"], "claude-opus-5-5");
-    }
-
-    #[test]
-    fn an_assistant_event_is_read_whatever_the_key_order() {
-        let a = ActivityHandle::new();
-        a.record_line(
-            r#"{"message":{"id":"m1","content":[{"type":"tool_use","name":"Read","input":{"file_path":"a"}}]},"type":"assistant"}"#,
+        claude(
+            &a,
+            r#"{"type":"system","subtype":"init","model":"claude-opus-5-5"}"#,
         );
-        assert_eq!(a.snapshot()["tool_calls"], 1);
+        assert_eq!(a.snapshot()["model"], "claude-opus-5-5");
     }
 
     #[test]
     fn the_summary_is_cut_off_before_classifying() {
         let a = ActivityHandle::new();
-        a.record_line(&assistant(
-            "m1",
-            r#"{"type":"tool_use","name":"Read","input":{"file_path":"yaml error os error 12"}}"#,
-        ));
+        claude(
+            &a,
+            &assistant(
+                "m1",
+                r#"{"type":"tool_use","name":"Read","input":{"file_path":"yaml error os error 12"}}"#,
+            ),
+        );
         let err = format!("claude timed out after 5s; stderr: boom{}", a.summary());
         assert_eq!(
             without_activity(&err),
@@ -837,10 +486,13 @@ mod tests {
         assert_eq!(a.summary(), "; agent activity: 0 turns, 0 tool calls");
         a.begin_call("translate");
         a.enter();
-        a.record_line(&assistant(
-            "m1",
-            r#"{"type":"tool_use","name":"Read","input":{"file_path":"a.yaml"}}"#,
-        ));
+        claude(
+            &a,
+            &assistant(
+                "m1",
+                r#"{"type":"tool_use","name":"Read","input":{"file_path":"a.yaml"}}"#,
+            ),
+        );
         let s = a.summary();
         assert!(
             s.starts_with("; agent activity: 1 turns, 1 tool calls, silent for "),
@@ -853,10 +505,15 @@ mod tests {
     fn recent_tools_keep_only_the_latest() {
         let a = ActivityHandle::new();
         for i in 0..(RECENT_EVENTS + 3) {
-            a.record_line(&assistant(
-                &format!("m{i}"),
-                &format!(r#"{{"type":"tool_use","name":"Read","input":{{"file_path":"f{i}"}}}}"#),
-            ));
+            claude(
+                &a,
+                &assistant(
+                    &format!("m{i}"),
+                    &format!(
+                        r#"{{"type":"tool_use","name":"Read","input":{{"file_path":"f{i}"}}}}"#
+                    ),
+                ),
+            );
         }
         let s = a.snapshot();
         let recent = s["recent_tools"].as_array().unwrap();
