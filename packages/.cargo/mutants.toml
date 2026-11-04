@@ -250,4 +250,9 @@ exclude_re = [
     # ESRCH (already gone after the group kill). The kill itself is killed by
     # a_timeout_kills_everything_the_agent_started; this only picks the log.
     'agent/supervisor\.rs.*replace != with == in terminate',
+
+    # The chain plan is logged when it reports a step left out or degraded.
+    # A blocked required step is an error and is killed in call_agent; this
+    # only decides whether an empty report gets a log line.
+    'enrich\.rs.*log_chain_plan',
 ]

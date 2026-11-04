@@ -18,7 +18,7 @@ use crate::error::{PipelineError, Result};
 
 /// What one agent subprocess reported about itself.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(crate) struct AgentRun {
+pub struct AgentRun {
     /// Token use and cost, from the closing event or the sum of the steps.
     pub usage: Option<AgentUsage>,
     /// The model it ran on: as the CLI named it, or the configured one for a

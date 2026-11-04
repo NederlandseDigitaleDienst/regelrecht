@@ -14,7 +14,8 @@ use crate::enrich_v2::{capabilities, context};
 use crate::error::{PipelineError, Result};
 // The agent subprocess lives in `crate::agent`; these names stay reachable
 // here because enrich is where every caller meets them.
-pub(crate) use crate::agent::{run_llm_subprocess, AgentRun, ToolPolicy};
+pub(crate) use crate::agent::run_llm_subprocess;
+pub use crate::agent::{AgentRun, ToolPolicy};
 
 /// Per-process cache of branch names already confirmed to exist on the
 /// corpus remote. Branches are never deleted once created, so a positive
@@ -404,20 +405,33 @@ fn articles_by_number(
     Ok(out)
 }
 
-/// Trait abstracting the LLM invocation so `execute_enrich` can be tested
-/// with a fake provider that doesn't spawn real processes.
+/// One agent call, as the enrich orchestration hands it to a runner: the
+/// prompt is built and the session decided ([`call_agent`]).
+#[derive(Debug, Clone, Copy)]
+pub struct AgentCall<'a> {
+    /// What the call is for: the pass, the window of articles and the law.
+    /// The process runner needs only the fields below; a fake in a test
+    /// decides what to answer from this.
+    pub payload: &'a EnrichPayload,
+    pub prompt: &'a str,
+    /// The law the agent edits in place.
+    pub yaml_abs: &'a Path,
+    /// The checkout the agent runs in.
+    pub repo_path: &'a Path,
+    pub tools: ToolPolicy<'a>,
+    pub session: SessionAction,
+}
+
+/// Where an agent call crosses into a process, so `execute_enrich` can be
+/// tested with a fake that spawns nothing. Everything before that point
+/// (the prompt, the chain plan, the context brief, the session) is
+/// [`call_agent`]'s, and a fake gets it for free.
 #[async_trait::async_trait]
 pub trait LlmRunner: Send + Sync {
-    /// Run the LLM on the given YAML file and return its exit status.
+    /// Run one call and say what it reported.
     ///
     /// Implementations should respect the timeout in `config`.
-    async fn run(
-        &self,
-        payload: &EnrichPayload,
-        yaml_abs: &Path,
-        repo_path: &Path,
-        config: &EnrichConfig,
-    ) -> Result<()>;
+    async fn run(&self, call: &AgentCall<'_>, config: &EnrichConfig) -> Result<AgentRun>;
 }
 
 /// What one agent run cost, as the provider reports it.
@@ -545,7 +559,7 @@ pub(crate) fn session_reuse_for(provider: &LlmProvider, requested: SessionReuse)
 
 /// What one call must do with the window's session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SessionAction {
+pub enum SessionAction {
     /// No session id at all: the provider opens and forgets its own.
     Cold,
     /// Open the window's session under an id the worker chose.
@@ -746,116 +760,141 @@ fn end_call(payload: &EnrichPayload, action: SessionAction, run: AgentRun) {
     }
 }
 
+/// Make one agent call for `payload`: decide the session, plan the chain,
+/// write the context brief, build the prompt, hand the call to `runner`, and
+/// record what it reported against the window's session.
+pub(crate) async fn call_agent(
+    runner: &dyn LlmRunner,
+    payload: &EnrichPayload,
+    yaml_abs: &Path,
+    repo_path: &Path,
+    config: &EnrichConfig,
+) -> Result<()> {
+    let progress_path = progress_file_path(yaml_abs);
+    let action = begin_call(payload);
+    config.activity.begin_call(pass_label(&payload.pass));
+    // Computed for both passes, because a feedback round runs in the same
+    // runtime as the translation it answers and the prompt tells it so
+    // ("You have no network and no search"). A deny list that only applied
+    // to the first pass would make that sentence false from round two on.
+    let (plan, deny) = chain_plan(repo_path);
+    // A feedback pass asks for one thing and gives the agent nothing
+    // else to do, so it cannot wander back into translating.
+    if let Pass::Feedback(feedback) = &payload.pass {
+        let prompt =
+            build_feedback_prompt(&payload.yaml_path, feedback, vocabulary_of(yaml_abs).await);
+        // A resumed round starts from a conversation in which the agent
+        // wrote the very thing the gate is complaining about, so it is
+        // told first of all to go and look.
+        let prompt = if action.resumed() {
+            format!("{REREAD_INSTRUCTION}\n\n{prompt}")
+        } else {
+            prompt
+        };
+        let call = AgentCall {
+            payload,
+            prompt: &prompt,
+            yaml_abs,
+            repo_path,
+            tools: ToolPolicy {
+                allow_bash: false,
+                deny: &deny,
+            },
+            session: action,
+        };
+        let run = runner.run(&call, config).await?;
+        end_call(payload, action, run);
+        return Ok(());
+    }
+
+    // What the chain may instruct depends on what this runtime grants.
+    // A step whose tools are absent is left out and recorded, rather than
+    // asked for and answered with an invention (issue #1036).
+    let report = capabilities::plan_report(&plan);
+    log_chain_plan(&report);
+    if let Some((spec, _)) = plan
+        .iter()
+        .find(|(_, p)| matches!(p, capabilities::StepPlan::Blocked { .. }))
+    {
+        return Err(PipelineError::Config(format!(
+            "required step {:?} cannot run in this runtime: {}",
+            spec.name,
+            report.trim_end()
+        )));
+    }
+    // Requirement 6 of RFC-026: an article never reaches an agent without
+    // its place in the structure and without what bears on it inside its
+    // own law. The worker assembles that and writes it down; the agent
+    // reads a file rather than hunting through the YAML.
+    // `ENRICH_CONTEXT_BRIEF=0` withholds the brief. It exists so a round
+    // can be run twice over the same laws with only this changed, which is
+    // the only way to say what the brief is worth rather than that the
+    // numbers moved.
+    let brief = if brief_withheld(std::env::var("ENRICH_CONTEXT_BRIEF").ok().as_deref()) {
+        tracing::info!("context brief withheld by ENRICH_CONTEXT_BRIEF=0");
+        None
+    } else {
+        context::write_brief(yaml_abs, payload.chunk_articles.as_deref(), repo_path)
+    };
+    if brief.is_none() {
+        tracing::warn!(law = %payload.yaml_path, "no context brief written");
+    }
+    // Chunked runs get the explicit-article-subset prompt; whole-law runs
+    // keep the original prompt byte-identical.
+    let prompt = build_prompt(
+        &payload.yaml_path,
+        &progress_path.to_string_lossy(),
+        &plan,
+        payload.chunk_articles.as_deref(),
+        payload.skip_mvt.unwrap_or(false),
+        brief.is_some(),
+    );
+    let call = AgentCall {
+        payload,
+        prompt: &prompt,
+        yaml_abs,
+        repo_path,
+        tools: ToolPolicy {
+            // Enrich edits YAML in place; it does not need shell access.
+            allow_bash: false,
+            deny: &deny,
+        },
+        session: action,
+    };
+    let run = runner.run(&call, config).await?;
+    end_call(payload, action, run);
+    Ok(())
+}
+
+/// Log the chain plan when it says anything: steps left out or degraded.
+fn log_chain_plan(report: &str) {
+    if !report.is_empty() {
+        tracing::info!(plan = %report.trim_end(), "enrichment chain planned");
+    }
+}
+
+/// Whether `ENRICH_CONTEXT_BRIEF` withholds the context brief: only `0`
+/// does; unset or anything else keeps it.
+fn brief_withheld(raw: Option<&str>) -> bool {
+    raw == Some("0")
+}
+
 /// Default runner that spawns a real CLI process.
 pub struct ProcessLlmRunner;
 
 #[async_trait::async_trait]
 impl LlmRunner for ProcessLlmRunner {
-    async fn run(
-        &self,
-        payload: &EnrichPayload,
-        yaml_abs: &Path,
-        repo_path: &Path,
-        config: &EnrichConfig,
-    ) -> Result<()> {
-        let progress_path = progress_file_path(yaml_abs);
-        // Chunked runs get the explicit-article-subset prompt; whole-law runs
-        // keep the original prompt byte-identical.
-        // A feedback pass asks for one thing and gives the agent nothing
-        // else to do, so it cannot wander back into translating.
-        let action = begin_call(payload);
-        config.activity.begin_call(pass_label(&payload.pass));
-        // Computed for both passes, because a feedback round runs in the same
-        // runtime as the translation it answers and the prompt tells it so
-        // ("You have no network and no search"). A deny list that only applied
-        // to the first pass would make that sentence false from round two on.
-        let (plan, deny) = chain_plan(repo_path);
-        if let Pass::Feedback(feedback) = &payload.pass {
-            let prompt =
-                build_feedback_prompt(&payload.yaml_path, feedback, vocabulary_of(yaml_abs).await);
-            // A resumed round starts from a conversation in which the agent
-            // wrote the very thing the gate is complaining about, so it is
-            // told first of all to go and look.
-            let prompt = if action.resumed() {
-                format!("{REREAD_INSTRUCTION}\n\n{prompt}")
-            } else {
-                prompt
-            };
-            let run = run_llm_subprocess(
-                &config.provider,
-                &prompt,
-                Some(yaml_abs),
-                repo_path,
-                config,
-                ToolPolicy {
-                    allow_bash: false,
-                    deny: &deny,
-                },
-                action,
-            )
-            .await?;
-            end_call(payload, action, run);
-            return Ok(());
-        }
-
-        // What the chain may instruct depends on what this runtime grants.
-        // A step whose tools are absent is left out and recorded, rather than
-        // asked for and answered with an invention (issue #1036).
-        let report = capabilities::plan_report(&plan);
-        if !report.is_empty() {
-            tracing::info!(plan = %report.trim_end(), "enrichment chain planned");
-        }
-        if let Some((spec, _)) = plan
-            .iter()
-            .find(|(_, p)| matches!(p, capabilities::StepPlan::Blocked { .. }))
-        {
-            return Err(PipelineError::Config(format!(
-                "required step {:?} cannot run in this runtime: {}",
-                spec.name,
-                report.trim_end()
-            )));
-        }
-        // Requirement 6 of RFC-026: an article never reaches an agent without
-        // its place in the structure and without what bears on it inside its
-        // own law. The worker assembles that and writes it down; the agent
-        // reads a file rather than hunting through the YAML.
-        // `ENRICH_CONTEXT_BRIEF=0` withholds the brief. It exists so a round
-        // can be run twice over the same laws with only this changed, which is
-        // the only way to say what the brief is worth rather than that the
-        // numbers moved.
-        let brief = if std::env::var("ENRICH_CONTEXT_BRIEF").as_deref() == Ok("0") {
-            tracing::info!("context brief withheld by ENRICH_CONTEXT_BRIEF=0");
-            None
-        } else {
-            context::write_brief(yaml_abs, payload.chunk_articles.as_deref(), repo_path)
-        };
-        if brief.is_none() {
-            tracing::warn!(law = %payload.yaml_path, "no context brief written");
-        }
-        let prompt = build_prompt(
-            &payload.yaml_path,
-            &progress_path.to_string_lossy(),
-            &plan,
-            payload.chunk_articles.as_deref(),
-            payload.skip_mvt.unwrap_or(false),
-            brief.is_some(),
-        );
-        let run = run_llm_subprocess(
+    async fn run(&self, call: &AgentCall<'_>, config: &EnrichConfig) -> Result<AgentRun> {
+        run_llm_subprocess(
             &config.provider,
-            &prompt,
-            Some(yaml_abs),
-            repo_path,
+            call.prompt,
+            Some(call.yaml_abs),
+            call.repo_path,
             config,
-            ToolPolicy {
-                // Enrich edits YAML in place; it does not need shell access.
-                allow_bash: false,
-                deny: &deny,
-            },
-            action,
+            call.tools,
+            call.session,
         )
-        .await?;
-        end_call(payload, action, run);
-        Ok(())
+        .await
     }
 }
 
@@ -1171,9 +1210,9 @@ pub struct EnrichPayload {
     pub new_law: Option<bool>,
     /// Article numbers this run must process (chunked enrichment). Computed
     /// per run by `execute_enrich_with_runner` from the persisted cursor and
-    /// passed to the [`LlmRunner`] via the normalized payload — never stored
-    /// in queue payloads (`skip_serializing_if` keeps old payloads and the
-    /// runner trait untouched). `None` means whole-law mode.
+    /// handed to the runner on [`AgentCall::payload`] — never stored in queue
+    /// payloads (`skip_serializing_if` keeps old payloads readable). `None`
+    /// means whole-law mode.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chunk_articles: Option<Vec<String>>,
     /// De agent-sessie van dít venster: gedeeld door de vertaalslag en de
@@ -3027,9 +3066,14 @@ async fn run_feedback_rounds(
             }),
             ..payload.clone()
         };
-        runner
-            .run(&feedback_payload, yaml_abs, corpus_root, &round_config)
-            .await?;
+        call_agent(
+            runner,
+            &feedback_payload,
+            yaml_abs,
+            corpus_root,
+            &round_config,
+        )
+        .await?;
 
         let reading = evaluate_gate(gate, yaml_abs, corpus_root, window).await?;
         findings = reading.answerable;
@@ -3165,9 +3209,7 @@ async fn run_windows_concurrently(
             ..payload.clone()
         };
         runs.push(async move {
-            runner
-                .run(&their_payload, &their_yaml, &checkout, config)
-                .await?;
+            call_agent(runner, &their_payload, &their_yaml, &checkout, config).await?;
             let text = tokio::fs::read_to_string(&their_yaml).await?;
             Ok::<_, PipelineError>(text)
         });
@@ -3966,9 +4008,7 @@ pub async fn execute_enrich_with_runner(
             )
             .await?;
         } else {
-            runner
-                .run(&normalized_payload, &yaml_abs, repo_path, config)
-                .await?;
+            call_agent(runner, &normalized_payload, &yaml_abs, repo_path, config).await?;
         }
 
         tracing::info!(law_id = %payload.law_id, provider = %provider_name, "enrichment completed");
@@ -5619,13 +5659,8 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for SchemaBreakingRunner {
-        async fn run(
-            &self,
-            _payload: &EnrichPayload,
-            yaml_abs: &Path,
-            _repo_path: &Path,
-            _config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+            let yaml_abs = call.yaml_abs;
             let text = tokio::fs::read_to_string(yaml_abs).await?;
             let broken = text.replace(
                 "    machine_readable:\n      endpoint: hoogte\n",
@@ -5635,7 +5670,7 @@ articles:
             );
             assert_ne!(broken, text, "de testrunner moet iets veranderen");
             tokio::fs::write(yaml_abs, broken).await?;
-            Ok(())
+            Ok(AgentRun::default())
         }
     }
 
@@ -5689,16 +5724,11 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for HarmlessRunner {
-        async fn run(
-            &self,
-            _payload: &EnrichPayload,
-            yaml_abs: &Path,
-            _repo_path: &Path,
-            _config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+            let yaml_abs = call.yaml_abs;
             let text = tokio::fs::read_to_string(yaml_abs).await?;
             tokio::fs::write(yaml_abs, format!("{text}# nagelezen\n")).await?;
-            Ok(())
+            Ok(AgentRun::default())
         }
     }
 
@@ -5801,13 +5831,8 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for MarkingRunner {
-        async fn run(
-            &self,
-            _payload: &EnrichPayload,
-            yaml_abs: &Path,
-            _repo_path: &Path,
-            _config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+            let yaml_abs = call.yaml_abs;
             #[allow(clippy::unwrap_used)]
             {
                 *self.calls.lock().unwrap() += 1;
@@ -5836,7 +5861,7 @@ articles:
                 }
             }
             tokio::fs::write(yaml_abs, serde_yaml_ng::to_string(&value)?).await?;
-            Ok(())
+            Ok(AgentRun::default())
         }
     }
 
@@ -6080,18 +6105,12 @@ articles:
 
         #[async_trait::async_trait]
         impl LlmRunner for SilentRunner {
-            async fn run(
-                &self,
-                _payload: &EnrichPayload,
-                _yaml_abs: &Path,
-                _repo_path: &Path,
-                _config: &EnrichConfig,
-            ) -> Result<()> {
+            async fn run(&self, _call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
                 #[allow(clippy::unwrap_used)]
                 {
                     *self.calls.lock().unwrap() += 1;
                 }
-                Ok(())
+                Ok(AgentRun::default())
             }
         }
 
@@ -6135,13 +6154,8 @@ articles:
 
         #[async_trait::async_trait]
         impl LlmRunner for ChurningRunner {
-            async fn run(
-                &self,
-                _payload: &EnrichPayload,
-                yaml_abs: &Path,
-                _repo_path: &Path,
-                _config: &EnrichConfig,
-            ) -> Result<()> {
+            async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+                let yaml_abs = call.yaml_abs;
                 #[allow(clippy::unwrap_used)]
                 let call = {
                     let mut calls = self.calls.lock().unwrap();
@@ -6150,7 +6164,7 @@ articles:
                 };
                 let content = tokio::fs::read_to_string(yaml_abs).await?;
                 tokio::fs::write(yaml_abs, format!("{content}# round {call}\n")).await?;
-                Ok(())
+                Ok(AgentRun::default())
             }
         }
 
@@ -6385,13 +6399,15 @@ articles:
         assert!(SessionReuse::parse("sometimes").is_err());
     }
 
-    /// Answers a round like [`MarkingRunner`], but takes the session decision
-    /// the same way the process runner does — through `begin_call`/`end_call`
-    /// — and writes down what it decided. Anything less would test a copy of
-    /// the rule rather than the rule.
+    /// Answers a round like [`MarkingRunner`], and writes down the session
+    /// decision each call was handed. `call_agent` makes that decision before
+    /// any runner sees the call, so this records the rule itself rather than a
+    /// copy of it.
     struct SessionRunner {
         inner: MarkingRunner,
         actions: std::sync::Mutex<Vec<(String, SessionAction)>>,
+        /// Each call's prompt and whether it was given a shell.
+        prompts: std::sync::Mutex<Vec<(String, bool)>>,
     }
 
     impl SessionRunner {
@@ -6401,6 +6417,7 @@ articles:
                     calls: std::sync::Mutex::new(0),
                 },
                 actions: std::sync::Mutex::new(Vec::new()),
+                prompts: std::sync::Mutex::new(Vec::new()),
             }
         }
 
@@ -6408,35 +6425,36 @@ articles:
         fn actions(&self) -> Vec<(String, SessionAction)> {
             self.actions.lock().unwrap().clone()
         }
+
+        #[allow(clippy::unwrap_used)]
+        fn prompts(&self) -> Vec<(String, bool)> {
+            self.prompts.lock().unwrap().clone()
+        }
     }
 
     #[async_trait::async_trait]
     impl LlmRunner for SessionRunner {
-        async fn run(
-            &self,
-            payload: &EnrichPayload,
-            yaml_abs: &Path,
-            repo_path: &Path,
-            config: &EnrichConfig,
-        ) -> Result<()> {
-            let action = begin_call(payload);
+        async fn run(&self, call: &AgentCall<'_>, config: &EnrichConfig) -> Result<AgentRun> {
+            let payload = call.payload;
             #[allow(clippy::unwrap_used)]
             {
                 self.actions
                     .lock()
                     .unwrap()
-                    .push((pass_label(&payload.pass).to_string(), action));
+                    .push((pass_label(&payload.pass).to_string(), call.session));
+                self.prompts
+                    .lock()
+                    .unwrap()
+                    .push((call.prompt.to_string(), call.tools.allow_bash));
             }
-            self.inner.run(payload, yaml_abs, repo_path, config).await?;
-            end_call(payload, action, AgentRun::default());
-            Ok(())
+            self.inner.run(call, config).await
         }
     }
 
     async fn rounds_with_session(
         reuse: SessionReuse,
         session: &std::sync::Arc<AgentSession>,
-    ) -> Vec<(String, SessionAction)> {
+    ) -> SessionRunner {
         let (dir, path) = silent_law_on_disk(3).await;
         let mut config = rounds_config(FeedbackRounds {
             marking: 2,
@@ -6461,7 +6479,31 @@ articles:
         .await
         .expect("rounds run");
 
-        runner.actions()
+        runner
+    }
+
+    #[test]
+    fn only_zero_withholds_the_context_brief() {
+        assert!(brief_withheld(Some("0")));
+        assert!(!brief_withheld(None));
+        assert!(!brief_withheld(Some("1")));
+        assert!(!brief_withheld(Some("")));
+    }
+
+    #[tokio::test]
+    async fn a_resumed_round_is_told_to_read_the_file_again_and_gets_no_shell() {
+        let session = std::sync::Arc::new(AgentSession::new(SessionReuse::Window));
+        let prompts = rounds_with_session(SessionReuse::Window, &session)
+            .await
+            .prompts();
+        assert_eq!(prompts.len(), 2, "both rounds ran");
+        // The first round opens the session and has nothing to reread.
+        assert!(!prompts[0].0.starts_with(REREAD_INSTRUCTION));
+        // The second continues it, so it is told first that memory is not
+        // evidence and the file is.
+        assert!(prompts[1].0.starts_with(REREAD_INSTRUCTION));
+        // Enrich edits YAML in place; no round gets a shell.
+        assert!(prompts.iter().all(|(_, bash)| !bash));
     }
 
     #[tokio::test]
@@ -6469,7 +6511,9 @@ articles:
         // Two rounds at the same gate, over the same articles: the second
         // must continue the first rather than start a seventh cold process.
         let session = std::sync::Arc::new(AgentSession::new(SessionReuse::Window));
-        let actions = rounds_with_session(SessionReuse::Window, &session).await;
+        let actions = rounds_with_session(SessionReuse::Window, &session)
+            .await
+            .actions();
 
         assert_eq!(actions.len(), 2, "both rounds ran");
         assert_eq!(
@@ -6494,11 +6538,15 @@ articles:
         // Same law, same gate, a new window: nothing is resumed. The saving
         // stops at the window boundary on purpose.
         let first = std::sync::Arc::new(AgentSession::new(SessionReuse::Window));
-        let first_actions = rounds_with_session(SessionReuse::Window, &first).await;
+        let first_actions = rounds_with_session(SessionReuse::Window, &first)
+            .await
+            .actions();
         assert!(first_actions.iter().any(|(_, a)| a.resumed()));
 
         let second = std::sync::Arc::new(AgentSession::new(SessionReuse::Window));
-        let second_actions = rounds_with_session(SessionReuse::Window, &second).await;
+        let second_actions = rounds_with_session(SessionReuse::Window, &second)
+            .await
+            .actions();
         assert_eq!(
             second_actions[0].1,
             SessionAction::Start(second.id()),
@@ -6510,7 +6558,9 @@ articles:
     #[tokio::test]
     async fn the_marking_gate_stays_cold_under_repair_mode() {
         let session = std::sync::Arc::new(AgentSession::new(SessionReuse::Repair));
-        let actions = rounds_with_session(SessionReuse::Repair, &session).await;
+        let actions = rounds_with_session(SessionReuse::Repair, &session)
+            .await
+            .actions();
 
         assert_eq!(actions.len(), 2);
         assert!(
@@ -6686,13 +6736,9 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for InvalidThenRepairingRunner {
-        async fn run(
-            &self,
-            payload: &EnrichPayload,
-            yaml_abs: &Path,
-            _repo_path: &Path,
-            _config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+            let payload = call.payload;
+            let yaml_abs = call.yaml_abs;
             let is_repair = matches!(payload.pass, Pass::Feedback(_));
             #[allow(clippy::unwrap_used)]
             self.calls.lock().unwrap().push(is_repair);
@@ -6723,7 +6769,7 @@ articles:
                 }
             }
             tokio::fs::write(yaml_abs, serde_yaml_ng::to_string(&value)?).await?;
-            Ok(())
+            Ok(AgentRun::default())
         }
     }
 
@@ -6788,13 +6834,9 @@ articles:
 
         #[async_trait::async_trait]
         impl LlmRunner for UnansweringRunner {
-            async fn run(
-                &self,
-                payload: &EnrichPayload,
-                yaml_abs: &Path,
-                _repo_path: &Path,
-                _config: &EnrichConfig,
-            ) -> Result<()> {
+            async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+                let payload = call.payload;
+                let yaml_abs = call.yaml_abs;
                 #[allow(clippy::unwrap_used)]
                 self.passes.lock().unwrap().push(match &payload.pass {
                     Pass::Translate => "translate",
@@ -6807,7 +6849,7 @@ articles:
                     },
                 });
                 if !matches!(payload.pass, Pass::Translate) {
-                    return Ok(()); // answers nothing, on purpose
+                    return Ok(AgentRun::default()); // answers nothing, on purpose
                 }
                 let content = tokio::fs::read_to_string(yaml_abs).await?;
                 let mut value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)?;
@@ -6826,7 +6868,7 @@ articles:
                     }
                 }
                 tokio::fs::write(yaml_abs, serde_yaml_ng::to_string(&value)?).await?;
-                Ok(())
+                Ok(AgentRun::default())
             }
         }
 
@@ -6996,13 +7038,8 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for FakeLlmRunner {
-        async fn run(
-            &self,
-            _payload: &EnrichPayload,
-            yaml_abs: &Path,
-            _repo_path: &Path,
-            _config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+            let yaml_abs = call.yaml_abs;
             let content = tokio::fs::read_to_string(yaml_abs).await?;
             let mut value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)?;
 
@@ -7025,7 +7062,7 @@ articles:
 
             let output = serde_yaml_ng::to_string(&value)?;
             tokio::fs::write(yaml_abs, output).await?;
-            Ok(())
+            Ok(AgentRun::default())
         }
     }
 
@@ -7059,16 +7096,9 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for TruncatingLlmRunner {
-        async fn run(
-            &self,
-            payload: &EnrichPayload,
-            yaml_abs: &Path,
-            repo_path: &Path,
-            config: &EnrichConfig,
-        ) -> Result<()> {
-            FakeLlmRunner
-                .run(payload, yaml_abs, repo_path, config)
-                .await?;
+        async fn run(&self, call: &AgentCall<'_>, config: &EnrichConfig) -> Result<AgentRun> {
+            let yaml_abs = call.yaml_abs;
+            FakeLlmRunner.run(call, config).await?;
             let content = tokio::fs::read_to_string(yaml_abs).await?;
             let mut doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)?;
             if let Some(serde_yaml_ng::Value::Mapping(first)) =
@@ -7077,7 +7107,7 @@ articles:
                 first.insert("text".into(), "Article".into());
             }
             tokio::fs::write(yaml_abs, serde_yaml_ng::to_string(&doc)?).await?;
-            Ok(())
+            Ok(AgentRun::default())
         }
     }
 
@@ -7237,13 +7267,7 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for FailingLlmRunner {
-        async fn run(
-            &self,
-            _payload: &EnrichPayload,
-            _yaml_abs: &Path,
-            _repo_path: &Path,
-            _config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, _call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
             Err(PipelineError::Enrich("simulated LLM failure".into()))
         }
     }
@@ -7295,14 +7319,8 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for NoopLlmRunner {
-        async fn run(
-            &self,
-            _payload: &EnrichPayload,
-            _yaml_abs: &Path,
-            _repo_path: &Path,
-            _config: &EnrichConfig,
-        ) -> Result<()> {
-            Ok(())
+        async fn run(&self, _call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+            Ok(AgentRun::default())
         }
     }
 
@@ -7696,13 +7714,10 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for WindowRunner {
-        async fn run(
-            &self,
-            payload: &EnrichPayload,
-            yaml_abs: &Path,
-            repo_path: &Path,
-            _config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+            let payload = call.payload;
+            let yaml_abs = call.yaml_abs;
+            let repo_path = call.repo_path;
             #[allow(clippy::unwrap_used)]
             {
                 self.checkouts.lock().unwrap().push(repo_path.to_path_buf());
@@ -7728,7 +7743,7 @@ articles:
                 }
             }
             tokio::fs::write(yaml_abs, serde_yaml_ng::to_string(&doc)?).await?;
-            Ok(())
+            Ok(AgentRun::default())
         }
     }
 
@@ -7789,13 +7804,8 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for SessionRecordingWindowRunner {
-        async fn run(
-            &self,
-            payload: &EnrichPayload,
-            yaml_abs: &Path,
-            repo_path: &Path,
-            config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, call: &AgentCall<'_>, config: &EnrichConfig) -> Result<AgentRun> {
+            let payload = call.payload;
             #[allow(clippy::unwrap_used)]
             {
                 self.sessions
@@ -7803,7 +7813,7 @@ articles:
                     .unwrap()
                     .push(payload.session.as_ref().map(|s| (s.id(), s.reuse())));
             }
-            self.inner.run(payload, yaml_abs, repo_path, config).await
+            self.inner.run(call, config).await
         }
     }
 
@@ -8268,18 +8278,14 @@ chunk_report:
 
     #[async_trait::async_trait]
     impl LlmRunner for FakeChunkRunner {
-        async fn run(
-            &self,
-            payload: &EnrichPayload,
-            yaml_abs: &Path,
-            _repo_path: &Path,
-            _config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+            let payload = call.payload;
+            let yaml_abs = call.yaml_abs;
             // A feedback pass carries no window: it asks about the file as
             // it now stands. Only the translating passes are the subject of
             // this test, so record those and let the rest through.
             let Some(chunk) = payload.chunk_articles.clone() else {
-                return Ok(());
+                return Ok(AgentRun::default());
             };
             self.calls
                 .lock()
@@ -8324,7 +8330,7 @@ chunk_report:
                 );
                 tokio::fs::write(enrichment_result_path(yaml_abs), report).await?;
             }
-            Ok(())
+            Ok(AgentRun::default())
         }
     }
 
@@ -8553,13 +8559,9 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for ScriptedRunner {
-        async fn run(
-            &self,
-            payload: &EnrichPayload,
-            yaml_abs: &Path,
-            _repo_path: &Path,
-            config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, call: &AgentCall<'_>, config: &EnrichConfig) -> Result<AgentRun> {
+            let payload = call.payload;
+            let yaml_abs = call.yaml_abs;
             self.ceilings.lock().unwrap().push(config.timeout);
             let mut text = tokio::fs::read_to_string(yaml_abs).await?;
             match &payload.pass {
@@ -8593,7 +8595,7 @@ articles:
                 }
             }
             tokio::fs::write(yaml_abs, text).await?;
-            Ok(())
+            Ok(AgentRun::default())
         }
     }
 
@@ -9140,19 +9142,14 @@ articles:
         struct ReportOnlyRunner;
         #[async_trait::async_trait]
         impl LlmRunner for ReportOnlyRunner {
-            async fn run(
-                &self,
-                _payload: &EnrichPayload,
-                yaml_abs: &Path,
-                _repo_path: &Path,
-                _config: &EnrichConfig,
-            ) -> Result<()> {
+            async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+                let yaml_abs = call.yaml_abs;
                 tokio::fs::write(
                     enrichment_result_path(yaml_abs),
                     "chunk_report:\n  articles_reviewed: [\"1\", \"2\"]\n  articles_skipped:\n    - number: \"1\"\n      reason: transitional law\n",
                 )
                 .await?;
-                Ok(())
+                Ok(AgentRun::default())
             }
         }
 
@@ -9230,15 +9227,11 @@ articles:
         struct MarkingOnlyRunner;
         #[async_trait::async_trait]
         impl LlmRunner for MarkingOnlyRunner {
-            async fn run(
-                &self,
-                payload: &EnrichPayload,
-                yaml_abs: &Path,
-                _repo_path: &Path,
-                _config: &EnrichConfig,
-            ) -> Result<()> {
+            async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+                let payload = call.payload;
+                let yaml_abs = call.yaml_abs;
                 if !matches!(payload.pass, Pass::Translate) {
-                    return Ok(());
+                    return Ok(AgentRun::default());
                 }
                 // The prompt names this path to the agent, so a run that
                 // handed over an empty one would send it looking for nothing.
@@ -9262,7 +9255,7 @@ articles:
                 );
                 assert_ne!(updated, content, "fixture must contain a bare model");
                 tokio::fs::write(yaml_abs, updated).await?;
-                Ok(())
+                Ok(AgentRun::default())
             }
         }
 
@@ -9360,17 +9353,13 @@ articles:
         struct OutOfWindowRunner;
         #[async_trait::async_trait]
         impl LlmRunner for OutOfWindowRunner {
-            async fn run(
-                &self,
-                payload: &EnrichPayload,
-                yaml_abs: &Path,
-                _repo_path: &Path,
-                _config: &EnrichConfig,
-            ) -> Result<()> {
+            async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+                let payload = call.payload;
+                let yaml_abs = call.yaml_abs;
                 // Only the translating pass edits. A feedback pass that
                 // repeated this edit would write the key twice.
                 if !matches!(payload.pass, Pass::Translate) {
-                    return Ok(());
+                    return Ok(AgentRun::default());
                 }
                 let content = tokio::fs::read_to_string(yaml_abs).await?;
                 let updated = content.replace(
@@ -9378,7 +9367,7 @@ articles:
                     "  - number: '3'\n    text: Article three.\n    machine_readable: {}",
                 );
                 tokio::fs::write(yaml_abs, updated).await?;
-                Ok(())
+                Ok(AgentRun::default())
             }
         }
 
@@ -9413,15 +9402,10 @@ articles:
         struct FixedReportRunner(&'static str);
         #[async_trait::async_trait]
         impl LlmRunner for FixedReportRunner {
-            async fn run(
-                &self,
-                _payload: &EnrichPayload,
-                yaml_abs: &Path,
-                _repo_path: &Path,
-                _config: &EnrichConfig,
-            ) -> Result<()> {
+            async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+                let yaml_abs = call.yaml_abs;
                 tokio::fs::write(enrichment_result_path(yaml_abs), self.0).await?;
-                Ok(())
+                Ok(AgentRun::default())
             }
         }
 
@@ -9546,13 +9530,7 @@ articles:
         struct PanickingRunner;
         #[async_trait::async_trait]
         impl LlmRunner for PanickingRunner {
-            async fn run(
-                &self,
-                _payload: &EnrichPayload,
-                _yaml_abs: &Path,
-                _repo_path: &Path,
-                _config: &EnrichConfig,
-            ) -> Result<()> {
+            async fn run(&self, _call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
                 panic!("LLM must not run for an empty chunk window");
             }
         }
@@ -9635,19 +9613,12 @@ articles:
         struct AssertWholeLawRunner;
         #[async_trait::async_trait]
         impl LlmRunner for AssertWholeLawRunner {
-            async fn run(
-                &self,
-                payload: &EnrichPayload,
-                yaml_abs: &Path,
-                _repo_path: &Path,
-                _config: &EnrichConfig,
-            ) -> Result<()> {
+            async fn run(&self, call: &AgentCall<'_>, config: &EnrichConfig) -> Result<AgentRun> {
+                let payload = call.payload;
                 assert!(payload.chunk_articles.is_none());
                 assert!(payload.skip_mvt.is_none());
                 // Enrich everything so the zero-coverage guard passes.
-                FakeLlmRunner
-                    .run(payload, yaml_abs, _repo_path, _config)
-                    .await
+                FakeLlmRunner.run(call, config).await
             }
         }
 
@@ -9870,10 +9841,7 @@ mod subprocess_tests {
         // The fake CLI is freshly written; retry on ETXTBSY as `run` does.
         let mut attempt = 0;
         loop {
-            match ProcessLlmRunner
-                .run(&payload, &yaml_abs, dir.path(), &config)
-                .await
-            {
+            match call_agent(&ProcessLlmRunner, &payload, &yaml_abs, dir.path(), &config).await {
                 Err(e) if e.to_string().contains("Text file busy") && attempt < 10 => {
                     attempt += 1;
                     tokio::time::sleep(Duration::from_millis(50)).await;
