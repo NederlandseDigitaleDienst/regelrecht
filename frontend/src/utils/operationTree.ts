@@ -27,6 +27,9 @@ export interface OperationNode {
   filter?: unknown;
   as?: string;
   combine?: string;
+  /** FOLD (RFC-056): the state's name and the value it starts from. */
+  state?: string;
+  initial?: unknown;
 }
 
 /** An execution action, or a bare operation node, as buildOperationTree accepts it. */
