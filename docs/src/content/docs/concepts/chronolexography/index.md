@@ -148,6 +148,31 @@ One question goes to one cell. If the call holds more than one cell that the ter
 
 Synthesis is what the asking article does with those answers. It takes answers from different cells, each to its own question, and makes one outcome of them. The business parking permit, for instance, follows from what the Chamber of Commerce records about the company and from the municipality's own record of permits. Each cell reduces only its own chronicle.
 
+## Work after a decision
+
+A decision is often not the end of the work. When the college of Wilgendaal grants a parking card, it still has to order the card from a printer, the printer prints and delivers it, and the college hands it to the applicant. No law says so. The college's own fictitious policy does (`beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal`), and the printer is a fictitious cell of its own, `kaartendrukkerij_wilgendaal`.
+
+Each of those steps is a fact that an article of that policy requires (`requires`, [RFC-051](/rfcs/rfc-051)), so each cell records it as an executogram. The same article says how much of that work is still to be done:
+
+```yaml
+# beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal, art. 1 (shortened)
+requires:
+  - fact: drukopdracht_gegeven        # the college orders the card
+  - fact: drukopdracht_ontvangen      # the printer receives the order
+output:
+  - name: aantal_aan_te_vragen_kaarten
+actions:
+  - output: aantal_aan_te_vragen_kaarten
+    value: {operation: MAX, values: [0, {operation: SUBTRACT, values: [$aantal_verstrekte_gehandicaptenparkeerkaarten, $aantal_drukopdrachten_gegeven]}]}
+```
+
+The two counts are open terms, and a binding fills them with the answers of the college's cell. Its reduction counts the cards it granted and the orders it gave in its own chronicle. The printer's counts come from the printer's chronicle in the same way. The policy says when there is work, and the reductions only count.
+
+- The PoC gives every cell a form for each fact the law names it for, the case's own cell included. Under the form it shows what the article that requires the fact gives on the play date. `Cell::evaluate` runs that article without recording anything: the cell answers from what it recorded up to that day, and the other cells of the case answer from theirs.
+- An article with outputs shows them only when it runs without the fields of its fact, that is, when every parameter is `required: false`. The advice of the GGD says something about one applicant, so its article shows nothing.
+- A message between two cells is a pair of facts in one article, with the same parameters and a different competent authority. The cell that sends records the first, and the receiving cell records the second on the same day, with the same values. The print order goes from the college to the printer and the delivery comes back. The law does not say which fact of a pair is the message, so the PoC reads the order of `requires`: the message first, its receipt after it. A receipt gets no form.
+- The counts say how many cards wait, not which ones. A reduction cannot pair each grant with its order: inside a nested `FOREACH`, the inner filter does not see the outer element ([Collections](/concepts/collections#nesting)). This is an [open question](/concepts/chronolexography/open-questions).
+
 ## Explaining a decision
 
 The cell stores no reasons. It explains a decision by taking it again.

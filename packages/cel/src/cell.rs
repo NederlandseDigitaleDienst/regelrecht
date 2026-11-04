@@ -1140,6 +1140,29 @@ impl Cell {
         Ok(explained)
     }
 
+    /// What the regulation `law_id` gives as `outputs` on `on`, outside any
+    /// decision: the cell answers the terms bound to its answers from what
+    /// it recorded up to that day, and the cells of `sphere` theirs from
+    /// what they recorded up to that day, as for a decision on that day
+    /// (RFC-048). Such as the policy that counts what the authority still
+    /// has to do. Nothing is recorded, and no finding is passed, so a term
+    /// that neither a cell nor a regulation fills fails here.
+    pub fn evaluate(
+        &self,
+        service: &LawExecutionService,
+        sphere: &[&Cell],
+        law_id: &str,
+        outputs: &[&str],
+        parameters: BTreeMap<String, Value>,
+        on: NaiveDate,
+    ) -> Result<ArticleResult> {
+        let reader = self.known_on(on);
+        let others = known_on(sphere, on);
+        let call = Answerers::new(&reader, &others).call(BTreeMap::new());
+        let date = on.to_string();
+        Ok(service.evaluate_law_in(law_id, outputs, parameters, call, &date)?)
+    }
+
     /// The fields of the decision `id` that hold a finding of the deciding
     /// authority (RFC-046): a field on an open term of the decision that
     /// nothing fills, of the deciding article or of a policy that fills one

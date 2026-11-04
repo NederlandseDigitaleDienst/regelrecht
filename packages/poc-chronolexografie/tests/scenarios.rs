@@ -128,6 +128,42 @@ fn uitvoer_klopt(stap: &Value, besluit: &Value, waar: &str) {
     }
 }
 
+/// That after a record step the article that requires its fact gives each
+/// output the step expects (`uitvoer`), as the form of the fact shows it
+/// (`stand`, on the step's day).
+fn stand_klopt(spel: &mut Spel, stap: &Value, cel: &str, feit: &str, datum: NaiveDate, waar: &str) {
+    let casus = spel.casus().unwrap();
+    let vormen = spel.vormen(datum).unwrap();
+    let handelingen = if casus["cel"] == json!(cel) {
+        vormen["handelingen"].clone()
+    } else {
+        vormen["andere_cellen"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["cel"] == json!(cel))
+            .map(|c| c["handelingen"].clone())
+            .unwrap()
+    };
+    let stand = handelingen
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|h| h["feit"] == json!(feit))
+        .map(|h| h["stand"].clone())
+        .unwrap_or_else(|| panic!("{waar}: no form for {feit}"));
+    for (naam, verwacht) in map(&stap["uitvoer"]) {
+        let kreeg = stand
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|o| o["naam"] == json!(naam))
+            .map(|o| o["waarde"].clone())
+            .unwrap_or_else(|| panic!("{waar}: the article gives no '{naam}'"));
+        assert_eq!(kreeg, verwacht, "{waar}: output '{naam}'");
+    }
+}
+
 /// The outcome of a decision on objection as a step writes it.
 fn op_bezwaar(beslissing: &Value) -> &'static str {
     let uit = &beslissing["outputs"];
@@ -251,10 +287,14 @@ fn speel(casus_id: &str, index: usize) {
             "vastleggen" => {
                 let cel = stap["cel"].as_str().unwrap();
                 let feit = stap["feit"].as_str().unwrap();
+                // The case's own cell records by hand too, such as a print
+                // order; its forms are not among those of the other cells.
+                let eigen = json!({ "cel": casus["cel"], "handelingen": vormen["handelingen"] });
                 let handeling = vormen["andere_cellen"]
                     .as_array()
                     .unwrap()
                     .iter()
+                    .chain(std::iter::once(&eigen))
                     .find(|c| c["cel"] == json!(cel))
                     .and_then(|c| {
                         c["handelingen"]
@@ -268,6 +308,12 @@ fn speel(casus_id: &str, index: usize) {
                 let velden = map(invoer);
                 alles_gevuld(&handeling["velden"], &velden, &waar);
                 spel.vastleggen(cel, feit, &velden, datum).unwrap();
+                // What the article that requires the fact says once it is
+                // recorded (`stand`), such as how many cards are still to
+                // be ordered.
+                if stap.get("uitvoer").is_some() {
+                    stand_klopt(&mut spel, stap, cel, feit, datum, &waar);
+                }
             }
             "beroep" => {
                 let besluit = kies(&stand.beslissingen, &stap["op"], |l| l.len().checked_sub(1));
@@ -341,6 +387,7 @@ fn één_aanvrager(spel: &mut Spel, vooraf: &std::collections::HashSet<Value>, w
         .unwrap()
         .iter()
         .flat_map(|c| c["handelingen"].as_array().unwrap())
+        .chain(vormen["handelingen"].as_array().unwrap())
         .flat_map(|h| namen(&h["velden"]))
         .filter(|naam| aanvraag.contains_key(naam))
         .collect();

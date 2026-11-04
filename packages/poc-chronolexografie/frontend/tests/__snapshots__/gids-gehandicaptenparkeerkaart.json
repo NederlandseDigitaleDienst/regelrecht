@@ -37,8 +37,47 @@
     "story": "Het college beslist op de aanvraag.",
     "todo": "Klik onder Open aanvragen op Besluit nemen.",
     "values": [],
-    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
+    "seen": "Toegewezen: de kaart geldt tot en met 19 oktober 2031, en bij Bestuursorgaan staat dat er één kaart aan te vragen is bij de drukker.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   },
+   {
+    "title": "Drukopdracht geven",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-21",
+    "story": "Het college vraagt de verstrekte kaart aan bij de drukker.",
+    "todo": "Klik bij Bestuursorgaan onder \"Vastleggen: Drukopdracht gegeven\" op Vastleggen.",
+    "values": [
+     "bsn aanvrager: 999990020",
+     "kaart geldig tot: 19 oktober 2031"
+    ],
+    "seen": "De drukopdracht staat in de kroniek van de gemeente en de ontvangst ervan in die van de drukker, die nu één kaart te leveren heeft.",
+    "expect": null
+   },
+   {
+    "title": "Kaart drukken en leveren",
+    "tab": "andere",
+    "date": "2026-10-26",
+    "story": "De drukker drukt de kaart en levert haar aan de gemeente.",
+    "todo": "Klik bij Kaartendrukkerij Wilgendaal onder \"Vastleggen: Kaart geleverd\" op Vastleggen.",
+    "values": [
+     "bsn aanvrager: 999990020",
+     "kaart geldig tot: 19 oktober 2031"
+    ],
+    "seen": "De levering staat in de kroniek van de drukker en de ontvangst van de kaart in die van de gemeente, die nu één kaart uit te reiken heeft.",
+    "expect": null
+   },
+   {
+    "title": "Kaart uitreiken",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-28",
+    "story": "Het college reikt de kaart uit aan de aanvrager.",
+    "todo": "Klik bij Bestuursorgaan onder \"Vastleggen: Kaart uitgereikt\" op Vastleggen.",
+    "values": [
+     "bsn aanvrager: 999990020",
+     "kaart geldig tot: 19 oktober 2031"
+    ],
+    "seen": "De uitreiking staat in de kroniek van de gemeente, en het beleid telt één uitgereikte kaart en niets meer te doen.",
+    "expect": null
    }
   ]
  },

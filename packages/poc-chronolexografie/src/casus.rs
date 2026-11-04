@@ -196,8 +196,8 @@ pub struct Handeling {
     /// the last application, an appeal on the last decision on objection.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub op: Option<usize>,
-    /// For [`Soort::Vastleggen`]: the other cell that records, and the fact
-    /// it records (`<regulation>#<article>#<fact>`).
+    /// For [`Soort::Vastleggen`]: the cell that records, the case's own or
+    /// another, and the fact it records (`<regulation>#<article>#<fact>`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cel: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -212,7 +212,9 @@ pub struct Handeling {
     pub uitkomst: Option<Uitkomst>,
     /// Outputs of the decision the step takes, by name, with the value the
     /// scenario expects, such as an amount: of the decision itself, or of
-    /// the new decision a decision on objection takes in its place.
+    /// the new decision a decision on objection takes in its place. For a
+    /// record step, the outputs of the article that requires the fact, once
+    /// it is recorded, such as how many cards are still to be ordered.
     #[serde(default, skip_serializing_if = "Map::is_empty")]
     pub uitvoer: Map<String, Value>,
     /// What happens in the case at this step, in one sentence, as the guide
@@ -237,7 +239,8 @@ pub enum Soort {
     Besluit,
     Bezwaar,
     BeslissingOpBezwaar,
-    /// Another cell records a fact (RFC-051), such as the GGD an advice.
+    /// A cell records a fact (RFC-051), such as the GGD an advice or the
+    /// municipality a print order.
     Vastleggen,
     Beroep,
     Uitspraak,
