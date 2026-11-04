@@ -5063,6 +5063,28 @@ mod tests {
         }
 
         #[test]
+        fn test_a_fold_body_counts_towards_the_depth_limit() {
+            // Each FOLD in the chain evaluates its body one level deeper, as
+            // FOREACH does, so a deep chain hits the limit instead of the
+            // stack.
+            let context = ctx(vec![("items", ints(&[1]))]);
+            let mut value = var("x");
+            // Two levels per FOLD (the body and the operation in it): 60
+            // FOLDs pass the limit of 100, 60 levels alone would not.
+            for _ in 0..60 {
+                value = op(fold(var("items"), lit(0i64), value));
+            }
+            let ActionValue::Operation(chain) = value else {
+                unreachable!("built from operations")
+            };
+            let err = execute_operation(&chain, &context, 0).unwrap_err();
+            assert!(
+                matches!(err, EngineError::MaxDepthExceeded(_)),
+                "got {err:?}"
+            );
+        }
+
+        #[test]
         fn test_fold_needs_a_scoped_resolver() {
             let resolver = TestResolver::new();
             let sum = fold(lit(1i64), lit(0i64), var("x"));

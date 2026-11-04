@@ -3880,6 +3880,38 @@ actions:
     }
 
     #[test]
+    fn a_fold_whose_start_and_step_agree_has_their_type() {
+        // A sum from 0 is a number, so it is no condition (RFC-056).
+        let law = |body: &str| {
+            format!(
+                r#"
+input:
+  - name: bedragen
+    type: array
+    source: {{}}
+output:
+  - name: iets
+    type: boolean
+actions:
+  - output: iets
+    value:
+      operation: AND
+      conditions:
+        - operation: FOLD
+          collection: $bedragen
+          as: b
+          state: totaal
+          initial: 0
+          body: {body}
+"#
+            )
+        };
+        assert!(!check(&law("{operation: ADD, values: [$totaal, 1]}")).is_empty());
+        // A step of unknown type makes no claim.
+        assert!(check(&law("$totaal")).is_empty());
+    }
+
+    #[test]
     fn findings_display_names_law_article_location_and_rule() {
         let finding = check(N1_FAIL).into_iter().next().unwrap();
         let text = finding.to_string();

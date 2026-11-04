@@ -422,6 +422,25 @@ fn decisions_stand_alone_and_name_an_article() {
 }
 
 #[test]
+fn the_chronicle_stands_beside_no_other_read() {
+    // Several reads go into one list under `chronicle` (RFC-056); a
+    // `decisions` or `facts` beside it would be a second list.
+    for beside in [
+        "decisions: leerplichtwet_1969#13a",
+        "facts: algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak",
+    ] {
+        refused(
+            &changed(
+                &awb_reduction_yaml(),
+                "              chronicle:\n",
+                &format!("              {beside}\n              chronicle:\n"),
+            ),
+            "and the chronicle besides",
+        );
+    }
+}
+
+#[test]
 fn decisions_named_by_a_reference_name_a_parameter_of_the_article() {
     // The reduction of the Awb names them by its parameter basis.
     ArticleBasedLaw::from_yaml_str(&awb_query_yaml()).unwrap();

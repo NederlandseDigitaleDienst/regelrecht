@@ -231,3 +231,21 @@ impl Call<'_> {
         }
     }
 }
+
+#[cfg(test)]
+mod chronicle_read_tests {
+    use super::*;
+
+    #[test]
+    fn a_chronicle_read_names_each_entry_in_its_order() {
+        let entries = [
+            ChronicleEntry::Decisions("wet#1".into()),
+            ChronicleEntry::Facts("wet#2#feit".into()),
+        ];
+        assert_eq!(
+            ChronicleRead::Chronicle(&entries).to_string(),
+            "the chronicle, in its order, of the decisions taken under wet#1, the recorded \
+             facts wet#2#feit"
+        );
+    }
+}

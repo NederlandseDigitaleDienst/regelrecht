@@ -5945,6 +5945,71 @@ articles:
         );
     }
 
+    /// A rulework with a FOLD (RFC-056): its element and its state exist in
+    /// its body, also inside a FOREACH the body nests, and nowhere else.
+    const FOLD_LAW: &str = r#"
+articles:
+  - number: '1'
+    machine_readable:
+      execution:
+        input:
+          - name: kroniek
+            source: {}
+        output:
+          - name: geldend
+          - name: buiten
+        actions:
+          - output: geldend
+            value:
+              operation: FOLD
+              collection: $kroniek
+              as: rij
+              state: stand
+              initial: 0
+              body:
+                operation: FOREACH
+                collection: $kroniek
+                as: ander
+                filter:
+                  operation: EQUALS
+                  subject: $ander.id
+                  value: $rij.id
+                body:
+                  operation: ADD
+                  values: [$stand, $onbekend]
+                combine: ONLY
+          - output: buiten
+            value: $rij
+"#;
+
+    #[test]
+    fn dangling_bindings_reads_the_names_of_a_fold_in_its_body_only() {
+        let doc: Value = serde_yaml_ng::from_str(FOLD_LAW).unwrap();
+        let details: Vec<String> = dangling_bindings(&doc)
+            .into_iter()
+            .map(|f| f.detail)
+            .collect();
+        assert_eq!(
+            details,
+            vec![
+                "$onbekend is referenced but never defined in this law".to_string(),
+                "$rij is referenced but never defined in this law".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn binding_integrity_counts_the_names_of_a_fold_as_defined() {
+        let doc: Value = serde_yaml_ng::from_str(FOLD_LAW).unwrap();
+        let findings = binding_integrity(&doc, None);
+        assert!(
+            !findings
+                .iter()
+                .any(|f| f.detail.contains("$rij") || f.detail.contains("$stand")),
+            "{findings:?}"
+        );
+    }
+
     /// Only a loop's own `filter` and `body` are element scope. Its
     /// `collection` is read in the scope around it, a field path reads a
     /// declared record, and a name is a name with or without underscores.
