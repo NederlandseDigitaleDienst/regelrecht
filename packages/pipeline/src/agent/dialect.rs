@@ -19,7 +19,7 @@ use crate::enrich::{AgentUsage, SessionAction};
 /// list decides what is not there at all. Conflating them is how the enrichment
 /// lane came to report a shell-less runtime to an agent that had a shell.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ToolPolicy<'a> {
+pub struct ToolPolicy<'a> {
     /// Whether the `claude` provider's allowlist includes `Bash` (enrich keeps
     /// it off; document-convert needs it so the agent can run/install a
     /// converter). No effect on `opencode`, which has its own tool model.

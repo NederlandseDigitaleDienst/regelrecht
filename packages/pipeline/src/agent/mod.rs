@@ -18,8 +18,10 @@ mod supervisor;
 
 use std::path::Path;
 
-pub(crate) use dialect::{AgentDialect, AgentEvent, StepFinish, ToolPolicy};
-pub(crate) use supervisor::{run_llm_subprocess, AgentRun};
+pub use dialect::ToolPolicy;
+pub(crate) use dialect::{AgentDialect, AgentEvent, StepFinish};
+pub(crate) use supervisor::run_llm_subprocess;
+pub use supervisor::AgentRun;
 
 use crate::enrich::LlmProvider;
 
