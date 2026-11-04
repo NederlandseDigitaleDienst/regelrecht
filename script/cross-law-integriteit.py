@@ -19,6 +19,9 @@ Verifies that every cross-law source binding is REAL and RESOLVABLE:
                reduction (RFC-056), an `implements: {law, article, input}`
                whose target article has no such input, or one whose source
                names no `competent_authority`: the cell answers nothing.
+               Like every check here it reads the state in force on the
+               peildatum; `Cell::check_inputs` (packages/cel) accepts the
+               input in any version of the law.
   IMPL-NO-DATE - a regulation that carries an `implements:` block but has no
                top-level `valid_from`. RFC-003's temporal filter then matches it
                for EVERY calculation date, silently overriding the correct

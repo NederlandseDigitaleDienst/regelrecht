@@ -261,7 +261,11 @@ impl Cell {
     /// The cell as the engine's answerer outside a decision of its own, such
     /// as another authority evaluating a law that reads a value this cell
     /// keeps (RFC-056): over its whole chronicle. An input it answers reads
-    /// the chronicle as it stood on the day asked about.
+    /// the chronicle as it stood on the day asked about. A named answer for
+    /// an open term (RFC-048) does not: it reads every record the reader
+    /// holds, also those made after the calculation date. A decision takes
+    /// the cells it takes along as they were on its day ([`Cell::decide`]);
+    /// outside a decision there is no public reader of an earlier day yet.
     pub fn answerer(&self) -> Reader<'_> {
         self.reader(self.grams().to_vec(), None)
     }

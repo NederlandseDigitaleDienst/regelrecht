@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 
 use serde::Serialize;
 
-use crate::engine::{OpenTermFilled, OutputProvenance};
+use crate::engine::{CompetentInput, OpenTermFilled, OutputProvenance};
 use crate::resolver::{DeclarationNotInForce, DeclarationsFromOtherVersion, DelegationRefusal};
 use crate::trace::PathNode;
 use crate::types::{Connectivity, LegalStatus, UntranslatableMode, Value};
@@ -139,6 +139,11 @@ pub struct ReceiptResults {
     /// two filled each, so the receipt shows what the outcome rests on.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub open_terms: Vec<OpenTermFilled>,
+    /// The inputs whose source names their competent authority, and whether
+    /// each was supplied, answered by a cell or neither (RFC-056), so the
+    /// receipt says who answered without a trace.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub competent_inputs: Vec<CompetentInput>,
 }
 
 /// A value accepted from another organisation's engine (RFC-009).

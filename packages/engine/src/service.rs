@@ -310,6 +310,38 @@ impl<'a> ResolutionContext<'a> {
         })
     }
 
+    /// The cells of the call that `named` names: the answerer of the call
+    /// and the cells it takes along (RFC-048 §4, RFC-056).
+    fn cells_named_by(
+        &self,
+        named: &[crate::article::NamedAuthority],
+    ) -> Vec<&'a dyn OpenTermAnswerer> {
+        self.answerer
+            .into_iter()
+            .chain(self.sphere.iter().copied())
+            .filter(|answerer| answerer.authority().is_named_by(named))
+            .collect()
+    }
+
+    /// Note how `input` of `article` of `law` got its value (RFC-056), once.
+    fn record_competent(
+        &mut self,
+        law: &ArticleBasedLaw,
+        article: &Article,
+        input: &Input,
+        resolved_by: InputResolvedBy,
+    ) {
+        let entry = CompetentInput {
+            law_id: law.id.clone(),
+            article: article.number.clone(),
+            input: input.name.clone(),
+            resolved_by,
+        };
+        if !self.competent_inputs.contains(&entry) {
+            self.competent_inputs.push(entry);
+        }
+    }
+
     /// Take what the caller gives apart from the parameters.
     fn take_call(&mut self, call: Call<'a>) {
         self.findings = call.findings;
@@ -1269,13 +1301,7 @@ impl<'a, 'r, 'c> LazyArticleInputs<'a, 'r, 'c> {
         else {
             return Ok(false);
         };
-        self.with_resolution_context(|res_ctx| {
-            Ok(res_ctx
-                .answerer
-                .into_iter()
-                .chain(res_ctx.sphere.iter().copied())
-                .any(|answerer| answerer.authority().is_named_by(named)))
-        })
+        self.with_resolution_context(|res_ctx| Ok(!res_ctx.cells_named_by(named).is_empty()))
     }
 
     /// Resolve the values `input`'s source reads, each as its own step: the
@@ -2012,6 +2038,7 @@ impl LawExecutionService {
                 declaration_version_notes: result.declaration_version_notes.clone(),
                 declarations_not_in_force: result.declarations_not_in_force.clone(),
                 open_terms: result.open_terms.clone(),
+                competent_inputs: result.competent_inputs.clone(),
             },
             accepted_values: Vec::new(),
             timestamp: chrono::Utc::now().to_rfc3339(),
@@ -4548,12 +4575,7 @@ impl LawExecutionService {
                 ),
             );
         };
-        let askees: Vec<&'c dyn OpenTermAnswerer> = res_ctx
-            .answerer
-            .into_iter()
-            .chain(res_ctx.sphere.iter().copied())
-            .filter(|answerer| answerer.authority().is_named_by(named))
-            .collect();
+        let askees = res_ctx.cells_named_by(named);
         // One question goes to one cell. Which cell of a category answers
         // where the call holds several is open, so the engine asks none of
         // them and does not merge answers.
@@ -4687,15 +4709,7 @@ impl LawExecutionService {
             .data_registry
             .resolve_for_law(&input.name, parameters, Some(&law.id));
         let record = |res_ctx: &mut ResolutionContext<'c>, resolved_by: InputResolvedBy| {
-            let entry = CompetentInput {
-                law_id: law.id.clone(),
-                article: article.number.clone(),
-                input: input.name.clone(),
-                resolved_by,
-            };
-            if !res_ctx.competent_inputs.contains(&entry) {
-                res_ctx.competent_inputs.push(entry);
-            }
+            res_ctx.record_competent(law, article, input, resolved_by);
         };
         match (supplied, answered) {
             (Some(data_match), Some(answer)) => {
@@ -4764,12 +4778,7 @@ impl LawExecutionService {
         context: &RuleContext,
         res_ctx: &mut ResolutionContext<'_>,
     ) -> Result<Option<crate::answer::Answer>> {
-        let askees: Vec<&dyn OpenTermAnswerer> = res_ctx
-            .answerer
-            .into_iter()
-            .chain(res_ctx.sphere.iter().copied())
-            .filter(|answerer| answerer.authority().is_named_by(named))
-            .collect();
+        let askees = res_ctx.cells_named_by(named);
         if askees.len() > 1 {
             let mut names: Vec<&str> = askees.iter().map(|a| a.authority().name.as_str()).collect();
             names.sort_unstable();
@@ -4841,15 +4850,12 @@ impl LawExecutionService {
             res_ctx.trace_set_message(message.clone());
             return Err(EngineError::InvalidOperation(message));
         }
-        let entry = CompetentInput {
-            law_id: law.id.clone(),
-            article: article.number.clone(),
-            input: input.name.clone(),
-            resolved_by: InputResolvedBy::Supplied { provider: None },
-        };
-        if !res_ctx.competent_inputs.contains(&entry) {
-            res_ctx.competent_inputs.push(entry);
-        }
+        res_ctx.record_competent(
+            law,
+            article,
+            input,
+            InputResolvedBy::Supplied { provider: None },
+        );
         Ok(())
     }
 

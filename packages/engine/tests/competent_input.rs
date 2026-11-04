@@ -201,6 +201,9 @@ fn the_competent_cell_answers() {
         panic!("{:?}", result.competent_inputs)
     };
     assert_eq!(provenance.answerer, "inspecteur_a");
+    // The receipt says who answered, without a trace.
+    let receipt = service.build_receipt_with_outputs(&result, &parameters(), DATE, &[]);
+    assert_eq!(receipt.results.competent_inputs, result.competent_inputs);
 }
 
 #[test]
@@ -298,7 +301,14 @@ fn a_null_answer_fits_only_a_nullable_input() {
         ],
     );
     let e = evaluate(&service, "mag_gebruiken", parameters(), vec![&null]).unwrap_err();
-    assert!(e.to_string().contains("heeft_vergunning"), "{e}");
+    assert!(
+        matches!(
+            &e,
+            regelrecht_engine::EngineError::NullForNonNullable { field, origin, .. }
+                if field == "heeft_vergunning" && origin == "the cell inspecteur_a"
+        ),
+        "{e}"
+    );
     let result = evaluate(&service, "misschien_uit", BTreeMap::new(), vec![&null]).unwrap();
     assert_eq!(result.outputs["misschien_uit"], Value::Null);
 }

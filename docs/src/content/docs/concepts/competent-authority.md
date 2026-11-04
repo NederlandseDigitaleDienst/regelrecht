@@ -60,7 +60,7 @@ Wherever that binding runs, the engine asks the one cell in the call that the te
 
 ## Who answers an input
 
-Since schema v0.8.14, an input's `source` can carry a `competent_authority` too, where the article itself names who establishes the value, as Wet op de accijns art. 39 names the inspecteur for the permit. It says who answers the input from its own records. The engine asks the one cell in the call that it names, and that cell answers with the reduction that implements the input. A value the caller supplies still counts, and both at once are an error ([Chronolexography](/concepts/chronolexography#an-input-the-law-makes-a-cell-answer), [RFC-056](https://github.com/NederlandseDigitaleDienst/regelrecht/pull/1891)).
+Since schema v0.8.14, an input's `source` can carry a `competent_authority` too. It belongs where the article itself names who establishes the value: Wet op de accijns art. 39 names the inspecteur for the permit. The field says who answers the input from its own records. The engine asks the one cell in the call that it names, and that cell answers with the reduction that implements the input. A value the caller supplies still counts, and both at once are an error ([Chronolexography](/concepts/chronolexography#an-input-the-law-makes-a-cell-answer), [RFC-056](https://github.com/NederlandseDigitaleDienst/regelrecht/pull/1891)).
 
 ## Who gives a finding
 

@@ -958,7 +958,9 @@ articles:
       # verzoek is een aanvraag, en de cel van de inspecteur legt het besluit
       # erop vast. De andere gronden zijn intrekkingen die de inspecteur uit
       # eigen beweging doet, zonder aanvraag; een cel legt nog alleen een
-      # besluit op een indiening vast, dus die zijn niet gemodelleerd.
+      # besluit op een indiening vast, dus die zijn niet gemodelleerd. Of
+      # wie verzoekt de vergunninghouder is, toetst het model niet: dat laat
+      # het aan het oordeel van de inspecteur (intrekking_op_verzoek_toegewezen).
       open_terms:
         - id: intrekking_op_verzoek_toegewezen
           type: boolean

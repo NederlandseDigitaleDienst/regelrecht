@@ -162,7 +162,7 @@ input:
       parameters: {kvk_nummer: $kvk_nummer}
 ```
 
-The keeper's reduction says which input it answers, with an `implements` entry that names an `input` instead of an `open_term`. Only a `REDUCTIE` implements an input, and a `REDUCTIE` implements nothing else:
+The reduction of the cell that keeps the value says which input it answers, with an `implements` entry that names an `input` instead of an `open_term`. Only a `REDUCTIE` implements an input, and a `REDUCTIE` implements nothing else:
 
 ```yaml
 # cells/inspecteur_wilgendaal/reductions/reductie_agp_vergunningen/<valid_from>.yaml
@@ -178,19 +178,19 @@ execution:
     - name: heeft_agp_vergunning_register
 ```
 
-When the call holds a cell whose identity the input's `competent_authority` names, the engine asks that cell for the input. The cell finds the one reduction it keeps that implements the input, runs it over its chronicle as it stood on the calculation date, with the parameters the source passes, and answers with the output of the input's name. A reduction that declares a parameter `peildatum` gets the calculation date there. Two reductions of one cell that implement the same input are an error, and so are two cells in the call that the input names.
+When the call holds a cell whose identity the input's `competent_authority` names, the engine asks that cell for the input. The cell finds the one reduction it keeps that implements the input. It runs that reduction over its chronicle as it stood on the calculation date, with the parameters the source passes. The output with the input's name is the answer. A reduction that declares a parameter `peildatum` gets the calculation date there. Two reductions of one cell that implement the same input are an error, and so are two cells in the call that the input names.
 
-The cell is one way to supply the value, never the only one. A value the caller supplies, from a data source of the call or as a parameter under the input's name, still counts. That is how the demo binds this input to the register of the Douane (`corpus/demo/bindings.yaml`), and how its scenario fills it with a data table. A supplied value and an answer of a cell for the same input are an error: the engine does not choose between them. Without either, the input is what a `source: {}` input without data is (RFC-036). `ArticleResult::competent_inputs` records per such input whether it was supplied, answered (with the provenance of the answer), or neither, and the trace names the cell that answered.
+The cell is one way to supply the value, never the only one. A value the caller supplies, from a data source of the call or as a parameter under the input's name, still counts. That is how the demo binds this input to the register of the Douane (`corpus/demo/bindings.yaml`), and how its scenario fills it with a data table. A supplied value and an answer of a cell for the same input are an error: the engine does not choose between them. Without either, the input is unknown, as a `source: {}` input is when no data source has a value (RFC-036). `ArticleResult::competent_inputs` records for each such input whether it was supplied, answered or neither, with the answer's provenance. The trace names the cell that answered.
 
-What is declared is checked, and what is missing is allowed:
+Three checks hold what a rulework declares, and none of them requires that a cell answers the input:
 
 - the cross-law gate (`script/cross-law-integriteit.py`) reports an `implements` of an input that the article lacks, or whose source names no competent authority, as `IMPL-DANGLING`;
 - the type check holds the reduction's output against the input: the same type and unit (T6), and nullable only where the input is (N5);
-- `Cell::check_inputs` holds each input a cell's reductions answer against the law, and refuses a cell that the input's `competent_authority` does not name.
+- `Cell::check_inputs` holds each input a cell's reductions answer against the law, and refuses a cell that the input's `competent_authority` does not name. Nothing calls it yet outside the tests, because no loader opens cells next to a service.
 
 An input that names a competent authority but has no cell that answers it is no error, because a law runs without cells. The authoritative mode of [RFC-009](/rfcs/rfc-009), in which a supplied value for another authority's input is refused, is not built.
 
-The permit case runs as a Rust test in `packages/cel/tests/accijnsgoederenplaats.rs`. The demo rulework models the application and the grant in art. 43, with what art. 42 says the application holds, and the revocation at the holder's request in art. 48 onder f. The other grounds of art. 48 are revocations the inspecteur makes of his own accord, without a submission, and a cell does not record those yet.
+The permit case runs as a Rust test in `packages/cel/tests/accijnsgoederenplaats.rs`. The demo rulework models the application and the grant in art. 43. Art. 42 lists what the application holds; of that, only the holder (lid 1 onder c) is modeled, as `kvk_nummer`. The revocation at the holder's request is modeled in art. 48 onder f. The other grounds of art. 48 are revocations the inspecteur makes of his own accord, without a submission. A cell does not record those yet.
 
 ## Explaining a decision
 

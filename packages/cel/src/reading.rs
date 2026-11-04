@@ -680,7 +680,7 @@ impl Reader<'_> {
             self.answers,
             self.reductions,
             grams,
-            None,
+            self.explain,
         );
         // The questions this cell is answering now carry over, so a cycle
         // through several of its reductions is caught too.
@@ -689,7 +689,9 @@ impl Reader<'_> {
             .borrow_mut()
             .extend(self.answering.borrow().iter().cloned());
         on_the_day.answering.borrow_mut().push(asking);
-        // The day asked about, for a reduction that takes it.
+        // The day asked about, for a reduction that takes it. The article
+        // that implements the input gives the output of its name, which `run`
+        // executes: the type check refuses a reduction where they differ (T6).
         let mut parameters = request.parameters.clone();
         let takes_day = service
             .resolver()
@@ -716,11 +718,12 @@ impl Reader<'_> {
                 self.recording_actor, request.input
             ))
         })?;
+        let explained = (self.explain == Some(request.input)).then_some(result);
         self.asked.borrow_mut().push(Asked {
             name: request.input.to_string(),
             value: value.clone(),
             provenance: provenance.clone(),
-            explained: None,
+            explained,
         });
         Ok(Some(EngineAnswer { value, provenance }))
     }

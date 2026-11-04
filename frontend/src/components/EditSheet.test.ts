@@ -472,6 +472,28 @@ describe('EditSheet', () => {
       });
     });
 
+    it.each([
+      ['competent authority (RFC-056)', { competent_authority: { name: 'inspecteur', type: 'CATEGORY' } }],
+      ['named answer of a cell (RFC-048)', { reduction: 'heeft_agp_vergunning' }],
+    ])('keeps a source that names a %s', async (_what, target) => {
+      const wrapper = mountSheet();
+      const source = { ...target, parameters: { kvk_nummer: '$kvk_nummer' } };
+      await setItem(wrapper, {
+        section: 'input',
+        index: 0,
+        data: { name: 'heeft_agp_vergunning_register', type: 'boolean', source },
+      });
+
+      wrapper.vm.save();
+      await nextTick();
+      const events = wrapper.emitted('save');
+      expect(firstSave(events).data).toEqual({
+        name: 'heeft_agp_vergunning_register',
+        type: 'boolean',
+        source,
+      });
+    });
+
     it('keeps the input keys it does not edit (nullable, description)', async () => {
       const wrapper = mountSheet();
       await setItem(wrapper, {

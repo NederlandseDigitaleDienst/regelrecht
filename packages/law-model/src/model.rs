@@ -235,7 +235,8 @@ pub struct Source {
     /// caller may still supply it. Where the call holds a cell it names
     /// whose reduction implements this input (`implements` with `input`),
     /// the engine asks that cell. It stands alone, without `regulation`,
-    /// `output`, `endpoint`, `decisions`, `facts`, `reduction` or `article`.
+    /// `output`, `endpoint`, `decisions`, `facts`, `reduction`, `article` or
+    /// `parameters_from`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub competent_authority: Option<CompetentAuthority>,
     /// The article whose decision this input takes (schema v0.8.4, RFC-045):

@@ -2681,7 +2681,7 @@
               },
               "article": {
                 "type": "string",
-                "description": "Article number in the higher law that declares the open_term (e.g., '4')."
+                "description": "Article number in the higher law that declares the open_term or the input (e.g., '4')."
               },
               "open_term": {
                 "type": "string",

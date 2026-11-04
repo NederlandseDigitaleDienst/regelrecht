@@ -778,3 +778,162 @@ fn two_reductions_of_a_cell_for_one_input_are_an_error() {
         "{e}"
     );
 }
+
+#[test]
+fn check_inputs_refuses_an_input_that_is_not_there_or_names_no_authority() {
+    // Art. 1 of the chain law has no input `v`, and the fictional law's
+    // input `z` names no competent authority, so no cell is competent for it.
+    let missing = chain_reduction("reductie_keten_v", "1", "v", false);
+    let plain = r#"
+$id: wet_zonder_bevoegde_fictief
+regulatory_layer: WET
+publication_date: '2024-01-01'
+valid_from: '2024-01-01'
+url: https://example.org/zonder
+articles:
+  - number: '1'
+    text: Tekst.
+    machine_readable:
+      execution:
+        input:
+          - {name: z, type: boolean, source: {}}
+        output:
+          - {name: z_uit, type: boolean}
+        actions:
+          - {output: z_uit, value: $z}
+"#;
+    let unnamed = chain_reduction("reductie_keten_z", "1", "z", false)
+        .replace("wet_keten_fictief", "wet_zonder_bevoegde_fictief");
+    for (yaml, id, says) in [
+        (
+            missing.clone(),
+            "reductie_keten_v",
+            "which no version of wet_keten_fictief has",
+        ),
+        (
+            unnamed.clone(),
+            "reductie_keten_z",
+            "whose source names no competent authority",
+        ),
+    ] {
+        let service = common::service_of(&[CHAIN, plain, &yaml]);
+        let dir = tempfile::tempdir().unwrap();
+        common::write_identity(
+            dir.path(),
+            "name: Inspecteur Oostmeer\ncategory: inspecteur\n",
+        );
+        common::keep_reduction(dir.path(), id, &yaml);
+        let cell = Cell::in_memory("inspecteur_oostmeer", dir.path()).unwrap();
+        let e = cell.check_inputs(&service).unwrap_err();
+        assert!(e.to_string().contains(says), "{e}");
+    }
+}
+
+#[test]
+fn a_decision_explains_an_input_its_own_cell_answered() {
+    // The inspecteur decides under a fictional article that reads an input
+    // the inspecteur answers himself; explaining the decision runs the
+    // reduction for that input again with its trace.
+    let procedure = r#"
+$id: wet_algemeen_fictief
+regulatory_layer: WET
+publication_date: '2024-01-01'
+valid_from: '2024-01-01'
+procedure:
+  - id: beschikking
+    default: true
+    applies_to: {legal_character: BESCHIKKING}
+    stages:
+      - name: AANVRAAG
+      - name: BESLUIT
+      - name: BEKENDMAKING
+articles: []
+"#;
+    let deciding = r#"
+$id: wet_besluit_fictief
+regulatory_layer: WET
+publication_date: '2024-01-01'
+valid_from: '2024-01-01'
+url: https://example.org/besluit
+articles:
+  - number: '1'
+    text: De inspecteur beslist op aanvraag, als hij het register kent.
+    machine_readable:
+      execution:
+        produces:
+          - {type: AANVRAAG, requests: wet_besluit_fictief#1, parameters: [kvk_nummer]}
+          - {type: BESCHIKKING, outputs: [toegekend]}
+        parameters:
+          - {name: kvk_nummer, type: string}
+        input:
+          - {name: in_register, type: boolean, source: {competent_authority: {name: inspecteur, type: CATEGORY}}}
+        output:
+          - {name: toegekend, type: boolean}
+        actions:
+          - {output: toegekend, value: $in_register}
+"#;
+    let reduction = r#"
+$id: reductie_register_fictief
+regulatory_layer: REDUCTIE
+publication_date: '2024-01-01'
+valid_from: '2024-01-01'
+url: https://example.org/reductie
+articles:
+  - number: '1'
+    text: Geen regelgeving.
+    machine_readable:
+      implements:
+        - {law: wet_besluit_fictief, article: '1', input: in_register}
+      execution:
+        output:
+          - {name: in_register, type: boolean}
+        actions:
+          - {output: in_register, value: true}
+"#;
+    let mut service = common::service_of(&[procedure, deciding, reduction]);
+    let dir = tempfile::tempdir().unwrap();
+    common::write_identity(
+        dir.path(),
+        "name: Inspecteur Oostmeer\ncategory: inspecteur\n",
+    );
+    common::keep_reduction(dir.path(), "reductie_register_fictief", reduction);
+    let mut cell = Cell::in_memory("inspecteur_oostmeer", dir.path()).unwrap();
+    let applied = cell
+        .record_submission(
+            &mut service,
+            &[],
+            "wet_besluit_fictief",
+            "1",
+            None,
+            &object_map(json!({ "kvk_nummer": KVK })),
+            day("2024-06-01"),
+        )
+        .unwrap();
+    let decision = cell
+        .decide(
+            &mut service,
+            &[],
+            "wet_besluit_fictief",
+            "1",
+            &applied.id,
+            &Map::new(),
+            &Map::new(),
+            day("2024-06-01"),
+        )
+        .unwrap()
+        .remove(0);
+    assert_eq!(decision.outputs["toegekend"], json!(true));
+    let explained = cell
+        .explain_answer(&mut service, &[], &decision.id, "in_register")
+        .unwrap();
+    let [result] = explained.as_slice() else {
+        panic!("one explanation: {explained:?}")
+    };
+    assert_eq!(result.outputs["in_register"], Value::Bool(true));
+    assert!(result.trace.is_some());
+    // An answer the decision did not ask is not explained.
+    let e = cell
+        .explain_answer(&mut service, &[], &decision.id, "iets_anders")
+        .unwrap_err();
+    assert!(e.to_string().contains("did not ask the cell"), "{e}");
+}
