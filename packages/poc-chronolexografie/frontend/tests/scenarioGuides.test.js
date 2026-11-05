@@ -120,6 +120,22 @@ describe('bouwGids', () => {
     expect(g.steps[0].done(k(2))).toBe(false);
     expect(g.steps[0].done(k(3))).toBe(true);
   });
+
+  it("plays a record of the case's own cell on the tab of the authority", () => {
+    const feit = 'beleid#1#drukopdracht_gegeven';
+    const casus = { cel: 'gemeente', andere_cellen: [{ cel: 'drukker' }] };
+    const g = bouwGids(
+      {
+        naam: 'x',
+        stappen: [
+          { stap: 'vastleggen', cel: 'gemeente', feit },
+          { stap: 'vastleggen', cel: 'drukker', feit: 'beleid#2#kaart_geleverd' },
+        ],
+      },
+      casus,
+    );
+    expect(g.steps.map((s) => s.tab)).toEqual(['bestuursorgaan', 'andere']);
+  });
 });
 
 describe('guideFor', () => {

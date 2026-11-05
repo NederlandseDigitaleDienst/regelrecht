@@ -615,6 +615,8 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
             "uitvoer": op_bezwaar.outputs,
         },
         "andere_cellen": handelingen(&service, corpus, cell, on)?,
+        // What the case's own cell records by hand, such as a print order.
+        "handelingen": handelingen_van(&service, corpus, cell, &cell.eigen, false, on)?,
         "eigen_velden": std::iter::once(&cell.eigen)
             .chain(&cell.andere)
             .flat_map(|c| c.grams())
@@ -726,12 +728,11 @@ fn oordelen_van_de_rechter(
     Ok(uit)
 }
 
-/// What each other cell of the sphere records by hand (RFC-051 §2): the facts
-/// whose executograms its reductions read (`source.facts`) and the facts of
-/// the regelwerken of the case that name it as who establishes them
-/// (`competent_authority`), each with the fields the article that requires
-/// it lists. For the parking card: the GGD records its advice (the
-/// municipality's fictitious policy, art. 5).
+/// What each other cell of the sphere records by hand (RFC-051 §2), per cell
+/// ([`handelingen_van`]; the case's own cell is under `handelingen` of
+/// [`vormen`]). For the parking card: the GGD records its advice (the
+/// municipality's fictitious policy, art. 5) and the printer the cards it
+/// delivers (its policy on issuing the card, art. 2).
 fn handelingen(
     service: &LawExecutionService,
     corpus: &Corpus,
@@ -740,7 +741,37 @@ fn handelingen(
 ) -> Result<Vec<Value>> {
     let mut uit = Vec::new();
     for (cell, andere) in cellen.andere.iter().zip(&corpus.casus.andere_cellen) {
-        let mut feiten: Vec<String> = Vec::new();
+        uit.push(json!({
+            "cel": cell.recording_actor(),
+            "cel_naam": andere.cel_naam,
+            "handelingen": handelingen_van(service, corpus, cellen, cell, true, on)?,
+        }));
+    }
+    Ok(uit)
+}
+
+/// What the cell `cell` of `cellen` records by hand: the facts of the
+/// regelwerken of the case that name it as who establishes them
+/// (`competent_authority`), and for another cell of the sphere also the
+/// facts whose executograms its reductions read (`source.facts`). The case's
+/// own cell (`ook_gelezen` false) takes only the first: what it knew before
+/// the first scenario comes from the case (`begin`), such as where a school
+/// is established. A receipt is no hand work: it arrives with the fact it
+/// receives ([`afleveren`]).
+///
+/// Each fact comes with the fields the article that requires it lists, and
+/// with what that article gives on `on` ([`stand_van`]), such as how many
+/// cards are still to be ordered.
+fn handelingen_van(
+    service: &LawExecutionService,
+    corpus: &Corpus,
+    cellen: &Cellen,
+    cell: &Cell,
+    ook_gelezen: bool,
+    on: NaiveDate,
+) -> Result<Vec<Value>> {
+    let mut feiten: Vec<String> = Vec::new();
+    if ook_gelezen {
         // Only a reduction reads a chronicle (RFC-048).
         for (_, reduction) in reducties_in(&|id: &str| service.resolver().get_law(id), &[cell]) {
             for article in &reduction.articles {
@@ -753,41 +784,130 @@ fn handelingen(
                 }
             }
         }
-        for (id, _, _) in &corpus.regelwerken {
-            for article in service
-                .resolver()
-                .get_law(id)
-                .iter()
-                .flat_map(|w| &w.articles)
-            {
-                for f in shape::facts_established_by(id, article, cell.authority()) {
-                    if !feiten.contains(&f) {
-                        feiten.push(f);
-                    }
+    }
+    for (id, _, _) in &corpus.regelwerken {
+        for article in service
+            .resolver()
+            .get_law(id)
+            .iter()
+            .flat_map(|w| &w.articles)
+        {
+            for f in shape::facts_established_by(id, article, cell.authority()) {
+                if !feiten.contains(&f) {
+                    feiten.push(f);
                 }
             }
         }
-        let mut acts = Vec::new();
-        for feit in feiten {
-            let velden: Vec<Value> = shape::fact_fields(service, &feit, on, None)?
-                .iter()
-                .map(veld)
-                .collect();
-            acts.push(json!({ "feit": feit, "velden": velden }));
-        }
-        uit.push(json!({
-            "cel": cell.recording_actor(),
-            "cel_naam": andere.cel_naam,
-            "handelingen": acts,
-        }));
     }
-    Ok(uit)
+    let mut acts = Vec::new();
+    for feit in feiten {
+        if is_ontvangst(service, &feit, on)? {
+            continue;
+        }
+        let velden: Vec<Value> = shape::fact_fields(service, &feit, on, None)?
+            .iter()
+            .map(veld)
+            .collect();
+        let stand = stand_van(service, cellen, cell, &feit, on)?;
+        acts.push(json!({ "feit": feit, "velden": velden, "stand": stand }));
+    }
+    Ok(acts)
 }
 
-/// Another cell of the sphere records an executogram of the fact `feit`
-/// (`<regulation>#<article>#<fact>`) on `on` (RFC-051), such as the
-/// GGD recording its advice. The case's own cell records nothing itself:
-/// what the fact sends it arrives on its own ([`afleveren`]).
+/// Whether `feit` (`<regulation>#<article>#<fact>`) is the receipt of a fact
+/// another cell sends: an earlier fact of the same article holds the same
+/// parameters and names another authority as who establishes it. The law
+/// marks neither as the message, so the app reads the order in `requires`:
+/// the message first, its receipt after it (RFC-051). The GGD's advice and
+/// the printer's delivery are written so.
+fn is_ontvangst(service: &LawExecutionService, feit: &str, on: NaiveDate) -> Result<bool> {
+    let (basis, naam) = shape::split_fact(feit)?;
+    let Some(article) = basis.split_once('#').and_then(|(law_id, number)| {
+        service
+            .resolver()
+            .get_law_for_date(law_id, Some(on))?
+            .find_article_by_number(number)
+    }) else {
+        return Ok(false);
+    };
+    let requires = article.get_requires();
+    let Some(positie) = requires
+        .iter()
+        .position(|r| r.fact.as_deref() == Some(naam))
+    else {
+        return Ok(false);
+    };
+    let eigen = &requires[positie];
+    Ok(requires[..positie].iter().any(|r| {
+        r.fact.is_some()
+            && r.parameters == eigen.parameters
+            && r.competent_authority.is_some()
+            && r.competent_authority != eigen.competent_authority
+    }))
+}
+
+/// What the article that requires `feit` gives on `on`, with `cell` answering
+/// from its chronicle and the other cells of the case from theirs
+/// ([`Cell::evaluate`]): the outputs of that article, each with its value and
+/// description, such as how many cards the municipality still has to order
+/// and how many it handed out. Nothing for an article that cannot run without
+/// the fields of the fact (every parameter of it that is required), or that
+/// has no outputs: the advice of the GGD says something about one applicant,
+/// not about the work.
+fn stand_van(
+    service: &LawExecutionService,
+    cellen: &Cellen,
+    cell: &Cell,
+    feit: &str,
+    on: NaiveDate,
+) -> Result<Vec<Value>> {
+    let (basis, _) = shape::split_fact(feit)?;
+    let Some((law_id, number)) = basis.split_once('#') else {
+        return Ok(Vec::new());
+    };
+    let Some(article) = service
+        .resolver()
+        .get_law_for_date(law_id, Some(on))
+        .and_then(|law| law.find_article_by_number(number))
+    else {
+        return Ok(Vec::new());
+    };
+    let uitvoer = article.get_outputs();
+    let vrij = article
+        .get_parameters()
+        .iter()
+        .all(|p| p.required == Some(false));
+    if uitvoer.is_empty() || !vrij {
+        return Ok(Vec::new());
+    }
+    let namen: Vec<&str> = uitvoer.iter().map(|o| o.name.as_str()).collect();
+    let sfeer: Vec<&Cell> = std::iter::once(&cellen.eigen)
+        .chain(&cellen.andere)
+        .filter(|c| c.recording_actor() != cell.recording_actor())
+        .collect();
+    let result = cell.evaluate(service, &sfeer, law_id, &namen, BTreeMap::new(), on)?;
+    uitvoer
+        .iter()
+        .map(|o| {
+            let waarde = result
+                .outputs
+                .get(&o.name)
+                .map(stored::to_stored)
+                .transpose()?;
+            Ok(json!({
+                "naam": o.name,
+                "waarde": waarde,
+                "beschrijving": o.description,
+                "basis": basis,
+            }))
+        })
+        .collect()
+}
+
+/// A cell of the case records an executogram of the fact `feit`
+/// (`<regulation>#<article>#<fact>`) on `on` (RFC-051), such as the GGD
+/// recording its advice or the municipality a print order. What the fact
+/// sends another cell arrives on its own ([`afleveren`]).
 pub fn vastleggen(
     corpus: &Corpus,
     cellen: &mut Cellen,
@@ -798,28 +918,35 @@ pub fn vastleggen(
 ) -> Result<Gram> {
     // Only a fact the form offers this cell.
     let service = corpus.service()?;
-    let mag = handelingen(&service, corpus, cellen, on)?
-        .into_iter()
-        .any(|c| {
-            c["cel"] == cel
-                && c["handelingen"]
-                    .as_array()
-                    .is_some_and(|h| h.iter().any(|h| h["feit"] == feit))
-        });
+    let mag = if cel == cellen.eigen.recording_actor() {
+        handelingen_van(&service, corpus, cellen, &cellen.eigen, false, on)?
+            .iter()
+            .any(|h| h["feit"] == feit)
+    } else {
+        handelingen(&service, corpus, cellen, on)?
+            .into_iter()
+            .any(|c| {
+                c["cel"] == cel
+                    && c["handelingen"]
+                        .as_array()
+                        .is_some_and(|h| h.iter().any(|h| h["feit"] == feit))
+            })
+    };
     if !mag {
         return Err(Error::Refused(format!(
-            "'{cel}' records no fact '{feit}': it is no other cell of this case, or that cell does \
-             not record that fact"
+            "'{cel}' records no fact '{feit}': it is no cell of this case, or that cell does not \
+             record that fact by hand"
         )));
     }
-    // The fact and its receipt land together or not at all: the case's cell
-    // can refuse the receipt after the other cell took the fact. Try it first.
+    // The fact and its receipt land together or not at all: the receiving
+    // cell can refuse the receipt after the other cell took the fact. Try it
+    // first.
     leg_vast(&service, &mut cellen.sandbox(), cel, feit, velden, on)?;
     leg_vast(&service, cellen, cel, feit, velden, on)
 }
 
-/// The cell `cel` records `feit`, and what that sends the case's cell arrives
-/// ([`afleveren`]).
+/// The cell `cel` records `feit`, and what that sends the other cells of the
+/// case arrives ([`afleveren`]).
 fn leg_vast(
     service: &LawExecutionService,
     cellen: &mut Cellen,
@@ -828,36 +955,43 @@ fn leg_vast(
     velden: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Gram> {
-    let cell = cellen
-        .andere
-        .iter_mut()
-        .find(|c| c.recording_actor() == cel)
-        .ok_or_else(|| Error::Refused(format!("'{cel}' is no other cell of this case")))?;
-    let gram = cell.record_executogram(service, feit, velden, on)?;
-    afleveren(service, &mut cellen.eigen, &gram)?;
+    let mut alle: Vec<&mut Cell> = std::iter::once(&mut cellen.eigen)
+        .chain(cellen.andere.iter_mut())
+        .collect();
+    let positie = alle
+        .iter()
+        .position(|c| c.recording_actor() == cel)
+        .ok_or_else(|| Error::Refused(format!("'{cel}' is no cell of this case")))?;
+    let gram = alle[positie].record_executogram(service, feit, velden, on)?;
+    for (i, ontvanger) in alle.iter_mut().enumerate() {
+        if i != positie {
+            afleveren(service, ontvanger, &gram)?;
+        }
+    }
     Ok(gram)
 }
 
-/// Deliver the executogram `gram` of another cell to the case's cell: where
-/// the article of its fact requires a receipt the case's cell establishes
-/// ([`shape::receipt_of`]), that cell records it in its own chronicle on the
+/// Deliver the executogram `gram` of another cell to the cell `ontvanger`:
+/// where the article of its fact requires a receipt that cell establishes
+/// ([`shape::receipt_of`]), it records it in its own chronicle on the
 /// same day, with the same values, and reads it from there. So the advice of
-/// the GGD reaches the municipality without a step of its own. The receipt
-/// holds no link to `gram`: a chronicle only keeps `received` on the receipt
-/// of a copy of a decision (RFC-053), and an advice is none.
-fn afleveren(service: &LawExecutionService, eigen: &mut Cell, gram: &Gram) -> Result<()> {
+/// the GGD reaches the municipality without a step of its own, and a print
+/// order of the municipality the printer. The receipt holds no link to
+/// `gram`: a chronicle only keeps `received` on the receipt of a copy of a
+/// decision (RFC-053), and an advice is none.
+fn afleveren(service: &LawExecutionService, ontvanger: &mut Cell, gram: &Gram) -> Result<()> {
     let Some(fact) = &gram.fact else {
         return Ok(());
     };
     let feit = format!("{}#{fact}", gram.basis);
     let on = gram.recorded_on;
-    if let Some(ontvangst) = shape::receipt_of(service, &feit, on, eigen.authority())? {
+    if let Some(ontvangst) = shape::receipt_of(service, &feit, on, ontvanger.authority())? {
         let velden: Map<String, Value> = gram
             .fields
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
-        eigen.record_executogram(service, &ontvangst, &velden, on)?;
+        ontvanger.record_executogram(service, &ontvangst, &velden, on)?;
     }
     Ok(())
 }
@@ -3518,9 +3652,12 @@ mod tests {
                 "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal",
                 "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal",
                 "beleid_geneeskundig_advies_gemeente_wilgendaal",
+                "beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal",
                 "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw",
                 "parkeerverordening_gemeente_wilgendaal",
                 "reductie_algemene_wet_bestuursrecht",
+                "reductie_drukken_en_uitreiken",
+                "reductie_drukopdrachten",
                 "reductie_geldige_bedrijfsparkeervergunningen",
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_geneeskundig_advies",
@@ -3552,9 +3689,11 @@ mod tests {
                 "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal",
                 "beleid_geneeskundig_advies_gemeente_wilgendaal",
                 "beleid_handelsregister_kamer_van_koophandel",
+                "beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal",
                 "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw",
                 "parkeerverordening_gemeente_wilgendaal",
                 "reductie_algemene_wet_bestuursrecht",
+                "reductie_drukken_en_uitreiken",
                 "reductie_geldige_bedrijfsparkeervergunningen",
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_geneeskundig_advies",
@@ -4354,8 +4493,8 @@ mod tests {
         // one outcome of them. Both come from the municipality's own cell:
         // the advice it received, and its own earlier decisions.
         let (corpus, mut cell) = kaart_onderzocht();
-        // The GGD and the court (RFC-053).
-        assert_eq!(cell.andere.len(), 2);
+        // The GGD, the printer and the court (RFC-053).
+        assert_eq!(cell.andere.len(), 3);
         let voorbeeld = &corpus.casus.voorbeeld;
 
         // The example applicant: the municipality answers from the advice

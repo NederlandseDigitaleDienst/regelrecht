@@ -1,0 +1,504 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$id: beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# FICTIEF. De gemeente Wilgendaal en haar drukker bestaan niet, en dit is geen
+# bekendgemaakt beleid, maar een eigen keuze in de modellering. Er is geen
+# bekendmaking; de url wijst naar artikel 49 van het BABW, het besluit dat dit
+# beleid uitvoert.
+# Wat er gebeurt nadat het college een kaart verstrekte: het vraagt de kaart
+# aan bij een drukker (artikel 1), de drukker drukt haar en levert haar
+# (artikel 2), en het college reikt haar uit aan de houder (artikel 3). Het
+# BABW en de Regeling gehandicaptenparkeerkaart zeggen daar niets over; hoe
+# het college het besluit uitvoert, is zijn eigen keuze.
+# Elk van die drie is een handeling die een cel als feit vastlegt (requires,
+# fact, RFC-051), en elk artikel zegt ook hoeveel van die handelingen er nog
+# te doen zijn. Dat aantal volgt uit wat de cellen in hun eigen kroniek
+# tellen: artikel 4 tot en met 6 koppelen de open begrippen van artikel 1 tot
+# en met 3 aan de antwoorden van de cellen (source.reduction, RFC-048). Dit
+# beleid zegt dus wanneer er iets te doen is, de reducties tellen alleen.
+# Eigen keuze: wat de drukker doet, staat in dit beleid en niet in een
+# overeenkomst met de drukker, zoals artikel 5 van het fictieve beleid
+# gehandicaptenparkeerkaart zegt wat een geneeskundig advies bevat. Het
+# college vraagt de kaart aan; wat de drukopdracht en de levering vermelden,
+# bepaalt het dus zelf.
+# Een drukopdracht en een levering zijn berichten tussen twee cellen. Wie
+# verstuurt, legt het eerste feit van het artikel vast, en de cel die het
+# ontvangt het tweede, met dezelfde gegevens (zie artikel 5 van het fictieve
+# beleid gehandicaptenparkeerkaart).
+url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+name: Drukken en uitreiken van de gehandicaptenparkeerkaart in de gemeente Wilgendaal (fictief beleid)
+competent_authority:
+  name: Het college van burgemeester en wethouders van de gemeente Wilgendaal
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid.
+
+      1 Het college vraagt elke gehandicaptenparkeerkaart die het verstrekte
+      aan bij de drukker van gehandicaptenparkeerkaarten.
+
+      2 De drukopdracht vermeldt de aanvrager aan wie de kaart is verstrekt en
+      de dag tot en met welke de kaart geldig is.
+
+      3 Het college legt de drukopdracht vast. De drukker legt vast dat hij
+      haar ontving.
+
+      4 Het college heeft zoveel kaarten aan te vragen als het er verstrekte
+      en nog niet aanvroeg.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      # De twee tellingen van lid 4 zijn open begrippen die het college uit
+      # zijn eigen kroniek beantwoordt (competent_authority, RFC-051): de
+      # verstrekte kaarten zijn zijn besluiten, de drukopdrachten zijn feiten
+      # die het zelf vastlegde. Artikel 4 koppelt ze aan de antwoorden van
+      # zijn cel. Een verstrekking die het college na een bezwaar herroept,
+      # telt niet meer mee; een drukopdracht die het al gaf, blijft staan.
+      # Daarom is het aantal nooit kleiner dan nul.
+      open_terms:
+        - id: aantal_verstrekte_gehandicaptenparkeerkaarten
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          type: number
+          required: true
+          description: >-
+            Hoeveel gehandicaptenparkeerkaarten het college verstrekte in een
+            besluit op een aanvraag (artikel 49 van het BABW) dat nog geldt.
+        - id: aantal_drukopdrachten_gegeven
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          type: number
+          required: true
+          description: Hoeveel drukopdrachten het college gaf (derde lid).
+      requires:
+        - fact: drukopdracht_gegeven
+          description: >-
+            Dat het college een verstrekte kaart aanvroeg bij de drukker: voor
+            welke aanvrager, en tot en met welke dag de kaart geldig is (lid 2
+            en 3).
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - kaart_geldig_tot
+        - fact: drukopdracht_ontvangen
+          description: >-
+            Dat de drukker de drukopdracht van het college ontving, met wat de
+            drukopdracht vermeldt (lid 3).
+          competent_authority:
+            - name: drukker van gehandicaptenparkeerkaarten
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - kaart_geldig_tot
+      execution:
+        # Wat de drukopdracht vermeldt (lid 2). Het aantal van lid 4 heeft ze
+        # niet nodig: het geldt voor alle kaarten samen.
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            required: false
+            description: Burgerservicenummer van de aanvrager aan wie de kaart is verstrekt.
+          - name: kaart_geldig_tot
+            type: date
+            required: false
+            description: De dag tot en met welke de kaart geldig is (artikel 51 van het BABW).
+        output:
+          - name: aantal_aan_te_vragen_kaarten
+            type: number
+            description: >-
+              Hoeveel verstrekte kaarten het college nog moet aanvragen bij de
+              drukker (lid 4).
+        actions:
+          - output: aantal_aan_te_vragen_kaarten
+            value:
+              operation: MAX
+              values:
+                - 0
+                - operation: SUBTRACT
+                  values:
+                    - $aantal_verstrekte_gehandicaptenparkeerkaarten
+                    - $aantal_drukopdrachten_gegeven
+  - number: '2'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid.
+
+      1 De drukker drukt de kaart van elke drukopdracht die hij ontving en
+      levert haar aan het college.
+
+      2 De drukker legt de levering vast, met wat de drukopdracht vermeldt.
+      Het college legt vast dat het de kaart ontving.
+
+      3 De drukker heeft zoveel kaarten te drukken en te leveren als hij
+      drukopdrachten ontving en nog geen kaarten leverde.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      # De tellingen van lid 3 beantwoordt de drukker uit zijn eigen kroniek
+      # (competent_authority): de drukopdrachten die hij ontving en de
+      # kaarten die hij leverde. Artikel 5 koppelt ze aan zijn antwoorden.
+      # Het aantal geleverde kaarten is ook uitvoer: zoveel kaarten zijn er
+      # gedrukt.
+      open_terms:
+        - id: aantal_drukopdrachten_ontvangen
+          competent_authority:
+            - name: drukker van gehandicaptenparkeerkaarten
+              type: CATEGORY
+          type: number
+          required: true
+          description: Hoeveel drukopdrachten de drukker ontving (artikel 1, derde lid).
+        - id: aantal_kaarten_geleverd
+          competent_authority:
+            - name: drukker van gehandicaptenparkeerkaarten
+              type: CATEGORY
+          type: number
+          required: true
+          description: Hoeveel kaarten de drukker drukte en aan het college leverde (tweede lid).
+      requires:
+        - fact: kaart_geleverd
+          description: >-
+            Dat de drukker een kaart drukte en aan het college leverde: voor
+            welke aanvrager, en tot en met welke dag de kaart geldig is (lid 2).
+          competent_authority:
+            - name: drukker van gehandicaptenparkeerkaarten
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - kaart_geldig_tot
+        - fact: kaart_ontvangen_van_drukker
+          description: >-
+            Dat het college de kaart ontving die de drukker leverde, met wat
+            de levering vermeldt (lid 2).
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - kaart_geldig_tot
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            required: false
+            description: Burgerservicenummer van de aanvrager aan wie de kaart is verstrekt.
+          - name: kaart_geldig_tot
+            type: date
+            required: false
+            description: De dag tot en met welke de kaart geldig is (artikel 51 van het BABW).
+        output:
+          - name: aantal_te_leveren_kaarten
+            type: number
+            description: >-
+              Hoeveel kaarten de drukker nog moet drukken en leveren (lid 3).
+          - name: aantal_gedrukte_kaarten
+            type: number
+            description: Hoeveel kaarten de drukker drukte en leverde.
+        actions:
+          - output: aantal_te_leveren_kaarten
+            value:
+              operation: MAX
+              values:
+                - 0
+                - operation: SUBTRACT
+                  values:
+                    - $aantal_drukopdrachten_ontvangen
+                    - $aantal_kaarten_geleverd
+          - output: aantal_gedrukte_kaarten
+            value: $aantal_kaarten_geleverd
+  - number: '3'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid.
+
+      1 Het college reikt een kaart die het van de drukker ontving uit aan de
+      aanvrager aan wie het de kaart verstrekte.
+
+      2 Het college legt de uitreiking vast, met wat de levering vermeldt.
+
+      3 Het college heeft zoveel kaarten uit te reiken als het van de drukker
+      ontving en nog niet uitreikte.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      # De tellingen van lid 3 beantwoordt het college uit zijn eigen kroniek:
+      # de kaarten die het van de drukker ontving (artikel 2) en die het
+      # uitreikte. Artikel 6 koppelt ze aan de antwoorden van zijn cel. Het
+      # aantal uitgereikte kaarten is ook uitvoer: zoveel kaarten heeft het
+      # college in handen van een houder gegeven.
+      open_terms:
+        - id: aantal_kaarten_ontvangen_van_drukker
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          type: number
+          required: true
+          description: Hoeveel kaarten het college van de drukker ontving (artikel 2, tweede lid).
+        - id: aantal_kaarten_uitgereikt
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          type: number
+          required: true
+          description: Hoeveel kaarten het college uitreikte (tweede lid).
+      requires:
+        - fact: kaart_uitgereikt
+          description: >-
+            Dat het college een kaart uitreikte: aan welke aanvrager, en tot en
+            met welke dag de kaart geldig is (lid 2).
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - kaart_geldig_tot
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            required: false
+            description: Burgerservicenummer van de aanvrager aan wie de kaart is uitgereikt.
+          - name: kaart_geldig_tot
+            type: date
+            required: false
+            description: De dag tot en met welke de kaart geldig is (artikel 51 van het BABW).
+        output:
+          - name: aantal_uit_te_reiken_kaarten
+            type: number
+            description: Hoeveel ontvangen kaarten het college nog moet uitreiken (lid 3).
+          - name: aantal_uitgereikte_kaarten
+            type: number
+            description: Hoeveel kaarten het college uitreikte.
+        actions:
+          - output: aantal_uit_te_reiken_kaarten
+            value:
+              operation: MAX
+              values:
+                - 0
+                - operation: SUBTRACT
+                  values:
+                    - $aantal_kaarten_ontvangen_van_drukker
+                    - $aantal_kaarten_uitgereikt
+          - output: aantal_uitgereikte_kaarten
+            value: $aantal_kaarten_uitgereikt
+  - number: '4'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid.
+      Hoeveel kaarten het college verstrekte en hoeveel drukopdrachten het gaf
+      (artikel 1, vierde lid), ontleent het aan het antwoord van zijn eigen
+      cel. Geeft de cel geen antwoord, dan stelt het college het zelf vast.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      # Zonder antwoord geldt wat het college zelf telt: een eigen open
+      # begrip, dat de engine alleen vraagt als de cel zwijgt (zoals artikel
+      # 2 van het fictieve beleid gehandicaptenparkeerkaart).
+      open_terms:
+        - id: aantal_verstrekte_gehandicaptenparkeerkaarten_volgens_eigen_telling
+          type: number
+          required: true
+          decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
+          description: >-
+            Hoeveel kaarten het college verstrekte, als de cel geen antwoord geeft.
+        - id: aantal_drukopdrachten_gegeven_volgens_eigen_telling
+          type: number
+          required: true
+          decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
+          description: >-
+            Hoeveel drukopdrachten het college gaf, als de cel geen antwoord geeft.
+      implements:
+        - law: beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal
+          article: '1'
+          open_term: aantal_verstrekte_gehandicaptenparkeerkaarten
+        - law: beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal
+          article: '1'
+          open_term: aantal_drukopdrachten_gegeven
+      execution:
+        input:
+          - name: antwoord_verstrekt
+            type: number
+            nullable: true
+            source:
+              reduction: aantal_verstrekte_gehandicaptenparkeerkaarten
+          - name: antwoord_drukopdrachten
+            type: number
+            nullable: true
+            source:
+              reduction: aantal_drukopdrachten_gegeven
+        output:
+          - name: aantal_verstrekte_gehandicaptenparkeerkaarten
+            type: number
+            description: >-
+              Hoeveel kaarten het college verstrekte: het antwoord van de cel, of zonder dat de eigen telling.
+          - name: aantal_drukopdrachten_gegeven
+            type: number
+            description: >-
+              Hoeveel drukopdrachten het college gaf: het antwoord van de cel, of zonder dat de eigen telling.
+        actions:
+          - output: aantal_verstrekte_gehandicaptenparkeerkaarten
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $antwoord_verstrekt
+                    value: null
+                  then: $aantal_verstrekte_gehandicaptenparkeerkaarten_volgens_eigen_telling
+              default: $antwoord_verstrekt
+          - output: aantal_drukopdrachten_gegeven
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $antwoord_drukopdrachten
+                    value: null
+                  then: $aantal_drukopdrachten_gegeven_volgens_eigen_telling
+              default: $antwoord_drukopdrachten
+  - number: '5'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid.
+      Hoeveel drukopdrachten de drukker ontving en hoeveel kaarten hij leverde
+      (artikel 2, derde lid), ontleent het college aan het antwoord van de
+      cel van de drukker. Geeft die cel geen antwoord, dan stelt de drukker
+      het zelf vast.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      # Zonder antwoord geldt wat de drukker zelf telt: hij is bevoegd voor
+      # die tellingen (artikel 2), niet het college.
+      open_terms:
+        - id: aantal_drukopdrachten_ontvangen_volgens_eigen_telling
+          type: number
+          required: true
+          decided_per_case_by: de drukker van gehandicaptenparkeerkaarten
+          description: >-
+            Hoeveel drukopdrachten de drukker ontving, als de cel geen antwoord geeft.
+        - id: aantal_kaarten_geleverd_volgens_eigen_telling
+          type: number
+          required: true
+          decided_per_case_by: de drukker van gehandicaptenparkeerkaarten
+          description: >-
+            Hoeveel kaarten de drukker leverde, als de cel geen antwoord geeft.
+      implements:
+        - law: beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal
+          article: '2'
+          open_term: aantal_drukopdrachten_ontvangen
+        - law: beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal
+          article: '2'
+          open_term: aantal_kaarten_geleverd
+      execution:
+        input:
+          - name: antwoord_ontvangen
+            type: number
+            nullable: true
+            source:
+              reduction: aantal_drukopdrachten_ontvangen
+          - name: antwoord_geleverd
+            type: number
+            nullable: true
+            source:
+              reduction: aantal_kaarten_geleverd
+        output:
+          - name: aantal_drukopdrachten_ontvangen
+            type: number
+            description: >-
+              Hoeveel drukopdrachten de drukker ontving: het antwoord van de cel, of zonder dat de eigen telling.
+          - name: aantal_kaarten_geleverd
+            type: number
+            description: >-
+              Hoeveel kaarten de drukker leverde: het antwoord van de cel, of zonder dat de eigen telling.
+        actions:
+          - output: aantal_drukopdrachten_ontvangen
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $antwoord_ontvangen
+                    value: null
+                  then: $aantal_drukopdrachten_ontvangen_volgens_eigen_telling
+              default: $antwoord_ontvangen
+          - output: aantal_kaarten_geleverd
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $antwoord_geleverd
+                    value: null
+                  then: $aantal_kaarten_geleverd_volgens_eigen_telling
+              default: $antwoord_geleverd
+  - number: '6'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid.
+      Hoeveel kaarten het college van de drukker ontving en hoeveel het er
+      uitreikte (artikel 3, derde lid), ontleent het aan het antwoord van zijn
+      eigen cel. Geeft de cel geen antwoord, dan stelt het college het zelf
+      vast.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      # Zonder antwoord geldt wat het college zelf telt: een eigen open
+      # begrip, dat de engine alleen vraagt als de cel zwijgt (zoals artikel
+      # 2 van het fictieve beleid gehandicaptenparkeerkaart).
+      open_terms:
+        - id: aantal_kaarten_ontvangen_van_drukker_volgens_eigen_telling
+          type: number
+          required: true
+          decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
+          description: >-
+            Hoeveel kaarten het college van de drukker ontving, als de cel geen antwoord geeft.
+        - id: aantal_kaarten_uitgereikt_volgens_eigen_telling
+          type: number
+          required: true
+          decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
+          description: >-
+            Hoeveel kaarten het college uitreikte, als de cel geen antwoord geeft.
+      implements:
+        - law: beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal
+          article: '3'
+          open_term: aantal_kaarten_ontvangen_van_drukker
+        - law: beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal
+          article: '3'
+          open_term: aantal_kaarten_uitgereikt
+      execution:
+        input:
+          - name: antwoord_ontvangen
+            type: number
+            nullable: true
+            source:
+              reduction: aantal_kaarten_ontvangen_van_drukker
+          - name: antwoord_uitgereikt
+            type: number
+            nullable: true
+            source:
+              reduction: aantal_kaarten_uitgereikt
+        output:
+          - name: aantal_kaarten_ontvangen_van_drukker
+            type: number
+            description: >-
+              Hoeveel kaarten het college van de drukker ontving: het antwoord van de cel, of zonder dat de eigen telling.
+          - name: aantal_kaarten_uitgereikt
+            type: number
+            description: >-
+              Hoeveel kaarten het college uitreikte: het antwoord van de cel, of zonder dat de eigen telling.
+        actions:
+          - output: aantal_kaarten_ontvangen_van_drukker
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $antwoord_ontvangen
+                    value: null
+                  then: $aantal_kaarten_ontvangen_van_drukker_volgens_eigen_telling
+              default: $antwoord_ontvangen
+          - output: aantal_kaarten_uitgereikt
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $antwoord_uitgereikt
+                    value: null
+                  then: $aantal_kaarten_uitgereikt_volgens_eigen_telling
+              default: $antwoord_uitgereikt

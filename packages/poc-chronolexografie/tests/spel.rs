@@ -335,14 +335,21 @@ fn parkeerkaart_a_second_card_next_to_a_valid_one() {
         json!("het college van burgemeester en wethouders")
     );
     // The other cells the case takes along (RFC-048), from the case file,
-    // the court among them (RFC-053).
+    // the printer and the court among them (RFC-053).
     let andere: Vec<&str> = casus["andere_cellen"]
         .as_array()
         .unwrap()
         .iter()
         .map(|a| a["cel"].as_str().unwrap())
         .collect();
-    assert_eq!(andere, ["ggd_wilgendaal", "rechtbank_wilgendaal"]);
+    assert_eq!(
+        andere,
+        [
+            "ggd_wilgendaal",
+            "kaartendrukkerij_wilgendaal",
+            "rechtbank_wilgendaal"
+        ]
+    );
     assert_eq!(casus["rechter"]["cel"], json!("rechtbank_wilgendaal"));
     let aanvraag = map(&casus["voorbeeld"]["aanvraag"]);
     let bevindingen = map(&casus["voorbeeld"]["bevindingen"]);
@@ -1223,4 +1230,210 @@ fn the_log_holds_the_facts_the_other_cells_recorded() {
             kvk
         ]
     );
+}
+
+const UITREIKING: &str = "beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal";
+
+/// The form of `feit` of cell `cel` on `datum`, as the page shows it: the
+/// case's own cell under `handelingen`, another cell under `andere_cellen`.
+fn handeling(spel: &mut Spel, cel: &str, feit: &str, datum: &str) -> Option<Value> {
+    let vormen = spel.vormen(dag(datum)).unwrap();
+    let eigen = json!({ "cel": "gemeente_wilgendaal", "handelingen": vormen["handelingen"] });
+    vormen["andere_cellen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .chain(std::iter::once(&eigen))
+        .find(|c| c["cel"] == json!(cel))?["handelingen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|h| h["feit"] == json!(format!("{UITREIKING}#{feit}")))
+        .cloned()
+}
+
+/// What the article that requires `feit` of cell `cel` gives on `datum`,
+/// by output.
+fn stand(spel: &mut Spel, cel: &str, feit: &str, datum: &str) -> Map<String, Value> {
+    handeling(spel, cel, feit, datum).expect("the cell records the fact")["stand"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|o| (o["naam"].as_str().unwrap().to_string(), o["waarde"].clone()))
+        .collect()
+}
+
+/// The executograms of `feit` in the chronicle `kroniek`.
+fn feiten(kroniek: &Value, feit: &str) -> usize {
+    kroniek["grammen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|g| g["fact"] == json!(feit))
+        .count()
+}
+
+#[test]
+fn parkeerkaart_a_granted_card_is_ordered_printed_and_handed_out() {
+    // After the decision, the municipality's fictitious policy on issuing
+    // the card says what is still to be done, counted from the chronicles:
+    // order the card from the printer, print and deliver it, hand it out.
+    // Each step is a fact a cell records, and a message between two cells
+    // arrives as a receipt in the chronicle of the one that receives it.
+    let mut spel = spel_met("gehandicaptenparkeerkaart");
+    let casus = spel.casus().unwrap();
+    let bsn = voorbeeld_bsn(&casus).to_string();
+    let kaart = json!({ "bsn_aanvrager": bsn, "kaart_geldig_tot": "2031-10-19" });
+
+    // The advice of the GGD speaks of one applicant: its article cannot run
+    // without the fields of the advice, so its form shows nothing of it.
+    let vormen = spel.vormen(dag("2026-10-13")).unwrap();
+    let ggd = vormen["andere_cellen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["cel"] == json!("ggd_wilgendaal"))
+        .unwrap();
+    assert_eq!(ggd["handelingen"][0]["stand"], json!([]));
+
+    // Before any decision there is nothing to do.
+    let voor = stand(
+        &mut spel,
+        "gemeente_wilgendaal",
+        "1#drukopdracht_gegeven",
+        "2026-10-13",
+    );
+    assert_eq!(voor["aantal_aan_te_vragen_kaarten"], json!(0));
+
+    let gram = spel
+        .aanvragen(&map(&casus["voorbeeld"]["aanvraag"]), dag("2026-10-13"))
+        .unwrap();
+    advies(&mut spel, &bsn, "2026-10-16", true);
+    spel.besluiten(
+        gram["id"].as_str().unwrap(),
+        &map(&casus["voorbeeld"]["bevindingen"]),
+        dag("2026-10-20"),
+    )
+    .unwrap();
+    let na = stand(
+        &mut spel,
+        "gemeente_wilgendaal",
+        "1#drukopdracht_gegeven",
+        "2026-10-20",
+    );
+    assert_eq!(na["aantal_aan_te_vragen_kaarten"], json!(1));
+
+    // The municipality orders the card; the printer receives the order.
+    spel.vastleggen(
+        "gemeente_wilgendaal",
+        &format!("{UITREIKING}#1#drukopdracht_gegeven"),
+        &map(&kaart),
+        dag("2026-10-21"),
+    )
+    .unwrap();
+    let kroniek = spel.kroniek().unwrap();
+    assert_eq!(feiten(&kroniek, "drukopdracht_gegeven"), 1);
+    let drukker = kroniek["andere"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|k| k["cel"] == json!("kaartendrukkerij_wilgendaal"))
+        .unwrap();
+    assert_eq!(feiten(drukker, "drukopdracht_ontvangen"), 1);
+    let besteld = stand(
+        &mut spel,
+        "gemeente_wilgendaal",
+        "1#drukopdracht_gegeven",
+        "2026-10-21",
+    );
+    assert_eq!(besteld["aantal_aan_te_vragen_kaarten"], json!(0));
+    let drukwerk = stand(
+        &mut spel,
+        "kaartendrukkerij_wilgendaal",
+        "2#kaart_geleverd",
+        "2026-10-21",
+    );
+    assert_eq!(drukwerk["aantal_te_leveren_kaarten"], json!(1));
+    assert_eq!(drukwerk["aantal_gedrukte_kaarten"], json!(0));
+
+    // A receipt is no hand work: neither cell gets a form for it, and the
+    // municipality cannot record one by hand.
+    assert!(handeling(
+        &mut spel,
+        "kaartendrukkerij_wilgendaal",
+        "1#drukopdracht_ontvangen",
+        "2026-10-21"
+    )
+    .is_none());
+    assert!(handeling(
+        &mut spel,
+        "gemeente_wilgendaal",
+        "2#kaart_ontvangen_van_drukker",
+        "2026-10-21"
+    )
+    .is_none());
+    let e = spel
+        .vastleggen(
+            "gemeente_wilgendaal",
+            &format!("{UITREIKING}#2#kaart_ontvangen_van_drukker"),
+            &map(&kaart),
+            dag("2026-10-21"),
+        )
+        .unwrap_err();
+    assert!(matches!(e, Fout::Cel(_)), "{e}");
+
+    // The printer delivers; the municipality receives the card.
+    spel.vastleggen(
+        "kaartendrukkerij_wilgendaal",
+        &format!("{UITREIKING}#2#kaart_geleverd"),
+        &map(&kaart),
+        dag("2026-10-26"),
+    )
+    .unwrap();
+    assert_eq!(
+        feiten(&spel.kroniek().unwrap(), "kaart_ontvangen_van_drukker"),
+        1
+    );
+    let geleverd = stand(
+        &mut spel,
+        "kaartendrukkerij_wilgendaal",
+        "2#kaart_geleverd",
+        "2026-10-26",
+    );
+    assert_eq!(geleverd["aantal_te_leveren_kaarten"], json!(0));
+    assert_eq!(geleverd["aantal_gedrukte_kaarten"], json!(1));
+    let uit_te_reiken = stand(
+        &mut spel,
+        "gemeente_wilgendaal",
+        "3#kaart_uitgereikt",
+        "2026-10-26",
+    );
+    assert_eq!(uit_te_reiken["aantal_uit_te_reiken_kaarten"], json!(1));
+
+    // The municipality hands the card out, and counts it.
+    spel.vastleggen(
+        "gemeente_wilgendaal",
+        &format!("{UITREIKING}#3#kaart_uitgereikt"),
+        &map(&kaart),
+        dag("2026-10-28"),
+    )
+    .unwrap();
+    let klaar = stand(
+        &mut spel,
+        "gemeente_wilgendaal",
+        "3#kaart_uitgereikt",
+        "2026-10-28",
+    );
+    assert_eq!(klaar["aantal_uit_te_reiken_kaarten"], json!(0));
+    assert_eq!(klaar["aantal_uitgereikte_kaarten"], json!(1));
+    // On the day before the delivery, the policy saw no card to hand out:
+    // a cell answers from what it recorded up to the day asked.
+    let eerder = stand(
+        &mut spel,
+        "gemeente_wilgendaal",
+        "3#kaart_uitgereikt",
+        "2026-10-25",
+    );
+    assert_eq!(eerder["aantal_uit_te_reiken_kaarten"], json!(0));
+    assert_eq!(eerder["aantal_uitgereikte_kaarten"], json!(0));
 }

@@ -73,8 +73,9 @@ function isHuidigeStap(soort, doel = {}) {
 
 /**
  * Whether the form of `feit` of cell `cel` folds away: the scenario is at a
- * record step on another form of `cellen` (`state.vormen.andere_cellen`).
- * At any other step, or in free play, every form stays open.
+ * record step on another form of `cellen` (each `{ cel, handelingen }`, as
+ * `state.vormen.andere_cellen`, with the case's own cell beside them). At
+ * any other step, or in free play, every form stays open.
  */
 export function ingeklapt(cellen, cel, feit) {
   if (isHuidigeStap('vastleggen', { cel, feit })) return false;

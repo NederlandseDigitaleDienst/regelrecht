@@ -18,6 +18,7 @@ corpus:
   - regulation/nl/gemeentelijke_verordening/wilgendaal/parkeerverordening_gemeente_wilgendaal
   - regulation/nl/uitvoeringsbeleid/beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
   - regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal
   - regulation/nl/gemeentelijke_verordening/wilgendaal/uitvoeringsbesluit_parkeren_gemeente_wilgendaal
   - regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal
   - cells/reductions/reductie_algemene_wet_bestuursrecht
@@ -90,6 +91,13 @@ voorbeeld:
 andere_cellen:
   - cel: ggd_wilgendaal
     cel_naam: GGD Wilgendaal
+  # De drukker (fictief, virtueel): hij ontvangt de drukopdrachten van de
+  # gemeente en levert de kaarten (artikel 1 en 2 van het fictieve beleid
+  # uitreiking gehandicaptenparkeerkaart). Een drukopdracht gaat als bericht
+  # van de gemeente naar de drukker, een levering terug; elk legt het bericht
+  # dat het ontvangt in de eigen kroniek vast.
+  - cel: kaartendrukkerij_wilgendaal
+    cel_naam: Kaartendrukkerij Wilgendaal
   # De bestuursrechter (RFC-053): ook een andere cel, met een eigen kroniek.
   # Dat zij de rechter is, zegt haar cel.yaml (categorie "de
   # bestuursrechter", wie volgens Awb 8:70 beslist). Het artikel van het
@@ -140,8 +148,74 @@ scenarios:
         uitkomst: toegewezen
         uitvoer:
           kaart_geldig_tot: '2031-10-19'
+        gezien: >-
+          Toegewezen: de kaart geldt tot en met 19 oktober 2031, en bij
+          Bestuursorgaan staat dat er één kaart aan te vragen is bij de
+          drukker.
+      # Wat het college met een verstrekte kaart doet, zegt zijn fictieve
+      # beleid uitreiking gehandicaptenparkeerkaart: aanvragen bij de
+      # drukker, die drukt en levert, en dan uitreiken. Elke stap is een feit
+      # in een kroniek, en het beleid telt na elke stap wat er nog te doen is.
+      - stap: vastleggen
+        verhaal: >-
+          Het college vraagt de verstrekte kaart aan bij de drukker.
+        titel: Drukopdracht geven
+        datum: 2026-10-21
+        cel: gemeente_wilgendaal
+        feit: beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal#1#drukopdracht_gegeven
+        invoer:
+          bsn_aanvrager: '999990020'
+          kaart_geldig_tot: '2031-10-19'
+        uitvoer:
+          aantal_aan_te_vragen_kaarten: 0
+        tekst: >-
+          Klik bij Bestuursorgaan onder "Vastleggen: Drukopdracht gegeven" op
+          Vastleggen.
+        gezien: >-
+          De drukopdracht staat in de kroniek van de gemeente en de ontvangst
+          ervan in die van de drukker, die nu één kaart te leveren heeft.
+      - stap: vastleggen
+        verhaal: >-
+          De drukker drukt de kaart en levert haar aan de gemeente.
+        titel: Kaart drukken en leveren
+        datum: 2026-10-26
+        cel: kaartendrukkerij_wilgendaal
+        feit: beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal#2#kaart_geleverd
+        invoer:
+          bsn_aanvrager: '999990020'
+          kaart_geldig_tot: '2031-10-19'
+        uitvoer:
+          aantal_te_leveren_kaarten: 0
+          aantal_gedrukte_kaarten: 1
+        tekst: >-
+          Klik bij Kaartendrukkerij Wilgendaal onder "Vastleggen: Kaart
+          geleverd" op Vastleggen.
+        gezien: >-
+          De levering staat in de kroniek van de drukker en de ontvangst van
+          de kaart in die van de gemeente, die nu één kaart uit te reiken
+          heeft.
+      - stap: vastleggen
+        verhaal: >-
+          Het college reikt de kaart uit aan de aanvrager.
+        titel: Kaart uitreiken
+        datum: 2026-10-28
+        cel: gemeente_wilgendaal
+        feit: beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal#3#kaart_uitgereikt
+        invoer:
+          bsn_aanvrager: '999990020'
+          kaart_geldig_tot: '2031-10-19'
+        uitvoer:
+          aantal_uit_te_reiken_kaarten: 0
+          aantal_uitgereikte_kaarten: 1
+        tekst: >-
+          Klik bij Bestuursorgaan onder "Vastleggen: Kaart uitgereikt" op
+          Vastleggen.
+        gezien: >-
+          De uitreiking staat in de kroniek van de gemeente, en het beleid
+          telt één uitgereikte kaart en niets meer te doen.
     eind: >-
-      Toegewezen: de kaart geldt tot en met 19 oktober 2031.
+      Toegewezen, gedrukt en uitgereikt: de aanvrager heeft de kaart in
+      handen, geldig tot en met 19 oktober 2031.
   - naam: Het advies vindt geen criterium
     samenvatting: >-
       Het advies van de GGD vindt geen enkel criterium, en de kaart wordt

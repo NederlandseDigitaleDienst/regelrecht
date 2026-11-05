@@ -11,6 +11,9 @@
 // bezwaar komen ze uit het bestreden besluit: de bevindingen die het
 // gebruikte, met wat het bestuursorgaan toen vond. Volg je een scenario, dan
 // staan de bevindingen ingevuld zoals de stap ze geeft (scenarioInvoer.js).
+// Onderaan legt het bestuursorgaan vast wat het na een besluit doet, zoals
+// een drukopdracht, met erbij wat zijn beleid nog te doen vindt
+// (Handelingen.vue).
 import { computed, reactive } from 'vue';
 import { api } from '../api.js';
 import { stilBegrippen } from '../stil.js';
@@ -29,6 +32,7 @@ import {
 } from '../state.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
 import ArtikelLink from './ArtikelLink.vue';
+import Handelingen from './Handelingen.vue';
 import Uitkomst from './Uitkomst.vue';
 import OordeelKeuze from './OordeelKeuze.vue';
 import StilOordeel from './StilOordeel.vue';
@@ -245,6 +249,19 @@ const uitkomstOpBezwaar = (uit) =>
         </template>
         </nldd-container>
       </nldd-card>
+    </nldd-container>
+  </nldd-simple-section>
+
+  <nldd-simple-section v-if="state.vormen?.handelingen?.length">
+    <nldd-title slot="header" size="3" text="Uitvoering">
+      <nldd-text slot="supporting-text">
+        Wat het bestuursorgaan na een besluit zelf doet en vastlegt, zoals een kaart aanvragen
+        bij de drukker. Bij elk feit staat wat het beleid nu nog te doen vindt; dat telt het uit
+        de kronieken van de cellen.
+      </nldd-text>
+    </nldd-title>
+    <nldd-container gap="16" max-width="560px">
+      <Handelingen :cel="state.casus.cel" :handelingen="state.vormen.handelingen" />
     </nldd-container>
   </nldd-simple-section>
 
