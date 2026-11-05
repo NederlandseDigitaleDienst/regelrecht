@@ -1442,6 +1442,21 @@ where
         .transpose()
 }
 
+/// Deserialize a string that must be an [`is_article_reference`].
+fn article_reference<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if is_article_reference(&s) {
+        Ok(s)
+    } else {
+        Err(serde::de::Error::custom(format!(
+            "'{s}' is not <regulation>#<article> without a paragraph"
+        )))
+    }
+}
+
 /// Deserialize an optional string that, when present, must be an
 /// [`is_article_reference`].
 fn optional_article_reference<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
@@ -1869,6 +1884,53 @@ pub struct MachineReadable {
     /// Document properties this article establishes (schema v0.7.0)
     #[serde(default)]
     pub declares: Option<Vec<Declaration>>,
+    /// In a reduction: the state it keeps while it plays a chronicle
+    /// forward, and what each record does with it (schema v0.8.14).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub projection: Option<Projection>,
+}
+
+/// A reduction that plays a cell's chronicle forward (schema v0.8.14): the
+/// properties of its state, and per article a record rests on, the step
+/// that changes them. Its `execution` answers from the last state.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Projection {
+    pub state: Vec<StateProperty>,
+    pub steps: Vec<ProjectionStep>,
+}
+
+/// One property of a projection's state, with its value before the first
+/// record.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StateProperty {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub property_type: ParameterType,
+    pub initial: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+/// What a record under one article does with the state: the properties it
+/// sets, each computed from `$state` and `$record`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectionStep {
+    /// The article the record rests on, `<regulation>#<article>`.
+    #[serde(deserialize_with = "article_reference")]
+    pub record: String,
+    /// Only records of this kind: a submission kind, a legal character or
+    /// `EXECUTOGRAM`.
+    #[serde(default, rename = "type", skip_serializing_if = "Option::is_none")]
+    pub record_type: Option<String>,
+    /// Only executograms of this fact.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fact: Option<String>,
+    /// The properties this record sets, by name. Each is computed from the
+    /// state before the record, so the order does not matter.
+    pub set: BTreeMap<String, ActionValue>,
 }
 
 /// Represents a single article in a law

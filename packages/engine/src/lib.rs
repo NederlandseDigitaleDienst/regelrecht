@@ -38,6 +38,7 @@ pub mod error;
 mod load_check;
 pub mod operations;
 pub mod priority;
+pub mod projection;
 pub mod receipt;
 pub mod resolver;
 #[cfg(feature = "validate")]
@@ -75,6 +76,9 @@ pub use data_source::{DataSource, DataSourceMatch, DataSourceRegistry, DictDataS
 pub use engine::{ArticleEngine, ArticleResult, FilledBy, OpenTermFilled, OutputProvenance};
 pub use error::{EngineError, ExternalError, Result};
 pub use operations::{evaluate_value, execute_operation, ValueResolver};
+pub use projection::{
+    ChronicleRecord, ProjectionEvent, ProjectionOutcome, RewindCause, StateChange,
+};
 pub use receipt::ExecutionReceipt;
 pub use resolver::{
     DeclarationKind, DeclarationNotInForce, DeclarationsFromOtherVersion, DelegationRefusal,

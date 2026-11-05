@@ -3,7 +3,8 @@
 # (packages/cel/bdd/features/effects.feature). It is loosely shaped after the
 # disabled parking card (Besluit administratieve bepalingen inzake het
 # wegverkeer, artikel 49) and Awb 7:11 lid 2, cut down to what the scenarios
-# need. None of it is the text of a law.
+# need. None of it is the text of a law. Article 4 (a withdrawal) and
+# article 5 (handing the card in) are fictional throughout.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: test_chronicle_effects
 name: Testwet effecten van besluiten
@@ -121,3 +122,21 @@ articles:
         actions:
           - output: ingetrokken
             value: true
+
+  - number: '5'
+    url: https://example.com/test_chronicle_effects/5
+    text: >-
+      FICTIEF. Levert de houder zijn gehandicaptenparkeerkaart in bij de balie
+      van het gemeentehuis, dan wordt dat als feit vastgelegd. Het corpus
+      modelleert geen inlevering van deze kaart; dit artikel bestaat alleen
+      voor de tests.
+    machine_readable:
+      requires:
+        - fact: kaart_ingeleverd
+          description: De houder heeft zijn kaart ingeleverd bij de balie, op de dag die het feit noemt.
+          parameters:
+            - ingeleverd_op
+      execution:
+        parameters:
+          - name: ingeleverd_op
+            type: date

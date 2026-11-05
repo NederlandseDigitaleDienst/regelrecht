@@ -663,6 +663,101 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
     Ok(())
 }
 
+/// A projection (schema v0.8.14) sits only in a reduction, names each
+/// property of its state once, and its steps set only those properties.
+pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
+    let refuse = |where_: String, why: String| {
+        Err(EngineError::LoadError(format!(
+            "law '{}' {where_}: {why}",
+            law.id
+        )))
+    };
+    for (where_, section) in sections(law) {
+        let Some(projection) = &section.projection else {
+            continue;
+        };
+        if law.regulatory_layer != RegulatoryLayer::Reductie {
+            return refuse(
+                where_,
+                "has a projection; only a reduction plays a chronicle forward".to_string(),
+            );
+        }
+        if projection.state.is_empty() {
+            return refuse(where_, "has a projection without a state".to_string());
+        }
+        let declares_state = section
+            .execution
+            .as_ref()
+            .and_then(|e| e.parameters.as_ref())
+            .is_some_and(|ps| ps.iter().any(|p| p.name == crate::projection::STATE));
+        if declares_state {
+            return refuse(
+                where_,
+                format!(
+                    "declares a parameter '{}', which its projection gives",
+                    crate::projection::STATE
+                ),
+            );
+        }
+        let mut names: Vec<&str> = Vec::new();
+        for property in &projection.state {
+            if !initial_fits(&property.property_type, &property.initial) {
+                return refuse(
+                    where_,
+                    format!(
+                        "gives state property '{}' an initial value that is no {:?}, or a type \
+                         a state cannot have",
+                        property.name, property.property_type
+                    ),
+                );
+            }
+            if names.contains(&property.name.as_str()) {
+                return refuse(
+                    where_,
+                    format!("names state property '{}' twice", property.name),
+                );
+            }
+            names.push(&property.name);
+        }
+        for step in &projection.steps {
+            if step.set.is_empty() {
+                return refuse(
+                    where_,
+                    format!("sets nothing for a record under {}", step.record),
+                );
+            }
+            if let Some(name) = step.set.keys().find(|k| !names.contains(&k.as_str())) {
+                return refuse(
+                    where_,
+                    format!(
+                        "sets '{name}' for a record under {}, which is no property of its state",
+                        step.record
+                    ),
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Whether `value` is a literal of `ty`, one of the types a projection's
+/// state may have: boolean, number, string, amount (whole eurocents) or date.
+fn initial_fits(
+    ty: &regelrecht_law_model::ParameterType,
+    value: &regelrecht_law_model::Value,
+) -> bool {
+    use regelrecht_law_model::ParameterType as T;
+    use regelrecht_law_model::Value;
+    match (ty, value) {
+        (T::Boolean, Value::Bool(_))
+        | (T::Number, Value::Int(_) | Value::Decimal(_))
+        | (T::Amount, Value::Int(_))
+        | (T::String, Value::String(_)) => true,
+        (T::Date, Value::String(s)) => chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok(),
+        _ => false,
+    }
+}
+
 fn unknown_literal(law: &ArticleBasedLaw, article: &str, where_: String) -> EngineError {
     EngineError::LoadError(format!(
         "law '{}': article {article} writes an unknown value as a literal ({where_}); \
@@ -1157,6 +1252,97 @@ articles:
                 .contains("depend on 'x', which is not a boolean"),
             "{err}"
         );
+    }
+
+    fn law_with_projection(layer: &str, projection: &str) -> String {
+        format!(
+            r#"
+$id: projectie
+regulatory_layer: {layer}
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      projection:
+{projection}
+      execution:
+        output:
+          - name: x
+            type: boolean
+        actions:
+          - output: x
+            value: $state.a
+"#
+        )
+    }
+
+    /// A projection sits in a reduction, names each property once, and its
+    /// steps set only those (schema v0.8.14).
+    #[test]
+    fn a_projection_keeps_to_its_own_state() {
+        let state = "        state:\n          - {name: a, type: boolean, initial: false}\n";
+        let ok = format!("{state}        steps:\n          - {{record: wet#1, set: {{a: true}}}}");
+        LawExecutionService::new()
+            .load_law(&law_with_projection("REDUCTIE", &ok))
+            .unwrap();
+        let declares_state = law_with_projection("REDUCTIE", &ok).replace(
+            "      execution:\n",
+            "      execution:\n        parameters:\n          - {name: state, type: object}\n",
+        );
+        let err = LawExecutionService::new()
+            .load_law(&declares_state)
+            .expect_err("a declared state");
+        assert!(
+            err.to_string().contains("declares a parameter 'state'"),
+            "{err}"
+        );
+        for (layer, projection, why) in [
+            (
+                "WET",
+                ok.clone(),
+                "only a reduction plays a chronicle forward",
+            ),
+            (
+                "REDUCTIE",
+                format!("{state}        steps:\n          - {{record: wet#1, set: {{b: true}}}}"),
+                "sets 'b' for a record under wet#1, which is no property of its state",
+            ),
+            (
+                "REDUCTIE",
+                format!(
+                    "{state}          - {{name: a, type: number, initial: 0}}\n        steps: []"
+                ),
+                "names state property 'a' twice",
+            ),
+            (
+                "REDUCTIE",
+                "        state:\n          - {name: a, type: boolean, initial: 0}\n        steps: []"
+                    .to_string(),
+                "initial value that is no Boolean",
+            ),
+            (
+                "REDUCTIE",
+                "        state:\n          - {name: a, type: array, initial: []}\n        steps: []"
+                    .to_string(),
+                "or a type a state cannot have",
+            ),
+            (
+                "REDUCTIE",
+                "        state: []\n        steps: []".to_string(),
+                "has a projection without a state",
+            ),
+            (
+                "REDUCTIE",
+                format!("{state}        steps:\n          - {{record: wet#1, set: {{}}}}"),
+                "sets nothing for a record under wet#1",
+            ),
+        ] {
+            let err = LawExecutionService::new()
+                .load_law(&law_with_projection(layer, &projection))
+                .expect_err(why);
+            assert!(err.to_string().contains(why), "{why}: {err}");
+        }
     }
 
     /// Not an Unknown: a sentinel without a usable `missing` list stays a

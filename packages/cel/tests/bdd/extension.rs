@@ -10,8 +10,11 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use chrono::NaiveDate;
-use regelrecht_cel::{effects, Chronicle, Gram};
-use regelrecht_engine::{Article, LawExecutionService, Value};
+use regelrecht_cel::{shape, Chronicle, Gram, EXECUTOGRAM};
+use regelrecht_engine::projection::{cause_word, describe_changes};
+use regelrecht_engine::{
+    Article, ChronicleRecord, LawExecutionService, ProjectionEvent, ProjectionOutcome, Value,
+};
 use regelrecht_law_model::stored;
 use walkdir::WalkDir;
 
@@ -22,9 +25,11 @@ use crate::world::RegelrechtWorld;
 /// The cell that records, as `recording_actor`.
 const CELL: &str = "test_cel";
 
-/// The cell's chronicle in this scenario.
+/// The cell's chronicle in this scenario, and the last projection played
+/// over it.
 pub struct State {
     chronicle: Chronicle,
+    projection: Option<ProjectionOutcome>,
 }
 
 impl State {
@@ -52,6 +57,7 @@ impl State {
         }
         Self {
             chronicle: Chronicle::in_memory(),
+            projection: None,
         }
     }
 }
@@ -85,27 +91,50 @@ pub fn dispatch(
             let basis = format!("{}#{}", args[2].as_str(), args[1].as_str());
             decide(world, args[0].as_str(), &basis, None, parameters);
         }
-        "evaluate_over_counting_decisions" => {
-            let counting = counting_rows(world);
-            world
-                .parameters
-                .insert(args[2].as_str().to_string(), Value::Array(counting));
-            world.run_evaluation(args[1].as_str(), &[args[0].as_str().to_string()]);
-        }
-        "assert_decision_counts" => {
-            let id = args[0].as_str();
-            assert!(
-                world.extension.chronicle.grams().iter().any(|g| g.id == id),
-                "no record '{id}' in the chronicle"
+        "record_fact" => {
+            let fields = rows_to_params(&table.expect("fields table"), table_cell_value);
+            record_fact(
+                world,
+                args[0].as_str(),
+                args[1].as_str(),
+                args[2].as_str(),
+                args[3].as_str(),
+                fields,
             );
-            let counts = effects::counting(&world.service, &world.extension.chronicle)
-                .expect("play the effects")
-                .iter()
-                .any(|g| g.id == id);
+        }
+        "evaluate_over_chronicle" => {
+            evaluate_over_chronicle(world, args[0].as_str(), args[1].as_str())
+        }
+        "assert_projection_trace" => assert_projection_trace(world, &table.expect("trace table")),
+        "assert_last_set_by" => {
+            let (name, id) = (args[0].as_str(), args[1].as_str());
+            let set_by = projection(world)
+                .set_by
+                .get(name)
+                .unwrap_or_else(|| panic!("no state property '{name}'"));
             assert_eq!(
-                counts,
+                set_by.as_deref(),
+                Some(id),
+                "the record that set '{name}' last"
+            );
+        }
+        "assert_record_applied" => {
+            let id = args[0].as_str();
+            let events = last_replay(&projection(world).events);
+            let applied = events
+                .iter()
+                .any(|e| matches!(e, ProjectionEvent::Applied { record, .. } if record == id));
+            let skipped = events
+                .iter()
+                .any(|e| matches!(e, ProjectionEvent::Skipped { record, .. } if record == id));
+            assert!(
+                applied || skipped,
+                "record '{id}' is not in the last replay"
+            );
+            assert_eq!(
+                applied,
                 args[1].as_bool(),
-                "whether the consequences of '{id}' count"
+                "whether record '{id}' is applied"
             );
         }
         _ => return false,
@@ -259,22 +288,178 @@ fn append(world: &mut RegelrechtWorld, gram: Gram) {
         .unwrap_or_else(|e| panic!("record in the chronicle: {e}"));
 }
 
-/// The decisions whose consequences count, as the collection a reduction
-/// is given: per decision its `id`, its `basis`, its fields and its outputs.
-fn counting_rows(world: &RegelrechtWorld) -> Vec<Value> {
-    effects::counting(&world.service, &world.extension.chronicle)
-        .expect("play the effects")
-        .into_iter()
-        .map(|g| {
-            let mut row: BTreeMap<String, Value> = g
-                .fields
-                .iter()
-                .chain(&g.outputs)
-                .map(|(k, v)| (k.clone(), stored::from_stored(v).expect("stored value")))
-                .collect();
-            row.insert("id".to_string(), Value::String(g.id.clone()));
-            row.insert("basis".to_string(), Value::String(g.basis.clone()));
-            Value::Object(row)
+/// Record an executogram of `fact`, required by the article, with the
+/// values of its fields. The fields must be exactly those the fact holds.
+fn record_fact(
+    world: &mut RegelrechtWorld,
+    fact: &str,
+    id: &str,
+    number: &str,
+    law: &str,
+    fields: BTreeMap<String, Value>,
+) {
+    let basis = format!("{law}#{number}");
+    let declared = shape::fact_fields(
+        &world.service,
+        &format!("{basis}#{fact}"),
+        today(world),
+        None,
+    )
+    .unwrap_or_else(|e| panic!("fact {fact} under {basis}: {e}"));
+    let mut names: Vec<&str> = declared.iter().map(|f| f.name.as_str()).collect();
+    names.sort_unstable();
+    let given: Vec<&str> = fields.keys().map(String::as_str).collect();
+    assert_eq!(given, names, "the fields of fact {fact} under {basis}");
+    let mut gram = gram(
+        world,
+        id,
+        EXECUTOGRAM.to_string(),
+        basis,
+        None,
+        fields,
+        BTreeMap::new(),
+    );
+    gram.fact = Some(fact.to_string());
+    append(world, gram);
+}
+
+/// Play every record of the chronicle through the projection of `law` and
+/// keep the answer, with the engine's trace.
+fn evaluate_over_chronicle(world: &mut RegelrechtWorld, output: &str, law: &str) {
+    let records: Vec<ChronicleRecord> = world
+        .extension
+        .chronicle
+        .grams()
+        .iter()
+        .map(|g| ChronicleRecord {
+            id: g.id.clone(),
+            kind: g.kind.clone(),
+            basis: g.basis.clone(),
+            fact: g.fact.clone(),
+            recorded_on: g.recorded_on,
+            fields: read_back(&g.fields),
+            outputs: read_back(&g.outputs),
+        })
+        .collect();
+    let outcome = world.service.evaluate_projection(
+        law,
+        &[output],
+        &records,
+        world.parameters.clone(),
+        &world.calculation_date,
+        true,
+    );
+    world.requested_outputs = vec![output.to_string()];
+    match outcome {
+        Ok(outcome) => {
+            world.result = Some(outcome.result.clone());
+            world.error = None;
+            world.extension.projection = Some(outcome);
+        }
+        Err(e) => {
+            world.result = None;
+            world.error = Some(e);
+            world.extension.projection = None;
+        }
+    }
+}
+
+fn read_back(values: &BTreeMap<String, serde_json::Value>) -> BTreeMap<String, Value> {
+    values
+        .iter()
+        .map(|(k, v)| (k.clone(), stored::from_stored(v).expect("stored value")))
+        .collect()
+}
+
+fn projection(world: &RegelrechtWorld) -> &ProjectionOutcome {
+    world.extension.projection.as_ref().unwrap_or_else(|| {
+        panic!(
+            "no projection was played: {:?}",
+            world.error.as_ref().map(ToString::to_string)
+        )
+    })
+}
+
+/// The events of the last replay: those after the last rewind.
+fn last_replay(events: &[ProjectionEvent]) -> &[ProjectionEvent] {
+    let start = events
+        .iter()
+        .rposition(|e| matches!(e, ProjectionEvent::Rewound { .. }))
+        .map_or(0, |i| i + 1);
+    &events[start..]
+}
+
+/// The events as rows `record | event | detail`.
+fn trace_rows(events: &[ProjectionEvent]) -> Vec<[String; 3]> {
+    events
+        .iter()
+        .map(|e| match e {
+            ProjectionEvent::Applied { record, changes } => [
+                record.clone(),
+                "applied".to_string(),
+                describe_changes(changes),
+            ],
+            ProjectionEvent::Skipped { record, undone_by } => [
+                record.clone(),
+                "skipped".to_string(),
+                format!("undone by {}", undone_by.join(", ")),
+            ],
+            ProjectionEvent::Rewound {
+                record,
+                cause,
+                target,
+            } => [
+                record.clone(),
+                "rewound".to_string(),
+                format!("{} {target}", cause_word(*cause)),
+            ],
         })
         .collect()
+}
+
+/// The trace table must match the events exactly, and the engine's trace
+/// must hold them as the children of its `PROJECTION` node.
+fn assert_projection_trace(world: &RegelrechtWorld, table: &Rows) {
+    let outcome = projection(world);
+    let header: Vec<&str> = table
+        .first()
+        .map(|row| row.iter().map(|c| c.trim()).collect())
+        .unwrap_or_default();
+    assert_eq!(
+        header,
+        ["record", "event", "detail"],
+        "the header of the trace table"
+    );
+    let expected: Vec<[String; 3]> = table
+        .iter()
+        .skip(1)
+        .map(|row| {
+            assert_eq!(row.len(), 3, "a trace row is record | event | detail");
+            [
+                row[0].trim().to_string(),
+                row[1].trim().to_string(),
+                row[2].trim().to_string(),
+            ]
+        })
+        .collect();
+    let actual = trace_rows(&outcome.events);
+    let show = |rows: &[[String; 3]]| {
+        rows.iter()
+            .map(|r| format!("| {} | {} | {} |", r[0], r[1], r[2]))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    assert!(expected == actual, "projection trace:\n{}", show(&actual));
+
+    let root = outcome.result.trace.as_ref().expect("the engine trace");
+    let node = root
+        .children
+        .iter()
+        .find(|n| n.name == "PROJECTION")
+        .expect("a PROJECTION node in the engine trace");
+    assert_eq!(
+        node.children.len(),
+        outcome.events.len(),
+        "one trace node per event"
+    );
 }

@@ -99,8 +99,10 @@ only runs features whose tiers it supports.
 ## The cell's own steps
 
 `packages/cel/bdd/` holds a BDD suite of its own, with steps that record
-submissions and decisions in the chronicle of a cell and evaluate a reduction
-over the decisions whose consequences still count. Those steps are not part of
+submissions, decisions and facts in the chronicle of a cell, evaluate a
+reduction that plays the chronicle forward (`projection`, schema v0.8.14), and
+check the steps the engine took: the table of records applied and skipped and
+of replays, and which record set a property last. Those steps are not part of
 this grammar. This grammar is the contract every engine executes, the Rust
 engine and the JS engines alike, while a chronicle is behavior of one
 implementation, the cell. Whether the law format should describe chronicles at

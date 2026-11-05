@@ -13,8 +13,8 @@ version: 1
 # packages/cel/build.rs. The format is that of bdd/grammar.yaml; this file
 # takes the value typing of the base and declares none of its own.
 #
-# A cell records submissions and decisions in its chronicle, in order, and a
-# reduction reads from the decisions whose consequences still count. The id in
+# A cell records submissions, decisions and facts in its chronicle, in order,
+# and a reduction plays it forward. The id in
 # quotes names a record within the scenario; a decision refers to an earlier
 # one by it. The recording day is the calculation date.
 
@@ -57,30 +57,58 @@ steps:
     args: [{name: id, type: string}, {name: article, type: string}, {name: law, type: string}]
     datatable: true
 
-  # Evaluate a reduction over the decisions whose consequences count, after
-  # the cell has played the effects the law gives them (`produces[].effects`).
-  # The decisions go to the named parameter as a collection, in the order
-  # they were recorded; each is an object with its `id`, its `basis`, its
-  # fields and its outputs.
-  - id: evaluate_over_counting_decisions
-    action: evaluate_over_counting_decisions
+  # A fact the cell records as an executogram (RFC-051): an instance of a
+  # fact the article requires (`requires`), with the values of its fields.
+  - id: record_fact
+    action: record_fact
     keyword: when
     tier: cel
-    text: I evaluate "{output}" of "{law}" over the decisions that count as "{parameter}"
-    args: [{name: output, type: string}, {name: law, type: string}, {name: parameter, type: string}]
+    text: 'the cell records fact "{fact}" as "{id}" under article "{article}" of "{law}" with:'
+    args: [{name: fact, type: string}, {name: id, type: string}, {name: article, type: string}, {name: law, type: string}]
+    datatable: true
 
-  - id: assert_decision_counts
-    action: assert_decision_counts
+  # Evaluate a reduction that plays the chronicle forward (`projection`,
+  # schema v0.8.14) over every record of the cell, in the order recorded. The
+  # canonical output steps then read its answer.
+  - id: evaluate_over_chronicle
+    action: evaluate_over_chronicle
+    keyword: when
+    tier: cel
+    text: I evaluate "{output}" of "{law}" over the chronicle
+    args: [{name: output, type: string}, {name: law, type: string}]
+
+  # Every step the last evaluation took, in order: a record applied (with
+  # the properties it set, `property: from -> to`, or `-`), a record skipped
+  # (with the records that undo it), and a rewind (with its cause and the
+  # record it is about). The table has a header row `record | event |
+  # detail` and must match exactly.
+  - id: assert_projection_trace
+    action: assert_projection_trace
     keyword: then
     tier: cel
-    text: the consequences of decision "{id}" count
+    text: 'the projection trace is:'
+    datatable: true
+
+  - id: assert_last_set_by
+    action: assert_last_set_by
+    keyword: then
+    tier: cel
+    text: property "{name}" was last set by "{id}"
+    args: [{name: name, type: string}, {name: id, type: string}]
+
+  # Whether the record was applied or skipped in the last replay.
+  - id: assert_record_applied
+    action: assert_record_applied
+    keyword: then
+    tier: cel
+    text: record "{id}" is applied
     args: [{name: id, type: string}]
     literals: [true]
 
-  - id: assert_decision_does_not_count
-    action: assert_decision_counts
+  - id: assert_record_skipped
+    action: assert_record_applied
     keyword: then
     tier: cel
-    text: the consequences of decision "{id}" do not count
+    text: record "{id}" is skipped
     args: [{name: id, type: string}]
     literals: [false]

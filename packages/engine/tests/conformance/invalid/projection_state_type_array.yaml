@@ -1,0 +1,38 @@
+---
+# A property of a projection's state is a boolean, number, string, amount or
+# date (schema v0.8.14).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: test_conformance_projection_state_type_array
+regulatory_layer: REDUCTIE
+publication_date: '2026-11-05'
+valid_from: '2026-11-05'
+url: https://example.invalid/projection
+name: Testreductie projectie
+articles:
+  - number: '1'
+    url: https://example.invalid/projection/1
+    text: De aanvrager heeft een kaart zolang een verlening meetelt en hij haar niet inleverde.
+    machine_readable:
+      projection:
+        state:
+          - name: in_bezit
+            type: array
+            initial: []
+            description: Of de aanvrager een kaart heeft.
+        steps:
+          - record: test_conformance_decision_effects#2
+            type: BESCHIKKING
+            set:
+              in_bezit: $record.verleend
+          - record: test_conformance_fact#1
+            type: EXECUTOGRAM
+            fact: vestiging
+            set:
+              in_bezit: false
+      execution:
+        output:
+          - name: heeft_kaart
+            type: boolean
+        actions:
+          - output: heeft_kaart
+            value: $state.in_bezit

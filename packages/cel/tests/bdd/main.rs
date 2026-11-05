@@ -1,6 +1,6 @@
-//! The cell's own BDD suite: a cell records submissions and decisions in its
-//! chronicle, plays the effects the law gives a decision on another one, and
-//! a reduction reads the decisions whose consequences count.
+//! The cell's own BDD suite: a cell records submissions, decisions and facts
+//! in its chronicle, and a reduction plays the chronicle forward
+//! (`projection`), with the engine rewinding where the law undoes a record.
 //!
 //! The features are in `packages/cel/bdd/features`, their fixtures (a
 //! synthetic law and a cell with its reduction) in `packages/cel/bdd/fixtures`.

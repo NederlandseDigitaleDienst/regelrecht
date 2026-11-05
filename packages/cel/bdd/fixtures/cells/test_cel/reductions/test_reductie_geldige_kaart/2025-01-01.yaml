@@ -1,9 +1,11 @@
 ---
 # FICTIEF. The reduction of the cell's BDD suite
-# (packages/cel/bdd/features/effects.feature). It is given only the decisions
-# whose consequences count, in the order they were recorded; which ones those
-# are follows from the effects the law declares (`produces[].effects`), played
-# by the cell, not from anything in this reduction.
+# (packages/cel/bdd/features/effects.feature). It plays the chronicle forward
+# and keeps a state: whether the applicant holds a card, and how many grants
+# counted. What a record does with the state is below, per article. Which
+# records count follows from the effects the law gives a decision on another
+# one (`produces[].effects`); the engine carries those out by rewinding, and
+# nothing in this reduction speaks of revoking or replacing.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: test_reductie_geldige_kaart
 regulatory_layer: REDUCTIE
@@ -16,34 +18,62 @@ articles:
   - number: '1'
     url: https://example.com/test_reductie_geldige_kaart/1
     text: >-
-      FICTIEF. De aanvrager heeft een geldige kaart als een besluit op de
-      kaart waarvan de gevolgen meetellen, de kaart verleent.
+      FICTIEF. Een verlening geeft de aanvrager een kaart, een weigering niet.
+      Levert hij de kaart in, dan heeft hij er geen meer. De aanvrager heeft
+      een geldige kaart als hij er een heeft; zijn kaart is een vervanging als
+      hij er een heeft en er meer dan een verlening meetelde.
     machine_readable:
+      projection:
+        state:
+          - name: in_bezit
+            type: boolean
+            initial: false
+          - name: aantal_verleend
+            type: number
+            initial: 0
+        steps:
+          # A decision on an application, and a decision in the place of
+          # another: both grant or refuse the card.
+          - record: test_chronicle_effects#1
+            type: BESCHIKKING
+            set: &op_de_kaart
+              in_bezit:
+                operation: OR
+                conditions:
+                  - $state.in_bezit
+                  - $record.kaart_verleend
+              aantal_verleend:
+                operation: IF
+                cases:
+                  - when: $record.kaart_verleend
+                    then:
+                      operation: ADD
+                      values:
+                        - $state.aantal_verleend
+                        - 1
+                default: $state.aantal_verleend
+          - record: test_chronicle_effects#3
+            type: BESCHIKKING
+            set: *op_de_kaart
+          - record: test_chronicle_effects#5
+            type: EXECUTOGRAM
+            fact: kaart_ingeleverd
+            set:
+              in_bezit: false
       execution:
-        parameters:
-          - name: besluiten
-            type: array
         output:
           - name: heeft_geldige_kaart
             type: boolean
+          - name: kaart_is_vervanging
+            type: boolean
         actions:
           - output: heeft_geldige_kaart
+            value: $state.in_bezit
+          - output: kaart_is_vervanging
             value:
-              operation: FOREACH
-              collection: $besluiten
-              as: besluit
-              # Only a decision on the card holds `kaart_verleend`: the
-              # basis is checked first, and AND stops at the first false.
-              filter:
-                operation: AND
-                conditions:
-                  - operation: IN
-                    subject: $besluit.basis
-                    values:
-                      - test_chronicle_effects#1
-                      - test_chronicle_effects#3
-                  - operation: EQUALS
-                    subject: $besluit.kaart_verleend
-                    value: true
-              body: true
-              combine: OR
+              operation: AND
+              conditions:
+                - $state.in_bezit
+                - operation: GREATER_THAN
+                  subject: $state.aantal_verleend
+                  value: 1

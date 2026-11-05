@@ -2767,6 +2767,92 @@
           },
           "additionalProperties": false
         },
+        "projection": {
+          "type": "object",
+          "description": "Since v0.8.14, only in a `REDUCTIE`: the reduction plays a cell's chronicle forward and keeps a state, and its `execution` answers from the state after the last record, reading each property as `$state.<name>`. Each record may change the state through the step this reduction gives for its article (`steps`). A record whose article gives an effect on an earlier record (`produces[].effects`) that holds makes the engine rewind: it plays the chronicle again from the start, skipping the undone record, for as long as a record that undoes it still counts; a record that is replaced passes what it undid to its replacer, and a record that is revoked undoes nothing any more. The chronicle itself is never changed. A step is pure: the next state follows from the state before and the record alone, under the version of this reduction in force on the day the record was recorded, with the same article number; the initial state and the answer come from the version in force on the calculation date. The engine records, per property, which record set it last. The article declares no parameter `state`.",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "steps"
+          ],
+          "properties": {
+            "state": {
+              "type": "array",
+              "minItems": 1,
+              "description": "The properties of the state, each with its type and the value it has before the first record.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "type",
+                  "initial"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z_][a-z0-9_]*$",
+                    "description": "The name of the property, read as `$state.<name>`."
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "boolean",
+                      "number",
+                      "string",
+                      "amount",
+                      "date"
+                    ],
+                    "description": "The type of the property."
+                  },
+                  "initial": {
+                    "description": "The value of the property before the first record: a literal of its type."
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "steps": {
+              "type": "array",
+              "description": "What a record does with the state, per article the record rests on. A record without a step leaves the state as it is; its effects on other records still hold.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "record",
+                  "set"
+                ],
+                "properties": {
+                  "record": {
+                    "$ref": "#/definitions/articleReference",
+                    "description": "The article the record rests on (its `basis`), as `<regulation>#<article>`."
+                  },
+                  "type": {
+                    "type": "string",
+                    "description": "Only records of this kind: a submission kind, a legal character or `EXECUTOGRAM`. Without it, every record under the article."
+                  },
+                  "fact": {
+                    "type": "string",
+                    "description": "Only executograms of this fact, by the name the article gives it in `requires`."
+                  },
+                  "set": {
+                    "type": "object",
+                    "minProperties": 1,
+                    "propertyNames": {
+                      "pattern": "^[a-z_][a-z0-9_]*$"
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/definitions/operationValue"
+                    },
+                    "description": "The properties this record sets, each to a value computed from `$state.<name>` (the state before the record) and `$record.<field>` (the record's fields and outputs, its `id`, `basis` and `type`). A property it does not name keeps its value. Every name must be a property of the state; the loader checks it."
+                  }
+                }
+              }
+            }
+          }
+        },
         "hooks": {
           "type": "array",
           "description": "Hook declarations: this article fires when matching lifecycle events occur (RFC-007).",
@@ -3182,7 +3268,7 @@
               },
               "replaces": {
                 "type": "string",
-                "description": "The parameter whose value is the decision this one takes the place of: the consequences of that decision no longer count, and those of this one do (Awb 7:11 lid 2)."
+                "description": "The parameter whose value is the decision this one takes the place of: the consequences of that decision no longer count, and those of this one do (Awb 7:11 lid 2). This decision also takes over what that one undid."
               },
               "when": {
                 "type": "string",
@@ -3191,7 +3277,7 @@
             }
           },
           "minItems": 1,
-          "description": "Since v0.8.14, only on a decision: what this decision does with another decision, such as the decision on an objection that revokes the contested decision (Awb 7:11 lid 2) or takes a new decision in its place. Each effect names a parameter of this article whose value is the other decision, and with `when` a boolean output of this decision that must be true for the effect to hold. A runtime that records decisions plays the effects in the order the decisions were recorded, and from them derives which decisions still have consequences: a revoked decision has none, a replaced one has none and its replacement has them, and when a revoking or replacing decision itself loses its consequences, the decision it revoked or replaced has them again. The engine does not act on it; the loader checks that it sits on a decision, that every named parameter is a parameter of the article, and that every `when` names a boolean output of the decision."
+          "description": "Since v0.8.14, only on a decision: what this decision does with another decision, such as the decision on an objection that revokes the contested decision (Awb 7:11 lid 2) or takes a new decision in its place. Each effect names a parameter of this article whose value is the other decision, and with `when` a boolean output of this decision that must be true for the effect to hold. A runtime that records decisions plays the effects in the order the decisions were recorded, and from them derives which decisions still have consequences: a revoked decision has none, a replaced one has none and its replacement has them, A decision that is itself revoked undoes nothing any more, so a decision it alone revoked or replaced has consequences again. A decision that is itself replaced passes what it undid to its replacement, which takes its place: a decision replaced twice stays replaced. The engine carries the effects out when it plays a chronicle through a reduction with a `projection`; the loader checks that it sits on a decision, that every named parameter is a parameter of the article, and that every `when` names a boolean output of the decision."
         },
         "decision_type": {
           "type": "string",
