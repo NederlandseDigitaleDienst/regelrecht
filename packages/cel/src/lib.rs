@@ -28,6 +28,7 @@
 pub mod cell;
 pub mod chronicle;
 pub mod decision;
+pub mod effects;
 pub mod error;
 pub mod files;
 pub mod identity;

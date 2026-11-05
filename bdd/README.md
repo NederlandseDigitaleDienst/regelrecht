@@ -96,6 +96,31 @@ human, not a broken build.
 required tiers come from its `@tier:<name>` tags (untagged = `core`). A runner
 only runs features whose tiers it supports.
 
+## The cell's own steps
+
+`packages/cel/bdd/` holds a BDD suite of its own, with steps that record
+submissions and decisions in the chronicle of a cell and evaluate a reduction
+over the decisions whose consequences still count. Those steps are not part of
+this grammar. This grammar is the contract every engine executes, the Rust
+engine and the JS engines alike, while a chronicle is behavior of one
+implementation, the cell. Whether the law format should describe chronicles at
+all is still an open question.
+
+The cell's steps live in `packages/cel/bdd/grammar.yaml`, in the format of this
+file. A cell feature may use both sets, so it can still set the calculation
+date and assert an output with the canonical steps. The bindings come from the
+same generator: `packages/engine/build_codegen/` reads a base grammar plus an
+extension, and `packages/cel/build.rs` includes it. `gen-js.mjs` reads only
+this file.
+
+The runner (`packages/cel/tests/bdd/`) reuses the engine runner's world,
+dispatch and helpers by `#[path]` and adds its actions in its own
+`extension.rs`. It sits in the cell because the engine cannot depend on the
+cell, not even for a test: the Docker builds of the WASM module, the editor and
+admin drop `cel` from the workspace and do not copy it, and Cargo still has to
+resolve a path dev-dependency. `just bdd` and the **BDD conformance** job in CI
+run it after the engine's runner.
+
 ## Engine runner contract
 
 An engine that "speaks" the language provides:

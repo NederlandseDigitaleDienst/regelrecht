@@ -619,6 +619,20 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
             listed.push(name);
         }
         for &item in &produced {
+            if item.legal_character().is_none() && !item.effects().is_empty() {
+                return refuse(format!(
+                    "lists effects on its {}; only a decision has effects on another decision",
+                    item.submission_kind().unwrap_or("item")
+                ));
+            }
+            for effect in item.effects() {
+                let name = effect.parameter();
+                if !article.get_parameters().iter().any(|p| p.name == name) {
+                    return refuse(format!(
+                        "names parameter '{name}' in an effect under produces, but declares no such parameter"
+                    ));
+                }
+            }
             for name in article.parameters_of(item) {
                 if !article.get_parameters().iter().any(|p| p.name == name) {
                     return refuse(format!(
@@ -1060,6 +1074,14 @@ articles:
                 "          - type: AANVRAAG\n            outputs: [x]\n          - type: BESCHIKKING\n            outputs: [x]",
                 "gives output 'x' to two things",
             ),
+            (
+                "          - type: AANVRAAG\n            parameters: [p]\n            effects:\n              - revokes: p\n          - type: BESCHIKKING",
+                "lists effects on its AANVRAAG",
+            ),
+            (
+                "          - type: BESCHIKKING\n            effects:\n              - replaces: q",
+                "names parameter 'q' in an effect",
+            ),
         ] {
             let mut service = LawExecutionService::new();
             let err = service
@@ -1069,6 +1091,19 @@ articles:
                 matches!(err, EngineError::LoadError(_)) && err.to_string().contains(why),
                 "{why}: got {err:?}"
             );
+        }
+    }
+
+    /// A decision's effects name a parameter of the article (schema v0.8.14).
+    #[test]
+    fn a_decision_may_revoke_or_replace_by_a_parameter() {
+        for effect in ["revokes", "replaces"] {
+            let items = format!(
+                "          - type: BESCHIKKING\n            effects:\n              - {effect}: p"
+            );
+            LawExecutionService::new()
+                .load_law(&law_producing(&items))
+                .unwrap_or_else(|e| panic!("{effect}: {e}"));
         }
     }
 

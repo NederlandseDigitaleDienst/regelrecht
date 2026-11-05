@@ -75,6 +75,8 @@ const KNOWN_GAPS: &[&str] = &[
     "produces_unknown_decision_type.yaml",   // schema pins 9 decision types; model reads any string
     "produces_empty_list.yaml", // schema v0.8.1 wants at least one produced thing in a list; the model reads an empty list as producing nothing, which is what an absent `produces` means
     "produces_list_empty_outputs.yaml", // schema v0.8.1 wants at least one name under `outputs`; the model reads an empty list as an item that yields no output, which is what the schema means to rule out but harmless at run time
+    "produces_list_effects_empty.yaml", // schema v0.8.14 wants at least one effect; the model reads an empty list as a decision that does nothing with another, which is what an absent `effects` means
+    "produces_list_effects_on_submission.yaml", // schema v0.8.14 allows `effects` only on a decision; the model reads them on any item, and the loader refuses the law (`reject_ambiguous_produces`) — leniency stops at the model boundary
     "produces_list_unknown_type.yaml", // schema v0.8.1 pins `type` to a submission kind or a legal character; the model reads any string, and an unknown one as a legal character, as for `produces_unknown_legal_character`
     "produces_list_requests_on_decision.yaml", // schema v0.8.1 allows `requests` only on a submission (`if`/`then`); the model has it on every item, and the loader refuses it (`reject_ambiguous_produces`)
     "produces_list_derived_on_submission.yaml", // schema v0.8.4 allows `derived` only on a decision (`if`/`then`); the model has it on every item, and the loader refuses it (`reject_ambiguous_produces`)

@@ -871,6 +871,8 @@ function cratesOf(run, workspace) {
 export const BDD_RUNNERS = [
   // `corpus-poc/napp/scenarios`, joined in main.rs.
   { runner: 'packages/poc-napp/tests/bdd/main.rs', root: 'corpus-poc/napp/scenarios' },
+  // The cell's own BDD suite: `bdd/features`, joined in main.rs.
+  { runner: 'packages/cel/tests/bdd/main.rs', root: 'packages/cel/bdd/features' },
   // `corpusDir` in tests/helpers/casusPaden.js.
   { runner: 'frontend-poc-terugbetaalregimes/tests/scenarios.test.js', root: 'corpus-poc/terugbetaalregimes/corpus' },
   { runner: 'frontend-poc-nieuwkomersbekostiging/tests/scenarios.test.js', root: 'corpus-poc/nieuwkomersbekostiging/corpus' },

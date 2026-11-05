@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.13",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.14",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -3103,6 +3103,23 @@
         "kieswet#G 1"
       ]
     },
+    "decisionEffect": {
+      "type": "object",
+      "description": "Since v0.8.14: one thing a decision does with another decision, named by a parameter of the article whose value is that decision. Exactly one of `revokes` and `replaces`.",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "properties": {
+        "revokes": {
+          "type": "string",
+          "description": "The parameter whose value is the decision this one revokes: its consequences no longer count (Awb 7:11 lid 2)."
+        },
+        "replaces": {
+          "type": "string",
+          "description": "The parameter whose value is the decision this one takes the place of: the consequences of that decision no longer count, and those of this one do (Awb 7:11 lid 2)."
+        }
+      }
+    },
     "producedItem": {
       "type": "object",
       "required": [
@@ -3156,6 +3173,14 @@
           "minItems": 1,
           "uniqueItems": true,
           "description": "Only on a decision: the names of this article's outputs that are data derived for the decision (RFC-050), such as an intermediate result the decision is recorded with. They are computed at the decision's stages and recorded with it, but are none of its outputs, so a call to the article (`source.article`) leaves them out of the decision value. Derived data is listed, never inferred: an output that no item lists under `outputs` or `derived` is refused, so a forgotten or misspelt output fails instead of turning into derived data. Every name must be an output of the article and belongs to no other item; the loader checks both."
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/decisionEffect"
+          },
+          "minItems": 1,
+          "description": "Since v0.8.14, only on a decision: what this decision does with another decision, such as the decision on an objection that revokes the contested decision (Awb 7:11 lid 2) or takes a new decision in its place. Each effect names a parameter of this article whose value is the other decision. A runtime that records decisions plays the effects in the order the decisions were recorded, and from them derives which decisions still have consequences: a revoked decision has none, a replaced one has none and its replacement has them, and when a revoking or replacing decision itself loses its consequences, the decision it revoked or replaced has them again. The engine does not act on it; the loader checks that it sits on a decision and that every named parameter is a parameter of the article."
         },
         "decision_type": {
           "type": "string",
@@ -3236,6 +3261,11 @@
                 {
                   "required": [
                     "derived"
+                  ]
+                },
+                {
+                  "required": [
+                    "effects"
                   ]
                 }
               ]

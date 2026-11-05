@@ -1,0 +1,31 @@
+---
+# One effect names one thing a decision does: revokes or replaces, not both
+# (schema v0.8.14).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: test_conformance_effect_two_kinds
+regulatory_layer: WET
+publication_date: '2026-11-05'
+valid_from: '2026-11-05'
+bwb_id: BWBR0099993
+name: Testwet effect met twee soorten
+url: https://example.invalid/effect-two-kinds
+articles:
+  - number: '1'
+    url: https://example.invalid/effect-two-kinds/1
+    text: Het bestuursorgaan herroept het bestreden besluit.
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            effects:
+              - revokes: bestreden_besluit
+                replaces: bestreden_besluit
+        parameters:
+          - name: bestreden_besluit
+            type: string
+        output:
+          - name: herroepen
+            type: boolean
+        actions:
+          - output: herroepen
+            value: true

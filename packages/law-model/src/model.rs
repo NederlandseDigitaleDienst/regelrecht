@@ -470,6 +470,74 @@ pub struct ProducedItem {
     /// The moment that counts in law for this item (RFC-045).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub moment: Option<Moment>,
+    /// For a decision: what it does with another decision (schema v0.8.14),
+    /// such as revoking the contested decision (Awb 7:11 lid 2). A runtime
+    /// that records decisions plays these; the engine does not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effects: Option<Vec<DecisionEffect>>,
+}
+
+/// One thing a decision does with another decision (schema v0.8.14). Each
+/// names the parameter of the article whose value is that other decision.
+///
+/// In YAML it is a map with exactly one key, `revokes` or `replaces`. The
+/// YAML library reads an externally tagged enum from a YAML tag, so the map
+/// goes through [`DecisionEffectFields`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "DecisionEffectFields", into = "DecisionEffectFields")]
+pub enum DecisionEffect {
+    /// The other decision's consequences no longer count.
+    Revokes(String),
+    /// The other decision's consequences no longer count, and this
+    /// decision's consequences count in their place.
+    Replaces(String),
+}
+
+/// The map form of a [`DecisionEffect`], only for (de)serializing it.
+#[doc(hidden)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DecisionEffectFields {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    revokes: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    replaces: Option<String>,
+}
+
+impl TryFrom<DecisionEffectFields> for DecisionEffect {
+    type Error = String;
+
+    fn try_from(fields: DecisionEffectFields) -> Result<Self, Self::Error> {
+        match (fields.revokes, fields.replaces) {
+            (Some(p), None) => Ok(Self::Revokes(p)),
+            (None, Some(p)) => Ok(Self::Replaces(p)),
+            _ => Err("an effect names exactly one of `revokes` and `replaces`".to_string()),
+        }
+    }
+}
+
+impl From<DecisionEffect> for DecisionEffectFields {
+    fn from(effect: DecisionEffect) -> Self {
+        match effect {
+            DecisionEffect::Revokes(p) => Self {
+                revokes: Some(p),
+                ..Self::default()
+            },
+            DecisionEffect::Replaces(p) => Self {
+                replaces: Some(p),
+                ..Self::default()
+            },
+        }
+    }
+}
+
+impl DecisionEffect {
+    /// The parameter whose value is the other decision.
+    pub fn parameter(&self) -> &str {
+        match self {
+            Self::Revokes(p) | Self::Replaces(p) => p,
+        }
+    }
 }
 
 impl ProducedItem {
@@ -546,6 +614,15 @@ impl<'a> Produced<'a> {
         match self {
             Self::Object(_) => None,
             Self::Item(i) => i.derived.as_deref(),
+        }
+    }
+
+    /// For a decision in the list form: what it does with other decisions
+    /// (schema v0.8.14); empty for the object form.
+    pub fn effects(self) -> &'a [DecisionEffect] {
+        match self {
+            Self::Object(_) => &[],
+            Self::Item(i) => i.effects.as_deref().unwrap_or_default(),
         }
     }
 

@@ -1,0 +1,118 @@
+---
+# FICTIEF. A synthetic law for the cell's BDD suite
+# (packages/cel/bdd/features/effects.feature). It is loosely shaped after the
+# disabled parking card (Besluit administratieve bepalingen inzake het
+# wegverkeer, artikel 49) and Awb 7:11 lid 2, cut down to what the scenarios
+# need. None of it is the text of a law.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: test_chronicle_effects
+name: Testwet effecten van besluiten
+regulatory_layer: WET
+bwb_id: BWBR9999916
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_chronicle_effects
+
+articles:
+  - number: '1'
+    url: https://example.com/test_chronicle_effects/1
+    text: >-
+      FICTIEF. Op aanvraag verleent het college een gehandicaptenparkeerkaart
+      aan wie ernstig beperkt is in zijn loopvermogen.
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: test_chronicle_effects#1
+            parameters:
+              - ernstig_beperkt
+          - type: BESCHIKKING
+            outputs:
+              - kaart_verleend
+        parameters:
+          - name: ernstig_beperkt
+            type: boolean
+        output:
+          - name: kaart_verleend
+            type: boolean
+        actions:
+          - output: kaart_verleend
+            value: $ernstig_beperkt
+
+  - number: '2'
+    url: https://example.com/test_chronicle_effects/2
+    text: >-
+      FICTIEF, naar artikel 7:11, tweede lid, van de Algemene wet
+      bestuursrecht. Is het bezwaar gegrond, dan herroept het college het
+      bestreden besluit.
+    machine_readable:
+      execution:
+        produces:
+          - type: BEZWAAR
+            requests: test_chronicle_effects#2
+            parameters:
+              - bestreden_besluit
+          - type: BESCHIKKING
+            outputs:
+              - herroepen
+            effects:
+              - revokes: bestreden_besluit
+        parameters:
+          - name: bestreden_besluit
+            type: string
+        output:
+          - name: herroepen
+            type: boolean
+        actions:
+          - output: herroepen
+            value: true
+
+  - number: '3'
+    url: https://example.com/test_chronicle_effects/3
+    text: >-
+      FICTIEF, naar artikel 7:11, tweede lid, van de Algemene wet
+      bestuursrecht. Het college neemt in de plaats van het herroepen besluit
+      een nieuw besluit op de aanvraag.
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            outputs:
+              - kaart_verleend
+            effects:
+              - replaces: bestreden_besluit
+        parameters:
+          - name: bestreden_besluit
+            type: string
+          - name: ernstig_beperkt
+            type: boolean
+        output:
+          - name: kaart_verleend
+            type: boolean
+        actions:
+          - output: kaart_verleend
+            value: $ernstig_beperkt
+
+  - number: '4'
+    url: https://example.com/test_chronicle_effects/4
+    text: >-
+      FICTIEF. Het college kan een verleende gehandicaptenparkeerkaart
+      intrekken. Het corpus modelleert geen intrekking van deze kaart; dit
+      artikel bestaat alleen voor de tests.
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            outputs:
+              - ingetrokken
+            effects:
+              - revokes: ingetrokken_besluit
+        parameters:
+          - name: ingetrokken_besluit
+            type: string
+        output:
+          - name: ingetrokken
+            type: boolean
+        actions:
+          - output: ingetrokken
+            value: true
