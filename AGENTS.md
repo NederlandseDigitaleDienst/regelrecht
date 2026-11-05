@@ -659,6 +659,10 @@ closing the PR) deletes the preview. `deploy:<component>` labels force a
 component to build and do nothing without `deploy:preview`. Fork PRs never
 build.
 
+A preview sleeps 48 hours after its last deploy. Wake it with the `zad-wake`
+skill before a smoketest or `check-deployment`; how sleep-mode works is in
+`docs/src/content/docs/operations/deployment.md#sleeping-previews`.
+
 ### Cleanup
 
 All image cleanup beyond a PR's own `pr-N` tags runs through
