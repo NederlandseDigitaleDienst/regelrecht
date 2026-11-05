@@ -15,12 +15,14 @@ articles:
     text: De verleende verloven zijn de besluiten waarin verlof is verleend.
     machine_readable:
       execution:
+        # release-note-begin: decisions
         input:
           - name: besluiten
             type: array
             source:
               decisions: test_conformance_produces_list#1
               description: De besluiten van het hoofd onder artikel 1.
+        # release-note-end: decisions
         output:
           - name: verleende_verloven
             type: array

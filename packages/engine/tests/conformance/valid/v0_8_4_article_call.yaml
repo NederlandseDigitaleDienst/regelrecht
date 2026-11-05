@@ -61,6 +61,7 @@ articles:
             nullable: true
             source:
               article: $besluit
+          # release-note-begin: parameters-from
           - name: met_nieuwe_gegevens
             type: decision
             nullable: true
@@ -69,6 +70,7 @@ articles:
               parameters_from:
                 - $besluit.fields
                 - $nieuwe_gegevens
+        # release-note-end: parameters-from
         output:
           - name: heroverwogen
             type: decision
@@ -89,6 +91,7 @@ articles:
         parameters:
           - name: dagen
             type: number
+        # release-note-begin: article-output
         input:
           - name: verleend
             type: boolean
@@ -97,6 +100,7 @@ articles:
               output: verleend
               parameters:
                 dagen: $dagen
+        # release-note-end: article-output
         output:
           - name: zou_worden_verleend
             type: boolean

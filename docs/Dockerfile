@@ -73,6 +73,10 @@ COPY docs/ .
 # the layout here mirrors the repository: /app is docs/, /corpus is corpus/.
 COPY corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/ /corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/
 COPY corpus/annotations/wet_op_de_zorgtoeslag/ /corpus/annotations/wet_op_de_zorgtoeslag/
+# The examples on /reference/schema-release-notes are excerpts of the schema
+# conformance fixtures, read at build time for the same reason (see
+# docs/src/lib/fixture-excerpt.ts).
+COPY packages/engine/tests/conformance/ /packages/engine/tests/conformance/
 
 # What the page needs to run the scenario in the visitor's browser: the engine
 # from stage 0, and the laws, the scenario and the canonical-grammar runner that

@@ -232,7 +232,7 @@ CI uses path filters to determine which checks to run:
 | Change group | Triggers on changes to |
 |---|---|
 | `ci` | `packages/`, `frontend/`, `corpus/regulation/`, `corpus/demo/`, `bdd/`, `schema/`, `script/`, the PoC trees, and the root build files (`Justfile`, `package.json`, `rust-toolchain.toml`) |
-| `docs` | `docs/`, plus the corpus and shared frontend code the landing page reads at build time |
+| `docs` | `docs/`, plus the corpus and shared frontend code the landing page reads at build time, and the conformance fixtures the schema release notes take their examples from |
 | `docs-source` | `docs/`, `packages/`, `bdd/`, `schema/`, `corpus/regulation/`, `justfile`, `.claude/skills/docs-writing/`, `.github/workflows/ci.yml` |
 | `rust-image` | `packages/`, `schema/`, `rust-toolchain.toml`, `.github/workflows/ci.yml` |
 

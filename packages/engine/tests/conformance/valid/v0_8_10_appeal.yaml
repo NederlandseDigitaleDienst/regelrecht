@@ -28,12 +28,14 @@ articles:
     text: De bestuursrechter doet uitspraak op het beroep.
     machine_readable:
       execution:
+        # release-note-begin: appeal
         produces:
           - type: BEROEP
             requests: test_conformance_appeal#1
           - type: UITSPRAAK
             outputs:
               - beroep_gegrond
+        # release-note-end: appeal
         output:
           - name: beroep_gegrond
             type: boolean
@@ -44,10 +46,12 @@ articles:
     url: https://example.invalid/appeal/2
     text: Het beroepschrift wordt ondertekend.
     machine_readable:
+      # release-note-begin: hook
       hooks:
         - hook_point: pre_actions
           applies_to:
             submission: BEROEP
+      # release-note-end: hook
       execution:
         parameters:
           - name: ondertekend

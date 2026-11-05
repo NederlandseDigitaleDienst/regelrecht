@@ -1,0 +1,192 @@
+---
+title: "Schema Release Notes"
+description: "Per schema version from v0.8.0: what changes for someone moving a rulework to it, and the new construct in use, with examples taken from the conformance fixtures."
+---
+
+import FixtureExcerpt from '~/components/FixtureExcerpt.astro';
+
+These notes are for someone who writes or maintains a rulework and wants to move its `$schema` to a newer version. Each note says what the version changes for that person, whether a version of a rulework that validated under the previous schema still validates, what to edit when it does not, and how the new construct looks in use.
+
+The [version history](/reference/schema#version-history) on the schema reference stays the record of which version introduced which construct, and it is the table RFCs cite. Each row from v0.8.0 on links to its note here. The note does not repeat the row: it adds what the row leaves out, which is what an author has to do.
+
+Where a version removes a construct, leaving the `$schema` of a rulework on the older version keeps it valid against that schema, but it does not keep it running. The engine in this repository runs every version on one code path and refuses a removed construct when it loads the rulework, naming the replacement where there is one. So where a note says a version is not additive, the rulework has to be edited before the engine will run it, whatever its `$schema` says. The one change neither the schema nor the engine catches at load is the rename in [v0.8.12](#v0812).
+
+The notes cover v0.8.0 to v0.8.13. Versions before v0.8.0 have no note; for those, the version history is all there is.
+
+## Where the examples come from
+
+No example on this page is typed in. Each one is a marked excerpt of a fixture in `packages/engine/tests/conformance/`, read when the site is built. `just conformance` checks every fixture in CI: a fixture under `valid/` must pass the schema and survive a round trip through the Rust model without losing a field, and a fixture under `invalid/` must be refused by the schema version its `$schema` names. An example here therefore cannot show something the schema does not accept, and an example of a shape to change cannot show something the schema still accepts.
+
+The fixtures under `valid/` that these notes draw on currently declare the newest schema, so a positive example shows the construct as the current schema accepts it. That can be a little later than the version the note is about, and where a later version changed the construct, the note says so.
+
+## v0.8.13
+
+`combine` is gone from open terms (where v0.8.8 put it) and from a `source` beside `reduction` (where v0.8.9 put it). There it told the engine how to merge the answers of several cells. The `combine` of a `FOREACH` is a different field and stays. The engine now asks one cell and merges nothing; when the call that a term names has more than one cell, the input fails at run time.
+
+A version that uses `combine` in neither place validates under v0.8.13 unchanged. One that does no longer validates: remove the field. A term may still list several competent authorities, and the schema accepts that; what fails, at run time, is a call that holds a cell for more than one of them. How one question would reach several cells of a category is an [open question](/concepts/chronolexography/open-questions), so there is no replacement construct yet.
+
+The shape to change, on an open term:
+
+<FixtureExcerpt fixture="invalid/open_term_combine_v0_8_13.yaml" region="combine" />
+
+The same term under v0.8.13:
+
+<FixtureExcerpt fixture="valid/v0_8_8_competence.yaml" region="open-term" />
+
+## v0.8.12
+
+Two changes, both about reductions. The article a decision value was taken under is now called `basis`, where it was `grondslag`: in the decision value, in the rows of `source.decisions` and `source.facts`, and in `$besluit.basis`. And a `REDUCTIE` no longer names a `competent_authority`; the directory it sits in says whose it is.
+
+Not additive. A reduction with a root `competent_authority` is refused: delete the field and put the version under its cell, in `corpus/cells/<cell>/reductions/`, or in `corpus/cells/reductions/` if it belongs to no cell. The rename is one the schema cannot see, because `basis` is the name of a value at run time and not a key in the document. An action that reads `$besluit.grondslag` still validates and still loads, but the decision value it reads has no field of that name any more. Search for `grondslag` and replace it.
+
+The shape to change:
+
+<FixtureExcerpt fixture="invalid/reduction_with_competent_authority_v0_8_12.yaml" region="holder" />
+
+Calling an article anew through the `basis` of a decision value, with that decision's fields as parameters:
+
+<FixtureExcerpt fixture="valid/v0_8_4_article_call.yaml" region="parameters-from" />
+
+## v0.8.11
+
+`source.decisions` may take the article to search under from a parameter, as a `$`-reference, instead of naming it. That lets one reduction answer for decisions under any article, with the caller saying which. It reads the chronicle of the cell that runs it.
+
+Additive: a version valid under v0.8.10 is valid under v0.8.11 unchanged.
+
+<FixtureExcerpt fixture="valid/v0_8_11_decisions_by_parameter.yaml" region="decisions-by-parameter" />
+
+## v0.8.10
+
+An appeal to the administrative court is a kind of submission (`BEROEP`), and the court's judgment is a legal character (`UITSPRAAK`). Both go where `BEZWAAR` and the other legal characters already went: in `produces`, as the `type` of a produced item, and in a hook's `applies_to`.
+
+Additive: a version valid under v0.8.9 is valid under v0.8.10 unchanged.
+
+The article that decides on the appeal establishes it:
+
+<FixtureExcerpt fixture="valid/v0_8_10_appeal.yaml" region="appeal" />
+
+A hook on every appeal:
+
+<FixtureExcerpt fixture="valid/v0_8_10_appeal.yaml" region="hook" />
+
+## v0.8.9
+
+A reduction stops filling open terms. It becomes a named answer of its cell, and the policy of the authority that decides (`regulatory_layer: UITVOERINGSBELEID`) binds an open term to that answer, with `implements` and an input whose `source` is `reduction`. The policy names its holder in a root `competent_authority`.
+
+Not additive. A `REDUCTIE` with `implements`, which v0.8.5 allowed, is refused. Remove `implements` from the reduction, let its cell give it as an answer under the name the policy will ask for, and move the `implements` to an article of the policy that takes the answer through `source.reduction`.
+
+The shape to change:
+
+<FixtureExcerpt fixture="invalid/reduction_with_implements_v0_8_9.yaml" region="implements" />
+
+The policy binding the term to the answer instead:
+
+<FixtureExcerpt fixture="valid/v0_8_9_policy_binds_answer.yaml" region="binds-answer" />
+
+The `combine` this version allowed beside `reduction` was removed again in [v0.8.13](#v0813).
+
+## v0.8.8
+
+An open term and a required fact may say who is competent for them, with their own `competent_authority`: one named authority or a list. On the term it names who may answer it, on the fact who establishes it. The article's own `competent_authority` still names who decides, which is a different question.
+
+Additive: a version valid under v0.8.7 is valid under v0.8.8 unchanged.
+
+<FixtureExcerpt fixture="valid/v0_8_8_competence.yaml" region="competence" />
+
+This version also put `combine` on an open term. [v0.8.13](#v0813) removed it, so it is not in the example.
+
+## v0.8.7
+
+An article can say that it requires a fact to exist: a `requires` entry with `fact`, the article's `parameters` the fact holds, and a `description`. A reduction reads the recorded instances of that fact through `source.facts`, named `<regulation>#<article>#<fact>`, which replaces the `source.executograms` of v0.8.6.
+
+Not additive. A reduction that read a stream with `source.executograms` is refused. Declare the fact on the article that requires it, then name it in `source.facts`.
+
+The shape to change:
+
+<FixtureExcerpt fixture="invalid/reduction_executograms_v0_8_7.yaml" region="executograms" />
+
+The fact, declared on the article:
+
+<FixtureExcerpt fixture="valid/v0_8_7_requires_fact.yaml" region="requires-fact" />
+
+The reduction reading it:
+
+<FixtureExcerpt fixture="valid/v0_8_7_reduction_facts.yaml" region="facts" />
+
+## v0.8.6
+
+A `REDUCTIE` could read the executograms of a stream of its cell, with `source.executograms`, and `FOREACH` gained `combine: ONLY`: the one result a filter leaves, null when it leaves none, and an error when it leaves more than one.
+
+Additive: a version valid under v0.8.5 is valid under v0.8.6 unchanged. The executograms did not last: [v0.8.7](#v087) replaced them with facts, and the example of the old shape is there. `combine: ONLY` stays:
+
+<FixtureExcerpt fixture="valid/v0_8_7_reduction_facts.yaml" region="combine-only" />
+
+## v0.8.5
+
+A `REDUCTIE` could fill an open term with `implements`, and the engine ran it for that term like any other implementation.
+
+Additive when it was released. [v0.8.9](#v089) took this back, so there is no example of it that the current schema accepts. Here it is as the shape that v0.8.9 refuses:
+
+<FixtureExcerpt fixture="invalid/reduction_with_implements_v0_8_9.yaml" region="implements" />
+
+## v0.8.4
+
+An input can call the decision of an article with `source.article`, named as `<regulation>#<article>` or by a `$`-reference to a value that holds one. Without `output` the input is a whole decision value, with the field type `decision`; with `output` it is one output of that decision. `source.parameters_from` merges objects into the parameters of the call, and `derived` on a decision lists outputs computed for it that the decision value leaves out.
+
+Additive: a version valid under v0.8.3 is valid under v0.8.4 unchanged.
+
+One output of a fixed article's decision:
+
+<FixtureExcerpt fixture="valid/v0_8_4_article_call.yaml" region="article-output" />
+
+The `parameters-from` example under [v0.8.12](#v0812) shows the other form, a call through a decision value.
+
+## v0.8.3
+
+An objection is a kind of submission (`BEZWAAR`), next to `AANVRAAG`. The article that decides on the objection establishes it, and the Awb hooks onto it.
+
+Additive: a version valid under v0.8.2 is valid under v0.8.3 unchanged.
+
+<FixtureExcerpt fixture="valid/v0_8_3_objection.yaml" region="objection" />
+
+A hook on every objection:
+
+<FixtureExcerpt fixture="valid/v0_8_3_objection.yaml" region="hook" />
+
+## v0.8.2
+
+A new layer, `regulatory_layer: REDUCTIE`. A reduction is not a regulation: it is a cell's reading of its own chronicle, and it is kept with the cell rather than in the corpus of regulations. It reads the decisions taken under an article with `source.decisions`, which gives a list with one row per decision. Only a reduction may read it, and a reduction does not act on law: no `implements`, `hooks`, `overrides`, `execution.produces` or `open_terms`.
+
+Additive: a version valid under v0.8.1 is valid under v0.8.2 unchanged.
+
+<FixtureExcerpt fixture="valid/v0_8_2_reduction.yaml" region="decisions" />
+
+## v0.8.1
+
+`execution.produces` may be a list instead of one object, for an article that produces more than one thing, such as an application and the decision on it. Each item has a `type`, a kind of submission or a legal character, and says which of the article's parameters it contains and which outputs it yields. A submission names the article whose decision it asks for with `requests`.
+
+Additive: the object form is unchanged, so a version valid under v0.8.0 is valid under v0.8.1 unchanged.
+
+<FixtureExcerpt fixture="valid/v0_8_1_produces_list.yaml" region="produces-list" />
+
+## v0.8.0
+
+An article can establish a submission (`produces.submission`, with `kind: AANVRAAG`) and state the moment that counts for it in law (`produces.moment`), with the provision behind that moment as a `legal_basis`. A hook applies either to a decision, through `legal_character`, or to a submission, through `submission`, and may be narrowed to the submission of one article with `established_by`.
+
+Additive: a version valid under v0.7.1 is valid under v0.8.0 unchanged.
+
+<FixtureExcerpt fixture="valid/v0_8_0_submission.yaml" region="submission" />
+
+A hook on the application of one article only:
+
+<FixtureExcerpt fixture="valid/v0_8_0_submission.yaml" region="established-by" />
+
+## Adding a release note
+
+A pull request that adds a schema version adds its note to this page, at the top, under a heading that is the version number alone (`## v0.8.14`). The heading is the anchor the version history links to, so keep anything else out of it. In the same pull request:
+
+1. Link the version cell of the new row in the [version history](/reference/schema#version-history) to the note, as the rows below it do.
+2. Say whether a version valid under the previous schema stays valid, and when it does not, what to edit.
+3. Take the example from a conformance fixture. Put `# release-note-begin: <region>` and `# release-note-end: <region>` comments around the lines to show, in a fixture under `valid/` for the new construct or under `invalid/` for a shape the version refuses, and render them with `<FixtureExcerpt fixture="valid/<file>.yaml" region="<region>" />`. If no fixture fits, add one first; [Conformance](/reference/conformance#schema-to-law-model-conformance) and the README next to the fixtures describe how.
+
+`docs/scripts/check-schema-version.mjs` fails CI when a version from v0.8.0 on has no note here, or when its row in the version history does not link to it. A region that is missing or empty fails the site build.

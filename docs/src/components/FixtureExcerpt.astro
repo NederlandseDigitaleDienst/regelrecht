@@ -1,0 +1,27 @@
+---
+/*
+ * One example on /reference/schema-release-notes: lines out of a conformance
+ * fixture, read when the site is built, with the fixture named under them so a
+ * reader can open the whole document. See ~/lib/fixture-excerpt.ts for why the
+ * example is not typed into the page.
+ *
+ * `fixture` is relative to packages/engine/tests/conformance/ (so it starts
+ * with `valid/` or `invalid/`), `region` is the name in its marker comments.
+ */
+import { fixtureExcerpt } from '~/lib/fixture-excerpt';
+
+interface Props {
+  fixture: string;
+  region: string;
+}
+
+const { fixture, region } = Astro.props;
+const excerpt = fixtureExcerpt(fixture, region);
+const refused = fixture.startsWith('invalid/');
+---
+
+<nldd-code-viewer language="yaml" appearance="box-tinted">{excerpt.yaml}</nldd-code-viewer>
+<nldd-text size="sm" color="secondary">
+  {refused ? 'Refused by the schema, as checked in ' : 'From '}
+  <a href={excerpt.url} rel="noreferrer"><code>{excerpt.path}</code></a>
+</nldd-text>

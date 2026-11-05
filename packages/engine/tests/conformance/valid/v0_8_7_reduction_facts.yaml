@@ -15,18 +15,21 @@ articles:
     text: De vestiging is die waarvan de dag het laatst ligt.
     machine_readable:
       execution:
+        # release-note-begin: facts
         input:
           - name: vestigingen
             type: array
             source:
               facts: test_conformance_fact#1#vestiging
               description: De vastgelegde vestigingen van de school.
+        # release-note-end: facts
         output:
           - name: gemeente
             type: string
             nullable: true
         actions:
           - output: gemeente
+            # release-note-begin: combine-only
             value:
               operation: FOREACH
               collection: $vestigingen
@@ -37,3 +40,4 @@ articles:
                 value: true
               body: $vestiging.gemeente
               combine: ONLY
+              # release-note-end: combine-only

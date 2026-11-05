@@ -16,12 +16,14 @@ articles:
     text: Het bestuursorgaan beslist op het bezwaar.
     machine_readable:
       execution:
+        # release-note-begin: objection
         produces:
           - type: BEZWAAR
             requests: test_conformance_objection#1
           - type: BESCHIKKING
             outputs:
               - bestreden_besluit_herroepen
+        # release-note-end: objection
         output:
           - name: bestreden_besluit_herroepen
             type: boolean
@@ -32,10 +34,12 @@ articles:
     url: https://example.invalid/objection/2
     text: Het bezwaarschrift wordt ondertekend.
     machine_readable:
+      # release-note-begin: hook
       hooks:
         - hook_point: pre_actions
           applies_to:
             submission: BEZWAAR
+      # release-note-end: hook
       execution:
         parameters:
           - name: ondertekend

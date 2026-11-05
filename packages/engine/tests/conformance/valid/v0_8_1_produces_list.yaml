@@ -17,6 +17,7 @@ articles:
     text: Het hoofd verleent op aanvraag verlof.
     machine_readable:
       execution:
+        # release-note-begin: produces-list
         produces:
           - type: AANVRAAG
             requests: test_conformance_produces_list#1
@@ -27,6 +28,7 @@ articles:
             procedure_id: beschikking
             outputs:
               - verlof_verleend
+        # release-note-end: produces-list
         parameters:
           - name: dagen
             type: number
