@@ -581,10 +581,12 @@ const openCases = computed(() => state.cases.filter((c) => c.status === 'IN_REVI
           :value="whyInput"
           autocomplete="current-password"
           :invalid="whyStatus === 'wrong' || undefined"
-          :show-button-text="t('app.why.dialog.show')"
-          :hide-button-text="t('app.why.dialog.hide')"
-          :show-button-accessible-label="t('app.why.dialog.show_label')"
-          :hide-button-accessible-label="t('app.why.dialog.hide_label')"
+          :translations="{
+            'components.password-field.show-action': t('app.why.dialog.show'),
+            'components.password-field.hide-action': t('app.why.dialog.hide'),
+            'components.password-field.show-accessible-label': t('app.why.dialog.show_label'),
+            'components.password-field.hide-accessible-label': t('app.why.dialog.hide_label'),
+          }"
           @input="onWhyInput"
         ></nldd-password-field>
         <nldd-form-field-help-text v-if="whyStatus">{{ t(`app.why.dialog.${whyStatus}`) }}</nldd-form-field-help-text>

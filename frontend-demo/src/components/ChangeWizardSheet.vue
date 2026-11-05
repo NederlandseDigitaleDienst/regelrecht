@@ -162,7 +162,7 @@ function show(claim: ChangeClaim) {
             <nldd-rich-text spacing="tight">
               <p>{{ t('sheet.change.intro') }}</p>
             </nldd-rich-text>
-            <nldd-list appearance="box" :accessible-label="t('sheet.change.kind.label')">
+            <nldd-list appearance="box-tinted" :accessible-label="t('sheet.change.kind.label')">
               <nldd-list-item v-for="ct in CHANGE_TYPES" :key="ct.id" size="md" button @click="chooseType(ct.id)">
                 <nldd-icon-cell :icon="ct.icon" size="20" color="accent"></nldd-icon-cell>
                 <nldd-spacer-cell size="12"></nldd-spacer-cell>
@@ -176,7 +176,7 @@ function show(claim: ChangeClaim) {
           <template v-else-if="step === 1">
             <!-- Een gebeurtenis (huishouden): kiezen, geen invullen. -->
             <template v-if="type?.events">
-              <nldd-list appearance="box" :accessible-label="t('sheet.change.what.label')">
+              <nldd-list appearance="box-tinted" :accessible-label="t('sheet.change.what.label')">
                 <nldd-list-item
                   v-for="e in type.events"
                   :key="e.value"

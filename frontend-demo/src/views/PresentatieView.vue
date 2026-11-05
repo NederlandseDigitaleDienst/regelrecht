@@ -73,7 +73,7 @@ function kindLabel(s: SlideConfig) {
            zonder presentator (de opgenomen rondleiding). Los op een rij
            stonden ze door elkaar, en "Zelfstandig" naast "rondleiding" las als
            hetzelfde. -->
-      <nldd-collection layout="grid" item-width="300px">
+      <nldd-collection layout="grid" item-min-width="300px">
         <nldd-card>
           <nldd-container padding="16" gap="12">
             <nldd-title size="5">

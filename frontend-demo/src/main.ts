@@ -1,5 +1,6 @@
 import '@nldd/design-system';
 import '@nldd/design-system/styles';
+import '@nldd/design-system/themes/donkerblauw.css';
 import './presentation/presentation.css';
 import { installSheetOffset } from './presentation/sheetOffset';
 import { createApp } from 'vue';
