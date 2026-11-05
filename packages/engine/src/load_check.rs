@@ -666,6 +666,7 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
 /// A projection (schema v0.8.14) sits only in a reduction, names each
 /// property of its state once, and its steps set only those properties.
 pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
+    use regelrecht_law_model::Value;
     let refuse = |where_: String, why: String| {
         Err(EngineError::LoadError(format!(
             "law '{}' {where_}: {why}",
@@ -719,7 +720,38 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
             }
             names.push(&property.name);
         }
-        for step in &projection.steps {
+        for (i, step) in projection.steps.iter().enumerate() {
+            // Two steps for one record would leave which one applies to the
+            // order they are written in.
+            let overlaps =
+                |a: &Option<String>, b: &Option<String>| a.is_none() || b.is_none() || a == b;
+            if projection.steps[..i].iter().any(|earlier| {
+                earlier.record == step.record
+                    && overlaps(&earlier.record_type, &step.record_type)
+                    && overlaps(&earlier.fact, &step.fact)
+            }) {
+                return refuse(
+                    where_,
+                    format!("has two steps for the same records under {}", step.record),
+                );
+            }
+            // A literal a step sets must fit the property; a computed value
+            // is checked when it runs.
+            for (name, value) in &step.set {
+                let property = projection.state.iter().find(|p| &p.name == name);
+                if let (Some(property), ActionValue::Literal(literal)) = (property, value) {
+                    let reference = matches!(literal, Value::String(s) if s.starts_with('$'));
+                    if !reference && !initial_fits(&property.property_type, literal) {
+                        return refuse(
+                            where_,
+                            format!(
+                                "sets '{name}' for a record under {} to a value that is no {:?}",
+                                step.record, property.property_type
+                            ),
+                        );
+                    }
+                }
+            }
             if step.set.is_empty() {
                 return refuse(
                     where_,
@@ -1331,6 +1363,16 @@ articles:
                 "REDUCTIE",
                 "        state: []\n        steps: []".to_string(),
                 "has a projection without a state",
+            ),
+            (
+                "REDUCTIE",
+                format!("{state}        steps:\n          - {{record: wet#1, set: {{a: true}}}}\n          - {{record: wet#1, type: BESCHIKKING, set: {{a: false}}}}"),
+                "has two steps for the same records under wet#1",
+            ),
+            (
+                "REDUCTIE",
+                format!("{state}        steps:\n          - {{record: wet#1, set: {{a: 3}}}}"),
+                "sets 'a' for a record under wet#1 to a value that is no Boolean",
             ),
             (
                 "REDUCTIE",

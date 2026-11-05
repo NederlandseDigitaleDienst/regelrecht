@@ -2,31 +2,30 @@
 //!
 //! The reduction declares a state (`projection.state`) and, per article a
 //! record rests on, what such a record does with it (`projection.steps`).
-//! The engine plays the records in the order the cell recorded them. Each
-//! step is pure: the next state follows from the state before and the record
-//! alone, under the version of the reduction in force on the day the record
-//! was recorded. The reduction's `execution` then answers from the last
-//! state, reading each property as `$state.<name>`.
+//! The engine plays the records the cell knew on the calculation date in the
+//! order the cell recorded them. Each step is pure: the next state follows
+//! from the state before and the record alone. One version of the reduction,
+//! the one in force on the calculation date, gives the initial state, every
+//! step and the answer: the reduction is the cell's reading, not law. The
+//! reduction's `execution` answers from the last state, reading each
+//! property as `$state.<name>`.
 //!
 //! What a record does with an earlier record is law, not part of the
 //! reduction: the article of a decision says it revokes or replaces another
-//! decision (`produces[].effects`, optionally only `when` an outcome is true).
-//! The engine carries that out by rewinding. When an effect of a record that
-//! counts undoes an earlier record that was applied, the engine plays the
-//! chronicle again from the start and skips the undone record. A record is
-//! skipped for as long as at least one record that undoes it counts. When a
-//! record that undid others is itself undone, it matters how: a record that
-//! is replaced passes what it undid to its replacer, which takes its place;
-//! a record that is only revoked undoes nothing any more, so a record it
-//! alone undid counts again and the engine rewinds once more. The chronicle is never changed. Nothing is reverted property by
-//! property: a property a later record also set keeps the later value,
-//! because the replay computes it again.
-//!
-//! The initial state and the article that answers come from the version of
-//! the reduction in force on the calculation date; each step comes from the
-//! version in force on the day its record was recorded, under the same
-//! article number. A record recorded before any version of the reduction is
-//! in force is refused.
+//! decision (`produces[].effects`, optionally only `when` an outcome is true),
+//! under the version of that law in force on the day the record was
+//! recorded. The engine carries that out by rewinding. When an effect of a
+//! record that counts undoes an earlier record that was applied, the engine
+//! plays the chronicle again from the start and skips the undone record. A
+//! record is skipped for as long as at least one record that undoes it
+//! counts. A record that is itself revoked or replaced undoes nothing any
+//! more, so a record it alone undid counts again and the engine rewinds once
+//! more; a replacement that should keep an undoing in force declares that
+//! effect itself. The chronicle is never changed. Nothing is reverted
+//! property by property: a property a later record also set keeps the later
+//! value, because the replay computes it again. An undone record is gone
+//! from the whole history (ex tunc); a change from a later day on is a step
+//! with a date property.
 //!
 //! The engine records, per property, which record set it last, and every
 //! step it takes: each record applied (with the properties it set), each
@@ -47,6 +46,9 @@ use crate::operations::evaluate_value;
 use crate::service::LawExecutionService;
 use crate::trace::PathNode;
 use crate::types::{PathNodeType, Value};
+
+/// The kind of a record of a fact (RFC-051), as the cell writes it.
+const EXECUTOGRAM: &str = "EXECUTOGRAM";
 
 /// The name under which a step and the answer read the state.
 pub const STATE: &str = "state";
@@ -153,7 +155,7 @@ impl LawExecutionService {
         let Some(first) = output_names.first() else {
             return Err(EngineError::InvalidOperation("no output asked".to_string()));
         };
-        let (number, projection) = {
+        let projection = {
             let law = self
                 .resolver()
                 .get_law_for_date(law_id, Some(day))
@@ -170,10 +172,7 @@ impl LawExecutionService {
                      projection answers from one"
                 )));
             }
-            (
-                article.number.clone(),
-                projection_of(law_id, article)?.clone(),
-            )
+            projection_of(law_id, article)?.clone()
         };
 
         // The reduction reads its state as `$state`; a caller cannot pass
@@ -183,7 +182,14 @@ impl LawExecutionService {
                 "a projection gives '{STATE}' itself; it cannot be passed to '{law_id}'"
             )));
         }
-        let played = self.play(law_id, &number, &projection, records)?;
+        // What the cell recorded after the calculation date is not known on
+        // it, so it is not played.
+        let known: Vec<ChronicleRecord> = records
+            .iter()
+            .filter(|r| r.recorded_on <= day)
+            .cloned()
+            .collect();
+        let played = self.play(law_id, &projection, &known)?;
 
         parameters.insert(STATE.to_string(), Value::Object(played.state.clone()));
         let mut result = if trace {
@@ -207,7 +213,6 @@ impl LawExecutionService {
     fn play(
         &self,
         law_id: &str,
-        number: &str,
         projection: &Projection,
         records: &[ChronicleRecord],
     ) -> Result<Played> {
@@ -248,25 +253,16 @@ impl LawExecutionService {
                         record: record.id.clone(),
                         undone_by: undoers,
                     });
-                    // A record that is skipped undoes nothing itself. When a
-                    // record replaces it, the replacer takes its place, also
-                    // in what it undid: those undoings pass to the replacer.
-                    // When it is only revoked, they lapse, and an earlier
-                    // record it alone undid counts again.
-                    let replacer = undone_by.get(record.id.as_str()).and_then(|by| {
-                        by.iter()
-                            .find(|(_, kind)| **kind == EffectKind::Replaces)
-                            .map(|(id, _)| *id)
-                    });
+                    // A record that is skipped, revoked or replaced, undoes
+                    // nothing any more: a record it alone undid counts
+                    // again. A replacer that should keep an undoing in force
+                    // says so itself, with an effect of its own.
                     let mut revived = None;
                     for (target, by) in undone_by.iter_mut() {
-                        let Some(kind) = by.remove(record.id.as_str()) else {
-                            continue;
-                        };
-                        if let Some(replacer) = replacer {
-                            by.entry(replacer).or_insert(kind);
-                        }
-                        if by.is_empty() && revived.is_none() {
+                        if by.remove(record.id.as_str()).is_some()
+                            && by.is_empty()
+                            && revived.is_none()
+                        {
                             revived = Some(target.to_string());
                         }
                     }
@@ -295,7 +291,7 @@ impl LawExecutionService {
                     }
                 }
 
-                let changes = self.step(law_id, number, record, &state)?;
+                let changes = step(law_id, projection, record, &state)?;
                 for change in &changes {
                     state.insert(change.property.clone(), change.to.clone());
                     set_by.insert(change.property.clone(), Some(record.id.clone()));
@@ -358,12 +354,23 @@ impl LawExecutionService {
             .get_law_for_date(law_id, Some(record.recorded_on))
             .and_then(|law| law.find_article_by_number(number))
             .ok_or_else(unresolved)?;
-        let Some(decision) = article.get_decision() else {
-            return Ok(Vec::new());
-        };
-        if decision.legal_character() != Some(record.kind.as_str()) {
+        // A submission and an executogram undo nothing; a decision has the
+        // effects its article gives it. A record of a kind its article does
+        // not produce is refused, for the same reason as an unknown article.
+        if record.kind == EXECUTOGRAM
+            || article.get_submission().and_then(|s| s.submission_kind()) == Some(&record.kind)
+        {
             return Ok(Vec::new());
         }
+        let decision = article
+            .get_decision()
+            .filter(|d| d.legal_character() == Some(record.kind.as_str()))
+            .ok_or_else(|| {
+                EngineError::InvalidOperation(format!(
+                    "record '{}' is a {} under '{}', which that article does not produce",
+                    record.id, record.kind, record.basis
+                ))
+            })?;
         let mut holding = Vec::new();
         for effect in decision.effects() {
             if let Some(when) = &effect.when {
@@ -397,74 +404,6 @@ impl LawExecutionService {
         }
         Ok(holding)
     }
-
-    /// The properties the step for `record` sets, each computed from the
-    /// state before it and the record, under the version of the reduction
-    /// in force on the day the record was recorded. None when the reduction
-    /// gives no step for it.
-    fn step(
-        &self,
-        law_id: &str,
-        number: &str,
-        record: &ChronicleRecord,
-        state: &BTreeMap<String, Value>,
-    ) -> Result<Vec<StateChange>> {
-        let law = self
-            .resolver()
-            .get_law_for_date(law_id, Some(record.recorded_on))
-            .ok_or_else(|| {
-                EngineError::InvalidOperation(format!(
-                    "no version of '{law_id}' is in force on {}, the day record '{}' was recorded",
-                    record.recorded_on, record.id
-                ))
-            })?;
-        let article = law.find_article_by_number(number).ok_or_else(|| {
-            EngineError::InvalidOperation(format!(
-                "'{law_id}' in force on {} has no article {number}",
-                record.recorded_on
-            ))
-        })?;
-        let projection = projection_of(law_id, article)?;
-        let Some(step) = projection.steps.iter().find(|s| {
-            s.record == record.basis
-                && s.record_type.as_ref().is_none_or(|t| t == &record.kind)
-                && s.fact
-                    .as_ref()
-                    .is_none_or(|f| Some(f) == record.fact.as_ref())
-        }) else {
-            return Ok(Vec::new());
-        };
-
-        // The record's fields, then its outputs, then `id`, `basis` and
-        // `type`; a later one wins over a field of the same name.
-        let mut row = record.fields.clone();
-        row.extend(record.outputs.clone());
-        row.insert("id".to_string(), Value::String(record.id.clone()));
-        row.insert("basis".to_string(), Value::String(record.basis.clone()));
-        row.insert("type".to_string(), Value::String(record.kind.clone()));
-        let parameters = BTreeMap::from([
-            (STATE.to_string(), Value::Object(state.clone())),
-            ("record".to_string(), Value::Object(row)),
-        ]);
-        let context = RuleContext::new(parameters, &record.recorded_on.to_string())?;
-
-        let mut changes = Vec::new();
-        for (property, value) in &step.set {
-            let to = evaluate_value(value, &context, 0).map_err(|e| {
-                EngineError::InvalidOperation(format!(
-                    "the step of '{law_id}' for record '{}' ({}) sets '{property}': {e}",
-                    record.id, record.basis
-                ))
-            })?;
-            let from = state.get(property).cloned().unwrap_or(Value::Null);
-            changes.push(StateChange {
-                property: property.clone(),
-                from,
-                to,
-            });
-        }
-        Ok(changes)
-    }
 }
 
 /// The state, its provenance and the events after the last replay.
@@ -472,6 +411,57 @@ struct Played {
     state: BTreeMap<String, Value>,
     set_by: BTreeMap<String, Option<String>>,
     events: Vec<ProjectionEvent>,
+}
+
+/// The properties the step for `record` sets, each computed from the state
+/// before it and the record. None when the reduction gives no step for it.
+/// One version of the reduction, the one in force on the calculation date,
+/// plays the whole chronicle: the reduction is the cell's reading, not law.
+fn step(
+    law_id: &str,
+    projection: &Projection,
+    record: &ChronicleRecord,
+    state: &BTreeMap<String, Value>,
+) -> Result<Vec<StateChange>> {
+    let Some(step) = projection.steps.iter().find(|s| {
+        s.record == record.basis
+            && s.record_type.as_ref().is_none_or(|t| t == &record.kind)
+            && s.fact
+                .as_ref()
+                .is_none_or(|f| Some(f) == record.fact.as_ref())
+    }) else {
+        return Ok(Vec::new());
+    };
+
+    // The record's fields, then its outputs, then `id`, `basis` and `type`;
+    // a later one wins over a field of the same name.
+    let mut row = record.fields.clone();
+    row.extend(record.outputs.clone());
+    row.insert("id".to_string(), Value::String(record.id.clone()));
+    row.insert("basis".to_string(), Value::String(record.basis.clone()));
+    row.insert("type".to_string(), Value::String(record.kind.clone()));
+    let parameters = BTreeMap::from([
+        (STATE.to_string(), Value::Object(state.clone())),
+        ("record".to_string(), Value::Object(row)),
+    ]);
+    let context = RuleContext::new(parameters, &record.recorded_on.to_string())?;
+
+    let mut changes = Vec::new();
+    for (property, value) in &step.set {
+        let to = evaluate_value(value, &context, 0).map_err(|e| {
+            EngineError::InvalidOperation(format!(
+                "the step of '{law_id}' for record '{}' ({}) sets '{property}': {e}",
+                record.id, record.basis
+            ))
+        })?;
+        let from = state.get(property).cloned().unwrap_or(Value::Null);
+        changes.push(StateChange {
+            property: property.clone(),
+            from,
+            to,
+        });
+    }
+    Ok(changes)
 }
 
 fn projection_of<'a>(law_id: &str, article: &'a Article) -> Result<&'a Projection> {
@@ -584,7 +574,9 @@ articles:
     text: t
     machine_readable:
       execution:
-        produces: {legal_character: BESCHIKKING}
+        produces:
+          - {type: AANVRAAG, requests: 'wet#1'}
+          - {type: BESCHIKKING, outputs: [verleend]}
         output: [{name: verleend, type: boolean}]
         actions: [{output: verleend, value: true}]
   - number: '2'
@@ -815,9 +807,11 @@ articles:
     }
 
     #[test]
-    fn a_replaced_replacement_keeps_the_first_record_replaced() {
+    fn a_replaced_replacement_undoes_nothing_any_more() {
+        // n1 replaces a; n2 replaces n1, so n1 counts no more and neither
+        // does its replacing of a: a counts again, beside n2.
         let outcome = play(&[grant("a"), replace("n1", "a"), replace("n2", "n1")]).unwrap();
-        assert_eq!(skipped_in_last_replay(&outcome), ["a", "n1"]);
+        assert_eq!(skipped_in_last_replay(&outcome), ["n1"]);
     }
 
     #[test]
@@ -942,8 +936,9 @@ articles:
     }
 
     #[test]
-    fn a_step_follows_the_reduction_in_force_when_the_record_was_recorded() {
-        // From 2025-06-01 a grant no longer counts towards `aantal`.
+    fn one_version_of_the_reduction_plays_the_whole_chronicle() {
+        // From 2025-06-01 a grant no longer counts towards `aantal`. The
+        // version in force on the calculation date plays every record.
         let mut service = service();
         service
             .load_law(
@@ -959,17 +954,94 @@ articles:
             recorded_on: NaiveDate::from_ymd_opt(2025, 7, 1).unwrap(),
             ..grant("b")
         };
-        let outcome = service
-            .evaluate_projection(
-                "reductie",
-                &["aantal"],
-                &[grant("a"), later],
-                BTreeMap::new(),
-                "2025-08-01",
-                false,
-            )
-            .unwrap();
-        assert_eq!(outcome.result.outputs["aantal"], Value::Int(1));
+        let aantal_on = |date: &str| {
+            service
+                .evaluate_projection(
+                    "reductie",
+                    &["aantal"],
+                    &[grant("a"), later.clone()],
+                    BTreeMap::new(),
+                    date,
+                    false,
+                )
+                .unwrap()
+                .result
+                .outputs["aantal"]
+                .clone()
+        };
+        assert_eq!(aantal_on("2025-08-01"), Value::Int(0));
+        // Before the second version, and before `b` was recorded: only `a`.
+        assert_eq!(aantal_on("2025-05-01"), Value::Int(1));
+    }
+
+    #[test]
+    fn a_record_recorded_after_the_calculation_date_is_not_played() {
+        let later = ChronicleRecord {
+            recorded_on: NaiveDate::from_ymd_opt(2025, 4, 1).unwrap(),
+            ..revoke("h", "a", true)
+        };
+        let outcome = play(&[grant("a"), later]).unwrap();
+        assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(true));
+        assert_eq!(outcome.events.len(), 1);
+    }
+
+    #[test]
+    fn a_record_of_a_kind_its_article_does_not_produce_is_refused() {
+        let toets = ChronicleRecord {
+            kind: "TOETS".to_string(),
+            ..grant("t")
+        };
+        let err = play(&[toets]).expect_err("article 1 takes no TOETS");
+        assert!(err.to_string().contains("does not produce"), "{err}");
+    }
+
+    /// Whether each record counts does not depend on the state, so one pass
+    /// from the last record back gives it: a record counts unless a record
+    /// after it that counts has an effect on it that holds. Rewinding must
+    /// arrive at the same records, over many generated chronicles.
+    #[test]
+    fn rewinding_counts_the_same_records_as_one_pass_back() {
+        let mut seed: u64 = 0x2545_f491_4f6c_dd1d;
+        let mut next = |bound: usize| {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed % bound as u64) as usize
+        };
+        for _ in 0..500 {
+            let n = 1 + next(12);
+            let mut records = Vec::new();
+            // (target, holds) per record; None for a grant.
+            let mut effect_of: Vec<Option<(usize, bool)>> = Vec::new();
+            for i in 0..n {
+                let id = format!("r{i}");
+                if i == 0 || next(3) == 0 {
+                    records.push(grant(&id));
+                    effect_of.push(None);
+                    continue;
+                }
+                let target = next(i);
+                let target_id = format!("r{target}");
+                if next(2) == 0 {
+                    let holds = next(4) != 0;
+                    records.push(revoke(&id, &target_id, holds));
+                    effect_of.push(Some((target, holds)));
+                } else {
+                    records.push(replace(&id, &target_id));
+                    effect_of.push(Some((target, true)));
+                }
+            }
+            let mut counts = vec![true; n];
+            for i in (0..n).rev() {
+                counts[i] = !(i + 1..n).any(|j| counts[j] && effect_of[j] == Some((i, true)));
+            }
+            let expected: Vec<String> = (0..n)
+                .filter(|&i| !counts[i])
+                .map(|i| format!("r{i}"))
+                .collect();
+            let outcome = play(&records).unwrap();
+            assert_eq!(skipped_in_last_replay(&outcome), expected, "{records:#?}");
+        }
     }
 
     #[test]

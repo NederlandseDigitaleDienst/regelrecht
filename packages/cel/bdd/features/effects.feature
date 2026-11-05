@@ -245,9 +245,11 @@ Feature: A reduction plays the chronicle forward
       | bezwaar_3    | applied | -                                                |
       | herroeping_3 | applied | -                                                |
 
-  Scenario: A replaced replacement keeps the grant replaced
-    # A record that is replaced passes what it undid to its replacer, which
-    # takes its place: the grant stays replaced.
+  Scenario: Replacing a replacement undoes its replacing
+    # A record that is replaced undoes nothing any more: the first
+    # replacement no longer replaces the grant, which counts again beside
+    # the second replacement. A replacement that should keep the grant
+    # replaced would say so with an effect of its own.
     When the cell records submission "aanvraag" under article "1" of "test_chronicle_effects" with:
       | ernstig_beperkt | true |
     And the cell decides "verlening" on submission "aanvraag"
@@ -258,10 +260,10 @@ Feature: A reduction plays the chronicle forward
       | bestreden_besluit | eerste_vervanging |
       | ernstig_beperkt   | false             |
     And I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
-    Then record "verlening" is skipped
+    Then record "verlening" is applied
     And record "eerste_vervanging" is skipped
     And record "tweede_vervanging" is applied
-    And output "heeft_geldige_kaart" is false
+    And output "heeft_geldige_kaart" is true
 
   Scenario: Revoking the last replacement revives the one it replaced, not the grant
     # A record that is revoked undoes nothing any more. The first replacement
@@ -284,3 +286,59 @@ Feature: A reduction plays the chronicle forward
     And record "eerste_vervanging" is applied
     And record "verlening" is skipped
     And output "heeft_geldige_kaart" is false
+
+  Scenario: A warning in the place of a withdrawal brings the card back
+    # On objection the college replaces the withdrawal with a warning
+    # (fictional article 6). The withdrawal undoes nothing any more.
+    When the cell records submission "aanvraag" under article "1" of "test_chronicle_effects" with:
+      | ernstig_beperkt | true |
+    And the cell decides "verlening" on submission "aanvraag"
+    And the cell decides "intrekking" under article "4" of "test_chronicle_effects" with:
+      | ingetrokken_besluit | verlening |
+    And the cell decides "waarschuwing" under article "6" of "test_chronicle_effects" with:
+      | bestreden_besluit | intrekking |
+    And I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
+    Then record "intrekking" is skipped
+    And record "verlening" is applied
+    And output "heeft_geldige_kaart" is true
+
+  Scenario: Whether a record counts does not depend on the order it was found in
+    # A withdrawal is replaced twice by a warning, and the first warning is
+    # revoked. The second warning still counts, so the withdrawal stays
+    # undone and the grant counts.
+    When the cell records submission "aanvraag" under article "1" of "test_chronicle_effects" with:
+      | ernstig_beperkt | true |
+    And the cell decides "verlening" on submission "aanvraag"
+    And the cell decides "intrekking" under article "4" of "test_chronicle_effects" with:
+      | ingetrokken_besluit | verlening |
+    And the cell decides "eerste_waarschuwing" under article "6" of "test_chronicle_effects" with:
+      | bestreden_besluit | intrekking |
+    And the cell decides "tweede_waarschuwing" under article "6" of "test_chronicle_effects" with:
+      | bestreden_besluit | intrekking |
+    And the cell records submission "bezwaar" under article "2" of "test_chronicle_effects" with:
+      | bestreden_besluit | eerste_waarschuwing |
+    And the cell decides "herroeping" on submission "bezwaar" with:
+      | bezwaar_gegrond | true |
+    And I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
+    Then record "verlening" is applied
+    And record "intrekking" is skipped
+    And record "eerste_waarschuwing" is skipped
+    And record "tweede_waarschuwing" is applied
+    And output "heeft_geldige_kaart" is true
+
+  Scenario: A record recorded after the calculation date is not played
+    When the cell records submission "aanvraag" under article "1" of "test_chronicle_effects" with:
+      | ernstig_beperkt | true |
+    And the cell decides "verlening" on submission "aanvraag"
+    Given the calculation date is "2025-04-01"
+    When the cell records submission "bezwaar" under article "2" of "test_chronicle_effects" with:
+      | bestreden_besluit | verlening |
+    And the cell decides "herroeping" on submission "bezwaar" with:
+      | bezwaar_gegrond | true |
+    Given the calculation date is "2025-03-15"
+    When I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
+    Then output "heeft_geldige_kaart" is true
+    And record "verlening" is applied
+    Given the calculation date is "2025-04-01"
+    When I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
+    Then output "heeft_geldige_kaart" is false

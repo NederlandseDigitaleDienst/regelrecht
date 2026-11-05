@@ -3,8 +3,9 @@
 # (packages/cel/bdd/features/effects.feature). It is loosely shaped after the
 # disabled parking card (Besluit administratieve bepalingen inzake het
 # wegverkeer, artikel 49) and Awb 7:11 lid 2, cut down to what the scenarios
-# need. None of it is the text of a law. Article 4 (a withdrawal) and
-# article 5 (handing the card in) are fictional throughout.
+# need. None of it is the text of a law. Article 4 (a withdrawal), article 5
+# (handing the card in) and article 6 (a warning in the place of a
+# withdrawal) are fictional throughout.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: test_chronicle_effects
 name: Testwet effecten van besluiten
@@ -140,3 +141,27 @@ articles:
         parameters:
           - name: ingeleverd_op
             type: date
+
+  - number: '6'
+    url: https://example.com/test_chronicle_effects/6
+    text: >-
+      FICTIEF. Is het bezwaar tegen een intrekking gegrond, dan kan het
+      college in de plaats van de intrekking een waarschuwing geven. Het
+      corpus modelleert dit niet; dit artikel bestaat alleen voor de tests.
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            outputs:
+              - waarschuwing
+            effects:
+              - replaces: bestreden_besluit
+        parameters:
+          - name: bestreden_besluit
+            type: string
+        output:
+          - name: waarschuwing
+            type: boolean
+        actions:
+          - output: waarschuwing
+            value: true
