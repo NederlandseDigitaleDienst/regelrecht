@@ -92,7 +92,7 @@ function kindLabel(s: SlideConfig) {
               <nldd-segmented-control-item value="zaal" :text="t('home.presentation.mode.zaal')"></nldd-segmented-control-item>
               <nldd-segmented-control-item value="zelfstandig" :text="t('home.presentation.mode.zelfstandig')"></nldd-segmented-control-item>
             </nldd-segmented-control>
-            <nldd-rich-text size="sm" spacing="tight">
+            <nldd-rich-text spacing="tight">
               <p v-html="modeHelp"></p>
               <p v-html="keyHelp"></p>
             </nldd-rich-text>
@@ -105,7 +105,7 @@ function kindLabel(s: SlideConfig) {
             <nldd-title size="5">
               <h2>{{ t('home.presentation.watch.title') }}</h2>
             </nldd-title>
-            <nldd-rich-text size="sm" spacing="tight">
+            <nldd-rich-text spacing="tight">
               <p>{{ t('home.presentation.watch.text') }}</p>
             </nldd-rich-text>
             <nldd-button appearance="secondary" start-icon="video-camera" :text="t('home.presentation.walkthrough')" @click="openWalkthrough"></nldd-button>

@@ -130,7 +130,7 @@ onActivated(() => {
           <nldd-spacer size="24"></nldd-spacer>
           <!-- Kaarten in plaats van knoppen: elke manier zegt in één regel
                wat je krijgt. Dezelfde nldd-card als de kaarten verderop. -->
-          <nldd-collection layout="grid" item-min-width="200px" :accessible-label="t('home.ways.label')">
+          <nldd-collection layout="grid" item-min-width="200px">
             <nldd-card v-for="w in ways" :key="w.key" button :accessible-label="w.title" @click="ready && w.go()">
               <nldd-container padding="16" gap="8">
                 <!-- An explicit color: in the hero the icon would inherit its
@@ -139,7 +139,7 @@ onActivated(() => {
                 <nldd-title size="5">
                   <h2>{{ w.title }}</h2>
                 </nldd-title>
-                <nldd-rich-text size="sm" spacing="tight">
+                <nldd-rich-text spacing="tight">
                   <p>{{ w.text }}</p>
                 </nldd-rich-text>
               </nldd-container>
@@ -170,7 +170,7 @@ onActivated(() => {
             <nldd-title size="5">
               <h3>{{ l.title }}</h3>
             </nldd-title>
-            <nldd-rich-text size="sm" spacing="tight">
+            <nldd-rich-text spacing="tight">
               <p>{{ l.text }}</p>
             </nldd-rich-text>
           </nldd-container>
@@ -187,13 +187,13 @@ onActivated(() => {
         <span slot="supporting-text">{{ t('home.parts.subtitle') }}</span>
       </nldd-title>
       <nldd-collection layout="grid" item-min-width="240px">
-        <nldd-card v-for="o in onderdelen" :key="o.to" button @click="router.push(o.to)">
+        <nldd-card v-for="o in onderdelen" :key="o.to" button :accessible-label="o.title" @click="router.push(o.to)">
           <nldd-container padding="16" gap="8">
             <nldd-icon :icon="o.icon" size="24"></nldd-icon>
             <nldd-title size="5">
               <h3>{{ o.title }}</h3>
             </nldd-title>
-            <nldd-rich-text size="sm" spacing="tight">
+            <nldd-rich-text spacing="tight">
               <p>{{ o.text }}</p>
             </nldd-rich-text>
           </nldd-container>

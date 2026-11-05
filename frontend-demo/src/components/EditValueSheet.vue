@@ -315,7 +315,7 @@ function submit() {
                  same columns, each cell typed on what the column holds, and
                  rows can be added or removed, as the POC allowed. -->
             <template v-else-if="kind === 'rows'">
-              <nldd-table :columns="`repeat(${columns.length}, minmax(120px, 1fr)) max-content`">
+              <nldd-table :accessible-label="humanize(node.name)" :columns="`repeat(${columns.length}, minmax(120px, 1fr)) max-content`">
                 <nldd-table-row slot="header">
                   <nldd-text-cell v-for="c in columns" :key="c" size="sm" :text="humanize(c)"></nldd-text-cell>
                   <nldd-text-cell size="sm" text=""></nldd-text-cell>
