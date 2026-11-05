@@ -3103,23 +3103,6 @@
         "kieswet#G 1"
       ]
     },
-    "decisionEffect": {
-      "type": "object",
-      "description": "Since v0.8.14: one thing a decision does with another decision, named by a parameter of the article whose value is that decision. Exactly one of `revokes` and `replaces`.",
-      "additionalProperties": false,
-      "minProperties": 1,
-      "maxProperties": 1,
-      "properties": {
-        "revokes": {
-          "type": "string",
-          "description": "The parameter whose value is the decision this one revokes: its consequences no longer count (Awb 7:11 lid 2)."
-        },
-        "replaces": {
-          "type": "string",
-          "description": "The parameter whose value is the decision this one takes the place of: the consequences of that decision no longer count, and those of this one do (Awb 7:11 lid 2)."
-        }
-      }
-    },
     "producedItem": {
       "type": "object",
       "required": [
@@ -3177,7 +3160,21 @@
         "effects": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/decisionEffect"
+            "type": "object",
+            "description": "Since v0.8.14: one thing a decision does with another decision, named by a parameter of the article whose value is that decision. Exactly one of `revokes` and `replaces`.",
+            "additionalProperties": false,
+            "minProperties": 1,
+            "maxProperties": 1,
+            "properties": {
+              "revokes": {
+                "type": "string",
+                "description": "The parameter whose value is the decision this one revokes: its consequences no longer count (Awb 7:11 lid 2)."
+              },
+              "replaces": {
+                "type": "string",
+                "description": "The parameter whose value is the decision this one takes the place of: the consequences of that decision no longer count, and those of this one do (Awb 7:11 lid 2)."
+              }
+            }
           },
           "minItems": 1,
           "description": "Since v0.8.14, only on a decision: what this decision does with another decision, such as the decision on an objection that revokes the contested decision (Awb 7:11 lid 2) or takes a new decision in its place. Each effect names a parameter of this article whose value is the other decision. A runtime that records decisions plays the effects in the order the decisions were recorded, and from them derives which decisions still have consequences: a revoked decision has none, a replaced one has none and its replacement has them, and when a revoking or replacing decision itself loses its consequences, the decision it revoked or replaced has them again. The engine does not act on it; the loader checks that it sits on a decision and that every named parameter is a parameter of the article."
