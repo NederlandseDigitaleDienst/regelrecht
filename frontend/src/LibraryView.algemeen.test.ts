@@ -1,5 +1,6 @@
 // The Algemeen page of a law: an overview with where the law comes from (its
-// published text and its folder on GitHub), and a YAML tab with the whole file.
+// published text and its folder on GitHub). The whole file has its own entry,
+// YAML, right below Algemeen.
 // Mounts LibraryView `shallow` with the composable stubs from
 // test-utils/libraryViewHarness.ts.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -82,7 +83,7 @@ describe('LibraryView Algemeen', () => {
       'wetten.overheid.nl',
     );
     expect(wrapper.get('[data-testid="algemeen-link-github"]').attributes('href')).toBe(FOLDER);
-    expect(wrapper.find('[data-testid="algemeen-yaml"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="law-yaml"]').exists()).toBe(false);
   });
 
   it('falls back to the BWB id without a url, and leaves GitHub out for a local law', async () => {
@@ -105,11 +106,22 @@ describe('LibraryView Algemeen', () => {
     );
   });
 
-  it('shows the whole file on the YAML tab', async () => {
-    routeState.hash = '#yaml';
+  it('shows the whole file on the YAML entry, below Algemeen', async () => {
+    routeState.params = { lawId: 'wet_a', articleNumber: 'yaml' };
     const wrapper = mountLibrary();
     await settle();
-    expect(wrapper.get('[data-testid="algemeen-yaml"]').text()).toBe(LAW_TEXT.trim());
+    expect(wrapper.get('[data-testid="law-yaml"]').text()).toBe(LAW_TEXT.trim());
+    expect(wrapper.get('[data-testid="law-entry-yaml"]').attributes('current')).toBeDefined();
+    expect(wrapper.find('[data-testid="algemeen-link-official"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('bestaat niet');
+  });
+
+  it('lets a real article called yaml win over the YAML entry', async () => {
+    routeState.params = { lawId: 'wet_a', articleNumber: 'yaml' };
+    server.lawText = "$id: wet_a\narticles:\n  - number: 'yaml'\n    text: Een artikel.\n";
+    const wrapper = mountLibrary();
+    await settle();
+    expect(wrapper.find('[data-testid="law-yaml"]').exists()).toBe(false);
   });
 
   it('asks the traject for the GitHub folder inside a traject', async () => {

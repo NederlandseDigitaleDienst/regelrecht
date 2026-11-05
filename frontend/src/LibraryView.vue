@@ -970,8 +970,8 @@ const selectedLawId = ref<string | null>(null);
 // the law's first occurrence.
 const selectedSection = ref<string | null>(null);
 const selectedLaw = shallowRef<LibraryLawDocument | null>(null);
-// The law's YAML as the server sent it, for the YAML tab on Algemeen; cleared
-// with the parsed law.
+// The law's YAML as the server sent it, for the YAML entry; cleared with the
+// parsed law.
 const selectedLawText = shallowRef('');
 watch(selectedLaw, (law) => {
   if (!law) selectedLawText.value = '';
@@ -1266,17 +1266,26 @@ onBeforeUnmount(() => setLibraryEmpty(false));
 
 const articles = computed(() => selectedLaw.value?.articles ?? []);
 
-// "Algemeen" rides the existing :articleNumber segment as a reserved value, so
-// deep-linking and the browser back button work without a new route. The
-// schema types article numbers as free-form strings, so a real article could
-// in theory be called 'algemeen' too; when that happens the real article wins
-// and the pane is simply not reachable for that law.
+// "Algemeen" and "YAML" ride the existing :articleNumber segment as reserved
+// values, so deep-linking and the browser back button work without a new
+// route. The schema types article numbers as free-form strings, so a real
+// article could in theory be called 'algemeen' or 'yaml' too; when that
+// happens the real article wins and the pane is simply not reachable for that
+// law.
 const ALGEMEEN_KEY = 'algemeen';
-const isAlgemeen = computed(
-  () =>
-    selectedArticleNumber.value === ALGEMEEN_KEY &&
-    !articles.value.some((article) => article.number === ALGEMEEN_KEY),
-);
+const YAML_KEY = 'yaml';
+function isReservedEntry(key: string) {
+  return computed(
+    () =>
+      selectedArticleNumber.value === key &&
+      !articles.value.some((article) => String(article.number) === key),
+  );
+}
+const isAlgemeen = isReservedEntry(ALGEMEEN_KEY);
+// The whole file, for every law.
+const isYaml = isReservedEntry(YAML_KEY);
+// Algemeen or YAML: a page about the law as a whole, not one of its articles.
+const isLawPage = computed(() => isAlgemeen.value || isYaml.value);
 
 // A header field may be an internal reference like '#wet_naam': the value is
 // produced by an action in one of the articles, not written in the header.
@@ -1353,7 +1362,7 @@ watch([selectedLawId, lawName, indexedLawName], () => {
 }, { immediate: true });
 
 const selectedArticle = computed(() => {
-  if (!selectedArticleNumber.value || isAlgemeen.value) return null;
+  if (!selectedArticleNumber.value || isLawPage.value) return null;
   return articles.value.find(
     (a) => String(a.number) === String(selectedArticleNumber.value)
   ) ?? null;
@@ -1424,12 +1433,6 @@ const algemeenRows = computed(() => {
   return rows.filter((row) => row.value);
 });
 
-// Algemeen has two tabs, Overzicht and YAML (the whole file). They ride the
-// same URL hash as the article tabs, so #yaml deep-links to the file; the
-// Overzicht tab writes the article's 'tekst' view (#text), and any hash other
-// than #yaml shows Overzicht.
-const algemeenView = computed(() => (detailView.value === 'yaml' ? 'yaml' : 'overzicht'));
-
 // Where the law comes from: the published text, and the folder of versions
 // on GitHub when the law lives in a GitHub source.
 const algemeenLinks = computed(() => {
@@ -1473,7 +1476,7 @@ const algemeenLegalBasis = computed(() => selectedLaw.value?.legal_basis ?? []);
 // loaded law. Distinct from "no article selected" (where no article
 // number is in the URL).
 const articleNotFound = computed(() =>
-  !!(selectedLaw.value && selectedArticleNumber.value && !isAlgemeen.value && !selectedArticle.value)
+  !!(selectedLaw.value && selectedArticleNumber.value && !isLawPage.value && !selectedArticle.value)
 );
 
 // 404 means the law isn't in the active traject's corpus; the error UI shows a traject-specific message.
@@ -1908,6 +1911,10 @@ function selectArticle(number: string | number) {
 
 function selectAlgemeen() {
   selectArticle(ALGEMEEN_KEY);
+}
+
+function selectYaml() {
+  selectArticle(YAML_KEY);
 }
 
 // Article filter: a toolbar toggle reveals the field, so the list stays
@@ -2560,6 +2567,17 @@ watch(activeTrajectRef, () => {
                       <nldd-icon icon="chevron-right"></nldd-icon>
                     </nldd-icon-cell>
                   </nldd-list-item>
+                  <nldd-list-item data-testid="law-entry-yaml" size="md" button :current="isYaml || undefined" @click="selectYaml()">
+                    <nldd-icon-cell size="20">
+                      <nldd-icon icon="code-block"></nldd-icon>
+                    </nldd-icon-cell>
+                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                    <nldd-text-cell text="YAML"></nldd-text-cell>
+                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                    <nldd-icon-cell size="20">
+                      <nldd-icon icon="chevron-right"></nldd-icon>
+                    </nldd-icon-cell>
+                  </nldd-list-item>
                 </nldd-list>
                 <nldd-spacer size="24"></nldd-spacer>
                 <nldd-title size="5">
@@ -2742,14 +2760,14 @@ watch(activeTrajectRef, () => {
           </nldd-split-view-pane>
 
           <!-- Main: Artikel Detail -->
-          <nldd-split-view-pane v-else slot="main" :has-content="selectedArticle || isAlgemeen || lawError || articleNotFound ? true : undefined">
+          <nldd-split-view-pane v-else slot="main" :has-content="selectedArticle || isLawPage || lawError || articleNotFound ? true : undefined">
             <nldd-page landmarks="page" sticky-header>
               <nldd-top-title-bar
                 slot="header"
-                :text="isAlgemeen ? 'Algemeen' : (selectedArticle ? `Artikel ${selectedArticle.number}` : undefined)"
-                :supporting-text="isAlgemeen || selectedArticle ? lawName : undefined"
+                :text="isAlgemeen ? 'Algemeen' : isYaml ? 'YAML' : (selectedArticle ? `Artikel ${selectedArticle.number}` : undefined)"
+                :supporting-text="isLawPage || selectedArticle ? lawName : undefined"
                 :back-text="lawError ? LIBRARY_HOME_BACK_TEXT : (lawName || 'Terug')"
-                :collapse-anchor="isAlgemeen ? 'algemeen-titel' : (selectedArticle ? 'article-titel' : undefined)"
+                :collapse-anchor="isAlgemeen ? 'algemeen-titel' : isYaml ? 'yaml-titel' : (selectedArticle ? 'article-titel' : undefined)"
               ></nldd-top-title-bar>
 
               <nldd-simple-section width="full" v-if="!selectedLawId">
@@ -2797,73 +2815,69 @@ watch(activeTrajectRef, () => {
                   <span slot="supporting-text">{{ lawName }}</span>
                 </nldd-title>
                 <nldd-spacer size="16"></nldd-spacer>
-                <nldd-toolbar>
-                  <nldd-toolbar-item slot="start">
-                    <nldd-tab-bar size="md" @tabchange="onDetailTabChange">
-                      <nldd-tab-bar-item data-view="tekst" :current="algemeenView === 'overzicht' || undefined" text="Overzicht"></nldd-tab-bar-item>
-                      <nldd-tab-bar-item data-view="yaml" :current="algemeenView === 'yaml' || undefined" text="YAML"></nldd-tab-bar-item>
-                    </nldd-tab-bar>
-                  </nldd-toolbar-item>
-                </nldd-toolbar>
-                <nldd-spacer size="24"></nldd-spacer>
-                <nldd-code-viewer v-if="algemeenView === 'yaml'" data-testid="algemeen-yaml" language="yaml">{{ selectedLawText }}</nldd-code-viewer>
-                <template v-else>
-                  <nldd-list appearance="box-tinted" accessible-label="Algemene informatie">
-                    <nldd-list-item v-for="row in algemeenRows" :key="row.label">
-                      <nldd-text-cell :text="row.label" width="200px"></nldd-text-cell>
-                      <nldd-spacer-cell size="16"></nldd-spacer-cell>
-                      <nldd-text-cell :text="row.value"></nldd-text-cell>
+                <nldd-list appearance="box-tinted" accessible-label="Algemene informatie">
+                  <nldd-list-item v-for="row in algemeenRows" :key="row.label">
+                    <nldd-text-cell :text="row.label" width="200px"></nldd-text-cell>
+                    <nldd-spacer-cell size="16"></nldd-spacer-cell>
+                    <nldd-text-cell :text="row.value"></nldd-text-cell>
+                  </nldd-list-item>
+                </nldd-list>
+                <template v-if="algemeenLinks.length">
+                  <nldd-spacer size="24"></nldd-spacer>
+                  <nldd-title size="4">
+                    <h4>Bronnen</h4>
+                  </nldd-title>
+                  <nldd-spacer size="8"></nldd-spacer>
+                  <nldd-list appearance="simple" accessible-label="Bronnen">
+                    <nldd-list-item
+                      v-for="link in algemeenLinks"
+                      :key="link.key"
+                      :data-testid="`algemeen-link-${link.key}`"
+                      size="md"
+                      :href="link.href"
+                      target="_blank"
+                    >
+                      <nldd-text-cell :text="link.text" :supporting-text="link.supportingText"></nldd-text-cell>
+                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                      <nldd-icon-cell size="20">
+                        <nldd-icon icon="external-link"></nldd-icon>
+                      </nldd-icon-cell>
                     </nldd-list-item>
                   </nldd-list>
-                  <template v-if="algemeenLinks.length">
-                    <nldd-spacer size="24"></nldd-spacer>
-                    <nldd-title size="4">
-                      <h4>Bronnen</h4>
-                    </nldd-title>
-                    <nldd-spacer size="8"></nldd-spacer>
-                    <nldd-list appearance="simple" accessible-label="Bronnen">
-                      <nldd-list-item
-                        v-for="link in algemeenLinks"
-                        :key="link.key"
-                        :data-testid="`algemeen-link-${link.key}`"
-                        size="md"
-                        :href="link.href"
-                        target="_blank"
-                      >
-                        <nldd-text-cell :text="link.text" :supporting-text="link.supportingText"></nldd-text-cell>
-                        <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                        <nldd-icon-cell size="20">
-                          <nldd-icon icon="external-link"></nldd-icon>
-                        </nldd-icon-cell>
-                      </nldd-list-item>
-                    </nldd-list>
-                  </template>
-                  <template v-if="algemeenLegalBasis.length">
-                    <nldd-spacer size="24"></nldd-spacer>
-                    <nldd-title size="4">
-                      <h4>Grondslag</h4>
-                    </nldd-title>
-                    <nldd-spacer size="8"></nldd-spacer>
-                    <nldd-list appearance="simple">
-                      <nldd-list-item
-                        v-for="basis in algemeenLegalBasis"
-                        :key="`${basis.law_id}-${basis.article}`"
-                        size="md"
-                        button
-                        @click="selectLawArticle(basis.law_id, basis.article)"
-                      >
-                        <nldd-text-cell
-                          :text="basis.article ? `Artikel ${basis.article}` : humanizeLawId(basis.law_id)"
-                          :supporting-text="basis.description || (basis.article ? humanizeLawId(basis.law_id) : undefined)"
-                        ></nldd-text-cell>
-                        <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                        <nldd-icon-cell size="20">
-                          <nldd-icon icon="chevron-right"></nldd-icon>
-                        </nldd-icon-cell>
-                      </nldd-list-item>
-                    </nldd-list>
-                  </template>
                 </template>
+                <template v-if="algemeenLegalBasis.length">
+                  <nldd-spacer size="24"></nldd-spacer>
+                  <nldd-title size="4">
+                    <h4>Grondslag</h4>
+                  </nldd-title>
+                  <nldd-spacer size="8"></nldd-spacer>
+                  <nldd-list appearance="simple">
+                    <nldd-list-item
+                      v-for="basis in algemeenLegalBasis"
+                      :key="`${basis.law_id}-${basis.article}`"
+                      size="md"
+                      button
+                      @click="selectLawArticle(basis.law_id, basis.article)"
+                    >
+                      <nldd-text-cell
+                        :text="basis.article ? `Artikel ${basis.article}` : humanizeLawId(basis.law_id)"
+                        :supporting-text="basis.description || (basis.article ? humanizeLawId(basis.law_id) : undefined)"
+                      ></nldd-text-cell>
+                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                      <nldd-icon-cell size="20">
+                        <nldd-icon icon="chevron-right"></nldd-icon>
+                      </nldd-icon-cell>
+                    </nldd-list-item>
+                  </nldd-list>
+                </template>
+              </nldd-simple-section>
+              <nldd-simple-section width="full" v-else-if="isYaml">
+                <nldd-title id="yaml-titel" size="3">
+                  <h3>YAML</h3>
+                  <span slot="supporting-text">{{ lawName }}</span>
+                </nldd-title>
+                <nldd-spacer size="16"></nldd-spacer>
+                <nldd-code-viewer data-testid="law-yaml" language="yaml">{{ selectedLawText }}</nldd-code-viewer>
               </nldd-simple-section>
               <nldd-simple-section width="full" v-else-if="!selectedArticle">
                 <nldd-inline-dialog text="Selecteer een artikel"></nldd-inline-dialog>
