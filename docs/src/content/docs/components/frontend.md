@@ -36,7 +36,7 @@ Every Home route renders `LibraryView.vue`, which uses a navigation split view: 
 
 | Route | What it shows |
 |-------|---------------|
-| `/` | The public corpus (*Corpus juris*). The sidebar lists *Favorieten* and *Recent bekeken*. Favorites need a login; without one the star is not shown. |
+| `/` | The public corpus (*Corpus juris*). The sidebar lists *Favorieten* and *Recent bekeken*. Without a login, favorites are kept in this browser (`useLocalFavorites`); the section says so, warns that clearing the browser data loses them, and links to *Account aanvragen*. At the first load after login they move to the account and leave the browser; one that fails to save stays for the next try. In a traject favorites need a login. |
 | `/corpus-juris/{lawId}/{article?}` | A law from the public corpus: articles in the secondary sidebar, the article in main. Above the articles sit two entries, also on the traject route below: *Algemeen* (`article` = `algemeen`), the law's details with links to its published text (its `url` when that is a web address, else its BWB id) and its folder on GitHub, and *YAML* (`article` = `yaml`), the whole file. A law whose current version is enriched gets *Tekst*, *Machine* and *YAML* tabs under a banner that says the machine version is an example and not established; any other law shows its text only, with a note when another version does have a machine version. |
 | `/trajecten/{ref}` | The traject landing. The sidebar adds *Instellingen*, *Werkdocumenten* and *Taken*, and the section *In dit traject*. |
 | `/trajecten/{ref}/corpus/{lawId}/{article?}` | A law as the traject has it, read through `/api/trajects/{ref}/corpus/...`. |

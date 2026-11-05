@@ -23,7 +23,12 @@ import TasksCategoriesPane from './components/TasksCategoriesPane.vue';
 import TasksListPane from './components/TasksListPane.vue';
 import TasksSidebarItem from './components/TasksSidebarItem.vue';
 import UploadConfirmDialog from './components/UploadConfirmDialog.vue';
-import { useAuth } from './composables/useAuth';
+import { useAuth, ensureAuthReady } from './composables/useAuth';
+import {
+  readLocalFavorites,
+  toggleLocalFavorite,
+  moveLocalFavoritesToAccount,
+} from './composables/useLocalFavorites';
 import { useCorpusLaws } from './composables/useCorpusLaws';
 // useEnrichState (bovenop useTaskActions), niet useTasks: LibraryView heeft
 // alleen gerichte refreshes nodig - na een geannuleerde job, na een eigen
@@ -93,7 +98,7 @@ type PendingLeave =
   | { type: 'inview'; run: () => void }
   | { type: 'route'; resolve: (proceed: boolean) => void };
 
-const { authenticated } = useAuth();
+const { authenticated, loading: authLoading } = useAuth();
 
 // Provided by AppShell: shows the login-warning popover anchored to an element,
 // so "Bewerken" gates on login the same way the Editor tab does.
@@ -122,6 +127,16 @@ const router = useRouter();
 // `route.params.trajectRef`, so the new `library-traject` route makes the
 // bibliotheek traject-aware without any extra plumbing.
 const { activeTrajectRef, activeTraject } = useTrajects();
+
+// Favorites without an account live in this browser (useLocalFavorites), in
+// Corpus juris only: a traject needs a login anyway. The sidebar says so, and
+// points at an account, which keeps them for good.
+const localFavorites = computed(() => !authenticated.value && !activeTrajectRef.value);
+// The public account-request page; a top-level route outside this view.
+const accountRequestHref = computed(() => router.resolve({ name: 'account-aanvragen' }).href);
+function goToAccountRequest() {
+  router.push({ name: 'account-aanvragen' });
+}
 
 // Primary-sidebar heading: the active traject's name, or 'Corpus juris' for the
 // public/global corpus (logged-out, or logged-in without a chosen traject).
@@ -1559,14 +1574,28 @@ function articleDescription(article: LawArticle): string {
 // controle overschrijft een traag antwoord van het vórige traject dat van het
 // huidige.
 async function loadFavorites(trajectRef: string | null | undefined, isCurrent: () => boolean) {
+  // Settle the login state first: before /auth/status answers, `authenticated`
+  // reads false, and a logged-in user would briefly see the browser's set.
+  if (authLoading.value) {
+    await ensureAuthReady();
+    if (!isCurrent()) return;
+  }
+  // Not logged in: Corpus juris favorites live in this browser.
+  if (!authenticated.value) {
+    favorites.value = trajectRef ? new Set() : readLocalFavorites();
+    return;
+  }
   try {
+    // Logged in: whatever was starred in this browser goes to the account
+    // first, so the list below already holds it.
+    if (!trajectRef) await moveLocalFavoritesToAccount();
     const favIds = await apiFetchJson<string[]>(favoritesUrl(trajectRef), {
       errorMessage: (status) => `Failed to load favorites: ${status}`,
     });
     if (!isCurrent()) return;
     favorites.value = new Set(favIds);
   } catch (e) {
-    // Not authenticated (401/403) or endpoint unavailable - no favorites.
+    // Endpoint unavailable (403, or 503 without a database) - no favorites.
     // Only server errors are worth a console trace.
     if (e instanceof ApiError && e.status >= 500) console.warn(e.message);
   }
@@ -1618,8 +1647,15 @@ function onFavoriteClick() {
 }
 
 async function toggleFavorite(lawId: string | null) {
-  // Favorites are stored on the account; the star is hidden without a login.
-  if (!authenticated.value || !lawId) return;
+  if (!lawId) return;
+  // Not logged in: star in this browser, then refresh the sidebar so the law
+  // shows under Favorieten.
+  if (!authenticated.value) {
+    if (activeTrajectRef.value) return;
+    favorites.value = toggleLocalFavorite(lawId);
+    loadIndex();
+    return;
+  }
   if (togglingFavorites.value.has(lawId)) return;
 
   togglingFavorites.value.add(lawId);
@@ -2334,6 +2370,27 @@ watch(activeTrajectRef, () => {
                       </nldd-title>
                       <nldd-spacer size="8"></nldd-spacer>
                     </template>
+                    <!-- Favorites without an account: say where they live and
+                         how they get lost, and what keeps them. -->
+                    <template v-if="section.key === 'favorites' && localFavorites">
+                      <nldd-banner
+                        data-testid="local-favorites-notice"
+                        size="sm"
+                        variant="warning"
+                        text="Alleen in deze browser"
+                        supporting-text="Wis je je browsergegevens of gebruik je een andere browser, dan zijn ze weg. Met een account bewaar je ze blijvend; ze gaan mee zodra je inlogt."
+                      >
+                        <nldd-button
+                          slot="actions"
+                          size="sm"
+                          appearance="secondary"
+                          text="Account aanvragen"
+                          :href="accountRequestHref"
+                          @click.prevent="goToAccountRequest"
+                        ></nldd-button>
+                      </nldd-banner>
+                      <nldd-spacer size="8"></nldd-spacer>
+                    </template>
                     <!-- Nog niets aangeraakt: de kop staat er al, hieronder
                          alleen de mededeling. Uitleg over hóe je hem vult lees
                          je één keer en daarna voor altijd, op de plek waar je
@@ -2508,11 +2565,13 @@ watch(activeTrajectRef, () => {
                 <nldd-toolbar v-if="paneChromeVisible(selectedLawLoading)" accessible-label="Regelwerkacties">
                   <!-- priority: hoger blijft langer staan, lager verdwijnt als
                        eerste in het overflow-menu. -->
-                  <nldd-toolbar-item v-if="authenticated" slot="start" :priority="2">
+                  <nldd-toolbar-item v-if="authenticated || localFavorites" slot="start" :priority="2">
                     <nldd-icon-button
                       appearance="neutral-base"
                       :icon="favorites?.has(selectedLawId) ? 'star-filled' : 'star'"
-                      :text="favorites?.has(selectedLawId) ? 'Verwijder uit favorieten' : 'Voeg toe aan favorieten'"
+                      :text="favorites?.has(selectedLawId)
+                        ? 'Verwijder uit favorieten'
+                        : localFavorites ? 'Voeg toe aan favorieten in deze browser' : 'Voeg toe aan favorieten'"
                       @click="onFavoriteClick"
                     ></nldd-icon-button>
                   </nldd-toolbar-item>

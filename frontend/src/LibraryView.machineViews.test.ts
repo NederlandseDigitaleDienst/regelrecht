@@ -24,7 +24,7 @@ const routeState: { name: string; params: Record<string, string>; query: Record<
 };
 vi.mock('vue-router', () => harness.vueRouter(() => routeState));
 
-// Logged in by default; the favorites test logs out.
+// Logged in. Favorites without a login: LibraryView.localFavorites.test.ts.
 const authenticated = ref(true);
 vi.mock('./composables/useAuth', () => harness.auth(() => ({ authenticated })));
 
@@ -125,12 +125,5 @@ describe('LibraryView favorite button', () => {
     const wrapper = mountLibrary();
     await settle();
     expect(star(wrapper)).toHaveLength(1);
-  });
-
-  it('hides the star without a login: favorites are stored on the account', async () => {
-    authenticated.value = false;
-    const wrapper = mountLibrary();
-    await settle();
-    expect(star(wrapper)).toHaveLength(0);
   });
 });

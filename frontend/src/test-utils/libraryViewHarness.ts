@@ -42,8 +42,13 @@ export function vueRouter(route: () => unknown, router?: Overrides<[]>) {
   };
 }
 
+// Login state is settled from the start (`loading` false), as after
+// /auth/status has answered; `ensureAuthReady` resolves straight away.
 export function auth(overrides?: Overrides<[]>) {
-  return { useAuth: () => ({ authenticated: ref(true), login: vi.fn(), ...apply(overrides, []) }) };
+  return {
+    useAuth: () => ({ authenticated: ref(true), loading: ref(false), login: vi.fn(), ...apply(overrides, []) }),
+    ensureAuthReady: async () => {},
+  };
 }
 
 export function trajectsModule<A extends unknown[]>(overrides?: Overrides<A>) {
