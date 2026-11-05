@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Trimmed from the BWB manifest of the Awir (BWBR0018472): three consolidations. -->
+<work label="BWBR0018472" _latestItem="2026-10-01_0/xml/BWBR0018472_2026-10-01_0.xml">
+  <expression label="2025-01-01_0">
+    <metadata>
+      <datum_inwerkingtreding>2025-01-01</datum_inwerkingtreding>
+      <einddatum>2025-12-31</einddatum>
+    </metadata>
+    <manifestation label="xml"><item label="BWBR0018472_2025-01-01_0.xml" _deleted="false" /></manifestation>
+  </expression>
+  <expression label="2026-01-01_0">
+    <metadata>
+      <datum_inwerkingtreding>2026-01-01</datum_inwerkingtreding>
+      <einddatum>2026-09-30</einddatum>
+    </metadata>
+    <manifestation label="xml"><item label="BWBR0018472_2026-01-01_0.xml" _deleted="false" /></manifestation>
+  </expression>
+  <expression label="2026-10-01_0">
+    <metadata>
+      <datum_inwerkingtreding>2026-10-01</datum_inwerkingtreding>
+      <einddatum>9999-12-31</einddatum>
+    </metadata>
+    <manifestation label="xml"><item label="BWBR0018472_2026-10-01_0.xml" _deleted="false" /></manifestation>
+  </expression>
+</work>

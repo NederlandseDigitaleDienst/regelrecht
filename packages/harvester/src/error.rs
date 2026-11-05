@@ -35,6 +35,10 @@ pub enum HarvesterError {
     #[error("Invalid date format: '{0}'. Expected YYYY-MM-DD (e.g., 2025-01-01)")]
     InvalidDate(String),
 
+    /// A date range whose start lies after its end.
+    #[error("Invalid period: start date {from} is after end date {to}")]
+    InvalidPeriod { from: String, to: String },
+
     /// HTTP request failed.
     #[error("HTTP request failed: {0}")]
     Http(#[from] reqwest::Error),

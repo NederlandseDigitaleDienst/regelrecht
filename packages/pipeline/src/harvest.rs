@@ -6,8 +6,6 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
-use regelrecht_harvester::manifest;
-use regelrecht_harvester::LawSource;
 
 /// Maximum recursion depth for follow-up harvest jobs.
 /// Prevents unbounded job creation from circular or deeply nested law references.
@@ -139,10 +137,8 @@ pub struct LawStatusFile {
 /// Uses the `LawSource` trait to detect the source from the payload's law ID
 /// and delegates downloading to the appropriate strategy (BWB or CVDR).
 ///
-/// For BWB laws, the manifest is consulted to resolve the consolidation date
-/// before downloading. This BWB-specific step is handled here because it
-/// depends on pipeline-level logic (manifest resolution) that lives outside
-/// the harvester crate.
+/// For BWB laws, the harvester consults the manifest to resolve the
+/// consolidation date before downloading.
 ///
 /// Returns the harvest result and the files that were written, split into the
 /// content (law YAML) and metadata (`status.yaml`) roles for git staging.
@@ -161,25 +157,29 @@ pub async fn execute_harvest(
     let source = regelrecht_harvester::detect_source(law_id)?;
     let source_type = source.name().to_lowercase();
 
-    // For BWB, resolve the effective date from the manifest.
+    // For BWB, the harvester resolves the date to the consolidation in force on
+    // it via the manifest (no date: today) and returns that
+    // consolidation's start date as the effective date.
     // For CVDR, use the requested date, the law's metadata date, or today.
     let (law, effective_date) = if source.source_type() == regelrecht_harvester::LawSourceType::Bwb
     {
-        let bwb_manifest = manifest::download_manifest(http_client, law_id).await?;
-        let resolved_date =
-            manifest::resolve_consolidation_date(&bwb_manifest, payload.date.as_deref())?;
+        tracing::info!(law_id = %law_id, date = ?payload.date, "downloading law XML from BWB");
+        let max_size_mb = payload
+            .max_size_mb
+            .unwrap_or(regelrecht_harvester::config::DEFAULT_MAX_RESPONSE_SIZE_MB);
+        let law = regelrecht_harvester::harvester::download_law_version(
+            http_client,
+            law_id,
+            payload.date.as_deref(),
+            max_size_mb,
+        )
+        .await?;
+        let resolved_date = law.metadata.effective_date.clone().ok_or_else(|| {
+            crate::error::PipelineError::InvalidInput(format!(
+                "harvested BWB law {law_id} has no consolidation date"
+            ))
+        })?;
         tracing::info!(law_id = %law_id, resolved_date = %resolved_date, "resolved consolidation date from manifest");
-
-        tracing::info!(law_id = %law_id, date = %resolved_date, "downloading law XML from BWB");
-        let bwb_source = regelrecht_harvester::BwbSource {
-            max_size_mb: payload.max_size_mb,
-        };
-        let mut law = bwb_source
-            .download(http_client, law_id, Some(&resolved_date))
-            .await?;
-        // RFC-019: record an instrument end date only when this is the final consolidation
-        // and BWB reports a finite einddatum (genuine end with no successor).
-        law.metadata.valid_to = manifest::resolve_valid_to(&bwb_manifest, &resolved_date);
         (law, resolved_date)
     } else {
         tracing::info!(law_id = %law_id, source = source.name(), "downloading law from {}", source.name());

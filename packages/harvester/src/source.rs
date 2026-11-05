@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use reqwest::Client;
 
 use crate::config::{
-    lokaleregelgeving_url, validate_bwb_id, validate_cvdr_id, DEFAULT_MAX_RESPONSE_SIZE,
+    lokaleregelgeving_url, validate_bwb_id, validate_cvdr_id, DEFAULT_MAX_RESPONSE_SIZE_MB,
 };
 use crate::error::{HarvesterError, Result};
 use crate::types::Law;
@@ -60,9 +60,7 @@ impl LawSource for BwbSource {
             .map(String::from)
             .unwrap_or_else(regelrecht_shared::dates::today_str);
 
-        let max_mb = self
-            .max_size_mb
-            .unwrap_or(DEFAULT_MAX_RESPONSE_SIZE / (1024 * 1024));
+        let max_mb = self.max_size_mb.unwrap_or(DEFAULT_MAX_RESPONSE_SIZE_MB);
 
         crate::harvester::download_law_with_max_size(client, id, &effective_date, max_mb).await
     }

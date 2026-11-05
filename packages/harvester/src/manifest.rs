@@ -59,7 +59,11 @@ pub async fn download_manifest(client: &Client, bwb_id: &str) -> Result<BwbManif
 }
 
 /// Parse manifest XML into a `BwbManifest`.
-fn parse_manifest(xml: &str, bwb_id: &str) -> Result<BwbManifest> {
+///
+/// # Errors
+/// Returns an error if the XML is malformed, has no `<work>`, or describes a
+/// work without consolidated text.
+pub fn parse_manifest(xml: &str, bwb_id: &str) -> Result<BwbManifest> {
     let doc = Document::parse(xml)?;
     let root = doc.root_element();
 
@@ -254,6 +258,34 @@ pub fn resolve_valid_to(manifest: &BwbManifest, version_date: &str) -> Option<St
     } else {
         None
     }
+}
+
+/// The start dates of all consolidations that begin between `from` and `to`
+/// (both inclusive), in date order.
+///
+/// BWB starts a new consolidation on every date on which an article changes or
+/// comes into force, so these are the law's in-force dates in the period.
+/// Deleted expressions are skipped, like in [`resolve_consolidation_date`].
+pub fn consolidation_dates_between(manifest: &BwbManifest, from: &str, to: &str) -> Vec<String> {
+    let mut dates: Vec<String> = manifest
+        .expressions
+        .iter()
+        .filter(|c| !c.deleted)
+        .map(|c| c.datum_inwerkingtreding.as_str())
+        .filter(|date| from <= *date && *date <= to)
+        .map(str::to_string)
+        .collect();
+    dates.sort();
+    dates.dedup();
+    dates
+}
+
+/// Whether the manifest has a (non-deleted) consolidation that starts on `date`.
+pub fn has_consolidation(manifest: &BwbManifest, date: &str) -> bool {
+    manifest
+        .expressions
+        .iter()
+        .any(|c| !c.deleted && c.datum_inwerkingtreding == date)
 }
 
 /// Extract BWB ID from the `_latestItem` path for error messages.
@@ -641,5 +673,48 @@ mod tests {
             "BWBR0015703"
         );
         assert_eq!(extract_bwb_id_from_latest("no_id_here"), "unknown");
+    }
+
+    #[test]
+    fn test_consolidation_dates_between() {
+        let manifest = parse_manifest(SAMPLE_MANIFEST, "BWBR0015703").unwrap();
+        assert_eq!(
+            consolidation_dates_between(&manifest, "2024-01-01", "2026-02-04"),
+            ["2024-01-01", "2025-07-01", "2026-02-04"]
+        );
+        // Bounds are inclusive; a period between two start dates is empty.
+        assert_eq!(
+            consolidation_dates_between(&manifest, "2025-07-01", "2025-07-01"),
+            ["2025-07-01"]
+        );
+        assert!(consolidation_dates_between(&manifest, "2024-01-02", "2025-06-30").is_empty());
+    }
+
+    #[test]
+    fn test_consolidation_dates_between_skips_deleted_and_sorts() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<repository>
+  <work _latestItem="2026-01-01_0/xml/BWBR0018472_2026-01-01_0.xml">
+    <expression label="2026-01-01_0">
+      <metadata><datum_inwerkingtreding>2026-01-01</datum_inwerkingtreding></metadata>
+      <manifestation label="xml"><item label="a.xml" _deleted="false" /></manifestation>
+    </expression>
+    <expression label="2025-07-01_0">
+      <metadata><datum_inwerkingtreding>2025-07-01</datum_inwerkingtreding></metadata>
+      <manifestation label="xml"><item label="b.xml" _deleted="true" /></manifestation>
+    </expression>
+    <expression label="2025-01-01_0">
+      <metadata><datum_inwerkingtreding>2025-01-01</datum_inwerkingtreding></metadata>
+      <manifestation label="xml"><item label="c.xml" _deleted="false" /></manifestation>
+    </expression>
+  </work>
+</repository>"#;
+        let manifest = parse_manifest(xml, "BWBR0018472").unwrap();
+        assert_eq!(
+            consolidation_dates_between(&manifest, "2025-01-01", "2026-12-31"),
+            ["2025-01-01", "2026-01-01"]
+        );
+        assert!(has_consolidation(&manifest, "2026-01-01"));
+        assert!(!has_consolidation(&manifest, "2025-07-01"));
     }
 }

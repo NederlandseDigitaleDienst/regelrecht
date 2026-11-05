@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Trimmed Awir WTI. The first publicatiedatum belongs to an unrelated amending
+     act; it must not become the publication date of any version. -->
+<wetstechnische-informatie bwb-id="BWBR0018472">
+  <algemene-informatie>
+    <citeertitel status="officieel">Algemene wet inkomensafhankelijke regelingen</citeertitel>
+    <soort-regeling>wet</soort-regeling>
+  </algemene-informatie>
+  <wijzigingen>
+    <regeling>
+      <datum>
+        <details>
+          <betreft>wijziging</betreft>
+          <ontstaansbron><bron type="oorspronkelijk"><bekendmaking soort="Stb"><publicatiedatum>2022-12-27</publicatiedatum></bekendmaking></bron></ontstaansbron>
+        </details>
+      </datum>
+    </regeling>
+  </wijzigingen>
+</wetstechnische-informatie>
