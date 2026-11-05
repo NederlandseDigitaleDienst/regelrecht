@@ -131,10 +131,17 @@ const { activeTrajectRef, activeTraject } = useTrajects();
 // Favorites without an account live in this browser (useLocalFavorites), in
 // Corpus juris only: a traject needs a login anyway. The sidebar says so, and
 // points at an account, which keeps them for good.
-const localFavorites = computed(() => !authenticated.value && !activeTrajectRef.value);
-// The public account-request page; a top-level route outside this view.
+// Only once /auth/status has answered: before that `authenticated` reads
+// false, and a logged-in user would see the browser's star.
+const localFavorites = computed(
+  () => !authLoading.value && !authenticated.value && !activeTrajectRef.value,
+);
+// The public account-request page; a top-level route outside this view. A
+// click that asks for a new tab or window keeps the link's own behavior.
 const accountRequestHref = computed(() => router.resolve({ name: 'account-aanvragen' }).href);
-function goToAccountRequest() {
+function goToAccountRequest(event: MouseEvent) {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
   router.push({ name: 'account-aanvragen' });
 }
 
@@ -1648,6 +1655,9 @@ function onFavoriteClick() {
 
 async function toggleFavorite(lawId: string | null) {
   if (!lawId) return;
+  // The login state decides where the favorite goes; until it is known, the
+  // star is not offered (see localFavorites).
+  if (authLoading.value) return;
   // Not logged in: star in this browser, then refresh the sidebar so the law
   // shows under Favorieten.
   if (!authenticated.value) {
@@ -1939,9 +1949,12 @@ function selectArticle(number: string | number) {
   if (articleStr === selectedArticleNumber.value) return;
   selectedArticleNumber.value = articleStr;
   activeAction.value = null;
+  // An article keeps the open tab (#machine, #yaml); Algemeen and YAML have no
+  // tabs, so their address carries none.
+  const lawPage = articleStr === ALGEMEEN_KEY || articleStr === YAML_KEY;
   router.replace({
     ...libraryRouteFor({ lawId: selectedLawId.value, articleNumber: articleStr }),
-    hash: route.hash,
+    hash: lawPage ? '' : route.hash,
   });
 }
 
@@ -2386,7 +2399,7 @@ watch(activeTrajectRef, () => {
                           appearance="secondary"
                           text="Account aanvragen"
                           :href="accountRequestHref"
-                          @click.prevent="goToAccountRequest"
+                          @click="goToAccountRequest"
                         ></nldd-button>
                       </nldd-banner>
                       <nldd-spacer size="8"></nldd-spacer>

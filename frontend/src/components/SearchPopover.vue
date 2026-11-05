@@ -138,7 +138,7 @@ function onSuggestionClick(event: MouseEvent, lawId: string) {
 const claimSuggestions = useLatest();
 async function loadSuggestions() {
   const isCurrent = claimSuggestions();
-  // Drop the previous handful first, so a quick Enter cannot land on a row
+  // Drop the previous handful first, so a quick click cannot land on a link
   // that is about to be replaced.
   suggestions.value = [];
   const ids = pickSuggestions(__SUGGESTED_LAW_IDS__, SUGGESTION_COUNT);

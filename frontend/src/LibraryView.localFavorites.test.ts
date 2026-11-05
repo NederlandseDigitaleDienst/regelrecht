@@ -17,8 +17,15 @@ const routeState: { name: string; params: Record<string, string>; query: Record<
 };
 vi.mock('vue-router', () => harness.vueRouter(() => routeState));
 
+// The login state, with a /auth/status answer a test can hold back: while
+// `authLoading` is true, `ensureAuthReady` waits for `auth.answer()`.
 const authenticated = ref(false);
-vi.mock('./composables/useAuth', () => harness.auth(() => ({ authenticated })));
+const authLoading = ref(false);
+const auth = vi.hoisted(() => ({ ready: Promise.resolve(), answer: () => {} }));
+vi.mock('./composables/useAuth', () => ({
+  useAuth: () => ({ authenticated, loading: authLoading, login: vi.fn() }),
+  ensureAuthReady: () => auth.ready,
+}));
 
 const activeTrajectRef = ref<string | null>(null);
 vi.mock('./composables/useTrajects', () =>
@@ -76,6 +83,8 @@ const stored = () => JSON.parse(localStorage.getItem(LOCAL_FAVORITES_KEY) ?? '[]
 beforeEach(() => {
   localStorage.clear();
   authenticated.value = false;
+  authLoading.value = false;
+  auth.ready = Promise.resolve();
   activeTrajectRef.value = null;
   routeState.params = { lawId: 'wet_a' };
   server.calls = [];
@@ -107,6 +116,34 @@ describe('LibraryView favorites without an account', () => {
     const wrapper = mountLibrary();
     await settle();
     expect(star(wrapper)).toBeUndefined();
+  });
+
+  it('waits for the login state before it shows or moves anything', async () => {
+    localStorage.setItem(LOCAL_FAVORITES_KEY, JSON.stringify(['wet_a']));
+    // Logged in, but /auth/status has not answered yet: `authenticated` reads false.
+    authLoading.value = true;
+    auth.ready = new Promise<void>((resolve) => {
+      auth.answer = () => {
+        authenticated.value = true;
+        authLoading.value = false;
+        resolve();
+      };
+    });
+    const wrapper = mountLibrary();
+    await settle();
+
+    expect(star(wrapper)).toBeUndefined();
+    expect(wrapper.find('[data-testid="local-favorites-notice"]').exists()).toBe(false);
+    expect(wrapper.find('nldd-list-item[data-section="favorites"]').exists()).toBe(false);
+    expect(server.calls.some((c) => c.startsWith('PUT'))).toBe(false);
+
+    auth.answer();
+    await settle();
+
+    expect(server.calls).toContain('PUT /api/favorites/wet_a');
+    expect(localStorage.getItem(LOCAL_FAVORITES_KEY)).toBeNull();
+    expect(wrapper.find('[data-testid="local-favorites-notice"]').exists()).toBe(false);
+    expect(star(wrapper)?.attributes('text')).toBe('Verwijder uit favorieten');
   });
 
   it('moves the browser favorites to the account at the first load after login', async () => {
