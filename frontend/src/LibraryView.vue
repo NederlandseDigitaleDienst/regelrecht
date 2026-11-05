@@ -2510,16 +2510,18 @@ watch(activeTrajectRef, () => {
                        eerste in het overflow-menu. -->
                   <nldd-toolbar-item v-if="authenticated" slot="start" :priority="2">
                     <nldd-icon-button
+                      appearance="neutral-base"
                       :icon="favorites?.has(selectedLawId) ? 'star-filled' : 'star'"
                       :text="favorites?.has(selectedLawId) ? 'Verwijder uit favorieten' : 'Voeg toe aan favorieten'"
                       @click="onFavoriteClick"
                     ></nldd-icon-button>
                   </nldd-toolbar-item>
                   <nldd-toolbar-item v-if="canShare" slot="start" :priority="1">
-                    <nldd-icon-button icon="share" text="Delen" @click="shareLaw"></nldd-icon-button>
+                    <nldd-icon-button appearance="neutral-base" icon="share" text="Delen" @click="shareLaw"></nldd-icon-button>
                   </nldd-toolbar-item>
                   <nldd-toolbar-item slot="end" :priority="4">
                     <nldd-icon-button
+                      appearance="neutral-base"
                       icon="search"
                       text="Artikelen zoeken"
                       :expanded="articleFilterOpen || undefined"
@@ -2527,7 +2529,7 @@ watch(activeTrajectRef, () => {
                     ></nldd-icon-button>
                   </nldd-toolbar-item>
                   <nldd-toolbar-item slot="end" :priority="3">
-                    <nldd-icon-button icon="filter" text="Artikelen filteren">
+                    <nldd-icon-button appearance="neutral-base" icon="filter" text="Artikelen filteren">
                       <nldd-menu slot="popup">
                         <nldd-menu-item
                           v-for="option in ARTICLE_FILTERS"
@@ -2815,61 +2817,68 @@ watch(activeTrajectRef, () => {
                   <span slot="supporting-text">{{ lawName }}</span>
                 </nldd-title>
                 <nldd-spacer size="16"></nldd-spacer>
-                <nldd-list appearance="box-tinted" accessible-label="Algemene informatie">
-                  <nldd-list-item v-for="row in algemeenRows" :key="row.label">
-                    <nldd-text-cell :text="row.label" width="200px"></nldd-text-cell>
-                    <nldd-spacer-cell size="16"></nldd-spacer-cell>
-                    <nldd-text-cell :text="row.value"></nldd-text-cell>
-                  </nldd-list-item>
-                </nldd-list>
-                <template v-if="algemeenLinks.length">
-                  <nldd-spacer size="24"></nldd-spacer>
-                  <nldd-title size="4">
-                    <h4>Bronnen</h4>
-                  </nldd-title>
-                  <nldd-spacer size="8"></nldd-spacer>
-                  <nldd-list appearance="simple" accessible-label="Bronnen">
-                    <nldd-list-item
-                      v-for="link in algemeenLinks"
-                      :key="link.key"
-                      :data-testid="`algemeen-link-${link.key}`"
-                      size="md"
-                      :href="link.href"
-                      target="_blank"
-                    >
-                      <nldd-text-cell :text="link.text" :supporting-text="link.supportingText"></nldd-text-cell>
-                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                      <nldd-icon-cell size="20">
-                        <nldd-icon icon="external-link"></nldd-icon>
-                      </nldd-icon-cell>
-                    </nldd-list-item>
-                  </nldd-list>
-                </template>
-                <template v-if="algemeenLegalBasis.length">
-                  <nldd-spacer size="24"></nldd-spacer>
-                  <nldd-title size="4">
-                    <h4>Grondslag</h4>
-                  </nldd-title>
-                  <nldd-spacer size="8"></nldd-spacer>
-                  <nldd-list appearance="simple">
-                    <nldd-list-item
-                      v-for="basis in algemeenLegalBasis"
-                      :key="`${basis.law_id}-${basis.article}`"
-                      size="md"
-                      button
-                      @click="selectLawArticle(basis.law_id, basis.article)"
-                    >
-                      <nldd-text-cell
-                        :text="basis.article ? `Artikel ${basis.article}` : humanizeLawId(basis.law_id)"
-                        :supporting-text="basis.description || (basis.article ? humanizeLawId(basis.law_id) : undefined)"
-                      ></nldd-text-cell>
-                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                      <nldd-icon-cell size="20">
-                        <nldd-icon icon="chevron-right"></nldd-icon>
-                      </nldd-icon-cell>
-                    </nldd-list-item>
-                  </nldd-list>
-                </template>
+                <!-- As wide as the article text, which nldd-rich-text centers
+                     at 720px (--primitives-area-720). The title stays left,
+                     as on an article. -->
+                <nldd-container horizontal-alignment="center">
+                  <nldd-container max-width="720px">
+                    <nldd-list appearance="box-tinted" accessible-label="Algemene informatie">
+                      <nldd-list-item v-for="row in algemeenRows" :key="row.label">
+                        <nldd-text-cell :text="row.label" width="200px"></nldd-text-cell>
+                        <nldd-spacer-cell size="16"></nldd-spacer-cell>
+                        <nldd-text-cell :text="row.value" horizontal-alignment="right"></nldd-text-cell>
+                      </nldd-list-item>
+                    </nldd-list>
+                    <template v-if="algemeenLinks.length">
+                      <nldd-spacer size="24"></nldd-spacer>
+                      <nldd-title size="4">
+                        <h4>Bronnen</h4>
+                      </nldd-title>
+                      <nldd-spacer size="8"></nldd-spacer>
+                      <nldd-list appearance="simple" accessible-label="Bronnen">
+                        <nldd-list-item
+                          v-for="link in algemeenLinks"
+                          :key="link.key"
+                          :data-testid="`algemeen-link-${link.key}`"
+                          size="md"
+                          :href="link.href"
+                          target="_blank"
+                        >
+                          <nldd-text-cell :text="link.text" :supporting-text="link.supportingText"></nldd-text-cell>
+                          <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                          <nldd-icon-cell size="20">
+                            <nldd-icon icon="external-link"></nldd-icon>
+                          </nldd-icon-cell>
+                        </nldd-list-item>
+                      </nldd-list>
+                    </template>
+                    <template v-if="algemeenLegalBasis.length">
+                      <nldd-spacer size="24"></nldd-spacer>
+                      <nldd-title size="4">
+                        <h4>Grondslag</h4>
+                      </nldd-title>
+                      <nldd-spacer size="8"></nldd-spacer>
+                      <nldd-list appearance="simple">
+                        <nldd-list-item
+                          v-for="basis in algemeenLegalBasis"
+                          :key="`${basis.law_id}-${basis.article}`"
+                          size="md"
+                          button
+                          @click="selectLawArticle(basis.law_id, basis.article)"
+                        >
+                          <nldd-text-cell
+                            :text="basis.article ? `Artikel ${basis.article}` : humanizeLawId(basis.law_id)"
+                            :supporting-text="basis.description || (basis.article ? humanizeLawId(basis.law_id) : undefined)"
+                          ></nldd-text-cell>
+                          <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                          <nldd-icon-cell size="20">
+                            <nldd-icon icon="chevron-right"></nldd-icon>
+                          </nldd-icon-cell>
+                        </nldd-list-item>
+                      </nldd-list>
+                    </template>
+                  </nldd-container>
+                </nldd-container>
               </nldd-simple-section>
               <nldd-simple-section width="full" v-else-if="isYaml">
                 <nldd-title id="yaml-titel" size="3">
