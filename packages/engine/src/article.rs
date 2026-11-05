@@ -122,6 +122,7 @@ impl LawLoad for ArticleBasedLaw {
         crate::load_check::reject_removed_constructs(&law)?;
         crate::load_check::reject_misplaced_reduction(&law)?;
         crate::load_check::reject_misplaced_article_call(&law)?;
+        crate::load_check::reject_misplaced_implements(&law)?;
         crate::load_check::reject_misplaced_competence(&law)?;
 
         // Validate schema version is supported (RFC-013)
@@ -1531,7 +1532,7 @@ articles:
             assert_eq!(implements.len(), 1);
             assert_eq!(implements[0].law, "test_wet");
             assert_eq!(implements[0].article, "4");
-            assert_eq!(implements[0].open_term, "standaardpremie");
+            assert_eq!(implements[0].open_term.as_deref(), Some("standaardpremie"));
             assert_eq!(
                 implements[0].gelet_op.as_deref(),
                 Some("Gelet op artikel 4 van de test wet")

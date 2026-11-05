@@ -258,6 +258,112 @@ impl Cell {
         self.reader(grams, None)
     }
 
+    /// The cell as the engine's answerer outside a decision of its own, such
+    /// as another authority evaluating a law that reads a value this cell
+    /// keeps (RFC-056): over its whole chronicle. An input it answers reads
+    /// the chronicle as it stood on the day asked about. A named answer for
+    /// an open term (RFC-048) does not: it reads every record the reader
+    /// holds, also those made after the calculation date. A decision takes
+    /// the cells it takes along as they were on its day ([`Cell::decide`]);
+    /// outside a decision there is no public reader of an earlier day yet.
+    pub fn answerer(&self) -> Reader<'_> {
+        self.reader(self.grams().to_vec(), None)
+    }
+
+    /// Hold what the cell's reductions say they answer against the law in
+    /// `service` (RFC-056): every input a reduction implements (`implements`
+    /// with `input`) is an input of that article in some version of the law,
+    /// whose source names a competent authority that names this cell, and
+    /// no two reductions of the cell implement the same input. A reduction
+    /// or a law the service does not hold is not looked at; the cross-law
+    /// gate reports an input that is not there (`IMPL-DANGLING`). That an
+    /// input with a competent authority has a cell that answers it is not
+    /// checked: a law runs without cells. Whoever loads a corpus with cells
+    /// calls this; nothing in the cell does so on its own, since opening a
+    /// cell has no service. The input is looked for in every version of the
+    /// law, not only those in force while the reduction is.
+    pub fn check_inputs(&self, service: &LawExecutionService) -> Result<()> {
+        // Per input, the reduction and the article that answer it.
+        let mut answered: BTreeMap<(String, String, String), (String, String)> = BTreeMap::new();
+        let versions = service
+            .resolver()
+            .all_law_versions()
+            .filter(|law| self.reductions.contains(&law.id));
+        for reduction in versions {
+            for article in &reduction.articles {
+                for decl in article.get_implements().into_iter().flatten() {
+                    let Some(input) = &decl.input else {
+                        continue;
+                    };
+                    let what = format!(
+                        "reduction '{}' of the cell of '{}' answers input '{input}' of {} \
+                         article {}",
+                        reduction.id, self.recording_actor, decl.law, decl.article
+                    );
+                    let key = (decl.law.clone(), decl.article.clone(), input.clone());
+                    let here = (reduction.id.clone(), article.number.clone());
+                    // Another version of the same reduction may answer it
+                    // again; another reduction, or another article, may not.
+                    if let Some((other, other_article)) = answered.get(&key).filter(|o| **o != here)
+                    {
+                        return Err(setup(format!(
+                            "{what}, and so does '{other}' article {other_article}; one \
+                             reduction answers an input"
+                        )));
+                    }
+                    answered.insert(key, here);
+                    if !service.has_law(&decl.law) {
+                        continue;
+                    }
+                    let sources: Vec<_> = service
+                        .resolver()
+                        .all_law_versions()
+                        .filter(|law| law.id == decl.law)
+                        .filter_map(|law| law.find_article_by_number(&decl.article))
+                        .flat_map(|a| a.get_inputs().iter().filter(|i| &i.name == input))
+                        .filter_map(|i| i.source.as_ref())
+                        .collect();
+                    if sources.is_empty() {
+                        return Err(setup(format!(
+                            "{what}, which no version of {} has",
+                            decl.law
+                        )));
+                    }
+                    let named: Vec<_> = sources
+                        .iter()
+                        .filter_map(|s| s.competent_authority.as_ref()?.named())
+                        .collect();
+                    if named.is_empty() {
+                        return Err(setup(format!(
+                            "{what}, whose source names no competent authority \
+                             (source.competent_authority); a cell answers only an input the \
+                             law says it is competent for"
+                        )));
+                    }
+                    if !named.iter().any(|n| self.authority.is_named_by(n)) {
+                        return Err(refused(format!(
+                            "{what}, whose source names {}, and the cell is '{}'{}; a cell \
+                             answers only an input the law says it is competent for",
+                            named
+                                .iter()
+                                .flat_map(|n| n.iter())
+                                .map(|a| format!("'{}'", a.name))
+                                .collect::<Vec<_>>()
+                                .join(" or "),
+                            self.authority.name,
+                            self.authority
+                                .category
+                                .as_deref()
+                                .map(|c| format!(" ({c})"))
+                                .unwrap_or_default()
+                        )));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn grams(&self) -> &[Gram] {
         self.chronicle.grams()
     }

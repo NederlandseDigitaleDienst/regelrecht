@@ -1,0 +1,9 @@
+---
+# Een fictieve inspecteur (artikel 1 van de Wet op de accijns noemt de
+# inspecteur), voor de test van RFC-056: hij verleent vergunningen voor een
+# accijnsgoederenplaats (artikel 43) en trekt ze op verzoek in (artikel 48,
+# onder f), en beantwoordt artikel 39 uit zijn eigen kroniek. Geen bestaand
+# orgaan. De cel geeft geen benoemde antwoorden voor een open begrip; de
+# invoer die zij beantwoordt, volgt uit de reductie (implements).
+name: Inspecteur Wilgendaal (fictief)
+category: inspecteur

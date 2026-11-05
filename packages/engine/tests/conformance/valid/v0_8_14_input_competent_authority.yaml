@@ -1,0 +1,45 @@
+---
+# Tier C: an input the competent authority answers from its own records
+# (schema v0.8.14, RFC-056). The article names the authority itself; the
+# source names it and passes the question's parameters. The demo's
+# Wet op de accijns uses it, with a demo $id that holds '/', which an
+# article reference may since v0.8.14.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: test_conformance_input_competent_authority
+regulatory_layer: WET
+publication_date: '2026-11-01'
+valid_from: '2026-11-01'
+bwb_id: BWBR0000000
+url: https://example.invalid/wet
+articles:
+  - number: '1'
+    text: Een plaats mag alleen gebruikt worden met een vergunning van de inspecteur.
+    url: https://example.invalid/wet/1
+    machine_readable:
+      execution:
+        parameters:
+          - name: kvk_nummer
+            type: string
+        input:
+          - name: heeft_vergunning
+            type: boolean
+            source:
+              competent_authority:
+                name: inspecteur
+                type: CATEGORY
+              parameters:
+                kvk_nummer: $kvk_nummer
+              description: Het register van de inspecteur.
+          - name: verleningen_elders
+            type: boolean
+            source:
+              competent_authority:
+                - name: inspecteur
+                  type: CATEGORY
+                - name: Landelijke inspecteur
+        output:
+          - name: mag_gebruiken
+            type: boolean
+        actions:
+          - output: mag_gebruiken
+            value: $heeft_vergunning

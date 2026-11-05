@@ -37,6 +37,17 @@
 //! as a finding of the deciding authority. So a scenario or another system
 //! can supply the same value.
 //!
+//! A cell also answers an input of a law whose source names the authority
+//! the cell is (`source.competent_authority`, RFC-056). No policy binds it:
+//! the law says who answers, and the reduction says which input it answers
+//! (`implements` with `input`). The cell finds the one reduction it keeps
+//! that implements the input in the version in force on the day, runs it on
+//! its chronicle as it stood that day, with the parameters the input's
+//! source passes and the day as `peildatum` where the reduction takes it,
+//! and gives the engine its output of the input's name
+//! ([`Reader::answer_input`]). Two reductions of one cell that implement the
+//! same input are an error.
+//!
 //! Each row carries the decision's `id` and `basis`, and a field of type
 //! `decision` holds the id of the decision it names, as the chronolexogram
 //! keeps it. A decision value a row holds, such as the decision a judgment
@@ -52,8 +63,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use chrono::NaiveDate;
 use regelrecht_engine::{
     Answer as EngineAnswer, AnswerProvenance, AnswerRequest, ArticleBasedLaw, ArticleResult,
-    Authority, Call, Chronicle as ChronicleSource, ChronicleRead, EngineError, LawExecutionService,
-    OpenTermAnswerer, RegulatoryLayer, Value,
+    Authority, Call, Chronicle as ChronicleSource, ChronicleRead, EngineError, InputRequest,
+    LawExecutionService, OpenTermAnswerer, RegulatoryLayer, Value,
 };
 use serde::Serialize;
 use serde_json::Map;
@@ -111,11 +122,14 @@ pub fn bindings(service: &LawExecutionService, day: NaiveDate) -> Vec<Binding> {
                 .filter_map(|input| input.source.as_ref()?.reduction.as_ref());
             for answer in taken {
                 for decl in article.get_implements().into_iter().flatten() {
+                    let Some(open_term) = &decl.open_term else {
+                        continue;
+                    };
                     uit.push(Binding {
                         term: Term {
                             law: decl.law.clone(),
                             article: decl.article.clone(),
-                            open_term: decl.open_term.clone(),
+                            open_term: open_term.clone(),
                         },
                         law_id: law.id.clone(),
                         article: article.number.clone(),
@@ -416,6 +430,7 @@ impl<'c> Reader<'c> {
         day: NaiveDate,
     ) -> Result<Option<(AnswerProvenance, ArticleResult)>> {
         let name = request.name;
+        let given = request.parameters;
         if !service.has_law(reduction) {
             return Err(setup(format!(
                 "the answer '{name}' comes from the reduction '{reduction}', which is not loaded"
@@ -450,8 +465,7 @@ impl<'c> Reader<'c> {
             ))
         })?;
         let declared = article.get_parameters();
-        if let Some(extra) = request
-            .parameters
+        if let Some(extra) = given
             .keys()
             .find(|given| !declared.iter().any(|p| &p.name == *given))
         {
@@ -463,7 +477,7 @@ impl<'c> Reader<'c> {
         }
         let mut parameters = BTreeMap::new();
         for p in declared {
-            match request.parameters.get(&p.name) {
+            match given.get(&p.name) {
                 Some(value) => {
                     parameters.insert(p.name.clone(), value.clone());
                 }
@@ -577,9 +591,166 @@ impl ChronicleSource for Reader<'_> {
     }
 }
 
+impl Reader<'_> {
+    /// The reduction the cell keeps that answers the input of `request`
+    /// (`implements` with `input`, RFC-056), in the version in force on
+    /// `day`: its `$id` and the article that implements it. `None` where no
+    /// reduction of the cell implements it, also where its first version is
+    /// not in force yet. A reduction the service does not hold cannot be
+    /// read, and is not looked at. Two that implement it are an error: the
+    /// cell would not know which answers.
+    fn implementing(
+        &self,
+        service: &LawExecutionService,
+        request: &InputRequest<'_>,
+        day: NaiveDate,
+    ) -> Result<Option<(String, String)>> {
+        let mut found = Vec::new();
+        for id in self.reductions {
+            let Some(law) = service.resolver().get_law_for_date(id, Some(day)) else {
+                continue;
+            };
+            if law.regulatory_layer != RegulatoryLayer::Reductie {
+                continue;
+            }
+            for article in &law.articles {
+                let implements = article.get_implements().into_iter().flatten().any(|d| {
+                    d.law == request.law
+                        && d.article == request.article
+                        && d.input.as_deref() == Some(request.input)
+                });
+                if implements {
+                    found.push((id.clone(), article.number.clone()));
+                }
+            }
+        }
+        match found.len() {
+            0 => Ok(None),
+            1 => Ok(found.pop()),
+            _ => Err(setup(format!(
+                "the cell of '{}' has {} reductions that answer input '{}' of {} article {}: \
+                 {}; one reduction answers an input",
+                self.recording_actor,
+                found.len(),
+                request.input,
+                request.law,
+                request.article,
+                found
+                    .iter()
+                    .map(|(id, article)| format!("{id} article {article}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ))),
+        }
+    }
+
+    /// [`OpenTermAnswerer::answer_input`] with the cell's own errors.
+    fn answer_input_of_cell(
+        &self,
+        service: &LawExecutionService,
+        request: &InputRequest<'_>,
+    ) -> Result<Option<EngineAnswer>> {
+        let day = NaiveDate::parse_from_str(request.calculation_date, "%Y-%m-%d")
+            .map_err(|e| EngineError::InvalidDate(format!("{}: {e}", request.calculation_date)))?;
+        let Some((reduction, article_number)) = self.implementing(service, request, day)? else {
+            return Ok(None);
+        };
+        // A reduction whose rulework asks the cell for the same input again
+        // would answer itself without end; the cell refuses that instead.
+        let asking = format!("{}#{}#{}", request.law, request.article, request.input);
+        if self.answering.borrow().iter().any(|a| a == &asking) {
+            return Err(EngineError::CircularReference(format!(
+                "the cell of '{}' is asked input '{}' of {} while answering it: its reduction \
+                 '{reduction}' asks it again",
+                self.recording_actor, request.input, request.law
+            ))
+            .into());
+        }
+        // The chronicle as it stood on the day asked about: what the cell
+        // recorded later does not answer for that day (RFC-046).
+        let grams: Vec<Gram> = self
+            .grams
+            .iter()
+            .filter(|g| g.recorded_on <= day)
+            .cloned()
+            .collect();
+        let on_the_day = Reader::new(
+            self.recording_actor,
+            self.authority,
+            self.answers,
+            self.reductions,
+            grams,
+            self.explain,
+        );
+        // The questions this cell is answering now carry over, so a cycle
+        // through several of its reductions is caught too.
+        on_the_day
+            .answering
+            .borrow_mut()
+            .extend(self.answering.borrow().iter().cloned());
+        on_the_day.answering.borrow_mut().push(asking);
+        // The day asked about, for a reduction that takes it. The article
+        // that implements the input gives the output of its name, which `run`
+        // executes: the type check refuses a reduction where they differ (T6).
+        let mut parameters = request.parameters.clone();
+        let takes_day = service
+            .resolver()
+            .get_law_for_date(&reduction, Some(day))
+            .and_then(|law| law.find_article_by_number(&article_number))
+            .is_some_and(|article| article.find_parameter(PEILDATUM).is_some());
+        if takes_day && !parameters.contains_key(PEILDATUM) {
+            parameters.insert(
+                PEILDATUM.to_string(),
+                Value::String(request.calculation_date.to_string()),
+            );
+        }
+        let asked = AnswerRequest {
+            name: request.input,
+            parameters: &parameters,
+            calculation_date: request.calculation_date,
+        };
+        let Some((provenance, result)) = on_the_day.run(service, &reduction, &asked, day)? else {
+            return Ok(None);
+        };
+        let value = result.outputs.get(request.input).cloned().ok_or_else(|| {
+            setup(format!(
+                "reduction '{reduction}' of the cell of '{}' gave no '{}'",
+                self.recording_actor, request.input
+            ))
+        })?;
+        let explained = (self.explain == Some(request.input)).then_some(result);
+        self.asked.borrow_mut().push(Asked {
+            name: request.input.to_string(),
+            value: value.clone(),
+            provenance: provenance.clone(),
+            explained,
+        });
+        Ok(Some(EngineAnswer { value, provenance }))
+    }
+}
+
+/// The name under which a reduction that answers an input takes the day
+/// asked about, the calculation date (RFC-056 §6).
+pub const PEILDATUM: &str = "peildatum";
+
 impl OpenTermAnswerer for Reader<'_> {
     fn authority(&self) -> &Authority {
         self.authority
+    }
+
+    fn answer_input(
+        &self,
+        service: &LawExecutionService,
+        request: &InputRequest<'_>,
+    ) -> regelrecht_engine::Result<Option<EngineAnswer>> {
+        self.answer_input_of_cell(service, request)
+            .map_err(|e| match e {
+                crate::Error::Engine(e) => e,
+                other => EngineError::ResolutionError(format!(
+                    "the cell of '{}' answering input '{}' of {}: {other}",
+                    self.recording_actor, request.input, request.law
+                )),
+            })
     }
 
     fn answer(

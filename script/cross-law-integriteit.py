@@ -15,7 +15,13 @@ Verifies that every cross-law source binding is REAL and RESOLVABLE:
 
   IMPL-DANGLING - an `implements: {law, article, open_term}` whose target does
                not declare that open_term on that law+article (the IoC binding
-               points at nothing; the delegation never resolves).
+               points at nothing; the delegation never resolves). Or, for a
+               reduction (RFC-056), an `implements: {law, article, input}`
+               whose target article has no such input, or one whose source
+               names no `competent_authority`: the cell answers nothing.
+               Like every check here it reads the state in force on the
+               peildatum; `Cell::check_inputs` (packages/cel) accepts the
+               input in any version of the law.
   IMPL-NO-DATE - a regulation that carries an `implements:` block but has no
                top-level `valid_from`. RFC-003's temporal filter then matches it
                for EVERY calculation date, silently overriding the correct
@@ -122,6 +128,22 @@ def declared_open_terms(doc):
 
 open_terms_idx = {lid: declared_open_terms(doc) for lid, doc in laws.items()}
 
+
+def competent_inputs(doc):
+    # article_number(str) -> {input name -> whether its source names a competent_authority}
+    idx = {}
+    for art in doc.get('articles', []) or []:
+        ex = (art.get('machine_readable') or {}).get('execution') or {}
+        for inp in ex.get('input', []) or []:
+            if isinstance(inp, dict) and 'name' in inp:
+                src = inp.get('source')
+                idx.setdefault(str(art.get('number', '?')), {})[inp['name']] = (
+                    isinstance(src, dict) and bool(src.get('competent_authority')))
+    return idx
+
+
+inputs_idx = {lid: competent_inputs(doc) for lid, doc in laws.items()}
+
 # Markers that signal "this SHOULD be a cross-law binding but isn't". Note: do NOT
 # include generic words like "forward naar" — those legitimately describe leaf
 # parameters that FEED a binding's parameters-mapping (e.g. an upstream data field).
@@ -148,8 +170,17 @@ for lid, doc in laws.items():
             if not isinstance(im, dict):
                 continue
             tlaw, tart, term = im.get('law'), str(im.get('article')), im.get('open_term')
+            inp = im.get('input')
             if tlaw not in open_terms_idx:
                 impl_dangling.append(f'{lid} art {num}: implements onbekende wet {tlaw}')
+            elif inp is not None and term is None:
+                declared = inputs_idx[tlaw].get(tart, {})
+                if inp not in declared:
+                    impl_dangling.append(f'{lid} art {num}: {tlaw} art {tart} heeft geen invoer "{inp}"')
+                elif not declared[inp]:
+                    impl_dangling.append(f'{lid} art {num}: {tlaw} art {tart} invoer "{inp}" noemt geen competent_authority')
+                else:
+                    ok += 1
             elif term not in open_terms_idx[tlaw].get(tart, set()):
                 impl_dangling.append(f'{lid} art {num}: {tlaw} art {tart} declareert open_term "{term}" niet')
             else:

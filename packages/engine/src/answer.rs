@@ -30,6 +30,18 @@
 //! (`ArticleResult::open_terms`, with the binding article) and as one node
 //! per answer in the trace. Explaining the answer is the answerer's own
 //! business.
+//!
+//! A second route needs no policy in between (RFC-056): where the law itself
+//! names who establishes a value, an input names that authority in its source
+//! (`source: {competent_authority: ..., parameters: {...}}`, schema
+//! v0.8.14). The engine asks the one cell of the call that authority names
+//! for that input ([`OpenTermAnswerer::answer_input`], an [`InputRequest`]),
+//! and the cell answers with the reduction that implements it. The cell is
+//! one way to supply the value, never the only one: a value the caller
+//! supplies (a parameter, a data source) counts as well, and both at once
+//! are an error. Without either the input is what a `source: {}` input
+//! without data is. The report says per such input how it got its value
+//! (`ArticleResult::competent_inputs`).
 
 use std::collections::BTreeMap;
 
@@ -47,6 +59,21 @@ pub struct AnswerRequest<'r> {
     pub name: &'r str,
     /// The values the binding passes (`source.parameters`), under the names
     /// the answer takes them by.
+    pub parameters: &'r BTreeMap<String, Value>,
+    /// The date of the execution (YYYY-MM-DD).
+    pub calculation_date: &'r str,
+}
+
+/// An input of a law the engine asks a cell to answer from its records
+/// (RFC-056): the input, by its law, article and name, the values its
+/// source passes, and the date of the execution.
+#[derive(Debug, Clone, Copy)]
+pub struct InputRequest<'r> {
+    pub law: &'r str,
+    pub article: &'r str,
+    pub input: &'r str,
+    /// The values the input's source passes (`source.parameters`), under the
+    /// names the answering reduction takes them by.
     pub parameters: &'r BTreeMap<String, Value>,
     /// The date of the execution (YYYY-MM-DD).
     pub calculation_date: &'r str,
@@ -135,6 +162,19 @@ pub trait OpenTermAnswerer {
         service: &LawExecutionService,
         request: &AnswerRequest<'_>,
     ) -> Result<Option<Answer>>;
+
+    /// Answer the input `request` names from this answerer's records
+    /// (RFC-056), or `None` when it has no answer for that input: a cell
+    /// without a reduction that implements it. An error ends the execution.
+    /// By default an answerer answers no input.
+    fn answer_input(
+        &self,
+        service: &LawExecutionService,
+        request: &InputRequest<'_>,
+    ) -> Result<Option<Answer>> {
+        let _ = (service, request);
+        Ok(None)
+    }
 }
 
 /// What a reduction reads from a chronicle (RFC-048): the decisions taken

@@ -1,0 +1,26 @@
+---
+# Since v0.8.14 only a REDUCTIE implements an input (RFC-056).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: test_conformance_implements_input_outside_reduction
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-11-01'
+valid_from: '2026-11-01'
+url: https://example.invalid/beleid
+competent_authority:
+  name: inspecteur
+articles:
+  - number: '1'
+    text: Tekst.
+    url: https://example.invalid/beleid/1
+    machine_readable:
+      implements:
+        - law: wet_fictief
+          article: '1'
+          input: heeft_vergunning
+      execution:
+        output:
+          - name: heeft_vergunning
+            type: boolean
+        actions:
+          - output: heeft_vergunning
+            value: true

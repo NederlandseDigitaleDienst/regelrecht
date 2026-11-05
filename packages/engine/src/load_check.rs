@@ -20,10 +20,17 @@
 //! cell gives as a named answer. Only a reduction reads the decisions taken
 //! under an article (`source.decisions`) or the recorded facts an article
 //! requires (`source.facts`); policy and law never do. A reduction does not
-//! act on law: it fills no open term (`implements`), hooks onto nothing
+//! act on law: it fills no open term (`implements` of an `open_term`), hooks onto nothing
 //! (`hooks`), replaces no output (`overrides`), takes no decision
 //! (`execution.produces`) and delegates nothing (`open_terms`). It names no
 //! holder (`competent_authority`): it sits with its cell, or with none.
+//!
+//! A reduction may answer an input whose source names the competent authority
+//! (`implements` of an `input`, schema v0.8.14, RFC-056); its cell is asked for
+//! it. Only a reduction implements an input, and an entry names an open term
+//! or an input, not both. Such a source (`source.competent_authority`) names
+//! its authorities by name and stands apart from every other way to a value
+//! but `parameters`.
 //!
 //! The engine has no behavior per schema version: every file runs on one code
 //! path. Not every version was issued for use, and the engine does not
@@ -77,7 +84,12 @@ pub(crate) fn reject_removed_constructs(law: &ArticleBasedLaw) -> Result<()> {
     let refuse = |why: String| Err(EngineError::LoadError(format!("law '{}' {why}", law.id)));
     let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
     for (where_, section) in sections(law) {
-        if reduction && section.implements.is_some() {
+        let fills_a_term = section
+            .implements
+            .iter()
+            .flatten()
+            .any(|decl| decl.open_term.is_some());
+        if reduction && fills_a_term {
             return refuse(format!(
                 "{where_}: a REDUCTIE fills no open term (implements), which schema v0.8.9 \
                  removed; its cell gives it as a named answer, which a policy binds to the term \
@@ -281,6 +293,39 @@ pub(crate) fn chronicle_read(source: &regelrecht_law_model::Source) -> Option<Ch
     }
 }
 
+/// Refuse an `implements` entry that names neither an open term nor an
+/// input, or both, and an input implemented outside a `REDUCTIE` (schema
+/// v0.8.14, RFC-056): only a cell's reduction answers an input. A term filled
+/// by a reduction is refused by [`reject_removed_constructs`], which names
+/// what replaced it.
+pub(crate) fn reject_misplaced_implements(law: &ArticleBasedLaw) -> Result<()> {
+    let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
+    for (where_, section) in sections(law) {
+        for decl in section.implements.iter().flatten() {
+            let target = format!("{} article {}", decl.law, decl.article);
+            let why = match (&decl.open_term, &decl.input) {
+                (Some(term), Some(input)) => format!(
+                    "implements both the open term '{term}' and the input '{input}' of \
+                     {target}; an entry names one of them"
+                ),
+                (None, None) => {
+                    format!("implements {target} without naming an open term or an input")
+                }
+                (None, Some(input)) if !reduction => format!(
+                    "implements the input '{input}' of {target}; only a REDUCTIE answers an \
+                     input, for the cell that keeps it (RFC-056)"
+                ),
+                _ => continue,
+            };
+            return Err(EngineError::LoadError(format!(
+                "law '{}' {where_}: {why}",
+                law.id
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Refuse a call to an article (`source.article`, schema v0.8.4, RFC-045 §6)
 /// beside another way to the value (`regulation`, `decisions`, `endpoint`),
 /// and `parameters_from` without `article`, which nothing would receive.
@@ -374,6 +419,34 @@ pub(crate) fn reject_misplaced_competence(law: &ArticleBasedLaw) -> Result<()> {
                 &term.competent_authority,
                 &format!("open term '{}'", term.id),
             )?;
+        }
+        // Who answers an input from its own records (schema v0.8.14,
+        // RFC-056): named, and no other way to the value beside it.
+        for input in inputs(section) {
+            let Some(source) = input.source.as_ref() else {
+                continue;
+            };
+            let what = format!("input '{}'", input.name);
+            if !named(&source.competent_authority, &what)? {
+                continue;
+            }
+            let beside = [
+                ("regulation", source.regulation.is_some()),
+                ("output", source.output.is_some()),
+                ("endpoint", source.endpoint.is_some()),
+                ("decisions", source.decisions.is_some()),
+                ("facts", source.facts.is_some()),
+                ("reduction", source.reduction.is_some()),
+                ("article", source.article.is_some()),
+                ("parameters_from", source.parameters_from.is_some()),
+            ];
+            if let Some((key, _)) = beside.iter().find(|(_, present)| *present) {
+                return Err(EngineError::LoadError(format!(
+                    "law '{}' {where_}: {what} names the authority that answers it \
+                     (source.competent_authority), which no {key} can stand beside (RFC-056)",
+                    law.id
+                )));
+            }
         }
     }
     Ok(())

@@ -1,0 +1,29 @@
+---
+# Since v0.8.14 a source that names its competent authority stands alone
+# beside parameters: no regulation (RFC-056).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: test_conformance_competent_authority_with_regulation
+regulatory_layer: WET
+publication_date: '2026-11-01'
+valid_from: '2026-11-01'
+bwb_id: BWBR0000000
+url: https://example.invalid/wet
+articles:
+  - number: '1'
+    text: Tekst.
+    url: https://example.invalid/wet/1
+    machine_readable:
+      execution:
+        input:
+          - name: heeft_vergunning
+            type: boolean
+            source:
+              competent_authority:
+                name: inspecteur
+              regulation: andere_wet
+        output:
+          - name: uit
+            type: boolean
+        actions:
+          - output: uit
+            value: $heeft_vergunning

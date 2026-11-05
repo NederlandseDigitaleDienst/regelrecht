@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.13",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.14",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -54,7 +54,7 @@
         "WATERSCHAPS_VERORDENING",
         "REDUCTIE"
       ],
-      "description": "Type of legal instrument (regelgevingslaag). It fixes which identifier the file must carry, and it ranks candidates when several regulations implement the same open term. Which layer may implement a term is set by that term's `delegation_type`, not by this field alone. `REDUCTIE`: not a regulation but a cell's reduction over its own chronicle (RFC-022 §4, RFC-048). Since v0.8.12 it sits with its cell (`corpus/cells/<cell>/reductions/`), or with none (`corpus/cells/reductions/`), where every cell applies it to its own chronicle, and names no `competent_authority`: the directory is its holder. Its cell gives its outputs as named answers (the catalogue `answers` in `cel.yaml`). It is the only rulework that reads a chronicle: decisions (`source.decisions`) and the facts its cell recorded (`source.facts`, since v0.8.7; `source.executograms` in v0.8.6, RFC-051). It may call law or policy (`source.regulation`), passing what it reads from the chronicle as parameters. It fills no open term (no `implements`; v0.8.5 to v0.8.8 allowed it): the policy of the authority that decides binds a term to an answer (`source.reduction`). Beyond that it does not act on law (no `hooks` or `overrides`), takes no decisions (no `execution.produces`) and delegates nothing (no `open_terms`).",
+      "description": "Type of legal instrument (regelgevingslaag). It fixes which identifier the file must carry, and it ranks candidates when several regulations implement the same open term. Which layer may implement a term is set by that term's `delegation_type`, not by this field alone. `REDUCTIE`: not a regulation but a cell's reduction over its own chronicle (RFC-022 §4, RFC-048). Since v0.8.12 it sits with its cell (`corpus/cells/<cell>/reductions/`), or with none (`corpus/cells/reductions/`), where every cell applies it to its own chronicle, and names no `competent_authority`: the directory is its holder. Its cell gives its outputs as named answers (the catalogue `answers` in `cel.yaml`). It is the only rulework that reads a chronicle: decisions (`source.decisions`) and the facts its cell recorded (`source.facts`, since v0.8.7; `source.executograms` in v0.8.6, RFC-051). It may call law or policy (`source.regulation`), passing what it reads from the chronicle as parameters. It fills no open term (no `implements` with an `open_term`; v0.8.5 to v0.8.8 allowed it): the policy of the authority that decides binds a term to an answer (`source.reduction`). Since v0.8.14 it may answer an input whose source names the competent authority (`implements` with an `input`): the cell that keeps it is asked for that input. Beyond that it does not act on law (no `hooks` or `overrides`), takes no decisions (no `execution.produces`) and delegates nothing (no `open_terms`).",
       "examples": [
         "WET",
         "GEMEENTELIJKE_VERORDENING"
@@ -581,7 +581,16 @@
                       {
                         "required": [
                           "implements"
-                        ]
+                        ],
+                        "properties": {
+                          "implements": {
+                            "contains": {
+                              "required": [
+                                "open_term"
+                              ]
+                            }
+                          }
+                        }
                       },
                       {
                         "required": [
@@ -624,7 +633,16 @@
                     {
                       "required": [
                         "implements"
-                      ]
+                      ],
+                      "properties": {
+                        "implements": {
+                          "contains": {
+                            "required": [
+                              "open_term"
+                            ]
+                          }
+                        }
+                      }
                     },
                     {
                       "required": [
@@ -692,6 +710,15 @@
                           }
                         }
                       }
+                    },
+                    "implements": {
+                      "items": {
+                        "not": {
+                          "required": [
+                            "input"
+                          ]
+                        }
+                      }
                     }
                   }
                 }
@@ -725,6 +752,15 @@
                             }
                           }
                         }
+                      }
+                    }
+                  },
+                  "implements": {
+                    "items": {
+                      "not": {
+                        "required": [
+                          "input"
+                        ]
                       }
                     }
                   }
@@ -1203,7 +1239,7 @@
                 },
                 "facts": {
                   "type": "string",
-                  "pattern": "^[a-z0-9_]+#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?#[a-z][a-z0-9_]*$",
+                  "pattern": "^[a-z0-9_]+(/[a-z0-9_]+)*#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?#[a-z][a-z0-9_]*$",
                   "not": {
                     "pattern": " lid [0-9]"
                   },
@@ -1213,6 +1249,21 @@
                   "type": "string",
                   "pattern": "^[a-z][a-z0-9_]*$",
                   "description": "Since v0.8.9 (RFC-048): the named answer of a cell this input takes, by the name under which cells give it (the catalogue `answers` in `cel.yaml`). Only an article of `UITVOERINGSBELEID` that fills an open term (`implements`) takes one: it binds the term to the answer, and its policy names its holder (`competent_authority`). `parameters` gives the values the answer takes, under the names the cell's reduction declares; one it declares and the binding does not pass is an error. The engine asks one cell of the execution: the cell the filled term names in its `competent_authority` (RFC-052), or else the cell of the policy's holder. Where the execution holds more than one cell the term names, the input is an error at run time: one question goes to one cell, and the engine merges no answers. A cell without an answer of that name, or with a null one, is silent. Without an answer the input is null, so the binding fills nothing and the term is what it is without it, such as the finding of the deciding authority; an input that takes an answer is therefore declared `nullable: true`, and one that is not is an error at run time when no cell answers. It stands alone, without `regulation`, `output`, `endpoint`, `decisions`, `facts` or `article`."
+                },
+                "competent_authority": {
+                  "description": "Since v0.8.14: who is competent by law to answer this input from its own records, one named authority or a list, in the shape of an open term's `competent_authority`. Only where the text of the article itself names that authority, such as \"een vergunning ... verstrekt door de inspecteur\". `parameters` gives the values the question passes, under the names the answering reduction declares. It says who is competent, not where the value must come from: the caller may still supply the value (a parameter, a data source), and without either the input has no value, as with `source: {}`. Where the call holds a cell that this names and that answers the input (a `REDUCTIE` of that cell that `implements` it), the engine asks it; the value supplied as well is an error, and more than one such cell in the call is an error too. It stands alone, without `regulation`, `output`, `endpoint`, `decisions`, `facts`, `reduction`, `article` or `parameters_from`.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/definitions/namedAuthority"
+                    },
+                    {
+                      "type": "array",
+                      "minItems": 1,
+                      "items": {
+                        "$ref": "#/definitions/namedAuthority"
+                      }
+                    }
+                  ]
                 },
                 "article": {
                   "oneOf": [
@@ -1359,6 +1410,52 @@
                       }
                     ]
                   }
+                },
+                "competent_authority": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "regulation"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "output"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "endpoint"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "decisions"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "facts"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "reduction"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "article"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "parameters_from"
+                        ]
+                      }
+                    ]
+                  }
                 }
               },
               "examples": [
@@ -1397,6 +1494,14 @@
                   "output": "verlof_verleend",
                   "parameters": {
                     "bsn": "$bsn"
+                  }
+                },
+                {
+                  "competent_authority": {
+                    "name": "de inspecteur"
+                  },
+                  "parameters": {
+                    "kvk_nummer": "$kvk_nummer"
                   }
                 }
               ]
@@ -2562,13 +2667,12 @@
         },
         "implements": {
           "type": "array",
-          "description": "Declares that this article fills open terms from a higher-level law. Maps to the 'Gelet op' clause in Dutch legislation. One article can implement multiple open terms from different laws.",
+          "description": "Declares that this article fills open terms from a higher-level law. Maps to the 'Gelet op' clause in Dutch legislation. One article can implement multiple open terms from different laws. Since v0.8.14 an entry of a `REDUCTIE` names an `input` instead of an `open_term`: the reduction answers that input of that article, whose source names the competent authority (`source.competent_authority`), with its output of the input's name, for the cell that keeps it. A `REDUCTIE` implements only inputs, and every other rulework only open terms.",
           "items": {
             "type": "object",
             "required": [
               "law",
-              "article",
-              "open_term"
+              "article"
             ],
             "properties": {
               "law": {
@@ -2577,18 +2681,35 @@
               },
               "article": {
                 "type": "string",
-                "description": "Article number in the higher law that declares the open_term (e.g., '4')."
+                "description": "Article number in the higher law that declares the open_term or the input (e.g., '4')."
               },
               "open_term": {
                 "type": "string",
-                "description": "The open_term id being filled (e.g., 'standaardpremie')."
+                "description": "The open_term id being filled (e.g., 'standaardpremie'). Not beside `input`."
               },
               "gelet_op": {
                 "type": "string",
                 "description": "Legal reference text (e.g., 'Gelet op artikel 4 van de Wet op de zorgtoeslag')."
+              },
+              "input": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "description": "Since v0.8.14, only in a `REDUCTIE`: the input of that article this reduction answers. The input names who is competent in `source.competent_authority`, and the cell that keeps the reduction is one of those. The reduction declares an output of the same name, of the input's type and unit, and nullable only where the input is; it takes the parameters the input's source passes, and `peildatum`, the calculation date, where it declares it. Not beside `open_term`."
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "oneOf": [
+              {
+                "required": [
+                  "open_term"
+                ]
+              },
+              {
+                "required": [
+                  "input"
+                ]
+              }
+            ]
           },
           "examples": [
             [
@@ -2597,6 +2718,13 @@
                 "article": "4",
                 "open_term": "standaardpremie",
                 "gelet_op": "Gelet op artikel 4 van de Wet op de zorgtoeslag"
+              }
+            ],
+            [
+              {
+                "law": "wet_op_de_accijns/accijnsplicht_alcohol",
+                "article": "39",
+                "input": "heeft_agp_vergunning_register"
               }
             ]
           ]
@@ -3093,14 +3221,15 @@
     },
     "articleReference": {
       "type": "string",
-      "pattern": "^[a-z0-9_]+#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?$",
+      "pattern": "^[a-z0-9_]+(/[a-z0-9_]+)*#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?$",
       "not": {
         "pattern": " lid [0-9]"
       },
-      "description": "An article of a regulation, `<regulation>#<article>`, without ` lid <n>`. The article holds letters, digits, `:`, `.`, `_`, `-` and spaces (Kieswet `G 1`, Awb `4:13`), and starts and ends with a letter or digit.",
+      "description": "An article of a regulation, `<regulation>#<article>`, without ` lid <n>`. Since v0.8.14 the regulation may hold `/` between its segments, as a `$id` of the demo corpus does (`wet_op_de_accijns/accijnsplicht_alcohol#43`). The article holds letters, digits, `:`, `.`, `_`, `-` and spaces (Kieswet `G 1`, Awb `4:13`), and starts and ends with a letter or digit.",
       "examples": [
         "leerplichtwet_1969#13a",
-        "kieswet#G 1"
+        "kieswet#G 1",
+        "wet_op_de_accijns/accijnsplicht_alcohol#43"
       ]
     },
     "producedItem": {

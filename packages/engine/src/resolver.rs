@@ -1220,7 +1220,7 @@ impl RuleResolver {
                                     decls.iter().any(|d| {
                                         d.law == law_id
                                             && d.article == article
-                                            && d.open_term == open_term_id
+                                            && d.open_term.as_deref() == Some(open_term_id)
                                     })
                                 })
                         },
@@ -1509,16 +1509,17 @@ impl RuleResolver {
 
                     // Implements index (IoC). A reduction fills no term: its
                     // cell gives it as a named answer (RFC-048), and the
-                    // loader refuses `implements` on one
-                    // (`reject_removed_constructs`).
+                    // loader refuses an `implements` of a term on one
+                    // (`reject_removed_constructs`). What a reduction
+                    // implements is an input (RFC-056), which its cell
+                    // answers; no index of the engine holds that.
                     let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
                     if let Some(impl_decls) = article.get_implements().filter(|_| !reduction) {
                         for decl in impl_decls {
-                            let key = (
-                                decl.law.clone(),
-                                decl.article.clone(),
-                                decl.open_term.clone(),
-                            );
+                            let Some(open_term) = &decl.open_term else {
+                                continue;
+                            };
+                            let key = (decl.law.clone(), decl.article.clone(), open_term.clone());
                             let entry = LawArticleRef {
                                 law_id: law_id.to_string(),
                                 article_number: article.number.clone(),

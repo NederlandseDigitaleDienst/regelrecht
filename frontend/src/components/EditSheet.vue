@@ -417,9 +417,12 @@ function save() {
       }
     }
     // The keys of `source` this form does not edit (`article`,
-    // `parameters_from`, `decisions`, ...) are kept as they were.
+    // `parameters_from`, `decisions`, `competent_authority`, ...) are kept
+    // as they were.
     const { regulation: _r, output: _o, parameters: _p, ...kept }: InputSource = item.data?.source || {};
-    const keptTarget = ['article', 'decisions', 'facts', 'endpoint'].some((k) => k in kept);
+    const keptTarget = ['article', 'decisions', 'facts', 'endpoint', 'reduction', 'competent_authority'].some(
+      (k) => k in kept,
+    );
     // Emit `source` only when at least regulation OR output is set, or a
     // kept key names what it calls. Parameters alone don't make a valid
     // source block, so if the user has cleared both regulation and output

@@ -51,7 +51,7 @@ This is the receipt the CLI prints for article 4 of the Wet op de zorgtoeslag, w
 }
 ```
 
-The receipt records which engine version and schema produced the result, which regulations were loaded (with content hashes), the input parameters, and the outputs with their provenance. `results.trace` is filled only when the result it wraps was computed with tracing on; the CLI evaluates without a trace, so its receipts carry none. `results.delegation_refusals` lists any regulation that offered to fill an open term it was not delegated. `results.open_terms` lists each open term that a finding or a regulation filled, and which of the two it was.
+The receipt records which engine version and schema produced the result, which regulations were loaded (with content hashes), the input parameters, and the outputs with their provenance. `results.trace` is filled only when the result it wraps was computed with tracing on; the CLI evaluates without a trace, so its receipts carry none. `results.delegation_refusals` lists any regulation that offered to fill an open term it was not delegated. `results.open_terms` lists each open term that a finding or a regulation filled, and which of the two it was. `results.competent_inputs` lists each input whose source names its competent authority, and whether it was supplied, answered by a cell (with the answer's provenance) or neither.
 
 ## Schema and engine versioning
 

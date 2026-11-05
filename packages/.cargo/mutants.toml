@@ -94,6 +94,15 @@ exclude_re = [
     # diagnostische tekst vast.
     'operations\.rs.*replace ValueResolver::trace_get_message -> Option<String> with Some',
 
+    # --- answer.rs ---------------------------------------------------------
+
+    # The default of `OpenTermAnswerer::answer_input` is `Ok(None)`: an
+    # answerer that keeps no records answers no input (RFC-056). The mutant
+    # replaces that body with the same `Ok(None)`, so no test can tell them
+    # apart. What an answerer that does answer gives is killed in the cell
+    # (`Reader::answer_input`) and in tests/competent_input.rs.
+    'answer\.rs.*replace OpenTermAnswerer::answer_input -> Result<Option<Answer>> with Ok\(None\)',
+
     # --- data_source.rs ----------------------------------------------------
 
     # De handgeschreven `Debug for DataSourceRegistry` bestaat alleen omdat

@@ -59,7 +59,7 @@ pub use annotation::{
 };
 pub use answer::{
     Answer, AnswerProvenance, AnswerRequest, Authority, Call, Chronicle, ChronicleRead,
-    OpenTermAnswerer,
+    InputRequest, OpenTermAnswerer,
 };
 pub use article::{
     Action, ActionOperation, ActionValue, Article, ArticleBasedLaw, Case, Execution,
@@ -72,7 +72,10 @@ pub use config::{
 };
 pub use context::RuleContext;
 pub use data_source::{DataSource, DataSourceMatch, DataSourceRegistry, DictDataSource};
-pub use engine::{ArticleEngine, ArticleResult, FilledBy, OpenTermFilled, OutputProvenance};
+pub use engine::{
+    ArticleEngine, ArticleResult, CompetentInput, FilledBy, InputResolvedBy, OpenTermFilled,
+    OutputProvenance,
+};
 pub use error::{EngineError, ExternalError, Result};
 pub use operations::{evaluate_value, execute_operation, ValueResolver};
 pub use receipt::ExecutionReceipt;
