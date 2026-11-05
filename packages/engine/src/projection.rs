@@ -39,13 +39,14 @@ use chrono::NaiveDate;
 use regelrecht_law_model::{Article, EffectKind, Projection};
 use serde::{Deserialize, Serialize};
 
+use crate::answer::Call;
 use crate::context::RuleContext;
 use crate::engine::ArticleResult;
 use crate::error::{EngineError, Result};
 use crate::operations::evaluate_value;
 use crate::service::LawExecutionService;
-use crate::trace::PathNode;
-use crate::types::{PathNodeType, Value};
+use crate::trace::{PathNode, TraceBuilder};
+use crate::types::{ParameterType, PathNodeType, Value};
 
 /// The kind of a record of a fact (RFC-051), as the cell writes it.
 const EXECUTOGRAM: &str = "EXECUTOGRAM";
@@ -76,8 +77,8 @@ pub enum RewindCause {
     Revokes,
     /// A record replaces an earlier one that was applied.
     Replaces,
-    /// A record that undid an earlier one is itself revoked now, and no other
-    /// record undoes the earlier one any more: it counts again.
+    /// A record that undid an earlier one is itself revoked or replaced now,
+    /// and no other record undoes the earlier one any more: it counts again.
     Revives,
 }
 
@@ -147,7 +148,7 @@ impl LawExecutionService {
         law_id: &str,
         output_names: &[&str],
         records: &[ChronicleRecord],
-        mut parameters: BTreeMap<String, Value>,
+        parameters: BTreeMap<String, Value>,
         calculation_date: &str,
         trace: bool,
     ) -> Result<ProjectionOutcome> {
@@ -191,11 +192,26 @@ impl LawExecutionService {
             .collect();
         let played = self.play(law_id, &projection, &known)?;
 
-        parameters.insert(STATE.to_string(), Value::Object(played.state.clone()));
+        let state = Some(Value::Object(played.state.clone()));
         let mut result = if trace {
-            self.evaluate_law_with_trace(law_id, output_names, parameters, calculation_date)?
+            self.evaluate_law_traced_state(
+                law_id,
+                output_names,
+                parameters,
+                Call::default(),
+                calculation_date,
+                TraceBuilder::new(),
+                state,
+            )?
         } else {
-            self.evaluate_law(law_id, output_names, parameters, calculation_date)?
+            self.evaluate_law_in_state(
+                law_id,
+                output_names,
+                parameters,
+                Call::default(),
+                calculation_date,
+                state,
+            )?
         };
         if let Some(root) = result.trace.as_mut() {
             root.children.insert(0, trace_node(&played));
@@ -454,6 +470,14 @@ fn step(
                 record.id, record.basis
             ))
         })?;
+        let declared = projection.state.iter().find(|p| &p.name == property);
+        if let Some(declared) = declared.filter(|p| !fits_state_type(&p.property_type, &to)) {
+            return Err(EngineError::InvalidOperation(format!(
+                "the step of '{law_id}' for record '{}' ({}) sets '{property}' to {to:?}, which \
+                 is no {:?}",
+                record.id, record.basis, declared.property_type
+            )));
+        }
         let from = state.get(property).cloned().unwrap_or(Value::Null);
         changes.push(StateChange {
             property: property.clone(),
@@ -462,6 +486,20 @@ fn step(
         });
     }
     Ok(changes)
+}
+
+/// Whether `value` is a value of `ty`, one of the types a property of a
+/// projection's state may have: boolean, number, string, amount (whole
+/// eurocents) or date.
+pub(crate) fn fits_state_type(ty: &ParameterType, value: &Value) -> bool {
+    match (ty, value) {
+        (ParameterType::Boolean, Value::Bool(_))
+        | (ParameterType::Number, Value::Int(_) | Value::Decimal(_))
+        | (ParameterType::Amount, Value::Int(_))
+        | (ParameterType::String, Value::String(_)) => true,
+        (ParameterType::Date, Value::String(s)) => NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok(),
+        _ => false,
+    }
 }
 
 fn projection_of<'a>(law_id: &str, article: &'a Article) -> Result<&'a Projection> {
@@ -1041,6 +1079,98 @@ articles:
                 .collect();
             let outcome = play(&records).unwrap();
             assert_eq!(skipped_in_last_replay(&outcome), expected, "{records:#?}");
+        }
+    }
+
+    #[test]
+    fn a_step_that_computes_a_value_of_the_wrong_type_is_refused() {
+        // `verleend` holds a string here, and `kaart` is a boolean.
+        let odd = record("a", "1", &[], &[("verleend", Value::String("ja".into()))]);
+        let err = play(&[odd]).expect_err("a string in a boolean");
+        assert!(err.to_string().contains("which is no Boolean"), "{err}");
+    }
+
+    #[test]
+    fn articles_of_one_reduction_may_read_each_other_while_it_plays() {
+        // Article 1 (the projection) reads `geldig` of article 2, which reads
+        // `aantal` of article 1: the played state is passed on, not refused.
+        let looped = REDUCTION
+            .replace("$id: reductie", "$id: reductie_lus")
+            .replace(
+                "      execution:\n        output: [{name: heeft_kaart, type: boolean}, {name: aantal, type: number}]",
+                "      execution:\n        input:\n          - {name: geldig, type: boolean, source: {output: geldig}}\n        output: [{name: heeft_kaart, type: boolean}, {name: aantal, type: number}]",
+            )
+            .replace(
+                "          - {output: heeft_kaart, value: $state.kaart}",
+                "          - {output: heeft_kaart, value: $geldig}",
+            )
+            + "  - number: '2'\n    text: t\n    machine_readable:\n      execution:\n        input:\n          - {name: n, type: number, source: {output: aantal}}\n        output: [{name: geldig, type: boolean}]\n        actions:\n          - output: geldig\n            value: {operation: GREATER_THAN, subject: $n, value: 0}\n";
+        assert!(looped.contains("source: {output: geldig}"));
+        let mut service = service();
+        service.load_law(&looped).unwrap();
+        let outcome = service
+            .evaluate_projection(
+                "reductie_lus",
+                &["heeft_kaart"],
+                &[grant("a")],
+                BTreeMap::new(),
+                "2025-03-01",
+                false,
+            )
+            .unwrap();
+        assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(true));
+    }
+
+    #[test]
+    fn a_reduction_with_a_projection_is_not_evaluated_directly() {
+        let mut service = service();
+        // Another reduction that takes the answer of this one as an input.
+        service
+            .load_law(
+                r#"
+$id: andere_reductie
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      execution:
+        input:
+          - name: kaart
+            type: boolean
+            source: {regulation: reductie, output: heeft_kaart}
+        output: [{name: x, type: boolean}]
+        actions: [{output: x, value: $kaart}]
+"#,
+            )
+            .unwrap();
+        // The same reduction with a second article that reads the first.
+        service
+            .load_law(&REDUCTION.replace("$id: reductie", "$id: reductie_twee").replace(
+                "          - {output: aantal, value: $state.aantal}\n",
+                "          - {output: aantal, value: $state.aantal}\n  - number: '2'\n    text: t\n    machine_readable:\n      execution:\n        input:\n          - {name: k, type: boolean, source: {output: heeft_kaart}}\n        output: [{name: y, type: boolean}]\n        actions: [{output: y, value: $k}]\n",
+            ))
+            .unwrap();
+        let state = BTreeMap::from([(
+            "state".to_string(),
+            Value::Object(BTreeMap::from([("kaart".to_string(), Value::Bool(true))])),
+        )]);
+        for (law, output, parameters) in [
+            ("reductie", "heeft_kaart", BTreeMap::new()),
+            ("reductie", "heeft_kaart", state.clone()),
+            ("andere_reductie", "x", BTreeMap::new()),
+            ("reductie_twee", "y", BTreeMap::new()),
+            ("reductie_twee", "y", state.clone()),
+        ] {
+            let err = service
+                .evaluate_law(law, &[output], parameters, "2025-03-01")
+                .expect_err("no played state");
+            assert!(
+                err.to_string().contains("with evaluate_projection"),
+                "{law}: {err}"
+            );
         }
     }
 

@@ -302,7 +302,7 @@ Feature: A reduction plays the chronicle forward
     And record "verlening" is applied
     And output "heeft_geldige_kaart" is true
 
-  Scenario: Whether a record counts does not depend on the order it was found in
+  Scenario: A withdrawal replaced twice stays undone when one replacement is revoked
     # A withdrawal is replaced twice by a warning, and the first warning is
     # revoked. The second warning still counts, so the withdrawal stays
     # undone and the grant counts.

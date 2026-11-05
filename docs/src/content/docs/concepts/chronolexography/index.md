@@ -122,6 +122,14 @@ This policy article is called a binding: it binds the open term to the answer.
 - The engine asks the cell for the answer wherever the binding runs. The cell then runs the reduction that its catalogue names for that answer. Because the binding is an article of policy, its value becomes the value of the term, even when that value is null. A finding of the authority cannot replace it ([Inversion of Control](/concepts/inversion-of-control#policy-that-fills-an-open-term-with-a-cells-answer)). Sometimes the cell has no answer and the authority should judge the case itself. The policy then says so with an open term of its own (`decided_per_case_by`).
 - The loader refuses `source.decisions` and `source.facts` outside a `REDUCTIE`. It refuses `source.reduction` outside such a binding.
 
+### Playing the chronicle forward (experimental)
+
+Schema v0.8.14 adds a second way to reduce. A reduction with a `projection` declares a state, a few named properties with a value to start from, and says per article what a record under it does with that state. The engine plays the chronicle forward through it, record by record, and the reduction's `execution` answers from the last state as `$state.<property>`.
+
+What one decision does with another stays in the law. The article declares it in `produces[].effects`: `revokes` or `replaces`, optionally only `when` a boolean outcome of the decision is true, such as a well-founded objection. When a decision that counts undoes an earlier one, the engine plays the chronicle again from the start without the undone decision. A decision that is itself revoked or replaced undoes nothing any more, so what it alone undid counts again. The engine records which record set each property last and every record it applied or skipped, and shows them in the trace.
+
+Only `LawExecutionService::evaluate_projection` plays a projection so far. The cell's answers do not go through it yet, and the engine refuses a reduction with a projection on every other path, also when another rulework asks for its answer. The tests are in `packages/cel/bdd`.
+
 ## Documents between cells
 
 Each actor keeps its own chronicle. The law sends documents from one actor to another. With an appeal, the court receives a copy of the contested decision together with the notice of appeal (Awb 6:5 lid 2). After the judgment, the parties receive a copy of it (Awb 8:79 lid 1). A cell takes in another cell's document as a copy. It never reads the other cell's chronicle.

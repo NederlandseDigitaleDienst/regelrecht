@@ -702,7 +702,7 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
         }
         let mut names: Vec<&str> = Vec::new();
         for property in &projection.state {
-            if !initial_fits(&property.property_type, &property.initial) {
+            if !crate::projection::fits_state_type(&property.property_type, &property.initial) {
                 return refuse(
                     where_,
                     format!(
@@ -736,12 +736,14 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
                 );
             }
             // A literal a step sets must fit the property; a computed value
-            // is checked when it runs.
+            // is checked when the step runs (`projection::step`).
             for (name, value) in &step.set {
                 let property = projection.state.iter().find(|p| &p.name == name);
                 if let (Some(property), ActionValue::Literal(literal)) = (property, value) {
                     let reference = matches!(literal, Value::String(s) if s.starts_with('$'));
-                    if !reference && !initial_fits(&property.property_type, literal) {
+                    if !reference
+                        && !crate::projection::fits_state_type(&property.property_type, literal)
+                    {
                         return refuse(
                             where_,
                             format!(
@@ -770,24 +772,6 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
         }
     }
     Ok(())
-}
-
-/// Whether `value` is a literal of `ty`, one of the types a projection's
-/// state may have: boolean, number, string, amount (whole eurocents) or date.
-fn initial_fits(
-    ty: &regelrecht_law_model::ParameterType,
-    value: &regelrecht_law_model::Value,
-) -> bool {
-    use regelrecht_law_model::ParameterType as T;
-    use regelrecht_law_model::Value;
-    match (ty, value) {
-        (T::Boolean, Value::Bool(_))
-        | (T::Number, Value::Int(_) | Value::Decimal(_))
-        | (T::Amount, Value::Int(_))
-        | (T::String, Value::String(_)) => true,
-        (T::Date, Value::String(s)) => chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok(),
-        _ => false,
-    }
 }
 
 fn unknown_literal(law: &ArticleBasedLaw, article: &str, where_: String) -> EngineError {

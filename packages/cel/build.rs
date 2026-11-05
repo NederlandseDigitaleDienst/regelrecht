@@ -2,11 +2,11 @@
 // suite (tests/bdd), from the canonical language (bdd/grammar.yaml) and the
 // cell's steps on top of it (bdd/grammar.yaml in this crate).
 //
-// The cell's steps record in a chronicle. That is behavior of this one
-// implementation, not of the language every engine speaks, so they stay out of
-// the canonical grammar and the JS engines never see them. The generator is
-// the engine's own (`packages/engine/build_codegen`), included here, so there
-// is one generator. Like the engine's build script, it writes an empty stub
+// Recording a chronicle is the cell's job, and only the Rust engine plays one
+// forward, so the cell's steps stay out of the canonical grammar and the JS
+// engines never see them. The generator is the engine's own
+// (`packages/engine/build_codegen`), included here, so there is one
+// generator. Like the engine's build script, it writes an empty stub
 // when the canonical grammar is absent (a build context that copies only
 // `packages/`); only the `bdd` test target uses the bindings.
 #![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]

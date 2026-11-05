@@ -6,8 +6,9 @@
 //! synthetic law and a cell with its reduction) in `packages/cel/bdd/fixtures`.
 //! A feature may use the canonical steps (`bdd/grammar.yaml`) and the cell's
 //! own (`packages/cel/bdd/grammar.yaml`). Those stay out of the canonical
-//! grammar: that is the language every engine, Rust and JS, executes, and a
-//! chronicle is behavior of this one implementation.
+//! grammar: that is the language every engine, Rust and JS, executes, while
+//! recording a chronicle is the cell's job and only the Rust engine plays one
+//! forward.
 //!
 //! The bindings come from the engine's generator (`build.rs`); the world,
 //! dispatch, helpers and the cucumber run are the engine runner's, included by

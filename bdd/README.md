@@ -101,12 +101,13 @@ only runs features whose tiers it supports.
 `packages/cel/bdd/` holds a BDD suite of its own, with steps that record
 submissions, decisions and facts in the chronicle of a cell, evaluate a
 reduction that plays the chronicle forward (`projection`, schema v0.8.14), and
-check the steps the engine took: the table of records applied and skipped and
-of replays, and which record set a property last. Those steps are not part of
+check what the engine did: a table of each record applied or skipped and each
+replay, and which record set a property last. Those steps are not part of
 this grammar. This grammar is the contract every engine executes, the Rust
-engine and the JS engines alike, while a chronicle is behavior of one
-implementation, the cell. Whether the law format should describe chronicles at
-all is still an open question.
+engine and the JS engines alike. Recording a chronicle is the cell's job, and
+only the Rust engine plays one forward; the JS engines do not implement
+`projection`. Schema v0.8.14 adds `projection` to the law format as an
+experiment; whether it belongs in the law format is still open.
 
 The cell's steps live in `packages/cel/bdd/grammar.yaml`, in the format of this
 file. A cell feature may use both sets, so it can still set the calculation

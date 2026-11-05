@@ -3,10 +3,10 @@ version: 1
 
 # Steps of the cell's own BDD suite, on top of the canonical language in
 # bdd/grammar.yaml. They are not part of that language: bdd/grammar.yaml is the
-# contract every engine (Rust and JS) executes, while a chronicle is behavior
-# of one implementation, the cell. A feature under packages/cel/bdd/features
-# may use the canonical steps (the calculation date, evaluating, asserting an
-# output) and these.
+# contract every engine (Rust and JS) executes. Recording a chronicle is the
+# cell's job, and only the Rust engine plays one forward. A feature under
+# packages/cel/bdd/features may use the canonical steps (the calculation date,
+# evaluating, asserting an output) and these.
 #
 # The bindings are generated with the engine's generator
 # (packages/engine/build_codegen), from both files together, by

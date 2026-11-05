@@ -471,8 +471,9 @@ pub struct ProducedItem {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub moment: Option<Moment>,
     /// For a decision: what it does with another decision (schema v0.8.14),
-    /// such as revoking the contested decision (Awb 7:11 lid 2). A runtime
-    /// that records decisions plays these; the engine does not.
+    /// such as revoking the contested decision (Awb 7:11 lid 2). The engine
+    /// carries them out when it plays a chronicle through a reduction with a
+    /// `projection` (`projection.rs`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effects: Option<Vec<DecisionEffect>>,
 }
