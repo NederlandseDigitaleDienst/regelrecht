@@ -729,13 +729,15 @@ function addValue() {
           </nldd-cell>
           <template v-if="isNestedOperation(val._value)">
             <nldd-spacer-cell size="8"></nldd-spacer-cell>
-            <nldd-icon-button
-              icon="edit"
-              text="Bewerken"
-              tooltip-timing="never"
-              appearance="neutral-tinted"
-              @click="emit('select-operation', val._value as OperationNode)"
-            ></nldd-icon-button>
+            <nldd-cell>
+              <nldd-icon-button
+                icon="edit"
+                text="Bewerken"
+                tooltip-timing="never"
+                appearance="neutral-tinted"
+                @click="emit('select-operation', val._value as OperationNode)"
+              ></nldd-icon-button>
+            </nldd-cell>
           </template>
           <template v-if="hasValueMenu(val)">
             <nldd-spacer-cell size="8"></nldd-spacer-cell>
@@ -743,32 +745,34 @@ function addValue() {
                  exact button instead of to whichever element happens to own a
                  matching id — two panes showing the same operation used to
                  collide. -->
-            <nldd-icon-button icon="more" text="Acties" tooltip-timing="never" appearance="neutral-tinted">
-              <nldd-menu slot="popup">
-                <nldd-menu-group v-if="canChangeValueKind(val)" text="Type">
+            <nldd-cell>
+              <nldd-icon-button icon="more" text="Acties" tooltip-timing="never" appearance="neutral-tinted">
+                <nldd-menu slot="popup">
+                  <nldd-menu-group v-if="canChangeValueKind(val)" text="Type">
+                    <nldd-menu-item
+                      type="radio"
+                      text="Waarde"
+                      :selected="!isNestedOperation(val._value) || undefined"
+                      @click.stop="changeValueKind(val, 'value')"
+                    ></nldd-menu-item>
+                    <nldd-menu-item
+                      type="radio"
+                      text="Operatie"
+                      :selected="isNestedOperation(val._value) || undefined"
+                      @click.stop="changeValueKind(val, 'operatie')"
+                    ></nldd-menu-item>
+                  </nldd-menu-group>
+                  <nldd-menu-divider v-if="canChangeValueKind(val) && canRemoveValue(val)"></nldd-menu-divider>
                   <nldd-menu-item
-                    type="radio"
-                    text="Waarde"
-                    :selected="!isNestedOperation(val._value) || undefined"
-                    @click.stop="changeValueKind(val, 'value')"
+                    v-if="canRemoveValue(val)"
+                    text="Verwijder"
+                    icon="delete"
+                    destructive
+                    @click.stop="removeValue(val)"
                   ></nldd-menu-item>
-                  <nldd-menu-item
-                    type="radio"
-                    text="Operatie"
-                    :selected="isNestedOperation(val._value) || undefined"
-                    @click.stop="changeValueKind(val, 'operatie')"
-                  ></nldd-menu-item>
-                </nldd-menu-group>
-                <nldd-menu-divider v-if="canChangeValueKind(val) && canRemoveValue(val)"></nldd-menu-divider>
-                <nldd-menu-item
-                  v-if="canRemoveValue(val)"
-                  text="Verwijder"
-                  icon="delete"
-                  destructive
-                  @click.stop="removeValue(val)"
-                ></nldd-menu-item>
-              </nldd-menu>
-            </nldd-icon-button>
+                </nldd-menu>
+              </nldd-icon-button>
+            </nldd-cell>
           </template>
         </template>
         <template v-else>

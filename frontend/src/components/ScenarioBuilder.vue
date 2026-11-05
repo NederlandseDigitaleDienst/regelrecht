@@ -696,7 +696,6 @@ defineExpose({ save: onSave });
          one shows a single continuous spinner. -->
     <nldd-activity-indicator
       v-if="articleLoading || scenariosLoading || depsLoading"
-      backdrop
       show-text
       :text="depsLoading ? depsProgress : 'Scenario\'s laden'"
       style="position: absolute; inset: 0;"

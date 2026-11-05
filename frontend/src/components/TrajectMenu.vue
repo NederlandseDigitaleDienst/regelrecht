@@ -14,9 +14,19 @@ const props = withDefaults(
     // Mobile presentation: stretch the trigger button to the full toolbar
     // width with left-aligned content.
     fullWidth?: boolean;
+    // Render as a menu item with the same choices in a submenu instead of a
+    // button: the alternative a toolbar shows in its overflow menu. The
+    // toolbar copies it into that menu and sends `select` on to this
+    // original, so its items act on `select`, not on `click`.
+    menuItem?: boolean;
   }>(),
-  { fullWidth: false },
+  { fullWidth: false, menuItem: false },
 );
+
+// The toolbar places the menu-item form with `slot="overflow"`; the component
+// has two roots (the trigger and the teleported sheet), so the attributes are
+// bound on the trigger explicitly.
+defineOptions({ inheritAttrs: false });
 
 const emit = defineEmits<{ switched: [trajectRef: string] }>();
 
@@ -193,7 +203,79 @@ async function submitCreate(): Promise<void> {
 </script>
 
 <template>
+  <nldd-menu-item
+    v-if="menuItem"
+    v-bind="$attrs"
+    icon="traject"
+    :text="activeLabel"
+    :disabled="menuLoading || undefined"
+  >
+    <nldd-menu v-if="authenticated">
+      <nldd-menu-item
+        v-if="activeTraject"
+        text="Werkdocumenten"
+        icon="documents"
+        @select="goToWerkdocumenten"
+      ></nldd-menu-item>
+      <nldd-menu-item
+        v-if="activeTraject"
+        text="Taken"
+        icon="tasks"
+        @select="goToTaken"
+      ></nldd-menu-item>
+      <nldd-menu-item v-if="activeTraject" text="Instellingen" icon="settings">
+        <nldd-menu>
+          <nldd-menu-item
+            text="Algemeen"
+            icon="traject"
+            @select="goToInstellingen('details')"
+          ></nldd-menu-item>
+          <nldd-menu-item
+            text="Leden"
+            icon="person-2"
+            @select="goToInstellingen('leden')"
+          ></nldd-menu-item>
+        </nldd-menu>
+      </nldd-menu-item>
+      <nldd-menu-group text="Trajecten">
+        <nldd-menu-item
+          type="radio"
+          :selected="!activeTrajectRef || undefined"
+          text="Corpus juris"
+          @select="goToCorpusJuris"
+        ></nldd-menu-item>
+        <nldd-menu-item
+          v-for="t in trajects"
+          :key="t.id"
+          type="radio"
+          :selected="t.ref === activeTrajectRef || undefined"
+          :text="`${t.name}${t.status === 'afgerond' ? ' (afgerond)' : ''}`"
+          @select="selectTraject(t)"
+        ></nldd-menu-item>
+        <nldd-menu-item
+          text="Nieuw traject…"
+          icon="plus"
+          @select="openCreate"
+        ></nldd-menu-item>
+      </nldd-menu-group>
+    </nldd-menu>
+    <!-- Not logged in: what the button's popover offers, as a menu. -->
+    <nldd-menu v-else>
+      <nldd-menu-item
+        text="Inloggen"
+        icon="login"
+        @select="loginToChooser"
+      ></nldd-menu-item>
+      <nldd-menu-item
+        text="Account aanvragen"
+        icon="new-account"
+        @select="goToAccountRequest"
+      ></nldd-menu-item>
+    </nldd-menu>
+  </nldd-menu-item>
   <nldd-button
+    v-else
+    v-bind="$attrs"
     data-testid="traject-menu-trigger"
     size="md"
     expandable
@@ -293,9 +375,11 @@ async function submitCreate(): Promise<void> {
 
   <!-- Teleport the sheet out of the toolbar so it doesn't inherit the
        toolbar's positioning / clipping. Matches the ScenarioBuilder
-       pattern. Each TrajectMenu instance (md/lg/sm) teleports its own
-       sheet to body but only one is active per breakpoint, so they
-       don't visually collide. -->
+       pattern. Every TrajectMenu instance (the buttons in the md, lg and
+       mobile bars and their menu-item alternatives in the toolbar overflow
+       menus) teleports its own sheet to body. Only the instance whose
+       "Nieuw traject…" was chosen opens its sheet, so they don't visually
+       collide. -->
   <Teleport to="body">
     <nldd-sheet
       ref="sheetEl"

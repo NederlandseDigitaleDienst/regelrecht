@@ -83,6 +83,15 @@ export function openSearch(e?: Event, initialSearch = ''): void {
 }
 
 /**
+ * Opens the search popover against `anchor` rather than an event's target. The
+ * toolbar's overflow menu needs this: its `select` arrives on the original
+ * menu item, which sits hidden in its collapsed toolbar item.
+ */
+export function openSearchAt(anchor: Element | null): void {
+  popoverRef?.value?.show(anchor, '', undefined);
+}
+
+/**
  * Spotlight-style: any printable single-character keystroke on the bar's
  * search-field opens the popover with that character as the initial query.
  * Modifier-combos (Ctrl-A, Cmd-V, …), Tab, Enter, arrows fall through.

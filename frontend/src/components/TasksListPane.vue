@@ -319,7 +319,7 @@ function viewLaw(job: RunningTaskJob): void {
                  van het onschuldige kijken erboven, en het is destructive. -->
             <nldd-menu-divider></nldd-menu-divider>
             <nldd-menu-item
-              variant="destructive"
+              destructive
               text="Annuleer conversie"
               @select="emit('cancel-job', job)"
             ></nldd-menu-item>
