@@ -314,18 +314,18 @@ const BULK_FETCH_THRESHOLD: usize = 16;
 /// lock. Eviction order only matters once a traject's read set exceeds
 /// [`BODY_CACHE_MAX_ENTRIES`], which is already crawl territory.
 #[derive(Default)]
-struct BoundedCache<V> {
+pub(crate) struct BoundedCache<V> {
     map: HashMap<String, V>,
     /// Insertion order of the keys in `map`, oldest first.
     order: VecDeque<String>,
 }
 
 impl<V> BoundedCache<V> {
-    fn get(&self, key: &str) -> Option<&V> {
+    pub(crate) fn get(&self, key: &str) -> Option<&V> {
         self.map.get(key)
     }
 
-    fn insert(&mut self, key: String, value: V) {
+    pub(crate) fn insert(&mut self, key: String, value: V) {
         if !self.map.contains_key(&key) {
             while self.map.len() >= BODY_CACHE_MAX_ENTRIES {
                 let Some(oldest) = self.order.pop_front() else {
@@ -2006,6 +2006,7 @@ async fn build_traject_corpus(
             backends,
             auth_file: auth_file.map(|p| p.to_path_buf()),
             index_failures,
+            lazy_bodies: Default::default(),
         },
         traject_id,
         own_base_branch,
@@ -2122,6 +2123,7 @@ async fn next_snapshot(old: &Arc<TrajectCorpus>, source_map: SourceMap) -> Arc<T
             // `refresh_traject_corpus`), so the refreshed snapshot has no
             // scan failures to report.
             index_failures: HashMap::new(),
+            lazy_bodies: Default::default(),
         },
         traject_id: old.traject_id,
         own_base_branch: old.own_base_branch.clone(),
@@ -2348,6 +2350,9 @@ impl TrajectSourceRow {
             // `CorpusRegistry::index_all_sources_async` — must resolve
             // strictly, without the legacy `CORPUS_GIT_TOKEN` fallback.
             strict_auth: self.is_writable_own,
+            enriched: None,
+            load_all: false,
+            library_only: false,
         }
     }
 }
@@ -2474,6 +2479,7 @@ mod tests {
                 backends,
                 auth_file: None,
                 index_failures: HashMap::new(),
+                lazy_bodies: Default::default(),
             },
             traject_id: Uuid::nil(),
             own_base_branch: None,
@@ -2953,6 +2959,9 @@ mod tests {
             priority: 0,
             auth_ref: None,
             strict_auth: false,
+            enriched: None,
+            load_all: false,
+            library_only: false,
         };
         let registry = CorpusRegistry::from_sources(vec![source.clone()]);
         let source_map = registry.load_local_sources("2026-06-01").unwrap();
@@ -2973,6 +2982,7 @@ mod tests {
                 backends,
                 auth_file: None,
                 index_failures: HashMap::new(),
+                lazy_bodies: Default::default(),
             },
             traject_id: Uuid::nil(),
             own_base_branch: None,

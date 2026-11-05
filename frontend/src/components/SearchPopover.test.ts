@@ -11,6 +11,7 @@ import type { CorpusLaw } from '../composables/useCorpusLaws';
 interface StubResponse {
   ok: boolean;
   status?: number;
+  headers?: Headers;
   json?: () => Promise<unknown>;
 }
 type FetchStub = (url: string | URL | Request, init?: RequestInit) => Promise<StubResponse>;
@@ -24,7 +25,8 @@ const fetchMock = () => vi.mocked(fetch) as unknown as Mock<FetchStub>;
  */
 interface SearchPopoverInternals {
   search: string;
-  sortedLaws: CorpusLaw[];
+  shownLaws: CorpusLaw[];
+  resultHeading: { overline?: string; text: string; supportingText?: string } | null;
   searchFailed: boolean;
   useCenteredPosition: boolean;
   isAnchored: boolean;
@@ -43,15 +45,19 @@ const popoverEl = (wrapper: VueWrapper) => wrapper.find('nldd-popover').element 
 
 // SearchPopover queries the corpus server-side (`/corpus/laws?q=`) and orders
 // the response into a flat option list (private repo first). We drive it via
-// `wrapper.vm` and assert on the `sortedLaws` computed.
+// `wrapper.vm` and assert on the `shownLaws` computed.
 //
 // useTrajects() calls vue-router's useRoute(); mock it so the component mounts
 // without a router. Default: no active traject → global /api/corpus URL. The
 // traject-scoped tests swap in a trajectRef per test (vi.hoisted so the
 // hoisted mock factory can reference it).
 const routeMock = vi.hoisted((): { params: Record<string, string> } => ({ params: {} }));
+// useRouter only resolves the address of a suggested law.
 vi.mock('vue-router', () => ({
   useRoute: () => routeMock,
+  useRouter: () => ({
+    resolve: (loc: { params: { lawId: string } }) => ({ href: `/corpus-juris/${loc.params.lawId}` }),
+  }),
 }));
 
 // Central corpus (priority 2) listed before the private traject repo
@@ -91,25 +97,118 @@ beforeEach(() => {
 const settle = () => new Promise((r) => setTimeout(r, 300));
 
 describe('SearchPopover server-side search', () => {
-  it('orders corpus matches private repo (priority 0) first, source per row', async () => {
+  it('shows the matches of the first source in order, and names it', async () => {
     const wrapper = mount(SearchPopover);
     internals(wrapper).search = 'zorgverzekering';
     await nextTick();
     await settle();
     await nextTick();
 
-    // Flat option list sorted by source_priority: the private traject repo
-    // (priority 0) sorts above the central corpus (priority 2). Each row keeps
-    // its own source_name (shown as supporting-text in the listbox).
-    const laws = internals(wrapper).sortedLaws;
-    expect(laws.map((l) => l.law_id)).toEqual([
+    // The private traject repo (priority 0) is searched before the central
+    // corpus (priority 2), so only its match shows, under its name.
+    expect(internals(wrapper).shownLaws.map((l) => l.law_id)).toEqual([
       'besluit_zorgverzekering_example',
-      'besluit_zorgverzekering',
     ]);
-    expect(laws.map((l) => l.source_name)).toEqual([
-      'example-org/regelrecht-corpus-example',
-      'Centrale Regelrecht Corpus',
-    ]);
+    expect(internals(wrapper).resultHeading).toEqual({
+      overline: 'Gevonden in',
+      text: 'example-org/regelrecht-corpus-example',
+    });
+  });
+
+  it('offers the matches of the other sources in a row, and switches to them', async () => {
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'zorgverzekering';
+    await nextTick();
+    await settle();
+    await nextTick();
+
+    const row = wrapper.find('[data-testid="search-other-source"]');
+    expect(row.find('nldd-text-cell').attributes('text')).toBe(
+      'Ook 1 resultaat in Centrale Regelrecht Corpus',
+    );
+
+    await row.trigger('click');
+    expect(internals(wrapper).shownLaws.map((l) => l.law_id)).toEqual(['besluit_zorgverzekering']);
+    expect(internals(wrapper).resultHeading).toEqual({
+      overline: 'Gevonden in',
+      text: 'Centrale Regelrecht Corpus',
+    });
+    // And back: the first source now has the row.
+    expect(
+      wrapper.find('[data-testid="search-other-source"] nldd-text-cell').attributes('text'),
+    ).toBe('Ook 1 resultaat in example-org/regelrecht-corpus-example');
+  });
+
+  it('starts over at the first source for a new query', async () => {
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'zorgverzekering';
+    await nextTick();
+    await settle();
+    await nextTick();
+    await wrapper.find('[data-testid="search-other-source"]').trigger('click');
+    expect(internals(wrapper).resultHeading).toEqual({
+      overline: 'Gevonden in',
+      text: 'Centrale Regelrecht Corpus',
+    });
+
+    internals(wrapper).search = 'zorgverzekeringen';
+    await nextTick();
+    await settle();
+    await nextTick();
+    expect(internals(wrapper).resultHeading).toEqual({
+      overline: 'Gevonden in',
+      text: 'example-org/regelrecht-corpus-example',
+    });
+  });
+
+  it('marks the last source count as a lower bound when the backend capped the list', async () => {
+    fetchMock().mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.includes('/corpus/laws') && u.includes('q=')) {
+        return {
+          ok: true,
+          headers: new Headers({ 'X-Total-Count': '80' }),
+          json: async () => LAWS,
+        };
+      }
+      return { ok: true, json: async () => [] };
+    });
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'zorgverzekering';
+    await nextTick();
+    await settle();
+    await nextTick();
+
+    expect(
+      wrapper.find('[data-testid="search-other-source"] nldd-text-cell').attributes('text'),
+    ).toBe('Ook 1+ resultaten in Centrale Regelrecht Corpus');
+    // The first source's list is complete: no note under its heading.
+    const heading = () => wrapper.get('[data-testid="search-result-label"]');
+    expect(heading().attributes('supporting-text')).toBeUndefined();
+    // The last source is the one the cap cut short; its heading says so, with
+    // what the other source leaves of the total.
+    await wrapper.find('[data-testid="search-other-source"]').trigger('click');
+    expect(heading().attributes('supporting-text')).toBe(
+      'De beste 1 van 79 resultaten. Typ meer om te verfijnen.',
+    );
+  });
+
+  it('falls through to the next source when the first has no match', async () => {
+    fetchMock().mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.includes('/corpus/laws') && u.includes('q=')) {
+        return { ok: true, json: async () => [LAWS[0]] };
+      }
+      return { ok: true, json: async () => [] };
+    });
+    const wrapper = mount(SearchPopover);
+    await searchFor(wrapper, 'zorgverzekering');
+
+    expect(internals(wrapper).shownLaws.map((l) => l.law_id)).toEqual(['besluit_zorgverzekering']);
+    expect(internals(wrapper).resultHeading).toEqual({
+      overline: 'Gevonden in',
+      text: 'Centrale Regelrecht Corpus',
+    });
   });
 
   it('queries the backend with the q parameter (not a client-side filter)', async () => {
@@ -167,7 +266,7 @@ describe('SearchPopover server-side search', () => {
 
     // The cleared term's response must not repopulate the list, and no
     // wetten.overheid.nl search should have been fired for it.
-    expect(internals(wrapper).sortedLaws).toEqual([]);
+    expect(internals(wrapper).shownLaws).toEqual([]);
     const bwbCalls = fetchMock().mock.calls
       .map((c) => String(c[0]))
       .filter((u) => u.includes('/harvest/search'));
@@ -191,7 +290,7 @@ describe('SearchPopover server-side search', () => {
     await nextTick();
 
     expect(internals(wrapper).searchFailed).toBe(true);
-    expect(internals(wrapper).sortedLaws).toEqual([]);
+    expect(internals(wrapper).shownLaws).toEqual([]);
     const bwbCalls = fetchMock().mock.calls
       .map((c) => String(c[0]))
       .filter((u) => u.includes('/harvest/search'));
@@ -202,7 +301,7 @@ describe('SearchPopover server-side search', () => {
     const wrapper = mount(SearchPopover);
     await searchFor(wrapper, 'zorgverzekering');
 
-    expect(wrapper.findAll('nldd-list-item[data-law-id]')).toHaveLength(2);
+    expect(wrapper.findAll('nldd-list-item[data-law-id]')).toHaveLength(1);
     expect(promoteButtons(wrapper)).toHaveLength(0);
   });
 });
@@ -232,34 +331,29 @@ describe('SearchPopover zonder "Toevoegen aan traject" in zoekresultaten', () =>
     routeMock.params = { trajectRef: TRAJECT_REF };
   });
 
-  it('toont binnen een traject geen promote-knop; de ondertitel is de bron', async () => {
+  it('shows no promote button inside a traject; the label names the source', async () => {
     const wrapper = mount(SearchPopover);
     await searchFor(wrapper, 'zorgverzekering');
 
     const rows = wrapper.findAll('nldd-list-item[data-law-id]');
-    expect(rows).toHaveLength(2);
-    // Ook de centrale-seed-treffer (priority 2, niet in de eigen repo) krijgt
-    // geen knop meer — promoten kan alleen nog via de AddLawSheet.
+    expect(rows.map((r) => r.attributes('data-law-id'))).toEqual(['besluit_zorgverzekering_example']);
     expect(promoteButtons(wrapper)).toHaveLength(0);
-
-    const central = rows.find((r) => r.attributes('data-law-id') === 'besluit_zorgverzekering');
-    expect(central).toBeDefined();
-    expect(central!.get('nldd-text-cell').attributes('supporting-text')).toBe(
-      'Centrale Regelrecht Corpus',
-    );
+    const heading = wrapper.get('[data-testid="search-result-label"]');
+    expect(heading.attributes('overline')).toBe('Gevonden in');
+    expect(heading.attributes('text')).toBe('example-org/regelrecht-corpus-example');
   });
 
-  it('een rij-klik navigeert alleen (select-law), er wordt niets gepromoot', async () => {
+  it('a row click only navigates (select-law), nothing is promoted', async () => {
     const wrapper = mount(SearchPopover);
     await searchFor(wrapper, 'zorgverzekering');
 
     await wrapper
-      .get('nldd-list-item[data-law-id="besluit_zorgverzekering"]')
+      .get('nldd-list-item[data-law-id="besluit_zorgverzekering_example"]')
       .trigger('click');
     // select-law wordt uitgesteld tot de popover dicht is (deferral).
     await wrapper.get('nldd-popover').trigger('close');
 
-    expect(wrapper.emitted('select-law')).toEqual([['besluit_zorgverzekering']]);
+    expect(wrapper.emitted('select-law')).toEqual([['besluit_zorgverzekering_example']]);
     expect(wrapper.emitted('promoted')).toBeUndefined();
     const promoteCalls = fetchMock().mock.calls.filter(
       (c) => String(c[0]).includes('/promote') && c[1]?.method === 'POST',
@@ -436,5 +530,110 @@ describe('SearchPopover: minimale zoeklengte', () => {
     await searchFor(wrapper, `${'a'.repeat(MIN_QUERY_LENGTH - 1)}   `);
     expect(corpusCalls()).toEqual([]);
     expect(emptyTexts(wrapper)).toContain(`Typ minimaal ${WORDS[MIN_QUERY_LENGTH]} tekens om te zoeken`);
+  });
+});
+
+describe('SearchPopover: laws with a machine version', () => {
+  it('marks a match whose current version is enriched with a Machine tag', async () => {
+    fetchMock().mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.includes('/corpus/laws') && u.includes('q=')) {
+        return {
+          ok: true,
+          json: async () => [
+            { law_id: 'wet_a', display_name: 'Wet A', source_id: 'central', source_name: 'Centraal', enriched: true },
+            { law_id: 'wet_b', display_name: 'Wet B', source_id: 'central', source_name: 'Centraal', enriched: false },
+          ],
+        };
+      }
+      return { ok: true, json: async () => [] };
+    });
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'wet';
+    await nextTick();
+    await settle();
+    await nextTick();
+    const tagIn = (id: string) => wrapper.get(`nldd-list-item[data-law-id="${id}"]`).find('nldd-tag');
+    expect(tagIn('wet_a').text()).toBe('Machine');
+    expect(tagIn('wet_b').exists()).toBe(false);
+  });
+
+  it('no longer offers a filter on enriched laws, and never asks for one', async () => {
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'zorgtoeslag';
+    await nextTick();
+    await settle();
+    expect(wrapper.find('nldd-checkbox-field').exists()).toBe(false);
+    const urls = fetchMock().mock.calls.map((c) => String(c[0]));
+    expect(urls.some((u) => u.includes('enriched=true'))).toBe(false);
+  });
+});
+
+describe('SearchPopover: suggestions and wetten.overheid.nl', () => {
+  it('suggests five laws from Corpus juris when not logged in and the field is empty', async () => {
+    fetchMock().mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.includes('/auth/status')) return { ok: false, json: async () => ({}) };
+      const ids = /[?&]ids=([^&]*)/.exec(u)?.[1];
+      if (ids) {
+        return {
+          ok: true,
+          json: async () => decodeURIComponent(ids).split(',').map((law_id) => ({ law_id, display_name: law_id })),
+        };
+      }
+      return { ok: true, json: async () => [] };
+    });
+    const wrapper = mount(SearchPopover);
+    await wrapper.get('nldd-popover').trigger('open');
+    await settle();
+
+    // Links in a link group, not rows of the result list.
+    const links = wrapper.findAll('nldd-link-group [data-testid="search-suggestion"]');
+    expect(links).toHaveLength(5);
+    expect(wrapper.find('nldd-list-item[data-testid="search-suggestion"]').exists()).toBe(false);
+    const ids = links.map((r) => r.attributes('data-law-id'));
+    expect(ids.every((id) => __SUGGESTED_LAW_IDS__.includes(id as string))).toBe(true);
+    const [plain, newTab] = links;
+    if (!plain || !newTab) throw new Error('expected suggestion links');
+    expect(plain.attributes('href')).toBe(`/corpus-juris/${ids[0]}`);
+    expect(internals(wrapper).resultHeading).toEqual({ text: 'Suggesties' });
+
+    // A plain click opens the law in place, once the popover has closed; a
+    // click that asks for a new tab is left to the link.
+    const newTabClick = new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true });
+    newTab.element.dispatchEvent(newTabClick);
+    expect(newTabClick.defaultPrevented).toBe(false);
+    const plainClick = new MouseEvent('click', { bubbles: true, cancelable: true });
+    plain.element.dispatchEvent(plainClick);
+    expect(plainClick.defaultPrevented).toBe(true);
+    await wrapper.get('nldd-popover').trigger('close');
+    expect(wrapper.emitted('select-law')).toEqual([[ids[0]]]);
+  });
+
+  it('links a wetten.overheid.nl match to its official text', async () => {
+    fetchMock().mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.includes('/harvest/search')) {
+        return {
+          ok: true,
+          json: async () => [{ bwb_id: 'BWBR0000001', title: 'Voorbeeldwet', type: 'wet' }],
+        };
+      }
+      return { ok: true, json: async () => [] };
+    });
+    const wrapper = mount(SearchPopover);
+    await searchFor(wrapper, 'voorbeeldwet');
+    // The external search has its own debounce on top of the corpus one.
+    await vi.waitFor(() => {
+      expect(wrapper.find('[data-testid="search-official-text"]').exists()).toBe(true);
+    }, { timeout: 3000 });
+
+    const row = wrapper.get('[data-testid="search-official-text"]');
+    expect(row.attributes('href')).toBe('https://wetten.overheid.nl/BWBR0000001');
+    expect(row.attributes('target')).toBe('_blank');
+    expect(internals(wrapper).resultHeading).toEqual({
+      overline: 'Niet in de bibliotheek, wel op',
+      text: 'wetten.overheid.nl',
+    });
   });
 });

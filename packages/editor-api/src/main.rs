@@ -27,6 +27,7 @@ mod favorites;
 mod feature_flags;
 mod github_oauth;
 mod harvest_proxy;
+mod law_search;
 mod middleware;
 mod state;
 mod static_cache;
@@ -221,10 +222,16 @@ async fn main() {
     const MAX_UPLOAD_BODY: usize = 25 * 1024 * 1024;
 
     // Reader routes — `editor-reader` covers user-scoped reads (favorites,
-    // settings) and harvest search (search is behind auth because it triggers
-    // outbound requests and would otherwise be an amplification vector).
+    // settings), the user's own Corpus juris favorites (any account may keep
+    // them; they touch nothing but the account), and harvest search (search is
+    // behind auth because it triggers outbound requests and would otherwise be
+    // an amplification vector).
     let reader_routes = Router::new()
         .route("/api/favorites", get(favorites::list))
+        .route(
+            "/api/favorites/{law_id}",
+            axum::routing::put(favorites::add).delete(favorites::remove),
+        )
         .route("/api/user/settings", get(user_settings::list))
         .route("/api/harvest/search", get(harvest_proxy::proxy_harvest))
         .route_layer(axum_middleware::from_fn_with_state(
@@ -239,10 +246,6 @@ async fn main() {
     // POSTs (which trigger outbound requests) sit here so anonymous callers
     // can never reach them.
     let writer_routes = Router::new()
-        .route(
-            "/api/favorites/{law_id}",
-            axum::routing::put(favorites::add).delete(favorites::remove),
-        )
         // 4 KiB is ample for `{"value":"<one allowed enum>"}` and rejects
         // oversized bodies before deserialization.
         .route(
@@ -267,7 +270,7 @@ async fn main() {
     // never git). Handlers extract `Extension<AccountRecord>`, so
     // `account_middleware` must run per request, same as traject routes.
     // Reads at reader tier, mutations at writer tier, mirroring how
-    // favorites/settings split across `reader_routes`/`writer_routes`
+    // settings split across `reader_routes`/`writer_routes`
     // (which stay Session-based and therefore don't carry the account
     // middleware).
     let user_notes_reader_routes = Router::new()
@@ -786,7 +789,7 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
     };
 
     let today = regelrecht_shared::dates::today_str();
-    let source_map = match registry
+    let mut source_map = match registry
         .load_favorites_async(favorites, auth_file, &today)
         .await
     {
@@ -809,6 +812,24 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
         }
     };
 
+    // Corpus juris shows the version in force, whichever source supplies it;
+    // priority only settles two sources for the same version (RFC-010).
+    // Trajecten keep priority first: their own repo must stay current there.
+    source_map.prefer_version_in_force();
+
+    // The rest of each GitHub source by path only, so Corpus juris can find
+    // every law in it; a body is fetched when someone opens the law (see
+    // `ReadScope::law_yaml`). A source that fails to list is reported on
+    // `/api/sources` instead of silently showing fewer laws. After
+    // `prefer_version_in_force`, so a law refused for a conflict between two
+    // sources is left out rather than kept as a version.
+    let index_failures: HashMap<String, String> = registry
+        .index_github_sources_into(&mut source_map, auth_file)
+        .await
+        .into_iter()
+        .map(|f| (f.source_id, f.error))
+        .collect();
+
     let backends = init_backends(&registry, auth_file).await;
 
     CorpusState {
@@ -816,11 +837,8 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
         source_map,
         backends,
         auth_file: auth_file.map(|p| p.to_path_buf()),
-        // The global startup path loads favorites with its own all-or-
-        // nothing fallback above; per-source scan health is only tracked
-        // on the traject path (`build_traject_corpus`), where a silently
-        // missing source changes which corpus a law resolves from.
-        index_failures: HashMap::new(),
+        index_failures,
+        lazy_bodies: Default::default(),
     }
 }
 
