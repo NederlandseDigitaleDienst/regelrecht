@@ -13,6 +13,7 @@ articles:
     url: https://example.invalid/fact/1
     text: Het bevoegd gezag legt vast in welke gemeente de school gevestigd is, en sinds wanneer.
     machine_readable:
+      # release-note-begin: requires-fact
       requires:
         - law: andere_wet
           values: [regio]
@@ -21,6 +22,7 @@ articles:
           parameters:
             - gemeente
             - sinds
+      # release-note-end: requires-fact
       execution:
         parameters:
           - name: gemeente

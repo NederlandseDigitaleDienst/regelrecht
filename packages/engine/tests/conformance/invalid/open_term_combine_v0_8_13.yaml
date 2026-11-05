@@ -1,0 +1,35 @@
+---
+# Since schema v0.8.13 an open term carries no `combine`: one question goes to
+# one cell, and the engine merges no answers (RFC-048). The marked lines are
+# shown on the schema release notes page as the shape to change.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$id: test_conformance_open_term_combine_v0_8_13
+regulatory_layer: WET
+bwb_id: BWBR9999952
+publication_date: '2026-10-28'
+valid_from: '2026-10-28'
+name: Testwet verstrekking
+url: https://example.invalid/open-term-combine
+articles:
+  - number: '1'
+    url: https://example.invalid/open-term-combine/1
+    text: Het college of de landelijke uitgever verstrekt de kaart.
+    machine_readable:
+      # release-note-begin: combine
+      open_terms:
+        - id: eerder_verstrekt
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+            - name: Landelijke uitgever
+          type: boolean
+          required: true
+          combine: OR
+      # release-note-end: combine
+      execution:
+        output:
+          - name: eerder_verstrekt
+            type: boolean
+        actions:
+          - output: eerder_verstrekt
+            value: $eerder_verstrekt

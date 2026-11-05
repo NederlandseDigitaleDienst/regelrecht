@@ -20,6 +20,7 @@ articles:
       Of de jongere al verlof kreeg, ontleent het hoofd aan het antwoord van
       zijn eigen cel over zijn eerdere besluiten.
     machine_readable:
+      # release-note-begin: binds-answer
       implements:
         - law: test_conformance_produces_list
           article: '1'
@@ -37,6 +38,7 @@ articles:
               parameters:
                 bsn_jongere: $bsn_jongere
               description: Het antwoord van de cel van het hoofd.
+        # release-note-end: binds-answer
         output:
           - name: al_verleend
             type: boolean

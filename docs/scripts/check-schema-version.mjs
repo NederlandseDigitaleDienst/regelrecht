@@ -25,6 +25,12 @@ const SCHEMA_DIR = fileURLToPath(new URL('../../schema', import.meta.url));
 const PAGE = fileURLToPath(
   new URL('../src/content/docs/reference/schema.mdx', import.meta.url),
 );
+// One note per schema version from RELEASE_NOTES_FROM on, which the Version
+// History rows link to. See check 6.
+const NOTES = fileURLToPath(
+  new URL('../src/content/docs/reference/schema-release-notes.mdx', import.meta.url),
+);
+const RELEASE_NOTES_FROM = [0, 8, 0];
 // The committed copy the reference page actually renders from. It exists
 // because `schema/` is not in the docs Docker build context; see
 // scripts/sync-schema.mjs.
@@ -86,8 +92,10 @@ if (!page.includes(expectedUrl)) {
 //    thing that changed is actually described (with its RFC). `latest` is a
 //    validated vX.Y.Z string, but escape every regex metacharacter (not just
 //    the dots) so the pattern stays literal regardless of its shape.
-const escaped = latest.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const historyRow = new RegExp(`^\\|\\s*${escaped}\\s*\\|`, 'm');
+const literal = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escaped = literal(latest);
+// The version cell may be a link to its release note (check 6).
+const historyRow = new RegExp(`^\\|\\s*(?:${escaped}|\\[${escaped}\\]\\([^)]*\\))\\s*\\|`, 'm');
 if (!historyRow.test(page)) {
   problems.push(`the Version History table has no row for ${latest}`);
 }
@@ -217,6 +225,34 @@ try {
   console.warn('check-schema-version: could not list git tags, skipping the tag check');
 }
 
+// 6. Every schema version from v0.8.0 on has a release note, and its row in
+//    the Version History links to that note. The note is where an author
+//    reads whether a version of a rulework stays valid and what to edit when
+//    it does not; the row stays the record RFCs cite. Without this check the
+//    pull request that adds a version can add the row and forget the note,
+//    and nothing would notice until a reader followed a link to nowhere.
+//    The anchor is the slug Astro gives a heading that is the version alone:
+//    `## v0.8.13` becomes `#v0813`.
+const parse = (v) => v.slice(1).split('.').map(Number);
+const atLeast = (a, b) => {
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i];
+  return true;
+};
+const noted = readdirSync(SCHEMA_DIR)
+  .filter((n) => /^v\d+\.\d+\.\d+$/.test(n))
+  .filter((v) => atLeast(parse(v), RELEASE_NOTES_FROM));
+const notes = existsSync(NOTES) ? readFileSync(NOTES, 'utf8') : '';
+if (!notes) problems.push('docs/src/content/docs/reference/schema-release-notes.mdx is missing');
+for (const v of noted) {
+  if (notes && !new RegExp(`^## ${literal(v)}\\s*$`, 'm').test(notes)) {
+    problems.push(`schema-release-notes.mdx has no "## ${v}" note`);
+  }
+  const link = `[${v}](/reference/schema-release-notes#${v.replace(/\./g, '')})`;
+  if (!new RegExp(`^\\|\\s*${literal(link)}\\s*\\|`, 'm').test(page)) {
+    problems.push(`the Version History row for ${v} does not link its release note as ${link}`);
+  }
+}
+
 if (problems.length) {
   console.error(`check-schema-version FAILED (schema/latest is ${latest}):`);
   for (const p of problems) console.error('  - ' + p);
@@ -225,7 +261,8 @@ if (problems.length) {
   }
   console.error(
     '\nUpdate docs/src/content/docs/reference/schema.mdx: bump the current-version line ' +
-      'and tag URL, and add a Version History row describing what the new version introduces.',
+      'and tag URL, and add a Version History row describing what the new version introduces, ' +
+      'linked to a note in schema-release-notes.mdx (see "Adding a release note" there).',
   );
   process.exit(1);
 }

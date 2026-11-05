@@ -111,6 +111,10 @@ jobs:
               - corpus/annotations/**
               - packages/frontend-shared/**
               - script/landing-laws.sh
+              # De voorbeelden op /reference/schema-release-notes zijn stukken
+              # uit deze fixtures (docs/src/lib/fixture-excerpt.ts); een
+              # weggehaalde markering laat de docs-build omvallen.
+              - packages/engine/tests/conformance/**
               # What the gate installs in the Playwright image.
               - script/install-a11y-debs.sh
               - .github/workflows/ci.yml
