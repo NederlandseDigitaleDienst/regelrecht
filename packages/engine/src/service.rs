@@ -181,6 +181,14 @@ struct Bound {
     answers: Vec<AnswerProvenance>,
 }
 
+/// The cell a binding asks for an answer ([`LawExecutionService::route_answer`]):
+/// none where the call holds no cell the term names, and the authorities
+/// named, for a message.
+struct Route<'c> {
+    askee: Option<&'c dyn OpenTermAnswerer>,
+    named: String,
+}
+
 /// The outputs `article` computes at stage `stage` of its procedure
 /// (RFC-045). For an article that produces several things, such as an
 /// application and the decision on it: those of the submission whose kind
@@ -1195,14 +1203,20 @@ impl<'a, 'r, 'c> LazyArticleInputs<'a, 'r, 'c> {
             }
             LazyName::Input(input) => {
                 let context = self.article_context();
-                // A call to another law is keyed on the source's parameters,
-                // which may read other inputs of this article: those are
-                // resolved first, each as its own step. No other way of
-                // resolving an input reads them.
-                if self
-                    .service
-                    .calls_other_law(self.law, input, self.parameters)
-                {
+                // A call to another law and a question to a cell are keyed
+                // on the source's parameters, which may read other inputs of
+                // this article: those are resolved first, each as its own
+                // step. No other way of resolving an input reads them.
+                let reads = self.with_resolution_context(|res_ctx| {
+                    Ok(self.service.reads_source_parameters(
+                        self.article,
+                        self.law,
+                        input,
+                        self.parameters,
+                        res_ctx,
+                    ))
+                })?;
+                if reads {
                     // A call to an article also reads the value that names
                     // it and the objects it merges (RFC-045 §6).
                     let keys = input
@@ -4418,6 +4432,79 @@ impl LawExecutionService {
         Ok(result)
     }
 
+    /// Which cell of the call answers `answer` for the input `input` of the
+    /// binding `article` of the policy `law` (RFC-048, RFC-051), as
+    /// [`Self::resolve_answer`] describes, without asking it. `Err` is the
+    /// refusal: the policy names no holder, or the call holds more than one
+    /// cell it names.
+    fn route_answer<'c>(
+        &self,
+        article: &Article,
+        law: &ArticleBasedLaw,
+        input: &Input,
+        answer: &str,
+        res_ctx: &ResolutionContext<'c>,
+    ) -> std::result::Result<Route<'c>, String> {
+        // The terms the binding fills, as the laws that declare them say on
+        // the calculation date.
+        let terms: Vec<&crate::article::OpenTerm> = article
+            .get_implements()
+            .into_iter()
+            .flatten()
+            .filter_map(|decl| {
+                let (_, declaring) = self
+                    .article_in_force(&decl.law, &decl.article, res_ctx.calculation_date)
+                    .ok()?;
+                declaring
+                    .get_open_terms()?
+                    .iter()
+                    .find(|term| term.id == decl.open_term)
+            })
+            .collect();
+        let competent = terms.iter().find_map(|term| {
+            term.competent_authority
+                .as_ref()
+                .and_then(|authority| authority.named())
+        });
+        let Some(named) = competent.or_else(|| {
+            law.competent_authority
+                .as_ref()
+                .and_then(|authority| authority.named())
+        }) else {
+            return Err(format!(
+                "input '{}' of {} takes the answer '{answer}', but the policy names no \
+                 holder (competent_authority) whose cell gives it (RFC-048)",
+                input.name, law.id
+            ));
+        };
+        let askees: Vec<&'c dyn OpenTermAnswerer> = res_ctx
+            .answerer
+            .into_iter()
+            .chain(res_ctx.sphere.iter().copied())
+            .filter(|answerer| answerer.authority().is_named_by(named))
+            .collect();
+        // One question goes to one cell. Which cell of a category answers
+        // where the call holds several is open, so the engine asks none of
+        // them and does not merge answers.
+        if askees.len() > 1 {
+            let mut names: Vec<&str> = askees.iter().map(|a| a.authority().name.as_str()).collect();
+            names.sort_unstable();
+            return Err(format!(
+                "input '{}' of {} takes the answer '{answer}', and {} cells of the call are \
+                 named by {}: {}; the engine asks one cell, and which one is open",
+                input.name,
+                law.id,
+                askees.len(),
+                authorities(named),
+                names.join(", ")
+            ));
+        }
+        Ok(Route {
+            askee: askees.first().copied(),
+            named: authorities(named),
+        })
+    }
+
     /// Resolve an input that takes the named answer of a cell
     /// (`source.reduction`, RFC-048): ask the answerers of the call for
     /// `answer`, with the parameters the binding passes.
@@ -4445,76 +4532,19 @@ impl LawExecutionService {
         res_ctx: &mut ResolutionContext<'c>,
     ) -> Result<Option<Value>> {
         let _guard = res_ctx.trace_guard(&input.name, PathNodeType::Resolve);
-        let refuse = |res_ctx: &mut ResolutionContext<'c>, message: String| {
-            res_ctx.trace_set_message(message.clone());
-            Err(EngineError::InvalidOperation(message))
+        let route = match self.route_answer(article, law, input, answer, res_ctx) {
+            Ok(route) => route,
+            Err(message) => {
+                res_ctx.trace_set_message(message.clone());
+                return Err(EngineError::InvalidOperation(message));
+            }
         };
-        // The terms the binding fills, as the laws that declare them say on
-        // the calculation date.
-        let terms: Vec<&crate::article::OpenTerm> = article
-            .get_implements()
-            .into_iter()
-            .flatten()
-            .filter_map(|decl| {
-                let (_, declaring) = self
-                    .article_in_force(&decl.law, &decl.article, res_ctx.calculation_date)
-                    .ok()?;
-                declaring
-                    .get_open_terms()?
-                    .iter()
-                    .find(|term| term.id == decl.open_term)
-            })
-            .collect();
-        let competent = terms.iter().find_map(|term| {
-            term.competent_authority
-                .as_ref()
-                .and_then(|authority| authority.named())
-        });
-        let Some(named) = competent.or_else(|| {
-            law.competent_authority
-                .as_ref()
-                .and_then(|authority| authority.named())
-        }) else {
-            return refuse(
-                res_ctx,
-                format!(
-                    "input '{}' of {} takes the answer '{answer}', but the policy names no \
-                     holder (competent_authority) whose cell gives it (RFC-048)",
-                    input.name, law.id
-                ),
-            );
-        };
-        let askees: Vec<&'c dyn OpenTermAnswerer> = res_ctx
-            .answerer
-            .into_iter()
-            .chain(res_ctx.sphere.iter().copied())
-            .filter(|answerer| answerer.authority().is_named_by(named))
-            .collect();
-        // One question goes to one cell. Which cell of a category answers
-        // where the call holds several is open, so the engine asks none of
-        // them and does not merge answers.
-        if askees.len() > 1 {
-            let mut names: Vec<&str> = askees.iter().map(|a| a.authority().name.as_str()).collect();
-            names.sort_unstable();
-            return refuse(
-                res_ctx,
-                format!(
-                    "input '{}' of {} takes the answer '{answer}', and {} cells of the call are \
-                     named by {}: {}; the engine asks one cell, and which one is open",
-                    input.name,
-                    law.id,
-                    askees.len(),
-                    authorities(named),
-                    names.join(", ")
-                ),
-            );
-        }
         // Without a cell to ask, the binding gives nothing; the parameters it
         // passes are not needed then, and may be absent (RFC-048).
-        let Some(askee) = askees.first().copied() else {
+        let Some(askee) = route.askee else {
             let message = format!(
                 "No cell of this execution gives the answer '{answer}' for {}",
-                authorities(named)
+                route.named
             );
             return Self::no_answer(article, law, input, message, Vec::new(), res_ctx);
         };
@@ -4530,7 +4560,7 @@ impl LawExecutionService {
                 let message = format!(
                     "No cell gives the answer '{answer}' for {}; silent: {} (no answer \
                      '{answer}')",
-                    authorities(named),
+                    route.named,
                     askee.authority().name
                 );
                 return Self::no_answer(article, law, input, message, Vec::new(), res_ctx);
@@ -4558,8 +4588,7 @@ impl LawExecutionService {
         if given.value.is_null() {
             let message = format!(
                 "No cell gives the answer '{answer}' for {}; silent: {}",
-                authorities(named),
-                given.provenance.answerer
+                route.named, given.provenance.answerer
             );
             return Self::no_answer(
                 article,
@@ -5313,23 +5342,36 @@ impl LawExecutionService {
         Err(EngineError::DataSourceError(message))
     }
 
-    /// Whether resolving `input` calls another law: it names a regulation or
-    /// an article (RFC-045 §6) and no data source answers for it first, the
-    /// order [`Self::resolve_input`] follows.
-    fn calls_other_law(
+    /// Whether resolving `input` reads the parameters of its source: it
+    /// calls another law, naming a regulation or an article (RFC-045 §6), or
+    /// asks a cell for an answer (`source.reduction`, RFC-048), and no data
+    /// source answers for it first, the order [`Self::resolve_input`]
+    /// follows. A binding without a cell to ask reads none of them.
+    fn reads_source_parameters(
         &self,
+        article: &Article,
         law: &ArticleBasedLaw,
         input: &Input,
         parameters: &BTreeMap<String, Value>,
+        res_ctx: &ResolutionContext<'_>,
     ) -> bool {
-        input
-            .source
-            .as_ref()
-            .is_some_and(|source| source.regulation.is_some() || source.article.is_some())
-            && self
-                .data_registry
-                .resolve_for_law(&input.name, parameters, Some(&law.id))
-                .is_none()
+        let Some(source) = &input.source else {
+            return false;
+        };
+        if self
+            .data_registry
+            .resolve_for_law(&input.name, parameters, Some(&law.id))
+            .is_some()
+        {
+            return false;
+        }
+        // A refusal is left to the resolution, which says why.
+        if let Some(answer) = &source.reduction {
+            return self
+                .route_answer(article, law, input, answer, res_ctx)
+                .is_ok_and(|route| route.askee.is_some());
+        }
+        source.regulation.is_some() || source.article.is_some()
     }
 
     /// Resolve one input from its source, the first time an action reads it
