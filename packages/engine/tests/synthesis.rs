@@ -1281,3 +1281,70 @@ fn an_output_beside_the_decision_is_asked_only_when_read() {
     assert!(running.asked().is_empty());
     assert_eq!(other.asked(), ["eerder_verstrekt"]);
 }
+
+/// The policy with art. 7 passing the GGD what the college answered for
+/// art. 1: another input of the binding, read through the binding of that
+/// article, so it takes an answer of its own.
+fn service_passing_an_answer() -> LawExecutionService {
+    let policy = BINDING.replacen(
+        "reduction: zevende_feit\n              parameters: {bsn: $bsn}\n",
+        "reduction: zevende_feit\n              parameters: {bsn: $bsn, eerder: $eerder}\n          \
+         - name: eerder\n            type: boolean\n            source:\n              \
+         regulation: wet_verstrekking\n              output: eerder_verstrekt\n              \
+         parameters: {bsn: $bsn}\n",
+        1,
+    );
+    assert_ne!(policy, BINDING);
+    let mut service = LawExecutionService::new();
+    for law in [ESTABLISHING, READING, policy.as_str()] {
+        service.load_law(law).unwrap();
+    }
+    service
+}
+
+#[test]
+fn an_answer_a_binding_passes_to_another_cell_is_resolved_first() {
+    // The value the binding passes is resolved before the GGD is asked, as
+    // it is for a call to another law.
+    let running = Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Bool(true));
+    let ggd = Fake::new("ggd", Some("Gemeentelijke Gezondheidsdienst"))
+        .answering("zevende_feit", Value::Bool(false));
+    let call = Call {
+        findings: BTreeMap::new(),
+        answerer: Some(&running),
+        chronicle: None,
+        sphere: vec![&ggd],
+    };
+    let result = service_passing_an_answer()
+        .evaluate_law_in("wet_lezer", &["zesde_gelezen"], parameters(), call, DATE)
+        .unwrap();
+    assert_eq!(result.outputs["zesde_gelezen"], Value::Bool(false));
+    assert_eq!(running.asked(), ["eerder_verstrekt"]);
+    assert_eq!(ggd.asked(), ["zevende_feit"]);
+    // The GGD is asked with the college's answer, under the binding's name.
+    assert_eq!(ggd.asked.borrow()[0].1["eerder"], Value::Bool(true));
+}
+
+#[test]
+fn without_a_cell_to_ask_the_value_a_binding_passes_is_not_resolved() {
+    // No cell gives zevende_feit, so the binding passes nothing and the
+    // policy takes its own finding. What it would have passed is not read:
+    // without that, art. 1 would need a finding nobody gave.
+    let result = service_passing_an_answer()
+        .evaluate_law_in(
+            "wet_lezer",
+            &["zesde_gelezen"],
+            parameters(),
+            Call::with_findings(BTreeMap::from([(
+                "zevende_feit_volgens_college".to_string(),
+                Value::Bool(true),
+            )])),
+            DATE,
+        )
+        .unwrap();
+    assert_eq!(result.outputs["zesde_gelezen"], Value::Bool(true));
+    assert_eq!(
+        filled_by(&result, "zevende_feit"),
+        bound("7", "zevende_feit", &[])
+    );
+}
