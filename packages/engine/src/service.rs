@@ -594,14 +594,10 @@ fn with_played_state(
         .projection_state
         .as_ref()
         .filter(|(played_law, _)| played_law == law_id);
-    // Inside the play, an article that reads another article of the same
-    // reduction passes the played state on; any other `state` is refused.
+    // Inside the play the played state is the only one: it replaces any
+    // `state` an article of the same reduction passes on.
     match played {
-        Some((_, state))
-            if parameters
-                .get(crate::projection::STATE)
-                .is_none_or(|given| given == state) =>
-        {
+        Some((_, state)) => {
             parameters.insert(crate::projection::STATE.to_string(), state.clone());
             Ok(parameters)
         }

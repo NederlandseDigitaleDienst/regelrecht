@@ -1302,6 +1302,11 @@ articles:
         LawExecutionService::new()
             .load_law(&law_with_projection("REDUCTIE", &ok))
             .unwrap();
+        // Steps for different kinds of record under one article, and a date.
+        let kinds = "        state:\n          - {name: a, type: boolean, initial: false}\n          - {name: d, type: date, initial: '2025-01-01'}\n        steps:\n          - {record: wet#1, type: AANVRAAG, set: {a: true}}\n          - {record: wet#1, type: BESCHIKKING, set: {a: false}}";
+        LawExecutionService::new()
+            .load_law(&law_with_projection("REDUCTIE", kinds))
+            .unwrap();
         let declares_state = law_with_projection("REDUCTIE", &ok).replace(
             "      execution:\n",
             "      execution:\n        parameters:\n          - {name: state, type: object}\n",
@@ -1357,6 +1362,16 @@ articles:
                 "REDUCTIE",
                 format!("{state}        steps:\n          - {{record: wet#1, set: {{a: 3}}}}"),
                 "sets 'a' for a record under wet#1 to a value that is no Boolean",
+            ),
+            (
+                "REDUCTIE",
+                format!("{state}        steps:\n          - {{record: wet#1, type: BESCHIKKING, set: {{a: true}}}}\n          - {{record: wet#1, type: BESCHIKKING, set: {{a: false}}}}"),
+                "has two steps for the same records under wet#1",
+            ),
+            (
+                "REDUCTIE",
+                "        state:\n          - {name: a, type: date, initial: 'morgen'}\n        steps: []".to_string(),
+                "initial value that is no Date",
             ),
             (
                 "REDUCTIE",

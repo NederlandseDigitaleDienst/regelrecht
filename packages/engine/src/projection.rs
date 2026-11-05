@@ -294,10 +294,14 @@ impl LawExecutionService {
                 }
 
                 for (kind, target) in self.holding_effects(record, &records[..i])? {
-                    let by = undone_by.entry(target).or_default();
-                    let first_undoer = by.is_empty();
-                    by.entry(record.id.as_str()).or_insert(kind);
-                    if first_undoer && applied.contains(target) {
+                    undone_by
+                        .entry(target)
+                        .or_default()
+                        .entry(record.id.as_str())
+                        .or_insert(kind);
+                    // A target that was applied had no undoer yet: one would
+                    // have made the replay skip it.
+                    if applied.contains(target) {
                         rewind = Some(ProjectionEvent::Rewound {
                             record: record.id.clone(),
                             cause: kind.into(),
@@ -1172,6 +1176,52 @@ articles:
                 "{law}: {err}"
             );
         }
+    }
+
+    #[test]
+    fn an_empty_chronicle_answers_from_the_initial_state() {
+        let outcome = play(&[]).unwrap();
+        assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(false));
+        assert!(outcome.events.is_empty());
+    }
+
+    #[test]
+    fn the_trace_names_each_cause_of_a_rewind() {
+        let messages = |records: &[ChronicleRecord]| -> Vec<String> {
+            let outcome = service()
+                .evaluate_projection(
+                    "reductie",
+                    &["heeft_kaart"],
+                    records,
+                    BTreeMap::new(),
+                    "2025-03-01",
+                    true,
+                )
+                .unwrap();
+            let root = outcome.result.trace.expect("a trace");
+            root.children[0]
+                .children
+                .iter()
+                .filter(|n| n.name == "REWIND")
+                .filter_map(|n| n.message.clone())
+                .collect()
+        };
+        assert_eq!(
+            messages(&[grant("a"), replace("n", "a")]),
+            ["n replaces a: play again from the start"]
+        );
+        assert_eq!(
+            messages(&[
+                grant("a"),
+                revoke("h1", "a", true),
+                revoke("h2", "h1", true)
+            ]),
+            [
+                "h1 revokes a: play again from the start",
+                "h2 revokes h1: play again from the start",
+                "h1 revives a: play again from the start",
+            ]
+        );
     }
 
     #[test]
