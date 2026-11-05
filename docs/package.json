@@ -31,7 +31,7 @@
     "@astrojs/mdx": "^8.1.0",
     "@cucumber/gherkin": "^42.0.1",
     "@cucumber/messages": "^34.2.1",
-    "@nldd/design-system": "^0.9.0",
+    "@nldd/design-system": "^0.16.0",
     "astro": "^7.4.0",
     "astro-pagefind": "^2.0.1",
     "github-slugger": "^2.0.0",
