@@ -229,7 +229,7 @@ onMounted(laad);
           <div slot="left">
             <nldd-title size="4"><h3>Eigen opgaven</h3></nldd-title>
             <nldd-spacer size="12"></nldd-spacer>
-            <nldd-list appearance="box">
+            <nldd-list appearance="box-tinted">
               <nldd-list-item size="sm">
                 <nldd-text-cell text="Onderdelen in deze aanvraag" color="secondary"></nldd-text-cell>
                 <nldd-text-cell :text="String(item.aanvraag.componenten.length)" horizontal-alignment="right"></nldd-text-cell>
@@ -251,7 +251,7 @@ onMounted(laad);
 
             <nldd-title size="4"><h3>Transparantieverklaringen (art. 5)</h3></nldd-title>
             <nldd-spacer size="12"></nldd-spacer>
-            <nldd-list appearance="box">
+            <nldd-list appearance="box-tinted">
               <nldd-list-item v-for="v in verklaringen" :key="v.label" size="sm">
                 <nldd-icon-cell
                   :icon="v.ok ? 'check-mark-circle' : 'dismiss-circle'"
@@ -298,7 +298,7 @@ onMounted(laad);
                 </div>
               </nldd-title>
               <nldd-spacer size="12"></nldd-spacer>
-              <nldd-list appearance="box">
+              <nldd-list appearance="box-tinted">
                 <nldd-list-item size="sm">
                   <nldd-text-cell text="Bedrag (80% van rechtswege)" color="secondary"></nldd-text-cell>
                   <nldd-text-cell :text="euro(item.betaalopdracht.bedrag)" horizontal-alignment="right"></nldd-text-cell>
@@ -346,7 +346,7 @@ onMounted(laad);
                 </div>
               </nldd-title>
               <nldd-spacer size="12"></nldd-spacer>
-              <nldd-list appearance="box">
+              <nldd-list appearance="box-tinted">
                 <nldd-list-item size="sm">
                   <nldd-text-cell text="Indiener" color="secondary"></nldd-text-cell>
                   <nldd-text-cell :text="item.bezwaar.naam_indiener" horizontal-alignment="right"></nldd-text-cell>
@@ -472,7 +472,7 @@ onMounted(laad);
               />
               <nldd-spacer size="16"></nldd-spacer>
 
-              <nldd-list appearance="box">
+              <nldd-list appearance="box-tinted">
                 <nldd-list-item v-for="g in samenvattingPerGroep" :key="g.naam" size="sm">
                   <nldd-text-cell
                     :text="g.naam"
@@ -534,7 +534,7 @@ onMounted(laad);
                 <nldd-spacer size="16"></nldd-spacer>
                 <nldd-title size="5"><h4>Landelijke subsidie in delen (art. 14)</h4></nldd-title>
                 <nldd-spacer size="8"></nldd-spacer>
-                <nldd-list appearance="box">
+                <nldd-list appearance="box-tinted">
                   <nldd-list-item v-for="d in landelijkeDelen" :key="d.label" size="sm">
                     <nldd-text-cell :text="d.label" color="secondary"></nldd-text-cell>
                     <nldd-text-cell :text="euro(d.bedrag)" horizontal-alignment="right"></nldd-text-cell>

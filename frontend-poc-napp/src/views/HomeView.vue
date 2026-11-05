@@ -96,7 +96,7 @@ const stappen = [
       <nldd-title size="2" slot="header">
         <h2>Direct regelen</h2>
       </nldd-title>
-      <nldd-collection layout="grid" item-width="300px">
+      <nldd-collection layout="grid" item-min-width="300px">
         <nldd-card accessible-label="Subsidie aanvragen">
           <nldd-container padding="20">
             <nldd-icon icon="apartment-building" size="32" color="lintblauw"></nldd-icon>

@@ -158,7 +158,7 @@ watch(() => session.aanvrager, laadAlles);
           </p>
         </nldd-rich-text>
         <nldd-spacer size="12"></nldd-spacer>
-        <nldd-list v-if="registratie?.partij" appearance="box">
+        <nldd-list v-if="registratie?.partij" appearance="box-tinted">
           <nldd-list-item size="sm">
             <nldd-text-cell text="Geregistreerde aanduiding" color="secondary"></nldd-text-cell>
             <nldd-text-cell :text="registratie.partij.naam" horizontal-alignment="right"></nldd-text-cell>
@@ -224,7 +224,7 @@ watch(() => session.aanvrager, laadAlles);
           <nldd-spacer size="12"></nldd-spacer>
         </template>
 
-        <nldd-list appearance="box">
+        <nldd-list appearance="box-tinted">
           <nldd-list-item size="md">
             <nldd-title-cell
               :text="rekening?.iban ?? 'Nog niet opgegeven'"
