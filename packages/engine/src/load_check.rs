@@ -626,11 +626,29 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
                 ));
             }
             for effect in item.effects() {
-                let name = effect.parameter();
-                if !article.get_parameters().iter().any(|p| p.name == name) {
+                let name = &effect.parameter;
+                if !article.get_parameters().iter().any(|p| &p.name == name) {
                     return refuse(format!(
                         "names parameter '{name}' in an effect under produces, but declares no such parameter"
                     ));
+                }
+                // `when` reads an outcome of this decision: one of its own
+                // outputs, and a boolean, so the effect holds or it does not.
+                if let Some(when) = &effect.when {
+                    if !article.outputs_of(item).contains(&when.as_str()) {
+                        return refuse(format!(
+                            "makes an effect depend on '{when}', which is no output of its decision"
+                        ));
+                    }
+                    let boolean = article.get_outputs().iter().any(|o| {
+                        &o.name == when
+                            && o.output_type == regelrecht_law_model::ParameterType::Boolean
+                    });
+                    if !boolean {
+                        return refuse(format!(
+                            "makes an effect depend on '{when}', which is not a boolean"
+                        ));
+                    }
                 }
             }
             for name in article.parameters_of(item) {
@@ -1082,6 +1100,18 @@ articles:
                 "          - type: BESCHIKKING\n            effects:\n              - replaces: q",
                 "names parameter 'q' in an effect",
             ),
+            (
+                "          - type: BESCHIKKING\n            effects:\n              - revokes: p\n                when: y",
+                "depend on 'y', which is no output of its decision",
+            ),
+            (
+                "          - type: AANVRAAG\n            outputs: [x]\n          - type: BESCHIKKING\n            effects:\n              - revokes: p\n                when: x",
+                "depend on 'x', which is no output of its decision",
+            ),
+            (
+                "          - type: BESCHIKKING\n            derived: [x]\n            effects:\n              - revokes: p\n                when: x",
+                "depend on 'x', which is no output of its decision",
+            ),
         ] {
             let mut service = LawExecutionService::new();
             let err = service
@@ -1094,17 +1124,39 @@ articles:
         }
     }
 
-    /// A decision's effects name a parameter of the article (schema v0.8.14).
+    /// A decision's effects name a parameter of the article, and may depend
+    /// on a boolean output of the decision (schema v0.8.14).
     #[test]
     fn a_decision_may_revoke_or_replace_by_a_parameter() {
-        for effect in ["revokes", "replaces"] {
+        for effect in [
+            "revokes: p",
+            "replaces: p",
+            "revokes: p\n                when: x",
+        ] {
             let items = format!(
-                "          - type: BESCHIKKING\n            effects:\n              - {effect}: p"
+                "          - type: BESCHIKKING\n            effects:\n              - {effect}"
             );
             LawExecutionService::new()
                 .load_law(&law_producing(&items))
                 .unwrap_or_else(|e| panic!("{effect}: {e}"));
         }
+    }
+
+    /// `when` names an outcome that holds or does not: a boolean output.
+    #[test]
+    fn an_effect_depends_on_a_boolean_output() {
+        let items = "          - type: BESCHIKKING\n            effects:\n              - revokes: p\n                when: x";
+        let law = law_producing(items)
+            .replace("            type: boolean", "            type: string")
+            .replace("            value: true", "            value: ja");
+        let err = LawExecutionService::new()
+            .load_law(&law)
+            .expect_err("a string output cannot decide an effect");
+        assert!(
+            err.to_string()
+                .contains("depend on 'x', which is not a boolean"),
+            "{err}"
+        );
     }
 
     /// Not an Unknown: a sentinel without a usable `missing` list stays a

@@ -74,7 +74,12 @@ pub fn dispatch(
                 fields,
             );
         }
-        "decide_on_submission" => decide_on_submission(world, args[0].as_str(), args[1].as_str()),
+        "decide_on_submission" => {
+            let found = table
+                .map(|t| rows_to_params(&t, table_cell_value))
+                .unwrap_or_default();
+            decide_on_submission(world, args[0].as_str(), args[1].as_str(), found);
+        }
         "decide_under_article" => {
             let parameters = rows_to_params(&table.expect("parameters table"), table_cell_value);
             let basis = format!("{}#{}", args[2].as_str(), args[1].as_str());
@@ -143,8 +148,14 @@ fn record_submission(
     );
 }
 
-/// The decision the submission asks for, with its fields as parameters.
-fn decide_on_submission(world: &mut RegelrechtWorld, id: &str, submission: &str) {
+/// The decision the submission asks for, with its fields and what the
+/// authority `found` besides them as parameters.
+fn decide_on_submission(
+    world: &mut RegelrechtWorld,
+    id: &str,
+    submission: &str,
+    found: BTreeMap<String, Value>,
+) {
     let gram = world
         .extension
         .chronicle
@@ -158,12 +169,20 @@ fn decide_on_submission(world: &mut RegelrechtWorld, id: &str, submission: &str)
         .and_then(|s| s.requests())
         .unwrap_or_else(|| panic!("submission '{submission}' asks for no decision"))
         .to_string();
-    let fields = gram
+    let mut parameters: BTreeMap<String, Value> = gram
         .fields
         .iter()
         .map(|(k, v)| (k.clone(), stored::from_stored(v).expect("stored field")))
         .collect();
-    decide(world, id, &requests, Some(submission), fields);
+    for (name, value) in found {
+        // The table gives what was found besides the submission.
+        assert!(
+            !parameters.contains_key(&name),
+            "'{name}' is a field of submission '{submission}'; the table gives what the authority found besides it"
+        );
+        parameters.insert(name, value);
+    }
+    decide(world, id, &requests, Some(submission), parameters);
 }
 
 /// Execute the decision of article `basis` with `parameters` and record it.

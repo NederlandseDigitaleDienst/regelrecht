@@ -8,6 +8,10 @@
 //! revoked one. The cell plays those effects in the order the decisions were
 //! recorded:
 //!
+//! - an effect with `when` holds only when the decision recorded that
+//!   boolean output as true, such as a revocation that follows from a
+//!   well-founded objection; without `when` it always holds. A replacement
+//!   whose outcome is false is no replacement: both decisions then count;
 //! - every decision has consequences, unless a decision that itself has
 //!   consequences revokes or replaces it;
 //! - a replacing decision has consequences of its own, in the place of the
@@ -41,7 +45,9 @@ use crate::shape::article_on;
 /// A chronolexogram is a decision when its article takes a decision of its
 /// kind (`produces`); submissions and executograms are not. An effect names
 /// a field of the decision whose value is the id of the other decision,
-/// which must be a decision recorded before it.
+/// which must be a decision recorded before it. An effect with `when` holds
+/// only when the decision holds that output as `true`; the decision must
+/// hold the output.
 pub fn counting<'c>(
     service: &LawExecutionService,
     chronicle: &'c Chronicle,
@@ -57,7 +63,7 @@ pub fn counting<'c>(
     let mut undone_by: Vec<Vec<usize>> = vec![Vec::new(); decisions.len()];
     for (later, (gram, effects)) in decisions.iter().enumerate() {
         for effect in *effects {
-            let name = effect.parameter();
+            let name = &effect.parameter;
             let target = gram.fields.get(name).and_then(|v| v.as_str()).ok_or_else(|| {
                 refused(format!(
                     "decision '{}' ({}) has an effect on '{name}', but holds no decision id under it",
@@ -74,7 +80,9 @@ pub fn counting<'c>(
                         gram.id, gram.basis
                     ))
                 })?;
-            undone_by[earlier].push(later);
+            if holds(gram, effect)? {
+                undone_by[earlier].push(later);
+            }
         }
     }
 
@@ -90,6 +98,30 @@ pub fn counting<'c>(
         .zip(counts)
         .filter_map(|((gram, _), counts)| counts.then_some(gram))
         .collect())
+}
+
+/// Whether `effect` of the decision `gram` holds: always without `when`,
+/// and with it only when the decision recorded that output as `true`. A
+/// missing or non-boolean outcome is refused rather than read as `false`.
+fn holds(gram: &Gram, effect: &DecisionEffect) -> Result<bool> {
+    let Some(when) = &effect.when else {
+        return Ok(true);
+    };
+    let outcome = gram.outputs.get(when).ok_or_else(|| {
+        refused(format!(
+            "decision '{}' ({}) has an effect that depends on '{when}', but holds no such output",
+            gram.id, gram.basis
+        ))
+    })?;
+    // The loader makes `when` a boolean output, so anything else here is a
+    // null or an unknown outcome: no answer to whether the effect holds.
+    outcome.as_bool().ok_or_else(|| {
+        refused(format!(
+            "decision '{}' ({}) has an effect that depends on '{when}', but holds no boolean \
+             under it",
+            gram.id, gram.basis
+        ))
+    })
 }
 
 /// The effects of `gram` when it is a decision: its article, in the law of
@@ -115,7 +147,8 @@ mod tests {
     use super::*;
 
     /// The synthetic law of the cell's BDD suite: article 1 grants, 2 revokes
-    /// `bestreden_besluit`, 3 replaces it, 4 revokes `ingetrokken_besluit`.
+    /// `bestreden_besluit` when `herroepen`, 3 replaces it, 4 revokes
+    /// `ingetrokken_besluit`.
     const LAW: &str =
         include_str!("../bdd/fixtures/regulation/test_chronicle_effects/2025-01-01.yaml");
 
@@ -144,6 +177,15 @@ mod tests {
         }
     }
 
+    /// The decision on an objection against `contested` under article 2,
+    /// with its outcome `herroepen`.
+    fn on_objection(id: &str, contested: &str, herroepen: bool) -> Gram {
+        let mut gram = decision(id, "2", json!({"bestreden_besluit": contested}));
+        gram.outputs
+            .insert("herroepen".to_string(), json!(herroepen));
+        gram
+    }
+
     fn counting_ids(grams: Vec<Gram>) -> Result<Vec<String>> {
         let chronicle = Chronicle::in_memory_with(grams).unwrap();
         Ok(counting(&service(), &chronicle)?
@@ -156,10 +198,44 @@ mod tests {
     fn a_revoked_decision_does_not_count() {
         let ids = counting_ids(vec![
             decision("a", "1", json!({"ernstig_beperkt": true})),
-            decision("b", "2", json!({"bestreden_besluit": "a"})),
+            on_objection("b", "a", true),
         ])
         .unwrap();
         assert_eq!(ids, ["b"]);
+    }
+
+    #[test]
+    fn an_effect_with_a_false_outcome_does_not_hold() {
+        let ids = counting_ids(vec![
+            decision("a", "1", json!({"ernstig_beperkt": true})),
+            on_objection("b", "a", false),
+        ])
+        .unwrap();
+        assert_eq!(ids, ["a", "b"]);
+    }
+
+    #[test]
+    fn an_effect_that_depends_on_an_unrecorded_outcome_is_refused() {
+        let err = counting_ids(vec![
+            decision("a", "1", json!({"ernstig_beperkt": true})),
+            decision("b", "2", json!({"bestreden_besluit": "a"})),
+        ])
+        .expect_err("no outcome recorded");
+        assert!(err.to_string().contains("holds no such output"), "{err}");
+    }
+
+    #[test]
+    fn an_effect_with_a_null_outcome_is_refused() {
+        let mut objection = on_objection("b", "a", true);
+        objection
+            .outputs
+            .insert("herroepen".to_string(), Value::Null);
+        let err = counting_ids(vec![
+            decision("a", "1", json!({"ernstig_beperkt": true})),
+            objection,
+        ])
+        .expect_err("a null outcome");
+        assert!(err.to_string().contains("holds no boolean"), "{err}");
     }
 
     #[test]
@@ -167,7 +243,7 @@ mod tests {
         let ids = counting_ids(vec![
             decision("a", "1", json!({"ernstig_beperkt": true})),
             decision("b", "4", json!({"ingetrokken_besluit": "a"})),
-            decision("c", "2", json!({"bestreden_besluit": "b"})),
+            on_objection("c", "b", true),
         ])
         .unwrap();
         assert_eq!(ids, ["a", "c"]);
@@ -196,7 +272,7 @@ mod tests {
                 "3",
                 json!({"bestreden_besluit": "a", "ernstig_beperkt": false}),
             ),
-            decision("c", "2", json!({"bestreden_besluit": "b"})),
+            on_objection("c", "b", true),
         ])
         .unwrap();
         assert_eq!(ids, ["a", "c"]);
@@ -206,18 +282,18 @@ mod tests {
     fn an_effect_needs_an_earlier_decision() {
         for (grams, why) in [
             (
-                vec![decision("b", "2", json!({"bestreden_besluit": "x"}))],
+                vec![on_objection("b", "x", true)],
                 "which is no decision recorded before it",
             ),
             (
                 vec![
-                    decision("b", "2", json!({"bestreden_besluit": "a"})),
+                    on_objection("b", "a", true),
                     decision("a", "1", json!({"ernstig_beperkt": true})),
                 ],
                 "which is no decision recorded before it",
             ),
             (
-                vec![decision("b", "2", json!({}))],
+                vec![decision("b", "4", json!({}))],
                 "holds no decision id under it",
             ),
         ] {

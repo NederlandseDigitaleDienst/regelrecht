@@ -36,6 +36,16 @@ steps:
     text: the cell decides "{id}" on submission "{submission}"
     args: [{name: id, type: string}, {name: submission, type: string}]
 
+  # The same, with what the deciding authority found besides the submission
+  # (such as whether an objection is well-founded) as further parameters.
+  - id: decide_on_submission_with
+    action: decide_on_submission
+    keyword: when
+    tier: cel
+    text: 'the cell decides "{id}" on submission "{submission}" with:'
+    args: [{name: id, type: string}, {name: submission, type: string}]
+    datatable: true
+
   # A decision the cell takes without a submission, such as a withdrawal, or
   # a new decision in the place of a revoked one, with the parameters in the
   # table.

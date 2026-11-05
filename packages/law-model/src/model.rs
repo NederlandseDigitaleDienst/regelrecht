@@ -477,20 +477,35 @@ pub struct ProducedItem {
     pub effects: Option<Vec<DecisionEffect>>,
 }
 
-/// One thing a decision does with another decision (schema v0.8.14). Each
-/// names the parameter of the article whose value is that other decision.
+/// One thing a decision does with another decision (schema v0.8.14). It
+/// names the parameter of the article whose value is that other decision,
+/// and, with `when`, a boolean output of the decision that must be true for
+/// the effect to hold, such as the revocation that follows only from a
+/// well-founded objection.
 ///
-/// In YAML it is a map with exactly one key, `revokes` or `replaces`. The
-/// YAML library reads an externally tagged enum from a YAML tag, so the map
-/// goes through [`DecisionEffectFields`].
+/// In YAML it is a map with exactly one of `revokes` and `replaces`, and
+/// optionally `when`. It goes through [`DecisionEffectFields`], which checks
+/// the one-of.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "DecisionEffectFields", into = "DecisionEffectFields")]
-pub enum DecisionEffect {
+pub struct DecisionEffect {
+    /// What the decision does with the other decision.
+    pub kind: EffectKind,
+    /// The parameter whose value is the other decision.
+    pub parameter: String,
+    /// A boolean output of this decision; the effect holds only when it is
+    /// true. Without it the effect always holds.
+    pub when: Option<String>,
+}
+
+/// What a decision does with another decision (schema v0.8.14).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EffectKind {
     /// The other decision's consequences no longer count.
-    Revokes(String),
+    Revokes,
     /// The other decision's consequences no longer count, and this
     /// decision's consequences count in their place.
-    Replaces(String),
+    Replaces,
 }
 
 /// The map form of a [`DecisionEffect`], only for (de)serializing it.
@@ -502,40 +517,37 @@ pub struct DecisionEffectFields {
     revokes: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     replaces: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    when: Option<String>,
 }
 
 impl TryFrom<DecisionEffectFields> for DecisionEffect {
     type Error = String;
 
     fn try_from(fields: DecisionEffectFields) -> Result<Self, Self::Error> {
-        match (fields.revokes, fields.replaces) {
-            (Some(p), None) => Ok(Self::Revokes(p)),
-            (None, Some(p)) => Ok(Self::Replaces(p)),
-            _ => Err("an effect names exactly one of `revokes` and `replaces`".to_string()),
-        }
+        let (kind, parameter) = match (fields.revokes, fields.replaces) {
+            (Some(p), None) => (EffectKind::Revokes, p),
+            (None, Some(p)) => (EffectKind::Replaces, p),
+            _ => return Err("an effect names exactly one of `revokes` and `replaces`".to_string()),
+        };
+        Ok(Self {
+            kind,
+            parameter,
+            when: fields.when,
+        })
     }
 }
 
 impl From<DecisionEffect> for DecisionEffectFields {
     fn from(effect: DecisionEffect) -> Self {
-        match effect {
-            DecisionEffect::Revokes(p) => Self {
-                revokes: Some(p),
-                ..Self::default()
-            },
-            DecisionEffect::Replaces(p) => Self {
-                replaces: Some(p),
-                ..Self::default()
-            },
-        }
-    }
-}
-
-impl DecisionEffect {
-    /// The parameter whose value is the other decision.
-    pub fn parameter(&self) -> &str {
-        match self {
-            Self::Revokes(p) | Self::Replaces(p) => p,
+        let (revokes, replaces) = match effect.kind {
+            EffectKind::Revokes => (Some(effect.parameter), None),
+            EffectKind::Replaces => (None, Some(effect.parameter)),
+        };
+        Self {
+            revokes,
+            replaces,
+            when: effect.when,
         }
     }
 }

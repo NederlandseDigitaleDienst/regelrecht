@@ -6,8 +6,10 @@ Feature: Effects of a decision on another decision
   # Exercises `produces[].effects` (schema v0.8.14) against the synthetic law
   # test_chronicle_effects (packages/cel/bdd/fixtures), which is loosely shaped
   # after the disabled parking card and Awb 7:11 lid 2 and is otherwise
-  # fictional. Article 4, a withdrawal of the card, is fictional throughout:
-  # the corpus models no such withdrawal.
+  # fictional. The decision on an objection (article 2) revokes the contested
+  # decision only when the objection is well-founded (`when: herroepen`).
+  # Article 4, a withdrawal of the card, is fictional throughout: the corpus
+  # models no such withdrawal.
   #
   # The cell plays the effects in the order the decisions were recorded. The
   # reduction test_reductie_geldige_kaart (fixtures/cells/test_cel) is
@@ -25,13 +27,28 @@ Feature: Effects of a decision on another decision
     When I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the decisions that count as "besluiten"
     Then output "heeft_geldige_kaart" is true
 
-  Scenario: Revoking the grant on objection takes the card away
+  Scenario: An unfounded objection leaves the grant in place
+    # Article 2 revokes only when its outcome `herroepen` is true, which
+    # follows from the finding that the objection is well-founded.
     When the cell records submission "aanvraag" under article "1" of "test_chronicle_effects" with:
       | ernstig_beperkt | true |
     And the cell decides "verlening" on submission "aanvraag"
     And the cell records submission "bezwaar" under article "2" of "test_chronicle_effects" with:
       | bestreden_besluit | verlening |
-    And the cell decides "herroeping" on submission "bezwaar"
+    And the cell decides "beslissing_op_bezwaar" on submission "bezwaar" with:
+      | bezwaar_gegrond | false |
+    Then the consequences of decision "verlening" count
+    When I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the decisions that count as "besluiten"
+    Then output "heeft_geldige_kaart" is true
+
+  Scenario: A well-founded objection revokes the grant and takes the card away
+    When the cell records submission "aanvraag" under article "1" of "test_chronicle_effects" with:
+      | ernstig_beperkt | true |
+    And the cell decides "verlening" on submission "aanvraag"
+    And the cell records submission "bezwaar" under article "2" of "test_chronicle_effects" with:
+      | bestreden_besluit | verlening |
+    And the cell decides "herroeping" on submission "bezwaar" with:
+      | bezwaar_gegrond | true |
     Then the consequences of decision "verlening" do not count
     And the consequences of decision "herroeping" count
     When I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the decisions that count as "besluiten"
@@ -74,7 +91,8 @@ Feature: Effects of a decision on another decision
     Then output "heeft_geldige_kaart" is false
     When the cell records submission "bezwaar" under article "2" of "test_chronicle_effects" with:
       | bestreden_besluit | intrekking |
-    And the cell decides "herroeping" on submission "bezwaar"
+    And the cell decides "herroeping" on submission "bezwaar" with:
+      | bezwaar_gegrond | true |
     Then the consequences of decision "intrekking" do not count
     And the consequences of decision "verlening" count
     When I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the decisions that count as "besluiten"

@@ -3161,10 +3161,20 @@
           "type": "array",
           "items": {
             "type": "object",
-            "description": "Since v0.8.14: one thing a decision does with another decision, named by a parameter of the article whose value is that decision. Exactly one of `revokes` and `replaces`.",
+            "description": "Since v0.8.14: one thing a decision does with another decision, named by a parameter of the article whose value is that decision. Exactly one of `revokes` and `replaces`, and optionally `when`.",
             "additionalProperties": false,
-            "minProperties": 1,
-            "maxProperties": 1,
+            "oneOf": [
+              {
+                "required": [
+                  "revokes"
+                ]
+              },
+              {
+                "required": [
+                  "replaces"
+                ]
+              }
+            ],
             "properties": {
               "revokes": {
                 "type": "string",
@@ -3173,11 +3183,15 @@
               "replaces": {
                 "type": "string",
                 "description": "The parameter whose value is the decision this one takes the place of: the consequences of that decision no longer count, and those of this one do (Awb 7:11 lid 2)."
+              },
+              "when": {
+                "type": "string",
+                "description": "A boolean output of this decision (one its `outputs` lists, or without that list, one no other item lists); the effect holds only when the decision has it as true, such as a revocation that follows only from a well-founded objection (Awb 7:11 lid 2). Without it the effect always holds. The loader checks that it names a boolean output of this decision."
               }
             }
           },
           "minItems": 1,
-          "description": "Since v0.8.14, only on a decision: what this decision does with another decision, such as the decision on an objection that revokes the contested decision (Awb 7:11 lid 2) or takes a new decision in its place. Each effect names a parameter of this article whose value is the other decision. A runtime that records decisions plays the effects in the order the decisions were recorded, and from them derives which decisions still have consequences: a revoked decision has none, a replaced one has none and its replacement has them, and when a revoking or replacing decision itself loses its consequences, the decision it revoked or replaced has them again. The engine does not act on it; the loader checks that it sits on a decision and that every named parameter is a parameter of the article."
+          "description": "Since v0.8.14, only on a decision: what this decision does with another decision, such as the decision on an objection that revokes the contested decision (Awb 7:11 lid 2) or takes a new decision in its place. Each effect names a parameter of this article whose value is the other decision, and with `when` a boolean output of this decision that must be true for the effect to hold. A runtime that records decisions plays the effects in the order the decisions were recorded, and from them derives which decisions still have consequences: a revoked decision has none, a replaced one has none and its replacement has them, and when a revoking or replacing decision itself loses its consequences, the decision it revoked or replaced has them again. The engine does not act on it; the loader checks that it sits on a decision, that every named parameter is a parameter of the article, and that every `when` names a boolean output of the decision."
         },
         "decision_type": {
           "type": "string",

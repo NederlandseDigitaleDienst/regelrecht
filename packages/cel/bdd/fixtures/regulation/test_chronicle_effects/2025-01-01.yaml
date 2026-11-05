@@ -57,15 +57,20 @@ articles:
               - herroepen
             effects:
               - revokes: bestreden_besluit
+                when: herroepen
         parameters:
           - name: bestreden_besluit
             type: string
+          # Whether the objection is well-founded is the college's finding
+          # on reconsideration (Awb 7:11 lid 1), not part of the objection.
+          - name: bezwaar_gegrond
+            type: boolean
         output:
           - name: herroepen
             type: boolean
         actions:
           - output: herroepen
-            value: true
+            value: $bezwaar_gegrond
 
   - number: '3'
     url: https://example.com/test_chronicle_effects/3

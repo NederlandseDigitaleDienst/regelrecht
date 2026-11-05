@@ -2,7 +2,8 @@
 # Tier C: what a decision does with another decision (schema v0.8.14). The
 # decision on the objection revokes the contested decision and takes a new
 # decision in its place (Awb 7:11 lid 2); each effect names the parameter
-# whose value is that decision.
+# whose value is that decision; the revocation holds only when the decision
+# has its outcome `herroepen` as true.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: test_conformance_decision_effects
 regulatory_layer: WET
@@ -19,8 +20,11 @@ articles:
       execution:
         produces:
           - type: BESCHIKKING
+            outputs:
+              - herroepen
             effects:
               - revokes: bestreden_besluit
+                when: herroepen
         parameters:
           - name: bestreden_besluit
             type: string
