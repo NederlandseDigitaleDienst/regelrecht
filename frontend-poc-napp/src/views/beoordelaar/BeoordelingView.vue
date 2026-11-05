@@ -405,7 +405,7 @@ onMounted(laad);
                   </nldd-form-field>
                   <nldd-spacer size="8"></nldd-spacer>
                   <nldd-button
-                    appearance="neutral"
+                    appearance="neutral-tinted"
                     text="Afzien van horen"
                     :disabled="bezig || undefined"
                     @click="registreerHoren(false)"

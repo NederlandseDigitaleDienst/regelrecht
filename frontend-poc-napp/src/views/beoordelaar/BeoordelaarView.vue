@@ -168,7 +168,7 @@ watch(() => session.beoordelaar, laad);
               v-for="item in tab === 'werkvoorraad' ? openstaand : afgerond"
               :key="item.aanvraag.id"
               size="md"
-              type="button"
+              button
               @click="router.push(`/aanvraag/${item.aanvraag.id}`)"
             >
               <nldd-title-cell

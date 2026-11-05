@@ -199,7 +199,7 @@ onMounted(run);
           <template v-for="scenario in feature.scenarios" :key="scenario.name">
             <nldd-list-item
               size="md"
-              type="button"
+              button
               @click="toggle(feature.feature, scenario.name)"
             >
               <nldd-icon-cell

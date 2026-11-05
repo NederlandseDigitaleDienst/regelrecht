@@ -26,7 +26,7 @@
         target="_blank"
         rel="noopener"
         :title="`${wetsartikelLabel} openen op wetten.overheid.nl`"
-      >{{ node.name }}<nldd-icon icon="external-link" size="12"></nldd-icon></a>
+      >{{ node.name }}<nldd-icon icon="external-link" size="inherit"></nldd-icon></a>
       <span v-else class="tn-name">{{ node.name }}</span>
       <span v-if="node.result !== null && node.result !== undefined" class="tn-result">
         = {{ formatResult(node.result) }}
