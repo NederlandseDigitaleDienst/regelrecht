@@ -301,7 +301,6 @@ async function submitCreate(): Promise<void> {
       ref="sheetEl"
       placement="right"
       width="520px"
-      full-height
       @close="closeCreate"
     >
       <nldd-page sticky-header>

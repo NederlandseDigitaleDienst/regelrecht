@@ -142,7 +142,7 @@ const emptyText = computed(() => {
       :text="enrichLabel"
       @action-click="emit('enrich', $event.currentTarget)"
     >
-      <nldd-menu>
+      <nldd-menu slot="popup">
         <nldd-menu-group text="Verrijk met">
           <nldd-menu-item
             v-for="option in ENRICH_PROVIDER_OPTIONS"

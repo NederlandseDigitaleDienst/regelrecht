@@ -634,7 +634,7 @@ defineExpose({ save: onSave });
       ></nldd-inline-dialog>
 
       <template v-if="formState">
-        <nldd-collection layout="grid" item-width="320px">
+        <nldd-collection layout="grid" item-min-width="320px">
           <nldd-card v-for="(scenario, i) in formState.scenarios" :key="i">
             <nldd-container slot="header" padding-top="16" padding-inline="16">
               <nldd-title size="4"><h3>{{ scenario.name }}</h3></nldd-title>

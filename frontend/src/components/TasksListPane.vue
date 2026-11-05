@@ -348,7 +348,6 @@ function viewLaw(job: RunningTaskJob): void {
       ref="detailSheetEl"
       placement="right"
       width="520px"
-      full-height
       @close="closeDetails"
     >
       <nldd-page sticky-header>
