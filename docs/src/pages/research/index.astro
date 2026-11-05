@@ -81,7 +81,7 @@ const items: ResearchItem[] = [
         </p>
       </nldd-rich-text>
     </nldd-container>
-    <nldd-collection slot="right" layout="grid" item-width="320px">
+    <nldd-collection slot="right" layout="grid" item-min-width="320px">
       {items.map((item) => <LinkCard lang="en" tinted headingLevel={2} {...item} />)}
     </nldd-collection>
   </nldd-one-third-two-thirds-section>
