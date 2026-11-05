@@ -108,10 +108,9 @@ onActivated(() => {
 
 <template>
   <nldd-page ref="page">
-    <!-- Het gekleurde vlak is het accent, en dat is donkerblauw door het thema
-         op <html> (index.html). Het vlak draagt zijn eigen contentkleur, dus
-         titel, tekst en de inherit-knoppen erbinnen houden hun contrast zonder
-         scheme-override. -->
+    <!-- Het gekleurde vlak is het accent van het ontwerpsysteem. Het draagt
+         zijn eigen contentkleur, dus titel, tekst en de inherit-knoppen
+         erbinnen houden hun contrast zonder scheme-override. -->
     <nldd-hero main-width="full" padding-bottom="0">
       <!-- Twee kolommen over de volle hoogte van de hero: het verhaal links, de
            QR-code rechts. In een zaal wordt die code in de eerste seconden

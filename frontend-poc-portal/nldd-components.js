@@ -15,8 +15,6 @@
 // staat de pagina eerst kort in de verkeerde stand.
 import './thema.js';
 import '@nldd/design-system/styles';
-// The hero is the accent; this theme makes the accent donkerblauw (set on <html> in pagina.rs).
-import '@nldd/design-system/themes/donkerblauw.css';
 // nldd-shell is the required root and the element that carries min-height:100dvh;
 // without it the page background stops where the content does.
 import '@nldd/design-system/shell';

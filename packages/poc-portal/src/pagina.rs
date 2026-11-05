@@ -47,7 +47,7 @@ fn esc(s: &str) -> String {
 fn omhulsel(titel: &str, inhoud: &str) -> String {
     format!(
         r#"<!doctype html>
-<html lang="nl" data-nldd-theme="donkerblauw">
+<html lang="nl">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
