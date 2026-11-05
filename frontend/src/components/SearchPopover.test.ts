@@ -6,7 +6,6 @@ import { nextTick } from 'vue';
 import SearchPopover from './SearchPopover.vue';
 import { MIN_QUERY_LENGTH } from '../composables/useBwbSearch';
 import type { CorpusLaw } from '../composables/useCorpusLaws';
-import { enrichedOnly } from '../composables/useEnrichedFilter';
 
 /** The part of a Response apiFetch reads; the stubs return only this. */
 interface StubResponse {
@@ -53,8 +52,12 @@ const popoverEl = (wrapper: VueWrapper) => wrapper.find('nldd-popover').element 
 // traject-scoped tests swap in a trajectRef per test (vi.hoisted so the
 // hoisted mock factory can reference it).
 const routeMock = vi.hoisted((): { params: Record<string, string> } => ({ params: {} }));
+// useRouter only resolves the address of a suggested law.
 vi.mock('vue-router', () => ({
   useRoute: () => routeMock,
+  useRouter: () => ({
+    resolve: (loc: { params: { lawId: string } }) => ({ href: `/corpus-juris/${loc.params.lawId}` }),
+  }),
 }));
 
 // Central corpus (priority 2) listed before the private traject repo
@@ -77,7 +80,6 @@ const LAWS: CorpusLaw[] = [
 
 beforeEach(() => {
   routeMock.params = {};
-  enrichedOnly.value = false;
   vi.stubGlobal(
     'fetch',
     vi.fn<FetchStub>(async (url) => {
@@ -531,56 +533,39 @@ describe('SearchPopover: minimale zoeklengte', () => {
   });
 });
 
-describe('SearchPopover: only enriched laws', () => {
-  const corpusUrls = () =>
-    fetchMock().mock.calls.map((c) => String(c[0])).filter((u) => u.includes('/corpus/laws'));
-
-  it('sends the filter along with the search term', async () => {
-    const wrapper = mount(SearchPopover);
-    enrichedOnly.value = true;
-    internals(wrapper).search = 'zorgtoeslag';
-    await nextTick();
-    await settle();
-    expect(corpusUrls().some((u) => u.includes('q=zorgtoeslag') && u.includes('enriched=true'))).toBe(true);
-  });
-
-  it('lists the enriched laws when there is no search term', async () => {
-    mount(SearchPopover);
-    enrichedOnly.value = true;
-    await nextTick();
-    await settle();
-    expect(corpusUrls().some((u) => !u.includes('q=') && u.includes('enriched=true'))).toBe(true);
-  });
-
-  it('ignores the filter inside a traject, where laws are listed without their bodies', async () => {
-    routeMock.params = { trajectRef: 'mijn-traject-1a2b3c4d' };
-    const wrapper = mount(SearchPopover);
-    enrichedOnly.value = true;
-    internals(wrapper).search = 'zorgtoeslag';
-    await nextTick();
-    await settle();
-    // Only this traject's requests: popovers mounted by earlier tests in this
-    // file still listen to the shared filter, in the Corpus juris scope.
-    const urls = corpusUrls().filter((u) => u.includes('/trajects/mijn-traject-1a2b3c4d/'));
-    expect(urls.some((u) => u.includes('q=zorgtoeslag'))).toBe(true);
-    expect(urls.some((u) => u.includes('enriched=true'))).toBe(false);
-    expect(wrapper.find('[data-testid="search-enriched-filter"]').exists()).toBe(false);
-  });
-
-  it('does not fall back to wetten.overheid.nl when no enriched law matches', async () => {
+describe('SearchPopover: laws with a machine version', () => {
+  it('marks a match whose current version is enriched with a Machine tag', async () => {
     fetchMock().mockImplementation(async (url) => {
       const u = String(url);
-      if (u.includes('/auth/status')) return { ok: true, json: async () => ({ authenticated: true }) };
+      if (u.includes('/corpus/laws') && u.includes('q=')) {
+        return {
+          ok: true,
+          json: async () => [
+            { law_id: 'wet_a', display_name: 'Wet A', source_id: 'central', source_name: 'Centraal', enriched: true },
+            { law_id: 'wet_b', display_name: 'Wet B', source_id: 'central', source_name: 'Centraal', enriched: false },
+          ],
+        };
+      }
       return { ok: true, json: async () => [] };
     });
     const wrapper = mount(SearchPopover);
-    enrichedOnly.value = true;
-    internals(wrapper).search = 'kieswet';
+    internals(wrapper).search = 'wet';
     await nextTick();
     await settle();
     await nextTick();
-    const bwbCalls = fetchMock().mock.calls.map((c) => String(c[0])).filter((u) => u.includes('/harvest/search'));
-    expect(bwbCalls).toHaveLength(0);
+    const tagIn = (id: string) => wrapper.get(`nldd-list-item[data-law-id="${id}"]`).find('nldd-tag');
+    expect(tagIn('wet_a').text()).toBe('Machine');
+    expect(tagIn('wet_b').exists()).toBe(false);
+  });
+
+  it('no longer offers a filter on enriched laws, and never asks for one', async () => {
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'zorgtoeslag';
+    await nextTick();
+    await settle();
+    expect(wrapper.find('nldd-checkbox-field').exists()).toBe(false);
+    const urls = fetchMock().mock.calls.map((c) => String(c[0]));
+    expect(urls.some((u) => u.includes('enriched=true'))).toBe(false);
   });
 });
 
@@ -602,11 +587,27 @@ describe('SearchPopover: suggestions and wetten.overheid.nl', () => {
     await wrapper.get('nldd-popover').trigger('open');
     await settle();
 
-    const rows = wrapper.findAll('[data-testid="search-suggestion"]');
-    expect(rows).toHaveLength(5);
-    const ids = rows.map((r) => r.attributes('data-law-id'));
+    // Links in a link group, not rows of the result list.
+    const links = wrapper.findAll('nldd-link-group [data-testid="search-suggestion"]');
+    expect(links).toHaveLength(5);
+    expect(wrapper.find('nldd-list-item[data-testid="search-suggestion"]').exists()).toBe(false);
+    const ids = links.map((r) => r.attributes('data-law-id'));
     expect(ids.every((id) => __SUGGESTED_LAW_IDS__.includes(id as string))).toBe(true);
+    const [plain, newTab] = links;
+    if (!plain || !newTab) throw new Error('expected suggestion links');
+    expect(plain.attributes('href')).toBe(`/corpus-juris/${ids[0]}`);
     expect(internals(wrapper).resultHeading).toEqual({ text: 'Suggesties' });
+
+    // A plain click opens the law in place, once the popover has closed; a
+    // click that asks for a new tab is left to the link.
+    const newTabClick = new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true });
+    newTab.element.dispatchEvent(newTabClick);
+    expect(newTabClick.defaultPrevented).toBe(false);
+    const plainClick = new MouseEvent('click', { bubbles: true, cancelable: true });
+    plain.element.dispatchEvent(plainClick);
+    expect(plainClick.defaultPrevented).toBe(true);
+    await wrapper.get('nldd-popover').trigger('close');
+    expect(wrapper.emitted('select-law')).toEqual([[ids[0]]]);
   });
 
   it('links a wetten.overheid.nl match to its official text', async () => {

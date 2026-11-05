@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
+import { useRouter } from 'vue-router';
 import type { NLDDPopover } from '@nldd/design-system/popover';
 import { useBwbSearch, MIN_QUERY_LENGTH } from '../composables/useBwbSearch';
 import type { CorpusLaw } from '../composables/useCorpusLaws';
 import { useAuth } from '../composables/useAuth';
 import { useTrajects } from '../composables/useTrajects';
 import { lawsListUrl } from '../composables/corpusUrls';
-import { enrichedOnly } from '../composables/useEnrichedFilter';
+import { homeTarget } from '../composables/useLastVisitedRoute';
 import { apiFetch, apiFetchJson } from '../lib/apiFetch';
 import { groupBySource, otherSourceLabel, pickSuggestions, officialTextUrl } from '../lib/searchResults';
 import { useLatest } from '../lib/useLatest';
@@ -24,6 +25,7 @@ const emit = defineEmits<{
 type ValueEvent = Event & { detail?: { value?: string } | null };
 
 const { activeTrajectRef } = useTrajects();
+const router = useRouter();
 
 const { results: bwbResults, loading: bwbLoading, search: searchBwb, clear: clearBwb } = useBwbSearch();
 const { authenticated, oidcConfigured, login } = useAuth();
@@ -112,12 +114,27 @@ function chooseSource(sourceId: string) {
 
 // Suggestions for someone not logged in, with an empty search field: a few
 // laws from Corpus juris (favorites.json, injected at build time), picked
-// anew each time the popover opens.
+// anew each time the popover opens. They are links, not rows of the list, so
+// they do not read as search results.
 const SUGGESTION_COUNT = 5;
 const suggestions = ref<CorpusLaw[]>([]);
-const showSuggestions = computed(
-  () => !authenticated.value && searchTerm.value.length === 0 && !filterEnriched.value,
-);
+const showSuggestions = computed(() => !authenticated.value && searchTerm.value.length === 0);
+
+/** The address of a suggested law: it is always in Corpus juris. */
+function suggestionHref(lawId: string) {
+  return router.resolve(homeTarget({ lawId })).href;
+}
+
+/**
+ * A plain click opens the law in place, through selectLaw, so the popover
+ * closes and focus lands on the law. A click that asks for a new tab or window
+ * keeps the link's own behavior.
+ */
+function onSuggestionClick(event: MouseEvent, lawId: string) {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  selectLaw(lawId);
+}
 const claimSuggestions = useLatest();
 async function loadSuggestions() {
   const isCurrent = claimSuggestions();
@@ -162,13 +179,6 @@ const cappedNote = computed(() => {
 });
 const resultHeading = computed<ResultHeading | null>(() => {
   if (showSuggestions.value && suggestions.value.length) return { text: 'Suggesties' };
-  if (filterEnriched.value && searchTerm.value.length === 0 && shownGroup.value) {
-    return {
-      overline: 'Verrijkte regelwerken in',
-      text: shownGroup.value.sourceName,
-      supportingText: cappedNote.value,
-    };
-  }
   if (shownGroup.value) {
     return { overline: 'Gevonden in', text: shownGroup.value.sourceName, supportingText: cappedNote.value };
   }
@@ -183,13 +193,6 @@ const resultHeading = computed<ResultHeading | null>(() => {
 const claimSearch = useLatest();
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-// The "only enriched" filter (kept in useEnrichedFilter across openings) applies
-// straight away: with a term it narrows the matches, without one it lists the
-// enriched laws, since there are few and that is what someone ticking it wants.
-// Corpus juris only: a traject lists its laws by path without reading them, so
-// none would count as enriched there and every search would come back empty.
-const filterEnriched = computed(() => enrichedOnly.value && !activeTrajectRef.value);
-watch(filterEnriched, () => runQuery(search.value));
 watch(search, runQuery);
 
 function runQuery(q: string) {
@@ -198,11 +201,6 @@ function runQuery(q: string) {
   searchFailed.value = false;
   if (debounceTimer) clearTimeout(debounceTimer);
   const term = q.trim();
-  if (filterEnriched.value && term.length === 0) {
-    searching.value = true;
-    debounceTimer = setTimeout(() => runCorpusSearch(''), 0);
-    return;
-  }
   if (term.length < MIN_QUERY_LENGTH) {
     // Claim (and discard) a generation so any fetch already in flight
     // (debounce fired before this clear) is discarded when it resolves -
@@ -221,10 +219,7 @@ function runQuery(q: string) {
 async function runCorpusSearch(term: string) {
   const isCurrent = claimSearch();
   try {
-    const query = [term ? `q=${encodeURIComponent(term)}` : '', 'limit=60', filterEnriched.value ? 'enriched=true' : '']
-      .filter(Boolean)
-      .join('&');
-    const url = lawsListUrl(activeTrajectRef.value, query);
+    const url = lawsListUrl(activeTrajectRef.value, `q=${encodeURIComponent(term)}&limit=60`);
     const res = await apiFetch(url);
     const laws = (await res.json()) as CorpusLaw[];
     if (!isCurrent()) return; // a newer query superseded this one
@@ -233,9 +228,7 @@ async function runCorpusSearch(term: string) {
     searchFailed.value = false;
     // No match anywhere in the corpus → offer the external wetten.overheid.nl
     // search (unless the user must log in first to reach it).
-    // Not while filtering on enriched laws: a law missing from that list is
-    // usually in the corpus, just without a machine version.
-    if (laws.length === 0 && !needsLogin.value && !filterEnriched.value) searchBwb(term);
+    if (laws.length === 0 && !needsLogin.value) searchBwb(term);
   } catch {
     // Backend error (500/503/…) or network failure. Surface it rather than
     // letting the empty result cascade to the external wetten.overheid.nl
@@ -248,10 +241,6 @@ async function runCorpusSearch(term: string) {
   } finally {
     if (isCurrent()) searching.value = false;
   }
-}
-
-function onEnrichedChange(event: Event) {
-  enrichedOnly.value = !!(event as CustomEvent<{ checked?: boolean } | undefined>).detail?.checked;
 }
 
 function close() {
@@ -524,17 +513,9 @@ defineExpose({ show });
              blijven staan. Weghalen zodra de listbox zijn zoekveld zelf houdt. -->
         <nldd-list-item hidden></nldd-list-item>
 
-        <!-- Below the search field: the filter (Corpus juris only) and the
-             heading of the list below, naming its source. -->
-        <div v-if="!activeTrajectRef || resultHeading" slot="toolbar">
-          <nldd-checkbox-field
-            v-if="!activeTrajectRef"
-            data-testid="search-enriched-filter"
-            label="Alleen verrijkte regelwerken"
-            :checked="enrichedOnly || undefined"
-            @change="onEnrichedChange"
-          ></nldd-checkbox-field>
-          <nldd-spacer v-if="!activeTrajectRef && resultHeading" size="16"></nldd-spacer>
+        <!-- Below the search field: the heading of the list below, naming its
+             source, and the suggestions. -->
+        <div v-if="resultHeading" slot="toolbar">
           <!-- A title rather than rich text: nldd-rich-text is a prose
                container with inline-size containment, so in this flex row it
                took no width of its own and the line got cut off. -->
@@ -546,6 +527,22 @@ defineExpose({ show });
             :text="resultHeading.text"
             :supporting-text="resultHeading.supportingText"
           ></nldd-title>
+          <!-- Suggestions: with an empty field and no login, a few laws from
+               Corpus juris to start from. -->
+          <template v-if="showSuggestions && suggestions.length">
+            <nldd-spacer size="8"></nldd-spacer>
+            <nldd-link-group accessible-label="Suggesties">
+              <nldd-link
+                v-for="law in suggestions"
+                :key="law.law_id"
+                :data-law-id="law.law_id"
+                data-testid="search-suggestion"
+                :href="suggestionHref(law.law_id)"
+                :text="displayName(law)"
+                @click="onSuggestionClick($event, law.law_id)"
+              ></nldd-link>
+            </nldd-link-group>
+          </template>
         </div>
 
         <!-- Op md anchort de popover naast de trigger - naast de popover
@@ -559,25 +556,11 @@ defineExpose({ show });
           @click="close"
         ></nldd-button>
 
-        <!-- Suggestions: with an empty field and no login, a few laws from
-             Corpus juris to start from. -->
-        <template v-if="showSuggestions">
-          <nldd-list-item
-            v-for="law in suggestions"
-            :key="`suggestion-${law.law_id}`"
-            :data-law-id="law.law_id"
-            data-testid="search-suggestion"
-            size="md"
-            button
-            @click="selectLaw(law.law_id)"
-          >
-            <nldd-text-cell :text="displayName(law)"></nldd-text-cell>
-          </nldd-list-item>
-        </template>
-
         <!-- Matches from the first source that has any; the toolbar names it.
              Rows only navigate to the law; adding one to a traject goes
-             through "Regelwerk toevoegen" (AddLawSheet). -->
+             through "Regelwerk toevoegen" (AddLawSheet). A law whose current
+             version has a machine version is marked as an article is in the
+             article list. -->
         <nldd-list-item
           v-for="law in shownLaws"
           :key="law.law_id"
@@ -586,7 +569,10 @@ defineExpose({ show });
           button
           @click="selectLaw(law.law_id)"
         >
-          <nldd-text-cell :text="displayName(law)"></nldd-text-cell>
+          <nldd-text-cell>
+            {{ displayName(law) }}
+            <nldd-tag v-if="law.enriched" size="sm" color="accent">Machine</nldd-tag>
+          </nldd-text-cell>
         </nldd-list-item>
 
         <!-- The other sources with matches, one row each; a click shows that
@@ -642,7 +628,7 @@ defineExpose({ show });
             supporting-text="De regelwerken konden niet worden doorzocht. Probeer het opnieuw."
           ></nldd-inline-dialog>
           <nldd-inline-dialog
-            v-else-if="needsLogin && !filterEnriched && searchTerm.length >= MIN_QUERY_LENGTH"
+            v-else-if="needsLogin && searchTerm.length >= MIN_QUERY_LENGTH"
             icon="login"
             text="Log in om externe bronnen te doorzoeken"
             supporting-text="Log in om ook op wetten.overheid.nl te zoeken."

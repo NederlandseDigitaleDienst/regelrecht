@@ -39,6 +39,7 @@ import '@nldd/design-system/identity';
 import '@nldd/design-system/inline-dialog';
 import '@nldd/design-system/just-in-time-education';
 import '@nldd/design-system/link';
+import '@nldd/design-system/link-group';
 import '@nldd/design-system/list';
 import '@nldd/design-system/list-item';
 import '@nldd/design-system/menu';
