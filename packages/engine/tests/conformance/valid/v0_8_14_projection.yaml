@@ -15,6 +15,7 @@ articles:
     text: De aanvrager heeft een kaart zolang een verlening meetelt en hij haar niet inleverde.
     machine_readable:
       projection:
+        key: aanvrager
         state:
           - name: in_bezit
             type: boolean
@@ -23,6 +24,7 @@ articles:
         steps:
           - record: test_conformance_decision_effects#2
             type: BESCHIKKING
+            key: aanvrager
             set:
               in_bezit: $record.verleend
           - record: test_conformance_fact#1
@@ -31,6 +33,9 @@ articles:
             set:
               in_bezit: false
       execution:
+        parameters:
+          - name: aanvrager
+            type: string
         output:
           - name: heeft_kaart
             type: boolean

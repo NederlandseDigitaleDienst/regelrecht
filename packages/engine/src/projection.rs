@@ -36,7 +36,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::NaiveDate;
-use regelrecht_law_model::{Article, EffectKind, Projection};
+use regelrecht_law_model::{Article, EffectKind, Projection, ProjectionStep};
 use serde::{Deserialize, Serialize};
 
 use crate::answer::Call;
@@ -65,6 +65,9 @@ pub struct ChronicleRecord {
     pub basis: String,
     pub fact: Option<String>,
     pub recorded_on: NaiveDate,
+    /// The record it refers to, such as the submission a decision was taken
+    /// on, or the decision an objection contests.
+    pub refers_to: Option<String>,
     pub fields: BTreeMap<String, Value>,
     pub outputs: BTreeMap<String, Value>,
 }
@@ -121,6 +124,10 @@ pub enum ProjectionEvent {
         cause: RewindCause,
         target: String,
     },
+    /// The record refers to a record of this partition but carries a key of
+    /// its own that differs (`field`): it belongs to someone else and is not
+    /// played here.
+    Excluded { record: String, field: String },
 }
 
 /// The answer of a projection: the last state, which record set each
@@ -156,7 +163,7 @@ impl LawExecutionService {
         let Some(first) = output_names.first() else {
             return Err(EngineError::InvalidOperation("no output asked".to_string()));
         };
-        let projection = {
+        let (projection, key_type) = {
             let law = self
                 .resolver()
                 .get_law_for_date(law_id, Some(day))
@@ -173,7 +180,15 @@ impl LawExecutionService {
                      projection answers from one"
                 )));
             }
-            projection_of(law_id, article)?.clone()
+            let projection = projection_of(law_id, article)?.clone();
+            let key_type = projection.key.as_ref().and_then(|key| {
+                article
+                    .get_parameters()
+                    .iter()
+                    .find(|p| &p.name == key)
+                    .map(|p| p.param_type)
+            });
+            (projection, key_type)
         };
 
         // The reduction reads its state as `$state`; a caller cannot pass
@@ -190,7 +205,8 @@ impl LawExecutionService {
             .filter(|r| r.recorded_on <= day)
             .cloned()
             .collect();
-        let played = self.play(law_id, &projection, &known)?;
+        let partition = self.partition(&projection, key_type.as_ref(), &known, &parameters)?;
+        let played = self.play(law_id, &projection, &known, &partition)?;
 
         let state = Some(Value::Object(played.state.clone()));
         let mut result = if trace {
@@ -231,6 +247,7 @@ impl LawExecutionService {
         law_id: &str,
         projection: &Projection,
         records: &[ChronicleRecord],
+        partition: &Partition,
     ) -> Result<Played> {
         // undone_by[t]: the records with an effect on t that held when they
         // were last played, each with what it does to t. A record is skipped
@@ -260,6 +277,16 @@ impl LawExecutionService {
             let mut rewind = None;
 
             'records: for (i, record) in records.iter().enumerate() {
+                if let Some(field) = partition.excluded.get(&record.id) {
+                    events.push(ProjectionEvent::Excluded {
+                        record: record.id.clone(),
+                        field: field.clone(),
+                    });
+                    continue;
+                }
+                if !partition.holds(&record.id) {
+                    continue;
+                }
                 let undoers: Vec<String> = undone_by
                     .get(record.id.as_str())
                     .map(|u| u.keys().map(|id| id.to_string()).collect())
@@ -293,7 +320,10 @@ impl LawExecutionService {
                     continue;
                 }
 
-                for (kind, target) in self.holding_effects(record, &records[..i])? {
+                // An effect on a record of another partition is that
+                // partition's business.
+                let effects = self.holding_effects(record, &records[..i])?;
+                for (kind, target) in effects.into_iter().filter(|(_, t)| partition.holds(t)) {
                     undone_by
                         .entry(target)
                         .or_default()
@@ -352,6 +382,117 @@ impl LawExecutionService {
         )))
     }
 
+    /// The article `record` rests on, in the law of the day it was recorded.
+    /// A record whose article cannot be found could undo another one unseen;
+    /// that is refused rather than read as "no effects".
+    fn article_of(&self, record: &ChronicleRecord) -> Result<&Article> {
+        let unresolved = || {
+            EngineError::InvalidOperation(format!(
+                "record '{}' rests on '{}', which names no article in force on {}",
+                record.id, record.basis, record.recorded_on
+            ))
+        };
+        let (law_id, number) = record.basis.split_once('#').ok_or_else(unresolved)?;
+        self.resolver()
+            .get_law_for_date(law_id, Some(record.recorded_on))
+            .and_then(|law| law.find_article_by_number(number))
+            .ok_or_else(unresolved)
+    }
+
+    /// The records of the chronicle that belong to the key the reduction is
+    /// asked for (`projection.key`), or all records when it names none.
+    ///
+    /// A record belongs when the step for it names a key field (`key`) that
+    /// holds the asked key. A record that refers to a record that belongs
+    /// (`refers_to`, or a field an effect of its article names, such as
+    /// `bestreden_besluit`) belongs too, transitively, unless it carries a key
+    /// field of its own with another value: then it is someone else's, and
+    /// it is excluded and shown so. A record without a key field joins
+    /// through its reference. Records only join through what refers to them
+    /// later, never through what they refer to, so a record of someone else
+    /// that a record of this partition points at stays out. A record whose
+    /// step names no key field (or that has no step) therefore plays only
+    /// when it refers in. The chronicle lists a record after what it refers
+    /// to, which one pass in its order relies on.
+    fn partition(
+        &self,
+        projection: &Projection,
+        key_type: Option<&ParameterType>,
+        records: &[ChronicleRecord],
+        parameters: &BTreeMap<String, Value>,
+    ) -> Result<Partition> {
+        let Some(key_parameter) = &projection.key else {
+            return Ok(Partition::default());
+        };
+        let key = parameters.get(key_parameter).ok_or_else(|| {
+            EngineError::InvalidOperation(format!(
+                "the projection plays the records of one '{key_parameter}', but none is passed"
+            ))
+        })?;
+        // A key of another type than the parameter declares would match no
+        // record and give the initial state without a word.
+        if let Some(declared) = key_type.filter(|t| !fits_state_type(t, key)) {
+            return Err(EngineError::InvalidOperation(format!(
+                "'{key_parameter}' is passed as {key:?}, which is no {declared:?}"
+            )));
+        }
+        let mut members: BTreeSet<String> = BTreeSet::new();
+        let mut excluded = BTreeMap::new();
+        for record in records {
+            let own = step_for(projection, record)
+                .and_then(|s| s.key.as_ref())
+                .and_then(|field| {
+                    record
+                        .fields
+                        .get(field)
+                        .or_else(|| record.outputs.get(field))
+                        // A key field that holds null is no key.
+                        .filter(|value| !matches!(value, Value::Null))
+                        .map(|value| (field, value))
+                });
+            if own.is_some_and(|(_, value)| value == key) {
+                members.insert(record.id.clone());
+                continue;
+            }
+            let refers = self
+                .references(record)?
+                .iter()
+                .any(|id| members.contains(id));
+            if !refers {
+                continue;
+            }
+            match own {
+                Some((field, _)) => {
+                    excluded.insert(record.id.clone(), field.clone());
+                }
+                None => {
+                    members.insert(record.id.clone());
+                }
+            }
+        }
+        Ok(Partition {
+            members: Some(members),
+            excluded,
+        })
+    }
+
+    /// The records `record` refers to: its `refers_to`, and the values of
+    /// the fields that an effect of its article names. That holds for every
+    /// record under the article, so an objection that names the contested
+    /// decision in such a field refers to it, as the decision on it does.
+    fn references(&self, record: &ChronicleRecord) -> Result<Vec<String>> {
+        let mut ids: Vec<String> = record.refers_to.iter().cloned().collect();
+        let article = self.article_of(record)?;
+        if let Some(decision) = article.get_decision() {
+            for effect in decision.effects() {
+                if let Some(Value::String(id)) = record.fields.get(&effect.parameter) {
+                    ids.push(id.clone());
+                }
+            }
+        }
+        Ok(ids)
+    }
+
     /// The effects of `record` that hold, each with the earlier record it
     /// undoes. A record has effects only as a decision of its article
     /// (`produces[].effects`), under the law of the day it was recorded.
@@ -360,20 +501,7 @@ impl LawExecutionService {
         record: &ChronicleRecord,
         earlier: &'r [ChronicleRecord],
     ) -> Result<Vec<(EffectKind, &'r str)>> {
-        // A record whose article cannot be found could undo another one
-        // unseen; that is refused rather than read as "no effects".
-        let unresolved = || {
-            EngineError::InvalidOperation(format!(
-                "record '{}' rests on '{}', which names no article in force on {}",
-                record.id, record.basis, record.recorded_on
-            ))
-        };
-        let (law_id, number) = record.basis.split_once('#').ok_or_else(unresolved)?;
-        let article = self
-            .resolver()
-            .get_law_for_date(law_id, Some(record.recorded_on))
-            .and_then(|law| law.find_article_by_number(number))
-            .ok_or_else(unresolved)?;
+        let article = self.article_of(record)?;
         // A submission and an executogram undo nothing; a decision has the
         // effects its article gives it. A record of a kind its article does
         // not produce is refused, for the same reason as an unknown article.
@@ -426,6 +554,34 @@ impl LawExecutionService {
     }
 }
 
+/// Which records a play reads: all of them (`members` is `None`), or those of
+/// one key, with the records excluded because their own key differs.
+#[derive(Default)]
+struct Partition {
+    members: Option<BTreeSet<String>>,
+    excluded: BTreeMap<String, String>,
+}
+
+impl Partition {
+    fn holds(&self, id: &str) -> bool {
+        self.members.as_ref().is_none_or(|m| m.contains(id))
+    }
+}
+
+/// The step the reduction gives for `record`, if any.
+fn step_for<'p>(
+    projection: &'p Projection,
+    record: &ChronicleRecord,
+) -> Option<&'p ProjectionStep> {
+    projection.steps.iter().find(|s| {
+        s.record == record.basis
+            && s.record_type.as_ref().is_none_or(|t| t == &record.kind)
+            && s.fact
+                .as_ref()
+                .is_none_or(|f| Some(f) == record.fact.as_ref())
+    })
+}
+
 /// The state, its provenance and the events after the last replay.
 struct Played {
     state: BTreeMap<String, Value>,
@@ -443,13 +599,7 @@ fn step(
     record: &ChronicleRecord,
     state: &BTreeMap<String, Value>,
 ) -> Result<Vec<StateChange>> {
-    let Some(step) = projection.steps.iter().find(|s| {
-        s.record == record.basis
-            && s.record_type.as_ref().is_none_or(|t| t == &record.kind)
-            && s.fact
-                .as_ref()
-                .is_none_or(|f| Some(f) == record.fact.as_ref())
-    }) else {
+    let Some(step) = step_for(projection, record) else {
         return Ok(Vec::new());
     };
 
@@ -548,6 +698,9 @@ fn trace_node(played: &Played) -> PathNode {
                 format!("{record}: undone by {}", undone_by.join(", ")),
                 None,
             ),
+            ProjectionEvent::Excluded { record, field } => {
+                ("EXCLUDE", format!("{record}: key differs: {field}"), None)
+            }
             ProjectionEvent::Rewound {
                 record,
                 cause,
@@ -703,6 +856,7 @@ articles:
             basis: format!("wet#{article}"),
             fact: None,
             recorded_on: NaiveDate::from_ymd_opt(2025, 3, 1).unwrap(),
+            refers_to: None,
             fields: fields
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.clone()))
@@ -1222,6 +1376,171 @@ articles:
                 "h1 revives a: play again from the start",
             ]
         );
+    }
+
+    /// The reduction, playing only the records of one `wie`.
+    fn keyed() -> LawExecutionService {
+        let mut service = service();
+        service
+            .load_law(
+                &REDUCTION
+                    .replace("$id: reductie", "$id: reductie_per_wie")
+                    .replace(
+                        "      projection:\n        state:",
+                        "      projection:\n        key: wie\n        state:",
+                    )
+                    .replace(
+                        "          - record: wet#1\n            type: BESCHIKKING\n",
+                        "          - record: wet#1\n            type: BESCHIKKING\n            key: wie\n",
+                    )
+                    .replace(
+                        "          - record: wet#3\n",
+                        "          - record: wet#3\n            key: wie\n",
+                    )
+                    .replace(
+                        "      execution:\n        output: [{name: heeft_kaart",
+                        "      execution:\n        parameters: [{name: wie, type: string}]\n        output: [{name: heeft_kaart",
+                    ),
+            )
+            .unwrap();
+        service
+    }
+
+    fn of(record: ChronicleRecord, wie: &str) -> ChronicleRecord {
+        let mut record = record;
+        record
+            .fields
+            .insert("wie".to_string(), Value::String(wie.to_string()));
+        record
+    }
+
+    fn play_for(wie: &str, records: &[ChronicleRecord]) -> Result<ProjectionOutcome> {
+        keyed().evaluate_projection(
+            "reductie_per_wie",
+            &["heeft_kaart", "aantal"],
+            records,
+            BTreeMap::from([("wie".to_string(), Value::String(wie.to_string()))]),
+            "2025-03-01",
+            false,
+        )
+    }
+
+    /// The records the last replay applied or skipped, in order.
+    fn records_in(outcome: &ProjectionOutcome) -> Vec<&str> {
+        let start = outcome
+            .events
+            .iter()
+            .rposition(|e| matches!(e, ProjectionEvent::Rewound { .. }))
+            .map_or(0, |i| i + 1);
+        outcome.events[start..]
+            .iter()
+            .filter_map(|e| match e {
+                ProjectionEvent::Applied { record, .. }
+                | ProjectionEvent::Skipped { record, .. } => Some(record.as_str()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_key_plays_only_the_records_of_one_and_what_refers_to_them() {
+        let records = [
+            of(grant("a"), "x"),
+            of(grant("b"), "y"),
+            // Refers through `refers_to` and through an effect's field.
+            ChronicleRecord {
+                refers_to: Some("a".to_string()),
+                kind: "AANVRAAG".to_string(),
+                ..record("s", "1", &[], &[])
+            },
+            revoke("h", "a", true),
+            revoke("h2", "h", true),
+        ];
+        let x = play_for("x", &records).unwrap();
+        assert_eq!(records_in(&x), ["a", "s", "h", "h2"]);
+        assert_eq!(x.result.outputs["heeft_kaart"], Value::Bool(true));
+        let y = play_for("y", &records).unwrap();
+        assert_eq!(records_in(&y), ["b"]);
+    }
+
+    #[test]
+    fn a_record_with_another_key_that_refers_in_is_excluded() {
+        let records = [of(grant("a"), "x"), of(replace("n", "a"), "y")];
+        let x = play_for("x", &records).unwrap();
+        assert!(x.events.contains(&ProjectionEvent::Excluded {
+            record: "n".to_string(),
+            field: "wie".to_string(),
+        }));
+        assert_eq!(x.result.outputs["heeft_kaart"], Value::Bool(true));
+        // For y, `n` replaces a record outside its partition: ignored.
+        let y = play_for("y", &records).unwrap();
+        assert_eq!(records_in(&y), ["n"]);
+        assert!(!y
+            .events
+            .iter()
+            .any(|e| matches!(e, ProjectionEvent::Rewound { .. })));
+    }
+
+    #[test]
+    fn a_record_that_refers_to_an_excluded_record_stays_out() {
+        // `n` (y) replaces x's grant and is excluded for x; `h` revokes `n`
+        // and so follows `n` to y, not to x.
+        let records = [
+            of(grant("a"), "x"),
+            of(replace("n", "a"), "y"),
+            revoke("h", "n", true),
+        ];
+        let x = play_for("x", &records).unwrap();
+        assert_eq!(records_in(&x), ["a"]);
+        let y = play_for("y", &records).unwrap();
+        assert_eq!(records_in(&y), ["n", "h"]);
+    }
+
+    #[test]
+    fn a_null_key_field_is_no_key() {
+        let mut nameless = replace("n", "a");
+        nameless.fields.insert("wie".to_string(), Value::Null);
+        let x = play_for("x", &[of(grant("a"), "x"), nameless]).unwrap();
+        assert_eq!(records_in(&x), ["a", "n"]);
+    }
+
+    #[test]
+    fn a_key_of_another_type_is_refused() {
+        let err = keyed()
+            .evaluate_projection(
+                "reductie_per_wie",
+                &["heeft_kaart"],
+                &[],
+                BTreeMap::from([("wie".to_string(), Value::Int(1))]),
+                "2025-03-01",
+                false,
+            )
+            .expect_err("a number for a string key");
+        assert!(err.to_string().contains("which is no String"), "{err}");
+    }
+
+    #[test]
+    fn a_keyless_step_plays_only_records_that_refer_in() {
+        // The step for article 4 (a fact handed in) names no key: such a
+        // record refers to nothing and never joins a partition.
+        let outcome = play_for("x", &[of(grant("a"), "x"), handed_in("i")]).unwrap();
+        assert_eq!(records_in(&outcome), ["a"]);
+        assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(true));
+    }
+
+    #[test]
+    fn a_keyed_projection_needs_the_key() {
+        let err = keyed()
+            .evaluate_projection(
+                "reductie_per_wie",
+                &["heeft_kaart"],
+                &[],
+                BTreeMap::new(),
+                "2025-03-01",
+                false,
+            )
+            .expect_err("no key passed");
+        assert!(err.to_string().contains("but none is passed"), "{err}");
     }
 
     #[test]

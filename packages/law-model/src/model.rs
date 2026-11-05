@@ -1897,6 +1897,10 @@ pub struct MachineReadable {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Projection {
+    /// The parameter of the reduction that names whose records are played,
+    /// such as an applicant. Without it, every record is played.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
     pub state: Vec<StateProperty>,
     pub steps: Vec<ProjectionStep>,
 }
@@ -1929,6 +1933,10 @@ pub struct ProjectionStep {
     /// Only executograms of this fact.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fact: Option<String>,
+    /// The field of such a record that holds its key, compared with the
+    /// parameter `Projection::key` names.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
     /// The properties this record sets, by name. Each is computed from the
     /// state before the record, so the order does not matter.
     pub set: BTreeMap<String, ActionValue>,

@@ -24,6 +24,9 @@ articles:
       hij er een heeft en er meer dan een verlening meetelde.
     machine_readable:
       projection:
+        # Only the records of the applicant asked for, and what refers to
+        # them, such as an objection and the decision on it.
+        key: aanvrager
         state:
           - name: in_bezit
             type: boolean
@@ -36,6 +39,7 @@ articles:
           # another: both grant or refuse the card.
           - record: test_chronicle_effects#1
             type: BESCHIKKING
+            key: aanvrager
             set: &op_de_kaart
               in_bezit:
                 operation: OR
@@ -54,13 +58,18 @@ articles:
                 default: $state.aantal_verleend
           - record: test_chronicle_effects#3
             type: BESCHIKKING
+            key: aanvrager
             set: *op_de_kaart
           - record: test_chronicle_effects#5
             type: EXECUTOGRAM
             fact: kaart_ingeleverd
+            key: aanvrager
             set:
               in_bezit: false
       execution:
+        parameters:
+          - name: aanvrager
+            type: string
         output:
           - name: heeft_geldige_kaart
             type: boolean

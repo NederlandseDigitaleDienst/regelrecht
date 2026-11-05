@@ -686,6 +686,27 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
         if projection.state.is_empty() {
             return refuse(where_, "has a projection without a state".to_string());
         }
+        let parameters = section
+            .execution
+            .as_ref()
+            .and_then(|e| e.parameters.as_deref())
+            .unwrap_or_default();
+        if let Some(key) = &projection.key {
+            if !parameters.iter().any(|p| &p.name == key) {
+                return refuse(
+                    where_,
+                    format!("plays the records of one '{key}', which is no parameter it declares"),
+                );
+            }
+        } else if let Some(step) = projection.steps.iter().find(|s| s.key.is_some()) {
+            return refuse(
+                where_,
+                format!(
+                    "names a key field for records under {}, but its projection has no key",
+                    step.record
+                ),
+            );
+        }
         let declares_state = section
             .execution
             .as_ref()
@@ -1352,6 +1373,16 @@ articles:
                 "REDUCTIE",
                 "        state: []\n        steps: []".to_string(),
                 "has a projection without a state",
+            ),
+            (
+                "REDUCTIE",
+                format!("        key: aanvrager\n{state}        steps: []"),
+                "plays the records of one 'aanvrager', which is no parameter it declares",
+            ),
+            (
+                "REDUCTIE",
+                format!("{state}        steps:\n          - {{record: wet#1, key: aanvrager, set: {{a: true}}}}"),
+                "names a key field for records under wet#1, but its projection has no key",
             ),
             (
                 "REDUCTIE",

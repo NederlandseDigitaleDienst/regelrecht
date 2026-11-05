@@ -28,12 +28,15 @@ articles:
             requests: test_chronicle_effects#1
             parameters:
               - ernstig_beperkt
+              - aanvrager
           - type: BESCHIKKING
             outputs:
               - kaart_verleend
         parameters:
           - name: ernstig_beperkt
             type: boolean
+          - name: aanvrager
+            type: string
         output:
           - name: kaart_verleend
             type: boolean
@@ -93,6 +96,8 @@ articles:
             type: string
           - name: ernstig_beperkt
             type: boolean
+          - name: aanvrager
+            type: string
         output:
           - name: kaart_verleend
             type: boolean
@@ -137,10 +142,13 @@ articles:
           description: De houder heeft zijn kaart ingeleverd bij de balie, op de dag die het feit noemt.
           parameters:
             - ingeleverd_op
+            - aanvrager
       execution:
         parameters:
           - name: ingeleverd_op
             type: date
+          - name: aanvrager
+            type: string
 
   - number: '6'
     url: https://example.com/test_chronicle_effects/6

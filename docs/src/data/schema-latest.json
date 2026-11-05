@@ -2776,6 +2776,11 @@
             "steps"
           ],
           "properties": {
+            "key": {
+              "type": "string",
+              "pattern": "^[a-z_][a-z0-9_]*$",
+              "description": "The parameter of this article that names whose records are played, such as an applicant. A record belongs when its step names a key field (`steps[].key`) that holds this value. A record that refers to one that belongs, through its `refers_to` or a field an effect of its article names (such as `bestreden_besluit`), belongs too, transitively, unless it carries a key field of its own with another value: then it belongs to someone else, is excluded and is shown as excluded in the trace. A record without a key field (or whose key field is null) joins through its reference, so a step without `key` plays only records that refer in. Records join only through what refers to them, never through what they refer to. Which records count follows from the effects among the records of the partition: an effect of an excluded record, or of a record of another partition, does not reach it, and an effect on a record of another partition is ignored. The value passed for the key must be of the parameter's type. Without `key`, every record is played."
+            },
             "state": {
               "type": "array",
               "minItems": 1,
@@ -2836,6 +2841,10 @@
                   "fact": {
                     "type": "string",
                     "description": "Only executograms of this fact, by the name the article gives it in `requires`."
+                  },
+                  "key": {
+                    "type": "string",
+                    "description": "The field of such a record that holds its key (`projection.key`). Field names differ per kind of record, so each step names its own."
                   },
                   "set": {
                     "type": "object",

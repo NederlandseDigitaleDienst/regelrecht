@@ -337,6 +337,7 @@ fn evaluate_over_chronicle(world: &mut RegelrechtWorld, output: &str, law: &str)
             basis: g.basis.clone(),
             fact: g.fact.clone(),
             recorded_on: g.recorded_on,
+            refers_to: g.refers_to.clone(),
             fields: read_back(&g.fields),
             outputs: read_back(&g.outputs),
         })
@@ -403,6 +404,11 @@ fn trace_rows(events: &[ProjectionEvent]) -> Vec<[String; 3]> {
                 record.clone(),
                 "skipped".to_string(),
                 format!("undone by {}", undone_by.join(", ")),
+            ],
+            ProjectionEvent::Excluded { record, field } => [
+                record.clone(),
+                "excluded".to_string(),
+                format!("key differs: {field}"),
             ],
             ProjectionEvent::Rewound {
                 record,

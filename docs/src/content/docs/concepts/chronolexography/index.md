@@ -128,6 +128,8 @@ Schema v0.8.14 adds a second way to reduce. A reduction with a `projection` decl
 
 What one decision does with another stays in the law. The article declares it in `produces[].effects`: `revokes` or `replaces`, optionally only `when` a boolean outcome of the decision is true, such as a well-founded objection. When a decision that counts undoes an earlier one, the engine plays the chronicle again from the start without the undone decision. A decision that is itself revoked or replaced undoes nothing any more, so what it alone undid counts again. The engine records which record set each property last and every record it applied or skipped, and shows them in the trace.
 
+A chronicle holds the records of many people. With `key`, a projection plays the records of one of them: the records whose step names a key field that holds the value asked for, such as an applicant, and every record that refers to one of those, through `refers_to` or a field an effect names. An objection and the decision on it usually carry no applicant and join through the grant they refer to. A record that refers in but carries another key of its own belongs to someone else: it is left out and shows as excluded in the trace. Records never join through what they themselves refer to, so a step without a key field plays only records that refer in. Which records count is decided within the partition: an excluded record undoes nothing there.
+
 Only `LawExecutionService::evaluate_projection` plays a projection so far. The cell's answers do not go through it yet, and the engine refuses a reduction with a projection on every other path, also when another rulework asks for its answer. The tests are in `packages/cel/bdd`.
 
 ## Documents between cells
