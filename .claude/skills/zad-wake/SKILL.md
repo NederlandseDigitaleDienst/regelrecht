@@ -7,11 +7,10 @@ allowed-tools: Bash, Read
 
 # ZAD wake
 
-Previews on ZAD go to sleep 48 hours after their last deploy, and after a wake
-they stay up for two hours. A sleeping preview answers with a wake page or a
-503, so a smoketest against it fails on something that has nothing to do with
-the change under test. Production (`regelrecht`) and `upload` never sleep. The
-facts are in `docs/src/content/docs/operations/deployment.md`, under
+A sleeping preview answers with a wake page or a 503, so a smoketest against
+it fails for reasons unrelated to the change under test. When previews sleep,
+for how long, and what the status fields mean is in
+`docs/src/content/docs/operations/deployment.md`, under
 "Sleeping previews".
 
 ## When to use it
@@ -36,9 +35,10 @@ environment. It posts a wake request, then polls the status until ZAD reports
 the preview awake, for at most 10 minutes (`WAIT_SECONDS` changes that).
 
 Exit 0 means the preview is awake, or that sleep-mode does not apply to that
-deployment. Exit 1 means it is not awake yet or the API refused; the message
-says which, with the HTTP code and the response body. Exit 2 is a usage error,
-such as a missing key.
+deployment. Exit 1 means the preview is not awake yet, the API refused or
+could not be reached, or the status response made no sense. The message says
+which, with the HTTP code and the response body. Exit 2 is a usage error, such
+as a missing key or a missing `jq`.
 
 After exit 0, give the first request of the smoketest a retry or two. ZAD
 reports a preview awake once its pods run, and an application can still be
@@ -55,15 +55,9 @@ curl -sS -X POST -H "X-API-Key: $ZAD_API_KEY" "$BASE/api/sleep-mode/regel-k4c/pr
 curl -sS -H "X-API-Key: $ZAD_API_KEY" "$BASE/api/sleep-mode/regel-k4c/pr1704/status"
 ```
 
-The wake call answers 202 when a wake starts and 200 when there is nothing to
-do. Status returns two fields, and only one of them is the sleep state:
-
-- `sleep_state` is the deployment's real state: `awake`, `sleeping`,
-  `waking` or `disabled`.
-- `state` belongs to the waker page (`starting` or `ready`). An awake
-  preview has been seen to report `starting` for as long as anyone watched, so
-  do not wait for `ready` on its own. The script accepts either `ready` or
-  `sleep_state: awake`.
+In the status response, read `sleep_state`, not `state`; the docs page explains
+why. The script stops waiting on `sleep_state: awake` or on
+`state: ready`.
 
 A 404 means the deployment does not exist; `zad deployment list` shows the
 previews there are.

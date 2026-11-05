@@ -49,7 +49,9 @@ Sleep-mode is on for the ZAD project `regel-k4c`, and it applies to the deployme
 
 A visitor wakes a sleeping preview by opening it in a browser, through the waker's wake page. Every new commit on a labelled PR deploys the preview again, which wakes it as well. Once woken, a preview stays up for two hours and then goes back to sleep.
 
-A smoketest or a script cannot click through a wake page, so it wakes the preview through the Operations Manager API first, with `script/zad-wake.sh pr{N}`. That script posts the wake request and polls the status until the preview is awake. zad-cli has no sleep-mode command. The `zad-wake` skill (`.claude/skills/zad-wake/SKILL.md`) has the details, including the two fields of the status response and why only `sleep_state` says whether the preview sleeps.
+A smoketest or a script cannot click through a wake page, so it wakes the preview through the Operations Manager API first, with `script/zad-wake.sh pr{N}`. That script posts the wake request and polls the status until the preview is awake. zad-cli has no sleep-mode command. The `zad-wake` skill (`.claude/skills/zad-wake/SKILL.md`) says when an agent does this.
+
+The wake request answers 202 when a wake starts and 200 when there is nothing to do. The status response has two fields. `sleep_state` is the deployment's state: `awake`, `sleeping`, `waking` or `disabled`. `state` belongs to the waker page (`starting` or `ready`), and on an awake preview it can stay at `starting` indefinitely, so a script that waits for `ready` alone never finishes.
 
 ## Cleanup
 

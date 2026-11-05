@@ -16,7 +16,8 @@
 #   POLL_INTERVAL   seconds between status polls (default 10)
 #
 # Exit status: 0 awake (or sleep-mode does not apply), 1 not awake or the API
-# could not be reached, 2 usage error.
+# could not be reached, 2 usage error (no
+# deployment, no API key, no jq).
 set -uo pipefail
 
 deployment="${1:-}"
@@ -30,6 +31,8 @@ if [ -z "$key" ]; then
     echo "error: set ZAD_API_KEY (or RIG_API_KEY) to the project API key" >&2
     exit 2
 fi
+
+command -v jq >/dev/null || { echo "error: jq is required" >&2; exit 2; }
 
 project="${ZAD_PROJECT_ID:-regel-k4c}"
 base="${ZAD_API_URL:-https://operations-manager.rig.prd1.gn2.quattro.rijksapps.nl}"
