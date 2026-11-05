@@ -319,7 +319,7 @@ function viewLaw(job: RunningTaskJob): void {
                  van het onschuldige kijken erboven, en het is destructive. -->
             <nldd-menu-divider></nldd-menu-divider>
             <nldd-menu-item
-              variant="destructive"
+              destructive
               text="Annuleer conversie"
               @select="emit('cancel-job', job)"
             ></nldd-menu-item>
@@ -348,7 +348,6 @@ function viewLaw(job: RunningTaskJob): void {
       ref="detailSheetEl"
       placement="right"
       width="520px"
-      full-height
       @close="closeDetails"
     >
       <nldd-page sticky-header>

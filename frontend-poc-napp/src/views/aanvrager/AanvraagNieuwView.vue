@@ -399,7 +399,7 @@ watch(() => session.aanvrager, laadRegistratie);
             </div>
           </nldd-title>
           <nldd-spacer size="8"></nldd-spacer>
-          <nldd-list appearance="box">
+          <nldd-list appearance="box-tinted">
             <nldd-list-item v-for="a in groepLeden(groep)" :key="a.key" size="sm">
               <nldd-cell width="fit-content">
                 <nldd-checkbox

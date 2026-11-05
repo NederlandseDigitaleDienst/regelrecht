@@ -80,7 +80,7 @@ const stappen = [
       <nldd-title size="2" slot="header">
         <h2>Hoe werkt het?</h2>
       </nldd-title>
-      <nldd-list appearance="simple" no-dividers>
+      <nldd-list appearance="simple" dividers="never">
         <nldd-list-item v-for="(stap, i) in stappen" :key="stap.titel" size="md">
           <nldd-step-cell
             status="past"
@@ -96,7 +96,7 @@ const stappen = [
       <nldd-title size="2" slot="header">
         <h2>Direct regelen</h2>
       </nldd-title>
-      <nldd-collection layout="grid" item-width="300px">
+      <nldd-collection layout="grid" item-min-width="300px">
         <nldd-card accessible-label="Subsidie aanvragen">
           <nldd-container padding="20">
             <nldd-icon icon="apartment-building" size="32" color="lintblauw"></nldd-icon>
@@ -142,7 +142,7 @@ const stappen = [
       </nldd-collection>
     </nldd-simple-section>
 
-    <nldd-page-footer>
+    <nldd-page-footer slot="footer">
       <nldd-container padding="24" gap="8">
         <nldd-title size="5"><p>Nederlandse autoriteit politieke partijen</p></nldd-title>
         <nldd-rich-text>

@@ -91,6 +91,8 @@ const currentEtag = ref('etag-1');
 const seedFromYaml = vi.fn();
 const saveLaw = vi.fn().mockResolvedValue(undefined);
 const reloadLaw = vi.fn().mockResolvedValue(undefined);
+// The whole-law save failure; drives the save-error notification.
+const lawSaveError = ref<Error | null>(null);
 vi.mock('./composables/useLaw', () => ({
   useLaw: () => ({
     law: ref({ $id: 'kieswet', valid_from: '2025-01-01' }),
@@ -106,7 +108,7 @@ vi.mock('./composables/useLaw', () => ({
     loading,
     error: lawError,
     saving: ref(false),
-    saveError: ref(null),
+    saveError: lawSaveError,
     saveLaw: (...a: unknown[]) => saveLaw(...a),
     reloadLaw: (...a: unknown[]) => reloadLaw(...a),
     seedFromYaml,
@@ -318,6 +320,7 @@ beforeEach(() => {
   loading.value = false;
   lawError.value = null;
   currentEtag.value = 'etag-1';
+  lawSaveError.value = null;
   routeState.params = {
     trajectRef: 'kieswet-kandidaatstelling-86070ac7',
     lawId: 'kieswet',
@@ -551,5 +554,29 @@ describe('EditorView review-modus', () => {
     await settle();
     expect(changes().review).toBe(true);
     expect(changes().dirty).toBe(true);
+  });
+});
+
+describe('EditorView save-failure notification', () => {
+  const notification = (wrapper: VueWrapper) => wrapper.find('[data-testid="save-error-notification"]');
+
+  it('hides on dismiss and shows again for a new failure', async () => {
+    const wrapper = mountEditor();
+    await settle();
+    expect(notification(wrapper).exists()).toBe(false);
+
+    lawSaveError.value = new Error('Conflict');
+    await settle();
+    expect(notification(wrapper).attributes('supporting-text')).toBe('Conflict');
+
+    // The failure outlives the dismiss (it clears on the next save), so the
+    // view has to remember that this one was dismissed.
+    notification(wrapper).element.dispatchEvent(new CustomEvent('dismiss'));
+    await settle();
+    expect(notification(wrapper).exists()).toBe(false);
+
+    lawSaveError.value = new Error('Netwerkfout');
+    await settle();
+    expect(notification(wrapper).attributes('supporting-text')).toBe('Netwerkfout');
   });
 });

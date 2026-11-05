@@ -55,7 +55,7 @@ const oordeel = computed(() => props.toets?.wettelijke_toets ?? null);
 </script>
 
 <template>
-  <nldd-list appearance="box">
+  <nldd-list appearance="box-tinted">
     <nldd-list-item v-for="regel in regels" :key="regel.label" size="sm">
       <nldd-text-cell :text="regel.label" :supporting-text="regel.waarde"></nldd-text-cell>
       <nldd-spacer-cell size="8"></nldd-spacer-cell>

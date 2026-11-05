@@ -2282,26 +2282,27 @@ async function handleLawSave() {
   }
 }
 
-// Whole-law save failures surface as a single modal over the editor (not an
-// inline dialog buried in one pane). `saveErrorText` drives it: a new failure
-// (a fresh Error) re-opens it via the watch, a successful save (null) closes
-// it. Het verwerken van een verrijking hangt er ook aan - dat is voor de
-// gebruiker dezelfde gebeurtenis (mijn wijziging kwam er niet in) en verdient
-// dezelfde melding, inclusief de 412-uitleg bij een conflict.
+// Whole-law save failures surface as a single notification over the editor
+// (not an inline dialog buried in one pane). `saveFailure` drives it: a new
+// failure (a fresh Error) shows it again, a successful save (null) removes it.
+// It is a critical notification, so it stays until dismissed; a message with
+// one way out is no dialog. Het verwerken van een verrijking hangt er ook
+// aan - dat is voor de gebruiker dezelfde gebeurtenis (mijn wijziging kwam er
+// niet in) en verdient dezelfde melding, inclusief de 412-uitleg bij een
+// conflict.
 const saveFailure = computed(() => reviewProcessError.value ?? lawSaveError.value);
 const saveErrorText = computed(() =>
   saveFailure.value ? saveFailure.value.message || String(saveFailure.value) : '',
 );
-const saveErrorModalEl = ref<NLDDModalDialog | null>(null);
-watch(saveFailure, (err) => {
-  const el = saveErrorModalEl.value;
-  if (!el) return;
-  if (err && typeof el.show === 'function') el.show();
-  else if (!err && typeof el.hide === 'function') el.hide();
-});
+// The failure the user dismissed. `lawSaveError` lives on until the next save,
+// so dismissing remembers which failure it was rather than clearing it.
+const dismissedSaveFailure = ref<unknown>(null);
+const showSaveError = computed(
+  () => !!saveFailure.value && saveFailure.value !== dismissedSaveFailure.value,
+);
 function dismissSaveError() {
+  dismissedSaveFailure.value = saveFailure.value;
   reviewProcessError.value = null;
-  saveErrorModalEl.value?.hide?.();
 }
 
 // Alias kept to minimise template churn; both panes ultimately call the
@@ -3127,7 +3128,7 @@ async function handleActionSave() {
                   </nldd-toolbar-item>
                   <!-- YAML parse-status (Machine-readable pane). -->
                   <nldd-toolbar-item v-if="view === 'yaml' && parseError" slot="end" label="YAML">
-                    <nldd-badge color="critical" size="sm" text="YAML parse error"></nldd-badge>
+                    <nldd-badge color="critical" text="YAML parse error"></nldd-badge>
                     <nldd-menu-item
                       slot="overflow"
                       text="YAML parse error"
@@ -3405,13 +3406,15 @@ async function handleActionSave() {
                 <template v-if="canCreateNotes">
                   <nldd-inline-dialog
                     v-if="noteIssues.length"
-                    variant="warning"
+                    icon="exclamation-triangle"
+                    icon-color="warning"
                     :text="`${noteIssues.length} notitie(s) niet verankerd`"
                     :supporting-text="noteIssues.map(i => i.reason).join('; ')"
                   ></nldd-inline-dialog>
                   <nldd-inline-dialog
                     v-if="draftCount > 0 && !canEdit"
-                    variant="warning"
+                    icon="exclamation-triangle"
+                    icon-color="warning"
                     data-testid="notes-no-traject"
                     text="Selecteer eerst een traject"
                     supporting-text="Delen werkt pas als er een actief traject is. Notities downloaden als YAML werkt wel."
@@ -3523,17 +3526,15 @@ async function handleActionSave() {
   </nldd-modal-dialog>
 
   <!-- Whole-law save failure, shown over the whole editor rather than inline in
-       one pane. -->
-  <nldd-modal-dialog
-    ref="saveErrorModalEl"
-    variant="alert"
+       one pane. Critical, so it stays until dismissed. -->
+  <nldd-notification
+    v-if="showSaveError"
+    variant="critical"
     text="Opslaan mislukt"
     :supporting-text="saveErrorText"
-    data-testid="save-error-modal"
-    @close="dismissSaveError"
-  >
-    <nldd-button slot="actions" appearance="primary" text="Sluiten" @click="dismissSaveError"></nldd-button>
-  </nldd-modal-dialog>
+    data-testid="save-error-notification"
+    @dismiss="dismissSaveError"
+  ></nldd-notification>
 
   <!-- Trace sheet - execution trace + expected outcomes for the most
        recently executed scenario. Opened from a scenario card's "Toon

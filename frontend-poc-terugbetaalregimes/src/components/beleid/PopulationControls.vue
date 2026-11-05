@@ -88,7 +88,7 @@
     <details class="pc-group">
       <summary>
         Omvang en regimeverdeling
-        <nldd-badge v-if="gewijzigd('totaal') || gewijzigd('regimeVerdeling')" size="sm" color="oranje" text="aangepast"></nldd-badge>
+        <nldd-badge v-if="gewijzigd('totaal') || gewijzigd('regimeVerdeling')" size="sm" color="warning" text="aangepast"></nldd-badge>
       </summary>
       <div class="pc-fields">
         <p class="pc-hint">{{ HERKOMST.totaal }}</p>
@@ -123,7 +123,7 @@
     <details class="pc-group">
       <summary>
         Draagkrachtmeting per regime
-        <nldd-badge v-if="gewijzigd('draagkracht')" size="sm" color="oranje" text="aangepast"></nldd-badge>
+        <nldd-badge v-if="gewijzigd('draagkracht')" size="sm" color="warning" text="aangepast"></nldd-badge>
       </summary>
       <div class="pc-fields">
         <p class="pc-hint">{{ HERKOMST.draagkracht }}</p>
@@ -148,7 +148,7 @@
     <details class="pc-group">
       <summary>
         Huishoudens en gedrag
-        <nldd-badge v-if="gewijzigd('huishouden') || gewijzigd('gedrag') || gewijzigd('inkomen')" size="sm" color="oranje" text="aangepast"></nldd-badge>
+        <nldd-badge v-if="gewijzigd('huishouden') || gewijzigd('gedrag') || gewijzigd('inkomen')" size="sm" color="warning" text="aangepast"></nldd-badge>
       </summary>
       <div class="pc-fields">
         <p class="pc-hint">{{ HERKOMST.huishouden }} Wie een partner heeft, telt dat inkomen mee in de draagkracht, tenzij hij daarvoor kiest.</p>

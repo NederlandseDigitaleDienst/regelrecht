@@ -173,7 +173,7 @@ pub fn index(registry: &Registry) -> String {
     // docs-landing (docs/src/components/LandingSections.astro), die het ook al
     // in kale HTML doet.
     let inhoud = format!(
-        r#"  <nldd-hero main-width="full" main-background="donkerblauw" padding-bottom="0">
+        r#"  <nldd-hero main-width="full" padding-bottom="0">
     <nldd-title size="1" color="inherit">
       <span slot="overline">regelrecht</span>
       <h1>Proof-of-concepts</h1>
@@ -192,7 +192,7 @@ pub fn index(registry: &Registry) -> String {
     <nldd-title slot="header" size="3">
       <h2>Beleidsverkenningen</h2>
     </nldd-title>
-    <nldd-collection layout="grid" item-width="320px">
+    <nldd-collection layout="grid" item-min-width="320px">
 {demo_kaart}
 {kaarten}
     </nldd-collection>
@@ -202,7 +202,7 @@ pub fn index(registry: &Registry) -> String {
     <nldd-title slot="header" size="3">
       <h2>Verder lezen</h2>
     </nldd-title>
-    <nldd-collection layout="grid" item-width="240px">
+    <nldd-collection layout="grid" item-min-width="240px">
       <nldd-card href="https://regelrecht.rijks.app" target="_blank" accessible-label="regelrecht.rijks.app">
         <nldd-container padding="16" gap="8">
           <nldd-icon icon="home" size="24"></nldd-icon>

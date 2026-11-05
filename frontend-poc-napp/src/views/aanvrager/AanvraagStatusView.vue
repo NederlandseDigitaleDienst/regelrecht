@@ -226,7 +226,7 @@ watch(item, (i) => {
             <nldd-spacer size="16"></nldd-spacer>
             <nldd-title size="5"><h4>Landelijke subsidie in delen (art. 14)</h4></nldd-title>
             <nldd-spacer size="8"></nldd-spacer>
-            <nldd-list appearance="box">
+            <nldd-list appearance="box-tinted">
               <nldd-list-item v-for="d in landelijkeDelen" :key="d.label" size="sm">
                 <nldd-text-cell :text="d.label" color="secondary"></nldd-text-cell>
                 <nldd-text-cell :text="euro(d.bedrag)" horizontal-alignment="right"></nldd-text-cell>

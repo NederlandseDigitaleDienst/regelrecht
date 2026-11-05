@@ -51,7 +51,7 @@ onMounted(async () => {
     </nldd-simple-section>
 
     <nldd-simple-section v-if="stats" background="tinted" padding-block="32">
-      <nldd-collection layout="grid" item-width="220px">
+      <nldd-collection layout="grid" item-min-width="220px">
         <nldd-card accessible-label="Aantal aanvragen">
           <nldd-container padding="20">
             <nldd-text-cell overline="Aanvragen" :text="String(stats.aantal_aanvragen)" size="md"></nldd-text-cell>
@@ -132,7 +132,7 @@ onMounted(async () => {
       </nldd-container>
     </nldd-simple-section>
 
-    <nldd-page-footer>
+    <nldd-page-footer slot="footer">
       <nldd-container padding="24">
         <nldd-rich-text>
           <p>

@@ -195,11 +195,11 @@ onMounted(run);
         <nldd-spacer size="32"></nldd-spacer>
         <nldd-title size="4"><h3>{{ feature.feature }}</h3></nldd-title>
         <nldd-spacer size="12"></nldd-spacer>
-        <nldd-list appearance="box">
+        <nldd-list appearance="box-tinted">
           <template v-for="scenario in feature.scenarios" :key="scenario.name">
             <nldd-list-item
               size="md"
-              type="button"
+              button
               @click="toggle(feature.feature, scenario.name)"
             >
               <nldd-icon-cell

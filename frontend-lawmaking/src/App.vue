@@ -4,18 +4,18 @@
       <!-- Sticky header: branding + playback/zoom/view controls -->
       <nldd-container slot="header" padding="8">
         <nldd-toolbar size="md">
-          <nldd-toolbar-item slot="start">
-            <img
-              src="/assets/rijkswapen.svg"
-              alt="Rijkswapen"
-              class="app-logo"
-            />
-          </nldd-toolbar-item>
           <nldd-toolbar-title
             slot="start"
             text="Wetgevingsproces"
             supporting-text="Van wetsvoorstel tot geldend recht - het wetgevingsproces als GitFlow"
-          ></nldd-toolbar-title>
+          >
+            <img
+              slot="media"
+              src="/assets/rijkswapen.svg"
+              alt="Rijkswapen"
+              class="app-logo"
+            />
+          </nldd-toolbar-title>
 
           <!-- Playback: step navigation -->
           <nldd-toolbar-item slot="end">
@@ -25,6 +25,13 @@
               :disabled="activeStep <= 0 || undefined"
               @click="resetSteps"
             ></nldd-icon-button>
+            <nldd-menu-item
+              slot="overflow"
+              icon="chevron-double-left"
+              text="Naar begin"
+              :disabled="activeStep <= 0 || undefined"
+              @select="resetSteps"
+            ></nldd-menu-item>
           </nldd-toolbar-item>
           <nldd-toolbar-item slot="end">
             <nldd-icon-button
@@ -33,6 +40,13 @@
               :disabled="activeStep <= 0 || undefined"
               @click="stepBack"
             ></nldd-icon-button>
+            <nldd-menu-item
+              slot="overflow"
+              icon="chevron-left"
+              text="Stap terug"
+              :disabled="activeStep <= 0 || undefined"
+              @select="stepBack"
+            ></nldd-menu-item>
           </nldd-toolbar-item>
           <nldd-toolbar-item slot="end">
             <nldd-icon-button
@@ -41,6 +55,13 @@
               :disabled="activeStep >= maxStep || undefined"
               @click="stepForward"
             ></nldd-icon-button>
+            <nldd-menu-item
+              slot="overflow"
+              icon="chevron-right"
+              text="Stap vooruit"
+              :disabled="activeStep >= maxStep || undefined"
+              @select="stepForward"
+            ></nldd-menu-item>
           </nldd-toolbar-item>
           <nldd-toolbar-item slot="end">
             <nldd-icon-button
@@ -49,6 +70,13 @@
               :disabled="activeStep >= maxStep || undefined"
               @click="goToEnd"
             ></nldd-icon-button>
+            <nldd-menu-item
+              slot="overflow"
+              icon="chevron-double-right"
+              text="Naar einde"
+              :disabled="activeStep >= maxStep || undefined"
+              @select="goToEnd"
+            ></nldd-menu-item>
           </nldd-toolbar-item>
 
           <!-- Playback: play/pause. The design system has no media-transport
@@ -61,21 +89,36 @@
               :appearance="isPlaying ? 'primary' : 'secondary'"
               @click="togglePlay"
             ></nldd-button>
+            <nldd-menu-item
+              slot="overflow"
+              :text="isPlaying ? 'Pauzeren' : 'Afspelen'"
+              @select="togglePlay"
+            ></nldd-menu-item>
           </nldd-toolbar-item>
 
           <nldd-toolbar-item slot="end">
             <nldd-tag :text="`${activeStep + 1} / ${maxStep + 1}`"></nldd-tag>
+            <!-- The step counter is information, not an action: in the
+                 overflow menu it shows as a disabled item. -->
+            <nldd-menu-item
+              slot="overflow"
+              :text="`Stap ${activeStep + 1} van ${maxStep + 1}`"
+              disabled
+            ></nldd-menu-item>
           </nldd-toolbar-item>
 
           <!-- Zoom -->
           <nldd-toolbar-item slot="end">
             <nldd-icon-button icon="plus" text="Zoom in" @click="diagramRef?.zoomIn()"></nldd-icon-button>
+            <nldd-menu-item slot="overflow" icon="plus" text="Zoom in" @select="diagramRef?.zoomIn()"></nldd-menu-item>
           </nldd-toolbar-item>
           <nldd-toolbar-item slot="end">
             <nldd-icon-button icon="minus" text="Zoom uit" @click="diagramRef?.zoomOut()"></nldd-icon-button>
+            <nldd-menu-item slot="overflow" icon="minus" text="Zoom uit" @select="diagramRef?.zoomOut()"></nldd-menu-item>
           </nldd-toolbar-item>
           <nldd-toolbar-item slot="end">
             <nldd-icon-button icon="arrow-2-counter-clockwise" text="Centreren" @click="diagramRef?.resetView()"></nldd-icon-button>
+            <nldd-menu-item slot="overflow" icon="arrow-2-counter-clockwise" text="Centreren" @select="diagramRef?.resetView()"></nldd-menu-item>
           </nldd-toolbar-item>
 
           <!-- View mode -->
@@ -86,10 +129,23 @@
               :value="viewMode"
               @change="onViewModeChange"
             >
-              <nldd-segmented-control-item value="simple" text="Eenvoudig"></nldd-segmented-control-item>
-              <nldd-segmented-control-item value="advanced" text="Uitgebreid"></nldd-segmented-control-item>
-              <nldd-segmented-control-item value="woo" text="Wet open overheid"></nldd-segmented-control-item>
+              <nldd-segmented-control-item
+                v-for="opt in viewModeOptions"
+                :key="opt.value"
+                :value="opt.value"
+                :text="opt.text"
+              ></nldd-segmented-control-item>
             </nldd-segmented-control>
+            <nldd-menu-group slot="overflow" text="Weergave">
+              <nldd-menu-item
+                v-for="opt in viewModeOptions"
+                :key="opt.value"
+                type="radio"
+                :text="opt.text"
+                :selected="viewMode === opt.value || undefined"
+                @select="opt.value !== viewMode && setViewMode(opt.value)"
+              ></nldd-menu-item>
+            </nldd-menu-group>
           </nldd-toolbar-item>
         </nldd-toolbar>
       </nldd-container>
@@ -150,6 +206,11 @@ import type { FlowDataset } from './data/types';
 type ViewMode = 'simple' | 'advanced' | 'woo';
 
 const viewMode = ref<ViewMode>('simple');
+const viewModeOptions: { value: ViewMode; text: string }[] = [
+  { value: 'simple', text: 'Eenvoudig' },
+  { value: 'advanced', text: 'Uitgebreid' },
+  { value: 'woo', text: 'Wet open overheid' },
+];
 const diagramRef = ref<InstanceType<typeof FlowDiagram> | null>(null);
 
 const datasets: Record<ViewMode, FlowDataset> = {
@@ -261,8 +322,8 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* Brand logo sizing inside the design-system toolbar (the design system has no
-   logo slot for this app-level mark). */
+/* Brand logo size in the toolbar title's media slot: the slot caps the height
+   to the title group and leaves the size within that to the consumer. */
 .app-logo {
   height: 32px;
   width: auto;

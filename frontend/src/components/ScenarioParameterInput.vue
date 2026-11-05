@@ -89,6 +89,10 @@ function onTextInput(event: FieldEvent) {
   emit('update', (event.target as { value?: unknown } | null)?.value ?? event.detail?.value ?? '');
 }
 
+function onDateInput(event: FieldEvent) {
+  emit('update', event.detail?.value ?? '');
+}
+
 function onSwitchChange(event: FieldEvent) {
   emit('update', Boolean(event.detail?.checked));
 }
@@ -141,16 +145,17 @@ function onSwitchChange(event: FieldEvent) {
     @change="(e: FieldEvent) => emitNumber(e.detail?.value)"
   ></nldd-number-field>
 
-  <!-- date -> native date picker via text-field -->
-  <nldd-text-field
+  <!-- date -> date-field: ISO (yyyy-mm-dd) in and out, '' while the typed
+       date is not complete. Typing fires `input`; a date picked in the
+       calendar fires only `change`, so both are handled. -->
+  <nldd-date-field
     v-else-if="type === 'date'"
-    size="md"
-    type="date"
     :invalid="invalid || undefined"
     :unmet="invalid ? unmet : undefined"
     :value="displayValue"
-    @input="onTextInput"
-  ></nldd-text-field>
+    @input="onDateInput"
+    @change="onDateInput"
+  ></nldd-date-field>
 
   <!-- string (fallback) -->
   <nldd-text-field

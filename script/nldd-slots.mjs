@@ -10,7 +10,7 @@
 // has `overline`, `subtitle` and `end`.
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 export const EXTENSIONS = ['.vue', '.html', '.js', '.ts'];
 
@@ -42,6 +42,13 @@ export function sourceFiles(dir, extensions = EXTENSIONS, out = []) {
  * child it is given, which is how a page adds its own toolbars. Those map to
  * `null`, meaning "do not check this tag", rather than to a set that would
  * reject every real usage.
+ *
+ * A component can also read a slot's children itself without rendering a
+ * `<slot>` for it: `nldd-toolbar` copies its `overflow` children into its
+ * overflow menu. Such a slot is documented in the package's manifest
+ * (`custom-elements.json`, next to `dist/`), so the slots listed there count
+ * too. The manifest only adds to a tag the templates already describe; a tag
+ * without a template stays unchecked, as before.
  */
 export function componentSlots(packageDir) {
   const slots = new Map();
@@ -62,7 +69,31 @@ export function componentSlots(packageDir) {
     for (const m of text.matchAll(/\bslot=["']([a-z0-9-]+)["']/gi)) names.add(m[1]);
     slots.set(tag, names);
   }
+  for (const [tag, names] of manifestSlots(packageDir)) {
+    const known = slots.get(tag);
+    if (known) for (const name of names) known.add(name);
+  }
   return slots;
+}
+
+/**
+ * The named slots per tag in the manifest of the package `packageDir` sits in
+ * (`<package>/dist/components` → `<package>/custom-elements.json`). Nothing when
+ * there is no manifest.
+ */
+function manifestSlots(packageDir) {
+  const file = join(dirname(dirname(packageDir)), 'custom-elements.json');
+  const out = new Map();
+  if (!existsSync(file)) return out;
+  const manifest = JSON.parse(readFileSync(file, 'utf8'));
+  for (const mod of manifest.modules ?? []) {
+    for (const decl of mod.declarations ?? []) {
+      if (!decl.tagName) continue;
+      const names = (decl.slots ?? []).map((slot) => slot.name).filter(Boolean);
+      out.set(decl.tagName, names);
+    }
+  }
+  return out;
 }
 
 /**

@@ -199,8 +199,8 @@ function bindModal(source: WatchSource<unknown>, modalRef: Ref<NLDDModalDialog |
 const deleteModalEl = ref<NLDDModalDialog | null>(null);
 bindModal(pendingDeletePath, deleteModalEl);
 
-const saveErrorModalEl = ref<NLDDModalDialog | null>(null);
-bindModal(saveError, saveErrorModalEl);
+// A failed save or delete has one way out, so it is a critical notification
+// (it stays until dismissed) rather than a dialog with nothing to choose.
 function dismissSaveError() {
   saveError.value = null;
 }
@@ -225,8 +225,6 @@ async function conflictOverwrite() {
   if (result?.ok) emit('saved', savedPath);
 }
 
-const deleteNoticeModalEl = ref<NLDDModalDialog | null>(null);
-bindModal(deleteNotice, deleteNoticeModalEl);
 function dismissDeleteNotice() {
   deleteNotice.value = null;
 }
@@ -243,6 +241,7 @@ function dismissDeleteNotice() {
              uses. :not([hidden]) yields to the toolbar's own overflow hiding. -->
         <nldd-toolbar-item slot="start" class="wd-back">
           <nldd-icon-button icon="chevron-left" text="Terug naar werkdocumenten" tooltip-timing="never" @click="$emit('back')"></nldd-icon-button>
+          <nldd-menu-item slot="overflow" icon="chevron-left" text="Terug naar werkdocumenten" @select="$emit('back')"></nldd-menu-item>
         </nldd-toolbar-item>
         <!-- Document title with an integrated xs action button; its rename/delete
              menu is teleported to body and anchored to it by id. -->
@@ -270,6 +269,7 @@ function dismissDeleteNotice() {
             :loading="saving || undefined"
             @click="saveDocument"
           ></nldd-button>
+          <nldd-menu-item slot="overflow" icon="save" text="Opslaan" :disabled="saving || undefined" @select="saveDocument"></nldd-menu-item>
         </nldd-toolbar-item>
         <nldd-toolbar-item v-if="hasChanges" slot="end">
           <nldd-icon-button size="md" icon="more" text="Meer" tooltip-timing="never">
@@ -277,6 +277,7 @@ function dismissDeleteNotice() {
               <nldd-menu-item text="Maak alle wijzigingen ongedaan" icon="undo" @click="undoChanges"></nldd-menu-item>
             </nldd-menu>
           </nldd-icon-button>
+          <nldd-menu-item slot="overflow" text="Maak alle wijzigingen ongedaan" icon="undo" @select="undoChanges"></nldd-menu-item>
         </nldd-toolbar-item>
       </nldd-toolbar>
     </nldd-container>
@@ -475,18 +476,14 @@ function dismissDeleteNotice() {
 
   <!-- Action-failure dialogs (shown imperatively from reactive state). -->
   <Teleport to="body">
-    <nldd-modal-dialog ref="saveErrorModalEl" variant="alert" text="Opslaan mislukt" :supporting-text="saveError?.message || undefined" @close="dismissSaveError">
-      <nldd-button slot="actions" appearance="primary" text="Oké" @click="dismissSaveError"></nldd-button>
-    </nldd-modal-dialog>
+    <nldd-notification v-if="saveError" variant="critical" text="Opslaan mislukt" :supporting-text="saveError.message || undefined" @dismiss="dismissSaveError"></nldd-notification>
 
     <nldd-modal-dialog ref="conflictModalEl" variant="alert" text="Document is gewijzigd" :supporting-text="conflict || undefined" @close="dismissConflict">
       <nldd-button slot="actions" text="Server-versie laden" @click="conflictReload"></nldd-button>
       <nldd-button slot="actions" appearance="primary" text="Lokaal overschrijven" @click="conflictOverwrite"></nldd-button>
     </nldd-modal-dialog>
 
-    <nldd-modal-dialog ref="deleteNoticeModalEl" variant="alert" text="Verwijderen mislukt" :supporting-text="deleteNotice || undefined" @close="dismissDeleteNotice">
-      <nldd-button slot="actions" appearance="primary" text="Oké" @click="dismissDeleteNotice"></nldd-button>
-    </nldd-modal-dialog>
+    <nldd-notification v-if="deleteNotice" variant="critical" text="Verwijderen mislukt" :supporting-text="deleteNotice" @dismiss="dismissDeleteNotice"></nldd-notification>
 
     <nldd-modal-dialog
       ref="deleteModalEl"

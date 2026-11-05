@@ -143,7 +143,7 @@ onMounted(async () => {
         @input="onZoek"
       ></nldd-search-field>
       <nldd-spacer size="8"></nldd-spacer>
-      <nldd-list v-if="aanduidingen.length" appearance="box">
+      <nldd-list v-if="aanduidingen.length" appearance="box-tinted">
         <nldd-list-item v-for="a in aanduidingen" :key="a.doel_kvk" size="md">
           <nldd-title-cell
             :text="a.aanduiding"

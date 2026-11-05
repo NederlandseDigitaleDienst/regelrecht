@@ -124,7 +124,7 @@ function confirmDisconnect(): void {
 
 <template>
   <Teleport to="body">
-    <nldd-sheet ref="sheetEl" placement="right" width="480px" full-height @close="hide">
+    <nldd-sheet ref="sheetEl" placement="right" width="480px" @close="hide">
       <nldd-page sticky-header>
         <nldd-top-title-bar
           slot="header"

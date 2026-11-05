@@ -350,9 +350,9 @@ function claimStatus(cl: DemoClaim) {
           <nldd-top-title-bar :text="law.name" :supporting-text="service" :dismiss-text="t('sheet.dismiss')" @dismiss="emit('close')"></nldd-top-title-bar>
         </nldd-container>
         <nldd-container padding="16" gap="16">
-          <nldd-step-bar v-if="step !== 'status'" :current="step === 'gegevens' ? 1 : 2" :accessible-label="t('sheet.application.steps')">
-            <nldd-step-bar-item :text="t('sheet.application.step.data')"></nldd-step-bar-item>
-            <nldd-step-bar-item :text="t('sheet.application.step.check')"></nldd-step-bar-item>
+          <nldd-step-bar v-if="step !== 'status'" :accessible-label="t('sheet.application.steps')">
+            <nldd-step-bar-item :status="step === 'gegevens' ? 'current' : 'past'" :text="t('sheet.application.step.data')"></nldd-step-bar-item>
+            <nldd-step-bar-item :status="step === 'gegevens' ? 'future' : 'current'" :text="t('sheet.application.step.check')"></nldd-step-bar-item>
           </nldd-step-bar>
 
           <!-- Step 1: the questions only the citizen can answer -->
