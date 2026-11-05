@@ -254,6 +254,13 @@ repos:
         pass_filenames: false
         files: ^(script/prune-orphaned-deployments(\.test)?\.sh|\.github/workflows/scheduled-cleanup\.yml)$
 
+      - id: zad-wake-tests
+        name: Wekken van een preview meldt pas wakker als ZAD dat zegt
+        entry: script/zad-wake.test.sh
+        language: system
+        pass_filenames: false
+        files: ^script/zad-wake(\.test)?\.sh$
+
       - id: ghcr-cleanup-tests
         name: Opruimen van images laat draaiende versies en index-children staan
         entry: just ghcr-cleanup-test

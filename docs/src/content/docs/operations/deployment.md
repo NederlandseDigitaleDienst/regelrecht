@@ -43,6 +43,14 @@ Image builds read their layer cache from tags in `regelrecht-buildcache` on GHCR
 
 The `cleanup-preview` job in `deploy.yml` deletes the `pr{N}` deployment on ZAD with its GitHub environment and deployments, and asks the ZAD cleanup action to remove the PR's `pr-{N}` image tags. No preview keeps running that nobody looks at. Fork PRs are skipped, since they never built anything. All other image cleanup happens nightly, as described below.
 
+### Sleeping previews
+
+Sleep-mode is on for the ZAD project `regel-k4c`, and it applies to the deployments whose name starts with `pr`. A preview goes to sleep 48 hours after its last deploy: ZAD scales it down and puts a small waker in front of it. Production (`regelrecht`) and `upload` do not match that pattern and never sleep.
+
+A visitor wakes a sleeping preview by opening it in a browser, through the waker's wake page. Every new commit on a labelled PR deploys the preview again, which wakes it as well. Once woken, a preview stays up for two hours and then goes back to sleep.
+
+A smoketest or a script cannot click through a wake page, so it wakes the preview through the Operations Manager API first, with `script/zad-wake.sh pr{N}`. That script posts the wake request and polls the status until the preview is awake. zad-cli has no sleep-mode command. The `zad-wake` skill (`.claude/skills/zad-wake/SKILL.md`) has the details, including the two fields of the status response and why only `sleep_state` says whether the preview sleeps.
+
 ## Cleanup
 
 `scheduled-cleanup.yml` runs every night. It removes stale `pr{N}` ZAD deployments and GitHub environments, and then runs all image cleanup through one script, `script/ghcr-cleanup.mjs`, in one step. That script removes three kinds of image versions:
