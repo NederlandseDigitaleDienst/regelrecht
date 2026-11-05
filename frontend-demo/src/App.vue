@@ -323,7 +323,7 @@ const openCases = computed(() => state.cases.filter((c) => c.status === 'IN_REVI
     <ReplayOverlay v-if="replay.active" />
     <component :is="RecorderPanel" v-if="RecorderPanel" />
     <nldd-bar-split-view>
-      <nldd-container slot="toolbar" padding="8" background="base">
+      <nldd-container slot="toolbar" padding="8">
         <nldd-toolbar size="md" :accessible-label="t('app.toolbar.label')">
           <!-- Eén tab-bar met alle tabbladen, niet één per tabblad. Een tab-bar
                per tabblad leek de overloop netjes op te lossen, maar elke bar
@@ -382,7 +382,8 @@ const openCases = computed(() => state.cases.filter((c) => c.status === 'IN_REVI
             </nldd-menu-group>
           </nldd-toolbar-item>
           <nldd-toolbar-item slot="end" v-if="openCases > 0">
-            <nldd-button size="sm" appearance="neutral-tinted" start-icon="inbox" :text="t.plural(openCases, 'app.cases.pending')" @click="router.push(pathFor('zaaksysteem'))"></nldd-button>
+            <nldd-button appearance="neutral-tinted" start-icon="inbox" :text="t.plural(openCases, 'app.cases.pending')" @click="router.push(pathFor('zaaksysteem'))"></nldd-button>
+            <nldd-menu-item slot="overflow" icon="inbox" :text="t.plural(openCases, 'app.cases.pending')" @select="router.push(pathFor('zaaksysteem'))"></nldd-menu-item>
           </nldd-toolbar-item>
           <!-- Namens wie: alleen als de wet meer dan één mogelijkheid geeft.
                Staat naast het profiel, want het hoort bij wie er ingelogd is. -->
@@ -602,8 +603,8 @@ const openCases = computed(() => state.cases.filter((c) => c.status === 'IN_REVI
       :supporting-text="t('app.reset.body')"
       :accessible-label="t('app.reset.label')"
     >
+      <nldd-button slot="actions" appearance="primary" :text="t('app.reset.cancel')" @click="resetDialog?.hide?.()"></nldd-button>
       <nldd-button slot="actions" appearance="destructive" :text="t('app.reset.confirm')" @click="confirmReset"></nldd-button>
-      <nldd-button slot="actions" appearance="secondary" :text="t('app.reset.cancel')" @click="resetDialog?.hide?.()"></nldd-button>
     </nldd-modal-dialog>
   </nldd-shell>
 </template>

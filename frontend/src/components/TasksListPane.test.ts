@@ -629,7 +629,7 @@ describe('TasksListPane', () => {
     // Annuleren gooit de job én de bron-upload weg - dat mag niet lezen als een
     // gewone actie naast "Bekijk document".
     const annuleer = found(menuItems(wrapper).find((i) => i.attributes('text') === 'Annuleer conversie'));
-    expect(annuleer.attributes('variant')).toBe('destructive');
+    expect(annuleer.attributes('destructive')).toBeDefined();
 
     await selectItem(wrapper, 'Annuleer conversie');
     expect(wrapper.emitted('cancel-job')?.[0]).toEqual([convertJob]);

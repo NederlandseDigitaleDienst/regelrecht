@@ -512,7 +512,7 @@ const dateControlId = useId();
           <nldd-text-cell text="Datum" min-width="120px" max-width="200px"></nldd-text-cell>
           <nldd-spacer-cell size="8"></nldd-spacer-cell>
           <nldd-cell width="full" min-width="120px">
-            <!-- The date control is a date-typed text field: it emits text. -->
+            <!-- The date control is a date field: it emits the ISO date as text. -->
             <ScenarioParameterInput
               :id="dateControlId"
               type="date"

@@ -681,6 +681,7 @@ export default {
 
   // ---- simulation: the main panel -----------------------------------------
   'sim.tab.comparison': 'Comparaison',
+  'sim.tab.label': 'Simulations',
   'sim.view.overview': "Vue d'ensemble",
   'sim.view.breakdown': 'Ventilation',
   'sim.view.population': 'Population',
@@ -950,7 +951,6 @@ export default {
   'walkthrough.missing.title': 'Pas encore de visite guidée',
   'walkthrough.missing.body': "Cette version de la démo n'a pas de visite guidée enregistrée. La présentation et la démo elle-même fonctionnent.",
   'home.presentation.walkthrough': 'Voir la visite guidée enregistrée',
-  'home.ways.label': 'Comment voulez-vous découvrir la démo ?',
   'home.ways.walkthrough.title': 'Suivre la visite guidée',
   'home.ways.walkthrough.text': 'Enregistrée, avec une voix. La démo se déroule toute seule ; vous pouvez mettre en pause et continuer à cliquer vous-même. Environ {minutes} minutes.',
   'home.ways.browse.title': 'Explorer vous-même',

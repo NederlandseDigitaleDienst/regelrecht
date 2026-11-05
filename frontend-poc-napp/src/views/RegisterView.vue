@@ -132,7 +132,7 @@ onMounted(async () => {
       </nldd-container>
     </nldd-simple-section>
 
-    <nldd-page-footer>
+    <nldd-page-footer slot="footer">
       <nldd-container padding="24">
         <nldd-rich-text>
           <p>

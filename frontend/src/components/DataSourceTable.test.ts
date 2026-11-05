@@ -79,7 +79,7 @@ describe('DataSourceTable typed cells', () => {
     expect(spiFor(w, 'spaargeld').find('nldd-number-field').exists()).toBe(false);
     expect(spiFor(w, 'geboortedatum').props('value')).toBe('null'); // a JS null from a typed record
     expect(spiFor(w, 'geboortedatum').find('nldd-text-field').attributes('value')).toBe('null');
-    expect(spiFor(w, 'geboortedatum').find('nldd-text-field').attributes('type')).toBeUndefined();
+    expect(spiFor(w, 'geboortedatum').find('nldd-date-field').exists()).toBe(false);
     expect(spiFor(w, 'land_verblijf').props('value')).toBe('null');
     expect(w.find('select').element.value).toBe('null');
   });
@@ -299,7 +299,7 @@ describe('DataSourceTable nullability', () => {
       expect(lastRow(w).geboortedatum).toBe('2005-01-01');
       await w.setProps({ modelValue: lastEmittedRows(w) });
       expect(toggleFor(w, 'geboortedatum').find('nldd-checkbox-field').attributes('checked')).toBeUndefined();
-      expect(spiFor(w, 'geboortedatum').find('nldd-text-field').attributes('type')).toBe('date');
+      expect(spiFor(w, 'geboortedatum').find('nldd-date-field').exists()).toBe(true);
     });
   });
 

@@ -126,7 +126,7 @@ const slotName = computed(() => (props.nested ? 'children' : undefined));
     <nldd-text-cell size="sm" :text="humanize(node.name)" :supporting-text="isUnknown(node.value) ? t('wet.lineage.computed_by_missing', { law: lawName(node.law), missing: formatMissing(node.value, { ownLaw: node.law, lawName, group: false }) }) : t('wet.lineage.computed_by', { law: lawName(node.law) })"></nldd-text-cell>
     <nldd-text-cell size="sm" width="fit-content" horizontal-alignment="right" :color="isUnknown(node.value) ? 'secondary' : 'content'" :text="formatValue(node.value, specFor(node))"></nldd-text-cell>
     <nldd-spacer-cell size="8"></nldd-spacer-cell>
-    <nldd-icon-cell v-if="canSubmitClaims" icon="edit" size="16" color="secondary" role="button" tabindex="0" :accessible-label="t('wet.lineage.correct')" @click.stop="emit('edit', node)" @keydown.enter.stop="emit('edit', node)"></nldd-icon-cell>
+    <nldd-icon-cell v-if="canSubmitClaims" icon="edit" size="16" color="secondary" role="button" tabindex="0" :aria-label="t('wet.lineage.correct')" @click.stop="emit('edit', node)" @keydown.enter.stop="emit('edit', node)"></nldd-icon-cell>
     <nldd-spacer-cell v-if="node.children?.length" size="8"></nldd-spacer-cell>
     <nldd-icon-cell v-if="node.children?.length" disclosure icon="chevron-right" size="16" color="secondary"></nldd-icon-cell>
     <DataLineage v-if="node.children?.length" :nodes="node.children" :depth="depth + 1" nested @edit="emit('edit', $event)" />

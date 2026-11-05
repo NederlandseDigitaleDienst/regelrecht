@@ -361,16 +361,11 @@ function dismissUploadError() {
   docUploadError.value = null;
 }
 
-// Same modal treatment for a failed cancel: the job is still converting, so
-// leaving the user back at the list with no word would have the UI claim
-// something it didn't do.
+// A failed cancel gets a word too: the job is still converting, so leaving
+// the user back at the list with no word would have the UI claim something it
+// didn't do. A critical notification, which stays until dismissed: with one
+// way out there is nothing to choose, so it is no dialog.
 const jobCancelError = ref<string | null>(null);
-const jobCancelErrorModalEl = ref<NLDDModalDialog | null>(null);
-watch(jobCancelError, async (err) => {
-  await nextTick();
-  if (err) jobCancelErrorModalEl.value?.show?.();
-  else jobCancelErrorModalEl.value?.hide?.();
-});
 function dismissJobCancelError() {
   jobCancelError.value = null;
 }
@@ -1065,6 +1060,14 @@ function recordRecentLaw(lawId: string, name: string | null | undefined) {
 // they're stable identifiers, not labels.
 const VIEW_TO_HASH: Record<string, string> = { tekst: '#text', machine: '#machine', yaml: '#yaml' };
 const HASH_TO_VIEW: Record<string, string> = { '#text': 'tekst', '#machine': 'machine', '#yaml': 'yaml' };
+
+// The detail views in tab order: the tab bar and its overflow alternative are
+// both rendered from this list.
+const DETAIL_VIEWS = [
+  { key: 'tekst', label: 'Tekst' },
+  { key: 'machine', label: 'Machine' },
+  { key: 'yaml', label: 'YAML' },
+];
 
 const detailView = computed<string>({
   get() {
@@ -1874,6 +1877,13 @@ function onEditClick(e: MouseEvent) {
   openEditor(e.currentTarget);
 }
 
+// "Bewerken" from the toolbar's overflow menu. Its `select` arrives on the
+// original menu item, hidden in the collapsed toolbar item, so the login
+// heads-up anchors to the toolbar instead.
+function onEditOverflow(e: Event) {
+  openEditor((e.currentTarget as Element | null)?.closest?.('nldd-toolbar') ?? null);
+}
+
 function selectLaw(lawId: string, focusAfter = false) {
   // Default to no section context (search / programmatic); selectLawFromSection
   // re-sets it after this call for sidebar clicks.
@@ -2544,6 +2554,10 @@ watch(activeTrajectRef, () => {
                         <nldd-menu-item icon="upload-to-cloud" text="Document uploaden…" @select="onDocUpload"></nldd-menu-item>
                       </nldd-menu>
                     </nldd-icon-button>
+                    <nldd-menu-group slot="overflow" text="Document toevoegen">
+                      <nldd-menu-item icon="new-text-document" text="Nieuw document" @select="onDocNew"></nldd-menu-item>
+                      <nldd-menu-item icon="upload-to-cloud" text="Document uploaden…" @select="onDocUpload"></nldd-menu-item>
+                    </nldd-menu-group>
                   </nldd-toolbar-item>
                 </nldd-toolbar>
                 <nldd-spacer size="16"></nldd-spacer>
@@ -2587,9 +2601,18 @@ watch(activeTrajectRef, () => {
                         : localFavorites ? 'Voeg toe aan favorieten in deze browser' : 'Voeg toe aan favorieten'"
                       @click="onFavoriteClick"
                     ></nldd-icon-button>
+                    <nldd-menu-item
+                      slot="overflow"
+                      :icon="favorites?.has(selectedLawId) ? 'star-filled' : 'star'"
+                      :text="favorites?.has(selectedLawId)
+                        ? 'Verwijder uit favorieten'
+                        : localFavorites ? 'Voeg toe aan favorieten in deze browser' : 'Voeg toe aan favorieten'"
+                      @select="onFavoriteClick"
+                    ></nldd-menu-item>
                   </nldd-toolbar-item>
                   <nldd-toolbar-item v-if="canShare" slot="start" :priority="1">
                     <nldd-icon-button appearance="neutral-base" icon="share" text="Delen" @click="shareLaw"></nldd-icon-button>
+                    <nldd-menu-item slot="overflow" icon="share" text="Delen" @select="shareLaw"></nldd-menu-item>
                   </nldd-toolbar-item>
                   <nldd-toolbar-item slot="end" :priority="4">
                     <nldd-icon-button
@@ -2599,6 +2622,14 @@ watch(activeTrajectRef, () => {
                       :expanded="articleFilterOpen || undefined"
                       @click="toggleArticleFilter"
                     ></nldd-icon-button>
+                    <nldd-menu-item
+                      slot="overflow"
+                      type="checkbox"
+                      icon="search"
+                      text="Artikelen zoeken"
+                      :selected="articleFilterOpen || undefined"
+                      @select="toggleArticleFilter"
+                    ></nldd-menu-item>
                   </nldd-toolbar-item>
                   <nldd-toolbar-item slot="end" :priority="3">
                     <nldd-icon-button appearance="neutral-base" icon="filter" text="Artikelen filteren">
@@ -2613,6 +2644,16 @@ watch(activeTrajectRef, () => {
                         ></nldd-menu-item>
                       </nldd-menu>
                     </nldd-icon-button>
+                    <nldd-menu-group slot="overflow" text="Artikelen filteren">
+                      <nldd-menu-item
+                        v-for="option in ARTICLE_FILTERS"
+                        :key="option.key"
+                        type="radio"
+                        :text="option.label"
+                        :selected="articleTypeFilter === option.key || undefined"
+                        @select="setArticleTypeFilter(option.key)"
+                      ></nldd-menu-item>
+                    </nldd-menu-group>
                   </nldd-toolbar-item>
                 </nldd-toolbar>
                 <nldd-spacer v-if="paneChromeVisible(selectedLawLoading)" size="16"></nldd-spacer>
@@ -2768,6 +2809,7 @@ watch(activeTrajectRef, () => {
                 <nldd-toolbar size="md">
                   <nldd-toolbar-item slot="start" class="job-back">
                     <nldd-icon-button icon="chevron-left" text="Terug naar werkdocumenten" tooltip-timing="never" @click="onDocBack"></nldd-icon-button>
+                    <nldd-menu-item slot="overflow" icon="chevron-left" text="Terug naar werkdocumenten" @select="onDocBack"></nldd-menu-item>
                   </nldd-toolbar-item>
                   <!-- Names the document here, where a document's name lives, so
                        the dialog below can stay about the conversion itself. The
@@ -2991,14 +3033,29 @@ watch(activeTrajectRef, () => {
                   </template>
                   <nldd-toolbar>
                     <nldd-toolbar-item v-if="showMachineViews" slot="start">
-                      <nldd-tab-bar size="md" @tabchange="onDetailTabChange">
-                        <nldd-tab-bar-item data-view="tekst" :current="detailView === 'tekst' || undefined" text="Tekst"></nldd-tab-bar-item>
-                        <nldd-tab-bar-item data-view="machine" :current="detailView === 'machine' || undefined" text="Machine"></nldd-tab-bar-item>
-                        <nldd-tab-bar-item data-view="yaml" :current="detailView === 'yaml' || undefined" text="YAML"></nldd-tab-bar-item>
+                      <nldd-tab-bar size="md" accessible-label="Weergave" @tabchange="onDetailTabChange">
+                        <nldd-tab-bar-item
+                          v-for="v in DETAIL_VIEWS"
+                          :key="v.key"
+                          :data-view="v.key"
+                          :current="detailView === v.key || undefined"
+                          :text="v.label"
+                        ></nldd-tab-bar-item>
                       </nldd-tab-bar>
+                      <nldd-menu-group slot="overflow" text="Weergave">
+                        <nldd-menu-item
+                          v-for="v in DETAIL_VIEWS"
+                          :key="`overflow-${v.key}`"
+                          type="radio"
+                          :text="v.label"
+                          :selected="detailView === v.key || undefined"
+                          @select="detailView = v.key"
+                        ></nldd-menu-item>
+                      </nldd-menu-group>
                     </nldd-toolbar-item>
                     <nldd-toolbar-item slot="end">
                       <nldd-button ref="editButton" v-if="selectedLawId" appearance="secondary" text="Bewerken" :href="authenticated ? editLawHref : undefined" @click.prevent="onEditClick" @pointerdown.capture="onLoginTriggerPointerdown"></nldd-button>
+                      <nldd-menu-item v-if="selectedLawId" slot="overflow" icon="edit" text="Bewerken" @select="onEditOverflow"></nldd-menu-item>
                     </nldd-toolbar-item>
                   </nldd-toolbar>
                   <nldd-spacer size="24"></nldd-spacer>
@@ -3087,17 +3144,13 @@ watch(activeTrajectRef, () => {
     </nldd-modal-dialog>
   </Teleport>
 
-  <Teleport to="body">
-    <nldd-modal-dialog
-      ref="jobCancelErrorModalEl"
-      variant="alert"
-      text="Annuleren mislukt"
-      :supporting-text="`De conversie loopt door op de achtergrond. ${jobCancelError || ''}`"
-      @close="dismissJobCancelError"
-    >
-      <nldd-button slot="actions" appearance="primary" text="Sluit" @click="dismissJobCancelError"></nldd-button>
-    </nldd-modal-dialog>
-  </Teleport>
+  <nldd-notification
+    v-if="jobCancelError"
+    variant="critical"
+    text="Annuleren mislukt"
+    :supporting-text="`De conversie loopt door op de achtergrond. ${jobCancelError}`"
+    @dismiss="dismissJobCancelError"
+  ></nldd-notification>
 </template>
 
 <style>

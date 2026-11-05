@@ -205,7 +205,6 @@ function show(claim: ChangeClaim) {
                     :value="answers[f.name] ?? ''"
                     width="full"
                     :keyboard="f.kind === 'text' ? undefined : 'numeric'"
-                    :prefix="f.scale ? '€' : undefined"
                     @input="setAnswer(f.name, inputValue($event))"
                   ></nldd-text-field>
                 </nldd-form-field>

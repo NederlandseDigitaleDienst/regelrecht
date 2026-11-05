@@ -223,7 +223,7 @@ watch(() => session.beoordelaar, alles);
                   <nldd-button
                     appearance="primary"
                     text="Bevestigen"
-                    start-icon="check"
+                    start-icon="checked"
                     :disabled="claimBezig || undefined"
                     @click="bevestigClaim(claim)"
                   ></nldd-button>
