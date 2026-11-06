@@ -6,14 +6,15 @@
 //! The fixtures in `packages/cel/bdd/fixtures` (the synthetic law, and the
 //! reductions of a cell) are loaded next to the corpus.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use chrono::NaiveDate;
+use regelrecht_cel::reading::Reader;
 use regelrecht_cel::{shape, Chronicle, Gram, EXECUTOGRAM};
 use regelrecht_engine::projection::{cause_word, describe_applied};
 use regelrecht_engine::{
-    Article, ChronicleRecord, LawExecutionService, ProjectionEvent, ProjectionOutcome, Value,
+    Article, Authority, Call, LawExecutionService, ProjectionEvent, ProjectionOutcome, Value,
 };
 use regelrecht_law_model::stored;
 use walkdir::WalkDir;
@@ -105,6 +106,13 @@ pub fn dispatch(
         "evaluate_over_chronicle" => {
             evaluate_over_chronicle(world, args[0].as_str(), args[1].as_str())
         }
+        "evaluate_with_cell" => evaluate_with_cell(
+            world,
+            args[0].as_str(),
+            args[1].as_str(),
+            args[2].as_str(),
+            args[3].as_str(),
+        ),
         "assert_projection_trace" => assert_projection_trace(world, &table.expect("trace table")),
         "assert_last_set_by" => {
             let (name, id) = (args[0].as_str(), args[1].as_str());
@@ -323,25 +331,57 @@ fn record_fact(
     append(world, gram);
 }
 
+/// The authority of the cell, as the fixture policy names its holder.
+const AUTHORITY: &str = "het college van de testcel";
+
+/// Evaluate `output` of `law` as a decision does, with the cell as the
+/// answerer of the call. Its catalogue gives `answer` from `reduction`.
+fn evaluate_with_cell(
+    world: &mut RegelrechtWorld,
+    output: &str,
+    law: &str,
+    answer: &str,
+    reduction: &str,
+) {
+    let authority = Authority {
+        name: AUTHORITY.to_string(),
+        category: None,
+    };
+    let answers = BTreeMap::from([(answer.to_string(), reduction.to_string())]);
+    let reductions = BTreeSet::from([reduction.to_string()]);
+    let grams = world.extension.chronicle.grams().to_vec();
+    let reader = Reader::new(CELL, &authority, &answers, &reductions, grams, None);
+    let call = Call {
+        findings: BTreeMap::new(),
+        answerer: Some(&reader),
+        chronicle: Some(&reader),
+        sphere: Vec::new(),
+    };
+    let outcome = world.service.evaluate_law_with_trace_in(
+        law,
+        &[output],
+        world.parameters.clone(),
+        call,
+        &world.calculation_date,
+    );
+    world.requested_outputs = vec![output.to_string()];
+    match outcome {
+        Ok(result) => {
+            world.result = Some(result);
+            world.error = None;
+        }
+        Err(e) => {
+            world.result = None;
+            world.error = Some(e);
+        }
+    }
+}
+
 /// Play every record of the chronicle through the projection of `law` and
 /// keep the answer, with the engine's trace.
 fn evaluate_over_chronicle(world: &mut RegelrechtWorld, output: &str, law: &str) {
-    let records: Vec<ChronicleRecord> = world
-        .extension
-        .chronicle
-        .grams()
-        .iter()
-        .map(|g| ChronicleRecord {
-            id: g.id.clone(),
-            kind: g.kind.clone(),
-            basis: g.basis.clone(),
-            fact: g.fact.clone(),
-            recorded_on: g.recorded_on,
-            refers_to: g.refers_to.clone(),
-            fields: read_back(&g.fields),
-            outputs: read_back(&g.outputs),
-        })
-        .collect();
+    let records = regelrecht_cel::reading::chronicle_records(world.extension.chronicle.grams())
+        .expect("the chronicle as records");
     let outcome = world.service.evaluate_projection(
         law,
         &[output],
@@ -363,13 +403,6 @@ fn evaluate_over_chronicle(world: &mut RegelrechtWorld, output: &str, law: &str)
             world.extension.projection = None;
         }
     }
-}
-
-fn read_back(values: &BTreeMap<String, serde_json::Value>) -> BTreeMap<String, Value> {
-    values
-        .iter()
-        .map(|(k, v)| (k.clone(), stored::from_stored(v).expect("stored value")))
-        .collect()
 }
 
 fn projection(world: &RegelrechtWorld) -> &ProjectionOutcome {

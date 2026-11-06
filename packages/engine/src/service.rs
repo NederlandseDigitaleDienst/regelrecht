@@ -583,11 +583,7 @@ fn with_played_state(
     mut parameters: BTreeMap<String, Value>,
     res_ctx: &ResolutionContext<'_>,
 ) -> Result<BTreeMap<String, Value>> {
-    let has_projection = article
-        .machine_readable
-        .as_ref()
-        .is_some_and(|m| m.projection.is_some());
-    if !has_projection {
+    if !crate::projection::has_projection(article) {
         return Ok(parameters);
     }
     let played = res_ctx

@@ -507,3 +507,23 @@ Feature: A reduction plays the chronicle forward
     Given parameter "kenteken" is "XY-34-ZZ"
     When I evaluate "kenteken_heeft_vergunning" of "test_reductie_vergunning_per_kenteken" over the chronicle
     Then output "kenteken_heeft_vergunning" is false
+
+  Scenario: A policy takes the cell's answer, and a well-founded objection flips it
+    # The normal route: the law (fictional article 9) leaves whether the
+    # applicant holds a valid card to the college, whose policy binds that
+    # term to the answer of its cell (`source.reduction`). The cell gives the
+    # answer by playing its chronicle through the projection of
+    # test_reductie_geldige_kaart, with the applicant the binding passes as
+    # its key.
+    When the cell records submission "aanvraag" under article "1" of "test_chronicle_effects" with:
+      | ernstig_beperkt | true     |
+      | aanvrager       | burger_x |
+    And the cell decides "verlening" on submission "aanvraag"
+    And I evaluate "mag_parkeren" of "test_chronicle_effects" with the cell answering "heeft_geldige_kaart" from "test_reductie_geldige_kaart"
+    Then output "mag_parkeren" is true
+    When the cell records submission "bezwaar" under article "2" of "test_chronicle_effects" with:
+      | bestreden_besluit | verlening |
+    And the cell decides "herroeping" on submission "bezwaar" with:
+      | bezwaar_gegrond | true |
+    And I evaluate "mag_parkeren" of "test_chronicle_effects" with the cell answering "heeft_geldige_kaart" from "test_reductie_geldige_kaart"
+    Then output "mag_parkeren" is false

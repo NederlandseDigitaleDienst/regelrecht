@@ -77,6 +77,22 @@ steps:
     text: I evaluate "{output}" of "{law}" over the chronicle
     args: [{name: output, type: string}, {name: law, type: string}]
 
+  # Evaluate an output of a law through the normal route, with the cell as
+  # the answerer of the call: where a policy binds an open term to the
+  # cell's answer (`source.reduction`), the cell gives it from the reduction
+  # its catalogue names for it, and plays its chronicle through that
+  # reduction's projection.
+  - id: evaluate_with_cell
+    action: evaluate_with_cell
+    keyword: when
+    tier: cel
+    text: I evaluate "{output}" of "{law}" with the cell answering "{answer}" from "{reduction}"
+    args:
+      - {name: output, type: string}
+      - {name: law, type: string}
+      - {name: answer, type: string}
+      - {name: reduction, type: string}
+
   # Every step the last evaluation took, in order: a record applied (with
   # the properties it set, `property: from -> to`, or `-`), a record skipped
   # (with the records that undo it), and a rewind (with its cause and the

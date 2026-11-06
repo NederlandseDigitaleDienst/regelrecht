@@ -224,3 +224,25 @@ articles:
         actions:
           - output: in_bezit
             value: false
+
+  - number: '9'
+    url: https://example.com/test_chronicle_effects/9
+    text: >-
+      FICTIEF. Wie een geldige kaart heeft, mag parkeren op een
+      gehandicaptenparkeerplaats. Of de aanvrager een geldige kaart heeft,
+      stelt het college vast.
+    machine_readable:
+      open_terms:
+        - id: aanvrager_heeft_geldige_kaart
+          type: boolean
+          required: true
+      execution:
+        parameters:
+          - name: aanvrager
+            type: string
+        output:
+          - name: mag_parkeren
+            type: boolean
+        actions:
+          - output: mag_parkeren
+            value: $aanvrager_heeft_geldige_kaart

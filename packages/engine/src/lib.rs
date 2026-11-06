@@ -77,7 +77,8 @@ pub use engine::{ArticleEngine, ArticleResult, FilledBy, OpenTermFilled, OutputP
 pub use error::{EngineError, ExternalError, Result};
 pub use operations::{evaluate_value, execute_operation, ValueResolver};
 pub use projection::{
-    ChronicleRecord, ProjectionEvent, ProjectionOutcome, RewindCause, StateChange,
+    has_projection, ChronicleRecord, ProjectionEvent, ProjectionOptions, ProjectionOutcome,
+    RewindCause, StateChange,
 };
 pub use receipt::ExecutionReceipt;
 pub use resolver::{

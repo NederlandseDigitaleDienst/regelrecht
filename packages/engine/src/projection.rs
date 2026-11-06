@@ -131,6 +131,26 @@ pub enum ProjectionEvent {
     EffectsOnly { record: String, reason: String },
 }
 
+/// How [`LawExecutionService::evaluate_projection_with`] runs the
+/// reduction's `execution` over the last state.
+#[derive(Default)]
+pub struct ProjectionOptions<'a> {
+    /// The call it runs in: the findings, and the cell that answers and
+    /// whose chronicle it reads.
+    pub call: Call<'a>,
+    /// Whether to trace, with a `PROJECTION` node first.
+    pub trace: bool,
+}
+
+/// Whether `article` answers from a projection (schema v0.8.14): only
+/// [`LawExecutionService::evaluate_projection`] can run it.
+pub fn has_projection(article: &Article) -> bool {
+    article
+        .machine_readable
+        .as_ref()
+        .is_some_and(|m| m.projection.is_some())
+}
+
 /// The answer of a projection: the last state, which record set each
 /// property last (`None` for the initial value), every event, and the
 /// result of the reduction's `execution` over the last state.
@@ -160,6 +180,33 @@ impl LawExecutionService {
         calculation_date: &str,
         trace: bool,
     ) -> Result<ProjectionOutcome> {
+        self.evaluate_projection_with(
+            law_id,
+            output_names,
+            records,
+            parameters,
+            calculation_date,
+            ProjectionOptions {
+                call: Call::default(),
+                trace,
+            },
+        )
+    }
+
+    /// [`Self::evaluate_projection`], with what `options` gives: the call
+    /// the reduction's `execution` runs in (the cell that answers it and
+    /// whose chronicle it reads, when a cell gives the answer through
+    /// `source.reduction`), and whether to trace.
+    pub fn evaluate_projection_with(
+        &self,
+        law_id: &str,
+        output_names: &[&str],
+        records: &[ChronicleRecord],
+        parameters: BTreeMap<String, Value>,
+        calculation_date: &str,
+        options: ProjectionOptions<'_>,
+    ) -> Result<ProjectionOutcome> {
+        let ProjectionOptions { call, trace } = options;
         let day = parse_day(calculation_date)?;
         let Some(first) = output_names.first() else {
             return Err(EngineError::InvalidOperation("no output asked".to_string()));
@@ -216,7 +263,7 @@ impl LawExecutionService {
                 law_id,
                 output_names,
                 parameters,
-                Call::default(),
+                call,
                 calculation_date,
                 TraceBuilder::new(),
                 state,
@@ -226,7 +273,7 @@ impl LawExecutionService {
                 law_id,
                 output_names,
                 parameters,
-                Call::default(),
+                call,
                 calculation_date,
                 state,
             )?
