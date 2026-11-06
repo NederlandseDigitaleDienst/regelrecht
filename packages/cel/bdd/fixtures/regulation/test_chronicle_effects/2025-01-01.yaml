@@ -90,7 +90,7 @@ articles:
             outputs:
               - kaart_verleend
             effects:
-              - replaces: bestreden_besluit
+              - revokes: bestreden_besluit
         parameters:
           - name: bestreden_besluit
             type: string
@@ -163,7 +163,7 @@ articles:
             outputs:
               - waarschuwing
             effects:
-              - replaces: bestreden_besluit
+              - revokes: bestreden_besluit
         parameters:
           - name: bestreden_besluit
             type: string

@@ -26,7 +26,7 @@ pub use model::{
     foreach_binding, is_article_reference, is_fact_reference, is_variable_reference, Action,
     ActionOperation, ActionValue, Article, ArticleBasedLaw, ArticleReference, ArticleRequirement,
     AuthorityType, Case, CombineOp, CompetentAuthority, DecisionEffect, Declaration,
-    DeclaredProperty, Definition, EffectKind, Execution, HookDeclaration, HookFilter, HookPoint,
+    DeclaredProperty, Definition, Execution, HookDeclaration, HookFilter, HookPoint,
     ImplementsDeclaration, Input, LegalBasis, MachineReadable, Marking, MarkingResolution, Moment,
     NamedAuthority, OpenTerm, OpenTermDefault, Output, OverrideDeclaration, Parameter, Placement,
     PlacementContainer, Preamble, ProcedureAppliesTo, ProcedureDefinition, Produced, ProducedItem,

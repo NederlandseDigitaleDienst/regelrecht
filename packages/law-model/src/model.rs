@@ -470,87 +470,30 @@ pub struct ProducedItem {
     /// The moment that counts in law for this item (RFC-045).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub moment: Option<Moment>,
-    /// For a decision: what it does with another decision (schema v0.8.14),
-    /// such as revoking the contested decision (Awb 7:11 lid 2). The engine
+    /// For a decision: the decisions it revokes (schema v0.8.14), such as
+    /// the contested decision (Awb 7:11 lid 2). The engine
     /// carries them out when it plays a chronicle through a reduction with a
     /// `projection` (`projection.rs`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effects: Option<Vec<DecisionEffect>>,
 }
 
-/// One thing a decision does with another decision (schema v0.8.14). It
-/// names the parameter of the article whose value is that other decision,
-/// and, with `when`, a boolean output of the decision that must be true for
-/// the effect to hold, such as the revocation that follows only from a
-/// well-founded objection.
-///
-/// In YAML it is a map with exactly one of `revokes` and `replaces`, and
-/// optionally `when`. It goes through [`DecisionEffectFields`], which checks
-/// the one-of.
+/// One thing a decision does with another decision (schema v0.8.14): it
+/// revokes it. It names the parameter of the article whose value is that
+/// other decision, and, with `when`, a boolean output of the decision that
+/// must be true for the effect to hold, such as the revocation that follows
+/// only from a well-founded objection. A decision in the place of another
+/// revokes it and counts as a record of its own.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(try_from = "DecisionEffectFields", into = "DecisionEffectFields")]
+#[serde(deny_unknown_fields)]
 pub struct DecisionEffect {
-    /// What the decision does with the other decision.
-    pub kind: EffectKind,
-    /// The parameter whose value is the other decision.
+    /// The parameter whose value is the decision this one revokes.
+    #[serde(rename = "revokes")]
     pub parameter: String,
     /// A boolean output of this decision; the effect holds only when it is
     /// true. Without it the effect always holds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub when: Option<String>,
-}
-
-/// What a decision does with another decision (schema v0.8.14).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EffectKind {
-    /// The other decision's consequences no longer count.
-    Revokes,
-    /// The other decision's consequences no longer count, and this
-    /// decision's consequences count in their place.
-    Replaces,
-}
-
-/// The map form of a [`DecisionEffect`], only for (de)serializing it.
-#[doc(hidden)]
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct DecisionEffectFields {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    revokes: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    replaces: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    when: Option<String>,
-}
-
-impl TryFrom<DecisionEffectFields> for DecisionEffect {
-    type Error = String;
-
-    fn try_from(fields: DecisionEffectFields) -> Result<Self, Self::Error> {
-        let (kind, parameter) = match (fields.revokes, fields.replaces) {
-            (Some(p), None) => (EffectKind::Revokes, p),
-            (None, Some(p)) => (EffectKind::Replaces, p),
-            _ => return Err("an effect names exactly one of `revokes` and `replaces`".to_string()),
-        };
-        Ok(Self {
-            kind,
-            parameter,
-            when: fields.when,
-        })
-    }
-}
-
-impl From<DecisionEffect> for DecisionEffectFields {
-    fn from(effect: DecisionEffect) -> Self {
-        let (revokes, replaces) = match effect.kind {
-            EffectKind::Revokes => (Some(effect.parameter), None),
-            EffectKind::Replaces => (None, Some(effect.parameter)),
-        };
-        Self {
-            revokes,
-            replaces,
-            when: effect.when,
-        }
-    }
 }
 
 impl ProducedItem {
@@ -1443,21 +1386,6 @@ where
         .transpose()
 }
 
-/// Deserialize a string that must be an [`is_article_reference`].
-fn article_reference<'de, D>(deserializer: D) -> Result<String, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    if is_article_reference(&s) {
-        Ok(s)
-    } else {
-        Err(serde::de::Error::custom(format!(
-            "'{s}' is not <regulation>#<article> without a paragraph"
-        )))
-    }
-}
-
 /// Deserialize an optional string that, when present, must be an
 /// [`is_article_reference`].
 fn optional_article_reference<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
@@ -1898,24 +1826,36 @@ pub struct MachineReadable {
 #[serde(deny_unknown_fields)]
 pub struct Projection {
     /// The parameter of the reduction that names whose records are played,
-    /// such as an applicant. Without it, every record is played.
+    /// such as an applicant. A record holds its key under the same name, as
+    /// a field or an output. Without it, every record is played.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub key: Option<String>,
     pub state: Vec<StateProperty>,
     pub steps: Vec<ProjectionStep>,
 }
 
-/// One property of a projection's state, with its value before the first
-/// record.
+/// One property of a projection's state. Before the first record it holds
+/// the start value of its type ([`StateProperty::start`]).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StateProperty {
     pub name: String,
     #[serde(rename = "type")]
     pub property_type: ParameterType,
-    pub initial: Value,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+}
+
+impl StateProperty {
+    /// The value before the first record: false for a boolean, 0 for a
+    /// number or an amount, null for a string or a date.
+    pub fn start(&self) -> Value {
+        match self.property_type {
+            ParameterType::Boolean => Value::Bool(false),
+            ParameterType::Number | ParameterType::Amount => Value::Int(0),
+            _ => Value::Null,
+        }
+    }
 }
 
 /// What a record under one article does with the state: the properties it
@@ -1923,23 +1863,52 @@ pub struct StateProperty {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProjectionStep {
-    /// The article the record rests on, `<regulation>#<article>`.
-    #[serde(deserialize_with = "article_reference")]
+    /// The article the record rests on, `<regulation>#<article>`, with a
+    /// third segment `#<KIND>` when the article produces or requires more
+    /// than one kind of record: a submission kind, a legal character or
+    /// `EXECUTOGRAM`, such as `wet#1#BESCHIKKING`.
+    #[serde(deserialize_with = "step_record")]
     pub record: String,
-    /// Only records of this kind: a submission kind, a legal character or
-    /// `EXECUTOGRAM`.
-    #[serde(default, rename = "type", skip_serializing_if = "Option::is_none")]
-    pub record_type: Option<String>,
-    /// Only executograms of this fact.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fact: Option<String>,
-    /// The field of such a record that holds its key, compared with the
-    /// parameter `Projection::key` names.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub key: Option<String>,
     /// The properties this record sets, by name. Each is computed from the
     /// state before the record, so the order does not matter.
     pub set: BTreeMap<String, ActionValue>,
+}
+
+impl ProjectionStep {
+    /// The article the step is about and the kind it names, if any: `wet#1`
+    /// and `BESCHIKKING` for `wet#1#BESCHIKKING`.
+    pub fn basis_and_kind(&self) -> (&str, Option<&str>) {
+        split_kind(&self.record)
+    }
+}
+
+/// Split `<regulation>#<article>[#<KIND>]` into the article and the kind.
+fn split_kind(record: &str) -> (&str, Option<&str>) {
+    match record.split('#').count() {
+        3 => record
+            .rsplit_once('#')
+            .map_or((record, None), |(basis, kind)| (basis, Some(kind))),
+        _ => (record, None),
+    }
+}
+
+/// Deserialize `<regulation>#<article>`, optionally followed by `#<KIND>`,
+/// a kind in capitals.
+fn step_record<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    let (basis, kind) = split_kind(&s);
+    let kind_ok =
+        kind.is_none_or(|k| !k.is_empty() && k.chars().all(|c| c.is_ascii_uppercase() || c == '_'));
+    if is_article_reference(basis) && kind_ok {
+        Ok(s)
+    } else {
+        Err(serde::de::Error::custom(format!(
+            "'{s}' is not <regulation>#<article>, optionally with #<KIND>, without a paragraph"
+        )))
+    }
 }
 
 /// Represents a single article in a law

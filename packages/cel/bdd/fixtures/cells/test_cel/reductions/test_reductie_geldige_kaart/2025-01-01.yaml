@@ -30,16 +30,12 @@ articles:
         state:
           - name: in_bezit
             type: boolean
-            initial: false
           - name: aantal_verleend
             type: number
-            initial: 0
         steps:
           # A decision on an application, and a decision in the place of
           # another: both grant or refuse the card.
-          - record: test_chronicle_effects#1
-            type: BESCHIKKING
-            key: aanvrager
+          - record: test_chronicle_effects#1#BESCHIKKING
             set: &op_de_kaart
               in_bezit:
                 operation: OR
@@ -57,13 +53,8 @@ articles:
                         - 1
                 default: $state.aantal_verleend
           - record: test_chronicle_effects#3
-            type: BESCHIKKING
-            key: aanvrager
             set: *op_de_kaart
           - record: test_chronicle_effects#5
-            type: EXECUTOGRAM
-            fact: kaart_ingeleverd
-            key: aanvrager
             set:
               in_bezit: false
       execution:

@@ -2769,7 +2769,7 @@
         },
         "projection": {
           "type": "object",
-          "description": "Since v0.8.14, only in a `REDUCTIE`: the reduction plays a cell's chronicle forward and keeps a state, and its `execution` answers from the state after the last record, reading each property as `$state.<name>`. Each record may change the state through the step this reduction gives for its article (`steps`). A record whose article gives an effect on an earlier record (`produces[].effects`) that holds makes the engine rewind: it plays the chronicle again from the start, skipping the undone record, for as long as a record that undoes it still counts; a record that is revoked or replaced undoes nothing any more. An undone record is gone from the whole history (ex tunc); a change from a later day on is a step with a date property. The chronicle itself is never changed, and a record recorded after the calculation date is not played. Only a call that plays a chronicle (`evaluate_projection` in the Rust engine) answers from it; the engine refuses such an article on every other path: asked directly, from another rulework, at a stage, or with a `state` the caller passes. A step is pure: the next state follows from the state before and the record alone. One version of this reduction, the one in force on the calculation date, gives the initial state, every step and the answer; the effects of a record come from the version of its law in force on the day it was recorded. The engine records, per property, which record set it last. The article declares no parameter `state`.",
+          "description": "Since v0.8.14, only in a `REDUCTIE`: the reduction plays a cell's chronicle forward and keeps a state, and its `execution` answers from the state after the last record, reading each property as `$state.<name>`. Each record may change the state through the step this reduction gives for its article (`steps`). A record whose article gives an effect on an earlier record (`produces[].effects`) that holds makes the engine rewind: it plays the chronicle again from the start, skipping the revoked record, for as long as a record that revokes it still counts; a record that is itself revoked revokes nothing any more. A revoked record is gone from the whole history (ex tunc); a change from a later day on is a step with a date property. The chronicle itself is never changed, and a record recorded after the calculation date is not played. Only a call that plays a chronicle (`evaluate_projection` in the Rust engine) answers from it; the engine refuses such an article on every other path: asked directly, from another rulework, at a stage, or with a `state` the caller passes. A step is pure: the next state follows from the state before and the record alone. One version of this reduction, the one in force on the calculation date, gives every step and the answer; the effects of a record come from the version of its law in force on the day it was recorded. The engine records, per property, which record set it last. The article declares no parameter `state`.",
           "additionalProperties": false,
           "required": [
             "state",
@@ -2779,19 +2779,18 @@
             "key": {
               "type": "string",
               "pattern": "^[a-z_][a-z0-9_]*$",
-              "description": "The parameter of this article that names whose records are played, such as an applicant. A record belongs when its step names a key field (`steps[].key`) that holds this value. A record that refers to one of the partition, through its `refers_to` or a field an effect of its article names (such as `bestreden_besluit`), joins it too, transitively. It joins for its effects only when it belongs to someone else: when it carries a key field of its own with another value, or carries none and refers only to records of someone else. Such a record undoes or replaces what it names here as well, because what a record does with another follows from the law and not from the question; its step is not applied, and the trace shows it as counting for its effects only. A record that undoes such a record joins in the same way, so what it undid counts again. A record without a key field (or whose key field is null) joins through its reference, so a step without `key` plays only records that refer in. Records join only through what refers to them, never through what they refer to. An effect on a record outside the partition is ignored. The value passed for the key must be of the parameter's type. Without `key`, every record is played."
+              "description": "The parameter of this article that names whose records are played, such as an applicant. A record belongs when it holds this value under the same name, as a field or an output. A record that refers to one of the partition, through its `refers_to` or a field an effect of its article names (such as `bestreden_besluit`), joins it too, transitively. It joins for its effects only when it belongs to someone else: when it holds a key of its own with another value, or holds none and refers only to records of someone else. Such a record revokes what it names here as well, because what a record does with another follows from the law and not from the question; its step is not applied, and the trace shows it as counting for its effects only. A record that revokes such a record joins in the same way, so what it revoked counts again. A record without a key (or whose key is null) joins through its reference, so a record that holds no key plays only when it refers in. Records join only through what refers to them, never through what they refer to. An effect on a record outside the partition is ignored. The value passed for the key must be of the parameter's type. Without `key`, every record is played."
             },
             "state": {
               "type": "array",
               "minItems": 1,
-              "description": "The properties of the state, each with its type and the value it has before the first record.",
+              "description": "The properties of the state, each with its type. Before the first record a property holds the start value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date.",
               "items": {
                 "type": "object",
                 "additionalProperties": false,
                 "required": [
                   "name",
-                  "type",
-                  "initial"
+                  "type"
                 ],
                 "properties": {
                   "name": {
@@ -2808,10 +2807,7 @@
                       "amount",
                       "date"
                     ],
-                    "description": "The type of the property."
-                  },
-                  "initial": {
-                    "description": "The value of the property before the first record: a literal of its type."
+                    "description": "The type of the property, which also gives its start value. A string or a date starts as null and may be set to null again."
                   },
                   "description": {
                     "type": "string"
@@ -2831,20 +2827,16 @@
                 ],
                 "properties": {
                   "record": {
-                    "$ref": "#/definitions/articleReference",
-                    "description": "The article the record rests on (its `basis`), as `<regulation>#<article>`."
-                  },
-                  "type": {
                     "type": "string",
-                    "description": "Only records of this kind: a submission kind, a legal character or `EXECUTOGRAM`. Without it, every record under the article."
-                  },
-                  "fact": {
-                    "type": "string",
-                    "description": "Only executograms of this fact, by the name the article gives it in `requires`."
-                  },
-                  "key": {
-                    "type": "string",
-                    "description": "The field of such a record that holds its key (`projection.key`). Field names differ per kind of record, so each step names its own."
+                    "pattern": "^[a-z0-9_]+#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?(#[A-Z][A-Z_]*)?$",
+                    "not": {
+                      "pattern": " lid [0-9]"
+                    },
+                    "description": "The article the record rests on (its `basis`), as `<regulation>#<article>`. When the article produces or requires more than one kind of record, a third segment names the kind: a submission kind, a legal character or `EXECUTOGRAM`, such as `test_chronicle_effects#1#BESCHIKKING` for the decision of an article that also establishes an application. Without it the article must give one kind of record; with it, the kind must be one the article gives. A step on an article that requires a fact applies to the instances of that fact; an article that requires more than one fact cannot have a step. The engine checks this when it plays the projection, because the reduction and the law are separate regelwerken.",
+                    "examples": [
+                      "test_chronicle_effects#3",
+                      "test_chronicle_effects#1#BESCHIKKING"
+                    ]
                   },
                   "set": {
                     "type": "object",
@@ -2855,7 +2847,7 @@
                     "additionalProperties": {
                       "$ref": "#/definitions/operationValue"
                     },
-                    "description": "The properties this record sets, each to a value computed from `$state.<name>` (the state before the record) and `$record.<field>` (the record's fields and outputs, its `id`, `basis` and `type`). A property it does not name keeps its value. Every name must be a property of the state, and every value must be of that property's type: the loader checks the names and the literals, the engine checks a computed value when the step runs. A null fits no type, so a step that may read an absent value gives a value of the type instead."
+                    "description": "The properties this record sets, each to a value computed from `$state.<name>` (the state before the record) and `$record.<field>` (the record's fields and outputs). A property it does not name keeps its value. Every name must be a property of the state, and every value must be of that property's type: the loader checks the names and the literals, the engine checks a computed value when the step runs. A null fits only a string or a date."
                   }
                 }
               }
@@ -3256,37 +3248,24 @@
           "type": "array",
           "items": {
             "type": "object",
-            "description": "Since v0.8.14: one thing a decision does with another decision, named by a parameter of the article whose value is that decision. Exactly one of `revokes` and `replaces`, and optionally `when`.",
+            "description": "Since v0.8.14: a decision this decision revokes, named by a parameter of the article whose value is that decision, and optionally `when`.",
             "additionalProperties": false,
-            "oneOf": [
-              {
-                "required": [
-                  "revokes"
-                ]
-              },
-              {
-                "required": [
-                  "replaces"
-                ]
-              }
-            ],
             "properties": {
               "revokes": {
                 "type": "string",
-                "description": "The parameter whose value is the decision this one revokes: its consequences no longer count (Awb 7:11 lid 2)."
-              },
-              "replaces": {
-                "type": "string",
-                "description": "The parameter whose value is the decision this one takes the place of: the consequences of that decision no longer count, and those of this one do (Awb 7:11 lid 2)."
+                "description": "The parameter whose value is the decision this one revokes: its consequences no longer count (Awb 7:11 lid 2). A decision in the place of another revokes it, and counts as a decision of its own."
               },
               "when": {
                 "type": "string",
                 "description": "A boolean output of this decision (one its `outputs` lists, or without that list, one no other item lists); the effect holds only when the decision has it as true, such as a revocation that follows only from a well-founded objection (Awb 7:11 lid 2). Without it the effect always holds. The loader checks that it names a boolean output of this decision."
               }
-            }
+            },
+            "required": [
+              "revokes"
+            ]
           },
           "minItems": 1,
-          "description": "Since v0.8.14, only on a decision: what this decision does with another decision, such as the decision on an objection that revokes the contested decision (Awb 7:11 lid 2) or takes a new decision in its place. Each effect names a parameter of this article whose value is the other decision, and with `when` a boolean output of this decision that must be true for the effect to hold. A runtime that records decisions plays the effects in the order the decisions were recorded, and from them derives which decisions still have consequences: a revoked decision has none, a replaced one has none and its replacement has them. A decision that is itself revoked or replaced undoes nothing any more, so a decision it alone revoked or replaced has consequences again; a replacement that should keep an undoing in force declares that effect itself. An undoing takes a decision out of the whole history (ex tunc); an effect from a later day on (ex nunc) is written as a step of the reduction with a date property. The engine carries the effects out when it plays a chronicle through a reduction with a `projection`; the loader checks that it sits on a decision, that every named parameter is a parameter of the article, and that every `when` names a boolean output of the decision."
+          "description": "Since v0.8.14, only on a decision: the decisions it revokes, such as the decision on an objection that revokes the contested decision (Awb 7:11 lid 2), or a new decision in the place of the contested one, which revokes it and counts itself. Each effect names a parameter of this article whose value is the other decision, and with `when` a boolean output of this decision that must be true for the effect to hold. A runtime that records decisions plays the effects in the order the decisions were recorded, and from them derives which decisions still have consequences: a revoked decision has none. A decision that is itself revoked revokes nothing any more, so a decision it alone revoked has consequences again; a new decision that should keep a revocation in force declares that effect itself. A revocation takes a decision out of the whole history (ex tunc); an effect from a later day on (ex nunc) is written as a step of the reduction with a date property. The engine carries the effects out when it plays a chronicle through a reduction with a `projection`; the loader checks that it sits on a decision, that every named parameter is a parameter of the article, and that every `when` names a boolean output of the decision."
         },
         "decision_type": {
           "type": "string",

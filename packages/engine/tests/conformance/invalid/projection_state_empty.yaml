@@ -16,12 +16,9 @@ articles:
         state: []
         steps:
           - record: test_conformance_decision_effects#2
-            type: BESCHIKKING
             set:
               in_bezit: $record.verleend
           - record: test_conformance_fact#1
-            type: EXECUTOGRAM
-            fact: vestiging
             set:
               in_bezit: false
       execution:

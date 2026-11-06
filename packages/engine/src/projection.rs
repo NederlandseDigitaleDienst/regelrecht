@@ -1,27 +1,29 @@
 //! A reduction that plays a cell's chronicle forward (schema v0.8.14).
 //!
-//! The reduction declares a state (`projection.state`) and, per article a
+//! The reduction declares a state (`projection.state`), each property with
+//! its type and starting from that type's start value, and, per article a
 //! record rests on, what such a record does with it (`projection.steps`).
 //! The engine plays the records the cell knew on the calculation date in the
 //! order the cell recorded them. Each step is pure: the next state follows
 //! from the state before and the record alone. One version of the reduction,
-//! the one in force on the calculation date, gives the initial state, every
-//! step and the answer: the reduction is the cell's reading, not law. The
+//! the one in force on the calculation date, gives the state, every step
+//! and the answer: the reduction is the cell's reading, not law. The
 //! reduction's `execution` answers from the last state, reading each
 //! property as `$state.<name>`.
 //!
 //! What a record does with an earlier record is law, not part of the
-//! reduction: the article of a decision says it revokes or replaces another
-//! decision (`produces[].effects`, optionally only `when` an outcome is true),
+//! reduction: the article of a decision says it revokes another decision
+//! (`produces[].effects`, optionally only `when` an outcome is true),
 //! under the version of that law in force on the day the record was
 //! recorded. The engine carries that out by rewinding. When an effect of a
 //! record that counts undoes an earlier record that was applied, the engine
 //! plays the chronicle again from the start and skips the undone record. A
 //! record is skipped for as long as at least one record that undoes it
-//! counts. A record that is itself revoked or replaced undoes nothing any
-//! more, so a record it alone undid counts again and the engine rewinds once
-//! more; a replacement that should keep an undoing in force declares that
-//! effect itself. The chronicle is never changed. Nothing is reverted
+//! counts. A record that is itself revoked undoes nothing any more, so a
+//! record it alone undid counts again and the engine rewinds once more. A
+//! decision in the place of another revokes it and counts as a record of
+//! its own; one that should keep an undoing in force declares that effect
+//! itself. The chronicle is never changed. Nothing is reverted
 //! property by property: a property a later record also set keeps the later
 //! value, because the replay computes it again. An undone record is gone
 //! from the whole history (ex tunc); a change from a later day on is a step
@@ -36,7 +38,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::NaiveDate;
-use regelrecht_law_model::{Article, EffectKind, Projection, ProjectionStep};
+use regelrecht_law_model::{Article, Projection, ProjectionStep, StateProperty};
 use serde::{Deserialize, Serialize};
 
 use crate::answer::Call;
@@ -78,20 +80,9 @@ pub struct ChronicleRecord {
 pub enum RewindCause {
     /// A record revokes an earlier one that was applied.
     Revokes,
-    /// A record replaces an earlier one that was applied.
-    Replaces,
-    /// A record that undid an earlier one is itself revoked or replaced now,
-    /// and no other record undoes the earlier one any more: it counts again.
+    /// A record that undid an earlier one is itself revoked now, and no
+    /// other record undoes the earlier one any more: it counts again.
     Revives,
-}
-
-impl From<EffectKind> for RewindCause {
-    fn from(kind: EffectKind) -> Self {
-        match kind {
-            EffectKind::Revokes => Self::Revokes,
-            EffectKind::Replaces => Self::Replaces,
-        }
-    }
 }
 
 /// One property a record set: its value before and after.
@@ -207,6 +198,7 @@ impl LawExecutionService {
             .filter(|r| r.recorded_on <= day)
             .cloned()
             .collect();
+        self.check_steps(law_id, &projection, day)?;
         let partition = self.partition(&projection, key_type.as_ref(), &known, &parameters)?;
         let played = self.play(law_id, &projection, &known, &partition)?;
 
@@ -254,7 +246,7 @@ impl LawExecutionService {
         // undone_by[t]: the records with an effect on t that held when they
         // were last played, each with what it does to t. A record is skipped
         // while this is not empty.
-        let mut undone_by: BTreeMap<&str, BTreeMap<&str, EffectKind>> = BTreeMap::new();
+        let mut undone_by: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
         let mut events = Vec::new();
         // Each rewind follows from a record changing whether an earlier one
         // counts, and effects only reach back, so the replays settle. A
@@ -268,7 +260,7 @@ impl LawExecutionService {
             let mut state: BTreeMap<String, Value> = projection
                 .state
                 .iter()
-                .map(|p| (p.name.clone(), p.initial.clone()))
+                .map(|p| (p.name.clone(), p.start()))
                 .collect();
             let mut set_by: BTreeMap<String, Option<String>> = projection
                 .state
@@ -284,23 +276,20 @@ impl LawExecutionService {
                 }
                 let undoers: Vec<String> = undone_by
                     .get(record.id.as_str())
-                    .map(|u| u.keys().map(|id| id.to_string()).collect())
+                    .map(|u| u.iter().map(|id| id.to_string()).collect())
                     .unwrap_or_default();
                 if !undoers.is_empty() {
                     events.push(ProjectionEvent::Skipped {
                         record: record.id.clone(),
                         undone_by: undoers,
                     });
-                    // A record that is skipped, revoked or replaced, undoes
-                    // nothing any more: a record it alone undid counts
-                    // again. A replacer that should keep an undoing in force
-                    // says so itself, with an effect of its own.
+                    // A record that is skipped or revoked undoes nothing any
+                    // more: a record it alone undid counts again. A decision
+                    // in the place of another that should keep a revocation
+                    // in force says so itself, with an effect of its own.
                     let mut revived = None;
                     for (target, by) in undone_by.iter_mut() {
-                        if by.remove(record.id.as_str()).is_some()
-                            && by.is_empty()
-                            && revived.is_none()
-                        {
+                        if by.remove(record.id.as_str()) && by.is_empty() && revived.is_none() {
                             revived = Some(target.to_string());
                         }
                     }
@@ -318,18 +307,17 @@ impl LawExecutionService {
                 // An effect on a record of another partition is that
                 // partition's business.
                 let effects = self.holding_effects(record, &records[..i])?;
-                for (kind, target) in effects.into_iter().filter(|(_, t)| partition.holds(t)) {
+                for target in effects.into_iter().filter(|t| partition.holds(t)) {
                     undone_by
                         .entry(target)
                         .or_default()
-                        .entry(record.id.as_str())
-                        .or_insert(kind);
+                        .insert(record.id.as_str());
                     // A target that was applied had no undoer yet: one would
                     // have made the replay skip it.
                     if applied.contains(target) {
                         rewind = Some(ProjectionEvent::Rewound {
                             record: record.id.clone(),
-                            cause: kind.into(),
+                            cause: RewindCause::Revokes,
                             target: target.to_string(),
                         });
                         break 'records;
@@ -369,7 +357,7 @@ impl LawExecutionService {
                 } = event
                 {
                     if let Some(now) = undone_by.get(record.as_str()).filter(|n| !n.is_empty()) {
-                        *by = now.keys().map(|id| id.to_string()).collect();
+                        *by = now.iter().map(|id| id.to_string()).collect();
                     }
                 }
             }
@@ -387,6 +375,65 @@ impl LawExecutionService {
         Err(EngineError::InvalidOperation(format!(
             "the projection of '{law_id}' does not settle after {max_passes} replays"
         )))
+    }
+
+    /// Refuse a step that does not say which records of its article it is
+    /// about: an article with more than one kind of record needs the kind
+    /// (`<article>#<KIND>`), the kind must be one the article gives, and a
+    /// step cannot pick one of several facts of an article. The article is
+    /// the one in force on `day`. This runs when the projection is played,
+    /// because the reduction and the law are separate regelwerken that load
+    /// in any order.
+    fn check_steps(&self, law_id: &str, projection: &Projection, day: NaiveDate) -> Result<()> {
+        for step in &projection.steps {
+            let (basis, kind) = step.basis_and_kind();
+            let refuse = |why: String| {
+                Err(EngineError::InvalidOperation(format!(
+                    "the step of '{law_id}' on {}: {why}",
+                    step.record
+                )))
+            };
+            let article = basis.split_once('#').and_then(|(law, number)| {
+                self.resolver()
+                    .get_law_for_date(law, Some(day))
+                    .and_then(|l| l.find_article_by_number(number))
+            });
+            let Some(article) = article else {
+                return refuse(format!("{basis} names no article in force on {day}"));
+            };
+            let kinds = kinds_of(article);
+            let mut distinct = kinds.clone();
+            distinct.dedup();
+            match kind {
+                None if distinct.len() > 1 => {
+                    return refuse(format!(
+                        "needs a kind: the article gives {}; write {basis}#{}",
+                        distinct.join(" and "),
+                        distinct.last().map_or("", String::as_str)
+                    ))
+                }
+                Some(kind) if !kinds.iter().any(|k| k == kind) => {
+                    return refuse(format!(
+                        "the article gives no {kind}, only {}",
+                        if distinct.is_empty() {
+                            "nothing".to_string()
+                        } else {
+                            distinct.join(" and ")
+                        }
+                    ))
+                }
+                _ if kinds.iter().filter(|k| *k == EXECUTOGRAM).count() > 1
+                    && kind.is_none_or(|k| k == EXECUTOGRAM) =>
+                {
+                    return refuse(
+                        "the article requires more than one fact; a step cannot pick one"
+                            .to_string(),
+                    )
+                }
+                _ => {}
+            }
+        }
+        Ok(())
     }
 
     /// The article `record` rests on, in the law of the day it was recorded.
@@ -409,21 +456,20 @@ impl LawExecutionService {
     /// The records of the chronicle that belong to the key the reduction is
     /// asked for (`projection.key`), or all records when it names none.
     ///
-    /// A record belongs when the step for it names a key field (`key`) that
-    /// holds the asked key. A record that refers to a record of the
+    /// A record belongs when it holds the asked key under the key's name,
+    /// as a field or an output. A record that refers to a record of the
     /// partition (`refers_to`, or a field an effect of its article names,
     /// such as `bestreden_besluit`) joins it too, transitively. It joins for
-    /// its effects only when it is someone else's: when it carries a key
-    /// field of its own with another value, or carries none and refers only
-    /// to records that are someone else's. Such a record still undoes or
-    /// replaces what it names, because the law says once what a record does
+    /// its effects only when it is someone else's: when it holds a key of its
+    /// own with another value, or holds none and refers only to records
+    /// that are someone else's. Such a record still revokes what it names, because the law says once what a record does
     /// with another, whatever the question is keyed on; its step is not
     /// applied. Following references through it keeps the effects right: a
     /// record that undoes it joins too, and what it undid counts again.
     /// Records only join through what refers to them later, never through
     /// what they refer to, so the partition stays the records reachable
-    /// from the key. A record whose step names no key field (or that has no
-    /// step) therefore plays only when it refers in. The chronicle lists a
+    /// from the key. A record without a key therefore plays only when it
+    /// refers in. The chronicle lists a
     /// record after what it refers to, which one pass in its order relies on.
     fn partition(
         &self,
@@ -450,17 +496,13 @@ impl LawExecutionService {
         let mut members: BTreeSet<String> = BTreeSet::new();
         let mut foreign: BTreeMap<String, String> = BTreeMap::new();
         for record in records {
-            let own = step_for(projection, record)
-                .and_then(|s| s.key.as_ref())
-                .and_then(|field| {
-                    record
-                        .fields
-                        .get(field)
-                        .or_else(|| record.outputs.get(field))
-                        // A key field that holds null is no key.
-                        .filter(|value| !matches!(value, Value::Null))
-                        .map(|value| (field, value))
-                });
+            let own = record
+                .fields
+                .get(key_parameter)
+                .or_else(|| record.outputs.get(key_parameter))
+                // A key that holds null is no key.
+                .filter(|value| !matches!(value, Value::Null))
+                .map(|value| (key_parameter, value));
             if own.is_some_and(|(_, value)| value == key) {
                 members.insert(record.id.clone());
                 continue;
@@ -512,7 +554,7 @@ impl LawExecutionService {
         &self,
         record: &ChronicleRecord,
         earlier: &'r [ChronicleRecord],
-    ) -> Result<Vec<(EffectKind, &'r str)>> {
+    ) -> Result<Vec<&'r str>> {
         let article = self.article_of(record)?;
         // A submission and an executogram undo nothing; a decision has the
         // effects its article gives it. A record of a kind its article does
@@ -560,7 +602,7 @@ impl LawExecutionService {
                     record.id, record.basis
                 ))
             })?;
-            holding.push((effect.kind, target.id.as_str()));
+            holding.push(target.id.as_str());
         }
         Ok(holding)
     }
@@ -581,18 +623,34 @@ impl Partition {
     }
 }
 
-/// The step the reduction gives for `record`, if any.
+/// The step the reduction gives for `record`, if any: the one on its
+/// article, of its kind when the step names one. A step without a kind is
+/// on an article that has one kind of record ([`LawExecutionService::check_steps`]).
 fn step_for<'p>(
     projection: &'p Projection,
     record: &ChronicleRecord,
 ) -> Option<&'p ProjectionStep> {
     projection.steps.iter().find(|s| {
-        s.record == record.basis
-            && s.record_type.as_ref().is_none_or(|t| t == &record.kind)
-            && s.fact
-                .as_ref()
-                .is_none_or(|f| Some(f) == record.fact.as_ref())
+        let (basis, kind) = s.basis_and_kind();
+        basis == record.basis && kind.is_none_or(|k| k == record.kind)
     })
+}
+
+/// The kinds of record an article gives: per item it produces, its kind (a
+/// submission kind or a legal character), and `EXECUTOGRAM` per fact it
+/// requires.
+fn kinds_of(article: &Article) -> Vec<String> {
+    let produced = article.get_produced().into_iter().filter_map(|p| {
+        p.submission_kind()
+            .or(p.legal_character())
+            .map(str::to_string)
+    });
+    let facts = article
+        .get_requires()
+        .iter()
+        .filter(|r| r.fact.is_some())
+        .map(|_| EXECUTOGRAM.to_string());
+    produced.chain(facts).collect()
 }
 
 /// The state, its provenance and the events after the last replay.
@@ -616,13 +674,10 @@ fn step(
         return Ok(Vec::new());
     };
 
-    // The record's fields, then its outputs, then `id`, `basis` and `type`;
-    // a later one wins over a field of the same name.
+    // The record's fields, then its outputs; an output wins over a field of
+    // the same name.
     let mut row = record.fields.clone();
     row.extend(record.outputs.clone());
-    row.insert("id".to_string(), Value::String(record.id.clone()));
-    row.insert("basis".to_string(), Value::String(record.basis.clone()));
-    row.insert("type".to_string(), Value::String(record.kind.clone()));
     let parameters = BTreeMap::from([
         (STATE.to_string(), Value::Object(state.clone())),
         ("record".to_string(), Value::Object(row)),
@@ -638,7 +693,7 @@ fn step(
             ))
         })?;
         let declared = projection.state.iter().find(|p| &p.name == property);
-        if let Some(declared) = declared.filter(|p| !fits_state_type(&p.property_type, &to)) {
+        if let Some(declared) = declared.filter(|p| !fits_property(p, &to)) {
             return Err(EngineError::InvalidOperation(format!(
                 "the step of '{law_id}' for record '{}' ({}) sets '{property}' to {to:?}, which \
                  is no {:?}",
@@ -653,6 +708,15 @@ fn step(
         });
     }
     Ok(changes)
+}
+
+/// Whether a step may give `property` the value `value`: one of its type,
+/// or null for a string or a date, whose start value is null.
+pub(crate) fn fits_property(property: &StateProperty, value: &Value) -> bool {
+    match value {
+        Value::Null => property.start().is_null(),
+        _ => fits_state_type(&property.property_type, value),
+    }
 }
 
 /// Whether `value` is a value of `ty`, one of the types a property of a
@@ -753,7 +817,6 @@ pub fn describe_changes(changes: &[StateChange]) -> String {
 pub fn cause_word(cause: RewindCause) -> &'static str {
     match cause {
         RewindCause::Revokes => "revokes",
-        RewindCause::Replaces => "replaces",
         RewindCause::Revives => "revives",
     }
 }
@@ -772,7 +835,8 @@ mod tests {
     use super::*;
 
     /// Article 1 grants (`verleend`), article 2 revokes `bestreden` when
-    /// `herroepen`, article 3 replaces `bestreden`, article 4 requires the
+    /// `herroepen`, article 3 takes a decision in the place of `bestreden`
+    /// (it revokes it), article 4 requires the
     /// fact `ingeleverd`.
     const LAW: &str = r#"
 $id: wet
@@ -805,7 +869,7 @@ articles:
       execution:
         produces:
           - type: BESCHIKKING
-            effects: [{replaces: bestreden}]
+            effects: [{revokes: bestreden}]
         parameters: [{name: bestreden, type: string}]
         output: [{name: verleend, type: boolean}]
         actions: [{output: verleend, value: false}]
@@ -831,19 +895,16 @@ articles:
     machine_readable:
       projection:
         state:
-          - {name: kaart, type: boolean, initial: false}
-          - {name: aantal, type: number, initial: 0}
+          - {name: kaart, type: boolean}
+          - {name: aantal, type: number}
         steps:
-          - record: wet#1
-            type: BESCHIKKING
+          - record: wet#1#BESCHIKKING
             set:
               kaart: $record.verleend
               aantal: {operation: ADD, values: [$state.aantal, 1]}
           - record: wet#3
             set: {kaart: $record.verleend}
           - record: wet#4
-            type: EXECUTOGRAM
-            fact: ingeleverd
             set: {kaart: false}
       execution:
         output: [{name: heeft_kaart, type: boolean}, {name: aantal, type: number}]
@@ -1003,7 +1064,7 @@ articles:
         assert_eq!(outcome.result.outputs["aantal"], Value::Int(0));
         assert!(outcome.events.contains(&ProjectionEvent::Rewound {
             record: "n".to_string(),
-            cause: RewindCause::Replaces,
+            cause: RewindCause::Revokes,
             target: "a".to_string(),
         }));
     }
@@ -1038,17 +1099,13 @@ articles:
     }
 
     #[test]
-    fn a_step_matches_the_kind_and_the_fact() {
+    fn a_step_matches_the_kind_its_record_names() {
         // A submission under article 1 has no step: only its decisions do.
         let submission = ChronicleRecord {
             kind: "AANVRAAG".to_string(),
             ..record("s", "1", &[], &[])
         };
-        let other_fact = ChronicleRecord {
-            fact: Some("iets_anders".to_string()),
-            ..handed_in("x")
-        };
-        let outcome = play(&[grant("a"), submission, other_fact]).unwrap();
+        let outcome = play(&[grant("a"), submission]).unwrap();
         assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(true));
         assert_eq!(outcome.set_by["kaart"].as_deref(), Some("a"));
         let outcome = play(&[grant("a"), handed_in("i")]).unwrap();
@@ -1377,7 +1434,7 @@ articles:
         };
         assert_eq!(
             messages(&[grant("a"), replace("n", "a")]),
-            ["n replaces a: play again from the start"]
+            ["n revokes a: play again from the start"]
         );
         assert_eq!(
             messages(&[
@@ -1404,14 +1461,7 @@ articles:
                         "      projection:\n        state:",
                         "      projection:\n        key: wie\n        state:",
                     )
-                    .replace(
-                        "          - record: wet#1\n            type: BESCHIKKING\n",
-                        "          - record: wet#1\n            type: BESCHIKKING\n            key: wie\n",
-                    )
-                    .replace(
-                        "          - record: wet#3\n",
-                        "          - record: wet#3\n            key: wie\n",
-                    )
+
                     .replace(
                         "      execution:\n        output: [{name: heeft_kaart",
                         "      execution:\n        parameters: [{name: wie, type: string}]\n        output: [{name: heeft_kaart",
@@ -1480,7 +1530,7 @@ articles:
 
     #[test]
     fn a_record_with_another_key_that_refers_in_counts_for_its_effects_only() {
-        // `n` replaces x's grant and carries y's key: for x it replaces the
+        // `n` revokes x's grant in its place and carries y's key: for x it revokes the
         // grant all the same, but its step does not give x a card.
         let records = [of(grant("a"), "x"), of(replace("n", "a"), "y")];
         let x = play_for("x", &records).unwrap();
@@ -1490,13 +1540,13 @@ articles:
         }));
         assert!(x.events.contains(&ProjectionEvent::Rewound {
             record: "n".to_string(),
-            cause: RewindCause::Replaces,
+            cause: RewindCause::Revokes,
             target: "a".to_string(),
         }));
         assert_eq!(skipped_in_last_replay(&x), ["a"]);
         assert_eq!(x.result.outputs["heeft_kaart"], Value::Bool(false));
         assert_eq!(x.result.outputs["aantal"], Value::Int(0));
-        // For y, `n` is its own record, and replaces a record outside y's
+        // For y, `n` is its own record, and revokes a record outside y's
         // partition: that effect is not y's business.
         let y = play_for("y", &records).unwrap();
         assert_eq!(records_in(&y), ["n"]);
@@ -1508,7 +1558,7 @@ articles:
 
     #[test]
     fn undoing_a_record_of_someone_else_revives_what_it_replaced() {
-        // `n` (y) replaces x's grant; `h` revokes `n` and carries no key. It
+        // `n` (y) revokes x's grant; `h` revokes `n` and carries no key. It
         // refers only to a record of someone else, so it counts for x for its
         // effects only, and x's grant counts again.
         let records = [
@@ -1567,11 +1617,115 @@ articles:
 
     #[test]
     fn a_keyless_step_plays_only_records_that_refer_in() {
-        // The step for article 4 (a fact handed in) names no key: such a
+        // A card handed in holds no `wie`: such a
         // record refers to nothing and never joins a partition.
         let outcome = play_for("x", &[of(grant("a"), "x"), handed_in("i")]).unwrap();
         assert_eq!(records_in(&outcome), ["a"]);
         assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(true));
+    }
+
+    #[test]
+    fn a_step_names_the_kind_only_where_the_article_has_more_than_one() {
+        let ask = |steps: &str| {
+            let mut service = service();
+            service
+                .load_law(
+                    &REDUCTION
+                        .replace("$id: reductie", "$id: reductie_soort")
+                        .replace(
+                            "          - record: wet#1#BESCHIKKING\n",
+                            &format!("          - record: {steps}\n"),
+                        ),
+                )
+                .unwrap();
+            service.evaluate_projection(
+                "reductie_soort",
+                &["heeft_kaart"],
+                &[grant("a")],
+                BTreeMap::new(),
+                "2025-03-01",
+                false,
+            )
+        };
+        // Article 1 gives an application and a decision.
+        let err = ask("wet#1").expect_err("no kind");
+        assert!(
+            err.to_string().contains(
+                "needs a kind: the article gives AANVRAAG and BESCHIKKING; write wet#1#BESCHIKKING"
+            ),
+            "{err}"
+        );
+        let err = ask("wet#1#BEZWAAR").expect_err("a kind it does not give");
+        assert!(
+            err.to_string()
+                .contains("the article gives no BEZWAAR, only AANVRAAG and BESCHIKKING"),
+            "{err}"
+        );
+        assert!(ask("wet#1#BESCHIKKING").is_ok());
+        // A kind on an article with one kind is allowed, but not needed.
+        let mut service = service();
+        service
+            .load_law(
+                &REDUCTION
+                    .replace("$id: reductie", "$id: reductie_soort")
+                    .replace(
+                        "          - record: wet#3\n",
+                        "          - record: wet#3#BESCHIKKING\n",
+                    ),
+            )
+            .unwrap();
+        assert!(service
+            .evaluate_projection(
+                "reductie_soort",
+                &["heeft_kaart"],
+                &[grant("a")],
+                BTreeMap::new(),
+                "2025-03-01",
+                false,
+            )
+            .is_ok());
+    }
+
+    #[test]
+    fn a_step_cannot_pick_one_of_two_facts() {
+        let mut service = LawExecutionService::new();
+        service
+            .load_law(&LAW.replace(
+                "        - fact: ingeleverd\n          parameters: [op]\n",
+                "        - fact: ingeleverd\n          parameters: [op]\n        - fact: verloren\n          parameters: [op]\n",
+            ))
+            .unwrap();
+        service.load_law(REDUCTION).unwrap();
+        let err = service
+            .evaluate_projection(
+                "reductie",
+                &["heeft_kaart"],
+                &[],
+                BTreeMap::new(),
+                "2025-03-01",
+                false,
+            )
+            .expect_err("two facts");
+        assert!(
+            err.to_string()
+                .contains("the article requires more than one fact; a step cannot pick one"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn a_state_starts_from_the_value_of_its_type() {
+        let property = |ty: &str| -> StateProperty {
+            serde_yaml_ng::from_str(&format!("{{name: p, type: {ty}}}")).unwrap()
+        };
+        assert_eq!(property("boolean").start(), Value::Bool(false));
+        assert_eq!(property("number").start(), Value::Int(0));
+        assert_eq!(property("amount").start(), Value::Int(0));
+        assert_eq!(property("string").start(), Value::Null);
+        assert_eq!(property("date").start(), Value::Null);
+        // A string or a date may be set to null again; a boolean may not.
+        assert!(fits_property(&property("string"), &Value::Null));
+        assert!(!fits_property(&property("boolean"), &Value::Null));
     }
 
     #[test]

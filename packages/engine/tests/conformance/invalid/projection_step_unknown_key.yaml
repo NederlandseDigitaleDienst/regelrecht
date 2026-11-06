@@ -1,5 +1,5 @@
 ---
-# A step of a projection names its article, kind, fact and what it sets;
+# A step of a projection names its record and what it sets;
 # nothing else (schema v0.8.14).
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: test_conformance_projection_step_unknown_key
@@ -17,16 +17,12 @@ articles:
         state:
           - name: in_bezit
             type: boolean
-            initial: false
             description: Of de aanvrager een kaart heeft.
         steps:
           - record: test_conformance_decision_effects#2
-            type: BESCHIKKING
             set:
               in_bezit: $record.verleend
           - record: test_conformance_fact#1
-            type: EXECUTOGRAM
-            fact: vestiging
             when: $record.verleend
             set:
               in_bezit: false

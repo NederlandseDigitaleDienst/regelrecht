@@ -698,14 +698,6 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
                     format!("plays the records of one '{key}', which is no parameter it declares"),
                 );
             }
-        } else if let Some(step) = projection.steps.iter().find(|s| s.key.is_some()) {
-            return refuse(
-                where_,
-                format!(
-                    "names a key field for records under {}, but its projection has no key",
-                    step.record
-                ),
-            );
         }
         let declares_state = section
             .execution
@@ -723,12 +715,18 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
         }
         let mut names: Vec<&str> = Vec::new();
         for property in &projection.state {
-            if !crate::projection::fits_state_type(&property.property_type, &property.initial) {
+            if !matches!(
+                property.property_type,
+                regelrecht_law_model::ParameterType::Boolean
+                    | regelrecht_law_model::ParameterType::Number
+                    | regelrecht_law_model::ParameterType::Amount
+                    | regelrecht_law_model::ParameterType::String
+                    | regelrecht_law_model::ParameterType::Date
+            ) {
                 return refuse(
                     where_,
                     format!(
-                        "gives state property '{}' an initial value that is no {:?}, or a type \
-                         a state cannot have",
+                        "gives state property '{}' the type {:?}, which a state cannot have",
                         property.name, property.property_type
                     ),
                 );
@@ -744,16 +742,15 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
         for (i, step) in projection.steps.iter().enumerate() {
             // Two steps for one record would leave which one applies to the
             // order they are written in.
-            let overlaps =
-                |a: &Option<String>, b: &Option<String>| a.is_none() || b.is_none() || a == b;
+            let (basis, kind) = step.basis_and_kind();
             if projection.steps[..i].iter().any(|earlier| {
-                earlier.record == step.record
-                    && overlaps(&earlier.record_type, &step.record_type)
-                    && overlaps(&earlier.fact, &step.fact)
+                let (earlier_basis, earlier_kind) = earlier.basis_and_kind();
+                earlier_basis == basis
+                    && (earlier_kind.is_none() || kind.is_none() || earlier_kind == kind)
             }) {
                 return refuse(
                     where_,
-                    format!("has two steps for the same records under {}", step.record),
+                    format!("has two steps for the same records under {basis}"),
                 );
             }
             // A literal a step sets must fit the property; a computed value
@@ -762,9 +759,7 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
                 let property = projection.state.iter().find(|p| &p.name == name);
                 if let (Some(property), ActionValue::Literal(literal)) = (property, value) {
                     let reference = matches!(literal, Value::String(s) if s.starts_with('$'));
-                    if !reference
-                        && !crate::projection::fits_state_type(&property.property_type, literal)
-                    {
+                    if !reference && !crate::projection::fits_property(property, literal) {
                         return refuse(
                             where_,
                             format!(
@@ -1229,7 +1224,7 @@ articles:
                 "lists effects on its AANVRAAG",
             ),
             (
-                "          - type: BESCHIKKING\n            effects:\n              - replaces: q",
+                "          - type: BESCHIKKING\n            effects:\n              - revokes: q",
                 "names parameter 'q' in an effect",
             ),
             (
@@ -1257,14 +1252,20 @@ articles:
     }
 
     /// A decision's effects name a parameter of the article, and may depend
-    /// on a boolean output of the decision (schema v0.8.14).
+    /// on a boolean output of the decision (schema v0.8.14). There is one
+    /// kind of effect: `replaces` is no effect.
     #[test]
-    fn a_decision_may_revoke_or_replace_by_a_parameter() {
-        for effect in [
-            "revokes: p",
-            "replaces: p",
-            "revokes: p\n                when: x",
-        ] {
+    fn a_decision_may_revoke_by_a_parameter() {
+        let replaces =
+            "          - type: BESCHIKKING\n            effects:\n              - replaces: p";
+        let err = LawExecutionService::new()
+            .load_law(&law_producing(replaces))
+            .expect_err("replaces is no effect");
+        assert!(
+            err.to_string().contains("unknown field `replaces`"),
+            "{err}"
+        );
+        for effect in ["revokes: p", "revokes: p\n                when: x"] {
             let items = format!(
                 "          - type: BESCHIKKING\n            effects:\n              - {effect}"
             );
@@ -1314,17 +1315,18 @@ articles:
         )
     }
 
-    /// A projection sits in a reduction, names each property once, and its
-    /// steps set only those (schema v0.8.14).
+    /// A projection sits in a reduction, names each property once with a
+    /// type a state can have, and its steps set only those (schema v0.8.14).
     #[test]
     fn a_projection_keeps_to_its_own_state() {
-        let state = "        state:\n          - {name: a, type: boolean, initial: false}\n";
+        let state = "        state:\n          - {name: a, type: boolean}\n";
         let ok = format!("{state}        steps:\n          - {{record: wet#1, set: {{a: true}}}}");
         LawExecutionService::new()
             .load_law(&law_with_projection("REDUCTIE", &ok))
             .unwrap();
-        // Steps for different kinds of record under one article, and a date.
-        let kinds = "        state:\n          - {name: a, type: boolean, initial: false}\n          - {name: d, type: date, initial: '2025-01-01'}\n        steps:\n          - {record: wet#1, type: AANVRAAG, set: {a: true}}\n          - {record: wet#1, type: BESCHIKKING, set: {a: false}}";
+        // Steps for different kinds of record under one article, and a
+        // string that a step sets to null.
+        let kinds = "        state:\n          - {name: a, type: boolean}\n          - {name: s, type: string}\n        steps:\n          - {record: wet#1#AANVRAAG, set: {a: true}}\n          - {record: wet#1#BESCHIKKING, set: {a: false, s: null}}";
         LawExecutionService::new()
             .load_law(&law_with_projection("REDUCTIE", kinds))
             .unwrap();
@@ -1352,22 +1354,13 @@ articles:
             ),
             (
                 "REDUCTIE",
-                format!(
-                    "{state}          - {{name: a, type: number, initial: 0}}\n        steps: []"
-                ),
+                format!("{state}          - {{name: a, type: number}}\n        steps: []"),
                 "names state property 'a' twice",
             ),
             (
                 "REDUCTIE",
-                "        state:\n          - {name: a, type: boolean, initial: 0}\n        steps: []"
-                    .to_string(),
-                "initial value that is no Boolean",
-            ),
-            (
-                "REDUCTIE",
-                "        state:\n          - {name: a, type: array, initial: []}\n        steps: []"
-                    .to_string(),
-                "or a type a state cannot have",
+                "        state:\n          - {name: a, type: array}\n        steps: []".to_string(),
+                "the type Array, which a state cannot have",
             ),
             (
                 "REDUCTIE",
@@ -1381,12 +1374,7 @@ articles:
             ),
             (
                 "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1, key: aanvrager, set: {{a: true}}}}"),
-                "names a key field for records under wet#1, but its projection has no key",
-            ),
-            (
-                "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1, set: {{a: true}}}}\n          - {{record: wet#1, type: BESCHIKKING, set: {{a: false}}}}"),
+                format!("{state}        steps:\n          - {{record: wet#1, set: {{a: true}}}}\n          - {{record: wet#1#BESCHIKKING, set: {{a: false}}}}"),
                 "has two steps for the same records under wet#1",
             ),
             (
@@ -1396,13 +1384,13 @@ articles:
             ),
             (
                 "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1, type: BESCHIKKING, set: {{a: true}}}}\n          - {{record: wet#1, type: BESCHIKKING, set: {{a: false}}}}"),
-                "has two steps for the same records under wet#1",
+                format!("{state}        steps:\n          - {{record: wet#1, set: {{a: null}}}}"),
+                "sets 'a' for a record under wet#1 to a value that is no Boolean",
             ),
             (
                 "REDUCTIE",
-                "        state:\n          - {name: a, type: date, initial: 'morgen'}\n        steps: []".to_string(),
-                "initial value that is no Date",
+                format!("{state}        steps:\n          - {{record: wet#1#BESCHIKKING, set: {{a: true}}}}\n          - {{record: wet#1#BESCHIKKING, set: {{a: false}}}}"),
+                "has two steps for the same records under wet#1",
             ),
             (
                 "REDUCTIE",
@@ -1414,6 +1402,18 @@ articles:
                 .load_law(&law_with_projection(layer, &projection))
                 .expect_err(why);
             assert!(err.to_string().contains(why), "{why}: {err}");
+        }
+        // A kind is in capitals, after a third `#`.
+        for record in ["wet#1#beschikking", "wet#1#"] {
+            let projection = format!(
+                "{state}        steps:\n          - {{record: '{record}', set: {{a: true}}}}"
+            );
+            assert!(
+                LawExecutionService::new()
+                    .load_law(&law_with_projection("REDUCTIE", &projection))
+                    .is_err(),
+                "{record}"
+            );
         }
     }
 

@@ -19,17 +19,12 @@ articles:
         state:
           - name: in_bezit
             type: boolean
-            initial: false
             description: Of de aanvrager een kaart heeft.
         steps:
-          - record: test_conformance_decision_effects#2
-            type: BESCHIKKING
-            key: aanvrager
+          - record: test_conformance_decision_effects#2#BESCHIKKING
             set:
               in_bezit: $record.verleend
           - record: test_conformance_fact#1
-            type: EXECUTOGRAM
-            fact: vestiging
             set:
               in_bezit: false
       execution:

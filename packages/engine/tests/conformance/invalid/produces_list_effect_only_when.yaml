@@ -1,5 +1,5 @@
 ---
-# An effect names what the decision does, revokes or replaces; `when` alone
+# An effect names the decision it revokes; `when` alone
 # is no effect (schema v0.8.14).
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: test_conformance_effect_only_when

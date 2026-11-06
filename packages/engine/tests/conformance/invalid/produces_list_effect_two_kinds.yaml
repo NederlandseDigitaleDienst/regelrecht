@@ -1,6 +1,5 @@
 ---
-# One effect names one thing a decision does: revokes or replaces, not both
-# (schema v0.8.14).
+# A decision revokes another; `replaces` is no effect (schema v0.8.14).
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: test_conformance_effect_two_kinds
 regulatory_layer: WET

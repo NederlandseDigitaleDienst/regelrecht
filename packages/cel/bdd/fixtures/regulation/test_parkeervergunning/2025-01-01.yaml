@@ -50,7 +50,7 @@ articles:
             outputs:
               - vergunning_omgezet
             effects:
-              - replaces: oude_vergunning
+              - revokes: oude_vergunning
         parameters:
           - name: oude_vergunning
             type: string

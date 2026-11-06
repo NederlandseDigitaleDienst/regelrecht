@@ -32,8 +32,9 @@ Feature: A reduction plays the chronicle forward
     Then output "heeft_geldige_kaart" is true
     And property "in_bezit" was last set by "verlening"
     And the projection trace is:
-      | record    | event   | detail                                             |
-      | verlening | applied | aantal_verleend: 0 -> 1, in_bezit: false -> true   |
+      | record    | event   | detail                                           |
+      | aanvraag  | applied | -                                                |
+      | verlening | applied | aantal_verleend: 0 -> 1, in_bezit: false -> true |
 
   Scenario: An unfounded objection leaves the grant in place
     # Article 2 revokes only when its outcome `herroepen` is true, which
@@ -114,13 +115,17 @@ Feature: A reduction plays the chronicle forward
     And property "in_bezit" was last set by "tweede_verlening"
     And the projection trace is:
       | record           | event   | detail                                           |
+      | aanvraag         | applied | -                                                |
       | verlening        | applied | aantal_verleend: 0 -> 1, in_bezit: false -> true |
       | inlevering       | applied | in_bezit: true -> false                          |
+      | tweede_aanvraag  | applied | -                                                |
       | tweede_verlening | applied | aantal_verleend: 1 -> 2, in_bezit: false -> true |
       | bezwaar          | applied | -                                                |
       | herroeping       | rewound | revokes verlening                                |
+      | aanvraag         | applied | -                                                |
       | verlening        | skipped | undone by herroeping                             |
       | inlevering       | applied | in_bezit: false -> false                         |
+      | tweede_aanvraag  | applied | -                                                |
       | tweede_verlening | applied | aantal_verleend: 0 -> 1, in_bezit: false -> true |
       | bezwaar          | applied | -                                                |
       | herroeping       | applied | -                                                |
@@ -192,15 +197,19 @@ Feature: A reduction plays the chronicle forward
     And output "heeft_geldige_kaart" is true
     And the projection trace is:
       | record     | event   | detail                                           |
+      | aanvraag   | applied | -                                                |
       | verlening  | applied | aantal_verleend: 0 -> 1, in_bezit: false -> true |
       | intrekking | rewound | revokes verlening                                |
+      | aanvraag   | applied | -                                                |
       | verlening  | skipped | undone by intrekking                             |
       | intrekking | applied | -                                                |
       | bezwaar    | applied | -                                                |
       | herroeping | rewound | revokes intrekking                               |
+      | aanvraag   | applied | -                                                |
       | verlening  | skipped | undone by intrekking                             |
       | intrekking | skipped | undone by herroeping                             |
       | intrekking | rewound | revives verlening                                |
+      | aanvraag   | applied | -                                                |
       | verlening  | applied | aantal_verleend: 0 -> 1, in_bezit: false -> true |
       | intrekking | skipped | undone by herroeping                             |
       | bezwaar    | applied | -                                                |
@@ -233,9 +242,11 @@ Feature: A reduction plays the chronicle forward
     And output "heeft_geldige_kaart" is false
     And the projection trace is:
       | record       | event   | detail                                           |
+      | aanvraag     | applied | -                                                |
       | verlening    | applied | aantal_verleend: 0 -> 1, in_bezit: false -> true |
       | bezwaar_1    | applied | -                                                |
       | herroeping_1 | rewound | revokes verlening                                |
+      | aanvraag     | applied | -                                                |
       | verlening    | skipped | undone by herroeping_1, herroeping_2             |
       | bezwaar_1    | applied | -                                                |
       | herroeping_1 | applied | -                                                |
@@ -243,6 +254,7 @@ Feature: A reduction plays the chronicle forward
       | herroeping_2 | applied | -                                                |
       | bezwaar_3    | applied | -                                                |
       | herroeping_3 | rewound | revokes herroeping_1                             |
+      | aanvraag     | applied | -                                                |
       | verlening    | skipped | undone by herroeping_2                           |
       | bezwaar_1    | applied | -                                                |
       | herroeping_1 | skipped | undone by herroeping_3                           |
@@ -253,7 +265,7 @@ Feature: A reduction plays the chronicle forward
 
   Scenario: Replacing a replacement undoes its replacing
     # A record that is replaced undoes nothing any more: the first
-    # replacement no longer replaces the grant, which counts again beside
+    # replacement no longer revokes the grant, which counts again beside
     # the second replacement. A replacement that should keep the grant
     # replaced would say so with an effect of its own.
     When the cell records submission "aanvraag" under article "1" of "test_chronicle_effects" with:
@@ -276,7 +288,7 @@ Feature: A reduction plays the chronicle forward
 
   Scenario: Revoking the last replacement revives the one it replaced, not the grant
     # A record that is revoked undoes nothing any more. The first replacement
-    # counts again and replaces the grant again.
+    # counts again and revokes the grant again.
     When the cell records submission "aanvraag" under article "1" of "test_chronicle_effects" with:
       | ernstig_beperkt | true |
       | aanvrager       | burger_x |
@@ -300,7 +312,7 @@ Feature: A reduction plays the chronicle forward
     And output "heeft_geldige_kaart" is false
 
   Scenario: A warning in the place of a withdrawal brings the card back
-    # On objection the college replaces the withdrawal with a warning
+    # On objection the college gives a warning in the place of the withdrawal
     # (fictional article 6). The withdrawal undoes nothing any more.
     When the cell records submission "aanvraag" under article "1" of "test_chronicle_effects" with:
       | ernstig_beperkt | true |
@@ -382,18 +394,22 @@ Feature: A reduction plays the chronicle forward
     Then output "heeft_geldige_kaart" is true
     And the projection trace is:
       | record       | event   | detail                                           |
+      | aanvraag_x   | applied | -                                                |
       | verlening_x  | applied | aantal_verleend: 0 -> 1, in_bezit: false -> true |
       | bezwaar      | applied | -                                                |
       | herroeping   | rewound | revokes verlening_x                              |
+      | aanvraag_x   | applied | -                                                |
       | verlening_x  | skipped | undone by herroeping                             |
       | bezwaar      | applied | -                                                |
       | herroeping   | applied | -                                                |
       | bezwaar_2    | applied | -                                                |
       | herroeping_2 | rewound | revokes herroeping                               |
+      | aanvraag_x   | applied | -                                                |
       | verlening_x  | skipped | undone by herroeping                             |
       | bezwaar      | applied | -                                                |
       | herroeping   | skipped | undone by herroeping_2                           |
       | herroeping   | rewound | revives verlening_x                              |
+      | aanvraag_x   | applied | -                                                |
       | verlening_x  | applied | aantal_verleend: 0 -> 1, in_bezit: false -> true |
       | bezwaar      | applied | -                                                |
       | herroeping   | skipped | undone by herroeping_2                           |
@@ -404,14 +420,15 @@ Feature: A reduction plays the chronicle forward
     Then output "heeft_geldige_kaart" is true
     And the projection trace is:
       | record      | event   | detail                                           |
+      | aanvraag_y  | applied | -                                                |
       | verlening_y | applied | aantal_verleend: 0 -> 1, in_bezit: false -> true |
 
-  Scenario: A decision of another applicant in the place of a grant replaces it for both
+  Scenario: A decision of another applicant in the place of a grant revokes it for both
     # A decision in the place of X's grant that carries applicant Y is Y's
     # record, but what it does with X's grant is law, whoever the question is
     # about: X's grant no longer counts. For X it counts for its effect only,
     # so its step gives X no card. For Y it is Y's own record, and the grant
-    # it replaces is outside Y's records, so that effect is not Y's business.
+    # it revokes is outside Y's records, so that effect is not Y's business.
     When the cell records submission "aanvraag_x" under article "1" of "test_chronicle_effects" with:
       | ernstig_beperkt | true     |
       | aanvrager       | burger_x |
@@ -425,8 +442,10 @@ Feature: A reduction plays the chronicle forward
     And record "verlening_x" is skipped
     And the projection trace is:
       | record      | event        | detail                                           |
+      | aanvraag_x  | applied      | -                                                |
       | verlening_x | applied      | aantal_verleend: 0 -> 1, in_bezit: false -> true |
-      | besluit_y   | rewound      | replaces verlening_x                             |
+      | besluit_y   | rewound      | revokes verlening_x                              |
+      | aanvraag_x  | applied      | -                                                |
       | verlening_x | skipped      | undone by besluit_y                              |
       | besluit_y   | effects only | key differs: aanvrager                           |
     Given parameter "aanvrager" is "burger_y"
@@ -455,7 +474,7 @@ Feature: A reduction plays the chronicle forward
     And the projection trace is:
       | record     | event        | detail                      |
       | vergunning | applied      | vergunning: false -> true   |
-      | omzetting  | rewound      | replaces vergunning         |
+      | omzetting  | rewound      | revokes vergunning          |
       | vergunning | skipped      | undone by omzetting         |
       | omzetting  | effects only | key differs: kenteken       |
     Given parameter "kenteken" is "XY-34-ZZ"

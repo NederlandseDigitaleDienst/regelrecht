@@ -1,8 +1,8 @@
 ---
-# Every property of a projection's state has a value before the first
-# record (schema v0.8.14).
+# A property of a projection's state starts from the value of its type; it
+# names no initial value (schema v0.8.14).
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
-$id: test_conformance_projection_without_initial
+$id: test_conformance_projection_with_initial
 regulatory_layer: REDUCTIE
 publication_date: '2026-11-05'
 valid_from: '2026-11-05'
@@ -17,15 +17,13 @@ articles:
         state:
           - name: in_bezit
             type: boolean
+            initial: false
             description: Of de aanvrager een kaart heeft.
         steps:
           - record: test_conformance_decision_effects#2
-            type: BESCHIKKING
             set:
               in_bezit: $record.verleend
           - record: test_conformance_fact#1
-            type: EXECUTOGRAM
-            fact: vestiging
             set:
               in_bezit: false
       execution:
