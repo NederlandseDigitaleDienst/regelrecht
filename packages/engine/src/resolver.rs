@@ -552,7 +552,7 @@ impl RuleResolver {
         crate::load_check::reject_ambiguous_produces(&law)?;
         // RFC-051: a fact an article requires holds parameters it declares.
         crate::load_check::reject_malformed_facts(&law)?;
-        // Schema v0.8.14: a projection sits in a reduction and sets its own state.
+        // Schema v0.8.14: a projection sits in a reduction, keyed by a parameter.
         crate::load_check::reject_malformed_projection(&law)?;
 
         // RFC-036/RFC-037: hold the law to its own declarations before it can
