@@ -2083,6 +2083,14 @@ articles:
                 first,
                 "wet#5 cannot be applied: the article reads input 'buiten'",
             ),
+            (
+                LAW.replace(
+                    "    machine_readable:\n      execution:\n        parameters: [{name: verleend, type: boolean}, {name: aantal",
+                    "    machine_readable:\n      open_terms:\n        - {id: drempel, type: number, required: false}\n      execution:\n        parameters: [{name: verleend, type: boolean}, {name: aantal",
+                ),
+                first,
+                "wet#5 cannot be applied: the article has open terms",
+            ),
         ] {
             let err = ask(&law, (first, step));
             assert!(err.contains(why), "{why}: {err}");
