@@ -23,8 +23,9 @@ articles:
           - name: kenteken
             type: string
         steps:
-          # A grant and a move both make the resident the holder of a permit
-          # for the plate in the decision (article 4).
+          # A grant and a move both give a permit for the plate in the
+          # decision (article 4). The state and the record both hold a
+          # kenteken, so the step says which one the article reads.
           - record: test_parkeervergunning#1
             apply: test_parkeervergunning#4
             parameters:

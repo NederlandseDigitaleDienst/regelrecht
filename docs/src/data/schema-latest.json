@@ -2823,8 +2823,7 @@
                 "additionalProperties": false,
                 "required": [
                   "record",
-                  "apply",
-                  "output"
+                  "apply"
                 ],
                 "properties": {
                   "record": {
@@ -2841,7 +2840,7 @@
                   },
                   "apply": {
                     "$ref": "#/definitions/articleReference",
-                    "description": "The article that says what the record does with the state, as `<regulation>#<article>`. The engine runs it in the version in force on the day the record was recorded, as it does for effects, on the values `parameters` wires in. The article reads nothing else: an article with an `input` (with or without a `source`), with open terms or without outputs cannot be applied. Every parameter it declares must be wired. The engine checks this when it plays the projection, because the article is in another regelwerk."
+                    "description": "The article that says what the record does with the state, as `<regulation>#<article>`. The engine runs it in the version in force on the day the record was recorded, as it does for effects, on the values `parameters` wires in. The article reads nothing else: an article with an `input` (with or without a `source`), with open terms or without outputs cannot be applied. Every parameter it declares must be bound, by `parameters` or by name. The engine checks this when it plays the projection, because the article is in another regelwerk."
                   },
                   "parameters": {
                     "type": "object",
@@ -2852,11 +2851,10 @@
                       "type": "string",
                       "pattern": "^\\$(record|state)\\.[a-z0-9_]+$"
                     },
-                    "description": "Per parameter of the applied article, where its value comes from: `$record.<field>` (a field or output of the record) or `$state.<property>` (the state before the record). Nothing else: no operation, condition or literal, because what the record does belongs in the article. A field must be a parameter or output of the article the record rests on, a property must be one of the state, and its type must be the parameter's type."
+                    "description": "Per parameter of the applied article whose value has another name, where it comes from: `$record.<field>` (a field or output of the record) or `$state.<property>` (the state before the record). Nothing else: no operation, condition or literal, because what the record does belongs in the article. A parameter not named here takes the field of the record or the property of the state with its name; when both have that name, or neither, the engine refuses the step. A field must be a parameter or output of the article the record rests on, a property must be one of the state, and its type must be the parameter's type."
                   },
                   "output": {
                     "type": "object",
-                    "minProperties": 1,
                     "propertyNames": {
                       "pattern": "^[a-z_][a-z0-9_]*$"
                     },
@@ -2864,7 +2862,7 @@
                       "type": "string",
                       "pattern": "^[a-z_][a-z0-9_]*$"
                     },
-                    "description": "Per property of the state, the output of the applied article that sets it. A property it does not name keeps its value. Every name must be a property of the state, and every output must be one the article declares, of the property's type. A null fits only a string or a date."
+                    "description": "Per property of the state, the output of the applied article that sets it, where the names differ. An output with the name of a property sets that property without being named here; an entry here wins over it. An output that names no property is not used, and a step that sets no property at all is refused. A property set by no output keeps its value. Every name here must be a property of the state, and every output must be one the article declares, of the property's type. A null fits only a string or a date."
                   }
                 }
               }

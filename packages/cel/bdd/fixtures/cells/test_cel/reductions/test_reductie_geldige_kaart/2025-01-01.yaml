@@ -34,25 +34,20 @@ articles:
             type: number
         steps:
           # A decision on an application, and a decision in the place of
-          # another: both grant or refuse the card (article 7).
+          # another: both grant or refuse the card (article 7). Its
+          # parameters have the names of the state and the record; its
+          # outputs do not, because it reads and writes the same property.
           - record: test_chronicle_effects#1#BESCHIKKING
             apply: test_chronicle_effects#7
-            parameters: &op_de_kaart
-              in_bezit: $state.in_bezit
-              aantal_verleend: $state.aantal_verleend
-              kaart_verleend: $record.kaart_verleend
             output: &na_besluit
               in_bezit: in_bezit_na_besluit
               aantal_verleend: aantal_verleend_na_besluit
           - record: test_chronicle_effects#3
             apply: test_chronicle_effects#7
-            parameters: *op_de_kaart
             output: *na_besluit
-          # A card handed in (article 8).
+          # A card handed in (article 8) sets in_bezit by its name.
           - record: test_chronicle_effects#5
             apply: test_chronicle_effects#8
-            output:
-              in_bezit: in_bezit_na_inlevering
       execution:
         parameters:
           - name: aanvrager

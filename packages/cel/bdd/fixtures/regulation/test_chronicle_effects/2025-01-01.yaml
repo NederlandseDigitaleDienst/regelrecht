@@ -219,8 +219,8 @@ articles:
     machine_readable:
       execution:
         output:
-          - name: in_bezit_na_inlevering
+          - name: in_bezit
             type: boolean
         actions:
-          - output: in_bezit_na_inlevering
+          - output: in_bezit
             value: false

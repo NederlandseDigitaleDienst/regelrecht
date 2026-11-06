@@ -101,12 +101,12 @@ articles:
           - name: kenteken
             type: string
         output:
-          - name: houder
+          - name: vergunning
             type: boolean
           - name: kenteken_van_vergunning
             type: string
         actions:
-          - output: houder
+          - output: vergunning
             value: $verleend
           - output: kenteken_van_vergunning
             value: $kenteken

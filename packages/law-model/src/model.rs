@@ -1875,12 +1875,17 @@ pub struct ProjectionStep {
     /// `<regulation>#<article>`.
     #[serde(deserialize_with = "article_reference")]
     pub apply: String,
-    /// Per parameter of the applied article, where its value comes from:
-    /// `$record.<field>` or `$state.<property>`, nothing else.
+    /// Per parameter of the applied article whose value has another name,
+    /// where it comes from: `$record.<field>` or `$state.<property>`,
+    /// nothing else. A parameter not named here takes the field of the
+    /// record or the property of the state of the same name.
     #[serde(default)]
     pub parameters: BTreeMap<String, StepSource>,
     /// Per property of the state, the output of the applied article that
-    /// sets it. A property not named here keeps its value.
+    /// sets it, where the names differ. An output with the name of a
+    /// property sets it without being named here. A property set by no
+    /// output keeps its value.
+    #[serde(default)]
     pub output: BTreeMap<String, String>,
 }
 

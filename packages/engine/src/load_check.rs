@@ -756,12 +756,6 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
             // A step only wires: the state properties it reads and sets are
             // its own. Whether the applied article fits is checked when the
             // projection is played, because it is in another regelwerk.
-            if step.output.is_empty() {
-                return refuse(
-                    where_,
-                    format!("sets nothing for a record under {}", step.record),
-                );
-            }
             if let Some(name) = step.output.keys().find(|k| !names.contains(&k.as_str())) {
                 return refuse(
                     where_,
@@ -1330,6 +1324,11 @@ articles:
         LawExecutionService::new()
             .load_law(&law_with_projection("REDUCTIE", kinds))
             .unwrap();
+        // A step that wires nothing binds by name when it is played.
+        let by_name = format!("{state}        steps:\n          - {{record: wet#1, apply: wet#2}}");
+        LawExecutionService::new()
+            .load_law(&law_with_projection("REDUCTIE", &by_name))
+            .unwrap();
         let declares_state = law_with_projection("REDUCTIE", &ok).replace(
             "      execution:\n",
             "      execution:\n        parameters:\n          - {name: state, type: object}\n",
@@ -1381,11 +1380,6 @@ articles:
                 "REDUCTIE",
                 format!("{state}        steps:\n          - {{record: wet#1#BESCHIKKING, apply: wet#2, output: {{a: x}}}}\n          - {{record: wet#1#BESCHIKKING, apply: wet#2, output: {{a: x}}}}"),
                 "has two steps for the same records under wet#1",
-            ),
-            (
-                "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1, apply: wet#2, output: {{}}}}"),
-                "sets nothing for a record under wet#1",
             ),
         ] {
             let err = LawExecutionService::new()
