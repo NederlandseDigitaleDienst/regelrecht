@@ -782,6 +782,84 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
     Ok(())
 }
 
+/// `$state` is the state a projection gives (schema v0.8.14). An article
+/// with a projection reads it only as `$state.<property>`, and the property
+/// must be one its state declares: a misspelt name would otherwise load and
+/// fail only when a chronicle is played. Reading the state as a whole is
+/// refused too, because an answer names what it reads. An article without a
+/// projection has no state, so it cannot read `$state` unless it declares a
+/// variable of that name itself.
+pub(crate) fn reject_unknown_state(law: &ArticleBasedLaw) -> Result<()> {
+    use crate::projection::STATE;
+    for (where_, section) in sections(law) {
+        let Some(execution) = section.execution.as_ref() else {
+            continue;
+        };
+        let from_actions = execution
+            .actions
+            .iter()
+            .flatten()
+            .flat_map(crate::demand::referenced_paths);
+        let from_inputs = execution
+            .input
+            .iter()
+            .flatten()
+            .filter_map(|input| input.source.as_ref()?.parameters.as_ref())
+            .flat_map(|parameters| parameters.values())
+            .filter_map(|value| value.strip_prefix('$').map(str::to_string));
+        let reads: std::collections::BTreeSet<String> = from_actions
+            .chain(from_inputs)
+            .filter(|path| path == STATE || path.starts_with(&format!("{STATE}.")))
+            .collect();
+        let Some(first) = reads.iter().next() else {
+            continue;
+        };
+        let refuse = |why: String| {
+            Err(EngineError::LoadError(format!(
+                "law '{}' {where_}: {why}",
+                law.id
+            )))
+        };
+        let Some(projection) = &section.projection else {
+            let declares = execution
+                .parameters
+                .iter()
+                .flatten()
+                .any(|p| p.name == STATE)
+                || execution.input.iter().flatten().any(|i| i.name == STATE)
+                || execution.output.iter().flatten().any(|o| o.name == STATE);
+            if declares {
+                continue;
+            }
+            return refuse(format!(
+                "reads ${first}, but only a projection gives a state, and it has none"
+            ));
+        };
+        let declared: Vec<&str> = projection.state.iter().map(|p| p.name.as_str()).collect();
+        for path in &reads {
+            let property = path
+                .strip_prefix(&format!("{STATE}."))
+                .map(|rest| rest.split('.').next().unwrap_or(rest));
+            match property {
+                None => {
+                    return refuse(format!(
+                        "reads $state as a whole; name a property of its state: {}",
+                        declared.join(", ")
+                    ))
+                }
+                Some(name) if !declared.contains(&name) => {
+                    return refuse(format!(
+                        "reads $state.{name}, which is no property of its state: {}",
+                        declared.join(", ")
+                    ))
+                }
+                Some(_) => {}
+            }
+        }
+    }
+    Ok(())
+}
+
 fn unknown_literal(law: &ArticleBasedLaw, article: &str, where_: String) -> EngineError {
     EngineError::LoadError(format!(
         "law '{}': article {article} writes an unknown value as a literal ({where_}); \
@@ -1413,6 +1491,71 @@ articles:
                 "{record}"
             );
         }
+    }
+
+    /// An answer reads `$state.<property>` of a property its state declares;
+    /// a misspelt property, the state as a whole, or `$state` in an article
+    /// without a projection fails to load (schema v0.8.14).
+    #[test]
+    fn an_answer_reads_only_declared_state() {
+        let state = "        state:\n          - {name: a, type: boolean}\n        steps: []";
+        let load = |law: String| LawExecutionService::new().load_law(&law);
+        // A declared property, also inside a condition.
+        load(law_with_projection("REDUCTIE", state).replace(
+            "            value: $state.a\n",
+            "            value: {operation: AND, conditions: [$state.a, true]}\n",
+        ))
+        .unwrap();
+        for (law, why) in [
+            (
+                law_with_projection("REDUCTIE", state).replace("$state.a", "$state.b"),
+                "reads $state.b, which is no property of its state: a",
+            ),
+            (
+                law_with_projection("REDUCTIE", state).replace(
+                    "            value: $state.a\n",
+                    "            value: {operation: NOT, value: $state.vergunnig}\n",
+                ),
+                "reads $state.vergunnig, which is no property of its state: a",
+            ),
+            (
+                law_with_projection("REDUCTIE", state).replace("$state.a", "$state"),
+                "reads $state as a whole; name a property of its state: a",
+            ),
+            (
+                law_with_projection("REDUCTIE", state).replace(
+                    "      execution:\n",
+                    "      execution:\n        input:\n          - {name: i, type: boolean, source: {regulation: elders, output: o, parameters: {p: $state.c}}}\n",
+                ),
+                "reads $state.c, which is no property of its state: a",
+            ),
+            (
+                law_with_projection("REDUCTIE", state)
+                    .replace("      projection:\n", "")
+                    .replace(state, ""),
+                "reads $state.a, but only a projection gives a state, and it has none",
+            ),
+            (
+                law_with_projection("WET", state)
+                    .replace("      projection:\n", "")
+                    .replace(state, ""),
+                "reads $state.a, but only a projection gives a state, and it has none",
+            ),
+        ] {
+            let err = load(law).expect_err(why);
+            assert!(err.to_string().contains(why), "{why}: {err}");
+        }
+        // Without a projection, an article may read a `state` it declares.
+        load(
+            law_with_projection("WET", state)
+                .replace("      projection:\n", "")
+                .replace(state, "")
+                .replace(
+                    "      execution:\n",
+                    "      execution:\n        parameters:\n          - {name: state, type: object}\n",
+                ),
+        )
+        .unwrap();
     }
 
     /// Not an Unknown: a sentinel without a usable `missing` list stays a

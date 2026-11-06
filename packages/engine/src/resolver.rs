@@ -554,6 +554,7 @@ impl RuleResolver {
         crate::load_check::reject_malformed_facts(&law)?;
         // Schema v0.8.14: a projection sits in a reduction and sets its own state.
         crate::load_check::reject_malformed_projection(&law)?;
+        crate::load_check::reject_unknown_state(&law)?;
 
         // RFC-036/RFC-037: hold the law to its own declarations before it can
         // run, so the editor sees the same findings as `just validate`. The

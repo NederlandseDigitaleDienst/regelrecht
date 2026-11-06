@@ -124,7 +124,7 @@ This policy article is called a binding: it binds the open term to the answer.
 
 ### Playing the chronicle forward (experimental)
 
-Schema v0.8.14 adds a second way to reduce. A reduction with a `projection` declares a state, a few named properties each with a type, and says per article what a record under it does with that state. A property starts from the value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date. The engine plays the chronicle forward, record by record, and the reduction's `execution` answers from the last state as `$state.<property>`.
+Schema v0.8.14 adds a second way to reduce. A reduction with a `projection` declares a state, a few named properties each with a type, and says per article what a record under it does with that state. A property starts from the value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date. The engine plays the chronicle forward, record by record, and the reduction's `execution` answers from the last state as `$state.<property>`. The loader refuses an answer that reads a property the state does not declare, or the state as a whole, and an article without a projection that reads `$state`.
 
 A step names the article its records rest on, such as `test_chronicle_effects#3`. Where the article gives more than one kind of record, such as an application and the decision on it, a third segment names the kind: `test_chronicle_effects#1#BESCHIKKING`. A step on an article that requires a fact applies to the recorded instances of that fact.
 
