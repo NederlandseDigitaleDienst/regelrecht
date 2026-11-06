@@ -406,11 +406,12 @@ Feature: A reduction plays the chronicle forward
       | record      | event   | detail                                           |
       | verlening_y | applied | aantal_verleend: 0 -> 1, in_bezit: false -> true |
 
-  Scenario: A record of another applicant that refers to a grant is excluded, not played
-    # A decision in the place of X's grant that carries applicant Y belongs to
-    # Y. X's trace shows it as excluded, and X's answer does not change. For
-    # Y it replaces a record outside Y's records, so that effect is ignored
-    # there.
+  Scenario: A decision of another applicant in the place of a grant replaces it for both
+    # A decision in the place of X's grant that carries applicant Y is Y's
+    # record, but what it does with X's grant is law, whoever the question is
+    # about: X's grant no longer counts. For X it counts for its effect only,
+    # so its step gives X no card. For Y it is Y's own record, and the grant
+    # it replaces is outside Y's records, so that effect is not Y's business.
     When the cell records submission "aanvraag_x" under article "1" of "test_chronicle_effects" with:
       | ernstig_beperkt | true     |
       | aanvrager       | burger_x |
@@ -420,15 +421,70 @@ Feature: A reduction plays the chronicle forward
       | ernstig_beperkt   | true        |
       | aanvrager         | burger_y    |
     And I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
-    Then output "heeft_geldige_kaart" is true
-    And record "verlening_x" is applied
+    Then output "heeft_geldige_kaart" is false
+    And record "verlening_x" is skipped
     And the projection trace is:
-      | record      | event    | detail                                           |
-      | verlening_x | applied  | aantal_verleend: 0 -> 1, in_bezit: false -> true |
-      | besluit_y   | excluded | key differs: aanvrager                           |
+      | record      | event        | detail                                           |
+      | verlening_x | applied      | aantal_verleend: 0 -> 1, in_bezit: false -> true |
+      | besluit_y   | rewound      | replaces verlening_x                             |
+      | verlening_x | skipped      | undone by besluit_y                              |
+      | besluit_y   | effects only | key differs: aanvrager                           |
     Given parameter "aanvrager" is "burger_y"
     When I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
     Then output "heeft_geldige_kaart" is true
     And the projection trace is:
       | record    | event   | detail                                           |
       | besluit_y | applied | aantal_verleend: 0 -> 1, in_bezit: false -> true |
+
+  Scenario: A permit moved to another licence plate no longer holds for the old plate
+    # Fictional test_parkeervergunning: article 2 moves a permit to another
+    # plate in the place of the earlier one. Keyed by plate, the move carries
+    # the new plate, so it counts for the old plate for its effect only: the
+    # old plate has no permit any more. Keyed by resident, both records are
+    # the resident's, and the permit is for the new plate.
+    When the cell decides "vergunning" under article "1" of "test_parkeervergunning" with:
+      | bewoner  | burger_x |
+      | kenteken | AB-12-CD |
+    And the cell decides "omzetting" under article "2" of "test_parkeervergunning" with:
+      | oude_vergunning | vergunning |
+      | bewoner         | burger_x   |
+      | kenteken        | XY-34-ZZ   |
+    Given parameter "kenteken" is "AB-12-CD"
+    When I evaluate "kenteken_heeft_vergunning" of "test_reductie_vergunning_per_kenteken" over the chronicle
+    Then output "kenteken_heeft_vergunning" is false
+    And the projection trace is:
+      | record     | event        | detail                      |
+      | vergunning | applied      | vergunning: false -> true   |
+      | omzetting  | rewound      | replaces vergunning         |
+      | vergunning | skipped      | undone by omzetting         |
+      | omzetting  | effects only | key differs: kenteken       |
+    Given parameter "kenteken" is "XY-34-ZZ"
+    When I evaluate "kenteken_heeft_vergunning" of "test_reductie_vergunning_per_kenteken" over the chronicle
+    Then output "kenteken_heeft_vergunning" is true
+    Given parameter "bewoner" is "burger_x"
+    When I evaluate "kenteken_van_bewoner" of "test_reductie_vergunning_per_bewoner" over the chronicle
+    Then output "kenteken_van_bewoner" equals "XY-34-ZZ"
+    And record "vergunning" is skipped
+
+  Scenario: Revoking the move brings the permit back to the old plate
+    # The revocation carries no plate. It refers only to the move, a record
+    # of the new plate, so for the old plate it too counts for its effect
+    # only. Undoing the move revives the permit for the old plate.
+    When the cell decides "vergunning" under article "1" of "test_parkeervergunning" with:
+      | bewoner  | burger_x |
+      | kenteken | AB-12-CD |
+    And the cell decides "omzetting" under article "2" of "test_parkeervergunning" with:
+      | oude_vergunning | vergunning |
+      | bewoner         | burger_x   |
+      | kenteken        | XY-34-ZZ   |
+    And the cell decides "herroeping" under article "3" of "test_parkeervergunning" with:
+      | herroepen_besluit | omzetting |
+    Given parameter "kenteken" is "AB-12-CD"
+    When I evaluate "kenteken_heeft_vergunning" of "test_reductie_vergunning_per_kenteken" over the chronicle
+    Then output "kenteken_heeft_vergunning" is true
+    And record "vergunning" is applied
+    And record "omzetting" is skipped
+    And property "vergunning" was last set by "vergunning"
+    Given parameter "kenteken" is "XY-34-ZZ"
+    When I evaluate "kenteken_heeft_vergunning" of "test_reductie_vergunning_per_kenteken" over the chronicle
+    Then output "kenteken_heeft_vergunning" is false

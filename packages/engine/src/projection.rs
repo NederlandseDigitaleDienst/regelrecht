@@ -124,10 +124,12 @@ pub enum ProjectionEvent {
         cause: RewindCause,
         target: String,
     },
-    /// The record refers to a record of this partition but carries a key of
-    /// its own that differs (`field`): it belongs to someone else and is not
-    /// played here.
-    Excluded { record: String, field: String },
+    /// The record belongs to someone else, but what it does with a record
+    /// of this partition holds here too: its effects hold and may make the
+    /// engine rewind, while its step leaves the state as it is. `reason`
+    /// says why it is someone else's: its own key differs (`key differs:
+    /// <field>`), or it refers only to such records (`refers to <id>`).
+    EffectsOnly { record: String, reason: String },
 }
 
 /// The answer of a projection: the last state, which record set each
@@ -277,13 +279,6 @@ impl LawExecutionService {
             let mut rewind = None;
 
             'records: for (i, record) in records.iter().enumerate() {
-                if let Some(field) = partition.excluded.get(&record.id) {
-                    events.push(ProjectionEvent::Excluded {
-                        record: record.id.clone(),
-                        field: field.clone(),
-                    });
-                    continue;
-                }
                 if !partition.holds(&record.id) {
                     continue;
                 }
@@ -339,6 +334,18 @@ impl LawExecutionService {
                         });
                         break 'records;
                     }
+                }
+
+                // A record of someone else counts for its effects only: the
+                // law says once what it undoes, whoever the question is
+                // about, but its step is about its own key.
+                if let Some(reason) = partition.foreign.get(&record.id) {
+                    events.push(ProjectionEvent::EffectsOnly {
+                        record: record.id.clone(),
+                        reason: reason.clone(),
+                    });
+                    applied.insert(record.id.as_str());
+                    continue;
                 }
 
                 let changes = step(law_id, projection, record, &state)?;
@@ -403,17 +410,21 @@ impl LawExecutionService {
     /// asked for (`projection.key`), or all records when it names none.
     ///
     /// A record belongs when the step for it names a key field (`key`) that
-    /// holds the asked key. A record that refers to a record that belongs
-    /// (`refers_to`, or a field an effect of its article names, such as
-    /// `bestreden_besluit`) belongs too, transitively, unless it carries a key
-    /// field of its own with another value: then it is someone else's, and
-    /// it is excluded and shown so. A record without a key field joins
-    /// through its reference. Records only join through what refers to them
-    /// later, never through what they refer to, so a record of someone else
-    /// that a record of this partition points at stays out. A record whose
-    /// step names no key field (or that has no step) therefore plays only
-    /// when it refers in. The chronicle lists a record after what it refers
-    /// to, which one pass in its order relies on.
+    /// holds the asked key. A record that refers to a record of the
+    /// partition (`refers_to`, or a field an effect of its article names,
+    /// such as `bestreden_besluit`) joins it too, transitively. It joins for
+    /// its effects only when it is someone else's: when it carries a key
+    /// field of its own with another value, or carries none and refers only
+    /// to records that are someone else's. Such a record still undoes or
+    /// replaces what it names, because the law says once what a record does
+    /// with another, whatever the question is keyed on; its step is not
+    /// applied. Following references through it keeps the effects right: a
+    /// record that undoes it joins too, and what it undid counts again.
+    /// Records only join through what refers to them later, never through
+    /// what they refer to, so the partition stays the records reachable
+    /// from the key. A record whose step names no key field (or that has no
+    /// step) therefore plays only when it refers in. The chronicle lists a
+    /// record after what it refers to, which one pass in its order relies on.
     fn partition(
         &self,
         projection: &Projection,
@@ -437,7 +448,7 @@ impl LawExecutionService {
             )));
         }
         let mut members: BTreeSet<String> = BTreeSet::new();
-        let mut excluded = BTreeMap::new();
+        let mut foreign: BTreeMap<String, String> = BTreeMap::new();
         for record in records {
             let own = step_for(projection, record)
                 .and_then(|s| s.key.as_ref())
@@ -454,25 +465,26 @@ impl LawExecutionService {
                 members.insert(record.id.clone());
                 continue;
             }
-            let refers = self
-                .references(record)?
-                .iter()
-                .any(|id| members.contains(id));
-            if !refers {
+            let references = self.references(record)?;
+            let Some(first) = references.iter().find(|id| members.contains(*id)) else {
                 continue;
+            };
+            let own_record = references
+                .iter()
+                .any(|id| members.contains(id) && !foreign.contains_key(id));
+            let reason = match own {
+                Some((field, _)) => Some(format!("key differs: {field}")),
+                None if !own_record => Some(format!("refers to {first}")),
+                None => None,
+            };
+            if let Some(reason) = reason {
+                foreign.insert(record.id.clone(), reason);
             }
-            match own {
-                Some((field, _)) => {
-                    excluded.insert(record.id.clone(), field.clone());
-                }
-                None => {
-                    members.insert(record.id.clone());
-                }
-            }
+            members.insert(record.id.clone());
         }
         Ok(Partition {
             members: Some(members),
-            excluded,
+            foreign,
         })
     }
 
@@ -555,11 +567,12 @@ impl LawExecutionService {
 }
 
 /// Which records a play reads: all of them (`members` is `None`), or those of
-/// one key, with the records excluded because their own key differs.
+/// one key, with per record of someone else among them why it counts for
+/// its effects only.
 #[derive(Default)]
 struct Partition {
     members: Option<BTreeSet<String>>,
-    excluded: BTreeMap<String, String>,
+    foreign: BTreeMap<String, String>,
 }
 
 impl Partition {
@@ -698,9 +711,11 @@ fn trace_node(played: &Played) -> PathNode {
                 format!("{record}: undone by {}", undone_by.join(", ")),
                 None,
             ),
-            ProjectionEvent::Excluded { record, field } => {
-                ("EXCLUDE", format!("{record}: key differs: {field}"), None)
-            }
+            ProjectionEvent::EffectsOnly { record, reason } => (
+                "EFFECTS_ONLY",
+                format!("{record}: effects only, {reason}"),
+                None,
+            ),
             ProjectionEvent::Rewound {
                 record,
                 cause,
@@ -1464,15 +1479,25 @@ articles:
     }
 
     #[test]
-    fn a_record_with_another_key_that_refers_in_is_excluded() {
+    fn a_record_with_another_key_that_refers_in_counts_for_its_effects_only() {
+        // `n` replaces x's grant and carries y's key: for x it replaces the
+        // grant all the same, but its step does not give x a card.
         let records = [of(grant("a"), "x"), of(replace("n", "a"), "y")];
         let x = play_for("x", &records).unwrap();
-        assert!(x.events.contains(&ProjectionEvent::Excluded {
+        assert!(x.events.contains(&ProjectionEvent::EffectsOnly {
             record: "n".to_string(),
-            field: "wie".to_string(),
+            reason: "key differs: wie".to_string(),
         }));
-        assert_eq!(x.result.outputs["heeft_kaart"], Value::Bool(true));
-        // For y, `n` replaces a record outside its partition: ignored.
+        assert!(x.events.contains(&ProjectionEvent::Rewound {
+            record: "n".to_string(),
+            cause: RewindCause::Replaces,
+            target: "a".to_string(),
+        }));
+        assert_eq!(skipped_in_last_replay(&x), ["a"]);
+        assert_eq!(x.result.outputs["heeft_kaart"], Value::Bool(false));
+        assert_eq!(x.result.outputs["aantal"], Value::Int(0));
+        // For y, `n` is its own record, and replaces a record outside y's
+        // partition: that effect is not y's business.
         let y = play_for("y", &records).unwrap();
         assert_eq!(records_in(&y), ["n"]);
         assert!(!y
@@ -1482,18 +1507,39 @@ articles:
     }
 
     #[test]
-    fn a_record_that_refers_to_an_excluded_record_stays_out() {
-        // `n` (y) replaces x's grant and is excluded for x; `h` revokes `n`
-        // and so follows `n` to y, not to x.
+    fn undoing_a_record_of_someone_else_revives_what_it_replaced() {
+        // `n` (y) replaces x's grant; `h` revokes `n` and carries no key. It
+        // refers only to a record of someone else, so it counts for x for its
+        // effects only, and x's grant counts again.
         let records = [
             of(grant("a"), "x"),
             of(replace("n", "a"), "y"),
             revoke("h", "n", true),
         ];
         let x = play_for("x", &records).unwrap();
-        assert_eq!(records_in(&x), ["a"]);
+        assert_eq!(records_in(&x), ["a", "n"]);
+        assert!(x.events.contains(&ProjectionEvent::EffectsOnly {
+            record: "h".to_string(),
+            reason: "refers to n".to_string(),
+        }));
+        assert_eq!(x.result.outputs["heeft_kaart"], Value::Bool(true));
+        assert_eq!(x.set_by["kaart"].as_deref(), Some("a"));
         let y = play_for("y", &records).unwrap();
         assert_eq!(records_in(&y), ["n", "h"]);
+    }
+
+    #[test]
+    fn a_record_that_refers_to_one_of_its_own_records_is_its_own() {
+        // `h` revokes `n` (y's) and also names x's grant `a` by `refers_to`:
+        // it refers to a record of x, so x applies its step too.
+        let mut h = revoke("h", "n", true);
+        h.refers_to = Some("a".to_string());
+        let records = [of(grant("a"), "x"), of(replace("n", "a"), "y"), h];
+        let x = play_for("x", &records).unwrap();
+        assert!(!x
+            .events
+            .iter()
+            .any(|e| matches!(e, ProjectionEvent::EffectsOnly { record, .. } if record == "h")));
     }
 
     #[test]

@@ -1,0 +1,46 @@
+---
+# FICTIEF. A reduction of the cell's BDD suite over test_parkeervergunning,
+# keyed by bewoner. The same chronicle is also read keyed by the other field
+# (test_reductie_vergunning_per_kenteken, test_reductie_vergunning_per_bewoner):
+# a decision that replaces a permit replaces it for both questions.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: test_reductie_vergunning_per_bewoner
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_reductie_vergunning_per_bewoner
+name: Parkeervergunning per bewoner (testreductie)
+
+articles:
+  - number: '1'
+    url: https://example.com/test_reductie_vergunning_per_bewoner/1
+    text: >-
+      FICTIEF. De vergunning van een bewoner geldt voor het kenteken van de laatste verlening of omzetting die meetelt.
+    machine_readable:
+      projection:
+        key: bewoner
+        state:
+          - name: kenteken
+            type: string
+            initial: ''
+        steps:
+          - record: test_parkeervergunning#1
+            type: BESCHIKKING
+            key: bewoner
+            set:
+              kenteken: $record.kenteken
+          - record: test_parkeervergunning#2
+            type: BESCHIKKING
+            key: bewoner
+            set:
+              kenteken: $record.kenteken
+      execution:
+        parameters:
+          - name: bewoner
+            type: string
+        output:
+          - name: kenteken_van_bewoner
+            type: string
+        actions:
+          - output: kenteken_van_bewoner
+            value: $state.kenteken

@@ -405,11 +405,9 @@ fn trace_rows(events: &[ProjectionEvent]) -> Vec<[String; 3]> {
                 "skipped".to_string(),
                 format!("undone by {}", undone_by.join(", ")),
             ],
-            ProjectionEvent::Excluded { record, field } => [
-                record.clone(),
-                "excluded".to_string(),
-                format!("key differs: {field}"),
-            ],
+            ProjectionEvent::EffectsOnly { record, reason } => {
+                [record.clone(), "effects only".to_string(), reason.clone()]
+            }
             ProjectionEvent::Rewound {
                 record,
                 cause,
