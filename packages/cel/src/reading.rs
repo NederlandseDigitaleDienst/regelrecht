@@ -695,6 +695,29 @@ mod tests {
         }
     }
 
+    /// The chronicle as a projection reads it: every gram in order, with
+    /// its values as the engine reads them.
+    #[test]
+    fn the_chronicle_as_records_keeps_every_gram_in_order() {
+        let mut fact = gram(EXECUTOGRAM, BASIS, None);
+        fact.fact = Some("ingeleverd".into());
+        let grams = [gram("BESCHIKKING", BASIS, Some("a")), fact];
+        let records = chronicle_records(&grams).unwrap();
+        assert_eq!(records.len(), 2);
+        let decision = &records[0];
+        assert_eq!(decision.id, grams[0].id);
+        assert_eq!(decision.kind, "BESCHIKKING");
+        assert_eq!(decision.basis, BASIS);
+        assert_eq!(decision.refers_to.as_deref(), Some("a"));
+        assert_eq!(decision.recorded_on, grams[0].recorded_on);
+        assert_eq!(decision.outputs["verlof_verleend"], Value::Bool(true));
+        assert_eq!(
+            decision.fields["eerste_verlofdag"],
+            Value::String("2027-02-01".into())
+        );
+        assert_eq!(records[1].fact.as_deref(), Some("ingeleverd"));
+    }
+
     #[test]
     fn rows_are_the_decisions_under_the_article_with_fields_and_outputs() {
         let grams = [
