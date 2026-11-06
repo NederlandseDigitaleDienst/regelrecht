@@ -23,12 +23,22 @@ articles:
           - name: kenteken
             type: string
         steps:
+          # A grant and a move both make the resident the holder of a permit
+          # for the plate in the decision (article 4).
           - record: test_parkeervergunning#1
-            set:
+            apply: test_parkeervergunning#4
+            parameters:
+              verleend: $record.vergunning_verleend
               kenteken: $record.kenteken
+            output:
+              kenteken: kenteken_van_vergunning
           - record: test_parkeervergunning#2
-            set:
+            apply: test_parkeervergunning#4
+            parameters:
+              verleend: $record.vergunning_omgezet
               kenteken: $record.kenteken
+            output:
+              kenteken: kenteken_van_vergunning
       execution:
         parameters:
           - name: bewoner

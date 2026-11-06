@@ -11,7 +11,7 @@ use std::path::Path;
 
 use chrono::NaiveDate;
 use regelrecht_cel::{shape, Chronicle, Gram, EXECUTOGRAM};
-use regelrecht_engine::projection::{cause_word, describe_changes};
+use regelrecht_engine::projection::{cause_word, describe_applied};
 use regelrecht_engine::{
     Article, ChronicleRecord, LawExecutionService, ProjectionEvent, ProjectionOutcome, Value,
 };
@@ -395,10 +395,14 @@ fn trace_rows(events: &[ProjectionEvent]) -> Vec<[String; 3]> {
     events
         .iter()
         .map(|e| match e {
-            ProjectionEvent::Applied { record, changes } => [
+            ProjectionEvent::Applied {
+                record,
+                article,
+                changes,
+            } => [
                 record.clone(),
                 "applied".to_string(),
-                describe_changes(changes),
+                describe_applied(article.as_deref(), changes),
             ],
             ProjectionEvent::Skipped { record, undone_by } => [
                 record.clone(),

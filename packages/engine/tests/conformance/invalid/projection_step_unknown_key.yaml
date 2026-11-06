@@ -20,12 +20,16 @@ articles:
             description: Of de aanvrager een kaart heeft.
         steps:
           - record: test_conformance_decision_effects#2
-            set:
-              in_bezit: $record.verleend
+            apply: test_conformance_kaart#1
+            parameters:
+              verleend: $record.verleend
+            output:
+              in_bezit: kaart
           - record: test_conformance_fact#1
             when: $record.verleend
-            set:
-              in_bezit: false
+            apply: test_conformance_kaart#2
+            output:
+              in_bezit: kaart
       execution:
         output:
           - name: heeft_kaart

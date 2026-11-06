@@ -1858,8 +1858,10 @@ impl StateProperty {
     }
 }
 
-/// What a record under one article does with the state: the properties it
-/// sets, each computed from `$state` and `$record`.
+/// What a record under one article does with the state: it applies an
+/// article of a law to values of the record and the state, and sets
+/// properties from that article's outputs. The step only wires; what the
+/// record does is in the applied article.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProjectionStep {
@@ -1869,9 +1871,71 @@ pub struct ProjectionStep {
     /// `EXECUTOGRAM`, such as `wet#1#BESCHIKKING`.
     #[serde(deserialize_with = "step_record")]
     pub record: String,
-    /// The properties this record sets, by name. Each is computed from the
-    /// state before the record, so the order does not matter.
-    pub set: BTreeMap<String, ActionValue>,
+    /// The article that says what the record does with the state,
+    /// `<regulation>#<article>`.
+    #[serde(deserialize_with = "article_reference")]
+    pub apply: String,
+    /// Per parameter of the applied article, where its value comes from:
+    /// `$record.<field>` or `$state.<property>`, nothing else.
+    #[serde(default)]
+    pub parameters: BTreeMap<String, StepSource>,
+    /// Per property of the state, the output of the applied article that
+    /// sets it. A property not named here keeps its value.
+    pub output: BTreeMap<String, String>,
+}
+
+/// Where a step takes the value of a parameter from: a field or output of
+/// the record (`$record.<name>`), or a property of the state before it
+/// (`$state.<name>`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StepSource {
+    Record(String),
+    State(String),
+}
+
+impl StepSource {
+    /// Read `$record.<name>` or `$state.<name>`; anything else is no source.
+    pub fn parse(s: &str) -> Option<Self> {
+        let name_ok = |n: &str| {
+            !n.is_empty()
+                && n.chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        };
+        if let Some(name) = s.strip_prefix("$record.").filter(|n| name_ok(n)) {
+            Some(Self::Record(name.to_string()))
+        } else {
+            s.strip_prefix("$state.")
+                .filter(|n| name_ok(n))
+                .map(|name| Self::State(name.to_string()))
+        }
+    }
+}
+
+impl std::fmt::Display for StepSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Record(name) => write!(f, "$record.{name}"),
+            Self::State(name) => write!(f, "$state.{name}"),
+        }
+    }
+}
+
+impl Serialize for StepSource {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for StepSource {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        Self::parse(&s).ok_or_else(|| {
+            serde::de::Error::custom(format!(
+                "'{s}' is no $record.<field> or $state.<property>; a step only wires values \
+                 into the article it applies"
+            ))
+        })
+    }
 }
 
 impl ProjectionStep {
@@ -1889,6 +1953,21 @@ fn split_kind(record: &str) -> (&str, Option<&str>) {
             .rsplit_once('#')
             .map_or((record, None), |(basis, kind)| (basis, Some(kind))),
         _ => (record, None),
+    }
+}
+
+/// Deserialize `<regulation>#<article>`, without a paragraph.
+fn article_reference<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if is_article_reference(&s) {
+        Ok(s)
+    } else {
+        Err(serde::de::Error::custom(format!(
+            "'{s}' is not <regulation>#<article> without a paragraph"
+        )))
     }
 }
 

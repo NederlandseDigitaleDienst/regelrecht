@@ -664,9 +664,9 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
 }
 
 /// A projection (schema v0.8.14) sits only in a reduction, names each
-/// property of its state once, and its steps set only those properties.
+/// property of its state once, and its steps read and set only those
+/// properties.
 pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
-    use regelrecht_law_model::Value;
     let refuse = |where_: String, why: String| {
         Err(EngineError::LoadError(format!(
             "law '{}' {where_}: {why}",
@@ -753,34 +753,32 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
                     format!("has two steps for the same records under {basis}"),
                 );
             }
-            // A literal a step sets must fit the property; a computed value
-            // is checked when the step runs (`projection::step`).
-            for (name, value) in &step.set {
-                let property = projection.state.iter().find(|p| &p.name == name);
-                if let (Some(property), ActionValue::Literal(literal)) = (property, value) {
-                    let reference = matches!(literal, Value::String(s) if s.starts_with('$'));
-                    if !reference && !crate::projection::fits_property(property, literal) {
-                        return refuse(
-                            where_,
-                            format!(
-                                "sets '{name}' for a record under {} to a value that is no {:?}",
-                                step.record, property.property_type
-                            ),
-                        );
-                    }
-                }
-            }
-            if step.set.is_empty() {
+            // A step only wires: the state properties it reads and sets are
+            // its own. Whether the applied article fits is checked when the
+            // projection is played, because it is in another regelwerk.
+            if step.output.is_empty() {
                 return refuse(
                     where_,
                     format!("sets nothing for a record under {}", step.record),
                 );
             }
-            if let Some(name) = step.set.keys().find(|k| !names.contains(&k.as_str())) {
+            if let Some(name) = step.output.keys().find(|k| !names.contains(&k.as_str())) {
                 return refuse(
                     where_,
                     format!(
                         "sets '{name}' for a record under {}, which is no property of its state",
+                        step.record
+                    ),
+                );
+            }
+            if let Some((parameter, source)) = step.parameters.iter().find(|(_, source)| {
+                matches!(source, regelrecht_law_model::StepSource::State(p) if !names.contains(&p.as_str()))
+            }) {
+                return refuse(
+                    where_,
+                    format!(
+                        "wires {source} into '{parameter}' for a record under {}, which is no \
+                         property of its state",
                         step.record
                     ),
                 );
@@ -1320,13 +1318,15 @@ articles:
     #[test]
     fn a_projection_keeps_to_its_own_state() {
         let state = "        state:\n          - {name: a, type: boolean}\n";
-        let ok = format!("{state}        steps:\n          - {{record: wet#1, set: {{a: true}}}}");
+        let ok = format!(
+            "{state}        steps:\n          - {{record: wet#1, apply: wet#2, output: {{a: x}}}}"
+        );
         LawExecutionService::new()
             .load_law(&law_with_projection("REDUCTIE", &ok))
             .unwrap();
         // Steps for different kinds of record under one article, and a
         // string that a step sets to null.
-        let kinds = "        state:\n          - {name: a, type: boolean}\n          - {name: s, type: string}\n        steps:\n          - {record: wet#1#AANVRAAG, set: {a: true}}\n          - {record: wet#1#BESCHIKKING, set: {a: false, s: null}}";
+        let kinds = "        state:\n          - {name: a, type: boolean}\n          - {name: s, type: string}\n        steps:\n          - {record: wet#1#AANVRAAG, apply: wet#2, output: {a: x}}\n          - {record: wet#1#BESCHIKKING, apply: wet#2, parameters: {p: $state.s, q: $record.k}, output: {a: x, s: y}}";
         LawExecutionService::new()
             .load_law(&law_with_projection("REDUCTIE", kinds))
             .unwrap();
@@ -1349,7 +1349,7 @@ articles:
             ),
             (
                 "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1, set: {{b: true}}}}"),
+                format!("{state}        steps:\n          - {{record: wet#1, apply: wet#2, output: {{b: x}}}}"),
                 "sets 'b' for a record under wet#1, which is no property of its state",
             ),
             (
@@ -1374,27 +1374,17 @@ articles:
             ),
             (
                 "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1, set: {{a: true}}}}\n          - {{record: wet#1#BESCHIKKING, set: {{a: false}}}}"),
+                format!("{state}        steps:\n          - {{record: wet#1, apply: wet#2, output: {{a: x}}}}\n          - {{record: wet#1#BESCHIKKING, apply: wet#2, output: {{a: x}}}}"),
                 "has two steps for the same records under wet#1",
             ),
             (
                 "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1, set: {{a: 3}}}}"),
-                "sets 'a' for a record under wet#1 to a value that is no Boolean",
-            ),
-            (
-                "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1, set: {{a: null}}}}"),
-                "sets 'a' for a record under wet#1 to a value that is no Boolean",
-            ),
-            (
-                "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1#BESCHIKKING, set: {{a: true}}}}\n          - {{record: wet#1#BESCHIKKING, set: {{a: false}}}}"),
+                format!("{state}        steps:\n          - {{record: wet#1#BESCHIKKING, apply: wet#2, output: {{a: x}}}}\n          - {{record: wet#1#BESCHIKKING, apply: wet#2, output: {{a: x}}}}"),
                 "has two steps for the same records under wet#1",
             ),
             (
                 "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1, set: {{}}}}"),
+                format!("{state}        steps:\n          - {{record: wet#1, apply: wet#2, output: {{}}}}"),
                 "sets nothing for a record under wet#1",
             ),
         ] {
@@ -1403,10 +1393,24 @@ articles:
                 .expect_err(why);
             assert!(err.to_string().contains(why), "{why}: {err}");
         }
+        // A step only wires: a parameter comes from the record or the state
+        // as a bare reference, and a state property it reads is its own.
+        for (parameters, why) in [
+            ("{p: true}", "is no $record.<field> or $state.<property>"),
+            ("{p: '$record.a + 1'}", "is no $record.<field> or $state.<property>"),
+            ("{p: {operation: NOT, value: $state.a}}", "invalid type"),
+            ("{p: $state.b}", "wires $state.b into 'p' for a record under wet#1, which is no property of its state"),
+        ] {
+            let projection = format!("{state}        steps:\n          - {{record: wet#1, apply: wet#2, parameters: {parameters}, output: {{a: x}}}}");
+            let err = LawExecutionService::new()
+                .load_law(&law_with_projection("REDUCTIE", &projection))
+                .expect_err(parameters);
+            assert!(err.to_string().contains(why), "{parameters}: {err}");
+        }
         // A kind is in capitals, after a third `#`.
         for record in ["wet#1#beschikking", "wet#1#"] {
             let projection = format!(
-                "{state}        steps:\n          - {{record: '{record}', set: {{a: true}}}}"
+                "{state}        steps:\n          - {{record: '{record}', apply: wet#2, output: {{a: x}}}}"
             );
             assert!(
                 LawExecutionService::new()

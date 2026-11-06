@@ -173,3 +173,54 @@ articles:
         actions:
           - output: waarschuwing
             value: true
+
+  - number: '7'
+    url: https://example.com/test_chronicle_effects/7
+    text: >-
+      FICTIEF. Wie een kaart verleend krijgt, heeft een kaart, en er is een
+      verleende kaart meer. Een weigering laat beide zoals ze waren.
+    machine_readable:
+      execution:
+        parameters:
+          - name: in_bezit
+            type: boolean
+          - name: aantal_verleend
+            type: number
+          - name: kaart_verleend
+            type: boolean
+        output:
+          - name: in_bezit_na_besluit
+            type: boolean
+          - name: aantal_verleend_na_besluit
+            type: number
+        actions:
+          - output: in_bezit_na_besluit
+            value:
+              operation: OR
+              conditions:
+                - $in_bezit
+                - $kaart_verleend
+          - output: aantal_verleend_na_besluit
+            value:
+              operation: IF
+              cases:
+                - when: $kaart_verleend
+                  then:
+                    operation: ADD
+                    values:
+                      - $aantal_verleend
+                      - 1
+              default: $aantal_verleend
+
+  - number: '8'
+    url: https://example.com/test_chronicle_effects/8
+    text: >-
+      FICTIEF. Wie zijn kaart inlevert, heeft geen kaart meer.
+    machine_readable:
+      execution:
+        output:
+          - name: in_bezit_na_inlevering
+            type: boolean
+        actions:
+          - output: in_bezit_na_inlevering
+            value: false

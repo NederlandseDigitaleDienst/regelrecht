@@ -2769,7 +2769,7 @@
         },
         "projection": {
           "type": "object",
-          "description": "Since v0.8.14, only in a `REDUCTIE`: the reduction plays a cell's chronicle forward and keeps a state, and its `execution` answers from the state after the last record, reading each property as `$state.<name>`. Each record may change the state through the step this reduction gives for its article (`steps`). A record whose article gives an effect on an earlier record (`produces[].effects`) that holds makes the engine rewind: it plays the chronicle again from the start, skipping the revoked record, for as long as a record that revokes it still counts; a record that is itself revoked revokes nothing any more. A revoked record is gone from the whole history (ex tunc); a change from a later day on is a step with a date property. The chronicle itself is never changed, and a record recorded after the calculation date is not played. Only a call that plays a chronicle (`evaluate_projection` in the Rust engine) answers from it; the engine refuses such an article on every other path: asked directly, from another rulework, at a stage, or with a `state` the caller passes. A step is pure: the next state follows from the state before and the record alone. One version of this reduction, the one in force on the calculation date, gives every step and the answer; the effects of a record come from the version of its law in force on the day it was recorded. The engine records, per property, which record set it last. The article declares no parameter `state`.",
+          "description": "Since v0.8.14, only in a `REDUCTIE`: the reduction plays a cell's chronicle forward and keeps a state, and its `execution` answers from the state after the last record, reading each property as `$state.<name>`. Each record may change the state through the step this reduction gives for its article (`steps`): the step applies an article of a law to values of the record and the state, and sets properties from its outputs. A record whose article gives an effect on an earlier record (`produces[].effects`) that holds makes the engine rewind: it plays the chronicle again from the start, skipping the revoked record, for as long as a record that revokes it still counts; a record that is itself revoked revokes nothing any more. A revoked record is gone from the whole history (ex tunc); a change from a later day on is a step with a date property. The chronicle itself is never changed, and a record recorded after the calculation date is not played. Only a call that plays a chronicle (`evaluate_projection` in the Rust engine) answers from it; the engine refuses such an article on every other path: asked directly, from another rulework, at a stage, or with a `state` the caller passes. A step is pure: the next state follows from the state before and the record alone, because the applied article reads only what the step wires in. One version of this reduction, the one in force on the calculation date, gives every step and the answer; the effects of a record come from the version of its law in force on the day it was recorded. The engine records, per property, which record set it last. The article declares no parameter `state`.",
           "additionalProperties": false,
           "required": [
             "state",
@@ -2817,13 +2817,14 @@
             },
             "steps": {
               "type": "array",
-              "description": "What a record does with the state, per article the record rests on. A record without a step leaves the state as it is; its effects on other records still hold.",
+              "description": "What a record does with the state, per article the record rests on: the step applies an article of a law, which says what the record does, and only wires values into it and its outputs back into the state. A record without a step leaves the state as it is; its effects on other records still hold.",
               "items": {
                 "type": "object",
                 "additionalProperties": false,
                 "required": [
                   "record",
-                  "set"
+                  "apply",
+                  "output"
                 ],
                 "properties": {
                   "record": {
@@ -2838,16 +2839,32 @@
                       "test_chronicle_effects#1#BESCHIKKING"
                     ]
                   },
-                  "set": {
+                  "apply": {
+                    "$ref": "#/definitions/articleReference",
+                    "description": "The article that says what the record does with the state, as `<regulation>#<article>`. The engine runs it in the version in force on the day the record was recorded, as it does for effects, on the values `parameters` wires in. The article reads nothing else: an article with an `input` (with or without a `source`), with open terms or without outputs cannot be applied. Every parameter it declares must be wired. The engine checks this when it plays the projection, because the article is in another regelwerk."
+                  },
+                  "parameters": {
+                    "type": "object",
+                    "propertyNames": {
+                      "pattern": "^[a-z_][a-z0-9_]*$"
+                    },
+                    "additionalProperties": {
+                      "type": "string",
+                      "pattern": "^\\$(record|state)\\.[a-z0-9_]+$"
+                    },
+                    "description": "Per parameter of the applied article, where its value comes from: `$record.<field>` (a field or output of the record) or `$state.<property>` (the state before the record). Nothing else: no operation, condition or literal, because what the record does belongs in the article. A field must be a parameter or output of the article the record rests on, a property must be one of the state, and its type must be the parameter's type."
+                  },
+                  "output": {
                     "type": "object",
                     "minProperties": 1,
                     "propertyNames": {
                       "pattern": "^[a-z_][a-z0-9_]*$"
                     },
                     "additionalProperties": {
-                      "$ref": "#/definitions/operationValue"
+                      "type": "string",
+                      "pattern": "^[a-z_][a-z0-9_]*$"
                     },
-                    "description": "The properties this record sets, each to a value computed from `$state.<name>` (the state before the record) and `$record.<field>` (the record's fields and outputs). A property it does not name keeps its value. Every name must be a property of the state, and every value must be of that property's type: the loader checks the names and the literals, the engine checks a computed value when the step runs. A null fits only a string or a date."
+                    "description": "Per property of the state, the output of the applied article that sets it. A property it does not name keeps its value. Every name must be a property of the state, and every output must be one the article declares, of the property's type. A null fits only a string or a date."
                   }
                 }
               }

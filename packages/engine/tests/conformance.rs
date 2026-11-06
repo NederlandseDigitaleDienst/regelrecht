@@ -79,7 +79,7 @@ const KNOWN_GAPS: &[&str] = &[
     "produces_list_effects_on_submission.yaml", // schema v0.8.14 allows `effects` only on a decision; the model reads them on any item, and the loader refuses the law (`reject_ambiguous_produces`) — leniency stops at the model boundary
     "projection_state_type_array.yaml", // schema v0.8.14 allows five types for a state property; the model reads any ParameterType, and the loader refuses the others (`reject_malformed_projection`)
     "projection_state_empty.yaml", // schema v0.8.14 wants at least one state property; the model reads an empty list, and the loader refuses it
-    "projection_step_set_empty.yaml", // schema v0.8.14 wants a step to set at least one property; the model reads an empty map, and the loader refuses it
+    "projection_step_output_empty.yaml", // schema v0.8.14 wants a step to set at least one property from an output; the model reads an empty map, and the loader refuses it
     "produces_list_unknown_type.yaml", // schema v0.8.1 pins `type` to a submission kind or a legal character; the model reads any string, and an unknown one as a legal character, as for `produces_unknown_legal_character`
     "produces_list_requests_on_decision.yaml", // schema v0.8.1 allows `requests` only on a submission (`if`/`then`); the model has it on every item, and the loader refuses it (`reject_ambiguous_produces`)
     "produces_list_derived_on_submission.yaml", // schema v0.8.4 allows `derived` only on a decision (`if`/`then`); the model has it on every item, and the loader refuses it (`reject_ambiguous_produces`)

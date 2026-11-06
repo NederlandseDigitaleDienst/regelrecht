@@ -34,29 +34,25 @@ articles:
             type: number
         steps:
           # A decision on an application, and a decision in the place of
-          # another: both grant or refuse the card.
+          # another: both grant or refuse the card (article 7).
           - record: test_chronicle_effects#1#BESCHIKKING
-            set: &op_de_kaart
-              in_bezit:
-                operation: OR
-                conditions:
-                  - $state.in_bezit
-                  - $record.kaart_verleend
-              aantal_verleend:
-                operation: IF
-                cases:
-                  - when: $record.kaart_verleend
-                    then:
-                      operation: ADD
-                      values:
-                        - $state.aantal_verleend
-                        - 1
-                default: $state.aantal_verleend
+            apply: test_chronicle_effects#7
+            parameters: &op_de_kaart
+              in_bezit: $state.in_bezit
+              aantal_verleend: $state.aantal_verleend
+              kaart_verleend: $record.kaart_verleend
+            output: &na_besluit
+              in_bezit: in_bezit_na_besluit
+              aantal_verleend: aantal_verleend_na_besluit
           - record: test_chronicle_effects#3
-            set: *op_de_kaart
+            apply: test_chronicle_effects#7
+            parameters: *op_de_kaart
+            output: *na_besluit
+          # A card handed in (article 8).
           - record: test_chronicle_effects#5
-            set:
-              in_bezit: false
+            apply: test_chronicle_effects#8
+            output:
+              in_bezit: in_bezit_na_inlevering
       execution:
         parameters:
           - name: aanvrager

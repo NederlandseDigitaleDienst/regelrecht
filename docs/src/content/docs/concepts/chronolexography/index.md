@@ -126,7 +126,28 @@ This policy article is called a binding: it binds the open term to the answer.
 
 Schema v0.8.14 adds a second way to reduce. A reduction with a `projection` declares a state, a few named properties each with a type, and says per article what a record under it does with that state. A property starts from the value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date. The engine plays the chronicle forward, record by record, and the reduction's `execution` answers from the last state as `$state.<property>`.
 
-A step names the article its records rest on, such as `test_chronicle_effects#3`. Where the article gives more than one kind of record, such as an application and the decision on it, a third segment names the kind: `test_chronicle_effects#1#BESCHIKKING`. A step on an article that requires a fact applies to the recorded instances of that fact. The step reads the record's fields and outputs as `$record.<name>`.
+A step names the article its records rest on, such as `test_chronicle_effects#3`. Where the article gives more than one kind of record, such as an application and the decision on it, a third segment names the kind: `test_chronicle_effects#1#BESCHIKKING`. A step on an article that requires a fact applies to the recorded instances of that fact.
+
+What a record does with the state is law, so a step does not compute it. It names an article to `apply` and only wires values in and out: each parameter of that article comes from a field of the record (`$record.<field>`) or a property of the state (`$state.<property>`), and `output` says which output of the article sets which property. A property the step does not name keeps its value. In the parking-card test, article 7 of the test law says that a grant gives the applicant a card and raises the number of grants by one, and article 8 says that a card handed in is gone:
+
+```yaml
+steps:
+  - record: test_chronicle_effects#1#BESCHIKKING
+    apply: test_chronicle_effects#7
+    parameters:
+      in_bezit: $state.in_bezit
+      aantal_verleend: $state.aantal_verleend
+      kaart_verleend: $record.kaart_verleend
+    output:
+      in_bezit: in_bezit_na_besluit
+      aantal_verleend: aantal_verleend_na_besluit
+  - record: test_chronicle_effects#5
+    apply: test_chronicle_effects#8
+    output:
+      in_bezit: in_bezit_na_inlevering
+```
+
+The engine runs the applied article in the version in force on the day the record was recorded, the same rule as for effects. The article reads only what the step wires in. An article with an `input`, with or without a `source`, or with open terms cannot be applied, so a step stays a function of the record and the state before it. Each parameter of the article must be wired, from a field or property of its own type, and each output must fit the property it sets. The engine checks this when it plays the projection, because the reduction and the law are separate regelwerken that load in any order. The trace names the applied article for each record and shows every property it set, before and after.
 
 What one decision does with another stays in the law. The article declares it in `produces[].effects`: `revokes`, optionally only `when` a boolean outcome of the decision is true, such as a well-founded objection. A decision in the place of another revokes it and counts as a record of its own. When a decision that counts revokes an earlier one, the engine plays the chronicle again from the start without the revoked decision. A decision that is itself revoked revokes nothing any more, so what it alone revoked counts again. The engine records which record set each property last and every record it applied or skipped, and shows them in the trace.
 
