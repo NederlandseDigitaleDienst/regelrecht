@@ -15,61 +15,32 @@ articles:
   - number: '1'
     url: https://example.com/test_reductie_vergunning_per_bewoner/1
     text: >-
-      FICTIEF. Een bewoner heeft een vergunning voor elk kenteken waarvoor een verlening of omzetting meetelt.
+      FICTIEF. De vergunning van een bewoner geldt voor het kenteken van de laatste verlening of omzetting die meetelt.
     machine_readable:
       projection:
         key: bewoner
+        state:
+          - name: kenteken
+            type: string
+            initial: ''
+        steps:
+          - record: test_parkeervergunning#1
+            type: BESCHIKKING
+            key: bewoner
+            set:
+              kenteken: $record.kenteken
+          - record: test_parkeervergunning#2
+            type: BESCHIKKING
+            key: bewoner
+            set:
+              kenteken: $record.kenteken
       execution:
         parameters:
           - name: bewoner
             type: string
-          - name: kenteken
-            type: string
-        input:
-          - name: vergunningen
-            type: array
-            source:
-              decisions: test_parkeervergunning#1
-          - name: omzettingen
-            type: array
-            source:
-              decisions: test_parkeervergunning#2
         output:
-          - name: vergunning_voor_kenteken
-            type: boolean
-          - name: aantal_vergunningen
-            type: number
+          - name: kenteken_van_bewoner
+            type: string
         actions:
-          - output: vergunning_voor_kenteken
-            value:
-              operation: OR
-              conditions:
-                - operation: FOREACH
-                  collection: $vergunningen
-                  as: besluit
-                  filter: &voor_het_kenteken
-                    operation: EQUALS
-                    subject: $besluit.kenteken
-                    value: $kenteken
-                  body: true
-                  combine: OR
-                - operation: FOREACH
-                  collection: $omzettingen
-                  as: besluit
-                  filter: *voor_het_kenteken
-                  body: true
-                  combine: OR
-          - output: aantal_vergunningen
-            value:
-              operation: ADD
-              values:
-                - operation: FOREACH
-                  collection: $vergunningen
-                  as: besluit
-                  body: 1
-                  combine: ADD
-                - operation: FOREACH
-                  collection: $omzettingen
-                  as: besluit
-                  body: 1
-                  combine: ADD
+          - output: kenteken_van_bewoner
+            value: $state.kenteken

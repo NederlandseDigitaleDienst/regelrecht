@@ -134,10 +134,10 @@ struct ResolutionContext<'a> {
     /// it departs from, so it does not apply to it. Keyed like
     /// [`override_key`] and [`implementation_key`].
     held_back: HashSet<String>,
-    /// The reduction `evaluate_projection` answers after playing the
-    /// chronicle (schema v0.8.14): only that one runs with a projection, and
-    /// its inputs read the records in force.
-    played_projection: Option<String>,
+    /// The state a projection played (schema v0.8.14), for the reduction
+    /// `evaluate_projection` answers: `(law_id, state)`. Only that law reads
+    /// it, as the parameter `state`.
+    projection_state: Option<(String, Value)>,
     /// The article executed at one stage of its procedure (RFC-008), as
     /// `(law_id, article_number)`, set by [`LawExecutionService::execute_stage`]
     /// and [`LawExecutionService::execute_stage_at`]. Only for that article do
@@ -294,7 +294,7 @@ impl<'a> ResolutionContext<'a> {
             declaration_version_notes: Vec::new(),
             declarations_not_in_force: Vec::new(),
             held_back: HashSet::new(),
-            played_projection: None,
+            projection_state: None,
             staged_article: None,
             findings: BTreeMap::new(),
             findings_asked: BTreeSet::new(),
@@ -571,26 +571,42 @@ fn authorities(named: &[crate::article::NamedAuthority]) -> String {
         .join(" or ")
 }
 
-/// Refuse to run an article with a projection (schema v0.8.14) unless
-/// `evaluate_projection` played the chronicle for it: its inputs would read
-/// every record, not the records in force. Every article run goes through
-/// here, so every other way of asking it (directly, from another article or
-/// rulework, or at a stage) is refused.
-fn check_projection_played(
+/// The parameters of `article` of `law` with the state a projection played
+/// for it (schema v0.8.14). A reduction with a projection answers from that
+/// state, and only `evaluate_projection` plays one. Every article run goes
+/// through here, so every other way of asking it (directly, from another
+/// article or rulework, at a stage, or with a `state` of the caller's) is
+/// refused.
+fn with_played_state(
     article: &Article,
     law_id: &str,
+    mut parameters: BTreeMap<String, Value>,
     res_ctx: &ResolutionContext<'_>,
-) -> Result<()> {
-    if !crate::projection::has_projection(article)
-        || res_ctx.played_projection.as_deref() == Some(law_id)
-    {
-        return Ok(());
+) -> Result<BTreeMap<String, Value>> {
+    let has_projection = article
+        .machine_readable
+        .as_ref()
+        .is_some_and(|m| m.projection.is_some());
+    if !has_projection {
+        return Ok(parameters);
     }
-    Err(EngineError::InvalidOperation(format!(
-        "'{law_id}' article {} answers from a projection; play the chronicle through it with \
-         evaluate_projection",
-        article.number
-    )))
+    let played = res_ctx
+        .projection_state
+        .as_ref()
+        .filter(|(played_law, _)| played_law == law_id);
+    // Inside the play the played state is the only one: it replaces any
+    // `state` an article of the same reduction passes on.
+    match played {
+        Some((_, state)) => {
+            parameters.insert(crate::projection::STATE.to_string(), state.clone());
+            Ok(parameters)
+        }
+        _ => Err(EngineError::InvalidOperation(format!(
+            "'{law_id}' article {} answers from a projection; play the chronicle through it \
+             with evaluate_projection",
+            article.number
+        ))),
+    }
 }
 
 /// Build a cache key from law_id, output_name, and parameters.
@@ -2055,26 +2071,26 @@ impl LawExecutionService {
         call: Call<'a>,
         calculation_date: &'a str,
     ) -> Result<ArticleResult> {
-        self.evaluate_law_played(
+        self.evaluate_law_in_state(
             law_id,
             output_names,
             parameters,
             call,
             calculation_date,
-            false,
+            None,
         )
     }
 
-    /// [`Self::evaluate_law_in`]; with `played`, for a reduction whose
-    /// chronicle [`Self::evaluate_projection`] played.
-    pub(crate) fn evaluate_law_played<'a>(
+    /// [`Self::evaluate_law_in`], with the state a projection played for
+    /// `law_id` (see [`Self::evaluate_projection`]).
+    pub(crate) fn evaluate_law_in_state<'a>(
         &self,
         law_id: &str,
         output_names: &[&str],
         parameters: BTreeMap<String, Value>,
         call: Call<'a>,
         calculation_date: &'a str,
-        played: bool,
+        projection_state: Option<Value>,
     ) -> Result<ArticleResult> {
         if output_names.is_empty() {
             return Err(EngineError::InvalidOperation(
@@ -2084,7 +2100,7 @@ impl LawExecutionService {
         let mut res_ctx = ResolutionContext::new(calculation_date)?;
         res_ctx.contextual_law_id = Some(law_id.to_string());
         res_ctx.take_call(call);
-        res_ctx.played_projection = played.then(|| law_id.to_string());
+        res_ctx.projection_state = projection_state.map(|state| (law_id.to_string(), state));
         let result =
             self.evaluate_law_multi_internal(law_id, output_names, parameters, &mut res_ctx)?;
         res_ctx.check_findings_asked()?;
@@ -2185,21 +2201,21 @@ impl LawExecutionService {
         calculation_date: &'a str,
         trace_builder: TraceBuilder,
     ) -> Result<ArticleResult> {
-        self.evaluate_law_traced_played(
+        self.evaluate_law_traced_state(
             law_id,
             output_names,
             parameters,
             call,
             calculation_date,
             trace_builder,
-            false,
+            None,
         )
     }
 
-    /// [`Self::evaluate_law_traced`]; with `played`, for a reduction whose
-    /// chronicle [`Self::evaluate_projection`] played.
+    /// [`Self::evaluate_law_traced`], with the state a projection played for
+    /// `law_id` (see [`Self::evaluate_projection`]).
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn evaluate_law_traced_played<'a>(
+    pub(crate) fn evaluate_law_traced_state<'a>(
         &self,
         law_id: &str,
         output_names: &[&str],
@@ -2207,7 +2223,7 @@ impl LawExecutionService {
         call: Call<'a>,
         calculation_date: &'a str,
         trace_builder: TraceBuilder,
-        played: bool,
+        projection_state: Option<Value>,
     ) -> Result<ArticleResult> {
         if output_names.is_empty() {
             return Err(EngineError::InvalidOperation(
@@ -2242,7 +2258,7 @@ impl LawExecutionService {
         let mut res_ctx = ResolutionContext::with_trace(calculation_date, Rc::clone(&trace))?;
         res_ctx.contextual_law_id = Some(law_id.to_string());
         res_ctx.take_call(call);
-        res_ctx.played_projection = played.then(|| law_id.to_string());
+        res_ctx.projection_state = projection_state.map(|state| (law_id.to_string(), state));
 
         // Execute: group outputs by article, evaluate each once, merge + filter
         let result = self
@@ -4182,7 +4198,7 @@ impl LawExecutionService {
         stage: &str,
         res_ctx: &mut ResolutionContext<'_>,
     ) -> Result<ArticleResult> {
-        check_projection_played(article, &law.id, res_ctx)?;
+        let parameters = with_played_state(article, &law.id, parameters, res_ctx)?;
         let outer_anchor = res_ctx.enter_anchor(Some(LegalAnchor::from_article(law, article)));
         let result =
             self.evaluate_article_body(article, law, parameters, requested_outputs, stage, res_ctx);

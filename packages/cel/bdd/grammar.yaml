@@ -77,11 +77,11 @@ steps:
     text: I evaluate "{output}" of "{law}" over the chronicle
     args: [{name: output, type: string}, {name: law, type: string}]
 
-  # Every step the last evaluation took, in order: a record applied (detail
-  # `-`), a record skipped (with the records that undo it), a record of
-  # someone else that counts for its effects only (with the reason), and a
-  # rewind (with its cause and the record it is about). The table has a
-  # header row `record | event | detail` and must match exactly.
+  # Every step the last evaluation took, in order: a record applied (with
+  # the properties it set, `property: from -> to`, or `-`), a record skipped
+  # (with the records that undo it), and a rewind (with its cause and the
+  # record it is about). The table has a header row `record | event |
+  # detail` and must match exactly.
   - id: assert_projection_trace
     action: assert_projection_trace
     keyword: then
@@ -89,14 +89,12 @@ steps:
     text: 'the projection trace is:'
     datatable: true
 
-  # The records in force after the last evaluation, comma-separated in the
-  # order of the chronicle (`-` for none): the rows the reduction read.
-  - id: assert_in_force
-    action: assert_in_force
+  - id: assert_last_set_by
+    action: assert_last_set_by
     keyword: then
     tier: cel
-    text: the records in force are "{ids}"
-    args: [{name: ids, type: string}]
+    text: property "{name}" was last set by "{id}"
+    args: [{name: name, type: string}, {name: id, type: string}]
 
   # Whether the record was applied or skipped in the last replay.
   - id: assert_record_applied

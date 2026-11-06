@@ -11,7 +11,7 @@ use std::path::Path;
 
 use chrono::NaiveDate;
 use regelrecht_cel::{shape, Chronicle, Gram, EXECUTOGRAM};
-use regelrecht_engine::projection::{cause_word, show_ids};
+use regelrecht_engine::projection::{cause_word, describe_changes};
 use regelrecht_engine::{
     Article, ChronicleRecord, LawExecutionService, ProjectionEvent, ProjectionOutcome, Value,
 };
@@ -106,9 +106,17 @@ pub fn dispatch(
             evaluate_over_chronicle(world, args[0].as_str(), args[1].as_str())
         }
         "assert_projection_trace" => assert_projection_trace(world, &table.expect("trace table")),
-        "assert_in_force" => {
-            let ids = show_ids(&projection(world).in_force);
-            assert_eq!(ids, args[0].as_str(), "the records in force");
+        "assert_last_set_by" => {
+            let (name, id) = (args[0].as_str(), args[1].as_str());
+            let set_by = projection(world)
+                .set_by
+                .get(name)
+                .unwrap_or_else(|| panic!("no state property '{name}'"));
+            assert_eq!(
+                set_by.as_deref(),
+                Some(id),
+                "the record that set '{name}' last"
+            );
         }
         "assert_record_applied" => {
             let id = args[0].as_str();
@@ -387,9 +395,11 @@ fn trace_rows(events: &[ProjectionEvent]) -> Vec<[String; 3]> {
     events
         .iter()
         .map(|e| match e {
-            ProjectionEvent::Applied { record } => {
-                [record.clone(), "applied".to_string(), "-".to_string()]
-            }
+            ProjectionEvent::Applied { record, changes } => [
+                record.clone(),
+                "applied".to_string(),
+                describe_changes(changes),
+            ],
             ProjectionEvent::Skipped { record, undone_by } => [
                 record.clone(),
                 "skipped".to_string(),
