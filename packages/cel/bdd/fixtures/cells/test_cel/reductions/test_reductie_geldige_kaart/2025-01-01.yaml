@@ -1,11 +1,11 @@
 ---
 # FICTIEF. The reduction of the cell's BDD suite
-# (packages/cel/bdd/features/effects.feature). It plays the chronicle forward
-# and keeps a state: whether the applicant holds a card, and how many grants
-# counted. What a record does with the state is below, per article. Which
-# records count follows from the effects the law gives a decision on another
-# one (`produces[].effects`); the engine carries those out by rewinding, and
-# nothing in this reduction speaks of revoking or replacing.
+# (packages/cel/bdd/features/effects.feature). It reads the records of one
+# applicant that are in force: the grants, the decisions in the place of
+# another, and the cards handed in. Which records are in force follows from
+# the effects the law gives a decision on another one (`produces[].effects`);
+# the engine carries those out by rewinding, and nothing in this reduction
+# speaks of revoking or replacing.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: test_reductie_geldige_kaart
 regulatory_layer: REDUCTIE
@@ -18,58 +18,32 @@ articles:
   - number: '1'
     url: https://example.com/test_reductie_geldige_kaart/1
     text: >-
-      FICTIEF. Een verlening geeft de aanvrager een kaart, een weigering niet.
-      Levert hij de kaart in, dan heeft hij er geen meer. De aanvrager heeft
-      een geldige kaart als hij er een heeft; zijn kaart is een vervanging als
-      hij er een heeft en er meer dan een verlening meetelde.
+      FICTIEF. De aanvrager heeft een geldige kaart als een verlening of een
+      besluit in de plaats daarvan die meetelt hem een kaart gaf, later dan
+      hij een kaart inleverde. Zijn kaart is een vervanging als hij er een
+      heeft en meer dan een verlening meetelt.
     machine_readable:
+      # Only the records of the applicant asked for, and what refers to
+      # them, such as an objection and the decision on it.
       projection:
-        # Only the records of the applicant asked for, and what refers to
-        # them, such as an objection and the decision on it.
         key: aanvrager
-        state:
-          - name: in_bezit
-            type: boolean
-            initial: false
-          - name: aantal_verleend
-            type: number
-            initial: 0
-        steps:
-          # A decision on an application, and a decision in the place of
-          # another: both grant or refuse the card.
-          - record: test_chronicle_effects#1
-            type: BESCHIKKING
-            key: aanvrager
-            set: &op_de_kaart
-              in_bezit:
-                operation: OR
-                conditions:
-                  - $state.in_bezit
-                  - $record.kaart_verleend
-              aantal_verleend:
-                operation: IF
-                cases:
-                  - when: $record.kaart_verleend
-                    then:
-                      operation: ADD
-                      values:
-                        - $state.aantal_verleend
-                        - 1
-                default: $state.aantal_verleend
-          - record: test_chronicle_effects#3
-            type: BESCHIKKING
-            key: aanvrager
-            set: *op_de_kaart
-          - record: test_chronicle_effects#5
-            type: EXECUTOGRAM
-            fact: kaart_ingeleverd
-            key: aanvrager
-            set:
-              in_bezit: false
       execution:
         parameters:
           - name: aanvrager
             type: string
+        input:
+          - name: verleningen
+            type: array
+            source:
+              decisions: test_chronicle_effects#1
+          - name: besluiten_in_de_plaats
+            type: array
+            source:
+              decisions: test_chronicle_effects#3
+          - name: inleveringen
+            type: array
+            source:
+              facts: test_chronicle_effects#5#kaart_ingeleverd
         output:
           - name: heeft_geldige_kaart
             type: boolean
@@ -77,12 +51,67 @@ articles:
             type: boolean
         actions:
           - output: heeft_geldige_kaart
-            value: $state.in_bezit
+            value: &geldige_kaart
+              operation: OR
+              conditions:
+                - operation: FOREACH
+                  collection: $verleningen
+                  as: besluit
+                  filter: &na_de_laatste_inlevering
+                    operation: AND
+                    conditions:
+                      - $besluit.kaart_verleend
+                      # Recorded after the last card handed in: fewer days
+                      # before the calculation date than that hand-in.
+                      - operation: OR
+                        conditions:
+                          - operation: EQUALS
+                            subject: &dagen_sinds_inlevering
+                              operation: FOREACH
+                              collection: $inleveringen
+                              as: inlevering
+                              body:
+                                operation: DATE_DIFF
+                                from: $inlevering.recorded_on
+                                to: $referencedate
+                                in: days
+                              combine: MIN
+                            value: null
+                          - operation: LESS_THAN
+                            subject:
+                              operation: DATE_DIFF
+                              from: $besluit.recorded_on
+                              to: $referencedate
+                              in: days
+                            value: *dagen_sinds_inlevering
+                  body: true
+                  combine: OR
+                - operation: FOREACH
+                  collection: $besluiten_in_de_plaats
+                  as: besluit
+                  filter: *na_de_laatste_inlevering
+                  body: true
+                  combine: OR
           - output: kaart_is_vervanging
             value:
               operation: AND
               conditions:
-                - $state.in_bezit
+                - *geldige_kaart
                 - operation: GREATER_THAN
-                  subject: $state.aantal_verleend
+                  subject:
+                    operation: ADD
+                    values:
+                      -
+                        operation: FOREACH
+                        collection: $verleningen
+                        as: besluit
+                        filter: $besluit.kaart_verleend
+                        body: 1
+                        combine: ADD
+                      - operation: FOREACH
+                        collection: $besluiten_in_de_plaats
+                        as: besluit
+                        filter: $besluit.kaart_verleend
+                        body: 1
+                        combine: ADD
                   value: 1

@@ -1,7 +1,7 @@
 ---
 # Tier C: a reduction that plays a chronicle forward (schema v0.8.14). It
-# declares a state, a step per article a record rests on, and answers from
-# the last state.
+# names whose records are played, reads the decisions in force as rows, and
+# answers from them.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: test_conformance_projection
 regulatory_layer: REDUCTIE
@@ -12,33 +12,27 @@ name: Testreductie projectie
 articles:
   - number: '1'
     url: https://example.invalid/projection/1
-    text: De aanvrager heeft een kaart zolang een verlening meetelt en hij haar niet inleverde.
+    text: De aanvrager heeft een kaart zolang een verlening meetelt.
     machine_readable:
       projection:
         key: aanvrager
-        state:
-          - name: in_bezit
-            type: boolean
-            initial: false
-            description: Of de aanvrager een kaart heeft.
-        steps:
-          - record: test_conformance_decision_effects#2
-            type: BESCHIKKING
-            key: aanvrager
-            set:
-              in_bezit: $record.verleend
-          - record: test_conformance_fact#1
-            type: EXECUTOGRAM
-            fact: vestiging
-            set:
-              in_bezit: false
       execution:
         parameters:
           - name: aanvrager
             type: string
+        input:
+          - name: verleningen
+            type: array
+            source:
+              decisions: test_conformance_decision_effects#2
         output:
           - name: heeft_kaart
             type: boolean
         actions:
           - output: heeft_kaart
-            value: $state.in_bezit
+            value:
+              operation: FOREACH
+              collection: $verleningen
+              as: verlening
+              body: $verlening.verleend
+              combine: OR

@@ -19,28 +19,34 @@ articles:
     machine_readable:
       projection:
         key: kenteken
-        state:
-          - name: vergunning
-            type: boolean
-            initial: false
-        steps:
-          - record: test_parkeervergunning#1
-            type: BESCHIKKING
-            key: kenteken
-            set:
-              vergunning: true
-          - record: test_parkeervergunning#2
-            type: BESCHIKKING
-            key: kenteken
-            set:
-              vergunning: true
       execution:
         parameters:
           - name: kenteken
             type: string
+        input:
+          - name: vergunningen
+            type: array
+            source:
+              decisions: test_parkeervergunning#1
+          - name: omzettingen
+            type: array
+            source:
+              decisions: test_parkeervergunning#2
         output:
           - name: kenteken_heeft_vergunning
             type: boolean
         actions:
           - output: kenteken_heeft_vergunning
-            value: $state.vergunning
+            value:
+              operation: OR
+              conditions:
+                - operation: FOREACH
+                  collection: $vergunningen
+                  as: besluit
+                  body: true
+                  combine: OR
+                - operation: FOREACH
+                  collection: $omzettingen
+                  as: besluit
+                  body: true
+                  combine: OR
