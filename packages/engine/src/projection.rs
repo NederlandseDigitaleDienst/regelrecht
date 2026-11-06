@@ -2012,6 +2012,46 @@ articles:
     }
 
     #[test]
+    fn a_submission_input_reads_the_submissions_of_its_article() {
+        let mut service = service();
+        service.load_law(LAW_V15).unwrap();
+        let law = service
+            .resolver()
+            .get_law_for_date("reductie", Some(day("2025-03-01")))
+            .unwrap();
+        let submission = ChronicleRecord {
+            kind: "AANVRAAG".to_string(),
+            ..record("s", "1", &[], &[])
+        };
+        let decision = grant("a");
+        let elsewhere = record15("o", "AANVRAAG", "3", "2025-03-01", &[]);
+        let fact = handed_in("i", "2025-03-01");
+        let in_force = InForce {
+            records: vec![&submission, &decision, &elsewhere, &fact],
+        };
+        let Value::Array(rows) = in_force
+            .rows(
+                &service,
+                law,
+                ChronicleRead::Submissions("wet#1"),
+                "2025-03-01",
+            )
+            .unwrap()
+            .unwrap()
+        else {
+            panic!("no list")
+        };
+        let ids: Vec<&Value> = rows
+            .iter()
+            .map(|r| match r {
+                Value::Object(row) => &row["id"],
+                other => panic!("{other:?}"),
+            })
+            .collect();
+        assert_eq!(ids, [&Value::String("s".into())]);
+    }
+
+    #[test]
     fn an_answer_is_about_one_day_and_known_on_another() {
         // Granted on 1 March from 8 March; suspended for ever by a ruling
         // recorded on 1 April.

@@ -1693,7 +1693,10 @@ articles:
         // id twice.
         let mut again = receipt.clone();
         again.id = "ontvangst_2".into();
-        let err = chronicle_records(&service, &[receipt.clone(), again]).unwrap_err();
+        let before = gram("BESCHIKKING", "wet_fictief#1", Some("a"));
+        let records = chronicle_records(&service, &[before.clone(), receipt.clone()]).unwrap();
+        assert_eq!(records.len(), 3);
+        let err = chronicle_records(&service, &[before, receipt.clone(), again]).unwrap_err();
         assert!(
             err.to_string().contains("an earlier receipt holds too"),
             "{err}"
@@ -1726,5 +1729,84 @@ articles:
             err.to_string().contains("names no article in force"),
             "{err}"
         );
+    }
+
+    /// A law that establishes an application under article 1 and decides
+    /// on it, for the rows of submissions (schema v0.8.15).
+    const APPLYING: &str = r#"
+$id: wet_aanvraag
+regulatory_layer: WET
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+articles:
+  - number: '1'
+    text: Fictief.
+    machine_readable:
+      execution:
+        produces:
+          - {type: AANVRAAG, requests: 'wet_aanvraag#1', parameters: [bsn]}
+          - {type: BESCHIKKING, outputs: [verleend]}
+        parameters: [{name: bsn, type: string}]
+        output: [{name: verleend, type: boolean}]
+        actions: [{output: verleend, value: true}]
+  - number: '2'
+    text: Fictief.
+    machine_readable:
+      execution:
+        produces:
+          - {type: AANVRAAG, requests: 'wet_aanvraag#2', parameters: [bsn]}
+          - {type: BESCHIKKING, outputs: [y]}
+        parameters: [{name: bsn, type: string}]
+        output: [{name: y, type: boolean}]
+        actions: [{output: y, value: true}]
+"#;
+
+    #[test]
+    fn the_rows_of_submissions_are_the_submissions_under_the_article() {
+        let mut service = LawExecutionService::new();
+        service.load_law(APPLYING).unwrap();
+        let mut submission = gram("AANVRAAG", "wet_aanvraag#1", None);
+        submission.id = "s".into();
+        let mut decision = gram("BESCHIKKING", "wet_aanvraag#1", Some("s"));
+        decision.id = "d".into();
+        let mut other = gram("AANVRAAG", "wet_aanvraag#2", None);
+        other.id = "o".into();
+        let reductions = BTreeSet::new();
+        let answers = BTreeMap::new();
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            &answers,
+            &reductions,
+            vec![submission, decision, other],
+            None,
+        );
+        let law = service
+            .resolver()
+            .get_law_for_date("wet_aanvraag", Some(day()))
+            .unwrap();
+        let rows = serde_json::to_value(
+            reader
+                .chronicle_rows(
+                    &service,
+                    law,
+                    ChronicleRead::Submissions("wet_aanvraag#1"),
+                    day(),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        let ids: Vec<&str> = rows
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(ids, ["s"]);
+        assert_eq!(
+            submission_kind(&service, "wet_aanvraag#1", day()).unwrap(),
+            "AANVRAAG"
+        );
+        assert!(submission_kind(&service, "wet_aanvraag#9", day()).is_err());
     }
 }

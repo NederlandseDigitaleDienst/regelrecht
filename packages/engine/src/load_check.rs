@@ -1278,6 +1278,43 @@ articles:
         }
     }
 
+    /// A submission holds no output of the decision, so an effect on it
+    /// cannot hold from a date the decision gives.
+    #[test]
+    fn a_window_reads_a_date_the_record_itself_holds() {
+        let law = r#"
+$id: venster
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            parameters: [p]
+            effects:
+              - {undoes: p, from: d}
+          - type: BESCHIKKING
+            outputs: [d]
+        parameters:
+          - {name: p, type: string}
+        output:
+          - {name: d, type: date}
+        actions:
+          - {output: d, value: '2025-01-01'}
+"#;
+        let err = LawExecutionService::new()
+            .load_law(law)
+            .expect_err("d is the decision's");
+        assert!(
+            err.to_string()
+                .contains("holds from or until 'd', which is no date the record holds"),
+            "{err}"
+        );
+    }
+
     /// `when` names an outcome that holds or does not: a boolean output.
     #[test]
     fn an_effect_depends_on_a_boolean_output() {
