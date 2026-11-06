@@ -1688,29 +1688,34 @@ articles:
 
     #[test]
     fn a_step_cannot_pick_one_of_two_facts() {
-        let mut service = LawExecutionService::new();
-        service
-            .load_law(&LAW.replace(
-                "        - fact: ingeleverd\n          parameters: [op]\n",
-                "        - fact: ingeleverd\n          parameters: [op]\n        - fact: verloren\n          parameters: [op]\n",
-            ))
-            .unwrap();
-        service.load_law(REDUCTION).unwrap();
-        let err = service
-            .evaluate_projection(
-                "reductie",
-                &["heeft_kaart"],
-                &[],
-                BTreeMap::new(),
-                "2025-03-01",
-                false,
-            )
-            .expect_err("two facts");
-        assert!(
-            err.to_string()
-                .contains("the article requires more than one fact; a step cannot pick one"),
-            "{err}"
-        );
+        // Without a kind, and with EXECUTOGRAM as its kind: neither picks a fact.
+        for step in ["wet#4", "wet#4#EXECUTOGRAM"] {
+            let mut service = LawExecutionService::new();
+            service
+                .load_law(&LAW.replace(
+                    "        - fact: ingeleverd\n          parameters: [op]\n",
+                    "        - fact: ingeleverd\n          parameters: [op]\n        - fact: verloren\n          parameters: [op]\n",
+                ))
+                .unwrap();
+            service
+                .load_law(&REDUCTION.replace("record: wet#4\n", &format!("record: {step}\n")))
+                .unwrap();
+            let err = service
+                .evaluate_projection(
+                    "reductie",
+                    &["heeft_kaart"],
+                    &[],
+                    BTreeMap::new(),
+                    "2025-03-01",
+                    false,
+                )
+                .expect_err("two facts");
+            assert!(
+                err.to_string()
+                    .contains("the article requires more than one fact; a step cannot pick one"),
+                "{step}: {err}"
+            );
+        }
     }
 
     #[test]
