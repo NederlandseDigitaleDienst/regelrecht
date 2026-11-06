@@ -1731,6 +1731,15 @@ articles:
         // A string or a date may be set to null again; a boolean may not.
         assert!(fits_property(&property("string"), &Value::Null));
         assert!(!fits_property(&property("boolean"), &Value::Null));
+        // A date is a string that reads as one.
+        assert!(fits_property(
+            &property("date"),
+            &Value::String("2025-01-01".into())
+        ));
+        assert!(!fits_property(
+            &property("date"),
+            &Value::String("morgen".into())
+        ));
     }
 
     #[test]
