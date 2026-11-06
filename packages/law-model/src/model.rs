@@ -1870,8 +1870,8 @@ pub struct MachineReadable {
     /// Document properties this article establishes (schema v0.7.0)
     #[serde(default)]
     pub declares: Option<Vec<Declaration>>,
-    /// In a reduction: the state it keeps while it plays a chronicle
-    /// forward, and what each record does with it (schema v0.8.14).
+    /// In a reduction: whose records of the chronicle it plays forward, so
+    /// that its inputs read the records in force (schema v0.8.14).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub projection: Option<Projection>,
 }

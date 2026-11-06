@@ -1071,6 +1071,52 @@ articles:
     }
 
     #[test]
+    fn a_fact_input_reads_the_executograms_of_its_article_and_fact() {
+        let service = service();
+        let law = service
+            .resolver()
+            .get_law_for_date("reductie", Some(day("2025-03-01")))
+            .unwrap();
+        let ingeleverd = handed_in("i", "2025-03-01");
+        let other_fact = ChronicleRecord {
+            fact: Some("anders".to_string()),
+            ..handed_in("x", "2025-03-01")
+        };
+        let other_article = ChronicleRecord {
+            basis: "wet#1".to_string(),
+            ..handed_in("y", "2025-03-01")
+        };
+        let no_executogram = ChronicleRecord {
+            kind: "BESCHIKKING".to_string(),
+            ..handed_in("z", "2025-03-01")
+        };
+        let in_force = InForce {
+            records: vec![&ingeleverd, &other_fact, &other_article, &no_executogram],
+        };
+        assert_eq!(in_force.keeper(), "the records in force");
+        let rows = in_force
+            .rows(
+                &service,
+                law,
+                ChronicleRead::Facts("wet#4#ingeleverd"),
+                "2025-03-01",
+            )
+            .unwrap()
+            .unwrap();
+        let Value::Array(rows) = rows else {
+            panic!("{rows:?}")
+        };
+        let ids: Vec<&Value> = rows
+            .iter()
+            .map(|r| match r {
+                Value::Object(row) => &row["id"],
+                other => panic!("{other:?}"),
+            })
+            .collect();
+        assert_eq!(ids, [&Value::String("i".into())]);
+    }
+
+    #[test]
     fn an_effect_needs_an_earlier_record_and_a_boolean_outcome() {
         for (records, why) in [
             (
