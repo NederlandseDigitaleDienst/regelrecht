@@ -1545,14 +1545,26 @@ articles:
             let err = load(law).expect_err(why);
             assert!(err.to_string().contains(why), "{why}: {err}");
         }
-        // Without a projection, an article may read a `state` it declares.
+        // Without a projection, an article may read a `state` it declares:
+        // a parameter, an input or an output of that name.
+        let without = law_with_projection("WET", state)
+            .replace("      projection:\n", "")
+            .replace(state, "");
+        for declares in [
+            "      execution:\n        parameters:\n          - {name: state, type: object}\n",
+            "      execution:\n        input:\n          - {name: state, type: object, source: {regulation: elders, output: o}}\n",
+        ] {
+            load(without.replace("      execution:\n", declares)).unwrap();
+        }
         load(
-            law_with_projection("WET", state)
-                .replace("      projection:\n", "")
-                .replace(state, "")
+            without
                 .replace(
-                    "      execution:\n",
-                    "      execution:\n        parameters:\n          - {name: state, type: object}\n",
+                    "        output:\n",
+                    "        output:\n          - name: state\n            type: object\n",
+                )
+                .replace(
+                    "        actions:\n",
+                    "        actions:\n          - output: state\n            value: {a: true}\n",
                 ),
         )
         .unwrap();
