@@ -1596,6 +1596,35 @@ articles:
     }
 
     #[test]
+    fn a_key_of_type_date_takes_a_date() {
+        let mut service = service();
+        service
+            .load_law(
+                &REDUCTION
+                    .replace("$id: reductie", "$id: reductie_per_dag")
+                    .replace("      projection: {}", "      projection: {key: dag}")
+                    .replace(
+                        "      execution:\n        input:",
+                        "      execution:\n        parameters: [{name: dag, type: date}]\n        input:",
+                    ),
+            )
+            .unwrap();
+        let ask = |dag: &str| {
+            service.evaluate_projection(
+                "reductie_per_dag",
+                &["heeft_kaart"],
+                &[],
+                BTreeMap::from([("dag".to_string(), Value::String(dag.to_string()))]),
+                "2025-03-01",
+                false,
+            )
+        };
+        assert!(ask("2025-03-01").is_ok());
+        let err = ask("morgen").expect_err("no date");
+        assert!(err.to_string().contains("which is no Date"), "{err}");
+    }
+
+    #[test]
     fn a_keyed_projection_needs_the_key() {
         let err = keyed()
             .evaluate_projection(
