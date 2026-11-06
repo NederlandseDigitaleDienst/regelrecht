@@ -1,0 +1,73 @@
+---
+# FICTIEF. A reduction of the cell's BDD suite (packages/cel/bdd/features)
+# that reads several grants at once: each grant for a period
+# (test_chronicle_effects article 9) has its own first and last day, and a
+# card handed back ends its grant on that day. The answer is about the
+# calculation date: whether a grant holds on that day. Asked as known on an
+# earlier day, the engine plays only what the cell knew then (schema v0.8.15).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_reductie_verleningen
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_reductie_verleningen
+name: Verleningen voor een periode (testreductie)
+
+articles:
+  - number: '1'
+    url: https://example.com/test_reductie_verleningen/1
+    text: >-
+      FICTIEF. Elke verlening voor een periode geeft de aanvrager een kaart
+      van de ingangsdatum tot de einddatum. Geeft hij de kaart eerder terug,
+      dan eindigt die op de dag van teruggave. Hij heeft op een dag een
+      geldige kaart als een van zijn kaarten op die dag geldt.
+    machine_readable:
+      projection:
+        key: aanvrager
+      execution:
+        parameters:
+          - name: aanvrager
+            type: string
+        input:
+          - name: verleningen
+            type: array
+            source:
+              decisions: test_chronicle_effects#9
+          - name: teruggaven
+            type: array
+            source:
+              facts: test_chronicle_effects#9#kaart_teruggegeven
+        output:
+          - name: heeft_geldige_kaart_op_dag
+            type: boolean
+        actions:
+          - output: heeft_geldige_kaart_op_dag
+            value:
+              operation: FOREACH
+              collection: $verleningen
+              as: verlening
+              filter:
+                operation: AND
+                conditions:
+                  - operation: LESS_THAN_OR_EQUAL
+                    subject: $verlening.ingangsdatum
+                    value: $referencedate
+                  - operation: LESS_THAN
+                    subject: $referencedate
+                    value: $verlening.einddatum
+                  # Not handed back on or before the day asked about.
+                  - operation: NOT
+                    value:
+                      operation: IN
+                      subject: $verlening.id
+                      value:
+                        operation: FOREACH
+                        collection: $teruggaven
+                        as: teruggave
+                        filter:
+                          operation: LESS_THAN_OR_EQUAL
+                          subject: $teruggave.teruggegeven_op
+                          value: $referencedate
+                        body: $teruggave.teruggegeven_kaart
+              body: true
+              combine: OR

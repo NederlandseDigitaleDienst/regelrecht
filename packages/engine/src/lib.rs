@@ -76,7 +76,10 @@ pub use data_source::{DataSource, DataSourceMatch, DataSourceRegistry, DictDataS
 pub use engine::{ArticleEngine, ArticleResult, FilledBy, OpenTermFilled, OutputProvenance};
 pub use error::{EngineError, ExternalError, Result};
 pub use operations::{evaluate_value, execute_operation, ValueResolver};
-pub use projection::{ChronicleRecord, ProjectionEvent, ProjectionOutcome, RewindCause};
+pub use projection::{
+    has_projection, ChronicleRecord, ProjectionEvent, ProjectionOptions, ProjectionOutcome,
+    RewindCause,
+};
 pub use receipt::ExecutionReceipt;
 pub use resolver::{
     DeclarationKind, DeclarationNotInForce, DeclarationsFromOtherVersion, DelegationRefusal,

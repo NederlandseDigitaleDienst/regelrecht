@@ -216,6 +216,17 @@ pub struct Source {
         deserialize_with = "optional_fact_reference"
     )]
     pub facts: Option<String>,
+    /// The submissions an article establishes, `<regulation>#<article>`
+    /// (schema v0.8.15): a list with one row per submission, as `decisions`
+    /// gives one per decision. Only a data source answers it, such as the
+    /// cell that records them; only a rulework with `regulatory_layer:
+    /// REDUCTIE` may read it.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_article_reference"
+    )]
+    pub submissions: Option<String>,
     /// The named answer of a cell this input takes (schema v0.8.9,
     /// RFC-048): the name under which a cell gives it in its catalogue
     /// (`cel.yaml`, `answers`), with `parameters` as the values the cell's
@@ -470,85 +481,118 @@ pub struct ProducedItem {
     /// The moment that counts in law for this item (RFC-045).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub moment: Option<Moment>,
-    /// For a decision: what it does with another decision (schema v0.8.14),
-    /// such as revoking the contested decision (Awb 7:11 lid 2). The engine
-    /// carries them out when it plays a chronicle through a reduction with a
-    /// `projection` (`projection.rs`).
+    /// What this record does with an earlier record of the chronicle
+    /// (schema v0.8.14 on a decision, since v0.8.15 on any item), such as
+    /// revoking the contested decision (Awb 7:11 lid 2) or withdrawing an
+    /// application. The engine carries them out when it plays a chronicle
+    /// through a reduction with a `projection` (`projection.rs`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub effects: Option<Vec<DecisionEffect>>,
+    pub effects: Option<Vec<RecordEffect>>,
 }
 
-/// One thing a decision does with another decision (schema v0.8.14). It
-/// names the parameter of the article whose value is that other decision,
-/// and, with `when`, a boolean output of the decision that must be true for
-/// the effect to hold, such as the revocation that follows only from a
-/// well-founded objection.
+/// One thing a record does with an earlier record of the chronicle (schema
+/// v0.8.14, generalised in v0.8.15). It names the parameter of the article
+/// whose value is the id of that other record; with `when`, a boolean
+/// output of the record that must be true for the effect to hold; and with
+/// `from` and `until`, the dates (parameters or outputs of the record)
+/// between which the effect holds for an answer about a day.
 ///
-/// In YAML it is a map with exactly one of `revokes` and `replaces`, and
-/// optionally `when`. It goes through [`DecisionEffectFields`], which checks
-/// the one-of.
+/// In YAML it is a map with exactly one of `undoes` and `replaces`, and
+/// optionally `when`, `from` and `until`. `revokes` is the v0.8.14 name of
+/// `undoes`, read for a regelwerk written against that version. It goes
+/// through [`RecordEffectFields`], which checks the one-of.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(try_from = "DecisionEffectFields", into = "DecisionEffectFields")]
-pub struct DecisionEffect {
-    /// What the decision does with the other decision.
+#[serde(try_from = "RecordEffectFields", into = "RecordEffectFields")]
+pub struct RecordEffect {
+    /// What the record does with the other record.
     pub kind: EffectKind,
-    /// The parameter whose value is the other decision.
+    /// The parameter whose value is the other record's id.
     pub parameter: String,
-    /// A boolean output of this decision; the effect holds only when it is
+    /// A boolean output of this record; the effect holds only when it is
     /// true. Without it the effect always holds.
     pub when: Option<String>,
+    /// A date the record holds: the effect holds only for an answer about a
+    /// day on or after it (schema v0.8.15).
+    pub from: Option<String>,
+    /// A date the record holds: the effect holds only for an answer about a
+    /// day before it (schema v0.8.15).
+    pub until: Option<String>,
+    /// Whether the regelwerk wrote an undoing as `revokes`, its v0.8.14
+    /// name, so that it is written back the same way and stays valid under
+    /// the version it names.
+    pub spelled_revokes: bool,
 }
 
-/// What a decision does with another decision (schema v0.8.14).
+/// What a record does with an earlier record (schema v0.8.14, v0.8.15).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EffectKind {
-    /// The other decision's consequences no longer count.
-    Revokes,
-    /// The other decision's consequences no longer count, and this
-    /// decision's consequences count in their place.
+    /// The other record no longer counts. The text of the article says
+    /// which legal act that is (a revocation, a withdrawal).
+    Undoes,
+    /// The other record no longer counts, and this record counts in its
+    /// place.
     Replaces,
 }
 
-/// The map form of a [`DecisionEffect`], only for (de)serializing it.
+/// The map form of a [`RecordEffect`], only for (de)serializing it.
 #[doc(hidden)]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DecisionEffectFields {
+pub struct RecordEffectFields {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    undoes: Option<String>,
+    /// The name of `undoes` in schema v0.8.14.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     revokes: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     replaces: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     when: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    from: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    until: Option<String>,
 }
 
-impl TryFrom<DecisionEffectFields> for DecisionEffect {
+impl TryFrom<RecordEffectFields> for RecordEffect {
     type Error = String;
 
-    fn try_from(fields: DecisionEffectFields) -> Result<Self, Self::Error> {
-        let (kind, parameter) = match (fields.revokes, fields.replaces) {
-            (Some(p), None) => (EffectKind::Revokes, p),
-            (None, Some(p)) => (EffectKind::Replaces, p),
-            _ => return Err("an effect names exactly one of `revokes` and `replaces`".to_string()),
-        };
+    fn try_from(fields: RecordEffectFields) -> Result<Self, Self::Error> {
+        let spelled_revokes = fields.revokes.is_some();
+        let (kind, parameter) =
+            match (fields.undoes, fields.revokes, fields.replaces) {
+                (Some(p), None, None) | (None, Some(p), None) => (EffectKind::Undoes, p),
+                (None, None, Some(p)) => (EffectKind::Replaces, p),
+                _ => return Err(
+                    "an effect names exactly one of `undoes` (v0.8.14: `revokes`) and `replaces`"
+                        .to_string(),
+                ),
+            };
         Ok(Self {
             kind,
             parameter,
             when: fields.when,
+            from: fields.from,
+            until: fields.until,
+            spelled_revokes,
         })
     }
 }
 
-impl From<DecisionEffect> for DecisionEffectFields {
-    fn from(effect: DecisionEffect) -> Self {
-        let (revokes, replaces) = match effect.kind {
-            EffectKind::Revokes => (Some(effect.parameter), None),
-            EffectKind::Replaces => (None, Some(effect.parameter)),
+impl From<RecordEffect> for RecordEffectFields {
+    fn from(effect: RecordEffect) -> Self {
+        let (undoes, revokes, replaces) = match effect.kind {
+            EffectKind::Undoes if effect.spelled_revokes => (None, Some(effect.parameter), None),
+            EffectKind::Undoes => (Some(effect.parameter), None, None),
+            EffectKind::Replaces => (None, None, Some(effect.parameter)),
         };
         Self {
+            undoes,
             revokes,
             replaces,
             when: effect.when,
+            from: effect.from,
+            until: effect.until,
         }
     }
 }
@@ -630,9 +674,9 @@ impl<'a> Produced<'a> {
         }
     }
 
-    /// For a decision in the list form: what it does with other decisions
-    /// (schema v0.8.14); empty for the object form.
-    pub fn effects(self) -> &'a [DecisionEffect] {
+    /// In the list form: what a record of this item does with earlier
+    /// records (schema v0.8.14, v0.8.15); empty for the object form.
+    pub fn effects(self) -> &'a [RecordEffect] {
         match self {
             Self::Object(_) => &[],
             Self::Item(i) => i.effects.as_deref().unwrap_or_default(),
@@ -1318,6 +1362,11 @@ pub struct ArticleRequirement {
     /// authority or a list, such as the GGD for a medical examination.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub competent_authority: Option<CompetentAuthority>,
+    /// With `fact`: what a recorded instance of the fact does with an
+    /// earlier record (schema v0.8.15), such as a corrected fact that takes
+    /// the place of a wrong one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effects: Option<Vec<RecordEffect>>,
 }
 
 /// Declares that this article fills an open term from a higher-level law.

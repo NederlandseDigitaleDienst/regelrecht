@@ -51,9 +51,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::NaiveDate;
 use regelrecht_engine::{
-    Answer as EngineAnswer, AnswerProvenance, AnswerRequest, ArticleBasedLaw, ArticleResult,
-    Authority, Call, Chronicle as ChronicleSource, ChronicleRead, EngineError, LawExecutionService,
-    OpenTermAnswerer, RegulatoryLayer, Value,
+    has_projection, Answer as EngineAnswer, AnswerProvenance, AnswerRequest, ArticleBasedLaw,
+    ArticleResult, Authority, Call, Chronicle as ChronicleSource, ChronicleRead, ChronicleRecord,
+    EngineError, LawExecutionService, OpenTermAnswerer, ProjectionOptions, RegulatoryLayer, Value,
 };
 use serde::Serialize;
 use serde_json::Map;
@@ -170,6 +170,118 @@ pub fn executogram_rows(
         })
         .collect();
     rows_of(service, grams.iter())
+}
+
+/// `grams` as the records a reduction that plays the chronicle forward reads
+/// (schema v0.8.14, [`regelrecht_engine::projection`]), in the order the cell
+/// recorded them, with the values as the engine reads them.
+///
+/// The receipt of a copy of a decision of another cell (RFC-053), such as a
+/// court's judgment, is a record of its own, and is followed by the copied
+/// decision as a record: under its own article and kind, with what the
+/// receipt took from it by name, known from the day of the receipt, and with
+/// its effects from its own law on the day the other cell recorded it. Its
+/// id is `<cell>/<id>`, so it cannot be mistaken for one of this chronicle.
+/// It refers to the decision of this cell the receipt refers to, and an
+/// effect of its article targets that decision: the other cell named it by
+/// its decision value, not by an id here, and the cell checked on receipt
+/// that the copy concerns it (`Cell::record_receipt`).
+pub fn chronicle_records(
+    service: &LawExecutionService,
+    grams: &[Gram],
+) -> Result<Vec<ChronicleRecord>> {
+    let read = |values: &BTreeMap<String, serde_json::Value>| -> Result<BTreeMap<String, Value>> {
+        values
+            .iter()
+            .map(|(k, v)| Ok((k.clone(), stored::from_stored(v)?)))
+            .collect()
+    };
+    let mut records = Vec::new();
+    for gram in grams {
+        let record = ChronicleRecord {
+            id: gram.id.clone(),
+            kind: gram.kind.clone(),
+            basis: gram.basis.clone(),
+            fact: gram.fact.clone(),
+            recorded_on: gram.recorded_on,
+            received_on: None,
+            refers_to: gram.refers_to.clone(),
+            fields: read(&gram.fields)?,
+            outputs: read(&gram.outputs)?,
+        };
+        let copied = gram
+            .received
+            .as_ref()
+            .and_then(|r| Some((r, r.record.as_ref()?)));
+        let Some((received, copied)) = copied else {
+            records.push(record);
+            continue;
+        };
+        let article = copied
+            .basis
+            .split_once('#')
+            .and_then(|(law_id, number)| article_on(service, law_id, number, copied.recorded_on))
+            .ok_or_else(|| {
+                setup(format!(
+                    "the receipt '{}' holds a copy under {}, which names no article in force on {}",
+                    gram.id, copied.basis, copied.recorded_on
+                ))
+            })?;
+        let declared_outputs = article.get_outputs();
+        let (outputs, mut fields): (BTreeMap<_, _>, BTreeMap<_, _>) = record
+            .fields
+            .clone()
+            .into_iter()
+            .partition(|(name, _)| declared_outputs.iter().any(|o| &o.name == name));
+        let target = gram.refers_to.clone().ok_or_else(|| {
+            setup(format!(
+                "the receipt '{}' holds a copy but refers to no decision of this cell",
+                gram.id
+            ))
+        })?;
+        let item = article
+            .get_decision()
+            .filter(|d| d.legal_character() == Some(copied.kind.as_str()));
+        let effects = item.map(|d| d.effects()).unwrap_or_default();
+        // The receipt names one decision of this cell, so a copy can point
+        // its effects at one decision only. A ruling that does something
+        // with two decisions of this cell needs a receipt that names both.
+        let mut named: Vec<&str> = effects.iter().map(|e| e.parameter.as_str()).collect();
+        named.sort_unstable();
+        named.dedup();
+        if named.len() > 1 {
+            return Err(setup(format!(
+                "the receipt '{}' holds a copy under {} whose effects name {}; a receipt names \
+                 one decision of this cell, so the cell cannot tell which is which",
+                gram.id,
+                copied.basis,
+                named.join(" and ")
+            )));
+        }
+        for effect in effects {
+            fields.insert(effect.parameter.clone(), Value::String(target.clone()));
+        }
+        let id = format!("{}/{}", received.from, received.id);
+        if records.iter().any(|r| r.id == id) {
+            return Err(setup(format!(
+                "the receipt '{}' holds a copy of '{id}', which an earlier receipt holds too",
+                gram.id
+            )));
+        }
+        records.push(record);
+        records.push(ChronicleRecord {
+            id,
+            kind: copied.kind.clone(),
+            basis: copied.basis.clone(),
+            fact: None,
+            recorded_on: copied.recorded_on,
+            received_on: Some(gram.recorded_on),
+            refers_to: Some(target),
+            fields,
+            outputs,
+        });
+    }
+    Ok(records)
 }
 
 /// The name under which the row of an executogram gives the chronolexogram
@@ -322,6 +434,26 @@ pub fn decision_kind(
         .ok_or_else(|| setup(format!("{reference} takes no decision in force on {day}")))
 }
 
+/// The kind of the submission article `reference` establishes on `day`
+/// (schema v0.8.15).
+pub fn submission_kind(
+    service: &LawExecutionService,
+    reference: &str,
+    day: NaiveDate,
+) -> Result<String> {
+    reference
+        .split_once('#')
+        .and_then(|(law_id, article)| article_on(service, law_id, article, day))
+        .and_then(|article| article.get_submission())
+        .and_then(|submission| submission.submission_kind())
+        .map(str::to_string)
+        .ok_or_else(|| {
+            setup(format!(
+                "{reference} establishes no submission in force on {day}"
+            ))
+        })
+}
+
 /// One answer the cell gave the engine ([`Reader`]).
 #[derive(Debug, Clone)]
 pub struct Asked {
@@ -362,6 +494,17 @@ pub struct Reader<'c> {
     /// The `$id`s of the reductions the cell keeps.
     reductions: &'c BTreeSet<String>,
     grams: Vec<Gram>,
+    /// The day the cell answers as of, when that is not the day the answer
+    /// is about (schema v0.8.15): a reduction that plays the chronicle
+    /// forward plays only what the cell knew then. `None`: the day the
+    /// answer is about.
+    known_on: Option<NaiveDate>,
+    /// The chronicle a reduction that plays it forward plays, when that is
+    /// not `grams`: a decision that may replace the decision its submission
+    /// refers to reads the other reductions without that decision, but a
+    /// projection plays the whole chronicle and lets the effects of the law
+    /// decide whether it counts. The chronicle is never filtered for it.
+    played: Option<Vec<Gram>>,
     explain: Option<&'c str>,
     asked: RefCell<Vec<Asked>>,
     /// The answers the cell is giving now, outermost first. A reduction
@@ -371,7 +514,7 @@ pub struct Reader<'c> {
     /// The rows the reader gave, per read (whether decisions, and the
     /// article or fact) and day: the chronicle does not change while it
     /// reads.
-    read: RefCell<BTreeMap<(bool, String, NaiveDate), Value>>,
+    read: RefCell<BTreeMap<(u8, String, NaiveDate), Value>>,
 }
 
 impl<'c> Reader<'c> {
@@ -393,11 +536,26 @@ impl<'c> Reader<'c> {
             answers,
             reductions,
             grams,
+            known_on: None,
+            played: None,
             explain,
             asked: RefCell::new(Vec::new()),
             answering: RefCell::new(Vec::new()),
             read: RefCell::new(BTreeMap::new()),
         }
+    }
+
+    /// The reader, answering as known on `day` (schema v0.8.15).
+    pub fn known_on(mut self, day: NaiveDate) -> Self {
+        self.known_on = Some(day);
+        self
+    }
+
+    /// The reader, with `grams` as the chronicle a reduction that plays it
+    /// forward plays.
+    pub fn plays(mut self, grams: Vec<Gram>) -> Self {
+        self.played = Some(grams);
+        self
     }
 
     /// What the cell answered, in the order the engine asked.
@@ -492,7 +650,22 @@ impl<'c> Reader<'c> {
         };
         let outputs = [name];
         let date = request.calculation_date;
-        let result = if self.explain == Some(name) {
+        let trace = self.explain == Some(name);
+        // A reduction that plays the chronicle forward (schema v0.8.14) gets
+        // the chronicle as records; the engine plays it and answers from the
+        // last state.
+        let result = if has_projection(article) {
+            let records = chronicle_records(service, self.played.as_ref().unwrap_or(&self.grams))?;
+            let known_on = self.known_on.map(|d| d.to_string());
+            let options = ProjectionOptions {
+                known_on: known_on.as_deref(),
+                call,
+                trace,
+            };
+            service
+                .evaluate_projection_with(reduction, &outputs, &records, parameters, date, options)?
+                .result
+        } else if trace {
             service.evaluate_law_with_trace_in(reduction, &outputs, parameters, call, date)?
         } else {
             service.evaluate_law_in(reduction, &outputs, parameters, call, date)?
@@ -524,8 +697,9 @@ impl Reader<'_> {
         day: NaiveDate,
     ) -> Result<Value> {
         let key = match read {
-            ChronicleRead::Decisions(basis) => (true, basis.to_string(), day),
-            ChronicleRead::Facts(fact) => (false, fact.to_string(), day),
+            ChronicleRead::Decisions(basis) => (0, basis.to_string(), day),
+            ChronicleRead::Facts(fact) => (1, fact.to_string(), day),
+            ChronicleRead::Submissions(basis) => (2, basis.to_string(), day),
         };
         if let Some(rows) = self.read.borrow().get(&key) {
             return Ok(rows.clone());
@@ -544,6 +718,15 @@ impl Reader<'_> {
                     ))
                 })?;
                 executogram_rows(service, &self.grams, fact)?
+            }
+            ChronicleRead::Submissions(basis) => {
+                let kind = submission_kind(service, basis, day)?;
+                rows_of(
+                    service,
+                    self.grams
+                        .iter()
+                        .filter(|g| g.kind == kind && g.basis == basis),
+                )?
             }
         };
         self.read.borrow_mut().insert(key, rows.clone());
@@ -1439,6 +1622,109 @@ articles:
                 article: "1".into(),
                 answer: "al_verleend".into(),
             }]
+        );
+    }
+
+    /// A court article whose ruling takes the place of the contested
+    /// decision (schema v0.8.15), for [`chronicle_records`].
+    const COURT_LAW: &str = r#"
+$id: wet_rechter
+regulatory_layer: WET
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+articles:
+  - number: '1'
+    text: Fictief.
+    machine_readable:
+      execution:
+        produces:
+          - type: UITSPRAAK
+            outputs: [in_plaats_verleend]
+            effects: [{replaces: bestreden}]
+        parameters:
+          - {name: bestreden, type: string}
+          - {name: bsn, type: string}
+        output: [{name: in_plaats_verleend, type: boolean}]
+        actions: [{output: in_plaats_verleend, value: true}]
+"#;
+
+    #[test]
+    fn a_receipt_of_a_copy_plays_the_copied_ruling_after_it() {
+        let mut service = LawExecutionService::new();
+        service.load_law(COURT_LAW).unwrap();
+        let mut receipt = gram(EXECUTOGRAM, "wet_fictief#2", Some("besluit"));
+        receipt.id = "ontvangst".into();
+        receipt.fact = Some("afschrift".into());
+        receipt.outputs.clear();
+        receipt.fields = [
+            ("in_plaats_verleend".to_string(), json!(true)),
+            ("bsn".to_string(), json!("999990019")),
+        ]
+        .into();
+        receipt.received = Some(crate::chronicle::Received {
+            from: "rechtbank".into(),
+            id: "u1".into(),
+            record: Some(crate::chronicle::ReceivedRecord {
+                kind: "UITSPRAAK".into(),
+                basis: "wet_rechter#1".into(),
+                recorded_on: NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
+            }),
+        });
+        let records = chronicle_records(&service, &[receipt.clone()]).unwrap();
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0].id, "ontvangst");
+        let ruling = &records[1];
+        assert_eq!(ruling.id, "rechtbank/u1");
+        assert_eq!(ruling.basis, "wet_rechter#1");
+        assert_eq!(ruling.kind, "UITSPRAAK");
+        // Its law is that of the day the court recorded it; it is known from
+        // the day of the receipt.
+        assert_eq!(
+            ruling.recorded_on,
+            NaiveDate::from_ymd_opt(2026, 10, 1).unwrap()
+        );
+        assert_eq!(ruling.received_on, Some(receipt.recorded_on));
+        // The effect targets the decision the receipt refers to.
+        assert_eq!(ruling.fields["bestreden"], Value::String("besluit".into()));
+        assert_eq!(ruling.refers_to.as_deref(), Some("besluit"));
+        assert_eq!(ruling.outputs["in_plaats_verleend"], Value::Bool(true));
+        assert_eq!(ruling.fields["bsn"], Value::String("999990019".into()));
+        // The same copy received twice is refused: its record would have one
+        // id twice.
+        let mut again = receipt.clone();
+        again.id = "ontvangst_2".into();
+        let err = chronicle_records(&service, &[receipt.clone(), again]).unwrap_err();
+        assert!(
+            err.to_string().contains("an earlier receipt holds too"),
+            "{err}"
+        );
+        // A ruling whose effects name two decisions cannot be pointed at
+        // the one decision a receipt names.
+        service
+            .load_law(
+                &COURT_LAW
+                    .replace("$id: wet_rechter", "$id: wet_rechter_twee")
+                    .replace(
+                        "effects: [{replaces: bestreden}]",
+                        "effects: [{replaces: bestreden}, {undoes: bsn}]",
+                    ),
+            )
+            .unwrap();
+        let mut two = receipt.clone();
+        if let Some(r) = two.received.as_mut().and_then(|r| r.record.as_mut()) {
+            r.basis = "wet_rechter_twee#1".into();
+        }
+        let err = chronicle_records(&service, &[two]).unwrap_err();
+        assert!(err.to_string().contains("bestreden and bsn"), "{err}");
+        // A copy under an article the service does not know is refused.
+        let mut unknown = receipt;
+        if let Some(r) = unknown.received.as_mut().and_then(|r| r.record.as_mut()) {
+            r.basis = "wet_onbekend#1".into();
+        }
+        let err = chronicle_records(&service, &[unknown]).unwrap_err();
+        assert!(
+            err.to_string().contains("names no article in force"),
+            "{err}"
         );
     }
 }

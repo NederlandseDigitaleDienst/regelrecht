@@ -5362,7 +5362,7 @@ impl LawExecutionService {
                     }
                 },
             },
-            ChronicleRead::Facts(_) => read,
+            ChronicleRead::Facts(_) | ChronicleRead::Submissions(_) => read,
         };
         if let Some(chronicle) = res_ctx.chronicle {
             let rows = chronicle.rows(self, law, read, res_ctx.calculation_date);

@@ -102,7 +102,10 @@ only runs features whose tiers it supports.
 submissions, decisions and facts in the chronicle of a cell, evaluate a
 reduction that plays the chronicle forward (`projection`, schema v0.8.14), and
 check what the engine did: a table of each record applied or skipped and each
-replay, and which records were in force at the end. Those steps are not part of
+replay, and which records were in force at the end. A few steps run the cell's
+own code instead of recording directly: the cell decides, receives a copy of a
+court ruling, or gives one of its answers, about the calculation date and as
+known on another day. Those steps are not part of
 this grammar. This grammar is the contract every engine executes, the Rust
 engine and the JS engines alike. Recording a chronicle is the cell's job, and
 only the Rust engine plays one forward; the JS engines do not implement

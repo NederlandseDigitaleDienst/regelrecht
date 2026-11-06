@@ -5,8 +5,13 @@
 # wegverkeer, artikel 49) and Awb 7:11 lid 2, cut down to what the scenarios
 # need. None of it is the text of a law. Article 4 (a withdrawal), article 5
 # (handing the card in) and article 6 (a warning in the place of a
-# withdrawal) are fictional throughout.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+# withdrawal) are fictional throughout, and so are articles 7 to 13 (schema
+# v0.8.15): an application withdrawn, an income stated and rectified, a
+# grant for a period, a provisional measure, a court ruling in the place of
+# a decision with its receipt, a permit that asks the cell's answer, and a
+# decision on objection that may take a new decision in the place of the
+# contested one.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
 $id: test_chronicle_effects
 name: Testwet effecten van besluiten
 regulatory_layer: WET
@@ -61,7 +66,7 @@ articles:
             outputs:
               - herroepen
             effects:
-              - revokes: bestreden_besluit
+              - undoes: bestreden_besluit
                 when: herroepen
         parameters:
           - name: bestreden_besluit
@@ -118,7 +123,7 @@ articles:
             outputs:
               - ingetrokken
             effects:
-              - revokes: ingetrokken_besluit
+              - undoes: ingetrokken_besluit
         parameters:
           - name: ingetrokken_besluit
             type: string
@@ -173,3 +178,258 @@ articles:
         actions:
           - output: waarschuwing
             value: true
+
+  - number: '7'
+    url: https://example.com/test_chronicle_effects/7
+    text: >-
+      FICTIEF, naar artikel 4:5 en artikel 6:21 van de Algemene wet
+      bestuursrecht. De aanvrager kan zijn aanvraag intrekken. De intrekking
+      wordt als feit vastgelegd. Het intrekken van de aanvraag laat een besluit
+      dat al op de aanvraag is genomen in stand.
+    machine_readable:
+      requires:
+        - fact: aanvraag_ingetrokken
+          description: De aanvrager heeft zijn aanvraag ingetrokken.
+          parameters:
+            - ingetrokken_aanvraag
+          # Undoes the application only. The decision on it, if any, is a
+          # record of its own, and the text names no effect on it.
+          effects:
+            - undoes: ingetrokken_aanvraag
+      execution:
+        parameters:
+          - name: ingetrokken_aanvraag
+            type: string
+
+  - number: '8'
+    url: https://example.com/test_chronicle_effects/8
+    text: >-
+      FICTIEF, naar artikel 16 van de Algemene verordening
+      gegevensbescherming. De aanvrager geeft zijn inkomen over een jaar op.
+      Is een opgave onjuist, dan rectificeert het college haar: de
+      gerectificeerde opgave komt in de plaats van de onjuiste.
+    machine_readable:
+      requires:
+        - fact: inkomen_opgegeven
+          description: De aanvrager heeft zijn inkomen over een jaar opgegeven.
+          parameters:
+            - jaar
+            - bedrag
+            - aanvrager
+        - fact: inkomen_gerectificeerd
+          description: Het college heeft een onjuiste opgave gerectificeerd.
+          parameters:
+            - gerectificeerde_opgave
+            - jaar
+            - bedrag
+            - aanvrager
+          effects:
+            - replaces: gerectificeerde_opgave
+      execution:
+        parameters:
+          - name: jaar
+            type: string
+          - name: bedrag
+            type: amount
+          - name: aanvrager
+            type: string
+          - name: gerectificeerde_opgave
+            type: string
+
+  - number: '9'
+    url: https://example.com/test_chronicle_effects/9
+    text: >-
+      FICTIEF. Het college verleent een gehandicaptenparkeerkaart voor een
+      periode, die ingaat op de ingangsdatum en eindigt voor de einddatum.
+      Geeft de houder de kaart eerder terug, dan wordt dat als feit
+      vastgelegd.
+    machine_readable:
+      requires:
+        - fact: kaart_teruggegeven
+          description: De houder heeft een kaart teruggegeven, op de dag die het feit noemt.
+          parameters:
+            - teruggegeven_kaart
+            - teruggegeven_op
+            - aanvrager
+      execution:
+        produces:
+          - type: BESCHIKKING
+            outputs:
+              - verleend_voor_periode
+        parameters:
+          - name: aanvrager
+            type: string
+          - name: ingangsdatum
+            type: date
+          - name: einddatum
+            type: date
+          - name: teruggegeven_kaart
+            type: string
+            required: false
+          - name: teruggegeven_op
+            type: date
+            required: false
+        output:
+          - name: verleend_voor_periode
+            type: boolean
+        actions:
+          - output: verleend_voor_periode
+            value: true
+
+  - number: '10'
+    url: https://example.com/test_chronicle_effects/10
+    text: >-
+      FICTIEF, naar artikel 8:81 van de Algemene wet bestuursrecht. De
+      voorzieningenrechter kan een voorlopige voorziening treffen. Hij kan het
+      bestreden besluit schorsen vanaf de dag van schorsing tot de dag waarop
+      de schorsing eindigt.
+    machine_readable:
+      execution:
+        produces:
+          - type: UITSPRAAK
+            outputs:
+              - geschorst
+            # A suspension is an undoing that holds for a while: for an
+            # answer about a day from `schorsing_vanaf` up to
+            # `schorsing_tot`, the suspended decision does not count.
+            effects:
+              - undoes: bestreden_besluit
+                when: geschorst
+                from: schorsing_vanaf
+                until: schorsing_tot
+        parameters:
+          - name: bestreden_besluit
+            type: string
+          - name: schorsing_vanaf
+            type: date
+          - name: schorsing_tot
+            type: date
+        output:
+          - name: geschorst
+            type: boolean
+        actions:
+          - output: geschorst
+            value: true
+
+  - number: '11'
+    url: https://example.com/test_chronicle_effects/11
+    text: >-
+      FICTIEF, naar artikel 8:72, derde lid, van de Algemene wet
+      bestuursrecht. Vernietigt de bestuursrechter het bestreden besluit, dan
+      kan hij bepalen dat zijn uitspraak in de plaats treedt van het
+      vernietigde besluit.
+    machine_readable:
+      execution:
+        produces:
+          - type: BEROEP
+            requests: test_chronicle_effects#11
+            parameters:
+              - bestreden_besluit
+          - type: UITSPRAAK
+            outputs:
+              - in_de_plaats_verleend
+            effects:
+              - replaces: bestreden_besluit
+        parameters:
+          - name: bestreden_besluit
+            type: string
+          - name: ernstig_beperkt
+            type: boolean
+          - name: aanvrager
+            type: string
+        output:
+          - name: in_de_plaats_verleend
+            type: boolean
+        actions:
+          - output: in_de_plaats_verleend
+            value: $ernstig_beperkt
+
+  - number: '12'
+    url: https://example.com/test_chronicle_effects/12
+    text: >-
+      FICTIEF, naar artikel 8:79 van de Algemene wet bestuursrecht. Het
+      college legt vast dat het een afschrift van de uitspraak heeft
+      ontvangen, met wat de uitspraak bepaalt.
+    machine_readable:
+      requires:
+        - fact: afschrift_uitspraak_ontvangen
+          description: Het college heeft een afschrift van de uitspraak ontvangen.
+          parameters:
+            - in_de_plaats_verleend
+            - aanvrager
+      execution:
+        parameters:
+          - name: in_de_plaats_verleend
+            type: boolean
+          - name: aanvrager
+            type: string
+
+  - number: '13'
+    url: https://example.com/test_chronicle_effects/13
+    text: >-
+      FICTIEF. Het college verleent op aanvraag een parkeerontheffing aan wie
+      een geldige gehandicaptenparkeerkaart heeft.
+    machine_readable:
+      open_terms:
+        - id: heeft_geldige_kaart
+          type: boolean
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: test_chronicle_effects#13
+            parameters:
+              - aanvrager
+          - type: BESCHIKKING
+            outputs:
+              - ontheffing_verleend
+        parameters:
+          - name: aanvrager
+            type: string
+        output:
+          - name: ontheffing_verleend
+            type: boolean
+        actions:
+          - output: ontheffing_verleend
+            value: $heeft_geldige_kaart
+
+  - number: '14'
+    url: https://example.com/test_chronicle_effects/14
+    text: >-
+      FICTIEF, naar artikel 7:11 van de Algemene wet bestuursrecht. Op het
+      bezwaar tegen de verlening van een gehandicaptenparkeerkaart stelt het
+      college vast of de aanvrager nog een geldige kaart heeft. Het kan een
+      nieuw besluit nemen in de plaats van het bestreden besluit.
+    machine_readable:
+      open_terms:
+        - id: heeft_geldige_kaart
+          type: boolean
+      execution:
+        produces:
+          - type: BEZWAAR
+            requests: test_chronicle_effects#14
+            parameters:
+              - bestreden_besluit
+              - aanvrager
+          - type: BESCHIKKING
+            outputs:
+              - kaart_nog_geldig
+              - besluit_in_de_plaats
+        parameters:
+          - name: bestreden_besluit
+            type: decision
+          - name: aanvrager
+            type: string
+        output:
+          - name: kaart_nog_geldig
+            type: boolean
+          # A decision this one may take in the place of the contested one.
+          # The scenario never takes one; that the article may is what makes
+          # the cell read its other answers without the contested decision.
+          - name: besluit_in_de_plaats
+            type: decision
+            nullable: true
+        actions:
+          - output: kaart_nog_geldig
+            value: $heeft_geldige_kaart
+          - output: besluit_in_de_plaats
+            value: null

@@ -3,7 +3,7 @@
 # keyed by bewoner. The same chronicle is also read keyed by the other field
 # (test_reductie_vergunning_per_kenteken, test_reductie_vergunning_per_bewoner):
 # a decision that replaces a permit replaces it for both questions.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
 $id: test_reductie_vergunning_per_bewoner
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'

@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.14",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.15",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -1232,6 +1232,10 @@
                     "$ref": "#/definitions/variableReference"
                   },
                   "description": "Values whose fields are passed to the `article` as parameters, merged in order: a later one wins over an earlier one, and `parameters` wins over all of them. Each is an object, such as the `fields` or `findings` of a `decision` value, or null, which adds nothing; any other value is an error at run time. Only with `article`."
+                },
+                "submissions": {
+                  "$ref": "#/definitions/articleReference",
+                  "description": "Since v0.8.15: the submissions an article establishes, `<regulation>#<article>`, such as the applications under it. A list with one row per submission, holding the parameters it lists, its `basis`, `id`, `type`, `recorded_on` and `refers_to`. Only a `REDUCTIE` rulework reads it, and only a data source answers it: the cell that runs the reduction, or the engine with the records in force for a reduction with a `projection`. It stands alone, without `regulation`, `output`, `parameters`, `endpoint`, `decisions` or `facts`."
                 }
               },
               "additionalProperties": false,
@@ -1355,6 +1359,42 @@
                       {
                         "required": [
                           "article"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "submissions": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "regulation"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "output"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "parameters"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "endpoint"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "decisions"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "facts"
                         ]
                       }
                     ]
@@ -2380,6 +2420,10 @@
                     }
                   }
                 ]
+              },
+              "effects": {
+                "$ref": "#/definitions/recordEffects",
+                "description": "Since v0.8.15, only with `fact`: what a recorded instance of this fact does with an earlier record, such as a corrected fact that takes the place of a wrong one. A fact has no outputs, so its effects have no `when`."
               }
             },
             "additionalProperties": false,
@@ -2442,6 +2486,22 @@
                           "competent_authority"
                         ]
                       }
+                    ]
+                  }
+                }
+              },
+              {
+                "if": {
+                  "not": {
+                    "required": [
+                      "fact"
+                    ]
+                  }
+                },
+                "then": {
+                  "not": {
+                    "required": [
+                      "effects"
                     ]
                   }
                 }
@@ -2769,7 +2829,7 @@
         },
         "projection": {
           "type": "object",
-          "description": "Since v0.8.14, only in a `REDUCTIE`: the reduction reads the records of a cell's chronicle that are in force. The engine plays the records the cell knew on the calculation date in the order the cell recorded them and carries out what the law says a record does with an earlier one (`produces[].effects`): when a record that counts undoes an earlier one that was applied, it plays the chronicle again from the start without it, for as long as a record that undoes it still counts; a record that is revoked or replaced undoes nothing any more. An undone record is gone from the whole history (ex tunc). The chronicle itself is never changed, and a record recorded after the calculation date is not played. The reduction's inputs that read the decisions under an article (`source.decisions`) or the recorded instances of a fact (`source.facts`) then get one row per record in force, with its fields and outputs, its `id`, `basis`, `type`, `recorded_on` (the day it was recorded) and `refers_to` (the record it refers to, or null). The `execution` computes the answer from those rows; the reduction keeps no state of its own. The effects of a record come from the version of its law in force on the day it was recorded; the reduction answers in the version in force on the calculation date. Only a call that plays a chronicle (`evaluate_projection` in the Rust engine) answers from it; the engine refuses such an article on every other path: asked directly, from another rulework, or at a stage. `projection: {}` plays every record.",
+          "description": "Since v0.8.14, only in a `REDUCTIE`: the reduction reads the records of a cell's chronicle that are in force. The engine plays the records the cell knew in the order the cell recorded them and carries out what the law says a record does with an earlier one (`produces[].effects`, and since v0.8.15 `requires[].effects`): when a record that counts undoes an earlier one that was applied, it plays the chronicle again from the start without it, for as long as a record that undoes it still counts; a record that is revoked or replaced undoes nothing any more. An undone record is gone from the whole history (ex tunc), unless its effect holds only from or until a day (`from`, `until`). The chronicle itself is never changed. Since v0.8.15 an answer is about the calculation date (`$referencedate`) and is given as known on a day: by default the calculation date, or another day a caller names, so that a question about a past day can be answered with what was known then or with what is known now. A record the cell came to know after that day is not played; a record of another cell, such as a judgment received as a copy, is known from the day it was received. The reduction's inputs that read the decisions under an article (`source.decisions`), the recorded instances of a fact (`source.facts`) or, since v0.8.15, the submissions an article establishes (`source.submissions`) then get one row per record in force, with its fields and outputs, its `id`, `basis`, `type`, `recorded_on` (the day it was recorded) and `refers_to` (the record it refers to, or null). The `execution` computes the answer from those rows; the reduction keeps no state of its own. The effects of a record come from the version of its law in force on the day it was recorded; the reduction answers in the version in force on the calculation date. Only a call that plays a chronicle (`evaluate_projection` in the Rust engine, or a cell that gives its answer from the reduction) answers from it; the engine refuses such an article on every other path: asked directly, from another rulework, or at a stage. `projection: {}` plays every record.",
           "additionalProperties": false,
           "properties": {
             "key": {
@@ -3170,40 +3230,7 @@
           "description": "Only on a decision: the names of this article's outputs that are data derived for the decision (RFC-050), such as an intermediate result the decision is recorded with. They are computed at the decision's stages and recorded with it, but are none of its outputs, so a call to the article (`source.article`) leaves them out of the decision value. Derived data is listed, never inferred: an output that no item lists under `outputs` or `derived` is refused, so a forgotten or misspelt output fails instead of turning into derived data. Every name must be an output of the article and belongs to no other item; the loader checks both."
         },
         "effects": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "description": "Since v0.8.14: one thing a decision does with another decision, named by a parameter of the article whose value is that decision. Exactly one of `revokes` and `replaces`, and optionally `when`.",
-            "additionalProperties": false,
-            "oneOf": [
-              {
-                "required": [
-                  "revokes"
-                ]
-              },
-              {
-                "required": [
-                  "replaces"
-                ]
-              }
-            ],
-            "properties": {
-              "revokes": {
-                "type": "string",
-                "description": "The parameter whose value is the decision this one revokes: its consequences no longer count (Awb 7:11 lid 2)."
-              },
-              "replaces": {
-                "type": "string",
-                "description": "The parameter whose value is the decision this one takes the place of: the consequences of that decision no longer count, and those of this one do (Awb 7:11 lid 2)."
-              },
-              "when": {
-                "type": "string",
-                "description": "A boolean output of this decision (one its `outputs` lists, or without that list, one no other item lists); the effect holds only when the decision has it as true, such as a revocation that follows only from a well-founded objection (Awb 7:11 lid 2). Without it the effect always holds. The loader checks that it names a boolean output of this decision."
-              }
-            }
-          },
-          "minItems": 1,
-          "description": "Since v0.8.14, only on a decision: what this decision does with another decision, such as the decision on an objection that revokes the contested decision (Awb 7:11 lid 2) or takes a new decision in its place. Each effect names a parameter of this article whose value is the other decision, and with `when` a boolean output of this decision that must be true for the effect to hold. A runtime that records decisions plays the effects in the order the decisions were recorded, and from them derives which decisions still have consequences: a revoked decision has none, a replaced one has none and its replacement has them. A decision that is itself revoked or replaced undoes nothing any more, so a decision it alone revoked or replaced has consequences again; a replacement that should keep an undoing in force declares that effect itself. An undoing takes a decision out of the whole history (ex tunc). The engine carries the effects out when it plays a chronicle through a reduction with a `projection`; the loader checks that it sits on a decision, that every named parameter is a parameter of the article, and that every `when` names a boolean output of the decision."
+          "$ref": "#/definitions/recordEffects"
         },
         "decision_type": {
           "type": "string",
@@ -3285,11 +3312,6 @@
                   "required": [
                     "derived"
                   ]
-                },
-                {
-                  "required": [
-                    "effects"
-                  ]
                 }
               ]
             }
@@ -3341,6 +3363,50 @@
           ],
           "default": "INSTANCE",
           "description": "INSTANCE = specific organization (default), CATEGORY = must be resolved per context."
+        }
+      }
+    },
+    "recordEffects": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Since v0.8.15 (v0.8.14 on a decision only, with `revokes` for `undoes`): what this record does with an earlier record of the chronicle, on any item of `produces` (a submission or a decision) and on a fact (`requires[].fact`). Each effect names a parameter of this article whose value is the id of the other record. Which legal act that is (a revocation, a withdrawal, a rectification, a suspension) the text of this article says; the effect only says what follows for the chronicle. A runtime that plays a chronicle derives from the effects which records still count: an undone record does not, a replaced record does not and its replacement does. A record that is itself undone or replaced undoes nothing any more, so a record it alone undid counts again; a replacement that should keep an undoing in force declares that effect itself. An effect touches only the record it names: a record that refers to the undone one, such as the decision on a withdrawn application, keeps counting unless an effect names it too. An undoing takes a record out of the whole history (ex tunc), unless `from` or `until` limit the days it holds on. The engine carries the effects out when it plays a chronicle through a reduction with a `projection`; the loader checks that every named parameter is a parameter of the article, that every `when` names a boolean output of the item, and that `from` and `until` name date parameters or outputs.",
+      "items": {
+        "type": "object",
+        "description": "Since v0.8.15: one thing this record does with an earlier record, named by a parameter of the article whose value is that record's id. Exactly one of `undoes` and `replaces`, and optionally `when`, `from` and `until`.",
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "undoes"
+            ]
+          },
+          {
+            "required": [
+              "replaces"
+            ]
+          }
+        ],
+        "properties": {
+          "undoes": {
+            "type": "string",
+            "description": "The parameter whose value is the record this one undoes: that record no longer counts. The legal act it is, such as a revocation (Awb 7:11 lid 2) or the withdrawal of an application, is in the text of the article."
+          },
+          "replaces": {
+            "type": "string",
+            "description": "The parameter whose value is the record this one takes the place of: that record no longer counts, and this one does, such as a new decision in the place of a revoked one (Awb 7:11 lid 2) or a corrected fact in the place of a wrong one."
+          },
+          "when": {
+            "type": "string",
+            "description": "A boolean output of this item; the effect holds only when the record has it as true, such as a revocation that follows only from a well-founded objection. Without it the effect always holds. Only on an item with outputs, so not on a submission without outputs or on a fact."
+          },
+          "from": {
+            "type": "string",
+            "description": "A date parameter or output of this record: the effect holds only for an answer about a day on or after it, such as the first day of a suspension (Awb 8:81). For an answer about an earlier day the record it names counts as if this effect did not exist. A null date sets no bound; a date the record does not hold is an error."
+          },
+          "until": {
+            "type": "string",
+            "description": "A date parameter or output of this record: the effect holds only for an answer about a day before it, so this is the first day it no longer holds, such as the day a suspension ends. Without `from`, the effect holds for every day before it. A null date sets no bound; a date the record does not hold is an error."
+          }
         }
       }
     }

@@ -6,7 +6,7 @@
 # the effects the law gives a decision on another one (`produces[].effects`);
 # the engine carries those out by rewinding, and nothing in this reduction
 # speaks of revoking or replacing.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
 $id: test_reductie_geldige_kaart
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'
@@ -18,8 +18,9 @@ articles:
   - number: '1'
     url: https://example.com/test_reductie_geldige_kaart/1
     text: >-
-      FICTIEF. De aanvrager heeft een geldige kaart als een verlening of een
-      besluit in de plaats daarvan die meetelt hem een kaart gaf, later dan
+      FICTIEF. De aanvrager heeft een geldige kaart als een verlening, een
+      besluit in de plaats daarvan of een uitspraak in de plaats daarvan die
+      meetelt hem een kaart gaf, later dan
       hij een kaart inleverde. Zijn kaart is een vervanging als hij er een
       heeft en meer dan een verlening meetelt.
     machine_readable:
@@ -40,6 +41,12 @@ articles:
             type: array
             source:
               decisions: test_chronicle_effects#3
+          # A court ruling in the place of a decision (FICTIEF, art. 11),
+          # received as a copy from the court's cell.
+          - name: uitspraken
+            type: array
+            source:
+              decisions: test_chronicle_effects#11
           - name: inleveringen
             type: array
             source:
@@ -63,7 +70,8 @@ articles:
                       - $besluit.kaart_verleend
                       # Recorded after the last card handed in: fewer days
                       # before the calculation date than that hand-in.
-                      - operation: OR
+                      - &later_dan_de_inlevering
+                        operation: OR
                         conditions:
                           - operation: EQUALS
                             subject: &dagen_sinds_inlevering
@@ -92,6 +100,16 @@ articles:
                   filter: *na_de_laatste_inlevering
                   body: true
                   combine: OR
+                - operation: FOREACH
+                  collection: $uitspraken
+                  as: besluit
+                  filter:
+                    operation: AND
+                    conditions:
+                      - $besluit.in_de_plaats_verleend
+                      - *later_dan_de_inlevering
+                  body: true
+                  combine: OR
           - output: kaart_is_vervanging
             value:
               operation: AND
@@ -112,6 +130,12 @@ articles:
                         collection: $besluiten_in_de_plaats
                         as: besluit
                         filter: $besluit.kaart_verleend
+                        body: 1
+                        combine: ADD
+                      - operation: FOREACH
+                        collection: $uitspraken
+                        as: besluit
+                        filter: $besluit.in_de_plaats_verleend
                         body: 1
                         combine: ADD
                   value: 1

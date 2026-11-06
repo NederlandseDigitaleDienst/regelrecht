@@ -1,0 +1,29 @@
+---
+# Only a fact has effects among the requirements (schema v0.8.15).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_conformance_requires_effects_without_fact
+regulatory_layer: WET
+publication_date: '2026-11-05'
+valid_from: '2026-11-05'
+bwb_id: BWBR0099996
+name: Testwet effect zonder feit
+url: https://example.invalid/requires-effects
+articles:
+  - number: '1'
+    url: https://example.invalid/requires-effects/1
+    text: Het bestuursorgaan beslist.
+    machine_readable:
+      requires:
+        - article: '2'
+          effects:
+            - undoes: p
+      execution:
+        parameters:
+          - name: p
+            type: string
+        output:
+          - name: x
+            type: boolean
+        actions:
+          - output: x
+            value: true

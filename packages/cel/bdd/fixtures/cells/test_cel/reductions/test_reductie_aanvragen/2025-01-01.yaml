@@ -1,0 +1,85 @@
+---
+# FICTIEF. A reduction of the cell's BDD suite (packages/cel/bdd/features)
+# over records that are no decision: an application that may be withdrawn
+# (test_chronicle_effects article 7), and an income stated per year that the
+# college may rectify (article 8). The law gives the withdrawal and the
+# rectification their effect on the earlier record (schema v0.8.15); this
+# reduction reads what is in force.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_reductie_aanvragen
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_reductie_aanvragen
+name: Lopende aanvraag en opgegeven inkomen (testreductie)
+
+articles:
+  - number: '1'
+    url: https://example.com/test_reductie_aanvragen/1
+    text: >-
+      FICTIEF. Er loopt een aanvraag zolang er een is waarop nog geen besluit
+      is genomen. Het opgegeven inkomen is de som van de opgaven die
+      meetellen.
+    machine_readable:
+      projection:
+        key: aanvrager
+      execution:
+        parameters:
+          - name: aanvrager
+            type: string
+        input:
+          - name: aanvragen
+            type: array
+            source:
+              submissions: test_chronicle_effects#1
+          - name: besluiten
+            type: array
+            source:
+              decisions: test_chronicle_effects#1
+          - name: opgaven
+            type: array
+            source:
+              facts: test_chronicle_effects#8#inkomen_opgegeven
+          - name: rectificaties
+            type: array
+            source:
+              facts: test_chronicle_effects#8#inkomen_gerectificeerd
+        output:
+          - name: aanvraag_loopt
+            type: boolean
+          - name: totaal_inkomen
+            type: amount
+        actions:
+          # An application on which no decision in force was taken: its id
+          # is not among the applications the decisions refer to.
+          - output: aanvraag_loopt
+            value:
+              operation: FOREACH
+              collection: $aanvragen
+              as: aanvraag
+              filter:
+                operation: NOT
+                value:
+                  operation: IN
+                  subject: $aanvraag.id
+                  value:
+                    operation: FOREACH
+                    collection: $besluiten
+                    as: besluit
+                    body: $besluit.refers_to
+              body: true
+              combine: OR
+          - output: totaal_inkomen
+            value:
+              operation: ADD
+              values:
+                - operation: FOREACH
+                  collection: $opgaven
+                  as: opgave
+                  body: $opgave.bedrag
+                  combine: ADD
+                - operation: FOREACH
+                  collection: $rectificaties
+                  as: opgave
+                  body: $opgave.bedrag
+                  combine: ADD

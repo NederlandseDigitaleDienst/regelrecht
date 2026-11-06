@@ -115,6 +115,21 @@ pub struct Received {
     pub from: String,
     /// Its id in the chronicle of that cell.
     pub id: String,
+    /// For the receipt of a copy: what the copied chronolexogram is, so the
+    /// cell can play it in its own chronicle (`crate::reading::chronicle_records`).
+    /// A submission that holds a copy keeps none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub record: Option<ReceivedRecord>,
+}
+
+/// What the receipt of a copy keeps of the copied chronolexogram: its kind,
+/// the article it rests on, and the day the other cell recorded it, whose
+/// law gives its effects.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReceivedRecord {
+    pub kind: String,
+    pub basis: String,
+    pub recorded_on: NaiveDate,
 }
 
 /// A copy of a decision that a cell hands to another (RFC-053): the

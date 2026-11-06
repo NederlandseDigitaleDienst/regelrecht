@@ -1474,6 +1474,7 @@ impl regelrecht_engine::Chronicle for Kroniek {
         Ok(match read {
             ChronicleRead::Decisions(basis) => self.decisions.get(basis).cloned(),
             ChronicleRead::Facts(_) => Some(self.judgments.clone()),
+            ChronicleRead::Submissions(_) => None,
         }
         .map(Value::from))
     }

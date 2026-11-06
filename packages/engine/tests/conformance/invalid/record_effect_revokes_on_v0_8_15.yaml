@@ -1,0 +1,30 @@
+---
+# Schema v0.8.15 names an undoing `undoes`; `revokes` is the v0.8.14 name and
+# no longer valid under v0.8.15.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_conformance_revokes_on_v0_8_15
+regulatory_layer: WET
+publication_date: '2026-11-05'
+valid_from: '2026-11-05'
+bwb_id: BWBR0099995
+name: Testwet revokes
+url: https://example.invalid/revokes
+articles:
+  - number: '1'
+    url: https://example.invalid/revokes/1
+    text: Het bestuursorgaan herroept het bestreden besluit.
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            effects:
+              - revokes: bestreden_besluit
+        parameters:
+          - name: bestreden_besluit
+            type: string
+        output:
+          - name: herroepen
+            type: boolean
+        actions:
+          - output: herroepen
+            value: true

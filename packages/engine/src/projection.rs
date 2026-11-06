@@ -10,11 +10,21 @@
 //! state of its own: what a record changes is in the record, and whether it
 //! still counts is the engine's.
 //!
+//! An answer has two days (schema v0.8.15). It is about the calculation
+//! date, the day it must hold on (`$referencedate` in the reduction), and it
+//! is given as known on a day, by default the same one: a record the cell
+//! came to know after that day is not played ([`ProjectionOptions`]). So a
+//! question about last month can be answered with what was known then or
+//! with what is known now.
+//!
 //! What a record does with an earlier record is law, not part of the
-//! reduction: the article of a decision says it revokes or replaces another
-//! decision (`produces[].effects`, optionally only `when` an outcome is true),
-//! under the version of that law in force on the day the record was
-//! recorded. The engine carries that out by rewinding. When an effect of a
+//! reduction: the article says that a record of it undoes or replaces
+//! another record (`produces[].effects`, `requires[].effects`), optionally
+//! only `when` an outcome is true and only `from` or `until` a day, under the
+//! version of that law in force on the day the record was recorded. Any
+//! record may have effects (an application, an objection, a decision, a
+//! fact), on any earlier record, and an effect touches only the record it
+//! names. The engine carries that out by rewinding. When an effect of a
 //! record that counts undoes an earlier record that was applied, the engine
 //! plays the chronicle again from the start and skips the undone record. A
 //! record is skipped for as long as at least one record that undoes it
@@ -22,7 +32,14 @@
 //! more, so a record it alone undid counts again and the engine rewinds once
 //! more; a replacement that should keep an undoing in force declares that
 //! effect itself. The chronicle is never changed. An undone record is gone
-//! from the whole history (ex tunc).
+//! from the whole history (ex tunc), unless the effect holds only from or
+//! until a day: then it is gone only from an answer about a day in that
+//! window, such as a decision suspended for a while (Awb 8:81).
+//!
+//! A record another cell recorded, such as a court's judgment this cell
+//! received a copy of, plays here from the day this cell received it
+//! (`received_on`); its effects come from its own law on the day the other
+//! cell recorded it.
 //!
 //! With `key`, the engine plays the records of one person: those that hold
 //! the asked key under the key's name, and what refers to them. A record of
@@ -38,7 +55,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::NaiveDate;
-use regelrecht_law_model::{Article, ArticleBasedLaw, EffectKind, Projection};
+use regelrecht_law_model::{Article, ArticleBasedLaw, EffectKind, Projection, RecordEffect};
 use serde::{Deserialize, Serialize};
 
 use crate::answer::{Call, Chronicle, ChronicleRead};
@@ -61,7 +78,13 @@ pub struct ChronicleRecord {
     pub kind: String,
     pub basis: String,
     pub fact: Option<String>,
+    /// The day it was recorded, by the cell that recorded it: the version
+    /// of its law in force that day gives its effects.
     pub recorded_on: NaiveDate,
+    /// For a record of another cell, such as a judgment this cell received
+    /// a copy of: the day this cell received it. It is known from then on;
+    /// a record of the cell itself is known from the day it was recorded.
+    pub received_on: Option<NaiveDate>,
     /// The record it refers to, such as the submission a decision was taken
     /// on, or the decision an objection contests.
     pub refers_to: Option<String>,
@@ -69,15 +92,22 @@ pub struct ChronicleRecord {
     pub outputs: BTreeMap<String, Value>,
 }
 
+impl ChronicleRecord {
+    /// The day from which the cell knew the record.
+    pub fn known_from(&self) -> NaiveDate {
+        self.received_on.unwrap_or(self.recorded_on)
+    }
+}
+
 /// What caused a rewind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RewindCause {
-    /// A record revokes an earlier one that was applied.
-    Revokes,
+    /// A record undoes an earlier one that was applied.
+    Undoes,
     /// A record replaces an earlier one that was applied.
     Replaces,
-    /// A record that undid an earlier one is itself revoked or replaced now,
+    /// A record that undid an earlier one is itself undone or replaced now,
     /// and no other record undoes the earlier one any more: it counts again.
     Revives,
 }
@@ -85,7 +115,7 @@ pub enum RewindCause {
 impl From<EffectKind> for RewindCause {
     fn from(kind: EffectKind) -> Self {
         match kind {
-            EffectKind::Revokes => Self::Revokes,
+            EffectKind::Undoes => Self::Undoes,
             EffectKind::Replaces => Self::Replaces,
         }
     }
@@ -127,16 +157,26 @@ pub struct ProjectionOutcome {
     pub result: ArticleResult,
 }
 
+/// How a projection is asked, beside the day it is about
+/// ([`LawExecutionService::evaluate_projection_with`]).
+#[derive(Default)]
+pub struct ProjectionOptions<'a> {
+    /// The day up to which records are known: a record the cell came to
+    /// know later is not played. Without it, the calculation date.
+    pub known_on: Option<&'a str>,
+    /// Who answers the reduction's execution, such as the cell that runs
+    /// it (RFC-048). Its chronicle is replaced by the records in force.
+    pub call: Call<'a>,
+    /// Whether the result carries the engine's trace.
+    pub trace: bool,
+}
+
 impl LawExecutionService {
     /// Play `records`, in their order, through the projection of the
     /// reduction `law_id` that gives `output_names`, and evaluate those
-    /// outputs with `parameters`; its inputs that read decisions or facts
-    /// read the records in force.
-    ///
-    /// Refuses a reduction article without a projection, an effect on a
-    /// record that is not an earlier record, an effect whose `when` outcome
-    /// the record does not hold as a boolean, and a replay that does not
-    /// settle.
+    /// outputs with `parameters`; its inputs that read submissions,
+    /// decisions or facts read the records in force. The answer is about
+    /// `calculation_date`, as known on that day.
     pub fn evaluate_projection(
         &self,
         law_id: &str,
@@ -146,7 +186,40 @@ impl LawExecutionService {
         calculation_date: &str,
         trace: bool,
     ) -> Result<ProjectionOutcome> {
+        self.evaluate_projection_with(
+            law_id,
+            output_names,
+            records,
+            parameters,
+            calculation_date,
+            ProjectionOptions {
+                trace,
+                ..ProjectionOptions::default()
+            },
+        )
+    }
+
+    /// [`Self::evaluate_projection`], as known on the day `options` names,
+    /// with the call it gives the reduction's execution.
+    ///
+    /// Refuses a reduction article without a projection, an effect on a
+    /// record that is not an earlier record, an effect whose `when` outcome
+    /// the record does not hold as a boolean, and a replay that does not
+    /// settle.
+    pub fn evaluate_projection_with<'a>(
+        &self,
+        law_id: &str,
+        output_names: &[&str],
+        records: &[ChronicleRecord],
+        parameters: BTreeMap<String, Value>,
+        calculation_date: &'a str,
+        options: ProjectionOptions<'a>,
+    ) -> Result<ProjectionOutcome> {
         let day = parse_day(calculation_date)?;
+        let known_on = match options.known_on {
+            Some(known_on) => parse_day(known_on)?,
+            None => day,
+        };
         let Some(first) = output_names.first() else {
             return Err(EngineError::InvalidOperation("no output asked".to_string()));
         };
@@ -178,15 +251,15 @@ impl LawExecutionService {
             (projection, key_type)
         };
 
-        // What the cell recorded after the calculation date is not known on
-        // it, so it is not played.
+        // What the cell came to know after the day it answers as of is not
+        // played.
         let known: Vec<ChronicleRecord> = records
             .iter()
-            .filter(|r| r.recorded_on <= day)
+            .filter(|r| r.known_from() <= known_on)
             .cloned()
             .collect();
         let partition = self.partition(&projection, key_type.as_ref(), &known, &parameters)?;
-        let played = self.play(law_id, &known, &partition)?;
+        let played = self.play(law_id, &known, &partition, day)?;
         let in_force = InForce {
             records: played.in_force.iter().map(|&i| &known[i]).collect(),
         };
@@ -194,10 +267,10 @@ impl LawExecutionService {
         // force and nothing else.
         let call = Call {
             chronicle: Some(&in_force),
-            ..Call::default()
+            ..options.call
         };
 
-        let mut result = if trace {
+        let mut result = if options.trace {
             self.evaluate_law_traced_played(
                 law_id,
                 output_names,
@@ -231,12 +304,15 @@ impl LawExecutionService {
 
     /// Play the chronicle, rewinding until no record changes whether an
     /// earlier record counts. Returns the positions of the records in force
-    /// that are rows of the reduction, and every event.
+    /// that are rows of the reduction, and every event. `valid_on` is the
+    /// day the answer is about, which decides whether an effect limited by
+    /// `from` or `until` holds.
     fn play(
         &self,
         law_id: &str,
         records: &[ChronicleRecord],
         partition: &Partition,
+        valid_on: NaiveDate,
     ) -> Result<Played> {
         // undone_by[t]: the records with an effect on t that held when they
         // were last played, each with what it does to t. A record is skipped
@@ -295,7 +371,7 @@ impl LawExecutionService {
 
                 // An effect on a record of another partition is that
                 // partition's business.
-                let effects = self.holding_effects(record, &records[..i])?;
+                let effects = self.holding_effects(record, &records[..i], valid_on)?;
                 for (kind, target) in effects.into_iter().filter(|(_, t)| partition.holds(t)) {
                     undone_by
                         .entry(target)
@@ -449,50 +525,72 @@ impl LawExecutionService {
     }
 
     /// The records `record` refers to: its `refers_to`, and the values of
-    /// the fields that an effect of its article names. That holds for every
-    /// record under the article, so an objection that names the contested
-    /// decision in such a field refers to it, as the decision on it does.
+    /// the fields that an effect of its article names, of any item or fact
+    /// of it. That holds for every record under the article, so an
+    /// objection that names the contested decision in such a field refers
+    /// to it, as the decision on it does.
     fn references(&self, record: &ChronicleRecord) -> Result<Vec<String>> {
         let mut ids: Vec<String> = record.refers_to.iter().cloned().collect();
         let article = self.article_of(record)?;
-        if let Some(decision) = article.get_decision() {
-            for effect in decision.effects() {
-                if let Some(Value::String(id)) = record.fields.get(&effect.parameter) {
-                    ids.push(id.clone());
-                }
+        for effect in all_effects(article) {
+            if let Some(Value::String(id)) = record.fields.get(&effect.parameter) {
+                ids.push(id.clone());
             }
         }
         Ok(ids)
     }
 
-    /// The effects of `record` that hold, each with the earlier record it
-    /// undoes. A record has effects only as a decision of its article
-    /// (`produces[].effects`), under the law of the day it was recorded.
+    /// The effects the law gives `record` (schema v0.8.14, v0.8.15): those
+    /// of the item of its article it is (a submission or a decision), or for
+    /// an executogram those of the fact it records, under the law of the
+    /// day it was recorded. A record of a kind its article does not
+    /// produce, or of a fact it does not require, is refused, for the same
+    /// reason as an unknown article.
+    fn effects_of<'s>(&'s self, record: &ChronicleRecord) -> Result<&'s [RecordEffect]> {
+        let article = self.article_of(record)?;
+        let unknown = |what: String| {
+            EngineError::InvalidOperation(format!(
+                "record '{}' is {what} under '{}', which that article does not {}",
+                record.id,
+                record.basis,
+                if record.kind == EXECUTOGRAM {
+                    "require"
+                } else {
+                    "produce"
+                }
+            ))
+        };
+        if record.kind == EXECUTOGRAM {
+            let fact = record.fact.as_deref();
+            let requirement = article
+                .get_requires()
+                .iter()
+                .find(|r| fact.is_some() && r.fact.as_deref() == fact)
+                .ok_or_else(|| unknown(format!("the fact {}", fact.unwrap_or("(none)"))))?;
+            return Ok(requirement.effects.as_deref().unwrap_or_default());
+        }
+        let submission = article
+            .get_submission()
+            .filter(|s| s.submission_kind() == Some(record.kind.as_str()));
+        let decision = article
+            .get_decision()
+            .filter(|d| d.legal_character() == Some(record.kind.as_str()));
+        submission
+            .or(decision)
+            .map(|item| item.effects())
+            .ok_or_else(|| unknown(format!("a {}", record.kind)))
+    }
+
+    /// The effects of `record` that hold for an answer about `valid_on`,
+    /// each with the earlier record it undoes.
     fn holding_effects<'r>(
         &self,
         record: &ChronicleRecord,
         earlier: &'r [ChronicleRecord],
+        valid_on: NaiveDate,
     ) -> Result<Vec<(EffectKind, &'r str)>> {
-        let article = self.article_of(record)?;
-        // A submission and an executogram undo nothing; a decision has the
-        // effects its article gives it. A record of a kind its article does
-        // not produce is refused, for the same reason as an unknown article.
-        if record.kind == EXECUTOGRAM
-            || article.get_submission().and_then(|s| s.submission_kind()) == Some(&record.kind)
-        {
-            return Ok(Vec::new());
-        }
-        let decision = article
-            .get_decision()
-            .filter(|d| d.legal_character() == Some(record.kind.as_str()))
-            .ok_or_else(|| {
-                EngineError::InvalidOperation(format!(
-                    "record '{}' is a {} under '{}', which that article does not produce",
-                    record.id, record.kind, record.basis
-                ))
-            })?;
         let mut holding = Vec::new();
-        for effect in decision.effects() {
+        for effect in self.effects_of(record)? {
             if let Some(when) = &effect.when {
                 match record.outputs.get(when) {
                     Some(Value::Bool(true)) => {}
@@ -506,7 +604,15 @@ impl LawExecutionService {
                     }
                 }
             }
+            if !holds_on(record, effect, valid_on)? {
+                continue;
+            }
             let name = &effect.parameter;
+            // A field that holds null names no record, such as the earlier
+            // application of a first one: the effect undoes nothing.
+            if matches!(record.fields.get(name), Some(Value::Null)) {
+                continue;
+            }
             let Some(Value::String(target)) = record.fields.get(name) else {
                 return Err(EngineError::InvalidOperation(format!(
                     "record '{}' ({}) has an effect on '{name}', but holds no record id under it",
@@ -524,6 +630,50 @@ impl LawExecutionService {
         }
         Ok(holding)
     }
+}
+
+/// Every effect an item or fact of `article` declares.
+fn all_effects(article: &Article) -> impl Iterator<Item = &RecordEffect> {
+    let produced = article.get_produced().into_iter().flat_map(|p| p.effects());
+    let facts = article
+        .get_requires()
+        .iter()
+        .flat_map(|r| r.effects.iter().flatten());
+    produced.chain(facts)
+}
+
+/// Whether `effect` of `record` holds for an answer about `valid_on`: on or
+/// after its `from`, and before its `until`, each a date the record holds.
+/// A null date sets no bound. A date the record does not hold at all is
+/// refused: read as no bound, it would undo the other record for every day.
+fn holds_on(record: &ChronicleRecord, effect: &RecordEffect, valid_on: NaiveDate) -> Result<bool> {
+    let day =
+        |name: &String| -> Result<Option<NaiveDate>> {
+            let value = record.fields.get(name).or_else(|| record.outputs.get(name));
+            match value {
+                None => Err(EngineError::InvalidOperation(format!(
+                    "record '{}' ({}) has an effect that holds from or until '{name}', but holds \
+                     no value under it",
+                    record.id, record.basis
+                ))),
+                Some(Value::Null) => Ok(None),
+                Some(Value::String(s)) => NaiveDate::parse_from_str(s, "%Y-%m-%d")
+                    .map(Some)
+                    .map_err(|e| {
+                        EngineError::InvalidOperation(format!(
+                            "record '{}' ({}) holds '{name}' as {s}, which is no date: {e}",
+                            record.id, record.basis
+                        ))
+                    }),
+                Some(other) => Err(EngineError::InvalidOperation(format!(
+                    "record '{}' ({}) holds '{name}' as {other:?}, which is no date",
+                    record.id, record.basis
+                ))),
+            }
+        };
+    let from = effect.from.as_ref().map(day).transpose()?.flatten();
+    let until = effect.until.as_ref().map(day).transpose()?.flatten();
+    Ok(from.is_none_or(|f| f <= valid_on) && until.is_none_or(|u| valid_on < u))
 }
 
 /// Which records a play reads: all of them (`members` is `None`), or those of
@@ -576,6 +726,15 @@ impl Chronicle for InForce<'_> {
                             .article_of(record)?
                             .get_decision()
                             .and_then(|d| d.legal_character())
+                            == Some(record.kind.as_str())
+                }
+                ChronicleRead::Submissions(basis) => {
+                    record.basis == basis
+                        && record.kind != EXECUTOGRAM
+                        && service
+                            .article_of(record)?
+                            .get_submission()
+                            .and_then(|s| s.submission_kind())
                             == Some(record.kind.as_str())
                 }
                 ChronicleRead::Facts(fact) => fact.rsplit_once('#').is_some_and(|(basis, name)| {
@@ -701,7 +860,7 @@ pub fn show_ids(ids: &[String]) -> String {
 /// The word for a rewind's cause, as the trace shows it.
 pub fn cause_word(cause: RewindCause) -> &'static str {
     match cause {
-        RewindCause::Revokes => "revokes",
+        RewindCause::Undoes => "undoes",
         RewindCause::Replaces => "replaces",
         RewindCause::Revives => "revives",
     }
@@ -736,7 +895,7 @@ articles:
       execution:
         produces:
           - type: BESCHIKKING
-            effects: [{revokes: bestreden, when: herroepen}]
+            effects: [{undoes: bestreden, when: herroepen}]
         parameters: [{name: bestreden, type: string}]
         output: [{name: herroepen, type: boolean}]
         actions: [{output: herroepen, value: true}]
@@ -833,6 +992,7 @@ articles:
             basis: format!("wet#{article}"),
             fact: None,
             recorded_on: day("2025-03-01"),
+            received_on: None,
             refers_to: None,
             fields: fields
                 .iter()
@@ -929,7 +1089,7 @@ articles:
         assert_eq!(skipped_in_last_replay(&outcome), ["a"]);
         assert!(outcome.events.contains(&ProjectionEvent::Rewound {
             record: "h".to_string(),
-            cause: RewindCause::Revokes,
+            cause: RewindCause::Undoes,
             target: "a".to_string(),
         }));
     }
@@ -1411,8 +1571,8 @@ articles:
                 revoke("h2", "h1", true)
             ]),
             [
-                "h1 revokes a: play again from the start",
-                "h2 revokes h1: play again from the start",
+                "h1 undoes a: play again from the start",
+                "h2 undoes h1: play again from the start",
                 "h1 revives a: play again from the start",
             ]
         );
@@ -1673,5 +1833,346 @@ articles:
         let names: Vec<&str> = node.children.iter().map(|n| n.name.as_str()).collect();
         assert_eq!(names, ["APPLY", "REWIND", "SKIP", "APPLY"]);
         assert_eq!(node.children[0].message.as_deref(), Some("a"));
+    }
+
+    /// A law for the schema v0.8.15 tests: article 1 grants for a period
+    /// (`van`, `tot`), article 2 suspends `besluit` from `vanaf` until `tot`
+    /// (a window on an undoing), article 3 is an application that a later
+    /// application replaces, and article 4 requires a fact that a
+    /// correction replaces.
+    const LAW_V15: &str = r#"
+$id: wet15
+regulatory_layer: WET
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      execution:
+        produces:
+          - {type: BESCHIKKING, outputs: [verleend]}
+        parameters:
+          - {name: van, type: date}
+          - {name: tot, type: date}
+        output: [{name: verleend, type: boolean}]
+        actions: [{output: verleend, value: true}]
+  - number: '2'
+    text: t
+    machine_readable:
+      execution:
+        produces:
+          - type: UITSPRAAK
+            effects: [{undoes: besluit, from: vanaf, until: tot}]
+        parameters:
+          - {name: besluit, type: string}
+          - {name: vanaf, type: date}
+          - {name: tot, type: date}
+        output: [{name: geschorst, type: boolean}]
+        actions: [{output: geschorst, value: true}]
+  - number: '3'
+    text: t
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: 'wet15#1'
+            parameters: [eerdere]
+            effects: [{replaces: eerdere}]
+          - {type: BESCHIKKING, outputs: [x]}
+        parameters: [{name: eerdere, type: string}]
+        output: [{name: x, type: boolean}]
+        actions: [{output: x, value: true}]
+  - number: '4'
+    text: t
+    machine_readable:
+      requires:
+        - {fact: opgave, parameters: [bedrag]}
+        - fact: correctie
+          parameters: [onjuist, bedrag]
+          effects: [{replaces: onjuist}]
+      execution:
+        parameters:
+          - {name: bedrag, type: number}
+          - {name: onjuist, type: string}
+"#;
+
+    /// Reads the grants, the applications and the stated amounts in force;
+    /// answers whether a grant holds on the calculation date.
+    const REDUCTION_V15: &str = r#"
+$id: reductie15
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      projection: {}
+      execution:
+        input:
+          - {name: verleningen, type: array, source: {decisions: 'wet15#1'}}
+          - {name: aanvragen, type: array, source: {submissions: 'wet15#3'}}
+          - {name: opgaven, type: array, source: {facts: 'wet15#4#opgave'}}
+          - {name: correcties, type: array, source: {facts: 'wet15#4#correctie'}}
+        output:
+          - {name: geldig, type: boolean}
+          - {name: aantal_aanvragen, type: number}
+          - {name: som, type: number}
+        actions:
+          - output: geldig
+            value:
+              operation: FOREACH
+              collection: $verleningen
+              as: v
+              filter:
+                operation: AND
+                conditions:
+                  - {operation: LESS_THAN_OR_EQUAL, subject: $v.van, value: $referencedate}
+                  - {operation: LESS_THAN, subject: $referencedate, value: $v.tot}
+              body: true
+              combine: OR
+          - output: aantal_aanvragen
+            value: {operation: FOREACH, collection: $aanvragen, as: a, body: 1, combine: ADD}
+          - output: som
+            value:
+              operation: ADD
+              values:
+                - {operation: FOREACH, collection: $opgaven, as: o, body: $o.bedrag, combine: ADD}
+                - {operation: FOREACH, collection: $correcties, as: c, body: $c.bedrag, combine: ADD}
+"#;
+
+    fn service_v15() -> LawExecutionService {
+        let mut service = LawExecutionService::new();
+        service.load_law(LAW_V15).unwrap();
+        service.load_law(REDUCTION_V15).unwrap();
+        service
+    }
+
+    fn record15(
+        id: &str,
+        kind: &str,
+        article: &str,
+        on: &str,
+        fields: &[(&str, &str)],
+    ) -> ChronicleRecord {
+        ChronicleRecord {
+            id: id.to_string(),
+            kind: kind.to_string(),
+            basis: format!("wet15#{article}"),
+            fact: None,
+            recorded_on: day(on),
+            received_on: None,
+            refers_to: None,
+            fields: fields
+                .iter()
+                .map(|(k, v)| (k.to_string(), Value::String(v.to_string())))
+                .collect(),
+            outputs: BTreeMap::new(),
+        }
+    }
+
+    fn grant15(id: &str, on: &str, van: &str, tot: &str) -> ChronicleRecord {
+        ChronicleRecord {
+            outputs: BTreeMap::from([("verleend".to_string(), Value::Bool(true))]),
+            ..record15(id, "BESCHIKKING", "1", on, &[("van", van), ("tot", tot)])
+        }
+    }
+
+    fn suspension(id: &str, on: &str, besluit: &str, vanaf: &str, tot: &str) -> ChronicleRecord {
+        ChronicleRecord {
+            outputs: BTreeMap::from([("geschorst".to_string(), Value::Bool(true))]),
+            ..record15(
+                id,
+                "UITSPRAAK",
+                "2",
+                on,
+                &[("besluit", besluit), ("vanaf", vanaf), ("tot", tot)],
+            )
+        }
+    }
+
+    fn ask15(
+        output: &str,
+        records: &[ChronicleRecord],
+        valid_on: &str,
+        known_on: Option<&str>,
+    ) -> Result<ProjectionOutcome> {
+        service_v15().evaluate_projection_with(
+            "reductie15",
+            &[output],
+            records,
+            BTreeMap::new(),
+            valid_on,
+            ProjectionOptions {
+                known_on,
+                ..ProjectionOptions::default()
+            },
+        )
+    }
+
+    #[test]
+    fn an_answer_is_about_one_day_and_known_on_another() {
+        // Granted on 1 March from 8 March; suspended for ever by a ruling
+        // recorded on 1 April.
+        let records = [
+            grant15("a", "2025-03-01", "2025-03-08", "2026-03-08"),
+            suspension("s", "2025-04-01", "a", "2025-01-01", "2030-01-01"),
+        ];
+        let geldig = |valid_on, known_on| {
+            ask15("geldig", &records, valid_on, known_on)
+                .unwrap()
+                .result
+                .outputs["geldig"]
+                .clone()
+        };
+        // About 3 March, as known on 1 March: not yet in force.
+        assert_eq!(geldig("2025-03-03", Some("2025-03-01")), Value::Bool(false));
+        // About 10 March, as known then and as known now.
+        assert_eq!(geldig("2025-03-10", Some("2025-03-10")), Value::Bool(true));
+        assert_eq!(geldig("2025-03-10", Some("2025-04-02")), Value::Bool(false));
+        // Without `known_on`, the calculation date.
+        assert_eq!(geldig("2025-03-10", None), Value::Bool(true));
+    }
+
+    #[test]
+    fn an_effect_with_a_window_holds_only_for_a_day_in_it() {
+        let records = [
+            grant15("a", "2025-03-01", "2025-03-01", "2026-03-01"),
+            suspension("s", "2025-03-01", "a", "2025-04-01", "2025-06-01"),
+        ];
+        let geldig = |valid_on| {
+            ask15("geldig", &records, valid_on, Some("2025-03-01"))
+                .unwrap()
+                .result
+                .outputs["geldig"]
+                .clone()
+        };
+        assert_eq!(geldig("2025-03-31"), Value::Bool(true));
+        assert_eq!(geldig("2025-04-01"), Value::Bool(false));
+        assert_eq!(geldig("2025-05-31"), Value::Bool(false));
+        // `until` is the first day it no longer holds.
+        assert_eq!(geldig("2025-06-01"), Value::Bool(true));
+        // A null bound sets no bound.
+        let mut open = records.clone();
+        open[1].fields.insert("tot".to_string(), Value::Null);
+        let outcome = ask15("geldig", &open, "2025-12-01", Some("2025-03-01")).unwrap();
+        assert_eq!(outcome.result.outputs["geldig"], Value::Bool(false));
+        // A bound the record does not hold is refused.
+        let mut missing = records.clone();
+        missing[1].fields.remove("vanaf");
+        let err =
+            ask15("geldig", &missing, "2025-04-01", Some("2025-03-01")).expect_err("no vanaf");
+        assert!(err.to_string().contains("holds no value under it"), "{err}");
+        // A bound that is no date is refused.
+        let mut odd = records.clone();
+        odd[1]
+            .fields
+            .insert("vanaf".to_string(), Value::String("morgen".to_string()));
+        let err = ask15("geldig", &odd, "2025-04-01", Some("2025-03-01")).expect_err("no date");
+        assert!(err.to_string().contains("which is no date"), "{err}");
+    }
+
+    #[test]
+    fn a_submission_and_a_fact_undo_what_they_name() {
+        // A later application replaces an earlier one: one row is left. The
+        // first names no earlier one: null names no record.
+        let mut first = record15("s1", "AANVRAAG", "3", "2025-03-01", &[]);
+        first.fields.insert("eerdere".to_string(), Value::Null);
+        let second = record15("s2", "AANVRAAG", "3", "2025-03-01", &[("eerdere", "s1")]);
+        let outcome = ask15(
+            "aantal_aanvragen",
+            &[first.clone(), second],
+            "2025-03-01",
+            None,
+        )
+        .unwrap();
+        assert_eq!(outcome.result.outputs["aantal_aanvragen"], Value::Int(1));
+        assert_eq!(outcome.in_force, ["s2"]);
+        // A field that is not there at all is refused: the record cannot
+        // say what it undoes.
+        first.fields.clear();
+        let err = ask15("aantal_aanvragen", &[first], "2025-03-01", None).expect_err("no field");
+        assert!(err.to_string().contains("holds no record id"), "{err}");
+
+        // A correction replaces a wrong fact: the sum counts it once.
+        let fact = |id: &str, name: &str, fields: &[(&str, Value)]| ChronicleRecord {
+            fact: Some(name.to_string()),
+            fields: fields
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect(),
+            ..record15(id, "EXECUTOGRAM", "4", "2025-03-01", &[])
+        };
+        let records = [
+            fact("o", "opgave", &[("bedrag", Value::Int(300))]),
+            fact("p", "opgave", &[("bedrag", Value::Int(100))]),
+            fact(
+                "c",
+                "correctie",
+                &[
+                    ("onjuist", Value::String("o".into())),
+                    ("bedrag", Value::Int(250)),
+                ],
+            ),
+        ];
+        let outcome = ask15("som", &records, "2025-03-01", None).unwrap();
+        assert_eq!(outcome.result.outputs["som"], Value::Int(350));
+        assert!(outcome.events.contains(&ProjectionEvent::Rewound {
+            record: "c".to_string(),
+            cause: RewindCause::Replaces,
+            target: "o".to_string(),
+        }));
+        // An executogram of a fact its article does not require is refused.
+        let err = ask15("som", &[fact("x", "iets_anders", &[])], "2025-03-01", None)
+            .expect_err("no such fact");
+        assert!(err.to_string().contains("does not require"), "{err}");
+    }
+
+    #[test]
+    fn a_record_of_another_cell_is_known_from_the_day_it_was_received() {
+        // Recorded by a court on 1 April, received on 10 April: on 5 April
+        // it is not known, and its effects come from the law of 1 April.
+        let ruling = ChronicleRecord {
+            received_on: Some(day("2025-04-10")),
+            ..suspension("rb/s", "2025-04-01", "a", "2025-01-01", "2030-01-01")
+        };
+        let records = [
+            grant15("a", "2025-03-01", "2025-03-01", "2026-03-01"),
+            ruling,
+        ];
+        // From 5 April article 2 has no effect any more: the court's day
+        // decides, not the day of the receipt.
+        let mut service = service_v15();
+        service
+            .load_law(
+                &LAW_V15
+                    .replace("valid_from: '2025-01-01'", "valid_from: '2025-04-05'")
+                    .replace(
+                        "            effects: [{undoes: besluit, from: vanaf, until: tot}]\n",
+                        "",
+                    ),
+            )
+            .unwrap();
+        let geldig = |known_on| {
+            service
+                .evaluate_projection_with(
+                    "reductie15",
+                    &["geldig"],
+                    &records,
+                    BTreeMap::new(),
+                    "2025-04-05",
+                    ProjectionOptions {
+                        known_on: Some(known_on),
+                        ..ProjectionOptions::default()
+                    },
+                )
+                .unwrap()
+                .result
+                .outputs["geldig"]
+                .clone()
+        };
+        assert_eq!(geldig("2025-04-05"), Value::Bool(true));
+        assert_eq!(geldig("2025-04-10"), Value::Bool(false));
     }
 }

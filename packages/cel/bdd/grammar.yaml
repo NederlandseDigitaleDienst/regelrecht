@@ -77,6 +77,106 @@ steps:
     text: I evaluate "{output}" of "{law}" over the chronicle
     args: [{name: output, type: string}, {name: law, type: string}]
 
+  # The same, as known on an earlier or later day (schema v0.8.15): the
+  # answer is about the calculation date, and only the records the cell knew
+  # on the given day are played.
+  - id: evaluate_over_chronicle_known_on
+    action: evaluate_over_chronicle_known_on
+    keyword: when
+    tier: cel
+    text: I evaluate "{output}" of "{law}" over the chronicle as known on "{date}"
+    args: [{name: output, type: string}, {name: law, type: string}, {name: date, type: string}]
+
+  # The cell itself takes the decision a submission asks for, as it does
+  # outside a test: where a policy binds an open term to an answer of the
+  # cell, the cell runs the reduction its catalogue names on its chronicle.
+  - id: decide_through_cell
+    action: decide_through_cell
+    keyword: when
+    tier: cel
+    text: the cell itself decides "{id}" on submission "{submission}"
+    args: [{name: id, type: string}, {name: submission, type: string}]
+
+  # The cell itself records a submission against one of its decisions
+  # (`Cell::record_submission`): the field of type `decision` holds it, the
+  # submission refers to it, and every other field the decision holds by
+  # name comes from it. A table gives what the submitter supplies besides.
+  - id: record_submission_through_cell
+    action: record_submission_through_cell
+    keyword: when
+    tier: cel
+    text: the cell itself records submission "{id}" against "{decision}" under article "{article}" of "{law}"
+    args:
+      - {name: id, type: string}
+      - {name: decision, type: string}
+      - {name: article, type: string}
+      - {name: law, type: string}
+
+  # A court, another cell, records an appeal against a decision of the cell
+  # and rules on it. Its records are in its own chronicle.
+  - id: court_records_appeal
+    action: court_records_appeal
+    keyword: when
+    tier: cel
+    text: 'the court records appeal "{id}" under article "{article}" of "{law}" with:'
+    args: [{name: id, type: string}, {name: article, type: string}, {name: law, type: string}]
+    datatable: true
+
+  - id: court_rules
+    action: court_rules
+    keyword: when
+    tier: cel
+    text: 'the court rules "{id}" on appeal "{appeal}" with:'
+    args: [{name: id, type: string}, {name: appeal, type: string}]
+    datatable: true
+
+  # The cell records the receipt of a copy of the court's ruling (RFC-053),
+  # as a fact the article requires. The copy concerns the decision the
+  # appeal contested.
+  - id: cell_receives_ruling
+    action: cell_receives_ruling
+    keyword: when
+    tier: cel
+    text: the cell receives ruling "{ruling}" as fact "{fact}" "{id}" under article "{article}" of "{law}"
+    args:
+      - {name: ruling, type: string}
+      - {name: fact, type: string}
+      - {name: id, type: string}
+      - {name: article, type: string}
+      - {name: law, type: string}
+
+  # The cell gives an answer of its catalogue (`cel.yaml`), with the
+  # scenario's parameters as a binding passes them, about the calculation
+  # date. This is the path the engine takes when a policy binds an open term
+  # to the answer.
+  - id: cell_answers
+    action: cell_answers
+    keyword: when
+    tier: cel
+    text: the cell answers "{answer}"
+    args: [{name: answer, type: string}]
+
+  - id: cell_answers_known_on
+    action: cell_answers
+    keyword: when
+    tier: cel
+    text: the cell answers "{answer}" as known on "{date}"
+    args: [{name: answer, type: string}, {name: date, type: string}]
+
+  - id: assert_cell_answer_true
+    action: assert_cell_answer
+    keyword: then
+    tier: cel
+    text: the answer of the cell is true
+    literals: [true]
+
+  - id: assert_cell_answer_false
+    action: assert_cell_answer
+    keyword: then
+    tier: cel
+    text: the answer of the cell is false
+    literals: [false]
+
   # Every step the last evaluation took, in order: a record applied (detail
   # `-`), a record skipped (with the records that undo it), a record of
   # someone else that counts for its effects only (with the reason), and a
@@ -113,4 +213,22 @@ steps:
     tier: cel
     text: record "{id}" is skipped
     args: [{name: id, type: string}]
+    literals: [false]
+
+  # What a decision in the chronicle holds as an output, as the cell
+  # recorded it.
+  - id: assert_record_output_true
+    action: assert_record_output
+    keyword: then
+    tier: cel
+    text: record "{id}" has output "{name}" true
+    args: [{name: id, type: string}, {name: name, type: string}]
+    literals: [true]
+
+  - id: assert_record_output_false
+    action: assert_record_output
+    keyword: then
+    tier: cel
+    text: record "{id}" has output "{name}" false
+    args: [{name: id, type: string}, {name: name, type: string}]
     literals: [false]

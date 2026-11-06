@@ -124,7 +124,7 @@ Feature: A reduction plays the chronicle forward
       | tweede_aanvraag  | applied | -                    |
       | tweede_verlening | applied | -                    |
       | bezwaar          | applied | -                    |
-      | herroeping       | rewound | revokes verlening    |
+      | herroeping       | rewound | undoes verlening     |
       | aanvraag         | applied | -                    |
       | verlening        | skipped | undone by herroeping |
       | inlevering       | applied | -                    |
@@ -204,12 +204,12 @@ Feature: A reduction plays the chronicle forward
       | record     | event   | detail               |
       | aanvraag   | applied | -                    |
       | verlening  | applied | -                    |
-      | intrekking | rewound | revokes verlening    |
+      | intrekking | rewound | undoes verlening     |
       | aanvraag   | applied | -                    |
       | verlening  | skipped | undone by intrekking |
       | intrekking | applied | -                    |
       | bezwaar    | applied | -                    |
-      | herroeping | rewound | revokes intrekking   |
+      | herroeping | rewound | undoes intrekking    |
       | aanvraag   | applied | -                    |
       | verlening  | skipped | undone by intrekking |
       | intrekking | skipped | undone by herroeping |
@@ -250,7 +250,7 @@ Feature: A reduction plays the chronicle forward
       | aanvraag     | applied | -                                    |
       | verlening    | applied | -                                    |
       | bezwaar_1    | applied | -                                    |
-      | herroeping_1 | rewound | revokes verlening                    |
+      | herroeping_1 | rewound | undoes verlening                     |
       | aanvraag     | applied | -                                    |
       | verlening    | skipped | undone by herroeping_1, herroeping_2 |
       | bezwaar_1    | applied | -                                    |
@@ -258,7 +258,7 @@ Feature: A reduction plays the chronicle forward
       | bezwaar_2    | applied | -                                    |
       | herroeping_2 | applied | -                                    |
       | bezwaar_3    | applied | -                                    |
-      | herroeping_3 | rewound | revokes herroeping_1                 |
+      | herroeping_3 | rewound | undoes herroeping_1                  |
       | aanvraag     | applied | -                                    |
       | verlening    | skipped | undone by herroeping_2               |
       | bezwaar_1    | applied | -                                    |
@@ -402,13 +402,13 @@ Feature: A reduction plays the chronicle forward
       | aanvraag_x   | applied | -                      |
       | verlening_x  | applied | -                      |
       | bezwaar      | applied | -                      |
-      | herroeping   | rewound | revokes verlening_x    |
+      | herroeping   | rewound | undoes verlening_x     |
       | aanvraag_x   | applied | -                      |
       | verlening_x  | skipped | undone by herroeping   |
       | bezwaar      | applied | -                      |
       | herroeping   | applied | -                      |
       | bezwaar_2    | applied | -                      |
-      | herroeping_2 | rewound | revokes herroeping     |
+      | herroeping_2 | rewound | undoes herroeping      |
       | aanvraag_x   | applied | -                      |
       | verlening_x  | skipped | undone by herroeping   |
       | bezwaar      | applied | -                      |

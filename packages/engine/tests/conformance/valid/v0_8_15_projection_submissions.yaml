@@ -1,0 +1,51 @@
+---
+# Tier C: a reduction that reads the submissions an article establishes and
+# the decisions on them, as far as they are in force (schema v0.8.15).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_conformance_projection_submissions
+regulatory_layer: REDUCTIE
+publication_date: '2026-11-05'
+valid_from: '2026-11-05'
+url: https://example.invalid/projection-submissions
+name: Testreductie lopende aanvragen
+articles:
+  - number: '1'
+    url: https://example.invalid/projection-submissions/1
+    text: Er loopt een aanvraag zolang er een is waarop geen besluit is genomen.
+    machine_readable:
+      projection:
+        key: aanvrager
+      execution:
+        parameters:
+          - name: aanvrager
+            type: string
+        input:
+          - name: aanvragen
+            type: array
+            source:
+              submissions: test_conformance_record_effects#1
+          - name: besluiten
+            type: array
+            source:
+              decisions: test_conformance_record_effects#1
+        output:
+          - name: aanvraag_loopt
+            type: boolean
+        actions:
+          - output: aanvraag_loopt
+            value:
+              operation: FOREACH
+              collection: $aanvragen
+              as: aanvraag
+              filter:
+                operation: NOT
+                value:
+                  operation: IN
+                  subject: $aanvraag.id
+                  value:
+                    operation: FOREACH
+                    collection: $besluiten
+                    as: besluit
+                    body: $besluit.refers_to
+              body: true
+              combine: OR

@@ -152,6 +152,7 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
                     ("endpoint", source.endpoint.is_some()),
                     ("decisions", source.decisions.is_some()),
                     ("facts", source.facts.is_some()),
+                    ("submissions", source.submissions.is_some()),
                     ("article", source.article.is_some()),
                 ];
                 if let Some((key, _)) = beside.iter().find(|(_, present)| *present) {
@@ -192,10 +193,15 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
             let Some(read) = chronicle_read(source) else {
                 continue;
             };
-            if source.decisions.is_some() && source.facts.is_some() {
+            let reads = [
+                source.decisions.is_some(),
+                source.facts.is_some(),
+                source.submissions.is_some(),
+            ];
+            if reads.iter().filter(|r| **r).count() > 1 {
                 return refuse(format!(
-                    "{where_}: input '{}' reads {read} and facts besides; an input reads one \
-                     of them",
+                    "{where_}: input '{}' reads {read} and more besides; an input reads one of \
+                     submissions, decisions and facts",
                     input.name
                 ));
             }
@@ -272,12 +278,14 @@ fn acts_on_law(section: &MachineReadable) -> Option<&'static str> {
 /// What an input reads from the chronicle of a cell: the decisions taken
 /// under an article (RFC-048), named in the law or by a parameter (schema
 /// v0.8.11), or the recorded instances of a fact an article requires
-/// (schema v0.8.7, RFC-051). `None` for an input that reads neither.
+/// (schema v0.8.7, RFC-051), or the submissions an article establishes
+/// (schema v0.8.15). `None` for an input that reads none of them.
 pub(crate) fn chronicle_read(source: &regelrecht_law_model::Source) -> Option<ChronicleRead<'_>> {
-    match (&source.decisions, &source.facts) {
-        (Some(decisions), _) => Some(ChronicleRead::Decisions(decisions)),
-        (None, Some(fact)) => Some(ChronicleRead::Facts(fact)),
-        (None, None) => None,
+    match (&source.decisions, &source.facts, &source.submissions) {
+        (Some(decisions), _, _) => Some(ChronicleRead::Decisions(decisions)),
+        (None, Some(fact), _) => Some(ChronicleRead::Facts(fact)),
+        (None, None, Some(basis)) => Some(ChronicleRead::Submissions(basis)),
+        (None, None, None) => None,
     }
 }
 
@@ -304,6 +312,7 @@ pub(crate) fn reject_misplaced_article_call(law: &ArticleBasedLaw) -> Result<()>
                 ("regulation", source.regulation.is_some()),
                 ("decisions", source.decisions.is_some()),
                 ("facts", source.facts.is_some()),
+                ("submissions", source.submissions.is_some()),
                 ("endpoint", source.endpoint.is_some()),
             ];
             if let Some((key, _)) = beside.iter().find(|(_, present)| *present) {
@@ -490,9 +499,76 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
                     ));
                 }
             }
+            // A fact holds its parameters and no outputs (schema v0.8.15).
+            let fields: Vec<&str> = parameters.iter().map(String::as_str).collect();
+            let effects = requirement.effects.as_deref().unwrap_or_default();
+            if let Some(why) = effects_problem(article, effects, &fields, &[]) {
+                return refuse(format!("has an effect on the fact '{fact}' that {why}"));
+            }
+        }
+        if article
+            .get_requires()
+            .iter()
+            .any(|r| r.fact.is_none() && r.effects.is_some())
+        {
+            return refuse("lists effects on a requirement that names no fact".to_string());
         }
     }
     Ok(())
+}
+
+/// What is wrong with `effects` (schema v0.8.14, v0.8.15) on a record that
+/// holds the fields `fields` and the outputs `outputs` of `article`, if
+/// anything: the record holds the id of the other record under a field
+/// (`undoes`, `replaces`), `when` names a boolean output it holds, and
+/// `from` and `until` name a date it holds.
+fn effects_problem(
+    article: &regelrecht_law_model::Article,
+    effects: &[regelrecht_law_model::RecordEffect],
+    fields: &[&str],
+    outputs: &[&str],
+) -> Option<String> {
+    use regelrecht_law_model::ParameterType;
+    let type_of = |name: &str| {
+        let parameter = article
+            .get_parameters()
+            .iter()
+            .find(|p| p.name == name && fields.contains(&name))
+            .map(|p| p.param_type);
+        parameter.or_else(|| {
+            article
+                .get_outputs()
+                .iter()
+                .find(|o| o.name == name && outputs.contains(&name))
+                .map(|o| o.output_type)
+        })
+    };
+    for effect in effects {
+        let name = &effect.parameter;
+        if !fields.contains(&name.as_str()) {
+            return Some(format!(
+                "names '{name}', which is no parameter the record holds"
+            ));
+        }
+        // `when` reads an outcome of this record: one of its own outputs,
+        // and a boolean, so the effect holds or it does not.
+        if let Some(when) = &effect.when {
+            if !outputs.contains(&when.as_str()) {
+                return Some(format!("depends on '{when}', which is no output of it"));
+            }
+            if type_of(when) != Some(ParameterType::Boolean) {
+                return Some(format!("depends on '{when}', which is not a boolean"));
+            }
+        }
+        for day in [&effect.from, &effect.until].into_iter().flatten() {
+            if type_of(day) != Some(ParameterType::Date) {
+                return Some(format!(
+                    "holds from or until '{day}', which is no date the record holds"
+                ));
+            }
+        }
+    }
+    None
 }
 
 /// Refuse an article whose `produces` list (schema v0.8.1, RFC-045 §1) has two
@@ -619,37 +695,25 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
             listed.push(name);
         }
         for &item in &produced {
-            if item.legal_character().is_none() && !item.effects().is_empty() {
-                return refuse(format!(
-                    "lists effects on its {}; only a decision has effects on another decision",
-                    item.submission_kind().unwrap_or("item")
-                ));
-            }
-            for effect in item.effects() {
-                let name = &effect.parameter;
-                if !article.get_parameters().iter().any(|p| &p.name == name) {
-                    return refuse(format!(
-                        "names parameter '{name}' in an effect under produces, but declares no such parameter"
-                    ));
-                }
-                // `when` reads an outcome of this decision: one of its own
-                // outputs, and a boolean, so the effect holds or it does not.
-                if let Some(when) = &effect.when {
-                    if !article.outputs_of(item).contains(&when.as_str()) {
-                        return refuse(format!(
-                            "makes an effect depend on '{when}', which is no output of its decision"
-                        ));
-                    }
-                    let boolean = article.get_outputs().iter().any(|o| {
-                        &o.name == when
-                            && o.output_type == regelrecht_law_model::ParameterType::Boolean
-                    });
-                    if !boolean {
-                        return refuse(format!(
-                            "makes an effect depend on '{when}', which is not a boolean"
-                        ));
-                    }
-                }
+            // A decision holds every parameter of its article; a submission
+            // only those it lists (RFC-045 §1).
+            let fields: Vec<&str> = if item.legal_character().is_some() {
+                article
+                    .get_parameters()
+                    .iter()
+                    .map(|p| p.name.as_str())
+                    .collect()
+            } else {
+                article.parameters_of(item)
+            };
+            let what = item
+                .legal_character()
+                .or(item.submission_kind())
+                .unwrap_or("item");
+            if let Some(why) =
+                effects_problem(article, item.effects(), &fields, &article.outputs_of(item))
+            {
+                return refuse(format!("has an effect on its {what} that {why}"));
             }
             for name in article.parameters_of(item) {
                 if !article.get_parameters().iter().any(|p| p.name == name) {
@@ -1129,24 +1193,29 @@ articles:
                 "gives output 'x' to two things",
             ),
             (
-                "          - type: AANVRAAG\n            parameters: [p]\n            effects:\n              - revokes: p\n          - type: BESCHIKKING",
-                "lists effects on its AANVRAAG",
+                // A submission holds only the parameters it lists.
+                "          - type: AANVRAAG\n            effects:\n              - undoes: p\n          - type: BESCHIKKING",
+                "effect on its AANVRAAG that names 'p', which is no parameter the record holds",
             ),
             (
                 "          - type: BESCHIKKING\n            effects:\n              - replaces: q",
-                "names parameter 'q' in an effect",
+                "names 'q', which is no parameter the record holds",
             ),
             (
-                "          - type: BESCHIKKING\n            effects:\n              - revokes: p\n                when: y",
-                "depend on 'y', which is no output of its decision",
+                "          - type: BESCHIKKING\n            effects:\n              - undoes: p\n                when: y",
+                "depends on 'y', which is no output of it",
             ),
             (
-                "          - type: AANVRAAG\n            outputs: [x]\n          - type: BESCHIKKING\n            effects:\n              - revokes: p\n                when: x",
-                "depend on 'x', which is no output of its decision",
+                "          - type: AANVRAAG\n            outputs: [x]\n          - type: BESCHIKKING\n            effects:\n              - undoes: p\n                when: x",
+                "depends on 'x', which is no output of it",
             ),
             (
-                "          - type: BESCHIKKING\n            derived: [x]\n            effects:\n              - revokes: p\n                when: x",
-                "depend on 'x', which is no output of its decision",
+                "          - type: BESCHIKKING\n            derived: [x]\n            effects:\n              - undoes: p\n                when: x",
+                "depends on 'x', which is no output of it",
+            ),
+            (
+                "          - type: BESCHIKKING\n            effects:\n              - undoes: p\n                from: x",
+                "holds from or until 'x', which is no date the record holds",
             ),
         ] {
             let mut service = LawExecutionService::new();
@@ -1161,13 +1230,15 @@ articles:
     }
 
     /// A decision's effects name a parameter of the article, and may depend
-    /// on a boolean output of the decision (schema v0.8.14).
+    /// on a boolean output of the decision (schema v0.8.14). `revokes` is
+    /// the v0.8.14 name of `undoes`.
     #[test]
-    fn a_decision_may_revoke_or_replace_by_a_parameter() {
+    fn a_decision_may_undo_or_replace_by_a_parameter() {
         for effect in [
+            "undoes: p",
             "revokes: p",
             "replaces: p",
-            "revokes: p\n                when: x",
+            "undoes: p\n                when: x",
         ] {
             let items = format!(
                 "          - type: BESCHIKKING\n            effects:\n              - {effect}"
@@ -1178,10 +1249,39 @@ articles:
         }
     }
 
+    /// Since v0.8.15 any item has effects, on the fields it holds, and so
+    /// does a fact; a fact has no outputs, so no `when`.
+    #[test]
+    fn a_submission_and_a_fact_may_undo_what_they_hold() {
+        let submission = "          - type: AANVRAAG\n            parameters: [p]\n            effects:\n              - undoes: p\n          - type: BESCHIKKING";
+        LawExecutionService::new()
+            .load_law(&law_producing(submission))
+            .unwrap();
+        let fact = "        - fact: correctie\n          parameters: [p]\n          effects:\n            - replaces: p";
+        LawExecutionService::new()
+            .load_law(&law_requiring(fact))
+            .unwrap();
+        for (requires, why) in [
+            (
+                "        - fact: correctie\n          parameters: [p]\n          effects:\n            - undoes: p\n              when: x",
+                "effect on the fact 'correctie' that depends on 'x', which is no output of it",
+            ),
+            (
+                "        - article: '2'\n          effects:\n            - undoes: p",
+                "lists effects on a requirement that names no fact",
+            ),
+        ] {
+            let err = LawExecutionService::new()
+                .load_law(&law_requiring(requires))
+                .expect_err(why);
+            assert!(err.to_string().contains(why), "{why}: {err}");
+        }
+    }
+
     /// `when` names an outcome that holds or does not: a boolean output.
     #[test]
     fn an_effect_depends_on_a_boolean_output() {
-        let items = "          - type: BESCHIKKING\n            effects:\n              - revokes: p\n                when: x";
+        let items = "          - type: BESCHIKKING\n            effects:\n              - undoes: p\n                when: x";
         let law = law_producing(items)
             .replace("            type: boolean", "            type: string")
             .replace("            value: true", "            value: ja");
@@ -1190,7 +1290,7 @@ articles:
             .expect_err("a string output cannot decide an effect");
         assert!(
             err.to_string()
-                .contains("depend on 'x', which is not a boolean"),
+                .contains("depends on 'x', which is not a boolean"),
             "{err}"
         );
     }

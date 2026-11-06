@@ -145,6 +145,8 @@ pub trait OpenTermAnswerer {
 pub enum ChronicleRead<'r> {
     Decisions(&'r str),
     Facts(&'r str),
+    /// The submissions an article establishes (schema v0.8.15).
+    Submissions(&'r str),
 }
 
 impl std::fmt::Display for ChronicleRead<'_> {
@@ -152,6 +154,7 @@ impl std::fmt::Display for ChronicleRead<'_> {
         match self {
             Self::Decisions(basis) => write!(f, "the decisions taken under {basis}"),
             Self::Facts(fact) => write!(f, "the recorded facts {fact}"),
+            Self::Submissions(basis) => write!(f, "the submissions established under {basis}"),
         }
     }
 }

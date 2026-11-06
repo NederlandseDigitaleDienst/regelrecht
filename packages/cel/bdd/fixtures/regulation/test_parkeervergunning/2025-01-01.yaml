@@ -4,7 +4,7 @@
 # plate, a decision that moves it to another plate in the place of the
 # earlier one, and the revocation of such a decision. None of it is the text
 # of a law.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
 $id: test_parkeervergunning
 name: Testwet parkeervergunning per kenteken
 regulatory_layer: WET
@@ -77,7 +77,7 @@ articles:
             outputs:
               - herroepen
             effects:
-              - revokes: herroepen_besluit
+              - undoes: herroepen_besluit
         parameters:
           - name: herroepen_besluit
             type: string

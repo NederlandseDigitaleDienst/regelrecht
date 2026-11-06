@@ -21,7 +21,9 @@ use regelrecht_engine::{
 };
 use serde_json::Map;
 
-use crate::chronicle::{Afschrift, Chronicle, Gram, GramMoment, Received, EXECUTOGRAM};
+use crate::chronicle::{
+    Afschrift, Chronicle, Gram, GramMoment, Received, ReceivedRecord, EXECUTOGRAM,
+};
 use crate::decision::{self, finding_field, DecisionShape, Source};
 use crate::error::{refused, setup, Result};
 use crate::files::{Disk, Files};
@@ -255,11 +257,44 @@ impl Cell {
             .filter(|g| g.recorded_on <= on)
             .cloned()
             .collect();
-        self.reader(grams, None)
+        self.reader(grams, None).known_on(on)
     }
 
     pub fn grams(&self) -> &[Gram] {
         self.chronicle.grams()
+    }
+
+    /// The answer `name` of the cell's catalogue (RFC-048), as the engine
+    /// gets it when a policy binds an open term to it: the cell runs the
+    /// reduction the catalogue names on its chronicle, with `parameters` as
+    /// the binding passes them, and gives the value with where it comes
+    /// from. The answer is about `on` and given as known on `known_on`
+    /// (schema v0.8.15): the cell reads what it recorded up to that day, and
+    /// a reduction that plays the chronicle forward plays only that. `None`
+    /// when the catalogue has no such answer or the reduction is not in
+    /// force on `on`: the cell is silent.
+    pub fn answer(
+        &self,
+        service: &LawExecutionService,
+        name: &str,
+        parameters: &BTreeMap<String, Value>,
+        on: NaiveDate,
+        known_on: NaiveDate,
+    ) -> Result<Option<regelrecht_engine::Answer>> {
+        let grams = self
+            .grams()
+            .iter()
+            .filter(|g| g.recorded_on <= known_on)
+            .cloned()
+            .collect();
+        let reader = self.reader(grams, None).known_on(known_on);
+        let day = on.to_string();
+        let request = regelrecht_engine::AnswerRequest {
+            name,
+            parameters,
+            calculation_date: &day,
+        };
+        Ok(reader.answer(service, &request)?)
     }
 
     /// A copy of this cell with its chronicle in memory, to try a decision
@@ -366,6 +401,7 @@ impl Cell {
                     received: Some(Received {
                         from: copy.from.clone(),
                         id: referred.id.clone(),
+                        record: None,
                     }),
                     ..Filled::default()
                 };
@@ -768,6 +804,7 @@ impl Cell {
         let concerns = Received {
             from: self.recording_actor.clone(),
             id: refers_to.to_string(),
+            record: None,
         };
         if copy.about.as_ref() != Some(&concerns) {
             return Err(refused(format!(
@@ -803,6 +840,11 @@ impl Cell {
             received: Some(Received {
                 from: copy.from.clone(),
                 id: received.id.clone(),
+                record: Some(ReceivedRecord {
+                    kind: received.kind.clone(),
+                    basis: received.basis.clone(),
+                    recorded_on: received.recorded_on,
+                }),
             }),
             after: None,
             recording_actor: self.recording_actor.clone(),
@@ -969,7 +1011,15 @@ impl Cell {
             .collect();
         let decisions = self.decision_values(service, sphere, &shape, &applied, on)?;
         let grams = self.grams_but(except.as_deref());
-        let reader = self.reader(grams, None);
+        // A decision on `on` knows what the cell recorded up to then, also
+        // when the engine asks the cell about another day.
+        // A reduction that plays the chronicle forward plays all of it: the
+        // chronicle is never filtered, and the effects of the law decide
+        // which records count, also of a decision this one may replace.
+        let reader = self
+            .reader(grams, None)
+            .known_on(on)
+            .plays(self.grams().to_vec());
         let others = known_on(sphere, on);
         let answerers = Answerers::new(&reader, &others);
         if let Some(name) = supplied
@@ -1283,7 +1333,10 @@ impl Cell {
             .filter(|g| except != Some(g.id.as_str()))
             .cloned()
             .collect();
-        let reader = self.reader(before, explain);
+        let reader = self
+            .reader(before, explain)
+            .known_on(on)
+            .plays(grams[..position].to_vec());
         let others = known_on(sphere, on);
         let given = candidates(&shape, &decision);
         let mut parameters = BTreeMap::new();

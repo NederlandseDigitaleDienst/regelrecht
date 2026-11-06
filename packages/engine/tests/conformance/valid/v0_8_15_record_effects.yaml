@@ -1,0 +1,81 @@
+---
+# Tier C: what a record does with an earlier record (schema v0.8.15). A
+# withdrawn application undoes the application, a later application replaces
+# an earlier one, a provisional measure undoes a decision from one day until
+# another, and a corrected fact replaces a wrong one.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_conformance_record_effects
+regulatory_layer: WET
+publication_date: '2026-11-05'
+valid_from: '2026-11-05'
+bwb_id: BWBR0099994
+name: Testwet effecten van records
+url: https://example.invalid/record-effects
+articles:
+  - number: '1'
+    url: https://example.invalid/record-effects/1
+    text: Een nieuwe aanvraag komt in de plaats van een eerdere die nog loopt.
+    machine_readable:
+      requires:
+        - fact: aanvraag_ingetrokken
+          description: De aanvrager heeft de aanvraag ingetrokken.
+          parameters:
+            - ingetrokken_aanvraag
+          effects:
+            - undoes: ingetrokken_aanvraag
+        - fact: opgave_gecorrigeerd
+          parameters:
+            - onjuiste_opgave
+          effects:
+            - replaces: onjuiste_opgave
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: test_conformance_record_effects#1
+            parameters:
+              - eerdere_aanvraag
+            effects:
+              - replaces: eerdere_aanvraag
+          - type: BESCHIKKING
+            outputs:
+              - verleend
+        parameters:
+          - name: eerdere_aanvraag
+            type: string
+          - name: ingetrokken_aanvraag
+            type: string
+          - name: onjuiste_opgave
+            type: string
+        output:
+          - name: verleend
+            type: boolean
+        actions:
+          - output: verleend
+            value: true
+  - number: '2'
+    url: https://example.invalid/record-effects/2
+    text: De voorzieningenrechter schorst het bestreden besluit voor een periode.
+    machine_readable:
+      execution:
+        produces:
+          - type: UITSPRAAK
+            outputs:
+              - geschorst
+            effects:
+              - undoes: bestreden_besluit
+                when: geschorst
+                from: schorsing_vanaf
+                until: schorsing_tot
+        parameters:
+          - name: bestreden_besluit
+            type: string
+          - name: schorsing_vanaf
+            type: date
+          - name: schorsing_tot
+            type: date
+        output:
+          - name: geschorst
+            type: boolean
+        actions:
+          - output: geschorst
+            value: true

@@ -1,2 +1,7 @@
 ---
 name: Testcel
+answers:
+  heeft_geldige_kaart: test_reductie_geldige_kaart
+  heeft_geldige_kaart_op_dag: test_reductie_verleningen
+  aanvraag_loopt: test_reductie_aanvragen
+  totaal_inkomen: test_reductie_aanvragen

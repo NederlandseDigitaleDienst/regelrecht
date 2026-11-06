@@ -1,0 +1,88 @@
+---
+# FICTIEF. The policy of the cell's BDD suite: it fills the open term of the
+# permit (test_chronicle_effects article 13) with the answer of the cell, from
+# its reduction that plays the chronicle forward (test_reductie_geldige_kaart).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_beleid_ontheffing
+name: Testbeleid parkeerontheffing
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_beleid_ontheffing
+competent_authority:
+  name: Testcel
+
+articles:
+  - number: '1'
+    url: https://example.com/test_beleid_ontheffing/1
+    text: >-
+      FICTIEF. Of de aanvrager een geldige gehandicaptenparkeerkaart heeft,
+      blijkt uit de besluiten van het college over zijn kaart.
+    machine_readable:
+      implements:
+        - law: test_chronicle_effects
+          article: '13'
+          open_term: heeft_geldige_kaart
+      execution:
+        parameters:
+          - name: aanvrager
+            type: string
+        input:
+          - name: geldige_kaart
+            type: boolean
+            nullable: true
+            source:
+              reduction: heeft_geldige_kaart
+              parameters:
+                aanvrager: $aanvrager
+        output:
+          - name: heeft_geldige_kaart
+            type: boolean
+        actions:
+          - output: heeft_geldige_kaart
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $geldige_kaart
+                    value: null
+                  then: false
+              default: $geldige_kaart
+
+  - number: '2'
+    url: https://example.com/test_beleid_ontheffing/2
+    text: >-
+      FICTIEF. Ook op het bezwaar blijkt uit de besluiten van het college
+      over de kaart of de aanvrager er nog een geldige heeft.
+    machine_readable:
+      implements:
+        - law: test_chronicle_effects
+          article: '14'
+          open_term: heeft_geldige_kaart
+      execution:
+        parameters:
+          - name: aanvrager
+            type: string
+        input:
+          - name: geldige_kaart
+            type: boolean
+            nullable: true
+            source:
+              reduction: heeft_geldige_kaart
+              parameters:
+                aanvrager: $aanvrager
+        output:
+          - name: heeft_geldige_kaart
+            type: boolean
+        actions:
+          - output: heeft_geldige_kaart
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $geldige_kaart
+                    value: null
+                  then: false
+              default: $geldige_kaart

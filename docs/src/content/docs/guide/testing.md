@@ -16,7 +16,7 @@ Feature files live in two places, and the difference decides who fixes a failure
 - **Bucket A, law validation**: `corpus/regulation/**/scenarios/*.feature`, run against the real corpus. A failure means a law changed or the scenario went stale, and a human decides which. Scenarios tagged `@wip` are skipped.
 - **Bucket B, engine conformance**: `bdd/conformance/*.feature`, tagged by tier, proving an engine speaks the whole language against synthetic `test_*` laws. CI blocks on this bucket.
 
-The cell has a BDD suite of its own in `packages/cel/bdd/`, outside both buckets. Its steps record submissions, decisions and facts in a cell's chronicle, evaluate a reduction that plays the chronicle forward, and check what the engine did. A well-founded objection, for example, makes the engine play the chronicle again without the decision it revokes, while an unfounded one leaves the decision standing. They stay out of `bdd/grammar.yaml`, which is the contract every engine (Rust and JS) executes, because recording a chronicle is the cell's job and only the Rust engine plays one forward; the JS engines do not implement `projection`. `bdd/README.md` explains how that suite reuses the canonical steps and the generator, and why its runner sits in `packages/cel`.
+The cell has a BDD suite of its own in `packages/cel/bdd/`, outside both buckets. Its steps record submissions, decisions and facts in a cell's chronicle, evaluate a reduction that plays the chronicle forward, and check what the engine did. A well-founded objection, for example, makes the engine play the chronicle again without the decision it revokes, while an unfounded one leaves the decision standing. Some steps go through the cell itself: a decision the cell takes, the receipt of a copy of a court ruling, and an answer the cell gives. They stay out of `bdd/grammar.yaml`, which is the contract every engine (Rust and JS) executes, because recording a chronicle is the cell's job and only the Rust engine plays one forward; the JS engines do not implement `projection`. `bdd/README.md` explains how that suite reuses the canonical steps and the generator, and why its runner sits in `packages/cel`.
 
 ### The step vocabulary is generated, not hand-written
 
@@ -123,7 +123,7 @@ just mutants-diff  # Only what this branch changed
 
 ## Schema Validation
 
-Every rulework is validated against the JSON schema:
+Every rulework is validated against the JSON schema. Without arguments, `just validate` checks the corpus (`corpus/regulation`), the regelwerken and reductions of the chronolexografie PoC, and the fixtures of the cell's BDD suite (`packages/cel/bdd/fixtures`: its `regulation/` directory and the reductions of its cell). It leaves the demo corpus out; `just validate-demo` covers that. The pre-commit hook runs the same recipe on the changed files in all of these directories, the demo corpus included, and CI runs the hooks over the whole tree.
 
 ```bash
 just validate                     # Validate all

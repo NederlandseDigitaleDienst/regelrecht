@@ -13,7 +13,7 @@ use common::{day, object_map};
 
 use std::path::{Path, PathBuf};
 
-use regelrecht_cel::{Afschrift, Cell, Error, Gram, Received, Reference};
+use regelrecht_cel::{Afschrift, Cell, Error, Gram, Received, ReceivedRecord, Reference};
 use regelrecht_engine::LawExecutionService;
 use serde_json::{json, Map, Value};
 
@@ -348,7 +348,8 @@ fn the_court_records_the_appeal_with_the_copy_it_received() {
         appeal.received,
         Some(Received {
             from: SCHOOL.into(),
-            id: decided[0].id.clone()
+            id: decided[0].id.clone(),
+            record: None,
         })
     );
     // The court keeps the decision value as it received it, not an id: it
@@ -460,7 +461,8 @@ fn the_copy_of_the_judgment_names_the_decision_it_concerns() {
         copy.about,
         Some(Received {
             from: SCHOOL.into(),
-            id: case.on_objection.id.clone()
+            id: case.on_objection.id.clone(),
+            record: None,
         })
     );
 }
@@ -495,7 +497,12 @@ fn the_school_records_the_receipt_of_the_judgment() {
         receipt.received,
         Some(Received {
             from: COURT.into(),
-            id: case.judgment.id.clone()
+            id: case.judgment.id.clone(),
+            record: Some(ReceivedRecord {
+                kind: case.judgment.kind.clone(),
+                basis: case.judgment.basis.clone(),
+                recorded_on: case.judgment.recorded_on,
+            }),
         })
     );
     assert_eq!(receipt.fields["bestreden_besluit_vernietigd"], json!(true));

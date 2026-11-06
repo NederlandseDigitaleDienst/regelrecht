@@ -1,19 +1,30 @@
 //! The cell's actions (`packages/cel/bdd/grammar.yaml`): its additions to the
 //! dispatch it shares with the engine's runner.
 //!
-//! A scenario has one cell with one chronicle in memory. Records are named by
-//! the id in the scenario; the day they are recorded is the calculation date.
-//! The fixtures in `packages/cel/bdd/fixtures` (the synthetic law, and the
-//! reductions of a cell) are loaded next to the corpus.
+//! A scenario has one cell with one chronicle in memory, and a court whose
+//! chronicle holds its appeals and rulings. Records are named by the id in
+//! the scenario; the day they are recorded is the calculation date. The
+//! fixtures in `packages/cel/bdd/fixtures` (the synthetic law, a policy, and
+//! the reductions of a cell) are loaded next to the corpus.
+//!
+//! Most steps record directly in the chronicle, so a scenario names its
+//! records. Three go through the cell itself ([`Cell`]): a decision taken
+//! by the cell, the receipt of a copy of a court ruling, and an answer the
+//! cell gives. Those run the cell's own code, as the engine meets it when a
+//! policy binds an open term to an answer of the cell.
 
 use std::collections::BTreeMap;
 use std::path::Path;
 
 use chrono::NaiveDate;
-use regelrecht_cel::{shape, Chronicle, Gram, EXECUTOGRAM};
+use regelrecht_cel::reading::chronicle_records;
+use regelrecht_cel::{
+    shape, Afschrift, Cell, Chronicle, Disk, Gram, Received, Reference, EXECUTOGRAM,
+};
 use regelrecht_engine::projection::{cause_word, show_ids};
 use regelrecht_engine::{
-    Article, ChronicleRecord, LawExecutionService, ProjectionEvent, ProjectionOutcome, Value,
+    Answer, Article, LawExecutionService, ProjectionEvent, ProjectionOptions, ProjectionOutcome,
+    Value,
 };
 use regelrecht_law_model::stored;
 use walkdir::WalkDir;
@@ -25,11 +36,21 @@ use crate::world::RegelrechtWorld;
 /// The cell that records, as `recording_actor`.
 const CELL: &str = "test_cel";
 
-/// The cell's chronicle in this scenario, and the last projection played
-/// over it.
+/// The court whose rulings the cell receives a copy of.
+const COURT: &str = "test_rechtbank";
+
+/// The directory of the cell, with its `cel.yaml` and reductions.
+fn cell_dir() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("bdd/fixtures/cells/{CELL}"))
+}
+
+/// The cell's chronicle in this scenario, the court's, the last projection
+/// played over the cell's, and the last answer the cell gave.
 pub struct State {
     chronicle: Chronicle,
+    court: Chronicle,
     projection: Option<ProjectionOutcome>,
+    answer: Option<Answer>,
 }
 
 impl State {
@@ -57,7 +78,9 @@ impl State {
         }
         Self {
             chronicle: Chronicle::in_memory(),
+            court: Chronicle::in_memory(),
             projection: None,
+            answer: None,
         }
     }
 }
@@ -103,7 +126,86 @@ pub fn dispatch(
             );
         }
         "evaluate_over_chronicle" => {
-            evaluate_over_chronicle(world, args[0].as_str(), args[1].as_str())
+            evaluate_over_chronicle(world, args[0].as_str(), args[1].as_str(), None)
+        }
+        "evaluate_over_chronicle_known_on" => evaluate_over_chronicle(
+            world,
+            args[0].as_str(),
+            args[1].as_str(),
+            Some(args[2].as_str()),
+        ),
+        "record_submission_through_cell" => {
+            let fields = table
+                .map(|t| rows_to_params(&t, table_cell_value))
+                .unwrap_or_default();
+            record_submission_through_cell(
+                world,
+                args[0].as_str(),
+                args[1].as_str(),
+                args[2].as_str(),
+                args[3].as_str(),
+                fields,
+            );
+        }
+        "decide_through_cell" => {
+            decide_through_cell(world, args[0].as_str(), args[1].as_str());
+        }
+        "court_records_appeal" => {
+            let fields = rows_to_params(&table.expect("fields table"), table_cell_value);
+            court_records_appeal(
+                world,
+                args[0].as_str(),
+                args[1].as_str(),
+                args[2].as_str(),
+                fields,
+            );
+        }
+        "court_rules" => {
+            let found = table
+                .map(|t| rows_to_params(&t, table_cell_value))
+                .unwrap_or_default();
+            court_rules(world, args[0].as_str(), args[1].as_str(), found);
+        }
+        "cell_receives_ruling" => cell_receives_ruling(
+            world,
+            args[0].as_str(),
+            args[1].as_str(),
+            args[2].as_str(),
+            args[3].as_str(),
+            args[4].as_str(),
+        ),
+        "cell_answers" => {
+            let known_on = args.get(1).map(|a| a.as_str().to_string());
+            cell_answers(world, args[0].as_str(), known_on.as_deref());
+        }
+        "assert_cell_answer" => {
+            let answer = world.extension.answer.as_ref().unwrap_or_else(|| {
+                panic!(
+                    "the cell gave no answer: {:?}",
+                    world.error.as_ref().map(ToString::to_string)
+                )
+            });
+            assert_eq!(
+                answer.value,
+                Value::Bool(args[0].as_bool()),
+                "the cell's answer ({})",
+                answer.provenance
+            );
+        }
+        "assert_record_output" => {
+            let (id, name) = (args[0].as_str(), args[1].as_str());
+            let gram = world
+                .extension
+                .chronicle
+                .grams()
+                .iter()
+                .find(|g| g.id == id)
+                .unwrap_or_else(|| panic!("no record '{id}' in the chronicle"));
+            assert_eq!(
+                gram.outputs.get(name),
+                Some(&serde_json::Value::Bool(args[2].as_bool())),
+                "output '{name}' of record '{id}'"
+            );
         }
         "assert_projection_trace" => assert_projection_trace(world, &table.expect("trace table")),
         "assert_in_force" => {
@@ -214,6 +316,27 @@ fn decide(
     refers_to: Option<&str>,
     parameters: BTreeMap<String, Value>,
 ) {
+    let (kind, outputs) = take(world, id, basis, &parameters);
+    let gram = gram(
+        world,
+        id,
+        kind,
+        basis.to_string(),
+        refers_to,
+        parameters,
+        outputs,
+    );
+    append(world, gram);
+}
+
+/// The kind and outputs of the decision of article `basis` with
+/// `parameters`, evaluated on the calculation date.
+fn take(
+    world: &RegelrechtWorld,
+    id: &str,
+    basis: &str,
+    parameters: &BTreeMap<String, Value>,
+) -> (String, BTreeMap<String, Value>) {
     let deciding = article(world, basis);
     let decision = deciding
         .get_decision()
@@ -225,16 +348,7 @@ fn decide(
         .service
         .evaluate_law(law, &outputs, parameters.clone(), &world.calculation_date)
         .unwrap_or_else(|e| panic!("decision '{id}' under {basis}: {e}"));
-    let gram = gram(
-        world,
-        id,
-        kind,
-        basis.to_string(),
-        refers_to,
-        parameters,
-        result.outputs,
-    );
-    append(world, gram);
+    (kind, result.outputs)
 }
 
 fn gram(
@@ -316,31 +430,28 @@ fn record_fact(
 }
 
 /// Play every record of the chronicle through the projection of `law` and
-/// keep the answer, with the engine's trace.
-fn evaluate_over_chronicle(world: &mut RegelrechtWorld, output: &str, law: &str) {
-    let records: Vec<ChronicleRecord> = world
-        .extension
-        .chronicle
-        .grams()
-        .iter()
-        .map(|g| ChronicleRecord {
-            id: g.id.clone(),
-            kind: g.kind.clone(),
-            basis: g.basis.clone(),
-            fact: g.fact.clone(),
-            recorded_on: g.recorded_on,
-            refers_to: g.refers_to.clone(),
-            fields: read_back(&g.fields),
-            outputs: read_back(&g.outputs),
-        })
-        .collect();
-    let outcome = world.service.evaluate_projection(
+/// keep the answer, with the engine's trace. The answer is about the
+/// calculation date, as known on `known_on` when it is given.
+fn evaluate_over_chronicle(
+    world: &mut RegelrechtWorld,
+    output: &str,
+    law: &str,
+    known_on: Option<&str>,
+) {
+    let records = chronicle_records(&world.service, world.extension.chronicle.grams())
+        .unwrap_or_else(|e| panic!("the chronicle as records: {e}"));
+    let options = ProjectionOptions {
+        known_on,
+        trace: true,
+        ..ProjectionOptions::default()
+    };
+    let outcome = world.service.evaluate_projection_with(
         law,
         &[output],
         &records,
         world.parameters.clone(),
         &world.calculation_date,
-        true,
+        options,
     );
     world.requested_outputs = vec![output.to_string()];
     match outcome {
@@ -354,6 +465,240 @@ fn evaluate_over_chronicle(world: &mut RegelrechtWorld, output: &str, law: &str)
             world.error = Some(e);
             world.extension.projection = None;
         }
+    }
+}
+
+/// The cell of this scenario, with the chronicle as it stands.
+fn cell(world: &RegelrechtWorld) -> Cell {
+    Cell::restore(
+        &Disk,
+        CELL,
+        cell_dir(),
+        world.extension.chronicle.grams().to_vec(),
+    )
+    .unwrap_or_else(|e| panic!("the cell: {e}"))
+}
+
+/// Keep the cell's chronicle, with the chronolexogram the cell just
+/// recorded named `id`: the cell gives it a uuid, a scenario a name.
+fn keep(world: &mut RegelrechtWorld, cell: &Cell, recorded: &str, id: &str) {
+    let grams = cell
+        .grams()
+        .iter()
+        .cloned()
+        .map(|mut g| {
+            if g.id == recorded {
+                g.id = id.to_string();
+            }
+            g
+        })
+        .collect();
+    world.extension.chronicle =
+        Chronicle::in_memory_with(grams).unwrap_or_else(|e| panic!("the chronicle: {e}"));
+}
+
+/// The cell itself takes the decision its submission asks for
+/// ([`Cell::decide`]), on the calculation date: where a policy binds an open
+/// term to an answer of the cell, the cell answers from its reduction.
+fn decide_through_cell(world: &mut RegelrechtWorld, id: &str, submission: &str) {
+    let mut cell = cell(world);
+    let gram = world
+        .extension
+        .chronicle
+        .grams()
+        .iter()
+        .find(|g| g.id == submission)
+        .unwrap_or_else(|| panic!("no submission '{submission}' in the chronicle"))
+        .clone();
+    let requests = article(world, &gram.basis)
+        .get_submission()
+        .and_then(|s| s.requests())
+        .unwrap_or_else(|| panic!("submission '{submission}' asks for no decision"))
+        .to_string();
+    let (law, number) = requests.split_once('#').expect("<law>#<article>");
+    let on = today(world);
+    let empty = serde_json::Map::new();
+    let decided = cell
+        .decide(
+            &mut world.service,
+            &[],
+            law,
+            number,
+            submission,
+            &empty,
+            &empty,
+            on,
+        )
+        .unwrap_or_else(|e| panic!("the cell decides '{id}': {e}"));
+    let recorded = decided[0].id.clone();
+    keep(world, &cell, &recorded, id);
+}
+
+/// The cell itself records a submission of article `number` of `law`
+/// against its decision `decision` ([`Cell::record_submission`]), with what
+/// the submitter supplies in `fields`.
+fn record_submission_through_cell(
+    world: &mut RegelrechtWorld,
+    id: &str,
+    decision: &str,
+    number: &str,
+    law: &str,
+    fields: BTreeMap<String, Value>,
+) {
+    let mut cell = cell(world);
+    let supplied: serde_json::Map<String, serde_json::Value> = fields
+        .iter()
+        .map(|(k, v)| (k.clone(), stored::to_stored(v).expect("storable value")))
+        .collect();
+    let on = today(world);
+    let gram = cell
+        .record_submission(
+            &mut world.service,
+            &[],
+            law,
+            number,
+            Some(Reference::Local(decision)),
+            &supplied,
+            on,
+        )
+        .unwrap_or_else(|e| panic!("the cell records submission '{id}': {e}"));
+    keep(world, &cell, &gram.id, id);
+}
+
+/// The court records an appeal against a decision of the cell, under the
+/// article that establishes it, with the fields in the table.
+fn court_records_appeal(
+    world: &mut RegelrechtWorld,
+    id: &str,
+    number: &str,
+    law: &str,
+    fields: BTreeMap<String, Value>,
+) {
+    let basis = format!("{law}#{number}");
+    let kind = article(world, &basis)
+        .get_submission()
+        .and_then(|s| s.submission_kind())
+        .unwrap_or_else(|| panic!("article {basis} establishes no submission"))
+        .to_string();
+    let mut gram = gram(world, id, kind, basis, None, fields, BTreeMap::new());
+    gram.recording_actor = COURT.to_string();
+    world
+        .extension
+        .court
+        .append(gram)
+        .unwrap_or_else(|e| panic!("record in the court's chronicle: {e}"));
+}
+
+/// The court rules on an appeal: the decision the appeal asks for, with
+/// the appeal's fields and what the court found as parameters.
+fn court_rules(
+    world: &mut RegelrechtWorld,
+    id: &str,
+    appeal: &str,
+    found: BTreeMap<String, Value>,
+) {
+    let appeal = world
+        .extension
+        .court
+        .grams()
+        .iter()
+        .find(|g| g.id == appeal)
+        .unwrap_or_else(|| panic!("no appeal '{appeal}' in the court's chronicle"))
+        .clone();
+    let basis = article(world, &appeal.basis)
+        .get_submission()
+        .and_then(|s| s.requests())
+        .unwrap_or_else(|| panic!("appeal '{}' asks for no ruling", appeal.id))
+        .to_string();
+    let mut parameters = read_back(&appeal.fields);
+    parameters.extend(found);
+    let (kind, outputs) = take(world, id, &basis, &parameters);
+    let mut gram = gram(
+        world,
+        id,
+        kind,
+        basis,
+        Some(&appeal.id),
+        parameters,
+        outputs,
+    );
+    gram.recording_actor = COURT.to_string();
+    world
+        .extension
+        .court
+        .append(gram)
+        .unwrap_or_else(|e| panic!("record in the court's chronicle: {e}"));
+}
+
+/// The cell records that it received a copy of the court's ruling, as the
+/// fact `fact` of the article ([`Cell::record_receipt`]). The copy concerns
+/// the decision of the cell the appeal contested (its `bestreden_besluit`).
+fn cell_receives_ruling(
+    world: &mut RegelrechtWorld,
+    ruling: &str,
+    fact: &str,
+    id: &str,
+    number: &str,
+    law: &str,
+) {
+    let court = world.extension.court.grams();
+    let ruling = court
+        .iter()
+        .find(|g| g.id == ruling)
+        .unwrap_or_else(|| panic!("no ruling '{ruling}' in the court's chronicle"))
+        .clone();
+    let appeal = court
+        .iter()
+        .find(|g| Some(&g.id) == ruling.refers_to.as_ref())
+        .expect("the appeal the ruling is on");
+    let contested = appeal
+        .fields
+        .get("bestreden_besluit")
+        .and_then(serde_json::Value::as_str)
+        .expect("the appeal names the contested decision")
+        .to_string();
+    let copy = Afschrift {
+        from: COURT.to_string(),
+        value: serde_json::json!({
+            "basis": ruling.basis,
+            "fields": ruling.fields,
+            "findings": {},
+            "outputs": ruling.outputs,
+        }),
+        gram: ruling,
+        about: Some(Received {
+            from: CELL.to_string(),
+            id: contested.clone(),
+            record: None,
+        }),
+    };
+    let mut cell = cell(world);
+    let receipt = cell
+        .record_receipt(
+            &world.service,
+            &format!("{law}#{number}#{fact}"),
+            &copy,
+            &contested,
+            today(world),
+        )
+        .unwrap_or_else(|e| panic!("the cell receives the ruling: {e}"));
+    keep(world, &cell, &receipt.id, id);
+}
+
+/// The cell gives its answer `name` ([`Cell::answer`]), with the scenario's
+/// parameters as the binding passes them, about the calculation date and as
+/// known on `known_on` (the calculation date without it).
+fn cell_answers(world: &mut RegelrechtWorld, name: &str, known_on: Option<&str>) {
+    let on = today(world);
+    let known_on = known_on.map_or(on, |d| {
+        NaiveDate::parse_from_str(d, "%Y-%m-%d").expect("a date known on")
+    });
+    match cell(world).answer(&world.service, name, &world.parameters, on, known_on) {
+        Ok(answer) => {
+            world.extension.answer = answer;
+            world.error = None;
+        }
+        Err(e) => panic!("the cell answers '{name}': {e}"),
     }
 }
 
