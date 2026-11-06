@@ -526,8 +526,13 @@ jobs:
       # dezelfde Postgres draaien als lokaal zonder deze variabele. Het
       # unit-been gebruikt hem niet; die paar seconden opstart zijn de
       # eenvoud van één matrix waard.
+      #
+      # Uit de ECR-spiegel van de officiële image en niet van Docker Hub: een
+      # service-container wordt anoniem opgehaald, en op 9 oktober 2026 liet
+      # de pull-limiet van Docker Hub daardoor elke run met Rust-tests vallen,
+      # ook in de merge queue, voordat er één test gedraaid had.
       postgres:
-        image: postgres:11-alpine
+        image: public.ecr.aws/docker/library/postgres:11-alpine
         env:
           POSTGRES_PASSWORD: postgres
         ports:
