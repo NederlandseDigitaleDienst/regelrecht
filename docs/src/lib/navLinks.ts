@@ -25,6 +25,17 @@ export interface DocsNavItem {
 export const docsNav: DocsNavItem[] = [
   { text: 'Home', link: '/en/', match: '/en/' },
   {
+    // Dutch and without technique: for lawyers, policy makers and anyone
+    // else who wants to know what RegelRecht does before reading how.
+    text: 'Uitleg',
+    link: '/uitleg/',
+    match: '/uitleg/',
+    lang: 'nl',
+    summary: 'RegelRecht zonder techniek uitgelegd, in het Nederlands.',
+    intro:
+      'Wat RegelRecht doet, voor wie geen software schrijft: uit welke onderdelen het bestaat, wie het gebruikt, en hoe een regeling stap voor stap een regelwerk wordt dat een computer kan uitvoeren.',
+  },
+  {
     text: 'Guide',
     link: '/guide/',
     match: '/guide/',
