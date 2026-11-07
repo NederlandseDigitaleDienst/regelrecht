@@ -2220,6 +2220,15 @@ articles:
             ),
             (
                 LAW.to_string(),
+                // A parameter of the question, of the wrong type.
+                with(parameters, "parameters: {verleend: $record.verleend, aantal: $peil}").replace(
+                    "      execution:\n        output: [{name: heeft_kaart",
+                    "      execution:\n        parameters: [{name: peil, type: date}, {name: n, type: number}]\n        output: [{name: heeft_kaart",
+                ),
+                "input 'kaart_na' passes $peil, a Date, as 'aantal', a Number",
+            ),
+            (
+                LAW.to_string(),
                 with(parameters, "parameters: {verleend: $record.bestaat_niet, aantal: $state.aantal}"),
                 "input 'kaart_na' passes $record.bestaat_niet as 'verleend', but the record has no such field",
             ),
