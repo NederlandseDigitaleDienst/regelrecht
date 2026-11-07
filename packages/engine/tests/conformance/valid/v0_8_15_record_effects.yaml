@@ -1,10 +1,8 @@
 ---
-# Tier C: effects of a fact and effects that hold for a window of days
-# (schema v0.8.15). Article 1 suspends the contested decision from one day
-# until another, as a decision. Article 2 requires the receipt of a copy of
-# a ruling; the receipt revokes the decision the ruling is about, by the id
-# the copy gives, when the ruling annuls it. Article 3 requires a fact that suspends a decision for a
-# while. Fictional throughout.
+# Tier C: effects of a fact (schema v0.8.15). Article 1 requires the
+# receipt of a copy of a ruling; the receipt revokes the decision the ruling
+# is about, by the id the copy gives, when the ruling annuls it. Article 2
+# takes a decision that revokes a record by its id. Fictional throughout.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
 $id: test_conformance_record_effects
 regulatory_layer: WET
@@ -16,33 +14,6 @@ url: https://example.invalid/record-effects
 articles:
   - number: '1'
     url: https://example.invalid/record-effects/1
-    text: FICTIEF. Het bestuursorgaan schorst het bestreden besluit voor een periode.
-    machine_readable:
-      execution:
-        produces:
-          - type: BESCHIKKING
-            outputs:
-              - geschorst
-            effects:
-              - revokes: bestreden_besluit
-                when: geschorst
-                from: schorsing_vanaf
-                until: schorsing_tot
-        parameters:
-          - name: bestreden_besluit
-            type: string
-          - name: schorsing_vanaf
-            type: date
-          - name: schorsing_tot
-            type: date
-        output:
-          - name: geschorst
-            type: boolean
-        actions:
-          - output: geschorst
-            value: true
-  - number: '2'
-    url: https://example.invalid/record-effects/2
     text: FICTIEF. Het bestuursorgaan legt vast dat het een afschrift van de uitspraak heeft ontvangen.
     machine_readable:
       requires:
@@ -60,25 +31,21 @@ articles:
             type: string
           - name: vernietigd
             type: boolean
-  - number: '3'
-    url: https://example.invalid/record-effects/3
-    text: FICTIEF. Het bestuursorgaan legt vast dat een besluit voor een periode is geschorst.
+  - number: '2'
+    url: https://example.invalid/record-effects/2
+    text: FICTIEF. Het bestuursorgaan herroept het besluit.
     machine_readable:
-      requires:
-        - fact: besluit_geschorst
-          parameters:
-            - geschorst_besluit
-            - schorsing_vanaf
-            - schorsing_tot
-          effects:
-            - revokes: geschorst_besluit
-              from: schorsing_vanaf
-              until: schorsing_tot
       execution:
+        produces:
+          - type: BESCHIKKING
+            effects:
+              - revokes: herroepen_besluit
         parameters:
-          - name: geschorst_besluit
+          - name: herroepen_besluit
             type: string
-          - name: schorsing_vanaf
-            type: date
-          - name: schorsing_tot
-            type: date
+        output:
+          - name: herroepen
+            type: boolean
+        actions:
+          - output: herroepen
+            value: true

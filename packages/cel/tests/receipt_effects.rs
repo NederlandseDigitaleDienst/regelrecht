@@ -18,7 +18,7 @@ use regelrecht_engine::{LawExecutionService, ProjectionEvent, Value as EngineVal
 use serde_json::{json, Value};
 
 mod common;
-use common::day;
+use common::{day, object_map, service_of};
 
 const CELL: &str = "test_cel";
 const COURT: &str = "test_rechtbank";
@@ -28,17 +28,11 @@ fn fixtures() -> PathBuf {
 }
 
 fn service() -> LawExecutionService {
-    let mut service = LawExecutionService::new();
-    let law = fixtures().join("regulation/test_chronicle_effects/2025-01-01.yaml");
-    service
-        .load_law(&std::fs::read_to_string(law).unwrap())
-        .unwrap();
-    let reduction =
-        fixtures().join("cells/test_cel/reductions/test_reductie_geldige_kaart/2025-01-01.yaml");
-    service
-        .load_law(&std::fs::read_to_string(reduction).unwrap())
-        .unwrap();
-    service
+    let read = |path: &str| std::fs::read_to_string(fixtures().join(path)).unwrap();
+    service_of(&[
+        &read("regulation/test_chronicle_effects/2025-01-01.yaml"),
+        &read("cells/test_cel/reductions/test_reductie_geldige_kaart/2025-01-01.yaml"),
+    ])
 }
 
 fn gram(
@@ -50,9 +44,7 @@ fn gram(
     fields: Value,
     outputs: Value,
 ) -> Gram {
-    let map = |v: Value| -> BTreeMap<String, Value> {
-        v.as_object().unwrap().clone().into_iter().collect()
-    };
+    let map = |v: Value| -> BTreeMap<String, Value> { object_map(v).into_iter().collect() };
     Gram {
         id: id.to_string(),
         kind: kind.to_string(),

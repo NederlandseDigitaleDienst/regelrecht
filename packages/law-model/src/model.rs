@@ -479,16 +479,17 @@ pub struct ProducedItem {
 }
 
 /// One thing a record does with an earlier record (schema v0.8.14): it
-/// revokes it. It names the parameter of the article whose value is that
-/// other record, and, with `when`, a boolean the record holds that must be
-/// true for the effect to hold, such as the revocation that follows only
-/// from a well-founded objection. A decision in the place of another
+/// revokes it, from the start (ex tunc). It names the parameter whose value
+/// is that other record, and, with `when`, a boolean the record holds that
+/// must be true for the effect to hold, such as the revocation that follows
+/// only from a well-founded objection. A decision in the place of another
 /// revokes it and counts as a record of its own.
 ///
 /// A decision has effects through `produces[].effects`; since schema
-/// v0.8.15 a fact has them too, through `requires[].effects`, and an effect
-/// may hold only for a window of days (`from`, `until`), such as a
-/// suspension.
+/// v0.8.15 a fact has them too, through `requires[].effects`, such as the
+/// receipt of a ruling that annuls a decision. A change from a later day on,
+/// such as a suspension, is no effect: it is a step of the reduction with a
+/// date property.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RecordEffect {
@@ -500,24 +501,6 @@ pub struct RecordEffect {
     /// effect always holds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub when: Option<String>,
-    /// Since schema v0.8.15: a date the record holds from which the effect
-    /// holds (included). Without it, or when it holds null, the window is
-    /// open at the start.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub from: Option<String>,
-    /// Since schema v0.8.15: a date the record holds up to which the effect
-    /// holds (not included). Without it, or when it holds null, the window
-    /// is open at the end.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub until: Option<String>,
-}
-
-impl RecordEffect {
-    /// The date fields that bound the days the effect holds on, `from` and
-    /// `until`, where given.
-    pub fn window(&self) -> [Option<&str>; 2] {
-        [self.from.as_deref(), self.until.as_deref()]
-    }
 }
 
 impl ProducedItem {

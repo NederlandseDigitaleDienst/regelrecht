@@ -185,13 +185,37 @@ execution:
 
 The effect of a fact reads only what the fact holds: `revokes` names a string field that holds the id of an earlier record, and `when` a boolean field. Neither may be null. The cell fills nothing here. Whoever records the fact supplies those fields, as any other: `Cell::record_receipt` takes them from the copy by name, so the copy says which decision the ruling is about and whether the ruling annuls it. What a receipt revokes thus follows from the law and the recorded data alone. A field of type `decision` keeps its one meaning, a decision value, and cannot be the target of an effect. Handing in a card is no such fact. It ends the holder's possession of the card and leaves the grant standing, so it stays a step of the reduction.
 
-An effect can also hold for a while. With `from` and `until`, each naming a date the record holds, it holds on the days from `from` up to, not including, `until`. A bound the effect does not name, or that holds null, leaves the window open on that side; a record that lacks the field is refused. A suspension by the court (Awb 8:81) is written that way. The day in question is the calculation date, the same day that decides which records are known. So "counts" means "counts on the calculation date", and phase 1 stays a pass over the records that reads no state. The price is that a suspended record is gone from the whole fold for that question, not only from the days it was suspended: on a day inside the window, a count of grants drops as it would after a revocation. A separate date for the question, apart from the calculation date, belongs with the open question on time and versions.
+`revokes` has one meaning: the record does not count, from the start (ex tunc). That covers a decision revoked on objection, a decision the court annuls, and a ruling annulled on further appeal, which brings back what it annulled. A change from a later day on (ex nunc) is no effect. A suspension by the court (Awb 8:81) holds from one day to another, and a withdrawal "met ingang van" a date takes effect on that date. Both are a step of the reduction with a date property, as for any other change of state. The step of the suspension puts its period in the state, lifting it (Awb 8:88) is a later step that ends the period, and an article of the law says whether the card is valid on a given day:
 
-Which records count follows from those effects alone: a record counts unless a later record that itself counts revokes it. A revoked record revokes nothing, so what it alone revoked counts again. Because this never depends on the state, the engine decides it first, in one pass from the last record back, and then runs the steps of the records that count in the order the cell recorded them. That order of work is how the engine does it, not part of the meaning. The engine records which record set each property last and what became of each record: applied, revoked and by which records, or counting for its effects only. The trace shows the first phase as a `COUNTS` node and the steps as a `FOLD` node.
+```yaml
+# test_reductie_kaart_op_peildatum (fictional)
+steps:
+  - record: test_chronicle_effects#13        # a suspension
+    actions:
+      - {output: geschorst_vanaf, value: $record.schorsing_vanaf}
+      - {output: geschorst_tot, value: $record.schorsing_tot}
+execution:
+  parameters: [{name: aanvrager, type: string}, {name: peildatum, type: date}]
+  input:
+    - name: kaart_geldig
+      type: boolean
+      source:
+        regulation: test_chronicle_effects   # article 15 compares
+        output: kaart_geldig_op_peildatum
+        parameters:
+          in_bezit: $state.in_bezit
+          geschorst_vanaf: $state.geschorst_vanaf
+          geschorst_tot: $state.geschorst_tot
+          peildatum: $peildatum
+```
+
+The reduction only wires: it keeps the dates and passes them, with the day the question asks about, to the law. So which records count depends only on the records, never on the day asked about. A suspended grant still counts, and so does every grant before it. A suspension that is itself revoked does not count, so its step never runs and its period never enters the state. The two layers stay apart.
+
+Which records count follows from those effects alone: a record counts unless a later record that itself counts revokes it. Deciding that is the first phase of playing a projection; running the steps is the second. A revoked record revokes nothing, so what it alone revoked counts again. Because this never depends on the state, the engine decides it first, in one pass from the last record back, and then runs the steps of the records that count in the order the cell recorded them. That order of work is how the engine does it, not part of the meaning. The engine records which record set each property last and what became of each record: applied, revoked and by which records, or counting for its effects only. The trace shows the first phase as a `COUNTS` node and the steps as a `FOLD` node.
 
 A chronicle holds the records of many people. With `key`, a projection plays the records of one of them: the records that hold the value asked for under the key's name, as a field or an output, such as an applicant, and every record that refers to one of those, through `refers_to` or a field an effect of a decision or a fact names. An application holds the applicant and so plays as well, without a step. An objection and the decision on it usually carry no applicant and join through the grant they refer to. A record that refers in but holds another key of its own belongs to someone else. It still counts for its effects: a decision that moves a parking permit to a new licence plate revokes the permit for the old plate too, because the law says once what the decision does, whichever key the question is about. Its step is not applied, and the trace shows it as counting for its effects only. The same holds for a record without a key that refers only to such records, such as the revocation of that move, which brings the permit back for the old plate. Records never join through what they themselves refer to, so the partition stays the records reachable from the key. An effect on a record outside the partition is ignored.
 
-A policy reaches a projection the normal way. When an article binds an open term to the cell's answer (`source.reduction`), the engine asks the cell, and the cell plays its chronicle through the reduction's projection, with the parameters the binding passes, such as the key. The engine refuses a reduction with a projection on every path that bypasses the chronicle: asked directly, from another rulework, at a stage, or with a `state` the caller passes. The tests are in `packages/cel/bdd`; one of them has a fictional policy take the cell's answer, and its outcome flips when a well-founded objection revokes the grant. Others revoke the grant by the receipt of a ruling, bring it back when that ruling is annulled on further appeal, and suspend it for a while.
+A policy reaches a projection the normal way. When an article binds an open term to the cell's answer (`source.reduction`), the engine asks the cell, and the cell plays its chronicle through the reduction's projection, with the parameters the binding passes, such as the key. The engine refuses a reduction with a projection on every path that bypasses the chronicle: asked directly, from another rulework, at a stage, or with a `state` the caller passes. The tests are in `packages/cel/bdd`; one of them has a fictional policy take the cell's answer, and its outcome flips when a well-founded objection revokes the grant. Others revoke the grant by the receipt of a ruling, bring it back when that ruling is annulled on further appeal, and suspend the card for a while.
 
 ## Documents between cells
 

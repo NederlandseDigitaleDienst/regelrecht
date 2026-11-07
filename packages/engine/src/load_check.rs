@@ -496,7 +496,7 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
             }
             // An effect of a fact reads only what the fact holds (schema
             // v0.8.15): a string field holding the id of the record it
-            // revokes, a boolean `when`, and the dates of its window. A
+            // revokes, and a boolean `when`, neither of them nullable. A
             // `decision` field holds a decision value, never an id.
             let held = |name: &str| {
                 parameters
@@ -524,12 +524,9 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
                                 .collect::<Vec<_>>()
                                 .join(" or ")
                         )),
-                        // Only a bound of the window may be null, for an open
-                        // side; a record without a target or a condition is
-                        // refused when the chronicle is played.
-                        Some(p) if p.is_nullable() && !types.contains(&ParameterType::Date) => {
-                            what("may be null".to_string())
-                        }
+                        // A record without a target or a condition is refused
+                        // when the chronicle is played; refuse it here first.
+                        Some(p) if p.is_nullable() => what("may be null".to_string()),
                         Some(_) => Ok(()),
                     }
                 };
@@ -543,13 +540,6 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
                         .when
                         .as_deref()
                         .map(|w| (w, "its condition", &[ParameterType::Boolean][..])),
-                );
-                named.extend(
-                    effect
-                        .window()
-                        .into_iter()
-                        .flatten()
-                        .map(|d| (d, "a bound of its window", &[ParameterType::Date][..])),
                 );
                 for (name, role, types) in named {
                     if let Err(why) = check(name, role, types) {
@@ -694,9 +684,17 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
             }
             for effect in item.effects() {
                 let name = &effect.parameter;
-                if !article.get_parameters().iter().any(|p| &p.name == name) {
+                let Some(parameter) = article.get_parameters().iter().find(|p| &p.name == name)
+                else {
                     return refuse(format!(
                         "names parameter '{name}' in an effect under produces, but declares no such parameter"
+                    ));
+                };
+                // A decision without the record it revokes is refused when
+                // the chronicle is played; refuse it here first.
+                if parameter.is_nullable() {
+                    return refuse(format!(
+                        "names parameter '{name}' in an effect under produces, which may be null"
                     ));
                 }
                 // `when` reads an outcome of this decision: one of its own
@@ -715,43 +713,6 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
                         return refuse(format!(
                             "makes an effect depend on '{when}', which is not a boolean"
                         ));
-                    }
-                }
-                // `from` and `until` (schema v0.8.15) are dates the decision
-                // holds: a parameter of the article, or an output of the
-                // decision.
-                for bound in effect.window().into_iter().flatten() {
-                    let date = article
-                        .get_parameters()
-                        .iter()
-                        .find(|p| p.name == bound)
-                        .map(|p| p.param_type)
-                        .or_else(|| {
-                            article
-                                .outputs_of(item)
-                                .contains(&bound)
-                                .then(|| {
-                                    article
-                                        .get_outputs()
-                                        .iter()
-                                        .find(|o| o.name == bound)
-                                        .map(|o| o.output_type)
-                                })
-                                .flatten()
-                        });
-                    match date {
-                        None => {
-                            return refuse(format!(
-                                "bounds an effect by '{bound}', which is no parameter of the \
-                                 article and no output of its decision"
-                            ))
-                        }
-                        Some(ParameterType::Date) => {}
-                        Some(t) => {
-                            return refuse(format!(
-                                "bounds an effect by '{bound}', which is a {t:?}, not a date"
-                            ))
-                        }
                     }
                 }
             }
@@ -1574,46 +1535,32 @@ articles:
         );
     }
 
-    /// `law_producing` with date parameters `vanaf` and `tot`, a boolean
-    /// parameter `b`, a decision parameter `d` and a date output `einde`.
-    fn law_with_dates(items: &str) -> String {
-        law_producing(items)
-            .replace(
-                "        parameters:\n          - name: p\n            type: string\n",
-                "        parameters:\n          - name: p\n            type: string\n          - {name: vanaf, type: date}\n          - {name: tot, type: date}\n          - {name: b, type: boolean}\n          - {name: d, type: decision}\n          - {name: q, type: string, nullable: true}\n          - {name: c, type: boolean, nullable: true}\n          - {name: e, type: date, nullable: true}\n",
-            )
-            .replace(
-                "        output:\n          - name: x\n            type: boolean\n",
-                "        output:\n          - name: x\n            type: boolean\n          - {name: einde, type: date}\n",
-            )
-            .replace(
-                "        actions:\n",
-                "        actions:\n          - {output: einde, value: $tot}\n",
-            )
+    /// `law_producing` with a date parameter `vanaf`, a boolean `b`, a
+    /// decision `d`, and the nullable `q` (a string) and `c` (a boolean).
+    fn law_with_kinds(items: &str) -> String {
+        law_producing(items).replace(
+            "        parameters:\n          - name: p\n            type: string\n",
+            "        parameters:\n          - name: p\n            type: string\n          - {name: vanaf, type: date}\n          - {name: b, type: boolean}\n          - {name: d, type: decision}\n          - {name: q, type: string, nullable: true}\n          - {name: c, type: boolean, nullable: true}\n",
+        )
     }
 
-    /// An effect may hold for a window of days (schema v0.8.15): `from` and
-    /// `until` name a date parameter of the article or a date output of the
-    /// decision.
+    /// An effect revokes from the start; it holds for no window of days
+    /// (schema v0.8.15 has no `from` or `until`), and the record it revokes
+    /// is never null.
     #[test]
-    fn a_decision_bounds_an_effect_by_dates_it_holds() {
-        let effect = |window: &str| {
-            law_with_dates(&format!(
-                "          - type: BESCHIKKING\n            effects:\n              - {{revokes: p, {window}}}"
-            ))
-        };
-        for window in ["from: vanaf", "until: tot", "from: vanaf, until: einde"] {
-            LawExecutionService::new()
-                .load_law(&effect(window))
-                .unwrap_or_else(|e| panic!("{window}: {e}"));
-        }
-        for (window, why) in [
-            ("from: begin", "bounds an effect by 'begin', which is no parameter of the article and no output of its decision"),
-            ("until: p", "bounds an effect by 'p', which is a String, not a date"),
-            ("until: x", "bounds an effect by 'x', which is a Boolean, not a date"),
+    fn a_decision_revokes_by_a_parameter_that_is_never_null() {
+        for (effect, why) in [
+            ("{revokes: p, from: vanaf}", "unknown field `from`"),
+            ("{revokes: p, until: vanaf}", "unknown field `until`"),
+            (
+                "{revokes: q}",
+                "names parameter 'q' in an effect under produces, which may be null",
+            ),
         ] {
             let err = LawExecutionService::new()
-                .load_law(&effect(window))
+                .load_law(&law_with_kinds(&format!(
+                    "          - type: BESCHIKKING\n            effects:\n              - {effect}"
+                )))
                 .expect_err(why);
             assert!(err.to_string().contains(why), "{why}: {err}");
         }
@@ -1621,25 +1568,18 @@ articles:
 
     /// A fact may revoke an earlier record (schema v0.8.15). Its effect
     /// reads only what the fact holds: a string field holding the id of the
-    /// record it revokes, a boolean condition and dates for a window.
+    /// record it revokes and a boolean condition, neither of them nullable.
     #[test]
     fn a_fact_revokes_by_what_it_holds() {
         let fact = |parameters: &str, effect: &str| {
-            law_with_dates("          - type: BESCHIKKING").replace(
+            law_with_kinds("          - type: BESCHIKKING").replace(
                 "    machine_readable:\n      execution:\n",
                 &format!(
                     "    machine_readable:\n      requires:\n        - fact: f\n          parameters: [{parameters}]\n          effects: [{{{effect}}}]\n      execution:\n"
                 ),
             )
         };
-        for (parameters, effect) in [
-            ("p", "revokes: p"),
-            (
-                "p, b, vanaf, tot",
-                "revokes: p, when: b, from: vanaf, until: tot",
-            ),
-            ("p, e", "revokes: p, until: e"),
-        ] {
+        for (parameters, effect) in [("p", "revokes: p"), ("p, b", "revokes: p, when: b")] {
             LawExecutionService::new()
                 .load_law(&fact(parameters, effect))
                 .unwrap_or_else(|e| panic!("{effect}: {e}"));
@@ -1669,16 +1609,6 @@ articles:
                 "p, vanaf",
                 "revokes: p, when: vanaf",
                 "names 'vanaf' as its condition, which is a Date, not a Boolean",
-            ),
-            (
-                "p, b",
-                "revokes: p, from: b",
-                "names 'b' as a bound of its window, which is a Boolean, not a Date",
-            ),
-            (
-                "p",
-                "revokes: p, until: einde",
-                "names 'einde' as a bound of its window, which the fact does not hold",
             ),
             (
                 "q",

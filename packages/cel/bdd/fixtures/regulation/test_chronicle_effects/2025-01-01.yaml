@@ -5,10 +5,12 @@
 # wegverkeer, artikel 49) and Awb 7:11 lid 2, cut down to what the scenarios
 # need. None of it is the text of a law. Article 4 (a withdrawal), article 5
 # (handing the card in) and article 6 (a warning in the place of a
-# withdrawal) are fictional throughout, and so are articles 10 to 13 (schema
+# withdrawal) are fictional throughout, and so are articles 10 to 16 (schema
 # v0.8.15): a ruling of the administrative court, the receipt of a copy of
-# it, a ruling on further appeal that annuls that ruling, and a provisional
-# measure that suspends a decision for a while, each loosely after the Awb.
+# it, a ruling on further appeal that annuls that ruling, a provisional
+# measure that suspends the card for a while, the lifting of that measure,
+# when a suspended card is valid on a day, and the revocation of a
+# suspension, each loosely after the Awb or invented for the tests.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
 $id: test_chronicle_effects
 name: Testwet effecten van besluiten
@@ -337,26 +339,25 @@ articles:
     url: https://example.com/test_chronicle_effects/13
     text: >-
       FICTIEF, naar artikel 8:81 van de Algemene wet bestuursrecht. Het
-      college legt vast dat de voorzieningenrechter zijn besluit heeft
-      geschorst. Het besluit heeft geen gevolgen vanaf de dag waarop de
-      schorsing ingaat tot de dag waarop zij eindigt.
+      college legt vast dat de voorzieningenrechter de kaart van de aanvrager
+      heeft geschorst, vanaf de dag waarop de schorsing ingaat tot de dag
+      waarop zij eindigt.
     machine_readable:
+      # A suspension holds from a day on and ends: it revokes nothing. What
+      # it does is a step of the reduction, which keeps the period in its
+      # state; article 15 says what the period means on a given day.
       requires:
         - fact: besluit_geschorst
           description: >-
-            De voorzieningenrechter heeft het besluit geschorst, van de ene
-            dag tot de andere.
+            De voorzieningenrechter heeft de kaart geschorst, van de ene dag
+            tot de andere.
           parameters:
-            - geschorst_besluit
+            - aanvrager
             - schorsing_vanaf
             - schorsing_tot
-          effects:
-            - revokes: geschorst_besluit
-              from: schorsing_vanaf
-              until: schorsing_tot
       execution:
         parameters:
-          - name: geschorst_besluit
+          - name: aanvrager
             type: string
           - name: schorsing_vanaf
             type: date
@@ -365,3 +366,113 @@ articles:
           - name: schorsing_tot
             type: date
             nullable: true
+
+  - number: '14'
+    url: https://example.com/test_chronicle_effects/14
+    text: >-
+      FICTIEF, naar artikel 8:88 van de Algemene wet bestuursrecht. Het
+      college legt vast dat de voorzieningenrechter de schorsing heeft
+      opgeheven. De schorsing eindigt op de dag van opheffing.
+    machine_readable:
+      requires:
+        - fact: schorsing_opgeheven
+          description: >-
+            De voorzieningenrechter heeft de schorsing van de kaart opgeheven.
+          parameters:
+            - aanvrager
+            - opgeheven_op
+      execution:
+        parameters:
+          - name: aanvrager
+            type: string
+          - name: opgeheven_op
+            type: date
+
+  - number: '15'
+    url: https://example.com/test_chronicle_effects/15
+    text: >-
+      FICTIEF, naar artikel 8:81 van de Algemene wet bestuursrecht. Wie een
+      kaart heeft, heeft op een dag een geldige kaart, tenzij de kaart op die
+      dag is geschorst: op of na de dag waarop de schorsing ingaat en voor de
+      dag waarop zij eindigt.
+    machine_readable:
+      execution:
+        parameters:
+          - name: in_bezit
+            type: boolean
+          - name: geschorst_vanaf
+            type: date
+            nullable: true
+          - name: geschorst_tot
+            type: date
+            nullable: true
+          - name: peildatum
+            type: date
+        output:
+          - name: kaart_geldig_op_peildatum
+            type: boolean
+        actions:
+          - output: kaart_geldig_op_peildatum
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: NOT
+                    value: $in_bezit
+                  then: false
+                # Never suspended.
+                - when:
+                    operation: EQUALS
+                    subject: $geschorst_vanaf
+                    value: null
+                  then: true
+                # The suspension has not begun on the day.
+                - when:
+                    operation: LESS_THAN
+                    subject:
+                      operation: DATE_DIFF
+                      from: $geschorst_vanaf
+                      to: $peildatum
+                      in: days
+                    value: 0
+                  then: true
+                # A suspension without an end holds.
+                - when:
+                    operation: EQUALS
+                    subject: $geschorst_tot
+                    value: null
+                  then: false
+                # The suspension has ended before or on the day.
+                - when:
+                    operation: GREATER_THAN_OR_EQUAL
+                    subject:
+                      operation: DATE_DIFF
+                      from: $geschorst_tot
+                      to: $peildatum
+                      in: days
+                    value: 0
+                  then: true
+              default: false
+
+  - number: '16'
+    url: https://example.com/test_chronicle_effects/16
+    text: >-
+      FICTIEF. Het college legt vast dat een vastgelegde schorsing met
+      terugwerkende kracht is vervallen. Zij heeft dan nooit gegolden. De Awb
+      kent geen hoger beroep tegen een uitspraak van de voorzieningenrechter;
+      dit artikel bestaat alleen om te tonen dat een herroepen schorsing
+      nooit in de staat van een reductie komt.
+    machine_readable:
+      requires:
+        - fact: schorsing_vervallen
+          description: >-
+            De schorsing heeft met terugwerkende kracht nooit gegolden.
+          parameters:
+            - vervallen_schorsing
+          effects:
+            - revokes: vervallen_schorsing
+      execution:
+        parameters:
+          # The suspension recorded under article 13, by its id.
+          - name: vervallen_schorsing
+            type: string

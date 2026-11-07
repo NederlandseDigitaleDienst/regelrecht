@@ -23,19 +23,17 @@
 //! may say so too (`requires[].effects`, `when` reading a field of the
 //! fact), such as the receipt of a ruling that annuls a decision. Each
 //! effect is read under the version of that law in force on the day the
-//! record was recorded, and may hold only for a window of days (`from`,
-//! `until`). The day in question is the calculation date. Which records
-//! count follows from the effects alone: a record counts on that day unless
-//! a later record that itself counts on that day revokes it on that day.
-//! So a record that is revoked revokes nothing, and a record it alone
-//! revoked counts again. A decision in the place of another revokes it and
-//! counts as a record of its own. Whether a record counts does not depend
-//! on the state, so the engine decides it first, in one pass from the last
-//! record back, and then runs the steps of the records that count, in
-//! order. The chronicle is never changed, and nothing is reverted: a
-//! revoked record is gone from the whole history of the answer, also when
-//! its effect holds for a window; a change of state from a later day on is
-//! a step with a date property.
+//! record was recorded. Which records count follows from the effects alone:
+//! a record counts unless a later record that itself counts revokes it. So
+//! a record that is revoked revokes nothing, and a record it alone revoked
+//! counts again. A decision in the place of another revokes it and counts
+//! as a record of its own. Whether a record counts depends neither on the
+//! state nor on the day asked about, so the engine decides it first, in one
+//! pass from the last record back, and then runs the steps of the records
+//! that count, in order. The chronicle is never changed, and nothing is
+//! reverted: a revoked record is gone from the whole history (ex tunc). A
+//! change from a later day on (ex nunc), such as a suspension or a
+//! withdrawal with effect from a date, is a step with a date property.
 //!
 //! The engine records, per property, which record set it last, and per
 //! record what became of it: applied (with the properties it set), revoked
@@ -158,8 +156,8 @@ impl LawExecutionService {
     ///
     /// Refuses a reduction article without a projection, an effect on a
     /// record that is not an earlier record, an effect whose `when` the
-    /// record does not hold as a boolean, a bound of a window that holds no
-    /// date, a fact its article does not require, and a step that fails.
+    /// record does not hold as a boolean, a fact its article does not
+    /// require, and a step that fails.
     pub fn evaluate_projection(
         &self,
         law_id: &str,
@@ -245,15 +243,7 @@ impl LawExecutionService {
             .collect();
         self.check_steps(law_id, &projection, &question, day)?;
         let partition = self.partition(&projection, key_type.as_ref(), &known, &parameters)?;
-        let played = self.play(
-            law_id,
-            &projection,
-            &known,
-            &partition,
-            &parameters,
-            day,
-            trace,
-        )?;
+        let played = self.play(law_id, &projection, &known, &partition, &parameters, trace)?;
 
         let state = Some(Value::Object(played.state.clone()));
         let mut result = if trace {
@@ -287,12 +277,12 @@ impl LawExecutionService {
         })
     }
 
-    /// Play the chronicle in two phases. First, which records count on
-    /// `day`, the calculation date: a record counts unless a later record
-    /// that itself counts revokes it on that day (`produces[].effects`,
-    /// `requires[].effects`). Effects only point back, and whether an effect
-    /// holds depends on what its own record holds and on `day` alone, so one
-    /// pass from the last record back decides it, without the state. Then
+    /// Play the chronicle in two phases. First, which records count: a
+    /// record counts unless a later record that itself counts revokes it
+    /// (`produces[].effects`, `requires[].effects`). Effects only point back,
+    /// and whether an effect holds depends on what its own record holds
+    /// alone, so one pass from the last record back decides it, without the
+    /// state. Then
     /// the fold: the steps of the records that count, in the order the cell
     /// recorded them, each from the state the one before left.
     #[allow(clippy::too_many_arguments)]
@@ -303,7 +293,6 @@ impl LawExecutionService {
         records: &[ChronicleRecord],
         partition: &Partition,
         question: &BTreeMap<String, Value>,
-        day: NaiveDate,
         trace: bool,
     ) -> Result<Played> {
         // Phase 1: per record, the records that count and revoke it, found
@@ -317,7 +306,7 @@ impl LawExecutionService {
             // An effect on a record of another partition is that
             // partition's business.
             for target in self
-                .holding_effects(record, &records[..i], day)?
+                .holding_effects(record, &records[..i])?
                 .into_iter()
                 .filter(|t| partition.holds(t))
             {
@@ -822,18 +811,16 @@ impl LawExecutionService {
         Ok(ids)
     }
 
-    /// The effects of `record` that hold on `day`, each with the earlier
+    /// The effects of `record` that hold, each with the earlier
     /// record it revokes. A decision has the effects its article gives it
     /// (`produces[].effects`), a fact those of its `requires` entry
     /// (`requires[].effects`, schema v0.8.15), under the law of the day it
-    /// was recorded. An effect holds when its `when` is true and `day` lies
-    /// in its window: on or after `from`, before `until`. Each reads only
+    /// was recorded. An effect holds when its `when` is true; it reads only
     /// what the record itself holds.
     fn holding_effects<'r>(
         &self,
         record: &ChronicleRecord,
         earlier: &'r [ChronicleRecord],
-        day: NaiveDate,
     ) -> Result<Vec<&'r str>> {
         let article = self.article_of(record)?;
         let refuse = |why: String| {
@@ -849,8 +836,8 @@ impl LawExecutionService {
         let (effects, conditions) = if record.kind == EXECUTOGRAM {
             let fact = fact_of(article, record).ok_or_else(|| {
                 refuse(format!(
-                    "is an instance of the fact {:?}, which that article does not require",
-                    record.fact
+                    "is an instance of the fact '{}', which that article does not require",
+                    record.fact.as_deref().unwrap_or("(none)")
                 ))
             })?;
             // A fact holds fields only; `when` reads one of them.
@@ -873,7 +860,7 @@ impl LawExecutionService {
         let mut holding = Vec::new();
         for effect in effects {
             // The record it names is checked first, so a broken record is
-            // refused on every day, whatever `when` and the window say.
+            // refused whatever `when` says.
             let name = &effect.parameter;
             let Some(Value::String(target)) = record.fields.get(name) else {
                 return Err(refuse(format!(
@@ -896,9 +883,6 @@ impl LawExecutionService {
                     }
                 }
             }
-            if !in_window(record, effect, day).map_err(refuse)? {
-                continue;
-            }
             holding.push(target.id.as_str());
         }
         Ok(holding)
@@ -915,41 +899,6 @@ fn fact_of<'a>(
         return None;
     }
     article.required_fact(record.fact.as_deref()?)
-}
-
-/// Whether `day` lies in the window of `effect` (schema v0.8.15): on or
-/// after the date `record` holds under `from`, and before the one under
-/// `until`. A bound the effect does not name, or that holds null, leaves
-/// the window open on that side. A bound the record does not hold, or that
-/// holds something else than a date, is refused: it would otherwise make the
-/// effect hold or not without a word.
-fn in_window(
-    record: &ChronicleRecord,
-    effect: &regelrecht_law_model::RecordEffect,
-    day: NaiveDate,
-) -> std::result::Result<bool, String> {
-    let bound = |name: Option<&str>| -> std::result::Result<Option<NaiveDate>, String> {
-        let Some(name) = name else {
-            return Ok(None);
-        };
-        match record.fields.get(name).or_else(|| record.outputs.get(name)) {
-            Some(Value::Null) => Ok(None),
-            // A record without the field is not a record with an open
-            // bound: it would make the effect hold on every day unseen.
-            None => Err(format!(
-                "bounds an effect by '{name}', but holds nothing under it"
-            )),
-            Some(Value::String(s)) => NaiveDate::parse_from_str(s, "%Y-%m-%d")
-                .map(Some)
-                .map_err(|_| format!("bounds an effect by '{name}', which holds {s:?}, no date")),
-            Some(other) => Err(format!(
-                "bounds an effect by '{name}', which holds {other:?}, no date"
-            )),
-        }
-    };
-    let [from, until] = effect.window();
-    let (from, until) = (bound(from)?, bound(until)?);
-    Ok(from.is_none_or(|f| f <= day) && until.is_none_or(|u| day < u))
 }
 
 /// Which records a play reads: all of them (`members` is `None`), or those of
@@ -1258,9 +1207,7 @@ mod tests {
     /// `herroepen`, article 3 takes a decision in the place of `bestreden`
     /// (it revokes it), article 4 requires the
     /// fact `ingeleverd`. Schema v0.8.15: article 7 requires the fact
-    /// `vernietigd`, which revokes `besluit` when it holds `vernietigd` true;
-    /// article 8 suspends `bestreden` from `vanaf` until `tot` as a decision,
-    /// and article 9 does the same as a fact.
+    /// `vernietigd`, which revokes `besluit` when it holds `vernietigd` true.
     const LAW: &str = r#"
 $id: wet
 regulatory_layer: WET
@@ -1328,31 +1275,6 @@ articles:
           effects: [{revokes: besluit, when: vernietigd}]
       execution:
         parameters: [{name: besluit, type: string}, {name: vernietigd, type: boolean}]
-  - number: '8'
-    text: t
-    machine_readable:
-      execution:
-        produces:
-          - type: BESCHIKKING
-            effects: [{revokes: bestreden, from: vanaf, until: tot}]
-        parameters:
-          - {name: bestreden, type: string}
-          - {name: vanaf, type: date}
-          - {name: tot, type: date}
-        output: [{name: geschorst, type: boolean}]
-        actions: [{output: geschorst, value: true}]
-  - number: '9'
-    text: t
-    machine_readable:
-      requires:
-        - fact: geschorst
-          parameters: [besluit, vanaf, tot]
-          effects: [{revokes: besluit, from: vanaf, until: tot}]
-      execution:
-        parameters:
-          - {name: besluit, type: string}
-          - {name: vanaf, type: date}
-          - {name: tot, type: date}
 "#;
 
     /// Counts the grants that count and whether the last record left a card.
@@ -1470,45 +1392,6 @@ articles:
                 ("vernietigd", Value::Bool(holds)),
             ],
         )
-    }
-
-    /// A date, or null for none.
-    fn day_or_null(date: Option<&str>) -> Value {
-        date.map_or(Value::Null, |d| Value::String(d.to_string()))
-    }
-
-    /// A suspension of `target` from `from` until `until`: a decision under
-    /// article 8, or a fact under article 9.
-    fn suspend(
-        id: &str,
-        target: &str,
-        from: Option<&str>,
-        until: Option<&str>,
-        as_fact: bool,
-    ) -> ChronicleRecord {
-        if as_fact {
-            fact(
-                id,
-                "9",
-                "geschorst",
-                &[
-                    ("besluit", Value::String(target.to_string())),
-                    ("vanaf", day_or_null(from)),
-                    ("tot", day_or_null(until)),
-                ],
-            )
-        } else {
-            record(
-                id,
-                "8",
-                &[
-                    ("bestreden", Value::String(target.to_string())),
-                    ("vanaf", day_or_null(from)),
-                    ("tot", day_or_null(until)),
-                ],
-                &[("geschorst", Value::Bool(true))],
-            )
-        }
     }
 
     fn play(records: &[ChronicleRecord]) -> Result<ProjectionOutcome> {
@@ -1732,131 +1615,21 @@ articles:
         let err = play(&[grant("a"), fact("v", "7", "anders", &[])]).expect_err("no such fact");
         assert!(
             err.to_string().contains(
-                "is an instance of the fact Some(\"anders\"), which that article does not require"
+                "is an instance of the fact 'anders', which that article does not require"
             ),
             "{err}"
         );
     }
 
     #[test]
-    fn a_suspension_revokes_only_on_the_days_of_its_window() {
-        // The calculation date is 2025-03-01; `from` is included, `until`
-        // is not, and a bound that is null is open.
-        for as_fact in [false, true] {
-            for (from, until, holds) in [
-                (Some("2025-02-01"), Some("2025-04-01"), true),
-                (Some("2025-03-01"), Some("2025-04-01"), true),
-                (Some("2025-02-01"), Some("2025-03-01"), false),
-                (Some("2025-03-02"), Some("2025-04-01"), false),
-                (None, Some("2025-03-02"), true),
-                (Some("2025-01-01"), None, true),
-                (None, None, true),
-                (Some("2025-03-01"), Some("2025-03-01"), false),
-            ] {
-                let outcome = play(&[grant("a"), suspend("s", "a", from, until, as_fact)]).unwrap();
-                let why = format!("{from:?}..{until:?}, as fact: {as_fact}");
-                assert_eq!(
-                    outcome.result.outputs["heeft_kaart"],
-                    Value::Bool(!holds),
-                    "{why}"
-                );
-                assert_eq!(skipped(&outcome).len(), usize::from(holds), "{why}");
-            }
-        }
-    }
-
-    #[test]
-    fn the_same_chronicle_answers_by_the_day_asked() {
-        let records = [
-            grant("a"),
-            suspend("s", "a", Some("2025-03-01"), Some("2025-05-01"), false),
-        ];
-        let heeft_kaart = |day: &str| {
-            service()
-                .evaluate_projection(
-                    "reductie",
-                    &["heeft_kaart"],
-                    &records,
-                    BTreeMap::new(),
-                    day,
-                    false,
-                )
-                .unwrap()
-                .result
-                .outputs["heeft_kaart"]
-                .clone()
-        };
-        assert_eq!(heeft_kaart("2025-04-30"), Value::Bool(false));
-        assert_eq!(heeft_kaart("2025-05-01"), Value::Bool(true));
-    }
-
-    #[test]
-    fn a_suspension_outside_its_window_revokes_nothing_it_alone_revoked() {
-        // `s` suspends the revocation `h` until 2025-02-01. On the
-        // calculation date the suspension holds no more, so `h` counts and
-        // the grant does not.
-        let outcome = play(&[
-            grant("a"),
-            revoke("h", "a", true),
-            suspend("s", "h", None, Some("2025-02-01"), true),
-        ])
-        .unwrap();
-        assert_eq!(skipped(&outcome), ["a"]);
-        // Inside the window `h` does not count, so the grant does.
-        let outcome = play(&[
-            grant("a"),
-            revoke("h", "a", true),
-            suspend("s", "h", None, Some("2025-04-01"), true),
-        ])
-        .unwrap();
-        assert_eq!(skipped(&outcome), ["h"]);
-    }
-
-    #[test]
-    fn a_bound_the_record_does_not_hold_is_refused() {
-        let mut s = suspend("s", "a", None, None, false);
-        s.fields.remove("tot");
-        let err = play(&[grant("a"), s]).expect_err("no tot");
-        assert!(
-            err.to_string().contains(
-                "record 's' (wet#8) bounds an effect by 'tot', but holds nothing under it"
-            ),
-            "{err}"
-        );
-    }
-
-    #[test]
-    fn a_broken_effect_is_refused_also_outside_its_window_or_condition() {
-        // On the calculation date the window has passed and `when` is false,
-        // yet a target that is no earlier record is refused all the same.
-        for record in [
-            suspend("s", "x", None, Some("2025-02-01"), false),
-            suspend("s", "x", None, Some("2025-02-01"), true),
-            annulled("s", "x", false),
-            revoke("s", "x", false),
-        ] {
+    fn a_broken_effect_is_refused_also_when_its_condition_is_false() {
+        // `when` is false, yet a target that is no earlier record is refused
+        // all the same.
+        for record in [annulled("s", "x", false), revoke("s", "x", false)] {
             let err = play(&[grant("a"), record]).expect_err("x is no record");
             assert!(
                 err.to_string()
                     .contains("has an effect on 'x', which is no record recorded before it"),
-                "{err}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_bound_of_a_window_must_hold_a_date() {
-        for (value, shown) in [
-            (Value::String("maart".into()), "holds \"maart\", no date"),
-            (Value::Int(3), "holds Int(3), no date"),
-        ] {
-            let mut s = suspend("s", "a", None, None, false);
-            s.fields.insert("vanaf".to_string(), value);
-            let err = play(&[grant("a"), s]).expect_err(shown);
-            assert!(
-                err.to_string().contains(&format!(
-                    "record 's' (wet#8) bounds an effect by 'vanaf', which {shown}"
-                )),
                 "{err}"
             );
         }
@@ -1982,9 +1755,8 @@ articles:
     }
 
     /// The definition, checked without the engine's pass: a record counts
-    /// on the calculation date unless a later record that itself counts
-    /// revokes it on that date, by a decision or a fact, always, by its
-    /// outcome, or in a window of days (schema v0.8.15). For each of
+    /// unless a later record that itself counts revokes it, by a decision or
+    /// a fact (schema v0.8.15), always or by its outcome. For each of
     /// many generated chronicles the oracle tries every assignment of
     /// "counts" to the records, keeps those that satisfy the definition,
     /// finds exactly one, and the engine must skip exactly the records that
@@ -2001,17 +1773,9 @@ articles:
         for _ in 0..500 {
             let n = 1 + next(12);
             let mut records = Vec::new();
-            // (target, holds on the calculation date) per record; None for
-            // a grant. An effect is a decision's or a fact's, and holds
-            // always, by its outcome, or on the days of its window.
+            // (target, holds) per record; None for a grant. An effect is a
+            // decision's or a fact's, and holds always or by its outcome.
             let mut effect_of: Vec<Option<(usize, bool)>> = Vec::new();
-            let bounds = [
-                None,
-                Some("2025-02-01"),
-                Some("2025-03-01"),
-                Some("2025-04-01"),
-            ];
-            let day = "2025-03-01";
             for i in 0..n {
                 let id = format!("r{i}");
                 if i == 0 || next(3) == 0 {
@@ -2021,7 +1785,7 @@ articles:
                 }
                 let target = next(i);
                 let target_id = format!("r{target}");
-                match next(4) {
+                match next(3) {
                     0 => {
                         let holds = next(4) != 0;
                         records.push(revoke(&id, &target_id, holds));
@@ -2031,15 +1795,9 @@ articles:
                         records.push(replace(&id, &target_id));
                         effect_of.push(Some((target, true)));
                     }
-                    2 => {
+                    _ => {
                         let holds = next(4) != 0;
                         records.push(annulled(&id, &target_id, holds));
-                        effect_of.push(Some((target, holds)));
-                    }
-                    _ => {
-                        let (from, until) = (bounds[next(4)], bounds[next(4)]);
-                        let holds = from.is_none_or(|f| f <= day) && until.is_none_or(|u| day < u);
-                        records.push(suspend(&id, &target_id, from, until, next(2) == 0));
                         effect_of.push(Some((target, holds)));
                     }
                 }
