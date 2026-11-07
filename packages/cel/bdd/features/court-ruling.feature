@@ -9,9 +9,10 @@ Feature: A ruling received as a copy revokes the decision it annuls
   # article 10 of test_chronicle_effects (after Awb 8:72 lid 1). The cell
   # records that it received a copy of the ruling with `Cell::record_receipt`
   # (RFC-053), as the fact of fictional article 11 (after Awb 8:79). The
-  # receipt holds the decision the copy concerns, which the cell fills, and
-  # whether the ruling annuls it, from the copy. Article 11 says that the
-  # receipt revokes that decision when the ruling annuls it. The reduction
+  # receipt takes its fields from the copy by name: the id of the decision
+  # the ruling is about (`bestreden_besluit`) and whether the ruling annuls
+  # it. The cell fills nothing. Article 11 says that the receipt revokes that
+  # decision when the ruling annuls it. The reduction
   # test_reductie_geldige_kaart has no step for any of this.
 
   Background:

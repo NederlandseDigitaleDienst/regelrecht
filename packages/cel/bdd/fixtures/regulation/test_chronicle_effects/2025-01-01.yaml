@@ -296,17 +296,17 @@ articles:
             Het college heeft een afschrift ontvangen van de uitspraak van de
             bestuursrechter over zijn besluit.
           parameters:
-            - vernietigd_besluit
+            - bestreden_besluit
             - vernietigd
-          # The receipt holds the decision the copy concerns, which the cell
-          # fills, and whether the ruling annuls it, from the copy.
+          # Both come from the copy, as any field of a receipt: the decision
+          # the ruling is about, by its id, and whether the ruling annuls it.
           effects:
-            - revokes: vernietigd_besluit
+            - revokes: bestreden_besluit
               when: vernietigd
       execution:
         parameters:
-          - name: vernietigd_besluit
-            type: decision
+          - name: bestreden_besluit
+            type: string
           - name: vernietigd
             type: boolean
 

@@ -173,17 +173,17 @@ Since schema v0.8.15 a fact can revoke too. A court ruling reaches the cell as a
 # test_chronicle_effects, article 11 (fictional, after Awb 8:72 lid 1 and 8:79)
 requires:
   - fact: afschrift_uitspraak_ontvangen
-    parameters: [vernietigd_besluit, vernietigd]
+    parameters: [bestreden_besluit, vernietigd]
     effects:
-      - revokes: vernietigd_besluit
+      - revokes: bestreden_besluit
         when: vernietigd
 execution:
   parameters:
-    - {name: vernietigd_besluit, type: decision}
+    - {name: bestreden_besluit, type: string}
     - {name: vernietigd, type: boolean}
 ```
 
-The effect of a fact reads only what the fact holds: `revokes` names a field that holds the id of an earlier record, and `when` a boolean field. Neither may be null. A plain fact takes that id, in a field of type `string`, from whoever records it. A receipt cannot, because the court never had the id: its ruling holds the decision as a value. So `Cell::record_receipt` fills a field of type `decision` that an effect revokes with the decision the copy concerns, as it fills the field of an objection with the decision the objection contests. A value the copy holds under that name is not taken. The other fields come from the copy, such as whether the ruling annuls the decision. Only a receipt fills such a field; `Cell::record_executogram` still wants a decision value there. Handing in a card is no such fact. It ends the holder's possession of the card and leaves the grant standing, so it stays a step of the reduction.
+The effect of a fact reads only what the fact holds: `revokes` names a string field that holds the id of an earlier record, and `when` a boolean field. Neither may be null. The cell fills nothing here. Whoever records the fact supplies those fields, as any other: `Cell::record_receipt` takes them from the copy by name, so the copy says which decision the ruling is about and whether the ruling annuls it. What a receipt revokes thus follows from the law and the recorded data alone. A field of type `decision` keeps its one meaning, a decision value, and cannot be the target of an effect. Handing in a card is no such fact. It ends the holder's possession of the card and leaves the grant standing, so it stays a step of the reduction.
 
 An effect can also hold for a while. With `from` and `until`, each naming a date the record holds, it holds on the days from `from` up to, not including, `until`. A bound the effect does not name, or that holds null, leaves the window open on that side; a record that lacks the field is refused. A suspension by the court (Awb 8:81) is written that way. The day in question is the calculation date, the same day that decides which records are known. So "counts" means "counts on the calculation date", and phase 1 stays a pass over the records that reads no state. The price is that a suspended record is gone from the whole fold for that question, not only from the days it was suspended: on a day inside the window, a count of grants drops as it would after a revocation. A separate date for the question, apart from the calculation date, belongs with the open question on time and versions.
 

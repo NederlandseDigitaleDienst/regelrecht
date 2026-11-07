@@ -318,7 +318,7 @@ pub fn fact_fields(
 /// The article of `fact` in force on `day` and its `requires` entry for
 /// that fact. Refused when the article has no version in force on `day` or
 /// does not require that fact.
-pub(crate) fn required_fact<'s>(
+fn required_fact<'s>(
     service: &'s LawExecutionService,
     fact: &str,
     day: NaiveDate,

@@ -1,8 +1,9 @@
-//! The receipt of a copy whose fact revokes the decision the copy concerns
-//! (schema v0.8.15, `requires[].effects`). `Cell::record_receipt` fills a
-//! field of type `decision` that an effect revokes with the id of that
-//! decision; the other fields come from the copy. The fictional law is the
-//! one of the cell's BDD suite (`bdd/fixtures`), articles 1, 10 and 11.
+//! The receipt of a copy whose fact revokes the decision the ruling is
+//! about (schema v0.8.15, `requires[].effects`). `Cell::record_receipt`
+//! takes every field of the fact from the copy by name, also the id of the
+//! record the effect revokes: the cell fills nothing, so what a receipt
+//! revokes follows from the law and the recorded data. The fictional law and
+//! reduction are those of the cell's BDD suite (`bdd/fixtures`).
 
 // Test helpers outside a `#[test]` fn may unwrap and panic too; that is how
 // a failing fixture reports itself.
@@ -11,8 +12,9 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use regelrecht_cel::reading::chronicle_records;
 use regelrecht_cel::{Afschrift, Cell, Disk, Gram, Received, EXECUTOGRAM};
-use regelrecht_engine::LawExecutionService;
+use regelrecht_engine::{LawExecutionService, ProjectionEvent, Value as EngineValue};
 use serde_json::{json, Value};
 
 mod common;
@@ -25,36 +27,17 @@ fn fixtures() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("bdd/fixtures")
 }
 
-/// A fictional law whose receipt fact revokes two decisions at once, which
-/// the cell cannot fill: a copy concerns one decision.
-const TWO_DECISIONS: &str = r#"
-$id: test_twee_besluiten
-regulatory_layer: WET
-publication_date: '2025-01-01'
-valid_from: '2025-01-01'
-articles:
-  - number: '1'
-    text: FICTIEF. Het college legt de ontvangst van een afschrift vast.
-    machine_readable:
-      requires:
-        - fact: ontvangen
-          parameters: [eerste, tweede]
-          effects:
-            - revokes: eerste
-            - revokes: tweede
-      execution:
-        parameters:
-          - {name: eerste, type: decision}
-          - {name: tweede, type: decision}
-"#;
-
 fn service() -> LawExecutionService {
     let mut service = LawExecutionService::new();
     let law = fixtures().join("regulation/test_chronicle_effects/2025-01-01.yaml");
     service
         .load_law(&std::fs::read_to_string(law).unwrap())
         .unwrap();
-    service.load_law(TWO_DECISIONS).unwrap();
+    let reduction =
+        fixtures().join("cells/test_cel/reductions/test_reductie_geldige_kaart/2025-01-01.yaml");
+    service
+        .load_law(&std::fs::read_to_string(reduction).unwrap())
+        .unwrap();
     service
 }
 
@@ -87,41 +70,51 @@ fn gram(
     }
 }
 
-/// The cell with a grant, and a copy of the court's ruling that annuls it
-/// (`vernietigd`), concerning that grant. The ruling also holds a field
-/// `vernietigd_besluit` of its own, which the receipt must not take.
-fn case(vernietigd: bool) -> (Cell, Afschrift) {
-    let grams = vec![
-        gram(
-            CELL,
-            "aanvraag",
-            "AANVRAAG",
-            "test_chronicle_effects#1",
-            None,
-            json!({"ernstig_beperkt": true, "aanvrager": "burger_x"}),
-            json!({}),
-        ),
-        gram(
-            CELL,
-            "verlening",
-            "BESCHIKKING",
-            "test_chronicle_effects#1",
-            Some("aanvraag"),
-            json!({"ernstig_beperkt": true, "aanvrager": "burger_x"}),
-            json!({"kaart_verleend": true}),
-        ),
-    ];
-    let cell = Cell::restore(&Disk, CELL, fixtures().join("cells").join(CELL), grams).unwrap();
+/// The applications and grants of `applicants`, as the cell recorded them:
+/// `aanvraag_<x>` and `verlening_<x>` per applicant `burger_<x>`.
+fn grants(applicants: &[&str]) -> Vec<Gram> {
+    applicants
+        .iter()
+        .flat_map(|x| {
+            let fields = json!({"ernstig_beperkt": true, "aanvrager": format!("burger_{x}")});
+            [
+                gram(
+                    CELL,
+                    &format!("aanvraag_{x}"),
+                    "AANVRAAG",
+                    "test_chronicle_effects#1",
+                    None,
+                    fields.clone(),
+                    json!({}),
+                ),
+                gram(
+                    CELL,
+                    &format!("verlening_{x}"),
+                    "BESCHIKKING",
+                    "test_chronicle_effects#1",
+                    Some(&format!("aanvraag_{x}")),
+                    fields,
+                    json!({"kaart_verleend": true}),
+                ),
+            ]
+        })
+        .collect()
+}
+
+/// A copy of the court's ruling on an appeal against `about`, a decision of
+/// the cell. The ruling names the decision it is about by the id `names`
+/// (normally `about` itself) and annuls it when `vernietigd`.
+fn copy(about: &str, names: &str, vernietigd: bool) -> Afschrift {
     let ruling = gram(
         COURT,
         "uitspraak",
         "UITSPRAAK",
         "test_chronicle_effects#10",
         Some("beroep"),
-        json!({"bestreden_besluit": "verlening", "beroep_gegrond": vernietigd, "vernietigd_besluit": "iets anders"}),
+        json!({"bestreden_besluit": names, "beroep_gegrond": vernietigd}),
         json!({"vernietigd": vernietigd}),
     );
-    let copy = Afschrift {
+    Afschrift {
         from: COURT.to_string(),
         value: json!({
             "basis": ruling.basis,
@@ -133,51 +126,104 @@ fn case(vernietigd: bool) -> (Cell, Afschrift) {
         gram: ruling,
         about: Some(Received {
             from: CELL.to_string(),
-            id: "verlening".to_string(),
+            id: about.to_string(),
         }),
-    };
-    (cell, copy)
+    }
+}
+
+/// The cell with `grams`, after it recorded the receipt of `copy`, which
+/// concerns its decision `about`.
+fn received(grams: Vec<Gram>, copy: &Afschrift, about: &str) -> (Cell, Gram) {
+    let mut cell = Cell::restore(&Disk, CELL, fixtures().join("cells").join(CELL), grams).unwrap();
+    let receipt = cell
+        .record_receipt(
+            &service(),
+            "test_chronicle_effects#11#afschrift_uitspraak_ontvangen",
+            copy,
+            about,
+            day("2025-05-10"),
+        )
+        .unwrap();
+    (cell, receipt)
+}
+
+/// Whether `burger_<x>` holds a valid card on 2025-06-01, and the events.
+fn holds_card(cell: &Cell, x: &str) -> Result<(bool, Vec<ProjectionEvent>), String> {
+    let records = chronicle_records(cell.grams()).unwrap();
+    let outcome = service()
+        .evaluate_projection(
+            "test_reductie_geldige_kaart",
+            &["heeft_geldige_kaart"],
+            &records,
+            BTreeMap::from([(
+                "aanvrager".to_string(),
+                EngineValue::String(format!("burger_{x}")),
+            )]),
+            "2025-06-01",
+            false,
+        )
+        .map_err(|e| e.to_string())?;
+    let holds = outcome.result.outputs["heeft_geldige_kaart"] == EngineValue::Bool(true);
+    Ok((holds, outcome.events))
 }
 
 #[test]
-fn the_receipt_holds_the_decision_the_copy_concerns_and_what_the_copy_gives() {
+fn the_receipt_takes_the_id_it_revokes_from_the_copy() {
     for vernietigd in [true, false] {
-        let (mut cell, copy) = case(vernietigd);
-        let receipt = cell
-            .record_receipt(
-                &service(),
-                "test_chronicle_effects#11#afschrift_uitspraak_ontvangen",
-                &copy,
-                "verlening",
-                day("2025-05-10"),
-            )
-            .unwrap();
+        let (cell, receipt) = received(
+            grants(&["x"]),
+            &copy("verlening_x", "verlening_x", vernietigd),
+            "verlening_x",
+        );
         assert_eq!(receipt.kind, EXECUTOGRAM);
-        assert_eq!(receipt.refers_to.as_deref(), Some("verlening"));
-        // The cell fills the field the effect revokes, not the copy.
-        assert_eq!(receipt.fields["vernietigd_besluit"], json!("verlening"));
+        assert_eq!(receipt.refers_to.as_deref(), Some("verlening_x"));
+        // Every field comes from the copy; the cell adds none.
+        assert_eq!(receipt.fields["bestreden_besluit"], json!("verlening_x"));
         assert_eq!(receipt.fields["vernietigd"], json!(vernietigd));
         assert_eq!(receipt.fields.len(), 2);
+        // A ruling that annuls the grant takes the card; one that does not,
+        // leaves it.
+        assert_eq!(holds_card(&cell, "x").unwrap().0, !vernietigd);
     }
 }
 
 #[test]
-fn a_receipt_cannot_revoke_two_decisions() {
-    let (mut cell, copy) = case(true);
-    let err = cell
-        .record_receipt(
-            &service(),
-            "test_twee_besluiten#1#ontvangen",
-            &copy,
-            "verlening",
-            day("2025-05-10"),
-        )
-        .expect_err("two decisions to fill");
+fn a_receipt_that_names_an_unknown_record_is_refused_when_played() {
+    // The cell records what the copy says; the projection refuses an effect
+    // on a record that is no earlier record of the chronicle, as for a
+    // decision.
+    let (cell, _) = received(
+        grants(&["x"]),
+        &copy("verlening_x", "verlening_elders", true),
+        "verlening_x",
+    );
+    let err = holds_card(&cell, "x").expect_err("no such record");
     assert!(
-        err.to_string().contains(
-            "the receipt of test_twee_besluiten#1#ontvangen revokes 2 decisions (eerste, \
-             tweede); the cell fills one, with the decision the copy concerns"
-        ),
+        err.contains("has an effect on 'verlening_elders', which is no record recorded before it"),
         "{err}"
+    );
+}
+
+#[test]
+fn a_receipt_that_names_a_record_of_another_key_revokes_it_for_that_key() {
+    // The receipt concerns X's grant, but the copy names Y's. The law says
+    // the receipt revokes what it names, so Y's grant no longer counts. For
+    // X the receipt belongs (it refers to X's grant), but its effect is on a
+    // record outside X's records, so X's grant counts.
+    let (cell, _) = received(
+        grants(&["x", "y"]),
+        &copy("verlening_x", "verlening_y", true),
+        "verlening_x",
+    );
+    let (x, _) = holds_card(&cell, "x").unwrap();
+    assert!(x, "X's grant still counts");
+    let (y, events) = holds_card(&cell, "y").unwrap();
+    assert!(!y, "Y's grant is revoked");
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            ProjectionEvent::Skipped { record, .. } if record == "verlening_y"
+        )),
+        "{events:?}"
     );
 }

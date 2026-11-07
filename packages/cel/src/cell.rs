@@ -748,17 +748,13 @@ impl Cell {
     /// received the copy, with the parameters the fact holds taken by name
     /// from the copied chronolexogram. The executogram refers to the
     /// decision it concerns and holds what it received; that is what this
-    /// adds to [`Cell::record_executogram`]. A field of the fact of type
-    /// `decision` that an effect of the fact revokes holds the id of the
-    /// decision the copy concerns (schema v0.8.15), as a ruling that annuls
-    /// the decision revokes it (Awb 8:72 lid 1).
+    /// adds to [`Cell::record_executogram`].
     ///
     /// Refused, besides what [`Cell::record_executogram`] refuses: a copy of
     /// what is no decision or that this cell made, a `refers_to` that is no
     /// decision of this cell, a copy that does not concern it (its `about`
     /// names another decision), a receipt dated before the copied decision,
-    /// a copy that lacks a field the fact cannot do without, and a fact whose
-    /// effects revoke more than one field of type `decision`.
+    /// and a copy that lacks a field the fact cannot do without.
     pub fn record_receipt(
         &mut self,
         service: &LawExecutionService,
@@ -792,41 +788,11 @@ impl Cell {
         }
         let declared = shape::fact_fields(service, fact, on, Some(&self.authority))?;
         let what = format!("receipt of {fact}");
-        // A field of type `decision` that an effect of the receipt revokes
-        // (`requires[].effects`, schema v0.8.15) holds the decision the copy
-        // concerns, by its id, as the field of a submission that refers to a
-        // decision does: the cell fills it, not the copy. Another field of
-        // type `decision` holds the decision value the copy gives.
-        let (_, required) = shape::required_fact(service, fact, on)?;
-        let revoked: Vec<&str> = required
-            .effects()
-            .iter()
-            .map(|e| e.parameter.as_str())
-            .collect();
-        let (concerned, copied): (Vec<shape::Field>, Vec<shape::Field>) =
-            declared.into_iter().partition(|f| {
-                f.type_ == ParameterType::Decision && revoked.contains(&f.name.as_str())
-            });
-        if concerned.len() > 1 {
-            return Err(setup(format!(
-                "the {what} revokes {} decisions ({}); the cell fills one, with the decision the \
-                 copy concerns",
-                concerned.len(),
-                concerned
-                    .iter()
-                    .map(|f| f.name.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )));
-        }
-        let supplied: Map<String, serde_json::Value> = copied
+        let supplied: Map<String, serde_json::Value> = declared
             .iter()
             .filter_map(|f| received.held(&f.name).map(|v| (f.name.clone(), v.clone())))
             .collect();
-        let mut fields = whole(&copied, &supplied, &what)?;
-        for field in concerned {
-            fields.insert(field.name, serde_json::Value::String(refers_to.to_string()));
-        }
+        let fields = whole(&declared, &supplied, &what)?;
         let (basis, name) = shape::split_fact(fact)?;
         let gram = Gram {
             id: uuid::Uuid::now_v7().to_string(),

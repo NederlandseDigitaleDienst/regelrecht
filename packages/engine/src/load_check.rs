@@ -495,9 +495,9 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
                 }
             }
             // An effect of a fact reads only what the fact holds (schema
-            // v0.8.15): the record it revokes by its id (a string, or on a
-            // receipt the decision the copy concerns), a boolean `when`, and
-            // the dates of its window.
+            // v0.8.15): a string field holding the id of the record it
+            // revokes, a boolean `when`, and the dates of its window. A
+            // `decision` field holds a decision value, never an id.
             let held = |name: &str| {
                 parameters
                     .iter()
@@ -536,7 +536,7 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
                 let mut named = vec![(
                     effect.parameter.as_str(),
                     "the record it revokes",
-                    &[ParameterType::String, ParameterType::Decision][..],
+                    &[ParameterType::String][..],
                 )];
                 named.extend(
                     effect
@@ -1620,8 +1620,8 @@ articles:
     }
 
     /// A fact may revoke an earlier record (schema v0.8.15). Its effect
-    /// reads only what the fact holds: the record by its id (a string, or a
-    /// decision on a receipt), a boolean condition and dates for a window.
+    /// reads only what the fact holds: a string field holding the id of the
+    /// record it revokes, a boolean condition and dates for a window.
     #[test]
     fn a_fact_revokes_by_what_it_holds() {
         let fact = |parameters: &str, effect: &str| {
@@ -1634,7 +1634,6 @@ articles:
         };
         for (parameters, effect) in [
             ("p", "revokes: p"),
-            ("d", "revokes: d"),
             (
                 "p, b, vanaf, tot",
                 "revokes: p, when: b, from: vanaf, until: tot",
@@ -1654,7 +1653,12 @@ articles:
             (
                 "b",
                 "revokes: b",
-                "names 'b' as the record it revokes, which is a Boolean, not a String or Decision",
+                "names 'b' as the record it revokes, which is a Boolean, not a String",
+            ),
+            (
+                "d",
+                "revokes: d",
+                "names 'd' as the record it revokes, which is a Decision, not a String",
             ),
             (
                 "p",

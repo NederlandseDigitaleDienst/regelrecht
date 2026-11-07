@@ -2384,7 +2384,7 @@
               "effects": {
                 "type": "array",
                 "minItems": 1,
-                "description": "Since v0.8.15, only with `fact`: the earlier records an instance of this fact revokes, as a decision does with `produces[].effects`. A fact is no decision, but the law can give a recorded fact a legal effect on a decision, such as the receipt of a copy of a ruling that annuls the decision (Awb 8:72 lid 1, 8:79). Each effect names a parameter the fact holds whose value is the id of an earlier record; a receipt of a copy fills a parameter of type `decision` with the decision the copy concerns. With `when` a boolean parameter the fact holds must be true for the effect to hold, and with `from` and `until` the effect holds only for a window of days. The effect reads nothing but the fields of the fact, so whether a record counts never depends on the state. The loader checks that every name is a parameter the fact holds, of the right type.",
+                "description": "Since v0.8.15, only with `fact`: the earlier records an instance of this fact revokes, as a decision does with `produces[].effects`. A fact is no decision, but the law can give a recorded fact a legal effect on a decision, such as the receipt of a copy of a ruling that annuls the decision (Awb 8:72 lid 1, 8:79). Each effect names a string parameter the fact holds whose value is the id of an earlier record. Whoever records the fact supplies it, as any other field: on the receipt of a copy it comes from the copy. With `when` a boolean parameter the fact holds must be true for the effect to hold, and with `from` and `until` the effect holds only for a window of days. The effect reads nothing but the fields of the fact, so whether a record counts never depends on the state. The loader checks that every name is a parameter the fact holds, of the right type.",
                 "items": {
                   "type": "object",
                   "description": "Since v0.8.15: an earlier record this fact revokes, named by a parameter the fact holds, and optionally `when`, `from` and `until`.",
@@ -2392,7 +2392,7 @@
                   "properties": {
                     "revokes": {
                       "type": "string",
-                      "description": "A parameter the fact holds whose value is the earlier record this fact revokes: its consequences no longer count. Of type `string` (the id of a record), or `decision` on a receipt, which only the cell fills, with the decision the copy concerns; it may not be nullable."
+                      "description": "A parameter the fact holds whose value is the earlier record this fact revokes: its consequences no longer count. A string field holding the id of that record; it may not be nullable."
                     },
                     "when": {
                       "type": "string",

@@ -2,8 +2,8 @@
 # Tier C: effects of a fact and effects that hold for a window of days
 # (schema v0.8.15). Article 1 suspends the contested decision from one day
 # until another, as a decision. Article 2 requires the receipt of a copy of
-# a ruling; the receipt revokes the decision the copy concerns when the
-# ruling annuls it. Article 3 requires a fact that suspends a decision for a
+# a ruling; the receipt revokes the decision the ruling is about, by the id
+# the copy gives, when the ruling annuls it. Article 3 requires a fact that suspends a decision for a
 # while. Fictional throughout.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
 $id: test_conformance_record_effects
@@ -49,15 +49,15 @@ articles:
         - fact: afschrift_uitspraak_ontvangen
           description: Het bestuursorgaan heeft een afschrift ontvangen van een uitspraak over zijn besluit.
           parameters:
-            - vernietigd_besluit
+            - bestreden_besluit
             - vernietigd
           effects:
-            - revokes: vernietigd_besluit
+            - revokes: bestreden_besluit
               when: vernietigd
       execution:
         parameters:
-          - name: vernietigd_besluit
-            type: decision
+          - name: bestreden_besluit
+            type: string
           - name: vernietigd
             type: boolean
   - number: '3'
