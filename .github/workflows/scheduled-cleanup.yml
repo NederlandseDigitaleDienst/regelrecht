@@ -35,7 +35,7 @@ jobs:
           fetch-depth: 1
 
       - name: Cleanup stale ZAD deployments and GitHub environments
-        uses: RijksICTGilde/zad-actions/scheduled-cleanup@b612e5968bb88c2c9c05da30f0be2e96b98f78c6  # v4.3.2
+        uses: RijksICTGilde/zad-actions/scheduled-cleanup@4217ceaa5c347f3c6d16142b5ad8ab94110c4cdb  # v4.4.0
         with:
           api-key: ${{ secrets.RIG_API_KEY }}
           project-id: ${{ env.ZAD_PROJECT }}
