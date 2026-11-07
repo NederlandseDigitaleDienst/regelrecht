@@ -53,7 +53,8 @@ Feature: A ruling received as a copy revokes the decision it annuls
 
   Scenario: Before the copy is received, the grant still counts
     # The court ruled, but the cell does not know it until it receives the
-    # copy: an answer about a day before the receipt sees the grant.
+    # copy: an answer given on a day before the receipt (the calculation
+    # date) does not know the receipt yet, so it sees the grant.
     Given the calculation date is "2025-05-01"
     When the court records appeal "beroep" under article "10" of "test_chronicle_effects" with:
       | bestreden_besluit | verlening |
@@ -80,7 +81,7 @@ Feature: A ruling received as a copy revokes the decision it annuls
     When the cell receives ruling "uitspraak" as fact "afschrift_uitspraak_ontvangen" "ontvangst" under article "11" of "test_chronicle_effects"
     Given the calculation date is "2025-09-01"
     When the cell records fact "uitspraak_vernietigd_in_hoger_beroep" as "hoger_beroep" under article "12" of "test_chronicle_effects" with:
-      | vernietigde_uitspraak | ontvangst |
+      | ontvangen_afschrift | ontvangst |
     And I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
     Then output "heeft_geldige_kaart" is true
     And record "ontvangst" is skipped

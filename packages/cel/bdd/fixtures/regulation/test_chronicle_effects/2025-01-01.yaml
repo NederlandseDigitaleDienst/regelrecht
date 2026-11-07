@@ -326,13 +326,14 @@ articles:
             De uitspraak waarvan het college een afschrift ontving, is in hoger
             beroep vernietigd, en het beroep is alsnog ongegrond verklaard.
           parameters:
-            - vernietigde_uitspraak
+            - ontvangen_afschrift
           effects:
-            - revokes: vernietigde_uitspraak
+            - revokes: ontvangen_afschrift
       execution:
         parameters:
-          # The receipt of the copy of the annulled ruling, by its id.
-          - name: vernietigde_uitspraak
+          # The receipt of the copy of the annulled ruling, by its id in the
+          # cell's chronicle; the ruling itself is in the court's.
+          - name: ontvangen_afschrift
             type: string
 
   - number: '13'

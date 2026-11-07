@@ -285,7 +285,6 @@ impl LawExecutionService {
     /// state. Then
     /// the fold: the steps of the records that count, in the order the cell
     /// recorded them, each from the state the one before left.
-    #[allow(clippy::too_many_arguments)]
     fn play(
         &self,
         law_id: &str,
