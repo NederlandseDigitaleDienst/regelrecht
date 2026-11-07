@@ -11,13 +11,39 @@ The [version history](/reference/schema#version-history) on the schema reference
 
 Where a version removes a construct, leaving the `$schema` of a rulework on the older version keeps it valid against that schema, but it does not keep it running. The engine in this repository runs every version on one code path and refuses a removed construct when it loads the rulework, naming the replacement where there is one. So where a note says a version is not additive, the rulework has to be edited before the engine will run it, whatever its `$schema` says. The one change neither the schema nor the engine catches at load is the rename in [v0.8.12](#v0812).
 
-The notes cover v0.8.0 to v0.8.13. Versions before v0.8.0 have no note; for those, the version history is all there is.
+The notes cover v0.8.0 to v0.8.14. Versions before v0.8.0 have no note; for those, the version history is all there is.
 
 ## Where the examples come from
 
 No example on this page is typed in. Each one is a marked excerpt of a fixture in `packages/engine/tests/conformance/`, read when the site is built. `just conformance` checks every fixture in CI: a fixture under `valid/` must pass the schema and survive a round trip through the Rust model without losing a field, and a fixture under `invalid/` must be refused by the schema version its `$schema` names. An example here therefore cannot show something the schema does not accept, and an example of a shape to change cannot show something the schema still accepts.
 
 The fixtures under `valid/` that these notes draw on currently declare the newest schema, so a positive example shows the construct as the current schema accepts it. That can be a little later than the version the note is about, and where a later version changed the construct, the note says so.
+
+## v0.8.14
+
+Two additions, both experimental and without an RFC so far. A decision can say what it does with another decision, and a reduction can play its cell's chronicle forward and answer from the state it ends in.
+
+Additive: a version valid under v0.8.13 is valid under v0.8.14 unchanged.
+
+A decision in the list form of `produces` names its `effects`. With `revokes`, the decision revokes the decision held by the parameter it names, as a decision on an objection revokes the contested one (Awb 7:11 lid 2). `when` makes the effect conditional on a boolean output of the same decision, so the objection revokes only when it is well-founded:
+
+<FixtureExcerpt fixture="valid/v0_8_14_decision_effects.yaml" region="revokes-when" />
+
+A decision taken in the place of another revokes it without a condition and counts itself:
+
+<FixtureExcerpt fixture="valid/v0_8_14_decision_effects.yaml" region="in-place" />
+
+A `REDUCTIE` may have a `projection`. Its `state` lists named properties with a type, and each starts at the value of that type: false, 0, or null for a string or a date. `steps` has one entry per article a record rests on. A step takes outputs of a law the way an article does, with an `input` whose `source` is `regulation`, and its `actions` give properties their values, each as a bare reference to an input, a field of the record (`$record.<field>`) or the state before it (`$state.<property>`). The step computes nothing itself; what a record does stays in the law it calls. `record` may name the kind of record in a third segment, such as `#BESCHIKKING`, and has to when the article gives more than one kind. With `key`, only the records of the person asked about are played. The reduction's `execution` answers from the last state.
+
+Which records count follows from the effects: a record counts unless a later record that itself counts revokes it, and only the records that count change the state.
+
+<FixtureExcerpt fixture="valid/v0_8_14_projection.yaml" region="projection" />
+
+A step may also pass a parameter of the question to the law it calls, such as the day the question is about. The answer then depends on that parameter, as it does on the key. This step leaves out the third segment, which is allowed because the article gives one kind of record:
+
+<FixtureExcerpt fixture="valid/v0_8_14_projection_question.yaml" region="question-parameter" />
+
+The engine plays a projection only where a chronicle is played: when a cell gives the reduction's answer to a policy through `source.reduction`, or through `evaluate_projection` in the Rust engine. Asked for directly, from another rulework or at a stage, it refuses the article.
 
 ## v0.8.13
 
