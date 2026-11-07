@@ -233,7 +233,7 @@ export const slides = [
     bullets: [
       'Een beslissing op bezwaar herroept het bestreden besluit als het bezwaar slaagt (Awb 7:11).',
       'Vernietigt de rechter een besluit met zijn rechtsgevolgen, dan herroept de ontvangst van de uitspraak het (Awb 8:72 en 8:79).',
-      'De engine telt een besluit mee, tenzij een later besluit dat zelf meetelt het herroept.',
+      'De engine telt een besluit mee, tenzij een latere vastlegging die zelf meetelt het herroept: een besluit of de ontvangst van een uitspraak.',
       'Elke reductie van een uitvoerder krijgt dat vanzelf. Zij schrijft alleen wat een besluit voor haar vraag betekent.',
     ],
     figure: { diagram: 'awb', label: 'Twee reducties van Wilgendaal; de Awb zegt welke besluiten meetellen' },

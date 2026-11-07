@@ -53,10 +53,10 @@ Feature: A cell corrects a fact it recorded
     Then output "huisnummer" equals 3
     And property "postcode" was last set by "nieuwe_inschrijving"
 
-  Scenario: A correction of the postcode on a registration wrong from the start changes nothing
+  Scenario: A correction of the postcode still holds when the registration before it was wrong from the start
     # The correction refers to no record, so it counts on its own: the
     # postcode it records holds, while the house number of the revoked
-    # registration does not.
+    # registration does not, so the state keeps its start value.
     When the cell records fact "ingeschreven" as "inschrijving" under article "1" of "test_chronicle_corrections" with:
       | bewoner    | burger_x |
       | postcode   | 1000AA   |

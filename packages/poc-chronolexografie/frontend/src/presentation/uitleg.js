@@ -209,9 +209,9 @@ export const steps = [
     overline: 'Awb',
     title: 'Awb: welke besluiten meetellen',
     text: [
-      'De Algemene wet bestuursrecht (Awb) zegt bij het artikel van een besluit of het een eerder besluit herroept: een beslissing op bezwaar het besluit dat de gemeente na bezwaar zelf terugdraait (Awb 7:11), de ontvangst van een uitspraak het besluit dat de rechter met zijn rechtsgevolgen vernietigde (Awb 8:72 en 8:79).',
-      'Een besluit telt mee, tenzij een later besluit dat zelf meetelt het herroept; dat rekent de engine uit voordat de reductie speelt.',
-      'Een besluit dat ervoor in de plaats kwam, telt als elk ander.',
+      'De Algemene wet bestuursrecht (Awb) zegt welk eerder besluit een besluit of de ontvangst van een uitspraak herroept.',
+      'Een beslissing op bezwaar herroept het besluit dat de gemeente zelf terugdraait (Awb 7:11), en de ontvangst van een uitspraak het besluit dat de rechter met zijn rechtsgevolgen vernietigde (Awb 8:72 en 8:79).',
+      'Wat zo is herroepen, telt niet mee in de reductie; een besluit dat ervoor in de plaats kwam wel.',
     ],
     panels: [
       {

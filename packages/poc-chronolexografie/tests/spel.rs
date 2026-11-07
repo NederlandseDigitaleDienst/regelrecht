@@ -1166,12 +1166,11 @@ fn bedrijfsparkeervergunning_a_permit_granted_on_29_february_runs_to_28_february
 
 #[test]
 fn every_case_shows_the_reductions_of_its_cell() {
-    // The tab Reductie lists every reduction the cell's catalogue names,
-    // with the decisions each reads: for a reduction that plays the
-    // chronicle, those under the article its step names. The municipality's catalogue
-    // serves two cases, so in each case one of its reductions reads the
-    // decisions under the other case's article: that article has to be in
-    // the case too.
+    // The tab Reductie lists every reduction the cell's catalogue names, with
+    // the decisions each reads: for a reduction that plays the chronicle, those
+    // under the article its step names. The municipality's catalogue serves two
+    // cases, so in each case one of its reductions reads the decisions under
+    // the other case's article: that article has to be in the case too.
     for id in [
         "bedrijfsparkeervergunning",
         "gehandicaptenparkeerkaart",

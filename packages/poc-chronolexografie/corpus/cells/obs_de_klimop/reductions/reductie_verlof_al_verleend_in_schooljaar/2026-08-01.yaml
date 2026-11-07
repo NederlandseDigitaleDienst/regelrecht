@@ -12,12 +12,12 @@ valid_from: '2026-08-01'
 # uitspraak die een besluit met zijn rechtsgevolgen vernietigt (8:79 met
 # 8:72). Wat een besluit dat meetelt betekent, zegt het beleid van het hoofd
 # over verleend verlof (fictief_beleid_verleend_verlof_obs_de_klimop); het
-# schooljaar geeft artikel 2 van zijn beleid vakantieverlof mee. De cel van
-# de school geeft haar uitvoer als het antwoord
-# verlof_al_verleend_in_schooljaar (cel.yaml, answers); dat artikel koppelt het aan het open begrip van
-# artikel 13a, tweede lid, van de Leerplichtwet 1969, ook als Awb 7:11 dat
-# artikel opnieuw aanroept. Er is geen bekendmaking; de url wijst naar dat
-# artikel.
+# schooljaar geeft artikel 2 van zijn beleid vakantieverlof mee. De cel van de
+# school geeft haar uitvoer als het antwoord verlof_al_verleend_in_schooljaar
+# (cel.yaml, answers); artikel 2 van dat beleid koppelt het aan het open
+# begrip van artikel 13a, tweede lid, van de Leerplichtwet 1969, ook als Awb
+# 7:11 dat artikel opnieuw aanroept. Er is geen bekendmaking; de url wijst
+# naar dat artikel.
 url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
 name: Al verleend vakantieverlof in het schooljaar bij OBS De Klimop (reductie)
 articles:

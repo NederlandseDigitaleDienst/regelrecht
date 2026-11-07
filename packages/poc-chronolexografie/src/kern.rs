@@ -3471,13 +3471,12 @@ mod tests {
     #[test]
     fn what_a_case_needs_follows_from_the_law() {
         // Vakantieverlof: the leave article, the policy that fills its open
-        // term, the Awb with its hooks, the reductions the school's
-        // catalogue names (RFC-048), what those read: the head's policy with
-        // its norm and its bindings, the policy a step of a reduction calls
-        // for what a decision means, the regeling and the school's policy on
-        // its rooster, and the policy that requires the fact of its
-        // vestiging. The Wet op het primair
-        // onderwijs is only the regeling's legal basis.
+        // term, the Awb with its hooks, the reductions the school's catalogue
+        // names (RFC-048), what those read: the head's policy with its norm and
+        // its bindings, the policy a step of a reduction calls for what a
+        // decision means, the regeling and the school's policy on its rooster,
+        // and the policy that requires the fact of its vestiging. The Wet op
+        // het primair onderwijs is only the regeling's legal basis.
         let verlof = corpus();
         let a = &verlof.afleiding;
         assert_eq!((a.law.as_str(), a.article.as_str()), (LAW, ARTICLE));
@@ -4934,10 +4933,8 @@ mod tests {
         assert_eq!(cell.grams().len(), 8);
         assert_eq!(rechtbank(&cell).grams().len(), 2);
         // The school's reduction for lid 2 plays the decisions under 13a:
-        // the refusal and the decision taken again in its place. Which of
-        // them count, the effects in the Awb say: the receipt revokes the
-        // annulled decision on the objection, and the new one revokes the
-        // refusal.
+        // the refusal, and the decision the authority took in its place after
+        // the objection. The effects in the Awb decide which of them count.
         let stand = reducties(&corpus, &cell, day("2027-01-18")).unwrap();
         let lid_2 = stand["reducties"]
             .as_array()
@@ -5086,8 +5083,8 @@ mod tests {
     /// parent appeals against that decision on the objection, and the court
     /// annuls it, keeping its legal effects when `in_stand` (Awb 8:72 lid 3
     /// onder a). The school receives the judgment. Then leave B in the same
-    /// school year: whether it is granted, and the decision on the objection.
-    fn leave_after_an_annulled_revocation(in_stand: bool) -> (bool, String) {
+    /// school year: whether it is granted.
+    fn leave_after_an_annulled_revocation(in_stand: bool) -> bool {
         let corpus = corpus();
         let mut cell = corpus.cell().unwrap();
         let eerste = aanvragen(
@@ -5143,7 +5140,7 @@ mod tests {
         let mut oordeel = uitspraak_bevindingen(&corpus, &[]);
         oordeel.insert("rechtsgevolgen_in_stand".into(), json!(in_stand));
         if in_stand {
-            // Lid 3 names a "or" b, and lid 4 applies only without lid 3.
+            // Lid 3 offers a or b, and lid 4 applies only without lid 3.
             oordeel.remove("uitspraak_treedt_in_de_plaats");
             oordeel.remove("termijn_nieuw_besluit");
         }
@@ -5183,7 +5180,7 @@ mod tests {
         )
         .unwrap()
         .besluit;
-        (b.outputs["verlof_verleend"] == json!(true), beslissing)
+        b.outputs["verlof_verleend"] == json!(true)
     }
 
     #[test]
@@ -5192,7 +5189,7 @@ mod tests {
         // decision on the objection (an effect of the fact of Awb 8:79), so
         // its revocation of A no longer holds and A counts again: B is
         // refused, as the second leave in the school year.
-        let (verleend, _) = leave_after_an_annulled_revocation(false);
+        let verleend = leave_after_an_annulled_revocation(false);
         assert!(!verleend);
     }
 
@@ -5201,7 +5198,7 @@ mod tests {
         // Awb 8:72 lid 3 onder a: the annulled decision keeps its legal
         // effects, so the receipt revokes nothing and A stays revoked: B is
         // granted.
-        let (verleend, _) = leave_after_an_annulled_revocation(true);
+        let verleend = leave_after_an_annulled_revocation(true);
         assert!(verleend);
     }
 }

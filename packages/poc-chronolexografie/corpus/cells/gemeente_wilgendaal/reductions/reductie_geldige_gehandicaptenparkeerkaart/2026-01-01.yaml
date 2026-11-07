@@ -6,23 +6,22 @@ publication_date: '2025-12-01'
 valid_from: '2026-01-01'
 # Geen regelgeving: een reductie van het college van de (fictieve) gemeente
 # Wilgendaal over zijn eigen kroniek (RFC-022 §4.1, RFC-048). Ze speelt de
-# kroniek van de aanvrager af (projection, schema v0.8.14); de
-# geldigheidsduur staat al in elk besluit (artikel 51 van het BABW). Welke
-# besluiten meetellen, volgt uit de effecten die de Awb een besluit geeft:
-# een beslissing op bezwaar die het bestreden besluit herroept (7:11, tweede
-# lid), en de ontvangst van een uitspraak die een besluit met zijn
-# rechtsgevolgen vernietigt (8:79 met 8:72). Wat een besluit dat meetelt
-# betekent, zegt het beleid van het college over verstrekte kaarten
-# (beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal). De cel van de
-# gemeente geeft haar uitvoer als twee antwoorden (cel.yaml, answers): of de
-# aanvrager een geldige kaart heeft (artikel 1), en of hij eerder een kaart
-# van het college kreeg (artikel 2). Het beleid van het college koppelt het
-# eerste aan zijn eigen open begrip, ook als Awb 7:11 artikel 49 opnieuw
-# aanroept, en het tweede aan het open begrip van artikel 2, tweede lid,
-# onder a en b, van de Regeling gehandicaptenparkeerkaart. Twee artikelen,
-# omdat het tweede antwoord de dag van het besluit niet kent: artikel 2 van
-# de regeling geeft die niet mee. Er is geen bekendmaking; de url wijst naar
-# artikel 49.
+# kroniek van de aanvrager af (projection, schema v0.8.14); de geldigheidsduur
+# staat al in elk besluit (artikel 51 van het BABW). Welke besluiten
+# meetellen, volgt uit de effecten die de Awb een besluit geeft: een
+# beslissing op bezwaar die het bestreden besluit herroept (7:11, tweede lid),
+# en de ontvangst van een uitspraak die een besluit met zijn rechtsgevolgen
+# vernietigt (8:79 met 8:72). Wat een besluit dat meetelt betekent, zegt het
+# beleid van het college over verstrekte kaarten
+# (beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal). De cel
+# van de gemeente geeft haar uitvoer als twee antwoorden (cel.yaml, answers):
+# of de aanvrager een geldige kaart heeft (artikel 1), en of hij eerder een
+# kaart van het college kreeg (artikel 2). Het beleid van het college koppelt
+# het eerste aan zijn eigen open begrip, ook als Awb 7:11 artikel 49 opnieuw
+# aanroept, en het tweede aan het open begrip van artikel 2, tweede lid, onder
+# a en b, van de Regeling gehandicaptenparkeerkaart. Twee artikelen, omdat het
+# tweede antwoord de dag van het besluit niet kent: artikel 2 van de regeling
+# geeft die niet mee. Er is geen bekendmaking; de url wijst naar artikel 49.
 url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
 name: Geldige gehandicaptenparkeerkaart bij de gemeente Wilgendaal (reductie)
 articles:

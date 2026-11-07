@@ -24,15 +24,15 @@ articles:
     text: >-
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Een
       besluit waarin het college de aanvrager een kaart verstrekt, geeft hem
-      een kaart. Die kaart is op een dag geldig als zij tot en met die dag of
-      later geldig is. Een weigering geeft geen kaart.
+      een kaart. Het besluit geeft een geldige kaart op een dag als de kaart op
+      die dag nog geldig is. Een weigering geeft geen kaart.
     url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
     machine_readable:
       # Wat één besluit op een aanvraag (artikel 49 van het BABW) betekent
       # voor de vraag of de aanvrager een geldige kaart heeft (artikel 2 van
-      # het beleid gehandicaptenparkeerkaart). De reductie van de gemeente vraagt het per besluit dat meetelt, met wat
-      # zij tot dan toe wist. Dit artikel leest niets anders dan wat het
-      # krijgt.
+      # het beleid gehandicaptenparkeerkaart). De reductie van de gemeente
+      # vraagt het per besluit dat meetelt, met wat zij tot dan toe wist. Dit
+      # artikel leest niets anders dan wat het krijgt.
       execution:
         parameters:
           - name: geldige_kaart

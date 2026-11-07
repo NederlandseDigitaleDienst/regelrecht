@@ -25,16 +25,15 @@ articles:
     text: >-
       FICTIEF, eigen keuze in de modellering. Een besluit waarin het college
       het bedrijf een bedrijfsparkeervergunning verleent, telt mee bij het
-      aantal geldige vergunningen op een dag als de vergunning tot en met die
-      dag of later geldig is. Een weigering telt niet.
+      aantal geldige vergunningen op een dag als de vergunning op die dag nog
+      geldig is. Een weigering telt niet.
     url: https://lokaleregelgeving.overheid.nl/CVDR733452
     machine_readable:
       # Wat één besluit op een aanvraag (artikel 2 van de verordening)
       # betekent voor het aantal geldige vergunningen (artikel 2 van het
-      # beleid bedrijfsparkeervergunning). De
-      # reductie van de gemeente vraagt het per besluit dat meetelt, met het
-      # aantal tot dan toe. Dit artikel leest niets anders dan wat het
-      # krijgt.
+      # beleid bedrijfsparkeervergunning). De reductie van de gemeente vraagt
+      # het per besluit dat meetelt, met het aantal tot dan toe. Dit artikel
+      # leest niets anders dan wat het krijgt.
       execution:
         parameters:
           - name: aantal

@@ -10,18 +10,18 @@ valid_from: '2026-01-01'
 # staat al in elk besluit (artikel 3 van de fictieve parkeerverordening).
 # Welke besluiten meetellen, volgt uit de effecten die de Awb een besluit
 # geeft (7:11, tweede lid, en 8:79 met 8:72). Wat een besluit dat meetelt
-# betekent, zegt het fictieve beleid verleende bedrijfsparkeervergunningen.
-# De cel van de gemeente geeft haar uitvoer als het antwoord
-# aantal_geldige_bedrijfsparkeervergunningen (cel.yaml, answers). Artikel 2 van het fictieve beleid
-# bedrijfsparkeervergunning koppelt dat aan het open begrip van artikel 3 van
-# het fictieve uitvoeringsbesluit parkeren. Dat geldt ook wanneer Awb
-# 7:11 artikel 2 van de verordening opnieuw aanroept; bij die heroverweging
-# laat de cel het bestreden besluit buiten beschouwing. Eigen keuze: de
-# reductie telt per bedrijf, over beide vergunninggebieden. Artikel 3 van het
-# uitvoeringsbesluit stelt het maximum per gebied vast, maar een vergunning
-# blijft geldig tot zij afloopt of wordt ingetrokken (artikel 5 van de
-# verordening), ook na een verhuizing. Er is geen bekendmaking; de url wijst
-# naar het model van de verordening.
+# betekent, zegt het fictieve beleid verleende bedrijfsparkeervergunningen. De
+# cel van de gemeente geeft haar uitvoer als het antwoord
+# aantal_geldige_bedrijfsparkeervergunningen (cel.yaml, answers). Artikel 2
+# van het fictieve beleid bedrijfsparkeervergunning koppelt dat aan het open
+# begrip van artikel 3 van het fictieve uitvoeringsbesluit parkeren. Dat geldt
+# ook wanneer Awb 7:11 artikel 2 van de verordening opnieuw aanroept; bij die
+# heroverweging laat de cel het bestreden besluit buiten beschouwing. Eigen
+# keuze: de reductie telt per bedrijf, over beide vergunninggebieden. Artikel
+# 3 van het uitvoeringsbesluit stelt het maximum per gebied vast, maar een
+# vergunning blijft geldig tot zij afloopt of wordt ingetrokken (artikel 5 van
+# de verordening), ook na een verhuizing. Er is geen bekendmaking; de url
+# wijst naar het model van de verordening.
 url: https://lokaleregelgeving.overheid.nl/CVDR642699
 name: Geldige bedrijfsparkeervergunningen bij de gemeente Wilgendaal (reductie)
 articles:
@@ -32,8 +32,7 @@ articles:
       kroniek hoeveel bedrijfsparkeervergunningen het het bedrijf verleende
       die op de dag van het besluit nog geldig zijn: verleend in een besluit
       op een aanvraag (artikel 2 van de fictieve parkeerverordening), niet
-      herroepen en niet door de bestuursrechter vernietigd (Awb 7:11 en 8:72),
-      en geldig tot en met de dag van het besluit of later.
+      herroepen en niet door de bestuursrechter vernietigd (Awb 7:11 en 8:72).
     url: https://lokaleregelgeving.overheid.nl/CVDR642699
     machine_readable:
       projection:
