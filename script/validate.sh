@@ -8,10 +8,11 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-# If no files given, validate all regulation YAML files, and the corpus of the
+# If no files given, validate all regulation YAML files, the corpus of the
 # chronolexografie PoC: its regulation (script/chrono-regulation-dirs.sh) and
 # its reductions, which sit with their cell or with none under cells/
-# (RFC-048).
+# (RFC-048), and the fixtures of the cell's BDD suite (packages/cel/bdd), laid
+# out the same way: a regulation directory and the reductions of a cell.
 if [ $# -eq 0 ]; then
     # A plain assignment, so a failing script stops this one under `set -e`.
     CHRONO_DIRS=$("$REPO_ROOT/script/chrono-regulation-dirs.sh")
@@ -27,6 +28,8 @@ if [ $# -eq 0 ]; then
             find "$REPO_ROOT/$dir" -name '*.yaml' ! -name '.*' -print0
         done <<< "$CHRONO_DIRS"
         find "$REPO_ROOT/packages/poc-chronolexografie/corpus/cells" -path '*/reductions/*' -name '*.yaml' -print0
+        find "$REPO_ROOT/packages/cel/bdd/fixtures/regulation" -name '*.yaml' ! -name '.*' -print0
+        find "$REPO_ROOT/packages/cel/bdd/fixtures/cells" -path '*/reductions/*' -name '*.yaml' -print0
     } | sort -z)
     set -- "${FILES[@]}"
 fi

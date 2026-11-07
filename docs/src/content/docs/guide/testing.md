@@ -123,7 +123,7 @@ just mutants-diff  # Only what this branch changed
 
 ## Schema Validation
 
-Every rulework is validated against the JSON schema:
+Every rulework is validated against the JSON schema. Without arguments, `just validate` checks the corpus (`corpus/regulation`), the regelwerken and reductions of the chronolexografie PoC, and the fixtures of the cell's BDD suite (`packages/cel/bdd/fixtures`: its `regulation/` directory and the reductions of its cell). It leaves the demo corpus out; `just validate-demo` covers that. The pre-commit hook runs the same recipe on the changed files in all of these directories, the demo corpus included, and CI runs the hooks over the whole tree.
 
 ```bash
 just validate                     # Validate all
