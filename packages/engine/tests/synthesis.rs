@@ -1281,3 +1281,111 @@ fn an_output_beside_the_decision_is_asked_only_when_read() {
     assert!(running.asked().is_empty());
     assert_eq!(other.asked(), ["eerder_verstrekt"]);
 }
+
+/// A law with an open term the policy below binds to an answer, for
+/// `a_binding_passes_another_input_of_its_article_to_the_cell`.
+const PEIL: &str = r#"
+$id: wet_peil
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Of er in het jaar van de dag al eerder iets is verstrekt.
+    machine_readable:
+      open_terms:
+        - id: al_eerder
+          type: boolean
+          required: true
+          decided_per_case_by: het college
+      execution:
+        parameters:
+          - {name: datum, type: date}
+        output:
+          - {name: al_eerder_verstrekt, type: boolean}
+        actions:
+          - output: al_eerder_verstrekt
+            value: $al_eerder
+"#;
+
+/// The policy that binds the term: it asks the cell with the year of the
+/// day, which another of its own articles computes.
+const PEIL_BELEID: &str = r#"
+$id: beleid_peil
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-01-01'
+url: https://example.org/beleid_peil
+competent_authority:
+  name: wilgendaal
+articles:
+  - number: '1'
+    text: Wat het beleid ontleent aan het antwoord al_eerder.
+    machine_readable:
+      implements:
+        - {law: wet_peil, article: '1', open_term: al_eerder}
+      execution:
+        parameters:
+          - {name: datum, type: date}
+        input:
+          - name: jaar
+            type: number
+            source:
+              regulation: beleid_peil
+              output: jaar_van
+              parameters: {datum: $datum}
+          - name: antwoord
+            type: boolean
+            nullable: true
+            source:
+              reduction: al_eerder
+              parameters: {jaar: $jaar}
+        output:
+          - {name: al_eerder, type: boolean}
+        actions:
+          - output: al_eerder
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord, value: null}
+                  then: false
+              default: $antwoord
+  - number: '2'
+    text: Het jaar van een dag.
+    machine_readable:
+      execution:
+        parameters:
+          - {name: datum, type: date}
+        output:
+          - {name: jaar_van, type: number}
+        actions:
+          - output: jaar_van
+            value: {operation: DATE_PART, date: $datum, in: year}
+"#;
+
+#[test]
+fn a_binding_passes_another_input_of_its_article_to_the_cell() {
+    // The parameter of the answer is another input of the binding, which
+    // the engine resolves before it asks the cell, as for a call to a law.
+    let mut service = LawExecutionService::new();
+    service.load_law(PEIL).unwrap();
+    service.load_law(PEIL_BELEID).unwrap();
+    let running = Fake::college("wilgendaal").answering("al_eerder", Value::Bool(true));
+    let call = Call {
+        findings: BTreeMap::new(),
+        answerer: Some(&running),
+        chronicle: None,
+        sphere: vec![],
+    };
+    let result = service
+        .evaluate_law_in(
+            "wet_peil",
+            &["al_eerder_verstrekt"],
+            BTreeMap::from([("datum".to_string(), Value::String(DATE.into()))]),
+            call,
+            DATE,
+        )
+        .unwrap();
+    assert_eq!(result.outputs["al_eerder_verstrekt"], Value::Bool(true));
+    let asked = running.asked.borrow();
+    assert_eq!(asked.len(), 1);
+    assert_eq!(asked[0].1["jaar"], Value::Int(2026));
+}

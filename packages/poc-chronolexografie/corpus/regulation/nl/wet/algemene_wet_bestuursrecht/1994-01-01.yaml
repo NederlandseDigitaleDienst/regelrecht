@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.10/schema/v0.8.10/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
 $id: algemene_wet_bestuursrecht
 regulatory_layer: WET
 publication_date: '2026-01-01'
@@ -556,6 +556,13 @@ articles:
               - heroverweging_geeft_aanleiding
               - bestreden_besluit_herroepen
               - nieuw_besluit
+            # Lid 2: herroept het bestuursorgaan het bestreden besluit, dan
+            # telt dat besluit niet meer. Wie de kroniek afspeelt, laat het
+            # dan weg (schema v0.8.14); de beslissing zelf noemt het besluit
+            # bij zijn id, zoals de cel een besluit in de kroniek bewaart.
+            effects:
+              - revokes: bestreden_besluit
+                when: bestreden_besluit_herroepen
         parameters:
           # Lid 1 en 2: "het bestreden besluit"; het bezwaarschrift omschrijft
           # het (artikel 6:5, eerste lid, onder c). De indiener levert het
@@ -768,6 +775,7 @@ articles:
             requests: algemene_wet_bestuursrecht#8:70
             parameters:
               - bestreden_besluit
+              - kenmerk_bestreden_besluit
           - type: UITSPRAAK
             outputs:
               - beroep_ontvankelijk
@@ -786,6 +794,17 @@ articles:
           - name: bestreden_besluit
             type: decision
             description: Het besluit waartegen het beroep is gericht.
+          # Artikel 6:5, tweede lid: bij het beroepschrift wordt zo mogelijk
+          # een afschrift van het besluit overgelegd. Eigen keuze: de
+          # indiener neemt daaruit het kenmerk over waaronder het
+          # bestuursorgaan het besluit vastlegde. De uitspraak draagt het mee,
+          # en zo zegt het afschrift van de uitspraak welk besluit het
+          # bestuursorgaan vernietigd ziet (artikel 8:79).
+          - name: kenmerk_bestreden_besluit
+            type: string
+            description: >-
+              Het kenmerk van het besluit waartegen het beroep is gericht,
+              zoals het bestuursorgaan het vastlegde.
           # Wat artikel 6:9 bij het beroepschrift geeft; de indiener levert
           # het niet aan.
           - name: bezwaar_of_beroepschrift_tijdig_ingediend
@@ -1179,6 +1198,7 @@ articles:
             Het afschrift van de uitspraak dat de griffier ter beschikking van
             een partij stelt.
           parameters:
+            - kenmerk_bestreden_besluit
             - uitspraak_strekt_tot
             - bestreden_besluit_vernietigd
             - rechtsgevolgen_vernietigd
@@ -1186,8 +1206,22 @@ articles:
             - termijn_nieuw_besluit_einddatum
             - geschonden_geoordeelde_rechtsregel
             - uitspraak_in_de_plaats
+          # Artikel 8:72, eerste en tweede lid: de vernietiging van een
+          # besluit brengt die van zijn rechtsgevolgen mee, tenzij de
+          # bestuursrechter ze in stand laat (derde lid, onder a). Dan telt
+          # het besluit niet meer voor het bestuursorgaan dat het afschrift
+          # ontving (schema v0.8.15). Welk besluit dat is, zegt het afschrift
+          # met het kenmerk uit het beroepschrift.
+          effects:
+            - revokes: kenmerk_bestreden_besluit
+              when: rechtsgevolgen_vernietigd
       execution:
         parameters:
+          - name: kenmerk_bestreden_besluit
+            type: string
+            description: >-
+              Het kenmerk van het besluit waarover de uitspraak gaat, uit het
+              beroepschrift (artikel 6:5, tweede lid).
           - name: uitspraak_strekt_tot
             type: string
             description: Waartoe de uitspraak strekt (artikel 8:70).

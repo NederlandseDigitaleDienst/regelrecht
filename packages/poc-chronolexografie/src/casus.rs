@@ -12,7 +12,7 @@
 //! the text a visitor reads: a description, example values for the forms and
 //! the scenarios.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
@@ -633,6 +633,14 @@ pub struct Beroep {
     /// judgment, `<law>#<article>#<fact>`: what the cell records when it
     /// receives a copy of one (`Cell::record_receipt`).
     pub ontvangst: String,
+    /// The field of the appeal that names the contested decision by its id,
+    /// if the law gives one: the field an effect of the receipt revokes
+    /// (`requires[].effects`, schema v0.8.15). The judgment holds it from
+    /// the appeal and the copy of the judgment carries it, so the receipt
+    /// says which decision the judgment annuls. The appellant takes it from
+    /// the decision it appeals against (Awb 6:5 lid 2); the forms leave it
+    /// out.
+    pub kenmerk: Option<String>,
     /// The court: the other cell of the case that the competent authority of
     /// the article that decides on the appeal names ("de bestuursrechter",
     /// on Awb 8:70).
@@ -679,7 +687,6 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
             ))
         })?;
         let mut erbij: Vec<String> = leest(werk.artikelen()).into_iter().collect();
-        erbij.extend(leest_via_parameter(regelwerken, werk));
         for ander in &regelwerken.werken {
             if handelt_op(ander, werk) {
                 erbij.push(ander.id().to_string());
@@ -767,11 +774,12 @@ fn beroep(
             )))
         }
     };
-    let ontvangst = ontvangst(regelwerken, casus, gevonden, &law, &article)?;
+    let (ontvangst, kenmerk) = ontvangst(regelwerken, casus, gevonden, &law, &article)?;
     Ok(Some(Beroep {
         law,
         article,
         ontvangst,
+        kenmerk,
         rechter,
     }))
 }
@@ -869,28 +877,42 @@ fn vestigend(
 
 /// The fact in which a cell records the receipt of a judgment under
 /// `law#article`, as `<law>#<article>#<fact>`: the one fact an article of
-/// the regelwerken `gevonden` requires whose parameters are all outputs of
-/// that decision, so a copy of the judgment holds each by name (Awb 8:79,
-/// `afschrift_van_de_uitspraak`).
+/// the regelwerken `gevonden` requires whose parameters the judgment all
+/// holds, as outputs or as fields of the appeal, so a copy of the judgment
+/// holds each by name (Awb 8:79, `afschrift_van_de_uitspraak`). With it,
+/// the field of the appeal that an effect of that fact revokes, if any
+/// ([`Beroep::kenmerk`]).
 fn ontvangst(
     regelwerken: &Regelwerken,
     casus: &str,
     gevonden: &[String],
     law: &str,
     article: &str,
-) -> Result<String> {
-    let uitvoer: BTreeSet<&str> = regelwerken
+) -> Result<(String, Option<String>)> {
+    let artikelen: Vec<&Article> = regelwerken
         .get(law)
         .into_iter()
         .flat_map(|w| w.artikelen())
         .filter(|a| a.number == article)
+        .collect();
+    let velden: BTreeSet<&str> = artikelen
+        .iter()
+        .flat_map(|a| {
+            a.get_submission()
+                .map(|s| a.parameters_of(s))
+                .unwrap_or_default()
+        })
+        .collect();
+    let uitvoer: BTreeSet<&str> = artikelen
+        .iter()
         .flat_map(|a| {
             a.get_decision()
                 .map(|d| a.outputs_of(d))
                 .unwrap_or_default()
         })
+        .chain(velden.iter().copied())
         .collect();
-    let mut feiten = BTreeSet::new();
+    let mut feiten = BTreeMap::new();
     for id in gevonden {
         for a in regelwerken.get(id).into_iter().flat_map(|w| w.artikelen()) {
             for r in a.get_requires() {
@@ -899,7 +921,12 @@ fn ontvangst(
                 };
                 if !parameters.is_empty() && parameters.iter().all(|p| uitvoer.contains(p.as_str()))
                 {
-                    feiten.insert(format!("{id}#{}#{feit}", a.number));
+                    let kenmerk = r
+                        .effects()
+                        .iter()
+                        .map(|e| e.parameter.clone())
+                        .find(|p| velden.contains(p.as_str()));
+                    feiten.insert(format!("{id}#{}#{feit}", a.number), kenmerk);
                 }
             }
         }
@@ -911,7 +938,8 @@ fn ontvangst(
             "case '{casus}': no regelwerk it runs requires a fact that holds the judgment of {law}#{article}"
         ))),
         (Some(a), Some(b)) => Err(Error::Setup(format!(
-            "case '{casus}': both {a} and {b} hold the judgment of {law}#{article}"
+            "case '{casus}': both {} and {} hold the judgment of {law}#{article}",
+            a.0, b.0
         ))),
     }
 }
@@ -922,6 +950,24 @@ fn ontvangst(
 fn leest<'a>(artikelen: impl Iterator<Item = &'a Article>) -> BTreeSet<String> {
     let mut uit = BTreeSet::new();
     for a in artikelen {
+        // A projection reads the records under the article each step names,
+        // and calls the law each input of a step names.
+        let steps = a
+            .machine_readable
+            .as_ref()
+            .and_then(|m| m.projection.as_ref())
+            .map(|p| p.steps.as_slice())
+            .unwrap_or_default();
+        for step in steps {
+            if let Some((id, _)) = step.record.split_once('#') {
+                uit.insert(id.to_string());
+            }
+            for source in step.input.iter().filter_map(|i| i.source.as_ref()) {
+                if let Some(id) = &source.regulation {
+                    uit.insert(id.clone());
+                }
+            }
+        }
         for source in a.get_inputs().iter().filter_map(|i| i.source.as_ref()) {
             if let Some(id) = &source.regulation {
                 uit.insert(id.clone());
@@ -939,67 +985,6 @@ fn leest<'a>(artikelen: impl Iterator<Item = &'a Article>) -> BTreeSet<String> {
         }
     }
     uit
-}
-
-/// The regelwerken whose decisions `werk` has another regelwerk read by
-/// naming the article as a parameter: a call (`source.regulation`) that
-/// passes the literal `<law>#<article>` for a parameter the called
-/// regelwerk reads decisions under (`source.decisions: $<parameter>`), such
-/// as `basis` of the reduction of the Awb, or passes on to a regelwerk it
-/// calls in turn ([`leest_besluiten_onder`]). [`leest`] does not see these:
-/// the called regelwerk names the article only when it runs. A cell runs
-/// every reduction its catalogue names, whatever case it plays, and reading
-/// the decisions under an article needs that article's law.
-fn leest_via_parameter(regelwerken: &Regelwerken, werk: &Regelwerk) -> BTreeSet<String> {
-    let mut uit = BTreeSet::new();
-    for source in werk
-        .artikelen()
-        .flat_map(|a| a.get_inputs())
-        .filter_map(|i| i.source.as_ref())
-    {
-        let (Some(id), Some(parameters)) = (&source.regulation, &source.parameters) else {
-            continue;
-        };
-        for (naam, waarde) in parameters {
-            if waarde.starts_with('$') || !leest_besluiten_onder(regelwerken, id, naam, 0) {
-                continue;
-            }
-            if let Some((law, _)) = waarde.split_once('#') {
-                uit.insert(law.to_string());
-            }
-        }
-    }
-    uit
-}
-
-/// Whether the regelwerk `id` reads decisions under the article its
-/// parameter `naam` holds: itself (`source.decisions: $<naam>`), or by
-/// passing it on as `$<naam>` to a regelwerk it calls. `diepte` stops a
-/// chain of calls that comes back to where it began.
-fn leest_besluiten_onder(regelwerken: &Regelwerken, id: &str, naam: &str, diepte: usize) -> bool {
-    const MAX_DIEPTE: usize = 8;
-    let Some(werk) = regelwerken.get(id) else {
-        return false;
-    };
-    if diepte > MAX_DIEPTE {
-        return false;
-    }
-    let verwijzing = format!("${naam}");
-    werk.artikelen()
-        .flat_map(|a| a.get_inputs())
-        .filter_map(|i| i.source.as_ref())
-        .any(|source| {
-            if source.decisions.as_deref() == Some(verwijzing.as_str()) {
-                return true;
-            }
-            let (Some(verder), Some(parameters)) = (&source.regulation, &source.parameters) else {
-                return false;
-            };
-            parameters.iter().any(|(doorgegeven, waarde)| {
-                *waarde == verwijzing
-                    && leest_besluiten_onder(regelwerken, verder, doorgegeven, diepte + 1)
-            })
-        })
 }
 
 /// Whether `ander` acts on `werk`: it implements one of its open terms, or

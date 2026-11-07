@@ -13,7 +13,6 @@ artikel: leerplichtwet_1969#13a
 # staan. De reducties van de cellen van de casus komen met die cellen mee.
 corpus:
   - regulation/nl/wet/algemene_wet_bestuursrecht
-  - cells/reductions/reductie_algemene_wet_bestuursrecht
 # De uitvoer die zegt of het besluit het gevraagde toewijst. De wet merkt die
 # niet aan: decision_type TOEKENNING zegt wat voor besluit het is, niet welke
 # van zijn uitvoer de toewijzing is.

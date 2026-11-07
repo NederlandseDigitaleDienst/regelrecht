@@ -551,23 +551,24 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
         .unwrap();
     assert_eq!(antwoord["waarde"], json!(true));
 
-    // The reduction of the Awb gives the refusal as revoked. The only decision
-    // that holds is the one the decision on objection put in its place, and
-    // that one holds the card the cell counted.
+    // The reduction explains itself in its trace. The decision on the
+    // objection revokes the refusal (Awb 7:11 lid 2, as an effect), so the
+    // refusal does not count. The decision it put in its place counts, and
+    // its step gives the card the cell counted.
     let refusal = geweigerd["besluit"]["id"].as_str().unwrap();
     let id = besluit["besluit"]["id"].as_str().unwrap();
     let hoe = spel
         .hoe_beantwoord(id, "aanvrager_heeft_geldige_gehandicaptenparkeerkaart")
         .unwrap();
-    let uitvoer = &hoe["antwoorden"][0]["uitvoer"];
-    assert_eq!(uitvoer["herroepen_besluiten"], json!([refusal]));
-    let geldend: Vec<&str> = uitvoer["geldende_besluiten"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|b| b["id"].as_str().unwrap())
-        .collect();
-    assert_eq!(geldend, [nieuw.as_str()]);
+    let spoor = hoe["antwoorden"][0]["spoor"].as_str().unwrap();
+    assert!(spoor.contains(&format!("{refusal}: revoked by")), "{spoor}");
+    assert!(
+        spoor.contains(&format!(
+            "{nieuw}: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#1: \
+             geldige_kaart: false -> true"
+        )),
+        "{spoor}"
+    );
 }
 
 #[test]
@@ -789,19 +790,25 @@ fn bedrijfsparkeervergunning_the_maximum_in_the_ring_and_a_permit_on_objection()
             "aantal_geldige_bedrijfsparkeervergunningen",
         )
         .unwrap();
-    let uitvoer = &hoe["antwoorden"][0]["uitvoer"];
+    // The refusal does not count: the decision on the objection revokes it.
+    // The first permit and the decision in the place of the refusal count,
+    // each adding one.
+    let spoor = hoe["antwoorden"][0]["spoor"].as_str().unwrap();
     let refusal = geweigerd["besluit"]["id"].as_str().unwrap();
-    assert_eq!(uitvoer["herroepen_besluiten"], json!([refusal]));
-    let geldend: Vec<&str> = uitvoer["geldende_besluiten"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|b| b["id"].as_str().unwrap())
-        .collect();
-    assert_eq!(
-        geldend,
-        [eerste["besluit"]["id"].as_str().unwrap(), nieuw.as_str()]
-    );
+    assert!(spoor.contains(&format!("{refusal}: revoked by")), "{spoor}");
+    for (telt, van) in [
+        (eerste["besluit"]["id"].as_str().unwrap(), 0),
+        (nieuw.as_str(), 1),
+    ] {
+        assert!(
+            spoor.contains(&format!(
+                "{telt}: beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal#1: \
+                 aantal: {van} -> {}",
+                van + 1
+            )),
+            "{telt}: {spoor}"
+        );
+    }
 }
 
 #[test]
@@ -1023,11 +1030,10 @@ fn bedrijfsparkeervergunning_the_hardship_clause_on_objection_grants_a_third_per
             "aantal_geldige_bedrijfsparkeervergunningen",
         )
         .unwrap();
-    let uitvoer = &hoe["antwoorden"][0]["uitvoer"];
-    assert_eq!(
-        uitvoer["herroepen_besluiten"],
-        json!([geweigerd["besluit"]["id"]])
-    );
+    // The refusal does not count: the decision on the objection revokes it.
+    let spoor = hoe["antwoorden"][0]["spoor"].as_str().unwrap();
+    let refusal = geweigerd["besluit"]["id"].as_str().unwrap();
+    assert!(spoor.contains(&format!("{refusal}: revoked by")), "{spoor}");
 }
 
 #[test]
