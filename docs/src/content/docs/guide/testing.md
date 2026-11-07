@@ -16,6 +16,8 @@ Feature files live in two places, and the difference decides who fixes a failure
 - **Bucket A, law validation**: `corpus/regulation/**/scenarios/*.feature`, run against the real corpus. A failure means a law changed or the scenario went stale, and a human decides which. Scenarios tagged `@wip` are skipped.
 - **Bucket B, engine conformance**: `bdd/conformance/*.feature`, tagged by tier, proving an engine speaks the whole language against synthetic `test_*` laws. CI blocks on this bucket.
 
+The cell has a BDD suite of its own in `packages/cel/bdd/`, outside both buckets. Its steps record submissions, decisions and facts in a cell's chronicle, evaluate a reduction that plays the chronicle forward, and check what the engine did. A well-founded objection, for example, makes the engine play the chronicle again without the decision it revokes, while an unfounded one leaves the decision standing. They stay out of `bdd/grammar.yaml`, which is the contract every engine (Rust and JS) executes, because recording a chronicle is the cell's job and only the Rust engine plays one forward; the JS engines do not implement `projection`. `bdd/README.md` explains how that suite reuses the canonical steps and the generator, and why its runner sits in `packages/cel`.
+
 ### The step vocabulary is generated, not hand-written
 
 `bdd/grammar.yaml` is the single source of truth for the step phrasings. The bindings for every engine are generated from it: Rust through `packages/engine/build.rs`, the editor and demo JavaScript through `bdd/codegen/gen-js.mjs`, which writes `packages/frontend-shared/src/gherkin/grammar.generated.js` (re-exported for the editor by `frontend/src/gherkin/`). Never hand-edit a generated file. Change `grammar.yaml` and run `just bdd-codegen`.
@@ -48,9 +50,9 @@ See `corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/scenarios/eligibility.featur
 ### Running BDD Tests
 
 ```bash
-just bdd                          # Both buckets
-BDD_BUCKET=conformance just bdd   # Engine conformance only
-BDD_BUCKET=corpus just bdd        # Law validation only
+just bdd                          # Both buckets, then the cell's own suite
+BDD_BUCKET=conformance just bdd   # Engine conformance, then the cell's suite
+BDD_BUCKET=corpus just bdd        # Law validation, then the cell's suite
 just bdd-demo                     # Bucket A over the demo corpus
 just bdd-chrono                   # Bucket A over the corpus of the chronolexografie PoC
 just bdd-trace                    # With execution traces in trace_output/

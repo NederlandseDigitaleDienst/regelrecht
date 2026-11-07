@@ -627,6 +627,24 @@ jobs:
           RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
         run: cargo test --test bdd -- --nocapture
 
+      # De eigen BDD-afdeling van de cel (packages/cel/bdd): stappen die in
+      # een kroniek vastleggen, bovenop de canonieke taal. Ze staan buiten
+      # bdd/grammar.yaml, het taalcontract van elke engine, en de runner staat
+      # in de cel, omdat de engine niet van de cel kan afhangen (zie
+      # bdd/README.md).
+      - name: Run the cell's BDD suite
+        working-directory: packages/cel
+        env:
+          RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
+        run: cargo test --test bdd -- --nocapture
+
+      - name: Run the cell's BDD suite with reversed actions
+        working-directory: packages/cel
+        env:
+          BDD_REVERSE_ACTIONS: "1"
+          RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
+        run: cargo test --test bdd -- --nocapture
+
   # Bucket A over het demo-corpus: de 80 gemigreerde POC-wetten onder
   # corpus/demo met hun scenario's en persona-data (REGULATION_PATH wijst wetten
   # én scenario's daarheen). Anders dan bucket A over corpus/regulation hangt

@@ -1,0 +1,112 @@
+---
+# FICTIEF. A synthetic law for the cell's BDD suite
+# (packages/cel/bdd/features/effects.feature): a parking permit for a licence
+# plate, a decision that moves it to another plate in the place of the
+# earlier one, and the revocation of such a decision. None of it is the text
+# of a law.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: test_parkeervergunning
+name: Testwet parkeervergunning per kenteken
+regulatory_layer: WET
+bwb_id: BWBR9999917
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_parkeervergunning
+
+articles:
+  - number: '1'
+    url: https://example.com/test_parkeervergunning/1
+    text: >-
+      FICTIEF. Het college verleent een bewoner een parkeervergunning voor
+      het kenteken van zijn auto.
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            outputs:
+              - vergunning_verleend
+        parameters:
+          - name: bewoner
+            type: string
+          - name: kenteken
+            type: string
+        output:
+          - name: vergunning_verleend
+            type: boolean
+        actions:
+          - output: vergunning_verleend
+            value: true
+
+  - number: '2'
+    url: https://example.com/test_parkeervergunning/2
+    text: >-
+      FICTIEF. Krijgt de bewoner een auto met een ander kenteken, dan neemt
+      het college een nieuw besluit voor dat kenteken, in de plaats van de
+      vergunning voor het oude.
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            outputs:
+              - vergunning_omgezet
+            effects:
+              - revokes: oude_vergunning
+        parameters:
+          - name: oude_vergunning
+            type: string
+          - name: bewoner
+            type: string
+          - name: kenteken
+            type: string
+        output:
+          - name: vergunning_omgezet
+            type: boolean
+        actions:
+          - output: vergunning_omgezet
+            value: true
+
+  - number: '3'
+    url: https://example.com/test_parkeervergunning/3
+    text: >-
+      FICTIEF. Het college kan een besluit over een parkeervergunning
+      herroepen.
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            outputs:
+              - herroepen
+            effects:
+              - revokes: herroepen_besluit
+        parameters:
+          - name: herroepen_besluit
+            type: string
+        output:
+          - name: herroepen
+            type: boolean
+        actions:
+          - output: herroepen
+            value: true
+
+  - number: '4'
+    url: https://example.com/test_parkeervergunning/4
+    text: >-
+      FICTIEF. Een besluit dat een parkeervergunning verleent of omzet, maakt
+      de bewoner houder van een vergunning voor het kenteken in dat besluit.
+    machine_readable:
+      execution:
+        parameters:
+          - name: verleend
+            type: boolean
+          - name: kenteken
+            type: string
+        output:
+          - name: vergunning
+            type: boolean
+          - name: kenteken_van_vergunning
+            type: string
+        actions:
+          - output: vergunning
+            value: $verleend
+          - output: kenteken_van_vergunning
+            value: $kenteken

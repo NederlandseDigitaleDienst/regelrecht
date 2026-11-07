@@ -122,6 +122,57 @@ This policy article is called a binding: it binds the open term to the answer.
 - The engine asks the cell for the answer wherever the binding runs. The cell then runs the reduction that its catalogue names for that answer. Because the binding is an article of policy, its value becomes the value of the term, even when that value is null. A finding of the authority cannot replace it ([Inversion of Control](/concepts/inversion-of-control#policy-that-fills-an-open-term-with-a-cells-answer)). Sometimes the cell has no answer and the authority should judge the case itself. The policy then says so with an open term of its own (`decided_per_case_by`).
 - The loader refuses `source.decisions` and `source.facts` outside a `REDUCTIE`. It refuses `source.reduction` outside such a binding.
 
+### Playing the chronicle forward (experimental)
+
+Schema v0.8.14 adds a second way to reduce. A reduction with a `projection` declares a state, a few named properties each with a type, and says per article what a record under it does with that state. A property starts from the value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date. The engine plays the chronicle forward, record by record, and the reduction's `execution` answers from the last state as `$state.<property>`. The loader refuses an answer that reads a property the state does not declare, or the state as a whole, and an article without a projection that reads `$state`.
+
+A step names the article its records rest on, such as `test_chronicle_effects#3`. Where the article gives more than one kind of record, such as an application and the decision on it, a third segment names the kind: `test_chronicle_effects#1#BESCHIKKING`. A step on an article that requires a fact applies to the recorded instances of that fact.
+
+What a record does with the state is law, so a step does not compute it. It is written like an article: its `input` takes outputs of a law through `source.regulation`, with parameters from a field of the record (`$record.<field>`) or a property of the state (`$state.<property>`), and its `actions`, written as the actions of an article, give properties of the state their values: `output` names a property and `value` is a bare reference to an input of the step, a field of the record or a property of the state. A property no action names keeps its value, and one step gives a property one action at most. In the parking-card test, article 7 of the test law says that a grant gives the applicant a card and raises the number of grants by one, and article 8 says that a card handed in is gone:
+
+```yaml
+steps:
+  - record: test_chronicle_effects#1#BESCHIKKING
+    input:
+      - name: in_bezit_na_besluit
+        type: boolean
+        source:
+          regulation: test_chronicle_effects
+          output: in_bezit_na_besluit
+          parameters:
+            in_bezit: $state.in_bezit
+            aantal_verleend: $state.aantal_verleend
+            kaart_verleend: $record.kaart_verleend
+      # aantal_verleend_na_besluit in the same way
+    actions:
+      - output: in_bezit
+        value: $in_bezit_na_besluit
+      - output: aantal_verleend
+        value: $aantal_verleend_na_besluit
+  - record: test_chronicle_effects#5
+    input:
+      - name: in_bezit_na_inlevering
+        type: boolean
+        source:
+          regulation: test_chronicle_effects
+          output: in_bezit_na_inlevering
+    actions:
+      - output: in_bezit
+        value: $in_bezit_na_inlevering
+```
+
+A parameter may also be a parameter of the question the reduction answers, written `$<name>`, such as a reference date: a permit counts while it is valid on the day asked about. The projection then depends on the question, as it already does through its key, and the same question on the same chronicle always gets the same answer.
+
+The engine calls the law in the version in force on the day the record was recorded, not on the calculation date, the same rule as for effects. The article it calls reads only what the step passes: an article with an `input`, with or without a `source`, or with open terms cannot be called, so a step stays a function of the record and the state before it. A step takes no other source than `source.regulation`, and its actions take no operation and no literal. Each parameter must be one the called article takes, of the type of the field or property it comes from, each input must have the type of the output it takes, and each value an action gives must fit its property. The loader checks the shape of the step; the engine checks the called law when it plays the projection, because the reduction and the law are separate regelwerken that load in any order. In the trace, the call hangs under the node of the record, like any law call, and that node shows every property the step set, before and after.
+
+What one decision does with another stays in the law. The article declares it in `produces[].effects`: `revokes`, optionally only `when` a boolean outcome of the same decision is true, such as a well-founded objection. `when` reads nothing else, not the state, a parameter or another record. A decision in the place of another revokes it and counts as a record of its own.
+
+Which records count follows from those effects alone: a record counts unless a later record that itself counts revokes it. A revoked record revokes nothing, so what it alone revoked counts again. Because this never depends on the state, the engine decides it first, in one pass from the last record back, and then runs the steps of the records that count in the order the cell recorded them. That order of work is how the engine does it, not part of the meaning. The engine records which record set each property last and what became of each record: applied, revoked and by which records, or counting for its effects only. The trace shows the first phase as a `COUNTS` node and the steps as a `FOLD` node.
+
+A chronicle holds the records of many people. With `key`, a projection plays the records of one of them: the records that hold the value asked for under the key's name, as a field or an output, such as an applicant, and every record that refers to one of those, through `refers_to` or a field an effect names. An application holds the applicant and so plays as well, without a step. An objection and the decision on it usually carry no applicant and join through the grant they refer to. A record that refers in but holds another key of its own belongs to someone else. It still counts for its effects: a decision that moves a parking permit to a new licence plate revokes the permit for the old plate too, because the law says once what the decision does, whichever key the question is about. Its step is not applied, and the trace shows it as counting for its effects only. The same holds for a record without a key that refers only to such records, such as the revocation of that move, which brings the permit back for the old plate. Records never join through what they themselves refer to, so the partition stays the records reachable from the key. An effect on a record outside the partition is ignored.
+
+A policy reaches a projection the normal way. When an article binds an open term to the cell's answer (`source.reduction`), the engine asks the cell, and the cell plays its chronicle through the reduction's projection, with the parameters the binding passes, such as the key. The engine refuses a reduction with a projection on every path that bypasses the chronicle: asked directly, from another rulework, at a stage, or with a `state` the caller passes. The tests are in `packages/cel/bdd`; one of them has a fictional policy take the cell's answer, and its outcome flips when a well-founded objection revokes the grant.
+
 ## Documents between cells
 
 Each actor keeps its own chronicle. The law sends documents from one actor to another. With an appeal, the court receives a copy of the contested decision together with the notice of appeal (Awb 6:5 lid 2). After the judgment, the parties receive a copy of it (Awb 8:79 lid 1). A cell takes in another cell's document as a copy. It never reads the other cell's chronicle.

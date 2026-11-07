@@ -43,7 +43,11 @@ default, what `just bdd` runs), `corpus` or `conformance`.
 The **BDD conformance** job runs bucket B (`bdd/conformance/*.feature` against
 the synthetic `test_*` laws) as `BDD_BUCKET=conformance cargo test --test bdd`.
 It hangs on the `Test` gate, so it blocks a merge. That bucket proves the engine
-speaks the whole feature language and depends on nothing outside the repo.
+speaks the whole feature language and depends on nothing outside the repo. The
+same job then runs the cell's own BDD suite (`packages/cel/bdd/features`, run
+from `packages/cel` with `cargo test --test bdd`), once in file order and once
+with `BDD_REVERSE_ACTIONS=1`. Those steps are not part of the feature language;
+`bdd/README.md` explains why.
 
 The **BDD demo** job runs bucket A over `corpus/demo/regulation`, with
 `REGULATION_PATH` pointing at it. It runs as a matrix of two legs, each on its
@@ -53,10 +57,10 @@ by the Awb lifecycle test over the same corpus. The `reversed` leg runs the same
 scenarios with the actions of every article in reverse order
 (`BDD_REVERSE_ACTIONS=1`). The order in the file must never change an outcome.
 Locally, `just validate-demo` and `just bdd-demo` do what the `forward` leg
-does. `just bdd-reversed` first runs both buckets over `corpus/regulation` in
-reverse, then the `reversed` leg. The demo corpus and its synthetic persona data
-live entirely in the repository, so this job also hangs on the `Test` gate and
-blocks a merge when either leg fails.
+does. `just bdd-reversed` first runs both buckets over `corpus/regulation` and
+the cell's suite in reverse, then the `reversed` leg. The demo corpus and its
+synthetic persona data live entirely in the repository, so this job also hangs
+on the `Test` gate and blocks a merge when either leg fails.
 
 Bucket A over the live corpus (`corpus/regulation/**/scenarios/*.feature`) stays out of CI. It asserts
 what the live laws currently produce, so a failure there means a law changed or a
@@ -179,11 +183,11 @@ Neither scans for known vulnerabilities. That is `just audit-advisories` (RustSe
 
 ### Schema protection (on PRs)
 
-Released schema versions in `schema/v*.*.*` are immutable. CI fails if a PR tries to modify or delete a released schema. `schema/latest` is a symlink to the highest released version (currently `v0.8.13`), not a directory to edit; a schema change goes into a new version directory.
+Released schema versions in `schema/v*.*.*` are immutable. CI fails if a PR tries to modify or delete a released schema. `schema/latest` is a symlink to the highest released version (currently `v0.8.14`), not a directory to edit; a schema change goes into a new version directory.
 
 ### Provenance checks (on corpus/engine changes)
 
-Among other checks, the `provenance-checks` job verifies that every `$schema` URL in `corpus/regulation` and in the corpus of the chronolexografie PoC (`packages/poc-chronolexografie/corpus/`, its reductions included) names a schema version that exists under `schema/`, that every version directory under `schema/` is registered in `packages/engine/src/schema.rs`, and that `schema/latest` points at the highest version (currently `v0.8.13`). It does not check the form of the URL: a tag-based `refs/tags/schema-vX.Y.Z` reference is the convention, but a branch-based URL that names a known version passes. On a pull request that changes engine source it also compares the version in `packages/engine/Cargo.toml` with `main`; an unchanged version only prints a warning. See [RFC-013](/rfcs/rfc-013) for context.
+Among other checks, the `provenance-checks` job verifies that every `$schema` URL in `corpus/regulation` and in the corpus of the chronolexografie PoC (`packages/poc-chronolexografie/corpus/`, its reductions included) names a schema version that exists under `schema/`, that every version directory under `schema/` is registered in `packages/engine/src/schema.rs`, and that `schema/latest` points at the highest version (currently `v0.8.14`). It does not check the form of the URL: a tag-based `refs/tags/schema-vX.Y.Z` reference is the convention, but a branch-based URL that names a known version passes. On a pull request that changes engine source it also compares the version in `packages/engine/Cargo.toml` with `main`; an unchanged version only prints a warning. See [RFC-013](/rfcs/rfc-013) for context.
 
 ### Docs accessibility gate (on docs changes)
 

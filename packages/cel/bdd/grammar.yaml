@@ -1,0 +1,130 @@
+---
+version: 1
+
+# Steps of the cell's own BDD suite, on top of the canonical language in
+# bdd/grammar.yaml. They are not part of that language: bdd/grammar.yaml is the
+# contract every engine (Rust and JS) executes. Recording a chronicle is the
+# cell's job, and only the Rust engine plays one forward. A feature under
+# packages/cel/bdd/features may use the canonical steps (the calculation date,
+# evaluating, asserting an output) and these.
+#
+# The bindings are generated with the engine's generator
+# (packages/engine/build_codegen), from both files together, by
+# packages/cel/build.rs. The format is that of bdd/grammar.yaml; this file
+# takes the value typing of the base and declares none of its own.
+#
+# A cell records submissions, decisions and facts in its chronicle, in order,
+# and a reduction plays it forward. The id in
+# quotes names a record within the scenario; a decision refers to an earlier
+# one by it. The recording day is the calculation date.
+
+steps:
+  - id: record_submission
+    action: record_submission
+    keyword: when
+    tier: cel
+    text: 'the cell records submission "{id}" under article "{article}" of "{law}" with:'
+    args: [{name: id, type: string}, {name: article, type: string}, {name: law, type: string}]
+    datatable: true
+
+  # The decision the submission asks for (`requests`), taken with the fields
+  # of the submission as parameters.
+  - id: decide_on_submission
+    action: decide_on_submission
+    keyword: when
+    tier: cel
+    text: the cell decides "{id}" on submission "{submission}"
+    args: [{name: id, type: string}, {name: submission, type: string}]
+
+  # The same, with what the deciding authority found besides the submission
+  # (such as whether an objection is well-founded) as further parameters.
+  - id: decide_on_submission_with
+    action: decide_on_submission
+    keyword: when
+    tier: cel
+    text: 'the cell decides "{id}" on submission "{submission}" with:'
+    args: [{name: id, type: string}, {name: submission, type: string}]
+    datatable: true
+
+  # A decision the cell takes without a submission, such as a withdrawal, or
+  # a new decision in the place of a revoked one, with the parameters in the
+  # table.
+  - id: decide_under_article
+    action: decide_under_article
+    keyword: when
+    tier: cel
+    text: 'the cell decides "{id}" under article "{article}" of "{law}" with:'
+    args: [{name: id, type: string}, {name: article, type: string}, {name: law, type: string}]
+    datatable: true
+
+  # A fact the cell records as an executogram (RFC-051): an instance of a
+  # fact the article requires (`requires`), with the values of its fields.
+  - id: record_fact
+    action: record_fact
+    keyword: when
+    tier: cel
+    text: 'the cell records fact "{fact}" as "{id}" under article "{article}" of "{law}" with:'
+    args: [{name: fact, type: string}, {name: id, type: string}, {name: article, type: string}, {name: law, type: string}]
+    datatable: true
+
+  # Evaluate a reduction that plays the chronicle forward (`projection`,
+  # schema v0.8.14) over every record of the cell, in the order recorded. The
+  # canonical output steps then read its answer.
+  - id: evaluate_over_chronicle
+    action: evaluate_over_chronicle
+    keyword: when
+    tier: cel
+    text: I evaluate "{output}" of "{law}" over the chronicle
+    args: [{name: output, type: string}, {name: law, type: string}]
+
+  # Evaluate an output of a law through the normal route, with the cell as
+  # the answerer of the call: where a policy binds an open term to the
+  # cell's answer (`source.reduction`), the cell gives it from the reduction
+  # its catalogue names for it, and plays its chronicle through that
+  # reduction's projection.
+  - id: evaluate_with_cell
+    action: evaluate_with_cell
+    keyword: when
+    tier: cel
+    text: I evaluate "{output}" of "{law}" with the cell answering "{answer}" from "{reduction}"
+    args:
+      - {name: output, type: string}
+      - {name: law, type: string}
+      - {name: answer, type: string}
+      - {name: reduction, type: string}
+
+  # Every step the last evaluation took, in order: a record applied (with
+  # the properties it set, `property: from -> to`, or `-`), a record skipped
+  # (with the records that undo it), and a rewind (with its cause and the
+  # record it is about). The table has a header row `record | event |
+  # detail` and must match exactly.
+  - id: assert_projection_trace
+    action: assert_projection_trace
+    keyword: then
+    tier: cel
+    text: 'the projection trace is:'
+    datatable: true
+
+  - id: assert_last_set_by
+    action: assert_last_set_by
+    keyword: then
+    tier: cel
+    text: property "{name}" was last set by "{id}"
+    args: [{name: name, type: string}, {name: id, type: string}]
+
+  # Whether the record was applied, or skipped because records that count revoke it.
+  - id: assert_record_applied
+    action: assert_record_applied
+    keyword: then
+    tier: cel
+    text: record "{id}" is applied
+    args: [{name: id, type: string}]
+    literals: [true]
+
+  - id: assert_record_skipped
+    action: assert_record_applied
+    keyword: then
+    tier: cel
+    text: record "{id}" is skipped
+    args: [{name: id, type: string}]
+    literals: [false]

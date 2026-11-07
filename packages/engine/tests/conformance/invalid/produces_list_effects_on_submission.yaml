@@ -1,0 +1,36 @@
+---
+# Only a decision does something with another decision: `effects` on a
+# submission is refused (schema v0.8.14).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: test_conformance_effects_on_submission
+regulatory_layer: WET
+publication_date: '2026-11-05'
+valid_from: '2026-11-05'
+bwb_id: BWBR0099993
+name: Testwet effect op een indiening
+url: https://example.invalid/effects-on-submission
+articles:
+  - number: '1'
+    url: https://example.invalid/effects-on-submission/1
+    text: Het bestuursorgaan beslist op het bezwaar.
+    machine_readable:
+      execution:
+        produces:
+          - type: BEZWAAR
+            requests: test_conformance_effects_on_submission#1
+            parameters:
+              - bestreden_besluit
+            effects:
+              - revokes: bestreden_besluit
+          - type: BESCHIKKING
+            outputs:
+              - herroepen
+        parameters:
+          - name: bestreden_besluit
+            type: string
+        output:
+          - name: herroepen
+            type: boolean
+        actions:
+          - output: herroepen
+            value: true
