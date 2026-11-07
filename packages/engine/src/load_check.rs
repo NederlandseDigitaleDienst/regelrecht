@@ -1576,6 +1576,8 @@ articles:
             (law_input.clone(), "[{output: a, value: $x}, {output: a, value: $state.a}]", "sets 'a' twice"),
             (law_input.clone(), "[{output: a, operation: NOT, value: $x}]", "sets 'a' with operation"),
             (input("{reduction: antwoord}"), "[{output: a, value: $x}]", "has input 'x' that takes no output of a regulation"),
+            (input("{regulation: wet}"), "[{output: a, value: $x}]", "has input 'x' that takes no output of a regulation"),
+            (input("{output: o}"), "[{output: a, value: $x}]", "has input 'x' that takes no output of a regulation"),
             (input("{regulation: wet, output: o, decisions: 'wet#1'}"), "[{output: a, value: $x}]", "has input 'x' with source.decisions"),
             (input("{regulation: wet, output: o, parameters: {p: true}}"), "[{output: a, value: $x}]", "passes 'p' as 'true'"),
             (input("{regulation: wet, output: o, parameters: {p: $x}}"), "[{output: a, value: $x}]", "passes 'p' as '$x'"),
