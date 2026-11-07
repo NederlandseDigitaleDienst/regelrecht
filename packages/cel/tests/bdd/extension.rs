@@ -12,7 +12,7 @@ use std::path::Path;
 use chrono::NaiveDate;
 use regelrecht_cel::reading::Reader;
 use regelrecht_cel::{shape, Chronicle, Gram, EXECUTOGRAM};
-use regelrecht_engine::projection::{cause_word, describe_applied};
+use regelrecht_engine::projection::describe_applied;
 use regelrecht_engine::{
     Article, Authority, Call, LawExecutionService, ProjectionEvent, ProjectionOutcome, Value,
 };
@@ -128,7 +128,7 @@ pub fn dispatch(
         }
         "assert_record_applied" => {
             let id = args[0].as_str();
-            let events = last_replay(&projection(world).events);
+            let events = &projection(world).events;
             let applied = events
                 .iter()
                 .any(|e| matches!(e, ProjectionEvent::Applied { record, .. } if record == id));
@@ -414,15 +414,6 @@ fn projection(world: &RegelrechtWorld) -> &ProjectionOutcome {
     })
 }
 
-/// The events of the last replay: those after the last rewind.
-fn last_replay(events: &[ProjectionEvent]) -> &[ProjectionEvent] {
-    let start = events
-        .iter()
-        .rposition(|e| matches!(e, ProjectionEvent::Rewound { .. }))
-        .map_or(0, |i| i + 1);
-    &events[start..]
-}
-
 /// The events as rows `record | event | detail`.
 fn trace_rows(events: &[ProjectionEvent]) -> Vec<[String; 3]> {
     events
@@ -440,20 +431,11 @@ fn trace_rows(events: &[ProjectionEvent]) -> Vec<[String; 3]> {
             ProjectionEvent::Skipped { record, undone_by } => [
                 record.clone(),
                 "skipped".to_string(),
-                format!("undone by {}", undone_by.join(", ")),
+                format!("revoked by {}", undone_by.join(", ")),
             ],
             ProjectionEvent::EffectsOnly { record, reason } => {
                 [record.clone(), "effects only".to_string(), reason.clone()]
             }
-            ProjectionEvent::Rewound {
-                record,
-                cause,
-                target,
-            } => [
-                record.clone(),
-                "rewound".to_string(),
-                format!("{} {target}", cause_word(*cause)),
-            ],
         })
         .collect()
 }
@@ -498,9 +480,22 @@ fn assert_projection_trace(world: &RegelrechtWorld, table: &Rows) {
         .iter()
         .find(|n| n.name == "PROJECTION")
         .expect("a PROJECTION node in the engine trace");
+    // Phase 1 has a node per record; phase 2 one per record applied.
+    let phase = |name: &str| {
+        node.children
+            .iter()
+            .find(|n| n.name == name)
+            .map_or(0, |n| n.children.len())
+    };
     assert_eq!(
-        node.children.len(),
+        phase("COUNTS"),
         outcome.events.len(),
-        "one trace node per event"
+        "a COUNTS node per record"
     );
+    let applied = outcome
+        .events
+        .iter()
+        .filter(|e| matches!(e, ProjectionEvent::Applied { .. }))
+        .count();
+    assert_eq!(phase("FOLD"), applied, "a FOLD node per record applied");
 }

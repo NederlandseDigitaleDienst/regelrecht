@@ -16,8 +16,9 @@ Feature: A reduction plays the chronicle forward
   # two properties: whether the applicant holds a card (`in_bezit`) and how
   # many grants counted (`aantal_verleend`). It says what a grant, a decision
   # in the place of another and a card handed in do with them, and nothing
-  # about revoking. The engine carries out the effects of the law by playing
-  # the chronicle again from the start, skipping a record that is undone.
+  # about revoking. The effects of the law decide which records count: a
+  # record counts unless a later record that itself counts revokes it. The
+  # reduction's steps then run over the records that count, in order.
 
   Background:
     Given the calculation date is "2025-03-01"
@@ -93,8 +94,8 @@ Feature: A reduction plays the chronicle forward
     And output "heeft_geldige_kaart" is false
 
   Scenario: Revoking the first grant after the card was handed in and granted again
-    # Undoing is replaying without the revoked grant, not turning its changes
-    # back: the card handed in and the second grant still decide `in_bezit`.
+    # A revoked grant does not count, so its step never runs; nothing is
+    # turned back: the card handed in and the second grant decide `in_bezit`.
     When the cell records submission "aanvraag" under article "1" of "test_chronicle_effects" with:
       | ernstig_beperkt | true |
       | aanvrager       | burger_x |
@@ -116,14 +117,7 @@ Feature: A reduction plays the chronicle forward
     And the projection trace is:
       | record           | event   | detail                                                                     |
       | aanvraag         | applied | -                                                                          |
-      | verlening        | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
-      | inlevering       | applied | test_chronicle_effects#8: in_bezit: true -> false                          |
-      | tweede_aanvraag  | applied | -                                                                          |
-      | tweede_verlening | applied | test_chronicle_effects#7: aantal_verleend: 1 -> 2, in_bezit: false -> true |
-      | bezwaar          | applied | -                                                                          |
-      | herroeping       | rewound | revokes verlening                                                          |
-      | aanvraag         | applied | -                                                                          |
-      | verlening        | skipped | undone by herroeping                                                       |
+      | verlening        | skipped | revoked by herroeping                                                      |
       | inlevering       | applied | test_chronicle_effects#8: in_bezit: false -> false                         |
       | tweede_aanvraag  | applied | -                                                                          |
       | tweede_verlening | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
@@ -199,19 +193,7 @@ Feature: A reduction plays the chronicle forward
       | record     | event   | detail                                                                     |
       | aanvraag   | applied | -                                                                          |
       | verlening  | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
-      | intrekking | rewound | revokes verlening                                                          |
-      | aanvraag   | applied | -                                                                          |
-      | verlening  | skipped | undone by intrekking                                                       |
-      | intrekking | applied | -                                                                          |
-      | bezwaar    | applied | -                                                                          |
-      | herroeping | rewound | revokes intrekking                                                         |
-      | aanvraag   | applied | -                                                                          |
-      | verlening  | skipped | undone by intrekking                                                       |
-      | intrekking | skipped | undone by herroeping                                                       |
-      | intrekking | rewound | revives verlening                                                          |
-      | aanvraag   | applied | -                                                                          |
-      | verlening  | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
-      | intrekking | skipped | undone by herroeping                                                       |
+      | intrekking | skipped | revoked by herroeping                                                      |
       | bezwaar    | applied | -                                                                          |
       | herroeping | applied | -                                                                          |
 
@@ -241,27 +223,15 @@ Feature: A reduction plays the chronicle forward
     And record "verlening" is skipped
     And output "heeft_geldige_kaart" is false
     And the projection trace is:
-      | record       | event   | detail                                                                     |
-      | aanvraag     | applied | -                                                                          |
-      | verlening    | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
-      | bezwaar_1    | applied | -                                                                          |
-      | herroeping_1 | rewound | revokes verlening                                                          |
-      | aanvraag     | applied | -                                                                          |
-      | verlening    | skipped | undone by herroeping_1, herroeping_2                                       |
-      | bezwaar_1    | applied | -                                                                          |
-      | herroeping_1 | applied | -                                                                          |
-      | bezwaar_2    | applied | -                                                                          |
-      | herroeping_2 | applied | -                                                                          |
-      | bezwaar_3    | applied | -                                                                          |
-      | herroeping_3 | rewound | revokes herroeping_1                                                       |
-      | aanvraag     | applied | -                                                                          |
-      | verlening    | skipped | undone by herroeping_2                                                     |
-      | bezwaar_1    | applied | -                                                                          |
-      | herroeping_1 | skipped | undone by herroeping_3                                                     |
-      | bezwaar_2    | applied | -                                                                          |
-      | herroeping_2 | applied | -                                                                          |
-      | bezwaar_3    | applied | -                                                                          |
-      | herroeping_3 | applied | -                                                                          |
+      | record       | event   | detail                  |
+      | aanvraag     | applied | -                       |
+      | verlening    | skipped | revoked by herroeping_2 |
+      | bezwaar_1    | applied | -                       |
+      | herroeping_1 | skipped | revoked by herroeping_3 |
+      | bezwaar_2    | applied | -                       |
+      | herroeping_2 | applied | -                       |
+      | bezwaar_3    | applied | -                       |
+      | herroeping_3 | applied | -                       |
 
   Scenario: Replacing a replacement undoes its replacing
     # A record that is replaced undoes nothing any more: the first
@@ -397,22 +367,7 @@ Feature: A reduction plays the chronicle forward
       | aanvraag_x   | applied | -                                                                          |
       | verlening_x  | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
       | bezwaar      | applied | -                                                                          |
-      | herroeping   | rewound | revokes verlening_x                                                        |
-      | aanvraag_x   | applied | -                                                                          |
-      | verlening_x  | skipped | undone by herroeping                                                       |
-      | bezwaar      | applied | -                                                                          |
-      | herroeping   | applied | -                                                                          |
-      | bezwaar_2    | applied | -                                                                          |
-      | herroeping_2 | rewound | revokes herroeping                                                         |
-      | aanvraag_x   | applied | -                                                                          |
-      | verlening_x  | skipped | undone by herroeping                                                       |
-      | bezwaar      | applied | -                                                                          |
-      | herroeping   | skipped | undone by herroeping_2                                                     |
-      | herroeping   | rewound | revives verlening_x                                                        |
-      | aanvraag_x   | applied | -                                                                          |
-      | verlening_x  | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
-      | bezwaar      | applied | -                                                                          |
-      | herroeping   | skipped | undone by herroeping_2                                                     |
+      | herroeping   | skipped | revoked by herroeping_2                                                    |
       | bezwaar_2    | applied | -                                                                          |
       | herroeping_2 | applied | -                                                                          |
     Given parameter "aanvrager" is "burger_y"
@@ -441,13 +396,10 @@ Feature: A reduction plays the chronicle forward
     Then output "heeft_geldige_kaart" is false
     And record "verlening_x" is skipped
     And the projection trace is:
-      | record      | event        | detail                                                                     |
-      | aanvraag_x  | applied      | -                                                                          |
-      | verlening_x | applied      | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
-      | besluit_y   | rewound      | revokes verlening_x                                                        |
-      | aanvraag_x  | applied      | -                                                                          |
-      | verlening_x | skipped      | undone by besluit_y                                                        |
-      | besluit_y   | effects only | key differs: aanvrager                                                     |
+      | record      | event        | detail                 |
+      | aanvraag_x  | applied      | -                      |
+      | verlening_x | skipped      | revoked by besluit_y   |
+      | besluit_y   | effects only | key differs: aanvrager |
     Given parameter "aanvrager" is "burger_y"
     When I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
     Then output "heeft_geldige_kaart" is true
@@ -472,11 +424,9 @@ Feature: A reduction plays the chronicle forward
     When I evaluate "kenteken_heeft_vergunning" of "test_reductie_vergunning_per_kenteken" over the chronicle
     Then output "kenteken_heeft_vergunning" is false
     And the projection trace is:
-      | record     | event        | detail                                              |
-      | vergunning | applied      | test_parkeervergunning#4: vergunning: false -> true |
-      | omzetting  | rewound      | revokes vergunning                                  |
-      | vergunning | skipped      | undone by omzetting                                 |
-      | omzetting  | effects only | key differs: kenteken                               |
+      | record     | event        | detail                |
+      | vergunning | skipped      | revoked by omzetting  |
+      | omzetting  | effects only | key differs: kenteken |
     Given parameter "kenteken" is "XY-34-ZZ"
     When I evaluate "kenteken_heeft_vergunning" of "test_reductie_vergunning_per_kenteken" over the chronicle
     Then output "kenteken_heeft_vergunning" is true
@@ -527,3 +477,25 @@ Feature: A reduction plays the chronicle forward
       | bezwaar_gegrond | true |
     And I evaluate "mag_parkeren" of "test_chronicle_effects" with the cell answering "heeft_geldige_kaart" from "test_reductie_geldige_kaart"
     Then output "mag_parkeren" is false
+
+  Scenario: A step passes a parameter of the question to the law it calls
+    # Fictional test_bedrijfsvergunning: article 1 grants a permit valid up to
+    # a day, article 2 says a permit counts on a given day while it is valid.
+    # The reduction passes that day, a parameter of the question, to article
+    # 2: the same chronicle answers differently for another day, and the
+    # same question always gets the same answer.
+    When the cell records submission "aanvraag_1" under article "1" of "test_bedrijfsvergunning" with:
+      | bedrijf    | bedrijf_x  |
+      | geldig_tot | 2025-06-30 |
+    And the cell decides "vergunning_1" on submission "aanvraag_1"
+    And the cell records submission "aanvraag_2" under article "1" of "test_bedrijfsvergunning" with:
+      | bedrijf    | bedrijf_x  |
+      | geldig_tot | 2026-06-30 |
+    And the cell decides "vergunning_2" on submission "aanvraag_2"
+    Given parameter "bedrijf" is "bedrijf_x"
+    And parameter "peildatum" is "2025-03-01"
+    When I evaluate "aantal_geldige_vergunningen" of "test_reductie_geldige_vergunningen_op_peildatum" over the chronicle
+    Then output "aantal_geldige_vergunningen" equals 2
+    Given parameter "peildatum" is "2025-12-01"
+    When I evaluate "aantal_geldige_vergunningen" of "test_reductie_geldige_vergunningen_op_peildatum" over the chronicle
+    Then output "aantal_geldige_vergunningen" equals 1

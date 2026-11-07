@@ -753,7 +753,8 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
                     format!("has two steps for the same records under {basis}"),
                 );
             }
-            if let Err(why) = check_step_shape(step, &names) {
+            let question: Vec<&str> = parameters.iter().map(|p| p.name.as_str()).collect();
+            if let Err(why) = check_step_shape(step, &names, &question) {
                 return refuse(
                     where_,
                     format!("the step for records under {} {why}", step.record),
@@ -775,6 +776,7 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
 fn check_step_shape(
     step: &regelrecht_law_model::ProjectionStep,
     names: &[&str],
+    question: &[&str],
 ) -> std::result::Result<(), String> {
     use regelrecht_law_model::StepSource;
     let own = |source: &StepSource| match source {
@@ -826,10 +828,12 @@ fn check_step_shape(
         for (name, value) in parameters.into_iter().flatten() {
             match StepSource::parse(value) {
                 Some(source @ (StepSource::Record(_) | StepSource::State(_))) => own(&source)?,
+                // A parameter of the question the reduction answers.
+                Some(StepSource::Input(asked)) if question.contains(&asked.as_str()) => {}
                 _ => {
                     return Err(format!(
                         "has input '{}' that passes '{name}' as '{value}'; a parameter of a step \
-                         is $record.<field> or $state.<property>",
+                         is $record.<field>, $state.<property> or a parameter of the question",
                         input.name
                     ))
                 }
@@ -1505,6 +1509,17 @@ articles:
         LawExecutionService::new()
             .load_law(&law_with_projection("REDUCTIE", kinds))
             .unwrap();
+        // A step may pass a parameter of the question the reduction answers.
+        let asks = format!("{state}        steps:\n          - {{record: wet#1, input: [{{name: x, type: boolean, source: {{regulation: wet, output: o, parameters: {{p: $peildatum}}}}}}], actions: [{{output: a, value: $x}}]}}");
+        let with_question = law_with_projection("REDUCTIE", &asks).replace(
+            "      execution:\n",
+            "      execution:\n        parameters:\n          - {name: peildatum, type: date}\n",
+        );
+        LawExecutionService::new().load_law(&with_question).unwrap();
+        // Without that parameter, `$peildatum` is nothing the step can pass.
+        assert!(LawExecutionService::new()
+            .load_law(&law_with_projection("REDUCTIE", &asks))
+            .is_err());
         let declares_state = law_with_projection("REDUCTIE", &ok).replace(
             "      execution:\n",
             "      execution:\n        parameters:\n          - {name: state, type: object}\n",

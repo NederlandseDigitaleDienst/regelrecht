@@ -78,7 +78,7 @@ pub use error::{EngineError, ExternalError, Result};
 pub use operations::{evaluate_value, execute_operation, ValueResolver};
 pub use projection::{
     has_projection, ChronicleRecord, ProjectionEvent, ProjectionOptions, ProjectionOutcome,
-    RewindCause, StateChange,
+    StateChange,
 };
 pub use receipt::ExecutionReceipt;
 pub use resolver::{

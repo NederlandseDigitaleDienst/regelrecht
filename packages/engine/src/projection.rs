@@ -18,27 +18,25 @@
 //!
 //! What a record does with an earlier record is law, not part of the
 //! reduction: the article of a decision says it revokes another decision
-//! (`produces[].effects`, optionally only `when` an outcome is true),
-//! under the version of that law in force on the day the record was
-//! recorded. The engine carries that out by rewinding. When an effect of a
-//! record that counts undoes an earlier record that was applied, the engine
-//! plays the chronicle again from the start and skips the undone record. A
-//! record is skipped for as long as at least one record that undoes it
-//! counts. A record that is itself revoked undoes nothing any more, so a
-//! record it alone undid counts again and the engine rewinds once more. A
-//! decision in the place of another revokes it and counts as a record of
-//! its own; one that should keep an undoing in force declares that effect
-//! itself. The chronicle is never changed. Nothing is reverted
-//! property by property: a property a later record also set keeps the later
-//! value, because the replay computes it again. An undone record is gone
-//! from the whole history (ex tunc); a change from a later day on is a step
-//! with a date property.
+//! (`produces[].effects`, optionally only `when` an outcome of that same
+//! decision is true), under the version of that law in force on the day the
+//! record was recorded. Which records count follows from that alone: a
+//! record counts unless a later record that itself counts revokes it. So a
+//! record that is revoked revokes nothing, and a record it alone revoked
+//! counts again. A decision in the place of another revokes it and counts
+//! as a record of its own. Whether a record counts does not depend on the
+//! state, so the engine decides it first, in one pass from the last record
+//! back, and then runs the steps of the records that count, in order. The
+//! chronicle is never changed, and nothing is reverted: a revoked record is
+//! gone from the whole history (ex tunc); a change from a later day on is a
+//! step with a date property.
 //!
-//! The engine records, per property, which record set it last, and every
-//! step it takes: each record applied (with the properties it set), each
-//! record skipped (with who undid it), and each rewind (with what caused it).
-//! The events come back with the answer and, when tracing, as a `PROJECTION`
-//! node in the engine's trace.
+//! The engine records, per property, which record set it last, and per
+//! record what became of it: applied (with the properties it set), revoked
+//! (with the records that revoke it), or counting for its effects only. The
+//! events come back with the answer and, when tracing, as a `PROJECTION`
+//! node in the engine's trace, with a `COUNTS` node for the first phase and
+//! a `FOLD` node for the second.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -79,17 +77,6 @@ pub struct ChronicleRecord {
     pub outputs: BTreeMap<String, Value>,
 }
 
-/// What caused a rewind.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RewindCause {
-    /// A record revokes an earlier one that was applied.
-    Revokes,
-    /// A record that undid an earlier one is itself revoked now, and no
-    /// other record undoes the earlier one any more: it counts again.
-    Revives,
-}
-
 /// One property a record set: its value before and after.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StateChange {
@@ -98,7 +85,9 @@ pub struct StateChange {
     pub to: Value,
 }
 
-/// One step of playing the chronicle, in the order the engine took them.
+/// What became of one record of the partition, in the order the cell
+/// recorded them: it was applied, it does not count because records that
+/// count revoke it, or it counts for its effects only.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum ProjectionEvent {
@@ -111,21 +100,15 @@ pub enum ProjectionEvent {
         article: Option<String>,
         changes: Vec<StateChange>,
     },
-    /// The record was skipped, because these records undo it.
+    /// The record does not count, because these records, which count,
+    /// revoke it.
     Skipped {
         record: String,
         undone_by: Vec<String>,
     },
-    /// The engine starts again from the beginning: `record` changed whether
-    /// `target` counts.
-    Rewound {
-        record: String,
-        cause: RewindCause,
-        target: String,
-    },
     /// The record belongs to someone else, but what it does with a record
-    /// of this partition holds here too: its effects hold and may make the
-    /// engine rewind, while its step leaves the state as it is. `reason`
+    /// of this partition holds here too: its effects hold, while its step
+    /// leaves the state as it is. `reason`
     /// says why it is someone else's: its own key differs (`key differs:
     /// <field>`), or it refers only to such records (`refers to <id>`).
     EffectsOnly { record: String, reason: String },
@@ -169,8 +152,7 @@ impl LawExecutionService {
     ///
     /// Refuses a reduction article without a projection, an effect on a
     /// record that is not an earlier record, an effect whose `when` outcome
-    /// the record does not hold as a boolean, a step that fails, and a replay
-    /// that does not settle.
+    /// the record does not hold as a boolean, and a step that fails.
     pub fn evaluate_projection(
         &self,
         law_id: &str,
@@ -211,7 +193,7 @@ impl LawExecutionService {
         let Some(first) = output_names.first() else {
             return Err(EngineError::InvalidOperation("no output asked".to_string()));
         };
-        let (projection, key_type) = {
+        let (projection, key_type, question) = {
             let law = self
                 .resolver()
                 .get_law_for_date(law_id, Some(day))
@@ -229,6 +211,7 @@ impl LawExecutionService {
                 )));
             }
             let projection = projection_of(law_id, article)?.clone();
+            let question = article.get_parameters().to_vec();
             let key_type = projection.key.as_ref().and_then(|key| {
                 article
                     .get_parameters()
@@ -236,7 +219,7 @@ impl LawExecutionService {
                     .find(|p| &p.name == key)
                     .map(|p| p.param_type)
             });
-            (projection, key_type)
+            (projection, key_type, question)
         };
 
         // The reduction reads its state as `$state`; a caller cannot pass
@@ -253,9 +236,9 @@ impl LawExecutionService {
             .filter(|r| r.recorded_on <= day)
             .cloned()
             .collect();
-        self.check_steps(law_id, &projection, day)?;
+        self.check_steps(law_id, &projection, &question, day)?;
         let partition = self.partition(&projection, key_type.as_ref(), &known, &parameters)?;
-        let played = self.play(law_id, &projection, &known, &partition, trace)?;
+        let played = self.play(law_id, &projection, &known, &partition, &parameters, trace)?;
 
         let state = Some(Value::Object(played.state.clone()));
         let mut result = if trace {
@@ -289,166 +272,103 @@ impl LawExecutionService {
         })
     }
 
-    /// Play the chronicle, rewinding until no record changes whether an
-    /// earlier record counts.
+    /// Play the chronicle in two phases. First, which records count: a
+    /// record counts unless a later record that itself counts revokes it
+    /// (`produces[].effects`). Effects only point back, and whether an
+    /// effect holds depends on the outputs of its own decision alone, so one
+    /// pass from the last record back decides it, without the state. Then
+    /// the fold: the steps of the records that count, in the order the cell
+    /// recorded them, each from the state the one before left.
     fn play(
         &self,
         law_id: &str,
         projection: &Projection,
         records: &[ChronicleRecord],
         partition: &Partition,
+        question: &BTreeMap<String, Value>,
         trace: bool,
     ) -> Result<Played> {
-        // undone_by[t]: the records with an effect on t that held when they
-        // were last played, each with what it does to t. A record is skipped
-        // while this is not empty.
-        let mut undone_by: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+        // Phase 1: per record, the records that count and revoke it, found
+        // from the last record back. A record that does not count revokes
+        // nothing, so its effects are not even read.
+        let mut undone_by: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+        for (i, record) in records.iter().enumerate().rev() {
+            if !partition.holds(&record.id) || undone_by.contains_key(record.id.as_str()) {
+                continue;
+            }
+            // An effect on a record of another partition is that
+            // partition's business.
+            for target in self
+                .holding_effects(record, &records[..i])?
+                .into_iter()
+                .filter(|t| partition.holds(t))
+            {
+                undone_by.entry(target).or_default().push(record.id.clone());
+            }
+        }
+
+        // Phase 2: fold over the records that count.
+        let mut state: BTreeMap<String, Value> = projection
+            .state
+            .iter()
+            .map(|p| (p.name.clone(), p.start()))
+            .collect();
+        let mut set_by: BTreeMap<String, Option<String>> = projection
+            .state
+            .iter()
+            .map(|p| (p.name.clone(), None))
+            .collect();
         let mut events = Vec::new();
         // The traces of the laws a step called, by the index of its event.
         let mut nested: BTreeMap<usize, Vec<PathNode>> = BTreeMap::new();
-        // Each rewind follows from a record changing whether an earlier one
-        // counts, and effects only reach back, so the replays settle. A
-        // chain of undoings (a revocation of a revocation of ...) needs a
-        // number of replays quadratic in its length, because each replay
-        // stops at the first change. The bound is well above that and turns
-        // a bug into an error instead of an endless replay.
-        let max_passes = records.len() * records.len() + 2;
-        for _ in 0..max_passes {
-            let pass_start = events.len();
-            let mut state: BTreeMap<String, Value> = projection
-                .state
-                .iter()
-                .map(|p| (p.name.clone(), p.start()))
-                .collect();
-            let mut set_by: BTreeMap<String, Option<String>> = projection
-                .state
-                .iter()
-                .map(|p| (p.name.clone(), None))
-                .collect();
-            let mut applied: BTreeSet<&str> = BTreeSet::new();
-            let mut rewind = None;
-
-            'records: for (i, record) in records.iter().enumerate() {
-                if !partition.holds(&record.id) {
-                    continue;
-                }
-                let undoers: Vec<String> = undone_by
-                    .get(record.id.as_str())
-                    .map(|u| u.iter().map(|id| id.to_string()).collect())
-                    .unwrap_or_default();
-                if !undoers.is_empty() {
-                    events.push(ProjectionEvent::Skipped {
-                        record: record.id.clone(),
-                        undone_by: undoers,
-                    });
-                    // A record that is skipped or revoked undoes nothing any
-                    // more: a record it alone undid counts again. A decision
-                    // in the place of another that should keep a revocation
-                    // in force says so itself, with an effect of its own.
-                    let mut revived = None;
-                    for (target, by) in undone_by.iter_mut() {
-                        if by.remove(record.id.as_str()) && by.is_empty() && revived.is_none() {
-                            revived = Some(target.to_string());
-                        }
-                    }
-                    if let Some(target) = revived {
-                        rewind = Some(ProjectionEvent::Rewound {
-                            record: record.id.clone(),
-                            cause: RewindCause::Revives,
-                            target,
-                        });
-                        break 'records;
-                    }
-                    continue;
-                }
-
-                // An effect on a record of another partition is that
-                // partition's business.
-                let effects = self.holding_effects(record, &records[..i])?;
-                for target in effects.into_iter().filter(|t| partition.holds(t)) {
-                    undone_by
-                        .entry(target)
-                        .or_default()
-                        .insert(record.id.as_str());
-                    // A target that was applied had no undoer yet: one would
-                    // have made the replay skip it.
-                    if applied.contains(target) {
-                        rewind = Some(ProjectionEvent::Rewound {
-                            record: record.id.clone(),
-                            cause: RewindCause::Revokes,
-                            target: target.to_string(),
-                        });
-                        break 'records;
-                    }
-                }
-
-                // A record of someone else counts for its effects only: the
-                // law says once what it undoes, whoever the question is
-                // about, but its step is about its own key.
-                if let Some(reason) = partition.foreign.get(&record.id) {
-                    events.push(ProjectionEvent::EffectsOnly {
-                        record: record.id.clone(),
-                        reason: reason.clone(),
-                    });
-                    applied.insert(record.id.as_str());
-                    continue;
-                }
-
-                let applied_step = match step_for(projection, record) {
-                    Some(step) => {
-                        self.apply_step(law_id, projection, step, record, &state, trace)?
-                    }
-                    None => AppliedStep::default(),
-                };
-                let AppliedStep {
-                    calls,
-                    changes,
-                    traces,
-                } = applied_step;
-                let article = (!calls.is_empty()).then(|| calls.join(", "));
-                if !traces.is_empty() {
-                    nested.insert(events.len(), traces);
-                }
-                for change in &changes {
-                    state.insert(change.property.clone(), change.to.clone());
-                    set_by.insert(change.property.clone(), Some(record.id.clone()));
-                }
-                events.push(ProjectionEvent::Applied {
+        for record in records.iter().filter(|r| partition.holds(&r.id)) {
+            if let Some(by) = undone_by.get(record.id.as_str()) {
+                // Found from the back; listed in the order recorded.
+                events.push(ProjectionEvent::Skipped {
                     record: record.id.clone(),
-                    article,
-                    changes,
+                    undone_by: by.iter().rev().cloned().collect(),
                 });
-                applied.insert(record.id.as_str());
+                continue;
             }
-
-            // Who undoes a record is known only at the end of the replay: a
-            // later record that turned out to be skipped no longer does.
-            for event in &mut events[pass_start..] {
-                if let ProjectionEvent::Skipped {
-                    record,
-                    undone_by: by,
-                } = event
-                {
-                    if let Some(now) = undone_by.get(record.as_str()).filter(|n| !n.is_empty()) {
-                        *by = now.iter().map(|id| id.to_string()).collect();
-                    }
+            // A record of someone else counts for its effects only: the law
+            // says once what it revokes, whoever the question is about, but
+            // its step is about its own key.
+            if let Some(reason) = partition.foreign.get(&record.id) {
+                events.push(ProjectionEvent::EffectsOnly {
+                    record: record.id.clone(),
+                    reason: reason.clone(),
+                });
+                continue;
+            }
+            let AppliedStep {
+                calls,
+                changes,
+                traces,
+            } = match step_for(projection, record) {
+                Some(step) => {
+                    self.apply_step(law_id, projection, step, record, &state, question, trace)?
                 }
+                None => AppliedStep::default(),
+            };
+            for change in &changes {
+                state.insert(change.property.clone(), change.to.clone());
+                set_by.insert(change.property.clone(), Some(record.id.clone()));
             }
-            match rewind {
-                Some(event) => events.push(event),
-                None => {
-                    return Ok(Played {
-                        state,
-                        set_by,
-                        events,
-                        nested,
-                    })
-                }
+            if !traces.is_empty() {
+                nested.insert(events.len(), traces);
             }
+            events.push(ProjectionEvent::Applied {
+                record: record.id.clone(),
+                article: (!calls.is_empty()).then(|| calls.join(", ")),
+                changes,
+            });
         }
-        Err(EngineError::InvalidOperation(format!(
-            "the projection of '{law_id}' does not settle after {max_passes} replays"
-        )))
+        Ok(Played {
+            state,
+            set_by,
+            events,
+            nested,
+        })
     }
 
     /// Refuse a step that does not say which records of its article it is
@@ -458,7 +378,13 @@ impl LawExecutionService {
     /// the one in force on `day`. This runs when the projection is played,
     /// because the reduction and the law are separate regelwerken that load
     /// in any order.
-    fn check_steps(&self, law_id: &str, projection: &Projection, day: NaiveDate) -> Result<()> {
+    fn check_steps(
+        &self,
+        law_id: &str,
+        projection: &Projection,
+        question: &[regelrecht_law_model::Parameter],
+        day: NaiveDate,
+    ) -> Result<()> {
         for step in &projection.steps {
             let (basis, kind) = step.basis_and_kind();
             let refuse = |why: String| {
@@ -506,7 +432,7 @@ impl LawExecutionService {
                 }
                 _ => {}
             }
-            self.check_wiring(projection, step, article, day)
+            self.check_wiring(projection, step, article, question, day)
                 .or_else(refuse)?;
         }
         Ok(())
@@ -523,6 +449,7 @@ impl LawExecutionService {
         projection: &Projection,
         step: &ProjectionStep,
         record_article: &Article,
+        question: &[regelrecht_law_model::Parameter],
         day: NaiveDate,
     ) -> std::result::Result<(), String> {
         let read_type = |source: &StepSource| match source {
@@ -555,7 +482,15 @@ impl LawExecutionService {
                 };
                 let source = StepSource::parse(value)
                     .ok_or_else(|| format!("input '{}' passes '{name}' as {value}", input.name))?;
-                match read_type(&source) {
+                // In a parameter, `$<name>` is a parameter of the question.
+                let given = match &source {
+                    StepSource::Input(asked) => question
+                        .iter()
+                        .find(|p| &p.name == asked)
+                        .map(|p| p.param_type),
+                    other => read_type(other),
+                };
+                match given {
                     None => {
                         return Err(format!(
                             "input '{}' passes {source} as '{name}', but the record has no such \
@@ -613,6 +548,7 @@ impl LawExecutionService {
     /// day, as its effects do. The law reads nothing but the parameters the
     /// input passes ([`refuse_impure`]). The properties then get what the
     /// step's actions give them.
+    #[allow(clippy::too_many_arguments)]
     fn apply_step(
         &self,
         law_id: &str,
@@ -620,6 +556,7 @@ impl LawExecutionService {
         step: &ProjectionStep,
         record: &ChronicleRecord,
         state: &BTreeMap<String, Value>,
+        question: &BTreeMap<String, Value>,
         trace: bool,
     ) -> Result<AppliedStep> {
         let fail = |why: String| {
@@ -669,7 +606,17 @@ impl LawExecutionService {
                 let source = StepSource::parse(value).ok_or_else(|| {
                     fail(format!("input '{}' passes '{name}' as {value}", input.name))
                 })?;
-                passed.insert(name.clone(), read(&source, &inputs)?);
+                // In a parameter, `$<name>` is a parameter of the question.
+                let value = match &source {
+                    StepSource::Input(asked) => question.get(asked).cloned().ok_or_else(|| {
+                        fail(format!(
+                            "input '{}' passes ${asked}, which the question does not give",
+                            input.name
+                        ))
+                    })?,
+                    other => read(other, &inputs)?,
+                };
+                passed.insert(name.clone(), value);
             }
             let result = if trace {
                 self.evaluate_law_with_trace_in(
@@ -1055,7 +1002,7 @@ fn refuse_impure(article: &Article) -> std::result::Result<(), String> {
     Ok(())
 }
 
-/// The state, its provenance and the events after the last replay.
+/// The state, its provenance and what became of each record.
 struct Played {
     state: BTreeMap<String, Value>,
     set_by: BTreeMap<String, Option<String>>,
@@ -1122,57 +1069,54 @@ fn parse_day(date: &str) -> Result<NaiveDate> {
 fn trace_node(played: &Played) -> PathNode {
     let mut node = PathNode::new(PathNodeType::Operation, "PROJECTION")
         .with_result(Value::Object(played.state.clone()));
+    let leaf = |name: &str, message: String| {
+        let mut child = PathNode::new(PathNodeType::Operation, name);
+        child.message = Some(message);
+        child
+    };
+    // Phase 1: whether each record counts.
+    let mut counts = PathNode::new(PathNodeType::Operation, "COUNTS");
+    // Phase 2: the fold over the records that count.
+    let mut fold = PathNode::new(PathNodeType::Operation, "FOLD");
     for (index, event) in played.events.iter().enumerate() {
-        let (name, message, result) = match event {
+        match event {
             ProjectionEvent::Applied {
                 record,
                 article,
                 changes,
             } => {
+                counts
+                    .children
+                    .push(leaf("COUNT", format!("{record}: counts")));
                 let set: BTreeMap<String, Value> = changes
                     .iter()
                     .map(|c| (c.property.clone(), c.to.clone()))
                     .collect();
-                (
+                let mut child = leaf(
                     "APPLY",
                     format!(
                         "{record}: {}",
                         describe_applied(article.as_deref(), changes)
                     ),
-                    Some(Value::Object(set)),
-                )
+                );
+                child.result = Some(Value::Object(set));
+                if let Some(traces) = played.nested.get(&index) {
+                    child.children.extend(traces.iter().cloned());
+                }
+                fold.children.push(child);
             }
-            ProjectionEvent::Skipped { record, undone_by } => (
+            ProjectionEvent::Skipped { record, undone_by } => counts.children.push(leaf(
                 "SKIP",
-                format!("{record}: undone by {}", undone_by.join(", ")),
-                None,
-            ),
-            ProjectionEvent::EffectsOnly { record, reason } => (
+                format!("{record}: revoked by {}", undone_by.join(", ")),
+            )),
+            ProjectionEvent::EffectsOnly { record, reason } => counts.children.push(leaf(
                 "EFFECTS_ONLY",
-                format!("{record}: effects only, {reason}"),
-                None,
-            ),
-            ProjectionEvent::Rewound {
-                record,
-                cause,
-                target,
-            } => (
-                "REWIND",
-                format!(
-                    "{record} {} {target}: play again from the start",
-                    cause_word(*cause)
-                ),
-                None,
-            ),
-        };
-        let mut child = PathNode::new(PathNodeType::Operation, name);
-        child.message = Some(message);
-        child.result = result;
-        if let Some(traces) = played.nested.get(&index) {
-            child.children.extend(traces.iter().cloned());
+                format!("{record}: counts for its effects only, {reason}"),
+            )),
         }
-        node.children.push(child);
     }
+    node.children.push(counts);
+    node.children.push(fold);
     node
 }
 
@@ -1194,14 +1138,6 @@ pub fn describe_applied(article: Option<&str>, changes: &[StateChange]) -> Strin
     match article {
         Some(article) => format!("{article}: {}", describe_changes(changes)),
         None => describe_changes(changes),
-    }
-}
-
-/// The word for a rewind's cause, as the trace shows it.
-pub fn cause_word(cause: RewindCause) -> &'static str {
-    match cause {
-        RewindCause::Revokes => "revokes",
-        RewindCause::Revives => "revives",
     }
 }
 
@@ -1388,13 +1324,9 @@ articles:
         )
     }
 
-    fn skipped_in_last_replay(outcome: &ProjectionOutcome) -> Vec<&str> {
-        let start = outcome
+    fn skipped(outcome: &ProjectionOutcome) -> Vec<&str> {
+        outcome
             .events
-            .iter()
-            .rposition(|e| matches!(e, ProjectionEvent::Rewound { .. }))
-            .map_or(0, |i| i + 1);
-        outcome.events[start..]
             .iter()
             .filter_map(|e| match e {
                 ProjectionEvent::Skipped { record, .. } => Some(record.as_str()),
@@ -1404,7 +1336,7 @@ articles:
     }
 
     #[test]
-    fn a_revoked_record_is_replayed_without_it() {
+    fn a_revoked_record_does_not_count() {
         let outcome = play(&[
             grant("a"),
             handed_in("i"),
@@ -1415,22 +1347,18 @@ articles:
         assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(true));
         assert_eq!(outcome.result.outputs["aantal"], Value::Int(1));
         assert_eq!(outcome.set_by["kaart"].as_deref(), Some("b"));
-        assert_eq!(skipped_in_last_replay(&outcome), ["a"]);
-        assert!(outcome.events.contains(&ProjectionEvent::Rewound {
-            record: "h".to_string(),
-            cause: RewindCause::Revokes,
-            target: "a".to_string(),
+        assert_eq!(skipped(&outcome), ["a"]);
+        assert!(outcome.events.contains(&ProjectionEvent::Skipped {
+            record: "a".to_string(),
+            undone_by: vec!["h".to_string()],
         }));
     }
 
     #[test]
-    fn an_effect_whose_outcome_is_false_does_not_rewind() {
+    fn an_effect_whose_outcome_is_false_revokes_nothing() {
         let outcome = play(&[grant("a"), revoke("h", "a", false)]).unwrap();
         assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(true));
-        assert!(!outcome
-            .events
-            .iter()
-            .any(|e| matches!(e, ProjectionEvent::Rewound { .. })));
+        assert!(skipped(&outcome).is_empty());
     }
 
     #[test]
@@ -1442,11 +1370,10 @@ articles:
         ])
         .unwrap();
         assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(true));
-        assert_eq!(skipped_in_last_replay(&outcome), ["h1"]);
-        assert!(outcome.events.contains(&ProjectionEvent::Rewound {
+        assert_eq!(skipped(&outcome), ["h1"]);
+        assert!(outcome.events.contains(&ProjectionEvent::Skipped {
             record: "h1".to_string(),
-            cause: RewindCause::Revives,
-            target: "a".to_string(),
+            undone_by: vec!["h2".to_string()],
         }));
     }
 
@@ -1460,7 +1387,7 @@ articles:
         ])
         .unwrap();
         assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(false));
-        assert_eq!(skipped_in_last_replay(&outcome), ["a", "h1"]);
+        assert_eq!(skipped(&outcome), ["a", "h1"]);
     }
 
     #[test]
@@ -1474,10 +1401,9 @@ articles:
         let outcome = play(&[grant("a"), replace]).unwrap();
         assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(false));
         assert_eq!(outcome.result.outputs["aantal"], Value::Int(0));
-        assert!(outcome.events.contains(&ProjectionEvent::Rewound {
-            record: "n".to_string(),
-            cause: RewindCause::Revokes,
-            target: "a".to_string(),
+        assert!(outcome.events.contains(&ProjectionEvent::Skipped {
+            record: "a".to_string(),
+            undone_by: vec!["n".to_string()],
         }));
     }
 
@@ -1495,7 +1421,7 @@ articles:
         // n1 replaces a; n2 replaces n1, so n1 counts no more and neither
         // does its replacing of a: a counts again, beside n2.
         let outcome = play(&[grant("a"), replace("n1", "a"), replace("n2", "n1")]).unwrap();
-        assert_eq!(skipped_in_last_replay(&outcome), ["n1"]);
+        assert_eq!(skipped(&outcome), ["n1"]);
     }
 
     #[test]
@@ -1507,7 +1433,7 @@ articles:
             revoke("h", "n2", true),
         ])
         .unwrap();
-        assert_eq!(skipped_in_last_replay(&outcome), ["a", "n2"]);
+        assert_eq!(skipped(&outcome), ["a", "n2"]);
     }
 
     #[test]
@@ -1564,7 +1490,7 @@ articles:
         }
         let outcome = play(&records).unwrap();
         assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(true));
-        assert_eq!(skipped_in_last_replay(&outcome), ["h1", "h3", "h5", "h7"]);
+        assert_eq!(skipped(&outcome), ["h1", "h3", "h5", "h7"]);
     }
 
     #[test]
@@ -1576,13 +1502,8 @@ articles:
             revoke("h3", "h1", true),
         ])
         .unwrap();
-        let start = outcome
-            .events
-            .iter()
-            .rposition(|e| matches!(e, ProjectionEvent::Rewound { .. }))
-            .map_or(0, |i| i + 1);
         assert_eq!(
-            outcome.events[start],
+            outcome.events[0],
             ProjectionEvent::Skipped {
                 record: "a".to_string(),
                 undone_by: vec!["h2".to_string()],
@@ -1675,12 +1596,14 @@ articles:
         assert!(err.to_string().contains("does not produce"), "{err}");
     }
 
-    /// Whether each record counts does not depend on the state, so one pass
-    /// from the last record back gives it: a record counts unless a record
-    /// after it that counts has an effect on it that holds. Rewinding must
-    /// arrive at the same records, over many generated chronicles.
+    /// The definition, checked without the engine's pass: a record counts
+    /// unless a later record that itself counts revokes it. For each of
+    /// many generated chronicles the oracle tries every assignment of
+    /// "counts" to the records, keeps those that satisfy the definition,
+    /// finds exactly one, and the engine must skip exactly the records that
+    /// one says do not count, and fold the grants that count.
     #[test]
-    fn rewinding_counts_the_same_records_as_one_pass_back() {
+    fn the_records_that_count_are_the_one_assignment_the_definition_allows() {
         let mut seed: u64 = 0x2545_f491_4f6c_dd1d;
         let mut next = |bound: usize| {
             seed ^= seed << 13;
@@ -1711,16 +1634,33 @@ articles:
                     effect_of.push(Some((target, true)));
                 }
             }
-            let mut counts = vec![true; n];
-            for i in (0..n).rev() {
-                counts[i] = !(i + 1..n).any(|j| counts[j] && effect_of[j] == Some((i, true)));
-            }
+            let satisfies = |counts: &[bool]| {
+                (0..n).all(|i| {
+                    counts[i]
+                        != (0..n).any(|j| j > i && counts[j] && effect_of[j] == Some((i, true)))
+                })
+            };
+            let allowed: Vec<Vec<bool>> = (0u32..1 << n)
+                .map(|bits| (0..n).map(|i| bits & (1 << i) != 0).collect::<Vec<bool>>())
+                .filter(|counts| satisfies(counts))
+                .collect();
+            assert_eq!(allowed.len(), 1, "one assignment: {records:#?}");
+            let counts = &allowed[0];
             let expected: Vec<String> = (0..n)
                 .filter(|&i| !counts[i])
                 .map(|i| format!("r{i}"))
                 .collect();
             let outcome = play(&records).unwrap();
-            assert_eq!(skipped_in_last_replay(&outcome), expected, "{records:#?}");
+            assert_eq!(skipped(&outcome), expected, "{records:#?}");
+            // The fold: every grant that counts adds one.
+            let grants = (0..n)
+                .filter(|&i| counts[i] && effect_of[i].is_none())
+                .count();
+            assert_eq!(
+                outcome.result.outputs["aantal"],
+                Value::Int(grants as i64),
+                "{records:#?}"
+            );
         }
     }
 
@@ -1824,41 +1764,39 @@ articles:
     }
 
     #[test]
-    fn the_trace_names_each_cause_of_a_rewind() {
-        let messages = |records: &[ChronicleRecord]| -> Vec<String> {
-            let outcome = service()
-                .evaluate_projection(
-                    "reductie",
-                    &["heeft_kaart"],
-                    records,
-                    BTreeMap::new(),
-                    "2025-03-01",
-                    true,
-                )
-                .unwrap();
-            let root = outcome.result.trace.expect("a trace");
-            root.children[0]
-                .children
+    fn the_trace_shows_which_records_count_and_then_the_fold() {
+        let outcome = service()
+            .evaluate_projection(
+                "reductie",
+                &["heeft_kaart"],
+                &[
+                    grant("a"),
+                    revoke("h1", "a", true),
+                    revoke("h2", "h1", true),
+                ],
+                BTreeMap::new(),
+                "2025-03-01",
+                true,
+            )
+            .unwrap();
+        let root = outcome.result.trace.expect("a trace");
+        let node = &root.children[0];
+        let phases: Vec<&str> = node.children.iter().map(|n| n.name.as_str()).collect();
+        assert_eq!(phases, ["COUNTS", "FOLD"]);
+        let messages = |n: &PathNode| -> Vec<String> {
+            n.children
                 .iter()
-                .filter(|n| n.name == "REWIND")
-                .filter_map(|n| n.message.clone())
+                .filter_map(|c| c.message.clone())
                 .collect()
         };
+        // A revoked revocation revokes nothing, so the grant counts again.
         assert_eq!(
-            messages(&[grant("a"), replace("n", "a")]),
-            ["n revokes a: play again from the start"]
+            messages(&node.children[0]),
+            ["a: counts", "h1: revoked by h2", "h2: counts"]
         );
         assert_eq!(
-            messages(&[
-                grant("a"),
-                revoke("h1", "a", true),
-                revoke("h2", "h1", true)
-            ]),
-            [
-                "h1 revokes a: play again from the start",
-                "h2 revokes h1: play again from the start",
-                "h1 revives a: play again from the start",
-            ]
+            messages(&node.children[1]),
+            ["a: wet#5: aantal: 0 -> 1, kaart: false -> true", "h2: -"]
         );
     }
 
@@ -1902,14 +1840,10 @@ articles:
         )
     }
 
-    /// The records the last replay applied or skipped, in order.
+    /// The records applied or skipped, in order.
     fn records_in(outcome: &ProjectionOutcome) -> Vec<&str> {
-        let start = outcome
+        outcome
             .events
-            .iter()
-            .rposition(|e| matches!(e, ProjectionEvent::Rewound { .. }))
-            .map_or(0, |i| i + 1);
-        outcome.events[start..]
             .iter()
             .filter_map(|e| match e {
                 ProjectionEvent::Applied { record, .. }
@@ -1950,22 +1884,18 @@ articles:
             record: "n".to_string(),
             reason: "key differs: wie".to_string(),
         }));
-        assert!(x.events.contains(&ProjectionEvent::Rewound {
-            record: "n".to_string(),
-            cause: RewindCause::Revokes,
-            target: "a".to_string(),
+        assert!(x.events.contains(&ProjectionEvent::Skipped {
+            record: "a".to_string(),
+            undone_by: vec!["n".to_string()],
         }));
-        assert_eq!(skipped_in_last_replay(&x), ["a"]);
+        assert_eq!(skipped(&x), ["a"]);
         assert_eq!(x.result.outputs["heeft_kaart"], Value::Bool(false));
         assert_eq!(x.result.outputs["aantal"], Value::Int(0));
         // For y, `n` is its own record, and revokes a record outside y's
         // partition: that effect is not y's business.
         let y = play_for("y", &records).unwrap();
         assert_eq!(records_in(&y), ["n"]);
-        assert!(!y
-            .events
-            .iter()
-            .any(|e| matches!(e, ProjectionEvent::Rewound { .. })));
+        assert!(skipped(&y).is_empty());
     }
 
     #[test]
@@ -2190,7 +2120,7 @@ articles:
             .evaluate_projection(
                 "reductie",
                 &["heeft_kaart"],
-                &[grant("a"), revoke("h", "a", true)],
+                &[grant("a"), revoke("h", "a", false)],
                 BTreeMap::new(),
                 "2025-03-01",
                 true,
@@ -2199,18 +2129,22 @@ articles:
         let root = outcome.result.trace.expect("a trace");
         let node = &root.children[0];
         assert_eq!(node.name, "PROJECTION");
-        let names: Vec<&str> = node.children.iter().map(|n| n.name.as_str()).collect();
-        assert_eq!(names, ["APPLY", "REWIND", "SKIP", "APPLY"]);
+        let names =
+            |n: &PathNode| -> Vec<String> { n.children.iter().map(|c| c.name.clone()).collect() };
+        assert_eq!(names(node), ["COUNTS", "FOLD"]);
+        assert_eq!(names(&node.children[0]), ["COUNT", "COUNT"]);
+        let fold = &node.children[1];
+        assert_eq!(names(fold), ["APPLY", "APPLY"]);
         assert_eq!(
-            node.children[0].message.as_deref(),
+            fold.children[0].message.as_deref(),
             Some("a: wet#5: aantal: 0 -> 1, kaart: false -> true")
         );
         // The laws the step called hang under its node, as any law call
         // does in a trace.
         assert!(
-            !node.children[0].children.is_empty(),
+            !fold.children[0].children.is_empty(),
             "the calls of the step under APPLY: {:?}",
-            node.children[0]
+            fold.children[0]
         );
     }
 

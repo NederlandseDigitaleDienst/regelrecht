@@ -4,8 +4,8 @@
 # and keeps a state: whether the applicant holds a card, and how many grants
 # counted. What a record does with the state is below, per article. Which
 # records count follows from the effects the law gives a decision on another
-# one (`produces[].effects`); the engine carries those out by rewinding, and
-# nothing in this reduction speaks of revoking or replacing.
+# one (`produces[].effects`), and nothing in this reduction speaks of
+# revoking or replacing.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: test_reductie_geldige_kaart
 regulatory_layer: REDUCTIE
