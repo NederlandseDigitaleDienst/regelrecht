@@ -1,0 +1,55 @@
+---
+# FICTIEF. A reduction of the cell's BDD suite over test_chronicle_corrections:
+# where a resident lives, by the facts the cell recorded. A registration sets
+# the postcode and the house number, a correction of the postcode sets the
+# postcode alone. A registration that was wrong from the start does not
+# count: the fact that says so revokes it, which the law declares, not this
+# reduction.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_reductie_adres
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_reductie_adres
+name: Adres van een bewoner (testreductie)
+
+articles:
+  - number: '1'
+    url: https://example.com/test_reductie_adres/1
+    text: >-
+      FICTIEF. De postcode en het huisnummer van de bewoner, zoals de
+      inschrijvingen en correcties die meetellen ze vastleggen.
+    machine_readable:
+      projection:
+        key: bewoner
+        state:
+          - name: postcode
+            type: string
+          - name: huisnummer
+            type: number
+        steps:
+          - record: test_chronicle_corrections#1
+            actions:
+              - output: postcode
+                value: $record.postcode
+              - output: huisnummer
+                value: $record.huisnummer
+          - record: test_chronicle_corrections#2
+            actions:
+              - output: postcode
+                value: $record.postcode
+      execution:
+        parameters:
+          - name: bewoner
+            type: string
+        output:
+          - name: postcode
+            type: string
+            nullable: true
+          - name: huisnummer
+            type: number
+        actions:
+          - output: postcode
+            value: $state.postcode
+          - output: huisnummer
+            value: $state.huisnummer
