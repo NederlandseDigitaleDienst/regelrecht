@@ -128,7 +128,7 @@ Schema v0.8.14 adds a second way to reduce. A reduction with a `projection` decl
 
 A step names the article its records rest on, such as `test_chronicle_effects#3`. Where the article gives more than one kind of record, such as an application and the decision on it, a third segment names the kind: `test_chronicle_effects#1#BESCHIKKING`. A step on an article that requires a fact applies to the recorded instances of that fact.
 
-What a record does with the state is law, so a step does not compute it. It is written like an article: its `input` takes outputs of a law through `source.regulation`, with parameters from a field of the record (`$record.<field>`) or a property of the state (`$state.<property>`), and `set` couples each property of the state to one value. That value is a bare reference: an input of the step, a field of the record or a property of the state. A property the step does not set keeps its value. In the parking-card test, article 7 of the test law says that a grant gives the applicant a card and raises the number of grants by one, and article 8 says that a card handed in is gone:
+What a record does with the state is law, so a step does not compute it. It is written like an article: its `input` takes outputs of a law through `source.regulation`, with parameters from a field of the record (`$record.<field>`) or a property of the state (`$state.<property>`), and its `actions`, written as the actions of an article, give properties of the state their values: `output` names a property and `value` is a bare reference to an input of the step, a field of the record or a property of the state. A property no action names keeps its value, and one step gives a property one action at most. In the parking-card test, article 7 of the test law says that a grant gives the applicant a card and raises the number of grants by one, and article 8 says that a card handed in is gone:
 
 ```yaml
 steps:
@@ -144,9 +144,11 @@ steps:
             aantal_verleend: $state.aantal_verleend
             kaart_verleend: $record.kaart_verleend
       # aantal_verleend_na_besluit in the same way
-    set:
-      in_bezit: $in_bezit_na_besluit
-      aantal_verleend: $aantal_verleend_na_besluit
+    actions:
+      - output: in_bezit
+        value: $in_bezit_na_besluit
+      - output: aantal_verleend
+        value: $aantal_verleend_na_besluit
   - record: test_chronicle_effects#5
     input:
       - name: in_bezit_na_inlevering
@@ -154,11 +156,12 @@ steps:
         source:
           regulation: test_chronicle_effects
           output: in_bezit_na_inlevering
-    set:
-      in_bezit: $in_bezit_na_inlevering
+    actions:
+      - output: in_bezit
+        value: $in_bezit_na_inlevering
 ```
 
-The engine calls the law in the version in force on the day the record was recorded, not on the calculation date, the same rule as for effects. The article it calls reads only what the step passes: an article with an `input`, with or without a `source`, or with open terms cannot be called, so a step stays a function of the record and the state before it. A step takes no other source than `source.regulation`, and `set` takes no operation and no literal. Each parameter must be one the called article takes, of the type of the field or property it comes from, each input must have the type of the output it takes, and each value of `set` must fit its property. The loader checks the shape of the step; the engine checks the called law when it plays the projection, because the reduction and the law are separate regelwerken that load in any order. In the trace, the call hangs under the node of the record, like any law call, and that node shows every property the step set, before and after.
+The engine calls the law in the version in force on the day the record was recorded, not on the calculation date, the same rule as for effects. The article it calls reads only what the step passes: an article with an `input`, with or without a `source`, or with open terms cannot be called, so a step stays a function of the record and the state before it. A step takes no other source than `source.regulation`, and its actions take no operation and no literal. Each parameter must be one the called article takes, of the type of the field or property it comes from, each input must have the type of the output it takes, and each value an action gives must fit its property. The loader checks the shape of the step; the engine checks the called law when it plays the projection, because the reduction and the law are separate regelwerken that load in any order. In the trace, the call hangs under the node of the record, like any law call, and that node shows every property the step set, before and after.
 
 What one decision does with another stays in the law. The article declares it in `produces[].effects`: `revokes`, optionally only `when` a boolean outcome of the decision is true, such as a well-founded objection. A decision in the place of another revokes it and counts as a record of its own. When a decision that counts revokes an earlier one, the engine plays the chronicle again from the start without the revoked decision. A decision that is itself revoked revokes nothing any more, so what it alone revoked counts again. The engine records which record set each property last and every record it applied or skipped, and shows them in the trace.
 

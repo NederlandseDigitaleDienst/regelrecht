@@ -5,7 +5,7 @@
 //! record rests on, the step for such a record (`projection.steps`). A
 //! step is written like an article: it takes outputs of a law
 //! (`input` with `source.regulation`), with parameters from the record and
-//! the state, and sets each property to a bare reference (`set`). What a
+//! the state, and its actions give each property a bare reference. What a
 //! record does is in that law. The engine plays the records the cell knew
 //! on the calculation date in the order the cell recorded them. Each step
 //! is pure: the law it calls reads nothing but what the step passes, so the
@@ -586,7 +586,8 @@ impl LawExecutionService {
                 ));
             }
         }
-        for (property, value) in &step.set {
+        for action in &step.actions {
+            let (property, value) = step_action(action)?;
             let source = set_source(value)?;
             let given = read_type(&source);
             match (given, state_type(projection, property)) {
@@ -610,8 +611,8 @@ impl LawExecutionService {
     /// in the version in force on the day the record was recorded, not on
     /// the calculation date: what a record did follows from the law of its
     /// day, as its effects do. The law reads nothing but the parameters the
-    /// input passes ([`refuse_impure`]). The properties then get what `set`
-    /// gives them.
+    /// input passes ([`refuse_impure`]). The properties then get what the
+    /// step's actions give them.
     fn apply_step(
         &self,
         law_id: &str,
@@ -695,7 +696,8 @@ impl LawExecutionService {
             }
             applied.traces.extend(result.trace);
         }
-        for (property, value) in &step.set {
+        for action in &step.actions {
+            let (property, value) = step_action(action).map_err(fail)?;
             let source = set_source(value).map_err(fail)?;
             let to = read(&source, &inputs)?;
             let declared = projection.state.iter().find(|p| &p.name == property);
@@ -712,6 +714,9 @@ impl LawExecutionService {
                 to,
             });
         }
+        // The trace lists the properties by name, whatever the order of the
+        // actions.
+        applied.changes.sort_by(|a, b| a.property.cmp(&b.property));
         Ok(applied)
     }
 
@@ -969,7 +974,18 @@ fn step_source(
     }
 }
 
-/// The source a value of `set` reads: a bare reference, nothing else.
+/// The property an action of a step gives a value, and that value.
+fn step_action(
+    action: &regelrecht_law_model::Action,
+) -> std::result::Result<(&String, &regelrecht_law_model::ActionValue), String> {
+    match (&action.output, &action.value) {
+        (Some(property), Some(value)) => Ok((property, value)),
+        _ => Err("has an action without an output and a value".to_string()),
+    }
+}
+
+/// The source the value of an action of a step reads: a bare reference,
+/// nothing else.
 fn set_source(
     value: &regelrecht_law_model::ActionValue,
 ) -> std::result::Result<StepSource, String> {
@@ -1295,13 +1311,13 @@ articles:
                   regulation: wet
                   output: aantal_na
                   parameters: {verleend: $record.verleend, aantal: $state.aantal}
-            set: {kaart: $kaart_na, aantal: $aantal_na}
+            actions: [{output: kaart, value: $kaart_na}, {output: aantal, value: $aantal_na}]
           - record: wet#3
-            set: {kaart: $record.verleend}
+            actions: [{output: kaart, value: $record.verleend}]
           - record: wet#4
             input:
               - {name: weg, type: boolean, source: {regulation: wet, output: kaart_weg}}
-            set: {kaart: $weg}
+            actions: [{output: kaart, value: $weg}]
       execution:
         output: [{name: heeft_kaart, type: boolean}, {name: aantal, type: number}]
         actions:
@@ -1609,8 +1625,8 @@ articles:
                 &REDUCTION
                     .replace("valid_from: '2025-01-01'", "valid_from: '2025-06-01'")
                     .replace(
-                        "set: {kaart: $kaart_na, aantal: $aantal_na}",
-                        "set: {kaart: $kaart_na}",
+                        "actions: [{output: kaart, value: $kaart_na}, {output: aantal, value: $aantal_na}]",
+                        "actions: [{output: kaart, value: $kaart_na}]",
                     ),
             )
             .unwrap();
@@ -2280,12 +2296,12 @@ articles:
             ),
             (
                 LAW.to_string(),
-                with("set: {kaart: $kaart_na, aantal: $aantal_na}", "set: {kaart: $aantal_na}"),
+                with("actions: [{output: kaart, value: $kaart_na}, {output: aantal, value: $aantal_na}]", "actions: [{output: kaart, value: $aantal_na}]"),
                 "sets 'kaart' from $aantal_na, a Number, which is no Boolean",
             ),
             (
                 LAW.to_string(),
-                with("set: {kaart: $record.verleend}", "set: {kaart: $record.bestaat_niet}"),
+                with("actions: [{output: kaart, value: $record.verleend}]", "actions: [{output: kaart, value: $record.bestaat_niet}]"),
                 "sets 'kaart' from $record.bestaat_niet, but the record has no such field",
             ),
             (

@@ -28,11 +28,13 @@ articles:
                   output: kaart
                   parameters:
                     verleend: $record.verleend
-            set:
-              in_bezit: $kaart
+            actions:
+              - output: in_bezit
+                value: $kaart
           - record: test_conformance_fact#1
-            set:
-              in_bezit: false
+            actions:
+              - output: in_bezit
+                value: false
       execution:
         output:
           - name: heeft_kaart

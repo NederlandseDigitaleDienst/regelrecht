@@ -2769,7 +2769,7 @@
         },
         "projection": {
           "type": "object",
-          "description": "Since v0.8.14, only in a `REDUCTIE`: the reduction plays a cell's chronicle forward and keeps a state, and its `execution` answers from the state after the last record, reading each property as `$state.<name>`. Each record may change the state through the step this reduction gives for its article (`steps`): the step takes outputs of a law, with parameters from the record and the state, and sets properties from them. A record whose article gives an effect on an earlier record (`produces[].effects`) that holds makes the engine rewind: it plays the chronicle again from the start, skipping the revoked record, for as long as a record that revokes it still counts; a record that is itself revoked revokes nothing any more. A revoked record is gone from the whole history (ex tunc); a change from a later day on is a step with a date property. The chronicle itself is never changed, and a record recorded after the calculation date is not played. Only a call that plays a chronicle answers from it: a cell that gives the answer to a policy through `source.reduction`, or `evaluate_projection` in the Rust engine. The engine refuses such an article on every path that bypasses the chronicle: asked directly, from another rulework, at a stage, or with a `state` the caller passes. A step is pure: the next state follows from the state before and the record alone, because the law a step calls reads only what the step passes. One version of this reduction, the one in force on the calculation date, gives every step and the answer; the effects of a record come from the version of its law in force on the day it was recorded. The engine records, per property, which record set it last. The article declares no parameter `state`.",
+          "description": "Since v0.8.14, only in a `REDUCTIE`: the reduction plays a cell's chronicle forward and keeps a state, and its `execution` answers from the state after the last record, reading each property as `$state.<name>`. Each record may change the state through the step this reduction gives for its article (`steps`): the step takes outputs of a law, with parameters from the record and the state, and its actions give properties their values from them. A record whose article gives an effect on an earlier record (`produces[].effects`) that holds makes the engine rewind: it plays the chronicle again from the start, skipping the revoked record, for as long as a record that revokes it still counts; a record that is itself revoked revokes nothing any more. A revoked record is gone from the whole history (ex tunc); a change from a later day on is a step with a date property. The chronicle itself is never changed, and a record recorded after the calculation date is not played. Only a call that plays a chronicle answers from it: a cell that gives the answer to a policy through `source.reduction`, or `evaluate_projection` in the Rust engine. The engine refuses such an article on every path that bypasses the chronicle: asked directly, from another rulework, at a stage, or with a `state` the caller passes. A step is pure: the next state follows from the state before and the record alone, because the law a step calls reads only what the step passes. One version of this reduction, the one in force on the calculation date, gives every step and the answer; the effects of a record come from the version of its law in force on the day it was recorded. The engine records, per property, which record set it last. The article declares no parameter `state`.",
           "additionalProperties": false,
           "required": [
             "state",
@@ -2817,13 +2817,13 @@
             },
             "steps": {
               "type": "array",
-              "description": "What a record does with the state, per article the record rests on. Like an article, a step takes outputs of a law (`input` with `source.regulation`), with parameters from the record and the state, and couples each property of the state to one of them (`set`). What the record does is in that law. A record without a step leaves the state as it is; its effects on other records still hold.",
+              "description": "What a record does with the state, per article the record rests on. Like an article, a step takes outputs of a law (`input` with `source.regulation`), with parameters from the record and the state, and its actions couple each property of the state to one of them. What the record does is in that law. A record without a step leaves the state as it is; its effects on other records still hold.",
               "items": {
                 "type": "object",
                 "additionalProperties": false,
                 "required": [
                   "record",
-                  "set"
+                  "actions"
                 ],
                 "properties": {
                   "record": {
@@ -2845,17 +2845,64 @@
                     },
                     "description": "The outputs of a law the step takes, each written as an article input with `source: {regulation, output, parameters}` and no other kind of source. A parameter is `$record.<field>` (a field or output of the record) or `$state.<property>` (the state before the record). The engine calls the law in the version in force on the day the record was recorded, not on the calculation date, the same rule as for effects. The article it calls reads nothing else: an article with an `input` or with open terms cannot be called. The engine checks the called law when it plays the projection, because it is another regelwerk, and nests its trace under the step."
                   },
-                  "set": {
-                    "type": "object",
-                    "minProperties": 1,
-                    "propertyNames": {
-                      "pattern": "^[a-z_][a-z0-9_]*$"
+                  "actions": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/action"
+                        },
+                        {
+                          "type": "object",
+                          "required": [
+                            "output",
+                            "value"
+                          ],
+                          "properties": {
+                            "value": {
+                              "type": "string",
+                              "pattern": "^\\$([a-z0-9_]+|record\\.[a-z0-9_]+|state\\.[a-z0-9_]+)$"
+                            }
+                          },
+                          "not": {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "operation"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "values"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "subject"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "conditions"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "precision"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "resolve"
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      ]
                     },
-                    "additionalProperties": {
-                      "type": "string",
-                      "pattern": "^\\$([a-z0-9_]+|record\\.[a-z0-9_]+|state\\.[a-z0-9_]+)$"
-                    },
-                    "description": "Per property of the state, the value it gets: an input of the step (`$<input>`), a field of the record (`$record.<field>`) or a property of the state before it (`$state.<property>`). Only a bare reference: a step computes nothing itself, so what a record does stays in the law. A property not named keeps its value. Every name must be a property of the state, and every value must be of its type. A null fits only a string or a date."
+                    "description": "What the step gives each property of the state, as the actions of an article: `output` names a property of the state, `value` is an input of the step (`$<input>`), a field of the record (`$record.<field>`) or a property of the state before it (`$state.<property>`). Only a bare reference: a step computes nothing itself, so what a record does stays in the law. A property no action names keeps its value, and a step gives a property one action at most. Every value must be of the property's type; a null fits only a string or a date."
                   }
                 }
               }

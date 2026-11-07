@@ -1860,9 +1860,9 @@ impl StateProperty {
 
 /// What a record under one article does with the state: like an article,
 /// it takes inputs from the outputs of a law (`source.regulation`), with
-/// parameters from the record and the state, and sets properties from them.
-/// What the record does is in that law; the step only couples each property
-/// to an output.
+/// parameters from the record and the state, and its actions give the
+/// properties of the state their values. What the record does is in that
+/// law; the step only couples each property to an output.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProjectionStep {
@@ -1877,11 +1877,12 @@ pub struct ProjectionStep {
     /// `$record.<field>` or `$state.<property>`.
     #[serde(default)]
     pub input: Vec<Input>,
-    /// Per property of the state, the value it gets: an input of the step
-    /// (`$<input>`), a field of the record (`$record.<field>`) or a property
-    /// of the state before it (`$state.<property>`). A property not named
-    /// keeps its value.
-    pub set: BTreeMap<String, ActionValue>,
+    /// What the step gives each property of the state, as the actions of
+    /// an article: `output` names the property, `value` is an input of the
+    /// step (`$<input>`), a field of the record (`$record.<field>`) or a
+    /// property of the state before it (`$state.<property>`). A property no
+    /// action names keeps its value.
+    pub actions: Vec<Action>,
 }
 
 /// What a step reads: one of its inputs (`$<name>`), a field or output of

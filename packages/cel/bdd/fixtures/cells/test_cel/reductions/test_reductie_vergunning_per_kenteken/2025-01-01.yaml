@@ -35,8 +35,9 @@ articles:
                   parameters:
                     verleend: $record.vergunning_verleend
                     kenteken: $record.kenteken
-            set:
-              vergunning: $vergunning
+            actions:
+              - output: vergunning
+                value: $vergunning
           - record: test_parkeervergunning#2
             input:
               - name: vergunning
@@ -47,8 +48,9 @@ articles:
                   parameters:
                     verleend: $record.vergunning_omgezet
                     kenteken: $record.kenteken
-            set:
-              vergunning: $vergunning
+            actions:
+              - output: vergunning
+                value: $vergunning
       execution:
         parameters:
           - name: kenteken

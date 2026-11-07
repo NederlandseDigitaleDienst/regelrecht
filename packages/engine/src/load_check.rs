@@ -770,7 +770,8 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
 /// parameters}` and nothing else, with parameters `$record.<field>` or
 /// `$state.<property>`. It sets at least one property of its state, each to
 /// a bare reference: one of its inputs, a field of the record or a property
-/// of the state. A step computes nothing itself.
+/// of the state, through actions with an output and a value. A step
+/// computes nothing itself.
 fn check_step_shape(
     step: &regelrecht_law_model::ProjectionStep,
     names: &[&str],
@@ -835,17 +836,43 @@ fn check_step_shape(
             }
         }
     }
-    if step.set.is_empty() {
+    if step.actions.is_empty() {
         return Err("sets nothing".to_string());
     }
-    for (property, value) in &step.set {
-        if !names.contains(&property.as_str()) {
+    let mut given: Vec<&str> = Vec::new();
+    for action in &step.actions {
+        // An action of a step names a property and gives it a value; it
+        // computes nothing, so it has no operation of its own.
+        let fields = serde_json::to_value(action).unwrap_or_default();
+        let extra = fields.as_object().and_then(|o| {
+            o.iter()
+                .find(|(k, v)| {
+                    !v.is_null() && !["output", "value", "legal_basis"].contains(&k.as_str())
+                })
+                .map(|(k, _)| k.clone())
+        });
+        let Some(property) = action.output.as_deref() else {
+            return Err("has an action without an output".to_string());
+        };
+        if let Some(extra) = extra {
+            return Err(format!(
+                "sets '{property}' with {extra}; an action of a step has an output and a value, \
+                 because a step computes nothing itself"
+            ));
+        }
+        if !names.contains(&property) {
             return Err(format!(
                 "sets '{property}', which is no property of its state"
             ));
         }
-        let source = match value {
-            ActionValue::Literal(regelrecht_law_model::Value::String(s)) => StepSource::parse(s),
+        if given.contains(&property) {
+            return Err(format!("sets '{property}' twice"));
+        }
+        given.push(property);
+        let source = match &action.value {
+            Some(ActionValue::Literal(regelrecht_law_model::Value::String(s))) => {
+                StepSource::parse(s)
+            }
             _ => None,
         };
         let Some(source) = source else {
@@ -1468,13 +1495,13 @@ articles:
     fn a_projection_keeps_to_its_own_state() {
         let state = "        state:\n          - {name: a, type: boolean}\n";
         let ok =
-            format!("{state}        steps:\n          - {{record: wet#1, set: {{a: $record.v}}}}");
+            format!("{state}        steps:\n          - {{record: wet#1, actions: [{{output: a, value: $record.v}}]}}");
         LawExecutionService::new()
             .load_law(&law_with_projection("REDUCTIE", &ok))
             .unwrap();
         // Steps for different kinds of record under one article, and a
         // string that a step sets to null.
-        let kinds = "        state:\n          - {name: a, type: boolean}\n          - {name: s, type: string}\n        steps:\n          - {record: wet#1#AANVRAAG, set: {a: $record.v}}\n          - {record: wet#1#BESCHIKKING, input: [{name: x, type: boolean, source: {regulation: wet, output: o, parameters: {p: $state.s, q: $record.k}}}], set: {a: $x, s: $state.s}}";
+        let kinds = "        state:\n          - {name: a, type: boolean}\n          - {name: s, type: string}\n        steps:\n          - {record: wet#1#AANVRAAG, actions: [{output: a, value: $record.v}]}\n          - {record: wet#1#BESCHIKKING, input: [{name: x, type: boolean, source: {regulation: wet, output: o, parameters: {p: $state.s, q: $record.k}}}], actions: [{output: a, value: $x}, {output: s, value: $state.s}]}";
         LawExecutionService::new()
             .load_law(&law_with_projection("REDUCTIE", kinds))
             .unwrap();
@@ -1497,7 +1524,7 @@ articles:
             ),
             (
                 "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1, set: {{b: $record.v}}}}"),
+                format!("{state}        steps:\n          - {{record: wet#1, actions: [{{output: b, value: $record.v}}]}}"),
                 "the step for records under wet#1 sets 'b', which is no property of its state",
             ),
             (
@@ -1522,12 +1549,12 @@ articles:
             ),
             (
                 "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1, set: {{a: $record.v}}}}\n          - {{record: wet#1#BESCHIKKING, set: {{a: $record.v}}}}"),
+                format!("{state}        steps:\n          - {{record: wet#1, actions: [{{output: a, value: $record.v}}]}}\n          - {{record: wet#1#BESCHIKKING, actions: [{{output: a, value: $record.v}}]}}"),
                 "has two steps for the same records under wet#1",
             ),
             (
                 "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1#BESCHIKKING, set: {{a: $record.v}}}}\n          - {{record: wet#1#BESCHIKKING, set: {{a: $record.v}}}}"),
+                format!("{state}        steps:\n          - {{record: wet#1#BESCHIKKING, actions: [{{output: a, value: $record.v}}]}}\n          - {{record: wet#1#BESCHIKKING, actions: [{{output: a, value: $record.v}}]}}"),
                 "has two steps for the same records under wet#1",
             ),
         ] {
@@ -1541,23 +1568,25 @@ articles:
         let input = |source: &str| format!("[{{name: x, type: boolean, source: {source}}}]");
         let law_input = input("{regulation: wet, output: o, parameters: {p: $state.a}}");
         for (inputs, set, why) in [
-            (law_input.clone(), "{a: {operation: NOT, value: $x}}", "sets 'a' to something that is no bare reference"),
-            (law_input.clone(), "{a: true}", "sets 'a' to something that is no bare reference"),
-            (law_input.clone(), "{a: $y}", "reads $y, which is no input of the step"),
-            (law_input.clone(), "{a: $state.b}", "reads $state.b, which is no property of its state"),
-            (law_input.clone(), "{}", "the step for records under wet#1 sets nothing"),
-            (input("{reduction: antwoord}"), "{a: $x}", "has input 'x' that takes no output of a regulation"),
-            (input("{regulation: wet, output: o, decisions: 'wet#1'}"), "{a: $x}", "has input 'x' with source.decisions"),
-            (input("{regulation: wet, output: o, parameters: {p: true}}"), "{a: $x}", "passes 'p' as 'true'"),
-            (input("{regulation: wet, output: o, parameters: {p: $x}}"), "{a: $x}", "passes 'p' as '$x'"),
-            (input("{regulation: wet, output: o, parameters: {p: $state.b}}"), "{a: $x}", "reads $state.b, which is no property of its state"),
+            (law_input.clone(), "[{output: a, value: {operation: NOT, value: $x}}]", "sets 'a' to something that is no bare reference"),
+            (law_input.clone(), "[{output: a, value: true}]", "sets 'a' to something that is no bare reference"),
+            (law_input.clone(), "[{output: a, value: $y}]", "reads $y, which is no input of the step"),
+            (law_input.clone(), "[{output: a, value: $state.b}]", "reads $state.b, which is no property of its state"),
+            (law_input.clone(), "[]", "the step for records under wet#1 sets nothing"),
+            (law_input.clone(), "[{output: a, value: $x}, {output: a, value: $state.a}]", "sets 'a' twice"),
+            (law_input.clone(), "[{output: a, operation: NOT, value: $x}]", "sets 'a' with operation"),
+            (input("{reduction: antwoord}"), "[{output: a, value: $x}]", "has input 'x' that takes no output of a regulation"),
+            (input("{regulation: wet, output: o, decisions: 'wet#1'}"), "[{output: a, value: $x}]", "has input 'x' with source.decisions"),
+            (input("{regulation: wet, output: o, parameters: {p: true}}"), "[{output: a, value: $x}]", "passes 'p' as 'true'"),
+            (input("{regulation: wet, output: o, parameters: {p: $x}}"), "[{output: a, value: $x}]", "passes 'p' as '$x'"),
+            (input("{regulation: wet, output: o, parameters: {p: $state.b}}"), "[{output: a, value: $x}]", "reads $state.b, which is no property of its state"),
             (
                 "[{name: x, type: boolean, source: {regulation: wet, output: o}}, {name: x, type: boolean, source: {regulation: wet, output: o}}]".to_string(),
-                "{a: $x}",
+                "[{output: a, value: $x}]",
                 "names input 'x' twice",
             ),
         ] {
-            let projection = format!("{state}        steps:\n          - {{record: wet#1, input: {inputs}, set: {set}}}");
+            let projection = format!("{state}        steps:\n          - {{record: wet#1, input: {inputs}, actions: {set}}}");
             let err = LawExecutionService::new()
                 .load_law(&law_with_projection("REDUCTIE", &projection))
                 .expect_err(why);
@@ -1566,7 +1595,7 @@ articles:
         // A kind is in capitals, after a third `#`.
         for record in ["wet#1#beschikking", "wet#1#"] {
             let projection = format!(
-                "{state}        steps:\n          - {{record: '{record}', set: {{a: $record.v}}}}"
+                "{state}        steps:\n          - {{record: '{record}', actions: [{{output: a, value: $record.v}}]}}"
             );
             assert!(
                 LawExecutionService::new()

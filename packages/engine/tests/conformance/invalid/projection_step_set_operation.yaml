@@ -28,8 +28,9 @@ articles:
                   output: kaart
                   parameters:
                     verleend: $record.verleend
-            set:
-              in_bezit: $kaart
+            actions:
+              - output: in_bezit
+                value: $kaart
           - record: test_conformance_fact#1
             input:
               - name: kaart
@@ -37,10 +38,11 @@ articles:
                 source:
                   regulation: test_conformance_kaart
                   output: kaart
-            set:
-              in_bezit:
-                operation: NOT
-                value: $kaart
+            actions:
+              - output: in_bezit
+                value:
+                  operation: NOT
+                  value: $kaart
       execution:
         output:
           - name: heeft_kaart
