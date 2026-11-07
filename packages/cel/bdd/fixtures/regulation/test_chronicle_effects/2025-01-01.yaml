@@ -5,8 +5,11 @@
 # wegverkeer, artikel 49) and Awb 7:11 lid 2, cut down to what the scenarios
 # need. None of it is the text of a law. Article 4 (a withdrawal), article 5
 # (handing the card in) and article 6 (a warning in the place of a
-# withdrawal) are fictional throughout.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+# withdrawal) are fictional throughout, and so are articles 10 to 13 (schema
+# v0.8.15): a ruling of the administrative court, the receipt of a copy of
+# it, a ruling on further appeal that annuls that ruling, and a provisional
+# measure that suspends a decision for a while, each loosely after the Awb.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
 $id: test_chronicle_effects
 name: Testwet effecten van besluiten
 regulatory_layer: WET
@@ -246,3 +249,119 @@ articles:
         actions:
           - output: mag_parkeren
             value: $aanvrager_heeft_geldige_kaart
+
+  - number: '10'
+    url: https://example.com/test_chronicle_effects/10
+    text: >-
+      FICTIEF, naar artikel 8:72, eerste lid, van de Algemene wet
+      bestuursrecht. Acht de bestuursrechter het beroep gegrond, dan
+      vernietigt hij het bestreden besluit geheel of gedeeltelijk.
+    machine_readable:
+      execution:
+        produces:
+          - type: BEROEP
+            requests: test_chronicle_effects#10
+            parameters:
+              - bestreden_besluit
+          - type: UITSPRAAK
+            outputs:
+              - vernietigd
+        parameters:
+          - name: bestreden_besluit
+            type: string
+          # Whether the appeal is well-founded is the court's finding. The
+          # test reads a well-founded appeal as annulling the whole decision;
+          # a partial annulment, and keeping the legal effects of the
+          # annulled decision (Awb 8:72 lid 3), are left out.
+          - name: beroep_gegrond
+            type: boolean
+        output:
+          - name: vernietigd
+            type: boolean
+        actions:
+          - output: vernietigd
+            value: $beroep_gegrond
+
+  - number: '11'
+    url: https://example.com/test_chronicle_effects/11
+    text: >-
+      FICTIEF, naar de artikelen 8:72, eerste lid, en 8:79, eerste lid, van
+      de Algemene wet bestuursrecht. Het college legt vast dat het een
+      afschrift heeft ontvangen van de uitspraak over zijn besluit. Vernietigt
+      de uitspraak het besluit, dan heeft het besluit geen gevolgen meer.
+    machine_readable:
+      requires:
+        - fact: afschrift_uitspraak_ontvangen
+          description: >-
+            Het college heeft een afschrift ontvangen van de uitspraak van de
+            bestuursrechter over zijn besluit.
+          parameters:
+            - vernietigd_besluit
+            - vernietigd
+          # The receipt holds the decision the copy concerns, which the cell
+          # fills, and whether the ruling annuls it, from the copy.
+          effects:
+            - revokes: vernietigd_besluit
+              when: vernietigd
+      execution:
+        parameters:
+          - name: vernietigd_besluit
+            type: decision
+          - name: vernietigd
+            type: boolean
+
+  - number: '12'
+    url: https://example.com/test_chronicle_effects/12
+    text: >-
+      FICTIEF, naar titel 8.5 van de Algemene wet bestuursrecht. Het college
+      legt vast dat de hogerberoepsrechter de uitspraak waarvan het een
+      afschrift ontving heeft vernietigd en het beroep alsnog ongegrond heeft
+      verklaard. Die uitspraak heeft dan geen gevolgen meer.
+    machine_readable:
+      requires:
+        - fact: uitspraak_vernietigd_in_hoger_beroep
+          description: >-
+            De uitspraak waarvan het college een afschrift ontving, is in hoger
+            beroep vernietigd, en het beroep is alsnog ongegrond verklaard.
+          parameters:
+            - vernietigde_uitspraak
+          effects:
+            - revokes: vernietigde_uitspraak
+      execution:
+        parameters:
+          # The receipt of the copy of the annulled ruling, by its id.
+          - name: vernietigde_uitspraak
+            type: string
+
+  - number: '13'
+    url: https://example.com/test_chronicle_effects/13
+    text: >-
+      FICTIEF, naar artikel 8:81 van de Algemene wet bestuursrecht. Het
+      college legt vast dat de voorzieningenrechter zijn besluit heeft
+      geschorst. Het besluit heeft geen gevolgen vanaf de dag waarop de
+      schorsing ingaat tot de dag waarop zij eindigt.
+    machine_readable:
+      requires:
+        - fact: besluit_geschorst
+          description: >-
+            De voorzieningenrechter heeft het besluit geschorst, van de ene
+            dag tot de andere.
+          parameters:
+            - geschorst_besluit
+            - schorsing_vanaf
+            - schorsing_tot
+          effects:
+            - revokes: geschorst_besluit
+              from: schorsing_vanaf
+              until: schorsing_tot
+      execution:
+        parameters:
+          - name: geschorst_besluit
+            type: string
+          - name: schorsing_vanaf
+            type: date
+          # A suspension without an end holds until the court decides
+          # otherwise.
+          - name: schorsing_tot
+            type: date
+            nullable: true

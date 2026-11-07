@@ -475,25 +475,49 @@ pub struct ProducedItem {
     /// carries them out when it plays a chronicle through a reduction with a
     /// `projection` (`projection.rs`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub effects: Option<Vec<DecisionEffect>>,
+    pub effects: Option<Vec<RecordEffect>>,
 }
 
-/// One thing a decision does with another decision (schema v0.8.14): it
+/// One thing a record does with an earlier record (schema v0.8.14): it
 /// revokes it. It names the parameter of the article whose value is that
-/// other decision, and, with `when`, a boolean output of the decision that
-/// must be true for the effect to hold, such as the revocation that follows
-/// only from a well-founded objection. A decision in the place of another
+/// other record, and, with `when`, a boolean the record holds that must be
+/// true for the effect to hold, such as the revocation that follows only
+/// from a well-founded objection. A decision in the place of another
 /// revokes it and counts as a record of its own.
+///
+/// A decision has effects through `produces[].effects`; since schema
+/// v0.8.15 a fact has them too, through `requires[].effects`, and an effect
+/// may hold only for a window of days (`from`, `until`), such as a
+/// suspension.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DecisionEffect {
-    /// The parameter whose value is the decision this one revokes.
+pub struct RecordEffect {
+    /// The parameter whose value is the record this one revokes.
     #[serde(rename = "revokes")]
     pub parameter: String,
-    /// A boolean output of this decision; the effect holds only when it is
-    /// true. Without it the effect always holds.
+    /// A boolean the record holds: an output of a decision, or a parameter
+    /// a fact holds. The effect holds only when it is true. Without it the
+    /// effect always holds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub when: Option<String>,
+    /// Since schema v0.8.15: a date the record holds from which the effect
+    /// holds (included). Without it, or when it holds null, the window is
+    /// open at the start.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
+    /// Since schema v0.8.15: a date the record holds up to which the effect
+    /// holds (not included). Without it, or when it holds null, the window
+    /// is open at the end.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub until: Option<String>,
+}
+
+impl RecordEffect {
+    /// The date fields that bound the days the effect holds on, `from` and
+    /// `until`, where given.
+    pub fn window(&self) -> [Option<&str>; 2] {
+        [self.from.as_deref(), self.until.as_deref()]
+    }
 }
 
 impl ProducedItem {
@@ -575,7 +599,7 @@ impl<'a> Produced<'a> {
 
     /// For a decision in the list form: what it does with other decisions
     /// (schema v0.8.14); empty for the object form.
-    pub fn effects(self) -> &'a [DecisionEffect] {
+    pub fn effects(self) -> &'a [RecordEffect] {
         match self {
             Self::Object(_) => &[],
             Self::Item(i) => i.effects.as_deref().unwrap_or_default(),
@@ -1261,6 +1285,19 @@ pub struct ArticleRequirement {
     /// authority or a list, such as the GGD for a medical examination.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub competent_authority: Option<CompetentAuthority>,
+    /// With `fact`: the earlier records an instance of the fact revokes
+    /// (schema v0.8.15), such as the receipt of a copy of a ruling that
+    /// annuls a decision (Awb 8:72 lid 1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effects: Option<Vec<RecordEffect>>,
+}
+
+impl ArticleRequirement {
+    /// What an instance of this fact does with earlier records (schema
+    /// v0.8.15); empty when it does nothing.
+    pub fn effects(&self) -> &[RecordEffect] {
+        self.effects.as_deref().unwrap_or_default()
+    }
 }
 
 /// Declares that this article fills an open term from a higher-level law.
