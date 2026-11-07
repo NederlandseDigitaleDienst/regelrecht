@@ -85,6 +85,7 @@ const KNOWN_GAPS: &[&str] = &[
     "produces_list_requests_on_decision.yaml", // schema v0.8.1 allows `requests` only on a submission (`if`/`then`); the model has it on every item, and the loader refuses it (`reject_ambiguous_produces`)
     "produces_list_derived_on_submission.yaml", // schema v0.8.4 allows `derived` only on a decision (`if`/`then`); the model has it on every item, and the loader refuses it (`reject_ambiguous_produces`)
     "requires_fact_with_law.yaml", // schema v0.8.7 lets a `requires` entry name a fact or another provision, not both (`if`/`then`); the model has all fields on one entry, and the loader refuses it (`reject_malformed_facts`)
+    "requires_effects_without_fact.yaml", // schema v0.8.15 allows `effects` on a `requires` entry only with `fact` (`if`/`else`); the model has all fields on one entry, and the loader refuses it (`reject_malformed_facts`)
     "produces_list_decision_type_on_submission.yaml", // schema v0.8.1 allows `decision_type` and `procedure_id` only on a decision; the model has them on every item, and a submission's are never read
     "temporal_unknown_type.yaml", // schema pins period|point_in_time; model reads any string
     "start_of_week_unit.yaml", // schema pins START_OF `in` to year|month; model reads any string, engine errors at runtime (same family as date_part_plural_unit)

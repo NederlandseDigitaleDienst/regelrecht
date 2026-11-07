@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.14",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.15",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -2380,6 +2380,37 @@
                     }
                   }
                 ]
+              },
+              "effects": {
+                "type": "array",
+                "minItems": 1,
+                "description": "Since v0.8.15, only with `fact`: the earlier records an instance of this fact revokes, as a decision does with `produces[].effects`. A fact is no decision, but the law can give a recorded fact a legal effect on a decision, such as the receipt of a copy of a ruling that annuls the decision (Awb 8:72 lid 1, 8:79). Each effect names a parameter the fact holds whose value is the id of an earlier record; a receipt of a copy fills a parameter of type `decision` with the decision the copy concerns. With `when` a boolean parameter the fact holds must be true for the effect to hold, and with `from` and `until` the effect holds only for a window of days. The effect reads nothing but the fields of the fact, so whether a record counts never depends on the state. The loader checks that every name is a parameter the fact holds, of the right type.",
+                "items": {
+                  "type": "object",
+                  "description": "Since v0.8.15: an earlier record this fact revokes, named by a parameter the fact holds, and optionally `when`, `from` and `until`.",
+                  "additionalProperties": false,
+                  "properties": {
+                    "revokes": {
+                      "type": "string",
+                      "description": "A parameter the fact holds whose value is the earlier record this fact revokes: its consequences no longer count. Of type `string` (the id of a record), or `decision` on a receipt, which the cell fills with the decision the copy concerns."
+                    },
+                    "when": {
+                      "type": "string",
+                      "description": "A boolean parameter the fact holds; the effect holds only when the fact holds it as true, such as a ruling that annuls the decision. Without it the effect always holds."
+                    },
+                    "from": {
+                      "type": "string",
+                      "description": "Since v0.8.15: the date from which the effect holds. It names a parameter the fact holds of type date; the effect holds only for a day on or after that date. The day is the calculation date: a record that the effect revokes for a while counts on a day outside [from, until) and not on a day inside it. A null value, or no `from`, leaves the window open at the start. The loader checks that it names a date parameter the fact holds."
+                    },
+                    "until": {
+                      "type": "string",
+                      "description": "Since v0.8.15: the date up to which the effect holds, not included. It names a parameter the fact holds of type date; the effect holds only for a day before that date, such as the end of a suspension (Awb 8:81). A null value, or no `until`, leaves the window open at the end. The loader checks that it names a date parameter the fact holds."
+                    }
+                  },
+                  "required": [
+                    "revokes"
+                  ]
+                }
               }
             },
             "additionalProperties": false,
@@ -2440,6 +2471,11 @@
                       {
                         "required": [
                           "competent_authority"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "effects"
                         ]
                       }
                     ]
@@ -3303,16 +3339,24 @@
           "type": "array",
           "items": {
             "type": "object",
-            "description": "Since v0.8.14: a decision this decision revokes, named by a parameter of the article whose value is that decision, and optionally `when`.",
+            "description": "Since v0.8.14: an earlier record this decision revokes, named by a parameter of the article whose value is that record, and optionally `when`. Since v0.8.15 also `from` and `until`: a window of days in which the effect holds.",
             "additionalProperties": false,
             "properties": {
               "revokes": {
                 "type": "string",
-                "description": "The parameter whose value is the decision this one revokes: its consequences no longer count (Awb 7:11 lid 2). A decision in the place of another revokes it, and counts as a decision of its own."
+                "description": "The parameter whose value is the earlier record this decision revokes: its consequences no longer count (Awb 7:11 lid 2). A decision in the place of another revokes it, and counts as a decision of its own."
               },
               "when": {
                 "type": "string",
                 "description": "A boolean output of this decision (one its `outputs` lists, or without that list, one no other item lists); the effect holds only when the decision has it as true, such as a revocation that follows only from a well-founded objection (Awb 7:11 lid 2). Without it the effect always holds. It reads only an output of this same decision, never the state, a parameter or another record, so whether a decision counts never depends on the state. The loader checks that it names a boolean output of this decision."
+              },
+              "from": {
+                "type": "string",
+                "description": "Since v0.8.15: the date from which the effect holds. It names a parameter of the article or output of this decision of type date; the effect holds only for a day on or after that date. The day is the calculation date: a record that the effect revokes for a while counts on a day outside [from, until) and not on a day inside it. A null value, or no `from`, leaves the window open at the start. The loader checks that it names a date parameter of the article or output of this decision."
+              },
+              "until": {
+                "type": "string",
+                "description": "Since v0.8.15: the date up to which the effect holds, not included. It names a parameter of the article or output of this decision of type date; the effect holds only for a day before that date, such as the end of a suspension (Awb 8:81). A null value, or no `until`, leaves the window open at the end. The loader checks that it names a date parameter of the article or output of this decision."
               }
             },
             "required": [
@@ -3320,7 +3364,7 @@
             ]
           },
           "minItems": 1,
-          "description": "Since v0.8.14, only on a decision: the decisions it revokes, such as the decision on an objection that revokes the contested decision (Awb 7:11 lid 2), or a new decision in the place of the contested one, which revokes it and counts itself. Each effect names a parameter of this article whose value is the other decision, and with `when` a boolean output of this decision that must be true for the effect to hold. From the effects a runtime that records decisions derives which decisions still have consequences: a decision counts unless a later decision that itself counts revokes it. A revoked decision has no consequences and revokes nothing, so a decision it alone revoked has consequences again; a new decision that should keep a revocation in force declares that effect itself. A revocation takes a decision out of the whole history (ex tunc); an effect from a later day on (ex nunc) is written as a step of the reduction with a date property. The engine carries the effects out when it plays a chronicle through a reduction with a `projection`; the loader checks that it sits on a decision, that every named parameter is a parameter of the article, and that every `when` names a boolean output of the decision."
+          "description": "Since v0.8.14, only on a decision: the decisions it revokes, such as the decision on an objection that revokes the contested decision (Awb 7:11 lid 2), or a new decision in the place of the contested one, which revokes it and counts itself. Each effect names a parameter of this article whose value is the other decision, and with `when` a boolean output of this decision that must be true for the effect to hold. From the effects a runtime that records decisions derives which decisions still have consequences: a decision counts unless a later decision that itself counts revokes it. A revoked decision has no consequences and revokes nothing, so a decision it alone revoked has consequences again; a new decision that should keep a revocation in force declares that effect itself. A revocation without `from` and `until` takes a decision out of the whole history (ex tunc). Since v0.8.15 an effect may hold only for a window of days (`from`, `until`), such as a suspension: on the calculation date a record counts unless a later record that itself counts on that day revokes it on that day. Whether a record counts on a day still depends on nothing but the records, never on the state. A change of state from a later day on (ex nunc) is written as a step of the reduction with a date property. The engine carries the effects out when it plays a chronicle through a reduction with a `projection`; the loader checks that it sits on a decision, that every named parameter is a parameter of the article, that every `when` names a boolean output of the decision, and that `from` and `until` name a date parameter of the article or a date output of the decision. A fact the article requires may have effects as well (`requires[].effects`, since v0.8.15)."
         },
         "decision_type": {
           "type": "string",

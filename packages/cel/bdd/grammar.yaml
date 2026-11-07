@@ -67,6 +67,42 @@ steps:
     args: [{name: fact, type: string}, {name: id, type: string}, {name: article, type: string}, {name: law, type: string}]
     datatable: true
 
+  # A court, a cell of its own, records an appeal against a decision of the
+  # cell and rules on it, in its own chronicle (RFC-053). The cell never reads
+  # that chronicle; it receives a copy of the ruling.
+  - id: court_records_appeal
+    action: court_records_appeal
+    keyword: when
+    tier: cel
+    text: 'the court records appeal "{id}" under article "{article}" of "{law}" with:'
+    args: [{name: id, type: string}, {name: article, type: string}, {name: law, type: string}]
+    datatable: true
+
+  # The ruling the appeal asks for, with the appeal's fields and what the
+  # court found besides them as parameters.
+  - id: court_rules
+    action: court_rules
+    keyword: when
+    tier: cel
+    text: 'the court rules "{id}" on appeal "{appeal}" with:'
+    args: [{name: id, type: string}, {name: appeal, type: string}]
+    datatable: true
+
+  # The cell records the receipt of a copy of the court's ruling
+  # (`Cell::record_receipt`) as the fact the article requires. The copy
+  # concerns the decision of the cell the appeal contested.
+  - id: cell_receives_ruling
+    action: cell_receives_ruling
+    keyword: when
+    tier: cel
+    text: the cell receives ruling "{ruling}" as fact "{fact}" "{id}" under article "{article}" of "{law}"
+    args:
+      - {name: ruling, type: string}
+      - {name: fact, type: string}
+      - {name: id, type: string}
+      - {name: article, type: string}
+      - {name: law, type: string}
+
   # Evaluate a reduction that plays the chronicle forward (`projection`,
   # schema v0.8.14) over every record of the cell, in the order recorded. The
   # canonical output steps then read its answer.
@@ -95,8 +131,8 @@ steps:
 
   # Every step the last evaluation took, in order: a record applied (with
   # the properties it set, `property: from -> to`, or `-`), a record skipped
-  # (with the records that undo it), and a rewind (with its cause and the
-  # record it is about). The table has a header row `record | event |
+  # (with the records that revoke it), and a record that counts for its
+  # effects only (with why). The table has a header row `record | event |
   # detail` and must match exactly.
   - id: assert_projection_trace
     action: assert_projection_trace

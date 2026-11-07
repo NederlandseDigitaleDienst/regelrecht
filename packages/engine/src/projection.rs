@@ -17,19 +17,25 @@
 //! property as `$state.<name>`.
 //!
 //! What a record does with an earlier record is law, not part of the
-//! reduction: the article of a decision says it revokes another decision
+//! reduction: the article of a decision says it revokes another record
 //! (`produces[].effects`, optionally only `when` an outcome of that same
-//! decision is true), under the version of that law in force on the day the
-//! record was recorded. Which records count follows from that alone: a
-//! record counts unless a later record that itself counts revokes it. So a
-//! record that is revoked revokes nothing, and a record it alone revoked
-//! counts again. A decision in the place of another revokes it and counts
-//! as a record of its own. Whether a record counts does not depend on the
-//! state, so the engine decides it first, in one pass from the last record
-//! back, and then runs the steps of the records that count, in order. The
-//! chronicle is never changed, and nothing is reverted: a revoked record is
-//! gone from the whole history (ex tunc); a change from a later day on is a
-//! step with a date property.
+//! decision is true), and since schema v0.8.15 a fact the article requires
+//! may say so too (`requires[].effects`, `when` reading a field of the
+//! fact), such as the receipt of a ruling that annuls a decision. Each
+//! effect is read under the version of that law in force on the day the
+//! record was recorded, and may hold only for a window of days (`from`,
+//! `until`). The day in question is the calculation date. Which records
+//! count follows from the effects alone: a record counts on that day unless
+//! a later record that itself counts on that day revokes it on that day.
+//! So a record that is revoked revokes nothing, and a record it alone
+//! revoked counts again. A decision in the place of another revokes it and
+//! counts as a record of its own. Whether a record counts does not depend
+//! on the state, so the engine decides it first, in one pass from the last
+//! record back, and then runs the steps of the records that count, in
+//! order. The chronicle is never changed, and nothing is reverted: a
+//! revoked record is gone from the whole history of the answer, also when
+//! its effect holds for a window; a change of state from a later day on is
+//! a step with a date property.
 //!
 //! The engine records, per property, which record set it last, and per
 //! record what became of it: applied (with the properties it set), revoked
@@ -151,8 +157,9 @@ impl LawExecutionService {
     /// outputs from the last state, with `parameters` beside `state`.
     ///
     /// Refuses a reduction article without a projection, an effect on a
-    /// record that is not an earlier record, an effect whose `when` outcome
-    /// the record does not hold as a boolean, and a step that fails.
+    /// record that is not an earlier record, an effect whose `when` the
+    /// record does not hold as a boolean, a bound of a window that holds no
+    /// date, a fact its article does not require, and a step that fails.
     pub fn evaluate_projection(
         &self,
         law_id: &str,
@@ -238,7 +245,15 @@ impl LawExecutionService {
             .collect();
         self.check_steps(law_id, &projection, &question, day)?;
         let partition = self.partition(&projection, key_type.as_ref(), &known, &parameters)?;
-        let played = self.play(law_id, &projection, &known, &partition, &parameters, trace)?;
+        let played = self.play(
+            law_id,
+            &projection,
+            &known,
+            &partition,
+            &parameters,
+            day,
+            trace,
+        )?;
 
         let state = Some(Value::Object(played.state.clone()));
         let mut result = if trace {
@@ -272,13 +287,15 @@ impl LawExecutionService {
         })
     }
 
-    /// Play the chronicle in two phases. First, which records count: a
-    /// record counts unless a later record that itself counts revokes it
-    /// (`produces[].effects`). Effects only point back, and whether an
-    /// effect holds depends on the outputs of its own decision alone, so one
+    /// Play the chronicle in two phases. First, which records count on
+    /// `day`, the calculation date: a record counts unless a later record
+    /// that itself counts revokes it on that day (`produces[].effects`,
+    /// `requires[].effects`). Effects only point back, and whether an effect
+    /// holds depends on what its own record holds and on `day` alone, so one
     /// pass from the last record back decides it, without the state. Then
     /// the fold: the steps of the records that count, in the order the cell
     /// recorded them, each from the state the one before left.
+    #[allow(clippy::too_many_arguments)]
     fn play(
         &self,
         law_id: &str,
@@ -286,6 +303,7 @@ impl LawExecutionService {
         records: &[ChronicleRecord],
         partition: &Partition,
         question: &BTreeMap<String, Value>,
+        day: NaiveDate,
         trace: bool,
     ) -> Result<Played> {
         // Phase 1: per record, the records that count and revoke it, found
@@ -299,7 +317,7 @@ impl LawExecutionService {
             // An effect on a record of another partition is that
             // partition's business.
             for target in self
-                .holding_effects(record, &records[..i])?
+                .holding_effects(record, &records[..i], day)?
                 .into_iter()
                 .filter(|t| partition.holds(t))
             {
@@ -775,81 +793,150 @@ impl LawExecutionService {
     }
 
     /// The records `record` refers to: its `refers_to`, and the values of
-    /// the fields that an effect of its article names. That holds for every
-    /// record under the article, so an objection that names the contested
-    /// decision in such a field refers to it, as the decision on it does.
+    /// the fields that an effect of its article names: an effect of its
+    /// decision, or for a fact, an effect of that fact (schema v0.8.15).
+    /// That holds for every record under the article, so an objection that
+    /// names the contested decision in such a field refers to it, as the
+    /// decision on it does.
     fn references(&self, record: &ChronicleRecord) -> Result<Vec<String>> {
         let mut ids: Vec<String> = record.refers_to.iter().cloned().collect();
         let article = self.article_of(record)?;
-        if let Some(decision) = article.get_decision() {
-            for effect in decision.effects() {
-                if let Some(Value::String(id)) = record.fields.get(&effect.parameter) {
-                    ids.push(id.clone());
-                }
+        let effects = match fact_of(article, record) {
+            Some(fact) => fact.effects(),
+            None => article
+                .get_decision()
+                .map(|d| d.effects())
+                .unwrap_or_default(),
+        };
+        for effect in effects {
+            if let Some(Value::String(id)) = record.fields.get(&effect.parameter) {
+                ids.push(id.clone());
             }
         }
         Ok(ids)
     }
 
-    /// The effects of `record` that hold, each with the earlier record it
-    /// undoes. A record has effects only as a decision of its article
-    /// (`produces[].effects`), under the law of the day it was recorded.
+    /// The effects of `record` that hold on `day`, each with the earlier
+    /// record it revokes. A decision has the effects its article gives it
+    /// (`produces[].effects`), a fact those of its `requires` entry
+    /// (`requires[].effects`, schema v0.8.15), under the law of the day it
+    /// was recorded. An effect holds when its `when` is true and `day` lies
+    /// in its window: on or after `from`, before `until`. Each reads only
+    /// what the record itself holds.
     fn holding_effects<'r>(
         &self,
         record: &ChronicleRecord,
         earlier: &'r [ChronicleRecord],
+        day: NaiveDate,
     ) -> Result<Vec<&'r str>> {
         let article = self.article_of(record)?;
-        // A submission and an executogram undo nothing; a decision has the
-        // effects its article gives it. A record of a kind its article does
-        // not produce is refused, for the same reason as an unknown article.
-        if record.kind == EXECUTOGRAM
-            || article.get_submission().and_then(|s| s.submission_kind()) == Some(&record.kind)
-        {
-            return Ok(Vec::new());
-        }
-        let decision = article
-            .get_decision()
-            .filter(|d| d.legal_character() == Some(record.kind.as_str()))
-            .ok_or_else(|| {
-                EngineError::InvalidOperation(format!(
-                    "record '{}' is a {} under '{}', which that article does not produce",
-                    record.id, record.kind, record.basis
+        let refuse = |why: String| {
+            EngineError::InvalidOperation(format!(
+                "record '{}' ({}) {why}",
+                record.id, record.basis
+            ))
+        };
+        // A submission undoes nothing; a decision and a fact have the
+        // effects their article gives them. A record of a kind its article
+        // does not produce is refused, for the same reason as an unknown
+        // article.
+        let (effects, conditions) = if record.kind == EXECUTOGRAM {
+            let fact = fact_of(article, record).ok_or_else(|| {
+                refuse(format!(
+                    "is an instance of the fact {:?}, which that article does not require",
+                    record.fact
                 ))
             })?;
+            // A fact holds fields only; `when` reads one of them.
+            (fact.effects(), &record.fields)
+        } else if article.get_submission().and_then(|s| s.submission_kind()) == Some(&record.kind) {
+            return Ok(Vec::new());
+        } else {
+            let decision = article
+                .get_decision()
+                .filter(|d| d.legal_character() == Some(record.kind.as_str()))
+                .ok_or_else(|| {
+                    EngineError::InvalidOperation(format!(
+                        "record '{}' is a {} under '{}', which that article does not produce",
+                        record.id, record.kind, record.basis
+                    ))
+                })?;
+            // `when` reads an outcome of the decision.
+            (decision.effects(), &record.outputs)
+        };
         let mut holding = Vec::new();
-        for effect in decision.effects() {
+        for effect in effects {
             if let Some(when) = &effect.when {
-                match record.outputs.get(when) {
+                match conditions.get(when) {
                     Some(Value::Bool(true)) => {}
                     Some(Value::Bool(false)) => continue,
                     _ => {
-                        return Err(EngineError::InvalidOperation(format!(
-                            "record '{}' ({}) has an effect that depends on '{when}', but holds \
-                             no boolean under it",
-                            record.id, record.basis
+                        return Err(refuse(format!(
+                            "has an effect that depends on '{when}', but holds no boolean under it"
                         )))
                     }
                 }
             }
+            if !in_window(record, effect, day).map_err(refuse)? {
+                continue;
+            }
             let name = &effect.parameter;
             let Some(Value::String(target)) = record.fields.get(name) else {
-                return Err(EngineError::InvalidOperation(format!(
-                    "record '{}' ({}) has an effect on '{name}', but holds no record id under it",
-                    record.id, record.basis
+                return Err(refuse(format!(
+                    "has an effect on '{name}', but holds no record id under it"
                 )));
             };
             let target = earlier.iter().find(|r| &r.id == target).ok_or_else(|| {
-                EngineError::InvalidOperation(format!(
-                    "record '{}' ({}) has an effect on '{target}', which is no record \
-                         recorded before it",
-                    record.id, record.basis
+                refuse(format!(
+                    "has an effect on '{target}', which is no record recorded before it"
                 ))
             })?;
             holding.push(target.id.as_str());
         }
         Ok(holding)
     }
+}
+
+/// The fact `record` is an instance of, as its article requires it, when it
+/// is an executogram.
+fn fact_of<'a>(
+    article: &'a Article,
+    record: &ChronicleRecord,
+) -> Option<&'a regelrecht_law_model::ArticleRequirement> {
+    if record.kind != EXECUTOGRAM {
+        return None;
+    }
+    article.required_fact(record.fact.as_deref()?)
+}
+
+/// Whether `day` lies in the window of `effect` (schema v0.8.15): on or
+/// after the date `record` holds under `from`, and before the one under
+/// `until`. A bound the effect does not name, or that holds null, leaves
+/// the window open on that side. A bound that holds something else than a
+/// date is refused: it would otherwise make the effect hold or not without a
+/// word.
+fn in_window(
+    record: &ChronicleRecord,
+    effect: &regelrecht_law_model::RecordEffect,
+    day: NaiveDate,
+) -> std::result::Result<bool, String> {
+    let bound = |name: Option<&str>| -> std::result::Result<Option<NaiveDate>, String> {
+        let Some(name) = name else {
+            return Ok(None);
+        };
+        match record.fields.get(name).or_else(|| record.outputs.get(name)) {
+            None | Some(Value::Null) => Ok(None),
+            Some(Value::String(s)) => NaiveDate::parse_from_str(s, "%Y-%m-%d")
+                .map(Some)
+                .map_err(|_| format!("bounds an effect by '{name}', which holds {s:?}, no date")),
+            Some(other) => Err(format!(
+                "bounds an effect by '{name}', which holds {other:?}, no date"
+            )),
+        }
+    };
+    let [from, until] = effect.window();
+    let (from, until) = (bound(from)?, bound(until)?);
+    Ok(from.is_none_or(|f| f <= day) && until.is_none_or(|u| day < u))
 }
 
 /// Which records a play reads: all of them (`members` is `None`), or those of
@@ -1157,7 +1244,10 @@ mod tests {
     /// Article 1 grants (`verleend`), article 2 revokes `bestreden` when
     /// `herroepen`, article 3 takes a decision in the place of `bestreden`
     /// (it revokes it), article 4 requires the
-    /// fact `ingeleverd`.
+    /// fact `ingeleverd`. Schema v0.8.15: article 7 requires the fact
+    /// `vernietigd`, which revokes `besluit` when it holds `vernietigd` true;
+    /// article 8 suspends `bestreden` from `vanaf` until `tot` as a decision,
+    /// and article 9 does the same as a fact.
     const LAW: &str = r#"
 $id: wet
 regulatory_layer: WET
@@ -1216,6 +1306,40 @@ articles:
       execution:
         output: [{name: kaart_weg, type: boolean}]
         actions: [{output: kaart_weg, value: false}]
+  - number: '7'
+    text: t
+    machine_readable:
+      requires:
+        - fact: vernietigd
+          parameters: [besluit, vernietigd]
+          effects: [{revokes: besluit, when: vernietigd}]
+      execution:
+        parameters: [{name: besluit, type: string}, {name: vernietigd, type: boolean}]
+  - number: '8'
+    text: t
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            effects: [{revokes: bestreden, from: vanaf, until: tot}]
+        parameters:
+          - {name: bestreden, type: string}
+          - {name: vanaf, type: date}
+          - {name: tot, type: date}
+        output: [{name: geschorst, type: boolean}]
+        actions: [{output: geschorst, value: true}]
+  - number: '9'
+    text: t
+    machine_readable:
+      requires:
+        - fact: geschorst
+          parameters: [besluit, vanaf, tot]
+          effects: [{revokes: besluit, from: vanaf, until: tot}]
+      execution:
+        parameters:
+          - {name: besluit, type: string}
+          - {name: vanaf, type: date}
+          - {name: tot, type: date}
 "#;
 
     /// Counts the grants that count and whether the last record left a card.
@@ -1310,6 +1434,67 @@ articles:
             kind: "EXECUTOGRAM".to_string(),
             fact: Some("ingeleverd".to_string()),
             ..record(id, "4", &[], &[])
+        }
+    }
+
+    /// An instance of the fact `fact` under `article`, with `fields`.
+    fn fact(id: &str, article: &str, fact: &str, fields: &[(&str, Value)]) -> ChronicleRecord {
+        ChronicleRecord {
+            kind: "EXECUTOGRAM".to_string(),
+            fact: Some(fact.to_string()),
+            ..record(id, article, fields, &[])
+        }
+    }
+
+    /// A fact under article 7 that revokes `target` when `holds`.
+    fn annulled(id: &str, target: &str, holds: bool) -> ChronicleRecord {
+        fact(
+            id,
+            "7",
+            "vernietigd",
+            &[
+                ("besluit", Value::String(target.to_string())),
+                ("vernietigd", Value::Bool(holds)),
+            ],
+        )
+    }
+
+    /// A date, or null for none.
+    fn day_or_null(date: Option<&str>) -> Value {
+        date.map_or(Value::Null, |d| Value::String(d.to_string()))
+    }
+
+    /// A suspension of `target` from `from` until `until`: a decision under
+    /// article 8, or a fact under article 9.
+    fn suspend(
+        id: &str,
+        target: &str,
+        from: Option<&str>,
+        until: Option<&str>,
+        as_fact: bool,
+    ) -> ChronicleRecord {
+        if as_fact {
+            fact(
+                id,
+                "9",
+                "geschorst",
+                &[
+                    ("besluit", Value::String(target.to_string())),
+                    ("vanaf", day_or_null(from)),
+                    ("tot", day_or_null(until)),
+                ],
+            )
+        } else {
+            record(
+                id,
+                "8",
+                &[
+                    ("bestreden", Value::String(target.to_string())),
+                    ("vanaf", day_or_null(from)),
+                    ("tot", day_or_null(until)),
+                ],
+                &[("geschorst", Value::Bool(true))],
+            )
         }
     }
 
@@ -1478,6 +1663,161 @@ articles:
     }
 
     #[test]
+    fn a_fact_revokes_when_what_it_holds_says_so() {
+        let outcome = play(&[grant("a"), annulled("v", "a", true)]).unwrap();
+        assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(false));
+        assert_eq!(
+            outcome.events[0],
+            ProjectionEvent::Skipped {
+                record: "a".to_string(),
+                undone_by: vec!["v".to_string()],
+            }
+        );
+        let outcome = play(&[grant("a"), annulled("v", "a", false)]).unwrap();
+        assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(true));
+        assert!(skipped(&outcome).is_empty());
+    }
+
+    #[test]
+    fn revoking_a_fact_revives_what_it_revoked() {
+        // A decision revokes the fact; a fact revokes a fact.
+        for undo in [revoke("h", "v", true), annulled("w", "v", true)] {
+            let outcome = play(&[grant("a"), annulled("v", "a", true), undo]).unwrap();
+            assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(true));
+            assert_eq!(skipped(&outcome), ["v"]);
+        }
+    }
+
+    #[test]
+    fn a_fact_needs_a_boolean_condition_and_a_record_id() {
+        for (fields, why) in [
+            (
+                vec![("besluit", Value::String("a".into()))],
+                "holds no boolean under it",
+            ),
+            (
+                vec![
+                    ("besluit", Value::String("a".into())),
+                    ("vernietigd", Value::String("ja".into())),
+                ],
+                "holds no boolean under it",
+            ),
+            (
+                vec![("vernietigd", Value::Bool(true))],
+                "holds no record id under it",
+            ),
+        ] {
+            let err = play(&[grant("a"), fact("v", "7", "vernietigd", &fields)]).expect_err(why);
+            assert!(
+                err.to_string().contains("record 'v' (wet#7) has an effect"),
+                "{err}"
+            );
+            assert!(err.to_string().contains(why), "{why}: {err}");
+        }
+        // A fact its article does not require is refused, rather than read
+        // as a fact without effects.
+        let err = play(&[grant("a"), fact("v", "7", "anders", &[])]).expect_err("no such fact");
+        assert!(
+            err.to_string().contains(
+                "is an instance of the fact Some(\"anders\"), which that article does not require"
+            ),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn a_suspension_revokes_only_on_the_days_of_its_window() {
+        // The calculation date is 2025-03-01; `from` is included, `until`
+        // is not, and a bound that is null is open.
+        for as_fact in [false, true] {
+            for (from, until, holds) in [
+                (Some("2025-02-01"), Some("2025-04-01"), true),
+                (Some("2025-03-01"), Some("2025-04-01"), true),
+                (Some("2025-02-01"), Some("2025-03-01"), false),
+                (Some("2025-03-02"), Some("2025-04-01"), false),
+                (None, Some("2025-03-02"), true),
+                (Some("2025-01-01"), None, true),
+                (None, None, true),
+                (Some("2025-03-01"), Some("2025-03-01"), false),
+            ] {
+                let outcome = play(&[grant("a"), suspend("s", "a", from, until, as_fact)]).unwrap();
+                let why = format!("{from:?}..{until:?}, as fact: {as_fact}");
+                assert_eq!(
+                    outcome.result.outputs["heeft_kaart"],
+                    Value::Bool(!holds),
+                    "{why}"
+                );
+                assert_eq!(skipped(&outcome).len(), usize::from(holds), "{why}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_same_chronicle_answers_by_the_day_asked() {
+        let records = [
+            grant("a"),
+            suspend("s", "a", Some("2025-03-01"), Some("2025-05-01"), false),
+        ];
+        let heeft_kaart = |day: &str| {
+            service()
+                .evaluate_projection(
+                    "reductie",
+                    &["heeft_kaart"],
+                    &records,
+                    BTreeMap::new(),
+                    day,
+                    false,
+                )
+                .unwrap()
+                .result
+                .outputs["heeft_kaart"]
+                .clone()
+        };
+        assert_eq!(heeft_kaart("2025-04-30"), Value::Bool(false));
+        assert_eq!(heeft_kaart("2025-05-01"), Value::Bool(true));
+    }
+
+    #[test]
+    fn a_suspension_outside_its_window_revokes_nothing_it_alone_revoked() {
+        // `s` suspends the revocation `h` until 2025-02-01. On the
+        // calculation date the suspension holds no more, so `h` counts and
+        // the grant does not.
+        let outcome = play(&[
+            grant("a"),
+            revoke("h", "a", true),
+            suspend("s", "h", None, Some("2025-02-01"), true),
+        ])
+        .unwrap();
+        assert_eq!(skipped(&outcome), ["a"]);
+        // Inside the window `h` does not count, so the grant does.
+        let outcome = play(&[
+            grant("a"),
+            revoke("h", "a", true),
+            suspend("s", "h", None, Some("2025-04-01"), true),
+        ])
+        .unwrap();
+        assert_eq!(skipped(&outcome), ["h"]);
+    }
+
+    #[test]
+    fn a_bound_of_a_window_must_hold_a_date() {
+        for (value, shown) in [
+            (Value::String("maart".into()), "holds \"maart\", no date"),
+            (Value::Int(3), "holds Int(3), no date"),
+        ] {
+            let mut s = suspend("s", "a", None, None, false);
+            s.fields.insert("vanaf".to_string(), value);
+            let err = play(&[grant("a"), s]).expect_err(shown);
+            assert!(
+                err.to_string().contains(&format!(
+                    "record 's' (wet#8) bounds an effect by 'vanaf', which {shown}"
+                )),
+                "{err}"
+            );
+        }
+    }
+
+    #[test]
     fn a_long_chain_of_undoings_settles() {
         // A grant, then eight revocations, each revoking the one before:
         // the grant counts when the number of revocations is even.
@@ -1513,8 +1853,8 @@ articles:
 
     #[test]
     fn a_record_whose_article_cannot_be_found_is_refused() {
-        let unknown = record("x", "9", &[], &[]);
-        let err = play(&[grant("a"), unknown]).expect_err("no article 9");
+        let unknown = record("x", "99", &[], &[]);
+        let err = play(&[grant("a"), unknown]).expect_err("no article 99");
         assert!(
             err.to_string().contains("names no article in force"),
             "{err}"
@@ -1597,7 +1937,9 @@ articles:
     }
 
     /// The definition, checked without the engine's pass: a record counts
-    /// unless a later record that itself counts revokes it. For each of
+    /// on the calculation date unless a later record that itself counts
+    /// revokes it on that date, by a decision or a fact, always, by its
+    /// outcome, or in a window of days (schema v0.8.15). For each of
     /// many generated chronicles the oracle tries every assignment of
     /// "counts" to the records, keeps those that satisfy the definition,
     /// finds exactly one, and the engine must skip exactly the records that
@@ -1614,8 +1956,17 @@ articles:
         for _ in 0..500 {
             let n = 1 + next(12);
             let mut records = Vec::new();
-            // (target, holds) per record; None for a grant.
+            // (target, holds on the calculation date) per record; None for
+            // a grant. An effect is a decision's or a fact's, and holds
+            // always, by its outcome, or on the days of its window.
             let mut effect_of: Vec<Option<(usize, bool)>> = Vec::new();
+            let bounds = [
+                None,
+                Some("2025-02-01"),
+                Some("2025-03-01"),
+                Some("2025-04-01"),
+            ];
+            let day = "2025-03-01";
             for i in 0..n {
                 let id = format!("r{i}");
                 if i == 0 || next(3) == 0 {
@@ -1625,13 +1976,27 @@ articles:
                 }
                 let target = next(i);
                 let target_id = format!("r{target}");
-                if next(2) == 0 {
-                    let holds = next(4) != 0;
-                    records.push(revoke(&id, &target_id, holds));
-                    effect_of.push(Some((target, holds)));
-                } else {
-                    records.push(replace(&id, &target_id));
-                    effect_of.push(Some((target, true)));
+                match next(4) {
+                    0 => {
+                        let holds = next(4) != 0;
+                        records.push(revoke(&id, &target_id, holds));
+                        effect_of.push(Some((target, holds)));
+                    }
+                    1 => {
+                        records.push(replace(&id, &target_id));
+                        effect_of.push(Some((target, true)));
+                    }
+                    2 => {
+                        let holds = next(4) != 0;
+                        records.push(annulled(&id, &target_id, holds));
+                        effect_of.push(Some((target, holds)));
+                    }
+                    _ => {
+                        let (from, until) = (bounds[next(4)], bounds[next(4)]);
+                        let holds = from.is_none_or(|f| f <= day) && until.is_none_or(|u| day < u);
+                        records.push(suspend(&id, &target_id, from, until, next(2) == 0));
+                        effect_of.push(Some((target, holds)));
+                    }
                 }
             }
             let satisfies = |counts: &[bool]| {

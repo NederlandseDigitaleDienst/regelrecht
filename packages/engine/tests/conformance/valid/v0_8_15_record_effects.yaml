@@ -1,0 +1,84 @@
+---
+# Tier C: effects of a fact and effects that hold for a window of days
+# (schema v0.8.15). Article 1 suspends the contested decision from one day
+# until another, as a decision. Article 2 requires the receipt of a copy of
+# a ruling; the receipt revokes the decision the copy concerns when the
+# ruling annuls it. Article 3 requires a fact that suspends a decision for a
+# while. Fictional throughout.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_conformance_record_effects
+regulatory_layer: WET
+publication_date: '2026-11-07'
+valid_from: '2026-11-07'
+bwb_id: BWBR0099993
+name: Testwet effecten van feiten
+url: https://example.invalid/record-effects
+articles:
+  - number: '1'
+    url: https://example.invalid/record-effects/1
+    text: FICTIEF. Het bestuursorgaan schorst het bestreden besluit voor een periode.
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            outputs:
+              - geschorst
+            effects:
+              - revokes: bestreden_besluit
+                when: geschorst
+                from: schorsing_vanaf
+                until: schorsing_tot
+        parameters:
+          - name: bestreden_besluit
+            type: string
+          - name: schorsing_vanaf
+            type: date
+          - name: schorsing_tot
+            type: date
+        output:
+          - name: geschorst
+            type: boolean
+        actions:
+          - output: geschorst
+            value: true
+  - number: '2'
+    url: https://example.invalid/record-effects/2
+    text: FICTIEF. Het bestuursorgaan legt vast dat het een afschrift van de uitspraak heeft ontvangen.
+    machine_readable:
+      requires:
+        - fact: afschrift_uitspraak_ontvangen
+          description: Het bestuursorgaan heeft een afschrift ontvangen van een uitspraak over zijn besluit.
+          parameters:
+            - vernietigd_besluit
+            - vernietigd
+          effects:
+            - revokes: vernietigd_besluit
+              when: vernietigd
+      execution:
+        parameters:
+          - name: vernietigd_besluit
+            type: decision
+          - name: vernietigd
+            type: boolean
+  - number: '3'
+    url: https://example.invalid/record-effects/3
+    text: FICTIEF. Het bestuursorgaan legt vast dat een besluit voor een periode is geschorst.
+    machine_readable:
+      requires:
+        - fact: besluit_geschorst
+          parameters:
+            - geschorst_besluit
+            - schorsing_vanaf
+            - schorsing_tot
+          effects:
+            - revokes: geschorst_besluit
+              from: schorsing_vanaf
+              until: schorsing_tot
+      execution:
+        parameters:
+          - name: geschorst_besluit
+            type: string
+          - name: schorsing_vanaf
+            type: date
+          - name: schorsing_tot
+            type: date
