@@ -1517,9 +1517,16 @@ articles:
         );
         LawExecutionService::new().load_law(&with_question).unwrap();
         // Without that parameter, `$peildatum` is nothing the step can pass.
-        assert!(LawExecutionService::new()
+        let err = LawExecutionService::new()
             .load_law(&law_with_projection("REDUCTIE", &asks))
-            .is_err());
+            .expect_err("no parameter peildatum");
+        assert!(
+            err.to_string().contains(
+                "has input 'x' that passes 'p' as '$peildatum'; a parameter of a step is \
+                 $record.<field>, $state.<property> or a parameter of the question"
+            ),
+            "{err}"
+        );
         let declares_state = law_with_projection("REDUCTIE", &ok).replace(
             "      execution:\n",
             "      execution:\n        parameters:\n          - {name: state, type: object}\n",
@@ -1614,11 +1621,14 @@ articles:
             let projection = format!(
                 "{state}        steps:\n          - {{record: '{record}', actions: [{{output: a, value: $record.v}}]}}"
             );
+            let err = LawExecutionService::new()
+                .load_law(&law_with_projection("REDUCTIE", &projection))
+                .expect_err(record);
             assert!(
-                LawExecutionService::new()
-                    .load_law(&law_with_projection("REDUCTIE", &projection))
-                    .is_err(),
-                "{record}"
+                err.to_string().contains(&format!(
+                    "'{record}' is not <regulation>#<article>, optionally with #<KIND>"
+                )),
+                "{record}: {err}"
             );
         }
     }
