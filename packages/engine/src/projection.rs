@@ -3,16 +3,16 @@
 //! The reduction declares a state (`projection.state`), each property with
 //! its type and starting from that type's start value, and, per article a
 //! record rests on, the step for such a record (`projection.steps`). A
-//! step applies an article of a law, which says what the record does with
-//! the state, and only wires: each parameter of the article comes from the
-//! record or the state, and each property it sets from an output. The
-//! engine plays the records the cell knew on the calculation date in the
-//! order the cell recorded them. Each step is pure: the applied article
-//! reads nothing but what the step wires in, so the next state follows from
-//! the state before and the record alone. The applied article runs in the
-//! version in force on the day of the record; one version of the reduction,
-//! the one in force on the calculation date, gives the state, every step
-//! and the answer: the reduction is the cell's reading, not law. The
+//! step is written like an article: it takes outputs of a law
+//! (`input` with `source.regulation`), with parameters from the record and
+//! the state, and sets each property to a bare reference (`set`). What a
+//! record does is in that law. The engine plays the records the cell knew
+//! on the calculation date in the order the cell recorded them. Each step
+//! is pure: the law it calls reads nothing but what the step passes, so the
+//! next state follows from the state before and the record alone. The law
+//! runs in the version in force on the day of the record; one version of
+//! the reduction, the one in force on the calculation date, gives the
+//! state, every step and the answer: the reduction is the cell's reading, not law. The
 //! reduction's `execution` answers from the last state, reading each
 //! property as `$state.<name>`.
 //!
@@ -49,7 +49,7 @@ use regelrecht_law_model::{
 use serde::{Deserialize, Serialize};
 
 use crate::answer::Call;
-use crate::engine::{ArticleEngine, ArticleResult};
+use crate::engine::ArticleResult;
 use crate::error::{EngineError, Result};
 use crate::service::LawExecutionService;
 use crate::trace::{PathNode, TraceBuilder};
@@ -255,7 +255,7 @@ impl LawExecutionService {
             .collect();
         self.check_steps(law_id, &projection, day)?;
         let partition = self.partition(&projection, key_type.as_ref(), &known, &parameters)?;
-        let played = self.play(law_id, &projection, &known, &partition)?;
+        let played = self.play(law_id, &projection, &known, &partition, trace)?;
 
         let state = Some(Value::Object(played.state.clone()));
         let mut result = if trace {
@@ -297,12 +297,15 @@ impl LawExecutionService {
         projection: &Projection,
         records: &[ChronicleRecord],
         partition: &Partition,
+        trace: bool,
     ) -> Result<Played> {
         // undone_by[t]: the records with an effect on t that held when they
         // were last played, each with what it does to t. A record is skipped
         // while this is not empty.
         let mut undone_by: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
         let mut events = Vec::new();
+        // The traces of the laws a step called, by the index of its event.
+        let mut nested: BTreeMap<usize, Vec<PathNode>> = BTreeMap::new();
         // Each rewind follows from a record changing whether an earlier one
         // counts, and effects only reach back, so the replays settle. A
         // chain of undoings (a revocation of a revocation of ...) needs a
@@ -391,13 +394,21 @@ impl LawExecutionService {
                     continue;
                 }
 
-                let (article, changes) = match step_for(projection, record) {
-                    Some(step) => (
-                        Some(step.apply.clone()),
-                        self.apply_step(law_id, projection, step, record, &state)?,
-                    ),
-                    None => (None, Vec::new()),
+                let applied_step = match step_for(projection, record) {
+                    Some(step) => {
+                        self.apply_step(law_id, projection, step, record, &state, trace)?
+                    }
+                    None => AppliedStep::default(),
                 };
+                let AppliedStep {
+                    calls,
+                    changes,
+                    traces,
+                } = applied_step;
+                let article = (!calls.is_empty()).then(|| calls.join(", "));
+                if !traces.is_empty() {
+                    nested.insert(events.len(), traces);
+                }
                 for change in &changes {
                     state.insert(change.property.clone(), change.to.clone());
                     set_by.insert(change.property.clone(), Some(record.id.clone()));
@@ -430,6 +441,7 @@ impl LawExecutionService {
                         state,
                         set_by,
                         events,
+                        nested,
                     })
                 }
             }
@@ -500,12 +512,12 @@ impl LawExecutionService {
         Ok(())
     }
 
-    /// Refuse a step whose wiring does not fit the article it applies, in
-    /// the version in force on `day`: the article must be one a step can
-    /// apply ([`refuse_impure`]), each of its parameters must be bound
-    /// ([`bindings`]) to a field of the record or a property of the state of
-    /// the same type, and each property the step sets ([`outputs_to_state`])
-    /// must come from an output of the property's type.
+    /// Refuse a step that does not fit the laws it calls, in their versions
+    /// in force on `day`: each input must name an output of an article a step
+    /// can call ([`refuse_impure`]), pass only parameters that article
+    /// declares, from a field of the record or a property of the state of
+    /// the same type, and have the type of that output; each property the
+    /// step sets must get a value of its type.
     fn check_wiring(
         &self,
         projection: &Projection,
@@ -513,66 +525,93 @@ impl LawExecutionService {
         record_article: &Article,
         day: NaiveDate,
     ) -> std::result::Result<(), String> {
-        let Some((_, article)) = self.applied_article(&step.apply, day) else {
-            return Err(format!("{} names no article in force on {day}", step.apply));
+        let read_type = |source: &StepSource| match source {
+            StepSource::Input(name) => step
+                .input
+                .iter()
+                .find(|i| &i.name == name)
+                .map(|i| i.input_type),
+            StepSource::Record(field) => field_type(record_article, field),
+            StepSource::State(property) => state_type(projection, property),
         };
-        refuse_impure(article).map_err(|why| format!("{} cannot be applied: {why}", step.apply))?;
-        if let Some(name) = step
-            .parameters
-            .keys()
-            .find(|n| !article.get_parameters().iter().any(|p| &p.name == *n))
-        {
-            return Err(format!("{} has no parameter '{name}'", step.apply));
-        }
-        for (parameter, source) in bindings(step, article, projection, record_article)? {
-            let given = match &source {
-                StepSource::State(property) => state_type(projection, property),
-                StepSource::Record(field) => field_type(record_article, field),
+        for input in &step.input {
+            let (regulation, output, parameters) = step_source(input)?;
+            let Some((_, article)) = self.called_article(regulation, output, day) else {
+                return Err(format!(
+                    "input '{}' takes '{output}' of {regulation}, which no article in force on \
+                     {day} gives",
+                    input.name
+                ));
             };
-            match given {
-                None => {
+            refuse_impure(article)
+                .map_err(|why| format!("input '{}' cannot call {regulation}: {why}", input.name))?;
+            for (name, value) in &parameters {
+                let Some(parameter) = article.get_parameters().iter().find(|p| &p.name == name)
+                else {
                     return Err(format!(
-                        "wires {source} into '{}', but the record has no such field",
-                        parameter.name
-                    ))
+                        "input '{}' passes '{name}', which {regulation} article {} does not take",
+                        input.name, article.number
+                    ));
+                };
+                let source = StepSource::parse(value)
+                    .ok_or_else(|| format!("input '{}' passes '{name}' as {value}", input.name))?;
+                match read_type(&source) {
+                    None => {
+                        return Err(format!(
+                            "input '{}' passes {source} as '{name}', but the record has no such \
+                             field",
+                            input.name
+                        ))
+                    }
+                    Some(t) if t != parameter.param_type => {
+                        return Err(format!(
+                            "input '{}' passes {source}, a {t:?}, as '{name}', a {:?}",
+                            input.name, parameter.param_type
+                        ))
+                    }
+                    Some(_) => {}
                 }
-                Some(t) if t != parameter.param_type => {
-                    return Err(format!(
-                        "wires {source}, a {t:?}, into '{}', a {:?}",
-                        parameter.name, parameter.param_type
-                    ))
-                }
-                Some(_) => {}
             }
-        }
-        if let Some(output) = step
-            .output
-            .values()
-            .find(|o| !article.get_outputs().iter().any(|d| &d.name == *o))
-        {
-            return Err(format!("{} has no output '{output}'", step.apply));
-        }
-        for (property, output) in outputs_to_state(step, article, projection)? {
-            let declared = article
+            let given = article
                 .get_outputs()
                 .iter()
                 .find(|o| o.name == output)
                 .map(|o| o.output_type);
-            if let (Some(t), Some(d)) = (state_type(projection, &property), declared) {
-                if t != d {
+            if given.is_some_and(|t| t != input.input_type) {
+                return Err(format!(
+                    "input '{}' is a {:?}, but '{output}' of {regulation} is a {:?}",
+                    input.name,
+                    input.input_type,
+                    given.unwrap_or(input.input_type)
+                ));
+            }
+        }
+        for (property, value) in &step.set {
+            let source = set_source(value)?;
+            let given = read_type(&source);
+            match (given, state_type(projection, property)) {
+                (None, _) => {
                     return Err(format!(
-                        "sets '{property}' from '{output}', a {d:?}, which is no {t:?}"
-                    ));
+                        "sets '{property}' from {source}, but the record has no such field"
+                    ))
                 }
+                (Some(t), Some(want)) if t != want => {
+                    return Err(format!(
+                        "sets '{property}' from {source}, a {t:?}, which is no {want:?}"
+                    ))
+                }
+                _ => {}
             }
         }
         Ok(())
     }
 
-    /// What `step` does with `state` for `record`: the article it applies,
-    /// in the version in force on the day the record was recorded, run on
-    /// the values the step wires in, and the properties its outputs set.
-    /// The article reads nothing but those values ([`refuse_impure`]).
+    /// What `step` does with `state` for `record`. Each input calls its law
+    /// in the version in force on the day the record was recorded, not on
+    /// the calculation date: what a record did follows from the law of its
+    /// day, as its effects do. The law reads nothing but the parameters the
+    /// input passes ([`refuse_impure`]). The properties then get what `set`
+    /// gives them.
     fn apply_step(
         &self,
         law_id: &str,
@@ -580,70 +619,112 @@ impl LawExecutionService {
         step: &ProjectionStep,
         record: &ChronicleRecord,
         state: &BTreeMap<String, Value>,
-    ) -> Result<Vec<StateChange>> {
+        trace: bool,
+    ) -> Result<AppliedStep> {
         let fail = |why: String| {
             EngineError::InvalidOperation(format!(
-                "the step of '{law_id}' for record '{}' ({}) applies {}: {why}",
-                record.id, record.basis, step.apply
+                "the step of '{law_id}' for record '{}' ({}): {why}",
+                record.id, record.basis
             ))
         };
-        let (law, article) = self
-            .applied_article(&step.apply, record.recorded_on)
-            .ok_or_else(|| fail(format!("no article in force on {}", record.recorded_on)))?;
-        refuse_impure(article).map_err(fail)?;
-
+        let day = record.recorded_on;
+        let date = day.to_string();
         // The record's fields, then its outputs; an output wins over a field
         // of the same name.
         let mut row = record.fields.clone();
         row.extend(record.outputs.clone());
-        let record_article = self.article_of(record)?;
-        let mut parameters = BTreeMap::new();
-        for (parameter, source) in
-            bindings(step, article, projection, record_article).map_err(fail)?
-        {
-            let value = match &source {
-                StepSource::Record(field) => row
-                    .get(field)
-                    .cloned()
-                    .ok_or_else(|| fail(format!("the record holds no '{field}'")))?,
-                StepSource::State(property) => state.get(property).cloned().unwrap_or(Value::Null),
-            };
-            parameters.insert(parameter.name.clone(), value);
-        }
-        let result = ArticleEngine::new(article, law)
-            .evaluate(parameters, &record.recorded_on.to_string())
-            .map_err(|e| fail(e.to_string()))?;
-
-        let mut changes = Vec::new();
-        for (property, output) in outputs_to_state(step, article, projection).map_err(fail)? {
-            let to = result
-                .outputs
-                .get(&output)
+        let mut inputs: BTreeMap<&str, Value> = BTreeMap::new();
+        let read = |source: &StepSource, inputs: &BTreeMap<&str, Value>| match source {
+            StepSource::Input(name) => inputs
+                .get(name.as_str())
                 .cloned()
-                .ok_or_else(|| fail(format!("the article gives no output '{output}'")))?;
-            let declared = projection.state.iter().find(|p| p.name == property);
+                .ok_or_else(|| fail(format!("it has no input '{name}'"))),
+            StepSource::Record(field) => row
+                .get(field)
+                .cloned()
+                .ok_or_else(|| fail(format!("the record holds no '{field}'"))),
+            StepSource::State(property) => Ok(state.get(property).cloned().unwrap_or(Value::Null)),
+        };
+        let mut applied = AppliedStep::default();
+        for input in &step.input {
+            let (regulation, output, parameters) = step_source(input).map_err(fail)?;
+            let (_, article) = self
+                .called_article(regulation, output, day)
+                .ok_or_else(|| {
+                    fail(format!(
+                    "input '{}' takes '{output}' of {regulation}, which no article in force on \
+                     {day} gives",
+                    input.name
+                ))
+                })?;
+            refuse_impure(article).map_err(|why| {
+                fail(format!(
+                    "input '{}' cannot call {regulation}: {why}",
+                    input.name
+                ))
+            })?;
+            let mut passed = BTreeMap::new();
+            for (name, value) in &parameters {
+                let source = StepSource::parse(value).ok_or_else(|| {
+                    fail(format!("input '{}' passes '{name}' as {value}", input.name))
+                })?;
+                passed.insert(name.clone(), read(&source, &inputs)?);
+            }
+            let result = if trace {
+                self.evaluate_law_with_trace_in(
+                    regulation,
+                    &[output],
+                    passed,
+                    Call::default(),
+                    &date,
+                )
+            } else {
+                self.evaluate_law_in(regulation, &[output], passed, Call::default(), &date)
+            }
+            .map_err(|e| fail(format!("input '{}': {e}", input.name)))?;
+            let value = result.outputs.get(output).cloned().ok_or_else(|| {
+                fail(format!(
+                    "input '{}': {regulation} gave no '{output}'",
+                    input.name
+                ))
+            })?;
+            inputs.insert(input.name.as_str(), value);
+            let call = format!("{regulation}#{}", article.number);
+            if !applied.calls.contains(&call) {
+                applied.calls.push(call);
+            }
+            applied.traces.extend(result.trace);
+        }
+        for (property, value) in &step.set {
+            let source = set_source(value).map_err(fail)?;
+            let to = read(&source, &inputs)?;
+            let declared = projection.state.iter().find(|p| &p.name == property);
             if let Some(declared) = declared.filter(|p| !fits_property(p, &to)) {
                 return Err(fail(format!(
-                    "its output '{output}' is {to:?}, which is no {:?} for '{property}'",
+                    "it sets '{property}' from {source} to {to:?}, which is no {:?}",
                     declared.property_type
                 )));
             }
-            let from = state.get(&property).cloned().unwrap_or(Value::Null);
-            changes.push(StateChange { property, from, to });
+            let from = state.get(property).cloned().unwrap_or(Value::Null);
+            applied.changes.push(StateChange {
+                property: property.clone(),
+                from,
+                to,
+            });
         }
-        Ok(changes)
+        Ok(applied)
     }
 
-    /// The law and article `reference` names, in the version in force on
-    /// `day`.
-    fn applied_article(
+    /// The law `regulation` and its article that gives `output`, in the
+    /// versions in force on `day`.
+    fn called_article(
         &self,
-        reference: &str,
+        regulation: &str,
+        output: &str,
         day: NaiveDate,
     ) -> Option<(&ArticleBasedLaw, &Article)> {
-        let (law_id, number) = reference.split_once('#')?;
-        let law = self.resolver().get_law_for_date(law_id, Some(day))?;
-        let article = law.find_article_by_number(number)?;
+        let law = self.resolver().get_law_for_date(regulation, Some(day))?;
+        let article = law.find_article_by_output(output)?;
         Some((law, article))
     }
 
@@ -864,67 +945,41 @@ fn kinds_of(article: &Article) -> Vec<String> {
     produced.chain(facts).collect()
 }
 
-/// Where each parameter of `article` takes its value from: what the step
-/// wires in `parameters`, or else the field of the record or the property of
-/// the state of the same name. A name both hold is ambiguous and must be
-/// wired; a name neither holds cannot be bound.
-fn bindings<'a>(
-    step: &ProjectionStep,
-    article: &'a Article,
-    projection: &Projection,
-    record_article: &Article,
-) -> std::result::Result<Vec<(&'a regelrecht_law_model::Parameter, StepSource)>, String> {
-    article
-        .get_parameters()
-        .iter()
-        .map(|parameter| {
-            let name = &parameter.name;
-            if let Some(source) = step.parameters.get(name) {
-                return Ok((parameter, source.clone()));
-            }
-            let in_record = field_type(record_article, name).is_some();
-            let in_state = state_type(projection, name).is_some();
-            match (in_record, in_state) {
-                (true, true) => Err(format!(
-                    "parameter '{name}' of {} could come from $record.{name} or $state.{name}; \
-                     wire it in parameters",
-                    step.apply
-                )),
-                (true, false) => Ok((parameter, StepSource::Record(name.clone()))),
-                (false, true) => Ok((parameter, StepSource::State(name.clone()))),
-                (false, false) => Err(format!(
-                    "{} needs parameter '{name}', which the step does not wire and neither the \
-                     record nor the state holds",
-                    step.apply
-                )),
-            }
-        })
-        .collect()
+/// The regulation, output and parameters an input of a step takes. A step
+/// calls a law and nothing else: the loader refuses any other source.
+fn step_source(
+    input: &regelrecht_law_model::Input,
+) -> std::result::Result<(&str, &str, std::collections::BTreeMap<String, String>), String> {
+    let source = input.source.as_ref();
+    match (
+        source.and_then(|s| s.regulation.as_deref()),
+        source.and_then(|s| s.output.as_deref()),
+    ) {
+        (Some(regulation), Some(output)) => Ok((
+            regulation,
+            output,
+            source
+                .and_then(|s| s.parameters.clone())
+                .unwrap_or_default(),
+        )),
+        _ => Err(format!(
+            "input '{}' names no regulation and output",
+            input.name
+        )),
+    }
 }
 
-/// Which output of `article` sets which property of the state: what the
-/// step maps in `output`, and else each output that has the name of a
-/// property. An output that names no property is not used. A step that
-/// sets nothing at all is refused.
-fn outputs_to_state(
-    step: &ProjectionStep,
-    article: &Article,
-    projection: &Projection,
-) -> std::result::Result<Vec<(String, String)>, String> {
-    let mut map: BTreeMap<String, String> = step.output.clone();
-    for output in article.get_outputs() {
-        if state_type(projection, &output.name).is_some() && !map.contains_key(&output.name) {
-            map.insert(output.name.clone(), output.name.clone());
-        }
+/// The source a value of `set` reads: a bare reference, nothing else.
+fn set_source(
+    value: &regelrecht_law_model::ActionValue,
+) -> std::result::Result<StepSource, String> {
+    match value {
+        regelrecht_law_model::ActionValue::Literal(Value::String(s)) => StepSource::parse(s),
+        _ => None,
     }
-    if map.is_empty() {
-        return Err(format!(
-            "{} sets no property of the state: no output has the name of one, and the step \
-             maps none",
-            step.apply
-        ));
-    }
-    Ok(map.into_iter().collect())
+    .ok_or_else(|| {
+        "sets a value that is no $<input>, $record.<field> or $state.<property>".to_string()
+    })
 }
 
 /// The type of property `name` of the projection's state.
@@ -953,8 +1008,8 @@ fn field_type(article: &Article, name: &str) -> Option<ParameterType> {
         })
 }
 
-/// Refuse an article a step cannot apply: one that reads anything but the
-/// parameters the step wires in. An input (with or without a `source`) is
+/// Refuse an article a step cannot call: one that reads anything but the
+/// parameters the step passes. An input (with or without a `source`) is
 /// data from outside the record and the state, and an open term is filled
 /// by another regulation, so an article with either is refused, as is one
 /// without outputs or one that plays a projection itself.
@@ -974,7 +1029,7 @@ fn refuse_impure(article: &Article) -> std::result::Result<(), String> {
         .and_then(|i| i.first())
     {
         return Err(format!(
-            "the article reads input '{}'; an applied article reads only what the step wires in",
+            "the article reads input '{}'; a law a step calls reads only what the step passes",
             input.name
         ));
     }
@@ -989,6 +1044,19 @@ struct Played {
     state: BTreeMap<String, Value>,
     set_by: BTreeMap<String, Option<String>>,
     events: Vec<ProjectionEvent>,
+    /// When tracing: per applied record, by the index of its event, the
+    /// traces of the laws its step called.
+    nested: BTreeMap<usize, Vec<PathNode>>,
+}
+
+/// What a step did for one record: the articles it called
+/// (`<regulation>#<article>`), the properties it set, and, when tracing,
+/// the trace of each call.
+#[derive(Default)]
+struct AppliedStep {
+    calls: Vec<String>,
+    changes: Vec<StateChange>,
+    traces: Vec<PathNode>,
 }
 
 /// Whether a step may give `property` the value `value`: one of its type,
@@ -1038,7 +1106,7 @@ fn parse_day(date: &str) -> Result<NaiveDate> {
 fn trace_node(played: &Played) -> PathNode {
     let mut node = PathNode::new(PathNodeType::Operation, "PROJECTION")
         .with_result(Value::Object(played.state.clone()));
-    for event in &played.events {
+    for (index, event) in played.events.iter().enumerate() {
         let (name, message, result) = match event {
             ProjectionEvent::Applied {
                 record,
@@ -1084,6 +1152,9 @@ fn trace_node(played: &Played) -> PathNode {
         let mut child = PathNode::new(PathNodeType::Operation, name);
         child.message = Some(message);
         child.result = result;
+        if let Some(traces) = played.nested.get(&index) {
+            child.children.extend(traces.iter().cloned());
+        }
         node.children.push(child);
     }
     node
@@ -1106,7 +1177,7 @@ pub fn describe_changes(changes: &[StateChange]) -> String {
 pub fn describe_applied(article: Option<&str>, changes: &[StateChange]) -> String {
     match article {
         Some(article) => format!("{article}: {}", describe_changes(changes)),
-        None => "-".to_string(),
+        None => describe_changes(changes),
     }
 }
 
@@ -1191,8 +1262,8 @@ articles:
     text: t
     machine_readable:
       execution:
-        output: [{name: kaart, type: boolean}]
-        actions: [{output: kaart, value: false}]
+        output: [{name: kaart_weg, type: boolean}]
+        actions: [{output: kaart_weg, value: false}]
 "#;
 
     /// Counts the grants that count and whether the last record left a card.
@@ -1211,12 +1282,26 @@ articles:
           - {name: aantal, type: number}
         steps:
           - record: wet#1#BESCHIKKING
-            apply: wet#5
-            output: {aantal: aantal_na}
+            input:
+              - name: kaart_na
+                type: boolean
+                source:
+                  regulation: wet
+                  output: kaart
+                  parameters: {verleend: $record.verleend, aantal: $state.aantal}
+              - name: aantal_na
+                type: number
+                source:
+                  regulation: wet
+                  output: aantal_na
+                  parameters: {verleend: $record.verleend, aantal: $state.aantal}
+            set: {kaart: $kaart_na, aantal: $aantal_na}
           - record: wet#3
-            apply: wet#5
+            set: {kaart: $record.verleend}
           - record: wet#4
-            apply: wet#6
+            input:
+              - {name: weg, type: boolean, source: {regulation: wet, output: kaart_weg}}
+            set: {kaart: $weg}
       execution:
         output: [{name: heeft_kaart, type: boolean}, {name: aantal, type: number}]
         actions:
@@ -1523,7 +1608,10 @@ articles:
             .load_law(
                 &REDUCTION
                     .replace("valid_from: '2025-01-01'", "valid_from: '2025-06-01'")
-                    .replace("            output: {aantal: aantal_na}\n", ""),
+                    .replace(
+                        "set: {kaart: $kaart_na, aantal: $aantal_na}",
+                        "set: {kaart: $kaart_na}",
+                    ),
             )
             .unwrap();
         let later = ChronicleRecord {
@@ -2101,6 +2189,13 @@ articles:
             node.children[0].message.as_deref(),
             Some("a: wet#5: aantal: 0 -> 1, kaart: false -> true")
         );
+        // The laws the step called hang under its node, as any law call
+        // does in a trace.
+        assert!(
+            !node.children[0].children.is_empty(),
+            "the calls of the step under APPLY: {:?}",
+            node.children[0]
+        );
     }
 
     /// A step applies the article in the version in force on the day the
@@ -2133,52 +2228,12 @@ articles:
         assert_eq!(outcome.result.outputs["aantal"], Value::Int(3));
     }
 
-    /// A parameter the step does not wire takes the field of the record or
-    /// the property of the state of the same name, and an output with the
-    /// name of a property sets it; what the step maps itself wins.
+    /// A step calls laws and nothing else: each input must name an output
+    /// of a law in force on the day of the record, pass parameters that law
+    /// takes, of the right type, from the record or the state, and the law
+    /// may read nothing else; each property gets a value of its type.
     #[test]
-    fn a_step_binds_by_name_unless_it_says_otherwise() {
-        // `verleend` from the record, `aantal` from the state, `kaart` by
-        // its name, `aantal` from `aantal_na` as the step says.
-        let outcome = play(&[grant("a"), grant("b")]).unwrap();
-        assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(true));
-        assert_eq!(outcome.result.outputs["aantal"], Value::Int(2));
-        // The step maps `kaart` to another output: that wins over the name.
-        let mut service = LawExecutionService::new();
-        service
-            .load_law(&LAW.replace(
-                "          - {output: aantal_na, value: {operation: ADD, values: [$aantal, 1]}}\n",
-                "          - {output: aantal_na, value: {operation: ADD, values: [$aantal, 1]}}\n          - {output: anders, value: false}\n",
-            ).replace(
-                "{name: aantal_na, type: number}]",
-                "{name: aantal_na, type: number}, {name: anders, type: boolean}]",
-            ))
-            .unwrap();
-        service
-            .load_law(&REDUCTION.replace(
-                "output: {aantal: aantal_na}",
-                "output: {aantal: aantal_na, kaart: anders}",
-            ))
-            .unwrap();
-        let outcome = service
-            .evaluate_projection(
-                "reductie",
-                &["heeft_kaart", "aantal"],
-                &[grant("a")],
-                BTreeMap::new(),
-                "2025-03-01",
-                false,
-            )
-            .unwrap();
-        assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(false));
-        assert_eq!(outcome.result.outputs["aantal"], Value::Int(1));
-    }
-
-    /// A step only wires: the article it applies must find every parameter
-    /// in the record or the state, with the right type, give the outputs
-    /// the step maps, set at least one property, and read nothing else.
-    #[test]
-    fn a_step_must_fit_the_article_it_applies() {
+    fn a_step_must_fit_the_laws_it_calls() {
         let ask = |law: &str, reduction: &str| {
             let mut service = LawExecutionService::new();
             service.load_law(law).unwrap();
@@ -2195,57 +2250,43 @@ articles:
                 .expect_err(reduction)
                 .to_string()
         };
-        let first = "            output: {aantal: aantal_na}\n";
-        let step = |wiring: &str| REDUCTION.replace(first, wiring);
+        let parameters = "parameters: {verleend: $record.verleend, aantal: $state.aantal}";
+        let with = |a: &str, b: &str| REDUCTION.replace(a, b);
         for (law, reduction, why) in [
             (
                 LAW.to_string(),
-                step("            output: {kaart: geen}\n"),
-                "wet#5 has no output 'geen'",
-            ),
-            (
-                LAW.replace("{name: aantal, type: number}", "{name: stand, type: number}")
-                    .replace("values: [$aantal, 1]", "values: [$stand, 1]"),
-                REDUCTION.to_string(),
-                "wet#5 needs parameter 'stand', which the step does not wire and neither the \
-                 record nor the state holds",
+                with("output: kaart\n", "output: geen\n"),
+                "input 'kaart_na' takes 'geen' of wet, which no article in force on 2025-03-01 gives",
             ),
             (
                 LAW.to_string(),
-                REDUCTION.replace(
-                    "          - {name: aantal, type: number}\n",
-                    "          - {name: aantal, type: number}\n          - {name: verleend, type: boolean}\n",
-                ),
-                "parameter 'verleend' of wet#5 could come from $record.verleend or \
-                 $state.verleend; wire it in parameters",
+                with(parameters, "parameters: {verleend: $record.verleend, aantal: $state.aantal, ander: $state.kaart}"),
+                "input 'kaart_na' passes 'ander', which wet article 5 does not take",
             ),
             (
                 LAW.to_string(),
-                step("            parameters: {ander: $state.kaart}\n"),
-                "wet#5 has no parameter 'ander'",
+                with(parameters, "parameters: {verleend: $state.aantal, aantal: $state.aantal}"),
+                "input 'kaart_na' passes $state.aantal, a Number, as 'verleend', a Boolean",
             ),
             (
                 LAW.to_string(),
-                step("            parameters: {verleend: $state.aantal}\n"),
-                "wires $state.aantal, a Number, into 'verleend', a Boolean",
+                with(parameters, "parameters: {verleend: $record.bestaat_niet, aantal: $state.aantal}"),
+                "input 'kaart_na' passes $record.bestaat_niet as 'verleend', but the record has no such field",
             ),
             (
                 LAW.to_string(),
-                step("            parameters: {verleend: $record.bestaat_niet}\n"),
-                "wires $record.bestaat_niet into 'verleend', but the record has no such field",
+                with("              - name: kaart_na\n                type: boolean", "              - name: kaart_na\n                type: number"),
+                "input 'kaart_na' is a Number, but 'kaart' of wet is a Boolean",
             ),
             (
                 LAW.to_string(),
-                step("            output: {kaart: aantal_na}\n"),
-                "sets 'kaart' from 'aantal_na', a Number, which is no Boolean",
+                with("set: {kaart: $kaart_na, aantal: $aantal_na}", "set: {kaart: $aantal_na}"),
+                "sets 'kaart' from $aantal_na, a Number, which is no Boolean",
             ),
             (
-                LAW.replace(
-                    "        output: [{name: kaart, type: boolean}]\n        actions: [{output: kaart, value: false}]",
-                    "        output: [{name: weg, type: boolean}]\n        actions: [{output: weg, value: false}]",
-                ),
-                REDUCTION.to_string(),
-                "wet#6 sets no property of the state",
+                LAW.to_string(),
+                with("set: {kaart: $record.verleend}", "set: {kaart: $record.bestaat_niet}"),
+                "sets 'kaart' from $record.bestaat_niet, but the record has no such field",
             ),
             (
                 LAW.replace(
@@ -2253,7 +2294,7 @@ articles:
                     "        parameters: [{name: verleend, type: boolean}, {name: aantal, type: number}]\n        input:\n          - {name: buiten, type: boolean, source: {regulation: elders, output: iets}}\n",
                 ),
                 REDUCTION.to_string(),
-                "wet#5 cannot be applied: the article reads input 'buiten'",
+                "input 'kaart_na' cannot call wet: the article reads input 'buiten'",
             ),
             (
                 LAW.replace(
@@ -2261,12 +2302,7 @@ articles:
                     "    machine_readable:\n      open_terms:\n        - {id: drempel, type: number, required: false}\n      execution:\n        parameters: [{name: verleend, type: boolean}, {name: aantal",
                 ),
                 REDUCTION.to_string(),
-                "wet#5 cannot be applied: the article has open terms",
-            ),
-            (
-                LAW.to_string(),
-                REDUCTION.replace("apply: wet#6", "apply: wet#9"),
-                "wet#9 names no article in force",
+                "input 'kaart_na' cannot call wet: the article has open terms",
             ),
         ] {
             let err = ask(&law, &reduction);

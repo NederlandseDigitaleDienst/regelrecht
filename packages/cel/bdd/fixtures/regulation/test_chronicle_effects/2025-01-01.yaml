@@ -219,10 +219,10 @@ articles:
     machine_readable:
       execution:
         output:
-          - name: in_bezit
+          - name: in_bezit_na_inlevering
             type: boolean
         actions:
-          - output: in_bezit
+          - output: in_bezit_na_inlevering
             value: false
 
   - number: '9'

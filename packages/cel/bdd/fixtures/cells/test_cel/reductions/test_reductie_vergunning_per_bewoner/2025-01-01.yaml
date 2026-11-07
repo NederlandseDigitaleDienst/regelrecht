@@ -24,22 +24,31 @@ articles:
             type: string
         steps:
           # A grant and a move both give a permit for the plate in the
-          # decision (article 4). The state and the record both hold a
-          # kenteken, so the step says which one the article reads.
+          # decision (article 4 of the law).
           - record: test_parkeervergunning#1
-            apply: test_parkeervergunning#4
-            parameters:
-              verleend: $record.vergunning_verleend
-              kenteken: $record.kenteken
-            output:
-              kenteken: kenteken_van_vergunning
+            input:
+              - name: kenteken_van_vergunning
+                type: string
+                source:
+                  regulation: test_parkeervergunning
+                  output: kenteken_van_vergunning
+                  parameters:
+                    verleend: $record.vergunning_verleend
+                    kenteken: $record.kenteken
+            set:
+              kenteken: $kenteken_van_vergunning
           - record: test_parkeervergunning#2
-            apply: test_parkeervergunning#4
-            parameters:
-              verleend: $record.vergunning_omgezet
-              kenteken: $record.kenteken
-            output:
-              kenteken: kenteken_van_vergunning
+            input:
+              - name: kenteken_van_vergunning
+                type: string
+                source:
+                  regulation: test_parkeervergunning
+                  output: kenteken_van_vergunning
+                  parameters:
+                    verleend: $record.vergunning_omgezet
+                    kenteken: $record.kenteken
+            set:
+              kenteken: $kenteken_van_vergunning
       execution:
         parameters:
           - name: bewoner

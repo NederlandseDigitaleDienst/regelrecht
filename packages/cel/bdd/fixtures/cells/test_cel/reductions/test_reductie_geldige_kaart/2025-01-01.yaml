@@ -34,20 +34,42 @@ articles:
             type: number
         steps:
           # A decision on an application, and a decision in the place of
-          # another: both grant or refuse the card (article 7). Its
-          # parameters have the names of the state and the record; its
-          # outputs do not, because it reads and writes the same property.
+          # another: both grant or refuse the card. What that does is
+          # article 7 of the law; the step couples each property to one of
+          # its outputs.
           - record: test_chronicle_effects#1#BESCHIKKING
-            apply: test_chronicle_effects#7
-            output: &na_besluit
-              in_bezit: in_bezit_na_besluit
-              aantal_verleend: aantal_verleend_na_besluit
+            input: &na_besluit
+              - name: in_bezit_na_besluit
+                type: boolean
+                source:
+                  regulation: test_chronicle_effects
+                  output: in_bezit_na_besluit
+                  parameters: &op_de_kaart
+                    in_bezit: $state.in_bezit
+                    aantal_verleend: $state.aantal_verleend
+                    kaart_verleend: $record.kaart_verleend
+              - name: aantal_verleend_na_besluit
+                type: number
+                source:
+                  regulation: test_chronicle_effects
+                  output: aantal_verleend_na_besluit
+                  parameters: *op_de_kaart
+            set: &op_de_staat
+              in_bezit: $in_bezit_na_besluit
+              aantal_verleend: $aantal_verleend_na_besluit
           - record: test_chronicle_effects#3
-            apply: test_chronicle_effects#7
-            output: *na_besluit
-          # A card handed in (article 8) sets in_bezit by its name.
+            input: *na_besluit
+            set: *op_de_staat
+          # A card handed in (article 8).
           - record: test_chronicle_effects#5
-            apply: test_chronicle_effects#8
+            input:
+              - name: in_bezit_na_inlevering
+                type: boolean
+                source:
+                  regulation: test_chronicle_effects
+                  output: in_bezit_na_inlevering
+            set:
+              in_bezit: $in_bezit_na_inlevering
       execution:
         parameters:
           - name: aanvrager

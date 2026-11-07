@@ -1,8 +1,8 @@
 ---
-# A step only wires: it has no `set`, and what a record does with the state
-# is in the article it applies (schema v0.8.14).
+# A step sets a property to a bare reference, never to a literal value
+# (schema v0.8.14).
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
-$id: test_conformance_projection_step_set
+$id: test_conformance_projection_step_set_literal
 regulatory_layer: REDUCTIE
 publication_date: '2026-11-05'
 valid_from: '2026-11-05'
@@ -20,11 +20,16 @@ articles:
             description: Of de aanvrager een kaart heeft.
         steps:
           - record: test_conformance_decision_effects#2
-            apply: test_conformance_kaart#1
-            parameters:
-              verleend: $record.verleend
-            output:
-              in_bezit: kaart
+            input:
+              - name: kaart
+                type: boolean
+                source:
+                  regulation: test_conformance_kaart
+                  output: kaart
+                  parameters:
+                    verleend: $record.verleend
+            set:
+              in_bezit: $kaart
           - record: test_conformance_fact#1
             set:
               in_bezit: false

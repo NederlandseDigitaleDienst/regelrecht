@@ -16,15 +16,25 @@ articles:
         state: []
         steps:
           - record: test_conformance_decision_effects#2
-            apply: test_conformance_kaart#1
-            parameters:
-              verleend: $record.verleend
-            output:
-              in_bezit: kaart
+            input:
+              - name: kaart
+                type: boolean
+                source:
+                  regulation: test_conformance_kaart
+                  output: kaart
+                  parameters:
+                    verleend: $record.verleend
+            set:
+              in_bezit: $kaart
           - record: test_conformance_fact#1
-            apply: test_conformance_kaart#2
-            output:
-              in_bezit: kaart
+            input:
+              - name: kaart_weg
+                type: boolean
+                source:
+                  regulation: test_conformance_kaart
+                  output: kaart_weg
+            set:
+              in_bezit: $kaart_weg
       execution:
         output:
           - name: heeft_kaart

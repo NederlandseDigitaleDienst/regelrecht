@@ -1858,10 +1858,11 @@ impl StateProperty {
     }
 }
 
-/// What a record under one article does with the state: it applies an
-/// article of a law to values of the record and the state, and sets
-/// properties from that article's outputs. The step only wires; what the
-/// record does is in the applied article.
+/// What a record under one article does with the state: like an article,
+/// it takes inputs from the outputs of a law (`source.regulation`), with
+/// parameters from the record and the state, and sets properties from them.
+/// What the record does is in that law; the step only couples each property
+/// to an output.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProjectionStep {
@@ -1871,47 +1872,45 @@ pub struct ProjectionStep {
     /// `EXECUTOGRAM`, such as `wet#1#BESCHIKKING`.
     #[serde(deserialize_with = "step_record")]
     pub record: String,
-    /// The article that says what the record does with the state,
-    /// `<regulation>#<article>`.
-    #[serde(deserialize_with = "article_reference")]
-    pub apply: String,
-    /// Per parameter of the applied article whose value has another name,
-    /// where it comes from: `$record.<field>` or `$state.<property>`,
-    /// nothing else. A parameter not named here takes the field of the
-    /// record or the property of the state of the same name.
+    /// The outputs of a law the step takes, each as an article input with
+    /// `source: {regulation, output, parameters}`. A parameter is
+    /// `$record.<field>` or `$state.<property>`.
     #[serde(default)]
-    pub parameters: BTreeMap<String, StepSource>,
-    /// Per property of the state, the output of the applied article that
-    /// sets it, where the names differ. An output with the name of a
-    /// property sets it without being named here. A property set by no
-    /// output keeps its value.
-    #[serde(default)]
-    pub output: BTreeMap<String, String>,
+    pub input: Vec<Input>,
+    /// Per property of the state, the value it gets: an input of the step
+    /// (`$<input>`), a field of the record (`$record.<field>`) or a property
+    /// of the state before it (`$state.<property>`). A property not named
+    /// keeps its value.
+    pub set: BTreeMap<String, ActionValue>,
 }
 
-/// Where a step takes the value of a parameter from: a field or output of
+/// What a step reads: one of its inputs (`$<name>`), a field or output of
 /// the record (`$record.<name>`), or a property of the state before it
 /// (`$state.<name>`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StepSource {
+    Input(String),
     Record(String),
     State(String),
 }
 
 impl StepSource {
-    /// Read `$record.<name>` or `$state.<name>`; anything else is no source.
+    /// Read `$<name>`, `$record.<name>` or `$state.<name>`; anything else is
+    /// no source.
     pub fn parse(s: &str) -> Option<Self> {
         let name_ok = |n: &str| {
             !n.is_empty()
                 && n.chars()
                     .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
         };
-        if let Some(name) = s.strip_prefix("$record.").filter(|n| name_ok(n)) {
-            Some(Self::Record(name.to_string()))
-        } else {
-            s.strip_prefix("$state.")
-                .filter(|n| name_ok(n))
-                .map(|name| Self::State(name.to_string()))
+        let path = s.strip_prefix('$')?;
+        match path.split_once('.') {
+            Some(("record", name)) if name_ok(name) => Some(Self::Record(name.to_string())),
+            Some(("state", name)) if name_ok(name) => Some(Self::State(name.to_string())),
+            None if name_ok(path) && path != "record" && path != "state" => {
+                Some(Self::Input(path.to_string()))
+            }
+            _ => None,
         }
     }
 }
@@ -1919,27 +1918,10 @@ impl StepSource {
 impl std::fmt::Display for StepSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Input(name) => write!(f, "${name}"),
             Self::Record(name) => write!(f, "$record.{name}"),
             Self::State(name) => write!(f, "$state.{name}"),
         }
-    }
-}
-
-impl Serialize for StepSource {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.collect_str(self)
-    }
-}
-
-impl<'de> Deserialize<'de> for StepSource {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let s = String::deserialize(deserializer)?;
-        Self::parse(&s).ok_or_else(|| {
-            serde::de::Error::custom(format!(
-                "'{s}' is no $record.<field> or $state.<property>; a step only wires values \
-                 into the article it applies"
-            ))
-        })
     }
 }
 
@@ -1958,21 +1940,6 @@ fn split_kind(record: &str) -> (&str, Option<&str>) {
             .rsplit_once('#')
             .map_or((record, None), |(basis, kind)| (basis, Some(kind))),
         _ => (record, None),
-    }
-}
-
-/// Deserialize `<regulation>#<article>`, without a paragraph.
-fn article_reference<'de, D>(deserializer: D) -> Result<String, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    if is_article_reference(&s) {
-        Ok(s)
-    } else {
-        Err(serde::de::Error::custom(format!(
-            "'{s}' is not <regulation>#<article> without a paragraph"
-        )))
     }
 }
 

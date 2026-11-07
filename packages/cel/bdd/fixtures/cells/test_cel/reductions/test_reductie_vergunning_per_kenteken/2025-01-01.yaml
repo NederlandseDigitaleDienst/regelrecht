@@ -24,16 +24,31 @@ articles:
             type: boolean
         steps:
           # A grant and a move both give a permit for the plate in the
-          # decision (article 4); its output vergunning sets the property
-          # of that name, and kenteken comes from the record.
+          # decision (article 4 of the law).
           - record: test_parkeervergunning#1
-            apply: test_parkeervergunning#4
-            parameters:
-              verleend: $record.vergunning_verleend
+            input:
+              - name: vergunning
+                type: boolean
+                source:
+                  regulation: test_parkeervergunning
+                  output: vergunning
+                  parameters:
+                    verleend: $record.vergunning_verleend
+                    kenteken: $record.kenteken
+            set:
+              vergunning: $vergunning
           - record: test_parkeervergunning#2
-            apply: test_parkeervergunning#4
-            parameters:
-              verleend: $record.vergunning_omgezet
+            input:
+              - name: vergunning
+                type: boolean
+                source:
+                  regulation: test_parkeervergunning
+                  output: vergunning
+                  parameters:
+                    verleend: $record.vergunning_omgezet
+                    kenteken: $record.kenteken
+            set:
+              vergunning: $vergunning
       execution:
         parameters:
           - name: kenteken
