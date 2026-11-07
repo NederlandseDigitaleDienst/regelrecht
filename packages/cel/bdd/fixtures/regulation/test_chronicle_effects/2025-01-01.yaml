@@ -255,7 +255,7 @@ articles:
     text: >-
       FICTIEF, naar artikel 8:72, eerste lid, van de Algemene wet
       bestuursrecht. Acht de bestuursrechter het beroep gegrond, dan
-      vernietigt hij het bestreden besluit.
+      vernietigt hij het bestreden besluit geheel of gedeeltelijk.
     machine_readable:
       execution:
         produces:
@@ -269,7 +269,10 @@ articles:
         parameters:
           - name: bestreden_besluit
             type: string
-          # Whether the appeal is well-founded is the court's finding.
+          # Whether the appeal is well-founded is the court's finding. The
+          # test reads a well-founded appeal as annulling the whole decision;
+          # a partial annulment, and keeping the legal effects of the
+          # annulled decision (Awb 8:72 lid 3), are left out.
           - name: beroep_gegrond
             type: boolean
         output:
@@ -310,15 +313,16 @@ articles:
   - number: '12'
     url: https://example.com/test_chronicle_effects/12
     text: >-
-      FICTIEF, naar afdeling 8.5 van de Algemene wet bestuursrecht. Het
-      college legt vast dat de uitspraak waarvan het een afschrift ontving in
-      hoger beroep is vernietigd. Die uitspraak heeft dan geen gevolgen meer.
+      FICTIEF, naar titel 8.5 van de Algemene wet bestuursrecht. Het college
+      legt vast dat de hogerberoepsrechter de uitspraak waarvan het een
+      afschrift ontving heeft vernietigd en het beroep alsnog ongegrond heeft
+      verklaard. Die uitspraak heeft dan geen gevolgen meer.
     machine_readable:
       requires:
         - fact: uitspraak_vernietigd_in_hoger_beroep
           description: >-
             De uitspraak waarvan het college een afschrift ontving, is in hoger
-            beroep vernietigd.
+            beroep vernietigd, en het beroep is alsnog ongegrond verklaard.
           parameters:
             - vernietigde_uitspraak
           effects:

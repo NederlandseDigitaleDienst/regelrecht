@@ -10,7 +10,10 @@ Feature: A suspension revokes a decision for a while
   # an answer is about is the calculation date: on that day a record counts
   # unless a later record that itself counts on that day revokes it on that
   # day. A suspended record is gone from the whole fold for such an answer,
-  # so the count of grants drops too, as for a revocation. In practice the
+  # so the count of grants drops too, as for a revocation. A suspension in
+  # law only stops the decision's effect from its first day on; how a
+  # projection can keep what came before is an open question (see
+  # docs/src/content/docs/concepts/chronolexography/open-questions.md). In practice the
   # ruling reaches the cell as a copy (see court-ruling.feature); the schema
   # has no kind of submission yet for the request for a provisional measure,
   # so here the cell records the fact directly.

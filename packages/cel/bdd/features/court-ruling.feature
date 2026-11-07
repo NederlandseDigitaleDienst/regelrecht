@@ -66,9 +66,10 @@ Feature: A ruling received as a copy revokes the decision it annuls
     And record "verlening" is applied
 
   Scenario: When the ruling is annulled on further appeal, the grant counts again
-    # Fictional article 12: the cell records that the ruling it received a
-    # copy of was annulled on further appeal, naming the receipt. A revoked
-    # record revokes nothing, so the grant counts again.
+    # Fictional article 12: the cell records that the appeal court annulled
+    # the ruling it received a copy of and held the appeal unfounded after
+    # all, naming the receipt. A revoked record revokes nothing, so the grant
+    # counts again.
     Given the calculation date is "2025-05-01"
     When the court records appeal "beroep" under article "10" of "test_chronicle_effects" with:
       | bestreden_besluit | verlening |

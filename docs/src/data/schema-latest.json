@@ -2392,19 +2392,19 @@
                   "properties": {
                     "revokes": {
                       "type": "string",
-                      "description": "A parameter the fact holds whose value is the earlier record this fact revokes: its consequences no longer count. Of type `string` (the id of a record), or `decision` on a receipt, which the cell fills with the decision the copy concerns."
+                      "description": "A parameter the fact holds whose value is the earlier record this fact revokes: its consequences no longer count. Of type `string` (the id of a record), or `decision` on a receipt, which only the cell fills, with the decision the copy concerns; it may not be nullable."
                     },
                     "when": {
                       "type": "string",
-                      "description": "A boolean parameter the fact holds; the effect holds only when the fact holds it as true, such as a ruling that annuls the decision. Without it the effect always holds."
+                      "description": "A boolean parameter the fact holds, not nullable; the effect holds only when the fact holds it as true, such as a ruling that annuls the decision. Without it the effect always holds."
                     },
                     "from": {
                       "type": "string",
-                      "description": "Since v0.8.15: the date from which the effect holds. It names a parameter the fact holds of type date; the effect holds only for a day on or after that date. The day is the calculation date: a record that the effect revokes for a while counts on a day outside [from, until) and not on a day inside it. A null value, or no `from`, leaves the window open at the start. The loader checks that it names a date parameter the fact holds."
+                      "description": "Since v0.8.15: the date from which the effect holds. It names a parameter the fact holds of type date; the effect holds only for a day on or after that date. The day is the calculation date: a record that the effect revokes for a while counts on a day outside [from, until) and not on a day inside it. Without `from`, or when the record holds null under it, the window is open at the start; a record that does not hold the field is refused. The loader checks that it names a date parameter the fact holds."
                     },
                     "until": {
                       "type": "string",
-                      "description": "Since v0.8.15: the date up to which the effect holds, not included. It names a parameter the fact holds of type date; the effect holds only for a day before that date, such as the end of a suspension (Awb 8:81). A null value, or no `until`, leaves the window open at the end. The loader checks that it names a date parameter the fact holds."
+                      "description": "Since v0.8.15: the date up to which the effect holds, not included. It names a parameter the fact holds of type date; the effect holds only for a day before that date, such as the end of a suspension (Awb 8:81). Without `until`, or when the record holds null under it, the window is open at the end; a record that does not hold the field is refused. The loader checks that it names a date parameter the fact holds."
                     }
                   },
                   "required": [
@@ -3352,11 +3352,11 @@
               },
               "from": {
                 "type": "string",
-                "description": "Since v0.8.15: the date from which the effect holds. It names a parameter of the article or output of this decision of type date; the effect holds only for a day on or after that date. The day is the calculation date: a record that the effect revokes for a while counts on a day outside [from, until) and not on a day inside it. A null value, or no `from`, leaves the window open at the start. The loader checks that it names a date parameter of the article or output of this decision."
+                "description": "Since v0.8.15: the date from which the effect holds. It names a parameter of the article or output of this decision of type date; the effect holds only for a day on or after that date. The day is the calculation date: a record that the effect revokes for a while counts on a day outside [from, until) and not on a day inside it. Without `from`, or when the record holds null under it, the window is open at the start; a record that does not hold the field is refused. The loader checks that it names a date parameter of the article or output of this decision."
               },
               "until": {
                 "type": "string",
-                "description": "Since v0.8.15: the date up to which the effect holds, not included. It names a parameter of the article or output of this decision of type date; the effect holds only for a day before that date, such as the end of a suspension (Awb 8:81). A null value, or no `until`, leaves the window open at the end. The loader checks that it names a date parameter of the article or output of this decision."
+                "description": "Since v0.8.15: the date up to which the effect holds, not included. It names a parameter of the article or output of this decision of type date; the effect holds only for a day before that date, such as the end of a suspension (Awb 8:81). Without `until`, or when the record holds null under it, the window is open at the end; a record that does not hold the field is refused. The loader checks that it names a date parameter of the article or output of this decision."
               }
             },
             "required": [

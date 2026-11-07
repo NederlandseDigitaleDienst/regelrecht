@@ -504,24 +504,34 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
                     .any(|p| p == name)
                     .then(|| article.get_parameters().iter().find(|p| p.name == name))
                     .flatten()
-                    .map(|p| p.param_type)
             };
             for effect in requirement.effects() {
-                let check = |name: &str, role: &str, types: &[ParameterType]| match held(name) {
-                    None => Err(format!(
-                        "requires the fact '{fact}' with an effect that names '{name}' as {role}, \
-                         which the fact does not hold"
-                    )),
-                    Some(t) if !types.contains(&t) => Err(format!(
-                        "requires the fact '{fact}' with an effect that names '{name}' as {role}, \
-                         which is a {t:?}, not a {}",
-                        types
-                            .iter()
-                            .map(|t| format!("{t:?}"))
-                            .collect::<Vec<_>>()
-                            .join(" or ")
-                    )),
-                    Some(_) => Ok(()),
+                let check = |name: &str, role: &str, types: &[ParameterType]| {
+                    let what = |why: String| {
+                        Err(format!(
+                            "requires the fact '{fact}' with an effect that names '{name}' as \
+                             {role}, which {why}"
+                        ))
+                    };
+                    match held(name) {
+                        None => what("the fact does not hold".to_string()),
+                        Some(p) if !types.contains(&p.param_type) => what(format!(
+                            "is a {:?}, not a {}",
+                            p.param_type,
+                            types
+                                .iter()
+                                .map(|t| format!("{t:?}"))
+                                .collect::<Vec<_>>()
+                                .join(" or ")
+                        )),
+                        // Only a bound of the window may be null, for an open
+                        // side; a record without a target or a condition is
+                        // refused when the chronicle is played.
+                        Some(p) if p.is_nullable() && !types.contains(&ParameterType::Date) => {
+                            what("may be null".to_string())
+                        }
+                        Some(_) => Ok(()),
+                    }
                 };
                 let mut named = vec![(
                     effect.parameter.as_str(),
@@ -1570,7 +1580,7 @@ articles:
         law_producing(items)
             .replace(
                 "        parameters:\n          - name: p\n            type: string\n",
-                "        parameters:\n          - name: p\n            type: string\n          - {name: vanaf, type: date}\n          - {name: tot, type: date}\n          - {name: b, type: boolean}\n          - {name: d, type: decision}\n",
+                "        parameters:\n          - name: p\n            type: string\n          - {name: vanaf, type: date}\n          - {name: tot, type: date}\n          - {name: b, type: boolean}\n          - {name: d, type: decision}\n          - {name: q, type: string, nullable: true}\n          - {name: c, type: boolean, nullable: true}\n          - {name: e, type: date, nullable: true}\n",
             )
             .replace(
                 "        output:\n          - name: x\n            type: boolean\n",
@@ -1629,6 +1639,7 @@ articles:
                 "p, b, vanaf, tot",
                 "revokes: p, when: b, from: vanaf, until: tot",
             ),
+            ("p, e", "revokes: p, until: e"),
         ] {
             LawExecutionService::new()
                 .load_law(&fact(parameters, effect))
@@ -1664,6 +1675,16 @@ articles:
                 "p",
                 "revokes: p, until: einde",
                 "names 'einde' as a bound of its window, which the fact does not hold",
+            ),
+            (
+                "q",
+                "revokes: q",
+                "names 'q' as the record it revokes, which may be null",
+            ),
+            (
+                "p, c",
+                "revokes: p, when: c",
+                "names 'c' as its condition, which may be null",
             ),
         ] {
             let err = LawExecutionService::new()

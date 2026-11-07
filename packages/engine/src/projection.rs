@@ -801,12 +801,18 @@ impl LawExecutionService {
     fn references(&self, record: &ChronicleRecord) -> Result<Vec<String>> {
         let mut ids: Vec<String> = record.refers_to.iter().cloned().collect();
         let article = self.article_of(record)?;
-        let effects = match fact_of(article, record) {
-            Some(fact) => fact.effects(),
-            None => article
+        // A fact refers only through its own effects; an executogram of a
+        // fact its article does not require is refused when its effects
+        // are read, so it refers through none here.
+        let effects = if record.kind == EXECUTOGRAM {
+            fact_of(article, record)
+                .map(|f| f.effects())
+                .unwrap_or_default()
+        } else {
+            article
                 .get_decision()
                 .map(|d| d.effects())
-                .unwrap_or_default(),
+                .unwrap_or_default()
         };
         for effect in effects {
             if let Some(Value::String(id)) = record.fields.get(&effect.parameter) {
@@ -866,6 +872,19 @@ impl LawExecutionService {
         };
         let mut holding = Vec::new();
         for effect in effects {
+            // The record it names is checked first, so a broken record is
+            // refused on every day, whatever `when` and the window say.
+            let name = &effect.parameter;
+            let Some(Value::String(target)) = record.fields.get(name) else {
+                return Err(refuse(format!(
+                    "has an effect on '{name}', but holds no record id under it"
+                )));
+            };
+            let target = earlier.iter().find(|r| &r.id == target).ok_or_else(|| {
+                refuse(format!(
+                    "has an effect on '{target}', which is no record recorded before it"
+                ))
+            })?;
             if let Some(when) = &effect.when {
                 match conditions.get(when) {
                     Some(Value::Bool(true)) => {}
@@ -880,17 +899,6 @@ impl LawExecutionService {
             if !in_window(record, effect, day).map_err(refuse)? {
                 continue;
             }
-            let name = &effect.parameter;
-            let Some(Value::String(target)) = record.fields.get(name) else {
-                return Err(refuse(format!(
-                    "has an effect on '{name}', but holds no record id under it"
-                )));
-            };
-            let target = earlier.iter().find(|r| &r.id == target).ok_or_else(|| {
-                refuse(format!(
-                    "has an effect on '{target}', which is no record recorded before it"
-                ))
-            })?;
             holding.push(target.id.as_str());
         }
         Ok(holding)
@@ -912,9 +920,9 @@ fn fact_of<'a>(
 /// Whether `day` lies in the window of `effect` (schema v0.8.15): on or
 /// after the date `record` holds under `from`, and before the one under
 /// `until`. A bound the effect does not name, or that holds null, leaves
-/// the window open on that side. A bound that holds something else than a
-/// date is refused: it would otherwise make the effect hold or not without a
-/// word.
+/// the window open on that side. A bound the record does not hold, or that
+/// holds something else than a date, is refused: it would otherwise make the
+/// effect hold or not without a word.
 fn in_window(
     record: &ChronicleRecord,
     effect: &regelrecht_law_model::RecordEffect,
@@ -925,7 +933,12 @@ fn in_window(
             return Ok(None);
         };
         match record.fields.get(name).or_else(|| record.outputs.get(name)) {
-            None | Some(Value::Null) => Ok(None),
+            Some(Value::Null) => Ok(None),
+            // A record without the field is not a record with an open
+            // bound: it would make the effect hold on every day unseen.
+            None => Err(format!(
+                "bounds an effect by '{name}', but holds nothing under it"
+            )),
             Some(Value::String(s)) => NaiveDate::parse_from_str(s, "%Y-%m-%d")
                 .map(Some)
                 .map_err(|_| format!("bounds an effect by '{name}', which holds {s:?}, no date")),
@@ -1797,6 +1810,38 @@ articles:
         ])
         .unwrap();
         assert_eq!(skipped(&outcome), ["h"]);
+    }
+
+    #[test]
+    fn a_bound_the_record_does_not_hold_is_refused() {
+        let mut s = suspend("s", "a", None, None, false);
+        s.fields.remove("tot");
+        let err = play(&[grant("a"), s]).expect_err("no tot");
+        assert!(
+            err.to_string().contains(
+                "record 's' (wet#8) bounds an effect by 'tot', but holds nothing under it"
+            ),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn a_broken_effect_is_refused_also_outside_its_window_or_condition() {
+        // On the calculation date the window has passed and `when` is false,
+        // yet a target that is no earlier record is refused all the same.
+        for record in [
+            suspend("s", "x", None, Some("2025-02-01"), false),
+            suspend("s", "x", None, Some("2025-02-01"), true),
+            annulled("s", "x", false),
+            revoke("s", "x", false),
+        ] {
+            let err = play(&[grant("a"), record]).expect_err("x is no record");
+            assert!(
+                err.to_string()
+                    .contains("has an effect on 'x', which is no record recorded before it"),
+                "{err}"
+            );
+        }
     }
 
     #[test]
