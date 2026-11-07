@@ -14,6 +14,7 @@ articles:
     url: https://example.invalid/projection/1
     text: De aanvrager heeft een kaart zolang een verlening meetelt en hij haar niet inleverde.
     machine_readable:
+      # release-note-begin: projection
       projection:
         key: aanvrager
         state:
@@ -43,6 +44,7 @@ articles:
             actions:
               - output: in_bezit
                 value: $kaart_weg
+      # release-note-end: projection
       execution:
         parameters:
           - name: aanvrager
