@@ -112,7 +112,7 @@ steps:
     text: property "{name}" was last set by "{id}"
     args: [{name: name, type: string}, {name: id, type: string}]
 
-  # Whether the record was applied or skipped in the last replay.
+  # Whether the record was applied, or skipped because records that count revoke it.
   - id: assert_record_applied
     action: assert_record_applied
     keyword: then
