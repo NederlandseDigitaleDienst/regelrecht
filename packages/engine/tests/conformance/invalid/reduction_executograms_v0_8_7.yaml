@@ -1,0 +1,41 @@
+---
+# Since schema v0.8.7 a reduction reads the recorded instances of a fact with
+# `source.facts`, which replaced v0.8.6's `source.executograms` (RFC-051). The
+# marked lines are shown on the schema release notes page as the shape to
+# change; `v0_8_7_reduction_facts.yaml` holds the replacement.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.7/schema/v0.8.7/schema.json
+$id: test_conformance_reduction_executograms_v0_8_7
+regulatory_layer: REDUCTIE
+publication_date: '2026-10-18'
+valid_from: '2026-10-18'
+name: Testreductie vestiging
+url: https://example.invalid/reduction-executograms
+articles:
+  - number: '1'
+    url: https://example.invalid/reduction-executograms/1
+    text: De vestiging is die waarvan de dag het laatst ligt.
+    machine_readable:
+      execution:
+        # release-note-begin: executograms
+        input:
+          - name: vestigingen
+            type: array
+            source:
+              executograms: vestiging
+        # release-note-end: executograms
+        output:
+          - name: gemeente
+            type: string
+            nullable: true
+        actions:
+          - output: gemeente
+            value:
+              operation: FOREACH
+              collection: $vestigingen
+              as: vestiging
+              filter:
+                operation: EQUALS
+                subject: $vestiging.huidig
+                value: true
+              body: $vestiging.gemeente
+              combine: ONLY

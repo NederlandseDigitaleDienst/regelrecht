@@ -73,6 +73,25 @@ decision driven by this measurement.
 2. Run `just conformance`. For an `invalid/` fixture the model also accepts, add its filename to
    `KNOWN_GAPS` with a one-line note on *why* the model is lenient.
 
+### Fixtures that lend an example to the docs
+
+The examples on the docs page *Schema Release Notes*
+(`docs/src/content/docs/reference/schema-release-notes.mdx`) are excerpts of these fixtures,
+read when the site is built (`docs/src/lib/fixture-excerpt.ts`). A fixture marks the lines it
+lends out with a pair of comments:
+
+```yaml
+      # release-note-begin: hook
+      hooks:
+        - hook_point: pre_actions
+      # release-note-end: hook
+```
+
+Keep the markers when you edit such a fixture. A region that is missing, doubled or empty fails
+the docs build, which is the point: the page cannot quietly show an example this suite no longer
+checks. A new schema version adds its fixture with markers around its construct, and its note on
+that page renders them; the page's section "Adding a release note" has the steps.
+
 The one-construct-per-fixture rule holds for `invalid/`, where attribution is the whole point. The
 `valid/` set also carries a few deliberately dense fixtures (`machine_readable_full.yaml`,
 `all_operations.yaml`, `law_metadata.yaml`) that exist to satisfy Tier C; a fixture per property

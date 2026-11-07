@@ -253,6 +253,10 @@ both: `corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml`.
   (see `docs/src/content/docs/reference/conformance.md`). Do not "fix" a
   divergence listed in `KNOWN_GAPS` in passing; reconciling those is tracked
   separately.
+- A pull request that adds a schema version also adds its release note, with
+  an example marked in a conformance fixture. The steps are under "Adding a
+  release note" in `docs/src/content/docs/reference/schema-release-notes.mdx`;
+  `docs/scripts/check-schema-version.mjs` fails without it.
 - A mistake in a released schema version, even in a `description`, is fixed
   with a patch release: a new `schema/vX.Y.Z` directory, wired up like the
   previous release. Never add an overlay, correction table or build-time

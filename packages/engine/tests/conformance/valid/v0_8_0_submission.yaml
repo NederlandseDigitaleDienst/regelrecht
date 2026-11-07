@@ -16,6 +16,7 @@ articles:
     text: De ouder kan verlof aanvragen.
     machine_readable:
       execution:
+        # release-note-begin: submission
         produces:
           legal_character: TOETS
           submission:
@@ -27,6 +28,7 @@ articles:
               bwb_id: BWBR0099995
               article: '1'
               paragraph: '1'
+        # release-note-end: submission
         parameters:
           - name: datum_ontvangst
             type: date
@@ -55,11 +57,13 @@ articles:
     url: https://example.invalid/submission/3
     text: Wie verlof aanvraagt, noemt de school.
     machine_readable:
+      # release-note-begin: established-by
       hooks:
         - hook_point: pre_actions
           applies_to:
             submission: AANVRAAG
             established_by: test_conformance_submission#1
+      # release-note-end: established-by
       execution:
         output:
           - name: school_gevraagd

@@ -12,10 +12,12 @@ articles:
     text: Er is al verlof verleend als een besluit verlof verleende.
     url: https://example.invalid/reduction/1
     machine_readable:
+      # release-note-begin: implements
       implements:
         - law: wet_fictief
           article: '1'
           open_term: al_verleend
+      # release-note-end: implements
       execution:
         input:
           - name: besluiten

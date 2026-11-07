@@ -1,0 +1,51 @@
+---
+# Tier C: a projection step that passes a parameter of the question to the
+# law it calls (schema v0.8.14), beside a field of the record and a property
+# of the state before it. The answer then depends on the question, here the
+# day it names, as it does through the key.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: test_conformance_projection_question
+regulatory_layer: REDUCTIE
+publication_date: '2026-11-05'
+valid_from: '2026-11-05'
+url: https://example.invalid/projection-question
+name: Testreductie geldige vergunningen op een peildatum
+articles:
+  - number: '1'
+    url: https://example.invalid/projection-question/1
+    text: Het aantal vergunningen van een bedrijf dat op de peildatum meetelt.
+    machine_readable:
+      projection:
+        key: bedrijf
+        state:
+          - name: aantal
+            type: number
+        steps:
+          # release-note-begin: question-parameter
+          - record: test_conformance_decision_effects#2
+            input:
+              - name: aantal_na_besluit
+                type: number
+                source:
+                  regulation: test_conformance_vergunning
+                  output: aantal_na_besluit
+                  parameters:
+                    aantal: $state.aantal
+                    verleend: $record.verleend
+                    peildatum: $peildatum
+            actions:
+              - output: aantal
+                value: $aantal_na_besluit
+      # release-note-end: question-parameter
+      execution:
+        parameters:
+          - name: bedrijf
+            type: string
+          - name: peildatum
+            type: date
+        output:
+          - name: aantal_geldige_vergunningen
+            type: number
+        actions:
+          - output: aantal_geldige_vergunningen
+            value: $state.aantal

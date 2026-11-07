@@ -16,6 +16,7 @@ articles:
     text: De besluiten onder het artikel basis die toekennen.
     machine_readable:
       execution:
+        # release-note-begin: decisions-by-parameter
         parameters:
           - name: basis
             type: string
@@ -24,6 +25,7 @@ articles:
             type: array
             source:
               decisions: $basis
+        # release-note-end: decisions-by-parameter
         output:
           - name: toekenningen
             type: array

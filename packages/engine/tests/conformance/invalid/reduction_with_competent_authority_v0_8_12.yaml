@@ -4,12 +4,14 @@
 # (corpus/cells/reductions/).
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
 $id: test_conformance_reduction_with_competent_authority
+# release-note-begin: holder
 regulatory_layer: REDUCTIE
 publication_date: '2026-10-24'
 valid_from: '2026-10-24'
 url: https://example.invalid/reduction
 competent_authority:
   name: Het hoofd van een testschool
+# release-note-end: holder
 articles:
   - number: '1'
     text: Er is al verlof verleend als een besluit verlof verleende.
