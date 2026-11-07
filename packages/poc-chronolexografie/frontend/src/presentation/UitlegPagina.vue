@@ -1,7 +1,7 @@
 <script setup>
 // The explanation page: a page of the app, built like the choice screen
 // (CasusKeuze.vue), that shows with small pieces of YAML how law, policy,
-// cell, reduction and the reduction of the Awb hang together, on one case
+// cell, reduction and the effects in the Awb hang together, on one case
 // (uitleg.js). Each step is a section with a heading, the text of the
 // article it rests on where there is one, two or three
 // sentences, and per panel a whole file of the corpus as a tree that folds,

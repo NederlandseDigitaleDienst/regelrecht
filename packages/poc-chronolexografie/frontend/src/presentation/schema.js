@@ -31,9 +31,9 @@ export const SOORTEN = [
 export const LIJNSOORTEN = [
   { soort: 'rekent', label: 'rekent met een naam uit hetzelfde regelwerk', yaml: 'actions, source.parameters, source.output, source.regulation' },
   { soort: 'vult_in', label: 'vult een open begrip in', yaml: 'implements' },
-  { soort: 'leest', label: 'gebruikt een uitkomst uit een ander regelwerk', yaml: 'source.regulation' },
+  { soort: 'leest', label: 'gebruikt een uitkomst uit een ander regelwerk', yaml: 'source.regulation, projection.steps' },
   { soort: 'vraagt', label: 'vraagt een cel, die een reductie aanwijst', yaml: 'source.reduction, answers' },
-  { soort: 'kroniek', label: 'leest de kroniek', yaml: 'source.decisions, source.facts' },
+  { soort: 'kroniek', label: 'leest de kroniek', yaml: 'source.decisions, source.facts, projection.steps, effects' },
 ];
 
 /** Where the case files are, each `<id>.yaml` with its own regelwerken in `<id>/`. */
@@ -171,7 +171,30 @@ function opzet(alle, id) {
     lijnen,
   });
 
-  return { cellen, wet, cel, bestand, wetBestand, celBestand, begrip, lijn, artikelVan, metUitvoer, metFeit, invullers, uitkomst };
+  // Every article in the case's files whose record revokes another
+  // (`produces[].effects`, `requires[].effects`): what decides which records
+  // a reduction that plays the chronicle forward counts.
+  const effecten = [];
+  for (const [lawId] of wetten) {
+    const w = wet(lawId);
+    for (const a of w.doc.articles) {
+      const mr = a.machine_readable ?? {};
+      // `produces` is a list of items, or one object without effects.
+      const items = Array.isArray(mr.execution?.produces) ? mr.execution.produces : [];
+      if (items.some((p) => p?.effects?.length)) effecten.push({ w, artikel: String(a.number) });
+      for (const req of mr.requires ?? []) if (req.fact && req.effects?.length) effecten.push({ w, artikel: String(a.number), feit: req.fact });
+    }
+  }
+
+  return { cellen, wet, cel, bestand, wetBestand, celBestand, begrip, lijn, artikelVan, metUitvoer, metFeit, invullers, effecten, uitkomst };
+}
+
+/** Every property of the state a value reads (`$state.<name>`). */
+function toestandIn(waarde, uit = new Set()) {
+  if (typeof waarde === 'string' && waarde.startsWith('$state.')) uit.add(waarde.slice('$state.'.length).split('.')[0]);
+  else if (Array.isArray(waarde)) waarde.forEach((w) => toestandIn(w, uit));
+  else if (waarde && typeof waarde === 'object') Object.values(waarde).forEach((w) => toestandIn(w, uit));
+  return uit;
 }
 
 /** Every `$name` a value uses, by the part before a dot. */
@@ -199,7 +222,12 @@ function namenIn(waarde, uit = new Set()) {
  *    its `cel.yaml`), and on to the input that asks it (`source.reduction`).
  *  - `kroniek`: from what a cell recorded to the input that reads it:
  *    decisions under an article (`source.decisions`) or facts an article
- *    requires (`source.facts`).
+ *    requires (`source.facts`). A reduction that plays the chronicle
+ *    forward (`projection`) reads the records its steps name, and which of
+ *    them count follows from the articles whose records revoke others
+ *    (`effects`); both run into the property of its state.
+ *  - `leest` also runs from the output a step of such a reduction takes to
+ *    the property it sets (`projection.steps`).
  *
  * Parameters are left out: they are what the case gives (a KvK number, the
  * day of the decision), not something the chain decides. An open term that
@@ -211,7 +239,7 @@ function namenIn(waarde, uit = new Set()) {
  * gets its step (`genummerd`).
  */
 export function keten(alle, id, { law, article, naam }) {
-  const { wet, cel, cellen, bestand, celBestand, wetBestand, begrip, lijn, artikelVan, metUitvoer, metFeit, invullers, uitkomst } = opzet(alle, id);
+  const { wet, cel, cellen, bestand, celBestand, wetBestand, begrip, lijn, artikelVan, metUitvoer, metFeit, invullers, effecten, uitkomst } = opzet(alle, id);
   const klaar = new Map();
 
   /** The one box of the chronicle: what the cells recorded, which a reduction reads. */
@@ -257,7 +285,12 @@ export function keten(alle, id, { law, article, naam }) {
     if (actie) {
       uit = { box, begrip: hier('output') };
       klaar.set(k, uit);
+      for (const eigenschap of toestandIn(actie.value)) {
+        const d = toestand(lawId, nummer, mr.projection, eigenschap);
+        if (d) lijn('rekent', d.box, d.begrip, box, uit.begrip, 'actions');
+      }
       for (const v of namenIn(actie.value)) {
+        if (v === 'state') continue;
         const d = knoop(lawId, nummer, v, gegeven);
         if (d) lijn('rekent', d.box, d.begrip, box, uit.begrip, 'actions');
         // An output that is just an input of its own article: a candidate to merge.
@@ -324,6 +357,40 @@ export function keten(alle, id, { law, article, naam }) {
   }
   let volgorde = 0;
   const doorgaven = [];
+
+  /**
+   * The property `eigenschap` of the state of the projection `projection`
+   * in article `nummer` of the reduction `lawId`, after drawing what sets
+   * it: per step that sets it, the output of the law the step takes and the
+   * records the step plays, and the records whose effects decide which
+   * records count. Null without a projection.
+   */
+  function toestand(lawId, nummer, projection, eigenschap) {
+    const k = `${lawId}#${nummer}#state.${eigenschap}`;
+    if (klaar.has(k)) return klaar.get(k);
+    klaar.set(k, null);
+    const w = wet(lawId);
+    if (!w || !projection) return null;
+    const box = wetBestand(w);
+    const uit = { box, begrip: { naam: eigenschap, artikel: String(nummer), rol: 'state' } };
+    klaar.set(k, uit);
+    for (const stap of projection.steps ?? []) {
+      const actie = (stap.actions ?? []).find((a) => a.output === eigenschap);
+      if (!actie) continue;
+      const invoer = (stap.input ?? []).find((i) => `$${i.name}` === actie.value);
+      const s = invoer?.source ?? {};
+      const doel = s.regulation && wet(s.regulation);
+      const art = doel && metUitvoer(doel.doc, s.output);
+      const d = art && knoop(s.regulation, art.number, s.output);
+      if (d) lijn('leest', d.box, d.begrip, box, uit.begrip, 'projection.steps');
+      const { law: rLaw, article: rArt } = splits(stap.record);
+      const r = wet(rLaw);
+      if (r) lijn('kroniek', kroniek(), bron(r, rArt), box, uit.begrip, 'projection.steps');
+    }
+    for (const e of effecten) lijn('kroniek', kroniek(), bron(e.w, e.artikel, e.feit), box, uit.begrip, 'effects');
+    uit.box.begrippen.get(begrip(box, uit.begrip)).volgorde = volgorde++;
+    return uit;
+  }
 
   const start = knoop(law, String(article), naam);
   const doel = start && { pad: start.box.pad, begrip: `${start.begrip.artikel ?? ''}#${start.begrip.rol}#${start.begrip.naam}` };
@@ -578,10 +645,14 @@ export function stapZin({ bestanden, lijnen, stappen, reststap }, n) {
   const kortOfLang = (zin) => (zin(true).length <= LANG ? zin(true) : zin(false));
   if (n === reststap) {
     const cellen = [...new Set([...hier.values()].filter((g) => g.soort === 'cel').map((g) => g.titel))];
-    const via = cellen.length ? ` via ${opsomming(cellen)}` : '';
     const uitKroniek = lijnen.filter((l) => l.soort === 'kroniek' && hier.has(id(l.van)));
     const namen = [...new Set(uitKroniek.map((l) => leesbaar(hier.get(id(l.van)).naam)))];
-    return kortOfLang((metNamen) => `${kop}, de andere invoer werkt op dezelfde manier en komt${via} bij de bron uit${metNamen && namen.length ? ` (${namen.join(', ')})` : ''}.`);
+    const zin = (via, metNamen) =>
+      `${kop}, de andere invoer werkt op dezelfde manier en komt${via} bij de bron uit${metNamen && namen.length ? ` (${namen.join(', ')})` : ''}.`;
+    const via = cellen.length ? ` via ${opsomming(cellen)}` : '';
+    // Cells with long names are counted when even the short sentence runs too long.
+    if (zin(via, false).length > LANG) return zin(` via ${cellen.length} cellen`, false);
+    return kortOfLang((metNamen) => zin(via, metNamen));
   }
   if (n === 1) return `${kop}, de vraag: ${vraag([...hier.values()][0])}`;
 

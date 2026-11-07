@@ -42,8 +42,10 @@ describe('the picture of one value', () => {
   });
 
   it('follows the value back to the chronicles of both cells', () => {
-    // The count of permits: the municipality's own decisions, with the Awb.
-    expect(heeft(k, 'kroniek', [KRONIEK, 'parkeerverordening_gemeente_wilgendaal#2#'], ['reductie_algemene_wet_bestuursrecht', 'besluiten'])).toBe(true);
+    // The count of permits: the municipality's own decisions, played by
+    // its reduction, and the effects in the Awb that say which count.
+    expect(heeft(k, 'kroniek', [KRONIEK, 'parkeerverordening_gemeente_wilgendaal#2#'], ['reductie_geldige_bedrijfsparkeervergunningen', 'aantal'])).toBe(true);
+    expect(heeft(k, 'kroniek', [KRONIEK, 'algemene_wet_bestuursrecht#7:11#'], ['reductie_geldige_bedrijfsparkeervergunningen', 'aantal'])).toBe(true);
     expect(heeft(k, 'vraagt', ['gemeente_wilgendaal', 'aantal_geldige_bedrijfsparkeervergunningen'], ['beleid_bedrijfsparkeervergunning_gemeente_wilgendaal', 'antwoord_aantal_geldig'])).toBe(true);
     // The maximum: where the firm is and how many work there, from the KvK.
     expect(heeft(k, 'kroniek', [KRONIEK, 'beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven'], ['reductie_vestiging_in_handelsregister', 'inschrijvingen'])).toBe(true);
@@ -69,12 +71,17 @@ describe('the picture of one value', () => {
   });
 
   it('shows of a reduction only what it reads and what it answers', () => {
-    const awb = 'reductie_algemene_wet_bestuursrecht';
-    expect(namen(awb)).not.toContain('vernietigde_besluiten');
-    expect(heeft(k, 'rekent', [awb, 'besluiten'], [awb, 'geldende_besluiten'])).toBe(true);
-    // The same input in two articles is one name, with one line to the chronicle.
-    expect(namen(awb).filter((n) => n === 'uitspraken')).toHaveLength(1);
-    expect(k.lijnen.filter((l) => l.soort === 'kroniek' && l.naar.begrip.endsWith('#uitspraken'))).toHaveLength(1);
+    // A reduction that plays the chronicle: the property of its state, set
+    // by a step from the output of a law, and the answer it gives.
+    const red = 'reductie_geldige_bedrijfsparkeervergunningen';
+    expect(namen(red).sort()).toEqual(['aantal', 'aantal_geldige_bedrijfsparkeervergunningen']);
+    expect(heeft(k, 'leest', ['beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal', 'aantal_na_besluit'], [red, 'aantal'])).toBe(true);
+    expect(heeft(k, 'rekent', [red, 'aantal'], [red, 'aantal_geldige_bedrijfsparkeervergunningen'])).toBe(true);
+    // One line into the property per source in the chronicle.
+    const bronnen = k.lijnen.filter((l) => l.soort === 'kroniek' && l.naar.begrip.endsWith('#aantal'));
+    expect(bronnen.map((l) => l.yaml).sort()).toEqual(['effects', 'effects', 'projection.steps']);
+    // A reduction that reads rows keeps only what it reads and answers.
+    expect(namen('reductie_vestiging_in_handelsregister').sort()).toEqual(['aantal_werkzame_personen', 'inschrijvingen', 'postcode_vestiging']);
     // A law keeps its steps in between.
     expect(namen('uitvoeringsbesluit_parkeren_gemeente_wilgendaal')).toContain('maximum_bedrijfsparkeervergunningen');
   });
@@ -101,16 +108,18 @@ describe('the picture of one value', () => {
     });
 
     it('takes the names of an article that compute together as one step', () => {
-      const stap = stapVan(beleid, 'aantal_geldige_bedrijfsparkeervergunningen');
-      expect(stapVan(beleid, 'antwoord_aantal_geldig')).toBe(stap);
-      expect(stapVan(beleid, 'aantal_geldige_bedrijfsparkeervergunningen_volgens_college')).toBe(stap);
-      expect(alleNamen.filter((g) => g.stap === stap)).toHaveLength(3);
+      const stap = stapVan(besluit, 'maximum_bedrijfsparkeervergunningen_bereikt');
+      for (const naam of ['maximum_bedrijfsparkeervergunningen', 'aantal_geldige_bedrijfsparkeervergunningen', 'aantal_werkzame_personen_volgens_handelsregister'])
+        expect(stapVan(besluit, naam)).toBe(stap);
+      expect(alleNamen.filter((g) => g.stap === stap)).toHaveLength(4);
     });
 
-    it('takes a reduction as one step, also over its articles', () => {
-      const awb = 'reductie_algemene_wet_bestuursrecht';
-      const stap = stapVan(awb, 'geldende_besluiten');
-      for (const naam of ['besluiten', 'beslissingen_op_bezwaar', 'uitspraken']) expect(stapVan(awb, naam)).toBe(stap);
+    it('takes a reduction as one step', () => {
+      const red = 'reductie_vestiging_in_handelsregister';
+      const stap = stapVan(red, 'postcode_vestiging');
+      for (const naam of ['inschrijvingen', 'aantal_werkzame_personen']) expect(stapVan(red, naam)).toBe(stap);
+      const telling = 'reductie_geldige_bedrijfsparkeervergunningen';
+      expect(stapVan(telling, 'aantal')).toBe(stapVan(telling, 'aantal_geldige_bedrijfsparkeervergunningen'));
     });
 
     it('does not take a source into the group of its article', () => {
@@ -118,17 +127,15 @@ describe('the picture of one value', () => {
     });
 
     it('walks the longest path, on a tie the one with the most sources', () => {
-      const pad = [beleid, 'gemeente_wilgendaal', 'reductie_geldige_bedrijfsparkeervergunningen', 'reductie_algemene_wet_bestuursrecht'];
+      const pad = [beleid, 'kamer_van_koophandel', 'reductie_vestiging_in_handelsregister', KRONIEK];
       const stappen = pad.map((b) => alleNamen.find((g) => g.map === b && g.stap < k.reststap)?.stap);
-      expect(stappen).toEqual([3, 4, 5, 6]);
+      expect(stappen).toEqual([4, 5, 6, 7]);
     });
 
     it('ends the path at its sources, together', () => {
       const laatste = alleNamen.filter((g) => g.stap === k.reststap - 1);
       expect(laatste.map((g) => `${g.naam} · ${g.vorm}`).sort()).toEqual([
-        'afschrift_van_de_uitspraak · Algemene wet bestuursrecht art. 8:79',
-        'beschikking · Algemene wet bestuursrecht art. 7:11',
-        'beschikking · Parkeerverordening Wilgendaal 2026 (fictief) art. 2',
+        'vestiging_ingeschreven · Inschrijving van een vestiging in het handelsregister (fictief beleid) art. 1',
       ]);
       for (const g of laatste) expect(k.lijnen.some((l) => eind(l.naar) === sleutel(g.pad, g.key))).toBe(false);
     });
@@ -136,12 +143,12 @@ describe('the picture of one value', () => {
     it('shows all the rest in one last step', () => {
       expect(k.reststap).toBe(k.stappen);
       expect(stapVan(beleid, 'aantal_werkzame_personen_volgens_handelsregister')).toBe(k.reststap);
-      expect(stapVan(beleid, 'postcode_vestiging_volgens_handelsregister')).toBe(k.reststap);
+      expect(stapVan(beleid, 'aantal_geldige_bedrijfsparkeervergunningen')).toBe(k.reststap);
       expect(stapVan(besluit, 'vergunninggebied_van_postcode')).toBe(k.reststap);
-      expect(stapVan(besluit, 'vergunninggebied_van_vestiging')).toBe(k.reststap);
-      expect(stapVan('kamer_van_koophandel', 'postcode_vestiging')).toBe(k.reststap);
-      expect(stapVan('reductie_vestiging_in_handelsregister', 'inschrijvingen')).toBe(k.reststap);
-      expect(stapVan(KRONIEK, 'vestiging_ingeschreven')).toBe(k.reststap);
+      expect(stapVan('gemeente_wilgendaal', 'aantal_geldige_bedrijfsparkeervergunningen')).toBe(k.reststap);
+      expect(stapVan('reductie_geldige_bedrijfsparkeervergunningen', 'aantal')).toBe(k.reststap);
+      expect(stapVan('beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal', 'aantal_na_besluit')).toBe(k.reststap);
+      expect(bron('Algemene wet bestuursrecht art. 8:79').stap).toBe(k.reststap);
     });
 
     it('takes, of two paths as long, the one with the most sources behind it', () => {
@@ -214,15 +221,14 @@ describe('the picture of one value', () => {
       }
       const alles = zinnen.join(' ');
       for (const waar of ['uit een ander regelwerk', 'van een cel', 'van een reductie', 'uit de kroniek']) expect(alles).toContain(waar);
-      // Names that are alike are counted, so the names add up to the count.
       expect(stapZin(k, k.reststap - 1)).toBe(
-        `Stap ${k.reststap - 1} van ${k.stappen}, hier komt de keten bij de bron uit: 3 bronnen uit de kroniek (beschikking 2 keer, afschrift van de uitspraak).`,
+        `Stap ${k.reststap - 1} van ${k.stappen}, hier komt de keten bij de bron uit: een bron uit de kroniek (vestiging ingeschreven).`,
       );
     });
 
     it('says of the rest that it works the same way, and where it ends up', () => {
       expect(stapZin(k, k.reststap)).toBe(
-        `Stap ${k.reststap} van ${k.stappen}, de andere invoer werkt op dezelfde manier en komt via Kamer van Koophandel bij de bron uit (vestiging ingeschreven).`,
+        `Stap ${k.reststap} van ${k.stappen}, de andere invoer werkt op dezelfde manier en komt via 2 cellen bij de bron uit.`,
       );
     });
 
@@ -249,7 +255,8 @@ describe('the picture of one value', () => {
     it('has one box for every source in the chronicle, in a column of its own, last', () => {
       expect(k.bestanden.filter((b) => b.soort === 'kroniek')).toEqual([kroniek]);
       expect(SOORTEN.at(-1).soort).toBe('kroniek');
-      const bronnen = k.lijnen.filter((l) => ['source.decisions', 'source.facts'].includes(l.yaml));
+      const bronnen = k.lijnen.filter((l) => ['source.decisions', 'source.facts', 'projection.steps', 'effects'].includes(l.yaml) && l.soort === 'kroniek');
+      expect(new Set(bronnen.map((l) => l.yaml))).toEqual(new Set(['source.facts', 'projection.steps', 'effects']));
       expect(bronnen.length).toBeGreaterThan(0);
       for (const l of bronnen) {
         expect(l.soort).toBe('kroniek');

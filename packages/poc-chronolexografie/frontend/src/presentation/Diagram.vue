@@ -25,17 +25,18 @@ const keten = [
   { titel: 'BABW, artikel 49', code: 'open begrip: bevoegdheid_tot_verstrekken_gebruikt', pijl: 'ingevuld door' },
   { titel: 'Beleid Wilgendaal, artikel 1 en 2', code: 'aanvrager_heeft_geldige_gehandicaptenparkeerkaart', pijl: 'vraagt de cel' },
   { titel: 'Cel van de gemeente Wilgendaal', code: 'cel.yaml, answers: welke reductie antwoordt', pijl: 'draait' },
-  { titel: 'Reductie van de gemeente: geldige kaart?', code: 'reductie_geldige_gehandicaptenparkeerkaart', pijl: 'vraagt geldende_besluiten' },
-  { titel: 'Reductie van de Algemene wet bestuursrecht (Awb)', code: 'reductie_algemene_wet_bestuursrecht', pijl: 'leest' },
+  { titel: 'Reductie van de gemeente: geldige kaart?', code: 'reductie_geldige_gehandicaptenparkeerkaart', pijl: 'speelt af' },
+  { titel: 'Algemene wet bestuursrecht (Awb), 7:11 en 8:79', code: 'effects: welke besluiten meetellen', pijl: 'over' },
   { titel: 'Kroniek van Wilgendaal', code: 'de besluiten onder artikel 49', accent: true },
 ];
 
-// Two reductions of Wilgendaal that call the reduction of the Awb, each
-// with the article its own decisions rest on (`basis`), where its box
-// stands and the arrow from it to the Awb-reductie below.
+// Two reductions of Wilgendaal that play their chronicle forward, each with
+// the article whose decisions its step plays (`record`), where its box
+// stands and the arrow from it to the Awb below, which says which of them
+// count.
 const awb = [
-  { naam: 'Wilgendaal: geldige kaart?', basis: 'basis: …babw#49', x: 0, y: 0, pijl: 'M 210 74 L 340 130' },
-  { naam: 'Wilgendaal: aantal vergunningen?', basis: 'basis: parkeerverordening…#2', x: 460, y: 0, pijl: 'M 670 74 L 540 130' },
+  { naam: 'Wilgendaal: geldige kaart?', basis: 'record: …babw#49', x: 0, y: 0, pijl: 'M 210 74 L 340 130' },
+  { naam: 'Wilgendaal: aantal vergunningen?', basis: 'record: parkeerverordening…#2', x: 460, y: 0, pijl: 'M 670 74 L 540 130' },
 ];
 
 const synthese = {
@@ -82,8 +83,8 @@ const synthese = {
       <text x="574" y="215" class="small" text-anchor="middle" transform="rotate(-90 574 215)">antwoord: ja of nee</text>
     </svg>
 
-    <!-- De reducties van de gemeente naast elkaar bovenaan, de Awb-reductie
-         die zij allebei vragen eronder. -->
+    <!-- De reducties van de gemeente naast elkaar bovenaan, de Awb eronder:
+         haar effecten zeggen voor allebei welke besluiten meetellen. -->
     <svg v-else-if="name === 'awb'" viewBox="0 0 880 210">
       <defs aria-hidden="true"><marker :id="arrowId" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="head" /></marker></defs>
       <g v-for="(r, i) in awb" :key="i" :transform="`translate(${r.x} ${r.y})`">
@@ -93,8 +94,8 @@ const synthese = {
       </g>
       <path v-for="(r, i) in awb" :key="`pijl-${i}`" :d="r.pijl" class="arrow" :marker-end="arrow" />
       <rect x="290" y="132" width="300" height="66" rx="33" class="box accent" />
-      <text x="440" y="160" class="strong" text-anchor="middle">Reductie van de Awb</text>
-      <text x="440" y="182" class="mono" text-anchor="middle">geldende_besluiten</text>
+      <text x="440" y="160" class="strong" text-anchor="middle">Awb 7:11 en 8:79</text>
+      <text x="440" y="182" class="mono" text-anchor="middle">effects: revokes</text>
     </svg>
 
     <!-- Synthese: two cells each answer a question of their own from their
