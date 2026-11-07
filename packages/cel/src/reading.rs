@@ -53,7 +53,8 @@ use chrono::NaiveDate;
 use regelrecht_engine::{
     has_projection, Answer as EngineAnswer, AnswerProvenance, AnswerRequest, ArticleBasedLaw,
     ArticleResult, Authority, Call, Chronicle as ChronicleSource, ChronicleRead, ChronicleRecord,
-    EngineError, LawExecutionService, OpenTermAnswerer, ProjectionOptions, RegulatoryLayer, Value,
+    EngineError, LawExecutionService, OpenTermAnswerer, PathNode, ProjectionOptions,
+    RegulatoryLayer, Value,
 };
 use serde::Serialize;
 use serde_json::Map;
@@ -366,8 +367,10 @@ pub struct Asked {
 /// version in force on the day, on its chronicle as `grams` holds it, and
 /// gives the engine the value with where it comes from: the cell, the
 /// answer, the reduction, its article and version, and how far it read the
-/// chronicle. The engine does not see the reduction run; the cell explains
-/// its answer on request ([`crate::Cell::explain_answer`]).
+/// chronicle. When the engine traces, the reader gives the reduction's run
+/// with the answer, and the engine nests it under the answer
+/// ([`OpenTermAnswerer::answer_traced`]); the cell also explains an answer
+/// on request ([`crate::Cell::explain_answer`]).
 ///
 /// The reduction is the rulework the service holds under that `$id`: a
 /// `REDUCTIE` the cell keeps (`reductions`). The answer
@@ -441,6 +444,7 @@ impl<'c> Reader<'c> {
         reduction: &str,
         request: &AnswerRequest<'_>,
         day: NaiveDate,
+        trace: bool,
     ) -> Result<Option<(AnswerProvenance, ArticleResult)>> {
         let name = request.name;
         if !service.has_law(reduction) {
@@ -519,7 +523,7 @@ impl<'c> Reader<'c> {
         };
         let outputs = [name];
         let date = request.calculation_date;
-        let trace = self.explain == Some(name);
+        let trace = trace || self.explain == Some(name);
         // A reduction that plays the chronicle forward (schema v0.8.14) gets
         // the chronicle as records; the engine plays it and answers from the
         // last state.
@@ -614,16 +618,15 @@ impl ChronicleSource for Reader<'_> {
     }
 }
 
-impl OpenTermAnswerer for Reader<'_> {
-    fn authority(&self) -> &Authority {
-        self.authority
-    }
-
-    fn answer(
+impl Reader<'_> {
+    /// The answer `request` names, and, when `trace` asks for it or the
+    /// reader explains this answer, the reduction's run with its trace.
+    fn give(
         &self,
         service: &LawExecutionService,
         request: &AnswerRequest<'_>,
-    ) -> regelrecht_engine::Result<Option<EngineAnswer>> {
+        trace: bool,
+    ) -> regelrecht_engine::Result<Option<(EngineAnswer, Option<PathNode>)>> {
         let name = request.name;
         let Some(reduction) = self.answers.get(name) else {
             return Ok(None);
@@ -639,7 +642,7 @@ impl OpenTermAnswerer for Reader<'_> {
             )));
         }
         self.answering.borrow_mut().push(name.to_string());
-        let ran = self.run(service, reduction, request, day);
+        let ran = self.run(service, reduction, request, day, trace);
         self.answering.borrow_mut().pop();
         let Some((provenance, result)) = ran.map_err(|e| match e {
             crate::Error::Engine(e) => e,
@@ -657,6 +660,7 @@ impl OpenTermAnswerer for Reader<'_> {
                 self.recording_actor
             ))
         })?;
+        let how = if trace { result.trace.clone() } else { None };
         let explained = (self.explain == Some(name)).then_some(result);
         self.asked.borrow_mut().push(Asked {
             name: name.to_string(),
@@ -664,7 +668,34 @@ impl OpenTermAnswerer for Reader<'_> {
             provenance: provenance.clone(),
             explained,
         });
-        Ok(Some(EngineAnswer { value, provenance }))
+        Ok(Some((EngineAnswer { value, provenance }, how)))
+    }
+}
+
+impl OpenTermAnswerer for Reader<'_> {
+    fn authority(&self) -> &Authority {
+        self.authority
+    }
+
+    fn answer(
+        &self,
+        service: &LawExecutionService,
+        request: &AnswerRequest<'_>,
+    ) -> regelrecht_engine::Result<Option<EngineAnswer>> {
+        Ok(self
+            .give(service, request, false)?
+            .map(|(answer, _)| answer))
+    }
+
+    /// The answer with the run of the reduction that gave it, as its trace:
+    /// for a reduction with a projection, the `PROJECTION` node with the
+    /// records that count and the fold, and the steps' law calls under it.
+    fn answer_traced(
+        &self,
+        service: &LawExecutionService,
+        request: &AnswerRequest<'_>,
+    ) -> regelrecht_engine::Result<Option<(EngineAnswer, Option<PathNode>)>> {
+        self.give(service, request, true)
     }
 }
 
@@ -1200,13 +1231,22 @@ articles:
             provenance.last_record.as_deref(),
             Some("BESCHIKKING-wet_fictief#1")
         );
-        // The reduction's FOREACH is not in the trace of the execution.
-        let trace = result.trace.unwrap().render_box_drawing();
+        // The traced execution holds how the cell came to its answer, under
+        // the node of the answer: the reduction's run, with its FOREACH.
+        let root = result.trace.unwrap();
+        let trace = root.render_box_drawing();
         assert!(
             trace.contains("Answered by answer 'al_verleend' of obs_de_klimop"),
             "{trace}"
         );
-        assert!(!trace.contains("FOREACH"), "{trace}");
+        fn find<'n>(node: &'n PathNode, name: &str) -> Option<&'n PathNode> {
+            if node.name == name && node.answer.is_some() {
+                return Some(node);
+            }
+            node.children.iter().find_map(|c| find(c, name))
+        }
+        let answer = find(&root, "al_verleend").expect("the node of the answer");
+        assert!(answer.render_box_drawing().contains("FOREACH"), "{trace}");
         let asked = reader.asked();
         assert_eq!(asked.len(), 1);
         assert_eq!(asked[0].name, "al_verleend");

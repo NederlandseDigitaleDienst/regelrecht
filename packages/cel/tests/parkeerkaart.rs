@@ -952,7 +952,8 @@ fn the_cell_answers_the_policy_and_explains_the_card_it_counted() {
         node.result,
         Some(regelrecht_engine::Value::from(json!(true)))
     );
-    assert!(node.children.is_empty(), "{node:?}");
+    // Under it, how the cell came to the answer: the run of its reduction.
+    assert_eq!(node.children.len(), 1, "{node:?}");
     let answer = node.answer.as_ref().unwrap();
     assert_eq!(answer.answerer, RECORDING_ACTOR);
     assert_eq!(answer.law_id, REDUCTION);
@@ -966,9 +967,8 @@ fn the_cell_answers_the_policy_and_explains_the_card_it_counted() {
         answer.last_record.as_deref(),
         Some(second_application.id.as_str())
     );
-    // The reduction's FOREACH is not in the decision's trace.
-    let trace = root.render_box_drawing();
-    assert!(!trace.contains("FOREACH"), "{trace}");
+    // The reduction's FOREACH hangs under the answer in the decision's trace.
+    assert!(node.render_box_drawing().contains("FOREACH"), "{node:?}");
     // The report says the same: the cell answered the policy's term.
     assert!(
         result.open_terms.iter().any(|f| f.term == VALID

@@ -1027,6 +1027,16 @@ fn format_node_id(path: &[usize]) -> String {
     id
 }
 
+/// Give `node` and every node under it the `node_id` of its place, `path`.
+fn renumber(node: &mut PathNode, path: &mut Vec<usize>) {
+    node.node_id = Some(format_node_id(path));
+    for (index, child) in node.children.iter_mut().enumerate() {
+        path.push(index);
+        renumber(child, path);
+        path.pop();
+    }
+}
+
 /// Builder for constructing execution traces using a stack-based approach.
 ///
 /// The builder maintains a stack of nodes being constructed. As execution
@@ -1266,6 +1276,23 @@ impl TraceBuilder {
             return None;
         }
         self.stack.last().and_then(|s| s.node.node_id.as_deref())
+    }
+
+    /// Make `node`, a trace built in another execution, a child of the
+    /// current node, such as how a cell came to the answer the engine asked
+    /// it for (RFC-048). Its `node_id`s are given anew from its place here,
+    /// so every id stays unique in the tree. No-op without a current node.
+    pub fn adopt(&mut self, mut node: PathNode) {
+        if !self.enabled {
+            return;
+        }
+        let Some(parent) = self.stack.last_mut() else {
+            return;
+        };
+        let mut path = parent.path.clone();
+        path.push(parent.node.children.len());
+        renumber(&mut node, &mut path);
+        parent.node.children.push(node);
     }
 
     /// Pop the current node from the stack, making it a child of the parent.

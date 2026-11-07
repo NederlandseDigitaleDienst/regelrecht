@@ -1150,8 +1150,9 @@ impl Cell {
     ///
     /// A term the cell answered is one node of that trace: the lexostatus,
     /// with the cell, the reduction and its version, and how far it read the
-    /// chronicle. How the cell came to it is the cell's own account
-    /// ([`Cell::explain_answer`]).
+    /// chronicle. Under it hangs how the cell came to the answer: the run of
+    /// the reduction, with the projection it played. [`Cell::explain_answer`]
+    /// gives that run on its own.
     pub fn explain(
         &self,
         service: &mut LawExecutionService,

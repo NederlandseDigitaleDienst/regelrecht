@@ -377,13 +377,10 @@ impl LawExecutionService {
         })
     }
 
-    /// Refuse a step that does not say which records of its article it is
-    /// about: an article with more than one kind of record needs the kind
-    /// (`<article>#<KIND>`), the kind must be one the article gives, and a
-    /// step cannot pick one of several facts of an article. The article is
-    /// the one in force on `day`. This runs when the projection is played,
-    /// because the reduction and the law are separate regelwerken that load
-    /// in any order.
+    /// Refuse a step that does not fit the laws it names, in their versions
+    /// in force on `day` ([`check_step`]). The loader checks the same against
+    /// the versions it holds, whichever of the reduction and the law loads
+    /// last; this check holds the step to the versions the play uses.
     fn check_steps(
         &self,
         law_id: &str,
@@ -391,159 +388,16 @@ impl LawExecutionService {
         question: &[regelrecht_law_model::Parameter],
         day: NaiveDate,
     ) -> Result<()> {
+        let law_of = |id: &str| self.resolver().get_law_for_date(id, Some(day));
         for step in &projection.steps {
-            let (basis, kind) = step.basis_and_kind();
-            let refuse = |why: String| {
-                Err(EngineError::InvalidOperation(format!(
-                    "the step of '{law_id}' on {}: {why}",
-                    step.record
-                )))
-            };
-            let article = basis.split_once('#').and_then(|(law, number)| {
-                self.resolver()
-                    .get_law_for_date(law, Some(day))
-                    .and_then(|l| l.find_article_by_number(number))
-            });
-            let Some(article) = article else {
-                return refuse(format!("{basis} names no article in force on {day}"));
-            };
-            let kinds = kinds_of(article);
-            let mut distinct = kinds.clone();
-            distinct.dedup();
-            match kind {
-                None if distinct.len() > 1 => {
-                    return refuse(format!(
-                        "needs a kind: the article gives {}; write {basis}#{}",
-                        distinct.join(" and "),
-                        distinct.last().map_or("", String::as_str)
+            check_step(projection, step, question, &law_of, Versions::InForce(day)).map_err(
+                |why| {
+                    EngineError::InvalidOperation(format!(
+                        "the step of '{law_id}' on {}: {why}",
+                        step.record
                     ))
-                }
-                Some(kind) if !kinds.iter().any(|k| k == kind) => {
-                    return refuse(format!(
-                        "the article gives no {kind}, only {}",
-                        if distinct.is_empty() {
-                            "nothing".to_string()
-                        } else {
-                            distinct.join(" and ")
-                        }
-                    ))
-                }
-                _ if kinds.iter().filter(|k| *k == EXECUTOGRAM).count() > 1
-                    && kind.is_none_or(|k| k == EXECUTOGRAM) =>
-                {
-                    return refuse(
-                        "the article requires more than one fact; a step cannot pick one"
-                            .to_string(),
-                    )
-                }
-                _ => {}
-            }
-            self.check_wiring(projection, step, article, question, day)
-                .or_else(refuse)?;
-        }
-        Ok(())
-    }
-
-    /// Refuse a step that does not fit the laws it calls, in their versions
-    /// in force on `day`: each input must name an output of an article a step
-    /// can call ([`refuse_impure`]), pass only parameters that article
-    /// declares, from a field of the record or a property of the state of
-    /// the same type, and have the type of that output; each property the
-    /// step sets must get a value of its type.
-    fn check_wiring(
-        &self,
-        projection: &Projection,
-        step: &ProjectionStep,
-        record_article: &Article,
-        question: &[regelrecht_law_model::Parameter],
-        day: NaiveDate,
-    ) -> std::result::Result<(), String> {
-        let read_type = |source: &StepSource| match source {
-            StepSource::Input(name) => step
-                .input
-                .iter()
-                .find(|i| &i.name == name)
-                .map(|i| i.input_type),
-            StepSource::Record(field) => field_type(record_article, field),
-            StepSource::State(property) => state_type(projection, property),
-        };
-        for input in &step.input {
-            let (regulation, output, parameters) = step_source(input)?;
-            let Some((_, article)) = self.called_article(regulation, output, day) else {
-                return Err(format!(
-                    "input '{}' takes '{output}' of {regulation}, which no article in force on \
-                     {day} gives",
-                    input.name
-                ));
-            };
-            refuse_impure(article)
-                .map_err(|why| format!("input '{}' cannot call {regulation}: {why}", input.name))?;
-            for (name, value) in &parameters {
-                let Some(parameter) = article.get_parameters().iter().find(|p| &p.name == name)
-                else {
-                    return Err(format!(
-                        "input '{}' passes '{name}', which {regulation} article {} does not take",
-                        input.name, article.number
-                    ));
-                };
-                let source = StepSource::parse(value)
-                    .ok_or_else(|| format!("input '{}' passes '{name}' as {value}", input.name))?;
-                // In a parameter, `$<name>` is a parameter of the question.
-                let given = match &source {
-                    StepSource::Input(asked) => question
-                        .iter()
-                        .find(|p| &p.name == asked)
-                        .map(|p| p.param_type),
-                    other => read_type(other),
-                };
-                match given {
-                    None => {
-                        return Err(format!(
-                            "input '{}' passes {source} as '{name}', but the record has no such \
-                             field",
-                            input.name
-                        ))
-                    }
-                    Some(t) if t != parameter.param_type => {
-                        return Err(format!(
-                            "input '{}' passes {source}, a {t:?}, as '{name}', a {:?}",
-                            input.name, parameter.param_type
-                        ))
-                    }
-                    Some(_) => {}
-                }
-            }
-            let given = article
-                .get_outputs()
-                .iter()
-                .find(|o| o.name == output)
-                .map(|o| o.output_type);
-            if given.is_some_and(|t| t != input.input_type) {
-                return Err(format!(
-                    "input '{}' is a {:?}, but '{output}' of {regulation} is a {:?}",
-                    input.name,
-                    input.input_type,
-                    given.unwrap_or(input.input_type)
-                ));
-            }
-        }
-        for action in &step.actions {
-            let (property, value) = step_action(action)?;
-            let source = set_source(value)?;
-            let given = read_type(&source);
-            match (given, state_type(projection, property)) {
-                (None, _) => {
-                    return Err(format!(
-                        "sets '{property}' from {source}, but the record has no such field"
-                    ))
-                }
-                (Some(t), Some(want)) if t != want => {
-                    return Err(format!(
-                        "sets '{property}' from {source}, a {t:?}, which is no {want:?}"
-                    ))
-                }
-                _ => {}
-            }
+                },
+            )?;
         }
         Ok(())
     }
@@ -601,7 +455,7 @@ impl LawExecutionService {
                     input.name
                 ))
                 })?;
-            refuse_impure(article).map_err(|why| {
+            refuse_impure(article, output).map_err(|why| {
                 fail(format!(
                     "input '{}' cannot call {regulation}: {why}",
                     input.name
@@ -916,6 +770,236 @@ impl Partition {
     }
 }
 
+/// Which versions of the laws a step names [`check_step`] holds it to.
+#[derive(Clone, Copy)]
+pub(crate) enum Versions {
+    /// Those in force on a day, when the projection plays: a law without
+    /// one is refused.
+    InForce(NaiveDate),
+    /// Those the loader holds: a law it does not hold yet is not checked,
+    /// because the reduction and the law load in any order; the loader
+    /// checks the step again when that law arrives.
+    Loaded,
+}
+
+impl std::fmt::Display for Versions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InForce(day) => write!(f, "in force on {day}"),
+            Self::Loaded => write!(f, "in the version loaded"),
+        }
+    }
+}
+
+/// Refuse a step that does not fit the laws it names, as `law_of` gives
+/// them in `versions`. The step must say which records of its article it is
+/// about: an article with more than one kind of record needs the kind
+/// (`<article>#<KIND>`), the kind must be one the article gives, and a step
+/// cannot pick one of several facts of an article. Each input must name an
+/// output of an article whose reading of that output is pure
+/// ([`refuse_impure`]), pass every parameter that article requires and only
+/// parameters it declares, each from a field of the record (as its law
+/// declares the record, [`field_type`]), a property of the state or a
+/// parameter of the question, of the parameter's type, and have the type of
+/// that output; each property the step sets must get a value of its type.
+pub(crate) fn check_step<'l>(
+    projection: &Projection,
+    step: &ProjectionStep,
+    question: &[regelrecht_law_model::Parameter],
+    law_of: &dyn Fn(&str) -> Option<&'l ArticleBasedLaw>,
+    versions: Versions,
+) -> std::result::Result<(), String> {
+    // The article of `law_id` that `pick` finds: `Ok(None)` when the loader
+    // does not hold that law yet, so there is nothing to check against.
+    let article = |law_id: &str,
+                   pick: &dyn Fn(&'l ArticleBasedLaw) -> Option<&'l Article>,
+                   missing: &dyn Fn() -> String|
+     -> std::result::Result<Option<&'l Article>, String> {
+        match (law_of(law_id), versions) {
+            (Some(law), _) => pick(law).map(Some).ok_or_else(missing),
+            (None, Versions::Loaded) => Ok(None),
+            (None, Versions::InForce(_)) => Err(missing()),
+        }
+    };
+    let (basis, kind) = step.basis_and_kind();
+    let (record_law, number) = basis.split_once('#').unwrap_or((basis, ""));
+    let record_article = article(
+        record_law,
+        &|law| law.find_article_by_number(number),
+        &|| format!("{basis} names no article {versions}"),
+    )?;
+    let record = match record_article {
+        Some(article) => Some((article, record_kind(article, basis, kind)?)),
+        None => None,
+    };
+    // The type of what `source` reads: `None` when the law that would say
+    // is not loaded yet, `Some(None)` when there is no such thing.
+    let read_type = |source: &StepSource| -> Option<Option<ParameterType>> {
+        match source {
+            StepSource::Input(name) => Some(
+                step.input
+                    .iter()
+                    .find(|i| &i.name == name)
+                    .map(|i| i.input_type),
+            ),
+            StepSource::Record(field) => record
+                .as_ref()
+                .map(|(article, kind)| field_type(article, kind.as_deref(), field)),
+            StepSource::State(property) => Some(state_type(projection, property)),
+        }
+    };
+    for input in &step.input {
+        let (regulation, output, parameters) = step_source(input)?;
+        let Some(called) = article(
+            regulation,
+            &|law| law.find_article_by_output(output),
+            &|| {
+                format!(
+                    "input '{}' takes '{output}' of {regulation}, which no article {versions} \
+                     gives",
+                    input.name
+                )
+            },
+        )?
+        else {
+            continue;
+        };
+        refuse_impure(called, output)
+            .map_err(|why| format!("input '{}' cannot call {regulation}: {why}", input.name))?;
+        for (name, value) in &parameters {
+            let Some(parameter) = called.get_parameters().iter().find(|p| &p.name == name) else {
+                return Err(format!(
+                    "input '{}' passes '{name}', which {regulation} article {} does not take",
+                    input.name, called.number
+                ));
+            };
+            let source = StepSource::parse(value)
+                .ok_or_else(|| format!("input '{}' passes '{name}' as {value}", input.name))?;
+            // In a parameter, `$<name>` is a parameter of the question.
+            let given = match &source {
+                StepSource::Input(asked) => Some(
+                    question
+                        .iter()
+                        .find(|p| &p.name == asked)
+                        .map(|p| p.param_type),
+                ),
+                other => read_type(other),
+            };
+            match given {
+                None => {}
+                Some(None) => {
+                    return Err(format!(
+                        "input '{}' passes {source} as '{name}', but {}",
+                        input.name,
+                        no_such(&source, true)
+                    ))
+                }
+                Some(Some(t)) if t != parameter.param_type => {
+                    return Err(format!(
+                        "input '{}' passes {source}, a {t:?}, as '{name}', a {:?}",
+                        input.name, parameter.param_type
+                    ))
+                }
+                Some(Some(_)) => {}
+            }
+        }
+        if let Some(required) = called
+            .get_parameters()
+            .iter()
+            .find(|p| p.required != Some(false) && !parameters.contains_key(&p.name))
+        {
+            return Err(format!(
+                "input '{}' passes no '{}', which {regulation} article {} requires",
+                input.name, required.name, called.number
+            ));
+        }
+        let given = called
+            .get_outputs()
+            .iter()
+            .find(|o| o.name == output)
+            .map(|o| o.output_type);
+        if let Some(t) = given.filter(|t| *t != input.input_type) {
+            return Err(format!(
+                "input '{}' is a {:?}, but '{output}' of {regulation} is a {t:?}",
+                input.name, input.input_type
+            ));
+        }
+    }
+    for action in &step.actions {
+        let (property, value) = step_action(action)?;
+        let source = set_source(value)?;
+        match (read_type(&source), state_type(projection, property)) {
+            (Some(None), _) => {
+                return Err(format!(
+                    "sets '{property}' from {source}, but {}",
+                    no_such(&source, false)
+                ))
+            }
+            (Some(Some(t)), Some(want)) if t != want => {
+                return Err(format!(
+                    "sets '{property}' from {source}, a {t:?}, which is no {want:?}"
+                ))
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// Why a step cannot read `source`: there is no such field, property, input
+/// or, in a parameter (`in_parameter`), parameter of the question.
+fn no_such(source: &StepSource, in_parameter: bool) -> &'static str {
+    match source {
+        StepSource::Record(_) => "the record has no such field",
+        StepSource::State(_) => "the state has no such property",
+        StepSource::Input(_) if in_parameter => "the question has no such parameter",
+        StepSource::Input(_) => "the step has no such input",
+    }
+}
+
+/// The kind of record a step on `article` is about: the kind it names, or
+/// the one kind the article gives (`None` when it gives none, so no record
+/// rests on it). Refused when the article gives more than one kind and the
+/// step names none, when it names a kind the article does not give, and
+/// when it would have to pick one of several facts.
+fn record_kind(
+    article: &Article,
+    basis: &str,
+    kind: Option<&str>,
+) -> std::result::Result<Option<String>, String> {
+    let kinds = kinds_of(article);
+    let mut distinct = kinds.clone();
+    distinct.dedup();
+    match kind {
+        None if distinct.len() > 1 => {
+            return Err(format!(
+                "needs a kind: the article gives {}; write {basis}#{}",
+                distinct.join(" and "),
+                distinct.last().map_or("", String::as_str)
+            ))
+        }
+        Some(kind) if !kinds.iter().any(|k| k == kind) => {
+            return Err(format!(
+                "the article gives no {kind}, only {}",
+                if distinct.is_empty() {
+                    "nothing".to_string()
+                } else {
+                    distinct.join(" and ")
+                }
+            ))
+        }
+        _ if kinds.iter().filter(|k| *k == EXECUTOGRAM).count() > 1
+            && kind.is_none_or(|k| k == EXECUTOGRAM) =>
+        {
+            return Err(
+                "the article requires more than one fact; a step cannot pick one".to_string(),
+            )
+        }
+        _ => {}
+    }
+    Ok(kind.map(str::to_string).or_else(|| distinct.pop()))
+}
+
 /// The step the reduction gives for `record`, if any: the one on its
 /// article, of its kind when the step names one. A step without a kind is
 /// on an article that has one kind of record ([`LawExecutionService::check_steps`]).
@@ -1003,50 +1087,105 @@ fn state_type(projection: &Projection, name: &str) -> Option<ParameterType> {
         .map(|p| p.property_type)
 }
 
-/// The type of field `name` of a record under `article`: a parameter or an
-/// output of it.
-fn field_type(article: &Article, name: &str) -> Option<ParameterType> {
-    article
-        .get_parameters()
-        .iter()
-        .find(|p| p.name == name)
-        .map(|p| p.param_type)
-        .or_else(|| {
-            article
-                .get_outputs()
-                .iter()
-                .find(|o| o.name == name)
-                .map(|o| o.output_type)
-        })
+/// The type of field `name` of a record of `kind` under `article`, as the
+/// law declares that record. A fact (`EXECUTOGRAM`) holds the parameters
+/// the article requires it to hold. A decision holds the parameters of its
+/// article, its outputs and the data derived for it; a submission the
+/// parameters and outputs its item lists (in the object form of `produces`
+/// every parameter and output). Without a kind (an article that gives no
+/// record) every parameter and output counts.
+fn field_type(article: &Article, kind: Option<&str>, name: &str) -> Option<ParameterType> {
+    let parameter = || {
+        article
+            .get_parameters()
+            .iter()
+            .find(|p| p.name == name)
+            .map(|p| p.param_type)
+    };
+    let output = || {
+        article
+            .get_outputs()
+            .iter()
+            .find(|o| o.name == name)
+            .map(|o| o.output_type)
+    };
+    let Some(kind) = kind else {
+        return parameter().or_else(output);
+    };
+    if kind == EXECUTOGRAM {
+        let holds = article
+            .get_requires()
+            .iter()
+            .filter(|r| r.fact.is_some())
+            .flat_map(|r| r.parameters.iter().flatten())
+            .any(|p| p == name);
+        return holds.then(parameter).flatten();
+    }
+    let item = article
+        .get_produced()
+        .into_iter()
+        .find(|p| p.submission_kind().or(p.legal_character()) == Some(kind))?;
+    let decision = item.legal_character().is_some();
+    let in_parameters = decision || article.parameters_of(item).contains(&name);
+    let in_outputs = article.outputs_of(item).contains(&name)
+        || (decision && article.derived_outputs().contains(&name));
+    in_parameters
+        .then(parameter)
+        .flatten()
+        .or_else(|| in_outputs.then(output).flatten())
 }
 
-/// Refuse an article a step cannot call: one that reads anything but the
-/// parameters the step passes. An input (with or without a `source`) is
-/// data from outside the record and the state, and an open term is filled
-/// by another regulation, so an article with either is refused, as is one
-/// without outputs or one that plays a projection itself.
-fn refuse_impure(article: &Article) -> std::result::Result<(), String> {
+/// Refuse an output a step cannot read: one that depends on anything but
+/// the parameters the step passes. Purity is a matter of what the step
+/// reads, not of the whole article, so the check follows `output` through
+/// the actions of its article ([`crate::demand::required_outputs`]): the
+/// output and every output it reads, transitively. None of them may read an
+/// input of the article (with or without a `source`: data from outside the
+/// record and the state, such as a data source or the answer of a cell) or
+/// an open term (filled by another regulation). Another output of the same
+/// article may read either. An article that plays a projection itself is
+/// refused as a whole. `$referencedate` is the day of the record, the day
+/// the step calls the law on, so it reads nothing from outside.
+fn refuse_impure(article: &Article, output: &str) -> std::result::Result<(), String> {
     let Some(machine) = article.machine_readable.as_ref() else {
         return Err("the article has no machine_readable".to_string());
     };
     if machine.projection.is_some() {
         return Err("the article plays a projection itself".to_string());
     }
-    if machine.open_terms.as_ref().is_some_and(|t| !t.is_empty()) {
-        return Err("the article has open terms, which another regulation fills".to_string());
-    }
-    let execution = machine.execution.as_ref();
-    if let Some(input) = execution
-        .and_then(|e| e.input.as_ref())
-        .and_then(|i| i.first())
+    let actions = machine
+        .execution
+        .as_ref()
+        .and_then(|e| e.actions.as_deref())
+        .unwrap_or_default();
+    let needed = crate::demand::required_outputs(actions, &[output]);
+    let reads: BTreeSet<String> = actions
+        .iter()
+        .filter(|a| a.output.as_ref().is_some_and(|o| needed.contains(o)))
+        .flat_map(crate::demand::referenced_names)
+        .collect();
+    // An input named like an output still reaches that output's first
+    // assignment (the pass-through `x: $x`), so a read of the name counts.
+    if let Some(input) = article
+        .get_inputs()
+        .iter()
+        .find(|i| reads.contains(&i.name))
     {
         return Err(format!(
-            "the article reads input '{}'; a law a step calls reads only what the step passes",
+            "'{output}' reads input '{}'; what a step reads depends only on what the step passes",
             input.name
         ));
     }
-    if article.get_outputs().is_empty() {
-        return Err("the article has no outputs".to_string());
+    if let Some(term) = article
+        .get_open_terms()
+        .into_iter()
+        .flatten()
+        .find(|t| reads.contains(&t.id))
+    {
+        return Err(format!(
+            "'{output}' reads open term '{}', which another regulation fills",
+            term.id
+        ));
     }
     Ok(())
 }
@@ -2150,17 +2289,14 @@ articles:
     #[test]
     fn a_step_names_the_kind_only_where_the_article_has_more_than_one() {
         let ask = |steps: &str| {
+            let reduction = REDUCTION
+                .replace("$id: reductie", "$id: reductie_soort")
+                .replace(
+                    "          - record: wet#1#BESCHIKKING\n",
+                    &format!("          - record: {steps}\n"),
+                );
             let mut service = service();
-            service
-                .load_law(
-                    &REDUCTION
-                        .replace("$id: reductie", "$id: reductie_soort")
-                        .replace(
-                            "          - record: wet#1#BESCHIKKING\n",
-                            &format!("          - record: {steps}\n"),
-                        ),
-                )
-                .unwrap();
+            service.load_law(&reduction)?;
             service.evaluate_projection(
                 "reductie_soort",
                 &["heeft_kaart"],
@@ -2170,7 +2306,8 @@ articles:
                 false,
             )
         };
-        // Article 1 gives an application and a decision.
+        // Article 1 gives an application and a decision. The loader
+        // refuses the step, whichever of the two loads last.
         let err = ask("wet#1").expect_err("no kind");
         assert!(
             err.to_string().contains(
@@ -2213,31 +2350,17 @@ articles:
     fn a_step_cannot_pick_one_of_two_facts() {
         // Without a kind, and with EXECUTOGRAM as its kind: neither picks a fact.
         for step in ["wet#4", "wet#4#EXECUTOGRAM"] {
-            let mut service = LawExecutionService::new();
-            service
-                .load_law(&LAW.replace(
-                    "        - fact: ingeleverd\n          parameters: [op]\n",
-                    "        - fact: ingeleverd\n          parameters: [op]\n        - fact: verloren\n          parameters: [op]\n",
-                ))
-                .unwrap();
-            service
-                .load_law(&REDUCTION.replace("record: wet#4\n", &format!("record: {step}\n")))
-                .unwrap();
-            let err = service
-                .evaluate_projection(
-                    "reductie",
-                    &["heeft_kaart"],
-                    &[],
-                    BTreeMap::new(),
-                    "2025-03-01",
-                    false,
-                )
-                .expect_err("two facts");
-            assert!(
-                err.to_string()
-                    .contains("the article requires more than one fact; a step cannot pick one"),
-                "{step}: {err}"
+            let law = LAW.replace(
+                "        - fact: ingeleverd\n          parameters: [op]\n",
+                "        - fact: ingeleverd\n          parameters: [op]\n        - fact: verloren\n          parameters: [op]\n",
             );
+            let reduction = REDUCTION.replace("record: wet#4\n", &format!("record: {step}\n"));
+            for err in refused_at_load(&law, &reduction) {
+                assert!(
+                    err.contains("the article requires more than one fact; a step cannot pick one"),
+                    "{step}: {err}"
+                );
+            }
         }
     }
 
@@ -2365,29 +2488,13 @@ articles:
     /// may read nothing else; each property gets a value of its type.
     #[test]
     fn a_step_must_fit_the_laws_it_calls() {
-        let ask = |law: &str, reduction: &str| {
-            let mut service = LawExecutionService::new();
-            service.load_law(law).unwrap();
-            service.load_law(reduction).unwrap();
-            service
-                .evaluate_projection(
-                    "reductie",
-                    &["heeft_kaart"],
-                    &[grant("a")],
-                    BTreeMap::new(),
-                    "2025-03-01",
-                    false,
-                )
-                .expect_err(reduction)
-                .to_string()
-        };
         let parameters = "parameters: {verleend: $record.verleend, aantal: $state.aantal}";
         let with = |a: &str, b: &str| REDUCTION.replace(a, b);
         for (law, reduction, why) in [
             (
                 LAW.to_string(),
                 with("output: kaart\n", "output: geen\n"),
-                "input 'kaart_na' takes 'geen' of wet, which no article in force on 2025-03-01 gives",
+                "input 'kaart_na' takes 'geen' of wet, which no article in the version loaded gives",
             ),
             (
                 LAW.to_string(),
@@ -2415,7 +2522,33 @@ articles:
             ),
             (
                 LAW.to_string(),
-                with("              - name: kaart_na\n                type: boolean", "              - name: kaart_na\n                type: number"),
+                with(parameters, "parameters: {verleend: $record.verleend}"),
+                "input 'kaart_na' passes no 'aantal', which wet article 5 requires",
+            ),
+            (
+                // `verleend` is an output of the decision, not of the
+                // application of the same article.
+                LAW.to_string(),
+                with("record: wet#1#BESCHIKKING", "record: wet#1#AANVRAAG"),
+                "input 'kaart_na' passes $record.verleend as 'verleend', but the record has no such field",
+            ),
+            (
+                // A fact holds the parameters the article requires it to
+                // hold, not every parameter of the article.
+                LAW.replace(
+                    "        parameters: [{name: op, type: date}]\n",
+                    "        parameters: [{name: op, type: date}, {name: los, type: boolean}]\n",
+                ),
+                with("actions: [{output: kaart, value: $weg}]", "actions: [{output: kaart, value: $record.los}]"),
+                "sets 'kaart' from $record.los, but the record has no such field",
+            ),
+            (
+                LAW.to_string(),
+                with("              - name: kaart_na\n                type: boolean", "              - name: kaart_na\n                type: number")
+                    .replace(
+                        "actions: [{output: kaart, value: $kaart_na}, {output: aantal, value: $aantal_na}]",
+                        "actions: [{output: aantal, value: $kaart_na}]",
+                    ),
                 "input 'kaart_na' is a Number, but 'kaart' of wet is a Boolean",
             ),
             (
@@ -2428,25 +2561,166 @@ articles:
                 with("actions: [{output: kaart, value: $record.verleend}]", "actions: [{output: kaart, value: $record.bestaat_niet}]"),
                 "sets 'kaart' from $record.bestaat_niet, but the record has no such field",
             ),
+        ] {
+            for err in refused_at_load(&law, &reduction) {
+                assert!(err.contains(why), "{why}: {err}");
+            }
+        }
+    }
+
+    /// The load errors when `law` loads before `reduction`, and when it
+    /// loads after it: the loader checks a step whichever of the two comes
+    /// last. A step that does not fit its own reduction, such as a value of
+    /// the wrong type for a property, is refused before any law loads.
+    fn refused_at_load(law: &str, reduction: &str) -> [String; 2] {
+        let mut service = LawExecutionService::new();
+        service.load_law(law).unwrap();
+        let after = service
+            .load_law(reduction)
+            .expect_err(reduction)
+            .to_string();
+        let mut service = LawExecutionService::new();
+        let before = match service.load_law(reduction) {
+            Err(alone) => alone.to_string(),
+            Ok(_) => {
+                let before = service.load_law(law).expect_err(reduction).to_string();
+                assert!(
+                    before.contains("breaks the projection of 'reductie'"),
+                    "{before}"
+                );
+                before
+            }
+        };
+        [after, before]
+    }
+
+    /// The play holds a step to the laws in force on the day asked about,
+    /// also where the loader had nothing to check it against.
+    #[test]
+    fn the_play_refuses_a_step_on_a_law_not_in_force() {
+        let mut service = LawExecutionService::new();
+        service.load_law(REDUCTION).unwrap();
+        let err = service
+            .evaluate_projection(
+                "reductie",
+                &["heeft_kaart"],
+                &[],
+                BTreeMap::new(),
+                "2025-03-01",
+                false,
+            )
+            .expect_err("no law");
+        assert!(
+            err.to_string()
+                .contains("wet#1 names no article in force on 2025-03-01"),
+            "{err}"
+        );
+    }
+
+    /// A law with one output a step may read and outputs it may not: one
+    /// reads an input, one reads that output in turn, and one reads an open
+    /// term.
+    const MIXED: &str = r#"
+$id: gemengd
+regulatory_layer: WET
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      open_terms:
+        - {id: drempel, type: boolean, required: false}
+      execution:
+        parameters: [{name: verleend, type: boolean}]
+        input:
+          - {name: buiten, type: boolean, source: {regulation: elders, output: iets}}
+        output:
+          - {name: zuiver, type: boolean}
+          - {name: van_buiten, type: boolean}
+          - {name: via_buiten, type: boolean}
+          - {name: met_drempel, type: boolean}
+        actions:
+          - {output: zuiver, value: $verleend}
+          - {output: van_buiten, value: $buiten}
+          - output: via_buiten
+            value: {operation: AND, conditions: [$verleend, $van_buiten]}
+          - output: met_drempel
+            value: {operation: EQUALS, subject: $drempel, value: null}
+"#;
+
+    /// Purity is about the output a step reads, not the whole article: a
+    /// step reads the pure output of an article whose other outputs read
+    /// an input or an open term, and is refused one that reads either,
+    /// also through another output.
+    #[test]
+    fn a_step_may_read_only_a_pure_output() {
+        let reduction = |output: &str| {
+            format!(
+                r#"
+$id: reductie
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      projection:
+        state: [{{name: kaart, type: boolean}}]
+        steps:
+          - record: wet#1#BESCHIKKING
+            input:
+              - name: na
+                type: boolean
+                source:
+                  regulation: gemengd
+                  output: {output}
+                  parameters: {{verleend: $record.verleend}}
+            actions: [{{output: kaart, value: $na}}]
+      execution:
+        output: [{{name: heeft_kaart, type: boolean}}]
+        actions: [{{output: heeft_kaart, value: $state.kaart}}]
+"#
+            )
+        };
+        let mut service = LawExecutionService::new();
+        service.load_law(LAW).unwrap();
+        service.load_law(MIXED).unwrap();
+        service.load_law(&reduction("zuiver")).unwrap();
+        // The input of the article is never resolved: `elders` is not even
+        // loaded.
+        let outcome = service
+            .evaluate_projection(
+                "reductie",
+                &["heeft_kaart"],
+                &[grant("a")],
+                BTreeMap::new(),
+                "2025-03-01",
+                false,
+            )
+            .unwrap();
+        assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(true));
+
+        for (output, why) in [
+            ("van_buiten", "'van_buiten' reads input 'buiten'"),
+            ("via_buiten", "'via_buiten' reads input 'buiten'"),
             (
-                LAW.replace(
-                    "        parameters: [{name: verleend, type: boolean}, {name: aantal, type: number}]\n",
-                    "        parameters: [{name: verleend, type: boolean}, {name: aantal, type: number}]\n        input:\n          - {name: buiten, type: boolean, source: {regulation: elders, output: iets}}\n",
-                ),
-                REDUCTION.to_string(),
-                "input 'kaart_na' cannot call wet: the article reads input 'buiten'",
-            ),
-            (
-                LAW.replace(
-                    "    machine_readable:\n      execution:\n        parameters: [{name: verleend, type: boolean}, {name: aantal",
-                    "    machine_readable:\n      open_terms:\n        - {id: drempel, type: number, required: false}\n      execution:\n        parameters: [{name: verleend, type: boolean}, {name: aantal",
-                ),
-                REDUCTION.to_string(),
-                "input 'kaart_na' cannot call wet: the article has open terms",
+                "met_drempel",
+                "'met_drempel' reads open term 'drempel', which another regulation fills",
             ),
         ] {
-            let err = ask(&law, &reduction);
-            assert!(err.contains(why), "{why}: {err}");
+            let mut service = LawExecutionService::new();
+            service.load_law(LAW).unwrap();
+            service.load_law(MIXED).unwrap();
+            let err = service
+                .load_law(&reduction(output))
+                .expect_err(output)
+                .to_string();
+            assert!(
+                err.contains(&format!("input 'na' cannot call gemengd: {why}")),
+                "{output}: {err}"
+            );
         }
     }
 }

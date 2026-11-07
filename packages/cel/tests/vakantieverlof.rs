@@ -2045,7 +2045,8 @@ fn a_grant_revoked_on_objection_no_longer_counts_on_the_objection_against_the_re
         node.result,
         Some(regelrecht_engine::Value::from(json!(false)))
     );
-    assert!(node.children.is_empty(), "{node:?}");
+    // Under it, how the cell came to the answer: the run of its reduction.
+    assert_eq!(node.children.len(), 1, "{node:?}");
     let answer = node.answer.as_ref().unwrap();
     assert_eq!(answer.answerer, RECORDING_ACTOR);
     assert_eq!(answer.law_id, REDUCTION);
@@ -2059,9 +2060,9 @@ fn a_grant_revoked_on_objection_no_longer_counts_on_the_objection_against_the_re
         .collect();
     assert_eq!(answer.records_read, before.len());
     assert_eq!(answer.last_record.as_deref(), Some(against_b.id.as_str()));
-    // The reduction's FOREACH is not in the decision's trace.
-    let trace = root.render_box_drawing();
-    assert!(!trace.contains("FOREACH"), "{trace}");
+    // The reduction's FOREACH hangs under the answer in the decision's
+    // trace.
+    assert!(node.render_box_drawing().contains("FOREACH"), "{node:?}");
     assert_eq!(
         result.outputs[REVOKED],
         regelrecht_engine::Value::from(json!(true))
@@ -2132,7 +2133,8 @@ fn the_cell_explains_the_grant_its_reduction_counted_for_a_refusal() {
     let result = cell.explain(&mut service(), &[], &b.id).unwrap();
     let trace = result.trace.as_ref().unwrap().render_box_drawing();
     assert!(trace.contains(REDUCTION), "{trace}");
-    assert!(!trace.contains(&a.id), "{trace}");
+    // The projection under the answer shows the grant A it counted.
+    assert!(trace.contains(&a.id), "{trace}");
     assert_eq!(
         result.outputs["verlof_verleend"],
         regelrecht_engine::Value::from(json!(false))

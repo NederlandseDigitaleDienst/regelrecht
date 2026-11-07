@@ -28,8 +28,12 @@
 //! The engine does not see how an answer came about. It records who gave it
 //! and from what ([`AnswerProvenance`]) in the report of the execution
 //! (`ArticleResult::open_terms`, with the binding article) and as one node
-//! per answer in the trace. Explaining the answer is the answerer's own
-//! business.
+//! per answer in the trace. When the execution traces, the engine asks for
+//! the answer with how the answerer came to it
+//! ([`OpenTermAnswerer::answer_traced`]), and nests that trace under the
+//! node of the answer: for a cell, the run of its reduction, with the
+//! projection it played. An answerer that does not explain itself gives
+//! none.
 
 use std::collections::BTreeMap;
 
@@ -38,6 +42,7 @@ use serde::{Deserialize, Serialize};
 use crate::article::{ArticleBasedLaw, AuthorityType, NamedAuthority};
 use crate::error::Result;
 use crate::service::LawExecutionService;
+use crate::trace::PathNode;
 use crate::types::Value;
 
 /// A named answer the engine asks an answerer for.
@@ -135,6 +140,17 @@ pub trait OpenTermAnswerer {
         service: &LawExecutionService,
         request: &AnswerRequest<'_>,
     ) -> Result<Option<Answer>>;
+
+    /// [`Self::answer`], with how the answerer came to the answer as a
+    /// trace, which the engine nests under the node of the answer when it
+    /// traces. The default explains nothing.
+    fn answer_traced(
+        &self,
+        service: &LawExecutionService,
+        request: &AnswerRequest<'_>,
+    ) -> Result<Option<(Answer, Option<PathNode>)>> {
+        Ok(self.answer(service, request)?.map(|answer| (answer, None)))
+    }
 }
 
 /// What a reduction reads from a chronicle (RFC-048): the decisions taken
