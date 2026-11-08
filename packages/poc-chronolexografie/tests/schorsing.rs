@@ -109,6 +109,10 @@ struct Verder {
     /// court rules on 11 January 2027; the municipality receives the copy
     /// on 12 January.
     hoofdzaak: bool,
+    /// With [`Verder::hoofdzaak`]: the court finds that the college broke a
+    /// rule of law, so the appeal is well founded and the decision on the
+    /// objection is annulled (Awb 8:72).
+    gegrond: bool,
 }
 
 /// The chronicle of the municipality after two permits and an objection by
@@ -166,13 +170,30 @@ fn chronicle(verder: &Verder) -> (Vec<Gram>, String) {
                 dag("2026-12-01"),
             )
             .unwrap();
+        let mut oordeel = map(&casus["voorbeeld"]["uitspraak"]);
+        if verder.gegrond {
+            // The legal effects do not stay in place, the ruling does not
+            // take the decision's place, and the college gets a new term
+            // (8:72, third and fourth paragraph).
+            oordeel.insert("rechtsregel_geschonden".into(), json!(true));
+            oordeel.insert(
+                "geschonden_rechtsregel".into(),
+                json!("artikel 7:12, eerste lid, van de Algemene wet bestuursrecht"),
+            );
+            oordeel.insert("rechtsgevolgen_in_stand".into(), json!(false));
+            oordeel.insert("uitspraak_treedt_in_de_plaats".into(), json!(false));
+            oordeel.insert("termijn_nieuw_besluit".into(), json!("2027-03-08"));
+        }
         let uitspraak = spel
-            .uitspraak_doen(
-                beroep["id"].as_str().unwrap(),
-                &map(&casus["voorbeeld"]["uitspraak"]),
-                dag("2027-01-11"),
-            )
+            .uitspraak_doen(beroep["id"].as_str().unwrap(), &oordeel, dag("2027-01-11"))
             .unwrap();
+        if verder.gegrond {
+            assert_eq!(
+                uitspraak["uitspraak"]["outputs"]["bestreden_besluit_vernietigd"],
+                json!(true),
+                "{uitspraak}"
+            );
+        }
         spel.toezenden(
             uitspraak["uitspraak"]["id"].as_str().unwrap(),
             dag("2027-01-12"),
@@ -544,4 +565,89 @@ fn per_permit_a_copy_about_the_earlier_decision_leaves_the_new_permit() {
         .insert("besluit_geschorst_vanaf".into(), json!("2027-11-01"));
     let grams = met(grams, [late]);
     assert!(geldig(&service, &grams, EERSTE, "2027-11-10"));
+}
+
+#[test]
+fn per_permit_annulling_the_decision_on_objection_leaves_the_permit_and_ends_the_suspension() {
+    // The appeal is well founded: the court annuls the decision on the
+    // objection with its legal effects (Awb 8:72, first and second
+    // paragraph). That revokes the decision on the objection, not the
+    // permit it upheld; the objection is open again. The measure lapses all
+    // the same, because the court ruled in the main case (8:85, second
+    // paragraph, under c).
+    let service = service();
+    let (grams, eerste) = chronicle(&Verder {
+        hoofdzaak: true,
+        gegrond: true,
+        ..Verder::default()
+    });
+    let grams = met(grams, [schorsing(&eerste)]);
+    assert!(!geldig(&service, &grams, EERSTE, "2027-01-10"));
+    assert!(geldig(&service, &grams, EERSTE, "2027-01-11"));
+}
+
+#[test]
+fn per_permit_a_permit_granted_on_objection_can_be_suspended() {
+    // The bakery reaches the maximum of two in the city centre, and the
+    // college refuses a third permit. On objection it applies the hardship
+    // clause: the refusal is revoked (Awb 7:11, second paragraph, as an
+    // effect) and a new decision grants the permit. The voorzieningenrechter
+    // then suspends that new decision. The request and the appeal it needs
+    // (8:81, first paragraph) are not played, as elsewhere in this file.
+    const DERDE: &str = "ZZ-003-Z";
+    let service = service();
+    let mut spel = Spel::new(Corpus::alle(&corpus_dir(), &corpus_dir().join("casussen")).unwrap());
+    spel.kiezen(CASUS).unwrap();
+    vergunning(&mut spel, EERSTE, "2026-10-13", "2026-10-20");
+    vergunning(&mut spel, TWEEDE, "2026-10-21", "2026-10-22");
+    let hardheid =
+        |oordeel: bool| map(&json!({ "toepassing_leidt_tot_onaanvaardbare_gevolgen": oordeel }));
+    let (weigering, verleend) = besluit(
+        &mut spel,
+        DERDE,
+        "2026-10-23",
+        "2026-10-27",
+        &hardheid(false),
+    );
+    assert!(!verleend, "the third permit is granted");
+    let casus = spel.casus().unwrap();
+    let mut bezwaar = map(&casus["voorbeeld"]["bezwaar"]);
+    bezwaar.insert(
+        "dagtekening_bezwaar_of_beroepschrift".into(),
+        json!("2026-11-01"),
+    );
+    let bezwaar = spel
+        .bezwaren(&weigering, &bezwaar, dag("2026-11-01"))
+        .unwrap();
+    let gegrond = spel
+        .beslissen_op_bezwaar(
+            bezwaar["id"].as_str().unwrap(),
+            &hardheid(true),
+            dag("2026-11-20"),
+        )
+        .unwrap();
+    assert_eq!(
+        gegrond["beslissing"]["outputs"]["bestreden_besluit_herroepen"],
+        json!(true),
+        "{gegrond}"
+    );
+    let nieuw = gegrond["beslissing"]["outputs"]["nieuw_besluit"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let kroniek = spel.kroniek().unwrap();
+    let grams: Vec<Gram> = serde_json::from_value(kroniek["grammen"].clone()).unwrap();
+
+    let mut geschorst = schorsing(&nieuw);
+    geschorst.recorded_on = dag("2026-12-01");
+    geschorst
+        .fields
+        .insert("besluit_geschorst_vanaf".into(), json!("2026-12-01"));
+    let grams = met(grams, [geschorst]);
+    // Before the decision on the objection there is no permit: the refusal
+    // gives none, and its revocation does not reach back to a day before
+    // the new decision.
+    assert!(!geldig(&service, &grams, DERDE, "2026-11-10"));
+    assert!(geldig(&service, &grams, DERDE, "2026-11-25"));
+    assert!(!geldig(&service, &grams, DERDE, "2026-12-05"));
 }

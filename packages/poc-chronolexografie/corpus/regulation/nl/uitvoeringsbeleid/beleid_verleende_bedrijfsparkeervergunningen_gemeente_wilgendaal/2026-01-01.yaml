@@ -98,7 +98,8 @@ articles:
       de nieuwe vergunning. Een weigering laat een eerder verleende vergunning
       voor dat kenteken zoals zij was. Voor de vraag of er op een dag een
       vergunning is, telt alleen een besluit dat op of vóór die dag is
-      genomen.
+      genomen. Die laatste zin is een tijdelijke omweg in de modellering; zij
+      vervalt met PR D (#1919), waarin het besluit een eigen aggregaat wordt.
     url: https://lokaleregelgeving.overheid.nl/CVDR733452
     machine_readable:
       # Wat één besluit op een aanvraag (artikel 2 van de verordening)
@@ -145,6 +146,9 @@ articles:
             description: De eerste dag van de schorsing na dit besluit.
         actions:
           # A decision taken after the day asked about did not exist on it.
+          # TIJDELIJKE OMWEG, te verwijderen in PR D (#1919, het besluit als
+          # aggregaat): deze uitvoer vergelijkt het besluit met $peildatum,
+          # een parameter van de vraag.
           - output: besluit_verleent_op_peildatum
             value:
               operation: AND
@@ -177,18 +181,27 @@ articles:
   - number: '3'
     text: >-
       FICTIEF, eigen keuze in de modellering. Strekt de uitspraak van de
-      voorzieningenrechter tot toewijzing van het verzoek (artikel 8:84,
-      tweede lid, onder d, van de Algemene wet bestuursrecht) en schorst zij
-      de vergunning (artikel 8:81), dan is de vergunning geschorst vanaf de
-      dag die de uitspraak noemt, tot zij vervalt of wordt opgeheven (artikel
-      4). Een eerdere opheffing of uitspraak in de hoofdzaak geldt niet voor
-      deze schorsing. Schorst de uitspraak niets, of gaat de schorsing pas na
-      de peildatum in, dan blijft een eerdere schorsing zoals zij was.
+      voorzieningenrechter tot gehele of gedeeltelijke toewijzing van het
+      verzoek (artikel 8:84, tweede lid, onder d, van de Algemene wet
+      bestuursrecht) en schorst zij het besluit waarbij de vergunning is
+      verleend (artikel 8:81), dan is de vergunning geschorst vanaf de dag
+      die de uitspraak noemt, tot de schorsing vervalt of wordt opgeheven
+      (artikel 4). De voorzieningenrechter kan het besluit ook voor een deel
+      schorsen. Dit beleid maakt daarin geen onderscheid: schorst de
+      uitspraak het besluit, dan is de vergunning geschorst. Een eerdere
+      opheffing of uitspraak in de hoofdzaak geldt niet voor deze schorsing.
+      Schorst de uitspraak niets, of gaat de schorsing pas na de peildatum
+      in, dan blijft een eerdere schorsing zoals zij was. Dat een schorsing
+      na de peildatum niet meetelt, is een tijdelijke omweg in de
+      modellering; het vervalt met PR D (#1919), waarin het besluit een eigen
+      aggregaat wordt.
     url: https://lokaleregelgeving.overheid.nl/CVDR733452
     machine_readable:
       # Wat het afschrift van een uitspraak van de voorzieningenrechter
       # (Awb 8:84, vierde lid) betekent voor de schorsing van één
-      # vergunning. Een latere schorsing van dezelfde vergunning vervangt de
+      # vergunning. De uitspraak schorst het besluit; een schorsing van een
+      # deel ervan is niet gemodelleerd, het afschrift noemt alleen de dag
+      # vanaf welke zij het besluit schorst. Een latere schorsing van dezelfde vergunning vervangt de
       # eerdere, met de dag waarop zij volgens de uitspraak vervalt (artikel
       # 8:85, eerste lid).
       execution:
@@ -215,7 +228,7 @@ articles:
           - name: besluit_geschorst_vanaf
             type: date
             nullable: true
-            description: De dag vanaf welke de nieuwe uitspraak de vergunning schorst.
+            description: De dag vanaf welke de nieuwe uitspraak het besluit schorst.
           - name: vervalt_volgens_uitspraak
             type: date
             nullable: true
@@ -226,7 +239,7 @@ articles:
         output:
           - name: uitspraak_schorst
             type: boolean
-            description: Of de uitspraak het verzoek toewijst en de vergunning op of vóór de peildatum schorst.
+            description: Of de uitspraak het verzoek toewijst en het besluit op of vóór de peildatum schorst.
           - name: geschorst_vanaf_na_uitspraak
             type: date
             nullable: true
@@ -258,6 +271,9 @@ articles:
                     value: null
                 # A suspension that begins after the day asked about does not
                 # replace one that held on it.
+                # TIJDELIJKE OMWEG, te verwijderen in PR D (#1919): deze
+                # voorwaarde vergelijkt de schorsing met $peildatum, een
+                # parameter van de vraag.
                 - operation: GREATER_THAN_OR_EQUAL
                   subject:
                     operation: DATE_DIFF

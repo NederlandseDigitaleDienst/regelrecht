@@ -1347,7 +1347,7 @@ articles:
       verzoeker in de gelegenheid gesteld beroep bij de bestuursrechter in te
       stellen. Het verzoek om voorlopige voorziening wordt gelijkgesteld met
       een verzoek dat wordt gedaan hangende het beroep bij de bestuursrechter.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:81
+    url: https://wetten.overheid.nl/BWBR0005537/2026-08-15#Artikel8:81
     # Niet apart uitvoerbaar. Het verzoek en de uitspraak van de
     # voorzieningenrechter erop spelen niet in de cel van de rechtbank: het
     # schema kent als soort indiening alleen AANVRAAG, BEZWAAR en BEROEP, geen
@@ -1376,7 +1376,9 @@ articles:
       vierde lid, tweede volzin, aanhef en onder b, en zesde lid, 8:75,
       8:75a , 8:76, 8:77, eerste en derde lid, 8:78, artikel 8:79, tweede en
       derde lid, en 8:80 zijn van overeenkomstige toepassing.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:84
+    url: https://wetten.overheid.nl/BWBR0005537/2026-08-15#Artikel8:84
+    # De spatie in "8:75a ," in lid 5 staat zo in de geldende tekst op
+    # wetten.overheid.nl (toestand 2026-08-15) en is overgenomen.
     machine_readable:
       # Lid 4: de griffier zendt het afschrift aan partijen, ook aan het
       # bestuursorgaan dat het besluit nam. Dat is de grondslag waarop de
@@ -1435,7 +1437,7 @@ articles:
       ongebruikt is verstreken,
       b. het bezwaar of het beroep is ingetrokken, of
       c. de bestuursrechter uitspraak heeft gedaan.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:85
+    url: https://wetten.overheid.nl/BWBR0005537/2026-08-15#Artikel8:85
     # Niet apart uitvoerbaar, en geen feit: dat de voorziening vervallen is,
     # volgt uit records die al in de kroniek staan, en wordt niet nog eens
     # vastgelegd. Lid 1: de dag staat in het afschrift van de uitspraak
@@ -1466,7 +1468,7 @@ articles:
       gedeeltelijk wordt toegewezen, kan de uitspraak inhouden dat het
       betaalde griffierecht door de griffier aan het bestuursorgaan wordt
       terugbetaald.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:87
+    url: https://wetten.overheid.nl/BWBR0005537/2026-08-15#Artikel8:87
     machine_readable:
       # Lid 1, opheffen. Lid 2 verklaart artikel 8:84 van overeenkomstige
       # toepassing, dus ook het vierde lid daarvan: de griffier zendt het
