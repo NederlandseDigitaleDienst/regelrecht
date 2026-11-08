@@ -1150,7 +1150,7 @@
           "properties": {
             "required": {
               "type": "boolean",
-              "description": "Whether the caller must pass this parameter. Defaults to true: an omitted required parameter is an error. A parameter declared `required: false` that the caller omits resolves to an unknown value that names the parameter (RFC-036), so a law can declare application-form fields another law never passes."
+              "description": "Whether the caller must pass this parameter. Defaults to true: an omitted required parameter is an error. A parameter declared `required: false` that the caller omits resolves to an unknown value that names the parameter (RFC-036), so a law can declare application-form fields another law never passes. One exception: a step of a projection need not pass a required parameter that the output it takes does not read, directly or through another output of its article."
             }
           }
         }
