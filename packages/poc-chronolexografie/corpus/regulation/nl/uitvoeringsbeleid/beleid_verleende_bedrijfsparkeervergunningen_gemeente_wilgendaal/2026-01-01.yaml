@@ -310,8 +310,8 @@ articles:
       # That the measure lapsed is not recorded: it follows here from the
       # days the records carry. Awb 8:85, second paragraph, under a (the term
       # for an appeal passed unused) and under b (the objection or appeal
-      # withdrawn) leave no record in the chronicle of the municipality in
-      # this PoC; see the comment on article 8:85 of the Awb.
+      # withdrawn) are not modelled in this PoC; see the comment on article
+      # 8:85 of the Awb.
       execution:
         parameters:
           - name: vergunning_geldig_tot

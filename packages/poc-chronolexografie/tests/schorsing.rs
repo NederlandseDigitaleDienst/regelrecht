@@ -206,8 +206,7 @@ fn met(mut grams: Vec<Gram>, extra: impl IntoIterator<Item = Gram>) -> Vec<Gram>
 /// holds every field of the fact) do not run here. The projection still
 /// refuses a fact its article does not require.
 fn ontvangst(article: &str, fact: &str, besluit: &str, on: &str, velden: Value) -> Gram {
-    let mut fields: BTreeMap<String, Value> = map(&velden).into_iter().collect();
-    fields.insert("kenmerk_besluit".into(), json!(besluit));
+    let fields: BTreeMap<String, Value> = map(&velden).into_iter().collect();
     Gram {
         id: format!("{fact}-{on}"),
         kind: EXECUTOGRAM.to_string(),

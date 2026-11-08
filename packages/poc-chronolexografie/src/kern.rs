@@ -3556,7 +3556,7 @@ mod tests {
         // The parkeerkaart: art. 49 reads the Regeling, the municipality's
         // policy fills its open term and binds the terms to the answers of
         // the cells, and the Awb; the reductions of the cells' catalogues.
-        // The catalogue of the municipality also names the reduction of the
+        // The catalogue of the municipality also names the reductions of the
         // bedrijfsparkeervergunning: a cell's answers are the cell's, not a
         // case's. That reduction plays the decisions under article 2 of the
         // ordinance (the article its step names), so the ordinance and what
@@ -3583,6 +3583,7 @@ mod tests {
                 "beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal",
                 "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw",
                 "parkeerverordening_gemeente_wilgendaal",
+                "reductie_bedrijfsparkeervergunning_op_peildatum",
                 "reductie_geldige_bedrijfsparkeervergunningen",
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_geneeskundig_advies",
@@ -3618,6 +3619,7 @@ mod tests {
                 "beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal",
                 "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw",
                 "parkeerverordening_gemeente_wilgendaal",
+                "reductie_bedrijfsparkeervergunning_op_peildatum",
                 "reductie_geldige_bedrijfsparkeervergunningen",
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_geneeskundig_advies",

@@ -1386,8 +1386,9 @@ articles:
       # Dat het bestuursorgaan het afschrift heeft, is een feit dat dit
       # artikel omschrijft, zoals bij artikel 8:79. Wie het vastlegt, zegt de
       # wet niet; de partij die het ontvangt, legt het vast (eigen keuze).
-      # Wat het bevat: het besluit waarop de voorziening ziet, en de
-      # voorziening zelf. Eigen keuze: een voorziening is hier de schorsing
+      # Welk besluit het betreft, zegt de ontvangst zelf: zij verwijst naar
+      # het besluit waarop de voorziening ziet (refers_to, RFC-053), zoals bij
+      # artikel 8:79. Wat het afschrift bevat: de voorziening. Eigen keuze: een voorziening is hier de schorsing
       # van dat besluit, vanaf een dag, tot de dag waarop zij vervalt als de
       # voorzieningenrechter die bepaalt (artikel 8:85, eerste lid). Een
       # uitspraak die niet tot toewijzing strekt (lid 2, onder a tot en met
@@ -1401,17 +1402,11 @@ articles:
             Het afschrift van de uitspraak van de voorzieningenrechter dat de
             griffier aan partijen zendt.
           parameters:
-            - kenmerk_besluit
             - uitspraak_strekt_tot
             - besluit_geschorst_vanaf
             - voorziening_vervalt_op
       execution:
         parameters:
-          - name: kenmerk_besluit
-            type: string
-            description: >-
-              Het kenmerk van het besluit waarop de voorlopige voorziening
-              ziet.
           - name: uitspraak_strekt_tot
             type: string
             description: Waartoe de uitspraak strekt (lid 2).
@@ -1447,10 +1442,12 @@ articles:
     # (artikel 8:84). Lid 2, onder c: de dag van de uitspraak in de
     # hoofdzaak staat in het afschrift daarvan (artikel 8:79). De regeling
     # die het besluit leest, vergelijkt die dagen met de dag waarover de
-    # vraag gaat. Lid 2, onder a en b, laten in deze poc geen record achter
-    # bij het bestuursorgaan: of de termijn voor beroep ongebruikt verstreek,
-    # weet alleen de bestuursrechter, en het intrekken van een bezwaar of
-    # beroep (artikel 6:21) is niet gemodelleerd.
+    # vraag gaat. Lid 2, onder a en b, zijn in deze poc niet gemodelleerd.
+    # Onder a zou volgen uit de beslissing op bezwaar in de kroniek, de
+    # beroepstermijn (artikel 6:7) en het uitblijven van de gronden van een
+    # beroepschrift die het bestuursorgaan krijgt toegezonden (artikel 8:42,
+    # eerste lid); onder b uit het intrekken van het bezwaar of beroep
+    # (artikel 6:21), dat de poc niet vastlegt.
 
   - number: 8:87
     text: |-
@@ -1475,7 +1472,8 @@ articles:
       # toepassing, dus ook het vierde lid daarvan: de griffier zendt het
       # afschrift van de uitspraak aan partijen. Dat het bestuursorgaan het
       # heeft, is een feit dat dit artikel omschrijft, zoals bij artikel
-      # 8:84. De opheffing werkt van de dag af die het afschrift noemt, niet
+      # 8:84; de ontvangst verwijst naar het besluit waarop de voorziening
+      # zag. De opheffing werkt van de dag af die het afschrift noemt, niet
       # terug: het feit trekt niets in. Wijzigen is niet gemodelleerd, en lid
       # 3 (het griffierecht) ook niet.
       requires:
@@ -1484,15 +1482,9 @@ articles:
             Het afschrift van de uitspraak waarin de voorzieningenrechter de
             voorlopige voorziening opheft.
           parameters:
-            - kenmerk_besluit
             - voorziening_opgeheven_op
       execution:
         parameters:
-          - name: kenmerk_besluit
-            type: string
-            description: >-
-              Het kenmerk van het besluit waarop de opgeheven voorziening
-              zag.
           - name: voorziening_opgeheven_op
             type: date
             description: De dag vanaf welke de voorziening is opgeheven.
