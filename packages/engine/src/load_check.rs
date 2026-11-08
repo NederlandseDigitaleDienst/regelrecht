@@ -1564,6 +1564,17 @@ articles:
         )
     }
 
+    /// `law_with_kinds` that declares schema version `v` (`v0.8.14`).
+    fn law_with_kinds_on(items: &str, v: &str) -> String {
+        law_with_kinds(items).replacen(
+            "$id: lijst",
+            &format!(
+                "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{v}/schema/{v}/schema.json\n$id: lijst"
+            ),
+            1,
+        )
+    }
+
     /// An effect revokes from the start; it holds for no window of days
     /// (schema v0.8.15 has no `from` or `until`), and the record it revokes
     /// is never null.
@@ -1592,14 +1603,7 @@ articles:
     fn a_nullable_revokes_still_loads_on_v0_8_14() {
         let items =
             "          - type: BESCHIKKING\n            effects:\n              - {revokes: q}";
-        let schema = |v: &str| {
-            format!(
-                "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{v}/schema/{v}/schema.json\n"
-            )
-        };
-        let on = |v: &str| {
-            law_with_kinds(items).replacen("$id: lijst", &format!("{}$id: lijst", schema(v)), 1)
-        };
+        let on = |v: &str| law_with_kinds_on(items, v);
         LawExecutionService::new()
             .load_law(&on("v0.8.14"))
             .expect("valid under v0.8.14");
@@ -1622,15 +1626,7 @@ articles:
             let items = format!(
                 "          - type: BESCHIKKING\n            effects:\n              - {{revokes: {parameter}}}"
             );
-            let on = |v: &str| {
-                law_with_kinds(&items).replacen(
-                    "$id: lijst",
-                    &format!(
-                        "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{v}/schema/{v}/schema.json\n$id: lijst"
-                    ),
-                    1,
-                )
-            };
+            let on = |v: &str| law_with_kinds_on(&items, v);
             LawExecutionService::new()
                 .load_law(&on("v0.8.14"))
                 .unwrap_or_else(|e| panic!("{parameter} loads on v0.8.14: {e}"));
