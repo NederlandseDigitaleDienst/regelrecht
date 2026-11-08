@@ -1,9 +1,10 @@
-//! The receipt of a copy whose fact revokes the decision the ruling is
-//! about (schema v0.8.15, `requires[].effects`). `Cell::record_receipt`
-//! takes every field of the fact from the copy by name, also the id of the
-//! record the effect revokes: the cell fills nothing, so what a receipt
-//! revokes follows from the law and the recorded data. The fictional law and
-//! reduction are those of the cell's BDD suite (`bdd/fixtures`).
+//! A fact that revokes the record it refers to (schema v0.8.15,
+//! `requires[].effects` with `revokes: refers_to`). The receipt of a copy
+//! refers to the decision the copy concerns (RFC-053), and that is the
+//! record it revokes, whatever the copy holds besides; another fact with
+//! effects may refer to an earlier record through
+//! `Cell::record_executogram_referring`. The fictional law and reduction are
+//! those of the cell's BDD suite (`bdd/fixtures`).
 
 // Test helpers outside a `#[test]` fn may unwrap and panic too; that is how
 // a failing fixture reports itself.
@@ -94,8 +95,9 @@ fn grants(applicants: &[&str]) -> Vec<Gram> {
 }
 
 /// A copy of the court's ruling on an appeal against `about`, a decision of
-/// the cell. The ruling names the decision it is about by the id `names`
-/// (normally `about` itself) and annuls it when `vernietigd`.
+/// the cell. The ruling holds a field `bestreden_besluit` that names
+/// `names` (normally `about` itself), and annuls the decision when
+/// `vernietigd`.
 fn copy(about: &str, names: &str, vernietigd: bool) -> Afschrift {
     let ruling = gram(
         COURT,
@@ -123,10 +125,14 @@ fn copy(about: &str, names: &str, vernietigd: bool) -> Afschrift {
     }
 }
 
+fn restored(grams: Vec<Gram>) -> Cell {
+    Cell::restore(&Disk, CELL, fixtures().join("cells").join(CELL), grams).unwrap()
+}
+
 /// The cell with `grams`, after it recorded the receipt of `copy`, which
 /// concerns its decision `about`.
 fn received(grams: Vec<Gram>, copy: &Afschrift, about: &str) -> (Cell, Gram) {
-    let mut cell = Cell::restore(&Disk, CELL, fixtures().join("cells").join(CELL), grams).unwrap();
+    let mut cell = restored(grams);
     let receipt = cell
         .record_receipt(
             &service(),
@@ -139,7 +145,7 @@ fn received(grams: Vec<Gram>, copy: &Afschrift, about: &str) -> (Cell, Gram) {
     (cell, receipt)
 }
 
-/// Whether `burger_<x>` holds a valid card on 2025-06-01, and the events.
+/// Whether `burger_<x>` holds a valid card on 2025-10-01, and the events.
 fn holds_card(cell: &Cell, x: &str) -> Result<(bool, Vec<ProjectionEvent>), String> {
     let records = chronicle_records(cell.grams()).unwrap();
     let outcome = service()
@@ -151,7 +157,7 @@ fn holds_card(cell: &Cell, x: &str) -> Result<(bool, Vec<ProjectionEvent>), Stri
                 "aanvrager".to_string(),
                 EngineValue::String(format!("burger_{x}")),
             )]),
-            "2025-06-01",
+            "2025-10-01",
             false,
         )
         .map_err(|e| e.to_string())?;
@@ -159,8 +165,18 @@ fn holds_card(cell: &Cell, x: &str) -> Result<(bool, Vec<ProjectionEvent>), Stri
     Ok((holds, outcome.events))
 }
 
+fn skipped(events: &[ProjectionEvent]) -> Vec<&str> {
+    events
+        .iter()
+        .filter_map(|e| match e {
+            ProjectionEvent::Skipped { record, .. } => Some(record.as_str()),
+            _ => None,
+        })
+        .collect()
+}
+
 #[test]
-fn the_receipt_takes_the_id_it_revokes_from_the_copy() {
+fn the_receipt_revokes_the_decision_it_refers_to() {
     for vernietigd in [true, false] {
         let (cell, receipt) = received(
             grants(&["x"]),
@@ -169,53 +185,111 @@ fn the_receipt_takes_the_id_it_revokes_from_the_copy() {
         );
         assert_eq!(receipt.kind, EXECUTOGRAM);
         assert_eq!(receipt.refers_to.as_deref(), Some("verlening_x"));
-        // Every field comes from the copy; the cell adds none.
-        assert_eq!(receipt.fields["bestreden_besluit"], json!("verlening_x"));
+        // The fact holds what the copy gives, and nothing that names a
+        // record: which record it is about is its `refers_to` alone.
+        assert_eq!(receipt.fields.len(), 1);
         assert_eq!(receipt.fields["vernietigd"], json!(vernietigd));
-        assert_eq!(receipt.fields.len(), 2);
-        // A ruling that annuls the grant takes the card; one that does not,
-        // leaves it.
-        assert_eq!(holds_card(&cell, "x").unwrap().0, !vernietigd);
+        let (holds, events) = holds_card(&cell, "x").unwrap();
+        assert_eq!(holds, !vernietigd);
+        let expected: &[&str] = if vernietigd { &["verlening_x"] } else { &[] };
+        assert_eq!(skipped(&events), expected);
     }
 }
 
 #[test]
-fn a_receipt_that_names_an_unknown_record_is_refused_when_played() {
-    // The cell records what the copy says; the projection refuses an effect
-    // on a record that is no earlier record of the chronicle, as for a
-    // decision.
-    let (cell, _) = received(
-        grants(&["x"]),
-        &copy("verlening_x", "verlening_elders", true),
-        "verlening_x",
-    );
-    let err = holds_card(&cell, "x").expect_err("no such record");
-    assert!(
-        err.contains("has an effect on 'verlening_elders', which is no record recorded before it"),
-        "{err}"
-    );
-}
-
-#[test]
-fn a_receipt_that_names_a_record_of_another_key_revokes_it_for_that_key() {
-    // The receipt concerns X's grant, but the copy names Y's. The law says
-    // the receipt revokes what it names, so Y's grant no longer counts. For
-    // X the receipt belongs (it refers to X's grant), but its effect is on a
-    // record outside X's records, so X's grant counts.
+fn the_revoked_record_is_always_the_one_the_receipt_refers_to() {
+    // The copy concerns X's grant, while the ruling names Y's grant in a
+    // field of its own. The receipt refers to X's grant and revokes that
+    // one; Y's grant still counts.
     let (cell, _) = received(
         grants(&["x", "y"]),
         &copy("verlening_x", "verlening_y", true),
         "verlening_x",
     );
-    let (x, _) = holds_card(&cell, "x").unwrap();
-    assert!(x, "X's grant still counts");
+    let (x, events) = holds_card(&cell, "x").unwrap();
+    assert!(!x, "X's grant is revoked");
+    assert_eq!(skipped(&events), ["verlening_x"]);
     let (y, events) = holds_card(&cell, "y").unwrap();
-    assert!(!y, "Y's grant is revoked");
+    assert!(y, "Y's grant still counts");
+    assert!(skipped(&events).is_empty(), "{events:?}");
+}
+
+#[test]
+fn a_fact_with_effects_may_refer_to_an_earlier_record() {
+    // The ruling annulled on further appeal (article 12): the fact refers
+    // to the receipt and revokes it, so the grant counts again.
+    let (mut cell, receipt) = received(
+        grants(&["x"]),
+        &copy("verlening_x", "verlening_x", true),
+        "verlening_x",
+    );
+    let fact = cell
+        .record_executogram_referring(
+            &service(),
+            "test_chronicle_effects#12#uitspraak_vernietigd_in_hoger_beroep",
+            &object_map(json!({"beroep_alsnog_ongegrond": true})),
+            Some(&receipt.id),
+            day("2025-09-01"),
+        )
+        .unwrap();
+    assert_eq!(fact.refers_to.as_deref(), Some(receipt.id.as_str()));
+    let (holds, events) = holds_card(&cell, "x").unwrap();
+    assert!(holds);
+    assert_eq!(skipped(&events), [receipt.id.as_str()]);
+    // The fact still reads back as a chronicle of the cell.
+    restored(cell.grams().to_vec());
+}
+
+#[test]
+fn only_a_fact_with_effects_refers_and_only_to_a_record_of_the_chronicle() {
+    let mut cell = restored(grants(&["x"]));
+    // Article 5 requires the fact of handing a card in, without effects.
+    let err = cell
+        .record_executogram_referring(
+            &service(),
+            "test_chronicle_effects#5#kaart_ingeleverd",
+            &object_map(json!({"ingeleverd_op": "2025-04-01", "aanvrager": "burger_x"})),
+            Some("verlening_x"),
+            day("2025-04-01"),
+        )
+        .expect_err("a fact without effects refers to nothing");
     assert!(
-        events.iter().any(|e| matches!(
-            e,
-            ProjectionEvent::Skipped { record, .. } if record == "verlening_y"
-        )),
-        "{events:?}"
+        err.to_string().contains(
+            "the fact test_chronicle_effects#5#kaart_ingeleverd refers to 'verlening_x', but \
+             declares no effects"
+        ),
+        "{err}"
+    );
+    let err = cell
+        .record_executogram_referring(
+            &service(),
+            "test_chronicle_effects#12#uitspraak_vernietigd_in_hoger_beroep",
+            &object_map(json!({"beroep_alsnog_ongegrond": true})),
+            Some("elders"),
+            day("2025-04-01"),
+        )
+        .expect_err("no such record");
+    assert!(
+        err.to_string()
+            .contains("refers to 'elders', which is no chronolexogram in the chronicle"),
+        "{err}"
+    );
+    // Opening refuses a fact that refers to no earlier record.
+    let mut tampered = cell.grams().to_vec();
+    let mut fact = tampered[0].clone();
+    fact.id = "feit".to_string();
+    fact.kind = EXECUTOGRAM.to_string();
+    fact.fact = Some("uitspraak_vernietigd_in_hoger_beroep".to_string());
+    fact.basis = "test_chronicle_effects#12".to_string();
+    fact.refers_to = Some("later".to_string());
+    fact.fields = BTreeMap::from([("beroep_alsnog_ongegrond".to_string(), json!(true))]);
+    fact.outputs = BTreeMap::new();
+    tampered.insert(0, fact);
+    let err = Cell::restore(&Disk, CELL, fixtures().join("cells").join(CELL), tampered)
+        .expect_err("refers to no earlier record");
+    assert!(
+        err.to_string()
+            .contains("refers to 'later', which is not a chronolexogram before it"),
+        "{err}"
     );
 }

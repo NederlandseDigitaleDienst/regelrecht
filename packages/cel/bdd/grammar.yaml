@@ -103,6 +103,22 @@ steps:
       - {name: article, type: string}
       - {name: law, type: string}
 
+  # A fact that refers to an earlier record of the chronicle, which its
+  # effects revoke (schema v0.8.15), recorded through the cell
+  # (`Cell::record_executogram_referring`).
+  - id: record_fact_about
+    action: record_fact_about
+    keyword: when
+    tier: cel
+    text: 'the cell records fact "{fact}" as "{id}" about "{record}" under article "{article}" of "{law}" with:'
+    args:
+      - {name: fact, type: string}
+      - {name: id, type: string}
+      - {name: record, type: string}
+      - {name: article, type: string}
+      - {name: law, type: string}
+    datatable: true
+
   # Evaluate a reduction that plays the chronicle forward (`projection`,
   # schema v0.8.14) over every record of the cell, in the order recorded. The
   # canonical output steps then read its answer.

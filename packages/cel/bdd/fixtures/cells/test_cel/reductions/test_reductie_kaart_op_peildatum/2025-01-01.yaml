@@ -80,13 +80,21 @@ articles:
                 value: $record.schorsing_vanaf
               - output: geschorst_tot
                 value: $record.schorsing_tot
-          # The lifting of a suspension (article 14) ends it on that day. The
-          # tests lift only a suspension that still runs; lifting one that
-          # already ended would lengthen the period here.
+          # The lifting of a suspension: article 14 says when the period
+          # ends after it.
           - record: test_chronicle_effects#14
+            input:
+              - name: geschorst_tot_na_opheffing
+                type: date
+                source:
+                  regulation: test_chronicle_effects
+                  output: geschorst_tot_na_opheffing
+                  parameters:
+                    geschorst_tot: $state.geschorst_tot
+                    opgeheven_op: $record.opgeheven_op
             actions:
               - output: geschorst_tot
-                value: $record.opgeheven_op
+                value: $geschorst_tot_na_opheffing
       execution:
         parameters:
           - name: aanvrager

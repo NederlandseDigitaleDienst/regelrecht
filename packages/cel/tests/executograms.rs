@@ -281,13 +281,14 @@ fn an_executogram_read_back_records_a_fact_and_nothing_else() {
         matches!(&e, Error::Setup(m) if m.contains("records a fact and nothing else")),
         "{e}"
     );
+    // A fact refers only to a chronolexogram before it (schema v0.8.15).
     let e = opens(line.replace(
         "\"recording_actor\"",
         "\"refers_to\":\"x\",\"recording_actor\"",
     ))
     .unwrap_err();
     assert!(
-        matches!(&e, Error::Setup(m) if m.contains("records a fact and nothing else")),
+        matches!(&e, Error::Setup(m) if m.contains("refers to 'x', which is not a chronolexogram before it")),
         "{e}"
     );
     let e = opens(line.replace("\"fact\":\"stand\",", "")).unwrap_err();

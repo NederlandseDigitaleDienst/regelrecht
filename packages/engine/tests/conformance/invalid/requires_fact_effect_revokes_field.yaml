@@ -1,0 +1,26 @@
+---
+# A fact revokes the record it refers to: `revokes` on a fact is always
+# `refers_to`, never a field of the fact (schema v0.8.15).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_conformance_fact_effect_revokes_field
+regulatory_layer: WET
+publication_date: '2026-11-08'
+valid_from: '2026-11-08'
+bwb_id: BWBR0099993
+name: Testwet feit dat een veld herroept
+url: https://example.invalid/fact-effect-revokes-field
+articles:
+  - number: '1'
+    url: https://example.invalid/fact-effect-revokes-field/1
+    text: FICTIEF. Het bestuursorgaan legt een feit vast.
+    machine_readable:
+      requires:
+        - fact: feit
+          parameters:
+            - besluit
+          effects:
+            - revokes: besluit
+      execution:
+        parameters:
+          - name: besluit
+            type: string

@@ -173,19 +173,18 @@ Since schema v0.8.15 a fact can revoke too. A court ruling reaches the cell as a
 # test_chronicle_effects, article 11 (fictional, after Awb 8:72 lid 1 and 8:79)
 requires:
   - fact: afschrift_uitspraak_ontvangen
-    parameters: [bestreden_besluit, vernietigd]
+    parameters: [vernietigd]
     effects:
-      - revokes: bestreden_besluit
+      - revokes: refers_to
         when: vernietigd
 execution:
   parameters:
-    - {name: bestreden_besluit, type: string}
     - {name: vernietigd, type: boolean}
 ```
 
-The effect of a fact reads only what the fact holds: `revokes` names a string field that holds the id of an earlier record, and `when` a boolean field. Neither may be null. The cell adds no field of its own. Whoever records the fact supplies those fields, as any other: `Cell::record_receipt` takes them from the copy by name, so the copy says which decision the ruling is about and whether the ruling annuls it. What a receipt revokes thus follows from the law and the recorded data alone. A field of type `decision` keeps its one meaning, a decision value, and cannot be the target of an effect. Handing in a card is a fact without effects: it ends the holder's possession and leaves the grant standing, so it stays a step of the reduction.
+A fact revokes the record it refers to (`revokes: refers_to`), so which record a fact is about has one source. The receipt of a copy refers to the decision the copy concerns (RFC-053), and takes from the copy whether the ruling annuls it; `when` reads that boolean field of the fact, which may not be null. Since schema v0.8.15 a fact that declares effects may also refer to another earlier record of the chronicle, through `Cell::record_executogram_referring`. That widens RFC-053, under which only the receipt referred to anything. The record that the appeal court annulled a ruling is such a fact: it refers to the receipt of the ruling and revokes it, so the decision the ruling annulled counts again. A fact without effects still refers to nothing. Handing in a card is a fact without effects: it ends the holder's possession and leaves the grant standing, so it stays a step of the reduction.
 
-`revokes` has one meaning: the record does not count, from the start (ex tunc). That covers a decision revoked on objection, a decision the court annuls, and a ruling annulled on further appeal, which brings back what it annulled. A change from a later day on (ex nunc) is no effect. A suspension by the court (Awb 8:81) holds from one day to another, and a withdrawal "met ingang van" a date takes effect on that date. Both are a step of the reduction with a date property, as for any other change of state. The step of the suspension puts its period in the state, lifting it (Awb 8:87) is a later step that ends the period, and an article of the law says whether the card is valid on a given day:
+`revokes` has one meaning: the record does not count, from the start (ex tunc). That covers a decision revoked on objection, a decision the court annuls, and a ruling annulled on further appeal, which brings back what it annulled. A change from a later day on (ex nunc) is no effect. A suspension by the court (Awb 8:81) holds from one day to another, and a withdrawal "met ingang van" a date takes effect on that date. Both are a step of the reduction with a date property, as for any other change of state. The step of the suspension puts its period in the state. Lifting it (Awb 8:87) is a later step whose new end an article of the law gives, the earlier of the end it had and the day of lifting. Another article says whether the card is valid on a given day:
 
 ```yaml
 # test_reductie_kaart_op_peildatum (fictional)
@@ -223,7 +222,7 @@ Each actor keeps its own chronicle. The law sends documents from one actor to an
 
 - `Cell::afschrift` makes a copy of one of the cell's own decisions. The copy holds the chronolexogram, the decision value from a replay in that cell, and `about`: what the submission behind the decision had received. When a field of type `decision` holds an id, the copy holds the value of that decision instead, nested in the same way. Only the cell that took the decision makes a copy of it.
 - `record_submission` with `Reference::Received(&copy)` records a submission against a decision of another cell. The chronolexogram then holds `received: {from, id}` instead of `refers_to`. Its field of type `decision` holds the decision value itself, because this cell cannot replay the other cell's decision.
-- `Cell::record_receipt` records that the cell received a copy. It does so as an executogram of the fact that the law requires for it. The receipt is the only executogram that refers to a decision: the cell's own decision that the copy is about.
+- `Cell::record_receipt` records that the cell received a copy. It does so as an executogram of the fact that the law requires for it. The receipt refers to the cell's own decision that the copy is about. Besides it, only a fact with effects refers to anything (schema v0.8.15).
 - `Cell::decide_after` decides on a submission again. It needs a later chronolexogram, such as a receipt, that refers to the last decision on that submission. The new decision holds that chronolexogram as `after`. This rule names no article. Whether the earlier decision still counts is up to whoever reads the chronicle.
 
 The cell refuses four things here:

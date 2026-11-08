@@ -485,9 +485,11 @@ pub struct ProducedItem {
 /// only from a well-founded objection. A decision in the place of another
 /// revokes it and counts as a record of its own.
 ///
-/// A decision has effects through `produces[].effects`; since schema
-/// v0.8.15 a fact has them too, through `requires[].effects`, such as the
-/// receipt of a ruling that annuls a decision. A change from a later day on,
+/// A decision has effects through `produces[].effects`, and names the record
+/// by a parameter. Since schema v0.8.15 a fact has them too, through
+/// `requires[].effects`, such as the receipt of a ruling that annuls a
+/// decision; a fact revokes the record it refers to, so its `revokes` is
+/// always [`RecordEffect::REFERS_TO`]. A change from a later day on,
 /// such as a suspension, is no effect: it is a step of the reduction with a
 /// date property.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -501,6 +503,12 @@ pub struct RecordEffect {
     /// effect always holds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub when: Option<String>,
+}
+
+impl RecordEffect {
+    /// The one value `revokes` takes on a fact (schema v0.8.15): the record
+    /// the fact refers to (`refers_to`, RFC-053).
+    pub const REFERS_TO: &'static str = "refers_to";
 }
 
 impl ProducedItem {

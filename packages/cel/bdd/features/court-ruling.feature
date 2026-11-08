@@ -9,10 +9,9 @@ Feature: A ruling received as a copy revokes the decision it annuls
   # article 10 of test_chronicle_effects (after Awb 8:72 lid 1). The cell
   # records that it received a copy of the ruling with `Cell::record_receipt`
   # (RFC-053), as the fact of fictional article 11 (after Awb 8:79). The
-  # receipt takes its fields from the copy by name: the id of the decision
-  # the ruling is about (`bestreden_besluit`) and whether the ruling annuls
-  # it. The cell fills nothing. Article 11 says that the receipt revokes that
-  # decision when the ruling annuls it. The reduction
+  # receipt refers to the decision the copy concerns and takes from the copy
+  # whether the ruling annuls it. Article 11 says that the receipt revokes
+  # the decision it refers to when the ruling annuls it. The reduction
   # test_reductie_geldige_kaart has no step for any of this.
 
   Background:
@@ -70,7 +69,7 @@ Feature: A ruling received as a copy revokes the decision it annuls
   Scenario: When the ruling is annulled on further appeal, the grant counts again
     # Fictional article 12: the cell records that the appeal court annulled
     # the ruling it received a copy of and held the appeal unfounded after
-    # all, naming the receipt. A revoked record revokes nothing, so the grant
+    # all. The fact refers to the receipt and revokes it. A revoked record revokes nothing, so the grant
     # counts again.
     Given the calculation date is "2025-05-01"
     When the court records appeal "beroep" under article "10" of "test_chronicle_effects" with:
@@ -80,8 +79,8 @@ Feature: A ruling received as a copy revokes the decision it annuls
     Given the calculation date is "2025-05-10"
     When the cell receives ruling "uitspraak" as fact "afschrift_uitspraak_ontvangen" "ontvangst" under article "11" of "test_chronicle_effects"
     Given the calculation date is "2025-09-01"
-    When the cell records fact "uitspraak_vernietigd_in_hoger_beroep" as "hoger_beroep" under article "12" of "test_chronicle_effects" with:
-      | ontvangen_afschrift | ontvangst |
+    When the cell records fact "uitspraak_vernietigd_in_hoger_beroep" as "hoger_beroep" about "ontvangst" under article "12" of "test_chronicle_effects" with:
+      | beroep_alsnog_ongegrond | true |
     And I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
     Then output "heeft_geldige_kaart" is true
     And record "ontvangst" is skipped

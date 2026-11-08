@@ -7,7 +7,8 @@ Feature: A suspension is a step with a period, not a revocation
   # suspension (fictional article 13 of test_chronicle_effects, after Awb
   # 8:81) holds from a day on and ends, so it revokes nothing. Its step in
   # test_reductie_kaart_op_peildatum puts the period in the state; lifting
-  # it (article 14, after Awb 8:87) ends it on a day. Whether the card is
+  # it (article 14, after Awb 8:87) ends it on a day, never later than it
+  # already ended. Whether the card is
   # valid on the day the question names is article 15 of the law: the
   # reduction passes it the state and that day. Which records count never
   # depends on the day asked about. In practice the measure reaches the cell
@@ -70,6 +71,23 @@ Feature: A suspension is a step with a period, not a revocation
     When I evaluate "heeft_geldige_kaart_op_peildatum" of "test_reductie_kaart_op_peildatum" over the chronicle
     Then output "heeft_geldige_kaart_op_peildatum" is false
 
+  Scenario: A lifting after the suspension ended does not lengthen it
+    # Article 14 gives the earlier of the end the suspension had and the day
+    # it is lifted; the step only takes that output.
+    Given the calculation date is "2025-07-01"
+    When the cell records fact "schorsing_opgeheven" as "late_opheffing" under article "14" of "test_chronicle_effects" with:
+      | aanvrager    | burger_x   |
+      | opgeheven_op | 2025-07-01 |
+    Given parameter "peildatum" is "2025-06-15"
+    When I evaluate "heeft_geldige_kaart_op_peildatum" of "test_reductie_kaart_op_peildatum" over the chronicle
+    Then output "heeft_geldige_kaart_op_peildatum" is true
+    And the projection trace is:
+      | record         | event   | detail                                                                     |
+      | aanvraag       | applied | -                                                                          |
+      | verlening      | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
+      | schorsing      | applied | geschorst_tot: null -> 2025-06-01, geschorst_vanaf: null -> 2025-04-15     |
+      | late_opheffing | applied | test_chronicle_effects#14: geschorst_tot: 2025-06-01 -> 2025-06-01         |
+
   Scenario: A changed suspension overwrites the period, also with no end
     When the cell records fact "besluit_geschorst" as "nieuwe_schorsing" under article "13" of "test_chronicle_effects" with:
       | aanvrager       | burger_x   |
@@ -89,8 +107,8 @@ Feature: A suspension is a step with a period, not a revocation
     # record does not count, so its step never runs, the period never
     # enters the state, and the card is valid on a day inside the former
     # period. Counting and the fold are separate layers.
-    When the cell records fact "schorsing_vervallen" as "vervallen" under article "16" of "test_chronicle_effects" with:
-      | vervallen_schorsing | schorsing |
+    When the cell records fact "schorsing_vervallen" as "vervallen" about "schorsing" under article "16" of "test_chronicle_effects" with:
+      | vervallen_op | 2025-04-01 |
     Given the calculation date is "2025-07-01"
     And parameter "peildatum" is "2025-05-01"
     When I evaluate "heeft_geldige_kaart_op_peildatum" of "test_reductie_kaart_op_peildatum" over the chronicle

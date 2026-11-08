@@ -781,27 +781,21 @@ impl LawExecutionService {
     }
 
     /// The records `record` refers to: its `refers_to`, and the values of
-    /// the fields that an effect of its article names: an effect of its
-    /// decision, or for a fact, an effect of that fact (schema v0.8.15).
-    /// That holds for every record under the article, so an objection that
-    /// names the contested decision in such a field refers to it, as the
-    /// decision on it does.
+    /// the fields that an effect of its article's decision names. That holds
+    /// for every record under the article, so an objection that names the
+    /// contested decision in such a field refers to it, as the decision on
+    /// it does. A fact refers through its `refers_to` alone: its effects
+    /// revoke that record (schema v0.8.15).
     fn references(&self, record: &ChronicleRecord) -> Result<Vec<String>> {
         let mut ids: Vec<String> = record.refers_to.iter().cloned().collect();
+        if record.kind == EXECUTOGRAM {
+            return Ok(ids);
+        }
         let article = self.article_of(record)?;
-        // A fact refers only through its own effects; an executogram of a
-        // fact its article does not require is refused when its effects
-        // are read, so it refers through none here.
-        let effects = if record.kind == EXECUTOGRAM {
-            fact_of(article, record)
-                .map(|f| f.effects())
-                .unwrap_or_default()
-        } else {
-            article
-                .get_decision()
-                .map(|d| d.effects())
-                .unwrap_or_default()
-        };
+        let effects = article
+            .get_decision()
+            .map(|d| d.effects())
+            .unwrap_or_default();
         for effect in effects {
             if let Some(Value::String(id)) = record.fields.get(&effect.parameter) {
                 ids.push(id.clone());
@@ -815,7 +809,8 @@ impl LawExecutionService {
     /// (`produces[].effects`), a fact those of its `requires` entry
     /// (`requires[].effects`, schema v0.8.15), under the law of the day it
     /// was recorded. An effect holds when its `when` is true; it reads only
-    /// what the record itself holds.
+    /// what the record itself holds. A decision names the record it revokes
+    /// in a field, a fact revokes the record it refers to.
     fn holding_effects<'r>(
         &self,
         record: &ChronicleRecord,
@@ -832,7 +827,8 @@ impl LawExecutionService {
         // effects their article gives them. A record of a kind its article
         // does not produce is refused, for the same reason as an unknown
         // article.
-        let (effects, conditions) = if record.kind == EXECUTOGRAM {
+        let is_fact = record.kind == EXECUTOGRAM;
+        let (effects, conditions) = if is_fact {
             let fact = fact_of(article, record).ok_or_else(|| {
                 refuse(format!(
                     "is an instance of the fact '{}', which that article does not require",
@@ -858,19 +854,6 @@ impl LawExecutionService {
         };
         let mut holding = Vec::new();
         for effect in effects {
-            // The record it names is checked first, so a broken record is
-            // refused whatever `when` says.
-            let name = &effect.parameter;
-            let Some(Value::String(target)) = record.fields.get(name) else {
-                return Err(refuse(format!(
-                    "has an effect on '{name}', but holds no record id under it"
-                )));
-            };
-            let target = earlier.iter().find(|r| &r.id == target).ok_or_else(|| {
-                refuse(format!(
-                    "has an effect on '{target}', which is no record recorded before it"
-                ))
-            })?;
             if let Some(when) = &effect.when {
                 match conditions.get(when) {
                     Some(Value::Bool(true)) => {}
@@ -882,6 +865,24 @@ impl LawExecutionService {
                     }
                 }
             }
+            let target = if is_fact {
+                record.refers_to.as_ref().ok_or_else(|| {
+                    refuse("has an effect on the record it refers to, but refers to none".into())
+                })?
+            } else {
+                let name = &effect.parameter;
+                let Some(Value::String(target)) = record.fields.get(name) else {
+                    return Err(refuse(format!(
+                        "has an effect on '{name}', but holds no record id under it"
+                    )));
+                };
+                target
+            };
+            let target = earlier.iter().find(|r| &r.id == target).ok_or_else(|| {
+                refuse(format!(
+                    "has an effect on '{target}', which is no record recorded before it"
+                ))
+            })?;
             holding.push(target.id.as_str());
         }
         Ok(holding)
@@ -1206,7 +1207,8 @@ mod tests {
     /// `herroepen`, article 3 takes a decision in the place of `bestreden`
     /// (it revokes it), article 4 requires the
     /// fact `ingeleverd`. Schema v0.8.15: article 7 requires the fact
-    /// `vernietigd`, which revokes `besluit` when it holds `vernietigd` true.
+    /// `vernietigd`, which revokes the record it refers to when it holds
+    /// `vernietigd` true.
     const LAW: &str = r#"
 $id: wet
 regulatory_layer: WET
@@ -1270,10 +1272,10 @@ articles:
     machine_readable:
       requires:
         - fact: vernietigd
-          parameters: [besluit, vernietigd]
-          effects: [{revokes: besluit, when: vernietigd}]
+          parameters: [vernietigd]
+          effects: [{revokes: refers_to, when: vernietigd}]
       execution:
-        parameters: [{name: besluit, type: string}, {name: vernietigd, type: boolean}]
+        parameters: [{name: vernietigd, type: boolean}]
 "#;
 
     /// Counts the grants that count and whether the last record left a card.
@@ -1382,15 +1384,10 @@ articles:
 
     /// A fact under article 7 that revokes `target` when `holds`.
     fn annulled(id: &str, target: &str, holds: bool) -> ChronicleRecord {
-        fact(
-            id,
-            "7",
-            "vernietigd",
-            &[
-                ("besluit", Value::String(target.to_string())),
-                ("vernietigd", Value::Bool(holds)),
-            ],
-        )
+        ChronicleRecord {
+            refers_to: Some(target.to_string()),
+            ..fact(id, "7", "vernietigd", &[("vernietigd", Value::Bool(holds))])
+        }
     }
 
     fn play(records: &[ChronicleRecord]) -> Result<ProjectionOutcome> {
@@ -1584,25 +1581,23 @@ articles:
     }
 
     #[test]
-    fn a_fact_needs_a_boolean_condition_and_a_record_id() {
-        for (fields, why) in [
+    fn a_fact_needs_a_boolean_condition_and_a_record_it_refers_to() {
+        let referring = |fields: &[(&str, Value)], to: Option<&str>| ChronicleRecord {
+            refers_to: to.map(str::to_string),
+            ..fact("v", "7", "vernietigd", fields)
+        };
+        for (record, why) in [
+            (referring(&[], Some("a")), "holds no boolean under it"),
             (
-                vec![("besluit", Value::String("a".into()))],
+                referring(&[("vernietigd", Value::String("ja".into()))], Some("a")),
                 "holds no boolean under it",
             ),
             (
-                vec![
-                    ("besluit", Value::String("a".into())),
-                    ("vernietigd", Value::String("ja".into())),
-                ],
-                "holds no boolean under it",
-            ),
-            (
-                vec![("vernietigd", Value::Bool(true))],
-                "holds no record id under it",
+                referring(&[("vernietigd", Value::Bool(true))], None),
+                "has an effect on the record it refers to, but refers to none",
             ),
         ] {
-            let err = play(&[grant("a"), fact("v", "7", "vernietigd", &fields)]).expect_err(why);
+            let err = play(&[grant("a"), record]).expect_err(why);
             assert!(
                 err.to_string().contains("record 'v' (wet#7) has an effect"),
                 "{err}"
@@ -1621,10 +1616,8 @@ articles:
     }
 
     #[test]
-    fn a_broken_effect_is_refused_also_when_its_condition_is_false() {
-        // `when` is false, yet a target that is no earlier record is refused
-        // all the same.
-        for record in [annulled("s", "x", false), revoke("s", "x", false)] {
+    fn an_effect_on_a_record_that_is_not_earlier_is_refused() {
+        for record in [annulled("s", "x", true), revoke("s", "x", true)] {
             let err = play(&[grant("a"), record]).expect_err("x is no record");
             assert!(
                 err.to_string()

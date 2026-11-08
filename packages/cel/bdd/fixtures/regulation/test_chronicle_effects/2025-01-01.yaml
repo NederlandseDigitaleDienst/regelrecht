@@ -298,17 +298,15 @@ articles:
             Het college heeft een afschrift ontvangen van de uitspraak van de
             bestuursrechter over zijn besluit.
           parameters:
-            - bestreden_besluit
             - vernietigd
-          # Both come from the copy, as any field of a receipt: the decision
-          # the ruling is about, by its id, and whether the ruling annuls it.
+          # The receipt refers to the decision the copy concerns (RFC-053)
+          # and revokes it when the ruling annuls it, which comes from the
+          # copy.
           effects:
-            - revokes: bestreden_besluit
+            - revokes: refers_to
               when: vernietigd
       execution:
         parameters:
-          - name: bestreden_besluit
-            type: string
           - name: vernietigd
             type: boolean
 
@@ -326,15 +324,17 @@ articles:
             De uitspraak waarvan het college een afschrift ontving, is in hoger
             beroep vernietigd, en het beroep is alsnog ongegrond verklaard.
           parameters:
-            - ontvangen_afschrift
+            - beroep_alsnog_ongegrond
+          # The fact refers to the receipt of the copy of the annulled
+          # ruling, in the cell's chronicle; the ruling itself is in the
+          # court's.
           effects:
-            - revokes: ontvangen_afschrift
+            - revokes: refers_to
+              when: beroep_alsnog_ongegrond
       execution:
         parameters:
-          # The receipt of the copy of the annulled ruling, by its id in the
-          # cell's chronicle; the ruling itself is in the court's.
-          - name: ontvangen_afschrift
-            type: string
+          - name: beroep_alsnog_ongegrond
+            type: boolean
 
   - number: '13'
     url: https://example.com/test_chronicle_effects/13
@@ -373,7 +373,8 @@ articles:
     text: >-
       FICTIEF, naar artikel 8:87 van de Algemene wet bestuursrecht. Het
       college legt vast dat de voorzieningenrechter de schorsing heeft
-      opgeheven. De schorsing eindigt op de dag van opheffing.
+      opgeheven. De schorsing eindigt op de dag van opheffing, tenzij zij
+      eerder al eindigde.
     machine_readable:
       requires:
         - fact: schorsing_opgeheven
@@ -388,6 +389,35 @@ articles:
             type: string
           - name: opgeheven_op
             type: date
+          # The end of the suspension before the lifting, if it had one.
+          - name: geschorst_tot
+            type: date
+            nullable: true
+        output:
+          - name: geschorst_tot_na_opheffing
+            type: date
+        actions:
+          # The earlier of the end the suspension had and the day it is
+          # lifted: a lifting never lengthens a suspension.
+          - output: geschorst_tot_na_opheffing
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $geschorst_tot
+                    value: null
+                  then: $opgeheven_op
+                - when:
+                    operation: LESS_THAN
+                    subject:
+                      operation: DATE_DIFF
+                      from: $opgeheven_op
+                      to: $geschorst_tot
+                      in: days
+                    value: 0
+                  then: $geschorst_tot
+              default: $opgeheven_op
 
   - number: '15'
     url: https://example.com/test_chronicle_effects/15
@@ -469,11 +499,11 @@ articles:
           description: >-
             De schorsing heeft met terugwerkende kracht nooit gegolden.
           parameters:
-            - vervallen_schorsing
+            - vervallen_op
+          # The fact refers to the suspension recorded under article 13.
           effects:
-            - revokes: vervallen_schorsing
+            - revokes: refers_to
       execution:
         parameters:
-          # The suspension recorded under article 13, by its id.
-          - name: vervallen_schorsing
-            type: string
+          - name: vervallen_op
+            type: date

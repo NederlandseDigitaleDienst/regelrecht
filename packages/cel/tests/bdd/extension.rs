@@ -108,6 +108,18 @@ pub fn dispatch(
                 fields,
             );
         }
+        "record_fact_about" => {
+            let fields = rows_to_params(&table.expect("fields table"), table_cell_value);
+            record_fact_about(
+                world,
+                args[0].as_str(),
+                args[1].as_str(),
+                args[2].as_str(),
+                args[3].as_str(),
+                args[4].as_str(),
+                fields,
+            );
+        }
         "court_records_appeal" => {
             let fields = rows_to_params(&table.expect("fields table"), table_cell_value);
             court_records_appeal(
@@ -475,14 +487,7 @@ fn cell_receives_ruling(
             id: contested.clone(),
         }),
     };
-    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("bdd/fixtures/cells");
-    let mut cell = Cell::restore(
-        &Disk,
-        CELL,
-        fixtures.join(CELL),
-        world.extension.chronicle.grams().to_vec(),
-    )
-    .unwrap_or_else(|e| panic!("the cell: {e}"));
+    let mut cell = cell(world);
     let receipt = cell
         .record_receipt(
             &world.service,
@@ -492,13 +497,30 @@ fn cell_receives_ruling(
             today(world),
         )
         .unwrap_or_else(|e| panic!("the cell receives the ruling: {e}"));
-    // The cell names the receipt by a uuid; the scenario by `id`.
+    keep(world, &cell, &receipt.id, id);
+}
+
+/// The cell of the scenario, with its chronicle.
+fn cell(world: &RegelrechtWorld) -> Cell {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("bdd/fixtures/cells");
+    Cell::restore(
+        &Disk,
+        CELL,
+        fixtures.join(CELL),
+        world.extension.chronicle.grams().to_vec(),
+    )
+    .unwrap_or_else(|e| panic!("the cell: {e}"))
+}
+
+/// Keep the cell's chronicle, with the chronolexogram it just recorded
+/// named `id`: the cell names it by a uuid, the scenario by `id`.
+fn keep(world: &mut RegelrechtWorld, cell: &Cell, recorded: &str, id: &str) {
     let grams = cell
         .grams()
         .iter()
         .cloned()
         .map(|mut g| {
-            if g.id == receipt.id {
+            if g.id == recorded {
                 g.id = id.to_string();
             }
             g
@@ -506,6 +528,35 @@ fn cell_receives_ruling(
         .collect();
     world.extension.chronicle =
         Chronicle::in_memory_with(grams).unwrap_or_else(|e| panic!("the chronicle: {e}"));
+}
+
+/// Record a fact that refers to the earlier record `about`, through the
+/// cell ([`Cell::record_executogram_referring`]), as the fact `fact` of the
+/// article, with the values of its fields.
+fn record_fact_about(
+    world: &mut RegelrechtWorld,
+    fact: &str,
+    id: &str,
+    about: &str,
+    number: &str,
+    law: &str,
+    fields: BTreeMap<String, Value>,
+) {
+    let supplied: serde_json::Map<String, serde_json::Value> = fields
+        .into_iter()
+        .map(|(k, v)| (k, stored::to_stored(&v).expect("storable value")))
+        .collect();
+    let mut cell = cell(world);
+    let gram = cell
+        .record_executogram_referring(
+            &world.service,
+            &format!("{law}#{number}#{fact}"),
+            &supplied,
+            Some(about),
+            today(world),
+        )
+        .unwrap_or_else(|e| panic!("fact {fact} about {about}: {e}"));
+    keep(world, &cell, &gram.id, id);
 }
 
 /// The authority of the cell, as the fixture policy names its holder.

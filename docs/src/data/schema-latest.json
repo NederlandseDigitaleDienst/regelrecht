@@ -2384,15 +2384,16 @@
               "effects": {
                 "type": "array",
                 "minItems": 1,
-                "description": "Since v0.8.15, only with `fact`: the earlier records an instance of this fact revokes, from the start (ex tunc), as a decision does with `produces[].effects`. A fact is no decision, but the law can give a recorded fact a legal effect on a decision, such as the receipt of a copy of a ruling that annuls the decision (Awb 8:72 lid 1, 8:79). Each effect names a string parameter the fact holds whose value is the id of an earlier record. Whoever records the fact supplies it, as any other field: on the receipt of a copy it comes from the copy. With `when` a boolean parameter the fact holds must be true for the effect to hold. The effect reads nothing but the fields of the fact, so whether a record counts never depends on the state or on the day asked about. The loader checks that every name is a parameter the fact holds, of the right type and not nullable.",
+                "description": "Since v0.8.15, only with `fact`: what an instance of this fact does with the record it refers to, as a decision does with `produces[].effects`. A fact is no decision, but the law can give a recorded fact a legal effect on a decision, such as the receipt of a copy of a ruling that annuls the decision (Awb 8:72 lid 1, 8:79). A fact revokes the record it refers to (`refers_to`, RFC-053), so which record the fact is about has one source: the receipt of a copy refers to the decision it concerns, and since v0.8.15 a fact with effects may refer to another earlier record. The record does not count, from the start (ex tunc). With `when` a boolean parameter the fact holds must be true for the effect to hold. The effect reads nothing but the fact, so whether a record counts never depends on the state or on the day asked about. The loader checks that `revokes` is `refers_to` and that `when` names a boolean parameter the fact holds that is not nullable.",
                 "items": {
                   "type": "object",
-                  "description": "Since v0.8.15: an earlier record this fact revokes, named by a parameter the fact holds, and optionally `when`.",
+                  "description": "Since v0.8.15: the fact revokes the record it refers to, optionally only `when` a boolean it holds is true.",
                   "additionalProperties": false,
                   "properties": {
                     "revokes": {
                       "type": "string",
-                      "description": "A parameter the fact holds whose value is the earlier record this fact revokes: it does not count, from the start. A string field holding the id of that record; it may not be nullable."
+                      "const": "refers_to",
+                      "description": "Always `refers_to`: the fact revokes the record it refers to. It does not count, from the start."
                     },
                     "when": {
                       "type": "string",
@@ -3336,7 +3337,7 @@
             "properties": {
               "revokes": {
                 "type": "string",
-                "description": "The parameter whose value is the id of the earlier record this decision revokes: it does not count, from the start (ex tunc), such as a decision revoked on objection (Awb 7:11 lid 2). A decision in the place of another revokes it, and counts as a decision of its own. The parameter may not be nullable."
+                "description": "The parameter whose value is the id of the earlier record this decision revokes: it does not count, from the start (ex tunc), such as a decision revoked on objection (Awb 7:11 lid 2). A decision in the place of another revokes it, and counts as a decision of its own. From v0.8.15 the loader refuses a parameter that may be null."
               },
               "when": {
                 "type": "string",
@@ -3348,7 +3349,7 @@
             ]
           },
           "minItems": 1,
-          "description": "Since v0.8.14, only on a decision: the earlier records it revokes, such as the decision on an objection that revokes the contested decision (Awb 7:11 lid 2), or a new decision in the place of the contested one, which revokes it and counts itself. Each effect names a parameter of this article whose value is the id of the other record, and with `when` a boolean output of this decision that must be true for the effect to hold. From the effects a runtime that records decisions and facts derives which records count: a record counts unless a later record that itself counts revokes it. A revoked record has no consequences and revokes nothing, so a record it alone revoked counts again; a new decision that should keep a revocation in force declares that effect itself. A revocation takes a record out of the whole history (ex tunc). A change from a later day on (ex nunc), such as a suspension or a withdrawal with effect from a date, is no effect: it is a step of the reduction with a date property, and whether the record counts never depends on the day asked about. A fact the article requires may have effects as well (`requires[].effects`, since v0.8.15). The engine carries the effects out when it plays a chronicle through a reduction with a `projection`; the loader checks that it sits on a decision, that every named parameter is a parameter of the article and not nullable, and that every `when` names a boolean output of the decision."
+          "description": "Since v0.8.14, only on a decision: the earlier records it revokes, such as the decision on an objection that revokes the contested decision (Awb 7:11 lid 2), or a new decision in the place of the contested one, which revokes it and counts itself. Each effect names a parameter of this article whose value is the id of the other record, and with `when` a boolean output of this decision that must be true for the effect to hold. From the effects a runtime that records decisions and facts derives which records count: a record counts unless a later record that itself counts revokes it. A revoked record has no consequences and revokes nothing, so a record it alone revoked counts again; a new decision that should keep a revocation in force declares that effect itself. A revocation takes a record out of the whole history (ex tunc). A change from a later day on (ex nunc), such as a suspension or a withdrawal with effect from a date, is no effect: it is a step of the reduction with a date property, and whether the record counts never depends on the day asked about. A fact the article requires may have effects as well (`requires[].effects`, since v0.8.15). The engine carries the effects out when it plays a chronicle through a reduction with a `projection`; the loader checks that it sits on a decision, that every named parameter is a parameter of the article (from v0.8.15 one that is not nullable), and that every `when` names a boolean output of the decision."
         },
         "decision_type": {
           "type": "string",

@@ -1,7 +1,7 @@
 ---
 # Tier C: effects of a fact (schema v0.8.15). Article 1 requires the
-# receipt of a copy of a ruling; the receipt revokes the decision the ruling
-# is about, by the id the copy gives, when the ruling annuls it. Article 2
+# receipt of a copy of a ruling; the receipt revokes the decision it refers
+# to, the one the copy concerns, when the ruling annuls it. Article 2
 # takes a decision that revokes a record by its id. Fictional throughout.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
 $id: test_conformance_record_effects
@@ -20,15 +20,12 @@ articles:
         - fact: afschrift_uitspraak_ontvangen
           description: Het bestuursorgaan heeft een afschrift ontvangen van een uitspraak over zijn besluit.
           parameters:
-            - bestreden_besluit
             - vernietigd
           effects:
-            - revokes: bestreden_besluit
+            - revokes: refers_to
               when: vernietigd
       execution:
         parameters:
-          - name: bestreden_besluit
-            type: string
           - name: vernietigd
             type: boolean
   - number: '2'
