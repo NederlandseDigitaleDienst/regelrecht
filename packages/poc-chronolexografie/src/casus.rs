@@ -12,7 +12,7 @@
 //! the text a visitor reads: a description, example values for the forms and
 //! the scenarios.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
@@ -633,14 +633,6 @@ pub struct Beroep {
     /// judgment, `<law>#<article>#<fact>`: what the cell records when it
     /// receives a copy of one (`Cell::record_receipt`).
     pub ontvangst: String,
-    /// The field of the appeal that names the contested decision by its id,
-    /// if the law gives one: the field an effect of the receipt revokes
-    /// (`requires[].effects`, schema v0.8.15). The judgment holds it from
-    /// the appeal and the copy of the judgment carries it, so the receipt
-    /// says which decision the judgment annuls. The appellant takes it from
-    /// the decision it appeals against (Awb 6:5 lid 2); the forms leave it
-    /// out.
-    pub kenmerk: Option<String>,
     /// The court: the other cell of the case that the competent authority of
     /// the article that decides on the appeal names ("de bestuursrechter",
     /// on Awb 8:70).
@@ -774,12 +766,11 @@ fn beroep(
             )))
         }
     };
-    let (ontvangst, kenmerk) = ontvangst(regelwerken, casus, gevonden, &law, &article)?;
+    let ontvangst = ontvangst(regelwerken, casus, gevonden, &law, &article)?;
     Ok(Some(Beroep {
         law,
         article,
         ontvangst,
-        kenmerk,
         rechter,
     }))
 }
@@ -877,42 +868,28 @@ fn vestigend(
 
 /// The fact in which a cell records the receipt of a judgment under
 /// `law#article`, as `<law>#<article>#<fact>`: the one fact an article of
-/// the regelwerken `gevonden` requires whose parameters the judgment all
-/// holds, as outputs or as fields of the appeal, so a copy of the judgment
-/// holds each by name (Awb 8:79, `afschrift_van_de_uitspraak`). With it,
-/// the field of the appeal that an effect of that fact revokes, if any
-/// ([`Beroep::kenmerk`]).
+/// the regelwerken `gevonden` requires whose parameters are all outputs of
+/// that decision, so a copy of the judgment holds each by name (Awb 8:79,
+/// `afschrift_van_de_uitspraak`).
 fn ontvangst(
     regelwerken: &Regelwerken,
     casus: &str,
     gevonden: &[String],
     law: &str,
     article: &str,
-) -> Result<(String, Option<String>)> {
-    let artikelen: Vec<&Article> = regelwerken
+) -> Result<String> {
+    let uitvoer: BTreeSet<&str> = regelwerken
         .get(law)
         .into_iter()
         .flat_map(|w| w.artikelen())
         .filter(|a| a.number == article)
-        .collect();
-    let velden: BTreeSet<&str> = artikelen
-        .iter()
-        .flat_map(|a| {
-            a.get_submission()
-                .map(|s| a.parameters_of(s))
-                .unwrap_or_default()
-        })
-        .collect();
-    let uitvoer: BTreeSet<&str> = artikelen
-        .iter()
         .flat_map(|a| {
             a.get_decision()
                 .map(|d| a.outputs_of(d))
                 .unwrap_or_default()
         })
-        .chain(velden.iter().copied())
         .collect();
-    let mut feiten = BTreeMap::new();
+    let mut feiten = BTreeSet::new();
     for id in gevonden {
         for a in regelwerken.get(id).into_iter().flat_map(|w| w.artikelen()) {
             for r in a.get_requires() {
@@ -921,12 +898,7 @@ fn ontvangst(
                 };
                 if !parameters.is_empty() && parameters.iter().all(|p| uitvoer.contains(p.as_str()))
                 {
-                    let kenmerk = r
-                        .effects()
-                        .iter()
-                        .map(|e| e.parameter.clone())
-                        .find(|p| velden.contains(p.as_str()));
-                    feiten.insert(format!("{id}#{}#{feit}", a.number), kenmerk);
+                    feiten.insert(format!("{id}#{}#{feit}", a.number));
                 }
             }
         }
@@ -938,8 +910,7 @@ fn ontvangst(
             "case '{casus}': no regelwerk it runs requires a fact that holds the judgment of {law}#{article}"
         ))),
         (Some(a), Some(b)) => Err(Error::Setup(format!(
-            "case '{casus}': both {} and {} hold the judgment of {law}#{article}",
-            a.0, b.0
+            "case '{casus}': both {a} and {b} hold the judgment of {law}#{article}"
         ))),
     }
 }

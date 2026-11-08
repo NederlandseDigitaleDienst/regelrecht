@@ -775,7 +775,6 @@ articles:
             requests: algemene_wet_bestuursrecht#8:70
             parameters:
               - bestreden_besluit
-              - kenmerk_bestreden_besluit
           - type: UITSPRAAK
             outputs:
               - beroep_ontvankelijk
@@ -794,17 +793,6 @@ articles:
           - name: bestreden_besluit
             type: decision
             description: Het besluit waartegen het beroep is gericht.
-          # Artikel 6:5, tweede lid: bij het beroepschrift wordt zo mogelijk
-          # een afschrift van het besluit overgelegd. Eigen keuze: de
-          # indiener neemt daaruit het kenmerk over waaronder het
-          # bestuursorgaan het besluit vastlegde. De uitspraak draagt het mee,
-          # en zo zegt het afschrift van de uitspraak welk besluit het
-          # bestuursorgaan vernietigd ziet (artikel 8:79).
-          - name: kenmerk_bestreden_besluit
-            type: string
-            description: >-
-              Het kenmerk van het besluit waartegen het beroep is gericht,
-              zoals het bestuursorgaan het vastlegde.
           # Wat artikel 6:9 bij het beroepschrift geeft; de indiener levert
           # het niet aan.
           - name: bezwaar_of_beroepschrift_tijdig_ingediend
@@ -1198,7 +1186,6 @@ articles:
             Het afschrift van de uitspraak dat de griffier ter beschikking van
             een partij stelt.
           parameters:
-            - kenmerk_bestreden_besluit
             - uitspraak_strekt_tot
             - bestreden_besluit_vernietigd
             - rechtsgevolgen_vernietigd
@@ -1210,18 +1197,14 @@ articles:
           # besluit brengt die van zijn rechtsgevolgen mee, tenzij de
           # bestuursrechter ze in stand laat (derde lid, onder a). Dan telt
           # het besluit niet meer voor het bestuursorgaan dat het afschrift
-          # ontving (schema v0.8.15). Welk besluit dat is, zegt het afschrift
-          # met het kenmerk uit het beroepschrift.
+          # ontving (schema v0.8.15). Welk besluit dat is, zegt de ontvangst
+          # zelf: zij verwijst naar het besluit waarover het afschrift gaat
+          # (refers_to, RFC-053).
           effects:
-            - revokes: kenmerk_bestreden_besluit
+            - revokes: refers_to
               when: rechtsgevolgen_vernietigd
       execution:
         parameters:
-          - name: kenmerk_bestreden_besluit
-            type: string
-            description: >-
-              Het kenmerk van het besluit waarover de uitspraak gaat, uit het
-              beroepschrift (artikel 6:5, tweede lid).
           - name: uitspraak_strekt_tot
             type: string
             description: Waartoe de uitspraak strekt (artikel 8:70).

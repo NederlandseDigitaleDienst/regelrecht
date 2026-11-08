@@ -632,16 +632,10 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
                 bevindingen.push(veld(&field));
             }
         }
-        // The id of the contested decision is not asked: the appellant takes
-        // it from the decision it appeals against ([`beroep_instellen`]).
-        let velden: Vec<Value> = in_te_vullen(&beroep)
-            .into_iter()
-            .filter(|v| b.kenmerk.as_deref().is_none_or(|k| v["naam"] != k))
-            .collect();
         vormen["beroep"] = json!({
             "soort": beroep.kind,
             "basis": beroep.basis(),
-            "velden": velden,
+            "velden": in_te_vullen(&beroep),
             "moment": moment(&beroep),
         });
         vormen["uitspraak"] = json!({
@@ -2356,13 +2350,6 @@ pub fn beroep_instellen(
 ) -> Result<Gram> {
     let beroep = corpus.beroep()?;
     let afschrift = cellen.afschrift(&mut corpus.service()?, &cellen.sfeer(), besluit)?;
-    // The appellant names the contested decision by its id, as the copy of
-    // it that goes with the notice of appeal shows (Awb 6:5 lid 2): the
-    // field the law gives for it ([`crate::casus::Beroep::kenmerk`]).
-    let mut velden = velden.clone();
-    if let Some(kenmerk) = &beroep.kenmerk {
-        velden.insert(kenmerk.clone(), Value::String(besluit.to_string()));
-    }
     let (rechter, sfeer) = cellen.splits_op(&beroep.rechter)?;
     rechter.record_submission(
         &mut corpus.service()?,
@@ -2370,7 +2357,7 @@ pub fn beroep_instellen(
         &beroep.law,
         &beroep.article,
         Some(Reference::Received(&afschrift)),
-        &velden,
+        velden,
         on,
     )
 }
@@ -5165,11 +5152,6 @@ mod tests {
         );
         let ingesteld =
             beroep_instellen(&corpus, &mut cell, &beslissing, &velden, day("2026-12-01")).unwrap();
-        // The appellant names the contested decision by its id.
-        assert_eq!(
-            ingesteld.fields["kenmerk_bestreden_besluit"],
-            json!(beslissing)
-        );
         let mut oordeel = uitspraak_bevindingen(&corpus, &[]);
         oordeel.insert("rechtsgevolgen_in_stand".into(), json!(in_stand));
         if in_stand {
@@ -5196,11 +5178,9 @@ mod tests {
             day("2027-01-11"),
         )
         .unwrap();
-        // The copy of the judgment says which decision it is about.
-        assert_eq!(
-            ontvangst.fields["kenmerk_bestreden_besluit"],
-            json!(beslissing)
-        );
+        // The receipt refers to the decision the copy is about, which its
+        // effect revokes.
+        assert_eq!(ontvangst.refers_to.as_deref(), Some(beslissing.as_str()));
         let mut later = aanvraag("2027-05-14");
         later.insert("eerste_verlofdag".into(), json!("2027-05-10"));
         let tweede = aanvragen(&corpus, &mut cell, &later, day("2027-01-20")).unwrap();
@@ -5417,7 +5397,6 @@ mod tests {
                 Some("ongegrond"),
                 "2027-01-11",
                 json!({
-                    "kenmerk_bestreden_besluit": "ongegrond",
                     "uitspraak_strekt_tot": "gegrondverklaring van het beroep",
                     "bestreden_besluit_vernietigd": true,
                     "rechtsgevolgen_vernietigd": true,

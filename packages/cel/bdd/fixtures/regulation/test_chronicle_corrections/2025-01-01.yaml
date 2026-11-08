@@ -65,13 +65,13 @@ articles:
     machine_readable:
       requires:
         - fact: inschrijving_onjuist
-          description: De inschrijving die het feit noemt, was vanaf het begin onjuist.
+          description: De inschrijving waarnaar het feit verwijst, was vanaf het begin onjuist.
           parameters:
-            - onjuiste_inschrijving
+            - reden
+          # The fact refers to the wrong registration and revokes it.
           effects:
-            - revokes: onjuiste_inschrijving
+            - revokes: refers_to
       execution:
         parameters:
-          # The record of the wrong registration, by its id.
-          - name: onjuiste_inschrijving
+          - name: reden
             type: string

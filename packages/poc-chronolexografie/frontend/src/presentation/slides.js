@@ -90,7 +90,7 @@ const EFFECT = `# Algemene wet bestuursrecht, artikel 7:11
 - fact: afschrift_van_de_uitspraak
   # …
   effects:
-    - revokes: kenmerk_bestreden_besluit
+    - revokes: refers_to
       when: rechtsgevolgen_vernietigd`;
 
 export const slides = [

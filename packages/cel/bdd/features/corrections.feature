@@ -7,9 +7,9 @@ Feature: A cell corrects a fact it recorded
   # (packages/cel/bdd/fixtures) and the reduction test_reductie_adres. A
   # correction of one field is a fact of its own with a step of its own: the
   # step sets that field and leaves the others (a fold step). A record that
-  # was wrong from the start is revoked by the fact that says so, as the law
-  # declares (`requires[].effects`); a new registration then holds the right
-  # values. A correction from a later day on ("met ingang van") is a fold
+  # was wrong from the start is revoked by the fact that says so and refers
+  # to it, as the law declares (`requires[].effects`, `revokes:
+  # refers_to`); a new registration then holds the right values. A correction from a later day on ("met ingang van") is a fold
   # step too: the record puts the day in the state and the answer compares
   # it with the day asked about. This feature does not exercise that.
 
@@ -38,8 +38,8 @@ Feature: A cell corrects a fact it recorded
       | bewoner    | burger_x |
       | postcode   | 1000AA   |
       | huisnummer | 12       |
-    And the cell records fact "inschrijving_onjuist" as "onjuist" under article "3" of "test_chronicle_corrections" with:
-      | onjuiste_inschrijving | inschrijving |
+    And the cell records fact "inschrijving_onjuist" as "onjuist" about "inschrijving" under article "3" of "test_chronicle_corrections" with:
+      | reden | verkeerd huisnummer opgegeven |
     And I evaluate "postcode" of "test_reductie_adres" over the chronicle
     Then record "inschrijving" is skipped
     And output "postcode" is absent
@@ -54,9 +54,9 @@ Feature: A cell corrects a fact it recorded
     And property "postcode" was last set by "nieuwe_inschrijving"
 
   Scenario: A correction of the postcode still holds when the registration before it was wrong from the start
-    # The correction refers to no record, so it counts on its own: the
-    # postcode it records holds, while the house number of the revoked
-    # registration does not, so the state keeps its start value.
+    # The correction of the postcode refers to no record, so it counts on
+    # its own: the postcode it records holds, while the house number of the
+    # revoked registration does not, so the state keeps its start value.
     When the cell records fact "ingeschreven" as "inschrijving" under article "1" of "test_chronicle_corrections" with:
       | bewoner    | burger_x |
       | postcode   | 1000AA   |
@@ -64,8 +64,8 @@ Feature: A cell corrects a fact it recorded
     And the cell records fact "postcode_gecorrigeerd" as "correctie" under article "2" of "test_chronicle_corrections" with:
       | bewoner  | burger_x |
       | postcode | 1000AB   |
-    And the cell records fact "inschrijving_onjuist" as "onjuist" under article "3" of "test_chronicle_corrections" with:
-      | onjuiste_inschrijving | inschrijving |
+    And the cell records fact "inschrijving_onjuist" as "onjuist" about "inschrijving" under article "3" of "test_chronicle_corrections" with:
+      | reden | verkeerd huisnummer opgegeven |
     And I evaluate "postcode" of "test_reductie_adres" over the chronicle
     Then record "inschrijving" is skipped
     And record "correctie" is applied
