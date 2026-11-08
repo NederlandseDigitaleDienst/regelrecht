@@ -256,7 +256,8 @@ both: `corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml`.
 - A pull request that adds a schema version also adds its release note, with
   an example marked in a conformance fixture. The steps are under "Adding a
   release note" in `docs/src/content/docs/reference/schema-release-notes.mdx`;
-  `docs/scripts/check-schema-version.mjs` fails without it.
+  `docs/scripts/check-schema-version.mjs` fails when the note or the row's link
+  to it is missing, and an unmarked or empty region fails the docs build.
 - A mistake in a released schema version, even in a `description`, is fixed
   with a patch release: a new `schema/vX.Y.Z` directory, wired up like the
   previous release. Never add an overlay, correction table or build-time

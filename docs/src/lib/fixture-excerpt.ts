@@ -33,12 +33,15 @@ export interface FixtureExcerpt {
   path: string;
   /** The fixture on GitHub, at main. */
   url: string;
+  /** The schema version the fixture's `$schema` names, such as `v0.8.9`. */
+  schemaVersion: string;
 }
 
 /** The lines `fixture` marks as `region`; `fixture` is relative to the conformance directory. */
 export function fixtureExcerpt(fixture: string, region: string): FixtureExcerpt {
   const path = `${CONFORMANCE}/${fixture}`;
-  const lines = read(path).split('\n');
+  const text = read(path);
+  const lines = text.split('\n');
 
   const at = (kind: 'begin' | 'end') =>
     lines.flatMap((line, i) => {
@@ -66,5 +69,8 @@ export function fixtureExcerpt(fixture: string, region: string): FixtureExcerpt 
     .join('\n')
     .trimEnd();
 
-  return { yaml, path, url: `${BLOB}/${path}` };
+  const schemaVersion = /^\$schema:.*\/schema\/(v\d+\.\d+\.\d+)\/schema\.json/m.exec(text)?.[1];
+  if (!schemaVersion) throw new Error(`${path}: no $schema naming a schema version`);
+
+  return { yaml, path, url: `${BLOB}/${path}`, schemaVersion };
 }

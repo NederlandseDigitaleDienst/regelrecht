@@ -30,7 +30,7 @@ A second suite, run with `just conformance`, proves something different and narr
 
 It is the structural twin of the BDD conformance bucket: that one proves an engine speaks the whole language behaviorally, this one proves the model accepts exactly the whole language structurally. The model is currently more permissive than the schema in a few documented ways, listed in `KNOWN_GAPS`; reconciling them is tracked separately. Details are in `packages/engine/tests/conformance/README.md`.
 
-The fixtures do a second job. The examples on [Schema Release Notes](/reference/schema-release-notes) are excerpts of them, marked with `# release-note-begin: <region>` and `# release-note-end: <region>` comments and read when the site is built, so an example there is a document this suite has checked. A fixture that lends lines to that page says so in those comments; removing or renaming them fails the docs build. A pull request that adds a schema version adds a fixture for its construct and a release note that shows it.
+The fixtures do a second job. The examples on [Schema Release Notes](/reference/schema-release-notes) are excerpts of them, marked with `# release-note-begin: <region>` and `# release-note-end: <region>` comments and read when the site is built, so an example there is a document this suite has checked. A fixture that lends lines to that page says so in those comments; removing or renaming them fails the docs build. A pull request that adds a schema version marks an example of its construct in a fixture, adding one if none fits, and shows it in a release note.
 
 This still says nothing about a *second* engine. It binds one implementation to the contract, which is what makes the contract worth writing against.
 

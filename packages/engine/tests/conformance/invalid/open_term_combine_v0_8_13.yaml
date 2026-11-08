@@ -24,6 +24,7 @@ articles:
             - name: Landelijke uitgever
           type: boolean
           required: true
+          decided_per_case_by: het college
           combine: OR
       # release-note-end: combine
       execution:

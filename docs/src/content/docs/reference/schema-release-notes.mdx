@@ -5,17 +5,17 @@ description: "Per schema version from v0.8.0: what changes for someone moving a 
 
 import FixtureExcerpt from '~/components/FixtureExcerpt.astro';
 
-These notes are for someone who writes or maintains a rulework and wants to move its `$schema` to a newer version. Each note says what the version changes for that person, whether a version of a rulework that validated under the previous schema still validates, what to edit when it does not, and how the new construct looks in use.
+These notes are for someone who writes or maintains a rulework and wants to move its `$schema` to a newer version. Each note says what the version changes for that person and whether a rulework version that validated under the previous schema still validates. When it does not, the note says what to edit. Each note shows its construct in an example.
 
-The [version history](/reference/schema#version-history) on the schema reference stays the record of which version introduced which construct, and it is the table RFCs cite. Each row from v0.8.0 on links to its note here. The note does not repeat the row: it adds what the row leaves out, which is what an author has to do.
+The [version history](/reference/schema#version-history) on the schema reference stays the record of which version introduced which construct, and it is the table RFCs cite. Each row from v0.8.0 on links to its note here. Where the row records what a version introduced, the note says what an author has to do about it.
 
-Where a version removes a construct, leaving the `$schema` of a rulework on the older version keeps it valid against that schema, but it does not keep it running. The engine in this repository runs every version on one code path and refuses a removed construct when it loads the rulework, naming the replacement where there is one. So where a note says a version is not additive, the rulework has to be edited before the engine will run it, whatever its `$schema` says. The one change neither the schema nor the engine catches at load is the rename in [v0.8.12](#v0812).
+From v0.8.0 on, some versions remove a construct. A rulework that uses a removed construct still validates against the older schema its `$schema` names, but the engine will not run it. The engine in this repository runs every version on one code path and refuses a removed construct when it loads the rulework, naming the replacement where there is one. So where a note says a version is not additive, the rulework has to be edited before the engine will run it, whatever its `$schema` says. The one change neither the schema nor the engine catches at load is the rename in [v0.8.12](#v0812).
 
-The notes cover v0.8.0 to v0.8.14. Versions before v0.8.0 have no note; for those, the version history is all there is.
+The notes start at v0.8.0. Versions before it have no note; for those, the version history is all there is.
 
 ## Where the examples come from
 
-No example on this page is typed in. Each one is a marked excerpt of a fixture in `packages/engine/tests/conformance/`, read when the site is built. `just conformance` checks every fixture in CI: a fixture under `valid/` must pass the schema and survive a round trip through the Rust model without losing a field, and a fixture under `invalid/` must be refused by the schema version its `$schema` names. An example here therefore cannot show something the schema does not accept, and an example of a shape to change cannot show something the schema still accepts.
+No example on this page is typed in. Each one is a marked excerpt of a fixture in `packages/engine/tests/conformance/`, read when the site is built. `just conformance` checks every fixture in CI: a fixture under `valid/` must pass the schema and survive a round trip through the Rust model without losing a field, and a fixture under `invalid/` must be refused by the schema version its `$schema` names. A positive example here therefore cannot show something the schema does not accept, and a shape to change comes from a fixture the schema refuses. Each such fixture holds that one construct and otherwise valid metadata.
 
 The fixtures under `valid/` that these notes draw on currently declare the newest schema, so a positive example shows the construct as the current schema accepts it. That can be a little later than the version the note is about, and where a later version changed the construct, the note says so.
 
@@ -23,17 +23,17 @@ The fixtures under `valid/` that these notes draw on currently declare the newes
 
 Two additions, both experimental and without an RFC so far. A decision can say what it does with another decision, and a reduction can play its cell's chronicle forward and answer from the state it ends in.
 
-Additive: a version valid under v0.8.13 is valid under v0.8.14 unchanged.
+Additive: a rulework version valid under v0.8.13 is valid under v0.8.14 unchanged.
 
-A decision in the list form of `produces` names its `effects`. With `revokes`, the decision revokes the decision held by the parameter it names, as a decision on an objection revokes the contested one (Awb 7:11 lid 2). `when` makes the effect conditional on a boolean output of the same decision, so the objection revokes only when it is well-founded:
+A decision in the list form of `produces` names its `effects`. With `revokes`, the decision revokes the decision held by the parameter it names, as a decision on an objection revokes the contested one (Awb 7:11 lid 2). `when` makes the effect conditional on a boolean output of the same decision, so the decision on the objection revokes only when the objection is well-founded:
 
 <FixtureExcerpt fixture="valid/v0_8_14_decision_effects.yaml" region="revokes-when" />
 
-A decision taken in the place of another revokes it without a condition and counts itself:
+A decision taken in the place of another revokes it without a condition, and the new decision itself counts:
 
 <FixtureExcerpt fixture="valid/v0_8_14_decision_effects.yaml" region="in-place" />
 
-A `REDUCTIE` may have a `projection`. Its `state` lists named properties with a type, and each starts at the value of that type: false, 0, or null for a string or a date. `steps` has one entry per article a record rests on. A step takes outputs of a law the way an article does, with an `input` whose `source` is `regulation`, and its `actions` give properties their values, each as a bare reference to an input, a field of the record (`$record.<field>`) or the state before it (`$state.<property>`). The step computes nothing itself; what a record does stays in the law it calls. `record` may name the kind of record in a third segment, such as `#BESCHIKKING`, and has to when the article gives more than one kind. With `key`, only the records of the person asked about are played. The reduction's `execution` answers from the last state.
+A `REDUCTIE` may have a `projection`. Its `state` lists named properties with a type, and each starts at the start value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date. `steps` has one entry per article a record rests on. A step takes outputs of a law the way an article does, with an `input` whose `source` is `regulation`. Its `actions` give properties their values. Each value is a bare reference to an input, a field of the record (`$record.<field>`) or the state before it (`$state.<property>`). The step computes nothing itself; what a record does stays in the law it calls. That law runs in the version in force on the day of the record, and may read no `input` and no open term. `record` may name the kind of record in a third segment, such as `#BESCHIKKING`, and has to when the article gives more than one kind. With `key`, only the records of the person asked about are played. The reduction's `execution` answers from the last state.
 
 Which records count follows from the effects: a record counts unless a later record that itself counts revokes it, and only the records that count change the state.
 
@@ -43,13 +43,13 @@ A step may also pass a parameter of the question to the law it calls, such as th
 
 <FixtureExcerpt fixture="valid/v0_8_14_projection_question.yaml" region="question-parameter" />
 
-The engine plays a projection only where a chronicle is played: when a cell gives the reduction's answer to a policy through `source.reduction`, or through `evaluate_projection` in the Rust engine. Asked for directly, from another rulework or at a stage, it refuses the article.
+The engine plays a projection only where a chronicle is played: when a cell gives the reduction's answer to a policy through `source.reduction`, or through `evaluate_projection` in the Rust engine. Any other way of asking for the article (directly, from another rulework, at a stage, or with a `state` of the caller's) makes the engine refuse it.
 
 ## v0.8.13
 
 `combine` is gone from open terms (where v0.8.8 put it) and from a `source` beside `reduction` (where v0.8.9 put it). There it told the engine how to merge the answers of several cells. The `combine` of a `FOREACH` is a different field and stays. The engine now asks one cell and merges nothing; when the call that a term names has more than one cell, the input fails at run time.
 
-A version that uses `combine` in neither place validates under v0.8.13 unchanged. One that does no longer validates: remove the field. A term may still list several competent authorities, and the schema accepts that; what fails, at run time, is a call that holds a cell for more than one of them. How one question would reach several cells of a category is an [open question](/concepts/chronolexography/open-questions), so there is no replacement construct yet.
+Not additive. A rulework version that uses `combine` in neither place validates under v0.8.13 unchanged. A version that uses it in either place no longer validates; remove the field. A term may still list several competent authorities. What fails, at run time, is a call in which more than one of them has a cell. How one question would reach several cells of a category is an [open question](/concepts/chronolexography/open-questions), so there is no replacement construct yet.
 
 The shape to change, on an open term:
 
@@ -63,7 +63,7 @@ The same term under v0.8.13:
 
 Two changes, both about reductions. The article a decision value was taken under is now called `basis`, where it was `grondslag`: in the decision value, in the rows of `source.decisions` and `source.facts`, and in `$besluit.basis`. And a `REDUCTIE` no longer names a `competent_authority`; the directory it sits in says whose it is.
 
-Not additive. A reduction with a root `competent_authority` is refused: delete the field and put the version under its cell, in `corpus/cells/<cell>/reductions/`, or in `corpus/cells/reductions/` if it belongs to no cell. The rename is one the schema cannot see, because `basis` is the name of a value at run time and not a key in the document. An action that reads `$besluit.grondslag` still validates and still loads, but the decision value it reads has no field of that name any more. Search for `grondslag` and replace it.
+Not additive. A reduction with a root `competent_authority` is refused: delete the field and put the version under its cell, in `corpus/cells/<cell>/reductions/`, or in `corpus/cells/reductions/` if it belongs to no cell. The rename is one the schema cannot see, because `basis` is the name of a value at run time and not a key in the document. An action that reads `$besluit.grondslag` still validates and still loads, but the decision value it reads has no field of that name any more. Change `.grondslag` to `.basis` wherever an action reads it, such as `$besluit.grondslag`. That covers a decision value and the rows of `source.decisions` and `source.facts`. A plain search for the word also finds parameters and outputs that merely contain it.
 
 The shape to change:
 
@@ -77,15 +77,15 @@ Calling an article anew through the `basis` of a decision value, with that decis
 
 `source.decisions` may take the article to search under from a parameter, as a `$`-reference, instead of naming it. That lets one reduction answer for decisions under any article, with the caller saying which. It reads the chronicle of the cell that runs it.
 
-Additive: a version valid under v0.8.10 is valid under v0.8.11 unchanged.
+Additive: a rulework version valid under v0.8.10 is valid under v0.8.11 unchanged.
 
 <FixtureExcerpt fixture="valid/v0_8_11_decisions_by_parameter.yaml" region="decisions-by-parameter" />
 
 ## v0.8.10
 
-An appeal to the administrative court is a kind of submission (`BEROEP`), and the court's judgment is a legal character (`UITSPRAAK`). Both go where `BEZWAAR` and the other legal characters already went: in `produces`, as the `type` of a produced item, and in a hook's `applies_to`.
+An appeal to the administrative court is a kind of submission (`BEROEP`), and the court's judgment is a legal character (`UITSPRAAK`). Both go where `BEZWAAR` and the existing legal characters already went: in `produces`, as the `type` of a produced item, and in a hook's `applies_to`.
 
-Additive: a version valid under v0.8.9 is valid under v0.8.10 unchanged.
+Additive: a rulework version valid under v0.8.9 is valid under v0.8.10 unchanged.
 
 The article that decides on the appeal establishes it:
 
@@ -115,7 +115,7 @@ The `combine` this version allowed beside `reduction` was removed again in [v0.8
 
 An open term and a required fact may say who is competent for them, with their own `competent_authority`: one named authority or a list. On the term it names who may answer it, on the fact who establishes it. The article's own `competent_authority` still names who decides, which is a different question.
 
-Additive: a version valid under v0.8.7 is valid under v0.8.8 unchanged.
+Additive: a rulework version valid under v0.8.7 is valid under v0.8.8 unchanged.
 
 <FixtureExcerpt fixture="valid/v0_8_8_competence.yaml" region="competence" />
 
@@ -143,7 +143,7 @@ The reduction reading it:
 
 A `REDUCTIE` could read the executograms of a stream of its cell, with `source.executograms`, and `FOREACH` gained `combine: ONLY`: the one result a filter leaves, null when it leaves none, and an error when it leaves more than one.
 
-Additive: a version valid under v0.8.5 is valid under v0.8.6 unchanged. The executograms did not last: [v0.8.7](#v087) replaced them with facts, and the example of the old shape is there. `combine: ONLY` stays:
+Additive: a rulework version valid under v0.8.5 is valid under v0.8.6 unchanged. The executograms did not last: [v0.8.7](#v087) replaced them with facts, and the example of the old shape is there. `combine: ONLY` stays:
 
 <FixtureExcerpt fixture="valid/v0_8_7_reduction_facts.yaml" region="combine-only" />
 
@@ -159,7 +159,7 @@ Additive when it was released. [v0.8.9](#v089) took this back, so there is no ex
 
 An input can call the decision of an article with `source.article`, named as `<regulation>#<article>` or by a `$`-reference to a value that holds one. Without `output` the input is a whole decision value, with the field type `decision`; with `output` it is one output of that decision. `source.parameters_from` merges objects into the parameters of the call, and `derived` on a decision lists outputs computed for it that the decision value leaves out.
 
-Additive: a version valid under v0.8.3 is valid under v0.8.4 unchanged.
+Additive: a rulework version valid under v0.8.3 is valid under v0.8.4 unchanged.
 
 One output of a fixed article's decision:
 
@@ -171,7 +171,7 @@ The `parameters-from` example under [v0.8.12](#v0812) shows the other form, a ca
 
 An objection is a kind of submission (`BEZWAAR`), next to `AANVRAAG`. The article that decides on the objection establishes it, and the Awb hooks onto it.
 
-Additive: a version valid under v0.8.2 is valid under v0.8.3 unchanged.
+Additive: a rulework version valid under v0.8.2 is valid under v0.8.3 unchanged.
 
 <FixtureExcerpt fixture="valid/v0_8_3_objection.yaml" region="objection" />
 
@@ -181,9 +181,9 @@ A hook on every objection:
 
 ## v0.8.2
 
-A new layer, `regulatory_layer: REDUCTIE`. A reduction is not a regulation: it is a cell's reading of its own chronicle, and it is kept with the cell rather than in the corpus of regulations. It reads the decisions taken under an article with `source.decisions`, which gives a list with one row per decision. Only a reduction may read it, and a reduction does not act on law: no `implements`, `hooks`, `overrides`, `execution.produces` or `open_terms`.
+A new layer, `regulatory_layer: REDUCTIE`. A reduction is a cell's reading of its own chronicle, kept with the cell rather than in the corpus of regulations. It reads the decisions taken under an article with `source.decisions`, which gives a list with one row per decision. Only a reduction may read it, and a reduction does not act on law: no `implements`, `hooks`, `overrides`, `execution.produces` or `open_terms`.
 
-Additive: a version valid under v0.8.1 is valid under v0.8.2 unchanged.
+Additive: a rulework version valid under v0.8.1 is valid under v0.8.2 unchanged.
 
 <FixtureExcerpt fixture="valid/v0_8_2_reduction.yaml" region="decisions" />
 
@@ -191,7 +191,7 @@ Additive: a version valid under v0.8.1 is valid under v0.8.2 unchanged.
 
 `execution.produces` may be a list instead of one object, for an article that produces more than one thing, such as an application and the decision on it. Each item has a `type`, a kind of submission or a legal character, and says which of the article's parameters it contains and which outputs it yields. A submission names the article whose decision it asks for with `requests`.
 
-Additive: the object form is unchanged, so a version valid under v0.8.0 is valid under v0.8.1 unchanged.
+Additive: the object form is unchanged, so a rulework version valid under v0.8.0 is valid under v0.8.1 unchanged.
 
 <FixtureExcerpt fixture="valid/v0_8_1_produces_list.yaml" region="produces-list" />
 
@@ -199,7 +199,7 @@ Additive: the object form is unchanged, so a version valid under v0.8.0 is valid
 
 An article can establish a submission (`produces.submission`, with `kind: AANVRAAG`) and state the moment that counts for it in law (`produces.moment`), with the provision behind that moment as a `legal_basis`. A hook applies either to a decision, through `legal_character`, or to a submission, through `submission`, and may be narrowed to the submission of one article with `established_by`.
 
-Additive: a version valid under v0.7.1 is valid under v0.8.0 unchanged.
+Additive: a rulework version valid under v0.7.1 is valid under v0.8.0 unchanged.
 
 <FixtureExcerpt fixture="valid/v0_8_0_submission.yaml" region="submission" />
 
@@ -212,7 +212,7 @@ A hook on the application of one article only:
 A pull request that adds a schema version adds its note to this page, at the top, under a heading that is the version number alone (`## v0.8.14`). The heading is the anchor the version history links to, so keep anything else out of it. In the same pull request:
 
 1. Link the version cell of the new row in the [version history](/reference/schema#version-history) to the note, as the rows below it do.
-2. Say whether a version valid under the previous schema stays valid, and when it does not, what to edit.
-3. Take the example from a conformance fixture. Put `# release-note-begin: <region>` and `# release-note-end: <region>` comments around the lines to show, in a fixture under `valid/` for the new construct or under `invalid/` for a shape the version refuses, and render them with `<FixtureExcerpt fixture="valid/<file>.yaml" region="<region>" />`. If no fixture fits, add one first; [Conformance](/reference/conformance#schema-to-law-model-conformance) and the README next to the fixtures describe how.
+2. Say whether a rulework version valid under the previous schema stays valid, and when it does not, what to edit.
+3. Take the example from a conformance fixture. Mark the lines to show with `# release-note-begin: <region>` and `# release-note-end: <region>`. Use a fixture under `valid/` for the new construct, or under `invalid/` for a shape the version refuses. Render it with `<FixtureExcerpt fixture="<valid|invalid>/<file>.yaml" region="<region>" />`. If no fixture fits, add one first; [Conformance](/reference/conformance#schema-to-law-model-conformance) and the README next to the fixtures describe how.
 
 `docs/scripts/check-schema-version.mjs` fails CI when a version from v0.8.0 on has no note here, or when its row in the version history does not link to it. A region that is missing or empty fails the site build.

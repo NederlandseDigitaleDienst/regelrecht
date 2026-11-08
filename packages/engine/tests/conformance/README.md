@@ -89,8 +89,9 @@ lends out with a pair of comments:
 
 Keep the markers when you edit such a fixture. A region that is missing, doubled or empty fails
 the docs build, which is the point: the page cannot quietly show an example this suite no longer
-checks. A new schema version adds its fixture with markers around its construct, and its note on
-that page renders them; the page's section "Adding a release note" has the steps.
+checks. A new schema version marks an example of its construct in a fixture, adding one if none
+fits, and its note on that page renders it; the page's section "Adding a release note" has the
+steps.
 
 The one-construct-per-fixture rule holds for `invalid/`, where attribution is the whole point. The
 `valid/` set also carries a few deliberately dense fixtures (`machine_readable_full.yaml`,
