@@ -488,19 +488,22 @@ articles:
   - number: '16'
     url: https://example.com/test_chronicle_effects/16
     text: >-
-      FICTIEF. Het college legt vast dat een vastgelegde schorsing met
-      terugwerkende kracht is vervallen. Zij heeft dan nooit gegolden. De Awb
-      kent geen hoger beroep tegen een uitspraak van de voorzieningenrechter;
-      dit artikel bestaat alleen om te tonen dat een herroepen schorsing
-      nooit in de staat van een reductie komt.
+      FICTIEF. Het college legt vast dat een vastgelegde schorsing, of de
+      opheffing daarvan, met terugwerkende kracht is vervallen. Zij heeft dan
+      nooit gegolden. De Awb kent geen hoger beroep tegen een uitspraak van
+      de voorzieningenrechter; dit artikel bestaat alleen om te tonen dat een
+      herroepen schorsing of opheffing nooit in de staat van een reductie
+      komt.
     machine_readable:
       requires:
         - fact: schorsing_vervallen
           description: >-
-            De schorsing heeft met terugwerkende kracht nooit gegolden.
+            De schorsing, of de opheffing daarvan, heeft met terugwerkende
+            kracht nooit gegolden.
           parameters:
             - vervallen_op
-          # The fact refers to the suspension recorded under article 13.
+          # The fact refers to the suspension (article 13) or the lifting
+          # (article 14) that never held.
           effects:
             - revokes: refers_to
       execution:

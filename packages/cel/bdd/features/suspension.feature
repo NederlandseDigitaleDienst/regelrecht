@@ -119,6 +119,39 @@ Feature: A suspension is a step with a period, not a revocation
     When I evaluate "heeft_geldige_kaart_op_peildatum" of "test_reductie_kaart_op_peildatum" over the chronicle
     Then output "heeft_geldige_kaart_op_peildatum" is true
 
+  Scenario: When a lifting is revoked, the period it ended comes back
+    # The lifting's step never runs, so the state keeps the period of the
+    # suspension, as if it was never lifted.
+    Given the calculation date is "2025-05-10"
+    When the cell records fact "schorsing_opgeheven" as "opheffing" under article "14" of "test_chronicle_effects" with:
+      | aanvrager    | burger_x   |
+      | opgeheven_op | 2025-05-10 |
+    And the cell records fact "schorsing_vervallen" as "vervallen" about "opheffing" under article "16" of "test_chronicle_effects" with:
+      | vervallen_op | 2025-05-10 |
+    Given the calculation date is "2025-07-01"
+    And parameter "peildatum" is "2025-05-15"
+    When I evaluate "heeft_geldige_kaart_op_peildatum" of "test_reductie_kaart_op_peildatum" over the chronicle
+    Then output "heeft_geldige_kaart_op_peildatum" is false
+    And record "opheffing" is skipped
+    And property "geschorst_tot" was last set by "schorsing"
+
+  Scenario: When a second suspension is revoked, the first period comes back
+    When the cell records fact "besluit_geschorst" as "nieuwe_schorsing" under article "13" of "test_chronicle_effects" with:
+      | aanvrager       | burger_x   |
+      | schorsing_vanaf | 2025-07-01 |
+      | schorsing_tot   | null       |
+    And the cell records fact "schorsing_vervallen" as "vervallen" about "nieuwe_schorsing" under article "16" of "test_chronicle_effects" with:
+      | vervallen_op | 2025-04-01 |
+    Given the calculation date is "2025-07-01"
+    And parameter "peildatum" is "2025-05-01"
+    When I evaluate "heeft_geldige_kaart_op_peildatum" of "test_reductie_kaart_op_peildatum" over the chronicle
+    Then output "heeft_geldige_kaart_op_peildatum" is false
+    And record "nieuwe_schorsing" is skipped
+    And property "geschorst_vanaf" was last set by "schorsing"
+    Given parameter "peildatum" is "2026-01-01"
+    When I evaluate "heeft_geldige_kaart_op_peildatum" of "test_reductie_kaart_op_peildatum" over the chronicle
+    Then output "heeft_geldige_kaart_op_peildatum" is true
+
   Scenario: A suspension that is revoked never enters the state
     # Fictional article 16: the suspension never held (ex tunc). A revoked
     # record does not count, so its step never runs, the period never
