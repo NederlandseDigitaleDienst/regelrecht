@@ -198,7 +198,7 @@ impl LawExecutionService {
         let Some(first) = output_names.first() else {
             return Err(EngineError::InvalidOperation("no output asked".to_string()));
         };
-        let (projection, key_type, question) = {
+        let (projection, key_type, question, since_v0_8_15) = {
             let law = self
                 .resolver()
                 .get_law_for_date(law_id, Some(day))
@@ -224,7 +224,8 @@ impl LawExecutionService {
                     .find(|p| &p.name == key)
                     .map(|p| p.param_type)
             });
-            (projection, key_type, question)
+            let since_v0_8_15 = crate::load_check::from_version(law, (0, 8, 15));
+            (projection, key_type, question, since_v0_8_15)
         };
 
         // The reduction reads its state as `$state`; a caller cannot pass
@@ -241,7 +242,7 @@ impl LawExecutionService {
             .filter(|r| r.recorded_on <= day)
             .cloned()
             .collect();
-        self.check_steps(law_id, &projection, &question, day)?;
+        self.check_steps(law_id, &projection, &question, day, since_v0_8_15)?;
         let partition = self.partition(&projection, key_type.as_ref(), &known, &parameters)?;
         let played = self.play(law_id, &projection, &known, &partition, &parameters, trace)?;
 
@@ -387,17 +388,24 @@ impl LawExecutionService {
         projection: &Projection,
         question: &[regelrecht_law_model::Parameter],
         day: NaiveDate,
+        since_v0_8_15: bool,
     ) -> Result<()> {
         let law_of = |id: &str| self.resolver().get_law_for_date(id, Some(day));
         for step in &projection.steps {
-            check_step(projection, step, question, &law_of, Versions::InForce(day)).map_err(
-                |why| {
-                    EngineError::InvalidOperation(format!(
-                        "the step of '{law_id}' on {}: {why}",
-                        step.record
-                    ))
-                },
-            )?;
+            check_step(
+                projection,
+                step,
+                question,
+                &law_of,
+                Versions::InForce(day),
+                since_v0_8_15,
+            )
+            .map_err(|why| {
+                EngineError::InvalidOperation(format!(
+                    "the step of '{law_id}' on {}: {why}",
+                    step.record
+                ))
+            })?;
         }
         Ok(())
     }
@@ -803,12 +811,20 @@ impl std::fmt::Display for Versions {
 /// declares the record, [`field_type`]), a property of the state or a
 /// parameter of the question, of the parameter's type, and have the type of
 /// that output; each property the step sets must get a value of its type.
+///
+/// Three of these rules came with schema v0.8.15 and hold only for a
+/// reduction on v0.8.15 or later (`since_v0_8_15`), so a reduction valid
+/// under the released v0.8.14 still loads: the article must give a record,
+/// `$record` reads only the fields of the kind of record the step is about,
+/// and every required parameter the output reads must be passed. Under
+/// v0.8.14 `$record` reads any parameter or output of the article.
 pub(crate) fn check_step<'l>(
     projection: &Projection,
     step: &ProjectionStep,
     question: &[regelrecht_law_model::Parameter],
     law_of: &dyn Fn(&str) -> Option<&'l ArticleBasedLaw>,
     versions: Versions,
+    since_v0_8_15: bool,
 ) -> std::result::Result<(), String> {
     // The article of `law_id` that `pick` finds: `Ok(None)` when the loader
     // does not hold that law yet, so there is nothing to check against.
@@ -830,7 +846,17 @@ pub(crate) fn check_step<'l>(
         &|| format!("{basis} names no article {versions}"),
     )?;
     let record = match record_article {
-        Some(article) => Some((article, record_kind(article, basis, kind)?)),
+        Some(article) => match record_kind(article, basis, kind)? {
+            None if since_v0_8_15 => {
+                return Err(
+                    "the article gives no record, so no record rests on it to take a step for"
+                        .to_string(),
+                )
+            }
+            // Before v0.8.15 a step on such an article loads and never
+            // applies, and `$record` reads the whole article.
+            kind => Some((article, kind.filter(|_| since_v0_8_15))),
+        },
         None => None,
     };
     // The type of what `source` reads: `None` when the law that would say
@@ -908,7 +934,8 @@ pub(crate) fn check_step<'l>(
         // a fact of the article holds, need not be passed.
         let reads = output_reads(called, output);
         if let Some(required) = called.get_parameters().iter().find(|p| {
-            p.required != Some(false)
+            since_v0_8_15
+                && p.required != Some(false)
                 && reads.contains(&p.name)
                 && !parameters.contains_key(&p.name)
         }) {
@@ -1096,8 +1123,8 @@ fn state_type(projection: &Projection, name: &str) -> Option<ParameterType> {
 /// the article requires it to hold. A decision holds the parameters of its
 /// article, its outputs and the data derived for it; a submission the
 /// parameters and outputs its item lists (in the object form of `produces`
-/// every parameter and output). Without a kind (an article that gives no
-/// record) every parameter and output counts.
+/// every parameter and output). Without a kind (a reduction before schema
+/// v0.8.15, [`check_step`]) every parameter and output counts.
 fn field_type(article: &Article, kind: Option<&str>, name: &str) -> Option<ParameterType> {
     let parameter = || {
         article
@@ -2581,6 +2608,70 @@ articles:
         }
     }
 
+    /// Three rules on a step came with schema v0.8.15: the article gives a
+    /// record, `$record` reads only the fields of its kind, and every
+    /// required parameter the output reads is passed. A reduction that
+    /// declares v0.8.14, which the released schema allows, still loads in
+    /// either order and plays; from v0.8.15 it is refused.
+    #[test]
+    fn the_rules_of_v0_8_15_leave_a_reduction_on_v0_8_14_alone() {
+        let on = |reduction: &str, v: &str| {
+            reduction.replacen(
+                "$id: reductie",
+                &format!(
+                    "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{v}/schema/{v}/schema.json\n$id: reductie"
+                ),
+                1,
+            )
+        };
+        let with = |a: &str, b: &str| REDUCTION.replace(a, b);
+        for (reduction, why) in [
+            (
+                with(
+                    "          - record: wet#3\n",
+                    "          - record: wet#6\n            actions: [{output: kaart, value: $record.kaart_weg}]\n          - record: wet#3\n",
+                ),
+                "on wet#6: the article gives no record",
+            ),
+            (
+                with(
+                    "record: wet#1#BESCHIKKING",
+                    "record: wet#1#AANVRAAG",
+                ),
+                "input 'kaart_na' passes $record.verleend as 'verleend', but the record has no such field",
+            ),
+            (
+                with(
+                    "parameters: {verleend: $record.verleend, aantal: $state.aantal}",
+                    "parameters: {verleend: $record.verleend}",
+                ),
+                "input 'aantal_na' passes no 'aantal'",
+            ),
+        ] {
+            for err in refused_in_either_order(LAW, &on(&reduction, "v0.8.15")) {
+                assert!(err.contains(why), "{why}: {err}");
+            }
+            let old = on(&reduction, "v0.8.14");
+            for law_first in [true, false] {
+                let mut service = LawExecutionService::new();
+                let order = if law_first { [LAW, &old] } else { [&old, LAW] };
+                for law in order {
+                    service.load_law(law).expect("valid under v0.8.14");
+                }
+                service
+                    .evaluate_projection(
+                        "reductie",
+                        &["heeft_kaart"],
+                        &[],
+                        BTreeMap::new(),
+                        "2025-03-01",
+                        false,
+                    )
+                    .expect("plays under v0.8.14");
+            }
+        }
+    }
+
     /// The errors when `law` loads before `reduction`, and when it loads
     /// after it. Loaded after the law, the reduction is refused. Loaded
     /// before it, the reduction loads, and so does the law: a law never
@@ -2836,6 +2927,7 @@ articles:
                         article.get_parameters(),
                         &law_of,
                         Versions::Loaded,
+                        true,
                     )
                 })
                 .find_map(std::result::Result::err)

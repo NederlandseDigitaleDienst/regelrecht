@@ -556,7 +556,7 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
 /// Whether `law` declares schema `version` or later, or no version at all.
 /// A rule a released version did not have applies from the version that
 /// introduces it, so a file valid under an earlier version still loads.
-fn from_version(law: &ArticleBasedLaw, version: (u32, u32, u32)) -> bool {
+pub(crate) fn from_version(law: &ArticleBasedLaw, version: (u32, u32, u32)) -> bool {
     law.schema_version()
         .and_then(regelrecht_law_model::parse_schema_version)
         .is_none_or(|declared| declared >= version)
@@ -1009,6 +1009,7 @@ pub(crate) fn check_projection_wiring<'l>(
                 question,
                 lookup,
                 crate::projection::Versions::Loaded,
+                from_version(law, (0, 8, 15)),
             )
             .map_err(|why| format!("{where_}: the step on {}: {why}", step.record))?;
         }
