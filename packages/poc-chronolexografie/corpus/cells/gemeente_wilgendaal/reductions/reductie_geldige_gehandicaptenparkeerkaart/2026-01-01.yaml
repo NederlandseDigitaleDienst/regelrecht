@@ -105,7 +105,7 @@ articles:
             description: >-
               Of het college de aanvrager een kaart verstrekte die op de dag van
               het besluit nog geldig is; afwezig als de bestuursrechter hem
-              zelf een kaart verstrekte.
+              zelf een kaart verstrekte en het college geen geldige kaart.
         actions:
           # Verstrekte de bestuursrechter zelf een kaart, dan zwijgt het
           # systeem (null) en oordeelt het college: hoe lang die kaart geldt,

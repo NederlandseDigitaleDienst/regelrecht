@@ -1231,10 +1231,10 @@ articles:
             nullable: true
             required: false
             description: De rechtsregel die de uitspraak geschonden oordeelde (artikel 8:77, tweede lid).
-          # Eigen keuze: een object, geen besluitwaarde. Het afschrift draagt
-          # het besluit zoals de uitspraak het gaf; de partij die het ontvangt
-          # neemt het niet opnieuw, maar leest er de uitvoer en gegevens uit
-          # (RFC-053).
+          # Eigen keuze, anders dan RFC-053 (zie de noot daar): een object,
+          # geen besluitwaarde. Het afschrift draagt het besluit zoals de
+          # uitspraak het gaf; de partij die het ontvangt neemt het niet
+          # opnieuw, maar leest er de uitvoer en gegevens uit.
           - name: uitspraak_in_de_plaats
             type: object
             nullable: true

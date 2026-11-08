@@ -2168,6 +2168,10 @@ fn lezingen_van(
             })
             .unwrap_or_default();
         let bronnen = if feiten.is_empty() {
+            // A step on facts whose article is not found reads nothing here.
+            if kind == Some(EXECUTOGRAM) {
+                continue;
+            }
             vec![Bron::Besluiten(basis.to_string())]
         } else {
             feiten.into_iter().map(Bron::Feiten).collect()
@@ -5217,12 +5221,24 @@ mod tests {
 
     #[test]
     fn leave_the_court_grants_in_place_of_a_refusal_counts() {
+        // B is refused: the court's leave counts.
+        assert!(!second_leave_after_a_decision_in_place(true));
+    }
+
+    #[test]
+    fn leave_the_court_refuses_in_place_does_not_count() {
+        // B is granted: the court's refusal grants nothing.
+        assert!(second_leave_after_a_decision_in_place(false));
+    }
+
+    /// Whether a second leave in the school year is granted, after the court
+    /// decided the first application itself, granting it when `verleent`.
+    fn second_leave_after_a_decision_in_place(verleent: bool) -> bool {
         // A refusal, an unfounded objection, and an appeal in which the court
         // decides the case itself (Awb 8:72 lid 3 onder b): its judgment
-        // grants the leave in place of the decision on the objection. The
-        // school records the receipt, not that decision; the reduction reads
-        // the decision in place from the receipt. A second leave in the same
-        // school year is then refused, as after a grant by the head.
+        // takes the decision on the objection anew in its place. The school
+        // records the receipt, not that decision; the reduction reads the
+        // decision in place from the receipt.
         let corpus = corpus();
         let mut cell = corpus.cell().unwrap();
         let eerste = aanvragen(
@@ -5260,7 +5276,7 @@ mod tests {
             beroep_instellen(&corpus, &mut cell, &op_bezwaar, &velden, day("2026-12-01")).unwrap();
         let mut zelf = uitspraak_bevindingen(&corpus, &["termijn_nieuw_besluit"]);
         zelf.insert("uitspraak_treedt_in_de_plaats".into(), json!(true));
-        zelf.insert("specifieke_aard_beroep_ouder".into(), json!(true));
+        zelf.insert("specifieke_aard_beroep_ouder".into(), json!(verleent));
         zelf.insert(
             "verlof_valt_buiten_schoolvakanties_volgens_hoofd".into(),
             json!(true),
@@ -5271,11 +5287,11 @@ mod tests {
         );
         let gedaan =
             uitspraak_doen(&corpus, &mut cell, &ingesteld.id, &zelf, day("2027-01-11")).unwrap();
-        assert_eq!(
-            gedaan["uitspraak"]["outputs"]["uitspraak_in_de_plaats"]["outputs"]["nieuw_besluit"]
-                ["outputs"]["verlof_verleend"],
-            json!(true)
-        );
+        // The court's decision on the objection anew holds the new decision
+        // only when it revokes the refusal.
+        let nieuw =
+            &gedaan["uitspraak"]["outputs"]["uitspraak_in_de_plaats"]["outputs"]["nieuw_besluit"];
+        assert_eq!(nieuw.is_object(), verleent, "{nieuw}");
         toezenden(
             &corpus,
             &mut cell,
@@ -5295,19 +5311,22 @@ mod tests {
         )
         .unwrap()
         .besluit;
-        assert_eq!(b.outputs["verlof_verleend"], json!(false));
-        assert_eq!(b.fields["verlof_al_verleend_in_schooljaar"], json!(true));
+        assert_eq!(
+            b.fields["verlof_al_verleend_in_schooljaar"],
+            json!(verleent)
+        );
+        b.outputs["verlof_verleend"] == json!(true)
     }
 
-    #[test]
-    fn a_card_the_court_grants_in_place_leaves_the_cell_silent_on_its_validity() {
-        // A refusal, an unfounded objection, and a judgment in which the court
-        // decides the case itself (Awb 8:72 lid 3 onder b) and grants the
-        // card, as the municipality's chronicle holds them: the receipt of
-        // the copy carries the decision in place. The municipality does not
-        // derive how long that card holds, so its cell says nothing about a
-        // valid card and the college judges; a definite "no" would ignore the
-        // court's card. That the court granted a card, the cell does say.
+    /// The answers of the municipality's cell on a valid card and an earlier
+    /// card, after a refusal, an unfounded objection and the receipt of a
+    /// judgment that puts `in_plaats` in place (Awb 8:72 lid 3 onder b). The
+    /// chronicle is written out by hand; the shape of the decision in place
+    /// is the one `leave_the_court_grants_in_place_of_a_refusal_counts`
+    /// receives through the real judgment.
+    fn kaart_na_uitspraak(
+        in_plaats: Value,
+    ) -> (regelrecht_engine::Value, regelrecht_engine::Value) {
         let corpus = casus("gehandicaptenparkeerkaart");
         let service = corpus.service().unwrap();
         const BSN: &str = "999990020";
@@ -5334,20 +5353,6 @@ mod tests {
             missing: Vec::new(),
             outputs: outputs.as_object().unwrap().clone().into_iter().collect(),
         };
-        let in_plaats = json!({
-            "basis": "algemene_wet_bestuursrecht#7:11",
-            "fields": {},
-            "findings": {},
-            "outputs": {
-                "bestreden_besluit_herroepen": true,
-                "nieuw_besluit": {
-                    "basis": babw,
-                    "fields": {"bsn_aanvrager": BSN},
-                    "findings": {},
-                    "outputs": {"gehandicaptenparkeerkaart_verstrekt": true}
-                }
-            }
-        });
         let grams = vec![
             gram(
                 "aanvraag",
@@ -5428,25 +5433,67 @@ mod tests {
             "bsn_aanvrager".to_string(),
             regelrecht_engine::Value::String(BSN.into()),
         );
-        assert_eq!(
-            vraag(
-                "aanvrager_heeft_geldige_gehandicaptenparkeerkaart",
-                BTreeMap::from([
-                    bsn.clone(),
-                    (
-                        "besluit_datum".to_string(),
-                        regelrecht_engine::Value::String("2027-03-01".into())
-                    ),
-                ])
-            ),
-            regelrecht_engine::Value::Null
+        let geldig = vraag(
+            "aanvrager_heeft_geldige_gehandicaptenparkeerkaart",
+            BTreeMap::from([
+                bsn.clone(),
+                (
+                    "besluit_datum".to_string(),
+                    regelrecht_engine::Value::String("2027-03-01".into()),
+                ),
+            ]),
         );
-        assert_eq!(
-            vraag(
-                "aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt",
-                BTreeMap::from([bsn])
-            ),
-            regelrecht_engine::Value::Bool(true)
+        let eerder = vraag(
+            "aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt",
+            BTreeMap::from([bsn]),
         );
+        (geldig, eerder)
+    }
+
+    #[test]
+    fn a_card_the_court_grants_in_place_leaves_the_cell_silent_on_its_validity() {
+        // The municipality does not derive how long a card of the court
+        // holds, so its cell says nothing about a valid card and the college
+        // judges; a definite "no" would ignore the court's card. That the
+        // court granted a card, the cell does say. A refusal in place, or no
+        // decision in place, gives no card.
+        use regelrecht_engine::Value as V;
+        let babw = "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49";
+        let kaart = |verstrekt: bool| {
+            json!({
+                "basis": babw,
+                "fields": {"bsn_aanvrager": "999990020"},
+                "findings": {},
+                "outputs": {"gehandicaptenparkeerkaart_verstrekt": verstrekt}
+            })
+        };
+        let op_bezwaar = |nieuw: Value| {
+            json!({
+                "basis": "algemene_wet_bestuursrecht#7:11",
+                "fields": {},
+                "findings": {},
+                "outputs": {"bestreden_besluit_herroepen": !nieuw.is_null(), "nieuw_besluit": nieuw}
+            })
+        };
+        // The court takes the decision on the objection anew, and it grants.
+        assert_eq!(
+            kaart_na_uitspraak(op_bezwaar(kaart(true))),
+            (V::Null, V::Bool(true))
+        );
+        // The court takes the decision on the application anew, and it grants.
+        assert_eq!(kaart_na_uitspraak(kaart(true)), (V::Null, V::Bool(true)));
+        // The court refuses in place, or decides the objection without a new
+        // decision.
+        assert_eq!(
+            kaart_na_uitspraak(op_bezwaar(kaart(false))),
+            (V::Bool(false), V::Null)
+        );
+        assert_eq!(kaart_na_uitspraak(kaart(false)), (V::Bool(false), V::Null));
+        assert_eq!(
+            kaart_na_uitspraak(op_bezwaar(Value::Null)),
+            (V::Bool(false), V::Null)
+        );
+        // No decision in place.
+        assert_eq!(kaart_na_uitspraak(Value::Null), (V::Bool(false), V::Null));
     }
 }

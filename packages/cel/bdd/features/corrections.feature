@@ -9,9 +9,10 @@ Feature: A cell corrects a fact it recorded
   # step sets that field and leaves the others (a fold step). A record that
   # was wrong from the start is revoked by the fact that says so and refers
   # to it, as the law declares (`requires[].effects`, `revokes:
-  # refers_to`); a new registration then holds the right values. A correction from a later day on ("met ingang van") is a fold
-  # step too: the record puts the day in the state and the answer compares
-  # it with the day asked about. This feature does not exercise that.
+  # refers_to`); a new registration then holds the right values. A
+  # correction from a later day on ("met ingang van") is a fold step too:
+  # the record puts the day in the state and the answer compares it with
+  # the day asked about. This feature does not exercise that.
 
   Background:
     Given the calculation date is "2025-03-01"
