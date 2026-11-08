@@ -7,7 +7,7 @@ Feature: A suspension is a step with a period, not a revocation
   # suspension (fictional article 13 of test_chronicle_effects, after Awb
   # 8:81) holds from a day on and ends, so it revokes nothing. Its step in
   # test_reductie_kaart_op_peildatum puts the period in the state; lifting
-  # it (article 14, after Awb 8:88) ends it on a day. Whether the card is
+  # it (article 14, after Awb 8:87) ends it on a day. Whether the card is
   # valid on the day the question names is article 15 of the law: the
   # reduction passes it the state and that day. Which records count never
   # depends on the day asked about. In practice the measure reaches the cell
