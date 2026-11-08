@@ -4617,15 +4617,11 @@ impl LawExecutionService {
             name: answer,
             parameters: &parameters,
             calculation_date: res_ctx.calculation_date,
+            // When tracing, the answerer may say how it came to the answer;
+            // that trace hangs under the node of the answer.
+            trace: res_ctx.trace.is_some(),
         };
-        // When tracing, the answerer may say how it came to the answer; the
-        // trace hangs under the node of the answer.
-        let asked = if res_ctx.trace.is_some() {
-            askee.answer_traced(self, &request)
-        } else {
-            askee.answer(self, &request).map(|a| a.map(|a| (a, None)))
-        };
-        let (given, how) = match asked {
+        let mut given = match askee.answer(self, &request) {
             Ok(Some(given)) => given,
             Ok(None) => {
                 let message = format!(
@@ -4655,7 +4651,7 @@ impl LawExecutionService {
             } else {
                 format!("Answered by {}", given.provenance)
             });
-            if let Some(how) = how {
+            if let Some(how) = given.trace.take() {
                 res_ctx.trace_adopt(how);
             }
         }

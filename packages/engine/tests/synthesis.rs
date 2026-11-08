@@ -554,6 +554,7 @@ impl OpenTermAnswerer for Fake {
         Ok(self.answers.get(request.name).map(|value| Answer {
             value: value.clone(),
             provenance: provenance(&self.authority.name, request.name),
+            trace: None,
         }))
     }
 }
@@ -1403,18 +1404,15 @@ impl OpenTermAnswerer for Explaining {
         service: &LawExecutionService,
         request: &AnswerRequest<'_>,
     ) -> regelrecht_engine::Result<Option<Answer>> {
-        self.0.answer(service, request)
-    }
-
-    fn answer_traced(
-        &self,
-        service: &LawExecutionService,
-        request: &AnswerRequest<'_>,
-    ) -> regelrecht_engine::Result<Option<(Answer, Option<PathNode>)>> {
         let how = PathNode::new(PathNodeType::Article, "reductie_oostmeer")
             .with_node_id("n")
             .with_child(PathNode::new(PathNodeType::Operation, "PROJECTION").with_node_id("n0"));
-        Ok(self.0.answer(service, request)?.map(|a| (a, Some(how))))
+        // Only a traced execution asks how the answer came about.
+        assert!(request.trace);
+        Ok(self.0.answer(service, request)?.map(|a| Answer {
+            trace: Some(how),
+            ..a
+        }))
     }
 }
 

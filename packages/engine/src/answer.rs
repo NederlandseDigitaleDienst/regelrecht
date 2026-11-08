@@ -28,9 +28,9 @@
 //! The engine does not judge how an answer came about. It records who gave it
 //! and from what ([`AnswerProvenance`]) in the report of the execution
 //! (`ArticleResult::open_terms`, with the binding article) and as one node
-//! per answer in the trace. When the execution traces, the engine asks for
-//! the answer with how the answerer came to it
-//! ([`OpenTermAnswerer::answer_traced`]), and nests that trace under the
+//! per answer in the trace. When the execution traces, the request says so
+//! ([`AnswerRequest::trace`]); the answerer may then give how it came to the
+//! answer ([`Answer::trace`]), and the engine nests that trace under the
 //! node of the answer: for a cell, the run of its reduction, with the
 //! projection it played. An answerer that does not explain itself gives
 //! none.
@@ -55,13 +55,20 @@ pub struct AnswerRequest<'r> {
     pub parameters: &'r BTreeMap<String, Value>,
     /// The date of the execution (YYYY-MM-DD).
     pub calculation_date: &'r str,
+    /// Whether the execution traces: the answerer may then say how it came
+    /// to the answer ([`Answer::trace`]).
+    pub trace: bool,
 }
 
-/// An answer to an [`AnswerRequest`]: the value, and who gave it from what.
+/// An answer to an [`AnswerRequest`]: the value, who gave it from what,
+/// and, when the request traces, how the answerer came to it as a trace,
+/// which the engine nests under the node of the answer. `None` from an
+/// answerer that does not explain itself.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Answer {
     pub value: Value,
     pub provenance: AnswerProvenance,
+    pub trace: Option<PathNode>,
 }
 
 /// Who gave a named answer and from what, as the answerer says it.
@@ -140,17 +147,6 @@ pub trait OpenTermAnswerer {
         service: &LawExecutionService,
         request: &AnswerRequest<'_>,
     ) -> Result<Option<Answer>>;
-
-    /// [`Self::answer`], with how the answerer came to the answer as a
-    /// trace, which the engine nests under the node of the answer when it
-    /// traces. The default explains nothing.
-    fn answer_traced(
-        &self,
-        service: &LawExecutionService,
-        request: &AnswerRequest<'_>,
-    ) -> Result<Option<(Answer, Option<PathNode>)>> {
-        Ok(self.answer(service, request)?.map(|answer| (answer, None)))
-    }
 }
 
 /// What a reduction reads from a chronicle (RFC-048): the decisions taken

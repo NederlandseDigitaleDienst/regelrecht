@@ -776,6 +776,7 @@ impl OpenTermAnswerer for Answerer {
         Ok(self.value.clone().map(|value| Answer {
             value,
             provenance: provenance(),
+            trace: None,
         }))
     }
 }
