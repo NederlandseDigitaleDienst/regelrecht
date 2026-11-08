@@ -116,8 +116,8 @@ articles:
       # Awb 8:72, derde lid, onder b: de uitspraak treedt in de plaats van
       # het vernietigde besluit. De gemeente legt de ontvangst van het
       # afschrift vast (Awb 8:79), niet het besluit dat de uitspraak in de
-      # plaats stelt; dat staat in de ontvangst. Is dat een beslissing op
-      # bezwaar (7:11), dan telt het nieuwe besluit dat zij nam. Hoe lang de
+      # plaats stelt. Welk besluit op de aanvraag dat is, zegt de Awb, en het
+      # afschrift draagt het mee (primair_besluit_in_de_plaats). Hoe lang de
       # kaart van de rechter geldt, leidt de gemeente niet af: dat doet zij
       # alleen bij haar eigen besluit. Dit artikel leest niets anders dan wat
       # het krijgt.
@@ -126,34 +126,15 @@ articles:
           - name: al_kaart_van_de_rechter
             type: boolean
             description: Of de rechter de aanvrager vóór deze uitspraak al een kaart verstrekte.
-          - name: uitspraak_in_de_plaats
+          - name: primair_besluit_in_de_plaats
             type: object
             nullable: true
-            description: Het besluit dat de uitspraak in de plaats stelt, zoals het afschrift het vermeldt.
+            description: Het besluit op de aanvraag dat de uitspraak in de plaats stelt, zoals het afschrift het vermeldt.
         output:
-          - name: kaart_van_de_rechter
-            type: object
-            nullable: true
-            description: Het besluit op de aanvraag om een kaart dat de uitspraak in de plaats stelt.
           - name: kaart_van_de_rechter_na_uitspraak
             type: boolean
             description: Of de rechter de aanvrager na deze uitspraak een kaart verstrekte.
         actions:
-          - output: kaart_van_de_rechter
-            value:
-              operation: IF
-              cases:
-                - when:
-                    operation: EQUALS
-                    subject: $uitspraak_in_de_plaats
-                    value: null
-                  then: null
-                - when:
-                    operation: EQUALS
-                    subject: $uitspraak_in_de_plaats.basis
-                    value: algemene_wet_bestuursrecht#7:11
-                  then: $uitspraak_in_de_plaats.outputs.nieuw_besluit
-              default: $uitspraak_in_de_plaats
           - output: kaart_van_de_rechter_na_uitspraak
             value:
               operation: OR
@@ -164,8 +145,8 @@ articles:
                     - operation: NOT
                       value:
                         operation: EQUALS
-                        subject: $kaart_van_de_rechter
+                        subject: $primair_besluit_in_de_plaats
                         value: null
                     - operation: EQUALS
-                      subject: $kaart_van_de_rechter.outputs.gehandicaptenparkeerkaart_verstrekt
+                      subject: $primair_besluit_in_de_plaats.outputs.gehandicaptenparkeerkaart_verstrekt
                       value: true

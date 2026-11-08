@@ -36,7 +36,7 @@ articles:
       aanvraag (artikel 49 van het BABW) een kaart verstrekte die op de dag van
       het besluit nog geldig is. Verstrekte de bestuursrechter hem zelf een
       kaart (Awb 8:72, derde lid, onder b), dan zegt het systeem niets: het
-      kent de geldigheid van die kaart niet.
+      kent de geldigheid van die kaart niet, ook niet als zij is verlopen.
     url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
     machine_readable:
       projection:
@@ -84,7 +84,7 @@ articles:
                   output: kaart_van_de_rechter_na_uitspraak
                   parameters:
                     al_kaart_van_de_rechter: $state.kaart_van_de_rechter
-                    uitspraak_in_de_plaats: $record.uitspraak_in_de_plaats
+                    primair_besluit_in_de_plaats: $record.primair_besluit_in_de_plaats
             actions:
               - output: kaart_van_de_rechter
                 value: $kaart_van_de_rechter_na_uitspraak
@@ -110,7 +110,11 @@ articles:
           # Verstrekte de bestuursrechter zelf een kaart, dan zwijgt het
           # systeem (null) en oordeelt het college: hoe lang die kaart geldt,
           # leidt de gemeente niet af. Een vaste "nee" zou de kaart van de
-          # rechter negeren.
+          # rechter negeren. Dat blijft zo, ook als die kaart allang verlopen
+          # is: zonder einddatum ziet het systeem dat niet, dus vanaf die
+          # uitspraak oordeelt bij elke volgende aanvraag het college, tenzij
+          # het college zelf een kaart verstrekte die op de dag van het besluit
+          # nog geldig is.
           - output: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
             value:
               operation: IF
@@ -161,7 +165,7 @@ articles:
                   output: kaart_van_de_rechter_na_uitspraak
                   parameters:
                     al_kaart_van_de_rechter: $state.eerder_verstrekt
-                    uitspraak_in_de_plaats: $record.uitspraak_in_de_plaats
+                    primair_besluit_in_de_plaats: $record.primair_besluit_in_de_plaats
             actions:
               - output: eerder_verstrekt
                 value: $kaart_van_de_rechter_na_uitspraak

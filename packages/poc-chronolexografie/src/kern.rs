@@ -5292,6 +5292,12 @@ mod tests {
         let nieuw =
             &gedaan["uitspraak"]["outputs"]["uitspraak_in_de_plaats"]["outputs"]["nieuw_besluit"];
         assert_eq!(nieuw.is_object(), verleent, "{nieuw}");
+        // The Awb gives that new decision as the decision on the application
+        // in place (8:72 with 7:11), and the copy carries it.
+        assert_eq!(
+            &gedaan["uitspraak"]["outputs"]["primair_besluit_in_de_plaats"],
+            if verleent { nieuw } else { &Value::Null }
+        );
         toezenden(
             &corpus,
             &mut cell,
@@ -5320,12 +5326,14 @@ mod tests {
 
     /// The answers of the municipality's cell on a valid card and an earlier
     /// card, after a refusal, an unfounded objection and the receipt of a
-    /// judgment that puts `in_plaats` in place (Awb 8:72 lid 3 onder b). The
-    /// chronicle is written out by hand; the shape of the decision in place
-    /// is the one `leave_the_court_grants_in_place_of_a_refusal_counts`
+    /// judgment that puts `in_plaats` in place (Awb 8:72 lid 3 onder b), with
+    /// `primair` as the decision on the application in its place, as the Awb
+    /// gives it. The chronicle is written out by hand; the shape of the
+    /// decisions in place is the one `leave_the_court_grants_in_place_of_a_refusal_counts`
     /// receives through the real judgment.
     fn kaart_na_uitspraak(
         in_plaats: Value,
+        primair: Value,
     ) -> (regelrecht_engine::Value, regelrecht_engine::Value) {
         let corpus = casus("gehandicaptenparkeerkaart");
         let service = corpus.service().unwrap();
@@ -5408,7 +5416,8 @@ mod tests {
                     "opdracht_nieuw_besluit": false,
                     "termijn_nieuw_besluit_einddatum": null,
                     "geschonden_geoordeelde_rechtsregel": null,
-                    "uitspraak_in_de_plaats": in_plaats,
+                    "uitspraak_in_de_plaats": in_plaats.clone(),
+                    "primair_besluit_in_de_plaats": primair,
                 }),
                 json!({}),
             ),
@@ -5475,25 +5484,32 @@ mod tests {
                 "outputs": {"bestreden_besluit_herroepen": !nieuw.is_null(), "nieuw_besluit": nieuw}
             })
         };
-        // The court takes the decision on the objection anew, and it grants.
+        // The court takes the decision on the objection anew, and its new
+        // decision grants; which decision on the application that is, the
+        // Awb says (8:72 with 7:11), and the policy reads only that.
         assert_eq!(
-            kaart_na_uitspraak(op_bezwaar(kaart(true))),
+            kaart_na_uitspraak(op_bezwaar(kaart(true)), kaart(true)),
             (V::Null, V::Bool(true))
         );
         // The court takes the decision on the application anew, and it grants.
-        assert_eq!(kaart_na_uitspraak(kaart(true)), (V::Null, V::Bool(true)));
+        assert_eq!(
+            kaart_na_uitspraak(kaart(true), kaart(true)),
+            (V::Null, V::Bool(true))
+        );
         // The court refuses in place, or decides the objection without a new
         // decision.
         assert_eq!(
-            kaart_na_uitspraak(op_bezwaar(kaart(false))),
+            kaart_na_uitspraak(op_bezwaar(kaart(false)), kaart(false)),
             (V::Bool(false), V::Null)
         );
-        assert_eq!(kaart_na_uitspraak(kaart(false)), (V::Bool(false), V::Null));
         assert_eq!(
-            kaart_na_uitspraak(op_bezwaar(Value::Null)),
+            kaart_na_uitspraak(op_bezwaar(Value::Null), Value::Null),
             (V::Bool(false), V::Null)
         );
         // No decision in place.
-        assert_eq!(kaart_na_uitspraak(Value::Null), (V::Bool(false), V::Null));
+        assert_eq!(
+            kaart_na_uitspraak(Value::Null, Value::Null),
+            (V::Bool(false), V::Null)
+        );
     }
 }

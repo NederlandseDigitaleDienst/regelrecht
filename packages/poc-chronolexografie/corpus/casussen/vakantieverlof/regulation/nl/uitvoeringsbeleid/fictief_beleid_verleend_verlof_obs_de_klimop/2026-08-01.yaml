@@ -89,22 +89,19 @@ articles:
     machine_readable:
       # Awb 8:72, derde lid, onder b: de uitspraak treedt in de plaats van
       # het vernietigde besluit. De school legt de ontvangst van het afschrift
-      # vast (Awb 8:79), niet het besluit dat de uitspraak in de plaats stelt;
-      # dat staat in de ontvangst. Is dat een beslissing op
-      # bezwaar (7:11), dan telt het nieuwe besluit dat zij nam. Dit artikel
+      # vast (Awb 8:79), niet het besluit dat de uitspraak in de plaats
+      # stelt. Welk besluit op de aanvraag dat is, zegt de Awb, en het
+      # afschrift draagt het mee (primair_besluit_in_de_plaats). Dit artikel
       # leest niets anders dan wat het krijgt.
       execution:
         parameters:
           - name: verleend_in_schooljaar
             type: boolean
             description: Of er vóór deze uitspraak al verlof in het schooljaar was verleend.
-          # Een object, geen besluitwaarde: het afschrift draagt het besluit
-          # zoals de uitspraak het gaf, zonder taken_on, en dit artikel neemt
-          # het niet opnieuw; het leest alleen zijn uitvoer en gegevens.
-          - name: uitspraak_in_de_plaats
+          - name: primair_besluit_in_de_plaats
             type: object
             nullable: true
-            description: Het besluit dat de uitspraak in de plaats stelt, als zij dat doet.
+            description: Het besluit op de aanvraag dat de uitspraak in de plaats stelt, zoals het afschrift het vermeldt.
           - name: begin_schooljaar
             type: date
             description: De eerste dag van het schooljaar.
@@ -112,29 +109,10 @@ articles:
             type: date
             description: De laatste dag van het schooljaar.
         output:
-          - name: verlof_van_de_rechter
-            type: object
-            nullable: true
-            description: Het besluit op de aanvraag om verlof dat de uitspraak in de plaats stelt.
           - name: verleend_in_schooljaar_na_uitspraak
             type: boolean
             description: Of er na deze uitspraak verlof in het schooljaar is verleend.
         actions:
-          - output: verlof_van_de_rechter
-            value:
-              operation: IF
-              cases:
-                - when:
-                    operation: EQUALS
-                    subject: $uitspraak_in_de_plaats
-                    value: null
-                  then: null
-                - when:
-                    operation: EQUALS
-                    subject: $uitspraak_in_de_plaats.basis
-                    value: algemene_wet_bestuursrecht#7:11
-                  then: $uitspraak_in_de_plaats.outputs.nieuw_besluit
-              default: $uitspraak_in_de_plaats
           # Eerst of er een besluit is dat verlof verleent: AND stopt bij de
           # eerste onwaar, en zonder besluit is er geen eerste verlofdag.
           - output: verleend_in_schooljaar_na_uitspraak
@@ -147,22 +125,22 @@ articles:
                     - operation: NOT
                       value:
                         operation: EQUALS
-                        subject: $verlof_van_de_rechter
+                        subject: $primair_besluit_in_de_plaats
                         value: null
                     - operation: EQUALS
-                      subject: $verlof_van_de_rechter.outputs.verlof_verleend
+                      subject: $primair_besluit_in_de_plaats.outputs.verlof_verleend
                       value: true
                     - operation: GREATER_THAN_OR_EQUAL
                       subject:
                         operation: DATE_DIFF
                         from: $begin_schooljaar
-                        to: $verlof_van_de_rechter.fields.eerste_verlofdag
+                        to: $primair_besluit_in_de_plaats.fields.eerste_verlofdag
                         in: days
                       value: 0
                     - operation: GREATER_THAN_OR_EQUAL
                       subject:
                         operation: DATE_DIFF
-                        from: $verlof_van_de_rechter.fields.eerste_verlofdag
+                        from: $primair_besluit_in_de_plaats.fields.eerste_verlofdag
                         to: $einde_schooljaar
                         in: days
                       value: 0

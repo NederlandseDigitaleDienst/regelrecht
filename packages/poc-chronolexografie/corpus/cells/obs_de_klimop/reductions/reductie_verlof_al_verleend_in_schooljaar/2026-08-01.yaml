@@ -73,7 +73,7 @@ articles:
                   output: verleend_in_schooljaar_na_uitspraak
                   parameters:
                     verleend_in_schooljaar: $state.verleend_in_schooljaar
-                    uitspraak_in_de_plaats: $record.uitspraak_in_de_plaats
+                    primair_besluit_in_de_plaats: $record.primair_besluit_in_de_plaats
                     # TIJDELIJKE OMWEG: de stap neemt het schooljaar van de
                     # vraag, zodat het afspelen van de vraag afhangt. Dat
                     # verdwijnt zodra een besluit een eigen aggregaat is, met
