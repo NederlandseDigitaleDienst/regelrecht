@@ -388,12 +388,12 @@ fn the_trace_of_a_decision_holds_the_projection_under_the_answer() {
     collect_ids(root, &mut ids);
     let unique: BTreeSet<&String> = ids.iter().collect();
     assert_eq!(unique.len(), ids.len(), "{ids:?}");
+    // Under the answer, the run is its first child and the projection the
+    // first child of the run.
+    let answer_id = answer.node_id.as_deref().unwrap();
     assert_eq!(
-        projection
-            .node_id
-            .as_deref()
-            .map(|id| id.starts_with(answer.node_id.as_deref().unwrap())),
-        Some(true)
+        projection.node_id.as_deref(),
+        Some(format!("{answer_id}.0.0").as_str())
     );
 }
 

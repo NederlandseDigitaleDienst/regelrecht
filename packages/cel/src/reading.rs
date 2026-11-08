@@ -619,8 +619,9 @@ impl ChronicleSource for Reader<'_> {
 }
 
 impl Reader<'_> {
-    /// The answer `request` names, and, when `trace` asks for it or the
-    /// reader explains this answer, the reduction's run with its trace.
+    /// The answer `request` names, and, when `trace` asks for it, the
+    /// reduction's run as its trace. The answer the reader explains is run
+    /// with its trace either way, for [`Asked::explained`].
     fn give(
         &self,
         service: &LawExecutionService,
@@ -1264,7 +1265,23 @@ articles:
             decisions(),
             Some("al_verleend"),
         );
-        granted(&service, &reader).unwrap();
+        // Also when the execution that asks does not trace.
+        let call = regelrecht_engine::Call {
+            findings: BTreeMap::new(),
+            answerer: Some(&reader),
+            chronicle: None,
+            sphere: Vec::new(),
+        };
+        let result = service
+            .evaluate_law_in(
+                "wet_fictief",
+                &["verleend"],
+                parameters(),
+                call,
+                "2026-10-20",
+            )
+            .unwrap();
+        assert!(result.trace.is_none());
         let asked = reader.asked();
         let trace = asked[0].explained.as_ref().unwrap().trace.as_ref().unwrap();
         assert!(trace.render_box_drawing().contains("FOREACH"));

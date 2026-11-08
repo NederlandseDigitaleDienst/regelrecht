@@ -2475,4 +2475,33 @@ articles:
             "an empty array is falsy"
         );
     }
+
+    #[test]
+    fn an_adopted_trace_hangs_under_the_current_node_with_ids_of_its_place() {
+        let built = PathNode::new(PathNodeType::Article, "elders")
+            .with_node_id("n")
+            .with_child(PathNode::new(PathNodeType::Operation, "PROJECTION").with_node_id("n0"));
+        let mut tb = TraceBuilder::new_untimed();
+        tb.push("root", PathNodeType::Article);
+        tb.push("eerste", PathNodeType::Resolve);
+        tb.pop();
+        tb.push("antwoord", PathNodeType::Resolve);
+        tb.adopt(built.clone());
+        tb.pop();
+        let root = tb.build().expect("a root");
+        let answer = &root.children[1];
+        assert_eq!(answer.node_id.as_deref(), Some("n1"));
+        let adopted = &answer.children[0];
+        assert_eq!(adopted.name, "elders");
+        assert_eq!(adopted.node_id.as_deref(), Some("n1.0"));
+        assert_eq!(adopted.children[0].node_id.as_deref(), Some("n1.0.0"));
+
+        // A disabled builder, or one without a current node, adopts nothing.
+        let mut off = TraceBuilder::disabled();
+        off.adopt(built.clone());
+        assert!(off.build().is_none());
+        let mut empty = TraceBuilder::new_untimed();
+        empty.adopt(built);
+        assert!(empty.build().is_none());
+    }
 }

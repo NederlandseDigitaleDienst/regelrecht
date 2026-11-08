@@ -1341,6 +1341,7 @@ fn show(value: &Value) -> String {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::LawLoad;
 
     /// Article 1 grants (`verleend`), article 2 revokes `bestreden` when
     /// `herroepen`, article 3 takes a decision in the place of `bestreden`
@@ -2722,5 +2723,164 @@ articles:
                 "{output}: {err}"
             );
         }
+    }
+
+    /// The loader checks an already loaded reduction again when a law it
+    /// names arrives, whether the step names it as the law its records rest
+    /// on or as a law an input calls.
+    #[test]
+    fn a_law_that_arrives_later_is_checked_against_the_steps_that_name_it() {
+        let reduction = |output: &str, field: &str| {
+            format!(
+                r#"
+$id: reductie
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      projection:
+        state: [{{name: kaart, type: boolean}}]
+        steps:
+          - record: wet#1#BESCHIKKING
+            input:
+              - name: na
+                type: boolean
+                source:
+                  regulation: gemengd
+                  output: {output}
+                  parameters: {{verleend: $record.{field}}}
+            actions: [{{output: kaart, value: $na}}]
+      execution:
+        output: [{{name: heeft_kaart, type: boolean}}]
+        actions: [{{output: heeft_kaart, value: $state.kaart}}]
+"#
+            )
+        };
+        // Only an input names the law that arrives.
+        let mut service = LawExecutionService::new();
+        service.load_law(LAW).unwrap();
+        service
+            .load_law(&reduction("van_buiten", "verleend"))
+            .unwrap();
+        let err = service.load_law(MIXED).expect_err("an impure output");
+        assert!(
+            err.to_string()
+                .contains("breaks the projection of 'reductie'"),
+            "{err}"
+        );
+        // Only the record names the law that arrives.
+        let mut service = LawExecutionService::new();
+        service.load_law(MIXED).unwrap();
+        service
+            .load_law(&reduction("zuiver", "bestaat_niet"))
+            .unwrap();
+        let err = service.load_law(LAW).expect_err("no such field");
+        assert!(
+            err.to_string()
+                .contains("breaks the projection of 'reductie'")
+                && err.to_string().contains("the record has no such field"),
+            "{err}"
+        );
+    }
+
+    /// What a step reads that is no field, property, input or parameter of
+    /// the question, refused with what it is not. The loader refuses these
+    /// on the shape of the step already, so this calls the check directly.
+    #[test]
+    fn a_step_names_what_it_cannot_read() {
+        let law = ArticleBasedLaw::from_yaml_str(LAW).unwrap();
+        let check = |reduction: &str| {
+            let reduction = ArticleBasedLaw::from_yaml_str(reduction).unwrap();
+            let article = &reduction.articles[0];
+            let projection = projection_of("reductie", article).unwrap();
+            let law_of = |id: &str| (id == "wet").then_some(&law);
+            projection
+                .steps
+                .iter()
+                .map(|step| {
+                    check_step(
+                        projection,
+                        step,
+                        article.get_parameters(),
+                        &law_of,
+                        Versions::Loaded,
+                    )
+                })
+                .find_map(std::result::Result::err)
+                .unwrap_or_default()
+        };
+        let parameters = "parameters: {verleend: $record.verleend, aantal: $state.aantal}";
+        for (from, to, why) in [
+            (
+                parameters,
+                "parameters: {verleend: $record.verleend, aantal: $onbekend}",
+                "passes $onbekend as 'aantal', but the question has no such parameter",
+            ),
+            (
+                parameters,
+                "parameters: {verleend: $record.verleend, aantal: $state.onbekend}",
+                "passes $state.onbekend as 'aantal', but the state has no such property",
+            ),
+            (
+                "actions: [{output: kaart, value: $record.verleend}]",
+                "actions: [{output: kaart, value: $geen_invoer}]",
+                "sets 'kaart' from $geen_invoer, but the step has no such input",
+            ),
+        ] {
+            let err = check(&REDUCTION.replace(from, to));
+            assert!(err.contains(why), "{why}: {err}");
+        }
+    }
+
+    /// The fields of a record are those the law gives its kind.
+    #[test]
+    fn a_record_holds_the_fields_its_kind_is_given() {
+        let law = ArticleBasedLaw::from_yaml_str(
+            r#"
+$id: soorten
+regulatory_layer: WET
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      requires:
+        - fact: gemeld
+          parameters: [p]
+      execution:
+        produces:
+          - {type: AANVRAAG, requests: 'soorten#1', parameters: [p], outputs: [a]}
+          - {type: BESCHIKKING, outputs: [b], derived: [c]}
+        parameters: [{name: p, type: boolean}, {name: q, type: number}]
+        output:
+          - {name: a, type: boolean}
+          - {name: b, type: boolean}
+          - {name: c, type: number}
+        actions:
+          - {output: a, value: $p}
+          - {output: b, value: $p}
+          - {output: c, value: $q}
+"#,
+        )
+        .unwrap();
+        let article = &law.articles[0];
+        let fields = |kind: Option<&str>| -> Vec<&str> {
+            ["p", "q", "a", "b", "c"]
+                .into_iter()
+                .filter(|name| field_type(article, kind, name).is_some())
+                .collect()
+        };
+        assert_eq!(fields(Some("AANVRAAG")), ["p", "a"]);
+        assert_eq!(fields(Some("BESCHIKKING")), ["p", "q", "b", "c"]);
+        assert_eq!(fields(Some(EXECUTOGRAM)), ["p"]);
+        assert_eq!(fields(None), ["p", "q", "a", "b", "c"]);
+        assert_eq!(
+            field_type(article, Some("BESCHIKKING"), "c"),
+            Some(ParameterType::Number)
+        );
     }
 }

@@ -25,7 +25,7 @@
 //! fills nothing, so the term is what it is without a filling regulation,
 //! such as the finding of the deciding authority.
 //!
-//! The engine does not see how an answer came about. It records who gave it
+//! The engine does not judge how an answer came about. It records who gave it
 //! and from what ([`AnswerProvenance`]) in the report of the execution
 //! (`ArticleResult::open_terms`, with the binding article) and as one node
 //! per answer in the trace. When the execution traces, the engine asks for
