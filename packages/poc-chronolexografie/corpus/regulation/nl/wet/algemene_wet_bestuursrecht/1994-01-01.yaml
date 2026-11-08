@@ -1249,6 +1249,7 @@ articles:
             - geschonden_geoordeelde_rechtsregel
             - uitspraak_in_de_plaats
             - primair_besluit_in_de_plaats
+            - uitspraak_datum
           # Artikel 8:72, eerste en tweede lid: de vernietiging van een
           # besluit brengt die van zijn rechtsgevolgen mee, tenzij de
           # bestuursrechter ze in stand laat (derde lid, onder a). Dan telt
@@ -1311,6 +1312,14 @@ articles:
               Het besluit op de aanvraag dat de uitspraak in de plaats stelt
               (artikel 8:72, derde lid, onder b, met artikel 7:11, tweede
               lid), zoals het afschrift het vermeldt.
+          # Artikel 8:77, eerste lid, onder e: de uitspraak vermeldt de dag
+          # waarop zij is uitgesproken. De fase UITSPRAAK van de procedure
+          # beroep legt die dag vast; het afschrift neemt haar over. Een
+          # voorlopige voorziening vervalt op die dag (artikel 8:85, tweede
+          # lid, onder c).
+          - name: uitspraak_datum
+            type: date
+            description: De dag waarop de bestuursrechter uitspraak deed (artikel 8:77, eerste lid, onder e).
 
   - number: 8:81
     text: |-
@@ -1432,36 +1441,16 @@ articles:
       b. het bezwaar of het beroep is ingetrokken, of
       c. de bestuursrechter uitspraak heeft gedaan.
     url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:85
-    machine_readable:
-      # Lid 1 staat in de uitspraak zelf: het afschrift van artikel 8:84
-      # draagt de dag waarop de voorziening vervalt. Lid 2 laat de
-      # voorziening van rechtswege vervallen, zonder uitspraak en zonder
-      # afschrift. Dat zij vervallen is, legt het bestuursorgaan vast als een
-      # feit dat dit artikel omschrijft (eigen keuze: de wet zegt niet wie het
-      # vastlegt). Vervallen werkt van die dag af, niet terug: het feit trekt
-      # niets in. Welke van de gevallen onder a tot en met c zich voordeed,
-      # draagt het feit mee; het verschil telt niet voor wat volgt.
-      requires:
-        - fact: voorlopige_voorziening_vervallen
-          description: >-
-            De voorlopige voorziening is van rechtswege vervallen (lid 2).
-          parameters:
-            - kenmerk_besluit
-            - grond_verval
-            - voorziening_vervallen_op
-      execution:
-        parameters:
-          - name: kenmerk_besluit
-            type: string
-            description: >-
-              Het kenmerk van het besluit waarop de vervallen voorziening
-              zag.
-          - name: grond_verval
-            type: string
-            description: Welk geval van lid 2 zich voordeed (onder a, b of c).
-          - name: voorziening_vervallen_op
-            type: date
-            description: De dag waarop de voorziening verviel.
+    # Niet apart uitvoerbaar, en geen feit: dat de voorziening vervallen is,
+    # volgt uit records die al in de kroniek staan, en wordt niet nog eens
+    # vastgelegd. Lid 1: de dag staat in het afschrift van de uitspraak
+    # (artikel 8:84). Lid 2, onder c: de dag van de uitspraak in de
+    # hoofdzaak staat in het afschrift daarvan (artikel 8:79). De regeling
+    # die het besluit leest, vergelijkt die dagen met de dag waarover de
+    # vraag gaat. Lid 2, onder a en b, laten in deze poc geen record achter
+    # bij het bestuursorgaan: of de termijn voor beroep ongebruikt verstreek,
+    # weet alleen de bestuursrechter, en het intrekken van een bezwaar of
+    # beroep (artikel 6:21) is niet gemodelleerd.
 
   - number: 8:87
     text: |-

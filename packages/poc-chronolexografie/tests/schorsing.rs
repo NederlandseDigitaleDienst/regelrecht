@@ -10,8 +10,10 @@
 //! receives the copy of the ruling (8:84, fourth paragraph) as
 //! `Cell::record_receipt` records the receipt of a copy: an executogram of
 //! the fact the article requires, that refers to the decision the copy
-//! concerns. The lifting (8:87) and the lapse (8:85, second paragraph) arrive
-//! the same way.
+//! concerns. The lifting (8:87) arrives the same way. That the measure
+//! lapsed (8:85) is not recorded: it follows from the days the records
+//! carry, such as the day of the judgment in the main case, whose copy the
+//! municipality receives as the game plays it (8:79).
 //!
 //! Every question is asked on 15 January 2028, when every record is known,
 //! about the day it names (`peildatum`).
@@ -103,6 +105,10 @@ struct Verder {
     weigering: bool,
     /// After the first permit expired, a new one for the same number.
     verlenging: bool,
+    /// The college decides on the objection, the neighbour appeals, and the
+    /// court rules on 11 January 2027; the municipality receives the copy
+    /// on 12 January.
+    hoofdzaak: bool,
 }
 
 /// The chronicle of the municipality after two permits and an objection by
@@ -138,7 +144,41 @@ fn chronicle(verder: &Verder) -> (Vec<Gram>, String) {
         "dagtekening_bezwaar_of_beroepschrift".into(),
         json!("2026-10-28"),
     );
-    spel.bezwaren(&eerste, &bezwaar, dag("2026-10-28")).unwrap();
+    let bezwaar = spel.bezwaren(&eerste, &bezwaar, dag("2026-10-28")).unwrap();
+    if verder.hoofdzaak {
+        let beslissing = spel
+            .beslissen_op_bezwaar(
+                bezwaar["id"].as_str().unwrap(),
+                &Map::new(),
+                dag("2026-11-25"),
+            )
+            .unwrap();
+        let mut beroep = map(&casus["voorbeeld"]["beroep"]);
+        beroep.insert("naam_indiener".into(), json!("Buurtvereniging Kerkstraat"));
+        beroep.insert(
+            "dagtekening_bezwaar_of_beroepschrift".into(),
+            json!("2026-12-01"),
+        );
+        let beroep = spel
+            .beroep_instellen(
+                beslissing["beslissing"]["id"].as_str().unwrap(),
+                &beroep,
+                dag("2026-12-01"),
+            )
+            .unwrap();
+        let uitspraak = spel
+            .uitspraak_doen(
+                beroep["id"].as_str().unwrap(),
+                &map(&casus["voorbeeld"]["uitspraak"]),
+                dag("2027-01-11"),
+            )
+            .unwrap();
+        spel.toezenden(
+            uitspraak["uitspraak"]["id"].as_str().unwrap(),
+            dag("2027-01-12"),
+        )
+        .unwrap();
+    }
     if verder.verlenging {
         // The first permit runs to 19 October 2027.
         vergunning(&mut spel, EERSTE, "2027-10-21", "2027-10-25");
@@ -212,21 +252,6 @@ fn opheffing(besluit: &str) -> Gram {
         besluit,
         "2026-12-15",
         json!({ "voorziening_opgeheven_op": "2026-12-15" }),
-    )
-}
-
-/// The measure lapses on 1 December 2026: the objection was withdrawn
-/// (8:85, second paragraph, under b).
-fn verval(besluit: &str) -> Gram {
-    ontvangst(
-        "8:85",
-        "voorlopige_voorziening_vervallen",
-        besluit,
-        "2026-12-01",
-        json!({
-            "grond_verval": "het bezwaar is ingetrokken (onder b)",
-            "voorziening_vervallen_op": "2026-12-01",
-        }),
     )
 }
 
@@ -305,16 +330,27 @@ fn per_permit_the_suspended_permit_is_not_valid_while_the_suspension_holds() {
 }
 
 #[test]
-fn per_permit_a_measure_that_lapses_ends_the_suspension_on_that_day() {
+fn per_permit_the_judgment_in_the_main_case_ends_the_suspension() {
+    // Awb 8:85, second paragraph, under c: the measure lapses as soon as the
+    // court rules in the main case, on 11 January 2027. Nothing records the
+    // lapse; article 4 of the policy reads it from the day of the judgment
+    // in its copy, received a day later.
     let service = service();
-    let (mut grams, eerste) = twee_vergunningen_en_een_bezwaar();
-    grams.push(schorsing(&eerste));
-    grams.push(verval(&eerste));
-    assert!(!geldig(&service, &grams, EERSTE, "2026-11-30"));
-    assert!(geldig(&service, &grams, EERSTE, "2026-12-01"));
+    let (grams, eerste) = chronicle(&Verder {
+        hoofdzaak: true,
+        ..Verder::default()
+    });
+    let grams = met(grams, [schorsing(&eerste)]);
+    assert!(!geldig(&service, &grams, EERSTE, "2027-01-10"));
+    assert!(geldig(&service, &grams, EERSTE, "2027-01-11"));
     // A lifting after the lapse does not lengthen the suspension.
-    grams.push(opheffing(&eerste));
-    assert!(geldig(&service, &grams, EERSTE, "2026-12-10"));
+    let mut later = opheffing(&eerste);
+    later.recorded_on = dag("2027-02-01");
+    later
+        .fields
+        .insert("voorziening_opgeheven_op".into(), json!("2027-02-01"));
+    let grams = met(grams, [later]);
+    assert!(geldig(&service, &grams, EERSTE, "2027-01-20"));
 }
 
 #[test]
@@ -343,11 +379,11 @@ fn per_company_two_permits_count_outside_the_suspension() {
 
 /// The per-company question on a day inside the suspension. One permit is
 /// valid that day, so the answer is 1. The reduction per company cannot say
-/// so with a state of single values, and answers 2: see the question on a
-/// state that holds a list in
-/// `docs/src/content/docs/concepts/chronolexography/open-questions.md`.
+/// so with a state of single values, and answers 2. PR D, with the decision
+/// as an aggregate, settles it; see the question on a state that holds a
+/// list in `docs/src/content/docs/concepts/chronolexography/open-questions.md`.
 #[test]
-#[ignore = "pending: the per-company count needs a state that holds a list (chronolexography open questions)"]
+#[ignore = "pending: solved in PR D, the decision as aggregate (chronolexography open questions)"]
 fn per_company_one_permit_counts_while_the_other_is_suspended() {
     let service = service();
     let (mut grams, eerste) = twee_vergunningen_en_een_bezwaar();
@@ -379,8 +415,8 @@ fn the_reduction_tab_shows_the_copies_the_permit_reduction_reads() {
         feiten,
         [
             "algemene_wet_bestuursrecht#8:84#afschrift_van_de_uitspraak_van_de_voorzieningenrechter",
-            "algemene_wet_bestuursrecht#8:85#voorlopige_voorziening_vervallen",
             "algemene_wet_bestuursrecht#8:87#afschrift_van_de_uitspraak_tot_opheffing",
+            "algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak",
         ]
     );
 }
@@ -491,11 +527,12 @@ fn per_permit_a_later_suspension_leaves_the_day_of_the_first() {
 /// a new permit for that number. The ruling concerns the first decision, so
 /// the new permit stays valid. The state per number cannot tell: a step
 /// sees the state of the number, not which decision it stands for, so the
-/// copy suspends the new permit. The same entry per decision that the count
-/// per company needs would settle it; see the question on a state that holds
-/// a list in `docs/src/content/docs/concepts/chronolexography/open-questions.md`.
+/// copy suspends the new permit. PR D, with the decision as an aggregate,
+/// settles it as it does the count per company; see the question on a state
+/// that holds a list in
+/// `docs/src/content/docs/concepts/chronolexography/open-questions.md`.
 #[test]
-#[ignore = "pending: a copy about an earlier decision needs a state with an entry per decision (chronolexography open questions)"]
+#[ignore = "pending: solved in PR D, the decision as aggregate (chronolexography open questions)"]
 fn per_permit_a_copy_about_the_earlier_decision_leaves_the_new_permit() {
     let service = service();
     let (grams, eerste) = chronicle(&Verder {

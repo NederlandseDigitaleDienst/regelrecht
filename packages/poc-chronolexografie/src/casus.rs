@@ -866,11 +866,32 @@ fn vestigend(
     }
 }
 
+/// The inputs the stages of the procedures of `law` require for the legal
+/// character of the decision of `artikelen`, such as `uitspraak_datum` for a
+/// judgment: the decision records them among its fields.
+fn fasen<'r>(regelwerken: &'r Regelwerken, law: &str, artikelen: &[&Article]) -> Vec<&'r str> {
+    let karakters: BTreeSet<&str> = artikelen
+        .iter()
+        .filter_map(|a| a.get_decision()?.legal_character())
+        .collect();
+    regelwerken
+        .get(law)
+        .into_iter()
+        .flat_map(|w| &w.versies)
+        .flat_map(|(_, versie)| versie.procedure.iter().flatten())
+        .filter(|p| karakters.contains(p.applies_to.legal_character.as_str()))
+        .flat_map(|p| &p.stages)
+        .flat_map(|stage| stage.requires.iter().flatten())
+        .map(|r| r.name.as_str())
+        .collect()
+}
+
 /// The fact in which a cell records the receipt of a judgment under
 /// `law#article`, as `<law>#<article>#<fact>`: the one fact an article of
 /// the regelwerken `gevonden` requires whose parameters are all outputs of
-/// that decision, so a copy of the judgment holds each by name (Awb 8:79,
-/// `afschrift_van_de_uitspraak`).
+/// that decision or inputs a stage of the procedure for its legal character
+/// requires (such as the day of the judgment), so a copy of the judgment
+/// holds each by name (Awb 8:79, `afschrift_van_de_uitspraak`).
 fn ontvangst(
     regelwerken: &Regelwerken,
     casus: &str,
@@ -878,16 +899,20 @@ fn ontvangst(
     law: &str,
     article: &str,
 ) -> Result<String> {
-    let uitvoer: BTreeSet<&str> = regelwerken
+    let artikelen: Vec<&Article> = regelwerken
         .get(law)
         .into_iter()
         .flat_map(|w| w.artikelen())
         .filter(|a| a.number == article)
+        .collect();
+    let uitvoer: BTreeSet<&str> = artikelen
+        .iter()
         .flat_map(|a| {
             a.get_decision()
                 .map(|d| a.outputs_of(d))
                 .unwrap_or_default()
         })
+        .chain(fasen(regelwerken, law, &artikelen))
         .collect();
     let mut feiten = BTreeSet::new();
     for id in gevonden {

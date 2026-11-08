@@ -16,10 +16,11 @@ valid_from: '2026-01-01'
 # bedrijfsparkeervergunning, omdat dat beleid de reductie aanroept: een stap
 # van de reductie kan de regeling waaruit zij gevraagd wordt niet opnieuw
 # aanroepen.
-# Artikel 2 tot en met 5 doen hetzelfde voor één vergunning, voor de reductie
-# reductie_bedrijfsparkeervergunning_op_peildatum: wat een besluit, een
-# schorsing door de voorzieningenrechter (Awb 8:81, 8:84) en het einde
-# daarvan (8:85, 8:87) betekenen, en of de vergunning op een dag geldig is.
+# Artikel 2 tot en met 4 doen hetzelfde voor één vergunning, voor de reductie
+# reductie_bedrijfsparkeervergunning_op_peildatum: wat een besluit en een
+# schorsing door de voorzieningenrechter (Awb 8:81, 8:84) betekenen, en of de
+# vergunning op een dag geldig is, ook als de schorsing is opgeheven (8:87)
+# of vervallen (8:85).
 url: https://lokaleregelgeving.overheid.nl/CVDR733452
 name: Verleende bedrijfsparkeervergunningen in de gemeente Wilgendaal (fictief beleid)
 competent_authority:
@@ -103,16 +104,18 @@ articles:
       # Wat één besluit op een aanvraag (artikel 2 van de verordening)
       # betekent voor de vergunning van één kenteken. De reductie
       # reductie_bedrijfsparkeervergunning_op_peildatum vraagt het per
-      # besluit dat meetelt, met wat zij tot dan toe weet.
+      # besluit dat meetelt, met wat zij tot dan toe weet. Of er een
+      # vergunning is, zegt vergunning_geldig_tot: leeg is geen vergunning.
       execution:
         parameters:
-          - name: vergunning_verleend
-            type: boolean
-            description: Of het kenteken vóór dit besluit een vergunning had.
           - name: vergunning_geldig_tot
             type: date
             nullable: true
-            description: De laatste geldige dag van die vergunning.
+            description: De laatste geldige dag van de vergunning vóór dit besluit; leeg als er geen is.
+          - name: geschorst_vanaf
+            type: date
+            nullable: true
+            description: De eerste dag van een schorsing van een eerder besluit.
           - name: bedrijfsparkeervergunning_verleend
             type: boolean
             description: Of het besluit een vergunning verleent.
@@ -120,14 +123,6 @@ articles:
             type: date
             nullable: true
             description: De laatste dag waarop de vergunning van het besluit geldig is.
-          - name: geschorst_vanaf
-            type: date
-            nullable: true
-            description: De eerste dag van een schorsing van een eerder besluit.
-          - name: geschorst_tot
-            type: date
-            nullable: true
-            description: De dag waarop die schorsing eindigt.
           - name: besluit_datum
             type: date
             description: De dag waarop het college het besluit nam.
@@ -140,9 +135,6 @@ articles:
             description: >-
               Of het besluit een vergunning verleent en op of vóór de
               peildatum is genomen.
-          - name: vergunning_verleend_na_besluit
-            type: boolean
-            description: Of het kenteken na dit besluit een vergunning heeft.
           - name: vergunning_geldig_tot_na_besluit
             type: date
             nullable: true
@@ -151,10 +143,6 @@ articles:
             type: date
             nullable: true
             description: De eerste dag van de schorsing na dit besluit.
-          - name: geschorst_tot_na_besluit
-            type: date
-            nullable: true
-            description: De dag waarop de schorsing na dit besluit eindigt.
         actions:
           # A decision taken after the day asked about did not exist on it.
           - output: besluit_verleent_op_peildatum
@@ -169,12 +157,6 @@ articles:
                     to: $peildatum
                     in: days
                   value: 0
-          - output: vergunning_verleend_na_besluit
-            value:
-              operation: OR
-              conditions:
-                - $vergunning_verleend
-                - $besluit_verleent_op_peildatum
           - output: vergunning_geldig_tot_na_besluit
             value:
               operation: IF
@@ -191,13 +173,6 @@ articles:
                 - when: $besluit_verleent_op_peildatum
                   then: null
               default: $geschorst_vanaf
-          - output: geschorst_tot_na_besluit
-            value:
-              operation: IF
-              cases:
-                - when: $besluit_verleent_op_peildatum
-                  then: null
-              default: $geschorst_tot
 
   - number: '3'
     text: >-
@@ -205,52 +180,69 @@ articles:
       voorzieningenrechter tot toewijzing van het verzoek (artikel 8:84,
       tweede lid, onder d, van de Algemene wet bestuursrecht) en schorst zij
       de vergunning (artikel 8:81), dan is de vergunning geschorst vanaf de
-      dag die de uitspraak noemt tot de dag waarop de voorziening vervalt
-      (artikel 8:85, eerste lid). Schorst de uitspraak niets, of gaat de
-      schorsing pas na de peildatum in, dan blijft een eerdere schorsing
-      zoals zij was.
+      dag die de uitspraak noemt, tot zij vervalt of wordt opgeheven (artikel
+      4). Een eerdere opheffing of uitspraak in de hoofdzaak geldt niet voor
+      deze schorsing. Schorst de uitspraak niets, of gaat de schorsing pas na
+      de peildatum in, dan blijft een eerdere schorsing zoals zij was.
     url: https://lokaleregelgeving.overheid.nl/CVDR733452
     machine_readable:
       # Wat het afschrift van een uitspraak van de voorzieningenrechter
       # (Awb 8:84, vierde lid) betekent voor de schorsing van één
       # vergunning. Een latere schorsing van dezelfde vergunning vervangt de
-      # eerdere.
+      # eerdere, met de dag waarop zij volgens de uitspraak vervalt (artikel
+      # 8:85, eerste lid).
       execution:
         parameters:
           - name: geschorst_vanaf
             type: date
             nullable: true
             description: De eerste dag van de schorsing vóór deze uitspraak.
-          - name: geschorst_tot
-            type: date
-            nullable: true
-            description: De dag waarop die schorsing eindigt.
-          - name: uitspraak_strekt_tot
-            type: string
-            description: Waartoe de uitspraak strekt (artikel 8:84, tweede lid).
-          - name: besluit_geschorst_vanaf
-            type: date
-            nullable: true
-            description: De dag vanaf welke de uitspraak de vergunning schorst.
           - name: voorziening_vervalt_op
             type: date
             nullable: true
-            description: De dag waarop de voorziening volgens de uitspraak vervalt.
+            description: De dag waarop die voorziening volgens haar uitspraak vervalt.
+          - name: voorziening_opgeheven_op
+            type: date
+            nullable: true
+            description: De dag waarop die voorziening is opgeheven.
+          - name: uitspraak_hoofdzaak_op
+            type: date
+            nullable: true
+            description: De dag van de uitspraak in de hoofdzaak.
+          - name: uitspraak_strekt_tot
+            type: string
+            description: Waartoe de nieuwe uitspraak strekt (artikel 8:84, tweede lid).
+          - name: besluit_geschorst_vanaf
+            type: date
+            nullable: true
+            description: De dag vanaf welke de nieuwe uitspraak de vergunning schorst.
+          - name: vervalt_volgens_uitspraak
+            type: date
+            nullable: true
+            description: De dag waarop de nieuwe voorziening volgens de uitspraak vervalt.
           - name: peildatum
             type: date
             description: De dag waarover de vraag gaat.
         output:
+          - name: uitspraak_schorst
+            type: boolean
+            description: Of de uitspraak het verzoek toewijst en de vergunning op of vóór de peildatum schorst.
           - name: geschorst_vanaf_na_uitspraak
             type: date
             nullable: true
             description: De eerste dag van de schorsing na deze uitspraak.
-          - name: geschorst_tot_na_uitspraak
+          - name: vervalt_op_na_uitspraak
             type: date
             nullable: true
-            description: De dag waarop de schorsing na deze uitspraak eindigt.
-          - name: uitspraak_schorst
-            type: boolean
-            description: Of de uitspraak het verzoek toewijst en de vergunning schorst.
+            description: De dag waarop de voorziening na deze uitspraak vervalt.
+          - name: opgeheven_op_na_uitspraak
+            type: date
+            nullable: true
+            description: De dag waarop de voorziening na deze uitspraak is opgeheven.
+          - name: uitspraak_hoofdzaak_na_uitspraak
+            type: date
+            nullable: true
+            description: De dag van de uitspraak in de hoofdzaak die voor de schorsing telt.
         actions:
           - output: uitspraak_schorst
             value:
@@ -280,113 +272,110 @@ articles:
                 - when: $uitspraak_schorst
                   then: $besluit_geschorst_vanaf
               default: $geschorst_vanaf
-          - output: geschorst_tot_na_uitspraak
+          - output: vervalt_op_na_uitspraak
             value:
               operation: IF
               cases:
                 - when: $uitspraak_schorst
-                  then: $voorziening_vervalt_op
-              default: $geschorst_tot
-
-  - number: '4'
-    text: >-
-      FICTIEF, eigen keuze in de modellering. Vervalt de voorlopige
-      voorziening van rechtswege (artikel 8:85, tweede lid, van de Algemene
-      wet bestuursrecht) of heft de voorzieningenrechter haar op (artikel
-      8:87, eerste lid), dan eindigt de schorsing op die dag. Een schorsing
-      die eerder eindigde, blijft eindigen op haar eigen dag.
-    url: https://lokaleregelgeving.overheid.nl/CVDR733452
-    machine_readable:
-      execution:
-        parameters:
-          - name: geschorst_vanaf
-            type: date
-            nullable: true
-            description: De eerste dag van de schorsing.
-          - name: geschorst_tot
-            type: date
-            nullable: true
-            description: De dag waarop de schorsing tot nu toe eindigt.
-          - name: voorziening_eindigt_op
-            type: date
-            description: De dag waarop de voorziening vervalt of is opgeheven.
-        output:
-          - name: geschorst_tot_na_einde
-            type: date
-            nullable: true
-            description: De dag waarop de schorsing eindigt.
-        actions:
-          # Eerst of er een schorsing is en of zij een einde heeft: DATE_DIFF
-          # faalt op een lege datum.
-          - output: geschorst_tot_na_einde
+                  then: $vervalt_volgens_uitspraak
+              default: $voorziening_vervalt_op
+          - output: opgeheven_op_na_uitspraak
             value:
               operation: IF
               cases:
-                # No suspension: nothing ends.
-                - when:
-                    operation: EQUALS
-                    subject: $geschorst_vanaf
-                    value: null
-                  then: $geschorst_tot
-                # A suspension without an end ends on this day.
-                - when:
-                    operation: EQUALS
-                    subject: $geschorst_tot
-                    value: null
-                  then: $voorziening_eindigt_op
-                # A suspension that already ends earlier keeps its day.
-                - when:
-                    operation: LESS_THAN
-                    subject:
-                      operation: DATE_DIFF
-                      from: $voorziening_eindigt_op
-                      to: $geschorst_tot
-                      in: days
-                    value: 0
-                  then: $geschorst_tot
-              default: $voorziening_eindigt_op
+                - when: $uitspraak_schorst
+                  then: null
+              default: $voorziening_opgeheven_op
+          - output: uitspraak_hoofdzaak_na_uitspraak
+            value:
+              operation: IF
+              cases:
+                - when: $uitspraak_schorst
+                  then: null
+              default: $uitspraak_hoofdzaak_op
 
-  - number: '5'
+  - number: '4'
     text: >-
       FICTIEF, eigen keuze in de modellering. Een bedrijfsparkeervergunning is
       op een dag geldig als zij is verleend, op die dag nog niet is verlopen,
-      en op die dag niet is geschorst: op of na de dag waarop de schorsing
-      ingaat en vóór de dag waarop zij eindigt.
+      en op die dag niet is geschorst. Een schorsing geldt vanaf de dag
+      waarop zij ingaat. Zij eindigt op de vroegste van deze dagen: de dag
+      waarop de voorziening volgens de uitspraak vervalt (artikel 8:85,
+      eerste lid, van de Algemene wet bestuursrecht), de dag waarop de
+      voorzieningenrechter haar opheft (artikel 8:87, eerste lid), en de dag
+      waarop de bestuursrechter in de hoofdzaak uitspraak doet (artikel 8:85,
+      tweede lid, onder c).
     url: https://lokaleregelgeving.overheid.nl/CVDR733452
     machine_readable:
+      # That the measure lapsed is not recorded: it follows here from the
+      # days the records carry. Awb 8:85, second paragraph, under a (the term
+      # for an appeal passed unused) and under b (the objection or appeal
+      # withdrawn) leave no record in the chronicle of the municipality in
+      # this PoC; see the comment on article 8:85 of the Awb.
       execution:
         parameters:
-          - name: vergunning_verleend
-            type: boolean
-            description: Of het kenteken een vergunning heeft.
           - name: vergunning_geldig_tot
             type: date
             nullable: true
-            description: De laatste geldige dag van de vergunning.
+            description: De laatste geldige dag van de vergunning; leeg als er geen is.
           - name: geschorst_vanaf
             type: date
             nullable: true
             description: De eerste dag van de schorsing.
-          - name: geschorst_tot
+          - name: voorziening_vervalt_op
             type: date
             nullable: true
-            description: De dag waarop de schorsing eindigt.
+            description: De dag waarop de voorziening volgens de uitspraak vervalt.
+          - name: voorziening_opgeheven_op
+            type: date
+            nullable: true
+            description: De dag waarop de voorzieningenrechter de voorziening ophief.
+          - name: uitspraak_hoofdzaak_op
+            type: date
+            nullable: true
+            description: De dag waarop de bestuursrechter in de hoofdzaak uitspraak deed.
           - name: peildatum
             type: date
             description: De dag waarop de vergunning geldig moet zijn.
         output:
+          - name: schorsing_geeindigd
+            type: boolean
+            description: Of de schorsing op de peildatum is geëindigd.
           - name: vergunning_geldig_op_peildatum
             type: boolean
             description: Of de vergunning op de peildatum geldig is.
         actions:
+          # Each end counts from its own day; an empty day is no end.
+          - output: schorsing_geeindigd
+            value:
+              operation: OR
+              conditions:
+                - operation: AND
+                  conditions:
+                    - operation: NOT
+                      value: {operation: EQUALS, subject: $voorziening_vervalt_op, value: null}
+                    - operation: GREATER_THAN_OR_EQUAL
+                      subject: {operation: DATE_DIFF, from: $voorziening_vervalt_op, to: $peildatum, in: days}
+                      value: 0
+                - operation: AND
+                  conditions:
+                    - operation: NOT
+                      value: {operation: EQUALS, subject: $voorziening_opgeheven_op, value: null}
+                    - operation: GREATER_THAN_OR_EQUAL
+                      subject: {operation: DATE_DIFF, from: $voorziening_opgeheven_op, to: $peildatum, in: days}
+                      value: 0
+                - operation: AND
+                  conditions:
+                    - operation: NOT
+                      value: {operation: EQUALS, subject: $uitspraak_hoofdzaak_op, value: null}
+                    - operation: GREATER_THAN_OR_EQUAL
+                      subject: {operation: DATE_DIFF, from: $uitspraak_hoofdzaak_op, to: $peildatum, in: days}
+                      value: 0
           - output: vergunning_geldig_op_peildatum
             value:
               operation: IF
               cases:
-                - when:
-                    operation: NOT
-                    value: $vergunning_verleend
-                  then: false
+                # No permit.
                 - when:
                     operation: EQUALS
                     subject: $vergunning_geldig_tot
@@ -418,20 +407,4 @@ articles:
                       in: days
                     value: 0
                   then: true
-                # A suspension without an end holds.
-                - when:
-                    operation: EQUALS
-                    subject: $geschorst_tot
-                    value: null
-                  then: false
-                # The suspension has ended before or on the day.
-                - when:
-                    operation: GREATER_THAN_OR_EQUAL
-                    subject:
-                      operation: DATE_DIFF
-                      from: $geschorst_tot
-                      to: $peildatum
-                      in: days
-                    value: 0
-                  then: true
-              default: false
+              default: $schorsing_geeindigd
