@@ -5512,4 +5512,114 @@ mod tests {
             (V::Bool(false), V::Null)
         );
     }
+
+    #[test]
+    fn leave_the_court_grants_on_appeal_against_a_new_decision_counts() {
+        // Leave A is granted, and on an objection the head finds the
+        // profession anew: A is revoked, and a refusal takes its place (Awb
+        // 7:11 lid 2). The parent appeals against that new decision, and the
+        // court decides the case itself (8:72 lid 3 onder b): it takes the
+        // decision on the application anew and grants the leave. The Awb
+        // gives that decision as the decision on the application in place,
+        // the copy carries it, and the school's reduction counts it: a second
+        // leave in the same school year is refused.
+        let corpus = corpus();
+        let mut cell = corpus.cell().unwrap();
+        let eerste = aanvragen(
+            &corpus,
+            &mut cell,
+            &aanvraag("2027-02-05"),
+            day("2026-10-14"),
+        )
+        .unwrap();
+        let a = besluiten(
+            &corpus,
+            &mut cell,
+            &eerste.id,
+            &bevindingen(),
+            day("2026-10-14"),
+        )
+        .unwrap()
+        .besluit;
+        assert_eq!(a.outputs["verlof_verleend"], json!(true));
+        let tegen_a = bezwaren(
+            &corpus,
+            &mut cell,
+            &a.id,
+            &bezwaar_velden("2026-11-01"),
+            day("2026-11-01"),
+        )
+        .unwrap();
+        let op_a = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &tegen_a.id,
+            &beroep(false),
+            day("2026-11-15"),
+        )
+        .unwrap();
+        let nieuw = op_a["nieuw_besluit"]["id"].as_str().unwrap().to_string();
+        assert_eq!(
+            op_a["nieuw_besluit"]["outputs"]["verlof_verleend"],
+            json!(false)
+        );
+        let mut velden = corpus.casus.voorbeeld.beroep.clone();
+        velden.insert(
+            "dagtekening_bezwaar_of_beroepschrift".into(),
+            json!("2026-12-01"),
+        );
+        let ingesteld =
+            beroep_instellen(&corpus, &mut cell, &nieuw, &velden, day("2026-12-01")).unwrap();
+        let mut zelf = uitspraak_bevindingen(&corpus, &["termijn_nieuw_besluit"]);
+        zelf.insert("uitspraak_treedt_in_de_plaats".into(), json!(true));
+        zelf.insert("specifieke_aard_beroep_ouder".into(), json!(true));
+        zelf.insert(
+            "verlof_valt_buiten_schoolvakanties_volgens_hoofd".into(),
+            json!(true),
+        );
+        zelf.insert(
+            "verlof_al_verleend_in_schooljaar_volgens_hoofd".into(),
+            json!(false),
+        );
+        let gedaan =
+            uitspraak_doen(&corpus, &mut cell, &ingesteld.id, &zelf, day("2027-01-11")).unwrap();
+        let uitvoer = &gedaan["uitspraak"]["outputs"];
+        // The decision in place is the decision on the application itself, so
+        // the Awb gives it unchanged as the decision on the application.
+        assert_eq!(
+            uitvoer["uitspraak_in_de_plaats"]["basis"],
+            json!("leerplichtwet_1969#13a")
+        );
+        assert_eq!(
+            uitvoer["primair_besluit_in_de_plaats"],
+            uitvoer["uitspraak_in_de_plaats"]
+        );
+        assert_eq!(
+            uitvoer["primair_besluit_in_de_plaats"]["outputs"]["verlof_verleend"],
+            json!(true)
+        );
+        let ontvangst = toezenden(
+            &corpus,
+            &mut cell,
+            gedaan["uitspraak"]["id"].as_str().unwrap(),
+            day("2027-01-11"),
+        )
+        .unwrap();
+        assert_eq!(ontvangst.refers_to.as_deref(), Some(nieuw.as_str()));
+
+        let mut later = aanvraag("2027-05-14");
+        later.insert("eerste_verlofdag".into(), json!("2027-05-10"));
+        let tweede = aanvragen(&corpus, &mut cell, &later, day("2027-01-20")).unwrap();
+        let b = besluiten(
+            &corpus,
+            &mut cell,
+            &tweede.id,
+            &bevindingen(),
+            day("2027-01-20"),
+        )
+        .unwrap()
+        .besluit;
+        assert_eq!(b.fields["verlof_al_verleend_in_schooljaar"], json!(true));
+        assert_eq!(b.outputs["verlof_verleend"], json!(false));
+    }
 }
