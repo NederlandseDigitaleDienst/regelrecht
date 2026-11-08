@@ -700,15 +700,21 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
                         "names parameter '{name}' in an effect under produces, but declares no such parameter"
                     ));
                 };
-                // The parameter holds the id of the record it revokes, as
-                // for a fact: a string, never null. A decision without the
-                // record it revokes is refused when the chronicle is played;
-                // refuse it here first. From schema v0.8.15 on: a file valid
-                // under v0.8.14 still loads.
-                if parameter.param_type != ParameterType::String && from_version(law, (0, 8, 15)) {
+                // The parameter names the record it revokes: a string that
+                // holds its id, or a decision, which the cell keeps by its id
+                // in the chronicle (`bestreden_besluit` in Awb 7:11). Never
+                // null: a decision without the record it revokes is refused
+                // when the chronicle is played; refuse it here first. From
+                // schema v0.8.15 on: a file valid under v0.8.14 still loads.
+                let names_a_record = matches!(
+                    parameter.param_type,
+                    ParameterType::String | ParameterType::Decision
+                );
+                if !names_a_record && from_version(law, (0, 8, 15)) {
                     return refuse(format!(
                         "names parameter '{name}' in an effect under produces, which is a {:?}; \
-                         the record an effect revokes is named by its id, a string",
+                         the record an effect revokes is a string that holds its id, or a \
+                         decision",
                         parameter.param_type
                     ));
                 }
@@ -1617,26 +1623,33 @@ articles:
         );
     }
 
-    /// A decision names the record it revokes by its id, a string; from
-    /// schema v0.8.15 the loader refuses another type, and a law that
-    /// declares v0.8.14 still loads.
+    /// A decision names the record it revokes by a string that holds its
+    /// id, or by a decision, which the cell keeps by its id. From schema
+    /// v0.8.15 the loader refuses another type; a law that declares v0.8.14
+    /// still loads.
     #[test]
-    fn a_decision_revokes_by_a_string_from_v0_8_15() {
-        for (parameter, kind) in [("b", "Boolean"), ("d", "Decision"), ("vanaf", "Date")] {
-            let items = format!(
+    fn a_decision_revokes_by_a_string_or_a_decision_from_v0_8_15() {
+        let items = |parameter: &str| {
+            format!(
                 "          - type: BESCHIKKING\n            effects:\n              - {{revokes: {parameter}}}"
-            );
-            let on = |v: &str| law_with_kinds_on(&items, v);
+            )
+        };
+        for parameter in ["p", "d"] {
             LawExecutionService::new()
-                .load_law(&on("v0.8.14"))
+                .load_law(&law_with_kinds_on(&items(parameter), "v0.8.15"))
+                .unwrap_or_else(|e| panic!("{parameter} names a record: {e}"));
+        }
+        for (parameter, kind) in [("b", "Boolean"), ("vanaf", "Date")] {
+            LawExecutionService::new()
+                .load_law(&law_with_kinds_on(&items(parameter), "v0.8.14"))
                 .unwrap_or_else(|e| panic!("{parameter} loads on v0.8.14: {e}"));
             let err = LawExecutionService::new()
-                .load_law(&on("v0.8.15"))
+                .load_law(&law_with_kinds_on(&items(parameter), "v0.8.15"))
                 .expect_err(parameter);
             assert!(
                 err.to_string().contains(&format!(
                     "names parameter '{parameter}' in an effect under produces, which is a {kind}; \
-                     the record an effect revokes is named by its id, a string"
+                     the record an effect revokes is a string that holds its id, or a decision"
                 )),
                 "{err}"
             );

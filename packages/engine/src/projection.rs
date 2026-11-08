@@ -1276,6 +1276,16 @@ articles:
           effects: [{revokes: refers_to, when: vernietigd}]
       execution:
         parameters: [{name: vernietigd, type: boolean}]
+  - number: '8'
+    text: t
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            effects: [{revokes: bestreden}]
+        parameters: [{name: bestreden, type: decision}]
+        output: [{name: herroepen, type: boolean}]
+        actions: [{output: herroepen, value: true}]
 "#;
 
     /// Counts the grants that count and whether the last record left a card.
@@ -1613,6 +1623,17 @@ articles:
             ),
             "{err}"
         );
+    }
+
+    #[test]
+    fn a_decision_revokes_through_a_parameter_of_type_decision_by_its_id() {
+        // Article 8 names the decision it revokes in a parameter of type
+        // `decision`, as Awb 7:11 names `bestreden_besluit`. The cell keeps
+        // such a decision by its id, so the record holds the id.
+        let revocation = record("h", "8", &[("bestreden", Value::String("a".into()))], &[]);
+        let outcome = play(&[grant("a"), revocation]).unwrap();
+        assert_eq!(skipped(&outcome), ["a"]);
+        assert_eq!(outcome.result.outputs["heeft_kaart"], Value::Bool(false));
     }
 
     #[test]
