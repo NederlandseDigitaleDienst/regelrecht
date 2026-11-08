@@ -2356,7 +2356,7 @@ articles:
                 "        - fact: ingeleverd\n          parameters: [op]\n        - fact: verloren\n          parameters: [op]\n",
             );
             let reduction = REDUCTION.replace("record: wet#4\n", &format!("record: {step}\n"));
-            for err in refused_at_load(&law, &reduction) {
+            for err in refused_in_either_order(&law, &reduction) {
                 assert!(
                     err.contains("the article requires more than one fact; a step cannot pick one"),
                     "{step}: {err}"
@@ -2495,7 +2495,7 @@ articles:
             (
                 LAW.to_string(),
                 with("output: kaart\n", "output: geen\n"),
-                "input 'kaart_na' takes 'geen' of wet, which no article in the version loaded gives",
+                "input 'kaart_na' takes 'geen' of wet, which no article",
             ),
             (
                 LAW.to_string(),
@@ -2563,17 +2563,20 @@ articles:
                 "sets 'kaart' from $record.bestaat_niet, but the record has no such field",
             ),
         ] {
-            for err in refused_at_load(&law, &reduction) {
+            for err in refused_in_either_order(&law, &reduction) {
                 assert!(err.contains(why), "{why}: {err}");
             }
         }
     }
 
-    /// The load errors when `law` loads before `reduction`, and when it
-    /// loads after it: the loader checks a step whichever of the two comes
-    /// last. A step that does not fit its own reduction, such as a value of
-    /// the wrong type for a property, is refused before any law loads.
-    fn refused_at_load(law: &str, reduction: &str) -> [String; 2] {
+    /// The errors when `law` loads before `reduction`, and when it loads
+    /// after it. Loaded after the law, the reduction is refused. Loaded
+    /// before it, the reduction loads, and so does the law: a law never
+    /// depends on a reduction that reads it. The play then refuses the
+    /// reduction. A step that does not fit its own reduction, such as a
+    /// value of the wrong type for a property, is refused before any law
+    /// loads.
+    fn refused_in_either_order(law: &str, reduction: &str) -> [String; 2] {
         let mut service = LawExecutionService::new();
         service.load_law(law).unwrap();
         let after = service
@@ -2584,12 +2587,20 @@ articles:
         let before = match service.load_law(reduction) {
             Err(alone) => alone.to_string(),
             Ok(_) => {
-                let before = service.load_law(law).expect_err(reduction).to_string();
-                assert!(
-                    before.contains("breaks the projection of 'reductie'"),
-                    "{before}"
-                );
-                before
+                service
+                    .load_law(law)
+                    .expect("the law loads after the reduction");
+                service
+                    .evaluate_projection(
+                        "reductie",
+                        &["heeft_kaart"],
+                        &[],
+                        BTreeMap::new(),
+                        "2025-03-01",
+                        false,
+                    )
+                    .expect_err(reduction)
+                    .to_string()
             }
         };
         [after, before]
@@ -2725,11 +2736,11 @@ articles:
         }
     }
 
-    /// The loader checks an already loaded reduction again when a law it
-    /// names arrives, whether the step names it as the law its records rest
-    /// on or as a law an input calls.
+    /// A law that arrives after a reduction that reads it always loads,
+    /// whether the step names it as the law its records rest on or as a law
+    /// an input calls. The play refuses the reduction that no longer fits.
     #[test]
-    fn a_law_that_arrives_later_is_checked_against_the_steps_that_name_it() {
+    fn a_law_that_arrives_later_loads_and_the_play_refuses_the_reduction() {
         let reduction = |output: &str, field: &str| {
             format!(
                 r#"
@@ -2759,31 +2770,37 @@ articles:
 "#
             )
         };
+        let play = |service: &LawExecutionService| {
+            service
+                .evaluate_projection(
+                    "reductie",
+                    &["heeft_kaart"],
+                    &[],
+                    BTreeMap::new(),
+                    "2025-03-01",
+                    false,
+                )
+                .expect_err("a step that does not fit")
+                .to_string()
+        };
         // Only an input names the law that arrives.
         let mut service = LawExecutionService::new();
         service.load_law(LAW).unwrap();
         service
             .load_law(&reduction("van_buiten", "verleend"))
             .unwrap();
-        let err = service.load_law(MIXED).expect_err("an impure output");
-        assert!(
-            err.to_string()
-                .contains("breaks the projection of 'reductie'"),
-            "{err}"
-        );
+        service.load_law(MIXED).unwrap();
+        let err = play(&service);
+        assert!(err.contains("'van_buiten' reads input 'buiten'"), "{err}");
         // Only the record names the law that arrives.
         let mut service = LawExecutionService::new();
         service.load_law(MIXED).unwrap();
         service
             .load_law(&reduction("zuiver", "bestaat_niet"))
             .unwrap();
-        let err = service.load_law(LAW).expect_err("no such field");
-        assert!(
-            err.to_string()
-                .contains("breaks the projection of 'reductie'")
-                && err.to_string().contains("the record has no such field"),
-            "{err}"
-        );
+        service.load_law(LAW).unwrap();
+        let err = play(&service);
+        assert!(err.contains("the record has no such field"), "{err}");
     }
 
     /// What a step reads that is no field, property, input or parameter of

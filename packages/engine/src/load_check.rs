@@ -985,9 +985,10 @@ fn check_step_shape(
 /// versions `lookup` gives: the law each step's records rest on and each law
 /// an input calls ([`crate::projection::check_step`]). The reduction and the
 /// law are separate regelwerken that load in any order, so a law `lookup`
-/// does not give is not checked here; the resolver checks the reduction
-/// again when that law loads, and the engine checks the versions in force
-/// when it plays the projection. The error names the article and the step.
+/// does not give is not checked here. A law that arrives later loads
+/// whatever a reduction expects of it, so the law never depends on the
+/// reduction; the engine checks the versions in force when it plays the
+/// projection. The error names the article and the step.
 pub(crate) fn check_projection_wiring<'l>(
     law: &ArticleBasedLaw,
     lookup: &dyn Fn(&str) -> Option<&'l ArticleBasedLaw>,

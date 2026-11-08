@@ -511,27 +511,6 @@ fn references_law(law: &ArticleBasedLaw, law_id: &str) -> bool {
         }) || article
             .get_implements()
             .is_some_and(|implements| implements.iter().any(|i| i.law == law_id))
-            || steps_name_law(article, law_id)
-    })
-}
-
-/// Whether a step of the projection of `article` (schema v0.8.14) names
-/// `law_id`: as the law its records rest on, or as a law an input calls.
-fn steps_name_law(article: &crate::article::Article, law_id: &str) -> bool {
-    let steps = article
-        .machine_readable
-        .as_ref()
-        .and_then(|m| m.projection.as_ref())
-        .map(|p| p.steps.as_slice())
-        .unwrap_or_default();
-    steps.iter().any(|step| {
-        step.basis_and_kind().0.split_once('#').map(|(law, _)| law) == Some(law_id)
-            || step.input.iter().any(|input| {
-                input
-                    .source
-                    .as_ref()
-                    .is_some_and(|s| s.regulation.as_deref() == Some(law_id))
-            })
     })
 }
 
@@ -604,7 +583,10 @@ impl RuleResolver {
         // not be held against it before; it is checked again now, and a
         // finding refuses this law and names the consumer.
         // Schema v0.8.14: the steps of a projection fit the laws they name,
-        // here as for a reduction already loaded that names this law.
+        // as far as those are loaded. Only a reduction is refused for this:
+        // a law that arrives later always loads, whatever a reduction loaded
+        // before it expects of it, and the play holds that reduction to the
+        // law in force on the day.
         crate::load_check::check_projection_wiring(&law, &lookup)
             .map_err(|why| EngineError::LoadError(format!("law '{}' {why}", law.id)))?;
         let mut consumer_findings = Vec::new();
@@ -612,12 +594,6 @@ impl RuleResolver {
             .all_law_versions()
             .filter(|consumer| consumer.id != law.id && references_law(consumer, &law.id))
         {
-            crate::load_check::check_projection_wiring(consumer, &lookup).map_err(|why| {
-                EngineError::LoadError(format!(
-                    "loading law '{}' breaks the projection of '{}': {why}",
-                    law.id, consumer.id
-                ))
-            })?;
             consumer_findings.extend(crate::typecheck::check_law(consumer, &lookup));
         }
         if !consumer_findings.is_empty() {
