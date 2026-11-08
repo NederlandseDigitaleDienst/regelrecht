@@ -15,8 +15,15 @@ valid_from: '2026-01-01'
 # peildatum geldig is, zegt artikel 5 van het fictieve beleid verleende
 # bedrijfsparkeervergunningen; de reductie geeft het de staat en de dag. De
 # staat houdt één vergunning en één schorsing, omdat de sleutel één kenteken
-# is. Er is geen bekendmaking; de url wijst naar het model van de
-# verordening.
+# is: een nieuwe verlening voor het kenteken begint zonder schorsing, want
+# een schorsing betreft één besluit. Een besluit dat na de peildatum is
+# genomen telt niet mee, dus de stap voor een besluit krijgt de peildatum,
+# een parameter van de vraag; zo ook een schorsing die na de peildatum
+# ingaat. Wat de staat niet kan: een afschrift, opheffing of verval aan het
+# juiste besluit koppelen als één kenteken meer besluiten of schorsingen
+# kent. De stap ziet alleen de staat van het kenteken, niet welk besluit die
+# staat draagt; zie tests/schorsing.rs. Er is geen bekendmaking; de url
+# wijst naar het model van de verordening.
 url: https://lokaleregelgeving.overheid.nl/CVDR642699
 name: Bedrijfsparkeervergunning op een peildatum bij de gemeente Wilgendaal (reductie)
 articles:
@@ -53,17 +60,37 @@ articles:
                     vergunning_geldig_tot: $state.vergunning_geldig_tot
                     bedrijfsparkeervergunning_verleend: $record.bedrijfsparkeervergunning_verleend
                     geldig_tot_volgens_besluit: $record.vergunning_geldig_tot
+                    geschorst_vanaf: $state.geschorst_vanaf
+                    geschorst_tot: $state.geschorst_tot
+                    besluit_datum: $record.besluit_datum
+                    peildatum: $peildatum
               - name: geldig_tot_na_besluit
                 type: date
                 source:
                   regulation: beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal
                   output: vergunning_geldig_tot_na_besluit
                   parameters: *na_besluit
+              - name: vanaf_na_besluit
+                type: date
+                source:
+                  regulation: beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal
+                  output: geschorst_vanaf_na_besluit
+                  parameters: *na_besluit
+              - name: tot_na_besluit
+                type: date
+                source:
+                  regulation: beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal
+                  output: geschorst_tot_na_besluit
+                  parameters: *na_besluit
             actions:
               - output: vergunning_verleend
                 value: $verleend_na_besluit
               - output: vergunning_geldig_tot
                 value: $geldig_tot_na_besluit
+              - output: geschorst_vanaf
+                value: $vanaf_na_besluit
+              - output: geschorst_tot
+                value: $tot_na_besluit
           # Het afschrift van de uitspraak van de voorzieningenrechter.
           - record: algemene_wet_bestuursrecht#8:84#EXECUTOGRAM
             input:
@@ -75,8 +102,10 @@ articles:
                   parameters: &na_uitspraak
                     geschorst_vanaf: $state.geschorst_vanaf
                     geschorst_tot: $state.geschorst_tot
+                    uitspraak_strekt_tot: $record.uitspraak_strekt_tot
                     besluit_geschorst_vanaf: $record.besluit_geschorst_vanaf
                     voorziening_vervalt_op: $record.voorziening_vervalt_op
+                    peildatum: $peildatum
               - name: tot_na_uitspraak
                 type: date
                 source:
