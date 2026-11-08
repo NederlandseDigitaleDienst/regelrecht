@@ -2148,23 +2148,45 @@ fn lezingen_van(
     uit: &mut Vec<Lezing>,
 ) {
     // A reduction that plays the chronicle forward (schema v0.8.14) reads
-    // the decisions under the article each of its steps names.
+    // the records under the article each of its steps names: its decisions,
+    // or the facts it requires when it takes no decision, such as the
+    // receipt of a judgment (Awb 8:79).
     for step in articles
         .iter()
         .filter_map(|a| a.machine_readable.as_ref()?.projection.as_ref())
         .flat_map(|p| &p.steps)
     {
         let (basis, kind) = step.basis_and_kind();
-        if kind == Some(EXECUTOGRAM) {
-            continue;
-        }
-        let lezing = Lezing {
-            naam: step.record.clone(),
-            reductie: reduction.id.clone(),
-            bron: Bron::Besluiten(basis.to_string()),
+        let article = basis.split_once('#').and_then(|(law, nummer)| {
+            service
+                .resolver()
+                .get_law_for_date(law, Some(on))?
+                .find_article_by_number(nummer)
+        });
+        let feiten: Vec<String> = article
+            .filter(|a| kind == Some(EXECUTOGRAM) || a.get_decision().is_none())
+            .map(|a| {
+                a.get_requires()
+                    .iter()
+                    .filter_map(|r| r.fact.as_ref())
+                    .map(|feit| format!("{basis}#{feit}"))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let bronnen = if feiten.is_empty() {
+            vec![Bron::Besluiten(basis.to_string())]
+        } else {
+            feiten.into_iter().map(Bron::Feiten).collect()
         };
-        if !uit.contains(&lezing) {
-            uit.push(lezing);
+        for bron in bronnen {
+            let lezing = Lezing {
+                naam: step.record.clone(),
+                reductie: reduction.id.clone(),
+                bron,
+            };
+            if !uit.contains(&lezing) {
+                uit.push(lezing);
+            }
         }
     }
     for input in articles.iter().flat_map(|a| a.get_inputs()) {
@@ -2815,7 +2837,17 @@ mod tests {
         // Lid 2 plays the decisions under 13a, the article its step names.
         let lid_2 = "reductie_verlof_al_verleend_in_schooljaar";
         assert_eq!(rijen(lid_2, "besluiten_onder", "leerplichtwet_1969#13a"), 2);
-        assert_eq!(reductie(lid_2)["invoer"].as_array().unwrap().len(), 1);
+        // And the receipts of judgments, for a decision the court put in
+        // place (Awb 8:72 lid 3 onder b): none here.
+        assert_eq!(reductie(lid_2)["invoer"].as_array().unwrap().len(), 2);
+        assert_eq!(
+            rijen(
+                lid_2,
+                "executogrammen_van",
+                "algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak"
+            ),
+            0
+        );
         // The vestiging is read from its executograms. The holidays come
         // from the regeling and the school's policy, not from the chronicle.
         assert_eq!(
@@ -2853,7 +2885,8 @@ mod tests {
         assert_eq!(
             reductie(lid_2)["normen"],
             json!([
-                { "regelwerk": beleid, "laag": "UITVOERINGSBELEID", "artikel": "1" }
+                { "regelwerk": beleid, "laag": "UITVOERINGSBELEID", "artikel": "1" },
+                { "regelwerk": beleid, "laag": "UITVOERINGSBELEID", "artikel": "2" }
             ])
         );
         assert!(reductie(lid_2)["tekst"][0]["tekst"]
@@ -5200,5 +5233,241 @@ mod tests {
         // granted.
         let verleend = leave_after_an_annulled_revocation(true);
         assert!(verleend);
+    }
+
+    #[test]
+    fn leave_the_court_grants_in_place_of_a_refusal_counts() {
+        // A refusal, an unfounded objection, and an appeal in which the court
+        // decides the case itself (Awb 8:72 lid 3 onder b): its judgment
+        // grants the leave in place of the decision on the objection. The
+        // school records the receipt, not that decision; the reduction reads
+        // the decision in place from the receipt. A second leave in the same
+        // school year is then refused, as after a grant by the head.
+        let corpus = corpus();
+        let mut cell = corpus.cell().unwrap();
+        let eerste = aanvragen(
+            &corpus,
+            &mut cell,
+            &aanvraag("2027-02-05"),
+            day("2026-10-14"),
+        )
+        .unwrap();
+        let geweigerd = besluiten(
+            &corpus,
+            &mut cell,
+            &eerste.id,
+            &beroep(false),
+            day("2026-10-14"),
+        )
+        .unwrap()
+        .besluit;
+        let bezwaar = kaart_bezwaar(&corpus, &mut cell, &geweigerd.id, "2026-11-01");
+        let ongegrond = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &bezwaar.id,
+            &Map::new(),
+            day("2026-11-15"),
+        )
+        .unwrap();
+        let op_bezwaar = ongegrond["beslissing"]["id"].as_str().unwrap().to_string();
+        let mut velden = corpus.casus.voorbeeld.beroep.clone();
+        velden.insert(
+            "dagtekening_bezwaar_of_beroepschrift".into(),
+            json!("2026-12-01"),
+        );
+        let ingesteld =
+            beroep_instellen(&corpus, &mut cell, &op_bezwaar, &velden, day("2026-12-01")).unwrap();
+        let mut zelf = uitspraak_bevindingen(&corpus, &["termijn_nieuw_besluit"]);
+        zelf.insert("uitspraak_treedt_in_de_plaats".into(), json!(true));
+        zelf.insert("specifieke_aard_beroep_ouder".into(), json!(true));
+        zelf.insert(
+            "verlof_valt_buiten_schoolvakanties_volgens_hoofd".into(),
+            json!(true),
+        );
+        zelf.insert(
+            "verlof_al_verleend_in_schooljaar_volgens_hoofd".into(),
+            json!(false),
+        );
+        let gedaan =
+            uitspraak_doen(&corpus, &mut cell, &ingesteld.id, &zelf, day("2027-01-11")).unwrap();
+        assert_eq!(
+            gedaan["uitspraak"]["outputs"]["uitspraak_in_de_plaats"]["outputs"]["nieuw_besluit"]
+                ["outputs"]["verlof_verleend"],
+            json!(true)
+        );
+        toezenden(
+            &corpus,
+            &mut cell,
+            gedaan["uitspraak"]["id"].as_str().unwrap(),
+            day("2027-01-11"),
+        )
+        .unwrap();
+        let mut later = aanvraag("2027-05-14");
+        later.insert("eerste_verlofdag".into(), json!("2027-05-10"));
+        let tweede = aanvragen(&corpus, &mut cell, &later, day("2027-01-20")).unwrap();
+        let b = besluiten(
+            &corpus,
+            &mut cell,
+            &tweede.id,
+            &bevindingen(),
+            day("2027-01-20"),
+        )
+        .unwrap()
+        .besluit;
+        assert_eq!(b.outputs["verlof_verleend"], json!(false));
+        assert_eq!(b.fields["verlof_al_verleend_in_schooljaar"], json!(true));
+    }
+
+    #[test]
+    fn a_card_the_court_grants_in_place_leaves_the_cell_silent_on_its_validity() {
+        // A refusal, an unfounded objection, and a judgment in which the court
+        // decides the case itself (Awb 8:72 lid 3 onder b) and grants the
+        // card, as the municipality's chronicle holds them: the receipt of
+        // the copy carries the decision in place. The municipality does not
+        // derive how long that card holds, so its cell says nothing about a
+        // valid card and the college judges; a definite "no" would ignore the
+        // court's card. That the court granted a card, the cell does say.
+        let corpus = casus("gehandicaptenparkeerkaart");
+        let service = corpus.service().unwrap();
+        const BSN: &str = "999990020";
+        let babw = "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49";
+        let gram = |id: &str,
+                    kind: &str,
+                    basis: &str,
+                    fact: Option<&str>,
+                    refers_to: Option<&str>,
+                    on: &str,
+                    fields: Value,
+                    outputs: Value| Gram {
+            id: id.to_string(),
+            kind: kind.to_string(),
+            basis: basis.to_string(),
+            fact: fact.map(str::to_string),
+            refers_to: refers_to.map(str::to_string),
+            received: None,
+            after: None,
+            recording_actor: "gemeente_wilgendaal".to_string(),
+            recorded_on: day(on),
+            moment: None,
+            fields: fields.as_object().unwrap().clone().into_iter().collect(),
+            missing: Vec::new(),
+            outputs: outputs.as_object().unwrap().clone().into_iter().collect(),
+        };
+        let in_plaats = json!({
+            "basis": "algemene_wet_bestuursrecht#7:11",
+            "fields": {},
+            "findings": {},
+            "outputs": {
+                "bestreden_besluit_herroepen": true,
+                "nieuw_besluit": {
+                    "basis": babw,
+                    "fields": {"bsn_aanvrager": BSN},
+                    "findings": {},
+                    "outputs": {"gehandicaptenparkeerkaart_verstrekt": true}
+                }
+            }
+        });
+        let grams = vec![
+            gram(
+                "aanvraag",
+                "AANVRAAG",
+                babw,
+                None,
+                None,
+                "2026-10-13",
+                json!({"bsn_aanvrager": BSN}),
+                json!({}),
+            ),
+            gram(
+                "weigering",
+                "BESCHIKKING",
+                babw,
+                None,
+                Some("aanvraag"),
+                "2026-10-20",
+                json!({"bsn_aanvrager": BSN}),
+                json!({"gehandicaptenparkeerkaart_verstrekt": false, "kaart_geldig_tot": null}),
+            ),
+            gram(
+                "bezwaar",
+                "BEZWAAR",
+                "algemene_wet_bestuursrecht#7:11",
+                None,
+                Some("weigering"),
+                "2026-11-01",
+                json!({"bestreden_besluit": "weigering"}),
+                json!({}),
+            ),
+            gram(
+                "ongegrond",
+                "BESCHIKKING",
+                "algemene_wet_bestuursrecht#7:11",
+                None,
+                Some("bezwaar"),
+                "2026-11-20",
+                json!({"bestreden_besluit": "weigering"}),
+                json!({"bestreden_besluit_herroepen": false, "nieuw_besluit": null}),
+            ),
+            gram(
+                "ontvangst",
+                "EXECUTOGRAM",
+                "algemene_wet_bestuursrecht#8:79",
+                Some("afschrift_van_de_uitspraak"),
+                Some("ongegrond"),
+                "2027-01-11",
+                json!({
+                    "kenmerk_bestreden_besluit": "ongegrond",
+                    "uitspraak_strekt_tot": "gegrondverklaring van het beroep",
+                    "bestreden_besluit_vernietigd": true,
+                    "rechtsgevolgen_vernietigd": true,
+                    "opdracht_nieuw_besluit": false,
+                    "termijn_nieuw_besluit_einddatum": null,
+                    "geschonden_geoordeelde_rechtsregel": null,
+                    "uitspraak_in_de_plaats": in_plaats,
+                }),
+                json!({}),
+            ),
+        ];
+        let records = reading::chronicle_records(&grams).unwrap();
+        let vraag = |output: &str, parameters: BTreeMap<String, regelrecht_engine::Value>| {
+            service
+                .evaluate_projection(
+                    "reductie_geldige_gehandicaptenparkeerkaart",
+                    &[output],
+                    &records,
+                    parameters,
+                    "2027-03-01",
+                    false,
+                )
+                .unwrap()
+                .result
+                .outputs[output]
+                .clone()
+        };
+        let bsn = (
+            "bsn_aanvrager".to_string(),
+            regelrecht_engine::Value::String(BSN.into()),
+        );
+        assert_eq!(
+            vraag(
+                "aanvrager_heeft_geldige_gehandicaptenparkeerkaart",
+                BTreeMap::from([
+                    bsn.clone(),
+                    (
+                        "besluit_datum".to_string(),
+                        regelrecht_engine::Value::String("2027-03-01".into())
+                    ),
+                ])
+            ),
+            regelrecht_engine::Value::Null
+        );
+        assert_eq!(
+            vraag(
+                "aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt",
+                BTreeMap::from([bsn])
+            ),
+            regelrecht_engine::Value::Bool(true)
+        );
     }
 }

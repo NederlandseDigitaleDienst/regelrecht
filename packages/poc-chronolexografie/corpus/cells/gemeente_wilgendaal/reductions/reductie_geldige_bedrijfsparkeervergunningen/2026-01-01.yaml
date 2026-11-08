@@ -57,6 +57,10 @@ articles:
                     aantal: $state.aantal
                     bedrijfsparkeervergunning_verleend: $record.bedrijfsparkeervergunning_verleend
                     vergunning_geldig_tot: $record.vergunning_geldig_tot
+                    # TIJDELIJKE OMWEG: de stap neemt de dag van de vraag
+                    # (besluit_datum), zodat het afspelen van de vraag afhangt.
+                    # Dat verdwijnt zodra een besluit een eigen aggregaat is,
+                    # met zijn data in de staat (zie de open vragen).
                     besluit_datum: $besluit_datum
             actions:
               - output: aantal

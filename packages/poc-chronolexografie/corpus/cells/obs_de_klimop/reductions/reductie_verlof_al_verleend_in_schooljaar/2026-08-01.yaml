@@ -52,11 +52,37 @@ articles:
                     verleend_in_schooljaar: $state.verleend_in_schooljaar
                     verlof_verleend: $record.verlof_verleend
                     eerste_verlofdag: $record.eerste_verlofdag
+                    # TIJDELIJKE OMWEG: de stap neemt het schooljaar van de
+                    # vraag, zodat het afspelen van de vraag afhangt. Dat
+                    # verdwijnt zodra een besluit een eigen aggregaat is, met
+                    # zijn data in de staat (zie de open vragen).
                     begin_schooljaar: $begin_schooljaar
                     einde_schooljaar: $einde_schooljaar
             actions:
               - output: verleend_in_schooljaar
                 value: $verleend_in_schooljaar_na_besluit
+          # De ontvangst van een uitspraak (Awb 8:79): voorzag de
+          # bestuursrechter zelf in de zaak (Awb 8:72, derde lid, onder b),
+          # dan telt het verlof dat zijn uitspraak verleent.
+          - record: algemene_wet_bestuursrecht#8:79
+            input:
+              - name: verleend_in_schooljaar_na_uitspraak
+                type: boolean
+                source:
+                  regulation: fictief_beleid_verleend_verlof_obs_de_klimop
+                  output: verleend_in_schooljaar_na_uitspraak
+                  parameters:
+                    verleend_in_schooljaar: $state.verleend_in_schooljaar
+                    uitspraak_in_de_plaats: $record.uitspraak_in_de_plaats
+                    # TIJDELIJKE OMWEG: de stap neemt het schooljaar van de
+                    # vraag, zodat het afspelen van de vraag afhangt. Dat
+                    # verdwijnt zodra een besluit een eigen aggregaat is, met
+                    # zijn data in de staat (zie de open vragen).
+                    begin_schooljaar: $begin_schooljaar
+                    einde_schooljaar: $einde_schooljaar
+            actions:
+              - output: verleend_in_schooljaar
+                value: $verleend_in_schooljaar_na_uitspraak
       execution:
         # Wat het antwoord vraagt; artikel 2 van het beleid geeft ze op naam
         # mee.

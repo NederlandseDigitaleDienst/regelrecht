@@ -1248,13 +1248,18 @@ articles:
             nullable: true
             required: false
             description: De rechtsregel die de uitspraak geschonden oordeelde (artikel 8:77, tweede lid).
+          # Eigen keuze: een object, geen besluitwaarde. Het afschrift draagt
+          # het besluit zoals de uitspraak het gaf; de partij die het ontvangt
+          # neemt het niet opnieuw, maar leest er de uitvoer en gegevens uit
+          # (RFC-053).
           - name: uitspraak_in_de_plaats
-            type: decision
+            type: object
             nullable: true
             required: false
             description: >-
               Het besluit dat de uitspraak in de plaats van het vernietigde
-              stelt (artikel 8:72, derde lid, onder b).
+              stelt (artikel 8:72, derde lid, onder b), zoals het afschrift
+              het vermeldt.
 
   - number: 8:104
     text: |-

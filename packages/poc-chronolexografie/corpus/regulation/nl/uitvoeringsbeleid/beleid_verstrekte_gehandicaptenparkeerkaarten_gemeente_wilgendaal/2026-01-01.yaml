@@ -11,7 +11,9 @@ valid_from: '2026-01-01'
 # 49 van het BABW) betekent voor de vragen of de aanvrager een geldige kaart
 # heeft en of hij eerder een kaart kreeg. De reductie van de gemeente
 # (reductie_geldige_gehandicaptenparkeerkaart) speelt haar kroniek af en
-# vraagt dit beleid per besluit dat meetelt. Het staat los van het beleid
+# vraagt dit beleid per besluit dat meetelt (artikel 1 en 2), en per
+# ontvangen uitspraak waarin de bestuursrechter zelf in de zaak voorzag
+# (artikel 3). Het staat los van het beleid
 # gehandicaptenparkeerkaart, omdat dat beleid de reductie aanroept: een stap
 # van de reductie kan de regeling waaruit zij gevraagd wordt niet opnieuw
 # aanroepen.
@@ -104,3 +106,66 @@ articles:
               conditions:
                 - $eerder_verstrekt
                 - $gehandicaptenparkeerkaart_verstrekt
+  - number: '3'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Voorziet
+      de bestuursrechter zelf in de zaak en verstrekt zijn uitspraak de
+      aanvrager een kaart, dan heeft de aanvrager een kaart van de rechter.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
+    machine_readable:
+      # Awb 8:72, derde lid, onder b: de uitspraak treedt in de plaats van
+      # het vernietigde besluit. De gemeente legt de ontvangst van het
+      # afschrift vast (Awb 8:79), niet het besluit dat de uitspraak in de
+      # plaats stelt; dat staat in de ontvangst. Is dat een beslissing op
+      # bezwaar (7:11), dan telt het nieuwe besluit dat zij nam. Hoe lang de
+      # kaart van de rechter geldt, leidt de gemeente niet af: dat doet zij
+      # alleen bij haar eigen besluit. Dit artikel leest niets anders dan wat
+      # het krijgt.
+      execution:
+        parameters:
+          - name: al_kaart_van_de_rechter
+            type: boolean
+            description: Of de rechter de aanvrager vóór deze uitspraak al een kaart verstrekte.
+          - name: uitspraak_in_de_plaats
+            type: object
+            nullable: true
+            description: Het besluit dat de uitspraak in de plaats stelt, zoals het afschrift het vermeldt.
+        output:
+          - name: kaart_van_de_rechter
+            type: object
+            nullable: true
+            description: Het besluit op de aanvraag om een kaart dat de uitspraak in de plaats stelt.
+          - name: kaart_van_de_rechter_na_uitspraak
+            type: boolean
+            description: Of de rechter de aanvrager na deze uitspraak een kaart verstrekte.
+        actions:
+          - output: kaart_van_de_rechter
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $uitspraak_in_de_plaats
+                    value: null
+                  then: null
+                - when:
+                    operation: EQUALS
+                    subject: $uitspraak_in_de_plaats.basis
+                    value: algemene_wet_bestuursrecht#7:11
+                  then: $uitspraak_in_de_plaats.outputs.nieuw_besluit
+              default: $uitspraak_in_de_plaats
+          - output: kaart_van_de_rechter_na_uitspraak
+            value:
+              operation: OR
+              conditions:
+                - $al_kaart_van_de_rechter
+                - operation: AND
+                  conditions:
+                    - operation: NOT
+                      value:
+                        operation: EQUALS
+                        subject: $kaart_van_de_rechter
+                        value: null
+                    - operation: EQUALS
+                      subject: $kaart_van_de_rechter.outputs.gehandicaptenparkeerkaart_verstrekt
+                      value: true

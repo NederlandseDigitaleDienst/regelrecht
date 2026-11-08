@@ -34,7 +34,9 @@ articles:
       (Awb 7:11 en 8:72). De aanvrager heeft een geldige
       gehandicaptenparkeerkaart als het college hem in een besluit op een
       aanvraag (artikel 49 van het BABW) een kaart verstrekte die op de dag van
-      het besluit nog geldig is.
+      het besluit nog geldig is. Verstrekte de bestuursrechter hem zelf een
+      kaart (Awb 8:72, derde lid, onder b), dan zegt het systeem niets: het
+      kent de geldigheid van die kaart niet.
     url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
     machine_readable:
       projection:
@@ -43,6 +45,8 @@ articles:
         key: bsn_aanvrager
         state:
           - name: geldige_kaart
+            type: boolean
+          - name: kaart_van_de_rechter
             type: boolean
         steps:
           # Een besluit op een aanvraag, en een nieuw besluit dat een
@@ -59,10 +63,31 @@ articles:
                     geldige_kaart: $state.geldige_kaart
                     gehandicaptenparkeerkaart_verstrekt: $record.gehandicaptenparkeerkaart_verstrekt
                     kaart_geldig_tot: $record.kaart_geldig_tot
+                    # TIJDELIJKE OMWEG: de stap neemt de dag van de vraag
+                    # (besluit_datum), zodat het afspelen van de vraag afhangt.
+                    # Dat verdwijnt zodra een besluit een eigen aggregaat is,
+                    # met zijn data in de staat (zie de open vragen).
                     besluit_datum: $besluit_datum
             actions:
               - output: geldige_kaart
                 value: $geldige_kaart_na_besluit
+          # De ontvangst van een uitspraak (Awb 8:79): voorzag de
+          # bestuursrechter zelf in de zaak en verstrekte hij een kaart (Awb
+          # 8:72, derde lid, onder b), dan heeft de aanvrager een kaart van
+          # de rechter.
+          - record: algemene_wet_bestuursrecht#8:79
+            input:
+              - name: kaart_van_de_rechter_na_uitspraak
+                type: boolean
+                source:
+                  regulation: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
+                  output: kaart_van_de_rechter_na_uitspraak
+                  parameters:
+                    al_kaart_van_de_rechter: $state.kaart_van_de_rechter
+                    uitspraak_in_de_plaats: $record.uitspraak_in_de_plaats
+            actions:
+              - output: kaart_van_de_rechter
+                value: $kaart_van_de_rechter_na_uitspraak
       execution:
         # Wat het antwoord vraagt; het beleid dat het koppelt, geeft ze op
         # naam mee.
@@ -76,12 +101,25 @@ articles:
         output:
           - name: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
             type: boolean
+            nullable: true
             description: >-
               Of het college de aanvrager een kaart verstrekte die op de dag van
-              het besluit nog geldig is.
+              het besluit nog geldig is; afwezig als de bestuursrechter hem
+              zelf een kaart verstrekte.
         actions:
+          # Verstrekte de bestuursrechter zelf een kaart, dan zwijgt het
+          # systeem (null) en oordeelt het college: hoe lang die kaart geldt,
+          # leidt de gemeente niet af. Een vaste "nee" zou de kaart van de
+          # rechter negeren.
           - output: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
-            value: $state.geldige_kaart
+            value:
+              operation: IF
+              cases:
+                - when: $state.geldige_kaart
+                  then: true
+                - when: $state.kaart_van_de_rechter
+                  then: null
+              default: false
   - number: '2'
     text: >-
       Geen regelgeving. Het systeem van het college van de gemeente Wilgendaal
@@ -89,7 +127,8 @@ articles:
       kroniek of het de aanvrager eerder een kaart verstrekte. Hij kreeg
       eerder een kaart als het college hem in een besluit op een aanvraag
       (artikel 49 van het BABW) een kaart verstrekte die meetelt, geldig of
-      niet; anders zegt het systeem niets.
+      niet, of als de bestuursrechter hem zelf een kaart verstrekte (Awb 8:72,
+      derde lid, onder b); anders zegt het systeem niets.
     url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel2
     machine_readable:
       projection:
@@ -111,6 +150,21 @@ articles:
             actions:
               - output: eerder_verstrekt
                 value: $eerder_verstrekt_na_besluit
+          # Een kaart die de bestuursrechter zelf verstrekte (Awb 8:72, derde
+          # lid, onder b), telt ook.
+          - record: algemene_wet_bestuursrecht#8:79
+            input:
+              - name: kaart_van_de_rechter_na_uitspraak
+                type: boolean
+                source:
+                  regulation: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
+                  output: kaart_van_de_rechter_na_uitspraak
+                  parameters:
+                    al_kaart_van_de_rechter: $state.eerder_verstrekt
+                    uitspraak_in_de_plaats: $record.uitspraak_in_de_plaats
+            actions:
+              - output: eerder_verstrekt
+                value: $kaart_van_de_rechter_na_uitspraak
       execution:
         # Artikel 2 van de regeling kent de dag van het besluit niet; dit
         # antwoord heeft hem ook niet nodig.
