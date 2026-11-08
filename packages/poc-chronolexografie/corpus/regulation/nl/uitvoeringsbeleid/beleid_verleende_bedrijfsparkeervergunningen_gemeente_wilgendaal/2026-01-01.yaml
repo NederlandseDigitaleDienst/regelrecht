@@ -190,6 +190,8 @@ articles:
       schorsen. Dit beleid maakt daarin geen onderscheid: schorst de
       uitspraak het besluit, dan is de vergunning geschorst. Een eerdere
       opheffing of uitspraak in de hoofdzaak geldt niet voor deze schorsing.
+      Ook die zin is een tijdelijke omweg in de modellering; hij vervalt met
+      PR D (#1919), waarin elke schorsing een eigen aggregaat is.
       Schorst de uitspraak niets, of gaat de schorsing pas na de peildatum
       in, dan blijft een eerdere schorsing zoals zij was. Dat een schorsing
       na de peildatum niet meetelt, is een tijdelijke omweg in de
@@ -288,6 +290,11 @@ articles:
                 - when: $uitspraak_schorst
                   then: $besluit_geschorst_vanaf
               default: $geschorst_vanaf
+          # TIJDELIJKE OMWEG, te verwijderen in PR D (#1919): een nieuwe
+          # schorsing zet hieronder de einddag, de opheffing en de uitspraak
+          # in de hoofdzaak van een eerdere terug, omdat de staat per
+          # kenteken één schorsing houdt. In PR D is elke schorsing een eigen
+          # aggregaat en vervallen deze terugzettingen.
           - output: vervalt_op_na_uitspraak
             value:
               operation: IF
