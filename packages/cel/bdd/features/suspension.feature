@@ -102,6 +102,23 @@ Feature: A suspension is a step with a period, not a revocation
     Then output "heeft_geldige_kaart_op_peildatum" is false
     And property "geschorst_vanaf" was last set by "nieuwe_schorsing"
 
+  Scenario: Lifting a suspension without an end ends it on the day of lifting
+    When the cell records fact "besluit_geschorst" as "nieuwe_schorsing" under article "13" of "test_chronicle_effects" with:
+      | aanvrager       | burger_x   |
+      | schorsing_vanaf | 2025-04-15 |
+      | schorsing_tot   | null       |
+    Given the calculation date is "2025-08-01"
+    When the cell records fact "schorsing_opgeheven" as "opheffing" under article "14" of "test_chronicle_effects" with:
+      | aanvrager    | burger_x   |
+      | opgeheven_op | 2025-08-01 |
+    Given the calculation date is "2025-09-01"
+    And parameter "peildatum" is "2025-07-31"
+    When I evaluate "heeft_geldige_kaart_op_peildatum" of "test_reductie_kaart_op_peildatum" over the chronicle
+    Then output "heeft_geldige_kaart_op_peildatum" is false
+    Given parameter "peildatum" is "2025-08-01"
+    When I evaluate "heeft_geldige_kaart_op_peildatum" of "test_reductie_kaart_op_peildatum" over the chronicle
+    Then output "heeft_geldige_kaart_op_peildatum" is true
+
   Scenario: A suspension that is revoked never enters the state
     # Fictional article 16: the suspension never held (ex tunc). A revoked
     # record does not count, so its step never runs, the period never

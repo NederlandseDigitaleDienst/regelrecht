@@ -227,7 +227,7 @@ fn a_fact_with_effects_may_refer_to_an_earlier_record() {
         .record_executogram_referring(
             &service(),
             "test_chronicle_effects#12#uitspraak_vernietigd_in_hoger_beroep",
-            &object_map(json!({"beroep_alsnog_ongegrond": true})),
+            &object_map(json!({"uitspraak_in_hoger_beroep_op": "2025-09-01"})),
             Some(&receipt.id),
             day("2025-09-01"),
         )
@@ -264,7 +264,7 @@ fn only_a_fact_with_effects_refers_and_only_to_a_record_of_the_chronicle() {
         .record_executogram_referring(
             &service(),
             "test_chronicle_effects#12#uitspraak_vernietigd_in_hoger_beroep",
-            &object_map(json!({"beroep_alsnog_ongegrond": true})),
+            &object_map(json!({"uitspraak_in_hoger_beroep_op": "2025-04-01"})),
             Some("elders"),
             day("2025-04-01"),
         )
@@ -274,22 +274,27 @@ fn only_a_fact_with_effects_refers_and_only_to_a_record_of_the_chronicle() {
             .contains("refers to 'elders', which is no chronolexogram in the chronicle"),
         "{err}"
     );
-    // Opening refuses a fact that refers to no earlier record.
+    // Opening refuses a fact that refers to a record that is not before
+    // it, also when other records are.
     let mut tampered = cell.grams().to_vec();
     let mut fact = tampered[0].clone();
     fact.id = "feit".to_string();
     fact.kind = EXECUTOGRAM.to_string();
     fact.fact = Some("uitspraak_vernietigd_in_hoger_beroep".to_string());
     fact.basis = "test_chronicle_effects#12".to_string();
-    fact.refers_to = Some("later".to_string());
-    fact.fields = BTreeMap::from([("beroep_alsnog_ongegrond".to_string(), json!(true))]);
+    fact.refers_to = Some("verlening_x".to_string());
+    fact.fields = BTreeMap::from([(
+        "uitspraak_in_hoger_beroep_op".to_string(),
+        json!("2025-03-01"),
+    )]);
     fact.outputs = BTreeMap::new();
-    tampered.insert(0, fact);
+    // After the application, before the grant it refers to.
+    tampered.insert(1, fact);
     let err = Cell::restore(&Disk, CELL, fixtures().join("cells").join(CELL), tampered)
         .expect_err("refers to no earlier record");
     assert!(
         err.to_string()
-            .contains("refers to 'later', which is not a chronolexogram before it"),
+            .contains("refers to 'verlening_x', which is not a chronolexogram before it"),
         "{err}"
     );
 }

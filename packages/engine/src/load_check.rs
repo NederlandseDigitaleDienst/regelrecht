@@ -553,6 +553,15 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
     Ok(())
 }
 
+/// Whether `law` declares schema `version` or later, or no version at all.
+/// A rule a released version did not have applies from the version that
+/// introduces it, so a file valid under an earlier version still loads.
+fn from_version(law: &ArticleBasedLaw, version: (u32, u32, u32)) -> bool {
+    law.schema_version()
+        .and_then(regelrecht_law_model::parse_schema_version)
+        .is_none_or(|declared| declared >= version)
+}
+
 /// Refuse an article whose `produces` list (schema v0.8.1, RFC-045 §1) has two
 /// items of one type, gives an output to two items (as one of its
 /// `outputs`, or as data `derived` for the decision, RFC-045 §1), lists
@@ -569,15 +578,6 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
 /// belongs to no item: it is an output of the article that another article
 /// may read, not part of the decision, and only computed when read
 /// (RFC-045 §1).
-/// Whether `law` declares schema `version` or later, or no version at all.
-/// A rule a released version did not have applies from the version that
-/// introduces it, so a file valid under an earlier version still loads.
-fn from_version(law: &ArticleBasedLaw, version: (u32, u32, u32)) -> bool {
-    law.schema_version()
-        .and_then(regelrecht_law_model::parse_schema_version)
-        .is_none_or(|declared| declared >= version)
-}
-
 pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
     for article in law.articles.iter().filter(|a| a.produces_list()) {
         let produced = article.get_produced();

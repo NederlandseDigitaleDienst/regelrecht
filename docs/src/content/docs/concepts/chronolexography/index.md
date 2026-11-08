@@ -225,14 +225,15 @@ Each actor keeps its own chronicle. The law sends documents from one actor to an
 - `Cell::record_receipt` records that the cell received a copy. It does so as an executogram of the fact that the law requires for it. The receipt refers to the cell's own decision that the copy is about. Besides it, only a fact with effects refers to anything (schema v0.8.15).
 - `Cell::decide_after` decides on a submission again. It needs a later chronolexogram, such as a receipt, that refers to the last decision on that submission. The new decision holds that chronolexogram as `after`. This rule names no article. Whether the earlier decision still counts is up to whoever reads the chronicle.
 
-The cell refuses four things here:
+The cell refuses these:
 
 - a copy of something that is not a decision;
 - a copy of its own decision, offered back to it;
 - a receipt for a decision that the copy is not about, or a receipt dated before the decision in the copy;
-- a decision taken again without such a later chronolexogram.
+- a decision taken again without such a later chronolexogram;
+- a fact that refers to a record while it declares no effects, or that refers to a record not in the chronicle.
 
-When it opens a chronicle, the cell checks `after` and every receipt in the same way. A reduction reads receipts like any other recorded fact. The row of a receipt also gives the decision it is about, under `refers_to`. [RFC-053](/rfcs/rfc-053) gives the design, for the appeal to the administrative court.
+When it opens a chronicle, the cell checks `after` and every receipt in the same way, and that a fact that refers to a record without having received a copy refers to one before it. A reduction reads receipts like any other recorded fact. The row of a receipt also gives the decision it is about, under `refers_to`. [RFC-053](/rfcs/rfc-053) gives the design, for the appeal to the administrative court.
 
 ## Answers of other cells
 

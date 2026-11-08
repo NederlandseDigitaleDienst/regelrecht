@@ -80,7 +80,7 @@ Feature: A ruling received as a copy revokes the decision it annuls
     When the cell receives ruling "uitspraak" as fact "afschrift_uitspraak_ontvangen" "ontvangst" under article "11" of "test_chronicle_effects"
     Given the calculation date is "2025-09-01"
     When the cell records fact "uitspraak_vernietigd_in_hoger_beroep" as "hoger_beroep" about "ontvangst" under article "12" of "test_chronicle_effects" with:
-      | beroep_alsnog_ongegrond | true |
+      | uitspraak_in_hoger_beroep_op | 2025-09-01 |
     And I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
     Then output "heeft_geldige_kaart" is true
     And record "ontvangst" is skipped

@@ -324,17 +324,17 @@ articles:
             De uitspraak waarvan het college een afschrift ontving, is in hoger
             beroep vernietigd, en het beroep is alsnog ongegrond verklaard.
           parameters:
-            - beroep_alsnog_ongegrond
+            - uitspraak_in_hoger_beroep_op
           # The fact refers to the receipt of the copy of the annulled
           # ruling, in the cell's chronicle; the ruling itself is in the
           # court's.
           effects:
             - revokes: refers_to
-              when: beroep_alsnog_ongegrond
       execution:
         parameters:
-          - name: beroep_alsnog_ongegrond
-            type: boolean
+          # The day of the ruling on further appeal.
+          - name: uitspraak_in_hoger_beroep_op
+            type: date
 
   - number: '13'
     url: https://example.com/test_chronicle_effects/13
