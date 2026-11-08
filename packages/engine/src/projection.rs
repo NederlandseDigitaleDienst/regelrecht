@@ -378,9 +378,9 @@ impl LawExecutionService {
     }
 
     /// Refuse a step that does not fit the laws it names, in their versions
-    /// in force on `day` ([`check_step`]). The loader checks the same against
-    /// the versions it holds, whichever of the reduction and the law loads
-    /// last; this check holds the step to the versions the play uses.
+    /// in force on `day`, the calculation date ([`check_step`]). The loader
+    /// checks the same when the reduction loads, against the laws it holds
+    /// then; this check also holds the step to a law that arrived later.
     fn check_steps(
         &self,
         law_id: &str,
@@ -777,8 +777,9 @@ pub(crate) enum Versions {
     /// one is refused.
     InForce(NaiveDate),
     /// Those the loader holds: a law it does not hold yet is not checked,
-    /// because the reduction and the law load in any order; the loader
-    /// checks the step again when that law arrives.
+    /// because the reduction and the law load in any order. A law that
+    /// arrives later always loads, and the play checks the step against
+    /// the versions in force.
     Loaded,
 }
 
@@ -2308,7 +2309,7 @@ articles:
             )
         };
         // Article 1 gives an application and a decision. The loader
-        // refuses the step, whichever of the two loads last.
+        // refuses the step when the reduction loads after the law.
         let err = ask("wet#1").expect_err("no kind");
         assert!(
             err.to_string().contains(
