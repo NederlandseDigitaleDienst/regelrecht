@@ -904,13 +904,16 @@ pub(crate) fn check_step<'l>(
                 Some(Some(_)) => {}
             }
         }
-        if let Some(required) = called
-            .get_parameters()
-            .iter()
-            .find(|p| p.required != Some(false) && !parameters.contains_key(&p.name))
-        {
+        // A required parameter the output does not read, such as a field
+        // a fact of the article holds, need not be passed.
+        let reads = output_reads(called, output);
+        if let Some(required) = called.get_parameters().iter().find(|p| {
+            p.required != Some(false)
+                && reads.contains(&p.name)
+                && !parameters.contains_key(&p.name)
+        }) {
             return Err(format!(
-                "input '{}' passes no '{}', which {regulation} article {} requires",
+                "input '{}' passes no '{}', which '{output}' of {regulation} article {} reads",
                 input.name, required.name, called.number
             ));
         }
@@ -1136,6 +1139,22 @@ fn field_type(article: &Article, kind: Option<&str>, name: &str) -> Option<Param
         .or_else(|| in_outputs.then(output).flatten())
 }
 
+/// Every name `output` of `article` reads, through the actions that compute
+/// it and the outputs of the article they read in turn
+/// ([`crate::demand::required_outputs`]).
+fn output_reads(article: &Article, output: &str) -> BTreeSet<String> {
+    let actions = article
+        .get_execution_spec()
+        .and_then(|e| e.actions.as_deref())
+        .unwrap_or_default();
+    let needed = crate::demand::required_outputs(actions, &[output]);
+    actions
+        .iter()
+        .filter(|a| a.output.as_ref().is_some_and(|o| needed.contains(o)))
+        .flat_map(crate::demand::referenced_names)
+        .collect()
+}
+
 /// Refuse an output a step cannot read: one that depends on anything but
 /// the parameters the step passes. Purity is a matter of what the step
 /// reads, not of the whole article, so the check follows `output` through
@@ -1154,17 +1173,7 @@ fn refuse_impure(article: &Article, output: &str) -> std::result::Result<(), Str
     if machine.projection.is_some() {
         return Err("the article plays a projection itself".to_string());
     }
-    let actions = machine
-        .execution
-        .as_ref()
-        .and_then(|e| e.actions.as_deref())
-        .unwrap_or_default();
-    let needed = crate::demand::required_outputs(actions, &[output]);
-    let reads: BTreeSet<String> = actions
-        .iter()
-        .filter(|a| a.output.as_ref().is_some_and(|o| needed.contains(o)))
-        .flat_map(crate::demand::referenced_names)
-        .collect();
+    let reads = output_reads(article, output);
     // An input named like an output still reaches that output's first
     // assignment (the pass-through `x: $x`), so a read of the name counts.
     if let Some(input) = article
@@ -2523,9 +2532,11 @@ articles:
                 "input 'kaart_na' passes $record.bestaat_niet as 'verleend', but the record has no such field",
             ),
             (
+                // `kaart` does not read `aantal`, so 'kaart_na' need not pass
+                // it; `aantal_na` does.
                 LAW.to_string(),
                 with(parameters, "parameters: {verleend: $record.verleend}"),
-                "input 'kaart_na' passes no 'aantal', which wet article 5 requires",
+                "input 'aantal_na' passes no 'aantal', which 'aantal_na' of wet article 5 reads",
             ),
             (
                 // `verleend` is an output of the decision, not of the
