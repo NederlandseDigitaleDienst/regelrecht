@@ -2683,7 +2683,13 @@ articles:
         let mut h = revoke("h", "n", true);
         h.refers_to = Some("a".to_string());
         let records = [of(grant("a"), "x"), of(replace("n", "a"), "y"), h];
-        play_for("x", &records).unwrap();
+        // Under v0.8.16 `h` refers to a record of x, so x applies its step.
+        let x = play_for("x", &records).unwrap();
+        assert!(records_in(&x).contains(&"h"), "{:?}", records_in(&x));
+        assert!(!x
+            .events
+            .iter()
+            .any(|e| matches!(e, ProjectionEvent::EffectsOnly { record, .. } if record == "h")));
         let mut service = keyed();
         service
             .load_law(&LAW.replace(
@@ -2970,8 +2976,16 @@ articles:
                 with(parameters, "parameters: {verleend: $state.aantal, aantal: $state.aantal}"),
                 "input 'kaart_na' passes $state.aantal, a Number, as 'verleend', a Boolean",
             ),
-            // A parameter of the question: since v0.8.17 a step passes none
-            // (since_v0_8_17_a_projection_has_per_and_its_steps_ask_no_question).
+            (
+                LAW.to_string(),
+                // A parameter of the question, of the wrong type (up to
+                // v0.8.16; from v0.8.17 a step passes none).
+                with(parameters, "parameters: {verleend: $record.verleend, aantal: $peil}").replace(
+                    "      execution:\n        output: [{name: heeft_kaart",
+                    "      execution:\n        parameters: [{name: peil, type: date}, {name: n, type: number}]\n        output: [{name: heeft_kaart",
+                ),
+                "input 'kaart_na' passes $peil, a Date, as 'aantal', a Number",
+            ),
             (
                 LAW.to_string(),
                 with(parameters, "parameters: {verleend: $record.bestaat_niet, aantal: $state.aantal}"),
@@ -3404,7 +3418,7 @@ articles:
         }
     }
 
-    /// Under v0.8.14 a field named `refers_to` keeps its own value in a
+    /// Up to v0.8.16 a field named `refers_to` keeps its own value in a
     /// step: `$record.refers_to` is the record a record refers to only from
     /// v0.8.17, the version that brought `per`.
     #[test]
@@ -3687,7 +3701,7 @@ articles:
             ..revoke(id, target, true)
         };
         // A revocation outside the aggregate is refused, also under a law
-        // on v0.8.14, rather than left unseen.
+        // on v0.8.16, rather than left unseen.
         let unattached = vec![granted_to("a", "x"), super::tests::revoke("h", "a", true)];
         let err = per_service()
             .projection_rows("per_verlening", &unattached, &BTreeMap::new(), "2025-03-01")

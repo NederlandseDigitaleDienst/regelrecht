@@ -356,6 +356,28 @@ fn a_fact_refers_only_to_a_record_of_the_chronicle() {
         )
         .unwrap();
     assert_eq!(fact.refers_to.as_deref(), Some("verlening_x"));
+    // Up to v0.8.16 only a fact with effects refers to a record.
+    let read = |path: &str| std::fs::read_to_string(fixtures().join(path)).unwrap();
+    let older = service_of(&[
+        &read("regulation/test_chronicle_effects/2025-01-01.yaml").replace(
+            "schema-v0.8.17/schema/v0.8.17",
+            "schema-v0.8.16/schema/v0.8.16",
+        ),
+    ]);
+    let err = cell
+        .record_executogram_referring(
+            &older,
+            "test_chronicle_effects#5#kaart_ingeleverd",
+            &object_map(json!({"ingeleverd_op": "2025-04-01", "aanvrager": "burger_x"})),
+            Some("verlening_x"),
+            day("2025-04-01"),
+        )
+        .expect_err("no effects under v0.8.16");
+    assert!(
+        err.to_string()
+            .contains("declares no effects; up to schema v0.8.16 only a fact with effects"),
+        "{err}"
+    );
     let err = cell
         .record_executogram_referring(
             &service(),

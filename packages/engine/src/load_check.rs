@@ -991,8 +991,8 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
     Ok(())
 }
 
-/// Whether a step of `law` may pass a parameter of the question: only under
-/// schema v0.8.14, which allowed it. A file that names no version is held to
+/// Whether a step of `law` may pass a parameter of the question: from schema
+/// v0.8.14 up to v0.8.16, which allowed it. A file that names no version is held to
 /// the newest.
 fn passes_question(law: &ArticleBasedLaw) -> bool {
     !from_version(law, (0, 8, 17))

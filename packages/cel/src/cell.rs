@@ -692,7 +692,8 @@ impl Cell {
     /// receipt of a copy referred to anything.
     ///
     /// Refused, besides what [`Cell::record_executogram`] refuses: a
-    /// `refers_to` that names no chronolexogram of this chronicle.
+    /// `refers_to` that names no chronolexogram of this chronicle, and, for a
+    /// fact of a law on v0.8.16 or earlier, one on a fact without effects.
     pub fn record_executogram_referring(
         &mut self,
         service: &LawExecutionService,
@@ -703,6 +704,19 @@ impl Cell {
     ) -> Result<Gram> {
         let declared = shape::fact_fields(service, fact, on, Some(&self.authority))?;
         if let Some(referred) = refers_to {
+            // Up to schema v0.8.16 only a fact with effects refers to a
+            // record: the record they revoke.
+            let (_, required) = shape::required_fact(service, fact, on)?;
+            let (basis, _) = shape::split_fact(fact)?;
+            let law = basis
+                .split_once('#')
+                .and_then(|(law_id, _)| service.resolver().get_law_for_date(law_id, Some(on)));
+            if required.effects().is_empty() && !law.is_none_or(|l| from_version(l, (0, 8, 17))) {
+                return Err(refused(format!(
+                    "the fact {fact} refers to '{referred}', but declares no effects; up to \
+                     schema v0.8.16 only a fact with effects refers to the record they revoke"
+                )));
+            }
             if !self.grams().iter().any(|g| g.id == referred) {
                 return Err(refused(format!(
                     "the fact {fact} refers to '{referred}', which is no chronolexogram in the \
@@ -2522,6 +2536,14 @@ pub(crate) fn refuse_decimal_key(name: &str, value: &serde_json::Value) -> Resul
     Ok(())
 }
 
+/// Whether `law` declares schema `version` or later, or names no version
+/// (and so is held to the newest).
+fn from_version(law: &regelrecht_engine::ArticleBasedLaw, version: (u32, u32, u32)) -> bool {
+    law.schema_version()
+        .and_then(regelrecht_law_model::parse_schema_version)
+        .is_none_or(|v| v >= version)
+}
+
 /// Refuse a decision of `grams`, about to follow `earlier` in a chronicle,
 /// that revokes a record it is not about (schema v0.8.17): the record an
 /// effect of its article names must be one its `refers_to` reaches,
@@ -2546,11 +2568,7 @@ fn revokes_only_what_it_is_about(
         else {
             continue;
         };
-        let from_v0_8_17 = law
-            .schema_version()
-            .and_then(regelrecht_law_model::parse_schema_version)
-            .is_none_or(|version| version >= (0, 8, 17));
-        if !from_v0_8_17 {
+        if !from_version(law, (0, 8, 17)) {
             continue;
         }
         let Some(decision) = law
@@ -2639,7 +2657,7 @@ mod tests {
 
     /// The decision on an objection about x's grant (article 2) may revoke
     /// that grant, but not y's: from v0.8.17 it revokes only a record it is
-    /// about, through the objection it was taken on. Under v0.8.14 it may.
+    /// about, through the objection it was taken on. Under v0.8.16 it may.
     #[test]
     fn a_decision_revokes_only_a_record_its_refers_to_reaches() {
         let earlier = [
