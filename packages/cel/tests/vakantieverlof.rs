@@ -1622,6 +1622,38 @@ fn a_new_decision_changed_in_the_chronicle_does_not_replay() {
 }
 
 #[test]
+fn a_chronicle_with_a_decision_recorded_in_turn_does_not_open() {
+    // The older form: the new decision a decision on an objection took was
+    // a chronolexogram of its own, which the decision held by its id. The
+    // cell does not convert such a chronicle; it refuses it and says why.
+    let mut cell = cell();
+    let refused = refused_on_profession(&mut cell);
+    let bezwaar = object(&mut cell, &refused.id, &objection(&[]), "2026-11-15").unwrap();
+    reconsider(&mut cell, &bezwaar.id, &profession(true), "2026-11-15").unwrap();
+    let mut grams = cell.grams().to_vec();
+    let mut new = common::in_turn(grams.last().unwrap());
+    new.id = "nieuw-besluit".into();
+    new.refers_to = Some(bezwaar.id.clone());
+    new.kind = "BESCHIKKING".into();
+    grams
+        .last_mut()
+        .unwrap()
+        .outputs
+        .insert(NEW.into(), json!(new.id));
+    grams.push(new);
+    let dir = lid_2_dir();
+    let Err(e) = Cell::restore(&Disk, RECORDING_ACTOR, dir.path(), grams) else {
+        panic!("an older chronicle opens");
+    };
+    assert!(
+        e.to_string().contains("is in an older form")
+            && e.to_string()
+                .contains("holds 'nieuw-besluit' as 'nieuw_besluit'"),
+        "{e}"
+    );
+}
+
+#[test]
 fn a_decision_already_replaced_on_objection_is_not_replaced_again() {
     // Two objections against one grant, both on time. On the first, the
     // head judges the profession anew and a refusal takes the grant's place.

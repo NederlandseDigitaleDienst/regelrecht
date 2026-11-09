@@ -22,6 +22,14 @@ describe('melding', () => {
     );
   });
 
+  it('zegt dat een spel in een oudere vorm niet verder kan', () => {
+    const fout =
+      `setup: the chronicle of 'obs_de_klimop' is in an older form: chronolexogram '${ids.beslissing}' ` +
+      `holds '${ids.vervanger}' as 'nieuw_besluit', a decision taken in turn recorded as a chronolexogram of its own; ` +
+      'a decision now holds such a decision as its value, and the cell does not convert an older chronicle';
+    expect(melding(fout)).toBe('Dit spel is opgeslagen in een oudere vorm en kan niet verder. Begin opnieuw met een casus.');
+  });
+
   it('zegt dat de kroniek alleen vooruit loopt', () => {
     const fout =
       `refused: chronolexogram '${ids.besluit}' is dated 2026-10-20, before the last chronolexogram of the chronicle ` +

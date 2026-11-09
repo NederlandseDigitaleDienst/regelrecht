@@ -52,6 +52,13 @@ const vertalingen = [
       `${hoofdletter(state.casus?.rol ?? 'het bestuursorgaan')} heeft "${leesbaar(begrip)}" nog niet beoordeeld, en het besluit heeft die bevinding nodig.`,
   ],
   [/the application '[^']+' is already decided on/, () => 'Hierop is al besloten.'],
+  // Een spel dat dit tabblad bewaarde voordat een beslissing op bezwaar het
+  // nieuwe besluit zelf ging houden (de cel, Cell::restore). Het spel is al
+  // weggegooid (state.js, hervatten); de cel zet het niet om.
+  [
+    /the chronicle of '[^']+' is in an older form/,
+    () => 'Dit spel is opgeslagen in een oudere vorm en kan niet verder. Begin opnieuw met een casus.',
+  ],
   // Een stap voordat er een casus gekozen is.
   [/no case is chosen/, () => 'Er is geen casus gekozen. Kies een casus.'],
   // De cel laadt niet in deze browser (api.js): de WASM of de bundel kwam

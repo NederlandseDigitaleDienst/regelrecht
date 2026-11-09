@@ -3,7 +3,8 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
   bestuursrechter (artikel 8:1), door een beroepschrift bij die rechter in te
   dienen (artikel 6:4, derde lid). Wie beroep instelt, maakt eerst bezwaar
   (artikel 7:1, eerste lid): het bestreden besluit is dan de beslissing op
-  het bezwaar, of het nieuwe besluit dat zij nam. Het beroepschrift bevat ten
+  het bezwaar, met het nieuwe besluit dat zij in de plaats van een herroepen
+  besluit nam. Het beroepschrift bevat ten
   minste wat artikel 6:5 noemt en is tijdig als het voor het einde van de
   termijn is ontvangen (artikelen 6:7 tot en met 6:9). De uitspraak strekt tot
   niet-ontvankelijkverklaring, ongegrondverklaring of gegrondverklaring van
@@ -68,12 +69,15 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     Then output "bestreden_besluit_vernietigd" is false
     Then output "opdracht_nieuw_besluit" is false
 
-  Scenario: Beroep tegen het nieuwe besluit dat op bezwaar is genomen, is ontvankelijk
-    # Het besluit berust op artikel 13a van de Leerplichtwet 1969, maar is
-    # genomen op het bezwaar (taken_on): artikel 7:1, eerste lid, onder a.
+  Scenario: Beroep tegen een beslissing op bezwaar die een nieuw besluit nam, is ontvankelijk
+    # Artikel 7:11, tweede lid: de beslissing herroept het bestreden besluit
+    # en neemt in de plaats daarvan een nieuw besluit, onder artikel 13a van
+    # de Leerplichtwet 1969. Dat nieuwe besluit hoort bij de beslissing
+    # (nieuw_besluit); beroep ligt tegen de beslissing (artikel 7:1, eerste
+    # lid, onder a).
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
-      | bestreden_besluit | {"basis": "leerplichtwet_1969#13a", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar_volgens_hoofd": false, "specifieke_aard_beroep_ouder": true, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": true}} |
+      | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": true, "bestreden_besluit_herroepen": true, "nieuw_besluit": {"basis": "leerplichtwet_1969#13a", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar_volgens_hoofd": false, "specifieke_aard_beroep_ouder": true, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": true}}}} |
     Given the following findings:
       | indiener_is_belanghebbende | true |
       | rechtsregel_geschonden | false |

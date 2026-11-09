@@ -178,6 +178,7 @@ impl Cell {
         }
         for (position, gram) in chronicle.grams().iter().enumerate() {
             check_executogram(gram, &recording_actor)?;
+            refuse_decision_recorded_in_turn(gram, chronicle.grams(), &recording_actor)?;
             let before = &chronicle.grams()[..position];
             // A fact that refers to a record without having received a copy
             // (schema v0.8.15) refers to one before it.
@@ -1867,6 +1868,36 @@ impl Cell {
                 Ok(gram)
             }
         }
+    }
+}
+
+/// Refuse a chronicle in the form from before one act was one record: a
+/// decision whose output holds, by its id, a decision it took in turn,
+/// recorded as a chronolexogram of its own. Since then the decision holds
+/// the decision it took in turn as its value ([`Cell::decide`]), and an
+/// output holds no id of a chronolexogram. The cell does not convert such a
+/// chronicle; it says what it is, so whoever keeps it can start again.
+fn refuse_decision_recorded_in_turn(
+    gram: &Gram,
+    grams: &[Gram],
+    recording_actor: &str,
+) -> Result<()> {
+    let taken = gram.outputs.iter().find_map(|(name, value)| {
+        let id = value.as_str()?;
+        grams
+            .iter()
+            .any(|g| g.id == id && g.id != gram.id)
+            .then_some((name, id))
+    });
+    match taken {
+        Some((name, id)) => Err(setup(format!(
+            "the chronicle of '{recording_actor}' is in an older form: chronolexogram '{}' \
+             holds '{id}' as '{name}', a decision taken in turn recorded as a chronolexogram of \
+             its own; a decision now holds such a decision as its value, and the cell does not \
+             convert an older chronicle",
+            gram.id
+        ))),
+        None => Ok(()),
     }
 }
 
