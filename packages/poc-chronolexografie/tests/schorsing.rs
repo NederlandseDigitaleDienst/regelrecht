@@ -431,7 +431,8 @@ fn the_reduction_tab_shows_the_copies_the_permit_reduction_reads() {
     // A step on an executogram reads the facts its article requires; the
     // tab Reductie lists them beside the decisions, also those of the
     // aggregates the reduction reads (source.projections): the permit's,
-    // with the judgment in the main case, then the suspension's.
+    // with the judgment in the main case and the decision a suspension is
+    // about, then the suspension's.
     let mut spel = spel();
     let stand = spel.reducties(dag("2026-12-01")).unwrap();
     let reductie = stand["reducties"]
@@ -450,6 +451,7 @@ fn the_reduction_tab_shows_the_copies_the_permit_reduction_reads() {
         feiten,
         [
             "algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak",
+            "algemene_wet_bestuursrecht#8:84#afschrift_van_de_uitspraak_van_de_voorzieningenrechter",
             "algemene_wet_bestuursrecht#8:84#afschrift_van_de_uitspraak_van_de_voorzieningenrechter",
             "algemene_wet_bestuursrecht#8:87#afschrift_van_de_uitspraak_tot_opheffing",
         ]
@@ -602,7 +604,8 @@ fn per_permit_a_permit_granted_on_objection_can_be_suspended() {
     // college refuses a third permit. On objection it applies the hardship
     // clause: the refusal is revoked (Awb 7:11, second paragraph, as an
     // effect) and a new decision grants the permit. The voorzieningenrechter
-    // then suspends that new decision. The request and the appeal it needs
+    // then suspends that decision on the objection, which holds the new
+    // decision: one act, one record. The request and the appeal it needs
     // (8:81, first paragraph) are not played, as elsewhere in this file.
     const DERDE: &str = "ZZ-003-Z";
     let service = service();
@@ -640,14 +643,11 @@ fn per_permit_a_permit_granted_on_objection_can_be_suspended() {
         json!(true),
         "{gegrond}"
     );
-    let nieuw = gegrond["beslissing"]["outputs"]["nieuw_besluit"]
-        .as_str()
-        .unwrap()
-        .to_string();
+    let beslissing = gegrond["beslissing"]["id"].as_str().unwrap().to_string();
     let kroniek = spel.kroniek().unwrap();
     let grams: Vec<Gram> = serde_json::from_value(kroniek["grammen"].clone()).unwrap();
 
-    let mut geschorst = schorsing(&nieuw);
+    let mut geschorst = schorsing(&beslissing);
     geschorst.recorded_on = dag("2026-12-01");
     geschorst
         .fields

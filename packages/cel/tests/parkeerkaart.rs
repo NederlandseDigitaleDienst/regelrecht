@@ -703,14 +703,15 @@ fn gegrond_a_new_examination_revokes_the_refusal_and_grants_the_card() {
     // A new medical examination finds a long-term walking limitation; the
     // college gives that finding anew, and the others stand.
     let decided = reconsider(&mut cell, &bezwaar.id, &walking(true), "2026-11-20");
-    assert_eq!(decided.len(), 2);
-    let (decision, new) = (&decided[0], &decided[1]);
+    // One act, one record: the decision on the objection holds the new one.
+    assert_eq!(decided.len(), 1);
+    let decision = &decided[0];
+    let new = common::in_turn(decision);
 
     assert_eq!(decision.outputs[CAUSE], json!(true));
     assert_eq!(decision.outputs[REVOKED], json!(true));
-    assert_eq!(decision.outputs[NEW], json!(new.id));
+    assert_eq!(decision.outputs[NEW]["taken_on"], json!(bezwaar.basis));
     assert_eq!(new.basis, format!("{LAW}#{ARTICLE}"));
-    assert_eq!(new.refers_to.as_deref(), Some(bezwaar.id.as_str()));
     assert_eq!(new.fields[WALKING], json!(true));
     assert_eq!(new.fields[OTHER], json!(false));
     assert_eq!(
@@ -745,7 +746,7 @@ fn a_revoked_card_does_not_count_as_a_valid_one() {
     let decided = reconsider(&mut cell, &bezwaar.id, &walking(false), "2026-11-20");
     assert_eq!(decided[0].outputs[REVOKED], json!(true));
     assert_eq!(
-        decided[1].outputs["gehandicaptenparkeerkaart_verstrekt"],
+        common::in_turn(&decided[0]).outputs["gehandicaptenparkeerkaart_verstrekt"],
         json!(false)
     );
 
@@ -1689,7 +1690,7 @@ fn on_objection_a_new_advice_revokes_the_refusal() {
     let decided = reconsider(&mut cell, &bezwaar.id, &Map::new(), "2026-11-20");
     assert_eq!(decided[0].outputs[REVOKED], json!(true));
     assert_eq!(
-        decided[1].outputs["gehandicaptenparkeerkaart_verstrekt"],
+        common::in_turn(&decided[0]).outputs["gehandicaptenparkeerkaart_verstrekt"],
         json!(true)
     );
 }

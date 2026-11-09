@@ -36,8 +36,10 @@ const ongegrond = { id: id('0000dddd'), kind: 'BESCHIKKING', basis: 'awb#7:11', 
 const beroep = { id: id('0000eeee'), kind: 'BEROEP', basis: 'awb#8:70', received: { from: 'school', id: ongegrond.id } };
 const uitspraak = { id: id('0000ffff'), kind: 'UITSPRAAK', basis: 'awb#8:70', refers_to: beroep.id };
 const ontvangst = { id: id('00001111'), kind: 'EXECUTOGRAM', basis: 'awb#8:79', fact: 'afschrift_van_de_uitspraak', refers_to: ongegrond.id, received: { from: 'rechtbank', id: uitspraak.id }, fields: { opdracht_nieuw_besluit: true } };
-const nieuw = { id: id('00003333'), kind: 'BESCHIKKING', basis: 'wet#13a', refers_to: bezwaar.id, outputs: { verlof_verleend: true } };
-const gegrond = { id: id('00002222'), kind: 'BESCHIKKING', basis: 'awb#7:11', refers_to: bezwaar.id, after: ontvangst.id, outputs: { bezwaar_ontvankelijk: true, bestreden_besluit_herroepen: true, nieuw_besluit: nieuw.id } };
+// The decision on the objection holds the new decision as a value: one act,
+// one record.
+const nieuw = { basis: 'wet#13a', taken_on: 'awb#7:11', fields: {}, findings: {}, outputs: { verlof_verleend: true } };
+const gegrond = { id: id('00002222'), kind: 'BESCHIKKING', basis: 'awb#7:11', refers_to: bezwaar.id, after: ontvangst.id, outputs: { bezwaar_ontvankelijk: true, bestreden_besluit_herroepen: true, nieuw_besluit: nieuw } };
 
 const guide = (naam) => guideFor(casus, naam);
 const V2 = 'Afwijzing, bezwaar en heroverweging: gegrond';
@@ -57,7 +59,7 @@ beforeEach(() => {
 
 describe('counts', () => {
   it('counts each kind of step from the chronicles', () => {
-    state.grammen = [aanvraag, weigering, bezwaar, ongegrond, ontvangst, gegrond, nieuw];
+    state.grammen = [aanvraag, weigering, bezwaar, ongegrond, ontvangst, gegrond];
     state.rechter = [beroep, uitspraak];
     state.andere = [{ cel: 'rechtbank', grammen: state.rechter }];
     const k = counts();
@@ -103,8 +105,8 @@ describe('progress', () => {
   });
 
   it('finishes V2 when the objection is upheld', () => {
-    const upheld = { ...ongegrond, outputs: { bezwaar_ontvankelijk: true, bestreden_besluit_herroepen: true } };
-    state.grammen = [aanvraag, weigering, bezwaar, upheld, nieuw];
+    const upheld = { ...ongegrond, outputs: { bezwaar_ontvankelijk: true, bestreden_besluit_herroepen: true, nieuw_besluit: nieuw } };
+    state.grammen = [aanvraag, weigering, bezwaar, upheld];
     expect(progress(guide(V2), counts())).toMatchObject({ finished: true, warning: null });
   });
 
@@ -117,7 +119,7 @@ describe('progress', () => {
   });
 
   it('finishes V9 after deciding again on the objection', () => {
-    state.grammen = [aanvraag, weigering, bezwaar, ongegrond, ontvangst, gegrond, nieuw];
+    state.grammen = [aanvraag, weigering, bezwaar, ongegrond, ontvangst, gegrond];
     state.rechter = [beroep, uitspraak];
     const p = progress(guide(V9), counts());
     expect(p).toMatchObject({ finished: true, warning: null });
@@ -141,13 +143,13 @@ describe('progress', () => {
   it('counts a refusal of the cell as the last step of V5, until a reset', async () => {
     const grant = { ...weigering, outputs: { verlof_verleend: true } };
     const second = { ...bezwaar, id: id('00007777') };
-    const upheld = { ...ongegrond, outputs: { bezwaar_ontvankelijk: true, bestreden_besluit_herroepen: true } };
-    globalThis.chronicle = [aanvraag, grant, bezwaar, second, upheld, nieuw];
+    const upheld = { ...ongegrond, outputs: { bezwaar_ontvankelijk: true, bestreden_besluit_herroepen: true, nieuw_besluit: nieuw } };
+    globalThis.chronicle = [aanvraag, grant, bezwaar, second, upheld];
     state.grammen = globalThis.chronicle;
     state.scenario = V5;
     expect(progress(guide(V5), counts()).current).toBe(5);
     await stap(async () => {
-      throw new Error("in the place of 'x', which chronolexogram 'y' already replaces (taken by 'z')");
+      throw new Error("in the place of 'x', which the decision 'z' already replaces");
     });
     // The banner goes away; the refusal stays.
     state.fout = '';

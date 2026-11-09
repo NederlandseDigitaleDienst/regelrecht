@@ -12,9 +12,11 @@ valid_from: '2026-01-01'
 # heeft en of hij eerder een kaart kreeg. De reductie van de gemeente
 # (reductie_geldige_gehandicaptenparkeerkaart) geeft dit beleid de besluiten
 # die meetellen, elk als rij (schema v0.8.17); artikel 3 zegt per ontvangen
-# uitspraak of de bestuursrechter zelf een kaart verstrekte, voor de reductie
-# per besluit. Het staat los van het beleid gehandicaptenparkeerkaart, omdat
-# dat beleid de reductie aanroept.
+# uitspraak of de bestuursrechter zelf een kaart verstrekte, en artikel 4 per
+# beslissing op bezwaar wat het nieuwe besluit verstrekt dat zij in de plaats
+# van het herroepen besluit nam, beide voor de reductie per besluit. Het
+# staat los van het beleid gehandicaptenparkeerkaart, omdat dat beleid de
+# reductie aanroept.
 url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
 name: Verstrekte gehandicaptenparkeerkaarten in de gemeente Wilgendaal (fictief beleid)
 competent_authority:
@@ -178,3 +180,68 @@ articles:
                     - operation: EQUALS
                       subject: $primair_besluit_in_de_plaats.outputs.gehandicaptenparkeerkaart_verstrekt
                       value: true
+
+  - number: '4'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Neemt
+      het college op bezwaar een nieuw besluit in de plaats van het herroepen
+      besluit, dan telt dat besluit zoals een besluit op de aanvraag:
+      verstrekt het een kaart, dan heeft de aanvrager een kaart tot en met de
+      dag die het noemt. Een beslissing op bezwaar zonder nieuw besluit laat
+      staan wat gold.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel7:11
+    machine_readable:
+      # Awb 7:11, tweede lid: het bestuursorgaan herroept het bestreden
+      # besluit en neemt in de plaats daarvan een nieuw besluit. De gemeente
+      # legt de beslissing op bezwaar vast, met het nieuwe besluit erin
+      # (nieuw_besluit); het nieuwe besluit is geen eigen record. Hoe lang de
+      # kaart geldt, rekende het nieuwe besluit zelf uit, vanaf zijn eigen
+      # dag (artikel 51 van het BABW). Dit artikel leest niets anders dan wat
+      # het krijgt.
+      execution:
+        parameters:
+          - name: al_verstrekt
+            type: boolean
+            description: Of het besluit vóór deze beslissing op bezwaar een kaart verstrekte.
+          - name: al_kaart_geldig_tot
+            type: date
+            nullable: true
+            description: De laatste geldige dag van die kaart.
+          - name: nieuw_besluit
+            type: decision
+            nullable: true
+            description: >-
+              Het besluit dat de beslissing op bezwaar in de plaats van het
+              herroepen besluit nam; leeg als zij dat niet deed.
+        output:
+          - name: verstrekt_na_bezwaar
+            type: boolean
+            description: Of er na deze beslissing op bezwaar een kaart is verstrekt.
+          - name: kaart_geldig_tot_na_bezwaar
+            type: date
+            nullable: true
+            description: De laatste geldige dag van die kaart.
+        actions:
+          - output: verstrekt_na_bezwaar
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $nieuw_besluit
+                    value: null
+                  then: $al_verstrekt
+              default:
+                operation: EQUALS
+                subject: $nieuw_besluit.outputs.gehandicaptenparkeerkaart_verstrekt
+                value: true
+          - output: kaart_geldig_tot_na_bezwaar
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $nieuw_besluit
+                    value: null
+                  then: $al_kaart_geldig_tot
+              default: $nieuw_besluit.outputs.kaart_geldig_tot

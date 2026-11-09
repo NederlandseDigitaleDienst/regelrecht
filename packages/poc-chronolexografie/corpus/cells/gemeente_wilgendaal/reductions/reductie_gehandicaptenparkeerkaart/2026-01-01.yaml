@@ -11,7 +11,8 @@ valid_from: '2026-01-01'
 # een bezwaar en de beslissing erop. Welke records meetellen, volgt uit de
 # effecten die de Awb ze geeft (7:11, tweede lid, en 8:79 met 8:72). De staat
 # houdt of het besluit een kaart verstrekt en tot wanneer zij geldig is
-# (artikel 51 van het BABW), en of de bestuursrechter zelf een kaart
+# (artikel 51 van het BABW), ook als een beslissing op bezwaar een nieuw
+# besluit in de plaats van het herroepen besluit nam (7:11, tweede lid), en of de bestuursrechter zelf een kaart
 # verstrekte toen hij het besluit vernietigde (Awb 8:72, derde lid,
 # onder b). reductie_geldige_gehandicaptenparkeerkaart leest de aggregaten.
 # Er is geen bekendmaking; de url wijst naar artikel 49.
@@ -36,15 +37,40 @@ articles:
           - name: kaart_van_de_rechter
             type: boolean
         steps:
-          # Een besluit op een aanvraag, en een nieuw besluit dat een
-          # beslissing op bezwaar in de plaats van een herroepen besluit nam:
-          # beide berusten op artikel 49, en elk is een eigen aggregaat.
+          # Het besluit op de aanvraag.
           - record: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49#BESCHIKKING
             actions:
               - output: verstrekt
                 value: $record.gehandicaptenparkeerkaart_verstrekt
               - output: kaart_geldig_tot
                 value: $record.kaart_geldig_tot
+          # De beslissing op een bezwaar tegen dit besluit. Nam zij een nieuw
+          # besluit in de plaats van het herroepen besluit (Awb 7:11, tweede
+          # lid), dan houdt zij dat nieuwe besluit zelf (nieuw_besluit): één
+          # handeling is één record. Vernietigt de bestuursrechter de
+          # beslissing, dan valt het nieuwe besluit met haar weg.
+          - record: algemene_wet_bestuursrecht#7:11#BESCHIKKING
+            input:
+              - name: verstrekt_na_bezwaar
+                type: boolean
+                source:
+                  regulation: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
+                  output: verstrekt_na_bezwaar
+                  parameters: &bezwaar
+                    al_verstrekt: $state.verstrekt
+                    al_kaart_geldig_tot: $state.kaart_geldig_tot
+                    nieuw_besluit: $record.nieuw_besluit
+              - name: kaart_geldig_tot_na_bezwaar
+                type: date
+                source:
+                  regulation: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
+                  output: kaart_geldig_tot_na_bezwaar
+                  parameters: *bezwaar
+            actions:
+              - output: verstrekt
+                value: $verstrekt_na_bezwaar
+              - output: kaart_geldig_tot
+                value: $kaart_geldig_tot_na_bezwaar
           # De ontvangst van een uitspraak (Awb 8:79) over dit besluit:
           # voorzag de bestuursrechter zelf in de zaak en verstrekte hij een
           # kaart (Awb 8:72, derde lid, onder b), dan heeft de aanvrager een

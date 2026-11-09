@@ -16,7 +16,9 @@ valid_from: '2026-01-01'
 # per bedrijf en per kenteken, geven dit beleid de rijen van die
 # aggregaten en de dag (schema v0.8.17). Wat een rij op die dag betekent,
 # staat hier: artikel 1 zegt welke besluiten op de dag geschorst zijn,
-# artikel 2 welke vergunningen geldig zijn. Het beleid staat los van het
+# artikel 2 welke vergunningen geldig zijn. Artikel 3 zegt per beslissing op
+# bezwaar wat het nieuwe besluit verleent dat zij in de plaats van het
+# herroepen besluit nam, voor de reductie per besluit. Het beleid staat los van het
 # beleid bedrijfsparkeervergunning, omdat dat beleid de reductie per bedrijf
 # aanroept.
 url: https://lokaleregelgeving.overheid.nl/CVDR733452
@@ -52,8 +54,9 @@ articles:
           - name: vergunningen
             type: array
             description: >-
-              De besluiten op aanvragen, elk met zijn id en de dag van de
-              uitspraak in de hoofdzaak.
+              De besluiten op aanvragen, elk met zijn id, het besluit uit
+              zijn aggregaat waarop een uitspraak van de voorzieningenrechter
+              ziet, en de dag van de uitspraak in de hoofdzaak.
           - name: schorsingen
             type: array
             description: >-
@@ -123,9 +126,10 @@ articles:
                       filter:
                         operation: AND
                         conditions:
-                          - operation: EQUALS
-                            subject: $vergunning.id
-                            value: $schorsing.besluit
+                          - operation: OR
+                            conditions:
+                              - {operation: EQUALS, subject: $vergunning.id, value: $schorsing.besluit}
+                              - {operation: EQUALS, subject: $vergunning.voorziening_op_besluit, value: $schorsing.besluit}
                           - operation: NOT
                             value: {operation: EQUALS, subject: $vergunning.uitspraak_hoofdzaak_op, value: null}
                           - operation: GREATER_THAN_OR_EQUAL
@@ -214,11 +218,18 @@ articles:
                       subject: {operation: DATE_DIFF, from: $peildatum, to: $vergunning.vergunning_geldig_tot, in: days}
                       value: 0
                     then: false
-                  # Op de dag geschorst (artikel 1).
+                  # Op de dag geschorst (artikel 1): het besluit op de aanvraag,
+                  # of de beslissing op bezwaar die in zijn plaats een
+                  # vergunning verleende.
                   - when:
-                      operation: IN
-                      subject: $vergunning.id
-                      value: $geschorst
+                      operation: OR
+                      conditions:
+                        - operation: IN
+                          subject: $vergunning.id
+                          value: $geschorst
+                        - operation: IN
+                          subject: $vergunning.voorziening_op_besluit
+                          value: $geschorst
                     then: false
                 default: true
               body: 1
@@ -228,3 +239,75 @@ articles:
               operation: GREATER_THAN
               subject: $aantal_geldige_vergunningen
               value: 0
+
+  - number: '3'
+    text: >-
+      FICTIEF, eigen keuze in de modellering. Neemt het college op bezwaar
+      een nieuw besluit in de plaats van het herroepen besluit, dan telt dat
+      besluit zoals een besluit op de aanvraag: verleent het een vergunning,
+      dan is die verleend op de dag van het nieuwe besluit en geldig tot en
+      met de dag die het noemt. Een beslissing op bezwaar zonder nieuw besluit
+      laat staan wat gold.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel7:11
+    machine_readable:
+      # Awb 7:11, tweede lid: het bestuursorgaan herroept het bestreden
+      # besluit en neemt in de plaats daarvan een nieuw besluit. De gemeente
+      # legt de beslissing op bezwaar vast, met het nieuwe besluit erin
+      # (nieuw_besluit); het nieuwe besluit is geen eigen record. Dit artikel
+      # leest niets anders dan wat het krijgt.
+      execution:
+        parameters:
+          - name: al_verleend
+            type: boolean
+            description: Of het besluit vóór deze beslissing op bezwaar een vergunning verleende.
+          - name: al_besluit_datum
+            type: date
+            nullable: true
+            description: De dag van dat besluit.
+          - name: al_vergunning_geldig_tot
+            type: date
+            nullable: true
+            description: De laatste geldige dag van die vergunning.
+          - name: nieuw_besluit
+            type: decision
+            nullable: true
+            description: >-
+              Het besluit dat de beslissing op bezwaar in de plaats van het
+              herroepen besluit nam; leeg als zij dat niet deed.
+        output:
+          - name: verleend_na_bezwaar
+            type: boolean
+            description: Of er na deze beslissing op bezwaar een vergunning is verleend.
+          - name: besluit_datum_na_bezwaar
+            type: date
+            nullable: true
+            description: De dag van het besluit dat de vergunning verleent.
+          - name: vergunning_geldig_tot_na_bezwaar
+            type: date
+            nullable: true
+            description: De laatste geldige dag van die vergunning.
+        actions:
+          - output: verleend_na_bezwaar
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $nieuw_besluit, value: null}
+                  then: $al_verleend
+              default:
+                operation: EQUALS
+                subject: $nieuw_besluit.outputs.bedrijfsparkeervergunning_verleend
+                value: true
+          - output: besluit_datum_na_bezwaar
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $nieuw_besluit, value: null}
+                  then: $al_besluit_datum
+              default: $nieuw_besluit.fields.besluit_datum
+          - output: vergunning_geldig_tot_na_bezwaar
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $nieuw_besluit, value: null}
+                  then: $al_vergunning_geldig_tot
+              default: $nieuw_besluit.outputs.vergunning_geldig_tot

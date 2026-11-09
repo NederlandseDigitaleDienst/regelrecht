@@ -938,11 +938,14 @@ impl Cell {
     ///   cell are `on` (`refresh`).
     ///
     /// Every output of type `decision` that is not null is a decision the
-    /// deciding article takes in turn: the cell records it as a
-    /// chronolexogram of its own (`Cell::decided`), referring to the same
-    /// submission, and keeps its id as that output. All of them land in the
-    /// chronicle together, or none. Returns them, the decision on the
-    /// submission first.
+    /// deciding article takes in turn, such as the new decision a decision on
+    /// an objection puts in the place of the revoked one (Awb 7:11, second
+    /// paragraph). One act is one record: the cell checks it
+    /// (`Cell::decided`) and keeps it as the value of that output, with what
+    /// its stages gave, and records no chronolexogram of its own for it. So
+    /// it falls with the decision that took it, such as when a court annuls
+    /// that decision (Awb 8:72). Returns the one decision recorded, in a
+    /// list.
     #[allow(clippy::too_many_arguments)]
     pub fn decide(
         &mut self,
@@ -977,9 +980,9 @@ impl Cell {
     /// no article: whether the earlier decision still stands is for whoever
     /// reads the chronicle.
     ///
-    /// A decision that replaced another in turn, taken by an earlier
-    /// decision on the same submission, does not count when the cell checks
-    /// that a decision is replaced once. Refused, besides what `decide`
+    /// A decision taken in the place of another by an earlier decision on
+    /// the same submission does not count when the cell checks that a
+    /// decision is replaced once. Refused, besides what `decide`
     /// refuses: a submission not decided on yet, and an `after` that is not
     /// in the chronicle or refers to another chronolexogram than the last
     /// decision on it.
@@ -1190,9 +1193,8 @@ impl Cell {
         for (name, (id, _)) in decisions {
             fields.insert(name, serde_json::Value::String(id));
         }
-        // Its id first, so the ids follow the order in the chronicle.
         let id = uuid::Uuid::now_v7().to_string();
-        let mut taken = Vec::new();
+        let mut took = false;
         for name in replaces {
             let Some(value) = outputs.get(&name).filter(|v| !v.is_null()) else {
                 continue;
@@ -1208,23 +1210,25 @@ impl Cell {
             let Some(applied) = applied.as_ref() else {
                 continue;
             };
-            let gram = self.decided(service, &shape, &name, value, applied, &answerers, on)?;
-            outputs.insert(name, serde_json::Value::String(gram.id.clone()));
-            taken.push(gram);
+            // One act is one record: the decision taken in turn is part of
+            // this decision, held as its value, and falls with it.
+            let taken = self.decided(service, &shape, &name, value, applied, &answerers, on)?;
+            outputs.insert(name, taken);
+            took = true;
         }
         // A decision is replaced once: the cell does not record a second
         // decision in the place of the same one.
         drop(reader);
-        if let Some(contested) = except.as_deref().filter(|_| !taken.is_empty())
-            && let Some((earlier, replacement)) = self.replacement_of(contested, &set_aside)
+        if let Some(contested) = except.as_deref().filter(|_| took)
+            && let Some(earlier) = self.replacement_of(contested, &set_aside)
         {
             return Err(refused(format!(
                 "the decision of {} would take a decision in the place of '{contested}', \
-                     which chronolexogram '{replacement}' already replaces (taken by '{earlier}')",
+                 which the decision '{earlier}' already replaces",
                 shape.basis()
             )));
         }
-        let mut grams = vec![Gram {
+        let grams = vec![Gram {
             id,
             kind: shape.kind.clone(),
             basis: shape.basis(),
@@ -1239,16 +1243,15 @@ impl Cell {
             missing: Vec::new(),
             outputs,
         }];
-        grams.extend(taken);
         revokes_only_what_it_is_about(service, self.chronicle.grams(), &grams)?;
         Ok(self.chronicle.append_all(grams)?.to_vec())
     }
 
     /// Why the decision `id` came out as it did: the decision taken again
     /// with tracing (`Cell::replay`), so the trace shows every article it ran
-    /// and what each read. For a decision taken in turn (a new decision in
-    /// the place of a revoked one), that is the decision on the submission
-    /// that took it: its trace holds the call that gave the new one.
+    /// and what each read. A decision taken in turn (a new decision in the
+    /// place of a revoked one) is part of the decision that took it, whose
+    /// trace holds the call that gave the new one.
     ///
     /// A term the cell answered is one node of that trace: the lexostatus,
     /// with the cell, the reduction and its version, and how far it read the
@@ -1346,8 +1349,7 @@ impl Cell {
     }
 
     /// Take the decision `id` again, with tracing, as [`Cell::decide`] took
-    /// it; for a decision taken in turn, the decision on the submission that
-    /// took it. Returns the engine's result, what the decision `id` asks,
+    /// it. Returns the engine's result, what the decision `id` asks,
     /// and what the cell answered the engine, with the trace of its
     /// reduction for the term `explain`.
     ///
@@ -1364,8 +1366,8 @@ impl Cell {
     /// item must come out as recorded; otherwise this is not the decision,
     /// and it fails.
     ///
-    /// A decision it took in turn must come out with the outputs of the
-    /// chronolexogram that recorded it.
+    /// A decision it took in turn must come out with the outputs its value
+    /// holds.
     ///
     /// The replay evaluates the outputs of the decision item at once, where
     /// `decide` runs the stages BESLUIT and BEKENDMAKING; the decision item's
@@ -1389,18 +1391,9 @@ impl Cell {
             ))
         })?;
         let grams = self.grams();
-        // The decision on the submission that is this one, or that holds it
-        // as a decision it took in turn: a submission decided on again has
-        // more than one.
         let position = grams
             .iter()
-            .position(|g| {
-                g.refers_to.as_deref() == Some(submission_id.as_str())
-                    && (g.id == target.id
-                        || g.outputs
-                            .values()
-                            .any(|v| v.as_str() == Some(target.id.as_str())))
-            })
+            .position(|g| g.id == target.id)
             .ok_or_else(|| {
                 setup(format!(
                     "no decision in the chronicle of '{}' refers to '{submission_id}'",
@@ -1490,40 +1483,27 @@ impl Cell {
                 .get(name)
                 .map(stored::to_stored)
                 .transpose()?;
-            // A decision it took is an id in the chronolexogram and a value
-            // here: the value's outputs are those of the chronolexogram of
-            // that id.
-            let same = if replaces.contains(name)
-                && !recorded.is_some_and(serde_json::Value::is_object)
-            {
-                match (recorded.and_then(serde_json::Value::as_str), &again) {
-                    (None, again) => {
-                        recorded.is_none_or(serde_json::Value::is_null)
-                            && again.as_ref().is_none_or(serde_json::Value::is_null)
-                    }
-                    (Some(taken), Some(value)) => {
-                        let taken = grams.iter().find(|g| g.id == taken).ok_or_else(|| {
-                            setup(format!(
-                                "the decision '{}' holds '{taken}' as '{name}', no \
-                                 chronolexogram in the chronicle",
-                                decision.id
-                            ))
-                        })?;
-                        let outputs = value
-                            .get("outputs")
+            // A decision it took in turn holds, as recorded, every output
+            // its stages gave; taken again, the value holds those of its
+            // decision item, which must be the same.
+            let same = match (recorded, &again) {
+                (Some(serde_json::Value::Object(held)), Some(serde_json::Value::Object(value)))
+                    if replaces.contains(name) =>
+                {
+                    let part = |o: &'_ Map<String, serde_json::Value>| {
+                        o.get("outputs")
                             .and_then(serde_json::Value::as_object)
                             .cloned()
-                            .unwrap_or_default();
-                        let mut same = !outputs.is_empty();
-                        for (key, output) in &outputs {
-                            same = same && stored::same_held(Some(output), taken.outputs.get(key))?;
-                        }
-                        same
+                            .unwrap_or_default()
+                    };
+                    let (held, value) = (part(held), part(value));
+                    let mut same = !value.is_empty();
+                    for (key, output) in &value {
+                        same = same && stored::same_held(Some(output), held.get(key))?;
                     }
-                    (Some(_), None) => false,
+                    same
                 }
-            } else {
-                stored::same_held(again.as_ref(), recorded)?
+                _ => stored::same_held(again.as_ref(), recorded)?,
             };
             if !same {
                 return Err(setup(format!(
@@ -1535,11 +1515,6 @@ impl Cell {
                 )));
             }
         }
-        let shape = if target.id == decision.id {
-            shape
-        } else {
-            decision_shape_of(service, &target, target.recorded_on)?
-        };
         let asked = reader.asked();
         Ok(Replayed {
             result,
@@ -1585,36 +1560,26 @@ impl Cell {
             .collect()
     }
 
-    /// The decision that replaces the decision `id`, if the chronicle holds
-    /// one: a decision recorded in turn on a submission that refers to `id`,
-    /// which the decision on that submission holds by its id as an output.
-    /// Returns the id of the decision on that submission and of the
-    /// replacing decision. A replacement taken by a decision in `set_aside`
+    /// The decision that replaced the decision `id`, if the chronicle holds
+    /// one: a decision on a submission that refers to `id` and holds, as an
+    /// output, a decision it took in its place. A decision in `set_aside`
     /// does not count.
-    fn replacement_of(&self, id: &str, set_aside: &[String]) -> Option<(&str, &str)> {
+    fn replacement_of(&self, id: &str, set_aside: &[String]) -> Option<&str> {
         let grams = self.grams();
         grams
             .iter()
             .filter(|s| s.refers_to.as_deref() == Some(id))
             .find_map(|submission| {
-                let on_it = || {
-                    grams
-                        .iter()
-                        .filter(|g| g.refers_to.as_deref() == Some(submission.id.as_str()))
-                };
-                on_it()
-                    .filter(|decision| !set_aside.contains(&decision.id))
-                    .find_map(|decision| {
-                        on_it()
-                            .filter(|r| r.id != decision.id)
-                            .find(|r| {
-                                decision
-                                    .outputs
-                                    .values()
-                                    .any(|v| v.as_str() == Some(r.id.as_str()))
-                            })
-                            .map(|r| (decision.id.as_str(), r.id.as_str()))
+                grams
+                    .iter()
+                    .filter(|g| g.refers_to.as_deref() == Some(submission.id.as_str()))
+                    .filter(|g| !set_aside.contains(&g.id))
+                    .find(|g| {
+                        g.outputs
+                            .values()
+                            .any(|v| v.as_object().is_some_and(shape::is_decision_value))
                     })
+                    .map(|g| g.id.as_str())
             })
     }
 
@@ -1703,13 +1668,11 @@ impl Cell {
     }
 
     /// The decision `value` that output `output` of the decision of
-    /// `deciding` gave, taken by its own article on `on` and recorded as a
-    /// chronolexogram that refers to the submission `submission`. Not yet
-    /// appended.
-    ///
-    /// Its `refers_to` is the submission it was taken on, not a submission of
-    /// its own article: a new decision on an objection refers to the
-    /// objection, as the decision on that objection does.
+    /// `deciding` gave, taken by its own article on `on` on the submission
+    /// `submission`, as the decision on that submission holds it. The cell
+    /// records no chronolexogram of its own for it: one act is one record,
+    /// so the new decision is part of the decision that took it and falls
+    /// with it (Awb 8:72, second paragraph).
     ///
     /// The cell runs the stages of that article again with the value's
     /// `fields` and `findings`, and fills a date a stage requires with `on`, so a hook at
@@ -1718,7 +1681,9 @@ impl Cell {
     /// those of the value, as a chronicle stores them; otherwise the value
     /// is not this article's decision on these fields. A value that holds
     /// `taken_on` must name the article of `submission`: the new decision
-    /// is taken on it.
+    /// is taken on it. Returns the decision value with what the stages gave:
+    /// its `fields` with the dates they filled, its `findings`, and every
+    /// output.
     #[allow(clippy::too_many_arguments)]
     fn decided(
         &self,
@@ -1729,7 +1694,7 @@ impl Cell {
         submission: &Gram,
         answerers: &Answerers<'_>,
         on: NaiveDate,
-    ) -> Result<Gram> {
+    ) -> Result<serde_json::Value> {
         let not_a_decision = || {
             setup(format!(
                 "'{output}' of the decision of {} is {value}, no decision value \
@@ -1777,8 +1742,9 @@ impl Cell {
                 .iter()
                 .filter(|(name, _)| !given_findings.contains_key(*name)),
         )?;
+        let mut stage_fields = fields.clone();
         for (name, finding) in given_findings {
-            fields
+            stage_fields
                 .entry(name.clone())
                 .or_insert_with(|| finding.clone());
         }
@@ -1789,10 +1755,10 @@ impl Cell {
             engine_values(given_findings)?,
             answerers,
             on,
-            &mut fields,
+            &mut stage_fields,
         )?;
-        // A decision it takes in turn would be a value in its outputs, not
-        // an id: the cell records one level.
+        // The new decision holds no decision it took in turn: the cell
+        // keeps one level.
         if let Some(nested) = decision_outputs(service, &shape.law_id, &shape.article, on)
             .into_iter()
             .find(|name| outputs.get(name).is_some_and(|v| !v.is_null()))
@@ -1837,21 +1803,18 @@ impl Cell {
                 submission.basis
             )));
         }
-        Ok(Gram {
-            id: uuid::Uuid::now_v7().to_string(),
-            kind: shape.kind.clone(),
-            basis: shape.basis(),
-            fact: None,
-            refers_to: Some(submission.id.clone()),
-            received: None,
-            after: None,
-            recording_actor: self.recording_actor.clone(),
-            recorded_on: on,
-            moment: None,
-            fields,
-            missing: Vec::new(),
-            outputs,
-        })
+        // The findings stay apart from the fields, as in a decision value.
+        let fields: Map<String, serde_json::Value> = stage_fields
+            .into_iter()
+            .filter(|(name, _)| !given_findings.contains_key(name))
+            .collect();
+        Ok(serde_json::json!({
+            "basis": shape.basis(),
+            "taken_on": submission.basis,
+            "fields": fields,
+            "findings": given_findings,
+            "outputs": outputs,
+        }))
     }
 
     /// The application chronolexogram `id` that the decision of `shape` is taken on:
@@ -1914,23 +1877,11 @@ impl Cell {
 }
 
 /// The decisions taken on the submission `id` in `grams`, in their order:
-/// those that refer to it, without a decision that one of them took in turn
-/// and holds by its id.
+/// those that refer to it.
 fn decisions_on<'g>(grams: &'g [Gram], id: &str) -> Vec<&'g Gram> {
-    let on_it: Vec<&Gram> = grams
+    grams
         .iter()
         .filter(|g| g.refers_to.as_deref() == Some(id))
-        .collect();
-    on_it
-        .iter()
-        .copied()
-        .filter(|g| {
-            !on_it.iter().any(|d| {
-                d.outputs
-                    .values()
-                    .any(|v| v.as_str() == Some(g.id.as_str()))
-            })
-        })
         .collect()
 }
 

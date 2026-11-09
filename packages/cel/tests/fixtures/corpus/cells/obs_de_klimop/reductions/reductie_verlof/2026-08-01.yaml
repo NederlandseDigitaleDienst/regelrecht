@@ -10,9 +10,10 @@ valid_from: '2026-08-01'
 # ernaar verwijst, zoals een bezwaar en de beslissing erop. Welke records
 # meetellen, volgt uit de effecten die de Awb ze geeft (7:11, tweede lid, en
 # 8:79 met 8:72). De staat houdt of het besluit verlof verleent en de eerste
-# verlofdag, en of de bestuursrechter zelf verlof verleende toen hij het
-# besluit vernietigde (Awb 8:72, derde lid, onder b), met de eerste
-# verlofdag daarvan. reductie_verlof_al_verleend_in_schooljaar leest de aggregaten.
+# verlofdag, ook als een beslissing op bezwaar een nieuw besluit in de plaats
+# van het herroepen besluit nam (7:11, tweede lid), en of de bestuursrechter
+# zelf verlof verleende toen hij het besluit vernietigde (Awb 8:72, derde
+# lid, onder b), met de eerste verlofdag daarvan. reductie_verlof_al_verleend_in_schooljaar leest de aggregaten.
 # Er is geen bekendmaking; de url wijst naar artikel 13a.
 url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
 name: Vakantieverlof per besluit bij OBS De Klimop (reductie)
@@ -37,15 +38,40 @@ articles:
           - name: eerste_verlofdag_van_de_rechter
             type: date
         steps:
-          # Een besluit op een aanvraag, en een nieuw besluit dat een
-          # beslissing op bezwaar in de plaats van een herroepen besluit nam:
-          # beide berusten op artikel 13a, en elk is een eigen aggregaat.
+          # Het besluit op de aanvraag.
           - record: leerplichtwet_1969#13a#BESCHIKKING
             actions:
               - output: verlof_verleend
                 value: $record.verlof_verleend
               - output: eerste_verlofdag
                 value: $record.eerste_verlofdag
+          # De beslissing op een bezwaar tegen dit besluit. Nam zij een nieuw
+          # besluit in de plaats van het herroepen besluit (Awb 7:11, tweede
+          # lid), dan houdt zij dat nieuwe besluit zelf (nieuw_besluit): één
+          # handeling is één record. Vernietigt de bestuursrechter de
+          # beslissing, dan valt het nieuwe besluit met haar weg.
+          - record: algemene_wet_bestuursrecht#7:11#BESCHIKKING
+            input:
+              - name: verleent_verlof
+                type: boolean
+                source:
+                  regulation: fictief_beleid_verleend_verlof_obs_de_klimop
+                  output: verlof_verleend_na_bezwaar
+                  parameters: &bezwaar
+                    al_verlof_verleend: $state.verlof_verleend
+                    al_eerste_verlofdag: $state.eerste_verlofdag
+                    nieuw_besluit: $record.nieuw_besluit
+              - name: eerste_verlofdag
+                type: date
+                source:
+                  regulation: fictief_beleid_verleend_verlof_obs_de_klimop
+                  output: eerste_verlofdag_na_bezwaar
+                  parameters: *bezwaar
+            actions:
+              - output: verlof_verleend
+                value: $verleent_verlof
+              - output: eerste_verlofdag
+                value: $eerste_verlofdag
           # De ontvangst van een uitspraak (Awb 8:79) over dit besluit:
           # voorzag de bestuursrechter zelf in de zaak (Awb 8:72, derde lid,
           # onder b), dan telt het verlof dat zijn uitspraak verleent.

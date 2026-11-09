@@ -16,9 +16,9 @@ describe('melding', () => {
   it('zegt dat een besluit maar één keer wordt vervangen, en door welk', () => {
     const fout =
       `refused: the decision of algemene_wet_bestuursrecht#7:11 would take a decision in the place of '${ids.besluit}', ` +
-      `which chronolexogram '${ids.vervanger}' already replaces (taken by '${ids.beslissing}')`;
+      `which the decision '${ids.beslissing}' already replaces`;
     expect(melding(fout)).toBe(
-      'Besluit 0000aaaa is na een eerder bezwaar al vervangen door besluit 0000bbbb. Een besluit kan maar één keer worden vervangen. Er is niets vastgelegd.',
+      'Besluit 0000aaaa is al vervangen door de beslissing op bezwaar 0000cccc. Een besluit kan maar één keer worden vervangen. Er is niets vastgelegd.',
     );
   });
 

@@ -12,7 +12,9 @@ valid_from: '2026-08-01'
 # van de school (reductie_verlof_al_verleend_in_schooljaar) geeft dit beleid
 # de besluiten die meetellen, elk als rij (schema v0.8.17, artikel 1).
 # Artikel 2 zegt per ontvangen uitspraak of de bestuursrechter zelf verlof
-# verleende, voor de reductie per besluit. Het staat los van het beleid
+# verleende, en artikel 3 per beslissing op bezwaar wat het nieuwe besluit
+# verleent dat zij in de plaats van het herroepen besluit nam, beide voor de
+# reductie per besluit. Het staat los van het beleid
 # vakantieverlof, omdat dat beleid de reductie aanroept.
 url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
 name: Verleend vakantieverlof bij OBS De Klimop (fictief beleid)
@@ -162,3 +164,69 @@ articles:
                 - when: $uitspraak_verleent_verlof
                   then: $primair_besluit_in_de_plaats.fields.eerste_verlofdag
               default: $al_eerste_verlofdag_van_de_rechter
+
+  - number: '3'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Neemt
+      het hoofd op bezwaar een nieuw besluit in de plaats van het herroepen
+      besluit, dan telt dat besluit zoals een besluit op de aanvraag: verleent
+      het verlof, dan is verlof verleend met de eerste verlofdag die het
+      noemt. Een beslissing op bezwaar zonder nieuw besluit laat staan wat
+      gold.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel7:11
+    machine_readable:
+      # Awb 7:11, tweede lid: het bestuursorgaan herroept het bestreden
+      # besluit en neemt in de plaats daarvan een nieuw besluit. De school
+      # legt de beslissing op bezwaar vast, met het nieuwe besluit erin
+      # (nieuw_besluit); het nieuwe besluit is geen eigen record. De reductie
+      # per besluit vraagt dit artikel per beslissing op bezwaar tegen dat
+      # besluit. Telt de beslissing niet meer, omdat de bestuursrechter haar
+      # vernietigde, dan vraagt de reductie dit artikel niet. Dit artikel
+      # leest niets anders dan wat het krijgt.
+      execution:
+        parameters:
+          - name: al_verlof_verleend
+            type: boolean
+            description: Of het besluit vóór deze beslissing op bezwaar verlof verleende.
+          - name: al_eerste_verlofdag
+            type: date
+            nullable: true
+            description: De eerste verlofdag van dat verlof.
+          - name: nieuw_besluit
+            type: decision
+            nullable: true
+            description: >-
+              Het besluit dat de beslissing op bezwaar in de plaats van het
+              herroepen besluit nam; leeg als zij dat niet deed.
+        output:
+          - name: verlof_verleend_na_bezwaar
+            type: boolean
+            description: Of er na deze beslissing op bezwaar verlof is verleend.
+          - name: eerste_verlofdag_na_bezwaar
+            type: date
+            nullable: true
+            description: De eerste verlofdag van dat verlof.
+        actions:
+          - output: verlof_verleend_na_bezwaar
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $nieuw_besluit
+                    value: null
+                  then: $al_verlof_verleend
+              default:
+                operation: EQUALS
+                subject: $nieuw_besluit.outputs.verlof_verleend
+                value: true
+          - output: eerste_verlofdag_na_bezwaar
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $nieuw_besluit
+                    value: null
+                  then: $al_eerste_verlofdag
+              default: $nieuw_besluit.fields.eerste_verlofdag

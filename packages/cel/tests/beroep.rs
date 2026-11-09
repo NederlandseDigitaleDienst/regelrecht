@@ -535,18 +535,19 @@ fn after_the_judgment_the_school_decides_on_the_objection_again() {
             day("2027-01-18"),
         )
         .unwrap();
-    assert_eq!(decided.len(), 2);
-    let (again, new) = (&decided[0], &decided[1]);
+    assert_eq!(decided.len(), 1);
+    let again = &decided[0];
+    let new = common::in_turn(again);
     assert_eq!(again.refers_to.as_deref(), Some(case.objection.id.as_str()));
     assert_eq!(again.after.as_deref(), Some(receipt.id.as_str()));
     assert_eq!(again.fields["bestreden_besluit"], json!(case.refused.id));
     assert_eq!(again.outputs["bestreden_besluit_herroepen"], json!(true));
-    assert_eq!(again.outputs["nieuw_besluit"], json!(new.id));
     assert_eq!(new.basis, "leerplichtwet_1969#13a");
     assert_eq!(new.outputs["verlof_verleend"], json!(true));
     // The school's chronicle: the application, the refusal, the objection,
-    // the decision on it, the receipt, and the two decisions taken again.
-    assert_eq!(case.school.grams().len(), 7);
+    // the decision on it, the receipt, and the decision taken again, which
+    // holds the new decision.
+    assert_eq!(case.school.grams().len(), 6);
     // Both decisions on the objection replay as they were taken.
     case.school
         .explain(&mut service(), &[], &case.on_objection.id)
@@ -558,7 +559,6 @@ fn after_the_judgment_the_school_decides_on_the_objection_again() {
         replayed.outputs["bestreden_besluit_herroepen"],
         regelrecht_engine::Value::Bool(true)
     );
-    case.school.explain(&mut service(), &[], &new.id).unwrap();
 }
 
 #[test]
@@ -777,13 +777,7 @@ fn an_unfounded_appeal_is_received_too() {
     assert_eq!(receipt.fields["bestreden_besluit_vernietigd"], json!(false));
 }
 
-// The grant in the place of the refusal falls with the annulled decision on
-// the objection (Awb 8:72 lid 2): that is the outcome the test holds. The
-// effects of the Awb cannot express it yet: the receipt revokes the decision
-// on the objection only, and the grant it took in turn is an aggregate of its
-// own that still counts.
 #[test]
-#[ignore = "pending: a decision taken in turn does not fall with the decision on the objection the court annuls; open question 'A decision on an objection that revokes a decision takes a new one in its place' in docs/src/content/docs/concepts/chronolexography/open-questions.md"]
 fn a_grant_on_objection_the_court_annulled_no_longer_counts() {
     // The objection is well founded: the refusal is revoked and leave is
     // granted in its place. The court annuls that decision on the objection,
@@ -791,12 +785,14 @@ fn a_grant_on_objection_the_court_annulled_no_longer_counts() {
     // and the refusal is no longer revoked. The school's reduction for lid 2
     // reads the judgment the school received and asks the head's policy what
     // no longer counts: decided again, the head grants again, and the
-    // annulled grant does not count as leave already granted.
+    // annulled grant does not count as leave already granted. The grant is
+    // part of the decision on the objection (one act, one record), so the
+    // receipt that revokes that decision takes the grant with it.
     let mut school = school();
     let mut court = court();
     let refused = refused(&mut school);
     let (objection, decided) = objected(&mut school, &refused, json!({ PROFESSION: true }));
-    assert_eq!(decided.len(), 2);
+    assert_eq!(decided.len(), 1);
     let copy = school
         .afschrift(&mut service(), &[], &decided[0].id)
         .unwrap();
@@ -827,12 +823,10 @@ fn a_grant_on_objection_the_court_annulled_no_longer_counts() {
         .unwrap();
     // The replacement the annulled decision took does not count against
     // this one: the cell lets it replace the refusal again.
-    assert_eq!(again.len(), 2);
-    assert_eq!(
-        again[1].fields["verlof_al_verleend_in_schooljaar"],
-        json!(false)
-    );
-    assert_eq!(again[1].outputs["verlof_verleend"], json!(true));
+    assert_eq!(again.len(), 1);
+    let new = common::in_turn(&again[0]);
+    assert_eq!(new.fields["verlof_al_verleend_in_schooljaar"], json!(false));
+    assert_eq!(new.outputs["verlof_verleend"], json!(true));
 }
 
 #[test]
@@ -901,65 +895,6 @@ fn a_grant_whose_legal_effects_the_court_kept_still_counts() {
     assert_eq!(decided[0].outputs["verlof_verleend"], json!(false));
 }
 
-#[test]
-fn a_grant_on_objection_annulled_itself_no_longer_counts() {
-    // The appeal is against the new decision the decision on objection took
-    // (its `taken_on` is 7:11, so 8:70 finds it admissible). The court
-    // annuls that grant with its legal effects: the school's reduction
-    // leaves the grant itself out, by its own id.
-    let mut school = school();
-    let mut court = court();
-    let refused = refused(&mut school);
-    let (_, decided) = objected(&mut school, &refused, json!({ PROFESSION: true }));
-    let grant = &decided[1];
-    let copy = school.afschrift(&mut service(), &[], &grant.id).unwrap();
-    let appeal = appealed(&mut court, &copy).unwrap();
-    let judgment = judged(&mut court, &appeal, &well_founded());
-    assert_eq!(judgment.outputs["beroep_ontvankelijk"], json!(true));
-    assert_eq!(judgment.outputs["rechtsgevolgen_vernietigd"], json!(true));
-    let copy = court.afschrift(&mut service(), &[], &judgment.id).unwrap();
-    school
-        .record_receipt(&service(), JUDGMENTS, &copy, &grant.id, day("2027-01-12"))
-        .unwrap();
-    let application = object_map(json!({
-        "bsn_jongere": "999990019",
-        "eerste_verlofdag": "2027-05-10",
-        "laatste_verlofdag": "2027-05-14",
-        "aanvraag_ondertekend": true,
-        "naam_aanvrager": "J. Jansen",
-        "adres_aanvrager": "Voorbeeldstraat 1",
-        "dagtekening": "2027-02-01",
-        "gevraagde_beschikking": "vakantieverlof",
-    }));
-    let later = school
-        .record_submission(
-            &mut service(),
-            &[],
-            LAW,
-            ARTICLE,
-            None,
-            &application,
-            day("2027-02-01"),
-        )
-        .unwrap();
-    let decided = school
-        .decide(
-            &mut service(),
-            &[],
-            LAW,
-            ARTICLE,
-            &later.id,
-            &Map::new(),
-            &object_map(json!({ PROFESSION: true, OUTSIDE_HOLIDAYS: true })),
-            day("2027-02-02"),
-        )
-        .unwrap();
-    assert_eq!(
-        decided[0].fields["verlof_al_verleend_in_schooljaar"],
-        json!(false)
-    );
-}
-
 /// Open the school's cell without its answer for art. 13a lid 2 for the
 /// rest of the test: the head judges whether leave was already granted this
 /// school year, so a grant the court annulled does not count against a
@@ -1001,7 +936,7 @@ fn annulled_twice(school: &mut Cell) -> (Vec<Gram>, Vec<Gram>) {
     refusal[PROFESSION] = json!(false);
     let refused = refused_with(school, refusal);
     let (objection, mut decided) = objected(school, &refused, grant());
-    assert_eq!(decided.len(), 2);
+    assert_eq!(decided.len(), 1);
     let (mut receipts, mut decisions) = (Vec::new(), vec![decided[0].clone()]);
     for days in [
         ["2026-12-01", "2027-01-11", "2027-01-12"],
@@ -1021,8 +956,11 @@ fn annulled_twice(school: &mut Cell) -> (Vec<Gram>, Vec<Gram>) {
                 day(days[2]),
             )
             .unwrap();
-        assert_eq!(decided.len(), 2);
-        assert_eq!(decided[1].outputs["verlof_verleend"], json!(true));
+        assert_eq!(decided.len(), 1);
+        assert_eq!(
+            common::in_turn(&decided[0]).outputs["verlof_verleend"],
+            json!(true)
+        );
         receipts.push(receipt);
         decisions.push(decided[0].clone());
     }

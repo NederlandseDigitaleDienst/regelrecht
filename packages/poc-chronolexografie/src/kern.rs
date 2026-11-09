@@ -1277,9 +1277,10 @@ fn uitkomst(node: &PathNode) -> Result<(Value, Vec<String>)> {
 
 /// One action in the log: a chronolexogram as the cell recorded it. Its
 /// reason is what it refers to (`refers_to`); `leidde_tot` are the later
-/// ones that refer to it, or that it names as taken in turn (a new decision
-/// in the place of a revoked one). For a decision, why it came out so
-/// ([`waarom`]), from the decision taken again.
+/// ones that refer to it. A new decision in the place of a revoked one is
+/// no action of its own: the decision on the objection that took it holds
+/// it. For a decision, why it came out so ([`waarom`]), from the decision
+/// taken again.
 #[derive(Debug, serde::Serialize)]
 pub struct Handeling {
     pub gram: Gram,
@@ -1314,13 +1315,7 @@ pub fn logboek(corpus: &Corpus, cell: &Cellen) -> Result<Vec<Handeling>> {
     for gram in alle.into_iter().rev() {
         let leidde_tot = grams
             .iter()
-            .filter(|g| {
-                g.refers_to.as_deref() == Some(gram.id.as_str())
-                    || gram
-                        .outputs
-                        .values()
-                        .any(|v| v.as_str() == Some(g.id.as_str()))
-            })
+            .filter(|g| g.refers_to.as_deref() == Some(gram.id.as_str()))
             .map(|g| g.id.clone())
             .collect();
         let waarom = if is_besluit(&service, gram)? {
@@ -1682,8 +1677,8 @@ pub struct Besluit {
 }
 
 /// Decide on the submission `op` under `law_id#article` with the deciding
-/// authority's `bevindingen` (RFC-045 §5): the decision on it first, then a
-/// decision it takes in turn.
+/// authority's `bevindingen` (RFC-045 §5): the one decision the cell
+/// records, which holds a decision it takes in turn as its value.
 fn beslissen(
     corpus: &Corpus,
     cell: &mut Cellen,
@@ -1900,10 +1895,21 @@ pub fn beslissen_op_bezwaar(
 }
 
 /// The answer to a decision on objection that `genomen` took: the decision,
-/// the new decision it took in turn if any, and why.
+/// the new decision it took in the place of the revoked one if any, and
+/// why. The new decision is part of the decision on the objection, which
+/// holds it as its value (`nieuw_besluit`): one act is one record. It comes
+/// back with the day of that decision, as a decision of its own would.
 fn op_bezwaar(corpus: &Corpus, cell: &Cellen, mut genomen: Vec<Gram>) -> Result<Value> {
-    let nieuw = (genomen.len() > 1).then(|| genomen.remove(1));
     let beslissing = genomen.remove(0);
+    let nieuw = beslissing
+        .outputs
+        .get("nieuw_besluit")
+        .and_then(Value::as_object)
+        .map(|value| {
+            let mut nieuw = value.clone();
+            nieuw.insert("recorded_on".into(), json!(beslissing.recorded_on));
+            Value::Object(nieuw)
+        });
     let waarom = waarom(corpus, cell, &beslissing.id)?;
     Ok(json!({
         "beslissing": beslissing,
@@ -2851,16 +2857,15 @@ mod tests {
         );
         let nieuw = &beslist["nieuw_besluit"];
         assert_eq!(nieuw["outputs"]["verlof_verleend"], json!(true));
+        // The decision on the objection holds the new decision itself: one
+        // act, one record.
         assert_eq!(
-            beslist["beslissing"]["outputs"]["nieuw_besluit"],
-            nieuw["id"]
+            beslist["beslissing"]["outputs"]["nieuw_besluit"]["outputs"],
+            nieuw["outputs"]
         );
-        let gebruikt = waarom(&corpus, &cell, nieuw["id"].as_str().unwrap()).unwrap();
-        assert!(
-            gebruikt
-                .bevindingen
-                .contains(&"specifieke_aard_beroep_ouder".to_string())
-        );
+        assert!(nieuw["findings"]
+            .get("specifieke_aard_beroep_ouder")
+            .is_some());
         let spoor = beslist["waarom"]["spoor"].as_str().unwrap();
         assert!(spoor.contains("verlofdagen"), "{spoor}");
 
@@ -2917,12 +2922,18 @@ mod tests {
                 .unwrap()
                 .len()
         };
-        // Lid 2 plays the decisions under 13a, the article its step names.
+        // Lid 2 plays the decisions under 13a and the decisions on objection
+        // under 7:11, the articles its steps name: the refusal, and the
+        // decision on the objection that holds the grant in its place.
         let lid_2 = "reductie_verlof_al_verleend_in_schooljaar";
-        assert_eq!(rijen(lid_2, "besluiten_onder", "leerplichtwet_1969#13a"), 2);
+        assert_eq!(rijen(lid_2, "besluiten_onder", "leerplichtwet_1969#13a"), 1);
+        assert_eq!(
+            rijen(lid_2, "besluiten_onder", "algemene_wet_bestuursrecht#7:11"),
+            1
+        );
         // And the receipts of judgments, for a decision the court put in
         // place (Awb 8:72 lid 3 onder b): none here.
-        assert_eq!(reductie(lid_2)["invoer"].as_array().unwrap().len(), 2);
+        assert_eq!(reductie(lid_2)["invoer"].as_array().unwrap().len(), 3);
         assert_eq!(
             rijen(
                 lid_2,
@@ -2969,16 +2980,15 @@ mod tests {
             reductie(lid_2)["normen"],
             json!([
                 { "regelwerk": beleid, "laag": "UITVOERINGSBELEID", "artikel": "1" },
+                { "regelwerk": beleid, "laag": "UITVOERINGSBELEID", "artikel": "3" },
                 { "regelwerk": beleid, "laag": "UITVOERINGSBELEID", "artikel": "2" }
             ])
         );
-        assert!(
-            reductie(lid_2)["tekst"][0]["tekst"]
-                .as_str()
-                .unwrap()
-                .contains("chronolexografische reductie")
-        );
-        assert_eq!(cell.grams().len(), 6);
+        assert!(reductie(lid_2)["tekst"][0]["tekst"]
+            .as_str()
+            .unwrap()
+            .contains("chronolexografische reductie"));
+        assert_eq!(cell.grams().len(), 5);
     }
 
     #[test]
@@ -3301,8 +3311,9 @@ mod tests {
         // How the school answered: the reduction reads the aggregates up to
         // the objection against B, without B. A does not count: the decision
         // on the objection against it revokes it (Awb 7:11 lid 2, as an
-        // effect), so its step never runs. The refusal in its place is an
-        // aggregate of its own and grants no leave.
+        // effect), so its step never runs. The refusal in its place is part
+        // of that decision, whose step lands it in A's aggregate: it grants
+        // no leave.
         let hoe = hoe_beantwoord(
             &corpus,
             &cell,
@@ -3321,15 +3332,13 @@ mod tests {
             spoor.contains(&format!("{}: revoked by {herroepen_door}", a.id)),
             "{spoor}"
         );
-        // The refusal in A's place is an aggregate of its own, which grants
-        // no leave.
-        let in_plaats = op_a["nieuw_besluit"]["id"].as_str().unwrap();
+        // The refusal in A's place lands in A's aggregate, through the step
+        // on the decision on the objection, and grants no leave.
         assert!(
-            spoor.contains(&format!("the aggregate of {in_plaats}")),
-            "{spoor}"
-        );
-        assert!(
-            spoor.contains(&format!("{in_plaats}: eerste_verlofdag: null -> ")),
+            spoor.contains(&format!(
+                "{herroepen_door}: fictief_beleid_verleend_verlof_obs_de_klimop#3: \
+                 eerste_verlofdag: null -> 2027-02-01, verlof_verleend: false -> false"
+            )),
             "{spoor}"
         );
 
@@ -3337,18 +3346,15 @@ mod tests {
         let log = serde_json::to_value(logboek(&corpus, &cell).unwrap()).unwrap();
         let log = log.as_array().unwrap();
         assert_eq!(log.len(), cell.grams().len());
-        let nieuw = op_b["nieuw_besluit"]["id"].as_str().unwrap();
         let laatste = &log[0];
-        assert_eq!(laatste["gram"]["id"], json!(nieuw));
+        assert_eq!(laatste["gram"]["id"], json!(beslissing));
         // Its reason is the objection against B, which led to the decision
-        // on it and to the new decision; the decision on it names the new one.
+        // on it; that decision holds the new one, which is no action of its
+        // own.
         assert_eq!(laatste["gram"]["refers_to"], json!(tegen_b.id));
         let handeling = |id: &str| log.iter().find(|h| h["gram"]["id"] == json!(id)).unwrap();
-        assert_eq!(
-            handeling(&tegen_b.id)["leidde_tot"],
-            json!([beslissing, nieuw])
-        );
-        assert_eq!(handeling(beslissing)["leidde_tot"], json!([nieuw]));
+        assert_eq!(handeling(&tegen_b.id)["leidde_tot"], json!([beslissing]));
+        assert_eq!(handeling(beslissing)["leidde_tot"], json!([]));
         // An application is no decision, and has no chain.
         assert!(handeling(&eerste.id)["waarom"].is_null());
 
@@ -3964,7 +3970,7 @@ mod tests {
         let herroepen = "/beslissing/outputs/bestreden_besluit_herroepen";
         assert_eq!(voorlopig.pointer(herroepen), Some(&json!(true)));
         assert_eq!(voorlopig.pointer(herroepen), genomen.pointer(herroepen));
-        assert_eq!(cell.grams().len(), vastgelegd + 2);
+        assert_eq!(cell.grams().len(), vastgelegd + 1);
     }
 
     /// Leave from 20 to 22 December 2027, applied for on 14 October 2026:
@@ -5064,13 +5070,15 @@ mod tests {
         assert_eq!(nieuw["outputs"]["verlof_verleend"], json!(true));
         assert_eq!(nieuw["fields"]["eerste_verlofdag"], json!("2027-02-01"));
         // The school: its vestiging, the application, the refusal, the
-        // objection, the decision on it, the receipt, and the two decisions
-        // taken again. The court: the appeal and the judgment.
-        assert_eq!(cell.grams().len(), 8);
+        // objection, the decision on it, the receipt, and the decision taken
+        // again, which holds the new one. The court: the appeal and the
+        // judgment.
+        assert_eq!(cell.grams().len(), 7);
         assert_eq!(rechtbank(&cell).grams().len(), 2);
-        // The school's reduction for lid 2 plays the decisions under 13a:
-        // the refusal, and the decision the authority took in its place after
-        // the objection. The effects in the Awb decide which of them count.
+        // The school's reduction for lid 2 plays the decision under 13a, the
+        // refusal, and the decisions on the objection under 7:11, each with
+        // the decision it took in the refusal's place. The effects in the Awb
+        // decide which of them count.
         let stand = reducties(&corpus, &cell, day("2027-01-18")).unwrap();
         let lid_2 = stand["reducties"]
             .as_array()
@@ -5084,7 +5092,14 @@ mod tests {
             .iter()
             .find(|i| i["besluiten_onder"] == json!("leerplichtwet_1969#13a"))
             .unwrap();
-        assert_eq!(besluiten["rijen"].as_array().unwrap().len(), 2);
+        assert_eq!(besluiten["rijen"].as_array().unwrap().len(), 1);
+        let op_bezwaar = lid_2["invoer"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|i| i["besluiten_onder"] == json!("algemene_wet_bestuursrecht#7:11"))
+            .unwrap();
+        assert_eq!(op_bezwaar["rijen"].as_array().unwrap().len(), 2);
     }
 
     #[test]
@@ -5632,15 +5647,18 @@ mod tests {
     }
 
     #[test]
-    fn leave_the_court_grants_on_appeal_against_a_new_decision_counts() {
+    fn the_leave_a_court_restores_on_appeal_against_a_decision_on_objection_counts() {
         // Leave A is granted, and on an objection the head finds the
         // profession anew: A is revoked, and a refusal takes its place (Awb
-        // 7:11 lid 2). The parent appeals against that new decision, and the
-        // court decides the case itself (8:72 lid 3 onder b): it takes the
-        // decision on the application anew and grants the leave. The Awb
-        // gives that decision as the decision on the application in place,
-        // the copy carries it, and the school's reduction counts it: a second
-        // leave in the same school year is refused.
+        // 7:11 lid 2). The parent appeals against that decision on the
+        // objection, which holds the refusal: beroep lies against the
+        // decision on the objection (8:1 with 7:1). The court decides the
+        // case itself (8:72 lid 3 onder b): it takes the decision on the
+        // objection anew, and with the profession of the kind art. 11 onder f
+        // asks, the reconsideration gives A again, so it revokes nothing and
+        // puts no decision on the application in place. The receipt revokes
+        // the annulled decision on the objection with the refusal it held, so
+        // A counts again: a second leave in the same school year is refused.
         let corpus = corpus();
         let mut cell = corpus.cell().unwrap();
         let eerste = aanvragen(
@@ -5676,7 +5694,7 @@ mod tests {
             day("2026-11-15"),
         )
         .unwrap();
-        let nieuw = op_a["nieuw_besluit"]["id"].as_str().unwrap().to_string();
+        let beslissing = op_a["beslissing"]["id"].as_str().unwrap().to_string();
         assert_eq!(
             op_a["nieuw_besluit"]["outputs"]["verlof_verleend"],
             json!(false)
@@ -5687,7 +5705,7 @@ mod tests {
             json!("2026-12-01"),
         );
         let ingesteld =
-            beroep_instellen(&corpus, &mut cell, &nieuw, &velden, day("2026-12-01")).unwrap();
+            beroep_instellen(&corpus, &mut cell, &beslissing, &velden, day("2026-12-01")).unwrap();
         let mut zelf = uitspraak_bevindingen(&corpus, &["termijn_nieuw_besluit"]);
         zelf.insert("uitspraak_treedt_in_de_plaats".into(), json!(true));
         zelf.insert("specifieke_aard_beroep_ouder".into(), json!(true));
@@ -5702,20 +5720,17 @@ mod tests {
         let gedaan =
             uitspraak_doen(&corpus, &mut cell, &ingesteld.id, &zelf, day("2027-01-11")).unwrap();
         let uitvoer = &gedaan["uitspraak"]["outputs"];
-        // The decision in place is the decision on the application itself, so
-        // the Awb gives it unchanged as the decision on the application.
+        // The decision in place is a decision on the objection that revokes
+        // nothing, so there is no decision on the application in place.
         assert_eq!(
             uitvoer["uitspraak_in_de_plaats"]["basis"],
-            json!("leerplichtwet_1969#13a")
+            json!("algemene_wet_bestuursrecht#7:11")
         );
         assert_eq!(
-            uitvoer["primair_besluit_in_de_plaats"],
-            uitvoer["uitspraak_in_de_plaats"]
+            uitvoer["uitspraak_in_de_plaats"]["outputs"]["bestreden_besluit_herroepen"],
+            json!(false)
         );
-        assert_eq!(
-            uitvoer["primair_besluit_in_de_plaats"]["outputs"]["verlof_verleend"],
-            json!(true)
-        );
+        assert!(uitvoer["primair_besluit_in_de_plaats"].is_null());
         let ontvangst = toezenden(
             &corpus,
             &mut cell,
@@ -5723,7 +5738,7 @@ mod tests {
             day("2027-01-11"),
         )
         .unwrap();
-        assert_eq!(ontvangst.refers_to.as_deref(), Some(nieuw.as_str()));
+        assert_eq!(ontvangst.refers_to.as_deref(), Some(beslissing.as_str()));
 
         let mut later = aanvraag("2027-05-14");
         later.insert("eerste_verlofdag".into(), json!("2027-05-10"));

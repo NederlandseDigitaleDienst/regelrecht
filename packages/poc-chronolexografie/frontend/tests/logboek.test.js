@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { artikelNaam, genomenBij, genummerd, ingevuldDoor, opsomming, stapTekst, toon, uitslag, wetNaam } from '../src/logboek.js';
-import { rol, state } from '../src/state.js';
+import { artikelNaam, genummerd, ingevuldDoor, opsomming, stapTekst, toon, uitslag, wetNaam } from '../src/logboek.js';
+import { nieuwBesluit, rol, state } from '../src/state.js';
 
 // De casus zoals `api.casus` haar geeft, voor zover het logboek haar leest.
 beforeEach(() => {
@@ -165,12 +165,12 @@ describe('wat de cel uit zichzelf vastlegde', () => {
   });
 });
 
-describe('genomenBij', () => {
-  it('vindt de beslissing op bezwaar die een besluit als nieuw besluit nam', () => {
-    const nieuw = '019a0000-0000-7000-8000-00000000dddd';
-    const beslissing = { id: 'x', basis: 'algemene_wet_bestuursrecht#7:11', outputs: { nieuw_besluit: nieuw } };
-    expect(genomenBij(nieuw, [beslissing])).toBe(beslissing);
-    expect(genomenBij('ander', [beslissing])).toBeNull();
+describe('nieuwBesluit', () => {
+  it('geeft het besluit dat een beslissing op bezwaar in de plaats nam, met haar dag', () => {
+    const waarde = { basis: 'leerplichtwet_1969#13a', taken_on: 'algemene_wet_bestuursrecht#7:11', fields: {}, findings: {}, outputs: { verlof_verleend: true } };
+    const beslissing = { id: 'x', basis: 'algemene_wet_bestuursrecht#7:11', recorded_on: '2026-11-15', outputs: { nieuw_besluit: waarde } };
+    expect(nieuwBesluit(beslissing)).toEqual({ ...waarde, recorded_on: '2026-11-15' });
+    expect(nieuwBesluit({ ...beslissing, outputs: { nieuw_besluit: null } })).toBeNull();
   });
 });
 

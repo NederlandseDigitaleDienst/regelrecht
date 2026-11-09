@@ -240,10 +240,8 @@ impl Chronicle {
         Ok(&self.grams[self.grams.len() - 1])
     }
 
-    /// Append `grams` together: all of them, or none. Such as the decision
-    /// on an objection and the new decision that takes the place of the
-    /// revoked one (RFC-046), which half written would leave a revocation
-    /// without its replacement.
+    /// Append `grams` together: all of them, or none, so a batch half
+    /// written never reaches the file.
     pub fn append_all(&mut self, grams: Vec<Gram>) -> Result<&[Gram]> {
         let before = self.grams.len();
         for gram in &grams {

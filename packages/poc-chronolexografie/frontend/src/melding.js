@@ -12,9 +12,9 @@ const vertalingen = [
   // Een besluit wordt maar één keer vervangen (de cel, bij een tweede
   // beslissing op bezwaar die hetzelfde besluit zou vervangen).
   [
-    /in the place of '([^']+)', which chronolexogram '([^']+)' already replaces/,
-    (besluit, vervanger) =>
-      `Besluit ${kort(besluit)} is na een eerder bezwaar al vervangen door besluit ${kort(vervanger)}. Een besluit kan maar één keer worden vervangen. Er is niets vastgelegd.`,
+    /in the place of '([^']+)', which the decision '([^']+)' already replaces/,
+    (besluit, beslissing) =>
+      `Besluit ${kort(besluit)} is al vervangen door de beslissing op bezwaar ${kort(beslissing)}. Een besluit kan maar één keer worden vervangen. Er is niets vastgelegd.`,
   ],
   // De kroniek loopt alleen vooruit; dezelfde dag mag.
   [
