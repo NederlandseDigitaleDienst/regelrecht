@@ -275,7 +275,9 @@ impl Corpus {
 
     /// The cell `cel` in `dir`, with what `begin` records. An executogram
     /// that refers to an earlier one by its kenmerk refers to the record
-    /// the cell made of it.
+    /// the cell made of it. Each executogram of the begin becomes exactly
+    /// one record, in order, before any other: [`verwezen`] finds a record
+    /// of the begin by that place.
     fn begonnen(&self, cel: &str, dir: &Path, begin: Option<&crate::casus::Begin>) -> Result<Cell> {
         let mut cell = Cell::in_memory_from(&*self.files, cel, dir)?;
         let Some(begin) = begin else {

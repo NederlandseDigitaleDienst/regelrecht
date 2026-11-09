@@ -33,7 +33,9 @@ articles:
             type: string
           - name: aantal_werkzame_personen
             type: number
-          # Zonder inschrijving die meetelt, blijft dit leeg.
+          # Trekt een later record de inschrijving in, dan telt zij niet mee
+          # en blijft dit leeg; reductie_vestiging_in_handelsregister slaat
+          # zo'n aggregaat over.
           - name: datum_inschrijving
             type: date
         steps:

@@ -72,7 +72,7 @@ begin:
       velden: {postcode: 7713 AB, aantal_werkzame_personen: 2}
 ```
 
-The cell records that fact with `refers_to` set to the id of the named record (schema v0.8.17), and a reduction with `projection.per` reads it as a step in the aggregate of that record. An executogram in a `begin` may refer only to an earlier one in the same `begin`. A `vastleggen` step of a scenario takes `verwijst_naar` too, and refers to a record in the `begin` of the cell named in its `cel`. Without `verwijst_naar` a fact refers to nothing, as before. The app checks every reference when it loads the case and refuses one that names no kenmerk.
+The cell records that fact with `refers_to` set to the id of the named record (schema v0.8.17). A reduction with `projection.per` reads it as a step in the aggregate of that record. An executogram in a `begin` may refer only to an earlier one in the same `begin`. A `vastleggen` step of a scenario takes `verwijst_naar` too, and refers to a record in the `begin` of the cell named in its `cel`. Without `verwijst_naar` a fact refers to nothing, as before, so a correction recorded that way counts in no aggregate. In free play the form has no field for the reference yet. The app checks every reference when it loads the case and refuses one that names no kenmerk.
 
 Everything runs in the visitor's browser. The cell, the engine and the app's core (`kern.rs`, `casus.rs`) compile to WebAssembly in this crate, with the feature `wasm`. No server holds state. Each browser tab holds its own game and saves it in `sessionStorage` after every step, so a reload goes on where it was and two tabs never touch each other's game.
 
