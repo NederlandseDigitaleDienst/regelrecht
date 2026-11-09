@@ -198,6 +198,7 @@ import { ref, computed, watch, nextTick } from 'vue';
 import { runSimulation } from '../../composables/useSimulation.js';
 import { euro, euroWhole, regimeLabel, regimeColor } from '../../lib/format.js';
 import { regimeVanCohort, cohortUitleg } from '../../lib/regimeFacts.js';
+import { scenarioRecord } from '../../lib/scenarioRecord.js';
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -271,25 +272,7 @@ watch(() => props.open, async (open) => {
 const heeftPartner = computed(() => vorm.value.huishoudtype.startsWith('paar'));
 
 /** Het formulier als populatierecord, precies het schema uit personas.yaml. */
-const alsRecord = computed(() => ({
-  bsn: props.scenario?.bsn ?? `eigen-${Date.now()}`,
-  naam: vorm.value.naam.trim() || 'Naamloos scenario',
-  geboortejaar: vorm.value.geboortejaar,
-  omschrijving: 'Zelf toegevoegd scenario.',
-  huishoudtype: vorm.value.huishoudtype,
-  heeft_partner: heeftPartner.value,
-  partnerinkomen: heeftPartner.value ? Math.round(vorm.value.partnerinkomen * 100) : 0,
-  inkomen: Math.round(vorm.value.inkomen * 100),
-  inkomensgroei: Math.round(vorm.value.groei * 10) / 1000,
-  schuld: Math.round(vorm.value.schuld * 100),
-  eerste_studiefinanciering: `${vorm.value.startjaar}-09-01`,
-  onderwijssoort: vorm.value.onderwijssoort,
-  is_levenlanglerenkrediet: vorm.value.lllk,
-  // Welke keuzes zinvol zijn volgt uit de wet; de burgerview vult die lijst
-  // zelf aan op basis van wat er op dat moment mag.
-  keuzemomenten: [],
-  eigen: true,
-}));
+const alsRecord = computed(() => scenarioRecord(vorm.value, props.scenario?.bsn ?? `eigen-${Date.now()}`));
 
 const regime = computed(() => regimeVanCohort(alsRecord.value));
 

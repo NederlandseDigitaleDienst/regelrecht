@@ -1,0 +1,109 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$id: reductie_verlof_al_verleend_in_schooljaar
+regulatory_layer: REDUCTIE
+publication_date: '2026-07-01'
+valid_from: '2026-08-01'
+# Geen regelgeving: een reductie van het hoofd van OBS De Klimop over zijn
+# eigen kroniek (RFC-022 §4.1, RFC-048). Ze zoekt de besluiten die ertoe doen.
+# Welke besluiten onder artikel 13a gelden, vraagt zij aan de reductie van de
+# Awb (reductie_algemene_wet_bestuursrecht), die uit dezelfde kroniek leest;
+# welk schooljaar dat van het verlof is, aan het beleid van het hoofd
+# (fictief_beleid_vakantieverlof_obs_de_klimop, artikel 1). De cel van de
+# school geeft haar uitvoer als het antwoord verlof_al_verleend_in_schooljaar
+# (cel.yaml, answers); artikel 2 van dat beleid koppelt het aan het open
+# begrip van artikel 13a, tweede lid, van de Leerplichtwet 1969, ook als Awb
+# 7:11 dat artikel opnieuw aanroept. Er is geen bekendmaking; de url wijst
+# naar dat artikel.
+url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+name: Al verleend vakantieverlof in het schooljaar bij OBS De Klimop (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving. Het systeem van het hoofd van OBS De Klimop kijkt door
+      middel van een chronolexografische reductie op zijn eigen kroniek of er
+      in het schooljaar van het gevraagde verlof een besluit geldt waarin de
+      jongere verlof kreeg. Welke besluiten gelden, volgt uit de Awb (7:11 en
+      8:72): ook een besluit dat de bestuursrechter in de plaats stelde (Awb
+      8:72, derde lid, onder b). Welk schooljaar dat van het verlof is, zegt
+      het beleid van het hoofd.
+    url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+    machine_readable:
+      execution:
+        # Wat het antwoord vraagt; het beleid dat het koppelt, geeft ze op
+        # naam mee uit artikel 13a.
+        parameters:
+          - name: bsn_jongere
+            type: string
+            description: Burgerservicenummer van de jongere voor wie verlof wordt gevraagd.
+          - name: eerste_verlofdag
+            type: date
+            description: Eerste dag van het gevraagde verlof.
+        input:
+          # De besluiten onder artikel 13a die gelden, één rij per besluit,
+          # met de gegevens en de uitvoer van dat besluit onder hun eigen
+          # naam: onder meer bsn_jongere, eerste_verlofdag en verlof_verleend.
+          - name: geldende_besluiten
+            type: array
+            source:
+              regulation: reductie_algemene_wet_bestuursrecht
+              output: geldende_besluiten
+              parameters:
+                basis: leerplichtwet_1969#13a
+          # Artikel 1 van het beleid: het schooljaar van het verlof.
+          - name: begin_schooljaar
+            type: date
+            source:
+              regulation: fictief_beleid_vakantieverlof_obs_de_klimop
+              output: begin_schooljaar_van_verlof
+              parameters:
+                eerste_verlofdag: $eerste_verlofdag
+          - name: einde_schooljaar
+            type: date
+            source:
+              regulation: fictief_beleid_vakantieverlof_obs_de_klimop
+              output: einde_schooljaar_van_verlof
+              parameters:
+                eerste_verlofdag: $eerste_verlofdag
+        output:
+          - name: verlof_al_verleend_in_schooljaar
+            type: boolean
+            description: >-
+              Of het hoofd de jongere in het schooljaar van het gevraagde verlof
+              al verlof verleende.
+        actions:
+          # Een besluit dat geldt en dezelfde jongere verlof verleende, met een
+          # eerste verlofdag in het schooljaar van het gevraagde verlof. Een
+          # weigering telt niet. Met `as` is een besluit alleen als
+          # `$besluit.<veld>` te lezen (RFC-049); `$bsn_jongere` is de
+          # parameter.
+          - output: verlof_al_verleend_in_schooljaar
+            value:
+              operation: FOREACH
+              collection: $geldende_besluiten
+              as: besluit
+              filter:
+                operation: AND
+                conditions:
+                  - operation: EQUALS
+                    subject: $besluit.verlof_verleend
+                    value: true
+                  - operation: EQUALS
+                    subject: $besluit.bsn_jongere
+                    value: $bsn_jongere
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject:
+                      operation: DATE_DIFF
+                      from: $begin_schooljaar
+                      to: $besluit.eerste_verlofdag
+                      in: days
+                    value: 0
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject:
+                      operation: DATE_DIFF
+                      from: $besluit.eerste_verlofdag
+                      to: $einde_schooljaar
+                      in: days
+                    value: 0
+              body: true
+              combine: OR

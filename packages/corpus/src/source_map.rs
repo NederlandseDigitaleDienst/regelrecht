@@ -1762,7 +1762,7 @@ articles:
           - name: uit_data
             type: decision
             source:
-              article: $besluit.grondslag
+              article: $besluit.basis
 ";
         assert_eq!(
             collect_law_references(yaml),

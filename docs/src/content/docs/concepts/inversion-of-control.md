@@ -38,7 +38,7 @@ This says: "I need a value called `standaardpremie`. The minister should set it 
 Two optional fields say more about who fills the term, and both are properties of the law rather than of the corpus:
 
 - **`expected_source`** names the regulation the article itself points at, such as `Regeling zorgverzekering`, with a BWB id when the text carries one. Whether that regulation is currently in the corpus is a separate question, because that changes without the law changing.
-- **`decided_per_case_by`** names the authority that fills the norm in the individual case while no general specification exists, with the article making it competent. That answer needs a motivation under Awb 3:46 and forms part of the *besluit* rather than a ground for it, which is what separates a discretionary power from a value that is merely missing.
+- **`decided_per_case_by`** marks a norm that an authority fills in the individual case while no general specification exists. Its text says in words who that authority is, and which article makes it competent. That judgement needs a motivation under Awb 3:46. It forms part of the *besluit* rather than a ground for it, and that separates a discretionary power from a value that is merely missing. The engine does not read the authority from those words: the term's own `competent_authority` names it, or else it is the authority that carries out the article ([Competent Authority](/concepts/competent-authority#who-gives-a-finding)).
 
 ### The implementing regulation fills it
 
@@ -109,27 +109,38 @@ machine_readable:
 
 When executing for a person in Diemen (parameters include `gemeente_code: GM0384`), the engine uses Diemen's percentages. For a municipality without an ordinance, the Participation Act's default applies.
 
+The scope selects among other regulations, with two exceptions. First, an ordinance can fill an open term of one of its own articles. A hardship clause that sets aside a refusal in the same ordinance does this. Such an article fills the term whatever the scope, because the ordinance that declares the term is already the one being applied.
+
+Second, a regulation with the same scope fields as the declaring one, set to the same values, fills its terms whatever the scope as well. Further rules that the college lays down under an ordinance of its own municipality are the case in point. Two national regulations do not count as sharing a territory; for them the scope plays no part anyway.
+
 ## An implementation that reads the law it fills in
 
 An implementation can state its value in terms of the law it fills in. A ministerial regulation indexing an amount is the common case: *"het in artikel 4 genoemde bedrag wordt met ingang van 1 januari verhoogd met 3,2 procent"*, where the law leaves the amount open with a `default`. The implementing article then reads an output of that law, which depends on the very term it fills. That read is the law without this filling: the next implementation, or the `default` when there is none. The filling then applies once, whether the law or the implementing regulation is asked.
 
-## A reduction that fills an open term
+## Policy that fills an open term with a cell's answer
 
-A cell's reduction ([RFC-048](/rfcs/rfc-048)) may name an open term with `implements` too (schema v0.8.5). It is not a regulation: it reads the cell's own decisions back, and only the cell runs it. Art. 13a of the Leerplichtwet 1969 leaves `verlof_al_verleend_in_schooljaar` to the head per case (`decided_per_case_by`), and the school's reduction fills it:
+A cell's reduction ([RFC-048](/rfcs/rfc-048)) reads the cell's own decisions back and gives a named answer. It sits with the cell, in `cells/<cell>/reductions/` of the corpus. It is no regulation and fills no open term; policy of the authority that decides does that: an article fills the term with `implements` and takes the answer as an input (`source.reduction`, schema v0.8.9). Art. 13a of the Leerplichtwet 1969 leaves `verlof_al_verleend_in_schooljaar` to the head per case (`decided_per_case_by`), and the head's policy binds it:
 
 ```yaml
-# reductie_verlof_al_verleend_in_schooljaar, article 1
-# regulatory_layer: REDUCTIE
+# fictief_beleid_vakantieverlof_obs_de_klimop, article 2
+# regulatory_layer: UITVOERINGSBELEID
 machine_readable:
   implements:
     - law: leerplichtwet_1969
       article: 13a
       open_term: verlof_al_verleend_in_schooljaar
+  execution:
+    input:
+      - name: antwoord_verlof_al_verleend
+        nullable: true
+        source:
+          reduction: verlof_al_verleend_in_schooljaar
+          parameters: {bsn_jongere: $bsn_jongere, eerste_verlofdag: $eerste_verlofdag}
 ```
 
-The engine does not run it. A caller can pass an answerer with the execution (`OpenTermAnswerer`, in a `Call`). The engine asks it first for every open term an article reads, at any depth. That includes an article called anew, as Awb 7:11 does on an objection. During a decision the cell is that answerer: it runs its reduction with the parameters the reduction declares, taken by name from the article that declares the term, and returns the value with where it came from. The engine records that provenance under `open_terms` (`filled_by: {answer: ...}`) and as one node in the trace. Why the reduction answered as it did is the cell's to explain (`Cell::explain_answer`); it is not in the trace of the decision. A `REDUCTIE` is never in the engine's implements index, so loading one changes nothing by itself.
+The engine does not run the reduction. A caller can pass an answerer with the execution (`OpenTermAnswerer`, in a `Call`), and the engine asks it for the answer wherever the binding runs, at any depth. That includes an article called anew, as Awb 7:11 does on an objection. During a decision the cell is that answerer: it runs the reduction its catalogue names with the parameters the binding passes, and returns the value with where it came from. The engine records that provenance under `open_terms` (`filled_by: {answer: ...}`, with the binding's article) and as one node per answer in the trace. Why the reduction answered as it did is the cell's to explain (`Cell::explain_answer`); it is not in the trace of the decision. A `REDUCTIE` is never in the engine's implements index, so loading one changes nothing by itself.
 
-The order of precedence is the one for every open term: the answerer, then an implementation, then the finding of the authority for the case, then the `default`. A required term that has no default, and that none of these fills, is an error; a term that is not required then resolves to null. Outside a cell there is no answerer, so a scenario gives the head's finding.
+A binding fills the term like any other implementation: the term gets the binding's value. That is also true when the value is null, unless the term has a `default`; then the default applies ([RFC-036](/rfcs/rfc-036)). A finding is the authority's own judgement on the term in a single case. It never replaces the value of a policy, not even on a term that the law leaves to the authority per case. If a caller gives a finding for such a term, the engine refuses the execution, even when the case never reads the term. If the policy wants the authority to judge a case that the cell does not answer, it declares an open term of its own with `decided_per_case_by`, and uses that term when the answer is null ([RFC-048](/rfcs/rfc-048) §2). Outside a cell nobody gives answers, so a scenario gives the finding on the policy's own term.
 
 ## Conflict resolution
 

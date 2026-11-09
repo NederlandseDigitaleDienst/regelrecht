@@ -40,8 +40,10 @@ law as no longer in force. The check follows the same text and says in its outpu
 that the law has ended, rather than silently reading a predecessor the engine
 would never use.
 
-Usage:  python3 cross-law-integriteit.py [corpus_root] [--peildatum YYYY-MM-DD]
-        (defaults: regulation, today)
+Usage:  python3 cross-law-integriteit.py [corpus_root ...] [--peildatum YYYY-MM-DD]
+        (defaults: regulation, today). Several roots are read as one corpus,
+        such as the regulation and the cells (the reductions) of the corpus
+        of the chronolexografie PoC.
 """
 import sys, glob, datetime
 
@@ -59,7 +61,7 @@ for i, a in enumerate(list(args)):
         args = [x for j, x in enumerate(args)
                 if j != i and not (j == i + 1 and '=' not in a)]
         break
-root = args[0] if args else 'regulation'
+roots = args or ['regulation']
 
 
 def _valid_from(doc):
@@ -68,7 +70,7 @@ def _valid_from(doc):
 
 
 toestanden = {}
-for path in glob.glob(f'{root}/**/*.yaml', recursive=True):
+for path in (p for root in roots for p in glob.glob(f'{root}/**/*.yaml', recursive=True)):
     try:
         doc = yaml.safe_load(open(path))
     except Exception:

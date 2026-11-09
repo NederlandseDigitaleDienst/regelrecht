@@ -1,17 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { useUntranslatables } from './useUntranslatables';
-
-// Minimal Response-like stub for a paginated JSON body.
-function res({ data = [], total = data.length }: { data?: unknown[]; total?: number } = {}) {
-  return {
-    ok: true,
-    status: 200,
-    headers: { get: () => null },
-    async json() {
-      return { data, total, limit: 50, offset: 0 };
-    },
-  };
-}
+import { pageRes, stubFetch } from '../../test-utils/fetchStubs';
 
 // The composable fires an initial fetch + starts a 20s poll on creation. Fake
 // timers keep the poll from firing during the test; we stop it in afterEach.
@@ -30,8 +19,7 @@ afterEach(() => {
 
 /** Create the composable, wait for its initial fetch to settle. */
 async function create(fetchSpy: Mock) {
-  // The spy stands in for fetch; its stub responses carry only what apiFetch reads.
-  globalThis.fetch = fetchSpy as unknown as typeof fetch;
+  stubFetch(fetchSpy);
   const comp = useUntranslatables();
   stop = comp.stopPolling;
   await comp.refresh();
@@ -47,7 +35,7 @@ function lastUrl(fetchSpy: Mock): string {
 
 describe('useUntranslatables', () => {
   it('issues an initial fetch with default sort/order/pagination', async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(res({ data: [{ id: '1' }], total: 1 }));
+    const fetchSpy = vi.fn().mockResolvedValue(pageRes({ data: [{ id: '1' }], total: 1 }));
     const comp = await create(fetchSpy);
 
     const url = lastUrl(fetchSpy);
@@ -61,7 +49,7 @@ describe('useUntranslatables', () => {
   });
 
   it('applies a valid sort with explicit order and resets offset', async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(res());
+    const fetchSpy = vi.fn().mockResolvedValue(pageRes());
     const comp = await create(fetchSpy);
 
     comp.setSort('law_id', 'asc');
@@ -73,7 +61,7 @@ describe('useUntranslatables', () => {
   });
 
   it('toggles order when re-sorting the same key', async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(res());
+    const fetchSpy = vi.fn().mockResolvedValue(pageRes());
     const comp = await create(fetchSpy);
 
     comp.setSort('construct');
@@ -86,7 +74,7 @@ describe('useUntranslatables', () => {
   });
 
   it('ignores a sort key outside the allowlist (no fetch)', async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(res());
+    const fetchSpy = vi.fn().mockResolvedValue(pageRes());
     const comp = await create(fetchSpy);
     const before = fetchSpy.mock.calls.length;
 
@@ -96,7 +84,7 @@ describe('useUntranslatables', () => {
   });
 
   it('adds and removes filters', async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(res());
+    const fetchSpy = vi.fn().mockResolvedValue(pageRes());
     const comp = await create(fetchSpy);
 
     comp.setFilter('provider', 'claude');
@@ -113,7 +101,7 @@ describe('useUntranslatables', () => {
   });
 
   it('paginates by translating a page into an offset', async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(res({ data: [], total: 150 }));
+    const fetchSpy = vi.fn().mockResolvedValue(pageRes({ data: [], total: 150 }));
     const comp = await create(fetchSpy);
 
     comp.goToPage(3);

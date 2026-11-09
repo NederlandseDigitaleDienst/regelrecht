@@ -38,6 +38,7 @@ pub mod error;
 mod load_check;
 pub mod operations;
 pub mod priority;
+pub mod projection;
 pub mod receipt;
 pub mod resolver;
 #[cfg(feature = "validate")]
@@ -57,7 +58,10 @@ pub use annotation::{
     law_id_from_source, resolve as resolve_note, MatchResult, MatchStatus, SelectorHint,
     SkipReason, TextMatch, TextQuoteSelector,
 };
-pub use answer::{Answer, AnswerProvenance, Authority, Call, OpenTermAnswerer, Question};
+pub use answer::{
+    Answer, AnswerProvenance, AnswerRequest, Authority, Call, Chronicle, ChronicleRead,
+    OpenTermAnswerer,
+};
 pub use article::{
     Action, ActionOperation, ActionValue, Article, ArticleBasedLaw, Case, Execution,
     HookDeclaration, HookFilter, HookPoint, LawLoad, MachineReadable, OverrideDeclaration,
@@ -72,14 +76,18 @@ pub use data_source::{DataSource, DataSourceMatch, DataSourceRegistry, DictDataS
 pub use engine::{ArticleEngine, ArticleResult, FilledBy, OpenTermFilled, OutputProvenance};
 pub use error::{EngineError, ExternalError, Result};
 pub use operations::{evaluate_value, execute_operation, ValueResolver};
+pub use projection::{
+    has_projection, ChronicleRecord, ProjectionEvent, ProjectionOptions, ProjectionOutcome,
+    StateChange,
+};
 pub use receipt::ExecutionReceipt;
 pub use resolver::{
     DeclarationKind, DeclarationNotInForce, DeclarationsFromOtherVersion, DelegationRefusal,
     HookEntry, ImplementationLookup, ProcedureMiss, RuleResolver,
 };
 pub use service::{
-    ExecutionOutcome, LawExecutionService, LawInfo, ProcedureStage, ServiceProvider, StageReport,
-    StageState, Submission, SubmissionArticle,
+    DecisionTerm, ExecutionOutcome, LawExecutionService, LawInfo, ProcedureStage, ServiceProvider,
+    StageReport, StageState, Submission, SubmissionArticle,
 };
 pub use trace::{PathNode, TraceBuilder};
 pub use types::{

@@ -1,6 +1,6 @@
 /**
  * Het logboek leesbaar: per handeling wat er gebeurde en met welke uitslag,
- * en de keten van een besluit als genummerde stappen. Het spel leidt alles
+ * en de keten van een besluit als boom van stappen. Het spel leidt alles
  * af uit de kroniek en het besluit opnieuw genomen (`api.logboek`); dit
  * bestand zet het alleen in woorden.
  *
@@ -9,7 +9,7 @@
  * `uitkomst` (een uitvoer van het artikel) of `begrip` (een open begrip, met
  * wie het invulde).
  */
-import { bezwaarGrondslag, hoofdletter, kort, leesbaar, state, toegewezen, waarde } from './state.js';
+import { bezwaarBasis, hoofdletter, kort, leesbaar, neemt, state, toegewezen, waarde } from './state.js';
 
 // Regelwerken die overal bij hun afkorting heten.
 const AFKORTINGEN = {
@@ -20,11 +20,13 @@ const AFKORTINGEN = {
 /**
  * De naam van een regelwerk: zijn afkorting, de naam die het zelf draagt
  * (`api.casus`), of zijn `$id` leesbaar met een hoofdletter.
+ *
+ * A name that refers to a value of the regelwerk (`'#wet_naam'`) is no name.
  */
 export function wetNaam(wet) {
   if (AFKORTINGEN[wet]) return AFKORTINGEN[wet];
   const naam = state.casus?.regelwerken?.find((r) => r.id === wet)?.naam;
-  if (naam) return naam;
+  if (naam && !naam.startsWith('#')) return naam;
   return hoofdletter(leesbaar(wet));
 }
 
@@ -37,7 +39,7 @@ export function toon(v) {
   if (v === false) return 'nee';
   if (v == null) return 'geen waarde';
   if (Array.isArray(v)) return v.length ? v.map((x) => toon(x)).join(', ') : 'geen';
-  if (typeof v === 'object' && 'grondslag' in v) return `een besluit onder ${v.grondslag}`;
+  if (typeof v === 'object' && 'basis' in v) return `een besluit onder ${v.basis}`;
   if (typeof v === 'string') return v;
   return waarde(v);
 }
@@ -57,7 +59,7 @@ export const gelezen = (p, grammen) =>
 /**
  * De cel die een begrip beantwoordde, zoals de bezoeker haar kent: de naam
  * uit de casus (OBS De Klimop, gemeente Wilgendaal, GGD Wilgendaal) als zij
- * de cel van de casus of een andere cel van haar sfeer is (RFC-052), anders
+ * de cel van de casus of een andere cel van de casus is (RFC-048), anders
  * haar id.
  */
 export const celNaam = (cel) =>
@@ -67,7 +69,7 @@ export const celNaam = (cel) =>
 
 /**
  * De kroniek van de cel `cel`: die van de casus, of die van een andere cel
- * van de sfeer (RFC-052), om daar het laatst gelezen chronolexogram te
+ * van de casus (RFC-048), om daar het laatst gelezen chronolexogram te
  * vinden.
  */
 export const grammenVan = (cel, grammen) =>
@@ -79,21 +81,35 @@ export function opsomming(namen) {
   return `${namen.slice(0, -1).join(', ')} en ${namen[namen.length - 1]}`;
 }
 
+/**
+ * Eén antwoord van een cel (`AnswerProvenance`): de cel, de reductie waaruit
+ * zij antwoordde en hoe ver zij haar kroniek las.
+ */
+const vanCel = (a, grammen) =>
+  `${celNaam(a.answerer)} (reductie ${a.law_id}, ${gelezen(a, grammenVan(a.answerer, grammen))})`;
+
+/**
+ * Een koppeling van beleid aan antwoorden van cellen (RFC-048) in woorden:
+ * `beleid <id> art. <n>, antwoord <naam> van <cel> (reductie <id>, …)`. Nam
+ * het artikel antwoorden van meer cellen op verschillende vragen, dan staan
+ * die achter elkaar (synthese, RFC-048). Eén vraag gaat naar één cel.
+ */
+export function koppeling(by, grammen) {
+  const beleid = `beleid ${by.law_id} art. ${by.article}`;
+  if (!by.answers.length) return `${beleid}, geen antwoord van een cel`;
+  return `${beleid}, ${opsomming(by.answers.map((a) => `antwoord ${a.answer} van ${vanCel(a, grammen)}`))}`;
+}
+
 /** Wie een open begrip invulde (`FilledBy`), in een zin. */
 export function ingevuldDoor(by, grammen) {
   if (by === 'finding') return 'bevinding van het bestuursorgaan';
   if (by?.regulation) return `ingevuld door ${artikelNaam(by.regulation.law_id, by.regulation.article)}`;
-  if (by?.answer) {
-    return `${celNaam(by.answer.answerer)} uit haar kroniek: reductie ${by.answer.law_id} (geldig vanaf ${by.answer.valid_from}), ${gelezen(by.answer, grammenVan(by.answer.answerer, grammen))}`;
-  }
-  // Meer bevoegde cellen antwoordden; de wet zegt hoe hun antwoorden één
-  // waarde worden (combine, RFC-052).
-  if (by?.answers) return `samengevoegd uit de antwoorden van ${opsomming(by.answers.map((a) => celNaam(a.answerer)))}`;
+  if (by?.answer) return `ingevuld door ${koppeling(by.answer, grammen)}`;
   return 'niet ingevuld';
 }
 
 /** Een stap uit de keten in woorden: een regel tekst en een toelichting. */
-export function stapTekst(stap, grammen) {
+export function stapTekst(stap) {
   switch (stap.soort) {
     case 'artikel':
       return stap.uitvoer
@@ -108,37 +124,18 @@ export function stapTekst(stap, grammen) {
             toelichting: `ontbreekt: ${stap.ontbreekt.map(leesbaar).join(', ')}`,
           }
         : { tekst: `${leesbaar(stap.naam)}: ${toon(stap.waarde)}` };
-    case 'begrip': {
-      const cel = stap.ingevuld_door?.answer;
-      if (stap.ingevuld_door?.answers) {
-        return {
-          tekst: `${leesbaar(stap.naam)}: ${toon(stap.waarde)}`,
-          toelichting: ingevuldDoor(stap.ingevuld_door, grammen),
-        };
-      }
-      if (cel) {
-        return {
-          tekst: `${leesbaar(stap.naam)}: ${toon(stap.waarde)}`,
-          toelichting: `ingevuld door ${celNaam(cel.answerer)} uit haar kroniek (${cel.law_id}, ${gelezen(cel, grammenVan(cel.answerer, grammen))})`,
-        };
-      }
-      // Een begrip dat zijn standaardwaarde kreeg, noemt de engine niet bij
-      // de ingevulde begrippen; het heeft dan wel een waarde.
-      const door =
-        stap.ingevuld_door == null && stap.waarde != null
-          ? 'standaardwaarde'
-          : ingevuldDoor(stap.ingevuld_door, grammen);
-      return {
-        tekst: `${leesbaar(stap.naam)}: ${toon(stap.waarde)}`,
-        toelichting: `open begrip, ${door}`,
-      };
-    }
+    // Who filled the term in shows as a tag (herkomst.js), not as a sentence.
+    case 'begrip':
+      return { tekst: `${leesbaar(stap.naam)}: ${toon(stap.waarde)}` };
     default:
       return { tekst: stap.soort };
   }
 }
 
-/** De keten genummerd: `1`, `1.2`, `1.2.3`. */
+/**
+ * The chain as a tree. Each step gets a `nummer` (`1`, `1.2`, `1.2.3`) that
+ * serves as its key; the chain does not show it.
+ */
 export function genummerd(stappen, prefix = '') {
   return stappen.map((stap, i) => {
     const nummer = prefix ? `${prefix}.${i + 1}` : `${i + 1}`;
@@ -151,7 +148,7 @@ export function uitslag(g) {
   const o = g.outputs ?? {};
   if (g.kind === 'AANVRAAG' || g.kind === 'BEZWAAR') return { tekst: 'ontvangen', kleur: 'neutral' };
   if (g.kind === 'EXECUTOGRAM') return { tekst: 'vastgelegd', kleur: 'neutral' };
-  if (g.grondslag === bezwaarGrondslag()) {
+  if (g.basis === bezwaarBasis()) {
     if (o.bezwaar_ontvankelijk === false) return { tekst: 'niet-ontvankelijk', kleur: 'warning' };
     return o.bestreden_besluit_herroepen
       ? { tekst: 'gegrond', kleur: 'success' }
@@ -164,6 +161,4 @@ export function uitslag(g) {
 
 /** De beslissing op bezwaar die `id` als nieuw besluit nam, als die er is. */
 export const genomenBij = (id, grammen) =>
-  grammen.find(
-    (g) => g.grondslag === bezwaarGrondslag() && Object.values(g.outputs ?? {}).includes(id),
-  ) ?? null;
+  grammen.find((g) => g.basis === bezwaarBasis() && neemt(g, id)) ?? null;

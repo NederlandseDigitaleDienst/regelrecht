@@ -18,7 +18,7 @@ Feature: Bezwaartermijn chain
     # AWB 3:46 hook fires pre_actions on BESCHIKKING
     Then output "motivering_vereist" is true
     # AWB 6:7 hook fires post_actions, but Vw art 69 overrides to 4 weeks
-    Then output "bezwaartermijn_weken" equals 4
+    Then output "termijn_weken" equals 4
 
   # NB: Art 14 merely states that the Minister is competent to grant/deny.
   # The article has no conditions — it is a declaratory statement of

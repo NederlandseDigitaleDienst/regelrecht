@@ -59,7 +59,7 @@ const onderdelen = computed(() => [
   { icon: 'books', title: t('app.tabs.wetten'), text: t('home.parts.wetten.text'), to: pathFor('wetten') },
   { icon: 'centralized-network', title: t('app.tabs.graaf'), text: t('home.parts.graaf.text'), to: pathFor('graaf') },
   { icon: 'checklist', title: t('app.tabs.scenarios'), text: t('home.parts.scenarios.text'), to: pathFor('scenarios') },
-  { icon: 'chart-line', title: t('app.tabs.simulatie'), text: t('home.parts.simulatie.text'), to: pathFor('simulatie') },
+  { icon: 'line-chart', title: t('app.tabs.simulatie'), text: t('home.parts.simulatie.text'), to: pathFor('simulatie') },
   { icon: 'user', title: t('app.tabs.portaal'), text: t('home.parts.portaal.text'), to: pathFor('portaal') },
   { icon: 'inbox', title: t('app.tabs.zaaksysteem'), text: t('home.parts.zaaksysteem.text'), to: pathFor('zaaksysteem') },
 ]);
@@ -108,9 +108,10 @@ onActivated(() => {
 
 <template>
   <nldd-page ref="page">
-    <!-- Het gekleurde vlak draagt zijn eigen contentkleur, dus titel, tekst en
-         de inherit-knoppen erbinnen houden hun contrast zonder scheme-override. -->
-    <nldd-hero main-width="full" main-background="donkerblauw" padding-bottom="0">
+    <!-- Het gekleurde vlak is het accent van het ontwerpsysteem. Het draagt
+         zijn eigen contentkleur, dus titel, tekst en de inherit-knoppen
+         erbinnen houden hun contrast zonder scheme-override. -->
+    <nldd-hero main-width="full" padding-bottom="0">
       <!-- Twee kolommen over de volle hoogte van de hero: het verhaal links, de
            QR-code rechts. In een zaal wordt die code in de eerste seconden
            gescand, dus hij hoort meteen in beeld en groot genoeg om vanaf een
@@ -129,16 +130,16 @@ onActivated(() => {
           <nldd-spacer size="24"></nldd-spacer>
           <!-- Kaarten in plaats van knoppen: elke manier zegt in één regel
                wat je krijgt. Dezelfde nldd-card als de kaarten verderop. -->
-          <nldd-collection layout="grid" item-width="200px" :accessible-label="t('home.ways.label')">
+          <nldd-collection layout="grid" item-min-width="200px">
             <nldd-card v-for="w in ways" :key="w.key" button :accessible-label="w.title" @click="ready && w.go()">
               <nldd-container padding="16" gap="8">
                 <!-- An explicit color: in the hero the icon would inherit its
                      white and vanish on the white card. -->
-                <nldd-icon :name="w.icon" size="24" color="accent"></nldd-icon>
+                <nldd-icon :icon="w.icon" size="24" color="accent"></nldd-icon>
                 <nldd-title size="5">
                   <h2>{{ w.title }}</h2>
                 </nldd-title>
-                <nldd-rich-text size="sm" spacing="tight">
+                <nldd-rich-text spacing="tight">
                   <p>{{ w.text }}</p>
                 </nldd-rich-text>
               </nldd-container>
@@ -162,14 +163,14 @@ onActivated(() => {
         <h2>{{ t('home.links.title') }}</h2>
         <span slot="supporting-text">{{ t('home.links.subtitle') }}</span>
       </nldd-title>
-      <nldd-collection layout="grid" item-width="240px">
+      <nldd-collection layout="grid" item-min-width="240px">
         <nldd-card v-for="l in links" :key="l.href" :href="l.href" target="_blank">
           <nldd-container padding="16" gap="8">
             <nldd-icon :icon="l.icon" size="24"></nldd-icon>
             <nldd-title size="5">
               <h3>{{ l.title }}</h3>
             </nldd-title>
-            <nldd-rich-text size="sm" spacing="tight">
+            <nldd-rich-text spacing="tight">
               <p>{{ l.text }}</p>
             </nldd-rich-text>
           </nldd-container>
@@ -185,14 +186,14 @@ onActivated(() => {
         <h2>{{ t('home.parts.title') }}</h2>
         <span slot="supporting-text">{{ t('home.parts.subtitle') }}</span>
       </nldd-title>
-      <nldd-collection layout="grid" item-width="240px">
-        <nldd-card v-for="o in onderdelen" :key="o.to" button @click="router.push(o.to)">
+      <nldd-collection layout="grid" item-min-width="240px">
+        <nldd-card v-for="o in onderdelen" :key="o.to" button :accessible-label="o.title" @click="router.push(o.to)">
           <nldd-container padding="16" gap="8">
             <nldd-icon :icon="o.icon" size="24"></nldd-icon>
             <nldd-title size="5">
               <h3>{{ o.title }}</h3>
             </nldd-title>
-            <nldd-rich-text size="sm" spacing="tight">
+            <nldd-rich-text spacing="tight">
               <p>{{ o.text }}</p>
             </nldd-rich-text>
           </nldd-container>

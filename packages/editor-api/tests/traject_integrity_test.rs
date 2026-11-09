@@ -25,27 +25,23 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::sync::Arc;
+mod common;
+
+use common::{
+    add_central_seed, insert_traject, seed_account, session_for, state_with_user_token_mode,
+    traject_ref,
+};
 
 use axum::extract::{Extension, Path, State};
 use axum::http::HeaderMap;
 use pretty_assertions::assert_eq;
 use sqlx::PgPool;
-use tokio::sync::{Mutex, RwLock};
-use tower_sessions::Session;
-use tower_sessions_memory_store::MemoryStore;
 use uuid::Uuid;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use regelrecht_auth::handlers::{
-    SESSION_KEY_EMAIL, SESSION_KEY_EMAIL_VERIFIED, SESSION_KEY_NAME, SESSION_KEY_SUB,
-};
 use regelrecht_editor_api::accounts::AccountRecord;
-use regelrecht_editor_api::config::AppConfig;
 use regelrecht_editor_api::github_oauth::GithubOAuth;
-use regelrecht_editor_api::state::{AppState, CorpusState};
-use regelrecht_editor_api::traject_corpus::TrajectCorpusCache;
 use regelrecht_editor_api::traject_integrity::{get_traject_integrity, FindingKind};
 
 use regelrecht_pipeline::test_utils::TestDb;
@@ -85,68 +81,11 @@ valid_from: '2025-01-01'
 
 const SEED_LAW_ID: &str = "wet_seed_voorbeeld";
 
-fn state_with_user_token_mode(pool: PgPool, oauth: GithubOAuth) -> AppState {
-    AppState {
-        corpus: Arc::new(RwLock::new(CorpusState::empty())),
-        oidc_client: None,
-        end_session_url: None,
-        config: Arc::new(AppConfig {
-            oidc: None,
-            base_url: None,
-            github_oauth: Some(oauth),
-            task_enrich_provider: "claude".to_string(),
-        }),
-        // regelrecht_auth::http_client(), niet reqwest::Client::new(): editor-api
-        // bouwt reqwest met `rustls-tls-webpki-roots-no-provider`, dus rustls
-        // kiest geen backend uit zichzelf. Een test heeft geen `main` die de
-        // provider installeert, dus doet deze helper dat - anders paniekt de
-        // eerste client met "No provider set". Zo doen de andere editor-api
-        // integratietests het ook.
-        http_client: regelrecht_auth::http_client(),
-        pool: Some(pool),
-        pipeline_api_url: None,
-        harvest_admin_url: None,
-        reload_lock: Arc::new(Mutex::new(())),
-        integrity: Default::default(),
-        trajects: Arc::new(TrajectCorpusCache::new()),
-    }
-}
-
-async fn seed_account(pool: &PgPool, email: &str) -> (Uuid, String) {
-    let sub = format!("sub-{email}");
-    let (id,): (Uuid,) = sqlx::query_as(
-        "INSERT INTO accounts (person_sub, email, name) VALUES ($1, $2, $3) RETURNING id",
-    )
-    .bind(&sub)
-    .bind(email)
-    .bind("Test User")
-    .fetch_one(pool)
-    .await
-    .unwrap();
-    (id, sub)
-}
-
 /// Traject met een GitHub writable-own (service-token via `auth_ref`) plus
 /// een lokale seed als centraal corpus.
 async fn seeded_traject(pool: &PgPool, owner_id: Uuid, seed_dir: &std::path::Path) -> Uuid {
     let (gh_owner, gh_repo) = OWN_REPO.split_once('/').unwrap();
-    let (traject_id,): (Uuid,) = sqlx::query_as(
-        "INSERT INTO trajects (name, description, scope, created_by)
-         VALUES ('Test', '', '', $1) RETURNING id",
-    )
-    .bind(owner_id)
-    .fetch_one(pool)
-    .await
-    .unwrap();
-    sqlx::query(
-        "INSERT INTO traject_members (traject_id, account_id, role)
-         VALUES ($1, $2, 'owner')",
-    )
-    .bind(traject_id)
-    .bind(owner_id)
-    .execute(pool)
-    .await
-    .unwrap();
+    let traject_id = insert_traject(pool, owner_id).await;
     sqlx::query(
         "INSERT INTO traject_corpus_sources
          (traject_id, source_id, name, source_type,
@@ -165,38 +104,8 @@ async fn seeded_traject(pool: &PgPool, owner_id: Uuid, seed_dir: &std::path::Pat
     .execute(pool)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO traject_corpus_sources
-         (traject_id, source_id, name, source_type, local_path,
-          priority, scopes, is_writable_own)
-         VALUES ($1, 'central-seed', 'Centrale Corpus', 'local'::corpus_source_type, $2,
-                 2, '[]'::jsonb, FALSE)",
-    )
-    .bind(traject_id)
-    .bind(seed_dir.to_string_lossy().to_string())
-    .execute(pool)
-    .await
-    .unwrap();
+    add_central_seed(pool, traject_id, seed_dir).await;
     traject_id
-}
-
-fn traject_ref(traject_id: Uuid) -> String {
-    format!("test-{}", &traject_id.to_string()[..8])
-}
-
-async fn session_for(sub: &str) -> Session {
-    let session = Session::new(None, Arc::new(MemoryStore::default()), None);
-    session.insert(SESSION_KEY_SUB, sub).await.unwrap();
-    session.insert(SESSION_KEY_NAME, "Test User").await.unwrap();
-    session
-        .insert(SESSION_KEY_EMAIL, "alice@test.local")
-        .await
-        .unwrap();
-    session
-        .insert(SESSION_KEY_EMAIL_VERIFIED, true)
-        .await
-        .unwrap();
-    session
 }
 
 /// De wet die het "centrale corpus" bijdraagt — het doel van de

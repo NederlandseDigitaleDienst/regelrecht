@@ -3542,6 +3542,44 @@ impl Report {
     }
 }
 
+/// A definition holding a number without a `type`.
+///
+/// RFC-023 lets a constant say what kind of quantity it is, and a bare number
+/// says nothing: `13.7` could be 13,7 percent or a multiplier of 13,7, and
+/// `3971900` could be cents or euros. Only numbers are asked: for a text, a
+/// yes/no or a list, a missing type hides no factor.
+pub fn definitions_carry_a_type(doc: &Value) -> Vec<Finding> {
+    let mut findings = Vec::new();
+    for (article, mr) in articles_with_models(doc) {
+        let Some(defs) = mr.get("definitions").and_then(Value::as_mapping) else {
+            continue;
+        };
+        for (key, def) in defs {
+            let Some(name) = key.as_str() else { continue };
+            let (value, typed) = match def {
+                Value::Mapping(m) => (m.get("value"), m.get("type").is_some()),
+                other => (Some(other), false),
+            };
+            if typed || !value.is_some_and(Value::is_number) {
+                continue;
+            }
+            findings.push(Finding::new(
+                "definition-type",
+                Some(&article),
+                format!(
+                    "definition {name} is a number without a type. Add a type and, for a \
+                     quantity, a unit, and leave the value as it is: an amount is type amount \
+                     with unit eurocent, a share is type number with the unit that matches how \
+                     the value is written (ratio for 0-1, percentage for 0-100), a duration \
+                     carries years/months/weeks/days, and a plain count is type number \
+                     without a unit"
+                ),
+            ));
+        }
+    }
+    findings
+}
+
 /// Run every deterministic check over one law file.
 ///
 /// `companion_dir`, when given, is the directory the agent worked in: every
@@ -3602,6 +3640,7 @@ pub fn run(yaml: &str, corpus_root: Option<&Path>) -> Report {
     findings.extend(output_promises(&doc));
     findings.extend(declaration_agrees_with_header(&doc));
     findings.extend(binding_units(&doc, corpus_root));
+    findings.extend(definitions_carry_a_type(&doc));
     findings.extend(marking_discipline(&doc, &statutory_text));
     Report { schema, findings }
 }
@@ -3610,6 +3649,65 @@ pub fn run(yaml: &str, corpus_root: Option<&Path>) -> Report {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    fn law(machine_readable: &str) -> Value {
+        let indented: String = machine_readable
+            .lines()
+            .map(|l| format!("      {l}\n"))
+            .collect();
+        serde_yaml_ng::from_str(&format!(
+            "articles:\n  - number: '2'\n    text: tekst\n    machine_readable:\n{indented}"
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn the_definition_type_check_runs_with_the_others() {
+        let yaml = "articles:
+  - number: '2'
+    text: tekst
+    machine_readable:
+      definitions:
+        kaal: 13.7
+";
+        let checks: Vec<&str> = run(yaml, None).findings.iter().map(|f| f.check).collect();
+        assert!(checks.contains(&"definition-type"), "{checks:?}");
+    }
+
+    #[test]
+    fn a_number_definition_without_a_type_is_reported() {
+        let doc = law("definitions:
+  kaal: 0.137
+  zonder_type:
+    value: 3971900
+  getypeerd:
+    value: 13.7
+    type: number
+    type_spec:
+      unit: percentage
+  telling:
+    value: 3
+    type: number
+  tekst: Dienst Toeslagen
+  lijst:
+    value: [A, B]
+  ja: true
+");
+        let reported: Vec<String> = definitions_carry_a_type(&doc)
+            .iter()
+            .map(|f| {
+                f.detail
+                    .split_whitespace()
+                    .nth(1)
+                    .unwrap_or_default()
+                    .to_string()
+            })
+            .collect();
+        assert_eq!(reported, ["kaal", "zonder_type"]);
+        assert!(definitions_carry_a_type(&doc)
+            .iter()
+            .all(|f| f.check == "definition-type" && f.article.as_deref() == Some("2")));
+    }
 
     /// The line that broke a whole law in round 5: an unquoted `explanation`
     /// carrying "Eerste lid: ". The diagnosis has to name the line, the rule

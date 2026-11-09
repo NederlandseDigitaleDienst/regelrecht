@@ -117,8 +117,8 @@ pub struct Poc {
 /// A corpus a static PoC loads while it runs: a folder on a branch of a
 /// GitHub repository, fetched with the token in `token_env`. The browser
 /// never sees the token; the portal serves the files at
-/// `/<slug>/bron/<name>`. Locally `POC_BRON_<NAME>` names a folder that
-/// takes its place, without a token.
+/// `/<slug>/bron/<name>`. Locally `POC_BRON_<NAME>` names a folder or a
+/// manifest that takes its place, without a token.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Source {
@@ -134,8 +134,10 @@ pub struct GithubSource {
     pub owner: String,
     pub repo: String,
     pub branch: String,
-    /// The folder of the branch that holds the source; its files are served
-    /// by their path under it.
+    /// The folder of the branch that holds the source, its files served by
+    /// their path under it; or a manifest (a `.yaml` file) that makes the
+    /// source from directories anywhere on the branch
+    /// ([`crate::bron::Manifest`]).
     pub path: String,
 }
 

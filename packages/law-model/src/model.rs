@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 
 /// Represents a competent authority: a reference or one named authority on an
-/// article (RFC-002), or, on an open term or a fact (schema v0.8.8, RFC-052),
+/// article (RFC-002), or, on an open term or a fact (schema v0.8.8, RFC-051),
 /// one named authority or a list of them.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -161,13 +161,17 @@ pub struct TypeSpec {
 /// - Simple regulation reference: `regulation: "other_law"` + `output: "field_name"`
 /// - Same-law reference: `output: "field_name"` (resolved within the same law)
 /// - The decisions taken under an article: `decisions: "<regulation>#<article>"`
-///   (schema v0.8.2, RFC-048), only in a `REDUCTIE`
+///   (schema v0.8.2, RFC-048), or a `$`-reference to a parameter that holds
+///   one (schema v0.8.11), only in a `REDUCTIE`
 /// - The recorded instances of a fact an article requires: `facts:
 ///   "<regulation>#<article>#<fact>"` (schema v0.8.7, RFC-051), only in a
 ///   `REDUCTIE`
+/// - The named answer of a cell: `reduction: "<answer>"` with `parameters`
+///   (schema v0.8.9, RFC-048), only in a policy article that fills an open
+///   term (`implements`)
 /// - The decision of an article: `article: "<regulation>#<article>"` or a
 ///   `$`-reference that holds one, with `parameters_from` (schema v0.8.4,
-///   RFC-050)
+///   RFC-045)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Source {
     /// Simple cross-law reference (law ID)
@@ -187,21 +191,21 @@ pub struct Source {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// The decisions taken under this article, `<regulation>#<article>`
-    /// (schema v0.8.2, RFC-048): a list with one row per decision. Only a
-    /// data source answers it, such as the cell that holds the decisions in
-    /// its chronicle, or the caller with a parameter of that name; no
-    /// regulation is executed for it. Only a rulework
-    /// with `regulatory_layer: REDUCTIE` may read it.
+    /// (schema v0.8.2, RFC-048), or a `$`-reference to a parameter of the
+    /// reading article that holds one (schema v0.8.11): a list with one row
+    /// per decision. Only a data source answers it, such as the cell on
+    /// whose chronicle the reduction is applied, or the caller with a
+    /// parameter of that name; no regulation is executed for it. Only a
+    /// rulework with `regulatory_layer: REDUCTIE` may read it.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_article_reference"
+        deserialize_with = "optional_article_target"
     )]
     pub decisions: Option<String>,
     /// The recorded instances of a fact an article requires,
-    /// `<regulation>#<article>#<fact>` (schema v0.8.7, RFC-051; v0.8.6
-    /// named a stream of the cell under `executograms`): a list with one row
-    /// per instance, as `decisions` gives one per decision. The article's
+    /// `<regulation>#<article>#<fact>` (schema v0.8.7, RFC-051): a list with
+    /// one row per instance, as `decisions` gives one per decision. The article's
     /// `requires` entry with that `fact` says what each holds. Only a data
     /// source answers it, such as the cell that records the facts, or the
     /// caller with a parameter of that name; no regulation is executed for
@@ -212,9 +216,19 @@ pub struct Source {
         deserialize_with = "optional_fact_reference"
     )]
     pub facts: Option<String>,
-    /// The article whose decision this input takes (schema v0.8.4, RFC-050):
+    /// The named answer of a cell this input takes (schema v0.8.9,
+    /// RFC-048): the name under which a cell gives it in its catalogue
+    /// (`cel.yaml`, `answers`), with `parameters` as the values the cell's
+    /// reduction gets under its own names. Only a policy article that fills
+    /// an open term (`implements`) takes one: it binds the term to the
+    /// answer. The engine asks one cell of the call for it: the one the
+    /// filled term names in its `competent_authority`, or else the cell of
+    /// the policy's holder. Without a cell that answers, the value is null.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reduction: Option<String>,
+    /// The article whose decision this input takes (schema v0.8.4, RFC-045):
     /// an article reference `<regulation>#<article>`, or a `$`-reference to
-    /// a value that holds one, such as the `grondslag` of a `decision`
+    /// a value that holds one, such as the `basis` of a `decision`
     /// value. Without `output` the input is the decision value of that
     /// article; with `output`, that one output of its decision item. Stands
     /// apart from `regulation`, `decisions` and `endpoint`.
@@ -226,13 +240,25 @@ pub struct Source {
     pub article: Option<String>,
     /// `$`-references to objects whose fields are passed to `article` as
     /// parameters, merged in order; `parameters` goes on top (schema v0.8.4,
-    /// RFC-050). Only with `article`.
+    /// RFC-045). Only with `article`.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "optional_variable_references"
     )]
     pub parameters_from: Option<Vec<String>>,
+    /// Schema v0.8.6's way to read the recorded instances of a fact, which
+    /// v0.8.7 replaced by `facts` (RFC-051). The model reads it only so the
+    /// engine can refuse it at load and name `facts` instead of dropping it
+    /// silently; it is never written back.
+    #[serde(default, skip_serializing, deserialize_with = "present")]
+    pub executograms: Option<serde_json::Value>,
+    /// Schema v0.8.9's rule to merge the answers of several cells, beside
+    /// `reduction`, which v0.8.13 removed: one question goes to one cell
+    /// (RFC-048 §4). The model reads it only so the engine can refuse it at
+    /// load instead of dropping it silently; it is never written back.
+    #[serde(default, skip_serializing, deserialize_with = "present")]
+    pub combine: Option<serde_json::Value>,
 }
 
 /// Parameter definition in execution spec
@@ -330,7 +356,7 @@ impl Output {
 
 /// What an article produces: one object, the form most laws write, or a
 /// list of produced things, such as an application and the decision on it
-/// (schema v0.8.1, RFC-047). Serializes back in the form it was written in.
+/// (schema v0.8.1, RFC-045). Serializes back in the form it was written in.
 ///
 /// Read it through [`Article::get_produced`], [`Article::get_decision`],
 /// [`Article::get_submission`], [`Article::outputs_of`] and
@@ -399,9 +425,9 @@ impl From<Produces> for ProducesList {
 
 /// The kinds of submission a produced item's `type` can name (RFC-045). Any
 /// other `type` is a legal character.
-pub const SUBMISSION_KINDS: &[&str] = &["AANVRAAG", "BEZWAAR"];
+pub const SUBMISSION_KINDS: &[&str] = &["AANVRAAG", "BEZWAAR", "BEROEP"];
 
-/// One item of `produces` in the list form (schema v0.8.1, RFC-047): a
+/// One item of `produces` in the list form (schema v0.8.1, RFC-045): a
 /// submission, such as an application, or a decision, each with what it
 /// contains or yields.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -420,7 +446,7 @@ pub struct ProducedItem {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outputs: Option<Vec<String>>,
     /// For a decision: the article's outputs that are data derived for it
-    /// (schema v0.8.4, RFC-050), computed at the decision's stages and
+    /// (schema v0.8.4, RFC-045 §1), computed at the decision's stages and
     /// recorded with it, but not among its outputs, so a call to the
     /// article leaves them out of the decision value.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -444,6 +470,30 @@ pub struct ProducedItem {
     /// The moment that counts in law for this item (RFC-045).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub moment: Option<Moment>,
+    /// For a decision: the decisions it revokes (schema v0.8.14), such as
+    /// the contested decision (Awb 7:11 lid 2). The engine
+    /// carries them out when it plays a chronicle through a reduction with a
+    /// `projection` (`projection.rs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effects: Option<Vec<DecisionEffect>>,
+}
+
+/// One thing a decision does with another decision (schema v0.8.14): it
+/// revokes it. It names the parameter of the article whose value is that
+/// other decision, and, with `when`, a boolean output of the decision that
+/// must be true for the effect to hold, such as the revocation that follows
+/// only from a well-founded objection. A decision in the place of another
+/// revokes it and counts as a record of its own.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DecisionEffect {
+    /// The parameter whose value is the decision this one revokes.
+    #[serde(rename = "revokes")]
+    pub parameter: String,
+    /// A boolean output of this decision; the effect holds only when it is
+    /// true. Without it the effect always holds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub when: Option<String>,
 }
 
 impl ProducedItem {
@@ -515,11 +565,20 @@ impl<'a> Produced<'a> {
     }
 
     /// The outputs the item lists as data derived for it (schema v0.8.4,
-    /// RFC-050); `None` when it lists none, and always for the object form.
+    /// RFC-045 §1); `None` when it lists none, and always for the object form.
     pub fn listed_derived(self) -> Option<&'a [String]> {
         match self {
             Self::Object(_) => None,
             Self::Item(i) => i.derived.as_deref(),
+        }
+    }
+
+    /// For a decision in the list form: what it does with other decisions
+    /// (schema v0.8.14); empty for the object form.
+    pub fn effects(self) -> &'a [DecisionEffect] {
+        match self {
+            Self::Object(_) => &[],
+            Self::Item(i) => i.effects.as_deref().unwrap_or_default(),
         }
     }
 
@@ -576,8 +635,8 @@ pub struct Produces {
 #[serde(deny_unknown_fields)]
 pub struct Submission {
     /// The kind of submission, as the law names it: one of
-    /// [`SUBMISSION_KINDS`], `AANVRAAG` (Awb 1:3 lid 3) or `BEZWAAR` (Awb 1:5
-    /// lid 1).
+    /// [`SUBMISSION_KINDS`], `AANVRAAG` (Awb 1:3 lid 3), `BEZWAAR` (Awb 1:5
+    /// lid 1) or `BEROEP` (Awb 8:1, schema v0.8.10).
     pub kind: String,
 }
 
@@ -1120,7 +1179,10 @@ pub struct OpenTerm {
     /// The regulation the article itself names as the one that fills this term
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expected_source: Option<String>,
-    /// The authority that decides this term per individual case (Awb 3:46)
+    /// Marks the term as judged per individual case (Awb 3:46), with in
+    /// words who judges it. Who gives the finding is not read from these
+    /// words: it is [`Self::competent_authority`], or else the authority
+    /// that executes the article (RFC-048 §2).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub decided_per_case_by: Option<String>,
     /// Legal basis text
@@ -1129,17 +1191,30 @@ pub struct OpenTerm {
     /// Default execution if no implementing regulation exists
     #[serde(default)]
     pub default: Option<OpenTermDefault>,
-    /// Who may answer this term for a reader that reaches the article
-    /// through `source.regulation` (schema v0.8.8, RFC-052): one named
-    /// authority or a list. The article's own `competent_authority` says
-    /// who decides (RFC-002), which is another question.
+    /// Who may answer this term (schema v0.8.8, RFC-051 §2), wherever a
+    /// binding of it runs (RFC-048 §4): one named authority or a list. The
+    /// article's own `competent_authority` says who decides (RFC-002),
+    /// which is another question. On a term judged per case it also says
+    /// who gives the finding (RFC-048 §2).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub competent_authority: Option<CompetentAuthority>,
-    /// How the answers of several competent answerers make one value, with
-    /// the aggregations of FOREACH (schema v0.8.8, RFC-052). Without it, two
-    /// answers are an error.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub combine: Option<CombineOp>,
+    /// Schema v0.8.8's rule to merge the answers of the competent cells,
+    /// which v0.8.13 removed: one question goes to one cell (RFC-048 §4).
+    /// The model reads it only so the engine can refuse it at load instead
+    /// of dropping it silently; it is never written back.
+    #[serde(default, skip_serializing, deserialize_with = "present")]
+    pub combine: Option<serde_json::Value>,
+}
+
+impl OpenTerm {
+    /// Whether the term carries a default the engine can run. `default: {}`
+    /// or `default: {actions: []}` resolves to `null` ("using empty
+    /// default"), and counts as no default.
+    pub fn has_default(&self) -> bool {
+        self.default
+            .as_ref()
+            .is_some_and(|d| d.actions.as_ref().is_some_and(|a| !a.is_empty()))
+    }
 }
 
 fn default_true() -> bool {
@@ -1182,7 +1257,7 @@ pub struct ArticleRequirement {
     /// With `fact`: what the fact is, in words.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    /// With `fact`: who establishes it (schema v0.8.8, RFC-052), one named
+    /// With `fact`: who establishes it (schema v0.8.8, RFC-051), one named
     /// authority or a list, such as the GGD for a medical examination.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub competent_authority: Option<CompetentAuthority>,
@@ -1382,6 +1457,15 @@ where
         )));
     }
     Ok(Some(references))
+}
+
+/// Record that a key is present, whatever it holds: also a bare key or an
+/// explicit `null`, which plain `Option` would read as absent.
+fn present<'de, D>(deserializer: D) -> Result<Option<serde_json::Value>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    serde_json::Value::deserialize(deserializer).map(Some)
 }
 
 /// Declaration that an article fires as a hook on matching lifecycle events (RFC-007)
@@ -1729,6 +1813,154 @@ pub struct MachineReadable {
     /// Document properties this article establishes (schema v0.7.0)
     #[serde(default)]
     pub declares: Option<Vec<Declaration>>,
+    /// In a reduction: the state it keeps while it plays a chronicle
+    /// forward, and what each record does with it (schema v0.8.14).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub projection: Option<Projection>,
+}
+
+/// A reduction that plays a cell's chronicle forward (schema v0.8.14): the
+/// properties of its state, and per article a record rests on, the step
+/// that changes them. Its `execution` answers from the last state.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Projection {
+    /// The parameter of the reduction that names whose records are played,
+    /// such as an applicant. A record holds its key under the same name, as
+    /// a field or an output. Without it, every record is played.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+    pub state: Vec<StateProperty>,
+    pub steps: Vec<ProjectionStep>,
+}
+
+/// One property of a projection's state. Before the first record it holds
+/// the start value of its type ([`StateProperty::start`]).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StateProperty {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub property_type: ParameterType,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+impl StateProperty {
+    /// The value before the first record: false for a boolean, 0 for a
+    /// number or an amount, null for a string or a date.
+    pub fn start(&self) -> Value {
+        match self.property_type {
+            ParameterType::Boolean => Value::Bool(false),
+            ParameterType::Number | ParameterType::Amount => Value::Int(0),
+            _ => Value::Null,
+        }
+    }
+}
+
+/// What a record under one article does with the state: like an article,
+/// it takes inputs from the outputs of a law (`source.regulation`), with
+/// parameters from the record and the state, and its actions give the
+/// properties of the state their values. What the record does is in that
+/// law; the step only couples each property to an output.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectionStep {
+    /// The article the record rests on, `<regulation>#<article>`, with a
+    /// third segment `#<KIND>` when the article produces or requires more
+    /// than one kind of record: a submission kind, a legal character or
+    /// `EXECUTOGRAM`, such as `wet#1#BESCHIKKING`.
+    #[serde(deserialize_with = "step_record")]
+    pub record: String,
+    /// The outputs of a law the step takes, each as an article input with
+    /// `source: {regulation, output, parameters}`. A parameter is
+    /// `$record.<field>` or `$state.<property>`.
+    #[serde(default)]
+    pub input: Vec<Input>,
+    /// What the step gives each property of the state, as the actions of
+    /// an article: `output` names the property, `value` is an input of the
+    /// step (`$<input>`), a field of the record (`$record.<field>`) or a
+    /// property of the state before it (`$state.<property>`). A property no
+    /// action names keeps its value.
+    pub actions: Vec<Action>,
+}
+
+/// What a step reads: one of its inputs (`$<name>`), a field or output of
+/// the record (`$record.<name>`), or a property of the state before it
+/// (`$state.<name>`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StepSource {
+    Input(String),
+    Record(String),
+    State(String),
+}
+
+impl StepSource {
+    /// Read `$<name>`, `$record.<name>` or `$state.<name>`; anything else is
+    /// no source.
+    pub fn parse(s: &str) -> Option<Self> {
+        let name_ok = |n: &str| {
+            !n.is_empty()
+                && n.chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        };
+        let path = s.strip_prefix('$')?;
+        match path.split_once('.') {
+            Some(("record", name)) if name_ok(name) => Some(Self::Record(name.to_string())),
+            Some(("state", name)) if name_ok(name) => Some(Self::State(name.to_string())),
+            None if name_ok(path) && path != "record" && path != "state" => {
+                Some(Self::Input(path.to_string()))
+            }
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for StepSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Input(name) => write!(f, "${name}"),
+            Self::Record(name) => write!(f, "$record.{name}"),
+            Self::State(name) => write!(f, "$state.{name}"),
+        }
+    }
+}
+
+impl ProjectionStep {
+    /// The article the step is about and the kind it names, if any: `wet#1`
+    /// and `BESCHIKKING` for `wet#1#BESCHIKKING`.
+    pub fn basis_and_kind(&self) -> (&str, Option<&str>) {
+        split_kind(&self.record)
+    }
+}
+
+/// Split `<regulation>#<article>[#<KIND>]` into the article and the kind.
+fn split_kind(record: &str) -> (&str, Option<&str>) {
+    match record.split('#').count() {
+        3 => record
+            .rsplit_once('#')
+            .map_or((record, None), |(basis, kind)| (basis, Some(kind))),
+        _ => (record, None),
+    }
+}
+
+/// Deserialize `<regulation>#<article>`, optionally followed by `#<KIND>`,
+/// a kind in capitals.
+fn step_record<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    let (basis, kind) = split_kind(&s);
+    let kind_ok =
+        kind.is_none_or(|k| !k.is_empty() && k.chars().all(|c| c.is_ascii_uppercase() || c == '_'));
+    if is_article_reference(basis) && kind_ok {
+        Ok(s)
+    } else {
+        Err(serde::de::Error::custom(format!(
+            "'{s}' is not <regulation>#<article>, optionally with #<KIND>, without a paragraph"
+        )))
+    }
 }
 
 /// Represents a single article in a law
@@ -1922,6 +2154,21 @@ impl Article {
             .find(|p| p.submission_kind().is_some())
     }
 
+    /// The article whose decision the submission of this article asks for,
+    /// `<regulation>#<article>`: the one its item names with `requests`
+    /// (RFC-045 §1), or `own`, this article, in the object form when that also
+    /// takes a decision. `None` when it establishes no submission or its
+    /// submission names no decision. Whether that article is there and takes
+    /// a decision, only the corpus it runs in can say.
+    pub fn requested_decision(&self, own: &str) -> Option<String> {
+        let submission = self.get_submission()?;
+        match submission.requests() {
+            Some(target) => Some(target.to_string()),
+            None if !self.produces_list() && self.get_decision().is_some() => Some(own.to_string()),
+            None => None,
+        }
+    }
+
     /// The names of the outputs that belong to `item`, one of
     /// [`Self::get_produced`]: those it lists under `outputs`. An item that
     /// lists none yields nothing if it is a submission, and if it is the
@@ -1950,7 +2197,7 @@ impl Article {
     }
 
     /// The outputs the decision lists as data derived for it, `derived`
-    /// (schema v0.8.4, RFC-050): computed at the decision's stages and
+    /// (schema v0.8.4, RFC-045): computed at the decision's stages and
     /// recorded with it, but not among its outputs.
     pub fn derived_outputs(&self) -> Vec<&str> {
         self.get_decision()

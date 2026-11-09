@@ -1,0 +1,70 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$id: zorgverzekeringswet
+regulatory_layer: WET
+publication_date: '2020-02-24'
+valid_from: '2025-01-01'
+bwb_id: BWBR0018450
+url: https://wetten.overheid.nl/BWBR0018450/2025-01-01
+name: Zorgverzekeringswet
+# Alleen artikel 2 staat hier: daaruit leest artikel 2 van de Wet op de
+# zorgtoeslag of iemand verzekerd is.
+articles:
+  - number: '2'
+    text: >-
+      Artikel 2 1 Degene die ingevolge de [Algemene Wet Bijzondere Ziektekosten](jci1.3:c:BWBR0002614) en de daarop
+      gebaseerde regelgeving van rechtswege verzekerd is, is verplicht zich krachtens een zorgverzekering te verzekeren
+      of te laten verzekeren tegen het in artikel 10 bedoelde risico.
+
+
+      2. In afwijking van het eerste lid is niet verzekeringsplichtig:
+
+
+      a. de militaire ambtenaar in werkelijke dienst als bedoeld in [artikel 1, eerste lid juncto vierde lid, onderdeel
+      a, van de Militaire ambtenarenwet 1931](jci1.3:c:BWBR0001952&artikel=1) , alsmede de militair aan wie buitengewoon
+      verlof met behoud van militaire inkomsten is verleend;
+
+
+      b. de natuurlijke persoon die op grond van [artikel 64, eerste lid, van de Wet financiering sociale
+      verzekeringen](jci1.3:c:BWBR0017745&artikel=64) is ontheven van de verplichtingen, opgelegd op grond van de
+      [Algemene Wet Bijzondere Ziektekosten](jci1.3:c:BWBR0002614) .
+
+
+      3. Degene die het gezag over een minderjarige, jonger dan achttien jaar, uitoefent, een curator, een bewindvoerder
+      of een mentor als bedoeld in de [titels 16](jci1.3:c:BWBR0002656&titeldeel=16) ,
+      [19](jci1.3:c:BWBR0002656&titeldeel=19) of [20 van Boek 1 van het Burgerlijk
+      Wetboek](jci1.3:c:BWBR0002656&titeldeel=20) , zorgt ervoor dat de minderjarige verzekeringsplichtige, dan wel de
+      onder curatele, bewind of mentorschap gestelde verzekeringsplichtige krachtens een zorgverzekering verzekerd is.
+    url: https://wetten.overheid.nl/BWBR0018450/2025-01-01#Artikel2
+    machine_readable:
+      definitions:
+        actieve_polis_statussen:
+          value:
+            - ACTIEF
+            - GESCHORST_MET_TERUGWERKENDE_KRACHT
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: polis_status
+            type: string
+            source: {}
+          - name: verdragsinschrijving
+            type: boolean
+            source: {}
+        output:
+          - name: is_verzekerd
+            type: boolean
+        actions:
+          - output: is_verzekerd
+            value:
+              operation: OR
+              conditions:
+                - operation: IN
+                  subject: $polis_status
+                  value: $actieve_polis_statussen
+                - operation: EQUALS
+                  subject: $verdragsinschrijving
+                  value: true

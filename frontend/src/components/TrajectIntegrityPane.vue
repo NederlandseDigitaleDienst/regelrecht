@@ -70,6 +70,13 @@ function errorMessage(e: unknown): string | undefined {
           :disabled="loading || undefined"
           @click="reload"
         ></nldd-button>
+        <nldd-menu-item
+          slot="overflow"
+          icon="refresh"
+          text="Opnieuw controleren"
+          :disabled="loading || undefined"
+          @select="reload"
+        ></nldd-menu-item>
       </nldd-toolbar-item>
     </nldd-toolbar>
     <nldd-spacer v-if="paneChromeVisible(loading)" size="16"></nldd-spacer>

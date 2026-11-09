@@ -24,11 +24,11 @@
 import { computed, nextTick, onMounted, ref, toRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
-import { useTasks } from '../composables/useTasks';
+import { useTrajectTasks } from '../composables/useTasks';
 import type { RunningTaskJob, TaskRecord, TaskRecordPayload } from '../composables/useTasks';
 import { useCorpusLaws } from '../composables/useCorpusLaws';
 import { homeTarget } from '../composables/useLastVisitedRoute';
-import { reviewTarget } from '../lib/taskReview';
+import { reviewTarget, taskNamesTraject } from '../lib/taskReview';
 import { taskTitle, runningTitle } from '../lib/taskTitle';
 import {
   filterTasks,
@@ -66,7 +66,7 @@ interface TaskWithError extends TaskRecord {
 }
 
 const router = useRouter();
-const { tasks, running, resolveTask, requestEnrich, refresh } = useTasks();
+const { tasks, running, resolveTask, requestEnrich, refresh } = useTrajectTasks(() => props.trajectRef);
 const { displayName } = useCorpusLaws(toRef(props, 'trajectRef'));
 
 // runningTitle may pass a job without a law_id; displayName (via humanizeLawId)
@@ -268,7 +268,11 @@ function viewLaw(job: RunningTaskJob): void {
               <template v-if="task.task_type === 'job_failed'">
                 <nldd-menu-item text="Toon details" @select="showDetails(task)"></nldd-menu-item>
                 <nldd-menu-divider></nldd-menu-divider>
-                <nldd-menu-item text="Probeer opnieuw" @select="retry(task)"></nldd-menu-item>
+                <nldd-menu-item
+                  v-if="taskNamesTraject(task)"
+                  text="Probeer opnieuw"
+                  @select="retry(task)"
+                ></nldd-menu-item>
               </template>
               <template v-else>
                 <!-- Echte link: zie reviewHref/onReviewClickCapture hierboven. -->
@@ -315,7 +319,7 @@ function viewLaw(job: RunningTaskJob): void {
                  van het onschuldige kijken erboven, en het is destructive. -->
             <nldd-menu-divider></nldd-menu-divider>
             <nldd-menu-item
-              variant="destructive"
+              destructive
               text="Annuleer conversie"
               @select="emit('cancel-job', job)"
             ></nldd-menu-item>
@@ -344,7 +348,6 @@ function viewLaw(job: RunningTaskJob): void {
       ref="detailSheetEl"
       placement="right"
       width="520px"
-      full-height
       @close="closeDetails"
     >
       <nldd-page sticky-header>

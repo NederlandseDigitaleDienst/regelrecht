@@ -177,11 +177,20 @@ pub(crate) fn reference_base(reference: &str) -> Option<&str> {
 /// FOREACH's own output is reported as a cycle. With `as` no field is bound
 /// by its own name (RFC-049), so every other bare name is a real reference.
 pub(crate) fn referenced_names(action: &Action) -> BTreeSet<String> {
-    let mut names = BTreeSet::new();
+    referenced_paths(action)
+        .iter()
+        .map(|path| path.split('.').next().unwrap_or(path).to_string())
+        .collect()
+}
+
+/// Every `$path` an action refers to, whole and without the `$` (`$a.b`
+/// gives `a.b`), under the same rules as [`referenced_names`].
+pub(crate) fn referenced_paths(action: &Action) -> BTreeSet<String> {
+    let mut paths = BTreeSet::new();
     action
         .operands()
-        .for_each(|operand| visit_value(operand, &BTreeSet::new(), &mut names));
-    names
+        .for_each(|operand| visit_value(operand, &BTreeSet::new(), &mut paths));
+    paths
 }
 
 fn visit_value(value: &ActionValue, bound: &BTreeSet<&str>, names: &mut BTreeSet<String>) {
@@ -213,8 +222,8 @@ fn visit_value(value: &ActionValue, bound: &BTreeSet<&str>, names: &mut BTreeSet
 fn visit_literal(literal: &Value, bound: &BTreeSet<&str>, names: &mut BTreeSet<String>) {
     match literal {
         Value::String(s) => names.extend(
-            reference_base(s)
-                .filter(|name| !bound.contains(name))
+            s.strip_prefix('$')
+                .filter(|_| reference_base(s).is_some_and(|name| !bound.contains(name)))
                 .map(str::to_string),
         ),
         Value::Array(items) => items

@@ -368,7 +368,11 @@ async fn serve_static(static_root: &str, poc: &Poc, rest: &str, request: Request
     let slug = &poc.slug;
     let dir = format!("{static_root}/{slug}");
     let index = ServeFile::new(format!("{dir}/index.html"));
-    let files = ServeDir::new(&dir).not_found_service(index);
+    // A path without an extension is a page of the PoC's own router (a deep
+    // link such as `/chronolexografie/<case>/<scenario>`), answered with its
+    // index and 200. A missing file keeps its 404, with the index as body as
+    // before.
+    let page = is_page_path(rest);
 
     // The PoC is built with `base: /<slug>/`, so its own asset URLs already
     // carry the prefix. Strip it here so the file lookup is relative to the
@@ -385,13 +389,29 @@ async fn serve_static(static_root: &str, poc: &Poc, rest: &str, request: Request
         .unwrap_or_else(|_| Uri::from_static("/"));
     let request = Request::from_parts(parts.0, parts.1);
 
-    let response = files
-        .oneshot(request)
-        .await
-        .map(|r| r.map(Body::new))
-        .unwrap_or_else(|e| match e {});
+    let files = ServeDir::new(&dir);
+    let response = if page {
+        files
+            .fallback(index)
+            .oneshot(request)
+            .await
+            .map(|r| r.map(Body::new))
+    } else {
+        files
+            .not_found_service(index)
+            .oneshot(request)
+            .await
+            .map(|r| r.map(Body::new))
+    }
+    .unwrap_or_else(|e| match e {});
 
     injecteer_strip(response, poc).await
+}
+
+/// Whether `path` names a page rather than a file: its last segment has no
+/// extension.
+fn is_page_path(path: &str) -> bool {
+    !path.rsplit('/').next().unwrap_or_default().contains('.')
 }
 
 /// Splice the portal's notice into an HTML response from a PoC.

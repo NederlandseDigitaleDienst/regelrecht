@@ -285,7 +285,6 @@ defineExpose({ show });
     placement="right"
     width="480px"
     accessible-label="Regelwerk toevoegen aan traject"
-    sm-full-height
     @close="onSheetClose"
   >
       <nldd-page sticky-header>
@@ -438,19 +437,22 @@ defineExpose({ show });
                papier) staat; de conversie-naar-wet-keten levert het resultaat
                als review-taak. -->
           <template v-else>
-            <nldd-form-field
-              label="Upload een document"
-              supporting-label="PDF of Word. Bij deze conversie leest AI het document: er is geen route naar een regelwerk zonder taalmodel. De keten zet het om naar een eerste opzet van het regelwerk en verrijkt die; het resultaat komt terug als review-taak bij Taken."
+            <!-- No form field: the button is no input, it asks LibraryView
+                 to open its file picker. -->
+            <nldd-inline-dialog
+              horizontal-alignment="left"
+              text="Upload een document"
+              supporting-text="PDF of Word. Bij deze conversie leest AI het document: er is geen route naar een regelwerk zonder taalmodel. De keten zet het om naar een eerste opzet van het regelwerk en verrijkt die; het resultaat komt terug als review-taak bij Taken."
             >
               <nldd-button
-                size="md"
+                slot="actions"
                 appearance="secondary"
                 start-icon="upload-to-cloud"
                 text="Bestand kiezen…"
                 data-testid="add-law-upload"
                 @click="requestUpload"
               ></nldd-button>
-            </nldd-form-field>
+            </nldd-inline-dialog>
           </template>
         </nldd-simple-section>
       </nldd-page>

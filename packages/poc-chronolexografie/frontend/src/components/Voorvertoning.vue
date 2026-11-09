@@ -7,21 +7,27 @@
 // bevinding nog ontbreekt, dan staat dat hier in plaats van een uitkomst.
 // Mislukt het verzoek zelf, dan zegt het paneel dat, met de melding erbij.
 // Bij een bezwaar (`soort="bezwaar"`) is het de beslissing op bezwaar: of
-// het bezwaar gegrond is en welk nieuw besluit er dan komt. Met elk
+// het bezwaar gegrond is en welk nieuw besluit er dan komt; zo ook bij
+// opnieuw beslissen op een bezwaar na een uitspraak (`soort="na-uitspraak"`,
+// RFC-053). Bij `soort="uitspraak"` is het de uitspraak van de rechter, op
+// een kopie van haar cel. Met elk
 // antwoord geeft het paneel door welke begrippen de cel voor dit geval niet
 // weet (`stil`): die beoordeelt het bestuursorgaan, en het formulier vraagt
 // ze dan.
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { api } from '../api.js';
+import { beroepApi } from '../beroep.js';
 import { genummerd, toon, uitslag } from '../logboek.js';
 import { vertaling } from '../melding.js';
 import { hoofdletter, leesbaar, state, toegewezen } from '../state.js';
 import { volger } from '../voorvertoning.js';
+import ArtikelLink from './ArtikelLink.vue';
 import KetenStap from './KetenStap.vue';
 
 const props = defineProps({
   soort: { type: String, default: 'besluit' },
-  // De aanvraag, of het bezwaar, waarop beslist wordt.
+  // De aanvraag, het bezwaar, de ontvangst van een uitspraak of het beroep
+  // waarop beslist wordt.
   op: { type: String, required: true },
   bevindingen: { type: Object, required: true },
 });
@@ -30,12 +36,15 @@ const props = defineProps({
 const stand = ref(null);
 // Of er een nieuwere vraag loopt dan het antwoord dat er staat.
 const bezig = ref(false);
-const vraag = () =>
-  (props.soort === 'bezwaar' ? api.voorvertoningOpBezwaar : api.voorvertoningBesluit)(
-    props.op,
-    { ...props.bevindingen },
-    state.datum,
-  );
+const VRAAG = {
+  besluit: api.voorvertoningBesluit,
+  bezwaar: api.voorvertoningOpBezwaar,
+  'na-uitspraak': beroepApi.voorvertoningNaUitspraak,
+  uitspraak: beroepApi.voorvertoningUitspraak,
+};
+const vraag = () => VRAAG[props.soort](props.op, { ...props.bevindingen }, state.datum);
+// Een beslissing op bezwaar, met misschien een nieuw besluit.
+const opBezwaarSoort = computed(() => props.soort === 'bezwaar' || props.soort === 'na-uitspraak');
 const emit = defineEmits(['stil']);
 const volg = volger(vraag, (uit) => {
   stand.value = uit;
@@ -43,7 +52,13 @@ const volg = volger(vraag, (uit) => {
   if (uit.antwoord?.stil?.length) emit('stil', uit.antwoord.stil);
 });
 watch(
-  () => [props.op, JSON.stringify(props.bevindingen), state.datum, state.grammen.length],
+  () => [
+    props.op,
+    JSON.stringify(props.bevindingen),
+    state.datum,
+    state.grammen.length,
+    state.rechter.length,
+  ],
   () => {
     bezig.value = true;
     volg.plan();
@@ -59,9 +74,10 @@ const mislukt = computed(() => stand.value?.fout ?? null);
 const reden = (fout) => vertaling(fout) ?? fout;
 // Het besluit op de aanvraag, of het nieuwe besluit na een gegrond bezwaar.
 const besluit = computed(() =>
-  props.soort === 'bezwaar' ? voorlopig.value?.nieuw_besluit : voorlopig.value?.besluit,
+  opBezwaarSoort.value ? voorlopig.value?.nieuw_besluit : voorlopig.value?.besluit,
 );
-const beslissing = computed(() => (props.soort === 'bezwaar' ? voorlopig.value?.beslissing : null));
+const beslissing = computed(() => (opBezwaarSoort.value ? voorlopig.value?.beslissing : null));
+const uitspraak = computed(() => voorlopig.value?.uitspraak ?? null);
 const keten = computed(() => genummerd(voorlopig.value?.waarom?.keten ?? []));
 
 /** De uitkomst als badge: de uitvoer die de casus noemt, met ja of nee. */
@@ -77,13 +93,12 @@ const opBezwaar = computed(() => {
   const u = uitslag(beslissing.value);
   return { tekst: hoofdletter(u.tekst), kleur: u.kleur };
 });
-// Wat de beslissing op bezwaar uitrekende, in woorden.
-const opBezwaarRegels = computed(() =>
-  Object.entries(beslissing.value?.outputs ?? {})
+// Wat een beslissing op bezwaar of een uitspraak uitrekende, in woorden.
+const regels = (g) =>
+  Object.entries(g?.outputs ?? {})
     .filter(([, v]) => typeof v === 'boolean')
     .map(([naam, v]) => `${leesbaar(naam)}: ${toon(v)}`)
-    .join(' · '),
-);
+    .join(' · ');
 </script>
 
 <template>
@@ -92,7 +107,7 @@ const opBezwaarRegels = computed(() =>
       <nldd-title
         size="5"
         text="Voorlopige uitkomst · nog niet vastgelegd"
-        :supporting-text="bezig && stand !== null ? 'Wordt bijgewerkt…' : 'Zo zou het besluit uitvallen met de bevindingen zoals ze nu staan. Het loopt mee met elke wijziging; pas de knop legt het vast.'"
+        :supporting-text="bezig && stand !== null ? 'Wordt bijgewerkt…' : `Zo zou ${soort === 'uitspraak' ? 'de uitspraak' : 'het besluit'} uitvallen met de bevindingen zoals ze nu staan. Het loopt mee met elke wijziging; pas de knop legt het vast.`"
       ></nldd-title>
       <nldd-inline-dialog
         v-if="stand === null"
@@ -113,17 +128,23 @@ const opBezwaarRegels = computed(() =>
         :supporting-text="reden(geweigerd)"
       ></nldd-inline-dialog>
       <template v-else-if="voorlopig">
-        <nldd-title v-if="opBezwaar" size="6" text="Beslissing op bezwaar" :supporting-text="opBezwaarRegels">
+        <nldd-title v-if="uitspraak" size="6" text="Uitspraak" :supporting-text="regels(uitspraak)">
+          <nldd-badge slot="end" size="sm" color="neutral" :text="hoofdletter(toon(uitspraak.outputs.uitspraak_strekt_tot))"></nldd-badge>
+        </nldd-title>
+        <nldd-title v-if="opBezwaar" size="6" text="Beslissing op bezwaar" :supporting-text="regels(beslissing)">
           <nldd-badge slot="end" size="sm" :color="opBezwaar.kleur" :text="opBezwaar.tekst"></nldd-badge>
         </nldd-title>
         <nldd-title
           v-if="besluit"
           size="6"
-          :text="soort === 'bezwaar' ? 'Nieuw besluit' : 'Besluit'"
+          :text="opBezwaarSoort ? 'Nieuw besluit' : 'Besluit'"
         >
+          <nldd-text slot="supporting-text" size="sm" color="secondary">
+            <ArtikelLink :basis="besluit.basis" :datum="besluit.recorded_on" />
+          </nldd-text>
           <nldd-badge slot="end" size="sm" :color="badge(besluit).kleur" :text="badge(besluit).tekst"></nldd-badge>
         </nldd-title>
-        <nldd-text v-else-if="soort === 'bezwaar'" size="sm" color="secondary">
+        <nldd-text v-else-if="opBezwaarSoort" size="sm" color="secondary">
           Er komt geen nieuw besluit: het bestreden besluit blijft.
         </nldd-text>
         <nldd-list
@@ -132,7 +153,7 @@ const opBezwaarRegels = computed(() =>
           appearance="box-base"
           accessible-label="Keten van de voorlopige uitkomst"
         >
-          <KetenStap v-for="k in keten" :key="k.nummer" :knoop="k" :met-uitleg="false" />
+          <KetenStap v-for="k in keten" :key="k.nummer" :knoop="k" />
         </nldd-list>
       </template>
     </nldd-container>

@@ -22,6 +22,10 @@ export const DEFAULTS = {
   // spike stays invisible until a user opts in; the backend is independently
   // gated on GITHUB_OAUTH_* env vars (unconfigured deployments never show it).
   'github.user_oauth': false,
+  // RegelRijm in the editor's Machine pane (RFC-054): every rule of the
+  // article as readable text, first, as the way into its actions. Off by
+  // default while the reading is a draft.
+  'panel.regelrijm': false,
 };
 
 // DEFAULTS widened for lookups by an arbitrary key: unknown keys are allowed

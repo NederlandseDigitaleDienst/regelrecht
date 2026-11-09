@@ -48,8 +48,8 @@ export async function haalBronnen(namenUrl, url, haal = fetch) {
 /**
  * Wat het keuzescherm per bron meldt, uit wat de cel ervan maakte
  * (`casussen().bronnen`, src/bundel.rs `BronStand`): een bron die er niet is
- * of niet laadt is kritiek, een casus die niet laadt of een `$id` die het
- * regelrecht-corpus ook heeft een waarschuwing. Een bron zonder iets te
+ * of niet laadt is kritiek, een casus die niet laadt of een casus-id die al
+ * bestaat een waarschuwing. Een bron zonder iets te
  * melden staat er niet in. De regels zijn de meldingen zelf, met het
  * bestand dat ze noemen.
  */

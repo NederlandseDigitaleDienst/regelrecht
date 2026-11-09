@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   chapterAt,
   cueAt,
+  dubOf,
   fitRect,
   followerCorrection,
   formatTime,
@@ -168,5 +169,18 @@ describe('pauses', () => {
     expect(pickClip(clips, () => 0.99)).toEqual({ src: 'b' });
     expect(pickClip([], () => 0)).toBeNull();
     expect(pickClip(undefined)).toBeNull();
+  });
+});
+
+describe('dubOf', () => {
+  const dub = { audio: { src: 'main-voice-en.m4a', sha256: 'e' }, captions: 'main-x.en.dub.vtt' };
+  it("gives the cloned voice in the viewer's language", () => {
+    expect(dubOf({ dub: { en: dub } }, 'en')).toBe(dub);
+  });
+  it('gives none in a language without one, or when the viewer chose the original', () => {
+    expect(dubOf({ dub: { en: dub } }, 'fy')).toBeNull();
+    expect(dubOf({ dub: { en: dub } }, 'en', true)).toBeNull();
+    expect(dubOf({}, 'en')).toBeNull();
+    expect(dubOf(null, 'en')).toBeNull();
   });
 });

@@ -5,27 +5,7 @@ import {
   branchTreeUrl,
 } from './useTrajectDetail';
 import type { TrajectDetail, TrajectSource } from './useTrajectDetail';
-
-// Minimal Response-like stub (mirrors useTrajectDocuments.test.js).
-interface ResInit {
-  ok?: boolean;
-  status?: number;
-  json?: unknown;
-}
-
-// Only the Response members apiFetch reads; cast once here.
-function res({ ok = true, status = 200, json = null }: ResInit): Response {
-  return {
-    ok,
-    status,
-    async json() {
-      return json;
-    },
-    async text() {
-      return json ? JSON.stringify(json) : '';
-    },
-  } as Response;
-}
+import { res, stubFetch } from '../test-utils/fetchStubs';
 
 const OWN_SOURCE: TrajectSource = {
   source_id: 'own',
@@ -90,7 +70,7 @@ describe('branchTreeUrl', () => {
 describe('useTrajectDetail', () => {
   it('fetches the detail by id and exposes it reactively', async () => {
     const fetchSpy = vi.fn().mockResolvedValue(res({ json: DETAIL }));
-    globalThis.fetch = fetchSpy;
+    stubFetch(fetchSpy);
 
     const { detail, loading, error, load } = useTrajectDetail();
     expect(loading.value).toBe(false);
@@ -107,18 +87,18 @@ describe('useTrajectDetail', () => {
   });
 
   it('resets state before loading so a reopen cannot flash stale data', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(res({ json: DETAIL }));
+    stubFetch(vi.fn().mockResolvedValue(res({ json: DETAIL })));
     const { detail, load } = useTrajectDetail();
     await load(DETAIL.id);
     expect(detail.value).not.toBe(null);
 
     // Second load against a slow/failed fetch must have cleared detail first.
     let resolveFetch: (value: Response) => void = () => {};
-    globalThis.fetch = vi.fn().mockReturnValue(
+    stubFetch(vi.fn().mockReturnValue(
       new Promise<Response>((r) => {
         resolveFetch = r;
       }),
-    );
+    ));
     const p = load(DETAIL.id);
     expect(detail.value).toBe(null); // cleared synchronously before await
     resolveFetch(res({ json: DETAIL }));
@@ -126,7 +106,7 @@ describe('useTrajectDetail', () => {
   });
 
   it('records an error on a non-ok response and leaves detail null', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(res({ ok: false, status: 404 }));
+    stubFetch(vi.fn().mockResolvedValue(res({ ok: false, status: 404 })));
     const { detail, error, load } = useTrajectDetail();
     await load(DETAIL.id);
     expect(detail.value).toBe(null);

@@ -5,14 +5,15 @@
 // job_failed task instead - see list_traject_document_jobs, which the editor-api
 // always calls with include_failed = false since #939 dropped the
 // tasks.job_review flag), so "gone from the list" means completed OR failed.
-// Only a written .md tells them apart. Same harness technique as
-// LibraryView.docReview.test.js: shallow-mount with every composable stubbed,
-// deliberately narrow to this one surface.
+// Only a written .md tells them apart. Harness: test-utils/libraryViewHarness.ts,
+// shallow-mount with every composable stubbed, deliberately narrow to this one
+// surface.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount } from '@vue/test-utils';
 import { ref, nextTick } from 'vue';
 import type { DocumentEntry } from './composables/useTrajectDocuments';
 import type { DocumentJob } from './composables/useTrajectDocumentJobs';
+import * as harness from './test-utils/libraryViewHarness';
 
 /** The job fields these tests set; the view reads no others. */
 type JobStub = Pick<DocumentJob, 'id' | 'target_path' | 'status'>;
@@ -24,76 +25,26 @@ const routeState = {
   query: {},
   fullPath: '/traject/traject-abcd1234/werkdocumenten',
 };
-vi.mock('vue-router', () => ({
-  useRoute: () => routeState,
-  useRouter: () => ({
-    replace: vi.fn().mockResolvedValue(undefined),
-    push: vi.fn(),
-    resolve: () => ({ href: '#' }),
-  }),
-  onBeforeRouteUpdate: vi.fn(),
-  onBeforeRouteLeave: vi.fn(),
-}));
-
-vi.mock('./composables/useAuth', () => ({
-  useAuth: () => ({ authenticated: ref(true), login: vi.fn() }),
-}));
-
-vi.mock('./composables/useTrajects', () => ({
-  useTrajects: () => ({
-    activeTrajectRef: ref('traject-abcd1234'),
-    activeTraject: ref({ name: 'Testtraject' }),
-  }),
-  refreshTrajects: vi.fn(),
-}));
-
-vi.mock('./lib/apiFetch', () => ({
-  apiFetch: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [] }),
-  apiFetchJson: vi.fn().mockResolvedValue([]),
-  ApiError: class ApiError extends Error {},
-}));
-
-vi.mock('./composables/useFeatureFlags', () => ({
-  useFeatureFlags: () => ({ isEnabled: () => true }),
-}));
+vi.mock('vue-router', () => harness.vueRouter(() => routeState));
+vi.mock('./composables/useAuth', () => harness.auth());
+vi.mock('./composables/useTrajects', () => harness.trajectsModule());
+vi.mock('./lib/apiFetch', () => harness.apiFetchModule());
+vi.mock('./composables/useFeatureFlags', () => harness.featureFlags());
 
 // Module-level so each test can drive the exact state the watcher reacts to.
 const documents = ref<DocumentEntry[]>([]);
 const openDoc = vi.fn().mockResolvedValue(undefined);
 const closeDoc = vi.fn();
 const refreshList = vi.fn().mockResolvedValue(undefined);
-vi.mock('./composables/useDocumentsManager', () => ({
-  useDocumentsManager: () => ({
-    documents,
-    listLoading: ref(false),
-    listError: ref(null),
-    currentPath: ref(null),
-    currentBody: ref(''),
-    hasChanges: ref(false),
-    docLoading: ref(false),
-    docError: ref(null),
-    saving: ref(false),
-    open: openDoc,
-    startNew: vi.fn(),
-    close: closeDoc,
-    uploadDocument: vi.fn(),
-    displayTitle: (p: string | null | undefined) => String(p ?? '').replace(/\.md$/, ''),
-    dropDraft: vi.fn(),
-    refreshList,
-  }),
-}));
+vi.mock('./composables/useDocumentsManager', () =>
+  harness.documentsManager(() => ({ documents, open: openDoc, close: closeDoc, refreshList })),
+);
 
 const jobs = ref<JobStub[]>([]);
 const cancelJob = vi.fn();
-vi.mock('./composables/useTrajectDocumentJobs', () => ({
-  useTrajectDocumentJobs: () => ({
-    jobs,
-    cancelJob,
-    refresh: vi.fn(),
-    startPolling: vi.fn(),
-    stopPolling: vi.fn(),
-  }),
-}));
+vi.mock('./composables/useTrajectDocumentJobs', () =>
+  harness.trajectDocumentJobs(() => ({ jobs, cancelJob })),
+);
 
 // Capture the onUploaded callbacks LibraryView hands in, so a test can fire
 // one with an upload result the way a real successful upload would.
@@ -101,32 +52,14 @@ vi.mock('./composables/useTrajectDocumentJobs', () => ({
 // de wet-upload), dus per aanroep vastleggen; `onUploaded` = de werkdoc-cb.
 let onUploadedCbs: (UploadedCallback | null | undefined)[] = [];
 const onUploaded = (...args: unknown[]) => onUploadedCbs[0]?.(...args);
-vi.mock('./composables/useDocumentUpload', () => ({
-  useDocumentUpload: (_uploadFn: unknown, uploadedCb?: UploadedCallback | null) => {
+vi.mock('./composables/useDocumentUpload', () =>
+  harness.documentUpload((_uploadFn: unknown, uploadedCb?: UploadedCallback | null) => {
     onUploadedCbs.push(uploadedCb);
-    return {
-      fileInput: ref(null),
-      uploadError: ref(null),
-      uploadRetryable: ref(false),
-      pendingFile: ref(null),
-      onUpload: vi.fn(),
-      onFileChange: vi.fn(),
-      confirmUpload: vi.fn(),
-      cancelUpload: vi.fn(),
-    };
-  },
-}));
-
-vi.mock('./composables/useDocumentTaskReview', () => ({
-  useDocumentTaskReview: () => ({
-    reviewTask: ref(null),
-    proposedContent: ref(null),
-    loadError: ref(null),
-    loadReview: vi.fn().mockResolvedValue(undefined),
-    approveAfterSave: vi.fn(),
-    reject: vi.fn(),
+    return {};
   }),
-}));
+);
+
+vi.mock('./composables/useDocumentTaskReview', () => harness.documentTaskReview());
 
 import LibraryView from './LibraryView.vue';
 

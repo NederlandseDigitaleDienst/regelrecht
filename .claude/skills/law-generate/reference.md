@@ -19,11 +19,19 @@ machine_readable:
     - article: "11"             # Same-law article reference
 
   definitions:                  # Constants (optional, arbitrary keys)
-    CONSTANT_NAME:
-      value: 211200             # Any literal value
+    standaardpremie_vast:       # Structured: value, type, and a unit for a quantity (RFC-023)
+      value: 211200             # € 2.112 in eurocent
+      type: amount              # string | number | boolean | amount | date | array
+      type_spec:
+        unit: eurocent          # amount: always eurocent
       description: "Description"
-    # Or simple key-value:
-    simple_key: "simple value"
+    termijn_rapportage:
+      value: 4                  # "vier jaar"
+      type: number
+      type_spec:
+        unit: years             # number: ratio | percentage | years | months | weeks | days
+    # A bare `simple_key: "simple value"` is valid but carries no type; write
+    # the structured form.
 
   open_terms:                   # The law leaves the content open (optional)
     - id: standaardpremie
@@ -61,7 +69,7 @@ machine_readable:
   overrides:                    # Lex specialis declarations (optional, RFC-007)
     - law: algemene_wet_bestuursrecht   # omit for an article of this same law
       article: '6:7'            # the producing entry's number as this file writes it
-      output: bezwaartermijn_weken
+      output: termijn_weken
       voids: false              # true: the output does not arise at all
       legal_text_excerpt: In afwijking van artikel 6:7 ...
 
@@ -337,7 +345,7 @@ operation: DATE_ADD
 date: $bekendmaking_datum          # Base date (operationValue)
 years: 1                           # optional (operationValue)
 months: 3                          # optional (operationValue)
-weeks: $bezwaartermijn_weken       # optional (operationValue)
+weeks: $termijn_weken              # optional (operationValue)
 days: 1                            # optional (operationValue)
 ```
 
@@ -557,13 +565,13 @@ machine_readable:
   overrides:
     - law: algemene_wet_bestuursrecht   # $id of the law being overridden
       article: '6:7'                     # Article number being overridden
-      output: bezwaartermijn_weken       # Specific output being replaced
+      output: termijn_weken              # Specific output being replaced
   execution:
     output:
-      - name: bezwaartermijn_weken
+      - name: termijn_weken
         type: number
     actions:
-      - output: bezwaartermijn_weken
+      - output: termijn_weken
         value: 4
 ```
 

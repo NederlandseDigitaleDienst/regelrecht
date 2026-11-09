@@ -34,6 +34,9 @@ static DEFAULTS: LazyLock<HashMap<String, bool>> = LazyLock::new(|| {
         // offered-but-inert. Default off so the spike stays invisible until
         // opted in.
         (GITHUB_USER_OAUTH.into(), false),
+        // RegelRijm in the editor's Machine pane (RFC-054). Default off while
+        // the reading is a draft.
+        ("panel.regelrijm".into(), false),
     ])
 });
 

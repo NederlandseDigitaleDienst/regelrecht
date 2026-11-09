@@ -345,7 +345,7 @@ function errorMessage(e: unknown): string | undefined {
           </nldd-form-field>
           <nldd-spacer size="8"></nldd-spacer>
           <nldd-button
-            variant="secondary"
+            appearance="secondary"
             size="md"
             :text="repoSaving ? 'Bezig…' : 'Repo wijzigen'"
             :disabled="repoSaving || undefined"
@@ -412,7 +412,7 @@ function errorMessage(e: unknown): string | undefined {
           ></nldd-banner>
           <nldd-spacer size="8"></nldd-spacer>
           <nldd-button
-            variant="secondary"
+            appearance="secondary"
             size="md"
             :text="subpathSaving ? 'Bezig…' : 'Opslaan'"
             :disabled="subpathSaving || undefined"

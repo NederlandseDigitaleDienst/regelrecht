@@ -1,4 +1,4 @@
-import type { Task } from './taskCategories';
+import type { RunningJob, Task } from './taskCategories';
 
 // Structural view of an article as both the saved law and a proposal carry it;
 // only the fields compared here.
@@ -59,6 +59,53 @@ function trajectKey(ref: unknown): string | null {
   const match = /-([0-9a-f]{8})$/i.exec(ref);
   // Group 1 always participates when the regex matches.
   return match ? match[1]!.toLowerCase() : null;
+}
+
+/**
+ * Whether a task says which traject it belongs to, through `traject_id` or a
+ * `payload.traject_ref` with an id part. An action that runs in a traject
+ * (retrying an enrichment) needs this: a task that names no traject is shown
+ * everywhere, so running it "here" could be the wrong traject.
+ */
+export function taskNamesTraject(task: Task): boolean {
+  if (typeof task.traject_id === 'string' && task.traject_id.length >= 8) return true;
+  return trajectKey(task.payload?.traject_ref) !== null;
+}
+
+/**
+ * Whether a task belongs to the traject `trajectRef`. `/api/tasks` returns the
+ * whole account, so a view inside one traject has to narrow it down: the same
+ * law enriched in two trajects is two separate pieces of work.
+ *
+ * `traject_id` decides when the task has it: the server sets it on every
+ * traject task, and a ref's 8-hex suffix is the first 8 characters of that id
+ * (`traject_ref` in trajects.rs). `payload.traject_ref` is the fallback,
+ * because not every task kind fills it.
+ *
+ * A task that names no traject at all stays visible: it belongs to no other
+ * traject either, and hiding it would leave it where nobody can dismiss it.
+ * That is the opposite of `sameTraject`, where a missing ref matches nothing;
+ * both are intended.
+ */
+export function taskInTraject(task: Task, trajectRef: unknown): boolean {
+  const key = trajectKey(trajectRef);
+  if (key === null) return false;
+  if (typeof task.traject_id === 'string' && task.traject_id.length >= 8) {
+    return task.traject_id.slice(0, 8).toLowerCase() === key;
+  }
+  const own = trajectKey(task.payload?.traject_ref);
+  return own === null || own === key;
+}
+
+/**
+ * Whether a running job was requested in the traject `trajectRef`. Same rule
+ * as `taskInTraject`: a job without a recognisable traject stays visible.
+ */
+export function jobInTraject(job: RunningJob, trajectRef: unknown): boolean {
+  const key = trajectKey(trajectRef);
+  if (key === null) return false;
+  const own = trajectKey(job.traject_ref);
+  return own === null || own === key;
 }
 
 export function reviewTarget(task: Task | null | undefined): ReviewTarget | null {

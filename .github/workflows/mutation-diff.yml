@@ -6,10 +6,17 @@
 # in de diff staat, en een wijziging hier kan code elders slechter getest maken
 # zonder dat deze job dat ziet.
 #
-# De poort dekt engine en pipeline. De pipeline stond er eerst buiten, terwijl
-# daar de deterministische poorten en de tellers zitten: de code die bepaalt of
-# een vertaling deugt. Twee keer bleek daar een test te staan die zijn eigen
-# regel niet vastpinde, en dat is precies wat een mutant vindt.
+# De poort dekt engine, pipeline en cel. De pipeline stond er eerst buiten,
+# terwijl daar de deterministische poorten en de tellers zitten: de code die
+# bepaalt of een vertaling deugt. Twee keer bleek daar een test te staan die
+# zijn eigen regel niet vastpinde, en dat is precies wat een mutant vindt.
+#
+# De cel kwam er later bij. Ze legt een aanvraag, het besluit en het bezwaar of
+# beroep vast in haar kroniek. Een testaudit (#1767) vond ook daar tests die hun
+# regel niet vastpinden. Een kale `is_err()` keurde elke fout goed, en een te
+# laat ingesteld beroep werd nergens van begin tot eind getest. Wat al in de cel
+# stond maakt de poort niet rood, want --in-diff muteert alleen gewijzigde
+# regels. De PoC-crates (poc-*) blijven erbuiten.
 #
 # De poort draait in drie stappen: `plan` telt de mutanten in de diff en kiest
 # daarmee het aantal shards, `shard` test ze verdeeld over die shards, en
@@ -27,7 +34,9 @@ on:
     paths:
       - 'packages/engine/**'
       - 'packages/pipeline/**'
+      - 'packages/cel/**'
       - '.github/workflows/mutation-diff.yml'
+      - '.github/actions/setup-mold/**'
 
 permissions:
   contents: read
@@ -105,7 +114,7 @@ jobs:
         # pas lopen en mutanten stil ongetest laten.
         run: |
           git diff --relative "${{ github.event.pull_request.base.sha }}...HEAD" \
-            -- engine pipeline > "$RUNNER_TEMP/pr.diff"
+            -- engine pipeline cel > "$RUNNER_TEMP/pr.diff"
           if [ -s "$RUNNER_TEMP/pr.diff" ]; then
             count=$(cargo mutants --list --in-diff "$RUNNER_TEMP/pr.diff" | wc -l)
           else
@@ -155,12 +164,9 @@ jobs:
 
       - name: Install mold linker
         # Required by packages/.cargo/config.toml (mold linker on x86_64-linux).
-        run: |
-          # De runner-image draagt een Google Chrome-apt-bron mee die geregeld een
-          # kapotte index geeft ("Hash Sum mismatch") en dan elke apt-get update laat
-          # falen; wij gebruiken die bron niet, dus weg ermee vóór apt-get update.
-          sudo rm -f /etc/apt/sources.list.d/google-chrome*.list
-          sudo apt-get update && sudo apt-get install -y mold
+        # Checksum-verified release binary, not apt; why, and how to bump the
+        # version and its sha256: .github/actions/setup-mold/action.yml.
+        uses: ./.github/actions/setup-mold
 
       - name: Restore cargo registry (shared met CI)
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
@@ -196,7 +202,7 @@ jobs:
         # heeft aangeraakt, en kan hij rood worden op andermans werk.
         run: |
           git diff --relative "${{ github.event.pull_request.base.sha }}...HEAD" \
-            -- engine pipeline > "$RUNNER_TEMP/pr.diff"
+            -- engine pipeline cel > "$RUNNER_TEMP/pr.diff"
 
       - name: Draai mutatietesten op de gewijzigde regels
         # De workspace-root, net als de stap die de diff bepaalt. Vanuit
@@ -279,7 +285,7 @@ jobs:
             exit 1
           fi
           if [ "$COUNT" = "0" ]; then
-            echo "Geen mutanten in de gewijzigde regels van packages/engine of packages/pipeline."
+            echo "Geen mutanten in de gewijzigde regels van packages/engine, packages/pipeline of packages/cel."
             exit 0
           fi
           if [ "$SHARDS" != "success" ]; then

@@ -55,6 +55,12 @@ COPY packages/engine/ engine/
 COPY packages/law-model/ law-model/
 COPY packages/poc-chronolexografie/ poc-chronolexografie/
 COPY packages/shared/ shared/
+# The tests of chronolexografie load a source with the portal's own loader, a
+# dev-dependency on poc-portal. Cargo reads the manifest of every dependency,
+# dev ones too, and the portal with its own dependencies is not in this stage;
+# the WASM build needs none of it, so the line goes.
+RUN grep -q '^regelrecht-poc-portal = ' poc-chronolexografie/Cargo.toml && \
+    sed -i '/^regelrecht-poc-portal = /d' poc-chronolexografie/Cargo.toml
 RUN cargo build --target wasm32-unknown-unknown --release --features wasm -p regelrecht-engine && \
     wasm-bindgen --target web --out-dir /wasm-pkg \
       target/wasm32-unknown-unknown/release/regelrecht_engine.wasm
@@ -95,13 +101,11 @@ RUN POC_BASE=/terugbetaalregimes/ npm run build -w poc-terugbetaalregimes
 RUN POC_BASE=/nieuwkomersbekostiging/ npm run build -w poc-nieuwkomersbekostiging
 
 # chronolexografie draait helemaal in de browser. De bundel die de app
-# meekrijgt, zijn de mappen bij `corpus` in pocs/registry.yaml
-# (scripts/copy-assets.js); hier gaan het register, het corpus en de casussen
-# mee, en kiest het script daaruit.
+# meekrijgt, is de map bij `corpus` in pocs/registry.yaml, het eigen corpus
+# van de poc (scripts/copy-assets.js); hier gaan het register en dat corpus
+# mee.
 COPY pocs/ pocs/
-COPY corpus/regulation/ corpus/regulation/
-COPY corpus/cells/ corpus/cells/
-COPY packages/poc-chronolexografie/casussen/ packages/poc-chronolexografie/casussen/
+COPY packages/poc-chronolexografie/corpus/ packages/poc-chronolexografie/corpus/
 COPY packages/poc-chronolexografie/frontend/ packages/poc-chronolexografie/frontend/
 COPY --from=wasm-builder /wasm-chronolexografie/ packages/poc-chronolexografie/frontend/public/wasm/pkg/
 RUN POC_BASE=/chronolexografie/ npm run build -w poc-chronolexografie
@@ -157,11 +161,16 @@ COPY pocs/ /pocs/
 RUN cargo chef prepare --recipe-path recipe.json
 
 # Stage 4: de binary.
-FROM chef AS builder
+FROM chef AS deps
 COPY packages/Cargo.lock ./
 COPY --from=planner /build/Cargo.toml ./Cargo.toml
 COPY --from=planner /build/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
+
+# Up to here only the dependencies, as a stage of its own: warm-buildcache.yml
+# builds just this stage on every push to main, so the cook layer is in the
+# cache before the next PR needs it, whether or not main deploys.
+FROM deps AS builder
 # `cargo chef cook` schrijft de workspace-Cargo.toml zonder
 # `[workspace.lints]`, wat members met `[lints] workspace = true` breekt.
 COPY --from=planner /build/Cargo.toml ./Cargo.toml

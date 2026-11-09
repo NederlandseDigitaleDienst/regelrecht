@@ -1,0 +1,365 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.9/schema/v0.8.9/schema.json
+$id: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+name: Gehandicaptenparkeerkaart in de gemeente Wilgendaal (fictief beleid)
+competent_authority:
+  name: Het college van burgemeester en wethouders van de gemeente Wilgendaal
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      open_terms:
+        - id: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+          type: boolean
+      implements:
+        - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+          article: '49'
+          open_term: bevoegdheid_tot_verstrekken_gebruikt
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+          - name: besluit_datum
+            type: date
+        actions:
+          - output: bevoegdheid_tot_verstrekken_gebruikt
+            value:
+              operation: NOT
+              value: $aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+  - number: '2'
+    text: >-
+      FICTIEF, eigen keuze in de modellering.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      open_terms:
+        - id: aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college
+          type: boolean
+          decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
+      implements:
+        - law: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+          article: '1'
+          open_term: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+          - name: besluit_datum
+            type: date
+        input:
+          - name: antwoord_geldige_kaart
+            type: boolean
+            nullable: true
+            source:
+              reduction: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                besluit_datum: $besluit_datum
+        actions:
+          - output: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $antwoord_geldige_kaart
+                    value: null
+                  then: $aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college
+              default: $antwoord_geldige_kaart
+  - number: '3'
+    text: >-
+      FICTIEF, eigen keuze in de modellering.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel2
+    machine_readable:
+      open_terms:
+        - id: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt_volgens_college
+          type: boolean
+          decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
+      implements:
+        - law: regeling_gehandicaptenparkeerkaart
+          article: '2'
+          open_term: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+        input:
+          - name: antwoord_eerder_verstrekt
+            type: boolean
+            nullable: true
+            source:
+              reduction: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+        actions:
+          - output: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $antwoord_eerder_verstrekt
+                    value: null
+                  then: $aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt_volgens_college
+              default: $antwoord_eerder_verstrekt
+  - number: '4'
+    text: >-
+      FICTIEF, eigen keuze in de modellering.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    machine_readable:
+      open_terms:
+        - id: geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college
+          type: boolean
+          decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
+      implements:
+        - law: regeling_gehandicaptenparkeerkaart
+          article: '3'
+          open_term: geneeskundig_onderzoek_heeft_plaatsgehad
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+          - name: dagtekening_aanvraag
+            type: date
+          - name: datum_afgifte
+            type: date
+        input:
+          - name: antwoord_onderzoek
+            type: boolean
+            nullable: true
+            source:
+              reduction: geneeskundig_onderzoek_heeft_plaatsgehad
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening_aanvraag: $dagtekening_aanvraag
+                datum_afgifte: $datum_afgifte
+        actions:
+          - output: geneeskundig_onderzoek_heeft_plaatsgehad
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $antwoord_onderzoek
+                    value: null
+                  then: $geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college
+              default: $antwoord_onderzoek
+  - number: '5'
+    text: >-
+      FICTIEF, eigen keuze in de modellering.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    machine_readable:
+      open_terms:
+        - id: advies_langdurige_loopbeperking
+          competent_authority:
+            - name: Gemeentelijke Gezondheidsdienst
+              type: CATEGORY
+          type: boolean
+        - id: advies_continu_afhankelijk_van_hulp_bestuurder
+          type: boolean
+          required: false
+        - id: advies_permanent_rolstoelgebonden
+          type: boolean
+          required: false
+        - id: advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+          type: boolean
+          required: false
+      requires:
+        - fact: geneeskundig_advies_uitgebracht
+          competent_authority:
+            - name: Gemeentelijke Gezondheidsdienst
+              type: CATEGORY
+            - name: vanwege het gemeentelijk gezag aangewezen deskundige
+          parameters:
+            - bsn_aanvrager
+            - datum_onderzoek
+            - langdurige_loopbeperking
+            - continu_afhankelijk_van_hulp_bestuurder
+            - permanent_rolstoelgebonden
+            - ernstige_beperkingen_andere_dan_loopbeperkingen
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+          - name: datum_onderzoek
+            type: date
+          - name: langdurige_loopbeperking
+            type: boolean
+          - name: continu_afhankelijk_van_hulp_bestuurder
+            type: boolean
+          - name: permanent_rolstoelgebonden
+            type: boolean
+          - name: ernstige_beperkingen_andere_dan_loopbeperkingen
+            type: boolean
+        output:
+          - name: langdurige_loopbeperking_volgens_advies
+            type: boolean
+            nullable: true
+          - name: continu_afhankelijk_van_hulp_bestuurder_volgens_advies
+            type: boolean
+            nullable: true
+          - name: permanent_rolstoelgebonden_volgens_advies
+            type: boolean
+            nullable: true
+          - name: ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_advies
+            type: boolean
+            nullable: true
+        actions:
+          - output: langdurige_loopbeperking_volgens_advies
+            value: $advies_langdurige_loopbeperking
+          - output: continu_afhankelijk_van_hulp_bestuurder_volgens_advies
+          - output: permanent_rolstoelgebonden_volgens_advies
+          - output: ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_advies
+  - number: '6'
+    text: >-
+      FICTIEF, eigen keuze in de modellering.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      open_terms:
+        - id: langdurige_loopbeperking_volgens_college
+          type: boolean
+          decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
+        - id: continu_afhankelijk_van_hulp_bestuurder_volgens_college
+          type: boolean
+          decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
+        - id: permanent_rolstoelgebonden_volgens_college
+          type: boolean
+          decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
+        - id: ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college
+          type: boolean
+          decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
+      implements:
+        - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+          article: '49'
+          open_term: langdurige_loopbeperking
+        - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+          article: '49'
+          open_term: continu_afhankelijk_van_hulp_bestuurder
+        - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+          article: '49'
+          open_term: permanent_rolstoelgebonden
+        - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+          article: '49'
+          open_term: ernstige_beperkingen_andere_dan_loopbeperkingen
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+          - name: dagtekening
+            type: date
+          - name: besluit_datum
+            type: date
+        input:
+          - name: advies_langdurige_loopbeperking
+            type: boolean
+            nullable: true
+            source:
+              regulation: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+              output: langdurige_loopbeperking_volgens_advies
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening_aanvraag: $dagtekening
+                datum_afgifte: $besluit_datum
+          - name: advies_continu_afhankelijk_van_hulp_bestuurder
+            type: boolean
+            nullable: true
+            source:
+              output: continu_afhankelijk_van_hulp_bestuurder_volgens_advies
+          - name: advies_permanent_rolstoelgebonden
+            type: boolean
+            nullable: true
+            source:
+              output: permanent_rolstoelgebonden_volgens_advies
+          - name: advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+            type: boolean
+            nullable: true
+            source:
+              output: ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_advies
+        actions:
+          - output: langdurige_loopbeperking
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $advies_langdurige_loopbeperking
+                    value: null
+                  then: $langdurige_loopbeperking_volgens_college
+              default: $advies_langdurige_loopbeperking
+          - output: continu_afhankelijk_van_hulp_bestuurder
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $advies_continu_afhankelijk_van_hulp_bestuurder
+                    value: null
+                  then: $continu_afhankelijk_van_hulp_bestuurder_volgens_college
+              default: $advies_continu_afhankelijk_van_hulp_bestuurder
+          - output: permanent_rolstoelgebonden
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $advies_permanent_rolstoelgebonden
+                    value: null
+                  then: $permanent_rolstoelgebonden_volgens_college
+              default: $advies_permanent_rolstoelgebonden
+          - output: ernstige_beperkingen_andere_dan_loopbeperkingen
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+                    value: null
+                  then: $ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college
+              default: $advies_ernstige_beperkingen_andere_dan_loopbeperkingen
+  - number: '7'
+    text: >-
+      FICTIEF, eigen keuze in de modellering.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    machine_readable:
+      open_terms:
+        - id: advies_langdurige_loopbeperking_volgens_college
+          type: boolean
+          required: false
+      implements:
+        - law: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+          article: '5'
+          open_term: advies_langdurige_loopbeperking
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+          - name: dagtekening_aanvraag
+            type: date
+          - name: datum_afgifte
+            type: date
+        input:
+          - name: antwoord_langdurige_loopbeperking
+            type: boolean
+            nullable: true
+            source:
+              reduction: advies_langdurige_loopbeperking
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening_aanvraag: $dagtekening_aanvraag
+                datum_afgifte: $datum_afgifte
+        actions:
+          - output: advies_langdurige_loopbeperking
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $antwoord_langdurige_loopbeperking
+                    value: null
+                  then: $advies_langdurige_loopbeperking_volgens_college
+              default: $antwoord_langdurige_loopbeperking

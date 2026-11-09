@@ -168,9 +168,9 @@ pub struct PathNode {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub type_spec: Option<ValueTypeSpec>,
 
-    /// On an open term the caller's answerer filled: who answered and from
-    /// what (RFC-048). How the answer came about is not in this trace; the
-    /// answerer explains it on request.
+    /// On the node of a named answer a binding took (`source.reduction`,
+    /// RFC-048): who answered and from what. How the answer came about is
+    /// not in this trace; the answerer explains it on request.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub answer: Option<AnswerProvenance>,
 }

@@ -656,16 +656,17 @@ mod tests {
         // "op een" must not be satisfied by the word-internal "...rop een"
         // (the bug an `ends_with` check would let through). Only the genuine
         // occurrence preceded by exactly "op een" should match.
-        let arts = vec![article(
-            "2",
-            "de stroop een zoetstof; recht op een zorgtoeslag",
-        )];
+        let text = "de stroop een zorgtoeslag; recht op een zorgtoeslag";
+        let arts = vec![article("2", text)];
         let sel = selector("zorgtoeslag", "op een ", "");
         let r = resolve(&sel, &arts);
-        assert!(r.is_found(), "expected the genuine 'op een ' occurrence");
+        assert!(
+            r.is_found(),
+            "expected only the genuine 'op een ' occurrence"
+        );
         let m = r.single().unwrap();
-        // It must be the second "zorgtoeslag"-context, not anchored via "stroop een".
-        assert_eq!(m.matched_text, "zorgtoeslag");
+        // The second "zorgtoeslag", not the one anchored via "stroop een".
+        assert_eq!(m.start, text.rfind("zorgtoeslag").unwrap());
     }
 
     #[test]

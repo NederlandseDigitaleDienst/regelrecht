@@ -1,0 +1,415 @@
+---
+# Franse overlay op demo-config.yaml en profiles.yaml.
+#
+# Het Nederlands in die bestanden is de bron en blijft daar staan; dit bestand
+# zegt per pad wat de Franse tekst is. Elk pad moet bestaan: `check-i18n.mjs`
+# weigert een pad dat nergens heen wijst, zodat deze vertaling niet stilletjes
+# kan verouderen als de dia's veranderen.
+#
+# Vertaald door een taalmodel en nog niet nagekeken door een Franstalige
+# revisor. Wat daarbij aandacht nodig heeft, staat in REVIEW-fr.md.
+#
+# Over het deck: Frans valt op een dia langer uit dan Nederlands, en nog wat
+# langer dan Engels. Deze vertaling is daarom op sommige plekken korter dan een
+# letterlijke zou zijn, want een regel die omslaat kost meer dan een bijzin
+# oplevert.
+
+# ---- de twee persona's ------------------------------------------------------
+profiles.merijn.portal_tab_label: Mon administration
+profiles.merijn.portal_heading: À quoi ai-je droit ? Quelles sont mes obligations ?
+profiles.merijn.portal_subtitle: >-
+  Retrouvez ici vos allocations, prestations, déclarations et autres dispositifs publics.
+profiles.claudia.portal_tab_label: Mon administration
+profiles.claudia.portal_heading: À quoi ai-je droit ? Quelles sont mes obligations ?
+profiles.claudia.portal_subtitle: >-
+  Retrouvez ici vos allocations, prestations, déclarations et autres dispositifs publics.
+
+# ---- wat een tegel over zijn uitkomst zegt ----------------------------------
+# De aanhef loopt door in het bedrag eronder ("Votre allocation de soins de
+# santé s'élève probablement à" + "1 654,12 €" + "cette année"), dus de
+# zinsdelen moeten op elkaar aansluiten. "Probablement", omdat de demo met
+# verzonnen gegevens rekent.
+outcome_phrasing.TOESLAGEN/zorgtoeslagwet.lead: Votre allocation de soins de santé s'élève probablement à
+outcome_phrasing.TOESLAGEN/zorgtoeslagwet.unit: cette année
+outcome_phrasing.TOESLAGEN/zorgtoeslagwet.none: >-
+  Vous n'avez probablement pas droit à l'allocation de soins de santé.
+outcome_phrasing.TOESLAGEN/wet_op_de_huurtoeslag.lead: Votre allocation logement s'élève probablement à
+outcome_phrasing.TOESLAGEN/wet_op_de_huurtoeslag.unit: par an
+outcome_phrasing.TOESLAGEN/wet_op_de_huurtoeslag.none: Vous n'avez probablement pas droit à l'allocation logement.
+outcome_phrasing.TOESLAGEN/wet_op_het_kindgebonden_budget.lead: Votre budget lié aux enfants s'élève probablement à
+outcome_phrasing.TOESLAGEN/wet_op_het_kindgebonden_budget.unit: par an
+outcome_phrasing.TOESLAGEN/wet_op_het_kindgebonden_budget.none: >-
+  Vous n'avez probablement pas droit au budget lié aux enfants.
+outcome_phrasing.TOESLAGEN/wet_kinderopvang.lead: Votre allocation pour la garde d'enfants s'élève probablement à
+outcome_phrasing.TOESLAGEN/wet_kinderopvang.unit: par an
+outcome_phrasing.TOESLAGEN/wet_kinderopvang.none: >-
+  Vous n'avez probablement pas droit à l'allocation pour la garde d'enfants.
+outcome_phrasing.BELASTINGDIENST/wet_inkomstenbelasting.lead: Votre impôt sur le revenu à payer s'élève probablement à
+outcome_phrasing.BELASTINGDIENST/wet_inkomstenbelasting.unit: cette année
+outcome_phrasing.BELASTINGDIENST/wet_inkomstenbelasting.none: Vous ne devez probablement pas d'impôt sur le revenu.
+outcome_phrasing.SVB/algemene_ouderdomswet.lead: Votre pension AOW s'élève probablement à
+outcome_phrasing.SVB/algemene_ouderdomswet.unit: par an
+outcome_phrasing.SVB/algemene_ouderdomswet.none: Vous n'avez pas encore droit à la pension AOW.
+outcome_phrasing.SVB/algemene_nabestaandenwet.lead: Votre prestation de survivant s'élève probablement à
+outcome_phrasing.SVB/algemene_nabestaandenwet.unit: par mois
+outcome_phrasing.SVB/algemene_nabestaandenwet.none: >-
+  Vous n'avez probablement pas droit à une prestation de survivant.
+outcome_phrasing.SVB/participatiewet/aio.lead: Votre complément AIO s'élève probablement à
+outcome_phrasing.SVB/participatiewet/aio.unit: par mois
+outcome_phrasing.SVB/participatiewet/aio.none: Vous n'avez probablement pas droit à un complément AIO.
+outcome_phrasing.SZW/participatiewet/bijstand.lead: Votre aide sociale s'élève probablement à
+outcome_phrasing.SZW/participatiewet/bijstand.unit: par mois
+outcome_phrasing.SZW/participatiewet/bijstand.none: Vous n'avez probablement pas droit à l'aide sociale.
+outcome_phrasing.GEMEENTE_AMSTERDAM/participatiewet/bijstand/gemeenten.lead: Votre aide sociale s'élève probablement à
+outcome_phrasing.GEMEENTE_AMSTERDAM/participatiewet/bijstand/gemeenten.unit: par mois
+outcome_phrasing.GEMEENTE_AMSTERDAM/participatiewet/bijstand/gemeenten.none: >-
+  Vous n'avez probablement pas droit à l'aide sociale.
+outcome_phrasing.SZW/besluit_bijstandverlening_zelfstandigen.lead: Votre aide Bbz s'élève probablement à
+outcome_phrasing.SZW/besluit_bijstandverlening_zelfstandigen.unit: par mois
+outcome_phrasing.SZW/besluit_bijstandverlening_zelfstandigen.none: Vous n'avez probablement pas droit à l'aide Bbz.
+outcome_phrasing.UWV/werkloosheidswet.lead: Votre allocation chômage s'élève probablement à
+outcome_phrasing.UWV/werkloosheidswet.unit: par mois
+outcome_phrasing.UWV/werkloosheidswet.none: Vous n'avez probablement pas droit à l'allocation chômage.
+outcome_phrasing.UWV/ziektewet.lead: Votre indemnité de maladie s'élève probablement à
+outcome_phrasing.UWV/ziektewet.unit: par jour
+outcome_phrasing.UWV/ziektewet.none: Vous n'avez probablement pas droit à l'indemnité de maladie.
+outcome_phrasing.UWV/wet_werk_en_inkomen_naar_arbeidsvermogen.lead: Votre prestation WIA s'élève probablement à
+outcome_phrasing.UWV/wet_werk_en_inkomen_naar_arbeidsvermogen.unit: par mois
+outcome_phrasing.UWV/wet_werk_en_inkomen_naar_arbeidsvermogen.none: >-
+  Vous n'avez probablement pas droit à une prestation WIA.
+outcome_phrasing.DUO/wet_studiefinanciering.lead: Votre aide financière aux études s'élève probablement à
+outcome_phrasing.DUO/wet_studiefinanciering.unit: par mois
+outcome_phrasing.DUO/wet_studiefinanciering.none: >-
+  Vous n'avez probablement pas droit à l'aide financière aux études.
+outcome_phrasing.PENSIOENFONDS/pensioenwet.lead: Votre pension s'élève probablement à
+outcome_phrasing.PENSIOENFONDS/pensioenwet.unit: par mois
+outcome_phrasing.PENSIOENFONDS/pensioenwet.none: Vous n'acquérez pas encore de droits à pension ici.
+outcome_phrasing.BELASTINGDIENST/zorgverzekeringswet/bijdrage.lead: Votre cotisation Zvw s'élève probablement à
+outcome_phrasing.BELASTINGDIENST/zorgverzekeringswet/bijdrage.unit: cette année
+outcome_phrasing.BELASTINGDIENST/zorgverzekeringswet/bijdrage.none: Vous ne devez probablement pas de cotisation Zvw.
+outcome_phrasing.GEMEENTE_ROTTERDAM/verordening_precariobelasting/gemeenten.lead: Votre taxe precario s'élève probablement à
+outcome_phrasing.GEMEENTE_ROTTERDAM/verordening_precariobelasting/gemeenten.unit: par an
+outcome_phrasing.GEMEENTE_ROTTERDAM/verordening_precariobelasting/gemeenten.none: >-
+  Vous ne devez probablement pas de taxe precario.
+outcome_phrasing.DOUANE/wet_op_de_accijns/accijnsplicht_alcohol.lead: Sur ce lot, vous devez probablement
+outcome_phrasing.DOUANE/wet_op_de_accijns/accijnsplicht_alcohol.unit: de droits d'accise
+outcome_phrasing.DOUANE/wet_op_de_accijns/accijnsplicht_alcohol.none: >-
+  Sur ce lot, vous ne devez probablement pas de droits d'accise.
+
+# Ja/nee-wetten. De uitspraak staat in kapitalen omdat hij het antwoord is.
+# Anders dan in het Nederlands en het Engels loopt de aanhef hier niet door in
+# de uitspraak: een Franse ontkenning heeft "ne ... pas" nodig, en "vous avez"
+# boven "PAS le droit de vote" is geen zin. De aanhef is daarom een kop en de
+# uitspraak een hele zin.
+outcome_phrasing.KIESRAAD/kieswet.lead: Pour les élections du {date}
+outcome_phrasing.KIESRAAD/kieswet.lead_no_date: Pour les élections
+outcome_phrasing.KIESRAAD/kieswet.yes: VOUS AVEZ LE DROIT DE VOTE
+outcome_phrasing.KIESRAAD/kieswet.no: Vous n'avez PAS le droit de vote
+outcome_phrasing.SVB/algemene_kinderbijslagwet.lead: Allocations familiales
+outcome_phrasing.SVB/algemene_kinderbijslagwet.yes: VOUS Y AVEZ DROIT
+outcome_phrasing.SVB/algemene_kinderbijslagwet.no: Vous n'y avez PAS droit
+outcome_phrasing.IND/vreemdelingenwet.lead: Séjour aux Pays-Bas
+outcome_phrasing.IND/vreemdelingenwet.yes: VOUS AVEZ UN DROIT DE SÉJOUR
+outcome_phrasing.IND/vreemdelingenwet.no: Vous n'avez PAS de droit de séjour
+outcome_phrasing.GEMEENTE_ROTTERDAM/algemene_plaatselijke_verordening/terrassen.lead: Pour une terrasse
+outcome_phrasing.GEMEENTE_ROTTERDAM/algemene_plaatselijke_verordening/terrassen.yes: VOUS AVEZ DROIT À UN PERMIS
+outcome_phrasing.GEMEENTE_ROTTERDAM/algemene_plaatselijke_verordening/terrassen.no: Vous n'avez PAS droit à un permis
+outcome_phrasing.GEMEENTE_ROTTERDAM/alcoholwet/vergunning/gemeenten.lead: Pour la vente d'alcool
+outcome_phrasing.GEMEENTE_ROTTERDAM/alcoholwet/vergunning/gemeenten.yes: VOUS AVEZ UN PERMIS VALIDE
+outcome_phrasing.GEMEENTE_ROTTERDAM/alcoholwet/vergunning/gemeenten.no: Vous n'avez PAS de permis valide
+outcome_phrasing.NVWA/warenwet/haccp.lead: Pour la sécurité alimentaire
+outcome_phrasing.NVWA/warenwet/haccp.yes: VOUS AVEZ UNE OBLIGATION HACCP
+outcome_phrasing.NVWA/warenwet/haccp.no: Vous n'avez PAS d'obligation HACCP
+outcome_phrasing.NVWA/warenwet/meldplicht.lead: En cas d'incident de sécurité alimentaire
+outcome_phrasing.NVWA/warenwet/meldplicht.yes: VOUS AVEZ UNE OBLIGATION DE NOTIFICATION
+outcome_phrasing.NVWA/warenwet/meldplicht.no: Vous n'avez PAS d'obligation de notification
+outcome_phrasing.RVO/omgevingswet/energiebesparing/informatieplicht.lead: Pour les économies d'énergie
+outcome_phrasing.RVO/omgevingswet/energiebesparing/informatieplicht.yes: VOUS AVEZ UNE OBLIGATION D'INFORMATION
+outcome_phrasing.KVK/handelsregisterwet/jaarrekening.lead: Pour vos comptes annuels
+outcome_phrasing.KVK/handelsregisterwet/jaarrekening.yes: VOUS AVEZ UNE OBLIGATION DE DÉPÔT
+outcome_phrasing.KVK/handelsregisterwet/jaarrekening.no: Vous n'avez PAS d'obligation de dépôt
+outcome_phrasing.RVO/omgevingswet/energiebesparing/informatieplicht.no: Vous n'avez PAS d'obligation d'information
+
+# ---- de grafiek van het besteedbaar inkomen ---------------------------------
+simulation.disposable_income.0.label: Impôt sur le revenu
+simulation.disposable_income.1.label: Cotisation Zvw
+simulation.disposable_income.2.label: Allocation de soins de santé
+simulation.disposable_income.3.label: Allocation logement
+simulation.disposable_income.4.label: Budget lié aux enfants
+simulation.disposable_income.5.label: Allocation pour la garde d'enfants
+simulation.disposable_income.6.label: Pension AOW
+simulation.disposable_income.7.label: Prestation de survivant
+simulation.disposable_income.8.label: Complément AIO
+simulation.disposable_income.9.label: Aide sociale
+simulation.disposable_income.10.label: Supplément frais de logement
+simulation.disposable_income.11.label: Bbz
+simulation.disposable_income.12.label: Allocation chômage
+
+# ---- het presentatiedeck ----------------------------------------------------
+slides.0.title: RegelRecht
+slides.0.subtitle: de la loi à sa mise en œuvre numérique
+slides.0.footer: Service numérique néerlandais
+
+slides.1.overline: Aujourd'hui
+slides.1.lines.0: Chaque organisation
+slides.1.lines.1: a sa **propre lecture** de la loi
+slides.1.lines.2: traduite dans **son propre logiciel**
+
+slides.2.overline: Le résultat
+slides.2.lines.0: Pas de vue d'ensemble
+slides.2.lines.1: Imprévisible
+slides.2.lines.2: Ingérable
+
+slides.3.overline: Et si
+slides.3.lines.0: On **partait de la loi**
+slides.3.lines.1: On la rendait **exécutable par machine**
+slides.3.lines.2: On la publiait **ouvertement**
+
+slides.4.title: Démo RegelRecht
+slides.4.lines.0: Une histoire complète, pas un produit fini
+slides.4.lines.1: Nous construisons les politiques par la pratique
+
+slides.5.overline: La réglementation
+slides.5.title: La loi comme réglementation
+slides.5.lead: Le texte de loi et la règle exécutable sont côte à côte, article par article.
+slides.5.bullets.0: >-
+  Chaque article a une partie **machine_readable** : ce qui entre, ce qui
+  sort, et comment.
+slides.5.bullets.1: Un renvoi à une autre loi est explicite, pas la copie d'un montant.
+slides.5.bullets.2: La même réglementation s'exécute dans l'éditeur, dans ce portail et dans la simulation.
+
+slides.6.overline: Cohérence
+slides.6.title: Les lois sont liées
+slides.6.lead: >-
+  Qui est assuré dépend de la détention ; qui reçoit l'allocation de soins de
+  santé dépend de l'assurance.
+slides.6.bullets.0: >-
+  Par loi : quelles données viennent des registres, lesquelles d'autres lois,
+  ce qui en sort.
+slides.6.bullets.1: Chaque ligne est un vrai renvoi de la loi, avec la valeur pour cette personne.
+slides.6.bullets.2: Une loi change ? Vous voyez aussitôt qui est concerné.
+
+slides.8.overline: Tester
+slides.8.title: La loi testée, en langage courant
+slides.8.lead: Les scénarios décrivent une personne et ce que la loi doit produire pour elle.
+slides.8.bullets.0: >-
+  Soit un jeune de 17 ans : pas d'allocation de soins de santé. Soit une
+  personne seule à bas revenu : oui.
+slides.8.bullets.1: Les mêmes scénarios s'exécutent ici dans le navigateur et dans la chaîne d'intégration.
+slides.8.bullets.2: Qui modifie la loi voit quel scénario échoue.
+
+slides.10.overline: Politique publique
+slides.10.title: Quel effet sur deux mille personnes ?
+slides.10.lead: Une population générée passe par tous les dispositifs, avec les vraies lois.
+slides.10.bullets.0: >-
+  Qui remplit les conditions, pour combien, ventilé par âge, revenu et
+  ménage.
+slides.10.bullets.1: Ajustez un seuil de la loi et voyez la différence, avant son entrée en vigueur.
+slides.10.bullets.2: 'Aussi pour les entreprises : permis, obligations de déclaration, precario.'
+
+slides.11.overline: Le citoyen
+slides.11.title: Un citoyen, Merijn
+slides.11.lead: Indépendant dans les soins à domicile, parent isolé avec deux jeunes enfants.
+slides.11.bullets.0: Tout ce à quoi il a droit, calculé en direct par la loi elle-même.
+slides.11.bullets.1: Chaque donnée remonte au registre qui l'a fournie.
+slides.11.bullets.2: Une donnée est fausse ? Il la corrige, un gestionnaire l'examine.
+
+slides.12.overline: La demande
+slides.12.title: Ne demander que ce que l'administration ignore
+slides.12.lead: >-
+  La loi calcule avec ce qui existe déjà, et ne pose une question que
+  lorsqu'elle bloque.
+slides.12.bullets.0: L'allocation logement ne connaît pas le loyer. C'est la seule question, à ce moment-là.
+slides.12.bullets.1: Après chaque réponse, la loi recalcule.
+slides.12.bullets.2: Vérifier, déclarer, déposer. Sans formulaire de dix pages.
+
+slides.13.overline: Le gestionnaire
+slides.13.title: Le même droit, de l'autre côté du guichet
+slides.13.lead: La demande arrive avec le calcul que le citoyen a vu.
+slides.13.bullets.0: Le moteur le recalcule avec les données enregistrées.
+slides.13.bullets.1: Les corrections du citoyen attendent d'être examinées.
+slides.13.bullets.2: Accorder ou refuser, avec motivation ; une réclamation revient par le portail.
+
+slides.14.overline: L'entrepreneuse
+slides.14.title: Une entrepreneuse, Claudia
+slides.14.lead: >-
+  Dirigeante du Café Noon à Rotterdam-West, un café avec sa propre petite
+  brasserie et une terrasse.
+slides.14.bullets.0: >-
+  Le même moteur, d'autres lois : règlement local, alcool, sécurité
+  alimentaire, accises, precario.
+slides.14.bullets.1: >-
+  Le permis de terrasse demande l'emplacement et la surface ; une fois
+  accordé, la taxe precario en tient compte.
+slides.14.bullets.2: >-
+  La commune, l'autorité alimentaire et l'agence des entreprises en une
+  seule vue, sans avoir à se consulter.
+
+slides.18.overline: Démo RegelRecht
+slides.18.title: De la loi à sa mise en œuvre numérique
+slides.18.lines.0: Une histoire complète, **pas un produit fini**
+slides.18.lines.1: Nous construisons les politiques **par la pratique**
+slides.18.link.label: regelrecht.rijks.app
+slides.7.overline: Cohérence
+slides.7.title: Les lois sont liées
+slides.7.lead: >-
+  Que Claudia paie le precario dépend de son permis de terrasse, qui dépend
+  de sa licence d'exploitation.
+slides.7.bullets.0: >-
+  Par loi : quelles données viennent des registres, lesquelles d'autres lois,
+  ce qui en sort.
+slides.7.bullets.1: Registre du commerce, BAG et règlements communaux sont dans un même graphe.
+slides.7.bullets.2: Le règlement change ? Vous voyez aussitôt quelles entreprises sont concernées.
+slides.9.overline: Tester
+slides.9.title: Le règlement testé, en langage courant
+slides.9.lead: Les scénarios décrivent une entreprise et ce que le règlement doit produire pour elle.
+slides.9.bullets.0: >-
+  Soit une terrasse de 20 m² : pas de precario. Soit une terrasse de 80 m² :
+  taxe sur 30 m².
+slides.9.bullets.1: Les mêmes scénarios s'exécutent ici dans le navigateur et dans la chaîne d'intégration.
+slides.9.bullets.2: Qui modifie le règlement voit quel scénario échoue.
+slides.15.overline: La demande
+slides.15.title: Demander un permis de terrasse
+slides.15.lead: >-
+  La commune sait déjà beaucoup de choses sur le Café Noon. La demande ne
+  porte que sur la terrasse elle-même.
+slides.15.bullets.0: Emplacement, surface, saison et heures de fermeture ne figurent dans aucun registre.
+slides.15.bullets.1: Après chaque réponse, le règlement recalcule, motifs de refus compris.
+slides.15.bullets.2: Une fois déposée, la demande part à la commune pour examen.
+slides.16.overline: La commune
+slides.16.title: La commune examine
+slides.16.lead: La commune de Rotterdam accorde un permis de terrasse après examen par un gestionnaire.
+slides.16.bullets.0: La demande arrive avec le calcul que Claudia a vu.
+slides.16.bullets.1: Le gestionnaire accorde ou refuse, avec motivation.
+slides.16.bullets.2: L'octroi crée le permis sur lequel le precario est prélevé.
+slides.17.overline: L'avis d'imposition
+slides.17.title: Le precario découle du permis
+slides.17.lead: La commune prélève la taxe precario sur la terrasse accordée.
+slides.17.bullets.0: Le règlement lit la surface dans le permis de terrasse accordé.
+slides.17.bullets.1: Les 50 premiers m² sont exonérés ; au-delà, 36,10 € par m² et par an.
+slides.17.bullets.2: Chaque montant remonte à l'article et au permis sur lesquels il repose.
+
+# ---- de persona's -----------------------------------------------------------
+# De beschrijving onder de kop van het portaal, en de enige tekst daar die uit
+# `profiles.yaml` komt in plaats van uit het woordenboek. Zonder deze overlay
+# staat er een Nederlandse zin onder een Franse kop.
+#
+# Gesleuteld op BSN en niet op de zin zelf, want vijftig van de drieënzestig
+# beschrijvingen zijn uniek en de tien wallet-persona's delen er één; op de
+# tekst sleutelen zou die tien aan elkaar knopen.
+#
+# Eigennamen blijven staan: `Merijn van der Meer` is een naam, geen
+# omschrijving. Afkortingen van regelingen ook (`Bbz`, `WSNP`, `WGBO`, `AOW`),
+# met een Franse toelichting waar de afkorting zonder uitleg niets zegt. Het
+# Frans kent geslacht waar het Nederlands neutraal is; dat volgt de naam van
+# de persona in profiles.yaml.
+profiles.900253010.description: Personne disposant d'un NL Wallet
+profiles.900253022.description: Personne disposant d'un NL Wallet
+profiles.900253034.description: Personne disposant d'un NL Wallet
+profiles.900253046.description: Personne disposant d'un NL Wallet
+profiles.900253058.description: Personne disposant d'un NL Wallet
+profiles.900265425.description: Personne disposant d'un NL Wallet
+profiles.900265437.description: Personne disposant d'un NL Wallet
+profiles.900265449.description: Personne disposant d'un NL Wallet
+profiles.900265450.description: Personne disposant d'un NL Wallet
+profiles.900265462.description: Personne disposant d'un NL Wallet
+profiles.999991772.description: Personne disposant d'un NL Wallet
+profiles.999100001.description: >-
+  Indépendant dans les soins à domicile à faible revenu, parent isolé de deux
+  jeunes enfants, dont l'un atteint d'une maladie chronique. Éligible au Bbz,
+  le régime d'aide au revenu des indépendants.
+profiles.999100002.description: >-
+  Mère isolée, travaille à temps partiel dans l'hôtellerie-restauration avec
+  des horaires irréguliers, ne demande que l'allocation logement
+profiles.999100003.description: >-
+  Indépendant dans le bâtiment au revenu très fluctuant, a du mal avec la
+  paperasse et pratique des tarifs bas
+profiles.999100004.description: >-
+  Bénéficiaire de l'aide sociale en incapacité partielle de travail, reçoit
+  toutes les allocations et peine pourtant à joindre les deux bouts
+profiles.999200001.description: Enfant de Merijn van der Meer (BSN 999100001)
+profiles.999200002.description: Enfant de Merijn van der Meer (BSN 999100001)
+profiles.999200003.description: Enfant de Maria Rodriguez (BSN 999100002)
+profiles.999200004.description: Enfant de Maria Rodriguez (BSN 999100002)
+profiles.999200005.description: Enfant d'Omar Yilmaz (BSN 999100003)
+profiles.999200006.description: Enfant de Sophie Jansen (BSN 999300001)
+profiles.999200007.description: Enfant de Lisa de Jong (BSN 999993660)
+profiles.999300001.description: >-
+  Mère isolée récemment au chômage, un enfant, éligible à l'allocation chômage
+  et au budget lié aux enfants avec le supplément pour parent isolé
+profiles.999400001.description: >-
+  Tutrice de son neveu Daan après le décès de ses parents (art. 1:295 du Code
+  civil néerlandais)
+profiles.999400002.description: Mineur sous la tutelle de sa tante Maria (BSN 999400001)
+profiles.999410001.description: >-
+  Curateur, administrateur de biens et mentor professionnel pour plusieurs
+  clients
+profiles.999410002.description: Mandataire disposant d'une procuration générale pour sa mère
+profiles.999410003.description: Notaire et exécuteur testamentaire
+profiles.999410004.description: Avocate et liquidatrice judiciaire
+profiles.999410005.description: >-
+  Administrateur au titre de la WSNP, le régime légal de règlement des dettes
+profiles.999410006.description: >-
+  Époux d'une patiente incapable de consentir, et son représentant au titre de
+  la WGBO, la loi sur le contrat de traitement médical
+profiles.999410007.description: A été curatrice, mais la curatelle a pris fin
+profiles.999500001.description: Placée sous curatelle en raison d'un trouble mental
+profiles.999500002.description: >-
+  Sous administration de biens, et conserve sa capacité juridique
+profiles.999500003.description: >-
+  Sous mentorat, et conserve sa capacité juridique
+profiles.999500004.description: A donné une procuration générale à sa fille Anna
+profiles.999500006.description: Déclaré en faillite ; le patrimoine est géré par un liquidateur judiciaire
+profiles.999500007.description: En procédure de règlement des dettes WSNP
+profiles.999500008.description: Déclarée incapable de consentir, et placée sous curatelle
+profiles.999500009.description: >-
+  La curatelle a été levée ; a retrouvé sa pleine capacité juridique
+profiles.999600001.description: Dirigeante d'une société anonyme cotée en bourse
+profiles.999600002.description: Président d'une fondation caritative
+profiles.999600003.description: Président d'un club sportif
+profiles.999600004.description: Dirigeante d'une coopérative agricole
+profiles.999600005.description: Associé d'une société civile d'avocats
+profiles.999600006.description: Associée commanditée d'une société en commandite
+profiles.999600007.description: >-
+  Associé commanditaire (dormant) d'une société en commandite, et n'a donc
+  PAS le pouvoir de la représenter
+profiles.999777777.description: >-
+  Personne seule à faible revenu et au loyer élevé, éligible à l'allocation
+  logement
+profiles.999888888.description: >-
+  Parent isolé ayant recours à la garde d'enfants, éligible à l'allocation
+  pour la garde d'enfants
+profiles.999991723.description: Enfant de Linda Strijps et Peter-Jan van der Meijden
+profiles.999992740.description: Enfant de Linda Strijps et Peter-Jan van der Meijden
+profiles.999991905.description: >-
+  Mère de deux jeunes enfants, travaille à temps partiel, dispose d'un NL
+  Wallet
+profiles.999993653.description: >-
+  Jeune avec un emploi à temps partiel en parallèle d'une formation
+  professionnelle (MBO), éligible à l'allocation de soins de santé
+profiles.999993654.description: >-
+  Perçoit la pension AOW à taux plein ; mariée, et son conjoint n'a pas encore
+  atteint l'âge de la pension
+profiles.999993655.description: >-
+  Sans-abri avec une adresse postale, a droit à l'aide sociale avec un
+  supplément pour frais de logement
+profiles.999993656.description: >-
+  Indépendant à faible revenu, a droit à une aide sociale complémentaire et à
+  un capital de démarrage
+profiles.999993657.description: >-
+  Dispensée pour raisons médicales, et a donc droit à l'aide sociale sans
+  obligation de réinsertion
+profiles.999993658.description: >-
+  Étudiant à faible revenu avec une bourse d'études, a droit à l'allocation
+  de soins de santé
+profiles.999993659.description: >-
+  Étudiante allemande, et n'a donc pas le droit de vote pour la Seconde
+  Chambre
+profiles.999993660.description: >-
+  Parent qui travaille, avec un jeune enfant, éligible au crédit d'impôt pour
+  activité combinée lié au revenu
+profiles.999993670.description: Conjoint de Maria Pietersen, n'a pas encore atteint l'âge de la pension AOW
+profiles.999993872.description: Père de deux jeunes enfants, propriétaire de son logement
+profiles.999999990.description: >-
+  Dirigeante de Café Noon B.V. à Rotterdam West, un café avec sa propre petite
+  brasserie, une terrasse et une licence d'exploitation

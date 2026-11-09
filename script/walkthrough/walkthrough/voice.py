@@ -29,7 +29,9 @@ from pathlib import Path
 from . import media
 from .script import even_alignment
 
-API = "https://api.elevenlabs.io/v1/text-to-speech/{voice}/with-timestamps?output_format=pcm_44100"
+# MP3, not PCM: 44.1 kHz PCM is for the Pro tier and above, and at 192 kbps
+# the difference does not survive the AAC the player gets anyway.
+API = "https://api.elevenlabs.io/v1/text-to-speech/{voice}/with-timestamps?output_format=mp3_44100_192"
 
 
 def api_key(work: Path) -> str:
@@ -105,11 +107,10 @@ def _eleven(text: str, cfg: dict, work: Path, previous: str, following: str, out
             data = json.loads(res.read())
     except urllib.error.HTTPError as e:
         raise SystemExit(f"ElevenLabs gaf {e.code}: {e.read().decode(errors='replace')[:400]}")
-    pcm = base64.b64decode(data["audio_base64"])
-    with tempfile.NamedTemporaryFile(suffix=".pcm", delete=False) as f:
-        f.write(pcm)
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+        f.write(base64.b64decode(data["audio_base64"]))
         raw = Path(f.name)
-    media.ffmpeg("-f", "s16le", "-ar", "44100", "-ac", "1", "-i", raw, "-ar", "48000", "-ac", "1", out_wav)
+    media.ffmpeg("-i", raw, "-ar", "48000", "-ac", "1", out_wav)
     raw.unlink()
     return data.get("alignment") or data.get("normalized_alignment")
 
@@ -119,7 +120,10 @@ def _say(text: str, cfg: dict, out_wav: Path) -> dict:
         raise SystemExit("`say` ontbreekt (alleen op een Mac); gebruik provider: elevenlabs")
     with tempfile.TemporaryDirectory() as tmp:
         aiff = Path(tmp) / "line.aiff"
-        subprocess.run(["say", "-v", cfg.get("say_voice", "Xander"), "-o", str(aiff), text], check=True)
+        # `say` speaks about 180 words a minute; a speed setting scales that.
+        speed = (cfg.get("settings") or {}).get("speed")
+        rate = ["-r", str(round(180 * float(speed)))] if speed else []
+        subprocess.run(["say", "-v", cfg.get("say_voice", "Xander"), *rate, "-o", str(aiff), text], check=True)
         media.ffmpeg("-i", aiff, "-ar", "48000", "-ac", "1", out_wav)
     return even_alignment(text, media.duration(out_wav))
 

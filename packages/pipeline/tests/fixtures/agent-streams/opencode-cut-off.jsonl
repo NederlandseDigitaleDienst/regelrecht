@@ -1,0 +1,9 @@
+# ASSEMBLED, NOT CAPTURED (see opencode-success.jsonl). The #1890 case: a step
+# ends with reason "length" because it hit the output limit, and opencode exits
+# 0 without having written the law. Only the activity summary says so.
+# The reasoning and text parts before the step's end are what opencode writes
+# with --thinking; their sizes land on the step's log line.
+{"type":"step_start","part":{"type":"step-start"}}
+{"type":"reasoning","part":{"type":"reasoning","text":"Eerst alle artikelen doorlopen."}}
+{"type":"text","part":{"type":"text","text":"Ik begin met artikel 1."}}
+{"type":"step_finish","part":{"reason":"length","cost":0.01,"tokens":{"input":50000,"output":32000,"reasoning":12000,"cache":{"read":0,"write":0}}}}

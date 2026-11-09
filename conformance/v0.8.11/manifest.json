@@ -1,0 +1,77 @@
+{
+  "schema_version": "v0.8.11",
+  "levels": {
+    "core": {
+      "test_files": [
+        "arithmetic.json",
+        "comparison.json",
+        "logical.json",
+        "conditionals.json",
+        "collection.json",
+        "rounding.json",
+        "variable_resolution.json"
+      ],
+      "operations": [
+        "ADD",
+        "SUBTRACT",
+        "MULTIPLY",
+        "DIVIDE",
+        "EQUALS",
+        "GREATER_THAN",
+        "LESS_THAN",
+        "GREATER_THAN_OR_EQUAL",
+        "LESS_THAN_OR_EQUAL",
+        "AND",
+        "OR",
+        "NOT",
+        "IF",
+        "IN",
+        "LIST",
+        "FOREACH",
+        "MAX",
+        "MIN",
+        "ROUND",
+        "CEIL",
+        "FLOOR"
+      ]
+    },
+    "cross_law": {
+      "test_files": [
+        "cross_law.json"
+      ],
+      "operations": []
+    },
+    "ioc": {
+      "test_files": [
+        "ioc.json",
+        "open_terms.json"
+      ],
+      "operations": []
+    },
+    "temporal": {
+      "test_files": [
+        "date_operations.json",
+        "temporal_resolution.json"
+      ],
+      "operations": [
+        "AGE",
+        "DATE_ADD",
+        "DATE",
+        "DAY_OF_WEEK",
+        "DATE_DIFF",
+        "DATE_PART",
+        "START_OF"
+      ]
+    },
+    "advanced": {
+      "test_files": [
+        "hooks.json",
+        "overrides.json",
+        "untranslatables.json",
+        "data_sources.json",
+        "procedures.json"
+      ],
+      "operations": []
+    }
+  }
+}

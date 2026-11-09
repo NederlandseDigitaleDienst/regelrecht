@@ -68,7 +68,7 @@ describe('TasksCategoriesPane', () => {
       { law_id: 'participatiewet', display_name: 'Participatiewet' },
     ]);
     const { default: Pane } = await import('./TasksCategoriesPane.vue');
-    const wrapper = mount(Pane, { props: { trajectRef: 't-1', ...props }, attachTo: document.body });
+    const wrapper = mount(Pane, { props: { trajectRef: 'traject-abcd1234', ...props }, attachTo: document.body });
     // Flush both composables' deferred loads.
     await wrapper.vm.$nextTick();
     await Promise.resolve();
@@ -116,6 +116,20 @@ describe('TasksCategoriesPane', () => {
     // Prioriteit, geen Wachten op, geen Werkdocumenten.
     const wrapper = await mountPane([LAW_TASK]);
     expect(labelsOf(wrapper)).toEqual(['Alle taken', 'Wet op de zorgtoeslag']);
+  });
+
+  it('counts only the tasks and jobs of this traject, also for a law enriched in two', async () => {
+    const here = { ...LAW_TASK, id: 'h1', traject_id: 'abcd1234-0000-4000-8000-000000000000' };
+    const elsewhere = { ...LAW_TASK, id: 'e1', traject_id: 'ffff0000-0000-4000-8000-000000000000' };
+    const runningElsewhere = {
+      job_id: 'j9',
+      job_type: 'enrich',
+      law_id: 'wet_op_de_zorgtoeslag',
+      traject_ref: 'ander-ffff0000',
+    };
+    const wrapper = await mountPane([here, elsewhere], [runningElsewhere]);
+    expect(labelsOf(wrapper)).toEqual(['Alle taken', 'Wet op de zorgtoeslag']);
+    expect(countsOf(wrapper)).toEqual(['1', '1']);
   });
 
   it('toont geen aantal bij een categorie zonder taken', async () => {

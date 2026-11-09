@@ -1,0 +1,32 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.7/schema/v0.8.7/schema.json
+$id: fictief_beleid_vestiging_obs_de_klimop
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-07-01'
+valid_from: '2026-08-01'
+url: https://wetten.overheid.nl/BWBR0049811/2025-08-01#Artikel2
+name: Vestiging van OBS De Klimop (fictief beleid)
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering.
+    url: https://wetten.overheid.nl/BWBR0049811/2025-08-01#Artikel2
+    machine_readable:
+      requires:
+        - fact: vestiging
+          parameters:
+            - gemeente
+            - provincie
+            - deel_van_gemeente
+            - sinds
+      execution:
+        parameters:
+          - name: gemeente
+            type: string
+          - name: provincie
+            type: string
+          - name: deel_van_gemeente
+            type: string
+            nullable: true
+          - name: sinds
+            type: date

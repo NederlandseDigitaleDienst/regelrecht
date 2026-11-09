@@ -99,12 +99,20 @@ function numberValue(token: string) {
 
 /**
  * A text with every number replaced by its value and every space gone, so
- * that "€ 4.112,00" and "€4,112.00" read the same. Only for comparing.
+ * that "€ 4.112,00", "€4,112.00" and "4 112,00 €" read the same. French puts
+ * the euro sign after the amount; a sign with no amount after it is moved in
+ * front of the one before it. A space belongs to a number only before a
+ * group of three digits ("25 000,00"), so "2025 4 112,00" stays two numbers;
+ * the narrow no-break space French groups with is often a plain one by the
+ * time text gets here (`norm`). Only for comparing.
  */
 function flat(s: unknown) {
   return String(s)
-    .replace(/\d[\d.,\u00a0\u202f ]*\d|\d/g, (n) => `#${numberValue(n)}#`)
-    .replace(/\s+/g, '');
+    .replace(/\d(?:[\d.,]|\s(?=\d{3}(?!\d)))*\d|\d/g, (n) => `#${numberValue(n)}#`)
+    .replace(/\s+/g, '')
+    .replace(/(#[\d.]+#)€(?!#)/g, '€$1')
+    // A minus before the sign ("-4 112,00 €") or after it ("€ -4.112,00").
+    .replace(/€([-−])/g, '$1€');
 }
 
 /** Whether two texts differ only in how their numbers are written. */

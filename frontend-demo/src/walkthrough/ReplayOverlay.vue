@@ -26,7 +26,7 @@ const full = computed(() => p.isFull.value);
  * large, next to the slide, instead of a corner of the screen. Once a slide
  * opens the demo it shrinks back.
  */
-const face = computed(() => full.value && camVisible(track.value, replay.now));
+const face = computed(() => full.value && !replay.dubbed && camVisible(track.value, replay.now));
 // The deck lives outside this component; a class on <html> lets its slide
 // make room for the face (presentation.css).
 watch(face, (on) => document.documentElement.classList.toggle('rr-face', on), { immediate: true });
@@ -48,7 +48,7 @@ let lastSync = 0;
 function loop() {
   const c = cam.value;
   if (c && replay.restoring && !c.paused) c.pause();
-  if (c && replay.camOn && !replay.restoring && camVisible(track.value, replay.now) && performance.now() - lastSync > 250) {
+  if (c && replay.camOn && !replay.dubbed && !replay.restoring && camVisible(track.value, replay.now) && performance.now() - lastSync > 250) {
     lastSync = performance.now();
     const fix = followerCorrection(audioTime(), c.currentTime, replay.speed);
     if (fix.seek != null) c.currentTime = fix.seek;
@@ -187,7 +187,7 @@ onUnmounted(() => {
   <div class="wt-chrome overlay" :class="{ full, face }">
     <video
       v-if="track?.cam"
-      v-show="replay.camOn && !replay.restoring && camVisible(track, replay.now)"
+      v-show="replay.camOn && !replay.dubbed && !replay.restoring && camVisible(track, replay.now)"
       ref="cam"
       class="cam"
       :style="camStyle"

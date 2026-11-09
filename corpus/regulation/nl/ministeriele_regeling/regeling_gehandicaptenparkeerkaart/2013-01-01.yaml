@@ -159,7 +159,7 @@ articles:
       # BABW: het CBR) en lid 3 (een instelling, artikel 49, tweede lid) zijn
       # niet gemodelleerd: die leden van artikel 49 zijn het ook niet, dus
       # hier vraagt geen kaart erom.
-      # Beide feiten stelt een ander vast dan wie de kaart afgeeft (RFC-052).
+      # Beide feiten stelt een ander vast dan wie de kaart afgeeft (RFC-051).
       # Of het onderzoek plaatsvond, leest dit artikel bij artikel 3, dat het
       # onderzoek omschrijft. Of eerder een kaart is verstrekt, staat hier in
       # lid 2 zelf; het BABW spreekt nergens van een eerdere kaart.
@@ -169,7 +169,8 @@ articles:
         # instantie". Wie kaarten verstrekt, zegt artikel 49 van het BABW:
         # het college (eerste lid) en het CBR (derde lid). Elk van hen weet
         # het uit de eigen besluiten; een kaart van een andere gemeente of
-        # van het CBR telt ook, dus elk antwoord telt mee (OR).
+        # van het CBR telt ook. Welke ene verstrekkende instantie de vraag
+        # beantwoordt als er meer zijn, is een open punt.
         - id: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
           competent_authority:
             - name: college van burgemeester en wethouders
@@ -180,7 +181,6 @@ articles:
           decided_per_case_by: >-
             de verstrekkende instantie: het college of het CBR (artikel 49
             van het BABW)
-          combine: OR
           description: >-
             Of aan de aanvrager eerder een gehandicaptenparkeerkaart is
             verstrekt (lid 2, onder a en b).
@@ -310,11 +310,11 @@ articles:
       # Minister, met een arts) is niet gemodelleerd: de minister geeft hier
       # geen kaarten af.
       # Wie het onderzoek verricht, stelt het vast (competent_authority op
-      # het feit, RFC-052), en alleen die antwoordt op de vraag of het
+      # het feit, RFC-051), en alleen die antwoordt op de vraag of het
       # plaatsvond (competent_authority op het begrip). Eigen keuze: het
       # begrip noemt zelf dezelfde twee, in plaats van ze af te leiden uit
-      # het feit dat zijn reductie leest; dat vraagt geen koppeling tussen
-      # begrip en feit in de engine. Eigen keuze: alleen de categorie is
+      # het feit dat de reductie leest die het antwoord geeft (RFC-048); dat
+      # vraagt geen koppeling tussen begrip en feit in de engine. Eigen keuze: alleen de categorie is
       # gemodelleerd; of het de GGD van de gemeente is die de kaart afgeeft,
       # is open. Dit artikel beslist niets en noemt dus geen bevoegd gezag
       # (RFC-002).
@@ -324,11 +324,12 @@ articles:
         # dagtekening van de aanvraag plaatsvond, en uiterlijk op de dag van
         # afgifte; lid 2 onder a en b laten het onderzoek achterwege bij wie
         # eerder een kaart kreeg, dat veronderstelt een onderzoek per
-        # aanvraag. Zwijgt wie het onderzoek verricht, dan stelt het college
-        # het vast op het rapport dat het daarvan kreeg. Eigen keuze: stelt
-        # het college vast dat er geen onderzoek plaatsvond (false),
-        # bijvoorbeeld omdat de aanvrager niet verschijnt, dan wordt de kaart
-        # geweigerd.
+        # aanvraag. Wie het onderzoek verricht, beantwoordt het
+        # (competent_authority); vult het beleid van het college het begrip,
+        # dan zegt dat beleid ook wat geldt als die zwijgt, zoals een
+        # vaststelling van het college op het rapport. Eigen keuze: is er
+        # geen onderzoek (false), bijvoorbeeld omdat de aanvrager niet
+        # verschijnt, dan wordt de kaart geweigerd.
         - id: geneeskundig_onderzoek_heeft_plaatsgehad
           competent_authority:
             - name: Gemeentelijke Gezondheidsdienst
@@ -338,9 +339,9 @@ articles:
           type: boolean
           required: true
           decided_per_case_by: >-
-            het college van burgemeester en wethouders, op het rapport van de
-            Gemeentelijke Gezondheidsdienst of de aangewezen deskundige
-            (artikel 3, eerste lid)
+            wie het geneeskundig onderzoek verricht: de Gemeentelijke
+            Gezondheidsdienst of de aangewezen deskundige (artikel 3, eerste
+            lid)
           description: >-
             Of op of na de dagtekening van de aanvraag en uiterlijk op de dag
             van afgifte een geneeskundig onderzoek heeft plaatsgehad met

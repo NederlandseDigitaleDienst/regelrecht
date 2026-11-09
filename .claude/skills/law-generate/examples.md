@@ -133,8 +133,14 @@ machine_readable:
   definitions:
     VERMOGENSGRENS_ALLEENSTAAND:
       value: 15485900  # €154.859 in eurocent
+      type: amount
+      type_spec:
+        unit: eurocent
     VERMOGENSGRENS_GEHUWD:
       value: 18687500  # €186.875 in eurocent
+      type: amount
+      type_spec:
+        unit: eurocent
   execution:
     parameters:
       - name: bsn
@@ -192,8 +198,14 @@ machine_readable:
   definitions:
     percentage_drempelinkomen_alleenstaande:
       value: 0.01896
+      type: number
+      type_spec:
+        unit: ratio
     percentage_drempelinkomen_partner:
       value: 0.04273
+      type: number
+      type_spec:
+        unit: ratio
   execution:
     parameters:
       - name: bsn
@@ -552,29 +564,29 @@ machine_readable:
         required: true
         description: Datum waarop het besluit is bekendgemaakt
     input:
-      - name: bezwaartermijn_weken
+      - name: termijn_weken
         type: number
         source:
           regulation: algemene_wet_bestuursrecht
-          output: bezwaartermijn_weken
+          output: termijn_weken
     output:
-      - name: bezwaartermijn_startdatum
+      - name: termijn_startdatum
         type: date
-      - name: bezwaartermijn_einddatum
+      - name: termijn_einddatum
         type: date
     actions:
       # "met ingang van de dag na die waarop het besluit is bekendgemaakt"
-      - output: bezwaartermijn_startdatum
+      - output: termijn_startdatum
         value:
           operation: DATE_ADD
           date: $bekendmaking_datum
           days: 1
       # einddatum = bekendmaking + termijn in weken
-      - output: bezwaartermijn_einddatum
+      - output: termijn_einddatum
         value:
           operation: DATE_ADD
           date: $bekendmaking_datum
-          weeks: $bezwaartermijn_weken
+          weeks: $termijn_weken
 ```
 
 **Key points:**
@@ -623,13 +635,13 @@ machine_readable:
   overrides:
     - law: algemene_wet_bestuursrecht
       article: '6:7'
-      output: bezwaartermijn_weken
+      output: termijn_weken
   execution:
     output:
-      - name: bezwaartermijn_weken
+      - name: termijn_weken
         type: number
     actions:
-      - output: bezwaartermijn_weken
+      - output: termijn_weken
         value: 4
 ```
 

@@ -1,0 +1,425 @@
+---
+# Casus: de gehandicaptenparkeerkaart bij een fictieve gemeente.
+#
+# Configuratie is alleen wat niet uit de wet volgt, en het corpus: welke
+# regelwerken in deze casus gelden. De regelwerken die de cel daarvan draait,
+# het artikel van het bezwaar en de naam van wie beslist, leidt de app af uit
+# dit artikel en de cel, binnen dat corpus (src/casus.rs).
+cel: gemeente_wilgendaal
+artikel: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
+# Het corpus van deze casus: alleen deze regelwerken gelden. Hieronder de
+# gedeelde, elk een map onder het corpus van de poc; de eigen regelwerken
+# van de casus, in casussen/gehandicaptenparkeerkaart/regulation/nl, gelden zonder dat ze hier
+# staan. De reducties van de cellen van de casus komen met die cellen mee.
+corpus:
+  - regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+  - regulation/nl/wet/algemene_wet_bestuursrecht
+  - regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart
+  - regulation/nl/gemeentelijke_verordening/wilgendaal/parkeerverordening_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_gemeente_wilgendaal
+  - regulation/nl/gemeentelijke_verordening/wilgendaal/uitvoeringsbesluit_parkeren_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal
+  - cells/reductions/reductie_algemene_wet_bestuursrecht
+# De uitvoer die zegt of het besluit het gevraagde toewijst. De wet merkt die
+# niet aan: decision_type TOEKENNING zegt wat voor besluit het is, niet welke
+# van zijn uitvoer de toewijzing is, en de kaart vermeldt ook nog of zij voor
+# een bestuurder of een passagier is.
+uitkomst: gehandicaptenparkeerkaart_verstrekt
+
+# Wat de bezoeker leest.
+titel: Gehandicaptenparkeerkaart
+cel_naam: gemeente Wilgendaal
+speeldatum: 2026-10-13
+
+# Fictieve voorbeeldgegevens. Volg je een scenario, dan begint elk formulier
+# hiermee, met de waarden van de stap erover; bij vrij spelen blijft het leeg.
+# Een BSN uit de testreeks; een kaart als bestuurder. De vier criteria vult
+# het beleid uit het advies van de GGD; het formulier vraagt ze alleen als
+# het college het onderzoek achterwege laat, en dan is het voorbeeld alleen
+# een langdurige loopbeperking. Het college laat het onderzoek niet
+# achterwege (Regeling gehandicaptenparkeerkaart, artikel 2, tweede lid): die
+# drie bevindingen staan uit.
+voorbeeld:
+  aanvraag:
+    bsn_aanvrager: '999990020'
+    kaart_als_bestuurder: true
+    kaart_als_passagier: false
+    aanvraag_ondertekend: true
+    naam_aanvrager: A. de Vries
+    adres_aanvrager: Voorbeeldlaan 2
+    dagtekening: '2026-10-05'
+    gevraagde_beschikking: gehandicaptenparkeerkaart
+  bevindingen:
+    langdurige_loopbeperking_volgens_college: true
+    continu_afhankelijk_van_hulp_bestuurder_volgens_college: false
+    permanent_rolstoelgebonden_volgens_college: false
+    ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college: false
+    geneeskundig_onderzoek_achterwege_gelaten: false
+    bekend_dat_aanvrager_nog_steeds_voldoet: false
+    keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet: false
+  bezwaar:
+    bezwaar_of_beroepschrift_ondertekend: true
+    naam_indiener: A. de Vries
+    adres_indiener: Voorbeeldlaan 2
+    omschrijving_bestreden_besluit: besluit op de aanvraag om een gehandicaptenparkeerkaart
+    gronden_bezwaar_of_beroep: ik kan niet verder lopen dan vijftig meter
+  # Het beroepschrift (Awb 6:5): dezelfde velden als het bezwaarschrift.
+  beroep:
+    bezwaar_of_beroepschrift_ondertekend: true
+    naam_indiener: A. de Vries
+    adres_indiener: Voorbeeldlaan 2
+    omschrijving_bestreden_besluit: beslissing op bezwaar over de gehandicaptenparkeerkaart
+    gronden_bezwaar_of_beroep: het geneeskundig onderzoek woog mijn loopafstand niet mee
+  # Wat de rechter vindt (Awb 8:70): de gemeente schond geen rechtsregel.
+  uitspraak:
+    indiener_is_belanghebbende: true
+    rechtsregel_geschonden: false
+
+# De andere cellen die de casus meeneemt (RFC-048). Het open begrip zegt wie
+# bevoegd is: de GGD of de aangewezen deskundige voor het onderzoek (Regeling
+# gehandicaptenparkeerkaart, artikel 3). De engine vraagt alleen een cel die
+# het begrip noemt, en één cel per vraag.
+#
+# De GGD begint met een lege kroniek: een advies gaat over één aanvrager, en
+# elk scenario volgt één aanvrager, die van de voorbeeldaanvraag. Een scenario
+# legt zijn adviezen daarom zelf vast, als stap, met het BSN van die aanvraag.
+# Een advies is het feit dat artikel 5 van het fictieve beleid van Wilgendaal
+# vereist, en geldt ook als bewijs van het onderzoek. Het gaat als bericht
+# naar de gemeente, die het in haar eigen kroniek vastlegt.
+andere_cellen:
+  - cel: ggd_wilgendaal
+    cel_naam: GGD Wilgendaal
+  # De bestuursrechter (RFC-053): ook een andere cel, met een eigen kroniek.
+  # Dat zij de rechter is, zegt haar cel.yaml (categorie "de
+  # bestuursrechter", wie volgens Awb 8:70 beslist). Het artikel van het
+  # beroep en het feit waarin de gemeente de ontvangst van een uitspraak
+  # vastlegt (Awb 8:79), leidt de app af uit de wet.
+  - cel: rechtbank_wilgendaal
+    cel_naam: Rechtbank Wilgendaal
+
+# The scenarios, step by step. Each step says what the visitor does
+# (`stap`), on which play date, with which values (`invoer`, over the
+# example values above) and what it comes to (`uitkomst`), with the text of
+# the guide (`tekst`, `gezien`). The guide beside the page and the forms read
+# them from here (frontend/src/scenarioGuides.js, scenarioInvoer.js), and
+# tests/scenarios.rs plays every scenario with exactly these values.
+scenarios:
+  - naam: De kaart op advies van de GGD
+    samenvatting: >-
+      Het college verstrekt de kaart op het advies dat het van de GGD
+      ontving.
+    stappen:
+      - stap: aanvraag
+        verhaal: >-
+          Iemand met een loopbeperking vraagt een gehandicaptenparkeerkaart.
+      - &advies_loopbeperking
+        stap: vastleggen
+        verhaal: >-
+          De GGD onderzoekt de aanvrager en adviseert.
+        titel: Onderzoek en advies van de GGD
+        datum: 2026-10-16
+        cel: ggd_wilgendaal
+        feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
+        invoer:
+          bsn_aanvrager: '999990020'
+          datum_onderzoek: '2026-10-16'
+          langdurige_loopbeperking: true
+          continu_afhankelijk_van_hulp_bestuurder: false
+          permanent_rolstoelgebonden: false
+          ernstige_beperkingen_andere_dan_loopbeperkingen: false
+        tekst: >-
+          Klik bij GGD Wilgendaal onder "Vastleggen: Geneeskundig advies
+          uitgebracht" op Vastleggen.
+        gezien: >-
+          Het advies staat in de kroniek van de GGD en van de gemeente.
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de aanvraag.
+        datum: 2026-10-20
+        uitkomst: toegewezen
+        uitvoer:
+          kaart_geldig_tot: '2031-10-19'
+    eind: >-
+      Toegewezen: de kaart geldt tot en met 19 oktober 2031.
+  - naam: Het advies vindt geen criterium
+    samenvatting: >-
+      Het advies van de GGD vindt geen enkel criterium, en de kaart wordt
+      geweigerd.
+    stappen:
+      - stap: aanvraag
+        verhaal: >-
+          Een aanvrager vraagt een kaart.
+      - &advies_geen_criterium
+        stap: vastleggen
+        verhaal: >-
+          De GGD onderzoekt de aanvrager en vindt geen criterium.
+        titel: Onderzoek en advies van de GGD
+        datum: 2026-10-16
+        cel: ggd_wilgendaal
+        feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
+        invoer:
+          bsn_aanvrager: '999990020'
+          datum_onderzoek: '2026-10-16'
+          langdurige_loopbeperking: false
+          continu_afhankelijk_van_hulp_bestuurder: false
+          permanent_rolstoelgebonden: false
+          ernstige_beperkingen_andere_dan_loopbeperkingen: false
+        tekst: >-
+          Klik bij GGD Wilgendaal onder "Vastleggen: Geneeskundig advies
+          uitgebracht" op Vastleggen.
+        gezien: >-
+          Het advies staat in de kroniek van de GGD en van de gemeente.
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de aanvraag.
+        datum: 2026-10-20
+        uitkomst: afgewezen
+    eind: >-
+      Afgewezen: het advies vindt geen enkel criterium.
+  - naam: Een tweede kaart naast een geldige
+    samenvatting: >-
+      Wie al een geldige kaart heeft, krijgt er geen tweede bij.
+    stappen:
+      - stap: aanvraag
+        verhaal: >-
+          Iemand met een loopbeperking vraagt een kaart.
+      - *advies_loopbeperking
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de aanvraag.
+        datum: 2026-10-20
+        uitkomst: toegewezen
+        gezien: >-
+          Toegewezen: de kaart geldt tot en met 19 oktober 2031.
+      - stap: aanvraag
+        verhaal: >-
+          Dezelfde aanvrager vraagt in maart 2027 nog een kaart.
+        datum: 2027-03-01
+        tekst: >-
+          Klik nog een keer op Aanvraag indienen.
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de tweede aanvraag.
+        uitkomst: afgewezen
+    eind: >-
+      Afgewezen: de aanvrager heeft al een geldige kaart.
+  - naam: Ongegrond bezwaar tegen een verstrekking
+    samenvatting: >-
+      De aanvrager maakt bezwaar tegen de verstrekte kaart, en de
+      heroverweging geeft dezelfde uitkomst.
+    stappen:
+      - stap: aanvraag
+        verhaal: >-
+          Iemand met een loopbeperking vraagt een kaart.
+      - *advies_loopbeperking
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de aanvraag.
+        datum: 2026-10-20
+        uitkomst: toegewezen
+        gezien: >-
+          Toegewezen: de kaart geldt tot en met 19 oktober 2031.
+      - stap: bezwaar
+        verhaal: >-
+          De aanvrager maakt bezwaar tegen de verstrekte kaart.
+        datum: 2026-11-01
+      - stap: beslissing_op_bezwaar
+        verhaal: >-
+          Het college heroverweegt het besluit.
+        datum: 2026-11-20
+        uitkomst: ongegrond
+        tekst: >-
+          Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat alle
+          bevindingen staan en klik op Beslissen op bezwaar.
+    eind: >-
+      Ongegrond: de kaart blijft geldig tot en met 19 oktober 2031.
+  - naam: Bezwaar, en een nieuw advies
+    samenvatting: >-
+      Na het bezwaar telt het nieuwe advies van de GGD, en komt er alsnog een
+      kaart.
+    stappen:
+      - stap: aanvraag
+        verhaal: >-
+          Een aanvrager vraagt een kaart.
+      - *advies_geen_criterium
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de aanvraag.
+        datum: 2026-10-20
+        uitkomst: afgewezen
+        gezien: >-
+          Afgewezen: het advies vindt geen criterium.
+      - stap: bezwaar
+        verhaal: >-
+          De aanvrager maakt bezwaar tegen de weigering.
+        datum: 2026-11-01
+      - &nieuw_advies
+        stap: vastleggen
+        verhaal: >-
+          De GGD onderzoekt opnieuw en vindt nu een langdurige loopbeperking.
+        titel: Nieuw onderzoek en advies
+        datum: 2026-11-10
+        cel: ggd_wilgendaal
+        feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
+        invoer:
+          bsn_aanvrager: '999990020'
+          datum_onderzoek: '2026-11-10'
+          langdurige_loopbeperking: true
+          continu_afhankelijk_van_hulp_bestuurder: false
+          permanent_rolstoelgebonden: false
+          ernstige_beperkingen_andere_dan_loopbeperkingen: false
+        tekst: >-
+          Klik bij GGD Wilgendaal onder "Vastleggen: Geneeskundig advies
+          uitgebracht" op Vastleggen.
+        gezien: >-
+          Het nieuwe advies staat in de kroniek van de GGD en van de gemeente.
+      - stap: beslissing_op_bezwaar
+        verhaal: >-
+          Het college heroverweegt de weigering.
+        datum: 2026-11-20
+        uitkomst: gegrond
+        uitvoer:
+          kaart_geldig_tot: '2031-11-19'
+        tekst: >-
+          Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op
+          Beslissen op bezwaar.
+    eind: >-
+      Gegrond: op het nieuwe advies is de kaart verstrekt, geldig tot en met
+      19 november 2031.
+  - naam: Een kaart na bezwaar telt bij de volgende aanvraag
+    samenvatting: >-
+      Na bezwaar komt de kaart er alsnog, en bij de volgende aanvraag weigert
+      de gemeente een tweede.
+    stappen:
+      - stap: aanvraag
+        verhaal: >-
+          Een aanvrager vraagt een kaart.
+      - *advies_geen_criterium
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de aanvraag.
+        datum: 2026-10-20
+        uitkomst: afgewezen
+        gezien: >-
+          Afgewezen: het advies vindt geen criterium.
+      - stap: bezwaar
+        verhaal: >-
+          De aanvrager maakt bezwaar tegen de weigering.
+        datum: 2026-11-01
+      - *nieuw_advies
+      - stap: beslissing_op_bezwaar
+        verhaal: >-
+          Het college heroverweegt de weigering.
+        datum: 2026-11-20
+        uitkomst: gegrond
+        tekst: >-
+          Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op
+          Beslissen op bezwaar.
+        gezien: >-
+          Gegrond: de weigering is herroepen (Awb 7:11), en de kaart geldt tot
+          en met 19 november 2031.
+      - stap: aanvraag
+        verhaal: >-
+          Dezelfde aanvrager vraagt in maart 2027 nog een kaart.
+        datum: 2027-03-01
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de tweede aanvraag.
+        uitkomst: afgewezen
+    eind: >-
+      Afgewezen: de aanvrager heeft al een geldige kaart.
+  - naam: Zonder onderzoek geen kaart
+    samenvatting: >-
+      Heeft de GGD de aanvrager niet onderzocht, dan weigert het college de
+      kaart.
+    stappen:
+      - stap: aanvraag
+        verhaal: >-
+          Iemand vraagt een kaart, maar de GGD heeft hem niet onderzocht.
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de aanvraag.
+        datum: 2026-10-20
+        uitkomst: afgewezen
+    eind: >-
+      Afgewezen: er is geen onderzoek, dus de kaart mag niet worden afgegeven.
+  - naam: Vijf jaar later een nieuwe kaart
+    samenvatting: >-
+      Vijf jaar later vindt de gemeente haar eerdere besluit terug, en is er
+      geen nieuw onderzoek nodig.
+    stappen:
+      - stap: aanvraag
+        verhaal: >-
+          Iemand met een loopbeperking vraagt een kaart.
+      - *advies_loopbeperking
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de aanvraag.
+        datum: 2026-10-20
+        uitkomst: toegewezen
+        gezien: >-
+          Toegewezen: de kaart geldt tot en met 19 oktober 2031.
+      - stap: aanvraag
+        verhaal: >-
+          Vijf jaar later vraagt dezelfde aanvrager een nieuwe kaart.
+        datum: 2031-10-20
+        invoer:
+          dagtekening: '2031-10-20'
+      - stap: besluit
+        verhaal: >-
+          Het college laat het onderzoek achterwege, omdat de aanvrager nog
+          steeds voldoet.
+        invoer:
+          geneeskundig_onderzoek_achterwege_gelaten: true
+          bekend_dat_aanvrager_nog_steeds_voldoet: true
+        uitkomst: toegewezen
+        uitvoer:
+          kaart_geldig_tot: '2036-10-19'
+    eind: >-
+      Toegewezen: het college liet het onderzoek achterwege, omdat de
+      aanvrager eerder een kaart kreeg en nog steeds voldoet.
+  - naam: Beroep ongegrond
+    samenvatting: >-
+      Na een ongegrond bezwaar gaat de aanvrager in beroep, en de rechter
+      geeft de gemeente gelijk.
+    stappen:
+      - stap: aanvraag
+        verhaal: >-
+          Een aanvrager vraagt een kaart.
+      - *advies_geen_criterium
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de aanvraag.
+        datum: 2026-10-20
+        uitkomst: afgewezen
+      - stap: bezwaar
+        verhaal: >-
+          De aanvrager maakt bezwaar tegen de weigering.
+        datum: 2026-11-01
+      - stap: beslissing_op_bezwaar
+        verhaal: >-
+          Het college heroverweegt de weigering.
+        datum: 2026-11-20
+        uitkomst: ongegrond
+        tekst: >-
+          Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat alle
+          bevindingen staan en klik op Beslissen op bezwaar.
+        gezien: >-
+          Ongegrond: de weigering blijft, en bij Aanvrager kun je nu in beroep
+          gaan.
+      - stap: beroep
+        verhaal: >-
+          De aanvrager gaat in beroep bij de rechtbank.
+        datum: 2026-12-01
+      - stap: uitspraak
+        verhaal: >-
+          De rechter vindt dat de gemeente geen rechtsregel schond.
+        datum: 2027-01-11
+      - stap: toezenden
+        verhaal: >-
+          De rechtbank stuurt de uitspraak naar de gemeente.
+        tekst: >-
+          Klik bij de uitspraak op Toezenden aan gemeente Wilgendaal.
+    eind: >-
+      Ongegrond: de rechter geeft de gemeente gelijk, en de weigering blijft.

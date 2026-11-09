@@ -52,91 +52,20 @@ body {
 
 /* Gherkin and YAML renderers: token colouring on top of nldd-code-viewer's
  * monospace surface. The viewer highlights a fixed grammar set; our scenario
- * status marks and the cross-law links inside YAML are demo-specific. */
+ * status marks are demo-specific. The YAML tree brings its own styles
+ * (YamlNode.vue in frontend-shared); the demo only sets its size. */
 .yaml-tree {
-  font-family: var(--primitives-font-family-monospace, monospace);
   /* Bewust groter dan de 0.875rem die hier stond: een presentator loopt hier
    * op een zaalscherm doorheen en benoemt invoer, uitvoer en voorwaarden. Op
    * 14px was dat vanaf een paar meter niet te volgen, en inzoomen met de
    * browser vergrootte ook de dia ernaast. */
   font-size: 1.125rem;
-  line-height: 1.5;
-  /* A long token (the $schema URL, a juriconnect id) must wrap inside the box
-   * instead of running out of it. */
-  overflow-wrap: anywhere;
-  min-width: 0;
 }
 
-/* In `em`, niet `rem`: de inspringing moet met de letter meeschalen. In `rem`
- * volgt hij de rootfont, en kruipt de boom bij een grotere letter dicht. */
-.yaml-tree .yaml-node {
-  padding-left: 1.25em;
-}
-
-/* Op een telefoon liet de zaalmaat met de volle inspringing tien niveaus diep
- * een kolom van een paar tekens over, en brak daarin elk woord letter voor
- * letter af. Kleiner en minder diep past een berekening wel. */
 @media (max-width: 640px) {
   .yaml-tree {
     font-size: 0.875rem;
   }
-
-  .yaml-tree .yaml-node {
-    padding-left: 0.5em;
-  }
-}
-
-.yaml-tree .yaml-key {
-  color: var(--primitives-color-donkerblauw-700);
-}
-
-.yaml-tree .yaml-scalar {
-  color: var(--semantics-content-color, var(--primitives-color-coolgray-800));
-}
-
-.yaml-tree .yaml-string {
-  color: var(--primitives-color-groen-700);
-}
-
-.yaml-tree .yaml-var {
-  color: var(--primitives-color-paars-700);
-  font-weight: 600;
-}
-
-.yaml-tree .yaml-toggle {
-  cursor: pointer;
-  user-select: none;
-  border: 0;
-  background: none;
-  font: inherit;
-  color: inherit;
-  padding: 0;
-}
-
-.yaml-tree .yaml-toggle::before {
-  content: '▸';
-  display: inline-block;
-  width: 1rem;
-  color: var(--semantics-content-secondary-color, var(--primitives-color-coolgray-500));
-}
-
-.yaml-tree .yaml-toggle[aria-expanded='true']::before {
-  content: '▾';
-}
-
-.yaml-tree .yaml-link {
-  color: var(--primitives-color-donkerblauw-700);
-  text-decoration: underline dotted;
-  cursor: pointer;
-  border: 0;
-  background: none;
-  font: inherit;
-  padding: 0;
-}
-
-.yaml-tree .yaml-highlight {
-  background: var(--primitives-color-geel-100);
-  border-radius: 3px;
 }
 
 .trace {

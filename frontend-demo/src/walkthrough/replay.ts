@@ -37,7 +37,7 @@ import { installClock, uninstallClock } from './clock';
 import { resolve, scrollAnchor, scrollTarget } from './locator';
 import { makeTranslator, parallelPairs } from './translateText';
 import { graphView, moveNode, showView } from './graphBridge';
-import { CAPTIONS_BASE, MEDIA_BASE, chapterAt, parseVtt, pauseDue, pickClip } from './timeline';
+import { CAPTIONS_BASE, MEDIA_BASE, chapterAt, dubOf, parseVtt, pauseDue, pickClip } from './timeline';
 import type { Chapter, RecordedChangeEvent, Cue, FaqEntry, RecordedInputEvent, RecordedState, RecordedScrollEvent, Timeline, TimelineEvent, Track } from './timeline';
 import type { DescriptionStep } from './locator';
 import type { TextPair, Translator } from './translateText';
@@ -46,6 +46,8 @@ import type { NowSource } from './clock';
 
 const SOURCE_LOCALE = 'nl';
 const POSITION_KEY = 'rr-walkthrough-position-v2';
+/** 'original' when the viewer chose the presenter's own voice over a dub. */
+const VOICE_KEY = 'rr-walkthrough-voice';
 
 /** What the replay drives: the router, the store (`useDemo()`) and the deck (`usePresentation()`). */
 export interface ReplayContext {
@@ -77,6 +79,8 @@ export interface ReplayState {
   speed: number;
   captionsOn: boolean;
   camOn: boolean;
+  originalVoice: boolean;
+  dubbed: boolean;
   waiting: boolean;
   diverged: boolean;
   restoring: boolean;
@@ -108,6 +112,13 @@ export const replay = reactive<ReplayState>({
   speed: 1,
   captionsOn: true,
   camOn: true,
+  /** The viewer chose the presenter's own (Dutch) voice over the dub. */
+  originalVoice: false,
+  /**
+   * The voice playing is the cloned one in the viewer's language
+   * (`track.dub`). The presenter's bubble goes then: its lips move in Dutch.
+   */
+  dubbed: false,
   waiting: false,
   /** The viewer clicked along; play restores the recorded state first. */
   diverged: false,
@@ -581,8 +592,10 @@ function makeAudio(): HTMLAudioElement {
 
 async function loadCaptions(track: Track | null | undefined): Promise<void> {
   replay.cues = [];
-  const file = track?.captions?.[viewerLocale()] ?? track?.captions?.[SOURCE_LOCALE];
-  replay.captionsLang = track?.captions?.[viewerLocale()] ? viewerLocale() : SOURCE_LOCALE;
+  // With the cloned voice, the captions of what it says.
+  const dub = dubOf(track, viewerLocale(), replay.originalVoice);
+  const file = dub?.captions ?? track?.captions?.[viewerLocale()] ?? track?.captions?.[SOURCE_LOCALE];
+  replay.captionsLang = dub || track?.captions?.[viewerLocale()] ? viewerLocale() : SOURCE_LOCALE;
   if (!file) return;
   try {
     const res = await fetch(`${CAPTIONS_BASE}${file}`);
@@ -594,8 +607,21 @@ async function loadCaptions(track: Track | null | undefined): Promise<void> {
 
 async function loadTrack(track: Track): Promise<void> {
   const a = audio ?? makeAudio();
-  const src = `${MEDIA_BASE}${track.audio.src}`;
-  if (!a.src.endsWith(track.audio.src)) {
+  const dub = dubOf(track, viewerLocale(), replay.originalVoice);
+  replay.dubbed = !!dub;
+  await loadVoice(a, (dub?.audio ?? track.audio).src);
+  a.playbackRate = replay.speed;
+  const base = recordedAt(track);
+  if (base != null) installClock(replayClock(base));
+  // Called from begin() and switchTo(), during a replay.
+  ctx!.presentation.init({ slides: slidesFor(track) });
+  loadCaptions(track);
+}
+
+/** Point the audio at `file`, and wait until its length is known. */
+async function loadVoice(a: HTMLAudioElement, file: string): Promise<void> {
+  const src = `${MEDIA_BASE}${file}`;
+  if (!a.src.endsWith(file)) {
     a.src = src;
     // A missing or broken file must end the wait: without an error path the
     // page shows its spinner forever.
@@ -615,12 +641,51 @@ async function loadTrack(track: Track): Promise<void> {
       a.addEventListener('error', fail);
     });
   }
-  a.playbackRate = replay.speed;
-  const base = recordedAt(track);
-  if (base != null) installClock(replayClock(base));
-  // Called from begin() and switchTo(), during a replay.
-  ctx!.presentation.init({ slides: slidesFor(track) });
+}
+
+/**
+ * The presenter's own voice, or the cloned one in the viewer's language.
+ * Both run on the same clock, so the replay goes on from the moment it was
+ * at, in the other voice.
+ */
+export async function setOriginalVoice(on: boolean): Promise<void> {
+  replay.originalVoice = on;
+  try {
+    if (on) window.localStorage.setItem(VOICE_KEY, 'original');
+    else window.localStorage.removeItem(VOICE_KEY);
+  } catch {
+    /* a preference, not a condition */
+  }
+  const track = currentTrack();
+  if (!replay.active || !track || !audio) return;
+  // Like a track switch: whatever was jumping stops here, and a jump, a
+  // question or leaving during the load wins over this.
+  seekToken += 1;
+  const token = seekToken;
+  const at = replay.now;
+  const playAfter = replay.playing;
+  replay.playing = false;
+  audio.pause();
+  const dub = dubOf(track, viewerLocale(), on);
+  replay.dubbed = !!dub;
+  try {
+    await loadVoice(audio, (dub?.audio ?? track.audio).src);
+  } catch {
+    if (still(token)) fail();
+    return;
+  }
+  if (!still(token)) return;
+  audio.playbackRate = replay.speed;
   loadCaptions(track);
+  await seek(at, { play: playAfter });
+}
+
+function readVoicePreference(): boolean {
+  try {
+    return window.localStorage.getItem(VOICE_KEY) === 'original';
+  } catch {
+    return false;
+  }
 }
 
 const MEDIA_TIMEOUT = 20000;
@@ -898,7 +963,9 @@ let bumperDone: (() => void) | null = null;
  */
 function sayBumper(kind: string): Promise<void> {
   stopBumper();
-  const clip = pickClip(timeline?.bumpers?.[kind]);
+  // With the cloned voice its own lines, or none: a Dutch "ga je gang"
+  // between English sentences would be a third voice.
+  const clip = pickClip(replay.dubbed ? timeline?.dub?.[viewerLocale()]?.bumpers?.[kind] : timeline?.bumpers?.[kind]);
   if (!clip) return Promise.resolve();
   bumperAudio = bumperAudio ?? new Audio();
   bumperAudio.src = `${MEDIA_BASE}${clip.src}`;
@@ -1001,6 +1068,7 @@ async function begin(data: Timeline, context: ReplayContext, { at, faqId }: { at
   playLocale = timeline.locales?.includes(previousLocale) ? previousLocale : SOURCE_LOCALE;
   translate = await translatorFor(playLocale);
   replay.demoLocale = playLocale;
+  replay.originalVoice = readVoicePreference();
   adoptLocale(playLocale);
   await nextTick();
   replay.active = true;
@@ -1076,6 +1144,7 @@ export function stopReplay(): void {
   translate = null;
   replay.demoLocale = SOURCE_LOCALE;
   replay.captionsLang = SOURCE_LOCALE;
+  replay.dubbed = false;
   backup = null;
 }
 

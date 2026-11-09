@@ -12,8 +12,8 @@ import { useRouter } from 'vue-router';
 import { DEFAULT_LOCALE, useViewerI18n } from '../i18n/index.js';
 import { intlLocale } from '../data/format';
 import { localeRouteName } from '../router';
-import { backToMain, chapterSlide, currentTrack, replay, seek, setSpeed, stopReplay, takeOver, togglePlay } from './replay';
-import { chapterAt, formatTime, nextChapterStart, previousChapterStart } from './timeline';
+import { backToMain, chapterSlide, currentTrack, replay, seek, setOriginalVoice, setSpeed, stopReplay, takeOver, togglePlay } from './replay';
+import { chapterAt, dubOf, formatTime, nextChapterStart, previousChapterStart } from './timeline';
 import { openTranscript } from './chrome';
 
 const { t, locale } = useViewerI18n();
@@ -25,6 +25,8 @@ function speedText(s: number) {
 }
 
 const track = computed(() => currentTrack());
+/** This track has the cloned voice in the viewer's language (`walkthrough dub`). */
+const hasDub = computed(() => !!dubOf(track.value, locale.value));
 const chapters = computed(() => track.value?.chapters ?? []);
 const chapterIndex = computed(() => (track.value ? chapterAt(track.value, replay.now) : -1));
 const progress = computed(() => (track.value?.duration ? Math.min(100, (replay.now / track.value.duration) * 100) : 0));
@@ -81,13 +83,14 @@ watch(
     <!-- The voice is Dutch in every interface language. The captions, the
          slides and the demo follow the viewer where the pipeline translated
          them (timeline.json); otherwise they are Dutch, and this says so. -->
-    <nldd-text v-if="locale !== DEFAULT_LOCALE" size="sm" color="inherit">{{
+    <nldd-text v-if="locale !== DEFAULT_LOCALE && !replay.dubbed" size="sm" color="inherit">{{
       replay.captionsLang === locale && replay.demoLocale === locale ? t('walkthrough.dutch_voice') : t('walkthrough.dutch_only')
     }}</nldd-text>
     <!-- Generated speech that passes for a person is labelled as such (AI
          Act, art. 50). Always in view, not only on the first slide: a viewer
          can start at any chapter. -->
-    <nldd-text v-if="track?.generatedVoice" size="sm" color="inherit">{{ t('walkthrough.ai_voice') }}</nldd-text>
+    <nldd-text v-if="replay.dubbed" size="sm" color="inherit">{{ t('walkthrough.dubbed_voice') }}</nldd-text>
+    <nldd-text v-else-if="track?.generatedVoice" size="sm" color="inherit">{{ t('walkthrough.ai_voice') }}</nldd-text>
     <nldd-progress-bar size="sm" color="donkergeel" :value="progress" max="100" value-display="none" :accessible-label="t('walkthrough.progress_at', { time: timeText })"></nldd-progress-bar>
     <div class="control-row">
       <!-- The coach mark points at the playback buttons while the player
@@ -126,7 +129,10 @@ watch(
             </nldd-menu-group>
             <nldd-menu-group :text="t('walkthrough.view')">
               <nldd-menu-item type="checkbox" icon="message-rectangle-text" :text="t('walkthrough.captions')" :selected="replay.captionsOn || undefined" @select="replay.captionsOn = !replay.captionsOn"></nldd-menu-item>
-              <nldd-menu-item v-if="track?.cam" type="checkbox" icon="person-circle" :text="t('walkthrough.camera')" :selected="replay.camOn || undefined" @select="replay.camOn = !replay.camOn"></nldd-menu-item>
+              <!-- The presenter's own voice instead of the cloned one in the
+                   viewer's language; it switches where it is. -->
+              <nldd-menu-item v-if="hasDub" type="checkbox" icon="microphone-on" :text="t('walkthrough.original_voice')" :selected="replay.originalVoice || undefined" @select="setOriginalVoice(!replay.originalVoice)"></nldd-menu-item>
+              <nldd-menu-item v-if="track?.cam && !replay.dubbed" type="checkbox" icon="person-circle" :text="t('walkthrough.camera')" :selected="replay.camOn || undefined" @select="replay.camOn = !replay.camOn"></nldd-menu-item>
               <nldd-menu-item icon="text-document" :text="t('walkthrough.transcript.open')" @select="openTranscript"></nldd-menu-item>
             </nldd-menu-group>
             <nldd-menu-group>

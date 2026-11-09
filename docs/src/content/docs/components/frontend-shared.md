@@ -40,7 +40,7 @@ The package root (`src/index.ts`) exports only the small primitives. Everything 
 
 ### TypeScript
 
-The package is written in TypeScript. `tsconfig.json` extends `@vue/tsconfig/tsconfig.dom.json` (strict mode) and sets `allowJs`, which lets the TypeScript modules import `grammar.generated.js`; that file stays JavaScript because `bdd/codegen/gen-js.mjs` writes it and `docs/scripts/check-gherkin-steps.mjs` loads it with plain Node. `steps.ts` checks its entries against the `GrammarEntry` type.
+The package is written in TypeScript. As in the editor, `tsconfig.json` references two programs: `tsconfig.app.json` for the package code, and `tsconfig.node.json` for the tests, their support code and the scripts, which run under Node and get its types. The app config extends `@vue/tsconfig/tsconfig.dom.json` (strict mode) and sets `allowJs`, which lets the TypeScript modules import `grammar.generated.js`; that file stays JavaScript because `bdd/codegen/gen-js.mjs` writes it and `docs/scripts/check-gherkin-steps.mjs` loads it with plain Node. `steps.ts` checks its entries against the `GrammarEntry` type.
 
 - Nothing is compiled ahead of time: the apps' Vite builds and Vitest strip the types when they bundle or test the source. Imports leave out the extension, so a script run with plain `node` cannot load these modules. The other conventions all frontends share are in [Frontend Code](/guide/frontend-code).
 - The Gherkin runner names the engine methods it calls in a small `GherkinEngine` interface. The engine's own generated `.d.ts` is part of each app's WASM build output, which this package cannot reach.
@@ -71,6 +71,31 @@ These came in with the proof-of-concepts behind the [PoC Portal](./poc-portal). 
 | `formatToolCall.ts` | Renders a tool call in the policy assistant's feed as one readable line, whatever shape the model's arguments take. Used by `AssistentPanel.vue` in both static PoCs |
 | `lib/diff.ts` | A line diff (longest common subsequence) for showing a change to a law's YAML, with no dependency |
 | `components/` | `Panel.vue` (a collapsible section), `ColumnMenu.vue` (a menu to pick variants as columns), `AssistantNotices.vue` (notices from the policy assistant) and `OptimizationPathChart.vue` (the path the assistant takes toward a target, which needs the optional `echarts` peer dependency) |
+
+### RegelRijm (`./regelrijm/index`)
+
+RegelRijm reads an action tree as Dutch: `[hoogte zorgtoeslag] wordt:
+afgerond op hele centen ( het deel van … boven … )`. It is generated from the
+YAML each time a rule is shown, never written by hand, and the same tree always
+gives the same text. The grammar, the choices that keep two trees from reading
+alike, and the editor pane are in [RFC-054](/rfcs/rfc-054).
+
+| Export | Purpose |
+|--------|---------|
+| `renderAction(action, { article, glossary })` | The full reading of one action, as text and as a token stream for HTML |
+| `renderFocus(action, path, { article, depth, open })` | The reading of one operation, with operations deeper than `depth` folded into their signature, `⟨bedrag uit [a] en [b]⟩`: what the part gives and which inputs it reads. `open` holds path keys (`pathKey`) of folded parts to show one level deeper |
+| `articleContext(article, glossary)` | The declared units, the vocabulary and the article's constants, built once per article |
+| `untranslated(segments)`, `references(segments)` | The names a reading shows without a term, and every name it refers to |
+
+A name without a term reads as `[humanised name]`; a glossary (`name: term`)
+is optional and can be passed in by the caller, so a corpus kept elsewhere keeps
+its words out of this package. The tests next to the module read every action in
+`corpus/regulation` back to its tree with a parser that exists
+only in `test-support/`. `npm run regelrijm-report -w packages/frontend-shared -- corpus/regulation`,
+run from the repository root,
+reports per corpus how many rules read on one line and which names have no
+term. The script is TypeScript and runs through `tsx`, which resolves the
+extensionless imports that plain Node cannot.
 
 ## Further reading
 

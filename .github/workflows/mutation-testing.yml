@@ -156,12 +156,9 @@ jobs:
 
       - name: Install mold linker
         # Required by packages/.cargo/config.toml (mold linker on x86_64-linux).
-        run: |
-          # De runner-image draagt een Google Chrome-apt-bron mee die geregeld een
-          # kapotte index geeft ("Hash Sum mismatch") en dan elke apt-get update laat
-          # falen; wij gebruiken die bron niet, dus weg ermee vóór apt-get update.
-          sudo rm -f /etc/apt/sources.list.d/google-chrome*.list
-          sudo apt-get update && sudo apt-get install -y mold
+        # Checksum-verified release binary, not apt; why, and how to bump the
+        # version and its sha256: .github/actions/setup-mold/action.yml.
+        uses: ./.github/actions/setup-mold
 
       - name: Restore cargo registry (shared met CI)
         # Alleen restore, geen save: alle shards die dezelfde sleutel

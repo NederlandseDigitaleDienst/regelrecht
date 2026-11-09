@@ -1642,7 +1642,7 @@ async fn test_notify_reaped_task_jobs_creates_failed_tasks() {
         .unwrap()
         .is_some()
     {}
-    sqlx::query("UPDATE jobs SET started_at = now() - interval '2 hours'")
+    sqlx::query("UPDATE jobs SET started_at = now() - interval '2 hours', heartbeat_at = now() - interval '2 hours'")
         .execute(&db.pool)
         .await
         .unwrap();
@@ -1698,7 +1698,7 @@ async fn test_notify_reaped_new_law_enrich_gets_law_create_title() {
     .await
     .unwrap();
     job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
-    sqlx::query("UPDATE jobs SET started_at = now() - interval '2 hours'")
+    sqlx::query("UPDATE jobs SET started_at = now() - interval '2 hours', heartbeat_at = now() - interval '2 hours'")
         .execute(&db.pool)
         .await
         .unwrap();

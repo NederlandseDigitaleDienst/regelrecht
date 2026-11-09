@@ -29,4 +29,43 @@ describe('DetailPanel', () => {
     expect(w.html()).not.toContain('Attempts');
     expect(w.html()).not.toContain('undefined');
   });
+
+  it('shows live progress for a running job', () => {
+    const w = mount(DetailPanel, {
+      props: {
+        job: {
+          id: 'j1',
+          status: 'processing',
+          progress: { worker: { call: 'translate', turns: 5, recent_tools: ['Read a.yaml'] } },
+        },
+        isOpen: true,
+      },
+      global,
+    });
+    expect(w.html()).toContain('Progress');
+    expect(w.html()).not.toContain('Last progress');
+    expect(w.html()).toContain('translate');
+    expect(w.html()).toContain('Read a.yaml');
+  });
+
+  // A failed job keeps what it was doing when it stopped.
+  it('keeps the last progress of a job that has stopped', () => {
+    const w = mount(DetailPanel, {
+      props: {
+        job: { id: 'j1', status: 'failed', progress: { worker: { turns: 41 } } },
+        isOpen: true,
+      },
+      global,
+    });
+    expect(w.html()).toContain('Last progress');
+    expect(w.html()).toContain('41');
+  });
+
+  it('shows no progress section without progress', () => {
+    const w = mount(DetailPanel, {
+      props: { job: { id: 'j1', status: 'pending' }, isOpen: true },
+      global,
+    });
+    expect(w.find('[data-testid="job-progress"]').exists()).toBe(false);
+  });
 });

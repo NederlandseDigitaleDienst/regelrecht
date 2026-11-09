@@ -1,0 +1,34 @@
+---
+# Since schema v0.8.12 a REDUCTIE names no holder (competent_authority): it
+# sits with its cell (corpus/cells/<cell>/reductions/), or with none
+# (corpus/cells/reductions/).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$id: test_conformance_reduction_with_competent_authority
+regulatory_layer: REDUCTIE
+publication_date: '2026-10-24'
+valid_from: '2026-10-24'
+url: https://example.invalid/reduction
+competent_authority:
+  name: Het hoofd van een testschool
+articles:
+  - number: '1'
+    text: Er is al verlof verleend als een besluit verlof verleende.
+    url: https://example.invalid/reduction/1
+    machine_readable:
+      execution:
+        input:
+          - name: besluiten
+            type: array
+            source:
+              decisions: wet_fictief#1
+        output:
+          - name: al_verleend
+            type: boolean
+        actions:
+          - output: al_verleend
+            value:
+              operation: FOREACH
+              collection: $besluiten
+              as: besluit
+              body: true
+              combine: OR

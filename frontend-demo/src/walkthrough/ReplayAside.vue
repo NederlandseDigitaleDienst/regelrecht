@@ -17,7 +17,7 @@ const slot = ref<HTMLElement | null>(null);
 watch(slot, (el) => (camSlot.value = el), { immediate: true });
 onUnmounted(() => (camSlot.value = null));
 
-const showCam = computed(() => camVisible(currentTrack(), replay.now) && replay.camOn);
+const showCam = computed(() => !replay.dubbed && camVisible(currentTrack(), replay.now) && replay.camOn);
 const offered = computed(() => (replay.faq ? [] : offeredFaq(timeline.value, replay.now)));
 </script>
 

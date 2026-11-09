@@ -29,7 +29,7 @@ pub struct RegelrechtWorld {
     /// Parameters for law execution
     pub parameters: BTreeMap<String, Value>,
     /// What an authority found for this case, apart from the parameters
-    /// (RFC-050)
+    /// (RFC-045 §5)
     pub findings: BTreeMap<String, Value>,
     /// Last execution result (if successful)
     pub result: Option<ArticleResult>,
@@ -48,6 +48,11 @@ pub struct RegelrechtWorld {
     pub scoped_data_sources: Vec<(String, String, String, Vec<BTreeMap<String, Value>>)>,
     /// Outputs requested by the last canonical `evaluate`/`evaluate_outputs`
     pub requested_outputs: Vec<String>,
+    /// What the runner's own actions keep (`crate::extension`), such as a
+    /// cell's chronicle. The engine's runner keeps nothing there and never
+    /// reads it; the cell's runner (`packages/cel/tests/bdd`) does.
+    #[allow(dead_code)]
+    pub extension: crate::extension::State,
 }
 
 impl fmt::Debug for RegelrechtWorld {
@@ -80,6 +85,7 @@ impl RegelrechtWorld {
         if let Err(e) = load_all_regulations(&mut service) {
             panic!("Failed to load regulations: {}", e);
         }
+        let extension = crate::extension::State::new(&mut service);
 
         Self {
             service,
@@ -94,6 +100,7 @@ impl RegelrechtWorld {
             data_sources: BTreeMap::new(),
             scoped_data_sources: Vec::new(),
             requested_outputs: Vec::new(),
+            extension,
         }
     }
 

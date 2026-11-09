@@ -142,6 +142,7 @@ function errorMessage(e: unknown): string | undefined {
     <nldd-toolbar v-if="isOwner && paneChromeVisible(loading)" accessible-label="Ledenacties">
       <nldd-toolbar-item slot="start">
         <nldd-button appearance="secondary" size="md" start-icon="plus-small" text="Uitnodigen" @click="triggerInviteMembers"></nldd-button>
+        <nldd-menu-item slot="overflow" icon="plus-small" text="Uitnodigen" @select="triggerInviteMembers"></nldd-menu-item>
       </nldd-toolbar-item>
     </nldd-toolbar>
     <nldd-spacer v-if="isOwner && paneChromeVisible(loading)" size="16"></nldd-spacer>
@@ -225,7 +226,7 @@ function errorMessage(e: unknown): string | undefined {
       :text="confirmInvite ? `Uitnodiging voor ${confirmInvite.email} intrekken?` : ''"
       supporting-text="Je kunt deze persoon op een later moment weer uitnodigen."
     >
-      <nldd-button slot="actions" appearance="secondary" size="md" width="full" text="Behoud uitnodiging" @click="cancelRemoveInvite"></nldd-button>
+      <nldd-button slot="actions" appearance="primary" size="md" width="full" text="Behoud uitnodiging" @click="cancelRemoveInvite"></nldd-button>
       <nldd-button slot="actions" appearance="destructive" size="md" width="full" text="Trek uitnodiging in" @click="confirmRemoveInvite"></nldd-button>
     </nldd-modal-dialog>
   </Teleport>

@@ -30,6 +30,8 @@ describe.skipIf(!existsSync(path))('committed walkthrough', () => {
     for (const t of [timeline.main, ...(timeline.faq ?? [])]) {
       const vtt = t.captions?.nl;
       if (vtt) expect(existsSync(resolve(dir, vtt)), vtt).toBe(true);
+      // The captions of a dubbed voice say what that voice says.
+      for (const d of Object.values<{ captions: string }>(t.dub ?? {})) expect(existsSync(resolve(dir, d.captions)), d.captions).toBe(true);
     }
   });
 });

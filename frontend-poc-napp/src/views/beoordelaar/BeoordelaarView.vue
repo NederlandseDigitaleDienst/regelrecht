@@ -162,13 +162,13 @@ watch(() => session.beoordelaar, laad);
         <template v-if="tab === 'werkvoorraad' || tab === 'afgerond'">
           <nldd-list
             v-if="(tab === 'werkvoorraad' ? openstaand : afgerond).length"
-            appearance="box"
+            appearance="box-tinted"
           >
             <nldd-list-item
               v-for="item in tab === 'werkvoorraad' ? openstaand : afgerond"
               :key="item.aanvraag.id"
               size="md"
-              type="button"
+              button
               @click="router.push(`/aanvraag/${item.aanvraag.id}`)"
             >
               <nldd-title-cell

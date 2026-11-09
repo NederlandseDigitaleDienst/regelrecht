@@ -103,9 +103,11 @@ articles:
       # provincie en gemeente, en voor vier gemeenten naar een voormalige
       # gemeente of kern daarbinnen. Daarom drie open begrippen. De regeling
       # wijst niemand aan die ze invult (de enrich-check open-term meldt dat,
-      # zoals bij artikel 13a van de Leerplichtwet 1969): in de cel van de
-      # school vult haar reductie ze uit wat zij over haar vestiging vastlegde
-      # (RFC-051).
+      # zoals bij artikel 13a van de Leerplichtwet 1969): het beleid van het
+      # hoofd koppelt ze aan de antwoorden van de cel van de school, die haar
+      # reductie haalt uit wat zij over haar vestiging vastlegde (RFC-048,
+      # RFC-051). Wie de regio voor een verlof vraagt, geeft de verlofdagen
+      # mee; dit artikel declareert ze niet, het beleid dat koppelt wel.
       # Niet gemodelleerd: een school met vestigingen in meer dan één regio
       # (derde volzin). De begrippen gaan over één vestiging.
       open_terms:

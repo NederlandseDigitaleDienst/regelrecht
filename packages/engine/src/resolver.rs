@@ -494,7 +494,7 @@ fn list_findings(findings: &[crate::typecheck::Finding]) -> String {
 }
 
 /// Whether `law` reads `law_id`: an input that takes one of its outputs or
-/// calls one of its articles by a fixed reference (RFC-050), or an article
+/// calls one of its articles by a fixed reference (RFC-045 §6), or an article
 /// that implements one of its open terms. These are the places where the
 /// type check consults another law (RFC-037, N5, T5).
 fn references_law(law: &ArticleBasedLaw, law_id: &str) -> bool {
@@ -547,11 +547,14 @@ impl RuleResolver {
         // RFC-036: an unknown is produced by resolution, never written by a
         // law. Refuse a document that carries the serialized sentinel.
         crate::load_check::reject_unknown_literals(&law)?;
-        // RFC-047: a law that produces several things in one article divides
+        // RFC-045: a law that produces several things in one article divides
         // its outputs over them without ambiguity.
         crate::load_check::reject_ambiguous_produces(&law)?;
         // RFC-051: a fact an article requires holds parameters it declares.
         crate::load_check::reject_malformed_facts(&law)?;
+        // Schema v0.8.14: a projection sits in a reduction and sets its own state.
+        crate::load_check::reject_malformed_projection(&law)?;
+        crate::load_check::reject_unknown_state(&law)?;
 
         // RFC-036/RFC-037: hold the law to its own declarations before it can
         // run, so the editor sees the same findings as `just validate`. The
@@ -957,6 +960,21 @@ impl RuleResolver {
         law.find_article_by_output(output)
     }
 
+    /// Whether two scoped laws hold for the same territory: both carry scope
+    /// fields, and the same ones with the same values. Two national laws do
+    /// not count; for them `matches_scope` already holds.
+    fn shares_territory(a: &ArticleBasedLaw, b: &ArticleBasedLaw) -> bool {
+        let fields = |law: &ArticleBasedLaw| {
+            (
+                law.gemeente_code.clone(),
+                law.provincie_code.clone(),
+                law.waterschap_code.clone(),
+            )
+        };
+        let territory = fields(a);
+        territory != (None, None, None) && territory == fields(b)
+    }
+
     /// Find all implementations of an open term, resolved by priority.
     ///
     /// Check if a law's scope fields match the execution scope.
@@ -1100,6 +1118,8 @@ impl RuleResolver {
         // Resolve each candidate to actual (law, article) references
         let mut candidates: Vec<Candidate> = Vec::new();
         let mut lookup = ImplementationLookup::default();
+        // The declaring law, to recognise candidates of its own territory.
+        let declarer = self.get_law_for_date(law_id, reference_date);
 
         for entry in candidate_entries {
             // Version filter. A regulation that is not in force on this date
@@ -1133,8 +1153,15 @@ impl RuleResolver {
             // Scope filtering: check all scope fields on the candidate law against
             // the execution parameters. A scoped regulation (e.g., with gemeente_code
             // or provincie_code) only matches when the execution scope contains the
-            // same value. Unscoped regulations (national) always match.
-            if !Self::matches_scope(law, scope) {
+            // same value. Unscoped regulations (national) always match. The
+            // regulation that declares the term matches too: the scope picks
+            // which regulation applies to a case, and that one already does.
+            // So does a regulation scoped to the same territory as the one that
+            // declares the term, such as the college's nadere regels under a
+            // verordening of the same municipality.
+            let of_the_declarers_territory =
+                declarer.is_some_and(|declarer| Self::shares_territory(declarer, law));
+            if law.id != law_id && !of_the_declarers_territory && !Self::matches_scope(law, scope) {
                 tracing::debug!(
                     candidate = %entry.law_id,
                     "Skipping: scope fields do not match execution parameters"
@@ -1483,10 +1510,10 @@ impl RuleResolver {
                         }
                     }
 
-                    // Implements index (IoC). A reduction's `implements`
-                    // declares the term its keeper answers (RFC-048): the
-                    // caller's answerer runs it and gives the answer, so
-                    // the engine never runs it as an implementation.
+                    // Implements index (IoC). A reduction fills no term: its
+                    // cell gives it as a named answer (RFC-048), and the
+                    // loader refuses `implements` on one
+                    // (`reject_removed_constructs`).
                     let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
                     if let Some(impl_decls) = article.get_implements().filter(|_| !reduction) {
                         for decl in impl_decls {
@@ -2053,21 +2080,6 @@ articles:
         assert!(resolver
             .get_article_by_output("test_law", "new_output", None)
             .is_some());
-    }
-
-    #[test]
-    fn test_resolver_law_count_limit() {
-        // Test that we can't exceed the maximum law count
-        // Note: This test uses a smaller limit to avoid long test times
-        let mut resolver = RuleResolver::new();
-
-        // Load a law to verify basic functionality
-        resolver.load_from_yaml(make_test_law()).unwrap();
-        assert_eq!(resolver.law_count(), 1);
-
-        // Verify replacement doesn't count towards limit
-        resolver.load_from_yaml(make_test_law()).unwrap();
-        assert_eq!(resolver.law_count(), 1); // Should still be 1 (replacement)
     }
 
     #[test]
@@ -3607,6 +3619,20 @@ publication_date: '2025-01-01'
     }
 
     #[test]
+    fn test_resolver_limit_rejects_a_new_law() {
+        let mut resolver = resolver_at_law_limit();
+
+        let result = resolver.load_from_yaml(&make_numbered_law(config::MAX_LOADED_LAWS, None));
+
+        assert!(
+            matches!(result, Err(EngineError::LoadError(_))),
+            "a new law at the limit must be rejected, got {result:?}"
+        );
+        assert_eq!(resolver.version_count(), config::MAX_LOADED_LAWS);
+        assert!(!resolver.has_law(&format!("filler_law_{}", config::MAX_LOADED_LAWS)));
+    }
+
+    #[test]
     fn test_resolver_limit_rejects_new_version_of_existing_law() {
         // A second version of an already-loaded law is a *new* law in the
         // registry: it adds memory, so it must hit the limit like any other.
@@ -3787,6 +3813,193 @@ articles:
         let mut scope = HashMap::new();
         scope.insert(field.to_string(), Value::String(code.to_string()));
         scope
+    }
+
+    /// A scoped regulation fills an open term of its own whatever the scope:
+    /// the scope picks which municipality's regulation applies to a case,
+    /// and a regulation whose article declares the term already applies. A
+    /// hardship clause in a verordening that sets aside one of its own
+    /// articles is such a case.
+    #[test]
+    fn test_find_implementations_a_scoped_law_fills_its_own_term() {
+        let mut resolver = RuleResolver::new();
+        resolver
+            .load_from_yaml(
+                r#"
+$id: verordening_met_hardheidsclausule
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+gemeente_code: 'GM0363'
+articles:
+  - number: '1'
+    text: Het college weigert, tenzij artikel 2 anders bepaalt.
+    machine_readable:
+      open_terms:
+        - id: buiten_toepassing
+          type: boolean
+          required: true
+      execution:
+        output:
+          - name: geweigerd
+            type: boolean
+        actions:
+          - output: geweigerd
+            value:
+              operation: NOT
+              value: $buiten_toepassing
+  - number: '2'
+    text: Het college kan artikel 1 buiten toepassing laten.
+    machine_readable:
+      implements:
+        - law: verordening_met_hardheidsclausule
+          article: '1'
+          open_term: buiten_toepassing
+      execution:
+        output:
+          - name: buiten_toepassing
+            type: boolean
+        actions:
+          - output: buiten_toepassing
+            value: true
+"#,
+            )
+            .unwrap();
+        for scope in [HashMap::new(), scope_of("gemeente_code", "GM0599")] {
+            let found = resolver
+                .find_implementations(
+                    "verordening_met_hardheidsclausule",
+                    "1",
+                    open_term(
+                        &resolver,
+                        "verordening_met_hardheidsclausule",
+                        "1",
+                        "buiten_toepassing",
+                    ),
+                    None,
+                    &scope,
+                )
+                .unwrap()
+                .implementations;
+            assert_eq!(found.len(), 1, "scope {scope:?}");
+            assert_eq!(found[0].1.number, "2");
+        }
+    }
+
+    /// A regulation of the same municipality fills a term that its
+    /// verordening declares, also without a scope, like the verordening
+    /// itself (the college's nadere regels); one of another municipality does
+    /// not.
+    #[test]
+    fn test_find_implementations_a_law_of_the_same_territory_fills_the_term() {
+        let mut resolver = RuleResolver::new();
+        resolver
+            .load_from_yaml(
+                r#"
+$id: verordening_gm0363
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+gemeente_code: 'GM0363'
+articles:
+  - number: '1'
+    text: Het college stelt het tarief vast.
+    machine_readable:
+      open_terms:
+        - id: tarief
+          type: number
+          required: true
+      execution:
+        output:
+          - name: bedrag
+            type: number
+        actions:
+          - output: bedrag
+            value: $tarief
+"#,
+            )
+            .unwrap();
+        for (id, code) in [
+            ("nadere_regels_gm0363", "GM0363"),
+            ("nadere_regels_gm0599", "GM0599"),
+        ] {
+            resolver
+                .load_from_yaml(&format!(
+                    r#"
+$id: {id}
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+gemeente_code: '{code}'
+articles:
+  - number: '1'
+    text: Het tarief is 7.
+    machine_readable:
+      implements:
+        - law: verordening_gm0363
+          article: '1'
+          open_term: tarief
+      execution:
+        output:
+          - name: tarief
+            type: number
+        actions:
+          - output: tarief
+            value: 7
+"#
+                ))
+                .unwrap();
+        }
+        // A run without a gemeente_code, as a cell makes one.
+        let found = resolver
+            .find_implementations(
+                "verordening_gm0363",
+                "1",
+                open_term(&resolver, "verordening_gm0363", "1", "tarief"),
+                None,
+                &HashMap::new(),
+            )
+            .unwrap()
+            .implementations;
+        let ids: Vec<&str> = found.iter().map(|(law, _)| law.id.as_str()).collect();
+        assert_eq!(ids, ["nadere_regels_gm0363"]);
+    }
+
+    /// Two laws share a territory only when both carry scope fields and those
+    /// fields are equal; two national laws do not.
+    #[test]
+    fn test_shares_territory() {
+        let law = |id: &str, scope: &str| {
+            ArticleBasedLaw::from_yaml_str(&format!(
+                r#"
+$id: {id}
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+{scope}
+articles:
+  - number: '1'
+    text: Tekst.
+"#
+            ))
+            .unwrap()
+        };
+        let national = law("a", "");
+        let gm = law("b", "gemeente_code: 'GM0363'");
+        let gm_other = law("c", "gemeente_code: 'GM0599'");
+        let pv = law("d", "provincie_code: 'PV27'");
+        let ws = law("e", "waterschap_code: 'WS0653'");
+        let ws_other = law("f", "waterschap_code: 'WS0155'");
+        let shares = RuleResolver::shares_territory;
+        assert!(!shares(&national, &national));
+        assert!(!shares(&national, &gm));
+        assert!(!shares(&gm, &national));
+        assert!(shares(&gm, &gm));
+        assert!(!shares(&gm, &gm_other));
+        assert!(shares(&pv, &pv));
+        assert!(!shares(&pv, &gm));
+        assert!(shares(&ws, &ws));
+        assert!(!shares(&ws, &ws_other));
     }
 
     /// A waterschapsverordening only implements an open term for its own

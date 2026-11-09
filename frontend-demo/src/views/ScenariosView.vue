@@ -365,6 +365,7 @@ const fileName = computed(() => selectedPath.value?.split('/').pop() ?? '');
           <nldd-toolbar size="sm">
             <nldd-toolbar-item slot="start">
               <nldd-button size="sm" appearance="neutral-tinted" start-icon="checklist" :text="t('app.tabs.scenarios')" :supporting-text="`${features.length}`" @click="splitView?.showPrimarySidebarSheet?.()"></nldd-button>
+              <nldd-menu-item slot="overflow" icon="checklist" :text="t('app.tabs.scenarios')" :details="`${features.length}`" @select="splitView?.showPrimarySidebarSheet?.()"></nldd-menu-item>
             </nldd-toolbar-item>
             <nldd-toolbar-title v-if="parsed" slot="start" :text="scenarioTitle(parsed.feature)" :supporting-text="fileName"></nldd-toolbar-title>
             <nldd-toolbar-item slot="end" v-if="parsed">
@@ -372,12 +373,16 @@ const fileName = computed(() => selectedPath.value?.split('/').pop() ?? '');
                 <nldd-segmented-control-item value="steps" :text="t('app.tabs.scenarios')"></nldd-segmented-control-item>
                 <nldd-segmented-control-item value="text" :text="t('scenario.view.file')"></nldd-segmented-control-item>
               </nldd-segmented-control>
+              <nldd-menu-item slot="overflow" type="radio" :text="t('app.tabs.scenarios')" :selected="!showText || undefined" @select="showText = false"></nldd-menu-item>
+              <nldd-menu-item slot="overflow" type="radio" :text="t('scenario.view.file')" :selected="showText || undefined" @select="showText = true"></nldd-menu-item>
             </nldd-toolbar-item>
             <nldd-toolbar-item slot="end" v-if="parsed">
               <nldd-button size="sm" appearance="primary" start-icon="play" :text="t('scenario.run_all')" :loading="runningAll || undefined" :disabled="(anyRunning && !runningAll) || undefined" @click="runAll"></nldd-button>
+              <nldd-menu-item slot="overflow" icon="play" :text="t('scenario.run_all')" :disabled="anyRunning || undefined" @select="runAll"></nldd-menu-item>
             </nldd-toolbar-item>
             <nldd-toolbar-item slot="end" v-if="parsed && selectedLaw">
               <nldd-button size="sm" appearance="neutral-tinted" start-icon="book" :text="t('wet.tile.action.law_text')" @click="goTo('wetten', { lawId: selectedLaw.id })"></nldd-button>
+              <nldd-menu-item slot="overflow" icon="book" :text="t('wet.tile.action.law_text')" @select="goTo('wetten', { lawId: selectedLaw.id })"></nldd-menu-item>
             </nldd-toolbar-item>
           </nldd-toolbar>
         </nldd-container>

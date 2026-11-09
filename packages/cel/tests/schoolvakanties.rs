@@ -5,19 +5,23 @@
 //! zomervakantie, the last per region; the region follows from where the
 //! school is established, an executogram in its own chronicle; the herfst-
 //! and voorjaarsvakantie are a rule of the school, in its own policy, one
-//! version per school year. The cell of OBS De Klimop answers the open term
-//! with its reduction.
+//! version per school year. The head's policy binds the open term to the
+//! answer of the cell of OBS De Klimop, which gives it with its reduction
+//! (RFC-048).
 
 // Test helpers outside a `#[test]` fn may unwrap and panic too; that is how
 // a failing fixture reports itself.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod common;
+
+use common::{answered, day, object_map};
+
 use std::path::Path;
 
-use chrono::NaiveDate;
 use regelrecht_cel::{Cell, Error, Gram};
-use regelrecht_engine::{LawExecutionService, PathNode};
-use serde_json::{json, Map, Value};
+use regelrecht_engine::LawExecutionService;
+use serde_json::{json, Map};
 
 const LAW: &str = "leerplichtwet_1969";
 const ARTICLE: &str = "13a";
@@ -26,6 +30,9 @@ const REGELING: &str = "regeling_vaststelling_schoolvakanties_20252030";
 const ROOSTER: &str = "fictief_beleid_vakantierooster_obs_de_klimop";
 const PROFESSION: &str = "specifieke_aard_beroep_ouder";
 const OUTSIDE_HOLIDAYS: &str = "verlof_valt_buiten_schoolvakanties";
+/// The head's judgement on it where the cell is silent: an open term of his
+/// policy (art. 4, RFC-048 §2).
+const OUTSIDE_HOLIDAYS_HEAD: &str = "verlof_valt_buiten_schoolvakanties_volgens_hoofd";
 const HOLIDAYS: &str = "reductie_verlof_valt_buiten_schoolvakanties";
 
 /// The Leerplichtwet, the Awb, the regeling and the school's policies from
@@ -36,26 +43,27 @@ fn service() -> LawExecutionService {
 
 /// [`service`], with the versions `extra` loaded as well.
 fn service_with(extra: &[String]) -> LawExecutionService {
-    let regulation = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/regulation/nl");
     let mut service = LawExecutionService::new();
-    for law in [
-        format!("wet/{LAW}"),
-        "wet/algemene_wet_bestuursrecht".to_string(),
-        format!("ministeriele_regeling/{REGELING}"),
-        "uitvoeringsbeleid/fictief_beleid_schooljaar_obs_de_klimop".to_string(),
-        "uitvoeringsbeleid/fictief_beleid_schooljaargrenzen_obs_de_klimop".to_string(),
-        format!("uitvoeringsbeleid/{ROOSTER}"),
-        "uitvoeringsbeleid/fictief_beleid_vestiging_obs_de_klimop".to_string(),
-    ] {
-        for entry in std::fs::read_dir(regulation.join(law)).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().is_some_and(|x| x == "yaml") {
-                service
-                    .load_law(&std::fs::read_to_string(&path).unwrap())
-                    .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            }
-        }
-    }
+    let laws = [
+        format!("regulation/nl/wet/{LAW}"),
+        "regulation/nl/wet/algemene_wet_bestuursrecht".to_string(),
+        format!("regulation/nl/ministeriele_regeling/{REGELING}"),
+        "regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaar_obs_de_klimop".to_string(),
+        "regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaargrenzen_obs_de_klimop"
+            .to_string(),
+        format!("regulation/nl/uitvoeringsbeleid/{ROOSTER}"),
+        "regulation/nl/uitvoeringsbeleid/fictief_beleid_vestiging_obs_de_klimop".to_string(),
+        // The head's policy, which binds the terms to the answers of the
+        // school's cell, and the reductions of that cell (RFC-048).
+        "regulation/nl/uitvoeringsbeleid/fictief_beleid_vakantieverlof_obs_de_klimop".to_string(),
+        common::reduction_dir("reductie_plaats_van_vestiging"),
+        common::reduction_dir("reductie_verlof_al_verleend_in_schooljaar"),
+        common::reduction_dir(HOLIDAYS),
+        // Which decisions still stand after objection and appeal: the
+        // reduction of the Awb, which the school's reduction calls.
+        common::reduction_dir("reductie_algemene_wet_bestuursrecht"),
+    ];
+    common::load(&mut service, laws);
     for yaml in extra {
         service.load_law(yaml).unwrap();
     }
@@ -65,10 +73,9 @@ fn service_with(extra: &[String]) -> LawExecutionService {
 /// A fictional next version of the school's policy, for the school year
 /// 2027–2028, from 1 August 2027.
 fn rooster_2027() -> String {
-    let regulation = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/regulation/nl");
-    let current = std::fs::read_to_string(
-        regulation.join(format!("uitvoeringsbeleid/{ROOSTER}/2026-08-01.yaml")),
-    )
+    let current = std::fs::read_to_string(common::corpus().join(format!(
+        "regulation/nl/uitvoeringsbeleid/{ROOSTER}/2026-08-01.yaml"
+    )))
     .unwrap();
     let next = [
         (
@@ -91,25 +98,17 @@ fn rooster_2027() -> String {
     next
 }
 
-fn day(s: &str) -> NaiveDate {
-    NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
-}
-
-fn map(value: Value) -> Map<String, Value> {
-    value.as_object().unwrap().clone()
-}
-
 /// The school's own cell, with all its reductions, and an empty chronicle.
 fn school() -> Cell {
-    let dir =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/cells/{RECORDING_ACTOR}"));
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(format!("tests/fixtures/corpus/cells/{RECORDING_ACTOR}"));
     Cell::in_memory(RECORDING_ACTOR, dir).unwrap()
 }
 
 /// Record that the school is established in `gemeente` of `provincie` since
 /// `sinds`, on `on` (an executogram).
 fn established(cell: &mut Cell, gemeente: &str, provincie: &str, sinds: &str, on: &str) -> Gram {
-    let fact = map(json!({ "gemeente": gemeente, "provincie": provincie, "sinds": sinds }));
+    let fact = object_map(json!({ "gemeente": gemeente, "provincie": provincie, "sinds": sinds }));
     cell.record_executogram(
         &service(),
         "fictief_beleid_vestiging_obs_de_klimop#1#vestiging",
@@ -130,7 +129,7 @@ fn school_in(gemeente: &str, provincie: &str) -> Cell {
 /// An application for leave from `first` to `last`, recorded on `on`, with
 /// fictional data.
 fn applied(cell: &mut Cell, first: &str, last: &str, on: &str) -> Gram {
-    let supplied = map(json!({
+    let supplied = object_map(json!({
         "bsn_jongere": "999990019",
         "eerste_verlofdag": first,
         "laatste_verlofdag": last,
@@ -148,7 +147,7 @@ fn applied(cell: &mut Cell, first: &str, last: &str, on: &str) -> Gram {
 /// of a parent: whether the leave falls outside the school holidays, and
 /// whether it already had leave this school year, the cell answers.
 fn decide(cell: &mut Cell, application: &str, on: &str) -> Result<Gram, Error> {
-    let findings = map(json!({ PROFESSION: true }));
+    let findings = object_map(json!({ PROFESSION: true }));
     cell.decide(
         &mut service(),
         &[],
@@ -163,12 +162,13 @@ fn decide(cell: &mut Cell, application: &str, on: &str) -> Result<Gram, Error> {
 }
 
 /// The decision asks the head's finding on whether the leave falls outside
-/// the school holidays: the cell was silent.
+/// the school holidays: the cell was silent, and the head's policy leaves
+/// the case to him.
 fn asks_the_head(e: &Error) {
     let text = e.to_string();
     assert!(
         matches!(e, Error::Engine(_))
-            && text.contains(&format!("'{OUTSIDE_HOLIDAYS}'"))
+            && text.contains(&format!("'{OUTSIDE_HOLIDAYS_HEAD}'"))
             && text.contains("no judgement was given for this case"),
         "{e}"
     );
@@ -176,15 +176,6 @@ fn asks_the_head(e: &Error) {
 
 fn granted(gram: &Gram) -> bool {
     gram.outputs["verlof_verleend"] == json!(true)
-}
-
-/// The nodes of a trace where an answerer filled an open term.
-fn answered(node: &PathNode) -> Vec<&PathNode> {
-    let mut found: Vec<&PathNode> = node.children.iter().flat_map(answered).collect();
-    if node.answer.is_some() {
-        found.insert(0, node);
-    }
-    found
 }
 
 #[test]
@@ -198,8 +189,9 @@ fn leave_in_the_christmas_holiday_is_refused_and_nobody_judged_it() {
     let found = cell.findings(&mut service(), &[], &gram.id).unwrap();
     assert_eq!(found, vec![PROFESSION.to_string()]);
 
-    // In the trace of the decision, the term is one node, filled in by the
-    // school: its cell, with the reduction and its version.
+    // In the trace of the decision, the answer is one node, given by the
+    // school: its cell, with the reduction and its version; the head's
+    // policy filled the term with it.
     let explained = cell.explain(&mut service(), &[], &gram.id).unwrap();
     let trace = explained.trace.as_ref().unwrap();
     let nodes = answered(trace);
@@ -213,7 +205,7 @@ fn leave_in_the_christmas_holiday_is_refused_and_nobody_judged_it() {
     assert_eq!(answer.valid_from, "2026-08-01");
     let rendered = trace.render_box_drawing();
     assert!(
-        rendered.contains(&format!("answered by {RECORDING_ACTOR}")),
+        rendered.contains(&format!("with the answer of {RECORDING_ACTOR}")),
         "{rendered}"
     );
 
@@ -297,7 +289,9 @@ fn a_school_that_moves_before_the_leave_is_judged_on_the_leave_days() {
         "Maastricht"
     );
     let rendered = why[0].trace.as_ref().unwrap().render_box_drawing();
-    assert!(rendered.contains("vestigingen"), "{rendered}");
+    // The policy of the head read the executograms, inside the reduction
+    // (RFC-048).
+    assert!(rendered.contains("$VESTIGINGEN"), "{rendered}");
 
     // Leave that ends before the move is judged on Utrecht.
     let early = applied(&mut cell, "2027-04-19", "2027-04-23", "2027-04-15");
@@ -341,7 +335,7 @@ fn a_school_year_the_policy_does_not_know_leaves_it_to_the_head() {
     let app = applied(&mut cell, "2028-02-07", "2028-02-11", "2027-07-01");
     let e = decide(&mut cell, &app.id, "2027-07-05").unwrap_err();
     asks_the_head(&e);
-    let findings = map(json!({ PROFESSION: true, OUTSIDE_HOLIDAYS: false }));
+    let findings = object_map(json!({ PROFESSION: true, OUTSIDE_HOLIDAYS_HEAD: false }));
     let gram = cell
         .decide(
             &mut service(),
@@ -357,7 +351,10 @@ fn a_school_year_the_policy_does_not_know_leaves_it_to_the_head() {
         .remove(0);
     assert!(!granted(&gram));
     let found = cell.findings(&mut service(), &[], &gram.id).unwrap();
-    assert!(found.contains(&OUTSIDE_HOLIDAYS.to_string()), "{found:?}");
+    assert!(
+        found.contains(&OUTSIDE_HOLIDAYS_HEAD.to_string()),
+        "{found:?}"
+    );
 }
 
 #[test]
@@ -405,7 +402,7 @@ fn the_summer_of_the_school_year_before_runs_into_the_next() {
     let outside = |gemeente: &str, provincie: &str| {
         let mut cell = school_in(gemeente, provincie);
         let app = applied(&mut cell, "2027-08-30", "2027-09-03", "2027-08-02");
-        let findings = map(json!({ PROFESSION: true }));
+        let findings = object_map(json!({ PROFESSION: true }));
         let gram = cell
             .decide(
                 &mut service_with(&next),
@@ -432,7 +429,7 @@ fn the_next_version_of_the_policy_holds_the_herfstvakantie_of_its_year() {
     let next = [rooster_2027()];
     let mut cell = school_in("Utrecht", "Utrecht");
     let app = applied(&mut cell, "2027-10-18", "2027-10-22", "2027-09-01");
-    let findings = map(json!({ PROFESSION: true }));
+    let findings = object_map(json!({ PROFESSION: true }));
     let gram = cell
         .decide(
             &mut service_with(&next),

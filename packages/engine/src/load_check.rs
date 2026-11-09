@@ -13,135 +13,275 @@
 //! item per type, each with its own parameters and outputs. The loader
 //! refuses a list with two items of one type, an output given to two items
 //! or to none, a parameter or output the article lacks, or a submission that
-//! requests a decision this law does not take (RFC-047).
+//! requests a decision this law does not take (RFC-045 §1).
 //!
 //! A reduction (`regulatory_layer: REDUCTIE`, schema v0.8.2) is no
-//! regulation: a cell's reading of its own chronicle (RFC-048). Only a
-//! reduction reads the decisions taken under an article
-//! (`source.decisions`). A reduction may name the open term it answers
-//! (`implements`) from schema v0.8.5; a file that names an older version is
-//! held to the schema of that version, which forbids it. The engine does not
-//! run a reduction for that term itself: whoever keeps it answers the term
-//! through the caller's answerer ([`crate::answer`]). Otherwise a reduction does not
-//! act on law: it hooks onto
-//! nothing (`hooks`), replaces no output (`overrides`), takes no decision
-//! (`execution.produces`) and delegates nothing (`open_terms`). The loader
-//! refuses either the other way round, and a `decisions` beside another way
-//! to the value.
+//! regulation: a cell's reading of its own chronicle (RFC-048), which the
+//! cell gives as a named answer. Only a reduction reads the decisions taken
+//! under an article (`source.decisions`) or the recorded facts an article
+//! requires (`source.facts`); policy and law never do. A reduction does not
+//! act on law: it fills no open term (`implements`), hooks onto nothing
+//! (`hooks`), replaces no output (`overrides`), takes no decision
+//! (`execution.produces`) and delegates nothing (`open_terms`). It names no
+//! holder (`competent_authority`): it sits with its cell, or with none.
 //!
-//! A call to an article (`source.article`, schema v0.8.4, RFC-050) stands
+//! The engine has no behavior per schema version: every file runs on one code
+//! path. Not every version was issued for use, and the engine does not
+//! support a construct that was later rejected. Such a construct is refused
+//! with its replacement named:
+//! `source.executograms` (v0.8.6), which v0.8.7 replaced by `source.facts`;
+//! `implements` on a reduction (v0.8.5 to v0.8.8), which v0.8.9 replaced by
+//! a named answer that a policy binds with `source.reduction`; and `combine`
+//! on an open term (v0.8.8 to v0.8.12) or in a `source` (v0.8.9 to v0.8.12),
+//! which v0.8.13 removed, since one question goes to one cell.
+//!
+//! The policy of the authority that decides binds an open term to an answer
+//! (schema v0.8.9, RFC-048): a policy article that fills the term
+//! (`implements`) and takes the answer as an input, `source: {reduction:
+//! <answer>, parameters: {...}}`. Only such an article takes one, in a
+//! policy that names its holder (`competent_authority`), whose cell the
+//! engine asks where the term names no competent authorities. The answer
+//! stands apart from every other way to a value (`regulation`, `output`,
+//! `endpoint`, `decisions`, `facts`, `article`).
+//!
+//! The loader refuses any of these the other way round, and a `decisions`
+//! beside another way to the value.
+//!
+//! A call to an article (`source.article`, schema v0.8.4, RFC-045 §6) stands
 //! apart from `regulation`, `decisions` and `endpoint`, and only such a call
 //! takes `parameters_from`.
 //!
 //! Who may answer an open term, or establish a fact, sits on that term or
-//! fact (`competent_authority`, schema v0.8.8, RFC-052); on an article the
+//! fact (`competent_authority`, schema v0.8.8, RFC-051); on an article the
 //! field keeps its meaning of RFC-002, who decides, and names one authority.
-//! The `combine` of an open term makes one value of the answers of several
-//! competent answerers. It has to fit the term's type, as the `combine` of a
-//! FOREACH has to fit its body: `OR` and `AND` a boolean, `ADD`, `MIN` and
-//! `MAX` a number or an amount. `ONLY` is no rule for answers: one answer
-//! needs none, and two without a rule are an error already. It sits only on
-//! a term that names its competent authorities.
 
+use crate::answer::ChronicleRead;
 use crate::article::ArticleBasedLaw;
 use crate::error::{EngineError, Result};
 use regelrecht_law_model::{
-    parse_schema_version, ActionOperation, ActionValue, CombineOp, CompetentAuthority,
-    MachineReadable, ParameterType, RegulatoryLayer,
+    ActionOperation, ActionValue, CompetentAuthority, MachineReadable, RegulatoryLayer,
 };
 
-/// The first schema version in which a `REDUCTIE` may have `implements`.
-const REDUCTION_IMPLEMENTS: (u32, u32, u32) = (0, 8, 5);
-
-/// Refuse `source.decisions` outside a `REDUCTIE`, and `hooks`, `overrides`,
-/// `execution.produces` or `open_terms` in a `REDUCTIE` (RFC-048). A
-/// `REDUCTIE` may have `implements` from schema v0.8.5; one whose `$schema`
-/// names an older version may not.
-pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
+/// Refuse a construct that a later schema version removed, naming what
+/// replaced it. The engine runs every file on one code path (see the module
+/// docs), so it cannot run such a construct; dropping it silently would run
+/// the file without it. So far there are three: `source.executograms`
+/// (v0.8.6), which v0.8.7 replaced by `source.facts` (RFC-051); `implements`
+/// on a `REDUCTIE` (v0.8.5 to v0.8.8), which v0.8.9 replaced by a named
+/// answer of the cell that a policy binds to the term (`source.reduction`,
+/// RFC-048); and `combine` on an open term (v0.8.8 to v0.8.12) or in a
+/// `source` (v0.8.9 to v0.8.12), which v0.8.13 removed: one question goes to
+/// one cell, and an article makes one outcome of the answers of different
+/// cells (RFC-048 §4).
+pub(crate) fn reject_removed_constructs(law: &ArticleBasedLaw) -> Result<()> {
+    let refuse = |why: String| Err(EngineError::LoadError(format!("law '{}' {why}", law.id)));
     let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
-    let older = law
-        .schema_version()
-        .and_then(parse_schema_version)
-        .filter(|version| *version < REDUCTION_IMPLEMENTS);
     for (where_, section) in sections(law) {
-        if reduction {
-            if let Some((major, minor, patch)) = older.filter(|_| section.implements.is_some()) {
-                return Err(EngineError::LoadError(format!(
-                    "law '{}' {where_}: a REDUCTIE fills an open term (implements) only from \
-                     schema v0.8.5; this one names v{major}.{minor}.{patch}",
-                    law.id
-                )));
-            }
-            let acts_on_law = [
-                ("hooks", section.hooks.is_some()),
-                ("overrides", section.overrides.is_some()),
-                (
-                    "produces",
-                    section
-                        .execution
-                        .as_ref()
-                        .is_some_and(|e| e.produces.is_some()),
-                ),
-                ("open_terms", section.open_terms.is_some()),
-            ];
-            if let Some((key, _)) = acts_on_law.iter().find(|(_, present)| *present) {
-                return Err(EngineError::LoadError(format!(
-                    "law '{}' {where_}: a REDUCTIE is no regulation and does not act on law \
-                     ({key})",
-                    law.id
-                )));
+        if reduction && section.implements.is_some() {
+            return refuse(format!(
+                "{where_}: a REDUCTIE fills no open term (implements), which schema v0.8.9 \
+                 removed; its cell gives it as a named answer, which a policy binds to the term \
+                 with source.reduction (RFC-048)"
+            ));
+        }
+        for term in section.open_terms.iter().flatten() {
+            if term.combine.is_some() {
+                return refuse(format!(
+                    "{where_}: open term '{}' has combine, which schema v0.8.13 removed; one \
+                     question goes to one cell, and an article makes one outcome of the answers \
+                     of different cells (RFC-048 §4)",
+                    term.id
+                ));
             }
         }
         for input in inputs(section) {
-            let Some(source) = input.source.as_ref() else {
-                continue;
-            };
-            let Some(read) = chronicle_read(source) else {
-                continue;
-            };
-            if source.decisions.is_some() && source.facts.is_some() {
-                return Err(EngineError::LoadError(format!(
-                    "law '{}' {where_}: input '{}' reads {read} and facts besides; \
-                     an input reads one of them",
-                    law.id, input.name
-                )));
-            }
-            if source.regulation.is_some()
-                || source.output.is_some()
-                || source.parameters.is_some()
-                || source.endpoint.is_some()
+            if input
+                .source
+                .as_ref()
+                .is_some_and(|source| source.combine.is_some())
             {
-                return Err(EngineError::LoadError(format!(
-                    "law '{}' {where_}: input '{}' reads {read}, which no regulation, output, \
-                     parameters or endpoint can narrow",
-                    law.id, input.name
-                )));
+                return refuse(format!(
+                    "{where_}: input '{}' has source.combine, which schema v0.8.13 removed; one \
+                     question goes to one cell, and an article makes one outcome of the answers \
+                     of different cells (RFC-048 §4)",
+                    input.name
+                ));
             }
-            if !reduction {
-                return Err(EngineError::LoadError(format!(
-                    "law '{}' {where_}: input '{}' reads {read}; only a REDUCTIE reads decisions \
-                     or facts (RFC-048, RFC-051)",
-                    law.id, input.name
-                )));
+            if input
+                .source
+                .as_ref()
+                .is_some_and(|source| source.executograms.is_some())
+            {
+                return refuse(format!(
+                    "{where_}: input '{}' reads source.executograms, which schema v0.8.7 \
+                     replaced; use source.facts (RFC-051)",
+                    input.name
+                ));
             }
         }
     }
     Ok(())
 }
 
-/// What an input reads from the chronicle of a cell, in words: the
-/// decisions taken under an article (RFC-048) or the recorded instances of a
-/// fact an article requires (schema v0.8.7, RFC-051). `None` for an input
-/// that reads neither.
-pub(crate) fn chronicle_read(source: &regelrecht_law_model::Source) -> Option<String> {
+/// Refuse a reading of a chronicle (`source.decisions`, `source.facts`)
+/// outside a `REDUCTIE`, the keys that act on law and a holder
+/// (`competent_authority`) in a `REDUCTIE`, and a misplaced answer of a
+/// cell (`source.reduction`, RFC-048). An answer is taken only in a
+/// `UITVOERINGSBELEID` that names its holder, by an article that fills an
+/// open term; it stands apart from every other way to a value.
+pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
+    let refuse = |why: String| Err(EngineError::LoadError(format!("law '{}' {why}", law.id)));
+    let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
+    let policy = law.regulatory_layer == RegulatoryLayer::Uitvoeringsbeleid;
+    for (where_, section) in sections(law) {
+        if reduction {
+            if let Some(key) = acts_on_law(section) {
+                return refuse(format!(
+                    "{where_}: a REDUCTIE is no regulation and does not act on law ({key})"
+                ));
+            }
+        }
+        for input in inputs(section) {
+            let Some(source) = input.source.as_ref() else {
+                continue;
+            };
+            if let Some(answer) = &source.reduction {
+                let beside = [
+                    ("regulation", source.regulation.is_some()),
+                    ("output", source.output.is_some()),
+                    ("endpoint", source.endpoint.is_some()),
+                    ("decisions", source.decisions.is_some()),
+                    ("facts", source.facts.is_some()),
+                    ("article", source.article.is_some()),
+                ];
+                if let Some((key, _)) = beside.iter().find(|(_, present)| *present) {
+                    return refuse(format!(
+                        "{where_}: input '{}' takes the answer '{answer}' of a cell, which no \
+                         {key} can stand beside",
+                        input.name
+                    ));
+                }
+                if !policy {
+                    return refuse(format!(
+                        "{where_}: input '{}' takes the answer '{answer}' of a cell; only the \
+                         UITVOERINGSBELEID of the authority that decides binds a term to an \
+                         answer (RFC-048)",
+                        input.name
+                    ));
+                }
+                if section.implements.is_none() {
+                    return refuse(format!(
+                        "{where_}: input '{}' takes the answer '{answer}' of a cell, but the \
+                         article fills no open term (implements); a policy binds a term to an \
+                         answer (RFC-048)",
+                        input.name
+                    ));
+                }
+                if !matches!(
+                    law.competent_authority,
+                    Some(CompetentAuthority::Structured(_))
+                ) {
+                    return refuse(format!(
+                        "{where_}: input '{}' takes the answer '{answer}' of a cell, but the \
+                         policy names no holder by name (competent_authority, one authority), \
+                         whose cell gives it (RFC-048)",
+                        input.name
+                    ));
+                }
+            }
+            let Some(read) = chronicle_read(source) else {
+                continue;
+            };
+            if source.decisions.is_some() && source.facts.is_some() {
+                return refuse(format!(
+                    "{where_}: input '{}' reads {read} and facts besides; an input reads one \
+                     of them",
+                    input.name
+                ));
+            }
+            if source.regulation.is_some()
+                || source.output.is_some()
+                || source.parameters.is_some()
+                || source.endpoint.is_some()
+            {
+                return refuse(format!(
+                    "{where_}: input '{}' reads {read}, which no regulation, output, parameters \
+                     or endpoint can narrow",
+                    input.name
+                ));
+            }
+            if !reduction {
+                return refuse(format!(
+                    "{where_}: input '{}' reads {read}; only a REDUCTIE reads decisions or \
+                     facts (RFC-048, RFC-051)",
+                    input.name
+                ));
+            }
+            // The article whose decisions it reads may be the value of a
+            // parameter (schema v0.8.11): one the article declares itself.
+            if let Some(name) = source
+                .decisions
+                .as_deref()
+                .and_then(|d| d.strip_prefix('$'))
+            {
+                let declared = section
+                    .execution
+                    .as_ref()
+                    .and_then(|e| e.parameters.as_ref())
+                    .is_some_and(|ps| ps.iter().any(|p| p.name == name));
+                if !declared {
+                    return refuse(format!(
+                        "{where_}: input '{}' reads {read}, but '{name}' is no parameter of the \
+                         article; the decisions are named by a parameter it declares",
+                        input.name
+                    ));
+                }
+            }
+        }
+    }
+    if reduction && law.competent_authority.is_some() {
+        return refuse(
+            "is a REDUCTIE and names no competent_authority: it sits with its cell, or with \
+             none (schema v0.8.12)"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
+/// The first key of `section` that acts on law: a hook, an override, a
+/// decision or a delegated term.
+fn acts_on_law(section: &MachineReadable) -> Option<&'static str> {
+    [
+        ("hooks", section.hooks.is_some()),
+        ("overrides", section.overrides.is_some()),
+        (
+            "produces",
+            section
+                .execution
+                .as_ref()
+                .is_some_and(|e| e.produces.is_some()),
+        ),
+        ("open_terms", section.open_terms.is_some()),
+    ]
+    .into_iter()
+    .find(|(_, present)| *present)
+    .map(|(key, _)| key)
+}
+
+/// What an input reads from the chronicle of a cell: the decisions taken
+/// under an article (RFC-048), named in the law or by a parameter (schema
+/// v0.8.11), or the recorded instances of a fact an article requires
+/// (schema v0.8.7, RFC-051). `None` for an input that reads neither.
+pub(crate) fn chronicle_read(source: &regelrecht_law_model::Source) -> Option<ChronicleRead<'_>> {
     match (&source.decisions, &source.facts) {
-        (Some(decisions), _) => Some(format!("the decisions taken under {decisions}")),
-        (None, Some(fact)) => Some(format!("the recorded facts {fact}")),
+        (Some(decisions), _) => Some(ChronicleRead::Decisions(decisions)),
+        (None, Some(fact)) => Some(ChronicleRead::Facts(fact)),
         (None, None) => None,
     }
 }
 
-/// Refuse a call to an article (`source.article`, schema v0.8.4, RFC-050)
+/// Refuse a call to an article (`source.article`, schema v0.8.4, RFC-045 §6)
 /// beside another way to the value (`regulation`, `decisions`, `endpoint`),
 /// and `parameters_from` without `article`, which nothing would receive.
 pub(crate) fn reject_misplaced_article_call(law: &ArticleBasedLaw) -> Result<()> {
@@ -178,19 +318,17 @@ pub(crate) fn reject_misplaced_article_call(law: &ArticleBasedLaw) -> Result<()>
     Ok(())
 }
 
-/// Refuse competence and `combine` where they do not belong (RFC-052):
+/// Refuse competence where it does not belong (RFC-051):
 ///
 /// - an article names one competent authority (RFC-002), never a list;
 /// - an open term or a fact names its competent authorities by name, one or
 ///   a list of at least one, never a `#` reference;
-/// - `competent_authority` on a `requires` entry only with `fact`;
-/// - `combine` only on a term that names its competent authorities, fitting
-///   the term's type, and never `ONLY`.
+/// - `competent_authority` on a `requires` entry only with `fact`.
 pub(crate) fn reject_misplaced_competence(law: &ArticleBasedLaw) -> Result<()> {
     for (where_, section) in sections(law) {
         let refuse = |why: String| {
             Err(EngineError::LoadError(format!(
-                "law '{}' {where_}: {why} (RFC-052)",
+                "law '{}' {where_}: {why} (RFC-051)",
                 law.id
             )))
         };
@@ -232,45 +370,10 @@ pub(crate) fn reject_misplaced_competence(law: &ArticleBasedLaw) -> Result<()> {
             }
         }
         for term in section.open_terms.iter().flatten() {
-            let competent = named(
+            named(
                 &term.competent_authority,
                 &format!("open term '{}'", term.id),
             )?;
-            let Some(op) = term.combine else {
-                continue;
-            };
-            let combines = |why: &str| {
-                refuse(format!(
-                    "open term '{}' combines its answers with {} (combine), {why}",
-                    term.id,
-                    op.as_str()
-                ))
-            };
-            if !competent {
-                return combines(
-                    "but names no competent authorities, so no more than one answerer can \
-                     answer it",
-                );
-            }
-            let fits = match op {
-                CombineOp::Or | CombineOp::And => term.term_type == ParameterType::Boolean,
-                CombineOp::Add | CombineOp::Min | CombineOp::Max => matches!(
-                    term.term_type,
-                    ParameterType::Number | ParameterType::Amount
-                ),
-                CombineOp::Only => {
-                    return combines(
-                        "which is no rule for answers: one needs none, and two without one \
-                         are an error",
-                    )
-                }
-            };
-            if !fits {
-                return combines(&format!(
-                    "which does not fit its type {}",
-                    format!("{:?}", term.term_type).to_lowercase()
-                ));
-            }
         }
     }
     Ok(())
@@ -392,9 +495,9 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
     Ok(())
 }
 
-/// Refuse an article whose `produces` list (schema v0.8.1, RFC-047) has two
+/// Refuse an article whose `produces` list (schema v0.8.1, RFC-045 §1) has two
 /// items of one type, gives an output to two items (as one of its
-/// `outputs`, or as data `derived` for the decision, RFC-050), lists
+/// `outputs`, or as data `derived` for the decision, RFC-045 §1), lists
 /// `derived` on an item that is no decision, names a
 /// parameter or output the article lacks, or has a submission that requests
 /// a decision this law does not take. One item per type makes article and
@@ -407,13 +510,13 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
 /// An output that no item lists, beside a decision that lists its own,
 /// belongs to no item: it is an output of the article that another article
 /// may read, not part of the decision, and only computed when read
-/// (RFC-052).
+/// (RFC-045 §1).
 pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
     for article in law.articles.iter().filter(|a| a.produces_list()) {
         let produced = article.get_produced();
         let refuse = |why: String| {
             Err(EngineError::LoadError(format!(
-                "law '{}': article {} {why} (RFC-047)",
+                "law '{}': article {} {why} (RFC-045 §1)",
                 law.id, article.number
             )))
         };
@@ -473,14 +576,14 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
             .find(|p| p.legal_character().is_none() && p.listed_derived().is_some())
         {
             return refuse(format!(
-                "lists derived outputs on its {}; only a decision has derived data (RFC-050)",
+                "lists derived outputs on its {}; only a decision has derived data (RFC-045 §1)",
                 item.submission_kind().unwrap_or("item")
             ));
         }
         // Without a decision, an output no submission lists would be read by
         // nothing the article produces: refused, so a forgotten or misspelt
         // output fails. Beside a decision that lists its outputs, it belongs
-        // to no item (RFC-052).
+        // to no item (RFC-045 §1).
         if article.get_decision().is_none() {
             if let Some(name) = article
                 .get_outputs()
@@ -516,12 +619,349 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
             listed.push(name);
         }
         for &item in &produced {
+            if item.legal_character().is_none() && !item.effects().is_empty() {
+                return refuse(format!(
+                    "lists effects on its {}; only a decision has effects on another decision",
+                    item.submission_kind().unwrap_or("item")
+                ));
+            }
+            for effect in item.effects() {
+                let name = &effect.parameter;
+                if !article.get_parameters().iter().any(|p| &p.name == name) {
+                    return refuse(format!(
+                        "names parameter '{name}' in an effect under produces, but declares no such parameter"
+                    ));
+                }
+                // `when` reads an outcome of this decision: one of its own
+                // outputs, and a boolean, so the effect holds or it does not.
+                if let Some(when) = &effect.when {
+                    if !article.outputs_of(item).contains(&when.as_str()) {
+                        return refuse(format!(
+                            "makes an effect depend on '{when}', which is no output of its decision"
+                        ));
+                    }
+                    let boolean = article.get_outputs().iter().any(|o| {
+                        &o.name == when
+                            && o.output_type == regelrecht_law_model::ParameterType::Boolean
+                    });
+                    if !boolean {
+                        return refuse(format!(
+                            "makes an effect depend on '{when}', which is not a boolean"
+                        ));
+                    }
+                }
+            }
             for name in article.parameters_of(item) {
                 if !article.get_parameters().iter().any(|p| p.name == name) {
                     return refuse(format!(
                         "lists parameter '{name}' under produces, but declares no such parameter"
                     ));
                 }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// A projection (schema v0.8.14) sits only in a reduction, names each
+/// property of its state once, and its steps read and set only those
+/// properties.
+pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
+    let refuse = |where_: String, why: String| {
+        Err(EngineError::LoadError(format!(
+            "law '{}' {where_}: {why}",
+            law.id
+        )))
+    };
+    for (where_, section) in sections(law) {
+        let Some(projection) = &section.projection else {
+            continue;
+        };
+        if law.regulatory_layer != RegulatoryLayer::Reductie {
+            return refuse(
+                where_,
+                "has a projection; only a reduction plays a chronicle forward".to_string(),
+            );
+        }
+        if projection.state.is_empty() {
+            return refuse(where_, "has a projection without a state".to_string());
+        }
+        let parameters = section
+            .execution
+            .as_ref()
+            .and_then(|e| e.parameters.as_deref())
+            .unwrap_or_default();
+        if let Some(key) = &projection.key {
+            if !parameters.iter().any(|p| &p.name == key) {
+                return refuse(
+                    where_,
+                    format!("plays the records of one '{key}', which is no parameter it declares"),
+                );
+            }
+        }
+        let declares_state = section
+            .execution
+            .as_ref()
+            .and_then(|e| e.parameters.as_ref())
+            .is_some_and(|ps| ps.iter().any(|p| p.name == crate::projection::STATE));
+        if declares_state {
+            return refuse(
+                where_,
+                format!(
+                    "declares a parameter '{}', which its projection gives",
+                    crate::projection::STATE
+                ),
+            );
+        }
+        let mut names: Vec<&str> = Vec::new();
+        for property in &projection.state {
+            if !matches!(
+                property.property_type,
+                regelrecht_law_model::ParameterType::Boolean
+                    | regelrecht_law_model::ParameterType::Number
+                    | regelrecht_law_model::ParameterType::Amount
+                    | regelrecht_law_model::ParameterType::String
+                    | regelrecht_law_model::ParameterType::Date
+            ) {
+                return refuse(
+                    where_,
+                    format!(
+                        "gives state property '{}' the type {:?}, which a state cannot have",
+                        property.name, property.property_type
+                    ),
+                );
+            }
+            if names.contains(&property.name.as_str()) {
+                return refuse(
+                    where_,
+                    format!("names state property '{}' twice", property.name),
+                );
+            }
+            names.push(&property.name);
+        }
+        for (i, step) in projection.steps.iter().enumerate() {
+            // Two steps for one record would leave which one applies to the
+            // order they are written in.
+            let (basis, kind) = step.basis_and_kind();
+            if projection.steps[..i].iter().any(|earlier| {
+                let (earlier_basis, earlier_kind) = earlier.basis_and_kind();
+                earlier_basis == basis
+                    && (earlier_kind.is_none() || kind.is_none() || earlier_kind == kind)
+            }) {
+                return refuse(
+                    where_,
+                    format!("has two steps for the same records under {basis}"),
+                );
+            }
+            let question: Vec<&str> = parameters.iter().map(|p| p.name.as_str()).collect();
+            if let Err(why) = check_step_shape(step, &names, &question) {
+                return refuse(
+                    where_,
+                    format!("the step for records under {} {why}", step.record),
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The shape of a step, apart from the laws it calls (which are in other
+/// regelwerken, so the engine checks them when it plays the projection).
+/// Its inputs each take an output of a law, `source: {regulation, output,
+/// parameters}` and nothing else, with parameters `$record.<field>` or
+/// `$state.<property>`. It sets at least one property of its state, each to
+/// a bare reference: one of its inputs, a field of the record or a property
+/// of the state, through actions with an output and a value. A step
+/// computes nothing itself.
+fn check_step_shape(
+    step: &regelrecht_law_model::ProjectionStep,
+    names: &[&str],
+    question: &[&str],
+) -> std::result::Result<(), String> {
+    use regelrecht_law_model::StepSource;
+    let own = |source: &StepSource| match source {
+        StepSource::State(p) if !names.contains(&p.as_str()) => {
+            Err(format!("reads {source}, which is no property of its state"))
+        }
+        StepSource::Input(i) if !step.input.iter().any(|input| &input.name == i) => {
+            Err(format!("reads {source}, which is no input of the step"))
+        }
+        _ => Ok(()),
+    };
+    for (n, input) in step.input.iter().enumerate() {
+        if step.input[..n]
+            .iter()
+            .any(|earlier| earlier.name == input.name)
+        {
+            return Err(format!("names input '{}' twice", input.name));
+        }
+        let allowed = ["regulation", "output", "parameters", "description"];
+        let source = input
+            .source
+            .as_ref()
+            .map(|s| serde_json::to_value(s).unwrap_or_default());
+        let keys: Vec<String> = source
+            .as_ref()
+            .and_then(|s| s.as_object())
+            .map(|o| {
+                o.iter()
+                    .filter(|(_, v)| !v.is_null())
+                    .map(|(k, _)| k.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        if !keys.iter().any(|k| k == "regulation") || !keys.iter().any(|k| k == "output") {
+            return Err(format!(
+                "has input '{}' that takes no output of a regulation; a step takes only \
+                 source.regulation with an output",
+                input.name
+            ));
+        }
+        if let Some(other) = keys.iter().find(|k| !allowed.contains(&k.as_str())) {
+            return Err(format!(
+                "has input '{}' with source.{other}; a step takes only source.regulation with \
+                 an output and parameters",
+                input.name
+            ));
+        }
+        let parameters = input.source.as_ref().and_then(|s| s.parameters.as_ref());
+        for (name, value) in parameters.into_iter().flatten() {
+            match StepSource::parse(value) {
+                Some(source @ (StepSource::Record(_) | StepSource::State(_))) => own(&source)?,
+                // A parameter of the question the reduction answers.
+                Some(StepSource::Input(asked)) if question.contains(&asked.as_str()) => {}
+                _ => {
+                    return Err(format!(
+                        "has input '{}' that passes '{name}' as '{value}'; a parameter of a step \
+                         is $record.<field>, $state.<property> or a parameter of the question",
+                        input.name
+                    ))
+                }
+            }
+        }
+    }
+    if step.actions.is_empty() {
+        return Err("sets nothing".to_string());
+    }
+    let mut given: Vec<&str> = Vec::new();
+    for action in &step.actions {
+        // An action of a step names a property and gives it a value; it
+        // computes nothing, so it has no operation of its own.
+        let fields = serde_json::to_value(action).unwrap_or_default();
+        let extra = fields.as_object().and_then(|o| {
+            o.iter()
+                .find(|(k, v)| {
+                    !v.is_null() && !["output", "value", "legal_basis"].contains(&k.as_str())
+                })
+                .map(|(k, _)| k.clone())
+        });
+        let Some(property) = action.output.as_deref() else {
+            return Err("has an action without an output".to_string());
+        };
+        if let Some(extra) = extra {
+            return Err(format!(
+                "sets '{property}' with {extra}; an action of a step has an output and a value, \
+                 because a step computes nothing itself"
+            ));
+        }
+        if !names.contains(&property) {
+            return Err(format!(
+                "sets '{property}', which is no property of its state"
+            ));
+        }
+        if given.contains(&property) {
+            return Err(format!("sets '{property}' twice"));
+        }
+        given.push(property);
+        let source = match &action.value {
+            Some(ActionValue::Literal(regelrecht_law_model::Value::String(s))) => {
+                StepSource::parse(s)
+            }
+            _ => None,
+        };
+        let Some(source) = source else {
+            return Err(format!(
+                "sets '{property}' to something that is no bare reference; write $<input>, \
+                 $record.<field> or $state.<property>, because a step computes nothing itself"
+            ));
+        };
+        own(&source)?;
+    }
+    Ok(())
+}
+
+/// `$state` is the state a projection gives (schema v0.8.14). An article
+/// with a projection reads it only as `$state.<property>`, and the property
+/// must be one its state declares: a misspelt name would otherwise load and
+/// fail only when a chronicle is played. Reading the state as a whole is
+/// refused too, because an answer names what it reads. An article without a
+/// projection has no state, so it cannot read `$state` unless it declares a
+/// variable of that name itself.
+pub(crate) fn reject_unknown_state(law: &ArticleBasedLaw) -> Result<()> {
+    use crate::projection::STATE;
+    for (where_, section) in sections(law) {
+        let Some(execution) = section.execution.as_ref() else {
+            continue;
+        };
+        let from_actions = execution
+            .actions
+            .iter()
+            .flatten()
+            .flat_map(crate::demand::referenced_paths);
+        let from_inputs = execution
+            .input
+            .iter()
+            .flatten()
+            .filter_map(|input| input.source.as_ref()?.parameters.as_ref())
+            .flat_map(|parameters| parameters.values())
+            .filter_map(|value| value.strip_prefix('$').map(str::to_string));
+        let reads: std::collections::BTreeSet<String> = from_actions
+            .chain(from_inputs)
+            .filter(|path| path == STATE || path.starts_with(&format!("{STATE}.")))
+            .collect();
+        let Some(first) = reads.iter().next() else {
+            continue;
+        };
+        let refuse = |why: String| {
+            Err(EngineError::LoadError(format!(
+                "law '{}' {where_}: {why}",
+                law.id
+            )))
+        };
+        let Some(projection) = &section.projection else {
+            let declares = execution
+                .parameters
+                .iter()
+                .flatten()
+                .any(|p| p.name == STATE)
+                || execution.input.iter().flatten().any(|i| i.name == STATE)
+                || execution.output.iter().flatten().any(|o| o.name == STATE);
+            if declares {
+                continue;
+            }
+            return refuse(format!(
+                "reads ${first}, but only a projection gives a state, and it has none"
+            ));
+        };
+        let declared: Vec<&str> = projection.state.iter().map(|p| p.name.as_str()).collect();
+        for path in &reads {
+            let property = path
+                .strip_prefix(&format!("{STATE}."))
+                .map(|rest| rest.split('.').next().unwrap_or(rest));
+            match property {
+                None => {
+                    return refuse(format!(
+                        "reads $state as a whole; name a property of its state: {}",
+                        declared.join(", ")
+                    ))
+                }
+                Some(name) if !declared.contains(&name) => {
+                    return refuse(format!(
+                        "reads $state.{name}, which is no property of its state: {}",
+                        declared.join(", ")
+                    ))
+                }
+                Some(_) => {}
             }
         }
     }
@@ -845,7 +1285,7 @@ articles:
     }
 
     /// An output the decision lists under `derived` is data derived for it
-    /// (RFC-050): the article loads, and it is no output of the decision,
+    /// (RFC-045 §1): the article loads, and it is no output of the decision,
     /// also when the decision lists no `outputs` of its own.
     #[test]
     fn an_output_the_decision_derives_is_no_output_of_it() {
@@ -867,7 +1307,7 @@ articles:
     }
 
     /// An output beside a decision that lists its own outputs belongs to no
-    /// item (RFC-052): the article loads, and the output is neither an
+    /// item (RFC-045 §1): the article loads, and the output is neither an
     /// output of the decision nor derived data for it.
     #[test]
     fn an_output_beside_the_decision_belongs_to_no_item() {
@@ -957,6 +1397,26 @@ articles:
                 "          - type: AANVRAAG\n            outputs: [x]\n          - type: BESCHIKKING\n            outputs: [x]",
                 "gives output 'x' to two things",
             ),
+            (
+                "          - type: AANVRAAG\n            parameters: [p]\n            effects:\n              - revokes: p\n          - type: BESCHIKKING",
+                "lists effects on its AANVRAAG",
+            ),
+            (
+                "          - type: BESCHIKKING\n            effects:\n              - revokes: q",
+                "names parameter 'q' in an effect",
+            ),
+            (
+                "          - type: BESCHIKKING\n            effects:\n              - revokes: p\n                when: y",
+                "depend on 'y', which is no output of its decision",
+            ),
+            (
+                "          - type: AANVRAAG\n            outputs: [x]\n          - type: BESCHIKKING\n            effects:\n              - revokes: p\n                when: x",
+                "depend on 'x', which is no output of its decision",
+            ),
+            (
+                "          - type: BESCHIKKING\n            derived: [x]\n            effects:\n              - revokes: p\n                when: x",
+                "depend on 'x', which is no output of its decision",
+            ),
         ] {
             let mut service = LawExecutionService::new();
             let err = service
@@ -967,6 +1427,277 @@ articles:
                 "{why}: got {err:?}"
             );
         }
+    }
+
+    /// A decision's effects name a parameter of the article, and may depend
+    /// on a boolean output of the decision (schema v0.8.14). There is one
+    /// kind of effect: `replaces` is no effect.
+    #[test]
+    fn a_decision_may_revoke_by_a_parameter() {
+        let replaces =
+            "          - type: BESCHIKKING\n            effects:\n              - replaces: p";
+        let err = LawExecutionService::new()
+            .load_law(&law_producing(replaces))
+            .expect_err("replaces is no effect");
+        assert!(
+            err.to_string().contains("unknown field `replaces`"),
+            "{err}"
+        );
+        for effect in ["revokes: p", "revokes: p\n                when: x"] {
+            let items = format!(
+                "          - type: BESCHIKKING\n            effects:\n              - {effect}"
+            );
+            LawExecutionService::new()
+                .load_law(&law_producing(&items))
+                .unwrap_or_else(|e| panic!("{effect}: {e}"));
+        }
+    }
+
+    /// `when` names an outcome that holds or does not: a boolean output.
+    #[test]
+    fn an_effect_depends_on_a_boolean_output() {
+        let items = "          - type: BESCHIKKING\n            effects:\n              - revokes: p\n                when: x";
+        let law = law_producing(items)
+            .replace("            type: boolean", "            type: string")
+            .replace("            value: true", "            value: ja");
+        let err = LawExecutionService::new()
+            .load_law(&law)
+            .expect_err("a string output cannot decide an effect");
+        assert!(
+            err.to_string()
+                .contains("depend on 'x', which is not a boolean"),
+            "{err}"
+        );
+    }
+
+    fn law_with_projection(layer: &str, projection: &str) -> String {
+        format!(
+            r#"
+$id: projectie
+regulatory_layer: {layer}
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      projection:
+{projection}
+      execution:
+        output:
+          - name: x
+            type: boolean
+        actions:
+          - output: x
+            value: $state.a
+"#
+        )
+    }
+
+    /// A projection sits in a reduction, names each property once with a
+    /// type a state can have, and its steps set only those (schema v0.8.14).
+    #[test]
+    fn a_projection_keeps_to_its_own_state() {
+        let state = "        state:\n          - {name: a, type: boolean}\n";
+        let ok =
+            format!("{state}        steps:\n          - {{record: wet#1, actions: [{{output: a, value: $record.v}}]}}");
+        LawExecutionService::new()
+            .load_law(&law_with_projection("REDUCTIE", &ok))
+            .unwrap();
+        // Steps for different kinds of record under one article, and a
+        // string that a step sets to null.
+        let kinds = "        state:\n          - {name: a, type: boolean}\n          - {name: s, type: string}\n        steps:\n          - {record: wet#1#AANVRAAG, actions: [{output: a, value: $record.v}]}\n          - {record: wet#1#BESCHIKKING, input: [{name: x, type: boolean, source: {regulation: wet, output: o, parameters: {p: $state.s, q: $record.k}}}], actions: [{output: a, value: $x}, {output: s, value: $state.s}]}";
+        LawExecutionService::new()
+            .load_law(&law_with_projection("REDUCTIE", kinds))
+            .unwrap();
+        // A step may pass a parameter of the question the reduction answers.
+        let asks = format!("{state}        steps:\n          - {{record: wet#1, input: [{{name: x, type: boolean, source: {{regulation: wet, output: o, parameters: {{p: $peildatum}}}}}}], actions: [{{output: a, value: $x}}]}}");
+        let with_question = law_with_projection("REDUCTIE", &asks).replace(
+            "      execution:\n",
+            "      execution:\n        parameters:\n          - {name: peildatum, type: date}\n",
+        );
+        LawExecutionService::new().load_law(&with_question).unwrap();
+        // Without that parameter, `$peildatum` is nothing the step can pass.
+        assert!(LawExecutionService::new()
+            .load_law(&law_with_projection("REDUCTIE", &asks))
+            .is_err());
+        let declares_state = law_with_projection("REDUCTIE", &ok).replace(
+            "      execution:\n",
+            "      execution:\n        parameters:\n          - {name: state, type: object}\n",
+        );
+        let err = LawExecutionService::new()
+            .load_law(&declares_state)
+            .expect_err("a declared state");
+        assert!(
+            err.to_string().contains("declares a parameter 'state'"),
+            "{err}"
+        );
+        for (layer, projection, why) in [
+            (
+                "WET",
+                ok.clone(),
+                "only a reduction plays a chronicle forward",
+            ),
+            (
+                "REDUCTIE",
+                format!("{state}        steps:\n          - {{record: wet#1, actions: [{{output: b, value: $record.v}}]}}"),
+                "the step for records under wet#1 sets 'b', which is no property of its state",
+            ),
+            (
+                "REDUCTIE",
+                format!("{state}          - {{name: a, type: number}}\n        steps: []"),
+                "names state property 'a' twice",
+            ),
+            (
+                "REDUCTIE",
+                "        state:\n          - {name: a, type: array}\n        steps: []".to_string(),
+                "the type Array, which a state cannot have",
+            ),
+            (
+                "REDUCTIE",
+                "        state: []\n        steps: []".to_string(),
+                "has a projection without a state",
+            ),
+            (
+                "REDUCTIE",
+                format!("        key: aanvrager\n{state}        steps: []"),
+                "plays the records of one 'aanvrager', which is no parameter it declares",
+            ),
+            (
+                "REDUCTIE",
+                format!("{state}        steps:\n          - {{record: wet#1, actions: [{{output: a, value: $record.v}}]}}\n          - {{record: wet#1#BESCHIKKING, actions: [{{output: a, value: $record.v}}]}}"),
+                "has two steps for the same records under wet#1",
+            ),
+            (
+                "REDUCTIE",
+                format!("{state}        steps:\n          - {{record: wet#1#BESCHIKKING, actions: [{{output: a, value: $record.v}}]}}\n          - {{record: wet#1#BESCHIKKING, actions: [{{output: a, value: $record.v}}]}}"),
+                "has two steps for the same records under wet#1",
+            ),
+        ] {
+            let err = LawExecutionService::new()
+                .load_law(&law_with_projection(layer, &projection))
+                .expect_err(why);
+            assert!(err.to_string().contains(why), "{why}: {err}");
+        }
+        // A step takes outputs of a law and sets properties to bare
+        // references; it computes nothing itself.
+        let input = |source: &str| format!("[{{name: x, type: boolean, source: {source}}}]");
+        let law_input = input("{regulation: wet, output: o, parameters: {p: $state.a}}");
+        for (inputs, set, why) in [
+            (law_input.clone(), "[{output: a, value: {operation: NOT, value: $x}}]", "sets 'a' to something that is no bare reference"),
+            (law_input.clone(), "[{output: a, value: true}]", "sets 'a' to something that is no bare reference"),
+            (law_input.clone(), "[{output: a, value: $y}]", "reads $y, which is no input of the step"),
+            (law_input.clone(), "[{output: a, value: $state.b}]", "reads $state.b, which is no property of its state"),
+            (law_input.clone(), "[]", "the step for records under wet#1 sets nothing"),
+            (law_input.clone(), "[{output: a, value: $x}, {output: a, value: $state.a}]", "sets 'a' twice"),
+            (law_input.clone(), "[{output: a, operation: NOT, value: $x}]", "sets 'a' with operation"),
+            (input("{reduction: antwoord}"), "[{output: a, value: $x}]", "has input 'x' that takes no output of a regulation"),
+            (input("{regulation: wet}"), "[{output: a, value: $x}]", "has input 'x' that takes no output of a regulation"),
+            (input("{output: o}"), "[{output: a, value: $x}]", "has input 'x' that takes no output of a regulation"),
+            (input("{regulation: wet, output: o, decisions: 'wet#1'}"), "[{output: a, value: $x}]", "has input 'x' with source.decisions"),
+            (input("{regulation: wet, output: o, parameters: {p: true}}"), "[{output: a, value: $x}]", "passes 'p' as 'true'"),
+            (input("{regulation: wet, output: o, parameters: {p: $x}}"), "[{output: a, value: $x}]", "passes 'p' as '$x'"),
+            (input("{regulation: wet, output: o, parameters: {p: $state.b}}"), "[{output: a, value: $x}]", "reads $state.b, which is no property of its state"),
+            (
+                "[{name: x, type: boolean, source: {regulation: wet, output: o}}, {name: x, type: boolean, source: {regulation: wet, output: o}}]".to_string(),
+                "[{output: a, value: $x}]",
+                "names input 'x' twice",
+            ),
+        ] {
+            let projection = format!("{state}        steps:\n          - {{record: wet#1, input: {inputs}, actions: {set}}}");
+            let err = LawExecutionService::new()
+                .load_law(&law_with_projection("REDUCTIE", &projection))
+                .expect_err(why);
+            assert!(err.to_string().contains(why), "{why}: {err}");
+        }
+        // A kind is in capitals, after a third `#`.
+        for record in ["wet#1#beschikking", "wet#1#"] {
+            let projection = format!(
+                "{state}        steps:\n          - {{record: '{record}', actions: [{{output: a, value: $record.v}}]}}"
+            );
+            assert!(
+                LawExecutionService::new()
+                    .load_law(&law_with_projection("REDUCTIE", &projection))
+                    .is_err(),
+                "{record}"
+            );
+        }
+    }
+
+    /// An answer reads `$state.<property>` of a property its state declares;
+    /// a misspelt property, the state as a whole, or `$state` in an article
+    /// without a projection fails to load (schema v0.8.14).
+    #[test]
+    fn an_answer_reads_only_declared_state() {
+        let state = "        state:\n          - {name: a, type: boolean}\n        steps: []";
+        let load = |law: String| LawExecutionService::new().load_law(&law);
+        // A declared property, also inside a condition.
+        load(law_with_projection("REDUCTIE", state).replace(
+            "            value: $state.a\n",
+            "            value: {operation: AND, conditions: [$state.a, true]}\n",
+        ))
+        .unwrap();
+        for (law, why) in [
+            (
+                law_with_projection("REDUCTIE", state).replace("$state.a", "$state.b"),
+                "reads $state.b, which is no property of its state: a",
+            ),
+            (
+                law_with_projection("REDUCTIE", state).replace(
+                    "            value: $state.a\n",
+                    "            value: {operation: NOT, value: $state.vergunnig}\n",
+                ),
+                "reads $state.vergunnig, which is no property of its state: a",
+            ),
+            (
+                law_with_projection("REDUCTIE", state).replace("$state.a", "$state"),
+                "reads $state as a whole; name a property of its state: a",
+            ),
+            (
+                law_with_projection("REDUCTIE", state).replace(
+                    "      execution:\n",
+                    "      execution:\n        input:\n          - {name: i, type: boolean, source: {regulation: elders, output: o, parameters: {p: $state.c}}}\n",
+                ),
+                "reads $state.c, which is no property of its state: a",
+            ),
+            (
+                law_with_projection("REDUCTIE", state)
+                    .replace("      projection:\n", "")
+                    .replace(state, ""),
+                "reads $state.a, but only a projection gives a state, and it has none",
+            ),
+            (
+                law_with_projection("WET", state)
+                    .replace("      projection:\n", "")
+                    .replace(state, ""),
+                "reads $state.a, but only a projection gives a state, and it has none",
+            ),
+        ] {
+            let err = load(law).expect_err(why);
+            assert!(err.to_string().contains(why), "{why}: {err}");
+        }
+        // Without a projection, an article may read a `state` it declares:
+        // a parameter, an input or an output of that name.
+        let without = law_with_projection("WET", state)
+            .replace("      projection:\n", "")
+            .replace(state, "");
+        for declares in [
+            "      execution:\n        parameters:\n          - {name: state, type: object}\n",
+            "      execution:\n        input:\n          - {name: state, type: object, source: {regulation: elders, output: o}}\n",
+        ] {
+            load(without.replace("      execution:\n", declares)).unwrap();
+        }
+        load(
+            without
+                .replace(
+                    "        output:\n",
+                    "        output:\n          - name: state\n            type: object\n",
+                )
+                .replace(
+                    "        actions:\n",
+                    "        actions:\n          - output: state\n            value: {a: true}\n",
+                ),
+        )
+        .unwrap();
     }
 
     /// Not an Unknown: a sentinel without a usable `missing` list stays a

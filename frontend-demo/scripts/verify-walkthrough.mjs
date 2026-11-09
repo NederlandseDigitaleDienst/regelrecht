@@ -16,6 +16,8 @@
  * and a label without one shows up here as a miss.
  *
  *   --locale CODE   check only that language (while working on a translation)
+ *   --shard K/N     check only every N-th (size, language) run, starting at
+ *                   the K-th; CI splits the check over N jobs this way
  *
  *   node frontend-demo/scripts/verify-walkthrough.mjs [--url URL] [--size WxH ...]
  *
@@ -37,11 +39,18 @@ const timelinePath = resolve(appRoot, '..', 'corpus', 'demo', 'walkthrough', 'ti
 const PORT = 7413;
 
 function args(argv) {
-  const out = { url: null, sizes: [], locale: null };
+  const out = { url: null, sizes: [], locale: null, shard: [1, 1] };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--url') out.url = argv[++i];
     else if (argv[i] === '--size') out.sizes.push(argv[++i]);
     else if (argv[i] === '--locale') out.locale = argv[++i];
+    else if (argv[i] === '--shard') {
+      const [k, n] = String(argv[++i]).split('/').map(Number);
+      if (!(Number.isInteger(k) && Number.isInteger(n) && k >= 1 && k <= n)) {
+        throw new Error(`--shard verwacht K/N met 1 <= K <= N, kreeg ${argv[i]}`);
+      }
+      out.shard = [k, n];
+    }
   }
   if (!out.sizes.length) out.sizes = ['1600x1000', '1280x800'];
   return out;
@@ -83,7 +92,8 @@ async function launch() {
   const { chromium } = await import('playwright');
   // Muted: a voice out of nowhere in someone's meeting is not a test result.
   const opts = { headless: true, args: ['--mute-audio'] };
-  // On a laptop the installed Chrome is there already; CI installs Chromium.
+  // On a laptop the installed Chrome is there already; CI runs in the
+  // Playwright image, which carries Chromium.
   if (!process.env.CI) {
     try {
       return await chromium.launch({ ...opts, channel: 'chrome' });
@@ -177,7 +187,7 @@ async function main() {
     console.log('walkthrough: geen timeline.json, niets te controleren');
     return 0;
   }
-  const { url, sizes, locale } = args(process.argv.slice(2));
+  const { url, sizes, locale, shard } = args(process.argv.slice(2));
   const timeline = JSON.parse(readFileSync(timelinePath, 'utf8'));
   // The replay waits for the voice to load; the video it never plays.
   await fetchMedia({ audioOnly: true });
@@ -186,10 +196,15 @@ async function main() {
   try {
     await waitFor(`${base}/rondleiding`, 120_000);
     const browser = await launch();
-    let failed = 0;
-    if (!locale || locale === 'nl') for (const size of sizes) failed += await verify(browser, base, timeline, size);
+    const runs = [];
+    if (!locale || locale === 'nl') for (const size of sizes) runs.push([size, 'nl']);
     const others = (timeline.locales ?? []).filter((l) => l !== 'nl' && (!locale || l === locale));
-    for (const code of others) failed += await verify(browser, base, timeline, sizes[0], code);
+    for (const code of others) runs.push([sizes[0], code]);
+    const [k, n] = shard;
+    let failed = 0;
+    for (const [i, [size, code]] of runs.entries()) {
+      if (i % n === k - 1) failed += await verify(browser, base, timeline, size, code);
+    }
     await browser.close();
     return failed ? 1 : 0;
   } finally {

@@ -46,6 +46,18 @@ describe('produces', () => {
     expect(producedSubmission(objection)).toBe(objection[0]);
   });
 
+  it('reads an appeal as a submission, and the judgment on it as the decision (Awb 8:70)', () => {
+    const appeal = [
+      { type: 'BEROEP', requests: 'algemene_wet_bestuursrecht#8:70' },
+      { type: 'UITSPRAAK', outputs: ['beroep_ontvankelijk', 'beroep_gegrond'] },
+    ];
+    expect(submissionKindOf(appeal[0])).toBe('BEROEP');
+    expect(legalCharacterOf(appeal[0])).toBeNull();
+    expect(legalCharacterOf(appeal[1])).toBe('UITSPRAAK');
+    expect(producedDecision(appeal)).toBe(appeal[1]);
+    expect(producedSubmission(appeal)).toBe(appeal[0]);
+  });
+
   it('gives the decision in the object form terms', () => {
     expect(decisionOf(list)).toEqual({ legal_character: 'BESCHIKKING', decision_type: 'TOEKENNING', procedure_id: undefined });
     expect(decisionOf(object)?.legal_character).toBe('BESCHIKKING');

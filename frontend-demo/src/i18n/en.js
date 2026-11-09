@@ -675,6 +675,7 @@ export default {
 
   // ---- simulation: the main panel -----------------------------------------
   'sim.tab.comparison': 'Comparison',
+  'sim.tab.label': 'Simulations',
   'sim.view.overview': 'Overview',
   'sim.view.breakdown': 'Breakdown',
   'sim.view.population': 'Population',
@@ -938,7 +939,6 @@ export default {
   'walkthrough.missing.title': 'No walkthrough yet',
   'walkthrough.missing.body': 'This version of the demo has no recorded walkthrough. The presentation and the demo itself do work.',
   'home.presentation.walkthrough': 'Watch the recorded walkthrough',
-  'home.ways.label': 'How do you want to see the demo?',
   'home.ways.walkthrough.title': 'Watch the walkthrough',
   'home.ways.walkthrough.text': 'Recorded, with a voice. The demo plays itself; you can pause and click on yourself. About {minutes} minutes.',
   'home.ways.browse.title': 'Look around yourself',
@@ -974,6 +974,8 @@ export default {
   'walkthrough.back_seconds': 'Back {n} seconds',
   'walkthrough.forward_seconds': 'Forward {n} seconds',
   'walkthrough.ai_voice': "The voice in the chapters is generated with AI, from the presenter's own voice.",
+  'walkthrough.dubbed_voice': "The walkthrough was recorded in Dutch. What you hear is a translation, spoken by an AI voice based on the presenter's own.",
+  'walkthrough.original_voice': 'Original voice (Dutch)',
   'recorder.mic.label': 'Microphone',
   'recorder.mic.test': 'Test microphone',
   'recorder.mic.stop_test': 'Stop test',

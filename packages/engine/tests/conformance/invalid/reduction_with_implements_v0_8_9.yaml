@@ -1,0 +1,35 @@
+---
+# Since schema v0.8.9 a REDUCTIE fills no open term (implements): its cell
+# gives it as a named answer, which a policy binds to the term (RFC-048).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.9/schema/v0.8.9/schema.json
+$id: test_conformance_reduction_with_implements_v0_8_9
+regulatory_layer: REDUCTIE
+publication_date: '2026-10-22'
+valid_from: '2026-10-22'
+url: https://example.invalid/reduction
+articles:
+  - number: '1'
+    text: Er is al verlof verleend als een besluit verlof verleende.
+    url: https://example.invalid/reduction/1
+    machine_readable:
+      implements:
+        - law: wet_fictief
+          article: '1'
+          open_term: al_verleend
+      execution:
+        input:
+          - name: besluiten
+            type: array
+            source:
+              decisions: wet_fictief#1
+        output:
+          - name: al_verleend
+            type: boolean
+        actions:
+          - output: al_verleend
+            value:
+              operation: FOREACH
+              collection: $besluiten
+              as: besluit
+              body: true
+              combine: OR

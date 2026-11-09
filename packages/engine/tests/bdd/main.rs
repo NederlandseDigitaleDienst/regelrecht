@@ -11,6 +11,10 @@
 //! scenarios tagged `@wip` (genuine, NB-documented engine gaps that assert the
 //! desired-but-not-yet-produced outcome).
 //!
+//! The cell's own suite (`packages/cel/tests/bdd`) reuses this runner's world,
+//! dispatch and helpers by `#[path]`; `extension.rs` is where a runner adds
+//! actions of its own, and this one adds none.
+//!
 //! # Usage
 //!
 //! ```bash
@@ -39,9 +43,11 @@
 mod common;
 mod discovery;
 mod dispatch;
+mod extension;
 mod helpers;
 #[path = "../common/reverse_actions.rs"]
 mod reverse_actions;
+mod runner;
 mod world;
 
 /// Code-generated cucumber step bindings from `bdd/grammar.yaml`.
@@ -56,33 +62,7 @@ mod generated_steps {
 
 use std::path::{Path, PathBuf};
 
-use cucumber::feature::Ext as _;
-use cucumber::{cli, parser, World as _};
 use discovery::Bucket;
-use futures::stream;
-
-/// Parser that consumes an explicit, pre-collected list of feature file paths
-/// (the two buckets) instead of recursively walking a single root. This keeps
-/// the runner from picking up unrelated `.feature` files and lets us combine
-/// `corpus/regulation/**/scenarios` with `bdd/conformance` in one run.
-struct ExplicitPaths;
-
-impl parser::Parser<Vec<PathBuf>> for ExplicitPaths {
-    type Cli = cli::Empty;
-    type Output = stream::Iter<std::vec::IntoIter<Result<gherkin::Feature, parser::Error>>>;
-
-    fn parse(self, input: Vec<PathBuf>, _cli: Self::Cli) -> Self::Output {
-        let features: Vec<Result<gherkin::Feature, parser::Error>> = input
-            .into_iter()
-            .map(|path| {
-                gherkin::Feature::parse_path(&path, gherkin::GherkinEnv::default())
-                    .map_err(parser::Error::from)
-                    .and_then(|f| f.expand_examples().map_err(parser::Error::from))
-            })
-            .collect();
-        stream::iter(features)
-    }
-}
 
 impl Bucket {
     /// `BDD_BUCKET`: `all` (default), `corpus` (bucket A) or `conformance`
@@ -99,22 +79,14 @@ impl Bucket {
 
 /// The corpus whose scenarios bucket A runs: `REGULATION_PATH` when set (the
 /// same variable the engine loads its laws from), else the fixture corpus.
-/// `just bdd-demo` points it at `corpus/demo/regulation`.
-fn corpus_root(root: &Path) -> PathBuf {
-    match std::env::var("REGULATION_PATH") {
-        Ok(p) if !p.trim().is_empty() => PathBuf::from(p),
-        _ => root.join("corpus/regulation"),
-    }
+/// `just bdd-demo` points it at `corpus/demo/regulation`, `just bdd-chrono`
+/// at the directories of the chronolexografie PoC.
+fn corpus_roots() -> Vec<PathBuf> {
+    common::regulation_base_paths()
 }
 
 #[tokio::main]
 async fn main() {
-    // Initialize tracing subscriber (respects RUST_LOG env var)
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .with_test_writer()
-        .init();
-
     // Project root = two levels up from the engine package manifest.
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let root = Path::new(manifest_dir)
@@ -124,28 +96,9 @@ async fn main() {
         .to_path_buf();
 
     let bucket = Bucket::from_env();
-    let features = match discovery::collect_feature_paths(&root, &corpus_root(&root), bucket) {
+    let features = match discovery::collect_feature_paths(&root, &corpus_roots(), bucket) {
         Ok(features) => features,
         Err(e) => panic!("BDD feature discovery failed under {}: {e}", root.display()),
     };
-
-    // Run cucumber over both buckets. `@wip` scenarios document genuine,
-    // NB-annotated engine gaps (they assert the desired-but-not-yet-produced
-    // outcome) — skip them so they neither run nor fail the suite.
-    // `filter_run_and_exit` exits non-zero on test failures.
-    //
-    // `fail_on_skipped` covers the other way a scenario stops testing: cucumber
-    // counts a step without a matching definition as *skipped*, and
-    // `execution_has_failed()` only looks at failed steps. Without it a reworded
-    // `Then` passes green while asserting nothing.
-    world::RegelrechtWorld::cucumber::<&std::path::Path>()
-        .with_parser::<ExplicitPaths, Vec<PathBuf>>(ExplicitPaths)
-        .max_concurrent_scenarios(1) // Run scenarios sequentially for predictable state
-        .fail_on_skipped()
-        .with_default_cli()
-        .filter_run_and_exit(features, |feature, _rule, scenario| {
-            let is_wip = |tags: &[String]| tags.iter().any(|t| t == "wip");
-            !is_wip(&feature.tags) && !is_wip(&scenario.tags)
-        })
-        .await;
+    runner::run(features).await;
 }

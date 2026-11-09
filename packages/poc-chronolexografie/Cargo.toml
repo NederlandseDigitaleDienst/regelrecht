@@ -3,7 +3,7 @@ name = "regelrecht-poc-chronolexografie"
 version = "0.1.0"
 edition = "2021"
 authors = ["MinBZK <noreply@minbzk.nl>"]
-description = "PoC: een uitvoeringsproces naspelen op de cel van een fictieve uitvoerder, per casus (vakantieverlof, gehandicaptenparkeerkaart), als WASM in de browser"
+description = "PoC: een uitvoeringsproces naspelen op de cel van een fictieve uitvoerder, per casus (vakantieverlof, gehandicaptenparkeerkaart, bedrijfsparkeervergunning, zorgtoeslag), als WASM in de browser"
 license = "EUPL-1.2"
 repository = "https://github.com/NederlandseDigitaleDienst/regelrecht"
 publish = false
@@ -21,6 +21,11 @@ chrono.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml_ng.workspace = true
+
+[dev-dependencies]
+# A source as the portal serves it, from a folder or a manifest (the tests in
+# src/bundel.rs).
+regelrecht-poc-portal = { path = "../poc-portal" }
 
 [dependencies.wasm-bindgen]
 version = "0.2"

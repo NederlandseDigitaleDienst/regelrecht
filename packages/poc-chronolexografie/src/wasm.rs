@@ -148,9 +148,14 @@ impl Poc {
         antwoord(self.spel.waarom(id))
     }
 
+    #[wasm_bindgen(js_name = watVolgt)]
+    pub fn wat_volgt(&mut self, id: &str) -> Result<String, JsError> {
+        antwoord(self.spel.wat_volgt(id))
+    }
+
     #[wasm_bindgen(js_name = hoeBeantwoord)]
-    pub fn hoe_beantwoord(&mut self, id: &str, begrip: &str) -> Result<String, JsError> {
-        antwoord(self.spel.hoe_beantwoord(id, begrip))
+    pub fn hoe_beantwoord(&mut self, id: &str, naam: &str) -> Result<String, JsError> {
+        antwoord(self.spel.hoe_beantwoord(id, naam))
     }
 
     pub fn bezwaren(
@@ -192,6 +197,88 @@ impl Poc {
     ) -> Result<String, JsError> {
         antwoord(self.spel.voorvertoning_op_bezwaar(
             op,
+            &kaart("bevindingen", bevindingen)?,
+            dag(datum)?,
+        ))
+    }
+
+    #[wasm_bindgen(js_name = beroepInstellen)]
+    pub fn beroep_instellen(
+        &mut self,
+        besluit: &str,
+        velden: &str,
+        datum: &str,
+    ) -> Result<String, JsError> {
+        antwoord(
+            self.spel
+                .beroep_instellen(besluit, &kaart("velden", velden)?, dag(datum)?),
+        )
+    }
+
+    #[wasm_bindgen(js_name = uitspraakDoen)]
+    pub fn uitspraak_doen(
+        &mut self,
+        op: &str,
+        bevindingen: &str,
+        datum: &str,
+    ) -> Result<String, JsError> {
+        antwoord(
+            self.spel
+                .uitspraak_doen(op, &kaart("bevindingen", bevindingen)?, dag(datum)?),
+        )
+    }
+
+    #[wasm_bindgen(js_name = voorvertoningUitspraak)]
+    pub fn voorvertoning_uitspraak(
+        &mut self,
+        op: &str,
+        bevindingen: &str,
+        datum: &str,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.voorvertoning_uitspraak(
+            op,
+            &kaart("bevindingen", bevindingen)?,
+            dag(datum)?,
+        ))
+    }
+
+    pub fn toezenden(&mut self, uitspraak: &str, datum: &str) -> Result<String, JsError> {
+        antwoord(self.spel.toezenden(uitspraak, dag(datum)?))
+    }
+
+    #[wasm_bindgen(js_name = waaromUitspraak)]
+    pub fn waarom_uitspraak(&mut self, id: &str) -> Result<String, JsError> {
+        antwoord(self.spel.waarom_uitspraak(id))
+    }
+
+    #[wasm_bindgen(js_name = heroverwegingNaUitspraak)]
+    pub fn heroverweging_na_uitspraak(&mut self, ontvangst: &str) -> Result<String, JsError> {
+        antwoord(self.spel.heroverweging_na_uitspraak(ontvangst))
+    }
+
+    #[wasm_bindgen(js_name = opnieuwBeslissenOpBezwaar)]
+    pub fn opnieuw_beslissen_op_bezwaar(
+        &mut self,
+        ontvangst: &str,
+        bevindingen: &str,
+        datum: &str,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.opnieuw_beslissen_op_bezwaar(
+            ontvangst,
+            &kaart("bevindingen", bevindingen)?,
+            dag(datum)?,
+        ))
+    }
+
+    #[wasm_bindgen(js_name = voorvertoningNaUitspraak)]
+    pub fn voorvertoning_na_uitspraak(
+        &mut self,
+        ontvangst: &str,
+        bevindingen: &str,
+        datum: &str,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.voorvertoning_na_uitspraak(
+            ontvangst,
             &kaart("bevindingen", bevindingen)?,
             dag(datum)?,
         ))

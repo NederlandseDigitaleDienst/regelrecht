@@ -114,8 +114,15 @@ const CONTRACT: &[(&str, &[&str])] = &[
 /// corpus. Aanroepen bij het opstarten: bestaat een output niet (meer),
 /// dan weigert de applicatie te starten.
 pub fn valideer_contract(corpus: &Arc<LawCorpus>) -> anyhow::Result<()> {
+    valideer_contract_met(corpus, CONTRACT)
+}
+
+fn valideer_contract_met(
+    corpus: &Arc<LawCorpus>,
+    contract: &[(&str, &[&str])],
+) -> anyhow::Result<()> {
     with_service(corpus, |service| {
-        for (law_id, outputs) in CONTRACT {
+        for (law_id, outputs) in contract {
             for output in *outputs {
                 if service
                     .resolver()
@@ -1310,17 +1317,10 @@ mod tests {
     #[test]
     fn contractbreuk_wordt_luid_gemeld() {
         let corpus = Arc::new(LawCorpus::embedded());
-        let fout = with_service(&corpus, |service| {
-            if service
-                .resolver()
-                .get_article_by_output(WPP_ID, "bestaat_niet", None)
-                .is_none()
-            {
-                anyhow::bail!("contractbreuk wet↔uitvoering: output 'bestaat_niet'");
-            }
-            Ok(())
-        })
-        .expect_err("onbekende output hoort te falen");
-        assert!(fout.to_string().contains("bestaat_niet"));
+        let fout = valideer_contract_met(&corpus, &[(WPP_ID, &["bestaat_niet"])])
+            .expect_err("onbekende output hoort te falen");
+        let melding = fout.to_string();
+        assert!(melding.contains("'bestaat_niet'"), "{melding}");
+        assert!(melding.contains(WPP_ID), "{melding}");
     }
 }

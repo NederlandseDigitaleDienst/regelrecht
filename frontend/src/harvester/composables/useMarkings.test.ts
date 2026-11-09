@@ -1,17 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { useMarkings } from './useMarkings';
-
-// Minimal Response-like stub for a paginated JSON body.
-function res({ data = [], total = data.length }: { data?: unknown[]; total?: number } = {}) {
-  return {
-    ok: true,
-    status: 200,
-    headers: { get: () => null },
-    async json() {
-      return { data, total, limit: 50, offset: 0 };
-    },
-  };
-}
+import { pageRes, stubFetch } from '../../test-utils/fetchStubs';
 
 // The composable fires an initial fetch + starts a 20s poll on creation. Fake
 // timers keep the poll from firing during the test; we stop it in afterEach.
@@ -30,8 +19,7 @@ afterEach(() => {
 
 /** Create the composable, wait for its initial fetch to settle. */
 async function create(fetchSpy: Mock) {
-  // The spy stands in for fetch; its stub responses carry only what apiFetch reads.
-  globalThis.fetch = fetchSpy as unknown as typeof fetch;
+  stubFetch(fetchSpy);
   const comp = useMarkings();
   stop = comp.stopPolling;
   await comp.refresh();
@@ -47,7 +35,7 @@ function lastUrl(fetchSpy: Mock): string {
 
 describe('useMarkings', () => {
   it('asks for the markings endpoint with sensible defaults', async () => {
-    const spy = vi.fn().mockResolvedValue(res());
+    const spy = vi.fn().mockResolvedValue(pageRes());
     await create(spy);
 
     const url = lastUrl(spy);
@@ -59,7 +47,7 @@ describe('useMarkings', () => {
   });
 
   it('sorts on an allowed key and resets to the first page', async () => {
-    const spy = vi.fn().mockResolvedValue(res());
+    const spy = vi.fn().mockResolvedValue(pageRes());
     const comp = await create(spy);
 
     comp.goToPage(3);
@@ -74,7 +62,7 @@ describe('useMarkings', () => {
   });
 
   it('toggles direction when the same key is chosen again', async () => {
-    const spy = vi.fn().mockResolvedValue(res());
+    const spy = vi.fn().mockResolvedValue(pageRes());
     const comp = await create(spy);
 
     comp.setSort('about');
@@ -89,7 +77,7 @@ describe('useMarkings', () => {
   // `law_name` is a joined column, so the backend rejects it. The composable
   // refuses it too rather than sending a request it knows will fail.
   it('ignores a sort key outside the allowlist', async () => {
-    const spy = vi.fn().mockResolvedValue(res());
+    const spy = vi.fn().mockResolvedValue(pageRes());
     const comp = await create(spy);
     const before = spy.mock.calls.length;
 
@@ -100,7 +88,7 @@ describe('useMarkings', () => {
   });
 
   it('adds and removes filters', async () => {
-    const spy = vi.fn().mockResolvedValue(res());
+    const spy = vi.fn().mockResolvedValue(pageRes());
     const comp = await create(spy);
 
     comp.setFilter('resolution', 'operation');
@@ -116,7 +104,7 @@ describe('useMarkings', () => {
   // without the paging. Handing it the full query string would make the
   // backlog describe one page rather than the whole selection.
   it('exposes filters without paging or sorting, for the cluster view', async () => {
-    const spy = vi.fn().mockResolvedValue(res());
+    const spy = vi.fn().mockResolvedValue(pageRes());
     const comp = await create(spy);
 
     comp.setFilter('provider', 'claude');
@@ -135,7 +123,7 @@ describe('useMarkings', () => {
   // no sequencing or cancellation in `usePollingFetch`, so a broader first
   // response landing last overwrites the narrower one.
   it('sends one request for several filters at once', async () => {
-    const spy = vi.fn().mockResolvedValue(res());
+    const spy = vi.fn().mockResolvedValue(pageRes());
     const comp = await create(spy);
     const before = spy.mock.calls.length;
 
@@ -149,7 +137,7 @@ describe('useMarkings', () => {
   });
 
   it('clears a filter passed as empty in the same update', async () => {
-    const spy = vi.fn().mockResolvedValue(res());
+    const spy = vi.fn().mockResolvedValue(pageRes());
     const comp = await create(spy);
 
     comp.setFilters({ resolution: 'model', resolved_by: 'iets' });
@@ -164,7 +152,7 @@ describe('useMarkings', () => {
   });
 
   it('turns a page number into an offset', async () => {
-    const spy = vi.fn().mockResolvedValue(res({ data: [], total: 200 }));
+    const spy = vi.fn().mockResolvedValue(pageRes({ data: [], total: 200 }));
     const comp = await create(spy);
 
     comp.goToPage(3);

@@ -66,6 +66,15 @@ const KEYWORDS: Record<string, Record<string, string> | undefined> = {
     But: 'Maar',
     '*': '*',
   },
+  // De Franse sleutelwoorden van Gherkin zelf (`# language: fr`).
+  fr: {
+    Given: 'Soit',
+    When: 'Quand',
+    Then: 'Alors',
+    And: 'Et',
+    But: 'Mais',
+    '*': '*',
+  },
 };
 
 const TEMPLATES: { nl: Record<string, StepTemplate>; [code: string]: Record<string, StepTemplate> | undefined } = {
@@ -92,6 +101,30 @@ const TEMPLATES: { nl: Record<string, StepTemplate>; [code: string]: Record<stri
     assert_unknown_for: (a) => `is ${q(a[0])} onbekend bij gebrek aan ${q(a[1])}`,
     assert_contains: (a) => `bevat ${q(a[0])} ${q(a[1])}`,
     assert_exact_outputs: (a) => `bevat de uitkomst precies ${q(a[0])}`,
+  },
+  fr: {
+    set_calculation_date: (a) => `la date de référence est ${q(a[0])}`,
+    load_law: (a) => `la réglementation ${q(a[0])} est chargée`,
+    set_parameter_string: (a) => `le paramètre ${q(a[0])} vaut ${q(a[1])}`,
+    set_parameter_number: (a) => `le paramètre ${q(a[0])} vaut ${a[1]}`,
+    set_parameters_table: () => 'les paramètres suivants :',
+    set_data_source: (a) => `les données suivantes de ${q(a[0])}, indexées par ${q(a[1])} :`,
+    set_data_source_for_law: (a) => `les données suivantes de ${q(a[0])} pour ${q(a[2])}, indexées par ${q(a[1])} :`,
+    set_parameter_collection: (a) => `le paramètre ${q(a[0])} est l'ensemble :`,
+    evaluate: (a) => `${q(a[1])} est exécuté pour ${q(a[0])}`,
+    evaluate_outputs: (a) => `${q(a[1])} est exécuté pour ${q(a[0])}`,
+    assert_succeeds: () => "l'exécution réussit",
+    assert_fails: () => "l'exécution échoue",
+    assert_fails_with: (a) => `l'exécution échoue avec ${q(a[0])}`,
+    assert_boolean_true: (a) => `${q(a[0])} est vrai`,
+    assert_boolean_false: (a) => `${q(a[0])} est faux`,
+    assert_equals_number: (a) => `${q(a[0])} vaut ${a[1]}`,
+    assert_equals_string: (a) => `${q(a[0])} vaut ${q(a[1])}`,
+    assert_null: (a) => `${q(a[0])} est absent`,
+    assert_unknown: (a) => `${q(a[0])} est inconnu`,
+    assert_unknown_for: (a) => `${q(a[0])} est inconnu faute de ${q(a[1])}`,
+    assert_contains: (a) => `${q(a[0])} contient ${q(a[1])}`,
+    assert_exact_outputs: (a) => `le résultat contient exactement ${q(a[0])}`,
   },
 };
 
@@ -154,6 +187,7 @@ export function stepTemplatePairs(from: string, to: string): [string, string][] 
 const FEATURE_KEYWORDS: { nl: FeatureKeywords; en: FeatureKeywords; [code: string]: FeatureKeywords | undefined } = {
   nl: { Feature: 'Functionaliteit', Background: 'Achtergrond', Scenario: 'Scenario' },
   en: { Feature: 'Feature', Background: 'Background', Scenario: 'Scenario' },
+  fr: { Feature: 'Fonctionnalité', Background: 'Contexte', Scenario: 'Scénario' },
 };
 
 /**

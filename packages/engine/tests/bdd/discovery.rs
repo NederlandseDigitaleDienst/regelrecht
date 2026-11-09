@@ -67,37 +67,57 @@ impl Bucket {
 }
 
 /// Collect the feature files of the selected bucket(s):
-/// - bucket A: any `*.feature` under a `scenarios/` directory in `corpus`, and
+/// - bucket A: any `*.feature` under a `scenarios/` directory in one of
+///   `corpora`, and
 /// - bucket B: `bdd/conformance/*.feature` under `root`.
 ///
-/// `corpus` is passed separately because bucket A follows `REGULATION_PATH`,
+/// `corpora` is passed separately because bucket A follows `REGULATION_PATH`,
 /// the same variable the engine loads its laws from, so the scenarios and the
-/// laws they test always come from one corpus.
+/// laws they test always come from one corpus. That corpus may lie in several
+/// directories, such as the shared regulation of the chronolexografie PoC and
+/// the own regulation of each of its cases; together they hold at least one
+/// scenario.
 pub fn collect_feature_paths(
     root: &Path,
-    corpus: &Path,
+    corpora: &[PathBuf],
     bucket: Bucket,
 ) -> Result<Vec<PathBuf>, DiscoveryError> {
     let mut features = Vec::new();
 
     if bucket.covers_corpus() {
-        features.extend(collect_bucket("A (corpus scenarios)", corpus, |p| {
-            // Only components below the corpus root count: a checkout that
-            // happens to live under a directory called `scenarios` must not
-            // turn every corpus feature file into a bucket-A scenario.
-            p.strip_prefix(corpus)
-                .unwrap_or(p)
-                .components()
-                .any(|c| c.as_os_str() == "scenarios")
-        })?);
+        const BUCKET_A: &str = "A (corpus scenarios)";
+        let mut scenarios = Vec::new();
+        for corpus in corpora {
+            scenarios.extend(collect_bucket(BUCKET_A, corpus, |p| {
+                // Only components below the corpus root count: a checkout that
+                // happens to live under a directory called `scenarios` must not
+                // turn every corpus feature file into a bucket-A scenario.
+                p.strip_prefix(corpus)
+                    .unwrap_or(p)
+                    .components()
+                    .any(|c| c.as_os_str() == "scenarios")
+            })?);
+        }
+        if scenarios.is_empty() {
+            return Err(DiscoveryError::Empty {
+                bucket: BUCKET_A,
+                root: corpora.first().cloned().unwrap_or_default(),
+            });
+        }
+        features.extend(scenarios);
     }
 
     if bucket.covers_conformance() {
-        features.extend(collect_bucket(
-            "B (engine conformance)",
-            &root.join("bdd/conformance"),
-            |_| true,
-        )?);
+        const BUCKET_B: &str = "B (engine conformance)";
+        let conformance = root.join("bdd/conformance");
+        let found = collect_bucket(BUCKET_B, &conformance, |_| true)?;
+        if found.is_empty() {
+            return Err(DiscoveryError::Empty {
+                bucket: BUCKET_B,
+                root: conformance,
+            });
+        }
+        features.extend(found);
     }
 
     features.sort();
@@ -117,13 +137,6 @@ fn collect_bucket(
         if path.extension().is_some_and(|e| e == "feature") && accept(path) {
             features.push(path.to_path_buf());
         }
-    }
-
-    if features.is_empty() {
-        return Err(DiscoveryError::Empty {
-            bucket,
-            root: root.to_path_buf(),
-        });
     }
 
     Ok(features)

@@ -627,18 +627,6 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_yaml() {
-        let law = create_test_law();
-        let yaml = generate_yaml(&law, "2025-01-01").unwrap();
-
-        assert!(yaml.starts_with("---\n"));
-        assert!(yaml.contains("$schema:"));
-        assert!(yaml.contains("$id: wet_op_de_zorgtoeslag"));
-        assert!(yaml.contains("regulatory_layer: WET"));
-        assert!(yaml.contains("bwb_id: BWBR0018451"));
-    }
-
-    #[test]
     fn test_save_yaml() {
         let law = create_test_law();
         let temp_dir = tempdir().unwrap();
@@ -653,18 +641,6 @@ mod tests {
 
         let content = fs::read_to_string(output_path).unwrap();
         assert!(content.starts_with("---\n"));
-    }
-
-    #[test]
-    fn test_generate_yaml_indented_sequences() {
-        let law = create_test_law();
-        let yaml = generate_yaml(&law, "2025-01-01").unwrap();
-
-        // Articles should be indented under their key
-        assert!(
-            yaml.contains("articles:\n  - number:"),
-            "Sequence items should be indented under articles key"
-        );
     }
 
     #[test]

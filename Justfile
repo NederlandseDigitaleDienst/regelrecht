@@ -112,10 +112,11 @@ validate *FILES:
 
 # Validate the demo corpus (schema + type check, RFC-036/RFC-037)
 #
-# `validate` without arguments walks corpus/regulation only, so the eighty demo
-# laws would be seen by the pre-commit hook and by nothing else. This recipe
-# hands them to the same binary, so a law that stops type-checking is caught by
-# `just demo` and not first by a red scenario run.
+# `validate` without arguments walks corpus/regulation and the corpus of the
+# chronolexografie PoC only, so the eighty demo laws would be seen by the pre-commit
+# hook and by nothing else. This recipe hands them to the same binary, so a law
+# that stops type-checking is caught by `just demo` and not first by a red
+# scenario run.
 [doc("Validate the demo corpus (schema + type check)")]
 validate-demo:
     find corpus/demo/regulation -name '*.yaml' ! -name '.*' -print0 \
@@ -203,6 +204,18 @@ nldd-slots:
 nldd-slots-test:
     node --test script/nldd-slots.test.mjs
 
+# A test that runs nowhere stays green because it never starts. This guard
+# reads what CI runs (workflow steps, pre-commit hooks, and the recipes and npm
+# scripts they reach) and fails on a test outside it, a crate no `cargo test`
+# covers, a feature file no BDD runner reads, and a skip without a reason.
+[doc("Check that every test runs somewhere in CI")]
+orphan-tests:
+    node script/check-orphan-tests.mjs
+
+[doc("Check the orphan-test guard")]
+orphan-tests-test:
+    node --test script/orphan-tests.test.mjs
+
 # De Awb staat in twee corpora en moet daar hetzelfde zeggen. Het overzetten
 # ging twee keer mis op een weggevallen laatste regel — één keer de termijn in
 # artikel 6:8, waardoor de einddatum van de bezwaartermijn gelijk werd aan de
@@ -228,6 +241,13 @@ service-map-check:
 dockerfile-consistency-test:
     node --test script/dockerfile-consistency.test.mjs
 
+# The browser jobs in ci.yml run in the Playwright image, whose browsers
+# belong to one Playwright release. Its tag has to follow the version the
+# lockfiles resolve, and Dependabot only bumps the lockfiles.
+[doc("Check that the Playwright CI image matches the lockfiles")]
+playwright-image-test:
+    node --test script/playwright-image.test.mjs
+
 # De poort die productie op een groene CI laat wachten. Zonder deze test is een
 # poort die alles doorlaat niet te onderscheiden van een die werkt; `gh` staat
 # hier als stub op PATH, dus er gaat geen verkeer naar GitHub.
@@ -250,7 +270,7 @@ preview-environments-test:
 # container-backed suites; on a machine without a daemon, swap `test` for
 # `test-no-docker`.
 [doc("Run all quality checks, exactly what CI runs (needs Docker)")]
-check: format lint build-check validate validate-annotations deploy-filters-test ghcr-cleanup-test precompress-test security-headers-test first-load-test ci-gate-test merge-queue-checks-test nldd-imports-test nldd-slots nldd-slots-test dockerfile-consistency-test deploy-gate-test deployed-urls-test preview-environments-test advisories-report-test dev-preflight-test test
+check: format lint build-check validate validate-annotations deploy-filters-test ghcr-cleanup-test precompress-test security-headers-test first-load-test ci-gate-test merge-queue-checks-test nldd-imports-test nldd-slots nldd-slots-test orphan-tests orphan-tests-test dockerfile-consistency-test deploy-gate-test deployed-urls-test preview-environments-test advisories-report-test dev-preflight-test test
 
 # --- Tests ---
 
@@ -290,7 +310,7 @@ frontend-test:
     npm run typecheck -w frontend-lawmaking
     npm test -w frontend-demo
     npm run typecheck -w frontend-demo
-    npm test -w frontend-poc-chronolexografie
+    npm test -w packages/poc-chronolexografie/frontend
 
 # Every test that needs no external services: the workspace minus the
 # container-backed crates. For a machine without a Docker daemon, and the
@@ -306,11 +326,13 @@ test-db:
 # Run Rust BDD tests
 bdd:
     cd packages/engine && {{ci_flags}} cargo test --test bdd -- --nocapture
+    cd packages/cel && {{ci_flags}} cargo test --test bdd -- --nocapture
 
 # BDD met de acties van elk artikel omgekeerd: de volgorde in het bestand mag
 # geen uitkomst veranderen. CI draait de conformance- en demobucket zo ook.
 bdd-reversed:
     cd packages/engine && {{ci_flags}} BDD_REVERSE_ACTIONS=1 cargo test --test bdd -- --nocapture
+    cd packages/cel && {{ci_flags}} BDD_REVERSE_ACTIONS=1 cargo test --test bdd -- --nocapture
     cd packages/engine && {{ci_flags}} BDD_REVERSE_ACTIONS=1 BDD_BUCKET=corpus REGULATION_PATH="$(pwd)/../../corpus/demo/regulation" cargo test --test bdd -- --nocapture
 
 # Bucket A over de democorpus: REGULATION_PATH wijst wetten en scenario's naar corpus/demo.
@@ -323,6 +345,16 @@ bdd-reversed:
 bdd-demo:
     cd packages/engine && {{ci_flags}} BDD_BUCKET=corpus REGULATION_PATH="$(pwd)/../../corpus/demo/regulation" cargo test --test bdd -- --nocapture
     cd packages/engine && {{ci_flags}} REGULATION_PATH="$(pwd)/../../corpus/demo/regulation" cargo test --test awb_lifecycle
+
+# Bucket A over het corpus van de chronolexografie-poc: de gedeelde regelwerken
+# en die van elke casus (script/chrono-regulation-dirs.sh) samen, als één
+# corpus. De gegevens zijn verzonnen, dus rood is hier een echte fout.
+bdd-chrono:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    REGULATION_PATH="$(script/chrono-regulation-dirs.sh | sed "s|^|$PWD/|" | paste -sd:)"
+    export REGULATION_PATH
+    cd packages/engine && {{ci_flags}} BDD_BUCKET=corpus cargo test --test bdd -- --nocapture
 
 # Start the demo and open it. One command for anyone who just wants to see it:
 # it builds the engine to WASM, starts Vite and opens the browser on the
@@ -359,6 +391,8 @@ dev-demo: wasm-build
 #   just walkthrough check [take]    what a take sounds like, in numbers
 #   just walkthrough script [take]   a draft script per slide, for the cloned voice
 #   just walkthrough build           walkthrough.yaml -> what the demo plays
+#   just walkthrough translate <code> captions, slides and spoken text in another language
+#   just walkthrough dub <code>      that language in the cloned voice (ElevenLabs)
 #   just walkthrough publish <tag>   the media into a GitHub release (asks first)
 #   just walkthrough status          which takes there are, and how far along
 #   just walkthrough test            the pipeline's own tests
@@ -529,9 +563,9 @@ mutants-diff BASE="origin/main":
     #!/usr/bin/env bash
     set -euo pipefail
     diff_file="$(mktemp -t mutants-diff-XXXXXX.diff)"
-    git -C packages diff --relative "{{BASE}}...HEAD" -- engine pipeline > "$diff_file"
+    git -C packages diff --relative "{{BASE}}...HEAD" -- engine pipeline cel > "$diff_file"
     if [ ! -s "$diff_file" ]; then
-        echo "Geen gewijzigde regels in packages/engine of packages/pipeline ten opzichte van {{BASE}}."
+        echo "Geen gewijzigde regels in packages/engine, packages/pipeline of packages/cel ten opzichte van {{BASE}}."
         exit 0
     fi
     cd packages
@@ -606,9 +640,15 @@ admin-test:
 
 # --- Editor API ---
 
+# The editor-api runs from packages/, where its defaults find no corpus
+# registry and no favorites.json, so a local run started with an empty corpus.
+# Point it at the repository's own files, as the Docker image does
+# (frontend/Dockerfile copies the same two to /app).
+editor_api_paths := "CORPUS_REGISTRY_PATH=../corpus-registry.yaml STATIC_DIR=../frontend/public"
+
 # Run editor API locally
 editor-api:
-    cd packages && cargo run --package regelrecht-editor-api
+    cd packages && {{ editor_api_paths }} cargo run --package regelrecht-editor-api
 
 # Run editor API with real SSO Rijk login (loads .env.sso-local; see auth-and-roles.md)
 editor-sso:
@@ -619,7 +659,7 @@ editor-sso:
         exit 1
     fi
     set -a; . ./.env.sso-local; set +a
-    cd packages && cargo run --package regelrecht-editor-api
+    cd packages && {{ editor_api_paths }} cargo run --package regelrecht-editor-api
 
 # Check editor API Rust code
 editor-api-check:
@@ -828,7 +868,7 @@ dev APP="all":
             # .env.sso-local inside the backgrounded shell so the OIDC /
             # DATABASE_URL / BASE_URL it sets scope to editor-api only.
             dev_start "editor-api (:8000, OIDC)" .dev-editor-api.log \
-              "set -a; . ./.env.sso-local; set +a; cd packages && ${harvest_admin_env}cargo run --package regelrecht-editor-api"
+              "set -a; . ./.env.sso-local; set +a; cd packages && {{ editor_api_paths }} ${harvest_admin_env}cargo run --package regelrecht-editor-api"
             dev_start "editor vite (:${editor_port})" .dev-editor.log \
               "cd frontend && API_PORT=8000 npx vite --port ${editor_port} --strictPort --host 0.0.0.0"
         fi

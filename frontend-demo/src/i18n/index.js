@@ -22,6 +22,7 @@
  */
 import { computed, ref } from 'vue';
 import en from './en.js';
+import fr from './fr.js';
 import fy from './fy.js';
 import nl from './nl.js';
 
@@ -50,6 +51,9 @@ export const LOCALES = [
   // Nederlandse tekst. Zie de kop van dat bestand voor waarom daar geen
   // machinevertaling staat.
   { code: 'fy', prefix: '/fy', intl: 'fy-NL', label: 'Frysk', dict: fy },
+  // Frans is vertaald door een taalmodel en nog niet nagekeken; zie
+  // corpus/demo/i18n/REVIEW-fr.md.
+  { code: 'fr', prefix: '/fr', intl: 'fr-FR', label: 'Français', dict: fr },
 ];
 
 export const DEFAULT_LOCALE = 'nl';

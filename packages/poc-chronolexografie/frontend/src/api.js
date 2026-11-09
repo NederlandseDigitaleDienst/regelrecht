@@ -8,8 +8,8 @@
  * de melding van de cel.
  *
  * Naast de bundel krijgt de cel de bronnen die de pagina bij het laden
- * ophaalt (src/bronnen.js): een casus uit een bron draait op die bron en het
- * regelrecht-corpus. Een bron die er niet is, houdt de app niet tegen.
+ * ophaalt (src/bronnen.js): een casus uit een bron draait alleen op die
+ * bron. Een bron die er niet is, houdt de app niet tegen.
  *
  * Elk pad gaat langs `b()`: achter het poc-portaal staat de app onder
  * /chronolexografie/. De JS-lijm van wasm-bindgen komt via een blob-URL
@@ -26,6 +26,24 @@ async function tekst(url) {
   return res.text();
 }
 
+/**
+ * De bestanden van de bundel, per pad in de repository: de uitlegpagina leest
+ * er de YAML van haar panelen uit. De cel haalt dezelfde bundel op; de tweede
+ * keer komt hij uit de cache van de browser.
+ */
+export const bestanden = async () => JSON.parse(await tekst(b('/bundel.json')));
+
+let bronnen = null;
+
+/**
+ * The sources, fetched once per tab: the cell gets them when it loads, and
+ * the sheet of an article reads its text from them for a case from a source.
+ */
+export function opgehaaldeBronnen() {
+  bronnen ??= haalBronnen(b('/bronnen.json'), (naam) => b(`/bron/${encodeURIComponent(naam)}`));
+  return bronnen;
+}
+
 let laden = null;
 
 /** Het spel van dit tabblad; de eerste keer laadt het de cel. */
@@ -37,14 +55,15 @@ function poc() {
       const wasm = await import(/* @vite-ignore */ url);
       URL.revokeObjectURL(url);
       await wasm.default({ module_or_path: b('/wasm/pkg/regelrecht_poc_chronolexografie_bg.wasm') });
-      const [bundel, bronnen] = await Promise.all([
+      const [bundel, opgehaald] = await Promise.all([
         tekst(b('/bundel.json')),
-        haalBronnen(b('/bronnen.json'), (naam) => b(`/bron/${encodeURIComponent(naam)}`)),
+        opgehaaldeBronnen(),
       ]);
-      return new wasm.Poc(bundel, JSON.stringify(bronnen));
+      return new wasm.Poc(bundel, JSON.stringify(opgehaald));
     } catch (e) {
-      // Een volgende stap probeert het opnieuw.
+      // A next step tries again, the sources included.
       laden = null;
+      bronnen = null;
       throw new Error(`the cell did not load: ${e?.message ?? e}`);
     }
   })();
@@ -81,23 +100,34 @@ export const api = {
   vormen: (datum) => roep((p) => p.vormen(datum)),
   kroniek: () => roep((p) => p.kroniek()),
   aanvragen: (velden, datum) => roep((p) => p.aanvragen(json(velden), datum)),
-  // Een andere cel van de sfeer legt een handeling vast, zoals de GGD een
-  // geneeskundig onderzoek (RFC-052).
+  // Een andere cel van de casus legt een handeling vast, zoals de GGD een
+  // geneeskundig onderzoek (RFC-048).
   vastleggen: (cel, feit, velden, datum) => roep((p) => p.vastleggen(cel, feit, json(velden), datum)),
   besluiten: (op, bevindingen, datum) => roep((p) => p.besluiten(op, json(bevindingen), datum)),
   // Wat het besluit zou worden, op een kopie van de cel: er wordt niets
   // vastgelegd. Een weigering van de cel komt terug als `{ geweigerd }`.
   voorvertoningBesluit: (op, bevindingen, datum) =>
     roep((p) => p.voorvertoningBesluit(op, json(bevindingen), datum)),
-  waarom: (id) => roep((p) => p.waarom(id)),
-  hoeBeantwoord: (id, begrip) => roep((p) => p.hoeBeantwoord(id, begrip)),
   bezwaren: (besluit, velden, datum) => roep((p) => p.bezwaren(besluit, json(velden), datum)),
   heroverweging: (bezwaar, datum) => roep((p) => p.heroverweging(bezwaar, datum)),
   beslissenOpBezwaar: (op, bevindingen, datum) =>
     roep((p) => p.beslissenOpBezwaar(op, json(bevindingen), datum)),
   voorvertoningOpBezwaar: (op, bevindingen, datum) =>
     roep((p) => p.voorvertoningOpBezwaar(op, json(bevindingen), datum)),
-  reducties: (datum) => roep((p) => p.reducties(datum)),
+  // Het beroep bij de bestuursrechter (RFC-053): de aanvrager stelt het in,
+  // de rechtbank doet uitspraak en zendt die toe, en het bestuursorgaan
+  // beslist opnieuw op het bezwaar.
+  beroepInstellen: (besluit, velden, datum) =>
+    roep((p) => p.beroepInstellen(besluit, json(velden), datum)),
+  uitspraakDoen: (op, bevindingen, datum) => roep((p) => p.uitspraakDoen(op, json(bevindingen), datum)),
+  voorvertoningUitspraak: (op, bevindingen, datum) =>
+    roep((p) => p.voorvertoningUitspraak(op, json(bevindingen), datum)),
+  toezenden: (uitspraak, datum) => roep((p) => p.toezenden(uitspraak, datum)),
+  heroverwegingNaUitspraak: (ontvangst) => roep((p) => p.heroverwegingNaUitspraak(ontvangst)),
+  opnieuwBeslissenOpBezwaar: (ontvangst, bevindingen, datum) =>
+    roep((p) => p.opnieuwBeslissenOpBezwaar(ontvangst, json(bevindingen), datum)),
+  voorvertoningNaUitspraak: (ontvangst, bevindingen, datum) =>
+    roep((p) => p.voorvertoningNaUitspraak(ontvangst, json(bevindingen), datum)),
   logboek: () => roep((p) => p.logboek()),
   reset: () => roep((p) => p.reset()),
   // Het spel tot nu toe (de casus en de kroniek van elke cel), om een

@@ -1,5 +1,10 @@
+// Two programs, as in the editor: the package code (browser) and the code
+// that runs under Node (the tests through Vitest, the scripts through tsx).
+// `vue-tsc --build` checks both.
 {
-  "extends": "@vue/tsconfig/tsconfig.dom.json",
-  "compilerOptions": { "allowJs": true, "checkJs": false, "noEmit": true },
-  "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.vue"]
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
 }

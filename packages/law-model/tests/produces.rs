@@ -1,4 +1,4 @@
-//! `produces` in either form (schema v0.8.1, RFC-047): one object, or a
+//! `produces` in either form (schema v0.8.1, RFC-045): one object, or a
 //! list of items that each say with `type` what they are, and own their
 //! parameters and outputs. Readers go through the article's helpers.
 
@@ -57,7 +57,7 @@ fn a_list_item_says_what_it_is_with_type_and_owns_its_parameters_and_outputs() {
 
 #[test]
 fn an_objection_is_a_submission_and_the_decision_on_it_the_decision() {
-    // As Awb 7:11 writes it (RFC-050): the objection, and the decision on it.
+    // As Awb 7:11 writes it (RFC-045 §7): the objection, and the decision on it.
     let law = law("          - type: BEZWAAR
             requests: wet_verlof#1
           - type: BESCHIKKING
@@ -71,6 +71,23 @@ fn an_objection_is_a_submission_and_the_decision_on_it_the_decision() {
     assert_eq!(decision.legal_character(), Some("BESCHIKKING"));
     assert_eq!(decision.submission_kind(), None);
     assert_eq!(article.outputs_of(decision), ["verlof_verleend"]);
+}
+
+#[test]
+fn an_appeal_is_a_submission_and_the_judgment_on_it_the_decision() {
+    // As Awb 8:70 writes it (schema v0.8.10): the appeal, and the judgment.
+    let law = law("          - type: BEROEP
+            requests: wet_verlof#1
+          - type: UITSPRAAK
+            outputs: [verlof_verleend]")
+    .unwrap();
+    let article = &law.articles[0];
+    let submission = article.get_submission().unwrap();
+    assert_eq!(submission.submission_kind(), Some("BEROEP"));
+    assert_eq!(submission.legal_character(), None);
+    let decision = article.get_decision().unwrap();
+    assert_eq!(decision.legal_character(), Some("UITSPRAAK"));
+    assert_eq!(decision.submission_kind(), None);
 }
 
 #[test]

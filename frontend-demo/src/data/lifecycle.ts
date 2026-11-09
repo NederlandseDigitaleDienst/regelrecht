@@ -142,7 +142,7 @@ export function objectionOpen(caseRecord: LifecycleCase | null | undefined): boo
  * De uitkomsten die de Awb aan dit besluit heeft toegevoegd, als de levensloop
  * ver genoeg is om ze te hebben.
  *
- * Ze komen uit de wet en niet uit dit bestand: `bezwaartermijn_weken` van Awb
+ * Ze komen uit de wet en niet uit dit bestand: `termijn_weken` van Awb
  * 6:7, de begin- en einddatum van Awb 6:8, de motiveringsplicht van Awb 3:46.
  * Staat er een afwijkende termijn in een bijzondere wet ("in afwijking van
  * artikel 6:7"), dan is dat hier al in verwerkt zonder dat iemand het hoeft te
@@ -152,8 +152,8 @@ export function awbOutcomes(caseRecord: LifecycleCase | null | undefined): AwbOu
   const out = caseRecord?.stageState?.accumulated_outputs ?? {};
   return {
     motiveringVereist: out.motivering_vereist ?? null,
-    bezwaartermijnWeken: out.bezwaartermijn_weken ?? null,
-    bezwaartermijnStart: out.bezwaartermijn_startdatum ?? null,
-    bezwaartermijnEinde: out.bezwaartermijn_einddatum ?? null,
+    bezwaartermijnWeken: out.termijn_weken ?? null,
+    bezwaartermijnStart: out.termijn_startdatum ?? null,
+    bezwaartermijnEinde: out.termijn_einddatum ?? null,
   };
 }

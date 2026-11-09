@@ -39,7 +39,7 @@ describe('executeStage', () => {
   it('vertaalt de velden van de engine naar de namen die de demo gebruikt', () => {
     const engine = fakeEngine({
       complete: false,
-      outputs: { bezwaartermijn_weken: 6 },
+      outputs: { termijn_weken: 6 },
       state: { current_stage: 'BEKENDMAKING' },
       pending_inputs: ['bekendmaking_datum'],
       current_stage: 'BEKENDMAKING',
@@ -48,7 +48,7 @@ describe('executeStage', () => {
     expect(r).toEqual({
       ok: true,
       complete: false,
-      outputs: { bezwaartermijn_weken: 6 },
+      outputs: { termijn_weken: 6 },
       state: { current_stage: 'BEKENDMAKING' },
       pendingInputs: ['bekendmaking_datum'],
       currentStage: 'BEKENDMAKING',
@@ -56,13 +56,13 @@ describe('executeStage', () => {
   });
 
   it('leest een afgeronde levensloop als klaar, zonder staat en zonder wachtlijst', () => {
-    const engine = fakeEngine({ complete: true, outputs: { bezwaartermijn_einddatum: '2026-04-23' } });
+    const engine = fakeEngine({ complete: true, outputs: { termijn_einddatum: '2026-04-23' } });
     const r = executeStage(engine, law, 'subsidiebedrag', null, {}, '2026-03-12');
     if (!r.ok) throw new Error(r.error);
     expect(r.complete).toBe(true);
     expect(r.state).toBeNull();
     expect(r.pendingInputs).toEqual([]);
-    expect(r.outputs.bezwaartermijn_einddatum).toBe('2026-04-23');
+    expect(r.outputs.termijn_einddatum).toBe('2026-04-23');
   });
 
   it('maakt van een fout een uitkomst en geen uitzondering', () => {

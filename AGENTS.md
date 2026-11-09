@@ -265,7 +265,7 @@ both: `corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml`.
 
 ## De demo is meertalig
 
-`frontend-demo/` draait in het Nederlands, het Engels en het Fries.
+`frontend-demo/` draait in het Nederlands, het Engels, het Fries en het Frans.
 **Nederlands is de bron**: elke tekst staat eerst in `src/i18n/nl.js`, en de
 andere woordenboeken zijn er de vertaling van. Bewerk ze in dezelfde wijziging;
 een sleutel die maar in één bestand landt is een bug, geen halve klus.
@@ -280,7 +280,9 @@ een sleutel die maar in één bestand landt is een bug, geen halve klus.
   nakijken staat in `corpus/demo/i18n/REVIEW-fy.md`: de plekken waar de
   vertalers zelf zeiden dat ze het niet zeker wisten, met per geval wat er vast
   staat en wat niet. Vul die lijst aan wanneer je op zo'n plek stuit, in plaats
-  van de twijfel in een commit-bericht te laten zitten.
+  van de twijfel in een commit-bericht te laten zitten. Het Frans is op
+  dezelfde manier vertaald en heeft zijn eigen lijst,
+  `corpus/demo/i18n/REVIEW-fr.md`.
   `MAX_IDENTICAL_SHARE` in `i18n.test.ts` bewaakt dat het aandeel sleutels dat
   nog letterlijk het Nederlands is daalt en niet stijgt; dat getal gaat met de
   hand omlaag, met de reden in de commit.
@@ -579,6 +581,11 @@ against, is in `docs/src/content/docs/operations/ci-cd.md#the-claude-review-gate
   operates one as easily as a person, while it reads as a human judgement.
 - **Wait on the job's `status`, never on the number of review comments.** Zero
   comments means "still running" as often as "nothing to report".
+- **No review on the head commit? Start one by hand** with
+  `gh workflow run "Claude Code Review" -f pr=<n>`, then rerun the failed gate
+  (`gh run rerun <run id> --failed`); the gate takes that review over. Rerunning
+  an old `pull_request` run does not help, because it keeps the commit it was
+  started for. Toggling the PR to draft and back to ready also works.
 - **A PR that edits `.github/workflows/claude-code-review.yml` gets no automatic
   review**: the action skips itself when the file differs from the default
   branch, and the gate then blocks. Such a PR needs a human review and an admin
@@ -651,6 +658,10 @@ label. Add it only when someone needs a running preview; removing it (or
 closing the PR) deletes the preview. `deploy:<component>` labels force a
 component to build and do nothing without `deploy:preview`. Fork PRs never
 build.
+
+A preview sleeps 48 hours after its last deploy. Wake it with the `zad-wake`
+skill before a smoketest or `check-deployment`; how sleep-mode works is in
+`docs/src/content/docs/operations/deployment.md#sleeping-previews`.
 
 ### Cleanup
 

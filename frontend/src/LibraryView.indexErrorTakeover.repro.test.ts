@@ -7,11 +7,12 @@
 // non-library modes keep their panes and get a non-blocking warning banner,
 // and the backend's own explanation is surfaced instead of a generic fallback.
 //
-// Harness copied from LibraryView.conversionJobs.test.js: shallow-mount with
-// every composable stubbed, deliberately narrow to this one surface.
+// Harness: test-utils/libraryViewHarness.ts, shallow-mount with every
+// composable stubbed, deliberately narrow to this one surface.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount } from '@vue/test-utils';
-import { ref, nextTick, type Ref } from 'vue';
+import { ref, nextTick } from 'vue';
+import * as harness from './test-utils/libraryViewHarness';
 
 /** The route fields LibraryView reads; tests reassign params freely. */
 interface RouteStub {
@@ -27,39 +28,20 @@ const routeState: RouteStub = {
   query: {},
   fullPath: '/trajecten/traject-abcd1234/taken',
 };
-vi.mock('vue-router', () => ({
-  useRoute: () => routeState,
-  useRouter: () => ({
-    replace: vi.fn().mockResolvedValue(undefined),
-    push: vi.fn(),
-    resolve: () => ({ href: '#' }),
-  }),
-  onBeforeRouteUpdate: vi.fn(),
-  onBeforeRouteLeave: vi.fn(),
-}));
+vi.mock('vue-router', () => harness.vueRouter(() => routeState));
+vi.mock('./composables/useAuth', () => harness.auth());
 
-vi.mock('./composables/useAuth', () => ({
-  useAuth: () => ({ authenticated: ref(true), login: vi.fn() }),
-}));
-
-// Held in a hoisted box so a test can switch traject in-place: the traject
-// switcher leaves LibraryView mounted and only swaps the route param, which is
-// what LibraryView's `watch(activeTrajectRef)` reacts to. (`vi.mock` factories
-// are hoisted above module-level consts, hence `vi.hoisted`.)
-// `activeTrajectRef` is set in the useTrajects mock factory, which runs when
-// LibraryView is imported - before any test.
-const { trajectScope } = vi.hoisted(() => ({ trajectScope: {} as { activeTrajectRef: Ref<string> } }));
-
-vi.mock('./composables/useTrajects', () => {
-  trajectScope.activeTrajectRef = ref('traject-abcd1234');
-  return {
-    useTrajects: () => ({
-      activeTrajectRef: trajectScope.activeTrajectRef,
-      activeTraject: ref({ name: 'Afgeschermde test Kandidaatstellingsprocedure Kieswet' }),
-    }),
-    refreshTrajects: vi.fn(),
-  };
-});
+// The ref the view watches: the traject switcher leaves LibraryView mounted
+// and only swaps the route param, which is what LibraryView's
+// `watch(activeTrajectRef)` reacts to, so a test switches traject in-place by
+// writing to this exact ref.
+const activeTrajectRef = ref('traject-abcd1234');
+vi.mock('./composables/useTrajects', () =>
+  harness.trajectsModule(() => ({
+    activeTrajectRef,
+    activeTraject: ref({ name: 'Afgeschermde test Kandidaatstellingsprocedure Kieswet' }),
+  })),
+);
 
 // The 502 body below is the backend's own text for a traject whose
 // writable-own (private) repo could not be scanned - see
@@ -100,67 +82,18 @@ const { ApiErrorStub, apiFetch, apiFetchJson } = vi.hoisted(() => {
   };
 });
 
-vi.mock('./lib/apiFetch', () => ({
-  apiFetch: (...a: Parameters<typeof apiFetch>) => apiFetch(...a),
-  apiFetchJson: (...a: Parameters<typeof apiFetchJson>) => apiFetchJson(...a),
-  ApiError: ApiErrorStub,
-}));
-
-vi.mock('./composables/useFeatureFlags', () => ({
-  useFeatureFlags: () => ({ isEnabled: () => true }),
-}));
-
-vi.mock('./composables/useDocumentsManager', () => ({
-  useDocumentsManager: () => ({
-    documents: ref([]),
-    listLoading: ref(false),
-    listError: ref(null),
-    currentPath: ref(null),
-    currentBody: ref(''),
-    hasChanges: ref(false),
-    docLoading: ref(false),
-    docError: ref(null),
-    saving: ref(false),
-    open: vi.fn(),
-    startNew: vi.fn(),
-    close: vi.fn(),
-    uploadDocument: vi.fn(),
-    displayTitle: (p: string | null | undefined) => String(p ?? '').replace(/\.md$/, ''),
-    dropDraft: vi.fn(),
-    refreshList: vi.fn().mockResolvedValue(undefined),
+vi.mock('./lib/apiFetch', () =>
+  harness.apiFetchModule({
+    apiFetch: (...a: Parameters<typeof apiFetch>) => apiFetch(...a),
+    apiFetchJson: (...a: Parameters<typeof apiFetchJson>) => apiFetchJson(...a),
+    ApiError: ApiErrorStub,
   }),
-}));
-
-vi.mock('./composables/useTrajectDocumentJobs', () => ({
-  useTrajectDocumentJobs: () => ({
-    jobs: ref([]),
-    cancelJob: vi.fn(),
-    refresh: vi.fn(),
-    startPolling: vi.fn(),
-    stopPolling: vi.fn(),
-  }),
-}));
-
-vi.mock('./composables/useDocumentUpload', () => ({
-  useDocumentUpload: () => ({
-    fileInput: ref(null),
-    uploadError: ref(null),
-    uploadRetryable: ref(false),
-    onUpload: vi.fn(),
-    onFileChange: vi.fn(),
-  }),
-}));
-
-vi.mock('./composables/useDocumentTaskReview', () => ({
-  useDocumentTaskReview: () => ({
-    reviewTask: ref(null),
-    proposedContent: ref(null),
-    loadError: ref(null),
-    loadReview: vi.fn().mockResolvedValue(undefined),
-    approveAfterSave: vi.fn(),
-    reject: vi.fn(),
-  }),
-}));
+);
+vi.mock('./composables/useFeatureFlags', () => harness.featureFlags());
+vi.mock('./composables/useDocumentsManager', () => harness.documentsManager());
+vi.mock('./composables/useTrajectDocumentJobs', () => harness.trajectDocumentJobs());
+vi.mock('./composables/useDocumentUpload', () => harness.documentUpload());
+vi.mock('./composables/useDocumentTaskReview', () => harness.documentTaskReview());
 
 import LibraryView from './LibraryView.vue';
 
@@ -181,7 +114,7 @@ beforeEach(() => {
   routeState.name = 'taken-traject';
   routeState.params = { trajectRef: 'traject-abcd1234', categorie: 'alle' };
   routeState.query = {};
-  trajectScope.activeTrajectRef.value = 'traject-abcd1234';
+  activeTrajectRef.value = 'traject-abcd1234';
 });
 
 // The warning banner LibraryView now raises over the non-library modes.
@@ -277,7 +210,7 @@ describe('LibraryView index-error scoping', () => {
     // Same view, other traject - and this one indexes fine.
     apiFetch.mockImplementation(async () => ({ ok: true, status: 200, json: async () => [] }));
     routeState.params = { trajectRef: 'traject-99998888', categorie: 'alle' };
-    trajectScope.activeTrajectRef.value = 'traject-99998888';
+    activeTrajectRef.value = 'traject-99998888';
     for (let i = 0; i < 6; i++) await nextTick();
 
     expect(wrapper.html()).not.toContain(NOTIFICATION_TEXT);
@@ -293,7 +226,7 @@ describe('LibraryView index-error scoping', () => {
 
     apiFetch.mockImplementation(async () => ({ ok: true, status: 200, json: async () => [] }));
     routeState.params = { trajectRef: 'traject-99998888' };
-    trajectScope.activeTrajectRef.value = 'traject-99998888';
+    activeTrajectRef.value = 'traject-99998888';
     for (let i = 0; i < 6; i++) await nextTick();
 
     expect(wrapper.html()).not.toContain(FULLSCREEN_TEXT);

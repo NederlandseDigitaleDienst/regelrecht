@@ -7,7 +7,7 @@ per regel het stuk waar die tekst vandaan komt, de ijkpunten en de toelichting
 per artikel.
 
 Niets hiervan is met de hand geschreven. De bestanden zijn gemaakt door de
-afspeelketen in het Wpp-dossier (`werkbank/generatoren/bouw-wetsgeschiedenis.py
+afspeelketen in het dossier waar zij is ontwikkeld (`werkbank/generatoren/bouw-wetsgeschiedenis.py
 --poc`), die alleen openbare bronnen leest:
 
 - de Kamerstukken zoals officielebekendmakingen.nl ze serveert, en de

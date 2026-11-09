@@ -1,0 +1,248 @@
+---
+# FICTIEF. A synthetic law for the cell's BDD suite
+# (packages/cel/bdd/features/effects.feature). It is loosely shaped after the
+# disabled parking card (Besluit administratieve bepalingen inzake het
+# wegverkeer, artikel 49) and Awb 7:11 lid 2, cut down to what the scenarios
+# need. None of it is the text of a law. Article 4 (a withdrawal), article 5
+# (handing the card in) and article 6 (a warning in the place of a
+# withdrawal) are fictional throughout.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: test_chronicle_effects
+name: Testwet effecten van besluiten
+regulatory_layer: WET
+bwb_id: BWBR9999916
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_chronicle_effects
+
+articles:
+  - number: '1'
+    url: https://example.com/test_chronicle_effects/1
+    text: >-
+      FICTIEF. Op aanvraag verleent het college een gehandicaptenparkeerkaart
+      aan wie ernstig beperkt is in zijn loopvermogen.
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: test_chronicle_effects#1
+            parameters:
+              - ernstig_beperkt
+              - aanvrager
+          - type: BESCHIKKING
+            outputs:
+              - kaart_verleend
+        parameters:
+          - name: ernstig_beperkt
+            type: boolean
+          - name: aanvrager
+            type: string
+        output:
+          - name: kaart_verleend
+            type: boolean
+        actions:
+          - output: kaart_verleend
+            value: $ernstig_beperkt
+
+  - number: '2'
+    url: https://example.com/test_chronicle_effects/2
+    text: >-
+      FICTIEF, naar artikel 7:11, tweede lid, van de Algemene wet
+      bestuursrecht. Is het bezwaar gegrond, dan herroept het college het
+      bestreden besluit.
+    machine_readable:
+      execution:
+        produces:
+          - type: BEZWAAR
+            requests: test_chronicle_effects#2
+            parameters:
+              - bestreden_besluit
+          - type: BESCHIKKING
+            outputs:
+              - herroepen
+            effects:
+              - revokes: bestreden_besluit
+                when: herroepen
+        parameters:
+          - name: bestreden_besluit
+            type: string
+          # Whether the objection is well-founded is the college's finding
+          # on reconsideration (Awb 7:11 lid 1), not part of the objection.
+          - name: bezwaar_gegrond
+            type: boolean
+        output:
+          - name: herroepen
+            type: boolean
+        actions:
+          - output: herroepen
+            value: $bezwaar_gegrond
+
+  - number: '3'
+    url: https://example.com/test_chronicle_effects/3
+    text: >-
+      FICTIEF, naar artikel 7:11, tweede lid, van de Algemene wet
+      bestuursrecht. Het college neemt in de plaats van het herroepen besluit
+      een nieuw besluit op de aanvraag.
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            outputs:
+              - kaart_verleend
+            effects:
+              - revokes: bestreden_besluit
+        parameters:
+          - name: bestreden_besluit
+            type: string
+          - name: ernstig_beperkt
+            type: boolean
+          - name: aanvrager
+            type: string
+        output:
+          - name: kaart_verleend
+            type: boolean
+        actions:
+          - output: kaart_verleend
+            value: $ernstig_beperkt
+
+  - number: '4'
+    url: https://example.com/test_chronicle_effects/4
+    text: >-
+      FICTIEF. Het college kan een verleende gehandicaptenparkeerkaart
+      intrekken. Het corpus modelleert geen intrekking van deze kaart; dit
+      artikel bestaat alleen voor de tests.
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            outputs:
+              - ingetrokken
+            effects:
+              - revokes: ingetrokken_besluit
+        parameters:
+          - name: ingetrokken_besluit
+            type: string
+        output:
+          - name: ingetrokken
+            type: boolean
+        actions:
+          - output: ingetrokken
+            value: true
+
+  - number: '5'
+    url: https://example.com/test_chronicle_effects/5
+    text: >-
+      FICTIEF. Levert de houder zijn gehandicaptenparkeerkaart in bij de balie
+      van het gemeentehuis, dan wordt dat als feit vastgelegd. Het corpus
+      modelleert geen inlevering van deze kaart; dit artikel bestaat alleen
+      voor de tests.
+    machine_readable:
+      requires:
+        - fact: kaart_ingeleverd
+          description: De houder heeft zijn kaart ingeleverd bij de balie, op de dag die het feit noemt.
+          parameters:
+            - ingeleverd_op
+            - aanvrager
+      execution:
+        parameters:
+          - name: ingeleverd_op
+            type: date
+          - name: aanvrager
+            type: string
+
+  - number: '6'
+    url: https://example.com/test_chronicle_effects/6
+    text: >-
+      FICTIEF. Is het bezwaar tegen een intrekking gegrond, dan kan het
+      college in de plaats van de intrekking een waarschuwing geven. Het
+      corpus modelleert dit niet; dit artikel bestaat alleen voor de tests.
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            outputs:
+              - waarschuwing
+            effects:
+              - revokes: bestreden_besluit
+        parameters:
+          - name: bestreden_besluit
+            type: string
+        output:
+          - name: waarschuwing
+            type: boolean
+        actions:
+          - output: waarschuwing
+            value: true
+
+  - number: '7'
+    url: https://example.com/test_chronicle_effects/7
+    text: >-
+      FICTIEF. Wie een kaart verleend krijgt, heeft een kaart, en er is een
+      verleende kaart meer. Een weigering laat beide zoals ze waren.
+    machine_readable:
+      execution:
+        parameters:
+          - name: in_bezit
+            type: boolean
+          - name: aantal_verleend
+            type: number
+          - name: kaart_verleend
+            type: boolean
+        output:
+          - name: in_bezit_na_besluit
+            type: boolean
+          - name: aantal_verleend_na_besluit
+            type: number
+        actions:
+          - output: in_bezit_na_besluit
+            value:
+              operation: OR
+              conditions:
+                - $in_bezit
+                - $kaart_verleend
+          - output: aantal_verleend_na_besluit
+            value:
+              operation: IF
+              cases:
+                - when: $kaart_verleend
+                  then:
+                    operation: ADD
+                    values:
+                      - $aantal_verleend
+                      - 1
+              default: $aantal_verleend
+
+  - number: '8'
+    url: https://example.com/test_chronicle_effects/8
+    text: >-
+      FICTIEF. Wie zijn kaart inlevert, heeft geen kaart meer.
+    machine_readable:
+      execution:
+        output:
+          - name: in_bezit_na_inlevering
+            type: boolean
+        actions:
+          - output: in_bezit_na_inlevering
+            value: false
+
+  - number: '9'
+    url: https://example.com/test_chronicle_effects/9
+    text: >-
+      FICTIEF. Wie een geldige kaart heeft, mag parkeren op een
+      gehandicaptenparkeerplaats. Of de aanvrager een geldige kaart heeft,
+      stelt het college vast.
+    machine_readable:
+      open_terms:
+        - id: aanvrager_heeft_geldige_kaart
+          type: boolean
+          required: true
+      execution:
+        parameters:
+          - name: aanvrager
+            type: string
+        output:
+          - name: mag_parkeren
+            type: boolean
+        actions:
+          - output: mag_parkeren
+            value: $aanvrager_heeft_geldige_kaart

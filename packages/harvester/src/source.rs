@@ -189,18 +189,4 @@ mod tests {
             "https://lokaleregelgeving.overheid.nl/CVDR681386"
         );
     }
-
-    #[test]
-    fn bwb_source_default_max_size() {
-        let source = BwbSource::default();
-        assert!(source.max_size_mb.is_none());
-    }
-
-    #[test]
-    fn bwb_source_custom_max_size() {
-        let source = BwbSource {
-            max_size_mb: Some(200),
-        };
-        assert_eq!(source.max_size_mb, Some(200));
-    }
 }

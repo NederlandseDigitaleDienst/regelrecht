@@ -44,12 +44,13 @@
 //! - **N5** An input that takes another output must be nullable when that
 //!   output is, and when the call that fetches it is skipped for a required
 //!   parameter that may be null and that the target does not declare
-//!   nullable. For a call to an article (RFC-050), whose required
+//!   nullable. For a call to an article (RFC-045 §6), whose required
 //!   parameters are known only at run time, any reference under
 //!   `parameters` that may be null, and any `parameters_from`, counts so.
 //!   An article that implements a required open term without a
-//!   default may not declare its output for the term nullable, unless the
-//!   law leaves the term to an authority per case (`decided_per_case_by`).
+//!   default may not declare its output for the term nullable, also where
+//!   the law leaves the term to an authority per case
+//!   (`decided_per_case_by`): the implementation's value is the term's.
 //! - **T1** Arithmetic and ordering operands are numbers (or amounts); `ADD`
 //!   also concatenates strings and arrays, ordering also compares dates.
 //! - **T2** Logical operands and `IF` conditions are booleans.
@@ -57,11 +58,11 @@
 //!   one type here, and so are `date` and `string`, since dates arrive as ISO
 //!   strings.
 //! - **T4** A literal assigned to an output has the output's type.
-//! - **T5** A call to an article (`source.article`, RFC-050) without
+//! - **T5** A call to an article (`source.article`, RFC-045 §6) without
 //!   `output` yields a decision value, so the input is of type `decision`.
 //!   What it merges (`parameters_from`) is an object, and a `$`-reference
 //!   that names the article is a string, or a decision value that is
-//!   called anew (RFC-050). A fixed target the checker can
+//!   called anew (RFC-045 §6). A fixed target the checker can
 //!   consult takes a decision, and an `output` is one of that decision; a
 //!   target of this law also exists. A target taken from a value is known
 //!   only at run time: the checker then knows the input is a decision value
@@ -169,7 +170,7 @@ enum Ty {
     Date,
     Array,
     Object,
-    /// A decision value `{grondslag, fields, findings, outputs}` (RFC-050): an object
+    /// A decision value `{basis, fields, findings, outputs}` (RFC-045 §6): an object
     /// whose fields the checker does not type, like any object.
     Decision,
 }
@@ -503,11 +504,12 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
     /// open term without a default promises the delegating law a value. The
     /// engine takes the implementation's output as the term's value, and the
     /// delegating law reads the term as never absent, so the output may not
-    /// be declared nullable. A term with a default is filled by the default
-    /// when the implementation is silent, a term the law leaves to an
-    /// authority per case (`decided_per_case_by`) by that authority's
-    /// judgement (RFC-047), and an optional term without one is nullable
-    /// itself; none of them needs this.
+    /// be declared nullable. That holds for a term the law leaves to an
+    /// authority per case (`decided_per_case_by`) too: where a regulation
+    /// fills it, no finding takes the place of a null (RFC-048 §2). A term
+    /// with a default is filled by the default when the implementation is
+    /// silent, and an optional term without one is nullable itself; neither
+    /// needs this.
     fn check_implements(&mut self) {
         let Some(implements) = self.article.get_implements() else {
             return;
@@ -527,7 +529,7 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
             else {
                 continue;
             };
-            if term.required && !term_has_default(term) && term.decided_per_case_by.is_none() {
+            if term.required && !term.has_default() {
                 self.location = format!("output '{}'", output.name);
                 self.report(
                     Rule::N5,
@@ -611,7 +613,7 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
     }
 
     /// T5 and N5: an input that calls the decision of an
-    /// article (RFC-050).
+    /// article (RFC-045 §6).
     fn check_article_call(&mut self, input: &crate::article::Input, source: &Source, target: &str) {
         let name = &input.name;
         if source.output.is_none() && input.input_type != ParameterType::Decision {
@@ -666,7 +668,7 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
             }
             match declared_root(self, target) {
                 // A decision value is called anew with its own fields and
-                // findings (RFC-050); a required field it holds as null
+                // findings (RFC-045 §6); a required field it holds as null
                 // skips the call, as `parameters_from` may.
                 Some(Ty::Decision) if !input.is_nullable() => self.report(
                     Rule::N5,
@@ -1629,15 +1631,6 @@ fn is_literal_shaped(expr: &ActionValue) -> bool {
     matches!(expr, ActionValue::Literal(value) if Ty::of_literal(value).is_some())
 }
 
-/// Whether an open term carries a default the engine can run. `default: {}`
-/// or `default: {actions: []}` resolves to `null` ("using empty default"),
-/// and counts as no default here.
-fn term_has_default(term: &crate::article::OpenTerm) -> bool {
-    term.default
-        .as_ref()
-        .is_some_and(|d| d.actions.as_ref().is_some_and(|a| !a.is_empty()))
-}
-
 /// The reference an `EQUALS`/`NOT_EQUALS` tests against a literal `null`.
 fn null_tested<'v>(subject: &'v ActionValue, value: &'v ActionValue) -> Option<&'v str> {
     if is_null_literal(value) {
@@ -1700,7 +1693,7 @@ fn environment(article: &Article) -> BTreeMap<String, Symbol> {
             declare(
                 &term.id,
                 Some(Ty::of(term.term_type)),
-                !term.required && !term_has_default(term),
+                !term.required && !term.has_default(),
             );
         }
     }

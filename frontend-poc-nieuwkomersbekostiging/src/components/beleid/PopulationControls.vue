@@ -100,7 +100,7 @@
     <details class="pc-group">
       <summary>
         Instroom per jaar
-        <nldd-badge v-if="gewijzigd('instroom')" size="sm" color="oranje" text="aangepast"></nldd-badge>
+        <nldd-badge v-if="gewijzigd('instroom')" size="sm" color="warning" text="aangepast"></nldd-badge>
       </summary>
       <div class="pc-fields">
         <p class="pc-hint">{{ HERKOMST.instroom }} Nieuwe nieuwkomers per kalenderjaar; samen bepalen ze het gewicht per record.</p>
@@ -131,7 +131,7 @@
     <details class="pc-group">
       <summary>
         Categorieverdeling
-        <nldd-badge v-if="gewijzigd('categorie')" size="sm" color="oranje" text="aangepast"></nldd-badge>
+        <nldd-badge v-if="gewijzigd('categorie')" size="sm" color="warning" text="aangepast"></nldd-badge>
       </summary>
       <div class="pc-fields">
         <p class="pc-hint">{{ HERKOMST.categorie }} In het po bepaalt de categorie het venster (8 of 4 kwartalen) en het bedrag.</p>
@@ -159,7 +159,7 @@
     <details class="pc-group">
       <summary>
         Scholen
-        <nldd-badge v-if="gewijzigd('scholen')" size="sm" color="oranje" text="aangepast"></nldd-badge>
+        <nldd-badge v-if="gewijzigd('scholen')" size="sm" color="warning" text="aangepast"></nldd-badge>
       </summary>
       <div class="pc-fields">
         <p class="pc-hint">{{ HERKOMST.scholen }} Minder scholen betekent meer nieuwkomers per school, dus minder scholen onder de drempel van vier (art. 34 lid 2).</p>
@@ -183,7 +183,7 @@
     <details class="pc-group">
       <summary>
         Gedrag en oordeel
-        <nldd-badge v-if="gewijzigd('fracties')" size="sm" color="oranje" text="aangepast"></nldd-badge>
+        <nldd-badge v-if="gewijzigd('fracties')" size="sm" color="warning" text="aangepast"></nldd-badge>
       </summary>
       <div class="pc-fields">
         <nldd-form-field

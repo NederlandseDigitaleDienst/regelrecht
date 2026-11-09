@@ -41,6 +41,8 @@ export interface TaskPayload {
 export interface Task {
   id?: string;
   task_type?: string;
+  /** The traject the task belongs to, set by the server for every traject task. */
+  traject_id?: string | null;
   title?: string | null;
   payload?: TaskPayload | null;
 }
@@ -50,6 +52,7 @@ export interface RunningJob {
   job_id?: string;
   job_type?: string;
   law_id?: string | null;
+  traject_ref?: string | null;
   target_path?: string | null;
 }
 

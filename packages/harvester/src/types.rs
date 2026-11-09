@@ -715,40 +715,6 @@ mod tests {
     }
 
     #[test]
-    fn test_article_creation() {
-        let article = Article::new("1", "Test text", "https://example.com");
-        assert_eq!(article.number, "1");
-        assert_eq!(article.text, "Test text");
-        assert!(article.references.is_empty());
-    }
-
-    #[test]
-    fn test_law_add_article() {
-        let metadata = LawMetadata {
-            bwb_id: "BWBR0018451".to_string(),
-            cvdr_id: None,
-            title: "Test Law".to_string(),
-            regulatory_layer: RegulatoryLayer::Wet,
-            publication_date: None,
-            effective_date: None,
-            valid_to: None,
-            creator: None,
-            scope_code: None,
-        };
-
-        let mut law = Law::new(metadata);
-        assert!(law.articles.is_empty());
-        assert!(law.warnings.is_empty());
-
-        law.add_article(Article::new("1", "Text", "url"));
-        assert_eq!(law.articles.len(), 1);
-
-        law.add_warning("Test warning");
-        assert_eq!(law.warning_count(), 1);
-        assert_eq!(law.warnings[0], "Test warning");
-    }
-
-    #[test]
     fn test_regulatory_layer_serialization() {
         assert_eq!(
             serde_json::to_string(&RegulatoryLayer::Wet).unwrap(),

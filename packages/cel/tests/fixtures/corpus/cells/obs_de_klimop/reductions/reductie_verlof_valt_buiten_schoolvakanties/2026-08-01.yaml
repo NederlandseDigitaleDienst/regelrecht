@@ -1,0 +1,259 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$id: reductie_verlof_valt_buiten_schoolvakanties
+regulatory_layer: REDUCTIE
+publication_date: '2026-07-01'
+valid_from: '2026-08-01'
+url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel11
+name: Verlof buiten de schoolvakanties bij OBS De Klimop (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving.
+    url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel11
+    machine_readable:
+      execution:
+        parameters:
+          - name: eerste_verlofdag
+            type: date
+          - name: laatste_verlofdag
+            type: date
+        input:
+          - name: eerste_jaar_schooljaar
+            type: number
+            source:
+              regulation: fictief_beleid_schooljaargrenzen_obs_de_klimop
+              parameters:
+                datum: $eerste_verlofdag
+          - name: laatste_jaar_schooljaar
+            type: number
+            source:
+              regulation: fictief_beleid_schooljaargrenzen_obs_de_klimop
+              parameters:
+                datum: $eerste_verlofdag
+          - name: regio
+            type: string
+            nullable: true
+            source:
+              regulation: regeling_vaststelling_schoolvakanties_20252030
+              output: regio_van_school
+              parameters:
+                eerste_verlofdag: $eerste_verlofdag
+                laatste_verlofdag: $laatste_verlofdag
+          - name: kerstvakantie_eerste_dag
+            type: date
+            nullable: true
+            source:
+              regulation: regeling_vaststelling_schoolvakanties_20252030
+              parameters:
+                eerste_jaar_schooljaar: $eerste_jaar_schooljaar
+                regio: $regio
+          - name: kerstvakantie_laatste_dag
+            type: date
+            nullable: true
+            source:
+              regulation: regeling_vaststelling_schoolvakanties_20252030
+              parameters:
+                eerste_jaar_schooljaar: $eerste_jaar_schooljaar
+                regio: $regio
+          - name: meivakantie_eerste_dag
+            type: date
+            nullable: true
+            source:
+              regulation: regeling_vaststelling_schoolvakanties_20252030
+              parameters:
+                eerste_jaar_schooljaar: $eerste_jaar_schooljaar
+                regio: $regio
+          - name: meivakantie_laatste_dag
+            type: date
+            nullable: true
+            source:
+              regulation: regeling_vaststelling_schoolvakanties_20252030
+              parameters:
+                eerste_jaar_schooljaar: $eerste_jaar_schooljaar
+                regio: $regio
+          - name: zomervakantie_eerste_dag
+            type: date
+            nullable: true
+            source:
+              regulation: regeling_vaststelling_schoolvakanties_20252030
+              parameters:
+                jaar: $laatste_jaar_schooljaar
+                regio: $regio
+          - name: zomervakantie_laatste_dag
+            type: date
+            nullable: true
+            source:
+              regulation: regeling_vaststelling_schoolvakanties_20252030
+              parameters:
+                jaar: $laatste_jaar_schooljaar
+                regio: $regio
+          - name: vorige_zomervakantie_eerste_dag
+            type: date
+            nullable: true
+            source:
+              regulation: regeling_vaststelling_schoolvakanties_20252030
+              output: zomervakantie_eerste_dag
+              parameters:
+                jaar: $eerste_jaar_schooljaar
+                regio: $regio
+          - name: vorige_zomervakantie_laatste_dag
+            type: date
+            nullable: true
+            source:
+              regulation: regeling_vaststelling_schoolvakanties_20252030
+              output: zomervakantie_laatste_dag
+              parameters:
+                jaar: $eerste_jaar_schooljaar
+                regio: $regio
+          - name: herfstvakantie_eerste_dag
+            type: date
+            nullable: true
+            source:
+              regulation: fictief_beleid_vakantierooster_obs_de_klimop
+              parameters:
+                eerste_jaar_schooljaar: $eerste_jaar_schooljaar
+          - name: herfstvakantie_laatste_dag
+            type: date
+            nullable: true
+            source:
+              regulation: fictief_beleid_vakantierooster_obs_de_klimop
+              parameters:
+                eerste_jaar_schooljaar: $eerste_jaar_schooljaar
+          - name: voorjaarsvakantie_eerste_dag
+            type: date
+            nullable: true
+            source:
+              regulation: fictief_beleid_vakantierooster_obs_de_klimop
+              parameters:
+                eerste_jaar_schooljaar: $eerste_jaar_schooljaar
+          - name: voorjaarsvakantie_laatste_dag
+            type: date
+            nullable: true
+            source:
+              regulation: fictief_beleid_vakantierooster_obs_de_klimop
+              parameters:
+                eerste_jaar_schooljaar: $eerste_jaar_schooljaar
+        output:
+          - name: verlof_valt_buiten_schoolvakanties
+            type: boolean
+            nullable: true
+        actions:
+          - output: verlof_valt_buiten_schoolvakanties
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $kerstvakantie_eerste_dag
+                          value: null
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $kerstvakantie_laatste_dag
+                          value: null
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $vorige_zomervakantie_laatste_dag
+                          value: null
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $zomervakantie_eerste_dag
+                          value: null
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $herfstvakantie_eerste_dag
+                          value: null
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $herfstvakantie_laatste_dag
+                          value: null
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $voorjaarsvakantie_eerste_dag
+                          value: null
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $voorjaarsvakantie_laatste_dag
+                          value: null
+                  then:
+                    operation: NOT
+                    value:
+                      operation: OR
+                      conditions:
+                        - operation: AND
+                          conditions:
+                            - operation: GREATER_THAN_OR_EQUAL
+                              subject:
+                                operation: DATE_DIFF
+                                from: $kerstvakantie_eerste_dag
+                                to: $laatste_verlofdag
+                                in: days
+                              value: 0
+                            - operation: GREATER_THAN_OR_EQUAL
+                              subject:
+                                operation: DATE_DIFF
+                                from: $eerste_verlofdag
+                                to: $kerstvakantie_laatste_dag
+                                in: days
+                              value: 0
+                        - operation: AND
+                          conditions:
+                            - operation: GREATER_THAN_OR_EQUAL
+                              subject:
+                                operation: DATE_DIFF
+                                from: $eerste_verlofdag
+                                to: $vorige_zomervakantie_laatste_dag
+                                in: days
+                              value: 0
+                        - operation: AND
+                          conditions:
+                            - operation: GREATER_THAN_OR_EQUAL
+                              subject:
+                                operation: DATE_DIFF
+                                from: $zomervakantie_eerste_dag
+                                to: $laatste_verlofdag
+                                in: days
+                              value: 0
+                        - operation: AND
+                          conditions:
+                            - operation: GREATER_THAN_OR_EQUAL
+                              subject:
+                                operation: DATE_DIFF
+                                from: $herfstvakantie_eerste_dag
+                                to: $laatste_verlofdag
+                                in: days
+                              value: 0
+                            - operation: GREATER_THAN_OR_EQUAL
+                              subject:
+                                operation: DATE_DIFF
+                                from: $eerste_verlofdag
+                                to: $herfstvakantie_laatste_dag
+                                in: days
+                              value: 0
+                        - operation: AND
+                          conditions:
+                            - operation: GREATER_THAN_OR_EQUAL
+                              subject:
+                                operation: DATE_DIFF
+                                from: $voorjaarsvakantie_eerste_dag
+                                to: $laatste_verlofdag
+                                in: days
+                              value: 0
+                            - operation: GREATER_THAN_OR_EQUAL
+                              subject:
+                                operation: DATE_DIFF
+                                from: $eerste_verlofdag
+                                to: $voorjaarsvakantie_laatste_dag
+                                in: days
+                              value: 0

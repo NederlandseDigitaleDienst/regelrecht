@@ -1,73 +1,67 @@
-//! What a decision on an application asks, derived from the law (RFC-047).
+//! What the cell records a decision on an application with, derived from
+//! the law (RFC-045 §5).
 //!
 //! An article that establishes an application and decides on it follows a
 //! procedure (RFC-008). The decision runs at the stage BESLUIT and is made
 //! known at the stage BEKENDMAKING; at each, the engine names the articles
-//! that take part ([`LawExecutionService::procedure_stage`]). What they ask
-//! comes, in this order of preference, from:
+//! that take part ([`LawExecutionService::procedure_stage`]). The cell runs
+//! them with, in this order of preference:
 //!
 //! 1. the application: a parameter of the deciding article, or one the
-//!    application holds or gives (a hook's output) by the same name;
-//! 2. the recording actor's policy: an open term of the deciding article that a
-//!    regulation fills (`implements`);
-//! 3. the deciding authority, at the time of the decision: an open term the
-//!    law leaves to it per case (`decided_per_case_by`), or a parameter of a
-//!    hook the application does not hold. A regulation may also fill a term
-//!    the law leaves to the authority, and say nothing for some cases (null);
-//!    the authority may then still supply its judgement, and the engine
-//!    decides which applies: the regulation where it fills the term, the
-//!    judgement where it is silent;
-//! 4. the cell: a date the stage requires, which is the day of the decision.
+//!    application holds or gives (a hook's output) by the same name, or the
+//!    parameter of its moment, such as the receipt (Awb 4:13);
+//! 2. what the deciding authority supplies, such as a parameter of a hook the
+//!    application does not hold;
+//! 3. the day of the decision, for a date the stage requires.
 //!
-//! The cell answers an open term one of its reductions fills like a
-//! regulation fills it (`implements`, [`crate::reading`], RFC-048). The
-//! cell derives the shape with the terms it answers ([`derive_with`]), so
-//! such a term counts as filled; derived without them ([`derive`]), the
-//! term is what the law leaves it to.
+//! An open term is no input. A policy that fills it (`implements`) is the
+//! engine's to run, and its value is the term's (RFC-048 §2). A term that
+//! nothing fills and that the law or policy marks as judged per case
+//! (`decided_per_case_by`) is a finding, which the cell keeps among the
+//! fields. It is the finding of the authority that answers the term: the
+//! one its `competent_authority` names, else the one that executes the
+//! article. Which terms those are, and who answers each, the engine says
+//! ([`LawExecutionService::decision_terms`]). What a process asks of whom,
+//! and when, is not the cell's.
 
 use chrono::NaiveDate;
-use regelrecht_engine::{LawExecutionService, ParameterType, ProcedureStage};
+use regelrecht_engine::{
+    Authority, DecisionTerm, LawExecutionService, ParameterType, ProcedureStage,
+};
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use std::collections::HashMap;
 
 use crate::error::{refused, setup, Result};
-use crate::reading::Term;
 use crate::shape::{self, add_field, article_on, Field};
 
-/// The stages a decision runs, in order: the decision itself (Awb 1:3), and
-/// the announcement without which it has no effect (Awb 3:40). Both are
-/// stages of the Awb procedure for a beschikking. The cell announces the
-/// decision on the day it takes it: that is its assumption, not the law's.
-pub const STAGES: [&str; 2] = ["BESLUIT", "BEKENDMAKING"];
+/// The stages a decision runs, in order: the first of these pairs that the
+/// procedure of its article holds. For a beschikking the decision itself
+/// (Awb 1:3) and the announcement without which it has no effect (Awb 3:40);
+/// for the judgment of an administrative court the judgment (Awb 8:70) and
+/// the copy that the clerk makes available to the parties (Awb 8:79, RFC-053).
+/// The cell announces or sends the decision on the day it takes it: that is
+/// its assumption, not the law's.
+pub const STAGES: [[&str; 2]; 2] = [["BESLUIT", "BEKENDMAKING"], ["UITSPRAAK", "TOEZENDING"]];
 
-/// Where the value of a field of a decision comes from.
+/// Where the cell takes the value of a parameter of a decision from.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "from", rename_all = "snake_case")]
 pub enum Source {
     /// The application the decision is taken on (the chronolexogram's `refers_to`).
     Application,
-    /// The recording actor's policy: a regulation that fills an open term
-    /// (`implements`). The engine resolves it; which article does follows
-    /// from the law in force on the day of the decision.
-    Policy,
-    /// The deciding authority, when it takes the decision.
-    Caller,
+    /// What the deciding authority supplies when it takes the decision.
+    Supplied,
     /// The cell: the day of the decision.
     Cell,
 }
 
-/// A value the decision asks, with where it comes from.
+/// A parameter of the decision, with where the cell takes it from.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Input {
     #[serde(flatten)]
     pub field: Field,
     pub source: Source,
-    /// For a judgement of the deciding authority ([`Source::Caller`]) on a
-    /// term a regulation also fills: the regulation goes first, so the
-    /// judgement may be left out, and the engine sets it aside where the
-    /// regulation fills the term for the case.
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
-    pub policy_first: bool,
 }
 
 /// What a decision on an application holds, as the law in force on a day
@@ -85,25 +79,75 @@ pub struct DecisionShape {
     /// the one whose submission asks for this decision (`requests`), or this
     /// article in the object form.
     pub application: String,
-    /// The stages of [`STAGES`], as the engine names them.
+    /// The stages of [`STAGES`] that its procedure holds, as the engine names
+    /// them.
     pub stages: Vec<ProcedureStage>,
-    /// Everything the stages ask, the deciding article first.
+    /// The parameters the stages ask, the deciding article first.
     pub inputs: Vec<Input>,
     /// The outputs of the decision (its item in `produces`): what it decides.
     pub outputs: Vec<String>,
-    /// The open terms of the deciding article that the authority judges per
-    /// case (`decided_per_case_by`) and no regulation fills.
-    pub judgements: Vec<String>,
+    /// The open terms the decision may need, as the engine names them
+    /// ([`LawExecutionService::decision_terms`]): of the deciding article,
+    /// and of each article that fills one of them.
+    pub terms: Vec<DecisionTerm>,
 }
 
 impl DecisionShape {
     /// The deciding article, `<regulation>#<article>`.
-    pub fn grondslag(&self) -> String {
+    pub fn basis(&self) -> String {
         format!("{}#{}", self.law_id, self.article)
     }
 
     pub fn input(&self, name: &str) -> Option<&Input> {
         self.inputs.iter().find(|i| i.field.name == name)
+    }
+
+    /// The finding `name` the decision may take from `authority`: an open
+    /// term that nothing fills, of the deciding article or of a policy that
+    /// fills one of its terms, judged per case and answered by `authority`
+    /// ([`DecisionTerm::is_finding`]).
+    pub fn finding(&self, name: &str, authority: &Authority) -> Option<&DecisionTerm> {
+        self.terms
+            .iter()
+            .find(|t| t.id == name && t.is_finding(authority))
+    }
+
+    /// Split what the deciding authority gives when it takes the decision
+    /// into what it supplies and its findings, as [`Cell::decide`] takes
+    /// them: a parameter of the decision is supplied, anything else is a
+    /// finding. Who may give each, and whether it fits, `decide` checks
+    /// after the split, so `decide` still refuses a parameter the
+    /// application holds, and a finding of another authority.
+    ///
+    /// [`Cell::decide`]: crate::Cell::decide
+    pub fn split(&self, given: &Map<String, Value>) -> (Map<String, Value>, Map<String, Value>) {
+        given
+            .clone()
+            .into_iter()
+            .partition(|(name, _)| self.input(name).is_some())
+    }
+
+    /// Whether a regulation fills the open term `name` of the deciding
+    /// article (`implements`): the engine resolves it, and the cell records
+    /// the value it used.
+    pub fn filled(&self, name: &str) -> bool {
+        self.terms.iter().any(|t| {
+            t.id == name
+                && t.law_id == self.law_id
+                && t.article == self.article
+                && !t.filled_by.is_empty()
+        })
+    }
+}
+
+/// The field a finding on `term` takes: of its type, absent only where the
+/// term is not required and has no default, declared by its article.
+pub fn finding_field(term: &DecisionTerm) -> Field {
+    Field {
+        name: term.id.clone(),
+        type_: term.term_type,
+        nullable: !term.required && !term.has_default,
+        declared_by: vec![term.declared_by()],
     }
 }
 
@@ -115,18 +159,6 @@ pub fn derive(
     article: &str,
     day: NaiveDate,
 ) -> Result<DecisionShape> {
-    derive_with(service, law_id, article, day, &[])
-}
-
-/// [`derive`] for a cell that answers the open terms `answered`: such a
-/// term of the deciding article is filled as a regulation fills it.
-pub fn derive_with(
-    service: &LawExecutionService,
-    law_id: &str,
-    article: &str,
-    day: NaiveDate,
-    answered: &[Term],
-) -> Result<DecisionShape> {
     let reference = format!("{law_id}#{article}");
     let deciding = article_on(service, law_id, article, day)
         .ok_or_else(|| refused(format!("{reference} has no version in force on {day}")))?;
@@ -136,7 +168,7 @@ pub fn derive_with(
         .map(str::to_string)
         .ok_or_else(|| refused(format!("{reference} takes no decision (legal_character)")))?;
     // The application it decides on: the submission that asks for this
-    // decision with `requests` (RFC-047), in this article or another.
+    // decision with `requests` (RFC-045 §1), in this article or another.
     let date = day.to_string();
     let applications = service.applications_for(law_id, article, &date)?;
     let application_reference = match applications.as_slice() {
@@ -159,14 +191,22 @@ pub fn derive_with(
         .ok_or_else(|| setup(format!("'{application_reference}' is no article reference")))?;
     let application = shape::derive(service, application_law, application_article, day)?;
     let submission_kind = application.kind.clone();
-    let stages = STAGES
+    let held: Vec<&str> = service
+        .procedure_of(law_id, deciding)?
+        .map(|procedure| procedure.stages.iter().map(|s| s.name.as_str()).collect())
+        .unwrap_or_default();
+    let pair = STAGES
+        .iter()
+        .find(|pair| pair.iter().all(|stage| held.contains(stage)))
+        .unwrap_or(&STAGES[0]);
+    let stages = pair
         .iter()
         .map(|stage| service.procedure_stage(law_id, article, stage, &date))
         .collect::<std::result::Result<Vec<_>, _>>()?;
     // The decision's outputs: what it decides.
     let outputs: Vec<&str> = decision.map(|d| deciding.outputs_of(d)).unwrap_or_default();
     // What the execution supplies at every stage of the decision: those, and
-    // the data derived for it (RFC-050). A hook may read either as a
+    // the data derived for it (RFC-045 §1). A hook may read either as a
     // parameter; it is no field of the decision.
     let computed: Vec<&str> = outputs
         .iter()
@@ -203,10 +243,11 @@ pub fn derive_with(
                 add_field(&mut fields, field, &reference)?;
                 let source = if application.field(&p.name).is_some()
                     || application.given.contains(&p.name)
+                    || application.is_moment(&p.name)
                 {
                     Source::Application
                 } else {
-                    Source::Caller
+                    Source::Supplied
                 };
                 sources.entry(p.name.clone()).or_insert(source);
             }
@@ -232,61 +273,15 @@ pub fn derive_with(
             sources.insert(req.name.clone(), Source::Cell);
         }
     }
-    // The open terms of the deciding article: a regulation fills one, or
-    // the deciding authority judges it per case. Another open term is the
-    // law's own (a default, or absent) and asks nothing. A term the law
-    // leaves to the authority stays the authority's to supply even when a
-    // regulation fills it: the regulation may be silent for this case, and
-    // the engine's precedence decides (RFC-047).
-    let mut policy_first: Vec<String> = Vec::new();
-    let mut judgements: Vec<String> = Vec::new();
-    for term in deciding.get_open_terms().into_iter().flatten() {
-        let filled = answered
-            .iter()
-            .any(|t| t.law == law_id && t.article == article && t.open_term == term.id)
-            || !service
-                .resolver()
-                .find_implementations(law_id, article, term, Some(day), &HashMap::new())?
-                .implementations
-                .is_empty();
-        let source = match (filled, &term.decided_per_case_by) {
-            (true, Some(_)) => {
-                policy_first.push(term.id.clone());
-                Source::Caller
-            }
-            (true, None) => Source::Policy,
-            (false, Some(_)) => {
-                judgements.push(term.id.clone());
-                Source::Caller
-            }
-            (false, None) => continue,
-        };
-        // A term that is not required and has no default may be absent:
-        // the engine resolves it as null, as the type checker reads it.
-        let has_default = term
-            .default
-            .as_ref()
-            .is_some_and(|d| d.actions.as_ref().is_some_and(|a| !a.is_empty()));
-        let field = Field {
-            name: term.id.clone(),
-            type_: term.term_type,
-            nullable: !term.required && !has_default,
-            declared_by: vec![reference.clone()],
-        };
-        add_field(&mut fields, field, &reference)?;
-        sources.insert(term.id.clone(), source);
-    }
-
+    // For no instance in particular: the cell does not pass its identity to
+    // the law, so a policy scoped by `gemeente_code` is not found (an open
+    // point of RFC-048).
+    let terms = service.decision_terms(law_id, article, &date, &HashMap::new())?;
     let inputs = fields
         .into_iter()
         .map(|field| {
-            let source = sources.remove(&field.name).unwrap_or(Source::Caller);
-            let policy_first = policy_first.contains(&field.name);
-            Input {
-                field,
-                source,
-                policy_first,
-            }
+            let source = sources.remove(&field.name).unwrap_or(Source::Supplied);
+            Input { field, source }
         })
         .collect();
     Ok(DecisionShape {
@@ -298,6 +293,6 @@ pub fn derive_with(
         stages,
         inputs,
         outputs: outputs.iter().map(|o| (*o).to_string()).collect(),
-        judgements,
+        terms,
     })
 }

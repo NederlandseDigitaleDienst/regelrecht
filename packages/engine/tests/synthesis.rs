@@ -1,11 +1,18 @@
-//! Synthesis (RFC-052): a value that another actor establishes is read with
-//! `source.regulation` from the article that establishes it. For the open
-//! terms of such an article the engine asks every answerer of the call that
-//! the term names in its own `competent_authority`, and none other, and
-//! makes one value of their answers with the term's `combine`. At the top of
-//! an execution, and for a term without `competent_authority`, only the
-//! caller's answerer is asked, as before. The article's `competent_authority`
-//! says who decides (RFC-002) and routes nothing.
+//! Values of other actors by competence (RFC-051, RFC-048 §4): a value that
+//! another actor establishes is read with `source.regulation` from the
+//! article that establishes it, and the policy of the authority that decides
+//! binds its open term to a named answer (`source.reduction`). Where the term
+//! names its own `competent_authority`, the engine asks the answerer of the
+//! call whose authority the term names for that answer, and none other.
+//! Where the term names no one, it asks the policy's holder. One question
+//! goes to one cell: two cells of the call that the term names are an error,
+//! and the engine merges no answers. An answerer without an answer of that
+//! name is silent. The article's `competent_authority` says who decides
+//! (RFC-002) and routes nothing.
+//!
+//! Synthesis is an article that takes the answers of different cells, to
+//! different questions, and makes one outcome of them
+//! (`synthesis_makes_one_outcome_of_answers_of_different_cells`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -13,8 +20,8 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 
 use regelrecht_engine::{
-    Answer, AnswerProvenance, ArticleBasedLaw, Authority, Call, FilledBy, LawExecutionService,
-    LawLoad, OpenTermAnswerer, PathNode, PathNodeType, Question, Value,
+    Answer, AnswerProvenance, AnswerRequest, ArticleBasedLaw, Authority, Call, FilledBy,
+    LawExecutionService, LawLoad, OpenTermAnswerer, PathNode, Value,
 };
 
 const DATE: &str = "2026-10-20";
@@ -23,8 +30,8 @@ const DATE: &str = "2026-10-20";
 /// who issued a card before (art. 1, a college or the fictitious national
 /// issuer), a fact without competence (art. 2), one of an article whose
 /// decider is a reference (art. 3), a mark one college gives (art. 4), a
-/// fact one college gives without `combine` (art. 5), and one the GGD
-/// establishes for an article the college decides (art. 7).
+/// fact one college gives (art. 5), and one the GGD establishes for an
+/// article the college decides (art. 7), read through art. 6.
 const ESTABLISHING: &str = r#"
 $id: wet_verstrekking
 regulatory_layer: WET
@@ -42,7 +49,6 @@ articles:
           type: boolean
           required: true
           decided_per_case_by: het college
-          combine: OR
       execution:
         parameters:
           - name: bsn
@@ -181,29 +187,6 @@ articles:
         actions:
           - output: zevende_feit
             value: $zevende_feit
-  - number: '8'
-    text: Het aantal kaarten dat elk college telt.
-    machine_readable:
-      open_terms:
-        - id: aantal_kaarten
-          competent_authority:
-            - name: college van burgemeester en wethouders
-              type: CATEGORY
-          type: number
-          required: false
-          combine: ADD
-      execution:
-        parameters:
-          - name: bsn
-            type: string
-            required: true
-        output:
-          - name: aantal_kaarten
-            type: number
-            nullable: true
-        actions:
-          - output: aantal_kaarten
-            value: $aantal_kaarten
 "#;
 
 /// The law that reads those facts, each through `source.regulation`.
@@ -291,22 +274,237 @@ articles:
             value: $enig
           - output: zesde_gelezen
             value: $zesde
+  - number: '2'
+    text: Een kaart zonder nieuw onderzoek, als eerder een kaart is verstrekt en de GGD het feit vaststelt.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: eerder
+            type: boolean
+            source:
+              regulation: wet_verstrekking
+              output: eerder_verstrekt
+              parameters:
+                bsn: $bsn
+          - name: zesde
+            type: boolean
+            source:
+              regulation: wet_verstrekking
+              output: zesde_feit
+              parameters:
+                bsn: $bsn
+        output:
+          - name: kaart_zonder_onderzoek
+            type: boolean
+        actions:
+          - output: kaart_zonder_onderzoek
+            value:
+              operation: AND
+              conditions: [$eerder, $zesde]
+"#;
+
+/// The policy of the college of Wilgendaal that binds each term of the
+/// establishing law to the answer of that name (RFC-048). Where a term
+/// names who is competent, the engine asks those; where it names no one,
+/// the policy's holder.
+const BINDING: &str = r#"
+$id: beleid_verstrekking
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-01-01'
+url: https://example.org/beleid
+competent_authority:
+  name: wilgendaal
+articles:
+  - number: '1'
+    text: Wat het beleid ontleent aan het antwoord eerder_verstrekt.
+    machine_readable:
+      open_terms:
+        - id: eerder_verstrekt_volgens_college
+          type: boolean
+          required: true
+          decided_per_case_by: het college
+      implements:
+        - {law: wet_verstrekking, article: '1', open_term: eerder_verstrekt}
+      execution:
+        parameters:
+          - {name: bsn, type: string}
+        input:
+          - name: antwoord_eerder_verstrekt
+            type: boolean
+            nullable: true
+            source:
+              reduction: eerder_verstrekt
+              parameters: {bsn: $bsn}
+        output:
+          - {name: eerder_verstrekt, type: boolean}
+        actions:
+          - output: eerder_verstrekt
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord_eerder_verstrekt, value: null}
+                  then: $eerder_verstrekt_volgens_college
+              default: $antwoord_eerder_verstrekt
+  - number: '2'
+    text: Wat het beleid ontleent aan het antwoord ander_feit.
+    machine_readable:
+      open_terms:
+        - id: ander_feit_volgens_college
+          type: boolean
+          required: true
+          decided_per_case_by: het college
+      implements:
+        - {law: wet_verstrekking, article: '2', open_term: ander_feit}
+      execution:
+        parameters:
+          - {name: bsn, type: string}
+        input:
+          - name: antwoord_ander_feit
+            type: boolean
+            nullable: true
+            source:
+              reduction: ander_feit
+              parameters: {bsn: $bsn}
+        output:
+          - {name: ander_feit, type: boolean}
+        actions:
+          - output: ander_feit
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord_ander_feit, value: null}
+                  then: $ander_feit_volgens_college
+              default: $antwoord_ander_feit
+  - number: '3'
+    text: Wat het beleid ontleent aan het antwoord verwezen_feit.
+    machine_readable:
+      open_terms:
+        - id: verwezen_feit_volgens_college
+          type: boolean
+          required: true
+          decided_per_case_by: het college
+      implements:
+        - {law: wet_verstrekking, article: '3', open_term: verwezen_feit}
+      execution:
+        parameters:
+          - {name: bsn, type: string}
+        input:
+          - name: antwoord_verwezen_feit
+            type: boolean
+            nullable: true
+            source:
+              reduction: verwezen_feit
+              parameters: {bsn: $bsn}
+        output:
+          - {name: verwezen_feit, type: boolean}
+        actions:
+          - output: verwezen_feit
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord_verwezen_feit, value: null}
+                  then: $verwezen_feit_volgens_college
+              default: $antwoord_verwezen_feit
+  - number: '4'
+    text: Wat het beleid ontleent aan het antwoord kenmerk.
+    machine_readable:
+      implements:
+        - {law: wet_verstrekking, article: '4', open_term: kenmerk}
+      execution:
+        parameters:
+          - {name: bsn, type: string}
+        input:
+          - name: antwoord_kenmerk
+            type: string
+            nullable: true
+            source:
+              reduction: kenmerk
+              parameters: {bsn: $bsn}
+        output:
+          - {name: kenmerk, type: string, nullable: true}
+        actions:
+          - {output: kenmerk, value: $antwoord_kenmerk}
+  - number: '5'
+    text: Wat het beleid ontleent aan het antwoord enig_feit.
+    machine_readable:
+      open_terms:
+        - id: enig_feit_volgens_college
+          type: boolean
+          required: true
+          decided_per_case_by: het college
+      implements:
+        - {law: wet_verstrekking, article: '5', open_term: enig_feit}
+      execution:
+        parameters:
+          - {name: bsn, type: string}
+        input:
+          - name: antwoord_enig_feit
+            type: boolean
+            nullable: true
+            source:
+              reduction: enig_feit
+              parameters: {bsn: $bsn}
+        output:
+          - {name: enig_feit, type: boolean}
+        actions:
+          - output: enig_feit
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord_enig_feit, value: null}
+                  then: $enig_feit_volgens_college
+              default: $antwoord_enig_feit
+  - number: '7'
+    text: Wat het beleid ontleent aan het antwoord zevende_feit.
+    machine_readable:
+      open_terms:
+        - id: zevende_feit_volgens_college
+          type: boolean
+          required: true
+          decided_per_case_by: het college
+      implements:
+        - {law: wet_verstrekking, article: '7', open_term: zevende_feit}
+      execution:
+        parameters:
+          - {name: bsn, type: string}
+        input:
+          - name: antwoord_zevende_feit
+            type: boolean
+            nullable: true
+            source:
+              reduction: zevende_feit
+              parameters: {bsn: $bsn}
+        output:
+          - {name: zevende_feit, type: boolean}
+        actions:
+          - output: zevende_feit
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord_zevende_feit, value: null}
+                  then: $zevende_feit_volgens_college
+              default: $antwoord_zevende_feit
 "#;
 
 fn service() -> LawExecutionService {
     let mut service = LawExecutionService::new();
     service.load_law(ESTABLISHING).unwrap();
     service.load_law(READING).unwrap();
+    service.load_law(BINDING).unwrap();
     service
 }
 
-/// An answerer with a name, maybe a category, and an answer per term: a
-/// value, `null`, or no answer at all (a term it does not fill). It keeps
-/// which terms it was asked.
+/// An answerer with a name, maybe a category, and an answer per name: a
+/// value, `null`, or no answer at all (an answer it does not give). It
+/// keeps which answers it was asked, with the parameters.
 struct Fake {
     authority: Authority,
     answers: BTreeMap<&'static str, Value>,
-    asked: RefCell<Vec<String>>,
+    asked: RefCell<Vec<(String, BTreeMap<String, Value>)>>,
 }
 
 impl Fake {
@@ -325,13 +523,17 @@ impl Fake {
         }
     }
 
-    fn answering(mut self, term: &'static str, value: Value) -> Self {
-        self.answers.insert(term, value);
+    fn answering(mut self, name: &'static str, value: Value) -> Self {
+        self.answers.insert(name, value);
         self
     }
 
     fn asked(&self) -> Vec<String> {
-        self.asked.borrow().clone()
+        self.asked
+            .borrow()
+            .iter()
+            .map(|(name, _)| name.clone())
+            .collect()
     }
 }
 
@@ -343,20 +545,25 @@ impl OpenTermAnswerer for Fake {
     fn answer(
         &self,
         _service: &LawExecutionService,
-        question: &Question<'_>,
+        request: &AnswerRequest<'_>,
     ) -> regelrecht_engine::Result<Option<Answer>> {
-        self.asked.borrow_mut().push(question.term.to_string());
-        Ok(self.answers.get(question.term).map(|value| Answer {
+        assert_eq!(request.calculation_date, DATE);
+        self.asked
+            .borrow_mut()
+            .push((request.name.to_string(), request.parameters.clone()));
+        Ok(self.answers.get(request.name).map(|value| Answer {
             value: value.clone(),
-            provenance: provenance(&self.authority.name),
+            provenance: provenance(&self.authority.name, request.name),
         }))
     }
 }
 
-fn provenance(answerer: &str) -> AnswerProvenance {
+fn provenance(answerer: &str, answer: &str) -> AnswerProvenance {
     AnswerProvenance {
         answerer: answerer.to_string(),
+        answer: answer.to_string(),
         law_id: format!("reductie_{answerer}"),
+        article: "1".to_string(),
         valid_from: "2026-01-01".to_string(),
         records_read: 1,
         last_record: None,
@@ -378,31 +585,42 @@ fn read(
     let call = Call {
         findings,
         answerer: Some(answerer),
+        chronicle: None,
         sphere,
     };
     service().evaluate_law_with_trace_in("wet_lezer", &[output], parameters(), call, DATE)
 }
 
-/// The node where the engine resolves the open term `name`.
-fn node<'n>(node: &'n PathNode, name: &str) -> Option<&'n PathNode> {
-    if node.name == name && node.node_type == PathNodeType::OpenTermResolution {
-        return Some(node);
-    }
-    node.children
-        .iter()
-        .find_map(|child| self::node(child, name))
-}
-
-/// The answerers under the node of `term`, in the order of the trace.
-/// Without routing the term's own node carries the answer (RFC-048).
-fn answer_nodes(result: &regelrecht_engine::ArticleResult, term: &str) -> Vec<String> {
-    let trace = result.trace.as_ref().expect("traced");
-    let term_node = node(trace, term).expect("a node for the term");
-    term_node
+/// The node of the input of the binding that takes the answer `answer`:
+/// the innermost of that name, where the engine asks the cells.
+fn node<'n>(node: &'n PathNode, answer: &str) -> Option<&'n PathNode> {
+    let below = node
         .children
         .iter()
+        .find_map(|child| self::node(child, answer));
+    below.or_else(|| (node.name == format!("antwoord_{answer}")).then_some(node))
+}
+
+/// The answerers under the node of the input that takes `answer`, in the
+/// order of the trace: one node each, named after the answer.
+fn answer_nodes(result: &regelrecht_engine::ArticleResult, answer: &str) -> Vec<String> {
+    let trace = result.trace.as_ref().expect("traced");
+    let input = node(trace, answer).expect("a node for the input");
+    input
+        .children
+        .iter()
+        .filter(|child| child.name == answer)
         .filter_map(|child| child.answer.as_ref().map(|a| a.answerer.clone()))
         .collect()
+}
+
+/// The message on the node of the input that takes `answer`.
+fn input_message(result: &regelrecht_engine::ArticleResult, answer: &str) -> String {
+    node(result.trace.as_ref().unwrap(), answer)
+        .unwrap()
+        .message
+        .clone()
+        .unwrap()
 }
 
 fn filled_by(result: &regelrecht_engine::ArticleResult, term: &str) -> FilledBy {
@@ -414,67 +632,89 @@ fn filled_by(result: &regelrecht_engine::ArticleResult, term: &str) -> FilledBy 
         .expect("the term is filled")
 }
 
-#[test]
-fn only_the_answerers_the_term_names_are_asked() {
-    let running = Fake::college("wilgendaal");
-    let other = Fake::college("oostmeer").answering("eerder_verstrekt", Value::Bool(true));
-    let national = Fake::new("Landelijke uitgever", None);
-    let stranger = Fake::new("ggd", Some("Gemeentelijke Gezondheidsdienst"))
-        .answering("eerder_verstrekt", Value::Bool(false));
-    let result = read(
-        "eerder_gelezen",
-        &running,
-        vec![&other, &national, &stranger],
-        BTreeMap::new(),
-    )
-    .unwrap();
-    assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(true));
-    // CATEGORY by category, INSTANCE by name; the GGD is not asked.
-    assert_eq!(running.asked(), ["eerder_verstrekt"]);
-    assert_eq!(other.asked(), ["eerder_verstrekt"]);
-    assert_eq!(national.asked(), ["eerder_verstrekt"]);
-    assert!(stranger.asked().is_empty());
-    assert_eq!(
-        filled_by(&result, "eerder_verstrekt"),
-        FilledBy::Answer(provenance("oostmeer"))
-    );
-    assert_eq!(answer_nodes(&result, "eerder_verstrekt"), ["oostmeer"]);
-    // The answer is on the answerer's node, not twice.
-    let trace = result.trace.as_ref().unwrap();
-    assert!(node(trace, "eerder_verstrekt").unwrap().answer.is_none());
+/// What the report says when the binding of `article` filled a term with
+/// the answers of `answerers`.
+fn bound(article: &str, answer: &str, answerers: &[&str]) -> FilledBy {
+    FilledBy::Answer {
+        law_id: "beleid_verstrekking".to_string(),
+        article: article.to_string(),
+        answers: answerers.iter().map(|a| provenance(a, answer)).collect(),
+    }
 }
 
+#[test]
+fn only_the_answerer_the_term_names_is_asked() {
+    let running = Fake::new("ggd", Some("Gemeentelijke Gezondheidsdienst"))
+        .answering("eerder_verstrekt", Value::Bool(false));
+    let other = Fake::college("oostmeer").answering("eerder_verstrekt", Value::Bool(true));
+    let result = read("eerder_gelezen", &running, vec![&other], BTreeMap::new()).unwrap();
+    assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(true));
+    // CATEGORY by category; the GGD is not asked.
+    assert_eq!(other.asked(), ["eerder_verstrekt"]);
+    assert!(running.asked().is_empty());
+    assert_eq!(
+        filled_by(&result, "eerder_verstrekt"),
+        bound("1", "eerder_verstrekt", &["oostmeer"])
+    );
+    assert_eq!(answer_nodes(&result, "eerder_verstrekt"), ["oostmeer"]);
+    // The binding passes its parameters under the names it gives them.
+    assert_eq!(
+        other.asked.borrow()[0].1["bsn"],
+        Value::String("999990019".into())
+    );
+    let message = input_message(&result, "eerder_verstrekt");
+    assert!(message.contains("given by oostmeer"), "{message}");
+}
+
+#[test]
+fn an_instance_is_asked_by_name() {
+    let running = Fake::new("ggd", Some("Gemeentelijke Gezondheidsdienst"));
+    let national =
+        Fake::new("Landelijke uitgever", None).answering("eerder_verstrekt", Value::Bool(true));
+    let result = read("eerder_gelezen", &running, vec![&national], BTreeMap::new()).unwrap();
+    assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(true));
+    assert_eq!(national.asked(), ["eerder_verstrekt"]);
+}
 #[test]
 fn a_running_answerer_the_term_does_not_name_is_not_asked() {
     let running = Fake::new("ggd", Some("Gemeentelijke Gezondheidsdienst"))
         .answering("eerder_verstrekt", Value::Bool(true));
     let mut findings = BTreeMap::new();
-    findings.insert("eerder_verstrekt".to_string(), Value::Bool(false));
+    findings.insert(
+        "eerder_verstrekt_volgens_college".to_string(),
+        Value::Bool(false),
+    );
     let result = read("eerder_gelezen", &running, vec![], findings).unwrap();
     assert!(running.asked().is_empty());
     assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(false));
-    assert_eq!(filled_by(&result, "eerder_verstrekt"), FilledBy::Finding);
-    let trace = result.trace.as_ref().unwrap();
-    let term = node(trace, "eerder_verstrekt").unwrap();
-    let message = term
-        .children
-        .iter()
-        .filter_map(|c| c.message.as_deref())
-        .collect::<Vec<_>>()
-        .join("\n");
+    assert_eq!(
+        filled_by(&result, "eerder_verstrekt"),
+        bound("1", "eerder_verstrekt", &[])
+    );
+    assert_eq!(
+        filled_by(&result, "eerder_verstrekt_volgens_college"),
+        FilledBy::Finding
+    );
+    let message = input_message(&result, "eerder_verstrekt");
     assert!(
-        message.contains("No competent answerer in the sphere for 'college van burgemeester en wethouders' or 'Landelijke uitgever'"),
+        message.contains(
+            "No cell of this execution gives the answer 'eerder_verstrekt' for 'college van \
+             burgemeester en wethouders' or 'Landelijke uitgever'"
+        ),
         "{message}"
     );
 }
 
 #[test]
-fn at_the_top_only_the_running_answerer_is_asked() {
+fn the_binding_routes_wherever_it_runs() {
+    // Also where the article is evaluated at the top: the binding asks the
+    // cells the term names, and the running one only where it is named.
     let running = Fake::new("ggd", None).answering("eerder_verstrekt", Value::Bool(true));
     let other = Fake::college("oostmeer").answering("eerder_verstrekt", Value::Bool(false));
     let call = Call {
         findings: BTreeMap::new(),
         answerer: Some(&running),
+        chronicle: None,
         sphere: vec![&other],
     };
     let result = service()
@@ -486,123 +726,145 @@ fn at_the_top_only_the_running_answerer_is_asked() {
             DATE,
         )
         .unwrap();
-    // Not reached through source.regulation: no routing, as before.
-    assert_eq!(result.outputs["eerder_verstrekt"], Value::Bool(true));
-    assert!(other.asked().is_empty());
+    assert_eq!(result.outputs["eerder_verstrekt"], Value::Bool(false));
+    assert!(running.asked().is_empty());
+    assert_eq!(other.asked(), ["eerder_verstrekt"]);
 }
 
 #[test]
-fn a_term_without_competent_authority_asks_only_the_running_answerer() {
-    let running = Fake::new("ggd", None).answering("ander_feit", Value::Bool(true));
+fn a_term_without_competent_authority_asks_the_holder_of_the_policy() {
+    // The policy is of wilgendaal: its cell is asked, wherever in the call
+    // it is, and no other.
+    let running = Fake::new("ggd", None).answering("ander_feit", Value::Bool(false));
+    let holder = Fake::college("wilgendaal").answering("ander_feit", Value::Bool(true));
     let other = Fake::college("oostmeer").answering("ander_feit", Value::Bool(false));
-    let result = read("ander_gelezen", &running, vec![&other], BTreeMap::new()).unwrap();
+    let result = read(
+        "ander_gelezen",
+        &running,
+        vec![&other, &holder],
+        BTreeMap::new(),
+    )
+    .unwrap();
     assert_eq!(result.outputs["ander_gelezen"], Value::Bool(true));
+    assert!(running.asked().is_empty());
     assert!(other.asked().is_empty());
+    assert_eq!(
+        filled_by(&result, "ander_feit"),
+        bound("2", "ander_feit", &["wilgendaal"])
+    );
 }
 
 #[test]
-fn two_answers_combine_with_or_and_each_has_its_node() {
+fn two_cells_the_term_names_are_an_error_and_none_is_asked() {
+    // One question goes to one cell. Which of two colleges answers is open,
+    // so the engine asks neither and merges nothing.
     let running = Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Bool(true));
     let other = Fake::college("oostmeer").answering("eerder_verstrekt", Value::Bool(true));
-    let result = read("eerder_gelezen", &running, vec![&other], BTreeMap::new()).unwrap();
-    assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(true));
-    assert_eq!(
-        filled_by(&result, "eerder_verstrekt"),
-        FilledBy::Answers(vec![provenance("oostmeer"), provenance("wilgendaal")])
-    );
-    assert_eq!(
-        answer_nodes(&result, "eerder_verstrekt"),
-        ["oostmeer", "wilgendaal"]
-    );
-    let trace = result.trace.as_ref().unwrap();
-    let message = node(trace, "eerder_verstrekt")
-        .unwrap()
-        .message
-        .clone()
-        .unwrap();
-    assert!(message.contains("combined with OR"), "{message}");
-}
-
-#[test]
-fn true_and_false_combine_with_or_to_true() {
-    let running = Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Bool(false));
-    let other = Fake::college("oostmeer").answering("eerder_verstrekt", Value::Bool(true));
-    let result = read("eerder_gelezen", &running, vec![&other], BTreeMap::new()).unwrap();
-    assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(true));
-}
-
-#[test]
-fn the_order_of_the_sphere_changes_neither_outcome_nor_trace() {
-    let a = Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Bool(false));
-    let b = Fake::college("oostmeer").answering("eerder_verstrekt", Value::Bool(true));
-    let c = Fake::new("Landelijke uitgever", None).answering("eerder_verstrekt", Value::Null);
-    let one = read("eerder_gelezen", &a, vec![&b, &c], BTreeMap::new()).unwrap();
-    let two = read("eerder_gelezen", &a, vec![&c, &b], BTreeMap::new()).unwrap();
-    assert_eq!(one.outputs, two.outputs);
-    assert_eq!(one.open_terms, two.open_terms);
-    assert_eq!(
-        answer_nodes(&one, "eerder_verstrekt"),
-        answer_nodes(&two, "eerder_verstrekt")
-    );
-    assert_eq!(
-        answer_nodes(&one, "eerder_verstrekt"),
-        ["Landelijke uitgever", "oostmeer", "wilgendaal"]
-    );
-}
-
-#[test]
-fn a_silent_answer_does_not_count() {
-    let running = Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Null);
-    let other = Fake::college("oostmeer").answering("eerder_verstrekt", Value::Bool(true));
-    let result = read("eerder_gelezen", &running, vec![&other], BTreeMap::new()).unwrap();
-    assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(true));
-    assert_eq!(
-        filled_by(&result, "eerder_verstrekt"),
-        FilledBy::Answer(provenance("oostmeer"))
-    );
-    // The silent one has its node too.
-    assert_eq!(
-        answer_nodes(&result, "eerder_verstrekt"),
-        ["oostmeer", "wilgendaal"]
-    );
-}
-
-#[test]
-fn when_all_are_silent_the_term_falls_back_on_the_finding() {
-    let running = Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Null);
-    let other = Fake::college("oostmeer").answering("eerder_verstrekt", Value::Null);
-    let mut findings = BTreeMap::new();
-    findings.insert("eerder_verstrekt".to_string(), Value::Bool(false));
-    let result = read("eerder_gelezen", &running, vec![&other], findings).unwrap();
-    assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(false));
-    assert_eq!(filled_by(&result, "eerder_verstrekt"), FilledBy::Finding);
-}
-
-#[test]
-fn two_answers_without_combine_are_an_error() {
-    let running = Fake::college("wilgendaal").answering("enig_feit", Value::Bool(true));
-    let other = Fake::college("oostmeer").answering("enig_feit", Value::Bool(true));
-    let e = read("enig_gelezen", &running, vec![&other], BTreeMap::new()).unwrap_err();
+    let national =
+        Fake::new("Landelijke uitgever", None).answering("eerder_verstrekt", Value::Bool(false));
+    let e = read(
+        "eerder_gelezen",
+        &running,
+        vec![&other, &national],
+        BTreeMap::new(),
+    )
+    .unwrap_err();
     let message = e.to_string();
     assert!(
-        message.contains("has 2 answers, from oostmeer, wilgendaal"),
+        message.contains(
+            "3 cells of the call are named by 'college van burgemeester en wethouders' or \
+             'Landelijke uitgever': Landelijke uitgever, oostmeer, wilgendaal"
+        ),
         "{message}"
     );
-    assert!(message.contains("no combine"), "{message}");
+    assert!(message.contains("which one is open"), "{message}");
+    assert!(running.asked().is_empty());
+    assert!(other.asked().is_empty());
+    assert!(national.asked().is_empty());
+}
+#[test]
+fn when_the_cell_is_silent_the_policy_takes_its_own_finding() {
+    // The binding fills the term; where the cell is silent, the policy says
+    // what holds: the finding on its own open term (RFC-048 §2).
+    let running = Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Null);
+    let mut findings = BTreeMap::new();
+    findings.insert(
+        "eerder_verstrekt_volgens_college".to_string(),
+        Value::Bool(false),
+    );
+    let result = read("eerder_gelezen", &running, vec![], findings).unwrap();
+    assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(false));
+    assert_eq!(
+        filled_by(&result, "eerder_verstrekt"),
+        bound("1", "eerder_verstrekt", &["wilgendaal"])
+    );
+    assert_eq!(
+        filled_by(&result, "eerder_verstrekt_volgens_college"),
+        FilledBy::Finding
+    );
+    // The silent cell has its node too.
+    assert_eq!(answer_nodes(&result, "eerder_verstrekt"), ["wilgendaal"]);
+    let message = input_message(&result, "eerder_verstrekt");
+    assert!(message.contains("silent: wilgendaal"), "{message}");
+    // A cell without the answer is silent without a node.
+    let running = Fake::college("wilgendaal");
+    let mut findings = BTreeMap::new();
+    findings.insert(
+        "eerder_verstrekt_volgens_college".to_string(),
+        Value::Bool(true),
+    );
+    let result = read("eerder_gelezen", &running, vec![], findings).unwrap();
+    assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(true));
+    let message = input_message(&result, "eerder_verstrekt");
+    assert!(
+        message.contains("silent: wilgendaal (no answer 'eerder_verstrekt')"),
+        "{message}"
+    );
 }
 
 #[test]
-fn one_answer_beside_a_silent_one_needs_no_combine() {
-    let running = Fake::college("wilgendaal").answering("kenmerk", Value::String("A".into()));
-    let other = Fake::college("oostmeer").answering("kenmerk", Value::Null);
-    let result = read("kenmerk_gelezen", &running, vec![&other], BTreeMap::new()).unwrap();
-    assert_eq!(result.outputs["kenmerk_gelezen"], Value::String("A".into()));
+fn synthesis_makes_one_outcome_of_answers_of_different_cells() {
+    // Article 2 of the reading law asks two questions, each of the cell the
+    // law makes competent for it: whether a card was issued before (a
+    // college) and the fact the GGD establishes. Each question goes to one
+    // cell; the article makes one outcome of the two answers.
+    let running = Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Bool(true));
+    let ggd = Fake::new("ggd", Some("Gemeentelijke Gezondheidsdienst"))
+        .answering("zevende_feit", Value::Bool(true));
+    let result = read(
+        "kaart_zonder_onderzoek",
+        &running,
+        vec![&ggd],
+        BTreeMap::new(),
+    )
+    .unwrap();
+    assert_eq!(result.outputs["kaart_zonder_onderzoek"], Value::Bool(true));
+    assert_eq!(running.asked(), ["eerder_verstrekt"]);
+    assert_eq!(ggd.asked(), ["zevende_feit"]);
+    assert_eq!(
+        filled_by(&result, "eerder_verstrekt"),
+        bound("1", "eerder_verstrekt", &["wilgendaal"])
+    );
+    assert_eq!(
+        filled_by(&result, "zevende_feit"),
+        bound("7", "zevende_feit", &["ggd"])
+    );
+    // One answer that is false makes the outcome false.
+    let ggd = Fake::new("ggd", Some("Gemeentelijke Gezondheidsdienst"))
+        .answering("zevende_feit", Value::Bool(false));
+    let result = read(
+        "kaart_zonder_onderzoek",
+        &running,
+        vec![&ggd],
+        BTreeMap::new(),
+    )
+    .unwrap();
+    assert_eq!(result.outputs["kaart_zonder_onderzoek"], Value::Bool(false));
 }
-
 #[test]
 fn the_competence_of_the_article_routes_nothing() {
     // Art. 3 names who decides by a reference; its term names no one, so
-    // only the running answerer is asked, and its answer counts.
+    // the holder of the policy is asked, and its answer counts.
     let running = Fake::college("wilgendaal").answering("verwezen_feit", Value::Bool(true));
     let other = Fake::college("oostmeer").answering("verwezen_feit", Value::Bool(false));
     let result = read("verwezen_gelezen", &running, vec![&other], BTreeMap::new()).unwrap();
@@ -615,189 +877,200 @@ fn two_answerers_with_one_name_are_an_error() {
     let running = Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Bool(true));
     let twin = Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Bool(true));
     let e = read("eerder_gelezen", &running, vec![&twin], BTreeMap::new()).unwrap_err();
-    assert!(e.to_string().contains("named 'wilgendaal'"), "{e}");
+    assert!(e.to_string().contains("wilgendaal, wilgendaal"), "{e}");
 }
-
 #[test]
-fn a_combine_that_does_not_fit_the_type_is_refused_at_load() {
-    let yaml = ESTABLISHING.replacen("combine: OR", "combine: ADD", 1);
-    let e = ArticleBasedLaw::from_yaml_str(&yaml).unwrap_err();
-    assert!(
-        e.to_string().contains(
-            "combines its answers with ADD (combine), which does not fit its type boolean"
-        ),
-        "{e}"
-    );
-    // ONLY is no rule for answers: one needs none, two without one fail.
-    let yaml = ESTABLISHING.replacen("combine: OR", "combine: ONLY", 1);
-    let e = ArticleBasedLaw::from_yaml_str(&yaml).unwrap_err();
-    assert!(
-        e.to_string().contains("which is no rule for answers"),
-        "{e}"
-    );
-    // Without competent authorities named, only one answerer is asked.
-    let yaml = ESTABLISHING.replacen(
-        "          decided_per_case_by: het college\n      execution:\n        parameters:\n          - name: bsn\n            type: string\n            required: true\n        output:\n          - name: ander_feit",
-        "          decided_per_case_by: het college\n          combine: OR\n      execution:\n        parameters:\n          - name: bsn\n            type: string\n            required: true\n        output:\n          - name: ander_feit",
-        1,
-    );
-    assert_ne!(yaml, ESTABLISHING);
-    let e = ArticleBasedLaw::from_yaml_str(&yaml).unwrap_err();
-    assert!(
-        e.to_string().contains("names no competent authorities"),
-        "{e}"
-    );
-}
-
-/// The messages of the trace of `result`, at every depth.
-fn messages(result: &regelrecht_engine::ArticleResult) -> Vec<String> {
-    fn walk(node: &PathNode, out: &mut Vec<String>) {
-        out.extend(node.message.clone());
-        for child in &node.children {
-            walk(child, out);
-        }
-    }
-    let mut out = Vec::new();
-    walk(result.trace.as_ref().expect("traced"), &mut out);
-    out
-}
-
-#[test]
-fn an_article_the_target_reads_in_its_own_law_is_not_routed() {
-    // Art. 6 is read through source.regulation; art. 7, which art. 6 reads
-    // within its own law, is not, so the running college answers its term
-    // although art. 7 names the GGD.
+fn an_article_the_target_reads_in_its_own_law_is_routed_by_its_binding() {
+    // Art. 6 reads art. 7 within its own law; the binding of art. 7's term
+    // asks the GGD the term names, not the running college.
     let running = Fake::college("wilgendaal").answering("zevende_feit", Value::Bool(true));
     let ggd = Fake::new("ggd", Some("Gemeentelijke Gezondheidsdienst"))
         .answering("zevende_feit", Value::Bool(false));
     let result = read("zesde_gelezen", &running, vec![&ggd], BTreeMap::new()).unwrap();
-    assert_eq!(result.outputs["zesde_gelezen"], Value::Bool(true));
-    assert!(ggd.asked().is_empty());
+    assert_eq!(result.outputs["zesde_gelezen"], Value::Bool(false));
+    assert!(running.asked().is_empty());
+    assert_eq!(ggd.asked(), ["zevende_feit"]);
 }
 
 #[test]
-fn without_answerers_the_trace_names_no_missing_competent_one() {
+fn a_term_is_filled_only_by_the_answers_of_its_own_binding() {
+    // Art. 2 of the policy takes no answer itself but reads the term of
+    // art. 1, which its binding (art. 1 of the same policy) fills with the
+    // answer of the cell. That answer is art. 1's: art. 2 filled its term
+    // as regulation, not with an answer.
+    let policy = BINDING.replacen(
+        "reduction: ander_feit\n",
+        "regulation: wet_verstrekking\n              output: eerder_verstrekt\n",
+        1,
+    );
+    assert_ne!(policy, BINDING);
+    let mut service = LawExecutionService::new();
+    service.load_law(ESTABLISHING).unwrap();
+    service.load_law(READING).unwrap();
+    service.load_law(&policy).unwrap();
+    let running = Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Bool(true));
+    let call = Call {
+        findings: BTreeMap::new(),
+        answerer: Some(&running),
+        chronicle: None,
+        sphere: Vec::new(),
+    };
+    let result = service
+        .evaluate_law_with_trace_in("wet_lezer", &["ander_gelezen"], parameters(), call, DATE)
+        .unwrap();
+    assert_eq!(result.outputs["ander_gelezen"], Value::Bool(true));
+    assert_eq!(
+        filled_by(&result, "eerder_verstrekt"),
+        bound("1", "eerder_verstrekt", &["wilgendaal"])
+    );
+    assert_eq!(
+        filled_by(&result, "ander_feit"),
+        FilledBy::Regulation {
+            law_id: "beleid_verstrekking".to_string(),
+            article: "2".to_string(),
+        }
+    );
+    let trace = result.trace.unwrap().render_box_drawing();
+    let art2 = "Open term 'ander_feit' implemented by beleid_verstrekking article 2";
+    assert!(trace.contains(art2), "{trace}");
+    assert!(!trace.contains(&format!("{art2}, with")), "{trace}");
+}
+
+#[test]
+fn without_answerers_the_binding_gives_nothing_and_the_policy_says_what_holds() {
     let result = service()
         .evaluate_law_with_trace_in(
             "wet_lezer",
             &["eerder_gelezen"],
             parameters(),
             Call::with_findings(BTreeMap::from([(
-                "eerder_verstrekt".to_string(),
+                "eerder_verstrekt_volgens_college".to_string(),
                 Value::Bool(true),
             )])),
             DATE,
         )
         .unwrap();
     assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(true));
+    assert_eq!(
+        filled_by(&result, "eerder_verstrekt"),
+        bound("1", "eerder_verstrekt", &[])
+    );
+    // Without the finding the policy's own required term has no value.
+    let e = service()
+        .evaluate_law("wet_lezer", &["eerder_gelezen"], parameters(), DATE)
+        .unwrap_err();
     assert!(
-        !messages(&result)
-            .iter()
-            .any(|m| m.contains("No competent answerer")),
-        "{:?}",
-        messages(&result)
+        e.to_string().contains("eerder_verstrekt_volgens_college"),
+        "{e}"
     );
 }
 
 #[test]
-fn with_a_competent_answerer_the_trace_names_no_missing_one() {
+fn a_finding_on_a_term_the_policy_fills_is_asked_by_none() {
+    // No judgement of the authority steps in where a policy fills the term:
+    // the policy's value is the term's, also null (RFC-048 §2).
     let running = Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Bool(true));
-    let result = read("eerder_gelezen", &running, vec![], BTreeMap::new()).unwrap();
-    assert!(!messages(&result)
-        .iter()
-        .any(|m| m.contains("No competent answerer")));
+    let mut findings = BTreeMap::new();
+    findings.insert("eerder_verstrekt".to_string(), Value::Bool(false));
+    let e = read("eerder_gelezen", &running, vec![], findings).unwrap_err();
+    assert!(e.to_string().contains("is asked by none"), "{e}");
 }
 
 #[test]
 fn a_null_answer_without_a_fallback_is_the_value() {
     // `kenmerk` has no default and nobody decides it per case: null is the
-    // answer, as with one answerer (RFC-048), and the report says who gave it.
+    // answer, and the report says who gave it.
     let running = Fake::college("wilgendaal").answering("kenmerk", Value::Null);
     let result = read("kenmerk_gelezen", &running, vec![], BTreeMap::new()).unwrap();
     assert_eq!(result.outputs["kenmerk_gelezen"], Value::Null);
     assert_eq!(
         filled_by(&result, "kenmerk"),
-        FilledBy::Answer(provenance("wilgendaal"))
+        bound("4", "kenmerk", &["wilgendaal"])
     );
+    // A cell without the answer leaves the report with no answer at all.
+    let running = Fake::college("wilgendaal");
+    let result = read("kenmerk_gelezen", &running, vec![], BTreeMap::new()).unwrap();
+    assert_eq!(filled_by(&result, "kenmerk"), bound("4", "kenmerk", &[]));
 }
 
-/// Art. 8 read through `source.regulation`, with `answerer` and `sphere`.
-fn aantal(
-    answerer: &dyn OpenTermAnswerer,
-    sphere: Vec<&dyn OpenTermAnswerer>,
-) -> regelrecht_engine::ArticleResult {
-    let reader = r#"
-$id: wet_teller
-regulatory_layer: WET
-publication_date: '2025-01-01'
-articles:
-  - number: '1'
-    text: Het aantal kaarten.
-    machine_readable:
-      execution:
-        parameters:
-          - name: bsn
-            type: string
-            required: true
-        input:
-          - name: aantal
-            type: number
-            nullable: true
-            source:
-              regulation: wet_verstrekking
-              output: aantal_kaarten
-              parameters:
-                bsn: $bsn
-        output:
-          - name: aantal_gelezen
-            type: number
-            nullable: true
-        actions:
-          - output: aantal_gelezen
-            value: $aantal
-"#;
-    let mut service = service();
-    service.load_law(reader).unwrap();
+#[test]
+fn a_binding_that_passes_a_value_it_does_not_have_fails() {
+    // The binding names a parameter it does not declare: with a cell to ask,
+    // that is an error, not an answer without it.
+    let typo = BINDING.replacen(
+        "parameters: {bsn: $bsn}",
+        "parameters: {bsn: $bsn_aanvrager}",
+        1,
+    );
+    assert_ne!(typo, BINDING);
+    let mut service = LawExecutionService::new();
+    for law in [ESTABLISHING, READING, typo.as_str()] {
+        service.load_law(law).unwrap();
+    }
+    let running = Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Bool(true));
     let call = Call {
         findings: BTreeMap::new(),
-        answerer: Some(answerer),
-        sphere,
+        answerer: Some(&running),
+        chronicle: None,
+        sphere: vec![],
     };
-    service
-        .evaluate_law_with_trace_in("wet_teller", &["aantal_gelezen"], parameters(), call, DATE)
-        .unwrap()
-}
-
-/// The message on the node where the engine resolves `term`.
-fn term_message(result: &regelrecht_engine::ArticleResult, term: &str) -> String {
-    node(result.trace.as_ref().unwrap(), term)
-        .unwrap()
-        .message
-        .clone()
-        .unwrap()
+    let e = service
+        .evaluate_law_in("wet_lezer", &["eerder_gelezen"], parameters(), call, DATE)
+        .unwrap_err();
+    assert!(e.to_string().contains("bsn_aanvrager"), "{e}");
+    assert!(running.asked().is_empty());
 }
 
 #[test]
-fn two_answers_add_up_and_the_trace_names_the_rule() {
-    let a = Fake::college("wilgendaal").answering("aantal_kaarten", Value::Int(1));
-    let b = Fake::college("oostmeer").answering("aantal_kaarten", Value::Int(2));
-    let result = aantal(&a, vec![&b]);
-    assert_eq!(result.outputs["aantal_gelezen"], Value::Int(3));
-    let message = term_message(&result, "aantal_kaarten");
-    assert!(message.contains("combined with ADD"), "{message}");
-}
-
-#[test]
-fn several_silent_answers_without_a_fallback_are_null_and_combine_nothing() {
-    // No default and nobody decides it per case: null is the answer, also
-    // from two cells, and the trace says they were silent, not combined.
-    let a = Fake::college("wilgendaal").answering("aantal_kaarten", Value::Null);
-    let b = Fake::college("oostmeer").answering("aantal_kaarten", Value::Null);
-    let result = aantal(&a, vec![&b]);
-    assert_eq!(result.outputs["aantal_gelezen"], Value::Null);
-    let message = term_message(&result, "aantal_kaarten");
-    assert!(message.contains("are silent (null)"), "{message}");
-    assert!(!message.contains("combined"), "{message}");
+fn an_answer_a_binding_declares_never_absent_must_be_given() {
+    let never_absent = BINDING
+        .replacen(
+            "          - name: antwoord_eerder_verstrekt\n            type: boolean\n            nullable: true\n",
+            "          - name: antwoord_eerder_verstrekt\n            type: boolean\n",
+            1,
+        )
+        .replacen(
+            "          - output: eerder_verstrekt\n            value:\n              operation: IF\n              cases:\n                - when: {operation: EQUALS, subject: $antwoord_eerder_verstrekt, value: null}\n                  then: $eerder_verstrekt_volgens_college\n              default: $antwoord_eerder_verstrekt\n",
+            "          - {output: eerder_verstrekt, value: $antwoord_eerder_verstrekt}\n",
+            1,
+        );
+    assert_ne!(never_absent, BINDING);
+    let mut service = LawExecutionService::new();
+    for law in [ESTABLISHING, READING, never_absent.as_str()] {
+        service.load_law(law).unwrap();
+    }
+    for running in [
+        Fake::college("wilgendaal"),
+        Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Null),
+    ] {
+        let call = Call {
+            findings: BTreeMap::from([(
+                "eerder_verstrekt_volgens_college".to_string(),
+                Value::Bool(true),
+            )]),
+            answerer: Some(&running),
+            chronicle: None,
+            sphere: vec![],
+        };
+        let e = service
+            .evaluate_law_in("wet_lezer", &["eerder_gelezen"], parameters(), call, DATE)
+            .unwrap_err();
+        assert!(e.to_string().contains("declared never absent"), "{e}");
+    }
+    // Without any cell it fails the same way.
+    let e = service
+        .evaluate_law_with_findings(
+            "wet_lezer",
+            &["eerder_gelezen"],
+            parameters(),
+            BTreeMap::from([(
+                "eerder_verstrekt_volgens_college".to_string(),
+                Value::Bool(true),
+            )]),
+            DATE,
+        )
+        .unwrap_err();
+    assert!(e.to_string().contains("No cell of this execution"), "{e}");
 }
 
 #[test]
@@ -896,7 +1169,7 @@ articles:
 
 /// A deciding article with one more output beside its decision: whether a
 /// card was issued before, for the college or the national issuer to say.
-/// The decision does not read it, so it belongs to no item (RFC-052).
+/// The decision does not read it, so it belongs to no item (RFC-045 §1).
 const DECIDING: &str = r#"
 $id: wet_beslissing
 regulatory_layer: WET
@@ -917,7 +1190,6 @@ articles:
           type: boolean
           required: true
           decided_per_case_by: het college
-          combine: OR
       execution:
         produces:
           - type: BESCHIKKING
@@ -977,9 +1249,16 @@ articles:
     let mut service = LawExecutionService::new();
     service.load_law(DECIDING).unwrap();
     service.load_law(&reader).unwrap();
+    service
+        .load_law(&BINDING.replace(
+            "        - {law: wet_verstrekking, article: '1', open_term: eerder_verstrekt}",
+            "        - {law: wet_beslissing, article: '1', open_term: eerder_verstrekt}",
+        ))
+        .unwrap();
     let call = Call {
         findings: BTreeMap::new(),
         answerer: Some(answerer),
+        chronicle: None,
         sphere,
     };
     service
@@ -989,16 +1268,16 @@ articles:
 
 #[test]
 fn an_output_beside_the_decision_is_asked_only_when_read() {
-    let running = Fake::college("wilgendaal");
+    let running = Fake::new("ggd", Some("Gemeentelijke Gezondheidsdienst"));
     let other = Fake::college("oostmeer").answering("eerder_verstrekt", Value::Bool(true));
     // The decision reads nothing of it: no cell is asked.
     let result = read_deciding("kaart_verstrekt", &running, vec![&other]);
     assert_eq!(result.outputs["gelezen"], Value::Bool(true));
     assert!(running.asked().is_empty());
     assert!(other.asked().is_empty());
-    // Read itself, the term is asked of every competent cell.
+    // Read itself, the term is asked of the competent cell.
     let result = read_deciding("eerder_verstrekt", &running, vec![&other]);
     assert_eq!(result.outputs["gelezen"], Value::Bool(true));
-    assert_eq!(running.asked(), ["eerder_verstrekt"]);
+    assert!(running.asked().is_empty());
     assert_eq!(other.asked(), ["eerder_verstrekt"]);
 }

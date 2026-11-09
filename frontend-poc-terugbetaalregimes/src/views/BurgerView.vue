@@ -202,7 +202,8 @@ import ToeslagenSignaal from '../components/burger/ToeslagenSignaal.vue';
 import RegimeTabel from '../components/burger/RegimeTabel.vue';
 import { euro } from '../lib/format.js';
 import { writePersisted, readPersisted } from '../composables/useBewaardeStand.js';
-import { heroOnderregel } from '../lib/burgerTekst.js';
+import { budgetSignaal, heroOnderregel } from '../lib/burgerTekst.js';
+import { isPersonaWissel, keuzesBijBinnenkomst } from '../lib/personaKeuze.js';
 
 const { ready, initError, lawIndex, initEngine } = useEngine();
 const { initStore, version, werkversie, werkversieLabel, changeCount } = useLawStore();
@@ -233,18 +234,15 @@ onMounted(async () => {
 });
 
 function selectPersona(persona) {
-  if (!persona) return;
-  // De persona-switcher stuurt ook een select-event bij het synchroniseren van
-  // de dropdown, dus zonder deze controle zou elke render de keuzes wissen.
-  // Alleen een échte wissel telt als "nieuwe situatie".
-  if (selected.value?.bsn === persona.bsn) return;
+  // Alleen een échte wissel telt als "nieuwe situatie" (zie isPersonaWissel).
+  if (!isPersonaWissel(selected.value, persona)) return;
 
   selected.value = persona;
   writePersisted('burger.bsn', persona.bsn ?? null);
   // Keuzes die je eerder bij deze persoon aanzette komen terug; bij iemand
   // anders begin je met diens eigen uitgangspunt.
   const bewaard = readPersisted(`burger.keuzes.${persona.bsn}`, null);
-  choices.value = { ...defaultChoices(persona), ...(bewaard ?? {}) };
+  choices.value = keuzesBijBinnenkomst(defaultChoices(persona), bewaard);
 }
 
 /**
@@ -306,23 +304,7 @@ const signaal = computed(() => {
     }
   }
 
-  if (t0.betalingsprobleem) {
-    // Capaciteit nul betekent: na de vaste lasten volgens het
-    // Nibud-referentiebudget blijft er niets over. Dan helpt "kijk of je
-    // minder kunt betalen" niet, want ook een lager bedrag knelt. Bij een
-    // bedrag van een paar euro is die tekst bovendien ongeloofwaardig.
-    if (!t0.afloscapaciteit) {
-      return {
-        variant: 'warning',
-        tekst: `Je inkomen is te laag voor de vaste lasten die het Nibud voor jouw huishouden rekent. Ook ${euro(t0.maandbedrag)} per maand is dan lastig. Kom je er niet uit, neem dan contact op met DUO of met schuldhulpverlening in je gemeente.`,
-      };
-    }
-    return {
-      variant: 'warning',
-      tekst: `Dit maandbedrag ligt boven wat je volgens het Nibud kunt missen (ongeveer ${euro(t0.afloscapaciteit)} per maand). Kijk bij je keuzes of je minder kunt betalen.`,
-    };
-  }
-  return null;
+  return budgetSignaal(t0);
 });
 
 /** Wat de burger heeft aangezet, in de woorden van de wet ("een aanvraag indienen"). */

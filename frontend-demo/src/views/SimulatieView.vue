@@ -635,7 +635,7 @@ function exportJson() {
             <nldd-button width="full" appearance="secondary" size="sm" :text="t('sim.run.stop')" @click="cancel"></nldd-button>
           </template>
           <nldd-banner v-if="runError" variant="critical" :text="t('sim.run.failed')" :supporting-text="runError"></nldd-banner>
-          <nldd-rich-text v-if="lawSet.skipped.length" size="sm">
+          <nldd-rich-text v-if="lawSet.skipped.length">
             <p><small>{{ t('sim.skipped', { laws: lawSet.skipped.map((s) => t('sim.skipped.law', { name: s.law.name, missing: s.missing.join(', ') })).join('; ') }) }}</small></p>
           </nldd-rich-text>
         </nldd-container>
@@ -653,9 +653,10 @@ function exportJson() {
           <nldd-toolbar size="sm">
             <nldd-toolbar-item slot="start" v-if="narrow">
               <nldd-button size="sm" appearance="neutral-tinted" start-icon="settings" :text="t('sim.settings.open')" @click="splitView?.showPrimarySidebarSheet?.()"></nldd-button>
+              <nldd-menu-item slot="overflow" icon="settings" :text="t('sim.settings.open')" @select="splitView?.showPrimarySidebarSheet?.()"></nldd-menu-item>
             </nldd-toolbar-item>
             <nldd-toolbar-item slot="start" v-if="runs.length">
-              <nldd-tab-bar size="sm" @tabchange="onTab">
+              <nldd-tab-bar :accessible-label="t('sim.tab.label')" @tabchange="onTab">
                 <!-- De kleur van de run als bolletje in de icoonplek: een streep
                      onder de tab hing aan de rechthoek van het element en
                      sneed door de afgeronde hover- en huidige-achtergrond. -->
@@ -664,6 +665,10 @@ function exportJson() {
                 </nldd-tab-bar-item>
                 <nldd-tab-bar-item v-if="runs.length > 1" data-run="vergelijking" :current="activeTab === 'vergelijking' || undefined" :text="t('sim.tab.comparison')" icon="arrow-left-right"></nldd-tab-bar-item>
               </nldd-tab-bar>
+              <nldd-menu-group slot="overflow" :text="t('sim.tab.label')">
+                <nldd-menu-item v-for="r in runs" :key="r.id" type="radio" :text="runLabel(r)" :selected="activeTab === r.id || undefined" @select="activeTab = r.id"></nldd-menu-item>
+                <nldd-menu-item v-if="runs.length > 1" type="radio" :text="t('sim.tab.comparison')" :selected="activeTab === 'vergelijking' || undefined" @select="activeTab = 'vergelijking'"></nldd-menu-item>
+              </nldd-menu-group>
             </nldd-toolbar-item>
             <template v-if="activeRun">
               <nldd-toolbar-item slot="end">
@@ -673,9 +678,14 @@ function exportJson() {
                   <nldd-segmented-control-item value="populatie" :text="t('sim.view.population')"></nldd-segmented-control-item>
                   <nldd-segmented-control-item v-if="harmonizeEnabled" value="harmonisatie" :text="t('sim.view.harmonisation')"></nldd-segmented-control-item>
                 </nldd-segmented-control>
+                <nldd-menu-item slot="overflow" type="radio" :text="t('sim.view.overview')" :selected="mainView === 'overzicht' || undefined" @select="mainView = 'overzicht'"></nldd-menu-item>
+                <nldd-menu-item slot="overflow" type="radio" :text="t('sim.view.breakdown')" :selected="mainView === 'uitsplitsing' || undefined" @select="mainView = 'uitsplitsing'"></nldd-menu-item>
+                <nldd-menu-item slot="overflow" type="radio" :text="t('sim.view.population')" :selected="mainView === 'populatie' || undefined" @select="mainView = 'populatie'"></nldd-menu-item>
+                <nldd-menu-item v-if="harmonizeEnabled" slot="overflow" type="radio" :text="t('sim.view.harmonisation')" :selected="mainView === 'harmonisatie' || undefined" @select="mainView = 'harmonisatie'"></nldd-menu-item>
               </nldd-toolbar-item>
               <nldd-toolbar-item slot="end">
                 <nldd-icon-button size="sm" appearance="neutral-tinted" icon="close" :text="t('sim.run.close')" @click="removeRun(activeRun.id)"></nldd-icon-button>
+                <nldd-menu-item slot="overflow" icon="close" :text="t('sim.run.close')" @select="removeRun(activeRun.id)"></nldd-menu-item>
               </nldd-toolbar-item>
               <nldd-toolbar-item slot="end">
                 <nldd-icon-button size="sm" appearance="neutral-tinted" icon="menu" :text="t('sim.export')" tooltip-timing="never" expandable>
@@ -686,6 +696,11 @@ function exportJson() {
                     <nldd-menu-item :text="t('sim.export.delete')" icon="trash" @click="removeRun(activeRun.id)"></nldd-menu-item>
                   </nldd-menu>
                 </nldd-icon-button>
+                <nldd-menu-group slot="overflow" :text="t('sim.export')">
+                  <nldd-menu-item text="CSV" icon="file-text" @select="exportCsv"></nldd-menu-item>
+                  <nldd-menu-item text="JSON" icon="brackets-ellipsis" @select="exportJson"></nldd-menu-item>
+                  <nldd-menu-item :text="t('sim.export.delete')" icon="trash" @select="removeRun(activeRun.id)"></nldd-menu-item>
+                </nldd-menu-group>
               </nldd-toolbar-item>
             </template>
           </nldd-toolbar>
@@ -874,7 +889,7 @@ function exportJson() {
                     </nldd-container>
                     <nldd-form-field-help-text v-if="!harmonizableLaws.length">{{ t('sim.harmonise.no_laws') }}</nldd-form-field-help-text>
                   </nldd-form-field>
-                  <nldd-container layout="row" gap="12" layout-wrap>
+                  <nldd-container layout="wrap" gap="12">
                     <nldd-form-field :label="t('sim.harmonise.primary')">
                       <nldd-dropdown>
                         <select :value="harmonizePrimary" @change="harmonizePrimary = selectValue($event)">

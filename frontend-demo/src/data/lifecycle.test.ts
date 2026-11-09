@@ -117,9 +117,9 @@ describe('awbOutcomes', () => {
         current_stage: 'BEZWAAR',
         accumulated_outputs: {
           motivering_vereist: true,
-          bezwaartermijn_weken: 6,
-          bezwaartermijn_startdatum: '2026-03-13',
-          bezwaartermijn_einddatum: '2026-04-23',
+          termijn_weken: 6,
+          termijn_startdatum: '2026-03-13',
+          termijn_einddatum: '2026-04-23',
         },
       },
     };
@@ -145,7 +145,7 @@ describe('de volgorde waarin de demo een zaak door de fasen brengt', () => {
   const naToekenning = {
     stageState: {
       current_stage: 'BEKENDMAKING',
-      accumulated_outputs: { toegekend: true, motivering_vereist: true, bezwaartermijn_weken: 6 },
+      accumulated_outputs: { toegekend: true, motivering_vereist: true, termijn_weken: 6 },
     },
     approved: true,
   };
@@ -154,8 +154,8 @@ describe('de volgorde waarin de demo een zaak door de fasen brengt', () => {
       current_stage: 'BEZWAAR',
       accumulated_outputs: {
         ...naToekenning.stageState.accumulated_outputs,
-        bezwaartermijn_startdatum: '2026-03-13',
-        bezwaartermijn_einddatum: '2026-04-23',
+        termijn_startdatum: '2026-03-13',
+        termijn_einddatum: '2026-04-23',
       },
     },
     approved: true,

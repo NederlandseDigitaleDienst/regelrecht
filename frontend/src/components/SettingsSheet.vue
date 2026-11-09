@@ -45,6 +45,7 @@ const editorPanelFlags: [key: string, label: string][] = [
   ['panel.scenario_form', 'Scenario editor'],
   ['panel.yaml_editor', 'YAML editor'],
   ['panel.notes', 'Notities'],
+  ['panel.regelrijm', 'RegelRijm (experimenteel)'],
 ];
 
 // De sectie-poorten staan in useSettingsSections, want AppShell stelt dezelfde
@@ -123,7 +124,7 @@ function confirmDisconnect(): void {
 
 <template>
   <Teleport to="body">
-    <nldd-sheet ref="sheetEl" placement="right" width="480px" full-height @close="hide">
+    <nldd-sheet ref="sheetEl" placement="right" width="480px" @close="hide">
       <nldd-page sticky-header>
         <nldd-top-title-bar
           slot="header"

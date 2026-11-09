@@ -1,0 +1,1803 @@
+---
+# De rondleiding in het Frans: wat de kijker leest terwijl de
+# presentator Nederlands spreekt, en onder `spoken:` wat zijn gekloonde stem
+# zegt. Gesleuteld op het Nederlands, zodat een nieuwe knip of build elke
+# regel houdt die nog voorkomt.
+# `just walkthrough translate fr` vult aan wat ontbreekt; corrigeer gerust
+# met de hand. Een build (`just walkthrough build`) zet het in beeld,
+# `just walkthrough dub fr` laat het uitspreken.
+terms:
+  regelwerk: 'réglementation (meervoud: réglementations)'
+  zorgtoeslag: allocation de soins de santé
+  huurtoeslag: allocation logement
+  memorie van toelichting: exposé des motifs
+  machine-uitvoerbaar: exécutable par machine
+  uitvoeringsorganisatie: organisme d'exécution
+bumpers:
+  wait:
+    - Allez-y, jetez un œil. Je vous attends.
+  resume:
+    - Bien, on continue.
+questions:
+  open-normen: Qu'advient-il des normes ouvertes ?
+  juridisch-bindend: Est-ce juridiquement contraignant ?
+  volgorde-artikelen: L'ordre des articles a-t-il de l'importance ?
+  vertaling-klopt: Comment savoir si la traduction est fidèle ?
+slides:
+  - nl: Iedere uitvoeringsorganisatie
+    fr: Chaque organisme d'exécution
+  - nl: die al decennia landt in **eigen software**
+    fr: qui, depuis des décennies, aboutit dans un **logiciel propre**
+  - nl: Per artikel de wettekst, en daaronder hoe hij werkt.
+    fr: Pour chaque article, le texte de loi, et en dessous, son fonctionnement.
+  - nl: '**Parameter**: voor wie, een BSN.'
+    fr: '**Parameter** : pour qui, un BSN.'
+  - nl: '**Actions**: de voorwaarden en de berekening.'
+    fr: '**Actions** : les conditions et le calcul.'
+  - nl: '**Input** uit andere wetten: verzekerd (Zvw), gedetineerd (Pbw).'
+    fr: '**Input** issu d''autres lois : assuré (Zvw), détenu (Pbw).'
+  - nl: Zorgtoeslag hangt af van verzekerd zijn, en dat van detentie.
+    fr: L'allocation de soins de santé dépend du fait d'être assuré, et cela dépend de la détention.
+  - nl: Volg de lijn van wet naar wet.
+    fr: Suivez le fil de loi en loi.
+  - nl: 'Dezelfde naam, andere definitie: de machine wijst naar de juiste.'
+    fr: 'Même nom, autre définition : la machine renvoie à la bonne.'
+  - nl: Overzicht van wat meeverandert bij een wijziging.
+    fr: Vue d'ensemble de ce qui change en même temps lors d'une modification.
+  - nl: Voorbeelden uit de memorie van toelichting, uitgevoerd.
+    fr: Exemples tirés de l'exposé des motifs, exécutés.
+  - nl: '**Uitvoeren** geeft een trace: welke wet, welk gegeven.'
+    fr: '**Exécuter** donne une trace : quelle loi, quelle donnée.'
+  - nl: 'Onder de 18 stopt het vroeg: dataminimalisatie.'
+    fr: 'En dessous de 18 ans, cela s''arrête tôt : minimisation des données.'
+  - nl: Een taalmodel maakt de eerste versie; een jurist beoordeelt.
+    fr: Un modèle de langage produit la première version ; un juriste la vérifie.
+  - nl: Wat doet een wijziging met iedereen?
+    fr: Que fait une modification à tout le monde ?
+  - nl: Alle wetten tegelijk op een populatie.
+    fr: Toutes les lois à la fois sur une population.
+  - nl: Besteedbaar inkomen, met alle wisselwerking tussen wetten.
+    fr: Revenu disponible, avec toute l'interaction entre les lois.
+  - nl: 'Wijziging doorrekenen: de standaardpremie omhoog.'
+    fr: 'Chiffrer une modification : la prime standard augmente.'
+  - nl: Vergelijk voor en na, vóór er gestemd wordt.
+    fr: Comparez avant et après, avant qu'on ne vote.
+  - nl: Alles waar Merijn recht op heeft, berekend door de wet zelf.
+    fr: Tout ce à quoi Merijn a droit, calculé par la loi elle-même.
+  - nl: Dezelfde gegevens als in de trace van zojuist.
+    fr: Les mêmes données que dans la trace de tout à l'heure.
+  - nl: 'Zorgtoeslag aanvragen: direct toegekend.'
+    fr: 'Demander l''allocation de soins de santé : accordée directement.'
+  - nl: Geen rekenhulp, maar de regel waarmee ook de Dienst Toeslagen rekent.
+    fr: Pas un outil de calcul, mais la règle avec laquelle la Dienst Toeslagen calcule aussi.
+  - nl: De huurtoeslag vraagt alleen de huur en de servicekosten.
+    fr: L'allocation logement ne demande que le loyer et les charges.
+  - nl: Klopt een gegeven niet? Merijn corrigeert het.
+    fr: Une donnée est inexacte ? Merijn la corrige.
+  - nl: Het bedrag rekent direct mee.
+    fr: Le montant se calcule immédiatement.
+  - nl: Een behandelaar beoordeelt de wijziging.
+    fr: Un agent examine la modification.
+  - nl: Kan dit niet proactief?
+    fr: Ne peut-on pas le faire de manière proactive ?
+  - nl: Veelgestelde vraag
+    fr: Question fréquente
+  - nl: Technisch misschien, maar de overheid weet niet alles.
+    fr: Techniquement peut-être, mais l'administration ne sait pas tout.
+  - nl: Een erfenis staat in geen register.
+    fr: Un héritage ne figure dans aucun registre.
+  - nl: Ten onrechte toekennen betekent later terugbetalen.
+    fr: Accorder à tort, c'est devoir rembourser plus tard.
+  - nl: Dat vraagt politieke keuzes.
+    fr: Cela suppose des choix politiques.
+  - nl: De aanvraag komt binnen met de berekening die Merijn zag.
+    fr: La demande arrive avec le calcul que Merijn a vu.
+  - nl: De wijziging goedkeuren of afwijzen.
+    fr: Approuver ou rejeter la modification.
+  - nl: Toekennen of afwijzen, met motivering.
+    fr: Accorder ou rejeter, avec motivation.
+  - nl: Ook de Awb is een regelwerk
+    fr: L'Awb aussi est une réglementation
+  - nl: Bezwaar
+    fr: Réclamation
+  - nl: Of bezwaar mogelijk is, staat in het regelwerk en niet in het scherm.
+    fr: La possibilité de réclamation figure dans la réglementation, pas à l'écran.
+  - nl: Eén keer geïnterpreteerd, overal bruikbaar.
+    fr: Interprétée une fois, utilisable partout.
+  - nl: 'Ook voor andere proceswetten: Archiefwet, AVG, Woo.'
+    fr: 'Aussi pour d''autres lois de procédure : Archiefwet, AVG, Woo.'
+typed:
+  - nl: Ik heb mijn onderneming niet meer
+    fr: Je n'ai plus mon entreprise
+  - nl: Dit klopt niet
+    fr: Ce n'est pas correct
+captions:
+  - nl: Wetten worden al decennia met de hand vertaald naar software.
+    fr: Pendant des décennies, les lois ont été traduites à la main en logiciels.
+  - nl: Elke uitvoeringsorganisatie heeft een eigen interpretatie van wet en regelgeving,
+    fr: Chaque organisme d'exécution a sa propre interprétation de la loi et de la réglementation,
+  - nl: en een groot deel daarvan landt in software.
+    fr: et une grande partie finit dans des logiciels.
+  - nl: Dat gebeurt al jaren, soms al decennia,
+    fr: Cela dure depuis des années, parfois des décennies,
+  - nl: en wetswijzigingen en nieuwe wetsvoorstellen
+    fr: et les modifications de loi et les nouveaux projets de loi
+  - nl: landen zo boven op elkaar gestapeld in software.
+    fr: s'empilent ainsi les uns sur les autres dans les logiciels.
+  - nl: 'Het gevolg: er is geen overzicht meer.'
+    fr: 'Le résultat : plus aucune vue d''ensemble.'
+  - nl: Het is niet duidelijk welk stukje software bij welk stukje wet- of
+    fr: On ne sait plus quel morceau de logiciel correspond à quel morceau de loi ou de
+  - nl: regelgeving hoort, en andersom.
+    fr: réglementation, et inversement.
+  - nl: Zo wordt onvoorspelbaar hoe die software werkt.
+    fr: Le fonctionnement de ces logiciels devient ainsi imprévisible.
+  - nl: Niet alleen voor burgers en ondernemers die aan de ontvangende kant staan,
+    fr: Pas seulement pour les citoyens et les entrepreneurs, qui sont du côté des destinataires,
+  - nl: maar ook voor beleidsmakers, ambtenaren
+    fr: mais aussi pour les responsables politiques, les fonctionnaires
+  - nl: en zelfs voor ICT'ers,
+    fr: et même pour les informaticiens,
+  - nl: die de software bouwen.
+    fr: qui développent ces logiciels.
+  - nl: 'Aanpassen wordt onbeheersbaar: men durft het niet meer,'
+    fr: 'Modifier devient ingérable : on n''ose plus le faire,'
+  - nl: omdat men het effect van een wijziging
+    fr: parce qu'on ne connaît plus l'effet d'une modification.
+  - nl: niet meer kent.
+    fr: ''
+  - nl: 'RegelRecht vraagt: wat als we beginnen met de wet,'
+    fr: 'RegelRecht se demande : et si nous partions de la loi,'
+  - nl: de wet zelf machine-uitvoerbaar maken en openbaar publiceren?
+    fr: en rendant la loi elle-même exécutable par machine et en la publiant ouvertement ?
+  - nl: Ik ben Anne Schuth, staff engineer bij RegelRecht,
+    fr: Je suis Anne Schuth, staff engineer chez RegelRecht,
+  - nl: en ik geef de demo het komende kwartier.
+    fr: et je présente la démo pendant le prochain quart d'heure.
+  - nl: Dit is geen statische demo.
+    fr: Ce n'est pas une démo statique.
+  - nl: Je kunt op elk moment stoppen en zelf rondklikken.
+    fr: Vous pouvez arrêter à tout moment et cliquer vous-même.
+  - nl: Links verschijnen vragen die ik vaak krijg.
+    fr: À gauche apparaissent les questions qu'on me pose souvent.
+  - nl: Klik erop voor antwoorden.
+    fr: Cliquez dessus pour obtenir les réponses.
+  - nl: Dit is een compleet verhaal.
+    fr: Voici une histoire complète.
+  - nl: Het is werkende software, maar geen eindproduct.
+    fr: C'est un logiciel qui fonctionne, mais pas un produit fini.
+  - nl: Het is niet bedoeld om in productie te gaan.
+    fr: Il n'est pas destiné à passer en production.
+  - nl: 'We doen dit vanuit een beleidsdirectie:'
+    fr: 'Nous le faisons depuis une direction des politiques publiques :'
+  - nl: we maken beleid door te doen.
+    fr: nous construisons les politiques par la pratique.
+  - nl: We beginnen helemaal achteraan, bij een regelwerk,
+    fr: Nous commençons tout à la fin, par une réglementation,
+  - nl: in dit geval voor de zorgtoeslag.
+    fr: ici celle de la zorgtoeslag.
+  - nl: Dit is een machine-uitvoerbare versie van de zorgtoeslag.
+    fr: Voici une version exécutable par machine de la zorgtoeslag.
+  - nl: Niet de hele wet, alleen artikel 2 en artikel 4.
+    fr: Pas toute la loi, seulement les articles 2 et 4.
+  - nl: 'Artikel 2: hier staat de hele tekst.'
+    fr: 'Article 2 : le texte complet figure ici.'
+  - nl: Hieronder staat het machine-uitvoerbare deel van de wet.
+    fr: Ci-dessous se trouve la partie de la loi exécutable par machine.
+  - nl: Dat is een interpretatie van die wet.
+    fr: C'est une interprétation de cette loi.
+  - nl: 'Het begint met een parameter: BSN.'
+    fr: 'Cela commence par un paramètre : le BSN.'
+  - nl: 'Daaraan hangen acties: voldoet iemand aan de voorwaarden?'
+    fr: 'À celui-ci sont rattachées des actions : la personne remplit-elle les conditions ?'
+  - nl: Iemand moet minimaal de minimumleeftijd hebben en verzekerd zijn.
+    fr: Elle doit avoir au moins l'âge minimum et être assurée.
+  - nl: Dan volgt de hoogte van de zorgtoeslag.
+    fr: Vient ensuite le montant de la zorgtoeslag.
+  - nl: Dat is een hele berekening, daar ga ik niet in detail op in.
+    fr: C'est un calcul complet, je n'entre pas dans le détail.
+  - nl: 'Hieronder zie je Operation Add: inkomen optellen met partnerinkomen,'
+    fr: 'Ci-dessous, Operation Add : on additionne le revenu et celui du partenaire,'
+  - nl: zodat het vergelijkbaar is met het drempelinkomen bij een toeslagpartner.
+    fr: pour le comparer au seuil de revenu d'un partenaire de l'allocation.
+  - nl: Waar ik overheen ging, noemen wij inputs.
+    fr: Ce que j'ai passé en revue, nous l'appelons des inputs.
+  - nl: Dat zijn verwijzingen naar andere wetten.
+    fr: Ce sont des renvois à d'autres lois.
+  - nl: Bijvoorbeeld "is verzekerde", één van de voorwaarden.
+    fr: Par exemple « est assuré », l'une des conditions.
+  - nl: Dat komt uit een andere wet.
+    fr: Cela vient d'une autre loi.
+  - nl: 'In de zorgtoeslagwet staat: verzekerde, zoals bedoeld in de zorgverzekeringswet.'
+    fr: 'La loi sur la zorgtoeslag dit : assuré, au sens de la loi sur l''assurance maladie.'
+  - nl: We klikken door naar de zorgverzekeringswet
+    fr: Nous passons à la loi sur l'assurance maladie
+  - nl: en zien wat het betekent om verzekerde te zijn.
+    fr: et voir ce que signifie être assuré.
+  - nl: Iemand is verzekerde, dat is een output hier, als iemand een
+    fr: Une personne est assurée (c'est un résultat ici) si elle a une
+  - nl: verzekering of verdragsverzekering heeft en niet in detentie zit.
+    fr: assurance ou une assurance conventionnelle et n'est pas en détention.
+  - nl: '"In detentie" is weer een input, uit de'
+    fr: « En détention » est à son tour une donnée d'entrée, issue de la
+  - nl: penitentiaire beginselenwet.
+    fr: loi pénitentiaire (Penitentiaire beginselenwet).
+  - nl: Daar gaan we naartoe en zien we wat gedetineerd zijn
+    fr: Nous y allons pour voir ce que signifie être
+  - nl: betekent.
+    fr: détenu.
+  - nl: Je zit in een penitentiaire inrichting of huis van bewaring en je
+    fr: On est dans un établissement pénitentiaire ou une maison d'arrêt, et
+  - nl: bent ingesloten of tijdelijk afwezig.
+    fr: on y est enfermé ou temporairement absent.
+  - nl: 'Zo zie je: om'
+    fr: On voit ainsi que pour
+  - nl: zorgtoeslag uit te rekenen, het recht en de hoogte,
+    fr: calculer la zorgtoeslag, le droit et son montant,
+  - nl: heb je een hele reeks wetten nodig.
+    fr: il faut toute une série de lois.
+  - nl: Eigenlijk is het geen reeks, maar een graaf.
+    fr: En fait, ce n'est pas une série, mais un graphe.
+  - nl: Heb je wetten machine-uitvoerbaar,
+    fr: Quand les lois sont exécutables par machine,
+  - nl: dan kun je dat visualiseren.
+    fr: on peut les visualiser.
+  - nl: Dan zie je dat de wetten samenhangen.
+    fr: On voit alors que les lois sont liées entre elles.
+  - nl: Ik zoom wat in. Hier zie je
+    fr: Je zoome un peu. Ici, on voit
+  - nl: de zorgtoeslag.
+    fr: la zorgtoeslag.
+  - nl: Hier is "is verzekerde"; dat lijntje volgen we
+    fr: Voici « est assuré » ; nous suivons ce petit trait
+  - nl: verder.
+    fr: plus loin.
+  - nl: We komen bij de zorgverzekeringswet, daar is "gedetineerd",
+    fr: Nous arrivons à la loi sur l'assurance maladie, où se trouve « détenu »,
+  - nl: en dat lijntje volgen we ook.
+    fr: et nous suivons aussi ce petit trait.
+  - nl: Dat zien we hier.
+    fr: C'est ce que nous voyons ici.
+  - nl: Hier staat het bepalen van de detentiestatus.
+    fr: Ici figure la détermination du statut de détention.
+  - nl: Hier zie je het hele stelsel van wet- en regelgeving dat nodig is
+    fr: Ici, on voit tout l'ensemble des lois et règlements nécessaires
+  - nl: om tot de zorgtoeslag te komen.
+    fr: pour obtenir l'allocation de soins de santé.
+  - nl: Klik ik dit aan, dan zie je alle wet- en regelgeving die we nu in de
+    fr: Si je clique ici, on voit toutes les lois et réglementations que nous avons
+  - nl: proof of concept hebben.
+    fr: dans la preuve de concept.
+  - nl: Dat is een hele rij.
+    fr: C'est toute une liste.
+  - nl: Raad eens welke dit zou kunnen zijn.
+    fr: Devinez laquelle ce pourrait être.
+  - nl: Kijk gerust zelf even rond.
+    fr: N'hésitez pas à explorer par vous-même.
+  - nl: Klik rond, zoom in en uit en volg lijntjes om
+    fr: Cliquez, zoomez et suivez les lignes pour
+  - nl: de samenhang tussen wet en regelgeving te zien.
+    fr: voir la cohérence entre lois et réglementations.
+  - nl: Straks gaan we verder.
+    fr: Nous continuons tout à l'heure.
+  - nl: 'Een vraag die ik vaak krijg:'
+    fr: 'Une question qu''on me pose souvent :'
+  - nl: hoe gaan we om met ambiguïteit?
+    fr: comment gérer l'ambiguïté ?
+  - nl: 'Stel: er staan in het netwerk'
+    fr: Imaginons que le réseau contienne
+  - nl: twee definities met dezelfde naam,
+    fr: deux définitions portant le même nom,
+  - nl: zoals partnerinkomen of huishouden.
+    fr: comme revenu du partenaire ou ménage.
+  - nl: Dat komt echt voor. Je kunt ernaar zoeken.
+    fr: Cela arrive vraiment. On peut les rechercher.
+  - nl: In verschillende wetten wordt partnerinkomen
+    fr: Selon les lois, le revenu du partenaire
+  - nl: of huishouden verschillend gedefinieerd.
+    fr: ou le ménage est défini différemment.
+  - nl: Dat vinden wij als mensen vervelend.
+    fr: Pour nous, humains, c'est gênant.
+  - nl: Voor machines maakt het niet uit,
+    fr: Pour les machines, cela n'a pas d'importance,
+  - nl: zolang je naar de juiste definitie wijst.
+    fr: tant qu'on pointe vers la bonne définition.
+  - nl: Dit kan automatisch gegenereerd worden
+    fr: Cela peut être généré automatiquement
+  - nl: zodra de wet machine-uitvoerbaar is.
+    fr: dès que la loi est exécutable par machine.
+  - nl: Dat is nuttig voor wetsanalysten,
+    fr: C'est utile pour les analystes juridiques,
+  - nl: wetgevingsjuristen en anderen die met wet- en regelgeving werken.
+    fr: les juristes législatifs et tous ceux qui travaillent avec la législation.
+  - nl: Het toont wat samenhangt en wat er
+    fr: Cela montre ce qui est lié et ce qui
+  - nl: mogelijk kapotgaat als je iets aanpast.
+    fr: risque de casser si on modifie quelque chose.
+  - nl: Is de wet machine-uitvoerbaar,
+    fr: Si la loi est exécutable par machine,
+  - nl: dan kan ook het volgende.
+    fr: on peut aussi faire ceci.
+  - nl: Hier kijken we naar scenario's, casussen.
+    fr: Ici, nous examinons des scénarios, des cas types.
+  - nl: Die staan vaak beschreven
+    fr: Ils sont souvent décrits
+  - nl: in de memorie van toelichting.
+    fr: dans l'exposé des motifs.
+  - nl: Een wetsvoorstel of wetswijziging gaat
+    fr: Un projet de loi ou une modification de loi
+  - nl: naar de Kamer, meestal met een memorie van
+    fr: est soumis à la Chambre, généralement avec un exposé
+  - nl: toelichting.
+    fr: des motifs.
+  - nl: Daarin staat hoe de wet zou moeten werken
+    fr: On y explique comment la loi devrait fonctionner
+  - nl: op specifieke gevallen, casussen.
+    fr: dans des cas précis, des cas types.
+  - nl: Soms is er een tabel met eigenschappen
+    fr: Parfois, un tableau présente les caractéristiques
+  - nl: van personen, huishoudens of bedrijven.
+    fr: de personnes, de ménages ou d'entreprises.
+  - nl: Zo laat de memorie zien wat de bedoeling is.
+    fr: L'exposé montre ainsi l'intention du législateur.
+  - nl: Zo'n casus haal je uit de memorie van toelichting.
+    fr: Un tel cas type se tire de l'exposé des motifs.
+  - nl: Zo ziet dat er bijvoorbeeld uit.
+    fr: En voici un exemple.
+  - nl: Een persoon met fictief BSN en fictief loon.
+    fr: Une personne avec un BSN fictif et un salaire fictif.
+  - nl: Voert de zorgtoeslagwet uit, dan is dit de
+    fr: Si l'on exécute la loi sur l'allocation de soins,
+  - nl: zorgtoeslag in eurocenten per jaar.
+    fr: voici l'allocation de soins en centimes d'euro par an.
+  - nl: Daarom heet het machine-uitvoerbare wet-
+    fr: C'est pourquoi on parle de législation et de réglementation
+  - nl: 'en regelgeving: we kunnen het uitvoeren.'
+    fr: 'exécutables par machine : on peut les exécuter.'
+  - nl: Je krijgt een trace van de uitvoering van
+    fr: On obtient une trace de l'exécution de
+  - nl: de wet op dit specifieke geval.
+    fr: la loi sur ce cas précis.
+  - nl: Hier wordt de zorgtoeslagwet uitgevoerd,
+    fr: Ici, la loi sur l'allocation de soins est exécutée
+  - nl: om de hoogte van de zorgtoeslag te bepalen
+    fr: pour déterminer le montant de l'allocation de soins
+  - nl: voor het BSN van zojuist.
+    fr: pour le BSN de tout à l'heure.
+  - nl: Iets lager is de zorgverzekeringswet
+    fr: Un peu plus bas, la loi sur l'assurance maladie
+  - nl: 'uitgevoerd: is iemand verzekerd?'
+    fr: 'est exécutée : la personne est-elle assurée ?'
+  - nl: 'Nog iets lager: de penitentiaire'
+    fr: 'Encore plus bas : la loi pénitentiaire'
+  - nl: beginselenwet, voor de vraag of iemand gedetineerd is.
+    fr: de principes, pour savoir si la personne est détenue.
+  - nl: Deze persoon is niet gedetineerd.
+    fr: Cette personne n'est pas détenue.
+  - nl: Dan loopt het gewoon door.
+    fr: Alors le calcul se poursuit normalement.
+  - nl: Helemaal onderaan, na flink scrollen,
+    fr: Tout en bas, après un long défilement,
+  - nl: staat de zorgtoeslag in eurocenten per jaar,
+    fr: on trouve la zorgtoeslag en eurocents par an,
+  - nl: met wat we in deze casus zagen.
+    fr: avec ce que nous avons vu dans ce cas.
+  - nl: Iemand onder de 18 hoort geen recht te hebben op zorgtoeslag.
+    fr: Une personne de moins de 18 ans ne devrait pas avoir droit à la zorgtoeslag.
+  - nl: Dit is weer zo'n scenario.
+    fr: Voici encore un scénario.
+  - nl: Voeren we dit uit, dan is de trace een stuk korter
+    fr: Si nous l'exécutons, la trace est beaucoup plus courte.
+  - nl: geworden.
+    fr: ''
+  - nl: Deze persoon is 17, en dat zorgt ervoor
+    fr: Cette personne a 17 ans, et c'est ce qui fait
+  - nl: dat het niet verder loopt.
+    fr: que le calcul s'arrête là.
+  - nl: Dat was namelijk één van de voorwaarden.
+    fr: C'était en effet l'une des conditions.
+  - nl: 'Je moest minstens de minimumleeftijd hebben: 18.'
+    fr: 'Il fallait avoir au moins l''âge minimum : 18 ans.'
+  - nl: Daar houdt het op.
+    fr: Le calcul s'arrête ici.
+  - nl: Deze persoon voldoet niet aan de voorwaarden, dus
+    fr: Cette personne ne remplit pas les conditions, donc
+  - nl: wordt de hoogte van de zorgtoeslag niet bepaald
+    fr: le montant de la zorgtoeslag n'est pas déterminé
+  - nl: en wordt niet gekeken naar gevoelige gegevens, zoals detentie.
+    fr: et les données sensibles, comme la détention, ne sont pas consultées.
+  - nl: Er zit dus automatisch dataminimalisatie in.
+    fr: La minimisation des données est donc automatique.
+  - nl: Kijk gerust zelf rond.
+    fr: N'hésitez pas à explorer vous-même.
+  - nl: Speel met de scenario's en volg de traces.
+    fr: Jouez avec les scénarios et suivez les traces.
+  - nl: Hoe komen we aan die regelwerken?
+    fr: Comment obtenons-nous ces réglementations ?
+  - nl: 'Kort antwoord: we gebruiken generatieve AI om wet- en'
+    fr: 'En bref : nous utilisons l''IA générative pour transformer les lois et'
+  - nl: regelgeving om te zetten naar een regelwerk.
+    fr: règlements en une réglementation.
+  - nl: Ook zetten we de memorie van toelichting om naar een
+    fr: Nous transformons aussi l'exposé des motifs en un
+  - nl: scenario.
+    fr: scénario.
+  - nl: Dan runnen we het scenario en zien dat het nog niet goed gaat.
+    fr: Puis nous exécutons le scénario et voyons que ça ne marche pas encore.
+  - nl: Er zijn dingen niet geslaagd.
+    fr: Certains points n'ont pas réussi.
+  - nl: Die uitkomst geven we aan
+    fr: Ce résultat, nous le donnons au
+  - nl: het taalmodel voor nog een rondje.
+    fr: modèle de langage pour un nouveau tour.
+  - nl: Er komt opnieuw een regelwerk en een scenario uit.
+    fr: Il en ressort à nouveau une réglementation et un scénario.
+  - nl: Dat wordt opnieuw gerund,
+    fr: Ils sont de nouveau exécutés,
+  - nl: tot alles op geslaagd staat.
+    fr: jusqu'à ce que tout soit sur Réussi.
+  - nl: Dan geven we het aan een wetsanalyst of wetgevingsjurist.
+    fr: Puis nous le confions à un analyste juridique ou un juriste législatif.
+  - nl: Dat is het startpunt voor een jurist om te kijken naar de werking van
+    fr: C'est le point de départ pour qu'un juriste examine le fonctionnement de
+  - nl: 'de machine-uitvoerbare wet- en regelgeving: doet die wat hij moet doen,'
+    fr: 'la législation exécutable par machine : fait-elle ce qu''elle doit faire,'
+  - nl: en implementeert die de wet
+    fr: et met-elle en œuvre la loi
+  - nl: en regelgeving zoals we willen?
+    fr: et la réglementation comme nous le voulons ?
+  - nl: Is een wet eenmaal machine-uitvoerbaar, dan kun je van alles.
+    fr: Une fois une loi exécutable par machine, tout devient possible.
+  - nl: Je kunt het ook
+    fr: On peut aussi l'exécuter
+  - nl: op meerdere personen tegelijk runnen.
+    fr: sur plusieurs personnes à la fois.
+  - nl: Bij de scenario's voerden we de wet uit op één individu.
+    fr: Dans les scénarios, nous exécutions la loi pour un seul individu.
+  - nl: Hier voeren we hem uit op een populatie,
+    fr: Ici, nous l'exécutons sur une population,
+  - nl: in dit geval 50 personen.
+    fr: en l'occurrence 50 personnes.
+  - nl: Gemiddeld 54 jaar, 36% heeft een partner, 40% huurt, 18%
+    fr: Âge moyen 54 ans, 36 % ont un partenaire, 40 % sont locataires, 18 %
+  - nl: heeft kinderen, 4% studeert, gemiddeld inkomen 41.000 euro.
+    fr: ont des enfants, 4 % étudient, revenu moyen 41.000 euros.
+  - nl: Dit is een kleine populatie
+    fr: Voici une petite population
+  - nl: en dus niet zo realistisch, maar gesampled op basis van de statistieken van
+    fr: donc peu réaliste, mais échantillonnée d'après les statistiques du
+  - nl: het CBS.
+    fr: CBS.
+  - nl: Als je eenmaal alle wet- en regelgeving hebt, die
+    fr: Une fois qu'on dispose de toute la législation, que
+  - nl: zien we hieronder,
+    fr: nous voyons ci-dessous,
+  - nl: Hier zien we de bijstand, inkomensafhankelijke bijdrage, ZVW,
+    fr: on y trouve l'aide sociale, la cotisation liée au revenu, la ZVW,
+  - nl: zorgverzekeringswet, inkomstenbelasting, kiesrecht, Tweede Kamer,
+    fr: la loi sur l'assurance santé, l'impôt sur le revenu, le droit de vote, la Chambre des représentants,
+  - nl: enzovoort.
+    fr: et ainsi de suite.
+  - nl: Als je wetten machine-uitvoerbaar maakt, en uitvoert op zo'n
+    fr: Si l'on rend les lois exécutables par machine et qu'on les exécute sur une telle
+  - nl: populatie,
+    fr: population,
+  - nl: kun je dit soort dingen berekenen.
+    fr: on peut calculer ce genre de choses.
+  - nl: 'Besteedbaar inkomen: wat je aan het eind van de maand overhoudt.'
+    fr: 'Revenu disponible : ce qu''il vous reste en fin de mois.'
+  - nl: Inkomen minus belasting, plus toeslagen en uitkeringen.
+    fr: Le revenu moins l'impôt, plus les allocations et les prestations.
+  - nl: Zo verreken je ook de interactie tussen wetten.
+    fr: On prend ainsi en compte l'interaction entre les lois.
+  - nl: Krijg je ergens meer, dan krijg je elders
+    fr: Si l'on reçoit plus d'un côté, on reçoit
+  - nl: minder.
+    fr: moins de l'autre.
+  - nl: Dat zie je terug in deze bedragen.
+    fr: C'est ce qu'on voit dans ces montants.
+  - nl: Als je wetten uitvoerbaar maakt, kun je
+    fr: Quand on rend les lois exécutables, on peut
+  - nl: het effect van wetswijzigingen bekijken.
+    fr: examiner l'effet des modifications de la loi.
+  - nl: Bijvoorbeeld een wijziging van de standaardpremie van de zorgtoeslag.
+    fr: Par exemple, une modification de la prime standard de l'allocation de soins de santé.
+  - nl: We verdubbelen die min of meer en draaien een simulatie,
+    fr: Nous la doublons à peu près et lançons une simulation,
+  - nl: op dezelfde populatie. Dan zien we wat er gebeurt
+    fr: sur la même population. On voit alors ce qui se passe
+  - nl: en kunnen we vergelijken.
+    fr: et on peut comparer.
+  - nl: Hier zie je de vergelijking tussen de standaardsituatie
+    fr: Voici la comparaison entre la situation standard
+  - nl: en de situatie met aangepaste standaardpremie.
+    fr: et la situation avec la prime standard modifiée.
+  - nl: In dit geval zien we dat
+    fr: Dans ce cas, on voit que
+  - nl: het besteedbaar inkomen per maand
+    fr: le revenu disponible par mois
+  - nl: omhoog gaat van 4720 naar 4775 euro.
+    fr: passe de 4720 à 4775 euros.
+  - nl: Zit je in de Tweede Kamer en moet je stemmen
+    fr: Si vous siégez à la Tweede Kamer et devez voter
+  - nl: over een amendement op de standaardpremie,
+    fr: sur un amendement à la prime standard,
+  - nl: dan is het prettig als je dit soort
+    fr: il est utile de disposer de ce genre de
+  - nl: Zorgtoeslag is het effect van een wetswijziging.
+    fr: L'allocation de soins de santé résulte d'une modification de loi.
+  - nl: We zien dat de
+    fr: On voit que la
+  - nl: zorgtoeslagwet
+    fr: loi sur l'allocation de soins de santé
+  - nl: aanzienlijk omhoog
+    fr: augmente nettement
+  - nl: gaat.
+    fr: .
+  - nl: Elders worden mensen blijkbaar gekort. Dat wil je weten.
+    fr: Ailleurs, des gens sont apparemment pénalisés. Mieux vaut le savoir.
+  - nl: Klik hier gerust rond, probeer andere wetswijzigingen
+    fr: N'hésitez pas à explorer, essayez d'autres modifications de loi
+  - nl: en maak verschillende vergelijkingen.
+    fr: et faites différentes comparaisons.
+  - nl: Je kunt ook inzoomen op de uitsplitsing binnen de populatie.
+    fr: Vous pouvez aussi zoomer sur la ventilation au sein de la population.
+  - nl: Hier zie je de uitsplitsing naar leeftijd, inkomen,
+    fr: Voici la ventilation selon l'âge, le revenu,
+  - nl: partner, huren of kopen,
+    fr: le partenaire, la location ou l'achat,
+  - nl: en kinderen.
+    fr: et les enfants.
+  - nl: Kijk gerust even rond.
+    fr: N'hésitez pas à jeter un œil.
+  - nl: Als je wetten machine-uitvoerbaar maakt, kan dit ook.
+    fr: Quand on rend les lois exécutables par machine, cela devient possible.
+  - nl: Dit is een soort mijn overheid.
+    fr: C'est une sorte de Mon administration.
+  - nl: Ik reset even de demo.
+    fr: Je réinitialise la démo.
+  - nl: Dit is een
+    fr: Voici un
+  - nl: portaal voor Merijn.
+    fr: portail pour Merijn.
+  - nl: Er is ook een portaal voor Claudia, een ondernemer.
+    fr: Il existe aussi un portail pour Claudia, une entrepreneure.
+  - nl: Merijn zou recht moeten hebben op
+    fr: Merijn devrait avoir droit à
+  - nl: kindgebonden budget, zorgtoeslag, bijstand van de gemeente
+    fr: budget lié aux enfants, zorgtoeslag, aide sociale de la commune
+  - nl: Amsterdam, enzovoort.
+    fr: d'Amsterdam, etc.
+  - nl: Hier zie je alle eerdere wetten terug.
+    fr: Tu retrouves ici toutes les lois précédentes.
+  - nl: 'Bijvoorbeeld de zorgtoeslag: daar zien we'
+    fr: 'Par exemple la zorgtoeslag : on y voit'
+  - nl: de trace van net, maar alleen de datapunten uit die
+    fr: la trace de tout à l'heure, mais seulement les données de cette
+  - nl: trace.
+    fr: trace.
+  - nl: Merijn zit bijvoorbeeld niet in detentie.
+    fr: Merijn n'est pas en détention, par exemple.
+  - nl: Dat komt uit de penitentiaire beginselenwet.
+    fr: Cela provient de la loi pénitentiaire (Pbw).
+  - nl: Merijn ziet de gegevens, vindt ze kloppen en dient een aanvraag in.
+    fr: Merijn voit les données, les trouve correctes et dépose une demande.
+  - nl: Die wordt direct toegekend.
+    fr: Elle est accordée immédiatement.
+  - nl: Dienst Toeslagen, bevoegd gezag voor de
+    fr: Dienst Toeslagen, autorité compétente pour la
+  - nl: zorgtoeslagwet, kent direct dit bedrag toe.
+    fr: loi sur la zorgtoeslag, accorde directement ce montant.
+  - nl: Dat kan, want de aanvraag gebeurde met machine-uitvoerbare wet- en regelgeving
+    fr: C'est possible, car la demande s'est faite avec une législation exécutable par machine
+  - nl: voor de zorgtoeslag, en Dienst Toeslagen gebruikt aan de achterkant exact
+    fr: pour la zorgtoeslag, et Dienst Toeslagen utilise en back-office exactement
+  - nl: dezelfde machine-uitvoerbare wet- en regelgeving.
+    fr: la même législation exécutable par machine.
+  - nl: Dit is dus niet de rekenhulp, maar de echte interpretatie van
+    fr: Ce n'est donc pas un simulateur, mais la véritable interprétation de
+  - nl: wet en regelgeving.
+    fr: la loi et de la réglementation.
+  - nl: De huurtoeslag werkt net iets anders.
+    fr: L'allocation logement fonctionne un peu différemment.
+  - nl: Merijn moet gegevens aanleveren, zoals de huur en subsidiabele
+    fr: Merijn doit fournir des données, comme le loyer et les charges
+  - nl: servicekosten.
+    fr: de service éligibles.
+  - nl: 'Er komt een bedrag uit: 302,96 euro.'
+    fr: 'Un montant en ressort : 302,96 euros.'
+  - nl: Merijn had misschien wat meer verwacht.
+    fr: Merijn s'attendait peut-être à un peu plus.
+  - nl: 'Bij nader inzien ziet hij ook:'
+    fr: En y regardant de plus près, il voit aussi que
+  - nl: zijn inkomen klopt helemaal niet.
+    fr: son revenu n'est pas du tout correct.
+  - nl: Hij klikt door en ziet winst uit onderneming staan.
+    fr: Il clique et voit le bénéfice d'entreprise.
+  - nl: Vorig jaar had Merijn misschien een onderneming, maar hij heeft
+    fr: L'an dernier, Merijn avait peut-être une entreprise, mais il n'a
+  - nl: geen onderneming meer.
+    fr: plus d'entreprise.
+  - nl: Misschien met een uitschrijving bij de KVK.
+    fr: Peut-être avec une radiation auprès de la KVK.
+  - nl: Dat dient Merijn in.
+    fr: Merijn le déclare.
+  - nl: Hier zien we de wijziging.
+    fr: Voici la modification.
+  - nl: Het bedrag gaat direct omhoog, van 302 naar 406,95 euro.
+    fr: Le montant monte aussitôt, de 302 à 406,95 euros.
+  - nl: Merijn kan dit aanvragen, en het moet misschien in behandeling
+    fr: Merijn peut le demander, et il faut peut-être le mettre
+  - nl: genomen worden.
+    fr: en cours d'examen.
+  - nl: Als overheid willen we misschien kijken naar de wijziging in Merijns inkomen
+    fr: En tant qu'administration, nous voudrons peut-être examiner le changement du revenu de Merijn
+  - nl: en het bewijs van uitschrijving bij de KVK.
+    fr: et la preuve de radiation auprès de la KVK.
+  - nl: De zorgtoeslag die al was aangevraagd en toegekend,
+    fr: L'allocation de soins de santé déjà demandée et accordée
+  - nl: klopt nu niet meer.
+    fr: n'est donc plus correcte.
+  - nl: Die toeslag was gebaseerd op het inkomen, en Merijn
+    fr: Cette allocation reposait sur le revenu, et Merijn
+  - nl: heeft dat gewijzigd.
+    fr: l'a modifié.
+  - nl: Merijn wil die aanvraag dus misschien ook wijzigen, en die moet misschien
+    fr: Merijn voudra donc peut-être aussi modifier cette demande, qui devra peut-être
+  - nl: ook in behandeling genomen worden, omdat het bewijsstuk, de uitschrijving
+    fr: aussi être mise en cours d'examen, car la pièce justificative, la radiation
+  - nl: bij de KVK, nog door een ambtenaar bekeken moet worden.
+    fr: auprès de la KVK, doit encore être examinée par un agent.
+  - nl: Hier vragen mensen vaak of dit niet proactief
+    fr: Ici, on demande souvent si cela n'aurait pas pu se faire
+  - nl: had gekund.
+    fr: de manière proactive.
+  - nl: Deze demo komt voort uit een fieldlab proactieve dienstverlening, in december
+    fr: Cette démo est issue d'un fieldlab sur les services proactifs, en décembre
+  - nl: '2024.'
+    fr: '2024.'
+  - nl: Dat was de aanleiding om hieraan te gaan werken.
+    fr: C'est ce qui a motivé ce travail.
+  - nl: Als we het recht op zorgtoeslag en de hoogte ervan
+    fr: Si nous pouvons calculer le droit à l'allocation de soins de santé et son montant
+  - nl: met machine-uitvoerbare wet- en regelgeving kunnen uitrekenen, kunnen we
+    fr: grâce à une législation exécutable par machine, nous pouvons
+  - nl: dat dan niet ook direct proactief toekennen?
+    fr: Alors pourquoi ne pas aussi l'accorder directement, de façon proactive ?
+  - nl: 'Het korte antwoord is:'
+    fr: 'La réponse courte :'
+  - nl: technisch misschien wel, maar het is niet altijd gewenst,
+    fr: techniquement peut-être, mais ce n'est pas toujours souhaitable,
+  - nl: omdat we niet alles van de aanvragen weten.
+    fr: car nous ne savons pas tout des demandes.
+  - nl: 'Het langere antwoord: om direct toe te kennen, zouden we alles'
+    fr: 'La réponse longue : pour accorder directement, il faudrait tout savoir'
+  - nl: van een aanvrager moeten weten.
+    fr: d'un demandeur.
+  - nl: Bijvoorbeeld ook of iemand net een erfenis heeft gekregen.
+    fr: Par exemple, savoir si quelqu'un vient de recevoir un héritage.
+  - nl: Met alle gegevens van de overheid lijkt het
+    fr: Avec toutes les données de l'administration, on dirait
+  - nl: alsof je recht hebt op zorgtoeslag, maar de overheid weet niet alles.
+    fr: que vous avez droit à l'allocation de soins de santé, mais l'administration ne sait pas tout.
+  - nl: Bijvoorbeeld als je net een erfenis hebt gekregen,
+    fr: Par exemple, si vous venez de recevoir un héritage,
+  - nl: heeft dat invloed op je recht op zorgtoeslag en de hoogte ervan.
+    fr: cela influe sur votre droit à l'allocation de soins de santé et sur son montant.
+  - nl: Als we dat direct zouden toekennen,
+    fr: Si nous l'accordions directement,
+  - nl: kun je in de problemen komen en moet je alles terugbetalen.
+    fr: vous pourriez avoir des ennuis et devoir tout rembourser.
+  - nl: Dat vergt keuzes.
+    fr: Cela demande des choix.
+  - nl: Politieke keuzes, en misschien wetswijzigingen,
+    fr: Des choix politiques, et peut-être des modifications de loi,
+  - nl: om dit betrouwbaar te kunnen doen.
+    fr: pour pouvoir le faire de manière fiable.
+  - nl: Merijn heeft deze twee aanvragen gedaan.
+    fr: Merijn a fait ces deux demandes.
+  - nl: Er is een zaaksysteem, hier voor Dienst Toeslagen,
+    fr: Il existe un système de gestion des dossiers, ici pour Dienst Toeslagen,
+  - nl: maar het kan ook een andere organisatie zijn.
+    fr: mais ce pourrait être un autre organisme.
+  - nl: 'Dienst Toeslagen ziet de aanvragen van Merijn:'
+    fr: 'Dienst Toeslagen voit les demandes de Merijn :'
+  - nl: huurtoeslag en zorgtoeslag, en kan ze bekijken.
+    fr: allocation logement et allocation de soins de santé, et peut les consulter.
+  - nl: Merijn heeft hier een wijziging gemaakt.
+    fr: Merijn a fait une modification ici.
+  - nl: Winst uit onderneming ging van 25.000 naar nul.
+    fr: Le bénéfice d'entreprise est passé de 25.000 à zéro.
+  - nl: Dat kan goedgekeurd of afgewezen worden.
+    fr: Elle peut être approuvée ou rejetée.
+  - nl: Of de hele aanvraag wordt toegekend of afgewezen.
+    fr: Ou bien toute la demande est accordée ou rejetée.
+  - nl: Deze ambtenaar overweegt dit zorgvuldig en motiveert
+    fr: Ce fonctionnaire l'examine avec soin et motive
+  - nl: waarom dit niet klopt, en wijst af.
+    fr: pourquoi cela ne tient pas, puis rejette.
+  - nl: Voor Merijn ziet dat er zo uit.
+    fr: Voici ce que cela donne pour Merijn.
+  - nl: Zijn huurtoeslagaanvraag is afgewezen en hij kan in bezwaar.
+    fr: Sa demande d'allocation logement est rejetée, il peut former une réclamation.
+  - nl: gaan.
+    fr: ''
+  - nl: In bezwaar gaan is weer een andere wet, namelijk de
+    fr: Former une réclamation relève d'une autre loi, à savoir la
+  - nl: Algemene wet bestuursrecht.
+    fr: Algemene wet bestuursrecht.
+  - nl: Ook de Algemene wet bestuursrecht is machine-uitvoerbaar.
+    fr: L'Algemene wet bestuursrecht est elle aussi exécutable par machine.
+  - nl: Die kunnen we ook zien.
+    fr: Nous pouvons la voir aussi.
+  - nl: Hier zien we het bezwaar.
+    fr: Voici la réclamation.
+  - nl: En wanneer je in bezwaar kunt gaan.
+    fr: Et quand on peut former une réclamation.
+  - nl: Bij de zorgtoeslag was de hoogte een output,
+    fr: Pour l'allocation de soins de santé, le montant était un résultat,
+  - nl: hier is bezwaar mogelijk een output.
+    fr: ici, la possibilité de réclamation en est un.
+  - nl: De wet waaruit de beslissing voortkwam mag geen
+    fr: La loi dont découle la décision ne doit pas être
+  - nl: algemeen verbindend voorschrift zijn, geen beleidsregel, geen voorbereid besluit
+    fr: une disposition de portée générale, ni une règle de politique, ni une décision préparatoire
+  - nl: of andere handeling, maar moet een beschikking zijn of een besluit van
+    fr: ou un autre acte, mais doit avoir pour effet une décision individuelle ou une décision de
+  - nl: algemene strekking tot gevolg hebben.
+    fr: portée générale.
+  - nl: En je mag niet eerder in bezwaar zijn gegaan. Zo zie je dat procesmatige regelgeving,
+    fr: Et on ne doit pas avoir déjà formé de réclamation. On voit ainsi que la réglementation procédurale,
+  - nl: zoals dit stukje uit de Awb,
+    fr: comme cet extrait de l'Awb,
+  - nl: ook machine-uitvoerbaar gemaakt kan worden.
+    fr: peut elle aussi être rendue exécutable par machine.
+  - nl: En dat het mee kan werken.
+    fr: Et qu'elle peut s'intégrer au système.
+  - nl: Het blokje bezwaar mogelijk zit in deze
+    fr: Le bloc « réclamation possible » se trouve dans cette
+  - nl: user interface, in dit stukje software.
+    fr: interface utilisateur, dans ce morceau de logiciel.
+  - nl: Maar de business logic, die bepaalt of iemand
+    fr: Mais la logique métier, qui détermine si quelqu'un
+  - nl: in bezwaar kan, zit in zo'n regelwerk.
+    fr: peut former une réclamation, se trouve dans une telle réglementation.
+  - nl: Zo hoef je een stuk van de Awb maar één keer
+    fr: Ainsi, un passage de l'Awb ne doit être
+  - nl: te interpreteren en machine-uitvoerbaar te maken
+    fr: interprété et rendu exécutable qu'une seule fois
+  - nl: om het overal te laten werken.
+    fr: pour fonctionner partout.
+  - nl: De wet- en regelgeving die we hier zien.
+    fr: La législation et la réglementation que l'on voit ici.
+  - nl: Dat geldt niet alleen voor de Awb, maar ook voor andere proceswet- en
+    fr: 'Cela vaut pour l''Awb, mais aussi pour d''autres textes de procédure :'
+  - nl: regelgeving, zoals de Archiefwet, de AVG of de
+    fr: la loi sur les archives, le RGPD ou la
+  - nl: Woo, of stukjes uit die wetten.
+    fr: Woo, ou des extraits de ces lois.
+  - nl: Je kunt dus ver gaan in het machine-uitvoerbaar maken van
+    fr: On peut donc aller loin dans l'automatisation de
+  - nl: Procesmatige wet- en regelgeving.
+    fr: la législation et réglementation procédurales.
+  - nl: Hier wil ik stoppen.
+    fr: Je m'arrête ici.
+  - nl: 'Dat was RegelRecht: van wet naar digitale werking.'
+    fr: 'Voilà RegelRecht : de la loi à son exécution numérique.'
+  - nl: Een compleet verhaal, geen eindproduct.
+    fr: Une histoire complète, pas un produit fini.
+  - nl: We maken beleid door te doen.
+    fr: Nous construisons les politiques par la pratique.
+  - nl: De demo staat helemaal open.
+    fr: La démo est entièrement ouverte.
+  - nl: Je kan het zelf proberen.
+    fr: Vous pouvez l'essayer vous-même.
+  - nl: Klik op 'probeer zelf' of klik gewoon rond.
+    fr: Cliquez sur « probeer zelf » ou explorez librement.
+  - nl: Lees meer op regelrecht.rijks.app.
+    fr: 'Pour en savoir plus : regelrecht.rijks.app.'
+  - nl: Wat gebeurt er met open normen?
+    fr: Que deviennent les normes ouvertes ?
+  - nl: We stellen voor dat er niets anders gebeurt dan nu.
+    fr: Nous proposons que rien ne change par rapport à aujourd'hui.
+  - nl: Met open normen gaan we op twee manieren om.
+    fr: Nous traitons les normes ouvertes de deux façons.
+  - nl: De norm blijft misschien open in de wet,
+    fr: La norme reste peut-être ouverte dans la loi,
+  - nl: maar in uitvoeringsbeleid worden alsnog keuzes gemaakt.
+    fr: mais la politique d'exécution fait tout de même des choix.
+  - nl: Of in lagere wet- en regelgeving.
+    fr: Ou bien la réglementation de rang inférieur.
+  - nl: Soms wordt pas in een werkinstructie of in software
+    fr: Parfois, ce n'est que dans une instruction de travail ou un logiciel
+  - nl: een keuze gemaakt die de open norm sluit.
+    fr: qu'un choix vient fermer la norme ouverte.
+  - nl: Met RegelRecht veranderen we dat niet.
+    fr: Avec RegelRecht, nous ne changeons pas cela.
+  - nl: Het enige verschil is dat we het uit software
+    fr: La seule différence, c'est que nous le faisons
+  - nl: Regelgeving en uitvoeringsbeleid maken we machine-uitvoerbaar.
+    fr: Nous rendons la réglementation et la politique d'exécution exécutables par machine.
+  - nl: Alle keuzes waarmee open normen worden ingevuld,
+    fr: Tous les choix qui précisent
+  - nl: maken we expliciet en transparant.
+    fr: les normes ouvertes, nous les rendons explicites et transparents.
+  - nl: Zo wordt navolgbaar hoe keuzes zijn gemaakt,
+    fr: On peut ainsi retracer comment les choix ont été faits,
+  - nl: en zijn ze reproduceerbaar.
+    fr: et ils sont reproductibles.
+  - nl: 'De andere invulling van open normen:'
+    fr: 'L''autre manière de préciser les normes ouvertes :'
+  - nl: er is ruimte voor bijvoorbeeld een
+    fr: il y a de la place pour qu'un agent décisionnaire,
+  - nl: beslisambtenaar om een keuze te maken.
+    fr: par exemple, fasse un choix.
+  - nl: Ook dat veranderen we niet.
+    fr: Cela non plus, nous ne le changeons pas.
+  - nl: Een voorbeeld daarvan is in het
+    fr: Un exemple se trouve dans le
+  - nl: asielrecht,
+    fr: droit d'asile,
+  - nl: het partnerbegrip. Soms is het heel moeilijk te bewijzen dat je
+    fr: la notion de partenaire. Il est parfois très difficile de prouver que vous êtes
+  - nl: partner van elkaar bent.
+    fr: partenaires l'un de l'autre.
+  - nl: Bijvoorbeeld als je in het land van herkomst niet mag trouwen.
+    fr: Par exemple, si vous n'avez pas le droit de vous marier dans votre pays d'origine.
+  - nl: Dan moet er bewijs worden aangeleverd.
+    fr: Il faut alors fournir des preuves.
+  - nl: Vakantiefoto's kunnen gelden als bewijs dat je al
+    fr: Des photos de vacances peuvent valoir preuve que vous êtes déjà
+  - nl: Dan is het aan een ambtenaar om
+    fr: Il revient alors à un fonctionnaire d'
+  - nl: die foto's te beoordelen en te concluderen dat
+    fr: évaluer ces photos et de conclure qu'
+  - nl: het aannemelijk is dat twee mensen partners zijn.
+    fr: il est plausible que deux personnes soient partenaires.
+  - nl: Ook met RegelRecht blijft dat precies zo.
+    fr: Avec RegelRecht, cela reste exactement pareil.
+  - nl: Dat wordt dan een datapunt.
+    fr: Cela devient alors une donnée.
+  - nl: Het aannemelijk zijn van een partner.
+    fr: La plausibilité d'un partenariat.
+  - nl: Dat datapunt werkt mee in de wet- en regelgeving.
+    fr: Cette donnée entre en jeu dans la législation et la réglementation.
+  - nl: Maar het komen tot dat datapunt, de menselijke beoordeling,
+    fr: Mais cette collecte de la donnée, l'appréciation humaine,
+  - nl: veranderen we niet.
+    fr: nous ne la changeons pas.
+  - nl: Dat is nog steeds zo.
+    fr: C'est toujours le cas.
+  - nl: De vraag of dit juridisch bindend is,
+    fr: La question de savoir si cela a force juridique,
+  - nl: of zo'n regelwerk juridisch bindend is.
+    fr: si une telle réglementation a force juridique.
+  - nl: De wet is juridisch bindend.
+    fr: La loi a force juridique.
+  - nl: Dit zijn machine-uitvoerbare interpretaties van de wet.
+    fr: Ce sont des interprétations de la loi exécutables par machine.
+  - nl: Net als software nu een machine-uitvoerbare interpretatie is.
+    fr: Comme un logiciel est aujourd'hui une interprétation exécutable par machine.
+  - nl: De machine-uitvoerbare versie is niet de wet zelf.
+    fr: La version exécutable par machine n'est pas la loi elle-même.
+  - nl: De wet is de wet.
+    fr: La loi, c'est la loi.
+  - nl: Dit is slechts een machine-uitvoerbare interpretatie ervan.
+    fr: Ce n'est qu'une interprétation de celle-ci, exécutable par machine.
+  - nl: Ze heeft ook alleen die status,
+    fr: Elle n'a d'ailleurs que ce statut,
+  - nl: en is dus aanvechtbaar.
+    fr: et peut donc être contestée.
+  - nl: 'Het grote verschil: deze interpretatie is te inspecteren'
+    fr: 'La grande différence : cette interprétation peut être inspectée'
+  - nl: door uitvoerder, burger,
+    fr: par l'organisme d'exécution, le citoyen,
+  - nl: ondernemer, wetgever en rechter.
+    fr: l'entrepreneur, le législateur et le juge.
+  - nl: Zij kunnen allemaal meekijken.
+    fr: Tous peuvent regarder.
+  - nl: De interpretatie is transparant en gepubliceerd.
+    fr: L'interprétation est transparente et publiée.
+  - nl: 'Een vraag die ik vaak krijg: maakt de volgorde van'
+    fr: 'Une question qu''on me pose souvent : l''ordre des'
+  - nl: artikelen uit voor dataminimalisatie?
+    fr: articles joue-t-il pour la minimisation des données ?
+  - nl: Bij deze persoon onder de 18 zien we vroeg
+    fr: Pour cette personne de moins de 18 ans, on voit tôt
+  - nl: dat de persoon 17 is, en dat we daardoor niet naar de rest van de
+    fr: qu'elle a 17 ans, et qu'on n'a donc pas besoin d'examiner le reste de la
+  - nl: machine-uitvoerbare wet- en regelgeving hoeven te kijken.
+    fr: législation et de la réglementation exécutables par machine.
+  - nl: Maar komt dat niet doordat
+    fr: Mais n'est-ce pas parce que
+  - nl: leeftijd een van de eerste artikelen is?
+    fr: l'âge est l'un des premiers articles ?
+  - nl: Had het later gestaan, dan hadden we toch wel naar die gevoelige
+    fr: S'il avait figuré plus tard, aurait-on quand même examiné ces données
+  - nl: datapunten gekeken?
+    fr: sensibles ?
+  - nl: Het antwoord is ja, dat klopt.
+    fr: La réponse est oui, c'est exact.
+  - nl: In dit geval zeker.
+    fr: Dans ce cas, certainement.
+  - nl: Hierover voeren we discussies met juristen.
+    fr: Nous en discutons avec des juristes.
+  - nl: Mag je de volgorde van wet- en regelgeving aanpassen?
+    fr: Peut-on modifier l'ordre des lois et règlements ?
+  - nl: Mag je kiezen welke artikelen je eerst uitvoert?
+    fr: Peut-on choisir quels articles exécuter en premier ?
+  - nl: Juristen zijn het daar niet over eens.
+    fr: Les juristes ne sont pas d'accord sur ce point.
+  - nl: Voor sommige wet- en regelgeving maakt het niet uit
+    fr: Pour certaines lois et réglementations, peu importe
+  - nl: in welke volgorde je artikelen uitvoert.
+    fr: l'ordre dans lequel on exécute les articles.
+  - nl: Voor andere wet- en regelgeving misschien wel.
+    fr: Pour d'autres, peut-être que si.
+  - nl: Gaat een later artikel ervan uit dat je een artikel daarvoor
+    fr: Un article ultérieur suppose-t-il qu'on a déjà lu
+  - nl: al gelezen hebt?
+    fr: l'article précédent ?
+  - nl: Als er ruimte is om de volgorde te kiezen,
+    fr: S'il y a une marge pour choisir l'ordre,
+  - nl: kun je dit misschien minimaliseren.
+    fr: on peut peut-être réduire cela au minimum.
+  - nl: Zodat er zo min mogelijk datapunten geraakt worden,
+    fr: Pour toucher le moins de données possible,
+  - nl: of zo min mogelijk gevoelige datapunten.
+    fr: ou le moins de données sensibles possible.
+  - nl: Misschien laten we zelfs de AVG
+    fr: Peut-être même laisser le RGPD
+  - nl: die volgorde bepalen.
+    fr: déterminer cet ordre.
+  - nl: 'Die wet heeft een soort meta-werking: ze zegt wat gevoelig is'
+    fr: 'Cette loi a une sorte de méta-effet : elle dit ce qui est sensible'
+  - nl: en wat je wel en niet mag raken.
+    fr: et ce qu'on peut ou non toucher.
+  - nl: Hoe weten we of de vertaling klopt?
+    fr: Comment savoir si la traduction est correcte ?
+  - nl: Of de machine-uitvoerbare versie, het regelwerk, klopt?
+    fr: Ou si la version exécutable par machine, la réglementation, est correcte ?
+  - nl: Een deel daarvan...
+    fr: Une partie de la réponse...
+  - nl: zit in het testbaar maken van wet- en regelgeving.
+    fr: tient à la possibilité de tester les lois et règlements.
+  - nl: We zetten regelwerk met een
+    fr: Nous convertissons la réglementation, à l'aide
+  - nl: 'taalmodel om naar een machine-uitvoerbare versie:'
+    fr: 'd''un modèle de langage, en une version exécutable par machine :'
+  - nl: de wettekst wordt omgezet naar deze acties.
+    fr: le texte de loi est transformé en ces actions.
+  - nl: Aan de andere kant wordt een memorie van toelichting omgezet naar een
+    fr: De l'autre côté, une note explicative est transformée en un
+  - nl: scenario, een test voor de wet.
+    fr: scénario, un test pour la loi.
+  - nl: We zetten de wet om naar een regelwerk, een
+    fr: Nous convertissons la loi en réglementation, un
+  - nl: casus naar een test, en dan voeren we het uit.
+    fr: cas en test, puis nous l'exécutons.
+  - nl: Met een hele hoop van zulke tests
+    fr: Avec un très grand nombre de tests de ce genre
+  - nl: die de bedoeling van de wet,
+    fr: qui saisissent l'intention de la loi,
+  - nl: de gewenste werking, vangen,
+    fr: le fonctionnement souhaité,
+  - nl: overtuigen we onszelf dat de wet in ieder geval op deze scenario's werkt zoals die
+    fr: nous nous convainquons que la loi fonctionne, au moins sur ces scénarios, comme prévu.
+  - nl: Dat is één antwoord op de vraag.
+    fr: C'est une première réponse à la question.
+  - nl: 'Een ander antwoord: als wetsanalyst of wetgevingsjurist ben je'
+    fr: 'Une autre réponse : en tant qu''analyste juridique ou juriste législatif, vous êtes'
+  - nl: uiteindelijk verantwoordelijk
+    fr: en définitive responsable
+  - nl: voor de werking van de wet.
+    fr: du fonctionnement de la loi.
+  - nl: Je moet dit kunnen bekijken en zien of het gewenst is.
+    fr: Vous devez pouvoir examiner cela et voir si c'est souhaitable.
+  - nl: We zorgen nu dat wetsanalysten en wetgevingsjuristen
+    fr: Nous faisons en sorte que les analystes juridiques et les juristes législatifs
+  - nl: hier niet naar hoeven te kijken.
+    fr: n'aient pas à regarder cela.
+  - nl: Dit ziet er misschien te nerderig uit, dus we bouwen een betere
+    fr: Cela paraît peut-être trop technique, alors nous construisons une meilleure
+  - nl: gebruikersinterface, zodat een jurist hiernaar kan kijken en
+    fr: interface utilisateur, afin qu'un juriste puisse l'examiner et
+  - nl: 'met overtuiging kan zeggen:'
+    fr: 'dire avec conviction :'
+  - nl: de interpretatie van de wet klopt.
+    fr: l'interprétation de la loi est correcte.
+  - nl: Nu al weten we niet of de
+    fr: Dès à présent, nous ne savons pas si la
+  - nl: vertaling van wet- en regelgeving naar software klopt.
+    fr: traduction de la législation et de la réglementation en logiciel est correcte.
+  - nl: Software voert wet- en regelgeving vaak uit, en het is vaak niet
+    fr: Les logiciels exécutent souvent la législation et la réglementation, et ce n'est souvent pas
+  - nl: transparant hoe dat precies werkt. Toch gebruiken we die software.
+    fr: transparent sur son fonctionnement exact. Pourtant, nous utilisons ce logiciel.
+  - nl: Dat is geen excuus om vertalingen niet te laten kloppen.
+    fr: Ce n'est pas une excuse pour laisser des traductions inexactes.
+  - nl: Die moeten kloppen.
+    fr: Elles doivent être justes.
+  - nl: Het laat alleen zien dat we
+    fr: Cela montre seulement que nous
+  - nl: nu al veel vertrouwen hebben in de vertalingen van
+    fr: faisons déjà très confiance aux traductions des
+  - nl: software engineers.
+    fr: ingénieurs logiciel.
+  - nl: Wij stellen voor dat weg te halen bij software engineers en openbaar te
+    fr: Nous proposons de retirer cela aux ingénieurs logiciel et de le publier
+  - nl: publiceren, zodat iedereen ernaar kijkt.
+    fr: ouvertement, pour que tout le monde puisse le consulter.
+spoken:
+  - nl: Wetten worden al decennia met de hand vertaald naar software.
+    fr: Cela fait des décennies que les lois sont traduites à la main en logiciel.
+  - nl: Iedere uitvoeringsorganisatie heeft zijn eigen interpretatie van wet en regelgeving en een groot
+      stuk van die interpretatie die landt in software.
+    fr: Chaque organisme d'exécution a sa propre interprétation de la loi, et une grande partie de cette
+      interprétation finit dans le logiciel.
+  - nl: Dat gebeurt al jaren, al decennia in sommige gevallen en heel veel wetswijzigingen, nieuwe wetsvoorstellen
+      landen op die manier boven op elkaar gestapeld in software.
+    fr: Cela dure depuis des années, voire des décennies, et d'innombrables modifications de loi et nouveaux
+      projets de loi s'empilent ainsi dans le logiciel.
+  - nl: Met als gevolg dat er eigenlijk geen overzicht meer is.
+    fr: 'Résultat : on n''a plus vraiment de vue d''ensemble.'
+  - nl: Het is niet duidelijk welk stukje software zich verhoudt tot welk stukje wet- of regelgeving en
+      andersom.
+    fr: On ne sait plus quel bout de logiciel correspond à quel bout de loi, et inversement.
+  - nl: Wat er weer toe leidt dat het onvoorspelbaar wordt hoe die software werkt.
+    fr: Du coup, le fonctionnement de ce logiciel devient imprévisible.
+  - nl: Niet alleen voor burgers en ondernemers die aan de ontvangende kant van zo'n stuk software staan,
+      maar ook Voor beleidsmakers, voor mensen die moeten werken met die software, ambtenaren en ook zelfs
+      voor ICT'ers, voor mensen die die software bouwen.
+    fr: Pas seulement pour les citoyens et les entrepreneurs qui subissent ce logiciel, mais aussi pour
+      les décideurs, les agents qui travaillent avec, et même pour les informaticiens qui le construisent.
+  - nl: Het wordt onbeheersbaar vaak om die software nog aan te passen, wat men niet meer durft, dat men
+      niet meer weet wat het effect is van wijziging in de software.
+    fr: 'Il devient ingérable de modifier ce logiciel : on n''ose plus, on ne sait plus quel effet aura
+      une modification.'
+  - nl: RegelRecht gaat over wat nou als we beginnen met de wet, de wet zelf machine-uitvoerbaar maken
+      en dat openbaar publiceren.
+    fr: 'RegelRecht part d''une idée : et si on commençait par la loi, qu''on la rendait elle-même exécutable
+      par machine, et qu''on la publiait ouvertement ?'
+  - nl: Ik ben Anne Schuth, ik ben staff engineer bij RegelRecht en ik geef de demo het volgende kwartier
+      ongeveer.
+    fr: Je suis Anne Schuth, staff engineer chez RegelRecht, et je présente la démo pendant environ un
+      quart d'heure.
+  - nl: Dit is geen statische demo.
+    fr: Ce n'est pas une démo statique.
+  - nl: Je kan op elk moment stoppen, zelf gaan rondklikken.
+    fr: Vous pouvez m'arrêter à tout moment et cliquer vous-même.
+  - nl: Links verschijnen vragen die ik heel vaak krijg.
+    fr: À gauche apparaissent les questions qu'on me pose souvent.
+  - nl: Daar kan je op klikken om antwoorden te krijgen.
+    fr: Cliquez dessus pour obtenir les réponses.
+  - nl: Dit is een compleet verhaal.
+    fr: Un récit complet.
+    shortened: true
+  - nl: Het is werkende software, maar het is geen eindproduct.
+    fr: C'est un logiciel qui fonctionne, mais pas un produit fini.
+  - nl: Dus het is niet bedoeld om ooit in productie te gaan.
+    fr: Il n'est donc pas pour la production.
+    shortened: true
+  - nl: En we doen dit vanuit een beleidsdirectie, dus we maken beleid door te doen, door zover te maken.
+    fr: Et nous le faisons depuis une direction des politiques publiques, par la pratique.
+    shortened: true
+  - nl: We beginnen helemaal aan de achterkant, bij een regelwerk, in dit geval voor de zorgtoeslag.
+    fr: Nous commençons tout au fond, par une réglementation, ici celle de l'allocation de soins de santé.
+  - nl: Hier zien we een machine-uitvoerbare versie van de zorgtoeslag.
+    fr: Voici une version exécutable par machine de l'allocation de soins de santé.
+  - nl: Niet de hele wet, maar stukjes uit die wet, namelijk alleen artikel 2 en artikel 4.
+    fr: 'Pas toute la loi, seulement des extraits : les articles 2 et 4.'
+  - nl: Hier zien we artikel 2, het hele artikel, dus hier zien we de hele tekst.
+    fr: Voici l'article 2, en entier, donc tout le texte.
+  - nl: En hieronder zien we dan machine-readable, het machine-uitvoerbare stuk van die wet.
+    fr: Et en dessous, la partie machine-readable, exécutable par machine, de cette loi.
+  - nl: Dat is een interpretatie van die wet.
+    fr: C'est une interprétation de cette loi.
+  - nl: En wat we hier zien, is dat het begint met een parameter, namelijk BSN.
+    fr: 'Et ce qu''on voit ici, c''est que cela commence par un paramètre : le BSN.'
+  - nl: En dan hangen er wat acties aan, namelijk of iemand voldoet aan de voorwaarden.
+    fr: Et là, des actions dépendent de l'éligibilité aux conditions.
+  - nl: Nou, iemand moet tenminste de minimumleeftijd hebben en iemand moet verzekerde zijn.
+    fr: Il faut avoir l'âge minimum et être assuré.
+  - nl: En dan zien we de hoogte van de zorgtoeslag.
+    fr: Et voici le montant de l'allocation de soins de santé.
+  - nl: En dat is een hele berekening en daar ga ik niet in detail op in, maar hieronder bijvoorbeeld
+      zien we Operation Add, het optellen van inkomen met partnerinkomen, zodat het met het drempelinkomen
+      vergelijkbaar wordt als je met een toeslagpartner.
+    fr: C'est un calcul complet, je ne détaille pas, mais ici, Operation Add additionne le revenu et celui
+      du partenaire, pour le comparer au seuil de revenu avec un partenaire d'allocation.
+  - nl: Waar ik net overheen ging, is iets wat wij inputs noemen.
+    fr: Ce que j'ai survolé, ce sont ce qu'on appelle des inputs.
+  - nl: Dat zijn eigenlijk verwijzingen naar andere wetten.
+    fr: Ce sont des renvois vers d'autres lois.
+  - nl: Bijvoorbeeld, die is verzekerde, één van de voorwaarden.
+    fr: Par exemple, être assuré, l'une des conditions.
+  - nl: Dat komt uit een andere wet.
+    fr: D'une autre loi.
+    shortened: true
+  - nl: Dus in de zorgtoeslagwet staat verzekerde, zoals bedoeld in de zorgverzekeringswet.
+    fr: 'La loi sur l''allocation dit : assuré au sens de la loi sur l''assurance maladie.'
+    shortened: true
+  - nl: Dan kunnen we dus naar de zorgverzekeringswet doorklikken en dat doen we nu en dan zien we wat
+      het betekent om een verzekerde te zijn.
+    fr: On clique vers cette loi pour voir ce qu'est être assuré.
+    shortened: true
+  - nl: Iemand is namelijk een verzekerde, dat is een output hier, als iemand een verzekering heeft of
+      een verdragsverzekering en als iemand niet in detentie zit.
+    fr: Est assuré, c'est un output ici, quiconque a une assurance ou une assurance conventionnelle, et
+      n'est pas en détention.
+  - nl: En dat in detentie zit is weer een input, dat zien we hier, namelijk uit de penitentiaire beginselenwet.
+    fr: Et être en détention est encore un input, ici, issu de la loi pénitentiaire.
+  - nl: En daar kunnen we dan ook heen gaan en dan zien we wat het betekent om gedetineerd te zijn.
+    fr: On peut aussi y aller, et voir ce que signifie être détenu.
+  - nl: Namelijk, je zit in een penitentiaire inrichting of in een huis van bewaring en je bent ingesloten
+      of tijdelijk afwezig.
+    fr: 'À savoir : être dans un établissement pénitentiaire ou une maison d''arrêt, et y être enfermé
+      ou temporairement absent.'
+  - nl: En zo zie je dus om zorgtoeslag uit te rekenen, het recht op zorgtoeslag en de hoogte van die
+      zorgtoeslag, heb je een hele reeks aan wetregelgeving nodig.
+    fr: Ainsi, pour calculer l'allocation de soins de santé, le droit et son montant, il faut toute une
+      série de textes de loi.
+  - nl: En eigenlijk is het niet een reeks, maar een graaf.
+    fr: 'Bref : un graphe, pas une série.'
+    shortened: true
+  - nl: En als je wetten in een machine uitvoerbaar hebt, dan kan je dat ook visualiseren.
+    fr: Et quand les lois sont exécutables par machine, on peut les visualiser.
+  - nl: Dan kan je zien dat die wetten samen hangen met elkaar.
+    fr: On voit alors que ces lois sont liées entre elles.
+  - nl: Ik zal wat inzoomen, maar hier zie je bijvoorbeeld de zorgtoeslag.
+    fr: Je zoome un peu, et ici, on voit par exemple l'allocation de soins de santé.
+  - nl: Even kijken, hier zien we die is verzekerde, dat lijntje kunnen we dan volgen.
+    fr: Voyons, ici, on voit « est assuré », et on peut suivre ce lien.
+  - nl: Dan komen we bij de zorgverzekeringswet en dan zien we dat is gedetineerd en dat lijntje kunnen
+      we ook volgen.
+    fr: On arrive à la loi sur l'assurance maladie, puis « est détenu », et ce lien aussi.
+    shortened: true
+  - nl: Dat zien we dan hier.
+    fr: Et on le voit ici.
+  - nl: Dan zien we het bepalen van de detentiestatus.
+    fr: Voici la détermination du statut de détention.
+  - nl: En hier zien we dus eigenlijk het hele stelsel van wet- en regelgeving wat nodig is om tot de
+      zorgtoeslag te komen.
+    fr: Et ici, on voit tout l'ensemble des textes nécessaires pour obtenir l'allocation de soins de santé.
+  - nl: Als ik dit aanklik dan zien we alle wet- en regelgeving die we op dit moment in de proof of concept
+      hebben.
+    fr: Si je clique ici, on voit toutes les lois que contient actuellement la preuve de concept.
+  - nl: Je ziet dat dat best wel een hele queue is.
+    fr: Tu vois que c'est une sacrée file d'attente.
+  - nl: Je mag bijvoorbeeld eens raden welke dit zou kunnen zijn.
+    fr: Essaie de deviner laquelle ce pourrait être.
+  - nl: Kijk gerust zelf even rond.
+    fr: Regarde donc par toi-même.
+  - nl: Je kan gewoon rondklikken, inzoomen, uitzoomen en lijntjes volgen om de samenhang tussen wet en
+      regelgeving te zien.
+    fr: Tu peux cliquer partout, zoomer, dézoomer et suivre les liens pour voir la cohérence entre loi
+      et réglementation.
+  - nl: Dan gaan we zo weer verder.
+    fr: On reprend tout de suite.
+    shortened: true
+  - nl: Een van de vragen die ik heel vaak krijg hierbij is hoe we omgaan met ambiguïteit eigenlijk.
+    fr: On me demande très souvent comment on gère l'ambiguïté.
+  - nl: Dus als er ergens in dit hele netwerk twee definities met dezelfde naam staan, bijvoorbeeld partnerinkomen
+      is een veel voortkomende of huishouden.
+    fr: Donc si, quelque part dans ce réseau, deux définitions portent le même nom, par exemple revenu
+      du partenaire, très fréquent, ou ménage.
+  - nl: En die komen ook voor, je zou er even naar kunnen gaan zoeken.
+    fr: Et il y en a, tu pourrais aller en chercher.
+  - nl: Dus er zijn gewoon op verschillende plekken in verschillende wetten wordt op een verschillende
+      manier partnerinkomen gedefinieerd of huishouden gedefinieerd.
+    fr: Donc selon les lois et les endroits, le revenu du partenaire ou le ménage est défini de manière
+      différente.
+  - nl: En dat vinden wij als mensen heel erg vervelend.
+    fr: Et nous, humains, trouvons ça très pénible.
+  - nl: Maar voor machines maakt het eigenlijk niet uit, zolang je maar naar de juiste definitie door
+      blijft wijzen.
+    fr: Mais pour les machines, peu importe, tant qu'on pointe vers la bonne définition.
+  - nl: Wat je hier ziet, Dat is eigenlijk iets wat automatisch gegenereerd kan worden als je eenmaal
+      machine-uitvoer bij de wet- en regelgeving hebt.
+    fr: Ce que tu vois ici peut être généré automatiquement dès que la loi et la réglementation sont exécutables
+      par machine.
+  - nl: En dit is al best wel nuttig voor wetsanalysten, voor wetgevingsjuristen, voor mensen die moeten
+      werken met wet- en regelgeving, omdat het overzicht geeft in wat er allemaal samenhangt en wat er
+      mogelijk allemaal kapot gaat als je ergens iets aanpast.
+    fr: Et c'est déjà très utile pour les analystes juridiques, les juristes législatifs, tous ceux qui
+      travaillent avec la loi et la réglementation, car on voit tout ce qui est lié et ce qui risque de
+      casser si on modifie quelque chose.
+  - nl: Als je wet eenmaal machine-uitvoerbaar hebt, dan kan je ook het volgende doen.
+    fr: Une fois la loi exécutable par machine, on peut aussi faire ceci.
+  - nl: Waar we hier naar kijken, zijn eigenlijk scenario's, casussen.
+    fr: Ce que nous regardons ici, ce sont des scénarios, des cas concrets.
+  - nl: En die casussen staan heel vaak beschreven in In de memorie van toelichting bijvoorbeeld.
+    fr: Et ces cas sont très souvent décrits, par exemple, dans l'exposé des motifs.
+  - nl: Dus een wet gaat naar de Kamer of een wetsvoorstel gaat naar de Kamer of een wetswijziging gaat
+      naar de Kamer en meestal wordt er dan ook een memorie van toelichting meegestuurd.
+    fr: Donc une loi, un projet de loi ou une modification de loi va au Parlement, et on y joint généralement
+      un exposé des motifs.
+  - nl: En in die memorie van toelichting staat dan hoe die wet zijn werking zou moeten hebben op specifieke
+      gevallen, op casussen.
+    fr: Et cet exposé des motifs explique comment la loi doit fonctionner sur des cas précis.
+  - nl: Soms zelfs een hele tabel met wat eigenschappen van personen of huishoudens, bedrijven, met hoe
+      de wet daar zijn werking op zou moeten hebben.
+    fr: Parfois même un tableau entier avec les caractéristiques de personnes, de ménages, d'entreprises,
+      et l'effet voulu de la loi.
+  - nl: Wat de bedoeling is van hoe die wet zou werken.
+    fr: L'intention de la loi.
+  - nl: Zo'n casus kan je dus uit zijn memorie van toelichting halen.
+    fr: Un tel cas, on peut donc le tirer de l'exposé des motifs.
+  - nl: En dat ziet er dan bijvoorbeeld zo uit.
+    fr: Et cela ressemble à ceci.
+    shortened: true
+  - nl: Dus dan zien we een persoon met een fictief BSN-nummer, fictief loon.
+    fr: Ici, une personne avec un faux numéro BSN et un faux salaire.
+  - nl: En als de zorgtoeslagwet dan wordt uitgevoerd, dan zou dit de hoogte van de zorgtoeslag in eurocenten
+      per jaar moeten zijn voor dit specifieke geval.
+    fr: Et si la loi sur l'allocation de soins de santé est exécutée, ce serait le montant de l'allocation
+      en centimes d'euro par an pour ce cas précis.
+  - nl: Nou, wat we dan kunnen doen, en dit is waarom het machine-uitvoerbare wet een regelgeving heet,
+      is we kunnen dat uitvoeren.
+    fr: Eh bien, ce que nous pouvons faire, et c'est pourquoi on parle de loi exécutable par machine,
+      c'est l'exécuter.
+  - nl: En wat we dan krijgen is wat wij noemen een trace van het uitvoeren van de wet op dit specifieke
+      geval.
+    fr: Et ce qu'on obtient, c'est ce qu'on appelle une trace de l'exécution de la loi sur ce cas précis.
+  - nl: Hier zien we bijvoorbeeld dat de zorgtoeslagwet wordt uitgevoerd.
+    fr: Ici, on voit que la loi sur l'allocation de soins s'applique.
+    shortened: true
+  - nl: Om te bepalen wat de hoogte van de zorgtoeslag is op het BSN-nummer dat we net zagen.
+    fr: Pour déterminer le montant de l'allocation pour le numéro BSN qu'on vient de voir.
+  - nl: En als we iets verder naar beneden gaan, dan zien we hier dat de zorgverzekeringswet is uitgevoerd
+      om te bepalen of iemand de verzekerde is.
+    fr: Un peu plus bas, on voit que la loi sur l'assurance maladie a été exécutée pour déterminer si
+      la personne est assurée.
+  - nl: En als we dan nog iets verder naar beneden gaan, dan herkennen we de penitentiaire beginselenwet
+      om te bepalen of iemand gedetineerd is.
+    fr: Encore un peu plus bas, on reconnaît la loi pénitentiaire de principes pour déterminer si la personne
+      est détenue.
+  - nl: In dit geval is deze persoon niet gedetineerd.
+    fr: Ici, cette personne n'est pas détenue.
+  - nl: Dan loopt het ook gewoon door.
+    fr: Alors, ça continue tout simplement.
+  - nl: En dan helemaal naar beneden, en dat is best een stukje scrollen, zien we dan de hoogte van de
+      zorgtoeslag in eurocenten per jaar, wat in dit geval dan overeenkomt met wat we in deze casus hier
+      zagen.
+    fr: Et tout en bas, après un bon bout de défilement, on voit le montant de l'allocation de soins de
+      santé en centimes d'euro par an, qui correspond ici à ce qu'on a vu dans ce cas.
+  - nl: Een persoon onder de 18 die zou geen recht moeten hebben op zorgtoeslag.
+    fr: Une personne de moins de 18 ans n'aurait pas droit à l'allocation.
+    shortened: true
+  - nl: Dus dit is weer zo'n scenario.
+    fr: Voilà donc un autre scénario.
+  - nl: En als we dit dan uitvoeren dan zien we dat die trace ook een stuk korter is geworden.
+    fr: Et en l'exécutant, on voit que cette trace est devenue beaucoup plus courte.
+  - nl: We zien bijvoorbeeld dat deze persoon 17 is en dat zorgt ervoor Dat het niet verder loopt.
+    fr: On voit par exemple que cette personne a 17 ans, et que ça arrête tout.
+  - nl: Dat was namelijk één van de voorwaarden.
+    fr: C'était l'une des conditions.
+    shortened: true
+  - nl: Iemand moest tenminste de minimum leeftijd hebben, dat was 18.
+    fr: Il fallait avoir au moins l'âge minimum, soit 18 ans.
+  - nl: En dan houdt het dus op.
+    fr: Et donc ça s'arrête là.
+  - nl: Dus deze persoon voldoet niet aan de voorwaarden en daarmee wordt bijvoorbeeld niet de hoogte
+      van de zorgtoeslag bepaald en wordt dus ook niet gekeken naar mogelijk gevoelige datapunten zoals
+      ze in detentie zitten.
+    fr: 'Cette personne ne remplit donc pas les conditions : le montant de l''allocation n''est pas calculé,
+      et on ne regarde pas des données sensibles, comme une détention éventuelle.'
+  - nl: Dus er zit eigenlijk automatisch iets van dataminimalisatie in.
+    fr: Il y a donc, en quelque sorte, une minimisation des données automatique.
+  - nl: Voel je vrij om hier ook even rond te kijken.
+    fr: N'hésitez pas à explorer un peu par vous-même.
+  - nl: Je kan zelf met die scenario's spelen en die traces volgen.
+    fr: Vous pouvez jouer avec ces scénarios et suivre ces traces.
+  - nl: Een van de vragen die ik nu vaak krijg of vaak gekregen heb Dit is hoe we eigenlijk komen aan
+      die regelwerken.
+    fr: On me demande souvent, ou on m'a souvent demandé, comment on arrive à ces réglementations.
+  - nl: Het korte antwoord is dat we AI gebruiken, generatieve AI, om wet- en regelgeving om te zetten
+      naar zo'n regelwerk.
+    fr: 'La réponse courte : on utilise l''IA générative pour transformer les textes de loi en réglementation.'
+  - nl: Dat we generatieve AI gebruiken om memorie van toelichting om te zetten naar zo'n scenario.
+    fr: On utilise l'IA générative pour transformer l'exposé des motifs en scénario.
+  - nl: En dat we dan het scenario runnen en erachter komen dat het nog niet goed gaat.
+    fr: Puis on exécute le scénario, et on constate que ça ne marche pas encore.
+  - nl: Dus dat er dingen niet geslaagd zijn.
+    fr: Certains points ne sont donc pas réussis.
+  - nl: En dat we de output daarvan, dus het resultaat, de dingen die mis gaan, gebruiken om aan het taalmodel
+      te geven om nog een rondje te gaan.
+    fr: Et on donne le résultat, ce qui a échoué, au modèle de langage pour qu'il fasse un nouveau tour.
+  - nl: Dus dan wordt er opnieuw een regelwerk uitgehaald, opnieuw een scenario uitgehaald.
+    fr: On sort donc à nouveau une réglementation, puis à nouveau un scénario.
+  - nl: Dan wordt het opnieuw gerund tot op een gegeven moment.
+    fr: On relance ensuite le tout, jusqu'à ce que
+  - nl: Wel allemaal op geslaagd staat en dat is eigenlijk het punt dat we het aan een wetsanalyst of
+      wetgevingsjurist zouden geven.
+    fr: tout soit Réussi. C'est le moment où on le donnerait à un analyste juridique ou à un juriste législatif.
+  - nl: Dus dat zou het startpunt zijn voor een jurist om te gaan kijken naar de werking van de machine-uitvoerbare
+      wet en regelgeving en of die wel doet wat die moet doen en of die de wet en over regelgeving wel
+      implementeert zoals we dat willen.
+    fr: 'Ce serait pour lui le point de départ : vérifier si la loi exécutable par machine fait bien ce
+      qu''elle doit et met en œuvre la réglementation comme voulu.'
+  - nl: Als je eenmaal wetten machine-uitvoerbaar maakt, dan kun je van alles doen.
+    fr: Une fois les lois exécutables par machine, on peut faire beaucoup de choses.
+  - nl: Je kan ook dat op meerdere personen tegelijkertijd runnen.
+    fr: On peut aussi les exécuter sur plusieurs personnes en même temps.
+  - nl: Dus net bij de scenario's voerden we eigenlijk de wet steeds uit op één individu.
+    fr: Dans les scénarios, on exécutait la loi sur un seul individu.
+  - nl: En wat we hier zien is dat we het uitvoeren op een populatie, in dit geval een populatie van 50
+      personen.
+    fr: Ici, on l'exécute sur une population, ici de 50 personnes.
+  - nl: Die gemiddeld 54 jaar zijn, 36% heeft een partner, 40% is huurder, 18% heeft kinderen, 4% is student,
+      gemiddeld een inkomen van 41.000 euro.
+    fr: Âge moyen 54 ans, 36 % avec partenaire, 40 % locataires, 18 % avec enfants, 4 % étudiants, revenu
+      moyen 41 000 euros.
+  - nl: Dit is natuurlijk een wat kleine populatie en daarmee niet zo realistisch, maar wel gesampled
+      op basis van de statistieken van het CBS.
+    fr: C'est une petite population, donc peu réaliste, mais échantillonnée d'après les statistiques du
+      CBS.
+  - nl: Een van de dingen die je kan doen, als je eenmaal alle wet- en regelgevingen, die zien we hieronder,
+      Dus hier zien we de bijstand, inkomensafhankelijke bijdrage, ZVW, zorgverzekeringswet, inkomstenbelasting,
+      kiesrecht, Tweede Kamer, etcetera, etcetera.
+    fr: Une fois toute la réglementation disponible, on voit ici l'aide sociale, la cotisation liée au
+      revenu, la loi sur l'assurance maladie, l'impôt sur le revenu, le droit de vote, la Seconde Chambre,
+      etc.
+  - nl: Als je eenmaal al die wetten, machine-uitvoerbaarheid en dus uitvoer op zo'n populatie, Dan kan
+      je dit soort dingen gaan berekenen.
+    fr: Une fois toutes ces lois exécutables sur une telle population, on peut calculer ce genre de choses.
+  - nl: Besteedbaar inkomen, dus het inkomen wat je overhoudt aan het eind van de maand.
+    fr: Le revenu disponible, ce qui vous reste en fin de mois.
+  - nl: Dus inkomen minus belasting plus toeslagen en uitkeringen die de wetten toekennen.
+    fr: Donc revenu moins impôts, plus les allocations et prestations que les lois accordent.
+  - nl: En daarmee verdisconteer je eigenlijk ook alle interactie tussen wet en regelgeving.
+    fr: On prend ainsi en compte toutes les interactions entre les lois.
+  - nl: Dus het kan best zijn dat je ergens iets meer krijgt en daardoor ergens anders iets minder.
+    fr: On peut gagner plus d'un côté et moins de l'autre.
+  - nl: En dat zie je dus terug in dit soort bedragen.
+    fr: Et cela se voit dans ces montants.
+  - nl: Een van de dingen die je kan doen als je wetten eenmaal zo misschien uitvoerbaar maakt, is dat
+      je kan kijken wat het effect van wetswijzigingen zijn.
+    fr: Une fois les lois exécutables, on peut voir l'effet de modifications législatives.
+  - nl: Dus bijvoorbeeld een wetswijziging van de standaardpremie van de zorgtoeslag.
+    fr: Par exemple, une modification de la prime standard de l'allocation de soins de santé.
+  - nl: Als we die min of meer verdubbelen en dan een simulatie draaien, die simulatie draait dus op dezelfde
+      populatie, dan zien we wat er gebeurt en dan kunnen we die ook met elkaar vergelijken.
+    fr: Si on la double à peu près, et qu'on lance une simulation sur la même population, on voit ce qui
+      change et on peut comparer.
+  - nl: Dus dan zien we hier de vergelijking tussen de standaard situatie en de standaard De situatie
+      met de standaardpremie aangepast.
+    fr: Ici, la comparaison entre la situation standard et celle avec la prime standard modifiée.
+  - nl: Dus dan zien we bijvoorbeeld in dit geval dat het besteedbaar inkomen per maand omhoog gaat van
+      4720 naar 4775 euro.
+    fr: Ici par exemple, le revenu disponible par mois passe de 4720 à 4775 euros.
+  - nl: En als je moet stemmen, dus je zit bijvoorbeeld in de Tweede Kamer en je moet stemmen over een
+      amendement waarbij die standaardpremie wordt aangepast, dan is het heel prettig als je dit soort
+      Zorgtoeslag is het effect van een wetswijziging.
+    fr: Et quand on doit voter, par exemple à la Seconde Chambre, sur un amendement modifiant la prime
+      standard, il est précieux de voir l'effet d'une modification de loi sur l'allocation de soins de
+      santé.
+  - nl: We zien dat de zorgtoeslagwet aanzienlijk omhoog gaat.
+    fr: On voit que l'allocation de soins de santé augmente nettement.
+  - nl: Blijkbaar worden ergens anders mensen gekort en dat wil je dan dus weten.
+    fr: Ailleurs, des gens perdent apparemment, et on veut le savoir.
+  - nl: Hier kan je zelf ook even rondklikken, misschien wat andere wetswijzigingen uitproberen en verschillende
+      vergelijkingen maken.
+    fr: Ici, vous pouvez aussi cliquer vous-même, essayer d'autres modifications de loi et faire différentes
+      comparaisons.
+  - nl: En je kan ook inzoomen op hoe dit uitsplitst binnen een populatie.
+    fr: Et zoomez sur la répartition dans la population.
+  - nl: Dus hier zie je bijvoorbeeld hoe het uitsplitst naar leeftijd of naar inkomen of naar wel of niet
+      hebben van een partner, of je huurt of koopt en of je wel of geen kinderen hebt.
+    fr: Ici, on voit par exemple la répartition par âge, par revenu, avec ou sans partenaire, location
+      ou propriété, avec ou sans enfants.
+  - nl: Dus kijk gerust even rond.
+    fr: Regardez donc tranquillement.
+  - nl: Als je wetten namelijk eenmaal machine-uitvoerbaar maakt, dan kan je ook dit doen.
+    fr: Des lois exécutables par machine permettent aussi ceci.
+  - nl: Wat we hier zien is een soort van mijn overheid.
+    fr: Ici, on voit une sorte de Mon administration.
+  - nl: En wat we hier eigenlijk zien, ik zal even de demo resetten.
+    fr: Et ici, en fait, je réinitialise d'abord la démo.
+  - nl: Wat we hier zien is een portaal voor Merijn.
+    fr: Ici, on voit un portail pour Merijn.
+  - nl: We hebben ook een portaal voor Claudia, dat is een ondernemer.
+    fr: Claudia, entrepreneuse, a son portail.
+    shortened: true
+  - nl: Maar bijvoorbeeld Merijn, die zou recht moeten hebben op, of misschien recht hebben op kindgebonden
+      budget, recht moeten hebben op zorgtoeslag, bijstand van de gemeente Amsterdam, etcetera, etcetera.
+    fr: Merijn aurait droit au budget lié aux enfants, à l'allocation de soins de santé, à l'aide sociale
+      d'Amsterdam, etc.
+  - nl: Hier zien we eigenlijk alle wetten weer terug die we eerder ook zagen.
+    fr: Voici toutes les lois déjà vues.
+  - nl: Bijvoorbeeld die zorgtoeslag, daar zien we exact eigenlijk de trace die we net zagen, maar dan
+      alleen de datapunten uit die trace.
+    fr: 'Par exemple l''allocation de soins de santé : exactement la trace d''avant, mais seulement les
+      données.'
+  - nl: Dus bijvoorbeeld zien we hier dat Merijn niet in detentie zit.
+    fr: Ici, par exemple, Merijn n'est pas en détention.
+  - nl: Dit komt dus uit die penitentiaire beginselenwet.
+    fr: Issu de la loi pénitentiaire.
+  - nl: Merijn ziet al deze gegevens en denkt, ja, dit klopt wel, dient een aanvraag.
+    fr: Merijn voit ces données, les juge justes, et demande.
+  - nl: En dat wordt dan ook direct toegekend.
+    fr: Et c'est accordé directement.
+  - nl: Dus Dienst Toeslagen aan de achterkant, bevoegd gezag voor het uitvoeren van de zorgtoeslagwet,
+      die kent direct dit bedrag toe.
+    fr: Dienst Toeslagen, côté back-office, autorité compétente pour la loi sur l'allocation de soins
+      de santé, accorde directement ce montant.
+  - nl: En dat kan omdat de aanvraag gedaan werd met machine-uitvoerbare wet en regelgeving voor de zorgtoeslag
+      en Dienst Toeslagen gebruikt aan de achterkant natuurlijk exact dezelfde machine-uitvoerbare wet
+      en regelgeving.
+    fr: Et c'est possible car la demande utilisait la loi exécutable par machine pour l'allocation de
+      soins de santé, et Dienst Toeslagen utilise exactement la même en back-office.
+  - nl: Met andere woorden, dit is dus niet de rekenhulp, maar de echte interpretatie van wet en regelgeving.
+    fr: Autrement dit, ce n'est pas un simulateur, mais la véritable interprétation de la loi.
+  - nl: De huurtoeslag zou net wat anders werken.
+    fr: L'allocation logement diffère.
+  - nl: Merijn moet namelijk wat gegevens aanleveren, zoals de huur en subsidiabele servicekosten.
+    fr: Merijn doit fournir des données, comme le loyer et les charges de service éligibles.
+  - nl: En dan komt er een bedrag uit, 302,96 euro.
+    fr: 'Résultat : 302,96 euros.'
+  - nl: En dan denkt Merijn misschien, hé, ik had wat meer verwacht.
+    fr: 'Merijn se dit peut-être : j''en attendais un peu plus.'
+  - nl: En als hij wat beter kijkt, dan ziet hij ook Dat dat inkomen van hem, dat klopt helemaal niet.
+    fr: 'Il regarde mieux : son revenu est faux.'
+  - nl: Hij klikt nog eens door en hij ziet dat er winst uit de onderneming staat.
+    fr: Il continue et voit un bénéfice d'entreprise.
+  - nl: Vorig jaar had Merijn misschien wel een onderneming, maar ik heb mijn onderneming niet meer.
+    fr: L'an dernier, Merijn avait peut-être une entreprise, mais moi, je n'en ai plus.
+  - nl: Misschien met een uitschrijving bij de KVK.
+    fr: Peut-être avec une radiation auprès de la KVK.
+  - nl: Nou, en dat dient Merijn dan in.
+    fr: Et Merijn la soumet.
+  - nl: Dus hier zien we de wijziging.
+    fr: Voici la modification.
+    shortened: true
+  - nl: We zien ook direct dat het bedrag omhoog gaat, van 302 naar 406,95 euro.
+    fr: On voit aussi que le montant passe de 302 à 406,95 euros.
+  - nl: En dan kan Merijn dit aanvragen en dit moet dan misschien in behandeling genomen worden.
+    fr: Merijn peut alors demander ceci, et cela doit peut-être être examiné.
+  - nl: Misschien willen we als overheid even kijken naar die wijziging in inkomen van Merijn in het bewijs
+      van uitschrijving van KVK.
+    fr: En tant qu'administration, on voudra peut-être vérifier cette modification du revenu de Merijn,
+      dans la pièce justificative de radiation de la KVK.
+  - nl: We zien ook dat die zorgtoeslag die Merijn al aangevraagd had en die al toegekend was, dat de
+      aanvraag eigenlijk niet meer klopt.
+    fr: On voit aussi que l'allocation de soins de santé déjà demandée et accordée à Merijn ne correspond
+      en fait plus.
+  - nl: Het is natuurlijk zo dat die zorgtoeslag ook gebaseerd was op het inkomen en Merijn heeft dat
+      gewijzigd.
+    fr: Cette allocation reposait aussi sur le revenu, et Merijn l'a modifié.
+  - nl: Dus misschien wil Merijn die aanvraag ook even wijzigen en dat moet dan misschien ook in behandeling
+      genomen worden, omdat dat onderliggende bewijsstuk, uitschrijving KVK, nog steeds door een ambtenaar
+      bekeken moet worden.
+    fr: Merijn voudra donc peut-être aussi modifier cette demande, qui devra aussi être examinée, car
+      la pièce justificative, la radiation de la KVK, doit encore être vérifiée par un fonctionnaire.
+  - nl: Dit is een moment dat mensen vaak vragen of dit niet proactief had gekund.
+    fr: C'est le moment où l'on demande souvent si cela n'aurait pas pu se faire de manière proactive.
+  - nl: Deze demo komt voort uit een fieldlab, proactieve dienstverlening, in december 2024.
+    fr: Cette démo est née d'un fieldlab sur les services proactifs, en décembre 2024.
+  - nl: En dat is exact de aanleiding om hier aan te gaan werken.
+    fr: Et c'est ce qui nous a motivés.
+    shortened: true
+  - nl: Kunnen we niet, als we eenmaal het recht op zorgtoeslag en de hoogte van de zorgtoeslag met machine-uitvoerbare
+      wet- en regelgeving kunnen uitrekenen, kunnen we dat dan niet ook direct proactief toekennen.
+    fr: Si l'on peut calculer le droit à l'allocation de soins de santé et son montant avec des lois exécutables
+      par machine, ne pourrait-on pas aussi l'accorder directement, de façon proactive ?
+  - nl: Het korte antwoord is Dat het technisch misschien zou kunnen, maar dat het misschien niet altijd
+      gewenst is, omdat we niet alles weten van de aanvragen.
+    fr: 'La réponse courte : techniquement peut-être, mais ce n''est pas toujours souhaitable, car nous
+      ne savons pas tout des demandes.'
+  - nl: Het wat langere antwoord is dat we, om direct te kunnen toekennen, eigenlijk alles zouden moeten
+      weten van een aanvrager.
+    fr: 'La réponse plus longue : pour accorder directement, il faudrait tout savoir d''un demandeur.'
+  - nl: Bijvoorbeeld ook of iemand net een erfenis gekregen heeft.
+    fr: Car il vient d'hériter, par exemple.
+    shortened: true
+  - nl: Want het zou best kunnen dat met alle gegevens die de overheid heeft, het lijkt alsof je recht
+      hebt op een zorgtoeslag, maar de overheid weet niet alles.
+    fr: Car avec toutes les données de l'administration, on peut sembler avoir droit à l'allocation, alors
+      que l'administration ne sait pas tout.
+  - nl: Als je net een erfenis gekregen hebt bijvoorbeeld, dan zal dat een invloed hebben Op je recht
+      op zorgtoeslag en de hoogte van dat recht.
+    fr: Si vous venez de recevoir un héritage, cela influence votre droit à l'allocation de soins de santé
+      et son montant.
+  - nl: En als we dat direct toegekend zouden hebben, dan zou je wel eens in de problemen kunnen komen
+      en dat allemaal terug moeten betalen.
+    fr: Et si on l'avait accordée directement, vous pourriez avoir des problèmes et devoir tout rembourser.
+  - nl: Dus dat vergt keuzes.
+    fr: Cela demande donc des choix.
+  - nl: Het vergt politieke keuzes en misschien wel wetswijzigingen voor zoiets op een betrouwbare manier
+      gedaan kan worden.
+    fr: Cela demande des choix politiques, et peut-être des modifications de loi, pour le faire de manière
+      fiable.
+  - nl: Merijn heeft dus deze twee aanvragen gedaan en dan is er misschien iets van een zaaksysteem, in
+      dit geval voor Dienst Toeslagen, maar het kan ook voor een andere organisatie zijn, maar bijvoorbeeld
+      Dienst Toeslagen.
+    fr: Merijn a donc fait ces deux demandes, et il existe peut-être un système de gestion des dossiers,
+      ici pour la Dienst Toeslagen, mais ce pourrait être un autre organisme.
+  - nl: Die ziet hier de twee aanvragen van Merijn, huurtoeslag, zorgtoeslag en kan daar in detail naar
+      kijken.
+    fr: Il voit ici les deux demandes de Merijn et peut les examiner en détail.
+    shortened: true
+  - nl: En dan ziet hij bijvoorbeeld dat Merijn hier een wijziging heeft gemaakt.
+    fr: Et il voit par exemple que Merijn a fait ici une modification.
+  - nl: Winst uit onderneming is van 25.000 naar nul gegaan.
+    fr: Le bénéfice passe de 25 000 à zéro.
+    shortened: true
+  - nl: Dat kan goedgekeurd of afgewezen worden.
+    fr: Elle sera acceptée ou refusée.
+    shortened: true
+  - nl: Of de hele aanvraag kan toegekend of afgewezen worden.
+    fr: Ou la demande entière peut être accordée ou rejetée.
+  - nl: Deze ambtenaar overweegt dit heel zorgvuldig en motiveert waarom dit toch niet klopt en wijst
+      af.
+    fr: Ce fonctionnaire examine cela très attentivement, motive pourquoi cela ne tient pas, et rejette.
+  - nl: En voor Merijn zou dat er dan zo uitzien.
+    fr: Et voilà ce que cela donnerait pour Merijn.
+  - nl: Zijn huurtoeslagaanvraag is afgewezen en hij kan in bezwaar gaan.
+    fr: Sa demande d'allocation logement est rejetée, et il peut former une réclamation.
+  - nl: In bezwaar gaan is natuurlijk weer een andere wet die in werking treedt, namelijk de Algemene
+      Wet Bestuursrecht.
+    fr: Former une réclamation déclenche une autre loi, la Loi générale sur le droit administratif.
+  - nl: En die Algemene Wet Bestuursrecht is ook machine-uitvoerbaar.
+    fr: Et cette loi est elle aussi exécutable par machine.
+  - nl: En die kunnen we ook zien.
+    fr: Et on peut la voir aussi.
+  - nl: Hier zien we bijvoorbeeld het bezwaar.
+    fr: Ici, on voit par exemple la réclamation.
+  - nl: En dan zien we wanneer het mogelijk is om in bezwaar te gaan.
+    fr: Et on voit quand une réclamation est possible.
+    shortened: true
+  - nl: Dus waar bij de zorgtoeslagwet de hoogte van de zorgtoeslag bijvoorbeeld een output was, zien
+      we dat hier bezwaar mogelijk een output is.
+    fr: Donc là où, pour la loi sur l'allocation de soins de santé, le montant était une sortie, ici c'est
+      la réclamation possible qui en est une.
+  - nl: En we zien bijvoorbeeld dat de wet waar de beslissing uit voortkwam niet een algemeen verbindend
+      voorschrift, niet een beleidsregel, niet een voorbereid besluit van een andere handeling moet zijn
+      en wel een beschikking of een besluit van algemene strekking tot gevolg heeft.
+    fr: On voit par exemple que la loi dont la décision découle ne doit pas être une disposition générale,
+      ni une règle de politique, ni une décision préparatoire, et doit aboutir à une décision individuelle
+      ou de portée générale.
+    shortened: true
+  - nl: En je moet niet eerder in bezwaar gegaan En zo zie je dus dat meer procesmatige wet- en regelgeving,
+      zoals de Awb of dit stukje, zou ik moeten zeggen, uit de Awb ook machine-uitvoerbaar gemaakt kan
+      worden.
+    fr: Et il ne faut pas avoir déjà fait de réclamation. Ainsi, une législation plus procédurale, comme
+      l'Awb ou plutôt ce passage de l'Awb, peut aussi être rendue exécutable par machine.
+  - nl: En dat dat mee kan werken.
+    fr: Et que cela fonctionne.
+    shortened: true
+  - nl: Dus het blokje hier, bezwaar mogelijk of in bezwaar gaan, dat zit misschien in deze user interface,
+      in dit stukje software.
+    fr: Donc le bouton ici, réclamation possible, se trouve peut-être dans cette interface, dans ce morceau
+      de logiciel.
+  - nl: Maar de logica daarachter, dus de business logic, de logica die bepaalt of iemand wel of niet
+      in bezwaar kan gaan, dat zit in zo'n regelwerk.
+    fr: Mais la logique derrière, la logique métier qui détermine si quelqu'un peut ou non former une
+      réclamation, elle se trouve dans cette réglementation.
+  - nl: En dat zorgt ervoor dat je dus zo'n stuk van de Awb eigenlijk maar één keer hoeft te interpreteren,
+      één keer machine-uitvoerbaar hoeft te maken om hem te laten werken overal.
+    fr: Ainsi, un tel morceau de l'Awb, on n'a besoin de l'interpréter qu'une fois, de le rendre exécutable
+      par machine une fois, pour qu'il fonctionne partout.
+  - nl: De wet- en regelgeving die we hier bijvoorbeeld zien.
+    fr: La législation que l'on voit ici, par exemple.
+  - nl: Dat geldt niet alleen voor de Awb, maar misschien ook wel voor andere proceswet- en regelgeving,
+      zoals misschien de Archiefwet of de AVG of de Woo, of stukjes uit al die wetten zou ik eigenlijk
+      moeten zeggen.
+    fr: Cela vaut non seulement pour l'Awb, mais peut-être aussi pour d'autres textes procéduraux, comme
+      la loi sur les archives, le RGPD ou la Woo, ou plutôt des extraits de toutes ces lois.
+  - nl: Maar je kan dus best wel ver gaan in het ook machine-uitvoerbaar maken van procesmatige wet- en
+      regelgeving.
+    fr: On peut donc aller assez loin pour rendre aussi exécutable par machine la législation procédurale.
+  - nl: Dit is waar ik wil stoppen.
+    fr: C'est là que je m'arrête.
+  - nl: Dat was RegelRecht, van wet naar digitale werking.
+    fr: Voilà RegelRecht, la loi exécutée.
+    shortened: true
+  - nl: Het is een compleet verhaal, geen eindproduct.
+    fr: Un récit complet, pas un produit fini.
+    shortened: true
+  - nl: Wat we doen is beleid maken door te doen.
+    fr: Nous construisons les politiques par la pratique.
+  - nl: De demo staat helemaal open.
+    fr: La démo est ouverte.
+    shortened: true
+  - nl: Je kan het zelf proberen.
+    fr: Vous pouvez l'essayer.
+  - nl: Klik op probeer zelf of klik gewoon rond.
+    fr: Cliquez sur « essayer » ou explorez.
+  - nl: En je kan meer lezen over wat we doen op regelrecht.rijks.app.
+    fr: Et lisez-en plus sur regelrecht.rijks.app.
+  - nl: Wat gebeurt er met open normen?
+    fr: Que deviennent les normes ouvertes ?
+  - nl: Eigenlijk stellen we voor dat er niets anders gebeurt dan nu.
+    fr: En fait, nous proposons que rien ne change.
+  - nl: Open normen daar gaan we op ten minste twee manieren mee om.
+    fr: Les normes ouvertes, on les traite d'au moins deux façons.
+  - nl: De eerste manier is dat de norm misschien in de wet opengelaten wordt, maar dat in uitvoeringsbeleid
+      alsnog keuzes gemaakt worden.
+    fr: D'abord, la loi laisse peut-être la norme ouverte, mais la politique d'exécution fait quand même
+      des choix.
+  - nl: Of misschien een lagere wet- en regelgeving.
+    fr: Ou une réglementation de rang inférieur.
+  - nl: Het zou best kunnen dat er pas in een werkinstructie of soms zelfs pas in software een keuze wordt
+      gemaakt waarmee een open norm niet open meer is.
+    fr: Il se peut qu'un choix ne soit fait que dans une instruction de travail, voire dans un logiciel,
+      et la norme n'est alors plus ouverte.
+  - nl: En wat we eigenlijk voorstellen met RegelRecht is dat we dat niet veranderen.
+    fr: Et avec RegelRecht, nous proposons de ne pas changer cela.
+  - nl: Het enige verschil is dat we het uit software Dat we met regelgeving en uitvoeringsbeleid machine-uitvoerbaar
+      maken.
+    fr: 'La seule différence : nous rendons la réglementation et la politique d''exécution exécutables
+      par machine.'
+  - nl: Met andere woorden, dat we al die keuzes die gemaakt worden, waarmee open normen ingevuld worden,
+      dat we die expliciet en transparant maken.
+    fr: Autrement dit, tous ces choix qui complètent les normes ouvertes, nous les rendons explicites
+      et transparents.
+  - nl: En dat het daarmee navolgbaar wordt hoe die keuzes gemaakt zijn en ook reproduceerbaar worden.
+    fr: Ainsi, on peut retracer comment ces choix ont été faits, et les reproduire.
+  - nl: De andere vorm van open normen is denk ik dat die ingevuld worden door, of de andere invulling
+      eigenlijk van open normen is dat er ruimte is voor bijvoorbeeld een beslisambtenaar om een keuze
+      te maken.
+    fr: L'autre forme de norme ouverte, c'est la marge d'appréciation, par exemple celle d'un agent instructeur
+      qui tranche.
+  - nl: En ook dat veranderen we niet.
+    fr: Cela non plus, nous ne le changeons pas.
+  - nl: Dus een voorbeeld daarvan is in het asielrecht is er bijvoorbeeld sprake van Het partnerbegrip
+      en soms is het heel erg moeilijk om hard te maken dat je een partner bent van elkaar.
+    fr: 'Un exemple : en droit d''asile, il y a la notion de partenaire, et il est parfois très difficile
+      de prouver que vous l''êtes.'
+  - nl: Als bijvoorbeeld in het land van herkomst je niet met elkaar mag trouwen.
+    fr: Par exemple si, dans votre pays d'origine, vous ne pouvez pas vous marier.
+  - nl: En hoe dat nu werkt is dat er dan bewijs over gelegd moet worden.
+    fr: Aujourd'hui, il faut alors fournir des preuves.
+  - nl: Bijvoorbeeld vakantiefoto's zouden kunnen gelden als bewijs dat je al En dan is het aan een ambtenaar
+      om die foto's te beoordelen en tot de conclusie te komen dat het aannemelijk is dat twee mensen
+      partner van elkaar zijn.
+    fr: Par exemple, des photos de vacances peuvent prouver que vous êtes ensemble. Ensuite, un agent
+      évalue ces photos et conclut qu'il est plausible que deux personnes soient partenaires.
+  - nl: Ook met RegelRecht blijft dat precies zo werken.
+    fr: Avec RegelRecht, c'est pareil.
+    shortened: true
+  - nl: Hoe dat werkt is dat dat dan een datapunt wordt.
+    fr: Cela devient alors une donnée.
+  - nl: Het aannemelijk zijn van een partner.
+    fr: La vraisemblance d'un partenariat.
+  - nl: En dat is iets wat dan mee gaat werken in de wet- en regelgeving.
+    fr: Et cette donnée intervient ensuite dans la réglementation.
+  - nl: Maar het komen tot dat datapunt, dus de menselijke beoordeling die daarvoor nodig is, die veranderen
+      we niet.
+    fr: Mais pour arriver à cette donnée, l'évaluation humaine nécessaire, nous n'y touchons pas.
+  - nl: Dat is nog steeds zo.
+    fr: C'est toujours le cas.
+  - nl: De vraag of dit juridisch bindend is, of zo'n regelwerk zoals we hier zien, of dat juridisch bindend
+      is.
+    fr: La question de savoir si cette réglementation, comme celle que nous voyons ici, a une force juridique
+      contraignante.
+  - nl: De wet die is juridisch bindend.
+    fr: La loi, elle, a force juridique.
+  - nl: Want dit zijn machine-uitvoerbare interpretaties van de wet.
+    fr: Car ce sont des interprétations de la loi exécutables par une machine.
+  - nl: Net zo goed als software nu een machine-uitvoerbare interpretatie van de wet is.
+    fr: Tout comme un logiciel l'est aujourd'hui.
+  - nl: Dus de machine-uitvoerbare versie is niet de wet zelf.
+    fr: La version exécutable n'est donc pas la loi elle-même.
+  - nl: De wet is de wet.
+    fr: La loi, c'est la loi.
+  - nl: En wat we hier zien is slechts een machine-uitvoerbare interpretatie van die wet.
+    fr: Ce n'est qu'une interprétation de la loi, exécutable par machine.
+    shortened: true
+  - nl: En het heeft ook slechts die status, de status van een interpretatie van de wet, die dus ook aanvechtbaar
+      is.
+    fr: Et elle n'a que ce statut d'interprétation de la loi, donc elle est contestable.
+  - nl: Het grote verschil is natuurlijk dat het een interpretatie is die te inspecteren valt, die te
+      zien valt door zowel de uitvoerder, de burger, ondernemer, maar ook de wetgevende macht en de rechtssprekende
+      macht kunnen kijken naar die interpretatie.
+    fr: 'La grande différence, c''est que cette interprétation peut être inspectée : l''organisme d''exécution,
+      le citoyen, l''entrepreneur, mais aussi le législateur et le juge peuvent l''examiner.'
+  - nl: En die interpretatie is transparant en gepubliceerd.
+    fr: Et cette interprétation est transparente et publiée.
+  - nl: Een van de vragen die ik vaak krijg hier is of het uitmaakt wat de volgorde van artikelen is om
+      tot dataminimalisatie te komen.
+    fr: On me demande souvent si l'ordre des articles compte pour minimiser les données.
+  - nl: En dus we zien bijvoorbeeld voor deze persoon onder de 18 dat we dus vroeg achterkomen dat deze
+      persoon 17 is en dat we daardoor niet naar de rest van de machine-uitvoerbare wet- en regelgeving
+      moeten kijken.
+    fr: Ici, pour cette personne de moins de 18 ans, on découvre tôt qu'elle a 17 ans, donc on n'a pas
+      besoin de regarder le reste de la réglementation exécutable.
+  - nl: Maar komt dat dan niet omdat die leeftijd is een van de eerste artikelen die beschreven staat.
+    fr: Mais n'est-ce pas parce que l'âge figure parmi les premiers articles décrits ?
+  - nl: En als dat toevallig later had gestaan, hadden we dan niet wel naar die gevoelige datapunten gekeken?
+    fr: Et s'il avait figuré plus loin, n'aurions-nous pas consulté ces données sensibles ?
+  - nl: En het antwoord is ja, dat klopt.
+    fr: La réponse est oui.
+    shortened: true
+  - nl: Dat is in dit geval zeker zo.
+    fr: Dans ce cas, c'est certain.
+  - nl: En we hebben discussies met juristen hierover.
+    fr: Nous en discutons avec des juristes.
+  - nl: Mag je de volgorde van wet- en regelgeving aanpassen?
+    fr: A-t-on le droit de modifier l'ordre de la réglementation ?
+  - nl: Dus mag je kiezen welke artikelen je eerst uitvoert?
+    fr: Peut-on choisir quels articles exécuter en premier ?
+  - nl: Juristen zijn het daar niet per se over eens.
+    fr: Les juristes ne sont pas forcément d'accord.
+  - nl: Waarschijnlijk is het zo dat het voor sommige wet- en regelgeving niet uitmaakt in welke volgorde
+      je de artikelen uitvoert.
+    fr: Pour certaines réglementations, l'ordre d'exécution des articles n'a probablement pas d'importance.
+  - nl: En voor andere wet- en regelgeving maakt het misschien wel uit.
+    fr: Pour d'autres, il en a peut-être.
+  - nl: Is het misschien zo dat een later artikel ervan uitgaat dat je een artikel daarvoor al gelezen
+      hebt?
+    fr: Un article ultérieur suppose-t-il peut-être qu'on ait déjà lu un article précédent ?
+  - nl: Hoe dan ook, als er ruimte is om te kiezen in welke volgorde je artikelen uitvoert, dan zou dat
+      kunnen betekenen dat je dit kan minimaliseren.
+    fr: Quoi qu'il en soit, si l'on peut choisir l'ordre d'exécution, on pourrait minimiser les données.
+  - nl: Dus dat je ervoor kan zorgen dat er zo min mogelijk datapunten geraakt worden of zo min mogelijk
+      gevoelige datapunten geraakt worden.
+    fr: Pour qu'on touche le moins de données possible, ou le moins de données sensibles possible.
+  - nl: En misschien zouden we zelfs er ver kunnen gaan dat we de AVG, die volgorde, laten bepalen.
+    fr: Et on pourrait peut-être même aller jusqu'à laisser le RGPD déterminer cet ordre.
+  - nl: Die wet een soort van meta-werking heeft hierover en iets zegt over wat gevoelig is en wat minder
+      gevoelig is en wat je wel en niet aan mag raken.
+    fr: Que cette loi ait une sorte de méta-effet, qu'elle dise ce qui est sensible ou moins sensible,
+      et ce qu'on peut toucher ou non.
+  - nl: Hoe weten we of de vertaling klopt?
+    fr: Comment savoir si la traduction est juste ?
+  - nl: Of de machine-uitvoerbare versie, het regelwerk, of dat klopt?
+    fr: Ou si la version exécutable par machine, la réglementation, est correcte ?
+  - nl: Een stuk daarvan...
+    fr: En partie...
+  - nl: Dat zit in het testbaar maken van wet- en regelgeving.
+    fr: Cela passe par le fait de rendre la législation testable.
+  - nl: Dus waar we regelwerk met behulp van een taalmodel omzetten naar zo'n machine-uitvoerbare versie,
+      dus de wettekst wordt omgezet naar wat we hieronder zien, naar deze acties.
+    fr: 'Ici, un modèle de langage convertit la réglementation en version exécutable par machine : le
+      texte de loi devient ce que nous voyons en dessous, ces actions.'
+  - nl: Daar wordt aan de andere kant een memorie van toelichting omgezet naar een scenario, een test
+      voor de wet zou je kunnen zeggen.
+    fr: De l'autre côté, une note explicative devient un scénario, un test pour la loi, en quelque sorte.
+  - nl: En wat we dus kunnen doen is de wet omzetten naar zo'n regelwerk, een scenario, een casus omzetten
+      naar zo'n test en dan kunnen we het uitvoeren.
+    fr: Donc on peut convertir la loi en réglementation, et un scénario, un cas concret, en test, puis
+      l'exécuter.
+  - nl: En als we op een gegeven moment een hele hoop van dit soort tests hebben, dus we kunnen een hele
+      hoop van dit soort tests onder elkaar zetten die de bedoeling van de wet, de gewenste werking van
+      de wet vangen, dan kunnen we onszelf ervan overtuigen dat in ieder geval op dit soort scenario's
+      de wet werkt zoals die Dat is denk ik één antwoord op de vraag.
+    fr: Et quand on a toute une série de tests de ce genre, qui saisissent l'intention de la loi, son
+      fonctionnement voulu, on peut se convaincre que la loi fonctionne comme prévu, au moins sur ces
+      scénarios. C'est une première réponse, je pense.
+  - nl: Een ander antwoord is natuurlijk dat je als wetsanalyst of wetgevingsjurist in ieder geval als
+      iemand die verantwoordelijk uiteindelijk is, Voor hoe die wet zijn werking heeft.
+    fr: 'Une autre réponse : en tant qu''analyste juridique ou juriste législatif, bref, responsable en
+      dernier ressort du fonctionnement de cette loi,'
+  - nl: Dit ook moeten kunnen bekijken en je moet kunnen zien of dit gewenst is.
+    fr: il faut pouvoir examiner cela et voir si c'est bien le résultat voulu.
+  - nl: We zijn op dit moment bezig om te zorgen dat wetsanalysten en wetgevingsjuristen niet hiernaar
+      hoeven te kijken.
+    fr: Nous travaillons actuellement à ce que les analystes et juristes n'aient pas à regarder ceci.
+  - nl: Dit ziet er misschien iets te nerderig uit, dus we zijn bezig om hier een betere gebruikersinterface
+      op te zetten, zodat een jurist hiernaar kan kijken en met overtuiging kan zeggen Dat de interpretatie
+      van de wet is zoals die moet zijn.
+    fr: Cela paraît peut-être trop technique, donc nous construisons une meilleure interface, pour qu'un
+      juriste puisse l'examiner et affirmer avec conviction que l'interprétation de la loi est la bonne.
+  - nl: Ergens is het natuurlijk nu ook al zo dat we niet weten of de vertaling van wet- en regelgeving
+      naar software klopt.
+    fr: D'ailleurs, dès aujourd'hui, nous ne savons pas si la traduction de la législation en logiciel
+      est correcte.
+  - nl: Software voert vaak wet- en regelgeving uit op dit moment en het is vaak niet transparant hoe
+      dat precies werkt en toch gebruiken we die software.
+    fr: Des logiciels exécutent souvent la législation aujourd'hui, sans transparence sur leur fonctionnement,
+      et nous les utilisons quand même.
+  - nl: Dat is geen excuus om er niet voor te zorgen dat de vertalingen moeten kloppen.
+    fr: Ce n'est pas une excuse pour ne pas veiller à ce que les traductions soient justes.
+  - nl: Die moeten kloppen.
+    fr: Elles doivent l'être.
+  - nl: Het geeft alleen maar aan dat we Nu ook al best wel veel vertrouwen hebben in de vertalingen die
+      gemaakt worden door software engineers.
+    fr: Cela montre seulement que nous faisons déjà largement confiance aux traductions réalisées par
+      des ingénieurs logiciels.
+  - nl: Wij stellen voor om dat eigenlijk weg te halen bij software engineers en openbaar te publiceren
+      zodat iedereen ernaar kijkt.
+    fr: Nous proposons de retirer cela des mains des ingénieurs et de le publier ouvertement, pour que
+      tout le monde puisse le vérifier.

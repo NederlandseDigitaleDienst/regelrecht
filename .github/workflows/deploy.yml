@@ -146,6 +146,7 @@ jobs:
       image-name: regelrecht-editor
       dockerfile: frontend/Dockerfile
       cache-scope: editor
+      deps-cache-scope: editor
     # Only GITHUB_TOKEN is needed; it is automatically available to called workflows
 
   build-admin:
@@ -159,6 +160,7 @@ jobs:
       image-name: regelrecht-admin
       dockerfile: packages/admin/Dockerfile
       cache-scope: admin
+      deps-cache-scope: admin
     # Only GITHUB_TOKEN is needed; it is automatically available to called workflows
 
   build-harvester-worker:
@@ -174,6 +176,7 @@ jobs:
       target: harvester-worker
       build-args: BIN=regelrecht-harvest-worker
       cache-scope: harvester-worker
+      deps-cache-scope: pipeline
     # Only GITHUB_TOKEN is needed; it is automatically available to called workflows
 
   build-enrich-worker:
@@ -194,6 +197,7 @@ jobs:
       target: enrich-worker
       build-args: BIN=regelrecht-enrich-worker
       cache-scope: enrich-worker
+      deps-cache-scope: pipeline
     # Only GITHUB_TOKEN is needed; it is automatically available to called workflows
 
   build-pipeline-api:
@@ -209,6 +213,7 @@ jobs:
       target: pipeline-api
       build-args: BIN=regelrecht-pipeline-api
       cache-scope: pipeline-api
+      deps-cache-scope: pipeline
 
   build-grafana:
     needs: [changes, ci-green]
@@ -250,6 +255,7 @@ jobs:
       image-name: regelrecht-poc-napp
       dockerfile: packages/poc-napp/Dockerfile
       cache-scope: poc-napp
+      deps-cache-scope: poc-napp
 
   build-poc-wetsgeschiedenis:
     needs: [changes, ci-green]
@@ -274,6 +280,7 @@ jobs:
       image-name: regelrecht-poc
       dockerfile: packages/poc-portal/Dockerfile
       cache-scope: poc
+      deps-cache-scope: poc-portal
 
   build-docs:
     needs: [changes, ci-green]

@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.8/schema/v0.8.8/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.8",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.14",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -54,7 +54,7 @@
         "WATERSCHAPS_VERORDENING",
         "REDUCTIE"
       ],
-      "description": "Type of legal instrument (regelgevingslaag). It fixes which identifier the file must carry, and it ranks candidates when several regulations implement the same open term. Which layer may implement a term is set by that term's `delegation_type`, not by this field alone. `REDUCTIE`: not a regulation but a cell's reduction over its own chronicle (RFC-022 §4). Such a rulework is kept with its cell, not in the corpus of regulations, and is the only one that may read its chronicle: decisions (`source.decisions`) and the facts its cell recorded (`source.facts`, since v0.8.7; `source.executograms` in v0.8.6, RFC-051); it may fill an open term of an article (`implements`, since v0.8.5), and the engine then runs it for that term like any implementation, also in a nested call; beyond that it does not act on law (no `hooks` or `overrides`), takes no decisions (no `execution.produces`) and delegates nothing (no `open_terms`).",
+      "description": "Type of legal instrument (regelgevingslaag). It fixes which identifier the file must carry, and it ranks candidates when several regulations implement the same open term. Which layer may implement a term is set by that term's `delegation_type`, not by this field alone. `REDUCTIE`: not a regulation but a cell's reduction over its own chronicle (RFC-022 §4, RFC-048). Since v0.8.12 it sits with its cell (`corpus/cells/<cell>/reductions/`), or with none (`corpus/cells/reductions/`), where every cell applies it to its own chronicle, and names no `competent_authority`: the directory is its holder. Its cell gives its outputs as named answers (the catalogue `answers` in `cel.yaml`). It is the only rulework that reads a chronicle: decisions (`source.decisions`) and the facts its cell recorded (`source.facts`, since v0.8.7; `source.executograms` in v0.8.6, RFC-051). It may call law or policy (`source.regulation`), passing what it reads from the chronicle as parameters. It fills no open term (no `implements`; v0.8.5 to v0.8.8 allowed it): the policy of the authority that decides binds a term to an answer (`source.reduction`). Beyond that it does not act on law (no `hooks` or `overrides`), takes no decisions (no `execution.produces`) and delegates nothing (no `open_terms`).",
       "examples": [
         "WET",
         "GEMEENTELIJKE_VERORDENING"
@@ -125,6 +125,19 @@
     "organisation": {
       "type": "string",
       "description": "Organization responsible (for implementation policies without official IDs)."
+    },
+    "competent_authority": {
+      "description": "Since v0.8.9 in the schema: the authority this rulework is of, for every article that names none of its own (RFC-002). A `UITVOERINGSBELEID` that binds an open term to the answer of a cell (`source.reduction`) names its holder by name: where the term names no competent authorities, the engine asks the cell of that holder, matched as RFC-052 matches an answerer (an `INSTANCE` by name, a `CATEGORY` by category).",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^#",
+          "description": "Internal reference to output (e.g., '#bevoegd_gezag')."
+        },
+        {
+          "$ref": "#/definitions/namedAuthority"
+        }
+      ]
     },
     "legal_basis": {
       "type": "array",
@@ -553,6 +566,11 @@
         }
       },
       "then": {
+        "not": {
+          "required": [
+            "competent_authority"
+          ]
+        },
         "properties": {
           "articles": {
             "items": {
@@ -560,6 +578,11 @@
                 "machine_readable": {
                   "not": {
                     "anyOf": [
+                      {
+                        "required": [
+                          "implements"
+                        ]
+                      },
                       {
                         "required": [
                           "hooks"
@@ -598,6 +621,11 @@
               "machine_readable": {
                 "not": {
                   "anyOf": [
+                    {
+                      "required": [
+                        "implements"
+                      ]
+                    },
                     {
                       "required": [
                         "hooks"
@@ -706,6 +734,278 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "regulatory_layer": {
+            "const": "UITVOERINGSBELEID"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "articles": {
+            "items": {
+              "properties": {
+                "machine_readable": {
+                  "properties": {
+                    "execution": {
+                      "properties": {
+                        "input": {
+                          "items": {
+                            "properties": {
+                              "source": {
+                                "not": {
+                                  "required": [
+                                    "reduction"
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "preamble": {
+            "properties": {
+              "machine_readable": {
+                "properties": {
+                  "execution": {
+                    "properties": {
+                      "input": {
+                        "items": {
+                          "properties": {
+                            "source": {
+                              "not": {
+                                "required": [
+                                  "reduction"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "regulatory_layer": {
+            "const": "UITVOERINGSBELEID"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "articles": {
+            "items": {
+              "if": {
+                "required": [
+                  "machine_readable"
+                ],
+                "properties": {
+                  "machine_readable": {
+                    "required": [
+                      "execution"
+                    ],
+                    "properties": {
+                      "execution": {
+                        "required": [
+                          "input"
+                        ],
+                        "properties": {
+                          "input": {
+                            "contains": {
+                              "required": [
+                                "source"
+                              ],
+                              "properties": {
+                                "source": {
+                                  "required": [
+                                    "reduction"
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "machine_readable": {
+                    "required": [
+                      "implements"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "preamble": {
+            "if": {
+              "required": [
+                "machine_readable"
+              ],
+              "properties": {
+                "machine_readable": {
+                  "required": [
+                    "execution"
+                  ],
+                  "properties": {
+                    "execution": {
+                      "required": [
+                        "input"
+                      ],
+                      "properties": {
+                        "input": {
+                          "contains": {
+                            "required": [
+                              "source"
+                            ],
+                            "properties": {
+                              "source": {
+                                "required": [
+                                  "reduction"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "machine_readable": {
+                  "required": [
+                    "implements"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "if": {
+          "anyOf": [
+            {
+              "required": [
+                "articles"
+              ],
+              "properties": {
+                "articles": {
+                  "contains": {
+                    "required": [
+                      "machine_readable"
+                    ],
+                    "properties": {
+                      "machine_readable": {
+                        "required": [
+                          "execution"
+                        ],
+                        "properties": {
+                          "execution": {
+                            "required": [
+                              "input"
+                            ],
+                            "properties": {
+                              "input": {
+                                "contains": {
+                                  "required": [
+                                    "source"
+                                  ],
+                                  "properties": {
+                                    "source": {
+                                      "required": [
+                                        "reduction"
+                                      ]
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "required": [
+                "preamble"
+              ],
+              "properties": {
+                "preamble": {
+                  "required": [
+                    "machine_readable"
+                  ],
+                  "properties": {
+                    "machine_readable": {
+                      "required": [
+                        "execution"
+                      ],
+                      "properties": {
+                        "execution": {
+                          "required": [
+                            "input"
+                          ],
+                          "properties": {
+                            "input": {
+                              "contains": {
+                                "required": [
+                                  "source"
+                                ],
+                                "properties": {
+                                  "source": {
+                                    "required": [
+                                      "reduction"
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "then": {
+          "required": [
+            "competent_authority"
+          ],
+          "properties": {
+            "competent_authority": {
+              "$ref": "#/definitions/namedAuthority"
+            }
+          }
+        }
+      }
     }
   ],
   "definitions": {
@@ -726,7 +1026,7 @@
         },
         "type": {
           "type": "string",
-          "description": "Value type. What an `amount` is counted in is declared separately, in `type_spec.unit`; units are opt-in per law, and an un-annotated value has unit `unknown` and is never checked (RFC-023). A `decision` is a decision value `{grondslag, fields, findings, outputs}`: the article that decided (`<regulation>#<article>`), the parameters that article was given and declares, its findings per case (the open terms it leaves to an authority per case, `decided_per_case_by`, under their ids), and the outputs of its decision item (RFC-050). A value built from a recorded decision may also carry `taken_on`: the article that established the submission the decision was taken on.",
+          "description": "Value type. What an `amount` is counted in is declared separately, in `type_spec.unit`; units are opt-in per law, and an un-annotated value has unit `unknown` and is never checked (RFC-023). A `decision` is a decision value `{basis, fields, findings, outputs}`: the article that decided (`<regulation>#<article>`), the parameters that article was given and declares, its findings per case (the open terms it leaves to an authority per case, `decided_per_case_by`, under their ids), and the outputs of its decision item (RFC-050). A value built from a recorded decision may also carry `taken_on`: the article that established the submission the decision was taken on.",
           "enum": [
             "string",
             "number",
@@ -891,8 +1191,15 @@
                   "description": "Endpoint to call on the delegated regulation."
                 },
                 "decisions": {
-                  "$ref": "#/definitions/articleReference",
-                  "description": "The decisions taken under this article, `<regulation>#<article>`: a list with one row per decision, holding the inputs and outputs of the decision item of that article. Only a `REDUCTIE` rulework reads it, and only a data source (or the caller, as a parameter) answers it: its cell binds the decisions in its chronicle; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters` or `endpoint`. Without a source that answers it the input is an error, never an empty list."
+                  "oneOf": [
+                    {
+                      "$ref": "#/definitions/articleReference"
+                    },
+                    {
+                      "$ref": "#/definitions/variableReference"
+                    }
+                  ],
+                  "description": "The decisions taken under an article: `<regulation>#<article>`, or (since v0.8.11) a `$`-reference to a parameter of the reading article that holds one. A list with one row per decision. A row holds the fields, the findings and the outputs of the decision under their own names, the article it was taken under as `basis`, and its `id`. A `decision` value `{basis, fields, findings, outputs}` in a field or an output, such as the decision a judgment sets in place, is a row in turn: with the `id` of the record that holds it, and with every output its article declares, null where the value has none. Only a `REDUCTIE` rulework reads it (RFC-048), and only a data source (or the caller, as a parameter) answers it: the cell that runs the reduction binds the decisions in its chronicle, also for a reduction that one calls; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters` or `endpoint`. Without a source that answers it the input is an error, never an empty list."
                 },
                 "facts": {
                   "type": "string",
@@ -900,7 +1207,12 @@
                   "not": {
                     "pattern": " lid [0-9]"
                   },
-                  "description": "Since v0.8.7 (`executograms` in v0.8.6): the recorded instances of a fact an article requires, `<regulation>#<article>#<fact>`: the article and the `fact` of its `requires` entry, since an article may require more than one fact. A list with one row per recorded instance, holding the parameters the `requires` entry lists and the record's `id`. Only a `REDUCTIE` rulework reads it, and only a data source (or the caller, as a parameter) answers it: its cell binds the facts it recorded; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters`, `endpoint` or `decisions`. Without a source that answers it the input is an error, never an empty list."
+                  "description": "Since v0.8.7 (`executograms` in v0.8.6): the recorded instances of a fact an article requires, `<regulation>#<article>#<fact>`: the article and the `fact` of its `requires` entry, since an article may require more than one fact. A list with one row per recorded instance, holding the parameters the `requires` entry lists, the record's `basis` and `id`, and the decision it refers to as `refers_to`, or null; a `decision` value in it is a row as under `decisions`. Only a `REDUCTIE` rulework reads it (RFC-048), and only a data source (or the caller, as a parameter) answers it: its cell binds the facts it recorded; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters`, `endpoint` or `decisions`. Without a source that answers it the input is an error, never an empty list."
+                },
+                "reduction": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "description": "Since v0.8.9 (RFC-048): the named answer of a cell this input takes, by the name under which cells give it (the catalogue `answers` in `cel.yaml`). Only an article of `UITVOERINGSBELEID` that fills an open term (`implements`) takes one: it binds the term to the answer, and its policy names its holder (`competent_authority`). `parameters` gives the values the answer takes, under the names the cell's reduction declares; one it declares and the binding does not pass is an error. The engine asks one cell of the execution: the cell the filled term names in its `competent_authority` (RFC-052), or else the cell of the policy's holder. Where the execution holds more than one cell the term names, the input is an error at run time: one question goes to one cell, and the engine merges no answers. A cell without an answer of that name, or with a null one, is silent. Without an answer the input is null, so the binding fills nothing and the term is what it is without it, such as the finding of the deciding authority; an input that takes an answer is therefore declared `nullable: true`, and one that is not is an error at run time when no cell answers. It stands alone, without `regulation`, `output`, `endpoint`, `decisions`, `facts` or `article`."
                 },
                 "article": {
                   "oneOf": [
@@ -911,7 +1223,7 @@
                       "$ref": "#/definitions/variableReference"
                     }
                   ],
-                  "description": "The article whose decision this input takes: `<regulation>#<article>`, or a `$`-reference to a value that holds one, such as the `grondslag` of a `decision` value, or that is a `decision` value itself. A `decision` value is called anew: the engine runs its `grondslag` with its own `fields` as parameters and its own `findings`. Without `output` the engine runs the decision item of that article at stage BESLUIT, and the input is a `decision` value `{grondslag, fields, findings, outputs}`. With `output`, the input is that one output of the decision item. The article is the one in force on the calculation date; one that is not in force, or that takes no decision, is an error at run time. The parameters are the `fields` of a `decision` value, then those of `parameters_from`, with `parameters` on top; a name the article does not declare is dropped, and the trace names it, unless it is the id of an open term the article leaves to an authority per case (`decided_per_case_by`): that is the finding for this case, kept under `findings`, not `fields`. A finding the caller of the engine gives for the execution, apart from the parameters, wins over one the call passes, and an implementation of the term still wins over both (RFC-047). It stands apart from `regulation`, `decisions` and `endpoint`."
+                  "description": "The article whose decision this input takes: `<regulation>#<article>`, or a `$`-reference to a value that holds one, such as the `basis` of a `decision` value, or that is a `decision` value itself. A `decision` value is called anew: the engine runs its `basis` with its own `fields` as parameters and its own `findings`. Without `output` the engine runs the decision item of that article at stage BESLUIT, and the input is a `decision` value `{basis, fields, findings, outputs}`. With `output`, the input is that one output of the decision item. The article is the one in force on the calculation date; one that is not in force, or that takes no decision, is an error at run time. The parameters are the `fields` of a `decision` value, then those of `parameters_from`, with `parameters` on top; a name the article does not declare is dropped, and the trace names it, unless it is the id of an open term the article leaves to an authority per case (`decided_per_case_by`): that is the finding for this case, kept under `findings`, not `fields`. A finding the caller of the engine gives for the execution, apart from the parameters, wins over one the call passes, and an implementation of the term still wins over both (RFC-047). It stands apart from `regulation`, `decisions` and `endpoint`."
                 },
                 "parameters_from": {
                   "type": "array",
@@ -1011,6 +1323,42 @@
                       }
                     ]
                   }
+                },
+                "reduction": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "regulation"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "output"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "endpoint"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "decisions"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "facts"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "article"
+                        ]
+                      }
+                    ]
+                  }
                 }
               },
               "examples": [
@@ -1028,10 +1376,17 @@
                   "facts": "fictief_beleid_vestiging_obs_de_klimop#1#vestiging"
                 },
                 {
+                  "reduction": "verlof_al_verleend_in_schooljaar",
+                  "parameters": {
+                    "bsn_jongere": "$bsn_jongere",
+                    "eerste_verlofdag": "$eerste_verlofdag"
+                  }
+                },
+                {
                   "article": "$besluit"
                 },
                 {
-                  "article": "$besluit.grondslag",
+                  "article": "$besluit.basis",
                   "parameters_from": [
                     "$besluit.fields",
                     "$besluit.findings"
@@ -2191,17 +2546,6 @@
                     }
                   }
                 ]
-              },
-              "combine": {
-                "type": "string",
-                "enum": [
-                  "ADD",
-                  "OR",
-                  "AND",
-                  "MIN",
-                  "MAX"
-                ],
-                "description": "How the answers of several competent answerers make one value (since v0.8.8, RFC-052), with the aggregations of FOREACH. Only on a term that names its `competent_authority`, where more than one answerer may give it, such as a fact several issuing bodies record. Without it, two answers that are not null are an error at run time. `OR` and `AND` take a boolean, `ADD`, `MIN` and `MAX` a number or an amount. `ONLY` is no rule for answers and is not allowed here."
               }
             },
             "additionalProperties": false
@@ -2279,9 +2623,10 @@
                         "WAARDEBEPALING",
                         "BESLUIT_VAN_ALGEMENE_STREKKING",
                         "INFORMATIEF",
-                        "RECHTSPOSITIE"
+                        "RECHTSPOSITIE",
+                        "UITSPRAAK"
                       ],
-                      "description": "Legal character of the output. BESCHIKKING: a besluit not of general scope (Awb art. 1:3 lid 2). RECHTSPOSITIE: a legal position of a person that arises by operation of law, without a besluit and without an aanvraag (voting rights, majority, nationality)."
+                      "description": "Legal character of the output. BESCHIKKING: a besluit not of general scope (Awb art. 1:3 lid 2). RECHTSPOSITIE: a legal position of a person that arises by operation of law, without a besluit and without an aanvraag (voting rights, majority, nationality). UITSPRAAK (since v0.8.10): the judgment of an administrative court on an appeal (Awb 8:70); no besluit, because a court is no bestuursorgaan (Awb 1:1 lid 2 onder c) (RFC-053)."
                     },
                     "decision_type": {
                       "type": "string",
@@ -2313,9 +2658,10 @@
                           "type": "string",
                           "enum": [
                             "AANVRAAG",
-                            "BEZWAAR"
+                            "BEZWAAR",
+                            "BEROEP"
                           ],
-                          "description": "What the belanghebbende submits. AANVRAAG: a request to take a decision (Awb 1:3 lid 3). BEZWAAR: an objection against a decision, to the authority that took it (Awb 1:5, 6:4 lid 1) (RFC-050)."
+                          "description": "What the belanghebbende submits. AANVRAAG: a request to take a decision (Awb 1:3 lid 3). BEZWAAR: an objection against a decision, to the authority that took it (Awb 1:5, 6:4 lid 1) (RFC-050). BEROEP (since v0.8.10): an appeal against a decision to the administrative court (Awb 6:4 lid 3, 8:1) (RFC-053)."
                         }
                       },
                       "description": "The article establishes a submission of a belanghebbende, such as an application (RFC-045). Hooks with applies_to.submission fire when the article runs. Independent of the legal character of the article's own outputs. An article that establishes the application and also decides on it may instead write produces as a list, with the application and the decision as separate items (RFC-047).",
@@ -2421,6 +2767,148 @@
           },
           "additionalProperties": false
         },
+        "projection": {
+          "type": "object",
+          "description": "Since v0.8.14, only in a `REDUCTIE`: the reduction plays a cell's chronicle forward and keeps a state, and its `execution` answers from the state after the last record, reading each property as `$state.<name>`. Each record may change the state through the step this reduction gives for its article (`steps`): the step takes outputs of a law, with parameters from the record and the state, and its actions give properties their values from them. Which records count follows from the effects their laws give (`produces[].effects`): a record counts unless a later record that itself counts revokes it. So a record that is revoked revokes nothing, and a record it alone revoked counts again. Only the records that count change the state, in the order the cell recorded them. A revoked record is gone from the whole history (ex tunc); a change from a later day on is a step with a date property. The chronicle itself is never changed, and a record recorded after the calculation date is not played. Only a call that plays a chronicle answers from it: a cell that gives the answer to a policy through `source.reduction`, or `evaluate_projection` in the Rust engine. The engine refuses such an article on every path that bypasses the chronicle: asked directly, from another rulework, at a stage, or with a `state` the caller passes. A step is pure: the next state follows from the state before, the record and the question alone, because the law a step calls reads only what the step passes. A step may pass a parameter of the question, so the projection depends on the question, as it does through its key; the same question on the same chronicle always gets the same answer. One version of this reduction, the one in force on the calculation date, gives every step and the answer; the effects of a record come from the version of its law in force on the day it was recorded. The engine records, per property, which record set it last. The article declares no parameter `state`.",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "steps"
+          ],
+          "properties": {
+            "key": {
+              "type": "string",
+              "pattern": "^[a-z_][a-z0-9_]*$",
+              "description": "The parameter of this article that names whose records are played, such as an applicant. A record belongs when it holds this value under the same name, as a field or an output. A record that refers to one of the partition, through its `refers_to` or a field an effect of its article names (such as `bestreden_besluit`), joins it too, transitively. It joins for its effects only when it belongs to someone else: when it holds a key of its own with another value, or holds none and refers only to records of someone else. Such a record revokes what it names here as well, because what a record does with another follows from the law and not from the question; its step is not applied, and the trace shows it as counting for its effects only. A record that revokes such a record joins in the same way, so what it revoked counts again. A record without a key (or whose key is null) joins through its reference, so a record that holds no key plays only when it refers in. Records join only through what refers to them, never through what they refer to. An effect on a record outside the partition is ignored. The value passed for the key must be of the parameter's type. Without `key`, every record is played."
+            },
+            "state": {
+              "type": "array",
+              "minItems": 1,
+              "description": "The properties of the state, each with its type. Before the first record a property holds the start value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "type"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z_][a-z0-9_]*$",
+                    "description": "The name of the property, read as `$state.<name>`."
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "boolean",
+                      "number",
+                      "string",
+                      "amount",
+                      "date"
+                    ],
+                    "description": "The type of the property, which also gives its start value. A string or a date starts as null and may be set to null again."
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "steps": {
+              "type": "array",
+              "description": "What a record does with the state, per article the record rests on. Like an article, a step takes outputs of a law (`input` with `source.regulation`), with parameters from the record and the state, and its actions couple each property of the state to one of them. What the record does is in that law. A record without a step leaves the state as it is; its effects on other records still hold.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "record",
+                  "actions"
+                ],
+                "properties": {
+                  "record": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9_]+#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?(#[A-Z][A-Z_]*)?$",
+                    "not": {
+                      "pattern": " lid [0-9]"
+                    },
+                    "description": "The article the record rests on (its `basis`), as `<regulation>#<article>`. When the article produces or requires more than one kind of record, a third segment names the kind: a submission kind, a legal character or `EXECUTOGRAM`, such as `test_chronicle_effects#1#BESCHIKKING` for the decision of an article that also establishes an application. Without it the article must give one kind of record; with it, the kind must be one the article gives. A step on an article that requires a fact applies to the instances of that fact; an article that requires more than one fact cannot have a step. The engine checks this when it plays the projection, because the reduction and the law are separate regelwerken.",
+                    "examples": [
+                      "test_chronicle_effects#3",
+                      "test_chronicle_effects#1#BESCHIKKING"
+                    ]
+                  },
+                  "input": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/definitions/inputField"
+                    },
+                    "description": "The outputs of a law the step takes, each written as an article input with `source: {regulation, output, parameters}` and no other kind of source. A parameter is `$record.<field>` (a field or output of the record), `$state.<property>` (the state before the record) or `$<name>`, a parameter of the question the reduction answers, such as a reference date. The engine calls the law in the version in force on the day the record was recorded, not on the calculation date, the same rule as for effects. The article it calls reads nothing else: an article with an `input` or with open terms cannot be called. The engine checks the called law when it plays the projection, because it is another regelwerk, and nests its trace under the step."
+                  },
+                  "actions": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/action"
+                        },
+                        {
+                          "type": "object",
+                          "required": [
+                            "output",
+                            "value"
+                          ],
+                          "properties": {
+                            "value": {
+                              "type": "string",
+                              "pattern": "^\\$([a-z0-9_]+|record\\.[a-z0-9_]+|state\\.[a-z0-9_]+)$"
+                            }
+                          },
+                          "not": {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "operation"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "values"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "subject"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "conditions"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "precision"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "resolve"
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    "description": "What the step gives each property of the state, as the actions of an article: `output` names a property of the state, `value` is an input of the step (`$<input>`), a field of the record (`$record.<field>`) or a property of the state before it (`$state.<property>`). Only a bare reference: a step computes nothing itself, so what a record does stays in the law. A property no action names keeps its value, and a step gives a property one action at most. Every value must be of the property's type; a null fits only a string or a date."
+                  }
+                }
+              }
+            }
+          }
+        },
         "hooks": {
           "type": "array",
           "description": "Hook declarations: this article fires when matching lifecycle events occur (RFC-007).",
@@ -2450,7 +2938,8 @@
                       "WAARDEBEPALING",
                       "BESLUIT_VAN_ALGEMENE_STREKKING",
                       "INFORMATIEF",
-                      "RECHTSPOSITIE"
+                      "RECHTSPOSITIE",
+                      "UITSPRAAK"
                     ],
                     "description": "Match articles that produce this legal character: produces.legal_character in the object form, or an item with this `type` in the list form (RFC-047)."
                   },
@@ -2466,7 +2955,8 @@
                     "type": "string",
                     "enum": [
                       "AANVRAAG",
-                      "BEZWAAR"
+                      "BEZWAAR",
+                      "BEROEP"
                     ],
                     "description": "Match articles that establish a submission of this kind: produces.submission.kind in the object form, or an item with this `type` in the list form (RFC-047). A hook names either legal_character or submission (RFC-045). For an article that follows a procedure, a staged execution fires the hook at the stage named after the kind (RFC-047)."
                   },
@@ -2585,7 +3075,7 @@
               {
                 "law": "algemene_wet_bestuursrecht",
                 "article": "6:7",
-                "output": "bezwaartermijn_weken"
+                "output": "termijn_weken"
               }
             ]
           ]
@@ -2767,14 +3257,16 @@
           "enum": [
             "AANVRAAG",
             "BEZWAAR",
+            "BEROEP",
             "BESCHIKKING",
             "TOETS",
             "WAARDEBEPALING",
             "BESLUIT_VAN_ALGEMENE_STREKKING",
             "INFORMATIEF",
-            "RECHTSPOSITIE"
+            "RECHTSPOSITIE",
+            "UITSPRAAK"
           ],
-          "description": "What this item is: a submission of a belanghebbende (AANVRAAG: a request to take a decision, Awb 1:3 lid 3; BEZWAAR: an objection against a decision, Awb 1:5, RFC-050) or a decision with its legal character (BESCHIKKING, TOETS, ...). An article lists at most one item of each type, so the article and the type together name the item (RFC-047). Hooks with applies_to.submission match a submission type, hooks with applies_to.legal_character a decision type."
+          "description": "What this item is: a submission of a belanghebbende (AANVRAAG: a request to take a decision, Awb 1:3 lid 3; BEZWAAR: an objection against a decision, Awb 1:5, RFC-050; BEROEP: an appeal to the administrative court, Awb 8:1, since v0.8.10, RFC-053) or a decision with its legal character (BESCHIKKING, TOETS, UITSPRAAK, ...). An article lists at most one item of each type, so the article and the type together name the item (RFC-047). Hooks with applies_to.submission match a submission type, hooks with applies_to.legal_character a decision type."
         },
         "requests": {
           "$ref": "#/definitions/articleReference",
@@ -2806,6 +3298,29 @@
           "minItems": 1,
           "uniqueItems": true,
           "description": "Only on a decision: the names of this article's outputs that are data derived for the decision (RFC-050), such as an intermediate result the decision is recorded with. They are computed at the decision's stages and recorded with it, but are none of its outputs, so a call to the article (`source.article`) leaves them out of the decision value. Derived data is listed, never inferred: an output that no item lists under `outputs` or `derived` is refused, so a forgotten or misspelt output fails instead of turning into derived data. Every name must be an output of the article and belongs to no other item; the loader checks both."
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "description": "Since v0.8.14: a decision this decision revokes, named by a parameter of the article whose value is that decision, and optionally `when`.",
+            "additionalProperties": false,
+            "properties": {
+              "revokes": {
+                "type": "string",
+                "description": "The parameter whose value is the decision this one revokes: its consequences no longer count (Awb 7:11 lid 2). A decision in the place of another revokes it, and counts as a decision of its own."
+              },
+              "when": {
+                "type": "string",
+                "description": "A boolean output of this decision (one its `outputs` lists, or without that list, one no other item lists); the effect holds only when the decision has it as true, such as a revocation that follows only from a well-founded objection (Awb 7:11 lid 2). Without it the effect always holds. It reads only an output of this same decision, never the state, a parameter or another record, so whether a decision counts never depends on the state. The loader checks that it names a boolean output of this decision."
+              }
+            },
+            "required": [
+              "revokes"
+            ]
+          },
+          "minItems": 1,
+          "description": "Since v0.8.14, only on a decision: the decisions it revokes, such as the decision on an objection that revokes the contested decision (Awb 7:11 lid 2), or a new decision in the place of the contested one, which revokes it and counts itself. Each effect names a parameter of this article whose value is the other decision, and with `when` a boolean output of this decision that must be true for the effect to hold. From the effects a runtime that records decisions derives which decisions still have consequences: a decision counts unless a later decision that itself counts revokes it. A revoked decision has no consequences and revokes nothing, so a decision it alone revoked has consequences again; a new decision that should keep a revocation in force declares that effect itself. A revocation takes a decision out of the whole history (ex tunc); an effect from a later day on (ex nunc) is written as a step of the reduction with a date property. The engine carries the effects out when it plays a chronicle through a reduction with a `projection`; the loader checks that it sits on a decision, that every named parameter is a parameter of the article, and that every `when` names a boolean output of the decision."
         },
         "decision_type": {
           "type": "string",
@@ -2864,7 +3379,8 @@
               "type": {
                 "enum": [
                   "AANVRAAG",
-                  "BEZWAAR"
+                  "BEZWAAR",
+                  "BEROEP"
                 ]
               }
             }
@@ -2885,6 +3401,11 @@
                 {
                   "required": [
                     "derived"
+                  ]
+                },
+                {
+                  "required": [
+                    "effects"
                   ]
                 }
               ]

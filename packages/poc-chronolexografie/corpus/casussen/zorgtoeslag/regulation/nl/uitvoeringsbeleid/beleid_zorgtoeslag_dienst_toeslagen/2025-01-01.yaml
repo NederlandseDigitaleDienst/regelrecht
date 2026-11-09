@@ -1,0 +1,128 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$id: beleid_zorgtoeslag_dienst_toeslagen
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2024-12-01'
+valid_from: '2025-01-01'
+# FICTIEF uitvoeringsbeleid van de Dienst Toeslagen, eigen keuze in de
+# modellering: geen bekendgemaakt beleid, maar een aanname namens de Dienst
+# (RFC-048). Er is geen bekendmaking; de url wijst naar artikel 16 van de
+# Awir.
+# Artikel 1 zegt hoe de Dienst het vermoedelijke bedrag van het voorschot
+# bepaalt (artikel 16, eerste lid, van de Awir): hij past de Wet op de
+# zorgtoeslag toe op wat hij voor het berekeningsjaar verwacht. Dat is een
+# keuze in de uitvoering; de regels zelf staan in de wet.
+url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel16
+name: Voorschot zorgtoeslag bij de Dienst Toeslagen (fictief beleid)
+competent_authority:
+  name: Dienst Toeslagen
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Het
+      bedrag waarop de zorgtoeslag vermoedelijk zal worden vastgesteld, is de
+      zorgtoeslag volgens artikel 2 van de Wet op de zorgtoeslag. De Dienst
+      Toeslagen berekent die met wat hij voor het berekeningsjaar verwacht:
+      het toetsingsinkomen, de toeslagpartner en diens toetsingsinkomen, de
+      verzekering en het vermogen. Heeft de verzekerde volgens die verwachting
+      geen aanspraak op zorgtoeslag, dan is het bedrag nihil.
+    url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel16
+    machine_readable:
+      # Wat de Dienst verwacht, oordeelt hij per aanvraag: hij gebruikt
+      # daarvoor wat de aanvrager opgaf (artikel 15, tweede lid, van de Awir)
+      # en wat hij zelf weet. Over het berekeningsjaar bestaan bij een
+      # voorschot nog geen inkomensgegeven en geen aanslag; daarom geeft
+      # artikel 2 van de Wet op de zorgtoeslag hier niet de geregistreerde
+      # gegevens maar die verwachting mee. Die wint van wat artikel 2 anders
+      # zelf zou opvragen. De standaardpremie komt wel uit de regeling.
+      open_terms:
+        - id: vermoedelijk_toetsingsinkomen
+          type: amount
+          required: true
+          decided_per_case_by: Dienst Toeslagen
+          description: >-
+            Het toetsingsinkomen van de aanvrager dat de Dienst voor het
+            berekeningsjaar verwacht.
+        - id: vermoedelijk_heeft_toeslagpartner
+          type: boolean
+          required: true
+          decided_per_case_by: Dienst Toeslagen
+          description: >-
+            Of de aanvrager volgens de verwachting van de Dienst in het
+            berekeningsjaar een toeslagpartner heeft.
+        # Ook zonder toeslagpartner een bedrag, nihil: de engine roept
+        # artikel 2 niet aan met een lege waarde, en artikel 2 telt dit
+        # inkomen alleen mee bij een toeslagpartner.
+        - id: vermoedelijk_toetsingsinkomen_toeslagpartner
+          type: amount
+          required: true
+          decided_per_case_by: Dienst Toeslagen
+          description: >-
+            Het toetsingsinkomen van de toeslagpartner dat de Dienst voor het
+            berekeningsjaar verwacht; nihil zonder toeslagpartner.
+        - id: vermoedelijk_verzekerd
+          type: boolean
+          required: true
+          decided_per_case_by: Dienst Toeslagen
+          description: >-
+            Of de aanvrager volgens de verwachting van de Dienst in het
+            berekeningsjaar verzekerd is ingevolge de Zorgverzekeringswet.
+        - id: vermoedelijk_vermogen_onder_grens
+          type: boolean
+          required: true
+          decided_per_case_by: Dienst Toeslagen
+          description: >-
+            Of het vermogen volgens de verwachting van de Dienst onder de grens
+            van artikel 3 van de Wet op de zorgtoeslag blijft.
+      implements:
+        - law: algemene_wet_inkomensafhankelijke_regelingen
+          article: '16'
+          open_term: vermoedelijke_tegemoetkoming
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            description: Het burgerservicenummer van de aanvrager.
+        input:
+          - name: hoogte_zorgtoeslag
+            type: amount
+            source:
+              regulation: wet_op_de_zorgtoeslag
+              output: hoogte_zorgtoeslag
+              parameters:
+                bsn: $bsn
+                toetsingsinkomen: $vermoedelijk_toetsingsinkomen
+                heeft_toeslagpartner: $vermoedelijk_heeft_toeslagpartner
+                toetsingsinkomen_toeslagpartner: $vermoedelijk_toetsingsinkomen_toeslagpartner
+                is_verzekerde: $vermoedelijk_verzekerd
+                vermogen_onder_grens: $vermoedelijk_vermogen_onder_grens
+            type_spec:
+              unit: eurocent
+          - name: heeft_recht_op_zorgtoeslag
+            type: boolean
+            source:
+              regulation: wet_op_de_zorgtoeslag
+              output: heeft_recht_op_zorgtoeslag
+              parameters:
+                bsn: $bsn
+                toetsingsinkomen: $vermoedelijk_toetsingsinkomen
+                heeft_toeslagpartner: $vermoedelijk_heeft_toeslagpartner
+                toetsingsinkomen_toeslagpartner: $vermoedelijk_toetsingsinkomen_toeslagpartner
+                is_verzekerde: $vermoedelijk_verzekerd
+                vermogen_onder_grens: $vermoedelijk_vermogen_onder_grens
+        output:
+          - name: vermoedelijke_tegemoetkoming
+            type: amount
+            type_spec:
+              unit: eurocent
+            description: >-
+              Het bedrag waarop de zorgtoeslag vermoedelijk zal worden
+              vastgesteld.
+        actions:
+          - output: vermoedelijke_tegemoetkoming
+            value:
+              operation: IF
+              cases:
+                - when: $heeft_recht_op_zorgtoeslag
+                  then: $hoogte_zorgtoeslag
+              default: 0

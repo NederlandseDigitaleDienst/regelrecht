@@ -87,7 +87,7 @@ Routing a value through `collection` is the only way into an inner iteration. A 
 | `ONLY` | The one result, of any type; an error when there are more | `null` |
 | omitted | The results as an array | `[]` |
 
-The first five are the aggregations legal text performs: *het totaal van*, *indien ten minste een van*, *indien aan alle*, *het laagste of hoogste van*. `ONLY` (schema v0.8.6) is for a reduction that picks one record, such as the place where a school is established on a day ([RFC-051](/rfcs/rfc-051)). It refuses two rather than take the first, because the order of a collection is nothing a law relies on. `SUBTRACT`, `MULTIPLY` and `DIVIDE` are not offered, because subtracting a list leaves open what it is subtracted from. A law that needs one can omit `combine` and apply the arithmetic to the resulting array.
+The first five are the aggregations legal text performs: *het totaal van*, *indien ten minste een van*, *indien aan alle*, *het laagste of hoogste van*. `ONLY` (schema v0.8.6) is for a reduction that picks one record, such as the place where a school is established on a day ([RFC-048](/rfcs/rfc-048)). It refuses two rather than take the first, because the order of a collection is nothing a law relies on. `SUBTRACT`, `MULTIPLY` and `DIVIDE` are not offered, because subtracting a list leaves open what it is subtracted from. A law that needs one can omit `combine` and apply the arithmetic to the resulting array.
 
 Two of the empty cases deserve attention. `MIN` and `MAX` return `null` rather than a number, because there is no lowest value of nothing; the law has to handle that. `AND` returns `true` by vacuous truth, so a law that must not read "no items" as "all conditions met" has to check for emptiness itself.
 

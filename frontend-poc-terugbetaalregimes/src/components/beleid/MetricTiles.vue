@@ -1,5 +1,5 @@
 <template>
-  <nldd-collection layout="grid" item-width="170px" :max-items="12">
+  <nldd-collection layout="grid" item-min-width="170px" :max-items="12">
     <nldd-card v-for="tile in tiles" :key="tile.label">
       <nldd-container slot="header" padding="12" padding-bottom="0">
         <span class="mt-label">{{ tile.label }}</span>

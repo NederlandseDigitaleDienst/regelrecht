@@ -29,21 +29,32 @@ describe('melding', () => {
     expect(melding(fout)).toContain('vóór de laatste stap in de kroniek (2026-11-01)');
   });
 
-  it('zegt dat de cel een begrip voor deze aanvraag niet weet, en wie dan oordeelt', () => {
+  it('zegt welke bevinding het bestuursorgaan nog niet gaf', () => {
     // De melding van de engine (packages/engine/src/service.rs).
     const engine =
       "engine: Resolution error: Required open term 'verlof_valt_buiten_schoolvakanties' on leerplichtwet_1969#13a " +
       'is decided per case by het hoofd (artikel 13a, eerste lid), and no judgement was given for this case';
     state.casus = { cel_naam: 'OBS De Klimop', rol: 'het hoofd' };
-    // Zo zegt de voorvertoning het (kern::voorvertonen).
-    expect(
-      melding(`the cell is silent on 'verlof_valt_buiten_schoolvakanties' for this case: ${engine}`),
-    ).toBe(
-      'OBS De Klimop weet "verlof valt buiten schoolvakanties" niet voor deze aanvraag, dus het hoofd oordeelt. Geef die bevinding.',
-    );
-    // De engine alleen: geen woord over de cel.
     expect(melding(engine)).toBe(
       'Het hoofd heeft "verlof valt buiten schoolvakanties" nog niet beoordeeld, en het besluit heeft die bevinding nodig.',
+    );
+    state.casus = null;
+  });
+
+  it('zegt dat het beleid een oordeel voor deze aanvraag aan het bestuursorgaan laat', () => {
+    // De parkeerkaart zonder advies van de GGD: het beleid laat het oordeel
+    // aan het college, met een eigen open begrip.
+    const engine =
+      "engine: Resolution error: Required open term 'langdurige_loopbeperking_volgens_college' on " +
+      'beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#6 is decided per case by het college ' +
+      'van burgemeester en wethouders van de gemeente Wilgendaal, and no judgement was given for this case';
+    state.casus = { cel_naam: 'gemeente Wilgendaal', rol: 'het college van burgemeester en wethouders' };
+    expect(
+      melding(
+        `the policy leaves 'langdurige_loopbeperking_volgens_college' to the authority for this case: ${engine}`,
+      ),
+    ).toBe(
+      'De regels laten "langdurige loopbeperking volgens college" voor deze aanvraag aan het college van burgemeester en wethouders over. Geef die bevinding.',
     );
     state.casus = null;
   });
@@ -51,7 +62,7 @@ describe('melding', () => {
   it('zegt dat de reductie van de cel op die dag nog niet geldt', () => {
     const fout =
       "setup: open term 'verlof_al_verleend_in_schooljaar' of leerplichtwet_1969#13a is filled by a reduction in " +
-      'corpus/cells/obs_de_klimop, but none is in force on 2026-07-01; the cell does not take it as a finding of the deciding authority';
+      'packages/poc-chronolexografie/corpus/cells/obs_de_klimop, but none is in force on 2026-07-01; the cell does not take it as a finding of the deciding authority';
     expect(melding(fout)).toBe(
       'De cel beantwoordt "verlof al verleend in schooljaar" uit haar kroniek, maar op 2026-07-01 geldt haar reductie nog niet. Kies een latere speeldatum.',
     );
@@ -77,7 +88,7 @@ describe('melding', () => {
   it('noemt de bevinding die het bestuursorgaan nog moet geven', () => {
     const fout =
       "refused: the decision of leerplichtwet_1969#13a asks 'specifieke_aard_beroep_ouder' of the deciding authority (leerplichtwet_1969#11)";
-    expect(melding(fout)).toContain('"specifieke aard beroep ouder" nog niet beoordeeld');
+    expect(melding(fout)).toContain('"specifieke aard beroep ouder" nog niet gegeven');
   });
 
   it('noemt een waarde die niet past, met en zonder non-nullable', () => {

@@ -140,8 +140,9 @@ Feature: Regio en vakantieperioden volgens de Regeling vaststelling schoolvakant
 
   Scenario: Zonder plaats van vestiging behoort de school tot geen regio
     # De regeling zegt niet waar een school gevestigd is. In de cel van de
-    # school vult haar reductie de plaats van vestiging uit haar kroniek
-    # (RFC-051); hier vult niemand haar in.
+    # school koppelt het beleid van het hoofd de plaats van vestiging aan het
+    # antwoord van de cel, uit haar kroniek (RFC-048, RFC-051); hier geeft
+    # niemand dat antwoord.
     When I evaluate "regio_van_school" of "regeling_vaststelling_schoolvakanties_20252030"
     Then the execution succeeds
     Then output "regio_van_school" is absent

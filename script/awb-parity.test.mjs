@@ -4,7 +4,7 @@
  * Het hoofdcorpus en het democorpus dragen allebei de beschikkingsprocedure en
  * de drie artikelen die eraan haken (3:46, 6:7, 6:8). Ze zijn met de hand
  * overgezet, en juist daar ging het twee keer mis: één keer viel de laatste
- * regel van artikel 6:8 weg (`weeks: $bezwaartermijn_weken`), waardoor de
+ * regel van artikel 6:8 weg (`weeks: $bezwaartermijn_weken`, nu `$termijn_weken`), waardoor de
  * einddatum van de bezwaartermijn gelijk werd aan de bekendmakingsdatum, en één
  * keer de omschrijving van de fase BEZWAAR.
  *
@@ -29,13 +29,19 @@ const DEMO = path.join(
   'corpus/demo/regulation/nl/algemene_wet_bestuursrecht/artikel_1_1_bestuursorgaan/AWB-1994-01-01.yaml',
 );
 
-/** Het blok van `procedure:` tot aan `articles:`, zonder die laatste regel. */
+/**
+ * De beschikkingsprocedure: het blok van `procedure:` tot aan de volgende
+ * procedure of `articles:`. Het hoofdcorpus kent daarnaast de procedure voor
+ * het beroep bij de bestuursrechter (hoofdstuk 8); de demo heeft die niet
+ * nodig, dus alleen deze ene procedure moet gelijk zijn.
+ */
 function procedureBlock(text) {
   const from = text.indexOf('\nprocedure:');
   const to = text.indexOf('\narticles:', from);
   assert.ok(from !== -1, 'geen procedure-blok gevonden');
   assert.ok(to !== -1, 'geen articles-sleutel gevonden na de procedure');
-  return text.slice(from, to).trimEnd();
+  const next = text.indexOf('\n  - id:', text.indexOf('\n  - id:', from) + 1);
+  return text.slice(from, next !== -1 && next < to ? next : to).trimEnd();
 }
 
 /** Eén artikel uit de wet, van zijn nummer tot het volgende artikel of het eind. */
@@ -63,5 +69,5 @@ test('artikel 6:8 rekent de einddatum met een termijn en niet alleen met een dat
   // De fout die dit bestand aanleiding gaf, apart benoemd: zonder `weeks` geeft
   // DATE_ADD de bekendmakingsdatum terug, en dat is juridisch onzin.
   const zes_acht = article(hoofd, '6:8');
-  assert.match(zes_acht, /bezwaartermijn_einddatum[\s\S]*weeks: \$bezwaartermijn_weken/);
+  assert.match(zes_acht, /termijn_einddatum[\s\S]*weeks: \$termijn_weken/);
 });

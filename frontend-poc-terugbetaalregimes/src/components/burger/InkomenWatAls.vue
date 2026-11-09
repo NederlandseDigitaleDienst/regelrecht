@@ -126,7 +126,7 @@ import { ref, computed, watch } from 'vue';
 import { runSimulation } from '../../composables/useSimulation.js';
 import { inkomenInJaar } from '../../sim/simulate.js';
 import { euro, euroWhole } from '../../lib/format.js';
-import { verleggingEffect, VERLEGGING_GERUSTSTELLING } from '../../lib/burgerTekst.js';
+import { draagkrachtmetingIsKeuze, verleggingEffect, VERLEGGING_GERUSTSTELLING } from '../../lib/burgerTekst.js';
 
 const props = defineProps({
   persona: { type: Object, required: true },
@@ -224,11 +224,7 @@ const metingNodig = computed(() => {
     { ...proefPersona.value, bsn: `${proefPersona.value.bsn}::zondermeting` },
     { ...props.choices, draagkrachtAangevraagd: false },
   );
-  // Zonder aanvraag géén draagkracht: dan valt deze debiteur onder hoofdstuk
-  // 10a en is de meting iets dat hij zelf moet aanvragen. Staat hij ook
-  // zonder aanvraag al aan, dan gaat het ambtshalve (hoofdstuk 6) en valt er
-  // niets te kiezen.
-  return sim?.timeline?.[0]?.draagkrachtmeting_van_toepassing === false;
+  return draagkrachtmetingIsKeuze(sim);
 });
 
 const proef = computed(() => samenvatting(runSimulation(proefPersona.value, proefKeuzes.value)));

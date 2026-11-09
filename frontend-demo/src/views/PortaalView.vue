@@ -228,7 +228,7 @@ const loadFailureText = computed(() => loadFailures.value.map((f) => `${f.id} ($
            bleven er dus twee over van 588px elk. 360px geeft er drie, en drie
            tegels naast elkaar laat het oog rustig scannen. Ruimte hoort binnen de
            tegel (padding 20, gap 16), niet in de doos. -->
-      <nldd-collection layout="grid" item-width="360px" max-items="60">
+      <nldd-collection layout="grid" item-min-width="360px" max-items="60">
         <LawTile v-for="law in sortedLaws" :key="law.id" :law="law" @edit-value="onEditValue" @evaluated="onEvaluated" @apply="onApply" />
       </nldd-collection>
       <nldd-inline-dialog v-if="sortedLaws.length === 0" icon="inbox" :text="t('zaak.portaal.empty.title')" :supporting-text="t('zaak.portaal.empty.body')"></nldd-inline-dialog>

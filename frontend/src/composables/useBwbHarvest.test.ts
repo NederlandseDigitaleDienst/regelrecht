@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
+import { jsonResponse, stubFetch } from '../test-utils/fetchStubs';
 
 const POLL_INTERVAL_MS = 5000;
 const POLL_MAX_MS = 10 * 60 * 1000;
@@ -12,38 +13,27 @@ async function freshHarvest() {
   return mod.useBwbHarvest();
 }
 
-const jsonResponse = (body: unknown) =>
-  new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { 'content-type': 'application/json' },
-  });
-
 /** Stub fetch: POST /api/harvest → queued; status polls → `pollStatus()`. */
-function stubFetch(pollStatus: () => string) {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn((input) => {
-      const url = typeof input === 'string' ? input : input.url;
-      if (url.includes('/api/harvest/status')) {
-        return Promise.resolve(
-          jsonResponse({ results: [{ bwb_id: BWB_ID, status: pollStatus() }] }),
-        );
-      }
-      return Promise.resolve(jsonResponse({ status: 'queued' }));
-    }),
-  );
+function stubHarvestFetch(pollStatus: () => string) {
+  stubFetch((input: string | Request) => {
+    const url = typeof input === 'string' ? input : input.url;
+    if (url.includes('/api/harvest/status')) {
+      return Promise.resolve(
+        jsonResponse({ results: [{ bwb_id: BWB_ID, status: pollStatus() }] }),
+      );
+    }
+    return Promise.resolve(jsonResponse({ status: 'queued' }));
+  });
 }
 
 describe('useBwbHarvest polling', () => {
   afterEach(() => {
     vi.useRealTimers();
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
   });
 
   it('keeps polling past POLL_MAX_MS while a law is enriching (no false timeout)', async () => {
     vi.useFakeTimers();
-    stubFetch(() => 'enriching');
+    stubHarvestFetch(() => 'enriching');
     const { harvestStatus, requestHarvest } = await freshHarvest();
 
     await requestHarvest(BWB_ID);
@@ -62,7 +52,7 @@ describe('useBwbHarvest polling', () => {
 
   it('still times out entries stuck before enrichment (queued/harvesting)', async () => {
     vi.useFakeTimers();
-    stubFetch(() => 'harvesting');
+    stubHarvestFetch(() => 'harvesting');
     const { harvestStatus, requestHarvest } = await freshHarvest();
 
     await requestHarvest(BWB_ID);
@@ -78,7 +68,7 @@ describe('useBwbHarvest polling', () => {
   it('stops polling when an enriching law reaches a terminal status after the cap', async () => {
     vi.useFakeTimers();
     let status = 'enriching';
-    stubFetch(() => status);
+    stubHarvestFetch(() => status);
     const { harvestStatus, requestHarvest } = await freshHarvest();
 
     await requestHarvest(BWB_ID);

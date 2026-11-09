@@ -7,13 +7,12 @@
 // a failing fixture reports itself.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use chrono::NaiveDate;
-use regelrecht_cel::{reading, Cell, Error, Reduction, EXECUTOGRAM};
-use regelrecht_engine::LawExecutionService;
+use regelrecht_cel::{reading, Cell, Error, EXECUTOGRAM};
+use regelrecht_engine::{AnswerRequest, Authority, LawExecutionService, OpenTermAnswerer};
 use serde_json::{json, Map, Value};
 
 mod common;
-use common::cell_tempdir;
+use common::{cell_tempdir, day, object_map};
 
 const ACTOR: &str = "school_fictief";
 
@@ -35,8 +34,8 @@ articles: []
 "#;
 
 /// Article 3 requires the fact of where a school stands, since a day;
-/// article 4 requires none; article 5 a fact with a field `id`, which no row
-/// can hold.
+/// article 4 requires none; article 5 a fact with a field `id` and article 6
+/// one with a field `refers_to`, which no row can hold.
 const SPECIAL_LAW: &str = r#"
 $id: wet_vaststelling_fictief
 regulatory_layer: WET
@@ -73,23 +72,24 @@ articles:
       execution:
         parameters:
           - {name: id, type: string}
+  - number: '6'
+    text: Het bevoegd gezag legt een verwijzing vast.
+    machine_readable:
+      requires:
+        - fact: verwijzing
+          parameters: [refers_to]
+      execution:
+        parameters:
+          - {name: refers_to, type: string}
 "#;
 
-const GRONDSLAG: &str = "wet_vaststelling_fictief#3";
+const BASIS: &str = "wet_vaststelling_fictief#3";
 const FACT: &str = "wet_vaststelling_fictief#3#stand";
 
 fn service() -> LawExecutionService {
     let mut service = LawExecutionService::new();
     service.load_law(SPECIAL_LAW).unwrap();
     service
-}
-
-fn day(s: &str) -> NaiveDate {
-    NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
-}
-
-fn map(value: Value) -> Map<String, Value> {
-    value.as_object().unwrap().clone()
 }
 
 /// A cell of the fictional school, without reductions.
@@ -103,7 +103,7 @@ fn refused(e: &Error, says: &str) {
 }
 
 fn stand(plaats: &str, sinds: &str) -> Map<String, Value> {
-    map(json!({ "plaats": plaats, "sinds": sinds }))
+    object_map(json!({ "plaats": plaats, "sinds": sinds }))
 }
 
 fn record(
@@ -126,7 +126,7 @@ fn an_executogram_records_a_fact_the_article_requires() {
     )
     .unwrap();
     assert_eq!(gram.kind, EXECUTOGRAM);
-    assert_eq!(gram.grondslag, GRONDSLAG);
+    assert_eq!(gram.basis, BASIS);
     assert_eq!(gram.fact.as_deref(), Some("stand"));
     assert_eq!(gram.refers_to, None);
     assert_eq!(gram.recording_actor, ACTOR);
@@ -146,14 +146,14 @@ fn an_executogram_is_whole_or_not_recorded() {
     let e = record(
         &mut cell,
         "wet_vaststelling_fictief#4#stand",
-        &map(json!({"plaats": "Utrecht"})),
+        &object_map(json!({"plaats": "Utrecht"})),
         "2026-08-01",
     )
     .unwrap_err();
     refused(&e, "requires no fact 'stand'");
     let e = record(
         &mut cell,
-        GRONDSLAG,
+        BASIS,
         &stand("Utrecht", "2020-08-01"),
         "2026-08-01",
     )
@@ -176,7 +176,7 @@ fn an_executogram_is_whole_or_not_recorded() {
     let e = record(
         &mut cell,
         FACT,
-        &map(json!({"plaats": "Utrecht", "sinds": 2020})),
+        &object_map(json!({"plaats": "Utrecht", "sinds": 2020})),
         "2026-08-01",
     )
     .unwrap_err();
@@ -185,7 +185,7 @@ fn an_executogram_is_whole_or_not_recorded() {
     let e = record(
         &mut cell,
         FACT,
-        &map(json!({"plaats": "Utrecht"})),
+        &object_map(json!({"plaats": "Utrecht"})),
         "2026-08-01",
     )
     .unwrap_err();
@@ -195,12 +195,26 @@ fn an_executogram_is_whole_or_not_recorded() {
     let e = record(
         &mut cell,
         "wet_vaststelling_fictief#5#nummer",
-        &map(json!({"id": "x"})),
+        &object_map(json!({"id": "x"})),
         "2026-08-01",
     )
     .unwrap_err();
     assert!(
         matches!(&e, Error::Setup(m) if m.contains("holds a field 'id'")),
+        "{e}"
+    );
+
+    // Nor one named `refers_to`: the row gives what the executogram refers
+    // to under it (RFC-053).
+    let e = record(
+        &mut cell,
+        "wet_vaststelling_fictief#6#verwijzing",
+        &object_map(json!({"refers_to": "x"})),
+        "2026-08-01",
+    )
+    .unwrap_err();
+    assert!(
+        matches!(&e, Error::Setup(m) if m.contains("holds a field 'refers_to'")),
         "{e}"
     );
 
@@ -255,13 +269,14 @@ fn an_executogram_read_back_records_a_fact_and_nothing_else() {
         std::fs::write(&path, tampered).unwrap();
         Cell::open(ACTOR, &path, dir.path()).map(|_| ())
     };
-    let e = opens(line.replace("\"outputs\":{}", "\"outputs\":{\"x\":1}")).unwrap_err();
+    // An executogram holds no outputs, so the line has none to change.
+    let with = |extra: &str| format!("{},{extra}}}\n", line.trim_end().strip_suffix('}').unwrap());
+    let e = opens(with("\"outputs\":{\"x\":1}")).unwrap_err();
     assert!(
         matches!(&e, Error::Setup(m) if m.contains("records a fact and nothing else")),
         "{e}"
     );
-    let e = opens(line.replace("\"outputs\":{}", "\"missing\":[\"sinds\"],\"outputs\":{}"))
-        .unwrap_err();
+    let e = opens(with("\"missing\":[\"sinds\"]")).unwrap_err();
     assert!(
         matches!(&e, Error::Setup(m) if m.contains("records a fact and nothing else")),
         "{e}"
@@ -301,20 +316,22 @@ fn the_rows_are_the_executograms_of_that_fact() {
     .unwrap();
     record(&mut cell, FACT, &stand("Zeist", "2027-01-01"), "2026-09-01").unwrap();
     let rows =
-        serde_json::to_value(reading::executogram_rows(cell.grams(), FACT).unwrap()).unwrap();
+        serde_json::to_value(reading::executogram_rows(&service(), cell.grams(), FACT).unwrap())
+            .unwrap();
     assert_eq!(rows.as_array().unwrap().len(), 2);
     assert_eq!(rows[0]["id"], json!(first.id));
     assert_eq!(rows[0]["plaats"], json!("Utrecht"));
     assert_eq!(rows[1]["plaats"], json!("Zeist"));
     let none = serde_json::to_value(
-        reading::executogram_rows(cell.grams(), "wet_vaststelling_fictief#3#ander").unwrap(),
+        reading::executogram_rows(&service(), cell.grams(), "wet_vaststelling_fictief#3#ander")
+            .unwrap(),
     )
     .unwrap();
     assert_eq!(none, json!([]));
 }
 
 /// A reduction of the fictional school that reads the executograms of the
-/// fact `fact`.
+/// fact `fact`, and gives the answer `plaats`.
 fn reduction(fact: &str) -> String {
     format!(
         r#"
@@ -326,8 +343,6 @@ articles:
   - number: '1'
     text: De plaats is die van de stand.
     machine_readable:
-      implements:
-        - {{law: wet_vaststelling_fictief, article: '4', open_term: plaats}}
       execution:
         input:
           - name: standen
@@ -350,27 +365,44 @@ articles:
 
 #[test]
 fn a_reduction_reads_only_a_fact_its_article_requires() {
-    let service = service();
-    let on = day("2026-08-01");
-    let reads = |fact: &str| {
-        let r = Reduction::parse(reduction(fact)).unwrap();
-        reading::refuse_unrequired_facts(&service, &[r], on)
+    let authority = Authority {
+        name: "Testcel".into(),
+        category: None,
     };
-    assert!(reads(FACT).is_ok());
+    let answers = [("plaats".to_string(), "reductie_plaats_fictief".to_string())].into();
+    let reductions = ["reductie_plaats_fictief".to_string()].into();
+    let reads = |fact: &str| {
+        let mut service = service();
+        service.load_law(&reduction(fact)).unwrap();
+        let reader =
+            reading::Reader::new(ACTOR, &authority, &answers, &reductions, Vec::new(), None);
+        let request = AnswerRequest {
+            name: "plaats",
+            parameters: &std::collections::BTreeMap::new(),
+            calculation_date: "2026-08-01",
+        };
+        reader.answer(&service, &request).map(|a| a.unwrap().value)
+    };
+    // No executogram yet: no plaats.
+    assert_eq!(reads(FACT).unwrap(), regelrecht_engine::Value::Null);
     let e = reads("wet_vaststelling_fictief#4#stand").unwrap_err();
-    assert!(
-        matches!(&e, Error::Setup(m) if m.contains("requires no fact 'stand'")),
-        "{e}"
-    );
-    // A stream id, as v0.8.6 had it, or an article alone is no fact
+    assert!(e.to_string().contains("requires no fact 'stand'"), "{e}");
+    // A stream id or an article alone is no fact
     // reference.
-    assert!(Reduction::parse(reduction("stand")).is_err());
-    assert!(Reduction::parse(reduction(GRONDSLAG)).is_err());
+    for not_a_fact in ["stand", BASIS] {
+        let e = service().load_law(&reduction(not_a_fact)).unwrap_err();
+        assert!(
+            e.to_string().contains(&format!(
+                "'{not_a_fact}' is not <regulation>#<article>#<fact>"
+            )),
+            "{e}"
+        );
+    }
 }
 
 #[test]
 fn a_reduction_that_asks_its_own_answer_is_refused() {
-    // The reduction fills `x` of article 1 by asking article 1, which reads
+    // The answer x that fills `x` of article 1 asks article 1, which reads
     // `x` again: the cell refuses to answer itself.
     let law = r#"
 $id: wet_kring_fictief
@@ -400,8 +432,43 @@ articles:
           - {output: ontvangen, value: true}
           - {output: uit, value: $x}
 "#;
+    // The policy of the school binds x to the answer x of its cell.
+    let binding = r#"
+$id: beleid_kring_fictief
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+competent_authority:
+  name: Testcel
+articles:
+  - number: '1'
+    text: x is het antwoord van de cel.
+    machine_readable:
+      open_terms:
+        - id: x_volgens_hoofd
+          type: boolean
+          required: true
+          decided_per_case_by: het hoofd
+      implements:
+        - {law: wet_kring_fictief, article: '1', open_term: x}
+      execution:
+        input:
+          - name: antwoord
+            type: boolean
+            nullable: true
+            source: {reduction: x}
+        output:
+          - {name: x, type: boolean}
+        actions:
+          - output: x
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord, value: null}
+                  then: $x_volgens_hoofd
+              default: $antwoord
+"#;
     let reduction = r#"
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.7/schema/v0.8.7/schema.json
 $id: reductie_kring_fictief
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
@@ -410,8 +477,6 @@ articles:
   - number: '1'
     text: x is wat artikel 1 zegt.
     machine_readable:
-      implements:
-        - {law: wet_kring_fictief, article: '1', open_term: x}
       execution:
         input:
           - name: weer
@@ -423,13 +488,17 @@ articles:
           - {output: x, value: $weer}
 "#;
     let dir = cell_tempdir();
-    let here = dir.path().join("reducties/reductie_kring_fictief");
-    std::fs::create_dir_all(&here).unwrap();
-    std::fs::write(here.join("2026-01-01.yaml"), reduction).unwrap();
+    common::write_identity(
+        dir.path(),
+        "name: Testcel\nanswers:\n  x: reductie_kring_fictief\n",
+    );
+    common::keep_reduction(dir.path(), "reductie_kring_fictief", reduction);
     let mut cell = Cell::in_memory(ACTOR, dir.path()).unwrap();
     let mut service = LawExecutionService::new();
     service.load_law(PROCEDURE_LAW).unwrap();
     service.load_law(law).unwrap();
+    service.load_law(binding).unwrap();
+    service.load_law(reduction).unwrap();
     let on = day("2026-08-01");
     let app = cell
         .record_submission(
@@ -438,7 +507,7 @@ articles:
             "wet_kring_fictief",
             "1",
             None,
-            &map(json!({ "dagen": 2 })),
+            &object_map(json!({ "dagen": 2 })),
             on,
         )
         .unwrap();

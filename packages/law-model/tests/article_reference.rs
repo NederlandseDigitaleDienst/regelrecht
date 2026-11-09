@@ -97,7 +97,7 @@ fn the_moment_cites_its_provision_as_a_legal_basis_object() {
 /// (`variableReference`, schema v0.8.4), `parameters_from` only the latter.
 #[test]
 fn a_variable_reference_is_a_dollar_and_a_dotted_name() {
-    for ok in ["$besluit", "$besluit.grondslag", "$_x.y_2", "$a.b.c"] {
+    for ok in ["$besluit", "$besluit.basis", "$_x.y_2", "$a.b.c"] {
         assert!(is_variable_reference(ok), "{ok}");
     }
     for bad in [

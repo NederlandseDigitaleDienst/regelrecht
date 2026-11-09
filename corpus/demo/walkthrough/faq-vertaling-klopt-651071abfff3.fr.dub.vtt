@@ -1,0 +1,151 @@
+WEBVTT
+
+1
+00:00:00.405 --> 00:00:02.197
+Comment savoir si la
+traduction est juste ?
+
+2
+00:00:02.197 --> 00:00:06.969
+Ou si la version exécutable par machine,
+la réglementation, est correcte ?
+
+3
+00:00:06.890 --> 00:00:08.250
+En partie...
+
+4
+00:00:10.009 --> 00:00:13.711
+Cela passe par le fait de
+rendre la législation testable.
+
+5
+00:00:13.711 --> 00:00:18.671
+Ici, un modèle de langage convertit la
+réglementation en version exécutable par
+
+6
+00:00:18.671 --> 00:00:23.071
+machine : le texte de loi devient ce
+que nous voyons en dessous, ces actions.
+
+7
+00:00:29.162 --> 00:00:34.122
+De l'autre côté, une note explicative
+devient un scénario, un test pour la loi, en
+
+8
+00:00:34.122 --> 00:00:35.162
+quelque sorte.
+
+9
+00:00:39.489 --> 00:00:45.009
+Donc on peut convertir la loi en réglementation,
+et un scénario, un cas concret, en
+
+10
+00:00:45.009 --> 00:00:46.849
+test, puis l'exécuter.
+
+11
+00:00:50.595 --> 00:00:54.795
+Et quand on a toute une série de tests de
+ce genre, qui saisissent l'intention de la
+
+12
+00:00:54.795 --> 00:00:58.835
+loi, son fonctionnement voulu, on peut se
+convaincre que la loi fonctionne comme
+
+13
+00:00:58.835 --> 00:01:01.315
+prévu, au moins sur ces scénarios.
+
+14
+00:01:01.315 --> 00:01:03.475
+C'est une première réponse, je pense.
+
+15
+00:01:10.696 --> 00:01:16.056
+Une autre réponse : en tant qu'analyste
+juridique ou juriste législatif, bref,
+
+16
+00:01:16.056 --> 00:01:19.096
+responsable en dernier ressort
+du fonctionnement de cette loi,
+
+17
+00:01:21.332 --> 00:01:25.492
+il faut pouvoir examiner cela et voir
+si c'est bien le résultat voulu.
+
+18
+00:01:26.336 --> 00:01:29.936
+Nous travaillons actuellement à ce que
+les analystes et juristes n'aient pas à
+
+19
+00:01:29.936 --> 00:01:30.896
+regarder ceci.
+
+20
+00:01:32.621 --> 00:01:36.221
+Cela paraît peut-être trop technique,
+donc nous construisons une meilleure
+
+21
+00:01:36.221 --> 00:01:40.968
+interface, pour qu'un juriste puisse
+l'examiner et affirmer avec conviction que
+
+22
+00:01:40.968 --> 00:01:43.421
+l'interprétation de la loi est la bonne.
+
+23
+00:01:49.600 --> 00:01:53.640
+D'ailleurs, dès aujourd'hui, nous ne savons
+pas si la traduction de la législation
+
+24
+00:01:53.640 --> 00:01:54.960
+en logiciel est correcte.
+
+25
+00:01:58.429 --> 00:02:02.749
+Des logiciels exécutent souvent la
+législation aujourd'hui, sans transparence sur
+
+26
+00:02:02.749 --> 00:02:05.629
+leur fonctionnement, et nous
+les utilisons quand même.
+
+27
+00:02:06.471 --> 00:02:10.312
+Ce n'est pas une excuse pour ne pas veiller
+à ce que les traductions soient justes.
+
+28
+00:02:10.312 --> 00:02:11.952
+Elles doivent l'être.
+
+29
+00:02:11.952 --> 00:02:15.792
+Cela montre seulement que nous faisons
+déjà largement confiance aux traductions
+
+30
+00:02:15.792 --> 00:02:18.192
+réalisées par des ingénieurs logiciels.
+
+31
+00:02:21.538 --> 00:02:25.298
+Nous proposons de retirer cela des
+mains des ingénieurs et de le publier
+
+32
+00:02:25.298 --> 00:02:28.258
+ouvertement, pour que tout
+le monde puisse le vérifier.

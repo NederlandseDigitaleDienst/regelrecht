@@ -242,8 +242,8 @@ watch(() => session.aanvrager, laadAanvragen);
               </nldd-rich-text>
               <nldd-spacer size="16"></nldd-spacer>
 
-              <nldd-list appearance="box">
-                <nldd-list-item size="md" type="button" @click="doLogin({ type: 'VOLLEDIG' })">
+              <nldd-list appearance="box-tinted">
+                <nldd-list-item size="md" button @click="doLogin({ type: 'VOLLEDIG' })">
                   <nldd-title-cell
                     text="De gehele partij"
                     supporting-text="Tekenbevoegd bestuur: alle aanspraken, landelijk en decentraal"
@@ -251,7 +251,7 @@ watch(() => session.aanvrager, laadAanvragen);
                   <nldd-spacer-cell size="8"></nldd-spacer-cell>
                   <nldd-icon-cell icon="chevron-right" size="16"></nldd-icon-cell>
                 </nldd-list-item>
-                <nldd-list-item size="md" type="button" @click="afdelingKiezen = !afdelingKiezen">
+                <nldd-list-item size="md" button @click="afdelingKiezen = !afdelingKiezen">
                   <nldd-title-cell
                     text="Een afdeling"
                     :supporting-text="`Beperkte machtiging voor één gebied (${beperkteProfielen.length} gebieden)`"
@@ -275,12 +275,12 @@ watch(() => session.aanvrager, laadAanvragen);
                   ></nldd-text-field>
                 </nldd-form-field>
                 <nldd-spacer size="8"></nldd-spacer>
-                <nldd-list v-if="getoondeProfielen.length" appearance="box">
+                <nldd-list v-if="getoondeProfielen.length" appearance="box-tinted">
                   <nldd-list-item
                     v-for="p in getoondeProfielen"
                     :key="`${p.orgaan}:${p.gebied_code}`"
                     size="sm"
-                    type="button"
+                    button
                     @click="doLogin({ type: 'BEPERKT', gebied_code: p.gebied_code })"
                   >
                     <nldd-text-cell
@@ -324,12 +324,12 @@ watch(() => session.aanvrager, laadAanvragen);
           <nldd-spacer size="32"></nldd-spacer>
           <nldd-title size="4"><h3>Voorbeeldpartijen (demo)</h3></nldd-title>
           <nldd-spacer size="8"></nldd-spacer>
-          <nldd-list appearance="box">
+          <nldd-list appearance="box-tinted">
             <nldd-list-item
               v-for="d in demoVoorbeelden"
               :key="d.kvk_nummer"
               size="sm"
-              type="button"
+              button
               @click="kiesDemo(d)"
             >
               <nldd-text-cell
@@ -366,12 +366,12 @@ watch(() => session.aanvrager, laadAanvragen);
         </nldd-title>
         <nldd-spacer size="24"></nldd-spacer>
 
-        <nldd-list v-if="aanvragen.length" appearance="box">
+        <nldd-list v-if="aanvragen.length" appearance="box-tinted">
           <nldd-list-item
             v-for="item in aanvragen"
             :key="item.aanvraag.id"
             size="md"
-            type="button"
+            button
             @click="router.push(`/aanvraag/${item.aanvraag.id}`)"
           >
             <nldd-title-cell
