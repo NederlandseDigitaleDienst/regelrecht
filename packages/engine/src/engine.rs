@@ -1483,8 +1483,10 @@ articles:
     #[test]
     fn test_decisions_come_from_parameters_only() {
         // This engine has no data source: decisions passed in are read,
-        // decisions not passed are an error (RFC-048).
+        // decisions not passed are an error (RFC-048). Up to schema
+        // v0.8.16 a reduction reads decisions (`source.decisions`).
         let yaml = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: reductie_test
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'

@@ -980,6 +980,7 @@ articles:
     fn reduction(id: &str, valid_from: &str) -> String {
         format!(
             r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: {id}
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
@@ -1108,6 +1109,7 @@ articles:
     /// article its parameter names (schema v0.8.11), such as that of the
     /// Awb.
     const WITHOUT_HOLDER: &str = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: reductie_zonder_houder
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
@@ -1142,6 +1144,7 @@ articles:
     /// A reduction of the cell that calls [`WITHOUT_HOLDER`] for the
     /// decisions under `wet_fictief#1`.
     const CALLING: &str = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: reductie_a
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'

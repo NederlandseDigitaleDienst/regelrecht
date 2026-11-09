@@ -221,6 +221,7 @@ articles:
 /// decision on objection against it found cause. It links the two by row
 /// id: `bestreden_besluit` holds the id of the contested decision.
 const REDUCTION: &str = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: reductie_al_verleend_fictief
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'

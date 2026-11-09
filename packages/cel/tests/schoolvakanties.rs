@@ -46,7 +46,7 @@ fn service_with(extra: &[String]) -> LawExecutionService {
     let mut service = LawExecutionService::new();
     let laws = [
         format!("regulation/nl/wet/{LAW}"),
-        "regulation/nl/wet/algemene_wet_bestuursrecht".to_string(),
+        common::poc("regulation/nl/wet/algemene_wet_bestuursrecht"),
         format!("regulation/nl/ministeriele_regeling/{REGELING}"),
         "regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaar_obs_de_klimop".to_string(),
         "regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaargrenzen_obs_de_klimop"
@@ -59,9 +59,10 @@ fn service_with(extra: &[String]) -> LawExecutionService {
         common::reduction_dir("reductie_plaats_van_vestiging"),
         common::reduction_dir("reductie_verlof_al_verleend_in_schooljaar"),
         common::reduction_dir(HOLIDAYS),
-        // Which decisions still stand after objection and appeal: the
-        // reduction of the Awb, which the school's reduction calls.
-        common::reduction_dir("reductie_algemene_wet_bestuursrecht"),
+        // The decisions under an article as aggregates, with what the Awb
+        // gives a decision on an objection and the receipt of a ruling.
+        common::reduction_dir("reductie_verlof"),
+        common::poc("casussen/vakantieverlof/regulation/nl/uitvoeringsbeleid/fictief_beleid_verleend_verlof_obs_de_klimop"),
     ];
     common::load(&mut service, laws);
     for yaml in extra {

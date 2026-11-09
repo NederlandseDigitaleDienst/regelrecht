@@ -221,6 +221,16 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
                     input.name
                 ));
             }
+            // From schema v0.8.17 a reduction reads no decisions: a row about
+            // a decision comes from an aggregate (`source.projections`).
+            if source.decisions.is_some() && from_version(law, (0, 8, 17)) {
+                return refuse(format!(
+                    "{where_}: input '{}' reads {read}; since schema v0.8.17 a REDUCTIE reads \
+                     the aggregates of the decisions (source.projections), not the decisions \
+                     themselves (source.decisions)",
+                    input.name
+                ));
+            }
             // The article whose decisions it reads may be the value of a
             // parameter (schema v0.8.11): one the article declares itself.
             if let Some(name) = source
@@ -2226,6 +2236,47 @@ articles:
                 .load_law(&reader(layer, source))
                 .expect_err(why);
             assert!(err.to_string().contains(why), "{why}: {err}");
+        }
+    }
+
+    /// From schema v0.8.17 a reduction reads the aggregates of decisions,
+    /// not the decisions themselves; a reduction on v0.8.16 or earlier still
+    /// reads them (`source.decisions`, schema v0.8.2).
+    #[test]
+    fn since_v0_8_17_a_reduction_reads_no_decisions() {
+        let reduction = |version: &str| {
+            let schema = if version.is_empty() {
+                String::new()
+            } else {
+                format!("$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{version}/schema/{version}/schema.json\n")
+            };
+            format!(
+                r#"
+{schema}$id: lezer
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      execution:
+        input:
+          - {{name: rijen, type: array, source: {{decisions: 'wet#1'}}}}
+        output: [{{name: n, type: number}}]
+        actions:
+          - {{output: n, value: 0}}
+"#
+            )
+        };
+        LawExecutionService::new()
+            .load_law(&reduction("v0.8.16"))
+            .unwrap();
+        let why = "input 'rijen' reads the decisions taken under wet#1; since schema v0.8.17 a REDUCTIE reads the aggregates of the decisions (source.projections), not the decisions themselves (source.decisions)";
+        for version in ["v0.8.17", ""] {
+            let err = LawExecutionService::new()
+                .load_law(&reduction(version))
+                .expect_err(why);
+            assert!(err.to_string().contains(why), "{version}: {err}");
         }
     }
 

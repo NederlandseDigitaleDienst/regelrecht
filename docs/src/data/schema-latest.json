@@ -54,7 +54,7 @@
         "WATERSCHAPS_VERORDENING",
         "REDUCTIE"
       ],
-      "description": "Type of legal instrument (regelgevingslaag). It fixes which identifier the file must carry, and it ranks candidates when several regulations implement the same open term. Which layer may implement a term is set by that term's `delegation_type`, not by this field alone. `REDUCTIE`: not a regulation but a cell's reduction over its own chronicle (RFC-022 §4, RFC-048). Since v0.8.12 it sits with its cell (`corpus/cells/<cell>/reductions/`), or with none (`corpus/cells/reductions/`), where every cell applies it to its own chronicle, and names no `competent_authority`: the directory is its holder. Its cell gives its outputs as named answers (the catalogue `answers` in `cel.yaml`). It is the only rulework that reads a chronicle: decisions (`source.decisions`) and the facts its cell recorded (`source.facts`, since v0.8.7; `source.executograms` in v0.8.6, RFC-051). It may call law or policy (`source.regulation`), passing what it reads from the chronicle as parameters. It fills no open term (no `implements`; v0.8.5 to v0.8.8 allowed it): the policy of the authority that decides binds a term to an answer (`source.reduction`). Beyond that it does not act on law (no `hooks` or `overrides`), takes no decisions (no `execution.produces`) and delegates nothing (no `open_terms`).",
+      "description": "Type of legal instrument (regelgevingslaag). It fixes which identifier the file must carry, and it ranks candidates when several regulations implement the same open term. Which layer may implement a term is set by that term's `delegation_type`, not by this field alone. `REDUCTIE`: not a regulation but a cell's reduction over its own chronicle (RFC-022 §4, RFC-048). Since v0.8.12 it sits with its cell (`corpus/cells/<cell>/reductions/`), or with none (`corpus/cells/reductions/`), where every cell applies it to its own chronicle, and names no `competent_authority`: the directory is its holder. Its cell gives its outputs as named answers (the catalogue `answers` in `cel.yaml`). It is the only rulework that reads a chronicle: the aggregates of another reduction (`source.projections`, since v0.8.17; `source.decisions` read decisions up to v0.8.16) and the facts its cell recorded (`source.facts`, since v0.8.7; `source.executograms` in v0.8.6, RFC-051). It may call law or policy (`source.regulation`), passing what it reads from the chronicle as parameters. It fills no open term (no `implements`; v0.8.5 to v0.8.8 allowed it): the policy of the authority that decides binds a term to an answer (`source.reduction`). Beyond that it does not act on law (no `hooks` or `overrides`), takes no decisions (no `execution.produces`) and delegates nothing (no `open_terms`).",
       "examples": [
         "WET",
         "GEMEENTELIJKE_VERORDENING"
@@ -1190,17 +1190,6 @@
                   "type": "string",
                   "description": "Endpoint to call on the delegated regulation."
                 },
-                "decisions": {
-                  "oneOf": [
-                    {
-                      "$ref": "#/definitions/articleReference"
-                    },
-                    {
-                      "$ref": "#/definitions/variableReference"
-                    }
-                  ],
-                  "description": "The decisions taken under an article: `<regulation>#<article>`, or (since v0.8.11) a `$`-reference to a parameter of the reading article that holds one. A list with one row per decision. A row holds the fields, the findings and the outputs of the decision under their own names, the article it was taken under as `basis`, and its `id`. A `decision` value `{basis, fields, findings, outputs}` in a field or an output, such as the decision a judgment sets in place, is a row in turn: with the `id` of the record that holds it, and with every output its article declares, null where the value has none. Only a `REDUCTIE` rulework reads it (RFC-048), and only a data source (or the caller, as a parameter) answers it: the cell that runs the reduction binds the decisions in its chronicle, also for a reduction that one calls; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters` or `endpoint`. Without a source that answers it the input is an error, never an empty list."
-                },
                 "facts": {
                   "type": "string",
                   "pattern": "^[a-z0-9_]+#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?#[a-z][a-z0-9_]*$",
@@ -1236,7 +1225,7 @@
                 "projections": {
                   "type": "string",
                   "pattern": "^[a-z0-9_]+$",
-                  "description": "Since v0.8.17: the aggregates of a reduction with a `projection`, by the `$id` of that reduction. A list with one row per root record the chronicle holds on the calculation date: the last state of its aggregate, with the root's `id`. With `where`, only the roots that hold each named value, as a field or an output. Only a `REDUCTIE` reads it, and the cell that runs the reduction plays the aggregates on its own chronicle; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters`, `endpoint`, `decisions`, `facts`, `reduction` or `article`. Without a chronicle the input is an error, never an empty list."
+                  "description": "Since v0.8.17: the aggregates of a reduction with a `projection`, by the `$id` of that reduction. A list with one row per root record the chronicle holds on the calculation date: the last state of its aggregate, with the root's `id`. With `where`, only the roots that hold each named value, as a field or an output. Only a `REDUCTIE` reads it, and the cell that runs the reduction plays the aggregates on its own chronicle; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters`, `endpoint`, `facts`, `reduction` or `article`. Without a chronicle the input is an error, never an empty list."
                 },
                 "where": {
                   "type": "object",
@@ -1252,43 +1241,12 @@
               },
               "additionalProperties": false,
               "dependencies": {
-                "decisions": {
-                  "not": {
-                    "anyOf": [
-                      {
-                        "required": [
-                          "regulation"
-                        ]
-                      },
-                      {
-                        "required": [
-                          "output"
-                        ]
-                      },
-                      {
-                        "required": [
-                          "parameters"
-                        ]
-                      },
-                      {
-                        "required": [
-                          "endpoint"
-                        ]
-                      }
-                    ]
-                  }
-                },
                 "article": {
                   "not": {
                     "anyOf": [
                       {
                         "required": [
                           "regulation"
-                        ]
-                      },
-                      {
-                        "required": [
-                          "decisions"
                         ]
                       },
                       {
@@ -1331,11 +1289,6 @@
                         "required": [
                           "endpoint"
                         ]
-                      },
-                      {
-                        "required": [
-                          "decisions"
-                        ]
                       }
                     ]
                   }
@@ -1356,11 +1309,6 @@
                       {
                         "required": [
                           "endpoint"
-                        ]
-                      },
-                      {
-                        "required": [
-                          "decisions"
                         ]
                       },
                       {
@@ -1401,11 +1349,6 @@
                       },
                       {
                         "required": [
-                          "decisions"
-                        ]
-                      },
-                      {
-                        "required": [
                           "facts"
                         ]
                       },
@@ -1435,9 +1378,6 @@
                   "parameters": {
                     "bsn": "$bsn"
                   }
-                },
-                {
-                  "decisions": "leerplichtwet_1969#13a"
                 },
                 {
                   "facts": "fictief_beleid_vestiging_obs_de_klimop#1#vestiging"

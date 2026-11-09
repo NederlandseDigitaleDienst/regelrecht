@@ -93,8 +93,9 @@ execution:                         # shortened
   input:
     - name: besluiten
       type: array
-      source:
-        decisions: wet_voorbeeld#3      # one row per decision under art. 3
+      source:                           # one row per decision under art. 3
+        projections: reductie_besluit_voorbeeld
+        where: {bsn_aanvrager: $bsn_aanvrager}
   output:
     - name: eerder_vergunning_verleend
 ```
@@ -116,11 +117,11 @@ execution:
 
 This policy article is called a binding: it binds the open term to the answer.
 
-- Each cell decides for itself how it reduces. The engine only asks it for an answer by name. The cell in `packages/cel` uses what the engine offers: rulework of its own kind (`REDUCTIE`) in the cell's own directory. The directory says whose reduction it is, so the reduction names no `competent_authority`. A reduction reads decisions or facts (`source.decisions`, `source.facts`). For decisions it names an article, or a parameter that names one. It may call policy for a norm.
+- Each cell decides for itself how it reduces. The engine only asks it for an answer by name. The cell in `packages/cel` uses what the engine offers: rulework of its own kind (`REDUCTIE`) in the cell's own directory. The directory says whose reduction it is, so the reduction names no `competent_authority`. A reduction reads the aggregates of another reduction or recorded facts (`source.projections`, `source.facts`); see [One aggregate per decision](#one-aggregate-per-decision-experimental). Up to schema v0.8.16 it read decisions directly (`source.decisions`), naming an article or a parameter that names one; from v0.8.17 the loader refuses that. It may call policy for a norm.
 - A reduction may also call a reduction of no cell, in `cells/reductions/`. Such a reduction has no chronicle of its own, and no cell gives it as an answer. It reads the chronicle of the cell that runs the reduction that calls it. No reduction of the PoC is of this kind any more: which decisions still hold after objection and appeal follows from the effects in its Awb (see below).
 - A reduction never calls a reduction of another cell, because that reduction would read the wrong chronicle. The corpus loader of the PoC refuses such a call, and its tests check the whole corpus for it.
 - The engine asks the cell for the answer wherever the binding runs. The cell then runs the reduction that its catalogue names for that answer. Because the binding is an article of policy, its value becomes the value of the term, even when that value is null. A finding of the authority cannot replace it ([Inversion of Control](/concepts/inversion-of-control#policy-that-fills-an-open-term-with-a-cells-answer)). Sometimes the cell has no answer and the authority should judge the case itself. The policy then says so with an open term of its own (`decided_per_case_by`).
-- The loader refuses `source.decisions` and `source.facts` outside a `REDUCTIE`. It refuses `source.reduction` outside such a binding.
+- The loader refuses `source.projections`, `source.decisions` and `source.facts` outside a `REDUCTIE`. It refuses `source.reduction` outside such a binding.
 
 ### Playing the chronicle forward (experimental)
 

@@ -3908,9 +3908,14 @@ articles:
         );
         let mut service = per_service();
         service
-            .load_law(&READ_MODEL.replace("kaarten_van", "besluiten_van").replace(
-                "source: {projections: per_verlening, where: {aanvrager: $aanvrager}}",
-                "source: {decisions: 'wet#1'}",
+            // Up to schema v0.8.16 a reduction reads decisions.
+            .load_law(&format!(
+                "{}{}",
+                "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json\n",
+                READ_MODEL.replace("kaarten_van", "besluiten_van").replace(
+                    "source: {projections: per_verlening, where: {aanvrager: $aanvrager}}",
+                    "source: {decisions: 'wet#1'}",
+                )
             ))
             .unwrap();
         let err = service

@@ -46,8 +46,25 @@ fn repo_corpus_dir() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus")
 }
 
+/// The reductions these tests are about, which read the decisions of the
+/// cell with `source.decisions` (refused in a reduction from schema
+/// v0.8.17): the school's reduction and the reduction of the Awb, as they
+/// were before the cell read its decisions as aggregates. They declare
+/// v0.8.12, which still reads them.
+fn own_dir() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/source_decisions")
+}
+
+/// A file of these tests: from [`own_dir`], or else from the corpus of the
+/// cell's tests.
 fn corpus(path: &str) -> String {
-    std::fs::read_to_string(corpus_dir().join(path)).unwrap()
+    let own = own_dir().join(path);
+    let path = if own.is_file() {
+        own
+    } else {
+        corpus_dir().join(path)
+    };
+    std::fs::read_to_string(path).unwrap()
 }
 
 /// The reduction of the fictional school that reads its decisions, from
