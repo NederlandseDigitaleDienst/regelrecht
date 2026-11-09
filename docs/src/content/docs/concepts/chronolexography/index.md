@@ -167,11 +167,54 @@ The engine calls the law in the version in force on the day the record was recor
 
 What one decision does with another stays in the law. The article declares it in `produces[].effects`: `revokes`, optionally only `when` a boolean outcome of the same decision is true, such as a well-founded objection. `when` reads nothing else, not the state, a parameter or another record. A decision in the place of another revokes it and counts as a record of its own.
 
-Which records count follows from those effects alone: a record counts unless a later record that itself counts revokes it. A revoked record revokes nothing, so what it alone revoked counts again. Because this never depends on the state, the engine decides it first, in one pass from the last record back, and then runs the steps of the records that count in the order the cell recorded them. That order of work is how the engine does it, not part of the meaning. The engine records which record set each property last and what became of each record: applied, revoked and by which records, or counting for its effects only. The trace shows the first phase as a `COUNTS` node and the steps as a `FOLD` node.
+Since schema v0.8.15 a fact can revoke too. A court ruling reaches the cell as a copy, and the cell records the receipt as a fact (RFC-053). The law gives that fact its effect, on the `requires` entry of the fact:
 
-A chronicle holds the records of many people. With `key`, a projection plays the records of one of them: the records that hold the value asked for under the key's name, as a field or an output, such as an applicant, and every record that refers to one of those, through `refers_to` or a field an effect names. An application holds the applicant and so plays as well, without a step. An objection and the decision on it usually carry no applicant and join through the grant they refer to. A record that refers in but holds another key of its own belongs to someone else. It still counts for its effects: a decision that moves a parking permit to a new licence plate revokes the permit for the old plate too, because the law says once what the decision does, whichever key the question is about. Its step is not applied, and the trace shows it as counting for its effects only. The same holds for a record without a key that refers only to such records, such as the revocation of that move, which brings the permit back for the old plate. Records never join through what they themselves refer to, so the partition stays the records reachable from the key. An effect on a record outside the partition is ignored.
+```yaml
+# test_chronicle_effects, article 11 (fictional, after Awb 8:72 lid 1 and 8:79)
+requires:
+  - fact: afschrift_uitspraak_ontvangen
+    parameters: [vernietigd]
+    effects:
+      - revokes: refers_to
+        when: vernietigd
+execution:
+  parameters:
+    - {name: vernietigd, type: boolean}
+```
 
-A policy reaches a projection the normal way. When an article binds an open term to the cell's answer (`source.reduction`), the engine asks the cell, and the cell plays its chronicle through the reduction's projection, with the parameters the binding passes, such as the key. The engine refuses a reduction with a projection on every path that bypasses the chronicle: asked directly, from another rulework, at a stage, or with a `state` the caller passes. The tests are in `packages/cel/bdd`; one of them has a fictional policy take the cell's answer, and its outcome flips when a well-founded objection revokes the grant.
+A fact revokes the record it refers to (`revokes: refers_to`), so which record a fact is about has one source. The receipt of a copy refers to the decision the copy concerns (RFC-053), and takes from the copy whether the ruling annuls it; `when` reads that boolean field of the fact, which may not be null. Since schema v0.8.15 a fact that declares effects may also refer to another earlier record of the chronicle, through `Cell::record_executogram_referring`. That widens RFC-053, under which only the receipt referred to anything. The record that the appeal court annulled a ruling is such a fact: it refers to the receipt of the ruling and revokes it, so the decision the ruling annulled counts again. A fact without effects still refers to nothing. Handing in a card is a fact without effects: it ends the holder's possession and leaves the grant standing, so it stays a step of the reduction.
+
+`revokes` has one meaning: the record does not count, from the start (ex tunc). That covers a decision revoked on objection, a decision the court annuls, and a ruling annulled on further appeal, which brings back what it annulled. A change from a later day on (ex nunc) is no effect. A suspension by the court (Awb 8:81) holds from one day to another, and a withdrawal "met ingang van" a date takes effect on that date. Both are a step of the reduction with a date property, as for any other change of state. The step of the suspension puts its period in the state. Lifting it (Awb 8:87) is a later step whose new end an article of the law gives, the earlier of the end it had and the day of lifting. Another article says whether the card is valid on a given day:
+
+```yaml
+# test_reductie_kaart_op_peildatum (fictional)
+steps:
+  - record: test_chronicle_effects#13        # a suspension
+    actions:
+      - {output: geschorst_vanaf, value: $record.schorsing_vanaf}
+      - {output: geschorst_tot, value: $record.schorsing_tot}
+execution:
+  parameters: [{name: aanvrager, type: string}, {name: peildatum, type: date}]
+  input:
+    - name: kaart_geldig
+      type: boolean
+      source:
+        regulation: test_chronicle_effects   # article 15 compares
+        output: kaart_geldig_op_peildatum
+        parameters:
+          in_bezit: $state.in_bezit
+          geschorst_vanaf: $state.geschorst_vanaf
+          geschorst_tot: $state.geschorst_tot
+          peildatum: $peildatum
+```
+
+The reduction only passes data along: it keeps the dates in its state and hands them, with the day the question asks about, to the law. Which records count therefore depends only on the records, never on that day. A suspended grant still counts. A suspension that is itself revoked does not count, so its step never runs and its period never enters the state. Deciding which records count and running the steps stay separate.
+
+Which records count follows from the effects of decisions and facts alone: a record counts unless a later record that itself counts revokes it. A revoked record revokes nothing, so what it alone revoked counts again. Because this never depends on the state, the engine decides it first, in one pass from the last record back, and then runs the steps of the records that count, in the order the cell recorded them. That order of work is how the engine does it, not part of the meaning. The engine records which record set each property last and what became of each record: applied, revoked and by which records, or counting for its effects only. The trace shows the first phase as a `COUNTS` node and the steps as a `FOLD` node.
+
+A chronicle holds the records of many people. With `key`, a projection plays the records of one of them: the records that hold the value asked for under the key's name, as a field or an output, such as an applicant, and every record that refers to one of those, through `refers_to` or a field an effect of a decision or a fact names. An application holds the applicant and so plays as well, without a step. An objection and the decision on it usually carry no applicant and join through the grant they refer to. A record that refers in but holds another key of its own belongs to someone else. It still counts for its effects: a decision that moves a parking permit to a new licence plate revokes the permit for the old plate too, because the law says once what the decision does, whichever key the question is about. Its step is not applied, and the trace shows it as counting for its effects only. The same holds for a record without a key that refers only to such records, such as the revocation of that move, which brings the permit back for the old plate. Records never join through what they themselves refer to, so the partition stays the records reachable from the key. An effect on a record outside the partition is ignored.
+
+A policy reaches a projection the normal way. When an article binds an open term to the cell's answer (`source.reduction`), the engine asks the cell, and the cell plays its chronicle through the reduction's projection, with the parameters the binding passes, such as the key. The engine refuses a reduction with a projection on every path that bypasses the chronicle: asked directly, from another rulework, at a stage, or with a `state` the caller passes. The tests are in `packages/cel/bdd`; one of them has a fictional policy take the cell's answer, and its outcome flips when a well-founded objection revokes the grant. Others revoke the grant by the receipt of a ruling, bring it back when that ruling is annulled on further appeal, and suspend the card for a while.
 
 ## Documents between cells
 
@@ -179,17 +222,18 @@ Each actor keeps its own chronicle. The law sends documents from one actor to an
 
 - `Cell::afschrift` makes a copy of one of the cell's own decisions. The copy holds the chronolexogram, the decision value from a replay in that cell, and `about`: what the submission behind the decision had received. When a field of type `decision` holds an id, the copy holds the value of that decision instead, nested in the same way. Only the cell that took the decision makes a copy of it.
 - `record_submission` with `Reference::Received(&copy)` records a submission against a decision of another cell. The chronolexogram then holds `received: {from, id}` instead of `refers_to`. Its field of type `decision` holds the decision value itself, because this cell cannot replay the other cell's decision.
-- `Cell::record_receipt` records that the cell received a copy. It does so as an executogram of the fact that the law requires for it. The receipt is the only executogram that refers to a decision: the cell's own decision that the copy is about.
+- `Cell::record_receipt` records that the cell received a copy. It does so as an executogram of the fact that the law requires for it. The receipt refers to the cell's own decision that the copy is about. Besides it, only a fact with effects refers to anything (schema v0.8.15).
 - `Cell::decide_after` decides on a submission again. It needs a later chronolexogram, such as a receipt, that refers to the last decision on that submission. The new decision holds that chronolexogram as `after`. This rule names no article. Whether the earlier decision still counts is up to whoever reads the chronicle.
 
-The cell refuses four things here:
+The cell refuses these:
 
 - a copy of something that is not a decision;
 - a copy of its own decision, offered back to it;
 - a receipt for a decision that the copy is not about, or a receipt dated before the decision in the copy;
-- a decision taken again without such a later chronolexogram.
+- a decision taken again without such a later chronolexogram;
+- a fact that refers to a record while it declares no effects, or that refers to a record not in the chronicle.
 
-When it opens a chronicle, the cell checks `after` and every receipt in the same way. A reduction reads receipts like any other recorded fact. The row of a receipt also gives the decision it is about, under `refers_to`. [RFC-053](/rfcs/rfc-053) gives the design, for the appeal to the administrative court.
+When it opens a chronicle, the cell checks `after` and every receipt in the same way, and that a fact that refers to a record without having received a copy refers to one before it. A reduction reads receipts like any other recorded fact. The row of a receipt also gives the decision it is about, under `refers_to`. [RFC-053](/rfcs/rfc-053) gives the design, for the appeal to the administrative court.
 
 ## Answers of other cells
 

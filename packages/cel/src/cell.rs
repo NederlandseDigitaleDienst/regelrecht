@@ -166,6 +166,21 @@ impl Cell {
         for (position, gram) in chronicle.grams().iter().enumerate() {
             check_executogram(gram, &recording_actor)?;
             let before = &chronicle.grams()[..position];
+            // A fact that refers to a record without having received a copy
+            // (schema v0.8.15) refers to one before it.
+            if let (EXECUTOGRAM, None, Some(on)) = (
+                gram.kind.as_str(),
+                gram.received.as_ref(),
+                gram.refers_to.as_deref(),
+            ) {
+                if !before.iter().any(|g| g.id == on) {
+                    return Err(setup(format!(
+                        "executogram '{}' in the chronicle of '{recording_actor}' refers to \
+                         '{on}', which is not a chronolexogram before it",
+                        gram.id
+                    )));
+                }
+            }
             // A decision taken again names a chronolexogram before it that
             // refers to the last decision on the same submission.
             if let Some(after) = gram.after.as_deref() {
@@ -649,7 +664,45 @@ impl Cell {
         supplied: &Map<String, serde_json::Value>,
         on: NaiveDate,
     ) -> Result<Gram> {
+        self.record_executogram_referring(service, fact, supplied, None, on)
+    }
+
+    /// [`Cell::record_executogram`], for a fact that refers to the earlier
+    /// chronolexogram `refers_to` of this chronicle (schema v0.8.15): a fact
+    /// whose `effects` revoke the record it refers to, such as the record
+    /// that a ruling on further appeal annulled the ruling the cell received
+    /// a copy of. That is the one record the fact is about; the law says
+    /// what the fact does with it (`revokes: refers_to`). This widens
+    /// RFC-053, under which only the receipt of a copy referred to anything.
+    ///
+    /// Refused, besides what [`Cell::record_executogram`] refuses: a
+    /// `refers_to` for a fact that declares no effects, and one that names
+    /// no chronolexogram of this chronicle.
+    pub fn record_executogram_referring(
+        &mut self,
+        service: &LawExecutionService,
+        fact: &str,
+        supplied: &Map<String, serde_json::Value>,
+        refers_to: Option<&str>,
+        on: NaiveDate,
+    ) -> Result<Gram> {
         let declared = shape::fact_fields(service, fact, on, Some(&self.authority))?;
+        if let Some(referred) = refers_to {
+            let (_, required) = shape::required_fact(service, fact, on)?;
+            if required.effects().is_empty() {
+                return Err(refused(format!(
+                    "the fact {fact} refers to '{referred}', but declares no effects; only a \
+                     fact with effects refers to the record they revoke"
+                )));
+            }
+            if !self.grams().iter().any(|g| g.id == referred) {
+                return Err(refused(format!(
+                    "the fact {fact} refers to '{referred}', which is no chronolexogram in the \
+                     chronicle of '{}'",
+                    self.recording_actor
+                )));
+            }
+        }
         let what = format!("executogram of {fact}");
         let fields = whole(&declared, supplied, &what)?;
         let (basis, name) = shape::split_fact(fact)?;
@@ -658,7 +711,7 @@ impl Cell {
             kind: EXECUTOGRAM.to_string(),
             basis: basis.to_string(),
             fact: Some(name.to_string()),
-            refers_to: None,
+            refers_to: refers_to.map(str::to_string),
             received: None,
             after: None,
             recording_actor: self.recording_actor.clone(),
@@ -2222,7 +2275,10 @@ fn check_executogram(gram: &Gram, recording_actor: &str) -> Result<()> {
         return Ok(());
     }
     // The receipt of a copy refers to the decision of the cell it concerns
-    // and holds what it received (RFC-053); any other refers to nothing.
+    // and holds what it received (RFC-053). Since schema v0.8.15 a fact with
+    // effects may refer to the record they revoke; that it has effects needs
+    // the law, which `Cell::record_executogram_referring` has and opening
+    // does not, so opening checks only that the record is earlier.
     let refused_as = |what: &str| {
         Err(setup(format!(
             "executogram '{}' in the chronicle of '{recording_actor}' {what}; an executogram \
@@ -2230,20 +2286,11 @@ fn check_executogram(gram: &Gram, recording_actor: &str) -> Result<()> {
             gram.id
         )))
     };
-    match (gram.refers_to.is_some(), gram.received.is_some()) {
-        (true, false) => {
-            return refused_as(
-                "refers to a chronolexogram without having received one (only the receipt of \
-                 a copy refers to the decision it concerns)",
-            )
-        }
-        (false, true) => {
-            return refused_as(
-                "holds what it received but refers to no decision (the receipt of a copy \
-                 refers to the decision it concerns)",
-            )
-        }
-        _ => {}
+    if gram.received.is_some() && gram.refers_to.is_none() {
+        return refused_as(
+            "holds what it received but refers to no decision (the receipt of a copy \
+             refers to the decision it concerns)",
+        );
     }
     if gram.after.is_some() {
         return refused_as("names `after`, which only a decision taken again does");

@@ -59,7 +59,8 @@ use crate::answer::ChronicleRead;
 use crate::article::ArticleBasedLaw;
 use crate::error::{EngineError, Result};
 use regelrecht_law_model::{
-    ActionOperation, ActionValue, CompetentAuthority, MachineReadable, RegulatoryLayer,
+    ActionOperation, ActionValue, CompetentAuthority, MachineReadable, ParameterType,
+    RegulatoryLayer,
 };
 
 /// Refuse a construct that a later schema version removed, naming what
@@ -461,6 +462,9 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
                         "lists parameters on a requirement that names no fact".to_string(),
                     );
                 }
+                if requirement.effects.is_some() {
+                    return refuse("lists effects on a requirement that names no fact".to_string());
+                }
                 continue;
             };
             if requirement.article.is_some()
@@ -490,9 +494,72 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
                     ));
                 }
             }
+            // An effect of a fact (schema v0.8.15) revokes the record the fact
+            // refers to (`revokes: refers_to`), so which record it is about
+            // has one source. Its `when` is a boolean the fact holds, not
+            // nullable.
+            let held = |name: &str| {
+                parameters
+                    .iter()
+                    .any(|p| p == name)
+                    .then(|| article.get_parameters().iter().find(|p| p.name == name))
+                    .flatten()
+            };
+            for effect in requirement.effects() {
+                let check = |name: &str, role: &str, types: &[ParameterType]| {
+                    let what = |why: String| {
+                        Err(format!(
+                            "requires the fact '{fact}' with an effect that names '{name}' as \
+                             {role}, which {why}"
+                        ))
+                    };
+                    match held(name) {
+                        None => what("the fact does not hold".to_string()),
+                        Some(p) if !types.contains(&p.param_type) => what(format!(
+                            "is a {:?}, not a {}",
+                            p.param_type,
+                            types
+                                .iter()
+                                .map(|t| format!("{t:?}"))
+                                .collect::<Vec<_>>()
+                                .join(" or ")
+                        )),
+                        // A record without a target or a condition is refused
+                        // when the chronicle is played; refuse it here first.
+                        Some(p) if p.is_nullable() => what("may be null".to_string()),
+                        Some(_) => Ok(()),
+                    }
+                };
+                if effect.parameter != regelrecht_law_model::RecordEffect::REFERS_TO {
+                    return refuse(format!(
+                        "requires the fact '{fact}' with an effect that revokes '{}'; a fact \
+                         revokes the record it refers to: write `revokes: {}`",
+                        effect.parameter,
+                        regelrecht_law_model::RecordEffect::REFERS_TO
+                    ));
+                }
+                let named = effect
+                    .when
+                    .as_deref()
+                    .map(|w| (w, "its condition", &[ParameterType::Boolean][..]));
+                if let Some((name, role, types)) = named {
+                    if let Err(why) = check(name, role, types) {
+                        return refuse(why);
+                    }
+                }
+            }
         }
     }
     Ok(())
+}
+
+/// Whether `law` declares schema `version` or later, or no version at all.
+/// A rule a released version did not have applies from the version that
+/// introduces it, so a file valid under an earlier version still loads.
+fn from_version(law: &ArticleBasedLaw, version: (u32, u32, u32)) -> bool {
+    law.schema_version()
+        .and_then(regelrecht_law_model::parse_schema_version)
+        .is_none_or(|declared| declared >= version)
 }
 
 /// Refuse an article whose `produces` list (schema v0.8.1, RFC-045 §1) has two
@@ -627,9 +694,33 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
             }
             for effect in item.effects() {
                 let name = &effect.parameter;
-                if !article.get_parameters().iter().any(|p| &p.name == name) {
+                let Some(parameter) = article.get_parameters().iter().find(|p| &p.name == name)
+                else {
                     return refuse(format!(
                         "names parameter '{name}' in an effect under produces, but declares no such parameter"
+                    ));
+                };
+                // The parameter names the record it revokes: a string that
+                // holds its id, or a decision, which the cell keeps by its id
+                // in the chronicle (`bestreden_besluit` in Awb 7:11). Never
+                // null: a decision without the record it revokes is refused
+                // when the chronicle is played; refuse it here first. From
+                // schema v0.8.15 on: a file valid under v0.8.14 still loads.
+                let names_a_record = matches!(
+                    parameter.param_type,
+                    ParameterType::String | ParameterType::Decision
+                );
+                if !names_a_record && from_version(law, (0, 8, 15)) {
+                    return refuse(format!(
+                        "names parameter '{name}' in an effect under produces, which is a {:?}; \
+                         the record an effect revokes is a string that holds its id, or a \
+                         decision",
+                        parameter.param_type
+                    ));
+                }
+                if parameter.is_nullable() && from_version(law, (0, 8, 15)) {
+                    return refuse(format!(
+                        "names parameter '{name}' in an effect under produces, which may be null"
                     ));
                 }
                 // `when` reads an outcome of this decision: one of its own
@@ -1470,6 +1561,165 @@ articles:
         );
     }
 
+    /// `law_producing` with a date parameter `vanaf`, a boolean `b`, a
+    /// decision `d`, and the nullable `q` (a string) and `c` (a boolean).
+    fn law_with_kinds(items: &str) -> String {
+        law_producing(items).replace(
+            "        parameters:\n          - name: p\n            type: string\n",
+            "        parameters:\n          - name: p\n            type: string\n          - {name: vanaf, type: date}\n          - {name: b, type: boolean}\n          - {name: d, type: decision}\n          - {name: q, type: string, nullable: true}\n          - {name: c, type: boolean, nullable: true}\n",
+        )
+    }
+
+    /// `law_with_kinds` that declares schema version `v` (`v0.8.14`).
+    fn law_with_kinds_on(items: &str, v: &str) -> String {
+        law_with_kinds(items).replacen(
+            "$id: lijst",
+            &format!(
+                "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{v}/schema/{v}/schema.json\n$id: lijst"
+            ),
+            1,
+        )
+    }
+
+    /// An effect revokes from the start; it holds for no window of days
+    /// (schema v0.8.15 has no `from` or `until`), and the record it revokes
+    /// is never null.
+    #[test]
+    fn a_decision_revokes_by_a_parameter_that_is_never_null() {
+        for (effect, why) in [
+            ("{revokes: p, from: vanaf}", "unknown field `from`"),
+            ("{revokes: p, until: vanaf}", "unknown field `until`"),
+            (
+                "{revokes: q}",
+                "names parameter 'q' in an effect under produces, which may be null",
+            ),
+        ] {
+            let err = LawExecutionService::new()
+                .load_law(&law_with_kinds(&format!(
+                    "          - type: BESCHIKKING\n            effects:\n              - {effect}"
+                )))
+                .expect_err(why);
+            assert!(err.to_string().contains(why), "{why}: {err}");
+        }
+    }
+    /// The refusal of a nullable `revokes` parameter came with schema
+    /// v0.8.15: a law that declares v0.8.14, which the released schema
+    /// allows, still loads.
+    #[test]
+    fn a_nullable_revokes_still_loads_on_v0_8_14() {
+        let items =
+            "          - type: BESCHIKKING\n            effects:\n              - {revokes: q}";
+        let on = |v: &str| law_with_kinds_on(items, v);
+        LawExecutionService::new()
+            .load_law(&on("v0.8.14"))
+            .expect("valid under v0.8.14");
+        let err = LawExecutionService::new()
+            .load_law(&on("v0.8.15"))
+            .expect_err("refused from v0.8.15");
+        assert!(
+            err.to_string()
+                .contains("names parameter 'q' in an effect under produces, which may be null"),
+            "{err}"
+        );
+    }
+
+    /// A decision names the record it revokes by a string that holds its
+    /// id, or by a decision, which the cell keeps by its id. From schema
+    /// v0.8.15 the loader refuses another type; a law that declares v0.8.14
+    /// still loads.
+    #[test]
+    fn a_decision_revokes_by_a_string_or_a_decision_from_v0_8_15() {
+        let items = |parameter: &str| {
+            format!(
+                "          - type: BESCHIKKING\n            effects:\n              - {{revokes: {parameter}}}"
+            )
+        };
+        for parameter in ["p", "d"] {
+            LawExecutionService::new()
+                .load_law(&law_with_kinds_on(&items(parameter), "v0.8.15"))
+                .unwrap_or_else(|e| panic!("{parameter} names a record: {e}"));
+        }
+        for (parameter, kind) in [("b", "Boolean"), ("vanaf", "Date")] {
+            LawExecutionService::new()
+                .load_law(&law_with_kinds_on(&items(parameter), "v0.8.14"))
+                .unwrap_or_else(|e| panic!("{parameter} loads on v0.8.14: {e}"));
+            let err = LawExecutionService::new()
+                .load_law(&law_with_kinds_on(&items(parameter), "v0.8.15"))
+                .expect_err(parameter);
+            assert!(
+                err.to_string().contains(&format!(
+                    "names parameter '{parameter}' in an effect under produces, which is a {kind}; \
+                     the record an effect revokes is a string that holds its id, or a decision"
+                )),
+                "{err}"
+            );
+        }
+    }
+
+    /// A fact may revoke an earlier record (schema v0.8.15): the record it
+    /// refers to, `revokes: refers_to`, so which record a fact is about has
+    /// one source. Its condition is a boolean the fact holds, not nullable.
+    #[test]
+    fn a_fact_revokes_by_what_it_holds() {
+        let fact = |parameters: &str, effect: &str| {
+            law_with_kinds("          - type: BESCHIKKING").replace(
+                "    machine_readable:\n      execution:\n",
+                &format!(
+                    "    machine_readable:\n      requires:\n        - fact: f\n          parameters: [{parameters}]\n          effects: [{{{effect}}}]\n      execution:\n"
+                ),
+            )
+        };
+        for (parameters, effect) in [
+            ("p", "revokes: refers_to"),
+            ("p, b", "revokes: refers_to, when: b"),
+        ] {
+            LawExecutionService::new()
+                .load_law(&fact(parameters, effect))
+                .unwrap_or_else(|e| panic!("{effect}: {e}"));
+        }
+        for (parameters, effect, why) in [
+            (
+                "p",
+                "revokes: p",
+                "with an effect that revokes 'p'; a fact revokes the record it refers to: write `revokes: refers_to`",
+            ),
+            (
+                "p",
+                "revokes: refers_to, when: b",
+                "with an effect that names 'b' as its condition, which the fact does not hold",
+            ),
+            (
+                "p, vanaf",
+                "revokes: refers_to, when: vanaf",
+                "with an effect that names 'vanaf' as its condition, which is a Date, not a Boolean",
+            ),
+            (
+                "p, c",
+                "revokes: refers_to, when: c",
+                "with an effect that names 'c' as its condition, which may be null",
+            ),
+        ] {
+            let err = LawExecutionService::new()
+                .load_law(&fact(parameters, effect))
+                .expect_err(why);
+            assert!(
+                err.to_string()
+                    .contains(&format!("requires the fact 'f' {why}")),
+                "{why}: {err}"
+            );
+        }
+        let err = LawExecutionService::new()
+            .load_law(&law_requiring(
+                "        - article: '2'\n          effects: [{revokes: p}]",
+            ))
+            .expect_err("effects without a fact");
+        assert!(
+            err.to_string()
+                .contains("lists effects on a requirement that names no fact"),
+            "{err}"
+        );
+    }
+
     fn law_with_projection(layer: &str, projection: &str) -> String {
         format!(
             r#"
@@ -1517,9 +1767,16 @@ articles:
         );
         LawExecutionService::new().load_law(&with_question).unwrap();
         // Without that parameter, `$peildatum` is nothing the step can pass.
-        assert!(LawExecutionService::new()
+        let err = LawExecutionService::new()
             .load_law(&law_with_projection("REDUCTIE", &asks))
-            .is_err());
+            .expect_err("no parameter peildatum");
+        assert!(
+            err.to_string().contains(
+                "has input 'x' that passes 'p' as '$peildatum'; a parameter of a step is \
+                 $record.<field>, $state.<property> or a parameter of the question"
+            ),
+            "{err}"
+        );
         let declares_state = law_with_projection("REDUCTIE", &ok).replace(
             "      execution:\n",
             "      execution:\n        parameters:\n          - {name: state, type: object}\n",
@@ -1614,11 +1871,14 @@ articles:
             let projection = format!(
                 "{state}        steps:\n          - {{record: '{record}', actions: [{{output: a, value: $record.v}}]}}"
             );
+            let err = LawExecutionService::new()
+                .load_law(&law_with_projection("REDUCTIE", &projection))
+                .expect_err(record);
             assert!(
-                LawExecutionService::new()
-                    .load_law(&law_with_projection("REDUCTIE", &projection))
-                    .is_err(),
-                "{record}"
+                err.to_string().contains(&format!(
+                    "'{record}' is not <regulation>#<article>, optionally with #<KIND>"
+                )),
+                "{record}: {err}"
             );
         }
     }

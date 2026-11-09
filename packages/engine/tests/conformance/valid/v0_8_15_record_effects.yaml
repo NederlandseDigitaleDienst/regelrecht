@@ -1,0 +1,48 @@
+---
+# Tier C: effects of a fact (schema v0.8.15). Article 1 requires the
+# receipt of a copy of a ruling; the receipt revokes the decision it refers
+# to, the one the copy concerns, when the ruling annuls it. Article 2
+# takes a decision that revokes a record by its id. Fictional throughout.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_conformance_record_effects
+regulatory_layer: WET
+publication_date: '2026-11-07'
+valid_from: '2026-11-07'
+bwb_id: BWBR0099993
+name: Testwet effecten van feiten
+url: https://example.invalid/record-effects
+articles:
+  - number: '1'
+    url: https://example.invalid/record-effects/1
+    text: FICTIEF. Het bestuursorgaan legt vast dat het een afschrift van de uitspraak heeft ontvangen.
+    machine_readable:
+      requires:
+        - fact: afschrift_uitspraak_ontvangen
+          description: Het bestuursorgaan heeft een afschrift ontvangen van een uitspraak over zijn besluit.
+          parameters:
+            - vernietigd
+          effects:
+            - revokes: refers_to
+              when: vernietigd
+      execution:
+        parameters:
+          - name: vernietigd
+            type: boolean
+  - number: '2'
+    url: https://example.invalid/record-effects/2
+    text: FICTIEF. Het bestuursorgaan herroept het besluit.
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            effects:
+              - revokes: herroepen_besluit
+        parameters:
+          - name: herroepen_besluit
+            type: string
+        output:
+          - name: herroepen
+            type: boolean
+        actions:
+          - output: herroepen
+            value: true

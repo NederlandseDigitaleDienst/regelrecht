@@ -4,7 +4,7 @@
 # decision in its place revokes it too and counts itself (Awb 7:11 lid 2); each effect names the parameter
 # whose value is that decision; the revocation holds only when the decision
 # has its outcome `herroepen` as true.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
 $id: test_conformance_decision_effects
 regulatory_layer: WET
 publication_date: '2026-11-05'

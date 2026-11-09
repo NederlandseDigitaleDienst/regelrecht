@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.14",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.15",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -2380,6 +2380,30 @@
                     }
                   }
                 ]
+              },
+              "effects": {
+                "type": "array",
+                "minItems": 1,
+                "description": "Since v0.8.15, only with `fact`: what an instance of this fact does with the record it refers to, as a decision does with `produces[].effects`. A fact is no decision, but the law can give a recorded fact a legal effect on a decision, such as the receipt of a copy of a ruling that annuls the decision (Awb 8:72 lid 1, 8:79). A fact revokes the record it refers to (`refers_to`, RFC-053), so which record the fact is about has one source: the receipt of a copy refers to the decision it concerns, and since v0.8.15 a fact with effects may refer to another earlier record. The record does not count, from the start (ex tunc). With `when` a boolean parameter the fact holds must be true for the effect to hold. The effect reads nothing but the fact, so whether a record counts never depends on the state or on the day asked about. The loader checks that `revokes` is `refers_to` and that `when` names a boolean parameter the fact holds that is not nullable.",
+                "items": {
+                  "type": "object",
+                  "description": "Since v0.8.15: the fact revokes the record it refers to, optionally only `when` a boolean it holds is true.",
+                  "additionalProperties": false,
+                  "properties": {
+                    "revokes": {
+                      "type": "string",
+                      "const": "refers_to",
+                      "description": "Always `refers_to`: the fact revokes the record it refers to. It does not count, from the start."
+                    },
+                    "when": {
+                      "type": "string",
+                      "description": "A boolean parameter the fact holds, not nullable; the effect holds only when the fact holds it as true, such as a ruling that annuls the decision. Without it the effect always holds."
+                    }
+                  },
+                  "required": [
+                    "revokes"
+                  ]
+                }
               }
             },
             "additionalProperties": false,
@@ -2440,6 +2464,11 @@
                       {
                         "required": [
                           "competent_authority"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "effects"
                         ]
                       }
                     ]
@@ -2769,7 +2798,7 @@
         },
         "projection": {
           "type": "object",
-          "description": "Since v0.8.14, only in a `REDUCTIE`: the reduction plays a cell's chronicle forward and keeps a state, and its `execution` answers from the state after the last record, reading each property as `$state.<name>`. Each record may change the state through the step this reduction gives for its article (`steps`): the step takes outputs of a law, with parameters from the record and the state, and its actions give properties their values from them. Which records count follows from the effects their laws give (`produces[].effects`): a record counts unless a later record that itself counts revokes it. So a record that is revoked revokes nothing, and a record it alone revoked counts again. Only the records that count change the state, in the order the cell recorded them. A revoked record is gone from the whole history (ex tunc); a change from a later day on is a step with a date property. The chronicle itself is never changed, and a record recorded after the calculation date is not played. Only a call that plays a chronicle answers from it: a cell that gives the answer to a policy through `source.reduction`, or `evaluate_projection` in the Rust engine. The engine refuses such an article on every path that bypasses the chronicle: asked directly, from another rulework, at a stage, or with a `state` the caller passes. A step is pure: the next state follows from the state before, the record and the question alone, because the law a step calls reads only what the step passes. A step may pass a parameter of the question, so the projection depends on the question, as it does through its key; the same question on the same chronicle always gets the same answer. One version of this reduction, the one in force on the calculation date, gives every step and the answer; the effects of a record come from the version of its law in force on the day it was recorded. The engine records, per property, which record set it last. The article declares no parameter `state`.",
+          "description": "Since v0.8.14, only in a `REDUCTIE`: the reduction plays a cell's chronicle forward and keeps a state, and its `execution` answers from the state after the last record, reading each property as `$state.<name>`. Each record may change the state through the step this reduction gives for its article (`steps`): the step takes outputs of a law, with parameters from the record and the state, and its actions give properties their values from them. Which records count follows from the effects their laws give: those of a decision (`produces[].effects`) and, since v0.8.15, those of a fact the law requires (`requires[].effects`): such a fact revokes the record it refers to. A record counts unless a later record that itself counts revokes it. So a record that is revoked revokes nothing, and a record it alone revoked counts again. Only the records that count change the state, in the order the cell recorded them. A revoked record is gone from the whole history (ex tunc); a change from a later day on is a step with a date property. The chronicle itself is never changed, and a record recorded after the calculation date is not played. Only a call that plays a chronicle answers from it: a cell that gives the answer to a policy through `source.reduction`, or `evaluate_projection` in the Rust engine. The engine refuses such an article on every path that bypasses the chronicle: asked directly, from another rulework, at a stage, or with a `state` the caller passes. A step is pure: the next state follows from the state before, the record and the question alone, because the law a step calls reads only what the step passes. A step may pass a parameter of the question, so the projection depends on the question, as it does through its key; the same question on the same chronicle always gets the same answer. One version of this reduction, the one in force on the calculation date, gives every step and the answer; the effects of a record come from the version of its law in force on the day it was recorded. The engine records, per property, which record set it last. The article declares no parameter `state`.",
           "additionalProperties": false,
           "required": [
             "state",
@@ -3303,12 +3332,12 @@
           "type": "array",
           "items": {
             "type": "object",
-            "description": "Since v0.8.14: a decision this decision revokes, named by a parameter of the article whose value is that decision, and optionally `when`.",
+            "description": "Since v0.8.14: an earlier record this decision revokes, named by a parameter of the article whose value is the id of that record, and optionally `when`. Since v0.8.15 the record may be any earlier record, such as a fact.",
             "additionalProperties": false,
             "properties": {
               "revokes": {
                 "type": "string",
-                "description": "The parameter whose value is the decision this one revokes: its consequences no longer count (Awb 7:11 lid 2). A decision in the place of another revokes it, and counts as a decision of its own."
+                "description": "A string or decision parameter (a decision counts by its id) that names the earlier record this decision revokes: it does not count, from the start (ex tunc), such as the contested decision revoked on objection (`revokes: bestreden_besluit`, Awb 7:11 lid 2). A decision in the place of another revokes it, and counts as a decision of its own. From v0.8.15 the loader refuses a parameter of another type or one that may be null."
               },
               "when": {
                 "type": "string",
@@ -3320,7 +3349,7 @@
             ]
           },
           "minItems": 1,
-          "description": "Since v0.8.14, only on a decision: the decisions it revokes, such as the decision on an objection that revokes the contested decision (Awb 7:11 lid 2), or a new decision in the place of the contested one, which revokes it and counts itself. Each effect names a parameter of this article whose value is the other decision, and with `when` a boolean output of this decision that must be true for the effect to hold. From the effects a runtime that records decisions derives which decisions still have consequences: a decision counts unless a later decision that itself counts revokes it. A revoked decision has no consequences and revokes nothing, so a decision it alone revoked has consequences again; a new decision that should keep a revocation in force declares that effect itself. A revocation takes a decision out of the whole history (ex tunc); an effect from a later day on (ex nunc) is written as a step of the reduction with a date property. The engine carries the effects out when it plays a chronicle through a reduction with a `projection`; the loader checks that it sits on a decision, that every named parameter is a parameter of the article, and that every `when` names a boolean output of the decision."
+          "description": "Since v0.8.14, only on a decision: the earlier records it revokes, such as the decision on an objection that revokes the contested decision (Awb 7:11 lid 2), or a new decision in the place of the contested one, which revokes it and counts itself. Each effect names a parameter of this article that names the other record: a string that holds its id, or a decision, which counts by its id, and with `when` a boolean output of this decision that must be true for the effect to hold. From the effects a runtime that records decisions and facts derives which records count: a record counts unless a later record that itself counts revokes it. A revoked record has no consequences and revokes nothing, so a record it alone revoked counts again; a new decision that should keep a revocation in force declares that effect itself. A revocation takes a record out of the whole history (ex tunc). A change from a later day on (ex nunc), such as a suspension or a withdrawal with effect from a date, is no effect: it is a step of the reduction with a date property, and whether the record counts never depends on the day asked about. A fact the article requires may have effects as well (`requires[].effects`, since v0.8.15). The engine carries the effects out when it plays a chronicle through a reduction with a `projection`; the loader checks that it sits on a decision, that every named parameter is a parameter of the article (from v0.8.15 a string or decision parameter that is not nullable), and that every `when` names a boolean output of the decision."
         },
         "decision_type": {
           "type": "string",

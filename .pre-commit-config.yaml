@@ -71,11 +71,13 @@ repos:
         entry: just validate
         language: system
         pass_filenames: true
-        files: ^(corpus/(regulation|demo/regulation)|packages/poc-chronolexografie/corpus/(regulation|cells|casussen/[^/]+/regulation))/.*\.yaml$
+        files: ^(corpus/(regulation|demo/regulation)|packages/poc-chronolexografie/corpus/(regulation|cells|casussen/[^/]+/regulation)|packages/cel/bdd/fixtures/(regulation|cells/[^/]+/reductions))/.*\.yaml$
         # Skip dot-prefixed sidecars (.enrichment.yaml, .enrichment-result.yaml):
         # enrichment metadata/result envelopes, not law files.
         # A cell's identity (cells/*/cel.yaml, RFC-046 §2) is no rulework;
-        # the cell checks it when it opens.
+        # the cell checks it when it opens. The cell's BDD fixtures are matched
+        # only under regulation/ and a cell's reductions/, so their cel.yaml
+        # stays out.
         exclude: (^|/)\.[^/]*\.yaml$|^packages/poc-chronolexografie/corpus/cells/[^/]+/cel\.yaml$
         types: [yaml]
 
