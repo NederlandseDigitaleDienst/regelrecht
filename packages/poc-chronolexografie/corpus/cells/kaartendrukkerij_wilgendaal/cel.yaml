@@ -1,0 +1,18 @@
+---
+# Wie deze cel is (RFC-046). Fictief: de drukker die voor de gemeente
+# Wilgendaal gehandicaptenparkeerkaarten drukt. Een virtuele drukker: er is
+# geen echte achter, en wat hij doet, legt het fictieve beleid
+# beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal vast. Hij
+# ontvangt de drukopdrachten van de gemeente (artikel 1 van dat beleid) en
+# legt in zijn eigen kroniek vast welke kaarten hij leverde (artikel 2). Elke
+# levering gaat als bericht naar de gemeente, die de ontvangst in haar eigen
+# kroniek vastlegt.
+name: Kaartendrukkerij Wilgendaal
+category: drukker van gehandicaptenparkeerkaarten
+# Welke antwoorden de cel geeft, en uit welke eigen reductie (reductions/,
+# RFC-048): hoeveel drukopdrachten zij ontving en hoeveel kaarten zij
+# leverde. Artikel 5 van het beleid koppelt ze aan de open begrippen van
+# artikel 2.
+answers:
+  aantal_drukopdrachten_ontvangen: reductie_drukopdrachten
+  aantal_kaarten_geleverd: reductie_drukopdrachten

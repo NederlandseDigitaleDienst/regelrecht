@@ -83,6 +83,13 @@ describe('counts', () => {
     expect(counts().executogrammen('ander_feit')).toBe(0);
   });
 
+  it("counts the executograms of the case's own cell too", () => {
+    const opdracht = { kind: 'EXECUTOGRAM', fact: 'drukopdracht_gegeven', fields: { bsn_aanvrager: '1' } };
+    state.grammen = [aanvraag, opdracht];
+    state.andere = [];
+    expect(counts().executogrammen('drukopdracht_gegeven')).toBe(1);
+  });
+
   it('counts a late objection as inadmissible, not as dismissed', () => {
     const late = { ...ongegrond, outputs: { bezwaar_ontvankelijk: false, bestreden_besluit_herroepen: false } };
     state.grammen = [aanvraag, weigering, bezwaar, late];

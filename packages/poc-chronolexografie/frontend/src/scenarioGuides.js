@@ -76,11 +76,13 @@ const KINDS = {
     done: (n) => (k) => k.beslissingen >= n,
     weigering: /already replaces/,
   },
+  // A record step of the case's own cell plays on the tab of the authority
+  // (`bouwGids`).
   vastleggen: {
     tab: 'andere',
     title: () => 'Vastleggen',
     todo: 'Klik op Vastleggen.',
-    seen: () => 'Het feit staat in de kroniek van de andere cel.',
+    seen: () => 'Het feit staat in de kroniek van de cel die het vastlegde.',
     // Done once the cell holds one more record of the fact than it knew
     // before this step, whatever the visitor changed in it.
     done: (n, stap, vooraf) => (k) => k.executogrammen(feitNaam(stap.feit)) >= vooraf + n,
@@ -119,10 +121,10 @@ const KINDS = {
 // `beleid#5#geneeskundig_advies_uitgebracht` → `geneeskundig_advies_uitgebracht`.
 const feitNaam = (feit) => String(feit).split('#').at(-1);
 
-/** How many records of `feit` the other cells of `casus` hold before a scenario. */
+/** How many records of `feit` the cells of `casus` hold before a scenario. */
 const vooraf = (casus, feit) =>
-  (casus?.andere_cellen ?? [])
-    .flatMap((c) => c.begin?.executogrammen ?? [])
+  [casus?.begin, ...(casus?.andere_cellen ?? []).map((c) => c.begin)]
+    .flatMap((b) => b?.executogrammen ?? [])
     .filter((e) => feitNaam(e.feit) === feitNaam(feit)).length;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -200,7 +202,7 @@ export function bouwGids(scenario, casus = null) {
     }
     return {
       title: stap.titel ?? kind.title(stap.stap === 'besluit' ? doel : n),
-      tab: kind.tab,
+      tab: stap.stap === 'vastleggen' && stap.cel === casus?.cel ? 'bestuursorgaan' : kind.tab,
       date: stap.datum ?? undefined,
       story: stap.verhaal ?? '',
       todo: stap.tekst ?? kind.todo,

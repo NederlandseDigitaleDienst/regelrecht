@@ -1,0 +1,115 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.13/schema/v0.8.13/schema.json
+$id: reductie_drukken_en_uitreiken
+regulatory_layer: REDUCTIE
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# Geen regelgeving: een reductie van het college van de (fictieve) gemeente
+# Wilgendaal over zijn eigen kroniek (RFC-022 §4.1, RFC-048, RFC-051). Ze
+# telt wat het fictieve beleid
+# beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal vraagt:
+# de kaarten die het college verstrekte, de drukopdrachten die het gaf, de
+# kaarten die het van de drukker ontving en de kaarten die het uitreikte. De
+# cel van de gemeente geeft die vier als antwoorden (cel.yaml, answers), en
+# artikel 4 en 6 van dat beleid koppelen ze aan de open begrippen van artikel
+# 1 en 3. Wat er met die aantallen moet gebeuren, zegt het beleid: deze
+# reductie telt alleen. Er is geen bekendmaking; de url wijst naar artikel 49
+# van het BABW.
+url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+name: Drukken en uitreiken van gehandicaptenparkeerkaarten bij de gemeente Wilgendaal (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving. Het systeem van het college van de gemeente Wilgendaal
+      telt door middel van een chronolexografische reductie op zijn eigen
+      kroniek hoeveel gehandicaptenparkeerkaarten het college verstrekte in een
+      besluit op een aanvraag (artikel 49 van het BABW) dat niet herroepen is
+      en niet door de bestuursrechter vernietigd (Awb 7:11 en 8:72), hoeveel
+      drukopdrachten het gaf, hoeveel kaarten het van de drukker ontving en
+      hoeveel kaarten het uitreikte. Een kaart die de bestuursrechter zelf
+      verstrekte (Awb 8:72, derde lid, onder b), telt niet mee: die vraagt het
+      college niet aan.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      execution:
+        input:
+          # De besluiten onder artikel 49 die gelden, één rij per besluit
+          # (zie reductie_geldige_gehandicaptenparkeerkaart).
+          - name: geldende_besluiten
+            type: array
+            source:
+              regulation: reductie_algemene_wet_bestuursrecht
+              output: geldende_besluiten
+              parameters:
+                basis: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
+          # De feiten van het beleid, één rij per executogram.
+          - name: drukopdrachten
+            type: array
+            source:
+              facts: beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal#1#drukopdracht_gegeven
+          - name: ontvangen_kaarten
+            type: array
+            source:
+              facts: beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal#2#kaart_ontvangen_van_drukker
+          - name: uitreikingen
+            type: array
+            source:
+              facts: beleid_uitreiking_gehandicaptenparkeerkaart_gemeente_wilgendaal#3#kaart_uitgereikt
+        output:
+          - name: aantal_verstrekte_gehandicaptenparkeerkaarten
+            type: number
+            description: >-
+              Hoeveel kaarten het college verstrekte in een besluit dat nog
+              geldt.
+          - name: aantal_drukopdrachten_gegeven
+            type: number
+            description: Hoeveel drukopdrachten het college gaf.
+          - name: aantal_kaarten_ontvangen_van_drukker
+            type: number
+            description: Hoeveel kaarten het college van de drukker ontving.
+          - name: aantal_kaarten_uitgereikt
+            type: number
+            description: Hoeveel kaarten het college uitreikte.
+        actions:
+          # Een besluit dat de bestuursrechter in de plaats stelde, draagt
+          # geen kaart_geldig_tot (zie reductie_geldige_gehandicaptenparkeerkaart):
+          # dat besluit telt niet.
+          - output: aantal_verstrekte_gehandicaptenparkeerkaarten
+            value:
+              operation: FOREACH
+              collection: $geldende_besluiten
+              as: besluit
+              filter:
+                operation: AND
+                conditions:
+                  - operation: EQUALS
+                    subject: $besluit.gehandicaptenparkeerkaart_verstrekt
+                    value: true
+                  - operation: NOT
+                    value:
+                      operation: EQUALS
+                      subject: $besluit.kaart_geldig_tot
+                      value: null
+              body: 1
+              combine: ADD
+          - output: aantal_drukopdrachten_gegeven
+            value:
+              operation: FOREACH
+              collection: $drukopdrachten
+              as: drukopdracht
+              body: 1
+              combine: ADD
+          - output: aantal_kaarten_ontvangen_van_drukker
+            value:
+              operation: FOREACH
+              collection: $ontvangen_kaarten
+              as: kaart
+              body: 1
+              combine: ADD
+          - output: aantal_kaarten_uitgereikt
+            value:
+              operation: FOREACH
+              collection: $uitreikingen
+              as: uitreiking
+              body: 1
+              combine: ADD

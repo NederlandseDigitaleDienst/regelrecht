@@ -170,8 +170,8 @@ impl Spel {
         ok(self.met(|c, cell| kern::aanvragen(c, cell, velden, datum))?)
     }
 
-    /// The other cell `cel` of the sphere records the fact `feit`
-    /// (`<regulation>#<article>#<fact>`).
+    /// The cell `cel` of the case, its own or another of the sphere, records
+    /// the fact `feit` (`<regulation>#<article>#<fact>`).
     pub fn vastleggen(
         &mut self,
         cel: &str,
