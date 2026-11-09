@@ -7,7 +7,7 @@
 # puts the period in the state. Whether the card is valid on the day asked
 # about is article 15 of the law; the answer only passes the state and the
 # day to it. The state holds one period per applicant.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: test_reductie_kaart_op_peildatum
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'
