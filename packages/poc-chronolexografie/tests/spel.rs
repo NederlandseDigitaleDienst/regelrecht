@@ -681,14 +681,12 @@ fn bedrijfsparkeervergunning_a_company_in_the_city_centre_gets_a_permit() {
         antwoord(&besluit, "aantal_geldige_bedrijfsparkeervergunningen"),
         &json!(0)
     );
-    // The registration is in the Chamber's own chronicle (RFC-051 §2).
+    // The registration is in the Chamber's own chronicle (RFC-051 §2),
+    // beside the others of its begin and the correction of one of them.
     let kroniek = spel.kroniek().unwrap();
     assert_eq!(soorten(&kroniek), ["AANVRAAG", "BESCHIKKING"]);
     assert_eq!(kroniek["andere"][0]["cel"], json!("kamer_van_koophandel"));
-    assert_eq!(
-        soorten(&kroniek["andere"][0]),
-        ["EXECUTOGRAM", "EXECUTOGRAM", "EXECUTOGRAM", "EXECUTOGRAM"]
-    );
+    assert_eq!(soorten(&kroniek["andere"][0]), ["EXECUTOGRAM"; 6]);
 }
 
 const INSCHRIJVING: &str = "beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven";
@@ -843,7 +841,7 @@ fn bedrijfsparkeervergunning_outside_the_area_and_after_the_move_inside() {
         &json!("7711 AC")
     );
     let kvk = &spel.kroniek().unwrap()["andere"][0];
-    assert_eq!(soorten(kvk).len(), 5);
+    assert_eq!(soorten(kvk).len(), 7);
 }
 
 #[test]
@@ -1229,7 +1227,137 @@ fn the_log_holds_the_facts_the_other_cells_recorded() {
             kvk.clone(),
             kvk.clone(),
             kvk.clone(),
+            kvk.clone(),
+            kvk.clone(),
             kvk
         ]
+    );
+}
+
+const KVK: &str = "kamer_van_koophandel";
+const CORRECTIE: &str = "beleid_handelsregister_kamer_van_koophandel#2#inschrijving_gecorrigeerd";
+
+/// The chronicle of the Chamber of Commerce in the game.
+fn kroniek_kvk(spel: &mut Spel) -> Vec<Value> {
+    let k = spel.kroniek().unwrap();
+    k["andere"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["cel"] == json!(KVK))
+        .unwrap()["grammen"]
+        .as_array()
+        .unwrap()
+        .clone()
+}
+
+/// The registration of the print shop the case names
+/// `inschrijving_drukkerij`, and the correction in its begin.
+fn drukkerij(grammen: &[Value]) -> (&Value, &Value) {
+    let van = |kvk: &str| {
+        grammen
+            .iter()
+            .find(|g| g["fields"]["kvk_nummer"] == json!(kvk))
+            .unwrap()
+    };
+    let inschrijving = van("99990066");
+    let correctie = grammen
+        .iter()
+        .find(|g| g["fact"] == json!("inschrijving_gecorrigeerd"))
+        .unwrap();
+    (inschrijving, correctie)
+}
+
+#[test]
+fn a_fact_refers_to_a_record_of_the_begin_by_its_kenmerk() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let (inschrijving, begin) = {
+        let grammen = kroniek_kvk(&mut spel);
+        let (i, c) = drukkerij(&grammen);
+        (i.clone(), c.clone())
+    };
+    assert_eq!(begin["refers_to"], inschrijving["id"]);
+    let velden = map(&json!({ "postcode": "7713 AB", "aantal_werkzame_personen": 3 }));
+    let gram = spel
+        .vastleggen_verwijzend(
+            KVK,
+            CORRECTIE,
+            &velden,
+            Some("inschrijving_drukkerij"),
+            dag("2026-11-02"),
+        )
+        .unwrap();
+    assert_eq!(gram["refers_to"], inschrijving["id"]);
+    // Without a kenmerk the fact refers to nothing, as before.
+    let gram = spel
+        .vastleggen(KVK, CORRECTIE, &velden, dag("2026-11-03"))
+        .unwrap();
+    assert!(gram.get("refers_to").is_none_or(Value::is_null), "{gram}");
+}
+
+#[test]
+fn a_fact_that_refers_to_an_unknown_kenmerk_is_refused() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let velden = map(&json!({ "postcode": "7713 AB", "aantal_werkzame_personen": 3 }));
+    let e = spel
+        .vastleggen_verwijzend(KVK, CORRECTIE, &velden, Some("onbekend"), dag("2026-11-02"))
+        .unwrap_err();
+    assert!(
+        matches!(&e, Fout::Cel(_)) && e.to_string().contains("'onbekend' is the kenmerk of no"),
+        "{e}"
+    );
+}
+
+#[test]
+fn a_reference_survives_a_saved_game() {
+    let bewaard = spel_met("bedrijfsparkeervergunning").bewaren().unwrap();
+    let mut terug = spel();
+    terug.herstellen(bewaard).unwrap();
+    let velden = map(&json!({ "postcode": "7713 AB", "aantal_werkzame_personen": 3 }));
+    let gram = terug
+        .vastleggen_verwijzend(
+            KVK,
+            CORRECTIE,
+            &velden,
+            Some("inschrijving_drukkerij"),
+            dag("2026-11-02"),
+        )
+        .unwrap();
+    let grammen = kroniek_kvk(&mut terug);
+    let (inschrijving, _) = drukkerij(&grammen);
+    assert_eq!(gram["refers_to"], inschrijving["id"]);
+}
+
+#[test]
+fn a_reference_into_a_chronicle_of_another_begin_is_refused() {
+    // A game saved before the case's begin changed: at the place of the
+    // registration the kenmerk names, the Chamber's chronicle holds a
+    // registration of the same fact for another company. The correction
+    // must not attach to it.
+    let mut bewaard = spel_met("bedrijfsparkeervergunning").bewaren().unwrap();
+    let kvk = bewaard["kronieken"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|k| k[0]["recording_actor"] == json!(KVK))
+        .unwrap()
+        .as_array_mut()
+        .unwrap();
+    kvk[4]["fields"]["kvk_nummer"] = json!("99990077");
+    let mut terug = spel();
+    terug.herstellen(bewaard).unwrap();
+    let velden = map(&json!({ "postcode": "7713 AB", "aantal_werkzame_personen": 3 }));
+    let e = terug
+        .vastleggen_verwijzend(
+            KVK,
+            CORRECTIE,
+            &velden,
+            Some("inschrijving_drukkerij"),
+            dag("2026-11-02"),
+        )
+        .unwrap_err();
+    assert!(
+        e.to_string().contains("does not start with its begin"),
+        "{e}"
     );
 }

@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: beleid_handelsregister_kamer_van_koophandel
 regulatory_layer: UITVOERINGSBELEID
 publication_date: '2025-12-01'
@@ -72,3 +72,41 @@ articles:
           - name: datum_inschrijving
             type: date
             description: De dag vanaf welke de Kamer deze gegevens in het register opnam.
+  - number: '2'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen beleid van de Kamer van
+      Koophandel. Blijkt bij een inschrijving van een vestiging de postcode
+      van het bezoekadres of het aantal werkzame personen onjuist, dan legt
+      de Kamer bij die inschrijving de juiste postcode en het juiste aantal
+      vast. De inschrijving geldt dan met die gegevens vanaf de dag van
+      inschrijving; wat de Kamer eerder vastlegde, blijft vastgelegd.
+    url: https://wetten.overheid.nl/BWBR0021777/2025-07-16#Artikel11
+    machine_readable:
+      # Een correctie verandert geen gegeven vanaf een latere dag, zoals een
+      # nieuwe inschrijving onder artikel 1 dat doet: zij zegt wat de
+      # inschrijving altijd had moeten zijn. Ze verwijst daarom naar die
+      # inschrijving (refers_to, schema v0.8.17) en draagt geen eigen dag.
+      # Zij trekt niets in; de reductie per inschrijving leest haar als een
+      # stap op het aggregaat van de inschrijving
+      # (reductie_inschrijving_vestiging).
+      requires:
+        - fact: inschrijving_gecorrigeerd
+          description: >-
+            Dat de Kamer de postcode van het bezoekadres en het aantal
+            werkzame personen van de inschrijving waarnaar het feit verwijst,
+            verbeterde.
+          competent_authority:
+            - name: Kamer van Koophandel
+          parameters:
+            - postcode
+            - aantal_werkzame_personen
+      execution:
+        parameters:
+          - name: postcode
+            type: string
+            description: >-
+              De juiste postcode van het bezoekadres van de vestiging (artikel
+              11, eerste lid, onder c, van de wet).
+          - name: aantal_werkzame_personen
+            type: number
+            description: Het juiste aantal personen dat in de onderneming werkzaam is.

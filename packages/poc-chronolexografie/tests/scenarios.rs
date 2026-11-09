@@ -267,7 +267,9 @@ fn speel(casus_id: &str, index: usize) {
                     .unwrap_or_else(|| panic!("{waar}: {cel} records no {feit}"));
                 let velden = map(invoer);
                 alles_gevuld(&handeling["velden"], &velden, &waar);
-                spel.vastleggen(cel, feit, &velden, datum).unwrap();
+                let verwijst_naar = stap.get("verwijst_naar").and_then(Value::as_str);
+                spel.vastleggen_verwijzend(cel, feit, &velden, verwijst_naar, datum)
+                    .unwrap();
             }
             "beroep" => {
                 let besluit = kies(&stand.beslissingen, &stap["op"], |l| l.len().checked_sub(1));

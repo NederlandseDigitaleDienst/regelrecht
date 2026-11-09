@@ -58,6 +58,22 @@ The PoC has a corpus of its own, `packages/poc-chronolexografie/corpus/`, with t
 
 Each case is one file in `casussen/`, and this repository holds four. The file names the cell (a directory under `cells/`), the article that establishes the application, and the output of the decision that grants what was asked. The law does not mark that output, so the case file does. The file also lists the case's own corpus under `corpus` and holds the scenarios, with the values each step fills in. A step can name outputs of its decision under `uitvoer`, with the value it expects, such as an amount; `tests/scenarios.rs` checks them. The app derives everything else from the law when it loads the case (`src/casus.rs`).
 
+What another cell knew before the first scenario sits under its `begin`, as executograms with their fields. A later fact can be about one of those records, such as a correction of a registration in the trade register. The case file cannot name the record by its id, because the cell assigns that only when it records it. So the earlier executogram carries a `kenmerk`, a name unique within the case, and the later fact names it under `verwijst_naar`:
+
+```yaml
+begin:
+  datum: 2026-03-02
+  executogrammen:
+    - feit: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+      kenmerk: inschrijving_drukkerij
+      velden: {kvk_nummer: '99990066', postcode: 7713 AB, aantal_werkzame_personen: 1, datum_inschrijving: '2026-02-23'}
+    - feit: beleid_handelsregister_kamer_van_koophandel#2#inschrijving_gecorrigeerd
+      verwijst_naar: inschrijving_drukkerij
+      velden: {postcode: 7713 AB, aantal_werkzame_personen: 2}
+```
+
+The cell records that fact with `refers_to` set to the id of the named record (schema v0.8.17), and a reduction with `projection.per` reads it as a step in the aggregate of that record. An executogram in a `begin` may refer only to an earlier one in the same `begin`. A `vastleggen` step of a scenario takes `verwijst_naar` too, and refers to a record in the `begin` of the cell named in its `cel`. Without `verwijst_naar` a fact refers to nothing, as before. The app checks every reference when it loads the case and refuses one that names no kenmerk.
+
 Everything runs in the visitor's browser. The cell, the engine and the app's core (`kern.rs`, `casus.rs`) compile to WebAssembly in this crate, with the feature `wasm`. No server holds state. Each browser tab holds its own game and saves it in `sessionStorage` after every step, so a reload goes on where it was and two tabs never touch each other's game.
 
 Rulework that more than one case runs is shared and sits in `regulation/nl/`. Rulework of one case sits beside its case file, in `casussen/<id>/regulation/nl/`. The vakantieverlof case keeps the Leerplichtwet, the Regeling vaststelling schoolvakanties and the school's policies there. A case runs on the shared rulework its file lists under `corpus`, on the rulework in its own directory, which counts without being listed, and on the reductions of its cells. Other rulework neither runs nor acts on the case, even with a hook on every decision. A case file may not list anything under `casussen/`, and rulework under `casussen/<id>/` needs the case file `<id>.yaml` beside it.

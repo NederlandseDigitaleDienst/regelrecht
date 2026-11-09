@@ -119,6 +119,26 @@ andere_cellen:
             postcode: 7720 BC
             aantal_werkzame_personen: 3
             datum_inschrijving: '2026-03-02'
+        # Een drukkerij in de schil, met één werkzame persoon ingeschreven.
+        # Het kenmerk noemt deze inschrijving in de casus, zodat een later
+        # feit ernaar kan verwijzen (verwijst_naar).
+        - feit: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+          kenmerk: inschrijving_drukkerij
+          datum: 2026-03-02
+          velden:
+            kvk_nummer: '99990066'
+            postcode: 7713 AB
+            aantal_werkzame_personen: 1
+            datum_inschrijving: '2026-02-23'
+        # Er werkten er al twee: de Kamer verbetert de inschrijving
+        # (artikel 2 van haar fictieve beleid). De correctie verwijst naar
+        # de inschrijving en geldt vanaf de dag ervan.
+        - feit: beleid_handelsregister_kamer_van_koophandel#2#inschrijving_gecorrigeerd
+          verwijst_naar: inschrijving_drukkerij
+          datum: 2026-03-02
+          velden:
+            postcode: 7713 AB
+            aantal_werkzame_personen: 2
   # De bestuursrechter (RFC-053): ook een andere cel, met een eigen kroniek.
   - cel: rechtbank_wilgendaal
     cel_naam: Rechtbank Wilgendaal
@@ -449,3 +469,112 @@ scenarios:
     eind: >-
       Afgewezen: het bedrijf heeft nu drie geldige vergunningen, boven het
       maximum van twee.
+  # Een correctie verwijst naar de inschrijving die ze verbetert. De Kamer
+  # schreef de drukkerij in met één werkzame persoon en verbeterde dat al
+  # vóór het eerste scenario naar twee; in het scenario verbetert ze het
+  # opnieuw, naar drie. In de schil volgt het maximum het aantal werkzame
+  # personen, dus elke correctie telt in het volgende besluit.
+  - naam: De Kamer verbetert een inschrijving
+    samenvatting: >-
+      Een drukkerij in de schil krijgt meer vergunningen nadat de Kamer van
+      Koophandel het aantal werkzame personen in haar inschrijving verbetert.
+    stappen:
+      - stap: aanvraag
+        verhaal: >-
+          Een drukkerij in de schil vraagt een bedrijfsparkeervergunning.
+        invoer:
+          kvk_nummer: '99990066'
+          naam_aanvrager: Drukkerij De Pers
+          adres_aanvrager: Singel 9, 7713 AB Wilgendaal
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de eerste aanvraag.
+        datum: 2026-10-20
+        uitkomst: toegewezen
+      - stap: aanvraag
+        verhaal: >-
+          De drukkerij vraagt een tweede vergunning.
+        datum: 2026-10-21
+        invoer:
+          kvk_nummer: '99990066'
+          naam_aanvrager: Drukkerij De Pers
+          adres_aanvrager: Singel 9, 7713 AB Wilgendaal
+          kenteken: ZZ-002-Z
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de tweede aanvraag.
+        datum: 2026-10-22
+        uitkomst: toegewezen
+        tekst: >-
+          Klik bij de tweede aanvraag op Besluit nemen.
+        gezien: >-
+          Toegewezen: de inschrijving noemt één werkzame persoon, maar de
+          correctie die ernaar verwijst, maakt er twee van.
+      - stap: aanvraag
+        verhaal: >-
+          De drukkerij vraagt een derde vergunning.
+        titel: Een derde aanvraag indienen
+        datum: 2026-10-23
+        invoer:
+          kvk_nummer: '99990066'
+          naam_aanvrager: Drukkerij De Pers
+          adres_aanvrager: Singel 9, 7713 AB Wilgendaal
+          kenteken: ZZ-003-Z
+        gezien: >-
+          De derde aanvraag staat onder Mijn aanvragen op In behandeling.
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de derde aanvraag.
+        titel: Besluiten op de derde aanvraag
+        datum: 2026-10-26
+        uitkomst: afgewezen
+        tekst: >-
+          Klik bij de derde aanvraag op Besluit nemen.
+        gezien: >-
+          Afgewezen: er werken volgens de Kamer twee mensen, en de drukkerij
+          heeft al twee vergunningen.
+      - stap: vastleggen
+        verhaal: >-
+          Bij de drukkerij werkten al bij de inschrijving drie mensen, en de
+          Kamer verbetert de inschrijving opnieuw.
+        titel: Correctie door de Kamer van Koophandel
+        datum: 2026-11-02
+        cel: kamer_van_koophandel
+        feit: beleid_handelsregister_kamer_van_koophandel#2#inschrijving_gecorrigeerd
+        verwijst_naar: inschrijving_drukkerij
+        invoer:
+          postcode: 7713 AB
+          aantal_werkzame_personen: 3
+        tekst: >-
+          Klik bij Kamer van Koophandel onder "Vastleggen: Inschrijving
+          gecorrigeerd" op Vastleggen.
+        gezien: >-
+          De correctie staat in de kroniek van de Kamer en verwijst naar de
+          inschrijving van de drukkerij.
+      - stap: aanvraag
+        verhaal: >-
+          De drukkerij vraagt opnieuw een derde vergunning, in een vierde
+          aanvraag.
+        titel: Een vierde aanvraag indienen
+        datum: 2026-11-03
+        invoer:
+          kvk_nummer: '99990066'
+          naam_aanvrager: Drukkerij De Pers
+          adres_aanvrager: Singel 9, 7713 AB Wilgendaal
+          kenteken: ZZ-003-Z
+        gezien: >-
+          De vierde aanvraag staat onder Mijn aanvragen op In behandeling.
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de vierde aanvraag.
+        titel: Besluiten op de vierde aanvraag
+        datum: 2026-11-05
+        uitkomst: toegewezen
+        tekst: >-
+          Klik bij de vierde aanvraag op Besluit nemen.
+        gezien: >-
+          Toegewezen: met de tweede correctie werken er volgens de Kamer drie
+          mensen.
+    eind: >-
+      Toegewezen: de vergunningen volgen het aantal werkzame personen zoals de
+      correcties het verbeterden, niet de oorspronkelijke inschrijving.

@@ -150,6 +150,7 @@ impl Corpus {
         regelwerken: &Regelwerken,
         casus: Casus,
     ) -> Result<Self> {
+        casus.verwijzingen_kloppen()?;
         let cell_dir = cel_dir(&*files, roots, &casus.cel);
         let cell = Cell::in_memory_from(&*files, &casus.cel, &cell_dir)?;
         let andere_dirs: Vec<PathBuf> = casus
@@ -272,15 +273,36 @@ impl Corpus {
         })
     }
 
-    /// The cell `cel` in `dir`, with what `begin` records.
+    /// The cell `cel` in `dir`, with what `begin` records. An executogram
+    /// that refers to an earlier one by its kenmerk refers to the record
+    /// the cell made of it.
     fn begonnen(&self, cel: &str, dir: &Path, begin: Option<&crate::casus::Begin>) -> Result<Cell> {
         let mut cell = Cell::in_memory_from(&*self.files, cel, dir)?;
         let Some(begin) = begin else {
             return Ok(cell);
         };
         let service = self.service()?;
+        let mut ids: BTreeMap<&str, String> = BTreeMap::new();
         for e in &begin.executogrammen {
-            cell.record_executogram(&service, &e.feit, &e.velden, e.datum.unwrap_or(begin.datum))?;
+            // Corpus::load checked every reference (Casus::verwijzingen_kloppen).
+            let refers_to = match &e.verwijst_naar {
+                Some(naar) => Some(ids.get(naar.as_str()).ok_or_else(|| {
+                    Error::Setup(format!(
+                        "unchecked reference '{naar}' in the begin of '{cel}'"
+                    ))
+                })?),
+                None => None,
+            };
+            let gram = cell.record_executogram_referring(
+                &service,
+                &e.feit,
+                &e.velden,
+                refers_to.map(String::as_str),
+                e.datum.unwrap_or(begin.datum),
+            )?;
+            if let Some(k) = &e.kenmerk {
+                ids.insert(k, gram.id);
+            }
         }
         Ok(cell)
     }
@@ -796,6 +818,22 @@ pub fn vastleggen(
     velden: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Gram> {
+    vastleggen_verwijzend(corpus, cellen, cel, feit, velden, None, on)
+}
+
+/// [`vastleggen`], for a fact about the record in the begin of `cel` that
+/// the case names `verwijst_naar` ([`crate::casus::BeginExecutogram::kenmerk`]):
+/// the executogram refers to it (`refers_to`, schema v0.8.17), as a
+/// correction refers to the registration it corrects.
+pub fn vastleggen_verwijzend(
+    corpus: &Corpus,
+    cellen: &mut Cellen,
+    cel: &str,
+    feit: &str,
+    velden: &Map<String, Value>,
+    verwijst_naar: Option<&str>,
+    on: NaiveDate,
+) -> Result<Gram> {
     // Only a fact the form offers this cell.
     let service = corpus.service()?;
     let mag = handelingen(&service, corpus, cellen, on)?
@@ -812,10 +850,53 @@ pub fn vastleggen(
              not record that fact"
         )));
     }
+    let refers_to = match verwijst_naar {
+        Some(kenmerk) => Some(verwezen(corpus, cellen, cel, kenmerk)?),
+        None => None,
+    };
+    let refers_to = refers_to.as_deref();
     // The fact and its receipt land together or not at all: the case's cell
     // can refuse the receipt after the other cell took the fact. Try it first.
-    leg_vast(&service, &mut cellen.sandbox(), cel, feit, velden, on)?;
-    leg_vast(&service, cellen, cel, feit, velden, on)
+    leg_vast(
+        &service,
+        &mut cellen.sandbox(),
+        cel,
+        feit,
+        velden,
+        refers_to,
+        on,
+    )?;
+    leg_vast(&service, cellen, cel, feit, velden, refers_to, on)
+}
+
+/// The id of the record that the other cell `cel` made of the executogram
+/// of its begin with `kenmerk`. A chronicle starts with its begin
+/// ([`Corpus::cell`]), so the record is at the executogram's place in it;
+/// a record there of another fact or with other values is a chronicle of
+/// another begin, such as a game saved before the case file changed.
+fn verwezen(corpus: &Corpus, cellen: &Cellen, cel: &str, kenmerk: &str) -> Result<String> {
+    let (i, e) = corpus.casus.met_kenmerk(cel, kenmerk).ok_or_else(|| {
+        Error::Refused(format!(
+            "'{kenmerk}' is the kenmerk of no executogram in the begin of '{cel}'"
+        ))
+    })?;
+    let (cell, _) = cellen.op(cel)?;
+    cell.grams()
+        .get(i)
+        .filter(|g| {
+            g.fact
+                .as_ref()
+                .is_some_and(|f| format!("{}#{f}", g.basis) == e.feit)
+                && e.velden.iter().all(|(k, v)| g.fields.get(k) == Some(v))
+        })
+        .map(|g| g.id.clone())
+        .ok_or_else(|| {
+            Error::Refused(format!(
+                "the chronicle of '{cel}' does not start with its begin: no record of '{}' for \
+                 '{kenmerk}'",
+                e.feit
+            ))
+        })
 }
 
 /// The cell `cel` records `feit`, and what that sends the case's cell arrives
@@ -826,6 +907,7 @@ fn leg_vast(
     cel: &str,
     feit: &str,
     velden: &Map<String, Value>,
+    refers_to: Option<&str>,
     on: NaiveDate,
 ) -> Result<Gram> {
     let cell = cellen
@@ -833,7 +915,7 @@ fn leg_vast(
         .iter_mut()
         .find(|c| c.recording_actor() == cel)
         .ok_or_else(|| Error::Refused(format!("'{cel}' is no other cell of this case")))?;
-    let gram = cell.record_executogram(service, feit, velden, on)?;
+    let gram = cell.record_executogram_referring(service, feit, velden, refers_to, on)?;
     afleveren(service, &mut cellen.eigen, &gram)?;
     Ok(gram)
 }
@@ -3735,6 +3817,7 @@ mod tests {
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_geneeskundig_advies",
                 "reductie_geneeskundig_onderzoek",
+                "reductie_inschrijving_vestiging",
                 "reductie_schorsing_bedrijfsparkeervergunning",
                 "reductie_vestiging_in_handelsregister",
                 "regeling_gehandicaptenparkeerkaart",
