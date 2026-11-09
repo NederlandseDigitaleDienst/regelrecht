@@ -1,0 +1,77 @@
+---
+# FICTIEF. A synthetic register for the cell's BDD suite
+# (packages/cel/bdd/features/corrections.feature): how a cell corrects a
+# fact it recorded earlier, without changing the chronicle. None of it is the
+# text of a law. Article 1 records where someone lives, article 2 corrects
+# one field of that record (a partial correction, a fact of its own), and
+# article 3 records that an earlier record was wrong from the start, which
+# revokes it (schema v0.8.15, `requires[].effects`).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_chronicle_corrections
+name: Testregister correcties van feiten
+regulatory_layer: WET
+bwb_id: BWBR9999917
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_chronicle_corrections
+
+articles:
+  - number: '1'
+    url: https://example.com/test_chronicle_corrections/1
+    text: >-
+      FICTIEF. Het college schrijft in waar een bewoner woont: de postcode en
+      het huisnummer.
+    machine_readable:
+      requires:
+        - fact: ingeschreven
+          description: De bewoner woont op de postcode en het huisnummer die het feit noemt.
+          parameters:
+            - bewoner
+            - postcode
+            - huisnummer
+      execution:
+        parameters:
+          - name: bewoner
+            type: string
+          - name: postcode
+            type: string
+          - name: huisnummer
+            type: number
+
+  - number: '2'
+    url: https://example.com/test_chronicle_corrections/2
+    text: >-
+      FICTIEF. Blijkt de postcode van een inschrijving onjuist, dan legt het
+      college de juiste postcode vast. Het huisnummer blijft zoals het was.
+    machine_readable:
+      requires:
+        - fact: postcode_gecorrigeerd
+          description: De postcode van de bewoner is de postcode die het feit noemt.
+          parameters:
+            - bewoner
+            - postcode
+      execution:
+        parameters:
+          - name: bewoner
+            type: string
+          - name: postcode
+            type: string
+
+  - number: '3'
+    url: https://example.com/test_chronicle_corrections/3
+    text: >-
+      FICTIEF. Blijkt een inschrijving geheel onjuist, dan legt het college dat
+      vast. De inschrijving heeft dan nooit gegolden.
+    machine_readable:
+      requires:
+        - fact: inschrijving_onjuist
+          description: De inschrijving waarnaar het feit verwijst, was vanaf het begin onjuist.
+          parameters:
+            - reden
+          # The fact refers to the wrong registration and revokes it.
+          effects:
+            - revokes: refers_to
+      execution:
+        parameters:
+          - name: reden
+            type: string

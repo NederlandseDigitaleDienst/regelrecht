@@ -1,0 +1,152 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# FICTIEF. De gemeente Wilgendaal bestaat niet en dit is geen bekendgemaakt
+# beleid, maar een eigen keuze in de modellering. Er is geen bekendmaking; de
+# url wijst daarom naar het artikel dat dit beleid uitwerkt.
+# Wat één besluit op een aanvraag om een gehandicaptenparkeerkaart (artikel
+# 49 van het BABW) betekent voor de vragen of de aanvrager een geldige kaart
+# heeft en of hij eerder een kaart kreeg. De reductie van de gemeente
+# (reductie_geldige_gehandicaptenparkeerkaart) speelt haar kroniek af en
+# vraagt dit beleid per besluit dat meetelt (artikel 1 en 2), en per
+# ontvangen uitspraak waarin de bestuursrechter zelf in de zaak voorzag
+# (artikel 3). Het staat los van het beleid
+# gehandicaptenparkeerkaart, omdat dat beleid de reductie aanroept: een stap
+# van de reductie kan de regeling waaruit zij gevraagd wordt niet opnieuw
+# aanroepen.
+url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+name: Verstrekte gehandicaptenparkeerkaarten in de gemeente Wilgendaal (fictief beleid)
+competent_authority:
+  name: Het college van burgemeester en wethouders van de gemeente Wilgendaal
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Een
+      besluit waarin het college de aanvrager een kaart verstrekt, geeft hem
+      een kaart. Het besluit geeft een geldige kaart op een dag als de kaart op
+      die dag nog geldig is. Een weigering geeft geen kaart.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      # Wat één besluit op een aanvraag (artikel 49 van het BABW) betekent
+      # voor de vraag of de aanvrager een geldige kaart heeft (artikel 2 van
+      # het beleid gehandicaptenparkeerkaart). De reductie van de gemeente
+      # vraagt het per besluit dat meetelt, met wat zij tot dan toe wist. Dit
+      # artikel leest niets anders dan wat het krijgt.
+      execution:
+        parameters:
+          - name: geldige_kaart
+            type: boolean
+            description: Of de aanvrager vóór dit besluit een geldige kaart had.
+          - name: gehandicaptenparkeerkaart_verstrekt
+            type: boolean
+            description: Of het besluit een kaart verstrekt.
+          - name: kaart_geldig_tot
+            type: date
+            nullable: true
+            description: De laatste dag waarop de kaart van het besluit geldig is.
+          - name: besluit_datum
+            type: date
+            description: De dag waarop de kaart geldig moet zijn.
+        output:
+          - name: geldige_kaart_na_besluit
+            type: boolean
+            description: Of de aanvrager na dit besluit een kaart heeft die op besluit_datum geldig is.
+        actions:
+          # Eerst of er een kaart is: een weigering heeft geen
+          # kaart_geldig_tot, waarop DATE_DIFF faalt, en AND stopt bij de
+          # eerste onwaar.
+          - output: geldige_kaart_na_besluit
+            value:
+              operation: OR
+              conditions:
+                - $geldige_kaart
+                - operation: AND
+                  conditions:
+                    - $gehandicaptenparkeerkaart_verstrekt
+                    - operation: NOT
+                      value:
+                        operation: EQUALS
+                        subject: $kaart_geldig_tot
+                        value: null
+                    - operation: GREATER_THAN_OR_EQUAL
+                      subject:
+                        operation: DATE_DIFF
+                        from: $besluit_datum
+                        to: $kaart_geldig_tot
+                        in: days
+                      value: 0
+  - number: '2'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Een
+      besluit waarin het college de aanvrager een kaart verstrekt, maakt dat
+      het hem eerder een kaart verstrekte, geldig of niet.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel2
+    machine_readable:
+      # Zoals artikel 1, voor de vraag of het college de aanvrager eerder een
+      # kaart verstrekte (artikel 3 van het beleid gehandicaptenparkeerkaart).
+      execution:
+        parameters:
+          - name: eerder_verstrekt
+            type: boolean
+            description: Of het college de aanvrager vóór dit besluit een kaart verstrekte.
+          - name: gehandicaptenparkeerkaart_verstrekt
+            type: boolean
+            description: Of het besluit een kaart verstrekt.
+        output:
+          - name: eerder_verstrekt_na_besluit
+            type: boolean
+            description: Of het college de aanvrager na dit besluit een kaart verstrekte.
+        actions:
+          - output: eerder_verstrekt_na_besluit
+            value:
+              operation: OR
+              conditions:
+                - $eerder_verstrekt
+                - $gehandicaptenparkeerkaart_verstrekt
+  - number: '3'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Voorziet
+      de bestuursrechter zelf in de zaak en verstrekt zijn uitspraak de
+      aanvrager een kaart, dan heeft de aanvrager een kaart van de rechter.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
+    machine_readable:
+      # Awb 8:72, derde lid, onder b: de uitspraak treedt in de plaats van
+      # het vernietigde besluit. De gemeente legt de ontvangst van het
+      # afschrift vast (Awb 8:79), niet het besluit dat de uitspraak in de
+      # plaats stelt. Welk besluit op de aanvraag dat is, zegt de Awb, en het
+      # afschrift draagt het mee (primair_besluit_in_de_plaats). Hoe lang de
+      # kaart van de rechter geldt, leidt de gemeente niet af: dat doet zij
+      # alleen bij haar eigen besluit. Dit artikel leest niets anders dan wat
+      # het krijgt.
+      execution:
+        parameters:
+          - name: al_kaart_van_de_rechter
+            type: boolean
+            description: Of de rechter de aanvrager vóór deze uitspraak al een kaart verstrekte.
+          - name: primair_besluit_in_de_plaats
+            type: object
+            nullable: true
+            description: Het besluit op de aanvraag dat de uitspraak in de plaats stelt, zoals het afschrift het vermeldt.
+        output:
+          - name: kaart_van_de_rechter_na_uitspraak
+            type: boolean
+            description: Of de rechter de aanvrager na deze uitspraak een kaart verstrekte.
+        actions:
+          - output: kaart_van_de_rechter_na_uitspraak
+            value:
+              operation: OR
+              conditions:
+                - $al_kaart_van_de_rechter
+                - operation: AND
+                  conditions:
+                    - operation: NOT
+                      value:
+                        operation: EQUALS
+                        subject: $primair_besluit_in_de_plaats
+                        value: null
+                    - operation: EQUALS
+                      subject: $primair_besluit_in_de_plaats.outputs.gehandicaptenparkeerkaart_verstrekt
+                      value: true

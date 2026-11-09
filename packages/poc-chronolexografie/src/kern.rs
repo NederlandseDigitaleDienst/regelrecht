@@ -1362,12 +1362,21 @@ pub(crate) fn reducties_in<'l>(
 }
 
 /// What `reduction` reads from other rulework (`source.regulation` with
-/// `output`): per input the regelwerk and the output.
+/// `output`), and what a step of its projection calls: per input the
+/// regelwerk and the output.
 fn leest_uit(reduction: &regelrecht_engine::ArticleBasedLaw) -> Vec<(String, String)> {
+    // A step of a projection (schema v0.8.14) calls a law as an input does.
+    let steps = reduction
+        .articles
+        .iter()
+        .filter_map(|a| a.machine_readable.as_ref()?.projection.as_ref())
+        .flat_map(|p| &p.steps)
+        .flat_map(|step| &step.input);
     reduction
         .articles
         .iter()
         .flat_map(|a| a.get_inputs())
+        .chain(steps)
         .filter_map(|i| i.source.as_ref())
         .filter_map(|s| Some((s.regulation.clone()?, s.output.clone()?)))
         .collect()
@@ -2132,6 +2141,52 @@ fn lezingen_van(
     on: NaiveDate,
     uit: &mut Vec<Lezing>,
 ) {
+    // A reduction that plays the chronicle forward (schema v0.8.14) reads
+    // the records under the article each of its steps names: its decisions,
+    // or the facts it requires when it takes no decision, such as the
+    // receipt of a judgment (Awb 8:79).
+    for step in articles
+        .iter()
+        .filter_map(|a| a.machine_readable.as_ref()?.projection.as_ref())
+        .flat_map(|p| &p.steps)
+    {
+        let (basis, kind) = step.basis_and_kind();
+        let article = basis.split_once('#').and_then(|(law, nummer)| {
+            service
+                .resolver()
+                .get_law_for_date(law, Some(on))?
+                .find_article_by_number(nummer)
+        });
+        let feiten: Vec<String> = article
+            .filter(|a| kind == Some(EXECUTOGRAM) || a.get_decision().is_none())
+            .map(|a| {
+                a.get_requires()
+                    .iter()
+                    .filter_map(|r| r.fact.as_ref())
+                    .map(|feit| format!("{basis}#{feit}"))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let bronnen = if feiten.is_empty() {
+            // A step on facts whose article is not found reads nothing here.
+            if kind == Some(EXECUTOGRAM) {
+                continue;
+            }
+            vec![Bron::Besluiten(basis.to_string())]
+        } else {
+            feiten.into_iter().map(Bron::Feiten).collect()
+        };
+        for bron in bronnen {
+            let lezing = Lezing {
+                naam: step.record.clone(),
+                reductie: reduction.id.clone(),
+                bron,
+            };
+            if !uit.contains(&lezing) {
+                uit.push(lezing);
+            }
+        }
+    }
     for input in articles.iter().flat_map(|a| a.get_inputs()) {
         let Some(source) = input.source.as_ref() else {
             continue;
@@ -2770,19 +2825,19 @@ mod tests {
                 .unwrap()
                 .len()
         };
-        // Lid 2 reads the decisions under 13a and those under 7:11, through
-        // the reduction of the Awb it calls, which names 13a by its
-        // parameter basis.
+        // Lid 2 plays the decisions under 13a, the article its step names.
         let lid_2 = "reductie_verlof_al_verleend_in_schooljaar";
         assert_eq!(rijen(lid_2, "besluiten_onder", "leerplichtwet_1969#13a"), 2);
-        assert!(reductie(lid_2)["invoer"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|i| i["reductie"] == json!("reductie_algemene_wet_bestuursrecht")));
+        // And the receipts of judgments, for a decision the court put in
+        // place (Awb 8:72 lid 3 onder b): none here.
+        assert_eq!(reductie(lid_2)["invoer"].as_array().unwrap().len(), 2);
         assert_eq!(
-            rijen(lid_2, "besluiten_onder", "algemene_wet_bestuursrecht#7:11"),
-            1
+            rijen(
+                lid_2,
+                "executogrammen_van",
+                "algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak"
+            ),
+            0
         );
         // The vestiging is read from its executograms. The holidays come
         // from the regeling and the school's policy, not from the chronicle.
@@ -2817,14 +2872,12 @@ mod tests {
                 "provincie_van_vestiging"
             ])
         );
-        let beleid = "fictief_beleid_vakantieverlof_obs_de_klimop";
-        let awb = "reductie_algemene_wet_bestuursrecht";
+        let beleid = "fictief_beleid_verleend_verlof_obs_de_klimop";
         assert_eq!(
             reductie(lid_2)["normen"],
             json!([
-                { "regelwerk": awb, "laag": "REDUCTIE", "artikel": "2" },
-                { "regelwerk": awb, "laag": "REDUCTIE", "artikel": "1" },
-                { "regelwerk": beleid, "laag": "UITVOERINGSBELEID", "artikel": "1" }
+                { "regelwerk": beleid, "laag": "UITVOERINGSBELEID", "artikel": "1" },
+                { "regelwerk": beleid, "laag": "UITVOERINGSBELEID", "artikel": "2" }
             ])
         );
         assert!(reductie(lid_2)["tekst"][0]["tekst"]
@@ -3147,9 +3200,11 @@ mod tests {
                 && f["filled_by"]["answer"]["answers"][0]["law_id"]
                     == json!("reductie_verlof_al_verleend_in_schooljaar")));
 
-        // How the school answered: the reduction of the Awb counts A among
-        // the revoked decisions, and of the rows under 13a that are not B
-        // only the refusal in its place stands, which the filter skips.
+        // How the school answered: the reduction plays the chronicle up to
+        // the objection against B, without B. A does not count: the decision
+        // on the objection against it revokes it (Awb 7:11 lid 2, as an
+        // effect), so its step never runs. The refusal in its place counts
+        // and leaves no leave granted.
         let hoe = hoe_beantwoord(
             &corpus,
             &cell,
@@ -3162,22 +3217,17 @@ mod tests {
             eerst["uitvoer"]["verlof_al_verleend_in_schooljaar"],
             json!(false)
         );
-        assert_eq!(eerst["uitvoer"]["herroepen_besluiten"], json!([a.id]));
         let spoor = eerst["spoor"].as_str().unwrap();
+        let herroepen_door = op_a["beslissing"]["id"].as_str().unwrap();
         assert!(
-            spoor.contains(&format!("herroepen_besluiten = ['{}']", a.id)),
+            spoor.contains(&format!("{}: revoked by {herroepen_door}", a.id)),
             "{spoor}"
         );
+        let in_plaats = op_a["nieuw_besluit"]["id"].as_str().unwrap();
         assert!(
-            !eerst["uitvoer"]["besluiten_in_stand"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|rij| rij["id"] == json!(a.id)),
-            "{spoor}"
-        );
-        assert!(
-            spoor.contains("FOREACH over 0 element(s), 1 skipped by filter = False"),
+            spoor.contains(&format!(
+                "{in_plaats}: fictief_beleid_verleend_verlof_obs_de_klimop#1"
+            )),
             "{spoor}"
         );
 
@@ -3445,12 +3495,12 @@ mod tests {
     #[test]
     fn what_a_case_needs_follows_from_the_law() {
         // Vakantieverlof: the leave article, the policy that fills its open
-        // term, the Awb with its hooks, the reductions the school's
-        // catalogue names (RFC-048), what those read: the head's policy with
-        // its norm and its bindings, the reduction of the Awb, the regeling
-        // and the school's policy on its rooster, and the policy that
-        // requires the fact of its vestiging. The Wet op het primair
-        // onderwijs is only the regeling's legal basis.
+        // term, the Awb with its hooks, the reductions the school's catalogue
+        // names (RFC-048), what those read: the head's policy with its norm and
+        // its bindings, the policy a step of a reduction calls for what a
+        // decision means, the regeling and the school's policy on its rooster,
+        // and the policy that requires the fact of its vestiging. The Wet op
+        // het primair onderwijs is only the regeling's legal basis.
         let verlof = corpus();
         let a = &verlof.afleiding;
         assert_eq!((a.law.as_str(), a.article.as_str()), (LAW, ARTICLE));
@@ -3482,9 +3532,9 @@ mod tests {
                 "fictief_beleid_schooljaargrenzen_obs_de_klimop",
                 ROOSTER,
                 "fictief_beleid_vakantieverlof_obs_de_klimop",
+                "fictief_beleid_verleend_verlof_obs_de_klimop",
                 "fictief_beleid_vestiging_obs_de_klimop",
                 LAW,
-                "reductie_algemene_wet_bestuursrecht",
                 "reductie_plaats_van_vestiging",
                 "reductie_verlof_al_verleend_in_schooljaar",
                 "reductie_verlof_valt_buiten_schoolvakanties",
@@ -3497,9 +3547,9 @@ mod tests {
         // the cells, and the Awb; the reductions of the cells' catalogues.
         // The catalogue of the municipality also names the reduction of the
         // bedrijfsparkeervergunning: a cell's answers are the cell's, not a
-        // case's. That reduction reads the decisions under article 2 of the
-        // ordinance (the `basis` it passes to the reduction of the Awb), so
-        // the ordinance and what acts on it are in this case too.
+        // case's. That reduction plays the decisions under article 2 of the
+        // ordinance (the article its step names), so the ordinance and what
+        // acts on it are in this case too.
         let kaart = casus("gehandicaptenparkeerkaart");
         let a = &kaart.afleiding;
         assert_eq!(a.objection, "7:11");
@@ -3518,9 +3568,10 @@ mod tests {
                 "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal",
                 "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal",
                 "beleid_geneeskundig_advies_gemeente_wilgendaal",
+                "beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal",
+                "beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal",
                 "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw",
                 "parkeerverordening_gemeente_wilgendaal",
-                "reductie_algemene_wet_bestuursrecht",
                 "reductie_geldige_bedrijfsparkeervergunningen",
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_geneeskundig_advies",
@@ -3536,7 +3587,7 @@ mod tests {
         // reductions of the catalogues of the municipality and of the Chamber
         // of Commerce, and the policy that requires the Chamber's
         // registrations. The municipality's reduction for the parking card
-        // reads the decisions under BABW art. 49, so that article and what
+        // plays the decisions under BABW art. 49, so that article and what
         // acts on it are in this case too.
         let vergunning = casus("bedrijfsparkeervergunning");
         let a = &vergunning.afleiding;
@@ -3552,9 +3603,10 @@ mod tests {
                 "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal",
                 "beleid_geneeskundig_advies_gemeente_wilgendaal",
                 "beleid_handelsregister_kamer_van_koophandel",
+                "beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal",
+                "beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal",
                 "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw",
                 "parkeerverordening_gemeente_wilgendaal",
-                "reductie_algemene_wet_bestuursrecht",
                 "reductie_geldige_bedrijfsparkeervergunningen",
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_geneeskundig_advies",
@@ -4904,8 +4956,9 @@ mod tests {
         // taken again. The court: the appeal and the judgment.
         assert_eq!(cell.grams().len(), 8);
         assert_eq!(rechtbank(&cell).grams().len(), 2);
-        // The school's reduction for lid 2 reads, through the head's
-        // policy, the judgment the school received.
+        // The school's reduction for lid 2 plays the decisions under 13a:
+        // the refusal, and the decision the authority took in its place after
+        // the objection. The effects in the Awb decide which of them count.
         let stand = reducties(&corpus, &cell, day("2027-01-18")).unwrap();
         let lid_2 = stand["reducties"]
             .as_array()
@@ -4913,16 +4966,13 @@ mod tests {
             .iter()
             .find(|r| r["id"] == json!("reductie_verlof_al_verleend_in_schooljaar"))
             .unwrap();
-        let uitspraken = lid_2["invoer"]
+        let besluiten = lid_2["invoer"]
             .as_array()
             .unwrap()
             .iter()
-            .find(|i| {
-                i["executogrammen_van"]
-                    == json!("algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak")
-            })
+            .find(|i| i["besluiten_onder"] == json!("leerplichtwet_1969#13a"))
             .unwrap();
-        assert_eq!(uitspraken["rijen"].as_array().unwrap().len(), 1);
+        assert_eq!(besluiten["rijen"].as_array().unwrap().len(), 2);
     }
 
     #[test]
@@ -5051,5 +5101,531 @@ mod tests {
                 vind(&s["stappen"], past)
             }
         })
+    }
+
+    /// Leave A is granted, and revoked on an objection against it; the
+    /// parent appeals against that decision on the objection, and the court
+    /// annuls it, keeping its legal effects when `in_stand` (Awb 8:72 lid 3
+    /// onder a). The school receives the judgment. Then leave B in the same
+    /// school year: whether it is granted.
+    fn leave_after_an_annulled_revocation(in_stand: bool) -> bool {
+        let corpus = corpus();
+        let mut cell = corpus.cell().unwrap();
+        let eerste = aanvragen(
+            &corpus,
+            &mut cell,
+            &aanvraag("2027-02-05"),
+            day("2026-10-14"),
+        )
+        .unwrap();
+        let a = besluiten(
+            &corpus,
+            &mut cell,
+            &eerste.id,
+            &bevindingen(),
+            day("2026-10-14"),
+        )
+        .unwrap()
+        .besluit;
+        assert_eq!(a.outputs["verlof_verleend"], json!(true));
+        let tegen_a = bezwaren(
+            &corpus,
+            &mut cell,
+            &a.id,
+            &bezwaar_velden("2026-11-01"),
+            day("2026-11-01"),
+        )
+        .unwrap();
+        let op_a = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &tegen_a.id,
+            &beroep(false),
+            day("2026-11-15"),
+        )
+        .unwrap();
+        assert_eq!(
+            op_a["beslissing"]["outputs"]["bestreden_besluit_herroepen"],
+            json!(true)
+        );
+        let beslissing = op_a["beslissing"]["id"].as_str().unwrap().to_string();
+        let mut velden = corpus.casus.voorbeeld.beroep.clone();
+        velden.insert(
+            "dagtekening_bezwaar_of_beroepschrift".into(),
+            json!("2026-12-01"),
+        );
+        let ingesteld =
+            beroep_instellen(&corpus, &mut cell, &beslissing, &velden, day("2026-12-01")).unwrap();
+        let mut oordeel = uitspraak_bevindingen(&corpus, &[]);
+        oordeel.insert("rechtsgevolgen_in_stand".into(), json!(in_stand));
+        if in_stand {
+            // Lid 3 offers a or b, and lid 4 applies only without lid 3.
+            oordeel.remove("uitspraak_treedt_in_de_plaats");
+            oordeel.remove("termijn_nieuw_besluit");
+        }
+        let gedaan = uitspraak_doen(
+            &corpus,
+            &mut cell,
+            &ingesteld.id,
+            &oordeel,
+            day("2027-01-11"),
+        )
+        .unwrap();
+        assert_eq!(
+            gedaan["uitspraak"]["outputs"]["rechtsgevolgen_vernietigd"],
+            json!(!in_stand)
+        );
+        let ontvangst = toezenden(
+            &corpus,
+            &mut cell,
+            gedaan["uitspraak"]["id"].as_str().unwrap(),
+            day("2027-01-11"),
+        )
+        .unwrap();
+        // The receipt refers to the decision the copy is about, which its
+        // effect revokes.
+        assert_eq!(ontvangst.refers_to.as_deref(), Some(beslissing.as_str()));
+        let mut later = aanvraag("2027-05-14");
+        later.insert("eerste_verlofdag".into(), json!("2027-05-10"));
+        let tweede = aanvragen(&corpus, &mut cell, &later, day("2027-01-20")).unwrap();
+        let b = besluiten(
+            &corpus,
+            &mut cell,
+            &tweede.id,
+            &bevindingen(),
+            day("2027-01-20"),
+        )
+        .unwrap()
+        .besluit;
+        b.outputs["verlof_verleend"] == json!(true)
+    }
+
+    #[test]
+    fn an_annulled_revocation_brings_the_revoked_leave_back() {
+        // Awb 8:72 lid 1 and 2: the receipt of the judgment revokes the
+        // decision on the objection (an effect of the fact of Awb 8:79), so
+        // its revocation of A no longer holds and A counts again: B is
+        // refused, as the second leave in the school year.
+        let verleend = leave_after_an_annulled_revocation(false);
+        assert!(!verleend);
+    }
+
+    #[test]
+    fn an_annulment_that_keeps_the_legal_effects_leaves_the_revocation() {
+        // Awb 8:72 lid 3 onder a: the annulled decision keeps its legal
+        // effects, so the receipt revokes nothing and A stays revoked: B is
+        // granted.
+        let verleend = leave_after_an_annulled_revocation(true);
+        assert!(verleend);
+    }
+
+    #[test]
+    fn leave_the_court_grants_in_place_of_a_refusal_counts() {
+        // B is refused: the court's leave counts.
+        assert!(!second_leave_after_a_decision_in_place(true));
+    }
+
+    #[test]
+    fn leave_the_court_refuses_in_place_does_not_count() {
+        // B is granted: the court's refusal grants nothing.
+        assert!(second_leave_after_a_decision_in_place(false));
+    }
+
+    /// Whether a second leave in the school year is granted, after the court
+    /// decided the first application itself, granting it when `verleent`.
+    fn second_leave_after_a_decision_in_place(verleent: bool) -> bool {
+        // A refusal, an unfounded objection, and an appeal in which the court
+        // decides the case itself (Awb 8:72 lid 3 onder b): its judgment
+        // takes the decision on the objection anew in its place. The school
+        // records the receipt, not that decision; the reduction reads the
+        // decision in place from the receipt.
+        let corpus = corpus();
+        let mut cell = corpus.cell().unwrap();
+        let eerste = aanvragen(
+            &corpus,
+            &mut cell,
+            &aanvraag("2027-02-05"),
+            day("2026-10-14"),
+        )
+        .unwrap();
+        let geweigerd = besluiten(
+            &corpus,
+            &mut cell,
+            &eerste.id,
+            &beroep(false),
+            day("2026-10-14"),
+        )
+        .unwrap()
+        .besluit;
+        let bezwaar = kaart_bezwaar(&corpus, &mut cell, &geweigerd.id, "2026-11-01");
+        let ongegrond = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &bezwaar.id,
+            &Map::new(),
+            day("2026-11-15"),
+        )
+        .unwrap();
+        let op_bezwaar = ongegrond["beslissing"]["id"].as_str().unwrap().to_string();
+        let mut velden = corpus.casus.voorbeeld.beroep.clone();
+        velden.insert(
+            "dagtekening_bezwaar_of_beroepschrift".into(),
+            json!("2026-12-01"),
+        );
+        let ingesteld =
+            beroep_instellen(&corpus, &mut cell, &op_bezwaar, &velden, day("2026-12-01")).unwrap();
+        let mut zelf = uitspraak_bevindingen(&corpus, &["termijn_nieuw_besluit"]);
+        zelf.insert("uitspraak_treedt_in_de_plaats".into(), json!(true));
+        zelf.insert("specifieke_aard_beroep_ouder".into(), json!(verleent));
+        zelf.insert(
+            "verlof_valt_buiten_schoolvakanties_volgens_hoofd".into(),
+            json!(true),
+        );
+        zelf.insert(
+            "verlof_al_verleend_in_schooljaar_volgens_hoofd".into(),
+            json!(false),
+        );
+        let gedaan =
+            uitspraak_doen(&corpus, &mut cell, &ingesteld.id, &zelf, day("2027-01-11")).unwrap();
+        // The court's decision on the objection anew holds the new decision
+        // only when it revokes the refusal.
+        let nieuw =
+            &gedaan["uitspraak"]["outputs"]["uitspraak_in_de_plaats"]["outputs"]["nieuw_besluit"];
+        assert_eq!(nieuw.is_object(), verleent, "{nieuw}");
+        // The Awb gives that new decision as the decision on the application
+        // in place (8:72 with 7:11), and the copy carries it.
+        assert_eq!(
+            &gedaan["uitspraak"]["outputs"]["primair_besluit_in_de_plaats"],
+            nieuw
+        );
+        toezenden(
+            &corpus,
+            &mut cell,
+            gedaan["uitspraak"]["id"].as_str().unwrap(),
+            day("2027-01-11"),
+        )
+        .unwrap();
+        let mut later = aanvraag("2027-05-14");
+        later.insert("eerste_verlofdag".into(), json!("2027-05-10"));
+        let tweede = aanvragen(&corpus, &mut cell, &later, day("2027-01-20")).unwrap();
+        let b = besluiten(
+            &corpus,
+            &mut cell,
+            &tweede.id,
+            &bevindingen(),
+            day("2027-01-20"),
+        )
+        .unwrap()
+        .besluit;
+        assert_eq!(
+            b.fields["verlof_al_verleend_in_schooljaar"],
+            json!(verleent)
+        );
+        b.outputs["verlof_verleend"] == json!(true)
+    }
+
+    /// The answers of the municipality's cell on a valid card and an earlier
+    /// card, after a refusal, an unfounded objection and the receipt of a
+    /// judgment that puts `in_plaats` in place (Awb 8:72 lid 3 onder b), with
+    /// `primair` as the decision on the application in its place, as the Awb
+    /// gives it. The chronicle is written out by hand; the shape of the
+    /// decisions in place is the one `leave_the_court_grants_in_place_of_a_refusal_counts`
+    /// receives through the real judgment.
+    fn kaart_na_uitspraak(
+        in_plaats: Value,
+        primair: Value,
+    ) -> (regelrecht_engine::Value, regelrecht_engine::Value) {
+        let corpus = casus("gehandicaptenparkeerkaart");
+        let service = corpus.service().unwrap();
+        const BSN: &str = "999990020";
+        let babw = "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49";
+        let gram = |id: &str,
+                    kind: &str,
+                    basis: &str,
+                    fact: Option<&str>,
+                    refers_to: Option<&str>,
+                    on: &str,
+                    fields: Value,
+                    outputs: Value| Gram {
+            id: id.to_string(),
+            kind: kind.to_string(),
+            basis: basis.to_string(),
+            fact: fact.map(str::to_string),
+            refers_to: refers_to.map(str::to_string),
+            received: None,
+            after: None,
+            recording_actor: "gemeente_wilgendaal".to_string(),
+            recorded_on: day(on),
+            moment: None,
+            fields: fields.as_object().unwrap().clone().into_iter().collect(),
+            missing: Vec::new(),
+            outputs: outputs.as_object().unwrap().clone().into_iter().collect(),
+        };
+        let grams = vec![
+            gram(
+                "aanvraag",
+                "AANVRAAG",
+                babw,
+                None,
+                None,
+                "2026-10-13",
+                json!({"bsn_aanvrager": BSN}),
+                json!({}),
+            ),
+            gram(
+                "weigering",
+                "BESCHIKKING",
+                babw,
+                None,
+                Some("aanvraag"),
+                "2026-10-20",
+                json!({"bsn_aanvrager": BSN}),
+                json!({"gehandicaptenparkeerkaart_verstrekt": false, "kaart_geldig_tot": null}),
+            ),
+            gram(
+                "bezwaar",
+                "BEZWAAR",
+                "algemene_wet_bestuursrecht#7:11",
+                None,
+                Some("weigering"),
+                "2026-11-01",
+                json!({"bestreden_besluit": "weigering"}),
+                json!({}),
+            ),
+            gram(
+                "ongegrond",
+                "BESCHIKKING",
+                "algemene_wet_bestuursrecht#7:11",
+                None,
+                Some("bezwaar"),
+                "2026-11-20",
+                json!({"bestreden_besluit": "weigering"}),
+                json!({"bestreden_besluit_herroepen": false, "nieuw_besluit": null}),
+            ),
+            gram(
+                "ontvangst",
+                "EXECUTOGRAM",
+                "algemene_wet_bestuursrecht#8:79",
+                Some("afschrift_van_de_uitspraak"),
+                Some("ongegrond"),
+                "2027-01-11",
+                json!({
+                    "uitspraak_strekt_tot": "gegrondverklaring van het beroep",
+                    "bestreden_besluit_vernietigd": true,
+                    "rechtsgevolgen_vernietigd": true,
+                    "opdracht_nieuw_besluit": false,
+                    "termijn_nieuw_besluit_einddatum": null,
+                    "geschonden_geoordeelde_rechtsregel": null,
+                    "uitspraak_in_de_plaats": in_plaats.clone(),
+                    "primair_besluit_in_de_plaats": primair,
+                }),
+                json!({}),
+            ),
+        ];
+        let records = reading::chronicle_records(&grams).unwrap();
+        let vraag = |output: &str, parameters: BTreeMap<String, regelrecht_engine::Value>| {
+            service
+                .evaluate_projection(
+                    "reductie_geldige_gehandicaptenparkeerkaart",
+                    &[output],
+                    &records,
+                    parameters,
+                    "2027-03-01",
+                    false,
+                )
+                .unwrap()
+                .result
+                .outputs[output]
+                .clone()
+        };
+        let bsn = (
+            "bsn_aanvrager".to_string(),
+            regelrecht_engine::Value::String(BSN.into()),
+        );
+        let geldig = vraag(
+            "aanvrager_heeft_geldige_gehandicaptenparkeerkaart",
+            BTreeMap::from([
+                bsn.clone(),
+                (
+                    "besluit_datum".to_string(),
+                    regelrecht_engine::Value::String("2027-03-01".into()),
+                ),
+            ]),
+        );
+        let eerder = vraag(
+            "aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt",
+            BTreeMap::from([bsn]),
+        );
+        (geldig, eerder)
+    }
+
+    #[test]
+    fn a_card_the_court_grants_in_place_leaves_the_cell_silent_on_its_validity() {
+        // The municipality does not derive how long a card of the court
+        // holds, so its cell says nothing about a valid card and the college
+        // judges; a definite "no" would ignore the court's card. That the
+        // court granted a card, the cell does say. A refusal in place, or no
+        // decision in place, gives no card.
+        use regelrecht_engine::Value as V;
+        let babw = "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49";
+        let kaart = |verstrekt: bool| {
+            json!({
+                "basis": babw,
+                "fields": {"bsn_aanvrager": "999990020"},
+                "findings": {},
+                "outputs": {"gehandicaptenparkeerkaart_verstrekt": verstrekt}
+            })
+        };
+        let op_bezwaar = |nieuw: Value| {
+            json!({
+                "basis": "algemene_wet_bestuursrecht#7:11",
+                "fields": {},
+                "findings": {},
+                "outputs": {"bestreden_besluit_herroepen": !nieuw.is_null(), "nieuw_besluit": nieuw}
+            })
+        };
+        // The court takes the decision on the objection anew, and its new
+        // decision grants. The policy reads only the decision on the
+        // application (`primair`), which the Awb derives from the decision in
+        // place: one that grants without a decision on the application in
+        // place gives no card.
+        assert_eq!(
+            kaart_na_uitspraak(op_bezwaar(kaart(true)), kaart(true)),
+            (V::Null, V::Bool(true))
+        );
+        assert_eq!(
+            kaart_na_uitspraak(op_bezwaar(kaart(true)), Value::Null),
+            (V::Bool(false), V::Null)
+        );
+        // The court takes the decision on the application anew, and it grants.
+        assert_eq!(
+            kaart_na_uitspraak(kaart(true), kaart(true)),
+            (V::Null, V::Bool(true))
+        );
+        // The court refuses in place, or decides the objection without a new
+        // decision.
+        assert_eq!(
+            kaart_na_uitspraak(op_bezwaar(kaart(false)), kaart(false)),
+            (V::Bool(false), V::Null)
+        );
+        assert_eq!(
+            kaart_na_uitspraak(op_bezwaar(Value::Null), Value::Null),
+            (V::Bool(false), V::Null)
+        );
+        // No decision in place.
+        assert_eq!(
+            kaart_na_uitspraak(Value::Null, Value::Null),
+            (V::Bool(false), V::Null)
+        );
+    }
+
+    #[test]
+    fn leave_the_court_grants_on_appeal_against_a_new_decision_counts() {
+        // Leave A is granted, and on an objection the head finds the
+        // profession anew: A is revoked, and a refusal takes its place (Awb
+        // 7:11 lid 2). The parent appeals against that new decision, and the
+        // court decides the case itself (8:72 lid 3 onder b): it takes the
+        // decision on the application anew and grants the leave. The Awb
+        // gives that decision as the decision on the application in place,
+        // the copy carries it, and the school's reduction counts it: a second
+        // leave in the same school year is refused.
+        let corpus = corpus();
+        let mut cell = corpus.cell().unwrap();
+        let eerste = aanvragen(
+            &corpus,
+            &mut cell,
+            &aanvraag("2027-02-05"),
+            day("2026-10-14"),
+        )
+        .unwrap();
+        let a = besluiten(
+            &corpus,
+            &mut cell,
+            &eerste.id,
+            &bevindingen(),
+            day("2026-10-14"),
+        )
+        .unwrap()
+        .besluit;
+        assert_eq!(a.outputs["verlof_verleend"], json!(true));
+        let tegen_a = bezwaren(
+            &corpus,
+            &mut cell,
+            &a.id,
+            &bezwaar_velden("2026-11-01"),
+            day("2026-11-01"),
+        )
+        .unwrap();
+        let op_a = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &tegen_a.id,
+            &beroep(false),
+            day("2026-11-15"),
+        )
+        .unwrap();
+        let nieuw = op_a["nieuw_besluit"]["id"].as_str().unwrap().to_string();
+        assert_eq!(
+            op_a["nieuw_besluit"]["outputs"]["verlof_verleend"],
+            json!(false)
+        );
+        let mut velden = corpus.casus.voorbeeld.beroep.clone();
+        velden.insert(
+            "dagtekening_bezwaar_of_beroepschrift".into(),
+            json!("2026-12-01"),
+        );
+        let ingesteld =
+            beroep_instellen(&corpus, &mut cell, &nieuw, &velden, day("2026-12-01")).unwrap();
+        let mut zelf = uitspraak_bevindingen(&corpus, &["termijn_nieuw_besluit"]);
+        zelf.insert("uitspraak_treedt_in_de_plaats".into(), json!(true));
+        zelf.insert("specifieke_aard_beroep_ouder".into(), json!(true));
+        zelf.insert(
+            "verlof_valt_buiten_schoolvakanties_volgens_hoofd".into(),
+            json!(true),
+        );
+        zelf.insert(
+            "verlof_al_verleend_in_schooljaar_volgens_hoofd".into(),
+            json!(false),
+        );
+        let gedaan =
+            uitspraak_doen(&corpus, &mut cell, &ingesteld.id, &zelf, day("2027-01-11")).unwrap();
+        let uitvoer = &gedaan["uitspraak"]["outputs"];
+        // The decision in place is the decision on the application itself, so
+        // the Awb gives it unchanged as the decision on the application.
+        assert_eq!(
+            uitvoer["uitspraak_in_de_plaats"]["basis"],
+            json!("leerplichtwet_1969#13a")
+        );
+        assert_eq!(
+            uitvoer["primair_besluit_in_de_plaats"],
+            uitvoer["uitspraak_in_de_plaats"]
+        );
+        assert_eq!(
+            uitvoer["primair_besluit_in_de_plaats"]["outputs"]["verlof_verleend"],
+            json!(true)
+        );
+        let ontvangst = toezenden(
+            &corpus,
+            &mut cell,
+            gedaan["uitspraak"]["id"].as_str().unwrap(),
+            day("2027-01-11"),
+        )
+        .unwrap();
+        assert_eq!(ontvangst.refers_to.as_deref(), Some(nieuw.as_str()));
+
+        let mut later = aanvraag("2027-05-14");
+        later.insert("eerste_verlofdag".into(), json!("2027-05-10"));
+        let tweede = aanvragen(&corpus, &mut cell, &later, day("2027-01-20")).unwrap();
+        let b = besluiten(
+            &corpus,
+            &mut cell,
+            &tweede.id,
+            &bevindingen(),
+            day("2027-01-20"),
+        )
+        .unwrap()
+        .besluit;
+        assert_eq!(b.fields["verlof_al_verleend_in_schooljaar"], json!(true));
+        assert_eq!(b.outputs["verlof_verleend"], json!(false));
     }
 }

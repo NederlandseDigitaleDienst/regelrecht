@@ -5400,23 +5400,23 @@ impl LawExecutionService {
         Err(EngineError::DataSourceError(message))
     }
 
-    /// Whether resolving `input` calls another law: it names a regulation or
-    /// an article (RFC-045 §6) and no data source answers for it first, the
-    /// order [`Self::resolve_input`] follows.
+    /// Whether resolving `input` calls another law: it names a regulation, an
+    /// article (RFC-045 §6) or the answer of a cell (`source.reduction`,
+    /// RFC-048), and no data source answers for it first, the order
+    /// [`Self::resolve_input`] follows. Each passes parameters that may read
+    /// other inputs of the article.
     fn calls_other_law(
         &self,
         law: &ArticleBasedLaw,
         input: &Input,
         parameters: &BTreeMap<String, Value>,
     ) -> bool {
-        input
-            .source
-            .as_ref()
-            .is_some_and(|source| source.regulation.is_some() || source.article.is_some())
-            && self
-                .data_registry
-                .resolve_for_law(&input.name, parameters, Some(&law.id))
-                .is_none()
+        input.source.as_ref().is_some_and(|source| {
+            source.regulation.is_some() || source.article.is_some() || source.reduction.is_some()
+        }) && self
+            .data_registry
+            .resolve_for_law(&input.name, parameters, Some(&law.id))
+            .is_none()
     }
 
     /// Resolve one input from its source, the first time an action reads it

@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.10/schema/v0.8.10/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
 $id: algemene_wet_bestuursrecht
 regulatory_layer: WET
 publication_date: '2026-01-01'
@@ -556,6 +556,13 @@ articles:
               - heroverweging_geeft_aanleiding
               - bestreden_besluit_herroepen
               - nieuw_besluit
+            # Lid 2: herroept het bestuursorgaan het bestreden besluit, dan
+            # telt dat besluit niet meer. Wie de kroniek afspeelt, laat het
+            # dan weg (schema v0.8.14); de beslissing zelf noemt het besluit
+            # bij zijn id, zoals de cel een besluit in de kroniek bewaart.
+            effects:
+              - revokes: bestreden_besluit
+                when: bestreden_besluit_herroepen
         parameters:
           # Lid 1 en 2: "het bestreden besluit"; het bezwaarschrift omschrijft
           # het (artikel 6:5, eerste lid, onder c). De indiener levert het
@@ -779,6 +786,7 @@ articles:
               - opdracht_nieuw_besluit
               - termijn_nieuw_besluit_einddatum
               - uitspraak_in_de_plaats
+              - primair_besluit_in_de_plaats
         parameters:
           # Artikel 8:1: beroep "tegen een besluit"; het beroepschrift
           # omschrijft het (artikel 6:5, eerste lid, onder c). Het is een
@@ -835,6 +843,14 @@ articles:
               output: in_de_plaats_gesteld_besluit
               parameters:
                 bestreden_besluit: $bestreden_besluit
+          - name: primair_besluit_van_de_bestuursrechter
+            type: decision
+            nullable: true
+            source:
+              regulation: algemene_wet_bestuursrecht
+              output: in_de_plaats_gesteld_primair_besluit
+              parameters:
+                bestreden_besluit: $bestreden_besluit
         output:
           - name: beroep_ontvankelijk
             type: boolean
@@ -884,6 +900,12 @@ articles:
             description: >-
               Het besluit dat de uitspraak in de plaats van het vernietigde
               stelt (artikel 8:72, derde lid, onder b).
+          - name: primair_besluit_in_de_plaats
+            type: decision
+            nullable: true
+            description: >-
+              Het besluit op de aanvraag dat de uitspraak in de plaats stelt
+              (artikel 8:72, derde lid, onder b, met artikel 7:11, tweede lid).
         actions:
           # Eigen keuze: dit artikel zegt niet wanneer een beroep ontvankelijk
           # is. Hier de termijn (artikel 6:9); dat het bestreden besluit op
@@ -976,6 +998,13 @@ articles:
               cases:
                 - when: $rechtsgevolgen_vernietigd
                   then: $besluit_in_de_plaats
+              default: null
+          - output: primair_besluit_in_de_plaats
+            value:
+              operation: IF
+              cases:
+                - when: $rechtsgevolgen_vernietigd
+                  then: $primair_besluit_van_de_bestuursrechter
               default: null
 
   - number: 8:72
@@ -1080,6 +1109,15 @@ articles:
             description: >-
               Het besluit dat de uitspraak in de plaats van het vernietigde
               stelt (lid 3, onder b).
+          - name: in_de_plaats_gesteld_primair_besluit
+            type: decision
+            nullable: true
+            description: >-
+              Het besluit op de aanvraag dat de uitspraak in de plaats stelt
+              (lid 3, onder b): het in de plaats gestelde besluit zelf, of,
+              als dat een beslissing op bezwaar is, het nieuwe besluit dat zij
+              in de plaats van het herroepen besluit neemt (artikel 7:11,
+              tweede lid).
           - name: gestelde_termijn_nieuw_besluit
             type: date
             nullable: true
@@ -1108,6 +1146,30 @@ articles:
                       - $uitspraak_treedt_in_de_plaats
                   then: $besluit_van_de_bestuursrechter
               default: null
+          # Lid 3, onder b, met artikel 7:11, tweede lid: welk besluit op de
+          # aanvraag de uitspraak in de plaats stelt. Stelt zij een beslissing
+          # op bezwaar in de plaats, dan is dat het nieuwe besluit dat die
+          # beslissing neemt. Herroept die beslissing niets, dan stelt de
+          # uitspraak geen besluit op de aanvraag in de plaats: het
+          # oorspronkelijke besluit op de aanvraag geldt dan weer, omdat de
+          # ontvangst van de uitspraak de beslissing op bezwaar herroept.
+          # Anders is het het in de plaats gestelde besluit zelf, zoals bij
+          # beroep tegen een nieuw besluit dat op bezwaar is genomen.
+          - output: in_de_plaats_gesteld_primair_besluit
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $in_de_plaats_gesteld_besluit
+                    value: null
+                  then: null
+                - when:
+                    operation: EQUALS
+                    subject: $in_de_plaats_gesteld_besluit.basis
+                    value: algemene_wet_bestuursrecht#7:11
+                  then: $in_de_plaats_gesteld_besluit.outputs.nieuw_besluit
+              default: $in_de_plaats_gesteld_besluit
           # Lid 4: "indien toepassing van het derde lid niet mogelijk is".
           # Eigen keuze: de bestuursrechter draagt een nieuw besluit op zodra
           # hij het besluit vernietigt en het derde lid niet toepast: de
@@ -1186,6 +1248,17 @@ articles:
             - termijn_nieuw_besluit_einddatum
             - geschonden_geoordeelde_rechtsregel
             - uitspraak_in_de_plaats
+            - primair_besluit_in_de_plaats
+          # Artikel 8:72, eerste en tweede lid: de vernietiging van een
+          # besluit brengt die van zijn rechtsgevolgen mee, tenzij de
+          # bestuursrechter ze in stand laat (derde lid, onder a). Dan telt
+          # het besluit niet meer voor het bestuursorgaan dat het afschrift
+          # ontving (schema v0.8.15). Welk besluit dat is, zegt de ontvangst
+          # zelf: zij verwijst naar het besluit waarover het afschrift gaat
+          # (refers_to, RFC-053).
+          effects:
+            - revokes: refers_to
+              when: rechtsgevolgen_vernietigd
       execution:
         parameters:
           - name: uitspraak_strekt_tot
@@ -1214,13 +1287,30 @@ articles:
             nullable: true
             required: false
             description: De rechtsregel die de uitspraak geschonden oordeelde (artikel 8:77, tweede lid).
+          # Eigen keuze, anders dan RFC-053 (zie de noot daar): de twee
+          # besluiten hieronder zijn elk een object, geen besluitwaarde, terwijl
+          # de uitspraak (artikel 8:70) ze als besluitwaarde geeft. Een
+          # besluitwaarde is iets wat de engine opnieuw kan nemen; daarvoor
+          # draagt zij het artikel waarop het besluit genomen is (taken_on).
+          # Het afschrift draagt het besluit zoals de bestuursrechter het
+          # gaf, zonder dat artikel, en de partij die het ontvangt neemt het
+          # niet opnieuw: zij leest er alleen de uitvoer en gegevens uit.
           - name: uitspraak_in_de_plaats
-            type: decision
+            type: object
             nullable: true
             required: false
             description: >-
               Het besluit dat de uitspraak in de plaats van het vernietigde
-              stelt (artikel 8:72, derde lid, onder b).
+              stelt (artikel 8:72, derde lid, onder b), zoals het afschrift
+              het vermeldt.
+          - name: primair_besluit_in_de_plaats
+            type: object
+            nullable: true
+            required: false
+            description: >-
+              Het besluit op de aanvraag dat de uitspraak in de plaats stelt
+              (artikel 8:72, derde lid, onder b, met artikel 7:11, tweede
+              lid), zoals het afschrift het vermeldt.
 
   - number: 8:104
     text: |-

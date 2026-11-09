@@ -487,8 +487,8 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
     // The scenario "Een kaart na bezwaar telt bij de volgende aanvraag", as
     // the app plays it. The refusal is revoked on objection and a card takes
     // its place (Awb 7:11). At the second application the municipality's
-    // reduction finds that card among the decisions that hold, which the
-    // reduction of the Awb gives.
+    // reduction plays that card, while the revoked refusal does not count:
+    // the effect of Awb 7:11 says so.
     const BSN: &str = "999990068";
     let mut spel = spel_met("gehandicaptenparkeerkaart");
     let casus = spel.casus().unwrap();
@@ -551,23 +551,24 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
         .unwrap();
     assert_eq!(antwoord["waarde"], json!(true));
 
-    // The reduction of the Awb gives the refusal as revoked. The only decision
-    // that holds is the one the decision on objection put in its place, and
-    // that one holds the card the cell counted.
+    // The reduction explains itself in its trace. The decision on the
+    // objection revokes the refusal (Awb 7:11 lid 2, as an effect), so the
+    // refusal does not count. The decision it put in its place counts, and
+    // its step gives the card the cell counted.
     let refusal = geweigerd["besluit"]["id"].as_str().unwrap();
     let id = besluit["besluit"]["id"].as_str().unwrap();
     let hoe = spel
         .hoe_beantwoord(id, "aanvrager_heeft_geldige_gehandicaptenparkeerkaart")
         .unwrap();
-    let uitvoer = &hoe["antwoorden"][0]["uitvoer"];
-    assert_eq!(uitvoer["herroepen_besluiten"], json!([refusal]));
-    let geldend: Vec<&str> = uitvoer["geldende_besluiten"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|b| b["id"].as_str().unwrap())
-        .collect();
-    assert_eq!(geldend, [nieuw.as_str()]);
+    let spoor = hoe["antwoorden"][0]["spoor"].as_str().unwrap();
+    assert!(spoor.contains(&format!("{refusal}: revoked by")), "{spoor}");
+    assert!(
+        spoor.contains(&format!(
+            "{nieuw}: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#1: \
+             geldige_kaart: false -> true"
+        )),
+        "{spoor}"
+    );
 }
 
 #[test]
@@ -713,8 +714,8 @@ fn bedrijfsparkeervergunning_the_maximum_in_the_ring_and_a_permit_on_objection()
     // One person works at the company, so it gets one permit and a second is
     // refused. After the objection the Chamber registers two, the refusal is
     // revoked and a permit takes its place (Awb 7:11). At the third
-    // application the municipality counts that permit and the first, among
-    // the decisions the reduction of the Awb gives.
+    // application the municipality counts that permit and the first; the
+    // revoked refusal does not count (the effect of Awb 7:11).
     const KVK: &str = "99990022";
     let mut spel = spel_met("bedrijfsparkeervergunning");
     let casus = spel.casus().unwrap();
@@ -789,19 +790,25 @@ fn bedrijfsparkeervergunning_the_maximum_in_the_ring_and_a_permit_on_objection()
             "aantal_geldige_bedrijfsparkeervergunningen",
         )
         .unwrap();
-    let uitvoer = &hoe["antwoorden"][0]["uitvoer"];
+    // The refusal does not count: the decision on the objection revokes it.
+    // The first permit and the decision in the place of the refusal count,
+    // each adding one.
+    let spoor = hoe["antwoorden"][0]["spoor"].as_str().unwrap();
     let refusal = geweigerd["besluit"]["id"].as_str().unwrap();
-    assert_eq!(uitvoer["herroepen_besluiten"], json!([refusal]));
-    let geldend: Vec<&str> = uitvoer["geldende_besluiten"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|b| b["id"].as_str().unwrap())
-        .collect();
-    assert_eq!(
-        geldend,
-        [eerste["besluit"]["id"].as_str().unwrap(), nieuw.as_str()]
-    );
+    assert!(spoor.contains(&format!("{refusal}: revoked by")), "{spoor}");
+    for (telt, van) in [
+        (eerste["besluit"]["id"].as_str().unwrap(), 0),
+        (nieuw.as_str(), 1),
+    ] {
+        assert!(
+            spoor.contains(&format!(
+                "{telt}: beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal#1: \
+                 aantal: {van} -> {}",
+                van + 1
+            )),
+            "{telt}: {spoor}"
+        );
+    }
 }
 
 #[test]
@@ -1023,11 +1030,10 @@ fn bedrijfsparkeervergunning_the_hardship_clause_on_objection_grants_a_third_per
             "aantal_geldige_bedrijfsparkeervergunningen",
         )
         .unwrap();
-    let uitvoer = &hoe["antwoorden"][0]["uitvoer"];
-    assert_eq!(
-        uitvoer["herroepen_besluiten"],
-        json!([geweigerd["besluit"]["id"]])
-    );
+    // The refusal does not count: the decision on the objection revokes it.
+    let spoor = hoe["antwoorden"][0]["spoor"].as_str().unwrap();
+    let refusal = geweigerd["besluit"]["id"].as_str().unwrap();
+    assert!(spoor.contains(&format!("{refusal}: revoked by")), "{spoor}");
 }
 
 #[test]
@@ -1160,13 +1166,11 @@ fn bedrijfsparkeervergunning_a_permit_granted_on_29_february_runs_to_28_february
 
 #[test]
 fn every_case_shows_the_reductions_of_its_cell() {
-    // The tab Reductie lists every reduction the cell's catalogue names,
-    // with the decisions each reads. A reduction can name the article whose
-    // decisions it reads through a parameter of the reduction it calls
-    // (`basis` of the reduction of the Awb). The municipality's catalogue
-    // serves two cases, so in each case one of its reductions reads the
-    // decisions under the other case's article: that article has to be in
-    // the case too.
+    // The tab Reductie lists every reduction the cell's catalogue names, with
+    // the decisions each reads: for a reduction that plays the chronicle, those
+    // under the article its step names. The municipality's catalogue serves two
+    // cases, so in each case one of its reductions reads the decisions under
+    // the other case's article: that article has to be in the case too.
     for id in [
         "bedrijfsparkeervergunning",
         "gehandicaptenparkeerkaart",

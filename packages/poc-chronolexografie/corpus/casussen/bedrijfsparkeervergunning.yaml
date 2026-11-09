@@ -20,7 +20,8 @@ corpus:
   - regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_gemeente_wilgendaal
   - regulation/nl/gemeentelijke_verordening/wilgendaal/uitvoeringsbesluit_parkeren_gemeente_wilgendaal
   - regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal
-  - cells/reductions/reductie_algemene_wet_bestuursrecht
+  - regulation/nl/uitvoeringsbeleid/beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
 # De uitvoer die zegt of het besluit het gevraagde toewijst. De verordening
 # merkt die niet aan: decision_type TOEKENNING zegt wat voor besluit het is,
 # niet welke van zijn uitvoer de toewijzing is.

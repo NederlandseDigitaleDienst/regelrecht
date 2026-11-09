@@ -9,10 +9,12 @@ valid_from: '2026-08-01'
 # (RFC-048). Er is geen bekendmaking; de url wijst naar artikel 13a.
 # Artikel 1 is een norm die het hoofd hanteert bij artikel 13a, tweede lid
 # ("slechts eenmaal per schooljaar"): welk schooljaar dat van het verlof is.
-# De reductie van de school (reductie_verlof_al_verleend_in_schooljaar) leest
-# de besluiten en past deze norm toe; welke besluiten nog gelden, volgt uit de
-# Awb (reductie_algemene_wet_bestuursrecht). Dit beleid leest zelf geen
-# besluiten.
+# Artikel 2 geeft het schooljaar mee aan de reductie van de school
+# (reductie_verlof_al_verleend_in_schooljaar). Die speelt de kroniek af en
+# vraagt per besluit het beleid verleend verlof
+# (fictief_beleid_verleend_verlof_obs_de_klimop) wat het besluit betekent;
+# welke besluiten meetellen, volgt uit de effecten die de Awb een besluit
+# geeft (7:11 en 8:79 met 8:72). Dit beleid leest zelf geen besluiten.
 # Artikel 2 tot en met 6 koppelen open begrippen aan de antwoorden van de cel
 # van de school (source.reduction, RFC-048): zo ontleent het hoofd wat hij
 # anders per aanvraag vaststelt aan wat zijn eigen cel uit de kroniek haalt.
@@ -100,6 +102,23 @@ articles:
             type: date
             description: Eerste dag van het gevraagde verlof.
         input:
+          # Artikel 1: het schooljaar van het gevraagde verlof. De reductie
+          # krijgt het mee, zodat zij per besluit alleen het besluit en het
+          # schooljaar doorgeeft.
+          - name: begin_schooljaar
+            type: date
+            source:
+              regulation: fictief_beleid_vakantieverlof_obs_de_klimop
+              output: begin_schooljaar_van_verlof
+              parameters:
+                eerste_verlofdag: $eerste_verlofdag
+          - name: einde_schooljaar
+            type: date
+            source:
+              regulation: fictief_beleid_vakantieverlof_obs_de_klimop
+              output: einde_schooljaar_van_verlof
+              parameters:
+                eerste_verlofdag: $eerste_verlofdag
           - name: antwoord_verlof_al_verleend
             type: boolean
             nullable: true
@@ -107,7 +126,8 @@ articles:
               reduction: verlof_al_verleend_in_schooljaar
               parameters:
                 bsn_jongere: $bsn_jongere
-                eerste_verlofdag: $eerste_verlofdag
+                begin_schooljaar: $begin_schooljaar
+                einde_schooljaar: $einde_schooljaar
         output:
           - name: verlof_al_verleend_in_schooljaar
             type: boolean

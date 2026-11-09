@@ -27,9 +27,11 @@ export const KINDS = Object.freeze(['title', 'statement', 'section', 'bullets', 
 /** The names the slides use, which tests/presentation.test.js finds in the corpus. */
 export const CORPUS_NAMES = Object.freeze([
   'reductie_geldige_gehandicaptenparkeerkaart',
-  'reductie_algemene_wet_bestuursrecht',
   'beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal',
-  'geldende_besluiten',
+  'beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal',
+  'geldige_kaart_na_besluit',
+  'bestreden_besluit_herroepen',
+  'rechtsgevolgen_vernietigd',
   'aanvrager_heeft_geldige_gehandicaptenparkeerkaart',
   'aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt',
   'bevoegdheid_tot_verstrekken_gebruikt',
@@ -59,32 +61,37 @@ answers:
   aanvrager_heeft_geldige_gehandicaptenparkeerkaart: reductie_geldige_gehandicaptenparkeerkaart
   aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt: reductie_geldige_gehandicaptenparkeerkaart`;
 
-const FOREACH = `# reductie_geldige_gehandicaptenparkeerkaart, artikel 1
-operation: FOREACH
-collection: $geldende_besluiten
-as: besluit
-filter:
-  operation: AND
-  conditions:
-    - operation: EQUALS
-      subject: $besluit.gehandicaptenparkeerkaart_verstrekt
-      value: true
-    - operation: EQUALS
-      subject: $besluit.bsn_aanvrager
-      value: $bsn_aanvrager
-    # …
-body: true
-combine: OR`;
+const STAP = `# reductie_geldige_gehandicaptenparkeerkaart, artikel 1
+projection:
+  key: bsn_aanvrager
+  state:
+    - name: geldige_kaart
+      type: boolean
+  steps:
+    - record: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49#BESCHIKKING
+      input:
+        - name: geldige_kaart_na_besluit
+          # …
+          source:
+            regulation: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
+            output: geldige_kaart_na_besluit
+            # …
+      actions:
+        - output: geldige_kaart
+          value: $geldige_kaart_na_besluit`;
 
-const INPUT = `# reductie_geldige_gehandicaptenparkeerkaart, artikel 1
-input:
-  - name: geldende_besluiten
-    type: array
-    source:
-      regulation: reductie_algemene_wet_bestuursrecht
-      output: geldende_besluiten
-      parameters:
-        basis: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49`;
+const EFFECT = `# Algemene wet bestuursrecht, artikel 7:11
+- type: BESCHIKKING
+  # …
+  effects:
+    - revokes: bestreden_besluit
+      when: bestreden_besluit_herroepen
+# Algemene wet bestuursrecht, artikel 8:79
+- fact: afschrift_van_de_uitspraak
+  # …
+  effects:
+    - revokes: refers_to
+      when: rechtsgevolgen_vernietigd`;
 
 export const slides = [
   {
@@ -170,10 +177,10 @@ export const slides = [
       'Dat gebeurt altijd in de cel waar die feiten staan.',
       'Hoe een cel reduceert, bepaalt de cel zelf.',
       'RegelRecht biedt één manier: een reductie als regelwerk met een benoemd antwoord.',
-      'In het fragment loopt de cel haar besluiten langs en kijkt of er een kaart bij zit voor deze aanvrager.',
+      'In het fragment speelt de cel de besluiten over deze aanvrager af, op volgorde. Wat een besluit met de kaart doet, staat in het beleid van de gemeente.',
     ],
     figure: {
-      code: FOREACH,
+      code: STAP,
       source: `${CORPUS}/cells/gemeente_wilgendaal/reductions/reductie_geldige_gehandicaptenparkeerkaart/2026-01-01.yaml`,
       label: 'Uit de reductie van de gemeente Wilgendaal, ingekort',
     },
@@ -220,30 +227,31 @@ export const slides = [
   },
   {
     kind: 'bullets',
-    overline: 'De Awb-reductie',
-    title: 'Eén Awb-reductie voor elke wet',
-    lead: 'De reductie van de Awb past de regels van de Awb toe op de besluiten van elke wet.',
+    overline: 'De Awb',
+    title: 'De Awb zegt zelf wat niet meer telt',
+    lead: 'Een besluit kan een eerder besluit herroepen. Dat staat in de wet, bij het artikel van dat besluit.',
     bullets: [
-      'Wat na bezwaar en beroep nog geldt, staat zo op één plek.',
-      'Elke reductie van een uitvoerder roept haar aan met de grondslag van haar eigen besluiten (`basis`).',
-      'De uitvoerder schrijft alleen zijn eigen vraag. Herroepen en vernietigde besluiten zijn er al uit.',
+      'Een beslissing op bezwaar herroept het bestreden besluit als het bezwaar slaagt (Awb 7:11).',
+      'Vernietigt de rechter een besluit met zijn rechtsgevolgen, dan herroept de ontvangst van de uitspraak het (Awb 8:72 en 8:79).',
+      'De engine telt een besluit mee, tenzij een latere vastlegging die zelf meetelt het herroept: een besluit of de ontvangst van een uitspraak.',
+      'Elke reductie van een uitvoerder krijgt dat vanzelf. Zij schrijft alleen wat een besluit voor haar vraag betekent.',
     ],
-    figure: { diagram: 'awb', label: 'Twee reducties van Wilgendaal die de Awb-reductie gebruiken' },
+    figure: { diagram: 'awb', label: 'Twee reducties van Wilgendaal; de Awb zegt welke besluiten meetellen' },
   },
   {
     kind: 'bullets',
-    overline: 'De gemeente',
-    title: 'Wat de gemeente zelf doet',
-    lead: 'De reductie van de gemeente loopt alleen door de `geldende_besluiten`.',
+    overline: 'De wet',
+    title: 'Herroepen staat in de Awb',
+    lead: 'Het effect hoort bij het artikel van het besluit of het feit dat herroept.',
     bullets: [
-      'In het fragment haalt ze die bij de Awb-reductie, voor de besluiten onder artikel 49.',
-      'Daarna telt een besluit als het een kaart verstrekte aan dezelfde aanvrager, en die kaart nog geldig is.',
-      'Gaf de rechter zelf een kaart, dan zwijgt ze. De einddatum staat niet in haar kroniek.',
+      '`revokes` noemt het veld met het besluit dat niet meer telt.',
+      '`when` noemt de uitkomst die het moet zeggen: het bezwaar slaagt, de rechtsgevolgen vervallen.',
+      'Laat de rechter de rechtsgevolgen in stand, dan blijft het besluit meetellen.',
     ],
     figure: {
-      code: INPUT,
-      source: `${CORPUS}/cells/gemeente_wilgendaal/reductions/reductie_geldige_gehandicaptenparkeerkaart/2026-01-01.yaml`,
-      label: 'De invoer van de reductie van de gemeente',
+      code: EFFECT,
+      source: `${CORPUS}/regulation/nl/wet/algemene_wet_bestuursrecht/1994-01-01.yaml`,
+      label: 'De effecten in de Awb, ingekort',
     },
   },
   {

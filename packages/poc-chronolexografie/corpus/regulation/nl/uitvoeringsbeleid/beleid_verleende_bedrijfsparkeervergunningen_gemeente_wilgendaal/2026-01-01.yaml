@@ -1,0 +1,85 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# FICTIEF. De gemeente Wilgendaal bestaat niet en dit is geen bekendgemaakt
+# beleid, maar een eigen keuze in de modellering. Er is geen bekendmaking; de
+# url wijst daarom naar het Delftse besluit waarnaar het uitvoeringsbesluit
+# parkeren van Wilgendaal is gemodelleerd.
+# Wat één besluit op een aanvraag om een bedrijfsparkeervergunning (artikel 2
+# van de fictieve parkeerverordening) betekent voor het aantal geldige
+# vergunningen van het bedrijf. De reductie van de gemeente
+# (reductie_geldige_bedrijfsparkeervergunningen) speelt haar kroniek af en
+# vraagt dit beleid per besluit dat meetelt. Het staat los van het beleid
+# bedrijfsparkeervergunning, omdat dat beleid de reductie aanroept: een stap
+# van de reductie kan de regeling waaruit zij gevraagd wordt niet opnieuw
+# aanroepen.
+url: https://lokaleregelgeving.overheid.nl/CVDR733452
+name: Verleende bedrijfsparkeervergunningen in de gemeente Wilgendaal (fictief beleid)
+competent_authority:
+  name: Het college van burgemeester en wethouders van de gemeente Wilgendaal
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering. Een besluit waarin het college
+      het bedrijf een bedrijfsparkeervergunning verleent, telt mee bij het
+      aantal geldige vergunningen op een dag als de vergunning op die dag nog
+      geldig is. Een weigering telt niet.
+    url: https://lokaleregelgeving.overheid.nl/CVDR733452
+    machine_readable:
+      # Wat één besluit op een aanvraag (artikel 2 van de verordening)
+      # betekent voor het aantal geldige vergunningen (artikel 2 van het
+      # beleid bedrijfsparkeervergunning). De reductie van de gemeente vraagt
+      # het per besluit dat meetelt, met het aantal tot dan toe. Dit artikel
+      # leest niets anders dan wat het krijgt.
+      execution:
+        parameters:
+          - name: aantal
+            type: number
+            description: Het aantal geldige vergunningen vóór dit besluit.
+          - name: bedrijfsparkeervergunning_verleend
+            type: boolean
+            description: Of het besluit een vergunning verleent.
+          - name: vergunning_geldig_tot
+            type: date
+            nullable: true
+            description: De laatste dag waarop de vergunning van het besluit geldig is.
+          - name: besluit_datum
+            type: date
+            description: De dag waarop de vergunning geldig moet zijn.
+        output:
+          - name: aantal_na_besluit
+            type: number
+            description: Het aantal geldige vergunningen na dit besluit.
+        actions:
+          # Eerst of er een vergunning is: een weigering heeft geen
+          # vergunning_geldig_tot, waarop DATE_DIFF faalt, en AND stopt bij de
+          # eerste onwaar.
+          - output: aantal_na_besluit
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: AND
+                    conditions:
+                      - $bedrijfsparkeervergunning_verleend
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $vergunning_geldig_tot
+                          value: null
+                      - operation: GREATER_THAN_OR_EQUAL
+                        subject:
+                          operation: DATE_DIFF
+                          from: $besluit_datum
+                          to: $vergunning_geldig_tot
+                          in: days
+                        value: 0
+                  then:
+                    operation: ADD
+                    values:
+                      - $aantal
+                      - 1
+              default: $aantal

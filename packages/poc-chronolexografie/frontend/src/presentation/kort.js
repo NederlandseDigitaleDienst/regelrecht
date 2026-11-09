@@ -50,7 +50,7 @@ export const schema = {
     { laag: 'cl', x: 420, y: 360, titel: 'Cel', sub: 'cel.yaml · packages/cel' },
     { laag: 'cl', x: 220, y: 540, titel: 'Andere cel', sub: 'GGD · KvK · rechtbank' },
     { laag: 'cl', x: 420, y: 540, titel: 'Kroniek', sub: 'alleen aanvullen' },
-    { laag: 'cl', x: 620, y: 540, titel: 'Reductie', sub: 'REDUCTIE · Awb-reductie' },
+    { laag: 'cl', x: 620, y: 540, titel: 'Reductie', sub: 'REDUCTIE · projection' },
   ],
   pijlen: [
     { laag: 'rr', d: 'M170 152 H218' },
@@ -93,7 +93,7 @@ export const casusBlok = {
     'Hoe het college zijn bevoegdheid gebruikt, laat artikel 49 open. Het beleid van de gemeente vult dat open begrip in: wie al een geldige kaart van de gemeente heeft, krijgt geen tweede.',
     "Of de aanvrager al zo'n kaart heeft, vraagt het beleid met `source.reduction` aan de cel van de gemeente.",
     'In haar `cel.yaml` staat welke reductie die vraag beantwoordt: `reductie_geldige_gehandicaptenparkeerkaart`.',
-    'De reductie vraagt de Awb-reductie welke besluiten na bezwaar en beroep nog gelden. Daarna kijkt zij of daar een nog geldige kaart voor deze aanvrager bij zit. Het advies van de GGD lezen twee andere reducties uit dezelfde kroniek terug: of er een onderzoek was, en wat het advies vond.',
+    'De reductie speelt de besluiten over deze aanvrager af en houdt bij of hij een nog geldige kaart heeft. Welke besluiten na bezwaar en beroep meetellen, zegt de Awb zelf: een herroepen of vernietigd besluit telt niet. Het advies van de GGD lezen twee andere reducties uit dezelfde kroniek terug: of er een onderzoek was, en wat het advies vond.',
     'Het antwoord gaat via het beleid terug naar de engine. Die beslist of de aanvrager de kaart krijgt en tot wanneer. Dat besluit komt als nieuwe vastlegging in de kroniek, net als bij stap 2. Vraagt dezelfde persoon binnen die tijd opnieuw, dan volgt een weigering.',
   ],
   knop: 'Gehandicaptenparkeerkaart naspelen',
