@@ -1146,13 +1146,15 @@ articles:
                       - $uitspraak_treedt_in_de_plaats
                   then: $besluit_van_de_bestuursrechter
               default: null
-          # Lid 3, onder b, met artikel 7:11, tweede lid: wie wil weten welk
-          # besluit op de aanvraag nu geldt, leest dit. Stelt de uitspraak een
-          # beslissing op bezwaar in de plaats, dan is dat het nieuwe besluit
-          # dat die beslissing neemt; herroept zij niets, of neemt zij geen
-          # nieuw besluit, dan is er geen. Anders is het het in de plaats
-          # gestelde besluit zelf, zoals bij beroep tegen een nieuw besluit
-          # dat op bezwaar is genomen.
+          # Lid 3, onder b, met artikel 7:11, tweede lid: welk besluit op de
+          # aanvraag de uitspraak in de plaats stelt. Stelt zij een beslissing
+          # op bezwaar in de plaats, dan is dat het nieuwe besluit dat die
+          # beslissing neemt. Herroept die beslissing niets, dan stelt de
+          # uitspraak geen besluit op de aanvraag in de plaats: het
+          # oorspronkelijke besluit op de aanvraag geldt dan weer, omdat de
+          # ontvangst van de uitspraak de beslissing op bezwaar herroept.
+          # Anders is het het in de plaats gestelde besluit zelf, zoals bij
+          # beroep tegen een nieuw besluit dat op bezwaar is genomen.
           - output: in_de_plaats_gesteld_primair_besluit
             value:
               operation: IF
@@ -1286,7 +1288,7 @@ articles:
             required: false
             description: De rechtsregel die de uitspraak geschonden oordeelde (artikel 8:77, tweede lid).
           # Eigen keuze, anders dan RFC-053 (zie de noot daar): de twee
-          # besluiten hieronder zijn een object, geen besluitwaarde, terwijl
+          # besluiten hieronder zijn elk een object, geen besluitwaarde, terwijl
           # de uitspraak (artikel 8:70) ze als besluitwaarde geeft. Een
           # besluitwaarde is iets wat de engine opnieuw kan nemen; daarvoor
           # draagt zij het artikel waarop het besluit genomen is (taken_on).

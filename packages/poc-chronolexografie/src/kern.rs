@@ -5296,7 +5296,7 @@ mod tests {
         // in place (8:72 with 7:11), and the copy carries it.
         assert_eq!(
             &gedaan["uitspraak"]["outputs"]["primair_besluit_in_de_plaats"],
-            if verleent { nieuw } else { &Value::Null }
+            nieuw
         );
         toezenden(
             &corpus,
@@ -5485,11 +5485,17 @@ mod tests {
             })
         };
         // The court takes the decision on the objection anew, and its new
-        // decision grants; which decision on the application that is, the
-        // Awb says (8:72 with 7:11), and the policy reads only that.
+        // decision grants. The policy reads only the decision on the
+        // application (`primair`), which the Awb derives from the decision in
+        // place: one that grants without a decision on the application in
+        // place gives no card.
         assert_eq!(
             kaart_na_uitspraak(op_bezwaar(kaart(true)), kaart(true)),
             (V::Null, V::Bool(true))
+        );
+        assert_eq!(
+            kaart_na_uitspraak(op_bezwaar(kaart(true)), Value::Null),
+            (V::Bool(false), V::Null)
         );
         // The court takes the decision on the application anew, and it grants.
         assert_eq!(
