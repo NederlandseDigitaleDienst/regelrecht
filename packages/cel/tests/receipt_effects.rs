@@ -308,6 +308,15 @@ fn a_decision_ex_officio_refers_to_the_record_it_is_about() {
     assert!(holds_card(&cell, "y").unwrap().0);
     // The chronicle opens again with it.
     restored(cell.grams().to_vec());
+    // It is taken on no submission, so the cell does not replay it.
+    let err = cell
+        .explain(&mut service, &[], &intrekking.id)
+        .expect_err("not replayed");
+    assert!(
+        err.to_string()
+            .contains("was taken ex officio, about 'verlening_x', which is no submission"),
+        "{err}"
+    );
     // A decision is taken on an application: a grant under the same
     // article is not one.
     let err = cell

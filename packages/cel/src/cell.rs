@@ -1406,6 +1406,29 @@ impl Cell {
                 ))
             })?
             .clone();
+        // A decision taken ex officio refers to the record it is about, not
+        // to a submission, and has nothing to be taken on again.
+        let referred = submission
+            .basis
+            .split_once('#')
+            .and_then(|(law, number)| {
+                shape::article_on(service, law, number, submission.recorded_on)
+            })
+            .ok_or_else(|| {
+                setup(format!(
+                    "'{submission_id}' rests on '{}', which names no article in force on {}",
+                    submission.basis, submission.recorded_on
+                ))
+            })?;
+        let is_submission = referred.get_submission().and_then(|s| s.submission_kind())
+            == Some(submission.kind.as_str());
+        if !is_submission {
+            return Err(setup(format!(
+                "the decision '{}' was taken ex officio, about '{submission_id}', which is no \
+                 submission; the cell does not replay it",
+                decision.id
+            )));
+        }
         let (law_id, article) = decision.basis.split_once('#').ok_or_else(|| {
             setup(format!(
                 "chronolexogram '{}' has basis '{}', not <regulation>#<article>",

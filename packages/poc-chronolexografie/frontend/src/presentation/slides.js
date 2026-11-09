@@ -70,13 +70,15 @@ projection:
       type: boolean
     - name: kaart_geldig_tot
       type: date
+    # …
   steps:
     - record: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49#BESCHIKKING
       actions:
         - output: verstrekt
           value: $record.gehandicaptenparkeerkaart_verstrekt
         - output: kaart_geldig_tot
-          value: $record.kaart_geldig_tot`;
+          value: $record.kaart_geldig_tot
+    # …`;
 
 const EFFECT = `# Algemene wet bestuursrecht, artikel 7:11
 - type: BESCHIKKING
