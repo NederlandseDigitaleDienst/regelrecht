@@ -9,7 +9,7 @@ These notes are for someone who writes or maintains a rulework and wants to move
 
 The [version history](/reference/schema#version-history) on the schema reference stays the record of which version introduced which construct, and it is the table RFCs cite. Each row from v0.8.0 on links to its note here. Where the row records what a version introduced, the note says what an author has to do about it.
 
-From v0.8.0 on, some versions remove a construct or tighten a rule, and the engine in this repository handles that in two ways. For the removals in v0.8.7, v0.8.9, v0.8.12 and v0.8.13 it runs every version on one code path. It refuses the removed construct when it loads the rulework, whatever its `$schema` says, and names the replacement where there is one. Such a rulework still validates against the older schema, but has to be edited before the engine will run it. From v0.8.15 on, the engine applies a new rule only to a rulework that declares the new version. A rulework on an older `$schema` keeps loading as it did, and the edit is due when its `$schema` moves. The one change neither the schema nor the engine catches at load is the rename in [v0.8.12](#v0812).
+From v0.8.0 on, some versions remove a construct or tighten a rule, and the engine in this repository handles that in two ways. For the removals in v0.8.7, v0.8.9, v0.8.12 and v0.8.13 it runs every version on one code path. It refuses the removed construct when it loads the rulework, whatever its `$schema` says, and names the replacement where there is one. Such a rulework still validates against the older schema, but has to be edited before the engine will run it. From v0.8.15 on, the engine applies a new rule only to a rulework that declares the new version, with one exception in [v0.8.17](#v0817). A rulework on an older `$schema` keeps loading as it did, and the edit is due when its `$schema` moves. The one change neither the schema nor the engine catches at load is the rename in [v0.8.12](#v0812).
 
 The notes start at v0.8.0. Versions before it have no note; for those, the version history is all there is.
 
@@ -17,17 +17,19 @@ The notes start at v0.8.0. Versions before it have no note; for those, the versi
 
 No example on this page is typed in. Each one is a marked excerpt of a fixture in `packages/engine/tests/conformance/`, read when the site is built. `just conformance` checks every fixture in CI: a fixture under `valid/` must pass the schema and survive a round trip through the Rust model without losing a field, and a fixture under `invalid/` must be refused by the schema version its `$schema` names. A positive example here therefore cannot show something the schema does not accept, and a shape to change comes from a fixture the schema refuses. Each such fixture holds that one construct and otherwise valid metadata.
 
-Each fixture under `valid/` declares the newest schema that still accepts its construct, and the caption under an example names that version. Most declare v0.8.17. The ones whose construct v0.8.17 removed stay on v0.8.16. A positive example can therefore come from a later version than the note it sits in, and where a later version changed the construct, the note says so.
+Each fixture under `valid/` that these notes draw on declares the newest schema that still accepts its construct, and the caption under an example names that version. Most declare v0.8.17. The ones whose construct v0.8.17 removed stay on v0.8.16. A positive example can therefore come from a later version than the note it sits in, and where a later version changed the construct, the note says so.
 
 ## v0.8.17
 
 A projection can play one aggregate per record, which other reductions read as rows, and the constructs that made a projection depend on the question are gone. Experimental, without an RFC so far.
 
-Not additive. A rulework version that declares v0.8.16 or earlier keeps loading as it did, `key`, question parameters and `source.decisions` included. Moving it to v0.8.17 takes three edits:
+Not additive. A rulework version that declares v0.8.16 or earlier keeps loading as it did, `key`, question parameters and `source.decisions` included. Moving a reduction to v0.8.17 takes up to three edits:
 
-- A projection with `key` becomes one with `per`, and the question about one person moves to a reduction that reads the aggregates with `source.projections` and `where`.
-- A step passes only `$record.<field>` and `$state.<property>`, never a parameter of the question (`$<name>`). A step that needs a date puts it in the state, and the reduction that reads the rows compares it with the question.
+- A projection gets `per` in place of `key` and loses its `execution`. The question it answered, about one person or about the whole chronicle, moves to a reduction that reads the aggregates with `source.projections`, and with `where` for one person.
+- A step passes only `$record.<field>` and `$state.<property>`, never a parameter of the question (`$<name>`). A step that compared a date of the record with the day of the question now puts the record's date in the state. The reduction that reads the rows passes them, each with its record's date, and the day of the question to an article of the law or policy, which compares them.
 - A reduction that read `source.decisions` reads the aggregates of those decisions with `source.projections` instead.
+
+A law that moves to v0.8.17 needs no edit. From then on, the cell refuses a decision under that law that revokes a record its `refers_to` does not reach. A reduction on v0.8.17 with `per` also applies that rule to every decision it plays, whatever version the decision's law declares. The rule can therefore reach a law that was never edited.
 
 `projection.per` names the article the root record rests on, as `<regulation>#<article>`, with `#<KIND>` where the article gives more than one kind of record. An aggregate is the root and the records that refer to it through `refers_to`, directly or through each other. Another record of the root's kind that refers in is an aggregate of its own, and counts in the first one for its effects only. A projection with `per` answers no question itself and has no `execution`. Its steps may read `$record.refers_to`, the id of the record the current record refers to, or null.
 
@@ -67,7 +69,7 @@ The parameter a decision's effect revokes must be a string or a decision, which 
 
 <FixtureExcerpt fixture="valid/v0_8_15_record_effects.yaml" region="revokes-by-id" />
 
-Additive: a rulework version valid under v0.8.14 is valid under v0.8.15 unchanged. The rule on the revoked parameter applies only to a version that declares v0.8.15; a version on v0.8.14 still loads.
+Not additive, although the schema of v0.8.15 accepts every document that v0.8.14 accepts. The version history counts the version as additive for that reason, but the loader is stricter, as it is for v0.8.16. A version on v0.8.14 still loads. Fix a v0.8.14 version before it declares v0.8.15 if a decision effect names a parameter that is not a string or a decision. The same holds if that parameter may be null.
 
 ## v0.8.14
 
@@ -89,9 +91,11 @@ Which records count follows from the effects: a record counts unless a later rec
 
 <FixtureExcerpt fixture="valid/v0_8_14_projection.yaml" region="projection" />
 
-A step may also pass a parameter of the question to the law it calls, such as the day the question is about. [v0.8.17](#v0817) removed this and `key`, which is why these two examples declare v0.8.16. The answer then depends on that parameter, as it does on the key. This step leaves out the third segment, which is allowed because the article gives one kind of record:
+A step may also pass a parameter of the question to the law it calls, such as the day the question is about. The answer then depends on that parameter, as it does on the key. This step leaves out the third segment, which is allowed because the article gives one kind of record:
 
 <FixtureExcerpt fixture="valid/v0_8_14_projection_question.yaml" region="question-parameter" />
+
+[v0.8.17](#v0817) removed question parameters and `key`, so this example and the projection above declare v0.8.16.
 
 The engine plays a projection only where a chronicle is played: when a cell gives the reduction's answer to a policy through `source.reduction`, or through `evaluate_projection` in the Rust engine. Any other way of asking for the article (directly, from another rulework, at a stage, or with a `state` of the caller's) makes the engine refuse it.
 
