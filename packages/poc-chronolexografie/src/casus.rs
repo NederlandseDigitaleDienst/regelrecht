@@ -868,7 +868,11 @@ fn vestigend(
 
 /// The inputs the stages of the procedures of `law` require for the legal
 /// character of the decision of `artikelen`, such as `uitspraak_datum` for a
-/// judgment: the decision records them among its fields.
+/// judgment: the decision records them among its fields. It takes the union
+/// over every version and procedure of the law, not only the procedure in
+/// force as the cell does: the names only widen the set a receipt fact may
+/// match, and the Awb of the PoC has one version with one procedure per
+/// legal character.
 fn fasen<'r>(regelwerken: &'r Regelwerken, law: &str, artikelen: &[&Article]) -> Vec<&'r str> {
     let karakters: BTreeSet<&str> = artikelen
         .iter()

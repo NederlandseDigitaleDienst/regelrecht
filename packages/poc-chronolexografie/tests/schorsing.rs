@@ -410,8 +410,8 @@ fn per_company_the_copies_of_rulings_leave_the_count_alone() {
 /// The per-company question on a day inside the suspension. One permit is
 /// valid that day, so the answer is 1. The reduction per company cannot say
 /// so with a state of single values, and answers 2. PR D (#1919), with the
-/// decision as an aggregate, settles it; see the question on a state that
-/// holds a list in
+/// decision as an aggregate, settles it; see the question on a period per
+/// decision in
 /// `docs/src/content/docs/concepts/chronolexography/open-questions.md`.
 #[test]
 #[ignore = "pending: solved in PR D (#1919), the decision as aggregate (chronolexography open questions)"]
@@ -559,7 +559,7 @@ fn per_permit_a_later_suspension_leaves_the_day_of_the_first() {
 /// sees the state of the number, not which decision it stands for, so the
 /// copy suspends the new permit. PR D (#1919), with the decision as an
 /// aggregate, settles it as it does the count per company; see the question
-/// on a state that holds a list in
+/// on a period per decision in
 /// `docs/src/content/docs/concepts/chronolexography/open-questions.md`.
 #[test]
 #[ignore = "pending: solved in PR D (#1919), the decision as aggregate (chronolexography open questions)"]
@@ -668,7 +668,7 @@ fn per_permit_a_permit_granted_on_objection_can_be_suspended() {
 /// asked about, but the step for its lifting does not, and overwrites the
 /// end of the first. PR D (#1919), where each suspension is an aggregate
 /// and a lifting refers to the suspension it ends, settles it; see the
-/// question on a state that holds a list in
+/// question on a period per decision in
 /// `docs/src/content/docs/concepts/chronolexography/open-questions.md`.
 #[test]
 #[ignore = "pending: solved in PR D (#1919), the decision as aggregate (chronolexography open questions)"]
