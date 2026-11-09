@@ -203,9 +203,9 @@ articles:
       # (Awb 8:84, vierde lid) betekent voor de schorsing van één
       # vergunning. De uitspraak schorst het besluit; een schorsing van een
       # deel ervan is niet gemodelleerd, het afschrift noemt alleen de dag
-      # vanaf welke zij het besluit schorst. Een latere schorsing van dezelfde vergunning vervangt de
-      # eerdere, met de dag waarop zij volgens de uitspraak vervalt (artikel
-      # 8:85, eerste lid).
+      # vanaf welke zij het besluit schorst. Een latere schorsing van
+      # dezelfde vergunning vervangt de eerdere, met de dag waarop zij
+      # volgens de uitspraak vervalt (artikel 8:85, eerste lid).
       execution:
         parameters:
           - name: geschorst_vanaf

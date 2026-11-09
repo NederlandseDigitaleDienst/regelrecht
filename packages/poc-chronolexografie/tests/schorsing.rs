@@ -53,6 +53,13 @@ fn corpus() -> Corpus {
         .unwrap()
 }
 
+/// A game on the case, with the cells as they begin.
+fn spel() -> Spel {
+    let mut spel = Spel::new(Corpus::alle(&corpus_dir(), &corpus_dir().join("casussen")).unwrap());
+    spel.kiezen(CASUS).unwrap();
+    spel
+}
+
 fn dag(s: &str) -> NaiveDate {
     s.parse().unwrap()
 }
@@ -124,8 +131,7 @@ fn twee_vergunningen_en_een_bezwaar() -> (Vec<Gram>, String) {
 
 /// [`twee_vergunningen_en_een_bezwaar`], with what `verder` adds.
 fn chronicle(verder: &Verder) -> (Vec<Gram>, String) {
-    let mut spel = Spel::new(Corpus::alle(&corpus_dir(), &corpus_dir().join("casussen")).unwrap());
-    spel.kiezen(CASUS).unwrap();
+    let mut spel = spel();
     let eerste = vergunning(&mut spel, EERSTE, "2026-10-13", "2026-10-20");
     vergunning(&mut spel, TWEEDE, "2026-10-21", "2026-10-22");
     if verder.weigering {
@@ -387,8 +393,12 @@ fn per_permit_an_end_set_in_the_ruling_ends_the_suspension() {
     assert!(geldig(&service, &grams, EERSTE, "2026-12-20"));
 }
 
+/// The reduction per company has no step for the copies of 8:84 and 8:87,
+/// so it does not see the suspension at all. This test only shows that
+/// those records leave the count alone; that the count follows the
+/// suspension waits for #1919, see the ignored test below.
 #[test]
-fn per_company_two_permits_count_outside_the_suspension() {
+fn per_company_the_copies_of_rulings_leave_the_count_alone() {
     let service = service();
     let (mut grams, eerste) = twee_vergunningen_en_een_bezwaar();
     grams.push(schorsing(&eerste));
@@ -399,11 +409,12 @@ fn per_company_two_permits_count_outside_the_suspension() {
 
 /// The per-company question on a day inside the suspension. One permit is
 /// valid that day, so the answer is 1. The reduction per company cannot say
-/// so with a state of single values, and answers 2. PR D, with the decision
-/// as an aggregate, settles it; see the question on a state that holds a
-/// list in `docs/src/content/docs/concepts/chronolexography/open-questions.md`.
+/// so with a state of single values, and answers 2. PR D (#1919), with the
+/// decision as an aggregate, settles it; see the question on a state that
+/// holds a list in
+/// `docs/src/content/docs/concepts/chronolexography/open-questions.md`.
 #[test]
-#[ignore = "pending: solved in PR D, the decision as aggregate (chronolexography open questions)"]
+#[ignore = "pending: solved in PR D (#1919), the decision as aggregate (chronolexography open questions)"]
 fn per_company_one_permit_counts_while_the_other_is_suspended() {
     let service = service();
     let (mut grams, eerste) = twee_vergunningen_en_een_bezwaar();
@@ -416,8 +427,7 @@ fn per_company_one_permit_counts_while_the_other_is_suspended() {
 fn the_reduction_tab_shows_the_copies_the_permit_reduction_reads() {
     // A step on an executogram reads the facts its article requires; the
     // tab Reductie lists them beside the decisions.
-    let mut spel = Spel::new(Corpus::alle(&corpus_dir(), &corpus_dir().join("casussen")).unwrap());
-    spel.kiezen(CASUS).unwrap();
+    let mut spel = spel();
     let stand = spel.reducties(dag("2026-12-01")).unwrap();
     let reductie = stand["reducties"]
         .as_array()
@@ -547,12 +557,12 @@ fn per_permit_a_later_suspension_leaves_the_day_of_the_first() {
 /// a new permit for that number. The ruling concerns the first decision, so
 /// the new permit stays valid. The state per number cannot tell: a step
 /// sees the state of the number, not which decision it stands for, so the
-/// copy suspends the new permit. PR D, with the decision as an aggregate,
-/// settles it as it does the count per company; see the question on a state
-/// that holds a list in
+/// copy suspends the new permit. PR D (#1919), with the decision as an
+/// aggregate, settles it as it does the count per company; see the question
+/// on a state that holds a list in
 /// `docs/src/content/docs/concepts/chronolexography/open-questions.md`.
 #[test]
-#[ignore = "pending: solved in PR D, the decision as aggregate (chronolexography open questions)"]
+#[ignore = "pending: solved in PR D (#1919), the decision as aggregate (chronolexography open questions)"]
 fn per_permit_a_copy_about_the_earlier_decision_leaves_the_new_permit() {
     let service = service();
     let (grams, eerste) = chronicle(&Verder {
@@ -596,8 +606,7 @@ fn per_permit_a_permit_granted_on_objection_can_be_suspended() {
     // (8:81, first paragraph) are not played, as elsewhere in this file.
     const DERDE: &str = "ZZ-003-Z";
     let service = service();
-    let mut spel = Spel::new(Corpus::alle(&corpus_dir(), &corpus_dir().join("casussen")).unwrap());
-    spel.kiezen(CASUS).unwrap();
+    let mut spel = spel();
     vergunning(&mut spel, EERSTE, "2026-10-13", "2026-10-20");
     vergunning(&mut spel, TWEEDE, "2026-10-21", "2026-10-22");
     let hardheid =
@@ -650,4 +659,36 @@ fn per_permit_a_permit_granted_on_objection_can_be_suspended() {
     assert!(!geldig(&service, &grams, DERDE, "2026-11-10"));
     assert!(geldig(&service, &grams, DERDE, "2026-11-25"));
     assert!(!geldig(&service, &grams, DERDE, "2026-12-05"));
+}
+
+/// The first suspension, lifted on 15 December 2026, and a second from
+/// 1 March 2027, lifted on 1 April 2027. On 10 January 2027 the permit is
+/// valid: the first suspension has ended and the second has not begun. The
+/// step for the second copy skips it, because it begins after the day
+/// asked about, but the step for its lifting does not, and overwrites the
+/// end of the first. PR D (#1919), where each suspension is an aggregate
+/// and a lifting refers to the suspension it ends, settles it; see the
+/// question on a state that holds a list in
+/// `docs/src/content/docs/concepts/chronolexography/open-questions.md`.
+#[test]
+#[ignore = "pending: solved in PR D (#1919), the decision as aggregate (chronolexography open questions)"]
+fn per_permit_lifting_a_later_suspension_leaves_the_end_of_the_first() {
+    let service = service();
+    let (grams, eerste) = twee_vergunningen_en_een_bezwaar();
+    let mut tweede_opheffing = opheffing(&eerste);
+    tweede_opheffing.id = "tweede-opheffing".to_string();
+    tweede_opheffing.recorded_on = dag("2027-04-01");
+    tweede_opheffing
+        .fields
+        .insert("voorziening_opgeheven_op".into(), json!("2027-04-01"));
+    let grams = met(
+        grams,
+        [
+            schorsing(&eerste),
+            opheffing(&eerste),
+            tweede_schorsing(&eerste),
+            tweede_opheffing,
+        ],
+    );
+    assert!(geldig(&service, &grams, EERSTE, "2027-01-10"));
 }

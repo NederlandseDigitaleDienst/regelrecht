@@ -1390,14 +1390,15 @@ articles:
       # wet niet; de partij die het ontvangt, legt het vast (eigen keuze).
       # Welk besluit het betreft, zegt de ontvangst zelf: zij verwijst naar
       # het besluit waarop de voorziening ziet (refers_to, RFC-053), zoals bij
-      # artikel 8:79. Wat het afschrift bevat: de voorziening. Eigen keuze: een voorziening is hier de schorsing
-      # van dat besluit, vanaf een dag, tot de dag waarop zij vervalt als de
-      # voorzieningenrechter die bepaalt (artikel 8:85, eerste lid). Een
-      # uitspraak die niet tot toewijzing strekt (lid 2, onder a tot en met
-      # c), schorst niets. De schorsing trekt het besluit niet in: zij geldt
-      # van een dag af en eindigt, dus het afschrift heeft geen effect op
-      # het besluit (`effects`). Wat zij betekent, zegt de regeling die het
-      # besluit leest. Lid 1, 3 en 5 zijn niet gemodelleerd.
+      # artikel 8:79. Wat het afschrift bevat: de voorziening. Eigen keuze:
+      # een voorziening is hier de schorsing van dat besluit, vanaf een dag,
+      # tot de dag waarop zij vervalt als de voorzieningenrechter die bepaalt
+      # (artikel 8:85, eerste lid). Een uitspraak die niet tot toewijzing
+      # strekt (lid 2, onder a tot en met c), schorst niets. De schorsing
+      # trekt het besluit niet in: zij geldt van een dag af en eindigt, dus
+      # het afschrift heeft geen effect op het besluit (`effects`). Wat zij
+      # betekent, zegt de regeling die het besluit leest. Lid 1, 3 en 5 zijn
+      # niet gemodelleerd.
       requires:
         - fact: afschrift_van_de_uitspraak_van_de_voorzieningenrechter
           description: >-
