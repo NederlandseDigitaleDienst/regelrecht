@@ -379,9 +379,10 @@ impl LawExecutionService {
     }
 
     /// Refuse a step that does not fit the laws it names, in their versions
-    /// in force on `day`, the calculation date ([`check_step`]). The loader
-    /// checks the same when the reduction loads, against the laws it holds
-    /// then; this check also holds the step to a law that arrived later.
+    /// in force on `day`, the calculation date ([`check_step`]). From schema
+    /// v0.8.15 the loader checks the same when the reduction loads, against
+    /// the laws it holds then; this check also holds the step to a law that
+    /// arrived later. For a reduction on v0.8.14 this is the only check.
     fn check_steps(
         &self,
         law_id: &str,
@@ -2667,9 +2668,36 @@ articles:
                         "2025-03-01",
                         false,
                     )
-                    .expect("plays under v0.8.14");
+                    .expect("passes the play-time check under v0.8.14");
             }
         }
+        // The check at load came with v0.8.15 too: a reduction on v0.8.14
+        // that breaks an older rule loads after the law, and the play
+        // refuses it.
+        let wrong_type = with(
+            "              - name: kaart_na\n                type: boolean",
+            "              - name: kaart_na\n                type: number",
+        );
+        let why = "input 'kaart_na' is a Number, but 'kaart' of wet is a Boolean";
+        let err = refused_in_either_order(LAW, &on(&wrong_type, "v0.8.15"));
+        assert!(err[0].contains(why), "{why}: {}", err[0]);
+        let mut service = LawExecutionService::new();
+        service.load_law(LAW).unwrap();
+        service
+            .load_law(&on(&wrong_type, "v0.8.14"))
+            .expect("v0.8.14 is not checked at load");
+        let err = service
+            .evaluate_projection(
+                "reductie",
+                &["heeft_kaart"],
+                &[],
+                BTreeMap::new(),
+                "2025-03-01",
+                false,
+            )
+            .expect_err("the play refuses it")
+            .to_string();
+        assert!(err.contains(why), "{why}: {err}");
     }
 
     /// The errors when `law` loads before `reduction`, and when it loads

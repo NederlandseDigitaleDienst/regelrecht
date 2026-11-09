@@ -577,8 +577,9 @@ impl RuleResolver {
             )));
         }
 
-        // Schema v0.8.14: the steps of a projection fit the laws they name,
-        // as far as those are loaded. Only a reduction is refused for this:
+        // Schema v0.8.15: the steps of a reduction on v0.8.15 or later fit
+        // the laws they name, as far as those are loaded; a reduction on
+        // v0.8.14 is checked only when it plays. Only a reduction is refused for this:
         // a law that arrives later always loads, whatever a reduction loaded
         // before it expects of it, and the play holds that reduction to the
         // law in force on the calculation date.

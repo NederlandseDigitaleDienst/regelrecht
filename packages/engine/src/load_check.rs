@@ -981,7 +981,7 @@ fn check_step_shape(
     Ok(())
 }
 
-/// A projection fits the laws its steps name (schema v0.8.14), in the
+/// A projection fits the laws its steps name (schema v0.8.15), in the
 /// versions `lookup` gives: the law each step's records rest on and each law
 /// an input calls ([`crate::projection::check_step`]). The reduction and the
 /// law are separate regelwerken that load in any order, so a law `lookup`
@@ -989,10 +989,17 @@ fn check_step_shape(
 /// whatever a reduction expects of it, so the law never depends on the
 /// reduction; the engine checks the versions in force when it plays the
 /// projection. The error names the article and the step.
+///
+/// The check at load came with schema v0.8.15. A reduction on v0.8.14 is
+/// held to its steps only when it plays, as the released version was, so a
+/// law version that is not yet in force cannot refuse it at load.
 pub(crate) fn check_projection_wiring<'l>(
     law: &ArticleBasedLaw,
     lookup: &dyn Fn(&str) -> Option<&'l ArticleBasedLaw>,
 ) -> std::result::Result<(), String> {
+    if !from_version(law, (0, 8, 15)) {
+        return Ok(());
+    }
     for (where_, section) in sections(law) {
         let Some(projection) = &section.projection else {
             continue;
@@ -1009,7 +1016,7 @@ pub(crate) fn check_projection_wiring<'l>(
                 question,
                 lookup,
                 crate::projection::Versions::Loaded,
-                from_version(law, (0, 8, 15)),
+                true,
             )
             .map_err(|why| format!("{where_}: the step on {}: {why}", step.record))?;
         }
