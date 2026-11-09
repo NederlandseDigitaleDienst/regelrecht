@@ -82,7 +82,7 @@ describe('the picture of one value', () => {
     expect(heeft(k, 'leest', [aggregaat, 'vergunning_geldig_tot'], [red, 'vergunningen'])).toBe(true);
     expect(heeft(k, 'rekent', [red, 'vergunningen'], [red, 'aantal_geldige_bedrijfsparkeervergunningen'])).toBe(true);
     expect(heeft(k, 'leest', ['beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal', 'aantal_geldige_vergunningen'], [red, 'aantal_geldige_bedrijfsparkeervergunningen'])).toBe(true);
-    expect(namen(aggregaat).sort()).toEqual(['besluit_datum', 'uitspraak_hoofdzaak_op', 'vergunning_geldig_tot', 'verleend', 'voorziening_op_besluit']);
+    expect(namen(aggregaat).sort()).toEqual(['besluit_datum', 'in_de_plaats_op_bezwaar', 'uitspraak_hoofdzaak_op', 'vergunning_geldig_tot', 'verleend', 'voorziening_op_besluit']);
     // One line into a property per source in the chronicle: the decision on
     // the application with its step, the decision on an objection with its
     // effect and with its step, which reads the new decision it holds.
@@ -154,7 +154,7 @@ describe('the picture of one value', () => {
         'beschikking · Parkeerverordening Wilgendaal 2026 (fictief) art. 2',
       ]);
       expect(laatste.filter((g) => g.map !== KRONIEK).map((g) => `${g.map}#${g.naam}`).sort()).toEqual(
-        ['besluit_datum_na_bezwaar', 'vergunning_geldig_tot_na_bezwaar', 'verleend_na_bezwaar'].map(
+        ['besluit_datum_na_bezwaar', 'in_de_plaats_na_bezwaar', 'vergunning_geldig_tot_na_bezwaar', 'verleend_na_bezwaar'].map(
           (n) => `beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal#${n}`,
         ),
       );
@@ -243,7 +243,7 @@ describe('the picture of one value', () => {
       const alles = zinnen.join(' ');
       for (const waar of ['uit een ander regelwerk', 'van een cel', 'van een reductie', 'uit de kroniek']) expect(alles).toContain(waar);
       expect(stapZin(k, k.reststap - 1)).toBe(
-        `Stap ${k.reststap - 1} van ${k.stappen}, hier komt de keten bij de bron uit: 3 uitkomsten uit een ander regelwerk en 4 bronnen uit de kroniek.`,
+        `Stap ${k.reststap - 1} van ${k.stappen}, hier komt de keten bij de bron uit: 4 uitkomsten uit een ander regelwerk en 4 bronnen uit de kroniek.`,
       );
     });
 

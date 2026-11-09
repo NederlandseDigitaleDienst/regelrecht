@@ -661,6 +661,51 @@ fn per_permit_a_permit_granted_on_objection_can_be_suspended() {
     assert!(!geldig(&service, &grams, DERDE, "2026-12-05"));
 }
 
+#[test]
+fn per_permit_a_suspension_of_the_revoked_decision_leaves_the_permit_in_its_place() {
+    // The voorzieningenrechter suspends the refusal of the third permit
+    // pending the objection. On the objection the college applies the
+    // hardship clause: it revokes the refusal and grants the permit in its
+    // place. The suspension concerns the revoked refusal, not the decision
+    // on the objection that now grants the permit, so the permit holds.
+    const DERDE: &str = "ZZ-003-Z";
+    let service = service();
+    let mut spel = spel();
+    vergunning(&mut spel, EERSTE, "2026-10-13", "2026-10-20");
+    vergunning(&mut spel, TWEEDE, "2026-10-21", "2026-10-22");
+    let hardheid =
+        |oordeel: bool| map(&json!({ "toepassing_leidt_tot_onaanvaardbare_gevolgen": oordeel }));
+    let (weigering, _) = besluit(
+        &mut spel,
+        DERDE,
+        "2026-10-23",
+        "2026-10-27",
+        &hardheid(false),
+    );
+    let casus = spel.casus().unwrap();
+    let mut bezwaar = map(&casus["voorbeeld"]["bezwaar"]);
+    bezwaar.insert(
+        "dagtekening_bezwaar_of_beroepschrift".into(),
+        json!("2026-11-01"),
+    );
+    let bezwaar = spel
+        .bezwaren(&weigering, &bezwaar, dag("2026-11-01"))
+        .unwrap();
+    spel.beslissen_op_bezwaar(
+        bezwaar["id"].as_str().unwrap(),
+        &hardheid(true),
+        dag("2026-11-20"),
+    )
+    .unwrap();
+    let kroniek = spel.kroniek().unwrap();
+    let grams: Vec<Gram> = serde_json::from_value(kroniek["grammen"].clone()).unwrap();
+    // The copy of the ruling on the suspension of the refusal, received on
+    // 10 November, before the decision on the objection.
+    let grams = met(grams, [schorsing(&weigering)]);
+    assert!(!geldig(&service, &grams, DERDE, "2026-11-15"));
+    assert!(geldig(&service, &grams, DERDE, "2026-11-25"));
+}
+
 /// The first suspension, lifted on 15 December 2026, and a second from
 /// 1 March 2027, lifted on 1 April 2027. On 10 January 2027 the permit is
 /// valid: the first suspension has ended and the second has not begun. The

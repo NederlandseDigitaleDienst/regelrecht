@@ -56,7 +56,8 @@ articles:
             description: >-
               De besluiten op aanvragen, elk met zijn id, het besluit uit
               zijn aggregaat waarop een uitspraak van de voorzieningenrechter
-              ziet, en de dag van de uitspraak in de hoofdzaak.
+              ziet, of een beslissing op bezwaar een nieuw besluit in zijn
+              plaats nam, en de dag van de uitspraak in de hoofdzaak.
           - name: schorsingen
             type: array
             description: >-
@@ -126,10 +127,21 @@ articles:
                       filter:
                         operation: AND
                         conditions:
-                          - operation: OR
-                            conditions:
-                              - {operation: EQUALS, subject: $vergunning.id, value: $schorsing.besluit}
-                              - {operation: EQUALS, subject: $vergunning.voorziening_op_besluit, value: $schorsing.besluit}
+                          # Het besluit dat de vergunning verleent: het besluit
+                          # op de aanvraag, of de beslissing op bezwaar die in
+                          # zijn plaats een nieuw besluit nam.
+                          - operation: IF
+                            cases:
+                              - when: $vergunning.in_de_plaats_op_bezwaar
+                                then:
+                                  operation: AND
+                                  conditions:
+                                    - operation: EQUALS
+                                      subject: $vergunning.voorziening_op_besluit
+                                      value: $schorsing.besluit
+                                    - operation: NOT
+                                      value: {operation: EQUALS, subject: $vergunning.id, value: $schorsing.besluit}
+                            default: {operation: EQUALS, subject: $vergunning.id, value: $schorsing.besluit}
                           - operation: NOT
                             value: {operation: EQUALS, subject: $vergunning.uitspraak_hoofdzaak_op, value: null}
                           - operation: GREATER_THAN_OR_EQUAL
@@ -218,18 +230,30 @@ articles:
                       subject: {operation: DATE_DIFF, from: $peildatum, to: $vergunning.vergunning_geldig_tot, in: days}
                       value: 0
                     then: false
-                  # Op de dag geschorst (artikel 1): het besluit op de aanvraag,
-                  # of de beslissing op bezwaar die in zijn plaats een
-                  # vergunning verleende.
+                  # Op de dag geschorst (artikel 1): het besluit dat de
+                  # vergunning verleent. Dat is de beslissing op bezwaar die in
+                  # de plaats van het besluit op de aanvraag een nieuw besluit
+                  # nam, als er een is; een schorsing van het herroepen besluit
+                  # raakt dan niets meer.
                   - when:
-                      operation: OR
-                      conditions:
-                        - operation: IN
-                          subject: $vergunning.id
-                          value: $geschorst
-                        - operation: IN
-                          subject: $vergunning.voorziening_op_besluit
-                          value: $geschorst
+                      operation: IF
+                      cases:
+                        - when: $vergunning.in_de_plaats_op_bezwaar
+                          then:
+                            operation: AND
+                            conditions:
+                              - operation: NOT
+                                value:
+                                  operation: EQUALS
+                                  subject: $vergunning.voorziening_op_besluit
+                                  value: $vergunning.id
+                              - operation: IN
+                                subject: $vergunning.voorziening_op_besluit
+                                value: $geschorst
+                      default:
+                        operation: IN
+                        subject: $vergunning.id
+                        value: $geschorst
                     then: false
                 default: true
               body: 1
@@ -257,6 +281,9 @@ articles:
       # leest niets anders dan wat het krijgt.
       execution:
         parameters:
+          - name: al_in_de_plaats
+            type: boolean
+            description: Of een eerdere beslissing op bezwaar al een nieuw besluit in de plaats nam.
           - name: al_verleend
             type: boolean
             description: Of het besluit vóór deze beslissing op bezwaar een vergunning verleende.
@@ -286,7 +313,17 @@ articles:
             type: date
             nullable: true
             description: De laatste geldige dag van die vergunning.
+          - name: in_de_plaats_na_bezwaar
+            type: boolean
+            description: Of er na deze beslissing op bezwaar een nieuw besluit in de plaats is genomen.
         actions:
+          - output: in_de_plaats_na_bezwaar
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $nieuw_besluit, value: null}
+                  then: $al_in_de_plaats
+              default: true
           - output: verleend_na_bezwaar
             value:
               operation: IF

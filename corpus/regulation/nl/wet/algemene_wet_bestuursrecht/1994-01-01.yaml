@@ -587,9 +587,9 @@ articles:
               Of het bezwaar ontvankelijk is (lid 1). Getoetst zijn de termijn
               (artikel 6:9) en dat het bestreden besluit niet op bezwaar onder
               dit artikel is genomen (artikel 7:1, eerste lid, onder a): de
-              beslissing op bezwaar niet, en het nieuwe besluit dat zij in de
-              plaats van een herroepen besluit nam evenmin. De overige
-              vereisten en artikel 6:11 nog niet.
+              beslissing op bezwaar niet, met het nieuwe besluit dat zij in de
+              plaats van een herroepen besluit nam. De overige vereisten en
+              artikel 6:11 nog niet.
           - name: heroverweging_geeft_aanleiding
             type: boolean
             nullable: true
@@ -605,18 +605,20 @@ articles:
             nullable: true
             description: >-
               Het besluit dat het bestuursorgaan in de plaats van het
-              herroepen besluit neemt (lid 2).
+              herroepen besluit neemt (lid 2). Herroepen en in de plaats
+              stellen zijn samen één beslissing op bezwaar: de beslissing
+              houdt het nieuwe besluit zelf, en vervalt de beslissing, dan
+              vervalt het nieuwe besluit met haar.
         actions:
           # Eigen keuze: lid 1 zegt niet wanneer een bezwaar ontvankelijk is.
           # Hier de termijn (artikel 6:9), en dat er geen bezwaar openstaat
           # tegen een besluit dat op bezwaar is genomen: daartegen staat
           # beroep open (artikel 7:1, eerste lid, onder a, dat niet is
-          # opgenomen). Dat is de beslissing op het bezwaar, en ook het nieuwe
+          # opgenomen). Dat is de beslissing op het bezwaar, met het nieuwe
           # besluit dat zij in de plaats van een herroepen besluit nam: dat
-          # berust op het artikel van het herroepen besluit, maar is genomen
-          # op het bezwaar. Een besluitwaarde uit de kroniek noemt in
-          # taken_on het artikel van de indiening waarop het besluit is
-          # genomen (RFC-045 §7). De overige vereisten (artikelen 1:2, 6:5 met
+          # hoort bij de beslissing en is geen eigen besluit in de kroniek.
+          # Een besluitwaarde uit de kroniek noemt in taken_on het artikel
+          # van de indiening waarop het besluit is genomen (RFC-045 §7). De overige vereisten (artikelen 1:2, 6:5 met
           # 6:6) en artikel 6:11 nog niet.
           - output: bezwaar_ontvankelijk
             value:

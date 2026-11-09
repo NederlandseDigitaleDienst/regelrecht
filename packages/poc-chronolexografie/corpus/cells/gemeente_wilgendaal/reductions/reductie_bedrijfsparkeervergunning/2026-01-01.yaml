@@ -50,6 +50,11 @@ articles:
           # beslissing op bezwaar die in zijn plaats een vergunning verleende.
           - name: voorziening_op_besluit
             type: string
+          # Of een beslissing op bezwaar die meetelt een nieuw besluit in de
+          # plaats van het besluit op de aanvraag nam. Dan gaat een schorsing
+          # van dat besluit op de aanvraag niet meer over de vergunning.
+          - name: in_de_plaats_op_bezwaar
+            type: boolean
         steps:
           - record: parkeerverordening_gemeente_wilgendaal#2#BESCHIKKING
             actions:
@@ -72,6 +77,7 @@ articles:
                   regulation: beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal
                   output: verleend_na_bezwaar
                   parameters: &bezwaar
+                    al_in_de_plaats: $state.in_de_plaats_op_bezwaar
                     al_verleend: $state.verleend
                     al_besluit_datum: $state.besluit_datum
                     al_vergunning_geldig_tot: $state.vergunning_geldig_tot
@@ -88,7 +94,15 @@ articles:
                   regulation: beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal
                   output: vergunning_geldig_tot_na_bezwaar
                   parameters: *bezwaar
+              - name: in_de_plaats_na_bezwaar
+                type: boolean
+                source:
+                  regulation: beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal
+                  output: in_de_plaats_na_bezwaar
+                  parameters: *bezwaar
             actions:
+              - output: in_de_plaats_op_bezwaar
+                value: $in_de_plaats_na_bezwaar
               - output: verleend
                 value: $verleend_na_bezwaar
               - output: besluit_datum

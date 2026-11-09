@@ -1803,10 +1803,13 @@ impl Cell {
                 submission.basis
             )));
         }
-        // The findings stay apart from the fields, as in a decision value.
+        // The findings stay apart from the fields, as in a decision value; a
+        // field the value holds stays a field.
         let fields: Map<String, serde_json::Value> = stage_fields
             .into_iter()
-            .filter(|(name, _)| !given_findings.contains_key(name))
+            .filter(|(name, _)| {
+                given_fields.contains_key(name) || !given_findings.contains_key(name)
+            })
             .collect();
         Ok(serde_json::json!({
             "basis": shape.basis(),
