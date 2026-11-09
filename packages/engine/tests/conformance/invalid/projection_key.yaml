@@ -13,6 +13,7 @@ articles:
     url: https://example.invalid/per-record/1
     text: Per verlening of de kaart er nog is.
     machine_readable:
+      # release-note-begin: key
       projection:
         key: aanvrager
         state:
@@ -23,3 +24,4 @@ articles:
             actions:
               - output: in_bezit
                 value: $record.verleend
+                # release-note-end: key

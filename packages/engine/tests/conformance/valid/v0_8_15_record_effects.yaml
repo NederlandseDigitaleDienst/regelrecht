@@ -16,6 +16,7 @@ articles:
     url: https://example.invalid/record-effects/1
     text: FICTIEF. Het bestuursorgaan legt vast dat het een afschrift van de uitspraak heeft ontvangen.
     machine_readable:
+      # release-note-begin: fact-effects
       requires:
         - fact: afschrift_uitspraak_ontvangen
           description: Het bestuursorgaan heeft een afschrift ontvangen van een uitspraak over zijn besluit.
@@ -24,6 +25,7 @@ articles:
           effects:
             - revokes: refers_to
               when: vernietigd
+      # release-note-end: fact-effects
       execution:
         parameters:
           - name: vernietigd
@@ -33,6 +35,7 @@ articles:
     text: FICTIEF. Het bestuursorgaan herroept het besluit.
     machine_readable:
       execution:
+        # release-note-begin: revokes-by-id
         produces:
           - type: BESCHIKKING
             effects:
@@ -40,6 +43,7 @@ articles:
         parameters:
           - name: herroepen_besluit
             type: string
+        # release-note-end: revokes-by-id
         output:
           - name: herroepen
             type: boolean

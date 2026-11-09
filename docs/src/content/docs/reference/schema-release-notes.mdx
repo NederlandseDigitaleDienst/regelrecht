@@ -9,7 +9,7 @@ These notes are for someone who writes or maintains a rulework and wants to move
 
 The [version history](/reference/schema#version-history) on the schema reference stays the record of which version introduced which construct, and it is the table RFCs cite. Each row from v0.8.0 on links to its note here. Where the row records what a version introduced, the note says what an author has to do about it.
 
-From v0.8.0 on, some versions remove a construct. A rulework that uses a removed construct still validates against the older schema its `$schema` names, but the engine will not run it. The engine in this repository runs every version on one code path and refuses a removed construct when it loads the rulework, naming the replacement where there is one. So where a note says a version is not additive, the rulework has to be edited before the engine will run it, whatever its `$schema` says. The one change neither the schema nor the engine catches at load is the rename in [v0.8.12](#v0812).
+From v0.8.0 on, some versions remove a construct or tighten a rule, and the engine in this repository handles that in two ways. For the removals in v0.8.7, v0.8.9, v0.8.12 and v0.8.13 it runs every version on one code path. It refuses the removed construct when it loads the rulework, whatever its `$schema` says, and names the replacement where there is one. Such a rulework still validates against the older schema, but has to be edited before the engine will run it. From v0.8.15 on, the engine applies a new rule only to a rulework that declares the new version. A rulework on an older `$schema` keeps loading as it did, and the edit is due when its `$schema` moves. The one change neither the schema nor the engine catches at load is the rename in [v0.8.12](#v0812).
 
 The notes start at v0.8.0. Versions before it have no note; for those, the version history is all there is.
 
@@ -17,7 +17,57 @@ The notes start at v0.8.0. Versions before it have no note; for those, the versi
 
 No example on this page is typed in. Each one is a marked excerpt of a fixture in `packages/engine/tests/conformance/`, read when the site is built. `just conformance` checks every fixture in CI: a fixture under `valid/` must pass the schema and survive a round trip through the Rust model without losing a field, and a fixture under `invalid/` must be refused by the schema version its `$schema` names. A positive example here therefore cannot show something the schema does not accept, and a shape to change comes from a fixture the schema refuses. Each such fixture holds that one construct and otherwise valid metadata.
 
-The fixtures under `valid/` that these notes draw on currently declare the newest schema, so a positive example shows the construct as the current schema accepts it. That can be a little later than the version the note is about, and where a later version changed the construct, the note says so.
+Each fixture under `valid/` declares the newest schema that still accepts its construct, and the caption under an example names that version. Most declare v0.8.17. The ones whose construct v0.8.17 removed stay on v0.8.16. A positive example can therefore come from a later version than the note it sits in, and where a later version changed the construct, the note says so.
+
+## v0.8.17
+
+A projection can play one aggregate per record, which other reductions read as rows, and the constructs that made a projection depend on the question are gone. Experimental, without an RFC so far.
+
+Not additive. A rulework version that declares v0.8.16 or earlier keeps loading as it did, `key`, question parameters and `source.decisions` included. Moving it to v0.8.17 takes three edits:
+
+- A projection with `key` becomes one with `per`, and the question about one person moves to a reduction that reads the aggregates with `source.projections` and `where`.
+- A step passes only `$record.<field>` and `$state.<property>`, never a parameter of the question (`$<name>`). A step that needs a date puts it in the state, and the reduction that reads the rows compares it with the question.
+- A reduction that read `source.decisions` reads the aggregates of those decisions with `source.projections` instead.
+
+`projection.per` names the article the root record rests on, as `<regulation>#<article>`, with `#<KIND>` where the article gives more than one kind of record. An aggregate is the root and the records that refer to it through `refers_to`, directly or through each other. Another record of the root's kind that refers in is an aggregate of its own, and counts in the first one for its effects only. A projection with `per` answers no question itself and has no `execution`. Its steps may read `$record.refers_to`, the id of the record the current record refers to, or null.
+
+The shape to change:
+
+<FixtureExcerpt fixture="invalid/projection_key.yaml" region="key" />
+
+A projection with `per` instead:
+
+<FixtureExcerpt fixture="valid/v0_8_17_per_record.yaml" region="per" />
+
+Another reduction reads the aggregates with `source.projections`, by the `$id` of the reduction that plays them. It gets one row per root that the chronicle holds on the calculation date, with the last state of its aggregate and the root's `id`. `where` keeps the roots that hold the value of a parameter under the name it gives:
+
+<FixtureExcerpt fixture="valid/v0_8_17_projections.yaml" region="projections" />
+
+`refers_to` names, on every record, the record that record is about. Any fact may refer to an earlier record of the chronicle, with or without effects, and a decision taken without a submission refers to the decision it affects. A decision revokes only a record it is about: one that its `refers_to` reaches, directly or through the records those refer to in turn. The cell and the engine refuse any other revocation.
+
+## v0.8.16
+
+A step of a projection is held to three stricter rules. The article the step is on must give a record. `$record` reads only the fields of the kind of record the step is about. And the step passes every required parameter that the output it takes reads, directly or through another output of the same article. The loader checks the steps when the reduction loads, against the newest version it holds of each law they name, and the engine checks them again when it plays the projection. One rule is looser in every version: a step may take an output of an article that has an `input` or an open term, as long as that output reads neither.
+
+Not additive, although the schema changed only in its descriptions. A reduction on v0.8.15 or earlier still loads under the old rules and is checked only when it plays. A v0.8.15 version that breaks one of the new rules has to be fixed before it can declare v0.8.16.
+
+A step that keeps the rules. It names the decision of article 2 (`#BESCHIKKING`), which is a record, and `$record.verleend` is an output of that decision:
+
+<FixtureExcerpt fixture="valid/v0_8_14_projection.yaml" region="step" />
+
+## v0.8.15
+
+A fact that an article requires may have `effects`, as a decision has them. Its only effect is `revokes: refers_to`, so a fact revokes the record it refers to. `when` names a boolean parameter the fact holds and makes the effect conditional on it. The receipt of a copy of a ruling that annuls a decision (Awb 8:72 lid 1, 8:79) revokes that decision this way:
+
+<FixtureExcerpt fixture="valid/v0_8_15_record_effects.yaml" region="fact-effects" />
+
+An effect of a decision may now name any earlier record, a fact included. `revokes` means the record does not count, from the start (ex tunc). A change from a later day on, such as a suspension (Awb 8:81) or a withdrawal from a date, is no effect. It is a step of the reduction that puts the dates in its state.
+
+The parameter a decision's effect revokes must be a string or a decision, which counts by its id, and may not be nullable:
+
+<FixtureExcerpt fixture="valid/v0_8_15_record_effects.yaml" region="revokes-by-id" />
+
+Additive: a rulework version valid under v0.8.14 is valid under v0.8.15 unchanged. The rule on the revoked parameter applies only to a version that declares v0.8.15; a version on v0.8.14 still loads.
 
 ## v0.8.14
 
@@ -39,7 +89,7 @@ Which records count follows from the effects: a record counts unless a later rec
 
 <FixtureExcerpt fixture="valid/v0_8_14_projection.yaml" region="projection" />
 
-A step may also pass a parameter of the question to the law it calls, such as the day the question is about. The answer then depends on that parameter, as it does on the key. This step leaves out the third segment, which is allowed because the article gives one kind of record:
+A step may also pass a parameter of the question to the law it calls, such as the day the question is about. [v0.8.17](#v0817) removed this and `key`, which is why these two examples declare v0.8.16. The answer then depends on that parameter, as it does on the key. This step leaves out the third segment, which is allowed because the article gives one kind of record:
 
 <FixtureExcerpt fixture="valid/v0_8_14_projection_question.yaml" region="question-parameter" />
 
@@ -75,7 +125,7 @@ Calling an article anew through the `basis` of a decision value, with that decis
 
 ## v0.8.11
 
-`source.decisions` may take the article to search under from a parameter, as a `$`-reference, instead of naming it. That lets one reduction answer for decisions under any article, with the caller saying which. It reads the chronicle of the cell that runs it.
+`source.decisions` may take the article to search under from a parameter, as a `$`-reference, instead of naming it. That lets one reduction answer for decisions under any article, with the caller saying which. It reads the chronicle of the cell that runs it. [v0.8.17](#v0817) removed `source.decisions`; a reduction now reads rows about decisions from aggregates.
 
 Additive: a rulework version valid under v0.8.10 is valid under v0.8.11 unchanged.
 
@@ -181,7 +231,7 @@ A hook on every objection:
 
 ## v0.8.2
 
-A new layer, `regulatory_layer: REDUCTIE`. A reduction is a cell's reading of its own chronicle, kept with the cell rather than in the corpus of regulations. It reads the decisions taken under an article with `source.decisions`, which gives a list with one row per decision. Only a reduction may read it, and a reduction does not act on law: no `implements`, `hooks`, `overrides`, `execution.produces` or `open_terms`.
+A new layer, `regulatory_layer: REDUCTIE`. A reduction is a cell's reading of its own chronicle, kept with the cell rather than in the corpus of regulations. It reads the decisions taken under an article with `source.decisions`, which gives a list with one row per decision, until [v0.8.17](#v0817) replaced that with `source.projections`. Only a reduction may read it, and a reduction does not act on law: no `implements`, `hooks`, `overrides`, `execution.produces` or `open_terms`.
 
 Additive: a rulework version valid under v0.8.1 is valid under v0.8.2 unchanged.
 

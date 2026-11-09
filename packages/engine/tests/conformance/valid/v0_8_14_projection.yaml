@@ -22,6 +22,7 @@ articles:
             type: boolean
             description: Of de aanvrager een kaart heeft.
         steps:
+          # release-note-begin: step
           - record: test_conformance_decision_effects#2#BESCHIKKING
             input:
               - name: kaart
@@ -34,6 +35,7 @@ articles:
             actions:
               - output: in_bezit
                 value: $kaart
+          # release-note-end: step
           - record: test_conformance_fact#1
             input:
               - name: kaart_weg

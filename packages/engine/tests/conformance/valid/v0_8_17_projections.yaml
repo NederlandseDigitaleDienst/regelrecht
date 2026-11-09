@@ -17,6 +17,7 @@ articles:
         parameters:
           - name: aanvrager
             type: string
+        # release-note-begin: projections
         input:
           - name: kaarten
             type: array
@@ -24,6 +25,7 @@ articles:
               projections: test_conformance_per_record
               where:
                 aanvrager: $aanvrager
+        # release-note-end: projections
         output:
           - name: aantal_kaarten
             type: number

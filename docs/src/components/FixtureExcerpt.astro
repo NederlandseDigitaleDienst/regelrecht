@@ -22,6 +22,6 @@ const refused = fixture.startsWith('invalid/');
 
 <nldd-code-viewer language="yaml" appearance="box-tinted">{excerpt.yaml}</nldd-code-viewer>
 <nldd-text size="sm" color="secondary">
-  {refused ? `Refused by schema ${excerpt.schemaVersion}: ` : 'From '}
+  {refused ? `Refused by schema ${excerpt.schemaVersion}: ` : `Valid under schema ${excerpt.schemaVersion}: `}
   <nldd-link href={excerpt.url} size="sm"><code>{excerpt.path}</code></nldd-link>
 </nldd-text>

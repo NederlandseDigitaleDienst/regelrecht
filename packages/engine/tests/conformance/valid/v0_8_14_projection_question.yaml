@@ -2,8 +2,10 @@
 # Tier C: a projection step that passes a parameter of the question to the
 # law it calls (schema v0.8.14), beside a field of the record and a property
 # of the state before it. The answer then depends on the question, here the
-# day it names, as it does through the key.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+# day it names, as it does through the key. Schema v0.8.17 removed both
+# the key and question parameters in a step, so this fixture stays on
+# v0.8.16, the newest schema that accepts it.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: test_conformance_projection_question
 regulatory_layer: REDUCTIE
 publication_date: '2026-11-05'

@@ -14,6 +14,7 @@ articles:
     url: https://example.invalid/per-record/1
     text: Per verlening of de kaart er nog is.
     machine_readable:
+      # release-note-begin: per
       projection:
         per: test_conformance_decision_effects#2#BESCHIKKING
         state:
@@ -32,3 +33,4 @@ articles:
             actions:
               - output: in_bezit
                 value: $kaart
+                # release-note-end: per
