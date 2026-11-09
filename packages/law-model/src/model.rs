@@ -470,6 +470,30 @@ pub struct ProducedItem {
     /// The moment that counts in law for this item (RFC-045).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub moment: Option<Moment>,
+    /// For a decision: the decisions it revokes (schema v0.8.14), such as
+    /// the contested decision (Awb 7:11 lid 2). The engine
+    /// carries them out when it plays a chronicle through a reduction with a
+    /// `projection` (`projection.rs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effects: Option<Vec<DecisionEffect>>,
+}
+
+/// One thing a decision does with another decision (schema v0.8.14): it
+/// revokes it. It names the parameter of the article whose value is that
+/// other decision, and, with `when`, a boolean output of the decision that
+/// must be true for the effect to hold, such as the revocation that follows
+/// only from a well-founded objection. A decision in the place of another
+/// revokes it and counts as a record of its own.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DecisionEffect {
+    /// The parameter whose value is the decision this one revokes.
+    #[serde(rename = "revokes")]
+    pub parameter: String,
+    /// A boolean output of this decision; the effect holds only when it is
+    /// true. Without it the effect always holds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub when: Option<String>,
 }
 
 impl ProducedItem {
@@ -546,6 +570,15 @@ impl<'a> Produced<'a> {
         match self {
             Self::Object(_) => None,
             Self::Item(i) => i.derived.as_deref(),
+        }
+    }
+
+    /// For a decision in the list form: what it does with other decisions
+    /// (schema v0.8.14); empty for the object form.
+    pub fn effects(self) -> &'a [DecisionEffect] {
+        match self {
+            Self::Object(_) => &[],
+            Self::Item(i) => i.effects.as_deref().unwrap_or_default(),
         }
     }
 
@@ -1780,6 +1813,154 @@ pub struct MachineReadable {
     /// Document properties this article establishes (schema v0.7.0)
     #[serde(default)]
     pub declares: Option<Vec<Declaration>>,
+    /// In a reduction: the state it keeps while it plays a chronicle
+    /// forward, and what each record does with it (schema v0.8.14).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub projection: Option<Projection>,
+}
+
+/// A reduction that plays a cell's chronicle forward (schema v0.8.14): the
+/// properties of its state, and per article a record rests on, the step
+/// that changes them. Its `execution` answers from the last state.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Projection {
+    /// The parameter of the reduction that names whose records are played,
+    /// such as an applicant. A record holds its key under the same name, as
+    /// a field or an output. Without it, every record is played.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+    pub state: Vec<StateProperty>,
+    pub steps: Vec<ProjectionStep>,
+}
+
+/// One property of a projection's state. Before the first record it holds
+/// the start value of its type ([`StateProperty::start`]).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StateProperty {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub property_type: ParameterType,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+impl StateProperty {
+    /// The value before the first record: false for a boolean, 0 for a
+    /// number or an amount, null for a string or a date.
+    pub fn start(&self) -> Value {
+        match self.property_type {
+            ParameterType::Boolean => Value::Bool(false),
+            ParameterType::Number | ParameterType::Amount => Value::Int(0),
+            _ => Value::Null,
+        }
+    }
+}
+
+/// What a record under one article does with the state: like an article,
+/// it takes inputs from the outputs of a law (`source.regulation`), with
+/// parameters from the record and the state, and its actions give the
+/// properties of the state their values. What the record does is in that
+/// law; the step only couples each property to an output.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectionStep {
+    /// The article the record rests on, `<regulation>#<article>`, with a
+    /// third segment `#<KIND>` when the article produces or requires more
+    /// than one kind of record: a submission kind, a legal character or
+    /// `EXECUTOGRAM`, such as `wet#1#BESCHIKKING`.
+    #[serde(deserialize_with = "step_record")]
+    pub record: String,
+    /// The outputs of a law the step takes, each as an article input with
+    /// `source: {regulation, output, parameters}`. A parameter is
+    /// `$record.<field>` or `$state.<property>`.
+    #[serde(default)]
+    pub input: Vec<Input>,
+    /// What the step gives each property of the state, as the actions of
+    /// an article: `output` names the property, `value` is an input of the
+    /// step (`$<input>`), a field of the record (`$record.<field>`) or a
+    /// property of the state before it (`$state.<property>`). A property no
+    /// action names keeps its value.
+    pub actions: Vec<Action>,
+}
+
+/// What a step reads: one of its inputs (`$<name>`), a field or output of
+/// the record (`$record.<name>`), or a property of the state before it
+/// (`$state.<name>`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StepSource {
+    Input(String),
+    Record(String),
+    State(String),
+}
+
+impl StepSource {
+    /// Read `$<name>`, `$record.<name>` or `$state.<name>`; anything else is
+    /// no source.
+    pub fn parse(s: &str) -> Option<Self> {
+        let name_ok = |n: &str| {
+            !n.is_empty()
+                && n.chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        };
+        let path = s.strip_prefix('$')?;
+        match path.split_once('.') {
+            Some(("record", name)) if name_ok(name) => Some(Self::Record(name.to_string())),
+            Some(("state", name)) if name_ok(name) => Some(Self::State(name.to_string())),
+            None if name_ok(path) && path != "record" && path != "state" => {
+                Some(Self::Input(path.to_string()))
+            }
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for StepSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Input(name) => write!(f, "${name}"),
+            Self::Record(name) => write!(f, "$record.{name}"),
+            Self::State(name) => write!(f, "$state.{name}"),
+        }
+    }
+}
+
+impl ProjectionStep {
+    /// The article the step is about and the kind it names, if any: `wet#1`
+    /// and `BESCHIKKING` for `wet#1#BESCHIKKING`.
+    pub fn basis_and_kind(&self) -> (&str, Option<&str>) {
+        split_kind(&self.record)
+    }
+}
+
+/// Split `<regulation>#<article>[#<KIND>]` into the article and the kind.
+fn split_kind(record: &str) -> (&str, Option<&str>) {
+    match record.split('#').count() {
+        3 => record
+            .rsplit_once('#')
+            .map_or((record, None), |(basis, kind)| (basis, Some(kind))),
+        _ => (record, None),
+    }
+}
+
+/// Deserialize `<regulation>#<article>`, optionally followed by `#<KIND>`,
+/// a kind in capitals.
+fn step_record<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    let (basis, kind) = split_kind(&s);
+    let kind_ok =
+        kind.is_none_or(|k| !k.is_empty() && k.chars().all(|c| c.is_ascii_uppercase() || c == '_'));
+    if is_article_reference(basis) && kind_ok {
+        Ok(s)
+    } else {
+        Err(serde::de::Error::custom(format!(
+            "'{s}' is not <regulation>#<article>, optionally with #<KIND>, without a paragraph"
+        )))
+    }
 }
 
 /// Represents a single article in a law

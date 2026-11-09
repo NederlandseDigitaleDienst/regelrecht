@@ -251,14 +251,18 @@ impl RegelrechtWorld {
             "assert_note_orphaned" => self.note_assert_orphaned(),
             "assert_note_ambiguous" => self.note_assert_ambiguous(),
 
-            other => panic!("unknown action '{other}' — grammar/dispatch out of sync"),
+            other => {
+                if !crate::extension::dispatch(self, other, args, table) {
+                    panic!("unknown action '{other}' — grammar/dispatch out of sync")
+                }
+            }
         }
     }
 
     /// Register every generic data source onto the service, then evaluate the
     /// law for the requested outputs (storing `result`/`error`). Mirrors
     /// `when.rs::register_if_present` + `world.execute_law_multi`.
-    fn run_evaluation(&mut self, law: &str, outputs: &[String]) {
+    pub(crate) fn run_evaluation(&mut self, law: &str, outputs: &[String]) {
         for (name, (key, records)) in &self.data_sources {
             if !records.is_empty() {
                 self.service
@@ -281,7 +285,7 @@ impl RegelrechtWorld {
     /// Read a named output from the last result, panicking with a clear message
     /// when there is no result or the output is missing. Mirrors
     /// `then.rs::assert_output_value`.
-    fn output_value(&self, name: &str) -> Value {
+    pub(crate) fn output_value(&self, name: &str) -> Value {
         assert!(
             self.is_success(),
             "expected successful execution, got error: {:?}",
@@ -513,7 +517,7 @@ fn bare_value(n: f64) -> Value {
 }
 
 /// Type a data-table cell; see [`quoted_value`] for where the rule lives.
-fn table_cell_value(raw: &str) -> Value {
+pub(crate) fn table_cell_value(raw: &str) -> Value {
     match crate::generated_steps::TABLE_CELL_VALUE_TYPING {
         "inferred" => convert_gherkin_value(raw),
         "literal" => Value::String(raw.trim().to_string()),

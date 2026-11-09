@@ -1,0 +1,43 @@
+---
+# FICTIEF. Policy for the cell's BDD suite: the college binds the open term
+# of test_chronicle_effects article 9 to the answer of its own cell, which
+# plays its chronicle through test_reductie_geldige_kaart (RFC-048,
+# `source.reduction`). None of it is the text of a regulation.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: test_beleid_geldige_kaart
+name: Testbeleid geldige kaart
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_beleid_geldige_kaart
+competent_authority:
+  name: het college van de testcel
+
+articles:
+  - number: '1'
+    url: https://example.com/test_beleid_geldige_kaart/1
+    text: >-
+      FICTIEF. Het college neemt aan dat de aanvrager een geldige kaart heeft
+      als de besluiten in zijn eigen kroniek dat zeggen.
+    machine_readable:
+      implements:
+        - law: test_chronicle_effects
+          article: '9'
+          open_term: aanvrager_heeft_geldige_kaart
+      execution:
+        parameters:
+          - name: aanvrager
+            type: string
+        input:
+          - name: geldige_kaart_volgens_cel
+            type: boolean
+            source:
+              reduction: heeft_geldige_kaart
+              parameters:
+                aanvrager: $aanvrager
+        output:
+          - name: aanvrager_heeft_geldige_kaart
+            type: boolean
+        actions:
+          - output: aanvrager_heeft_geldige_kaart
+            value: $geldige_kaart_volgens_cel

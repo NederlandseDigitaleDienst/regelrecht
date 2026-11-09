@@ -51,9 +51,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::NaiveDate;
 use regelrecht_engine::{
-    Answer as EngineAnswer, AnswerProvenance, AnswerRequest, ArticleBasedLaw, ArticleResult,
-    Authority, Call, Chronicle as ChronicleSource, ChronicleRead, EngineError, LawExecutionService,
-    OpenTermAnswerer, RegulatoryLayer, Value,
+    has_projection, Answer as EngineAnswer, AnswerProvenance, AnswerRequest, ArticleBasedLaw,
+    ArticleResult, Authority, Call, Chronicle as ChronicleSource, ChronicleRead, ChronicleRecord,
+    EngineError, LawExecutionService, OpenTermAnswerer, ProjectionOptions, RegulatoryLayer, Value,
 };
 use serde::Serialize;
 use serde_json::Map;
@@ -177,6 +177,33 @@ pub fn executogram_rows(
 pub const ROW_REFERS_TO: &str = "refers_to";
 
 /// `grams` as rows (`row`), each with the id of its chronolexogram.
+/// `grams` as the records a reduction that plays the chronicle forward reads
+/// (schema v0.8.14, [`regelrecht_engine::projection`]), in the order the cell
+/// recorded them, with the values as the engine reads them.
+pub fn chronicle_records(grams: &[Gram]) -> Result<Vec<ChronicleRecord>> {
+    let read = |values: &BTreeMap<String, serde_json::Value>| -> Result<BTreeMap<String, Value>> {
+        values
+            .iter()
+            .map(|(k, v)| Ok((k.clone(), stored::from_stored(v)?)))
+            .collect()
+    };
+    grams
+        .iter()
+        .map(|gram| {
+            Ok(ChronicleRecord {
+                id: gram.id.clone(),
+                kind: gram.kind.clone(),
+                basis: gram.basis.clone(),
+                fact: gram.fact.clone(),
+                recorded_on: gram.recorded_on,
+                refers_to: gram.refers_to.clone(),
+                fields: read(&gram.fields)?,
+                outputs: read(&gram.outputs)?,
+            })
+        })
+        .collect()
+}
+
 fn rows_of<'g>(
     service: &LawExecutionService,
     grams: impl Iterator<Item = &'g Gram>,
@@ -492,7 +519,17 @@ impl<'c> Reader<'c> {
         };
         let outputs = [name];
         let date = request.calculation_date;
-        let result = if self.explain == Some(name) {
+        let trace = self.explain == Some(name);
+        // A reduction that plays the chronicle forward (schema v0.8.14) gets
+        // the chronicle as records; the engine plays it and answers from the
+        // last state.
+        let result = if has_projection(article) {
+            let records = chronicle_records(&self.grams)?;
+            let options = ProjectionOptions { call, trace };
+            service
+                .evaluate_projection_with(reduction, &outputs, &records, parameters, date, options)?
+                .result
+        } else if trace {
             service.evaluate_law_with_trace_in(reduction, &outputs, parameters, call, date)?
         } else {
             service.evaluate_law_in(reduction, &outputs, parameters, call, date)?
@@ -656,6 +693,29 @@ mod tests {
             missing: Vec::new(),
             outputs: [("verlof_verleend".to_string(), json!(true))].into(),
         }
+    }
+
+    /// The chronicle as a projection reads it: every gram in order, with
+    /// its values as the engine reads them.
+    #[test]
+    fn the_chronicle_as_records_keeps_every_gram_in_order() {
+        let mut fact = gram(EXECUTOGRAM, BASIS, None);
+        fact.fact = Some("ingeleverd".into());
+        let grams = [gram("BESCHIKKING", BASIS, Some("a")), fact];
+        let records = chronicle_records(&grams).unwrap();
+        assert_eq!(records.len(), 2);
+        let decision = &records[0];
+        assert_eq!(decision.id, grams[0].id);
+        assert_eq!(decision.kind, "BESCHIKKING");
+        assert_eq!(decision.basis, BASIS);
+        assert_eq!(decision.refers_to.as_deref(), Some("a"));
+        assert_eq!(decision.recorded_on, grams[0].recorded_on);
+        assert_eq!(decision.outputs["verlof_verleend"], Value::Bool(true));
+        assert_eq!(
+            decision.fields["eerste_verlofdag"],
+            Value::String("2027-02-01".into())
+        );
+        assert_eq!(records[1].fact.as_deref(), Some("ingeleverd"));
     }
 
     #[test]
