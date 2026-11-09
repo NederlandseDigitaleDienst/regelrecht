@@ -901,13 +901,15 @@ pub struct Waarom {
     pub bevindingen: Vec<String>,
 }
 
-/// The nodes of `node` and below where the cell answered an open term.
+/// The nodes of `node` and below where the cell answered an open term, not
+/// those in how a cell came to an answer.
 fn beantwoord(node: &PathNode) -> Vec<&PathNode> {
-    let mut gevonden: Vec<_> = node.children.iter().flat_map(beantwoord).collect();
+    // Under an answer hangs how the cell came to it: its own account, not
+    // part of the decision.
     if node.answer.is_some() {
-        gevonden.insert(0, node);
+        return vec![node];
     }
-    gevonden
+    node.children.iter().flat_map(beantwoord).collect()
 }
 
 /// The nodes of `node` and below where a cell gave an answer, as
@@ -922,7 +924,9 @@ fn beantwoord_per_begrip(node: &PathNode) -> Vec<(&PathNode, &str)> {
             begrip
         };
         if node.answer.is_some() {
+            // What hangs under it is the cell's own account ([`beantwoord`]).
             uit.push((node, begrip));
+            return;
         }
         for child in &node.children {
             onder(child, begrip, uit);
@@ -1128,6 +1132,11 @@ fn stappen_onder(node: &PathNode, spoor: &Spoor<'_>) -> Result<Vec<Stap>> {
 
 /// What a trace node gives: one step, or the steps under it.
 fn stappen_van(node: &PathNode, spoor: &Spoor<'_>) -> Result<Vec<Stap>> {
+    // How a cell came to its answer is its own account ([`hoe_beantwoord`]),
+    // no step of the decision.
+    if node.answer.is_some() {
+        return Ok(Vec::new());
+    }
     let stap = match node.node_type {
         PathNodeType::Article | PathNodeType::CrossLawReference => {
             match waar(node) {
@@ -3190,8 +3199,10 @@ mod tests {
         );
         assert_eq!(antwoord["geldig_vanaf"], json!("2026-08-01"));
         assert_eq!(antwoord["tot_en_met"], json!(tegen_b.id));
+        // The trace of the decision holds how the school answered, under
+        // its answer: the projection its reduction played.
         let spoor = op_b["waarom"]["spoor"].as_str().unwrap();
-        assert!(!spoor.contains("FOREACH"), "{spoor}");
+        assert!(spoor.contains("PROJECTION"), "{spoor}");
         assert!(op_b["waarom"]["ingevuld"]
             .as_array()
             .unwrap()

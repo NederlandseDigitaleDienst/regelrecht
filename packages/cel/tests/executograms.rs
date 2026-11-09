@@ -381,6 +381,7 @@ fn a_reduction_reads_only_a_fact_its_article_requires() {
             name: "plaats",
             parameters: &std::collections::BTreeMap::new(),
             calculation_date: "2026-08-01",
+            trace: false,
         };
         reader.answer(&service, &request).map(|a| a.unwrap().value)
     };

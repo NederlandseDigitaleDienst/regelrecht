@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 
 use regelrecht_engine::{
     Answer, AnswerProvenance, AnswerRequest, ArticleBasedLaw, Authority, Call, FilledBy,
-    LawExecutionService, LawLoad, OpenTermAnswerer, PathNode, Value,
+    LawExecutionService, LawLoad, OpenTermAnswerer, PathNode, PathNodeType, Value,
 };
 
 const DATE: &str = "2026-10-20";
@@ -554,6 +554,7 @@ impl OpenTermAnswerer for Fake {
         Ok(self.answers.get(request.name).map(|value| Answer {
             value: value.clone(),
             provenance: provenance(&self.authority.name, request.name),
+            trace: None,
         }))
     }
 }
@@ -1388,4 +1389,51 @@ fn a_binding_passes_another_input_of_its_article_to_the_cell() {
     let asked = running.asked.borrow();
     assert_eq!(asked.len(), 1);
     assert_eq!(asked[0].1["jaar"], Value::Int(2026));
+}
+
+/// An answerer that says how it came to its answer, as a trace of its own.
+struct Explaining(Fake);
+
+impl OpenTermAnswerer for Explaining {
+    fn authority(&self) -> &Authority {
+        self.0.authority()
+    }
+
+    fn answer(
+        &self,
+        service: &LawExecutionService,
+        request: &AnswerRequest<'_>,
+    ) -> regelrecht_engine::Result<Option<Answer>> {
+        let how = PathNode::new(PathNodeType::Article, "reductie_oostmeer")
+            .with_node_id("n")
+            .with_child(PathNode::new(PathNodeType::Operation, "PROJECTION").with_node_id("n0"));
+        // Only a traced execution asks how the answer came about.
+        assert!(request.trace);
+        Ok(self.0.answer(service, request)?.map(|a| Answer {
+            trace: Some(how),
+            ..a
+        }))
+    }
+}
+
+#[test]
+fn a_traced_execution_nests_how_the_answerer_came_to_its_answer() {
+    let cell =
+        Explaining(Fake::college("oostmeer").answering("eerder_verstrekt", Value::Bool(true)));
+    let result = read("eerder_gelezen", &cell, vec![], BTreeMap::new()).unwrap();
+    let input = node(result.trace.as_ref().unwrap(), "eerder_verstrekt").unwrap();
+    let answer = input
+        .children
+        .iter()
+        .find(|c| c.answer.is_some())
+        .expect("the node of the answer");
+    let [how] = &answer.children[..] else {
+        panic!("one trace under the answer: {answer:?}");
+    };
+    assert_eq!(how.name, "reductie_oostmeer");
+    // The ids follow the place in this trace, not the one it was built in.
+    let id = answer.node_id.clone().unwrap();
+    assert_eq!(how.node_id, Some(format!("{id}.0")));
+    assert_eq!(how.children[0].name, "PROJECTION");
+    assert_eq!(how.children[0].node_id, Some(format!("{id}.0.0")));
 }

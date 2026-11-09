@@ -44,7 +44,7 @@ use crate::resolver::{
     DeclarationNotInForce, DeclarationsFromOtherVersion, DelegationRefusal, HookEntry,
     LawArticleRef, ProcedureMiss, RuleResolver, SelectionReason,
 };
-use crate::trace::{LegalAnchor, TraceBuilder, ValueSource};
+use crate::trace::{LegalAnchor, PathNode, TraceBuilder, ValueSource};
 use crate::types::{
     Connectivity, LegalStatus, MissingKind, PathNodeType, RegulatoryLayer, ResolveType, TypeSpec,
     UntranslatableMode, Value,
@@ -482,6 +482,13 @@ impl<'a> ResolutionContext<'a> {
     fn trace_set_answer(&self, answer: AnswerProvenance) {
         if let Some(ref tb) = self.trace {
             tb.borrow_mut().set_answer(answer);
+        }
+    }
+
+    /// Nest a trace built in another execution under the current node.
+    fn trace_adopt(&self, node: PathNode) {
+        if let Some(ref tb) = self.trace {
+            tb.borrow_mut().adopt(node);
         }
     }
 
@@ -4610,8 +4617,11 @@ impl LawExecutionService {
             name: answer,
             parameters: &parameters,
             calculation_date: res_ctx.calculation_date,
+            // When tracing, the answerer may say how it came to the answer;
+            // that trace hangs under the node of the answer.
+            trace: res_ctx.trace.is_some(),
         };
-        let given = match askee.answer(self, &request) {
+        let mut given = match askee.answer(self, &request) {
             Ok(Some(given)) => given,
             Ok(None) => {
                 let message = format!(
@@ -4641,6 +4651,9 @@ impl LawExecutionService {
             } else {
                 format!("Answered by {}", given.provenance)
             });
+            if let Some(how) = given.trace.take() {
+                res_ctx.trace_adopt(how);
+            }
         }
         if given.value.is_null() {
             let message = format!(

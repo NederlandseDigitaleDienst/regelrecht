@@ -577,6 +577,16 @@ impl RuleResolver {
             )));
         }
 
+        // Schema v0.8.16: the steps of a reduction on v0.8.16 or later fit
+        // the laws they name, as far as those are loaded; a reduction on
+        // v0.8.15 or earlier is checked only when it plays. Only a reduction
+        // is refused for this:
+        // a law that arrives later always loads, whatever a reduction loaded
+        // before it expects of it, and the play holds that reduction to the
+        // law in force on the calculation date.
+        crate::load_check::check_projection_wiring(&law, &lookup)
+            .map_err(|why| EngineError::LoadError(format!("law '{}' {why}", law.id)))?;
+
         // RFC-037: the loaded set is well-typed whatever the order the laws
         // arrived in. A law already loaded that reads this one (an input with
         // `source.regulation`, or an `implements` of one of its terms) could

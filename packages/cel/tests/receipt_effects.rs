@@ -10,16 +10,18 @@
 // a failing fixture reports itself.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use regelrecht_cel::reading::chronicle_records;
+use regelrecht_cel::reading::{chronicle_records, Reader};
 use regelrecht_cel::{Afschrift, Cell, Disk, Gram, Received, EXECUTOGRAM};
-use regelrecht_engine::{LawExecutionService, ProjectionEvent, Value as EngineValue};
+use regelrecht_engine::{
+    Authority, Call, LawExecutionService, PathNode, ProjectionEvent, Value as EngineValue,
+};
 use serde_json::{json, Value};
 
 mod common;
-use common::{day, object_map, service_of};
+use common::{answered, day, object_map, service_of};
 
 const CELL: &str = "test_cel";
 const COURT: &str = "test_rechtbank";
@@ -297,4 +299,108 @@ fn only_a_fact_with_effects_refers_and_only_to_a_record_of_the_chronicle() {
             .contains("refers to 'verlening_x', which is not a chronolexogram before it"),
         "{err}"
     );
+}
+
+#[test]
+fn the_trace_of_a_decision_holds_the_projection_under_the_answer() {
+    // The policy binds the term of article 9 to the cell's answer. Traced,
+    // the engine nests how the cell came to it under the node of the
+    // answer: the run of the reduction, with the projection it played and
+    // the law the step called under the record that counted.
+    let read = |path: &str| std::fs::read_to_string(fixtures().join(path)).unwrap();
+    let service = service_of(&[
+        &read("regulation/test_chronicle_effects/2025-01-01.yaml"),
+        &read("regulation/test_beleid_geldige_kaart/2025-01-01.yaml"),
+        &read("cells/test_cel/reductions/test_reductie_geldige_kaart/2025-01-01.yaml"),
+    ]);
+    let authority = Authority {
+        name: "het college van de testcel".to_string(),
+        category: None,
+    };
+    let answers = BTreeMap::from([(
+        "heeft_geldige_kaart".to_string(),
+        "test_reductie_geldige_kaart".to_string(),
+    )]);
+    let reductions = BTreeSet::from(["test_reductie_geldige_kaart".to_string()]);
+    let reader = Reader::new(
+        CELL,
+        &authority,
+        &answers,
+        &reductions,
+        grants(&["x"]),
+        None,
+    );
+    let call = Call {
+        findings: BTreeMap::new(),
+        answerer: Some(&reader),
+        chronicle: Some(&reader),
+        sphere: Vec::new(),
+    };
+    let result = service
+        .evaluate_law_with_trace_in(
+            "test_chronicle_effects",
+            &["mag_parkeren"],
+            BTreeMap::from([(
+                "aanvrager".to_string(),
+                EngineValue::String("burger_x".to_string()),
+            )]),
+            call,
+            "2025-03-01",
+        )
+        .unwrap();
+    assert_eq!(result.outputs["mag_parkeren"], EngineValue::Bool(true));
+    let root = result.trace.as_ref().unwrap();
+    let [answer] = answered(root)[..] else {
+        panic!("one answer: {}", root.render_box_drawing());
+    };
+    assert_eq!(answer.name, "heeft_geldige_kaart");
+    // Under the answer: the reduction's own run, and the projection first.
+    let [run] = &answer.children[..] else {
+        panic!("the reduction's run: {}", root.render_box_drawing());
+    };
+    let projection = &run.children[0];
+    assert_eq!(projection.name, "PROJECTION");
+    let names = |n: &PathNode| {
+        n.children
+            .iter()
+            .map(|c| c.name.clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(names(projection), ["COUNTS", "FOLD"]);
+    assert_eq!(names(&projection.children[0]), ["COUNT", "COUNT"]);
+    let fold = &projection.children[1];
+    assert_eq!(names(fold), ["APPLY", "APPLY"]);
+    let grant = &fold.children[1];
+    assert!(
+        grant
+            .message
+            .as_deref()
+            .unwrap_or("")
+            .starts_with("verlening_x: test_chronicle_effects#7"),
+        "{grant:?}"
+    );
+    assert!(
+        !grant.children.is_empty(),
+        "the law the step called: {grant:?}"
+    );
+    // Every node keeps an id of its own in the one tree.
+    let mut ids = Vec::new();
+    collect_ids(root, &mut ids);
+    let unique: BTreeSet<&String> = ids.iter().collect();
+    assert_eq!(unique.len(), ids.len(), "{ids:?}");
+    // Under the answer, the run is its first child and the projection the
+    // first child of the run.
+    let answer_id = answer.node_id.as_deref().unwrap();
+    assert_eq!(
+        projection.node_id.as_deref(),
+        Some(format!("{answer_id}.0.0").as_str())
+    );
+}
+
+/// The `node_id` of `node` and of every node under it.
+fn collect_ids(node: &PathNode, ids: &mut Vec<String>) {
+    ids.extend(node.node_id.clone());
+    for child in &node.children {
+        collect_ids(child, ids);
+    }
 }

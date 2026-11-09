@@ -5,7 +5,7 @@
 # postcode alone. A registration that was wrong from the start does not
 # count: the fact that says so revokes it, which the law declares, not this
 # reduction.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: test_reductie_adres
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'

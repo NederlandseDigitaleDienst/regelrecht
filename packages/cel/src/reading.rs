@@ -366,8 +366,10 @@ pub struct Asked {
 /// version in force on the day, on its chronicle as `grams` holds it, and
 /// gives the engine the value with where it comes from: the cell, the
 /// answer, the reduction, its article and version, and how far it read the
-/// chronicle. The engine does not see the reduction run; the cell explains
-/// its answer on request ([`crate::Cell::explain_answer`]).
+/// chronicle. When the engine traces, the reader gives the reduction's run
+/// with the answer ([`EngineAnswer::trace`]), and the engine nests it under
+/// the answer; the cell also explains an answer on request
+/// ([`crate::Cell::explain_answer`]).
 ///
 /// The reduction is the rulework the service holds under that `$id`: a
 /// `REDUCTIE` the cell keeps (`reductions`). The answer
@@ -519,7 +521,7 @@ impl<'c> Reader<'c> {
         };
         let outputs = [name];
         let date = request.calculation_date;
-        let trace = self.explain == Some(name);
+        let trace = request.trace || self.explain == Some(name);
         // A reduction that plays the chronicle forward (schema v0.8.14) gets
         // the chronicle as records; the engine plays it and answers from the
         // last state.
@@ -657,6 +659,14 @@ impl OpenTermAnswerer for Reader<'_> {
                 self.recording_actor
             ))
         })?;
+        // When the engine traces, the reduction's run is how the cell came
+        // to the answer: for a projection, the `PROJECTION` node with the
+        // records that count and the fold, and the steps' law calls.
+        let trace = if request.trace {
+            result.trace.clone()
+        } else {
+            None
+        };
         let explained = (self.explain == Some(name)).then_some(result);
         self.asked.borrow_mut().push(Asked {
             name: name.to_string(),
@@ -664,7 +674,11 @@ impl OpenTermAnswerer for Reader<'_> {
             provenance: provenance.clone(),
             explained,
         });
-        Ok(Some(EngineAnswer { value, provenance }))
+        Ok(Some(EngineAnswer {
+            value,
+            provenance,
+            trace,
+        }))
     }
 }
 
@@ -672,6 +686,7 @@ impl OpenTermAnswerer for Reader<'_> {
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
+    use regelrecht_engine::PathNode;
     use serde_json::json;
 
     const ACTOR: &str = "obs_de_klimop";
@@ -1200,13 +1215,22 @@ articles:
             provenance.last_record.as_deref(),
             Some("BESCHIKKING-wet_fictief#1")
         );
-        // The reduction's FOREACH is not in the trace of the execution.
-        let trace = result.trace.unwrap().render_box_drawing();
+        // The traced execution holds how the cell came to its answer, under
+        // the node of the answer: the reduction's run, with its FOREACH.
+        let root = result.trace.unwrap();
+        let trace = root.render_box_drawing();
         assert!(
             trace.contains("Answered by answer 'al_verleend' of obs_de_klimop"),
             "{trace}"
         );
-        assert!(!trace.contains("FOREACH"), "{trace}");
+        fn find<'n>(node: &'n PathNode, name: &str) -> Option<&'n PathNode> {
+            if node.name == name && node.answer.is_some() {
+                return Some(node);
+            }
+            node.children.iter().find_map(|c| find(c, name))
+        }
+        let answer = find(&root, "al_verleend").expect("the node of the answer");
+        assert!(answer.render_box_drawing().contains("FOREACH"), "{trace}");
         let asked = reader.asked();
         assert_eq!(asked.len(), 1);
         assert_eq!(asked[0].name, "al_verleend");
@@ -1224,7 +1248,23 @@ articles:
             decisions(),
             Some("al_verleend"),
         );
-        granted(&service, &reader).unwrap();
+        // Also when the execution that asks does not trace.
+        let call = regelrecht_engine::Call {
+            findings: BTreeMap::new(),
+            answerer: Some(&reader),
+            chronicle: None,
+            sphere: Vec::new(),
+        };
+        let result = service
+            .evaluate_law_in(
+                "wet_fictief",
+                &["verleend"],
+                parameters(),
+                call,
+                "2026-10-20",
+            )
+            .unwrap();
+        assert!(result.trace.is_none());
         let asked = reader.asked();
         let trace = asked[0].explained.as_ref().unwrap().trace.as_ref().unwrap();
         assert!(trace.render_box_drawing().contains("FOREACH"));
@@ -1363,6 +1403,7 @@ articles:
             name: "al_verleend",
             parameters: &BTreeMap::new(),
             calculation_date: "2026-10-20",
+            trace: false,
         };
         let e = reader.answer(&service, &request).unwrap_err();
         assert!(
@@ -1390,6 +1431,7 @@ articles:
             name: "al_verleend",
             parameters: &BTreeMap::new(),
             calculation_date: "2026-10-20",
+            trace: false,
         };
         let answer = reader.answer(&service, &request).unwrap().unwrap();
         assert_eq!(answer.value, Value::Bool(true));
@@ -1412,6 +1454,7 @@ articles:
             name: "al_verleend",
             parameters: &given,
             calculation_date: "2026-10-20",
+            trace: false,
         };
         let e = reader.answer(&service, &request).unwrap_err();
         assert!(e.to_string().contains("'bsn_jongere'"), "{e}");

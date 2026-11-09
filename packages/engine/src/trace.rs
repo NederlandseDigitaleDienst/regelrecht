@@ -1027,6 +1027,16 @@ fn format_node_id(path: &[usize]) -> String {
     id
 }
 
+/// Give `node` and every node under it the `node_id` of its place, `path`.
+fn renumber(node: &mut PathNode, path: &mut Vec<usize>) {
+    node.node_id = Some(format_node_id(path));
+    for (index, child) in node.children.iter_mut().enumerate() {
+        path.push(index);
+        renumber(child, path);
+        path.pop();
+    }
+}
+
 /// Builder for constructing execution traces using a stack-based approach.
 ///
 /// The builder maintains a stack of nodes being constructed. As execution
@@ -1266,6 +1276,23 @@ impl TraceBuilder {
             return None;
         }
         self.stack.last().and_then(|s| s.node.node_id.as_deref())
+    }
+
+    /// Make `node`, a trace built in another execution, a child of the
+    /// current node, such as how a cell came to the answer the engine asked
+    /// it for (RFC-048). Its `node_id`s are given anew from its place here,
+    /// so every id stays unique in the tree. No-op without a current node.
+    pub fn adopt(&mut self, mut node: PathNode) {
+        if !self.enabled {
+            return;
+        }
+        let Some(parent) = self.stack.last_mut() else {
+            return;
+        };
+        let mut path = parent.path.clone();
+        path.push(parent.node.children.len());
+        renumber(&mut node, &mut path);
+        parent.node.children.push(node);
     }
 
     /// Pop the current node from the stack, making it a child of the parent.
@@ -2447,5 +2474,34 @@ articles:
             requirement_verdict(Value::Array(vec![])).ends_with("Requirement NOT met"),
             "an empty array is falsy"
         );
+    }
+
+    #[test]
+    fn an_adopted_trace_hangs_under_the_current_node_with_ids_of_its_place() {
+        let built = PathNode::new(PathNodeType::Article, "elders")
+            .with_node_id("n")
+            .with_child(PathNode::new(PathNodeType::Operation, "PROJECTION").with_node_id("n0"));
+        let mut tb = TraceBuilder::new_untimed();
+        tb.push("root", PathNodeType::Article);
+        tb.push("eerste", PathNodeType::Resolve);
+        tb.pop();
+        tb.push("antwoord", PathNodeType::Resolve);
+        tb.adopt(built.clone());
+        tb.pop();
+        let root = tb.build().expect("a root");
+        let answer = &root.children[1];
+        assert_eq!(answer.node_id.as_deref(), Some("n1"));
+        let adopted = &answer.children[0];
+        assert_eq!(adopted.name, "elders");
+        assert_eq!(adopted.node_id.as_deref(), Some("n1.0"));
+        assert_eq!(adopted.children[0].node_id.as_deref(), Some("n1.0.0"));
+
+        // A disabled builder, or one without a current node, adopts nothing.
+        let mut off = TraceBuilder::disabled();
+        off.adopt(built.clone());
+        assert!(off.build().is_none());
+        let mut empty = TraceBuilder::new_untimed();
+        empty.adopt(built);
+        assert!(empty.build().is_none());
     }
 }
