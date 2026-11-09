@@ -11,11 +11,12 @@
       <p>
         Geef het BWB-id van een wet, een algemene maatregel van bestuur of een ministeriële regeling; het staat in
         het adres op wetten.overheid.nl. De dienst speelt de regeling door de tijd af, met de nota's van toelichting,
-        en haalt daarna op de achtergrond haar Kamerdossiers op. Wat is opgehaald, zien ook de anderen die deze
-        pagina openen.
+        en haalt daarna op de achtergrond haar Kamerdossiers op. Een wetsvoorstel dat nog in behandeling is, heeft
+        nog geen BWB-id: geef dan het nummer van zijn Kamerdossier (vijf cijfers). Wat is opgehaald, zien ook de
+        anderen die deze pagina openen.
       </p>
       <form class="ophaal-zoek" @submit.prevent="zoek">
-        <input v-model.trim="bwb" type="text" placeholder="BWBR0007376" aria-label="BWB-id" spellcheck="false" autocomplete="off" />
+        <input v-model.trim="bwb" type="text" placeholder="BWBR0007376 of 36889" aria-label="BWB-id of dossiernummer" spellcheck="false" autocomplete="off" />
         <nldd-button appearance="primary" size="md" text="Zoek" @click="zoek"></nldd-button>
       </form>
 
@@ -128,7 +129,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { api, bekendmaking, datumTekst, isBwb, link, open, post } from './api.js';
+import { api, bekendmaking, datumTekst, isBwb, isDossier, link, open, post } from './api.js';
 
 const KOP = { wacht: 'In de rij: ', bezig: 'Bezig: ', klaar: 'Klaar: ', fout: 'Mislukt: ' };
 
@@ -185,8 +186,18 @@ function leeg() {
 async function zoek() {
   leeg();
   gevolgd = null;
+  if (isDossier(bwbGroot.value)) {
+    // Een voorstel in behandeling: geen wet om op te zoeken, meteen het dossier.
+    const { ok, x } = await post('api/haal', { dossier: bwbGroot.value });
+    if (!ok) {
+      fout.value = x.fout;
+      return;
+    }
+    volg(x.id);
+    return;
+  }
   if (!isBwb(bwbGroot.value)) {
-    fout.value = 'Een BWB-id ziet eruit als BWBR0007376.';
+    fout.value = 'Geef een BWB-id, zoals BWBR0007376, of het nummer van een Kamerdossier, zoals 36889.';
     return;
   }
   wacht(`Op wetten.overheid.nl opzoeken wat ${bwbGroot.value} maakte en wijzigde …`);

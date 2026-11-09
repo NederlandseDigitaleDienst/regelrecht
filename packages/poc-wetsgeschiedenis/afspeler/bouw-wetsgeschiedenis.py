@@ -52,6 +52,8 @@ import os
 import re
 import sys
 
+import yaml
+
 HIER = os.path.dirname(os.path.abspath(__file__))
 WERKBANK = os.path.dirname(HIER)
 BASIS = os.path.dirname(WERKBANK)
@@ -63,11 +65,10 @@ import handelingen  # noqa: E402
 import kamertoelichting  # noqa: E402
 import keten  # noqa: E402
 
-# Elk Kamerdossier in deze map met een dossier.yaml komt op de pagina; het
-# eerste in VOORAAN staat bovenaan, de rest op nummer.
+# Elk Kamerdossier in deze map met een dossier.yaml komt op de pagina; wat
+# daarin `vooraan: ja` zegt staat bovenaan, de rest op nummer.
 # De poc-dienst verlegt bron en werk naar haar eigen datamap (zie kamerdossier.py).
 KAMERDOSSIERS = os.path.join(os.environ.get("WETSGESCHIEDENIS_BRON") or os.path.join(WERKBANK, "bron"), "kamerdossiers")
-VOORAAN = ("36742",)
 WERK = os.environ.get("WETSGESCHIEDENIS_WERK") or os.path.join(WERKBANK, "werk", "afspelen")
 SJABLOON = os.path.join(HIER, "wetsgeschiedenis-sjabloon.html")
 UIT = os.path.join(DOCS, "Concept Wetsgeschiedenis — Napp.html")
@@ -106,7 +107,10 @@ def dossiers():
     """De Kamerdossiers met een dossier.yaml, in hun volgorde op de pagina."""
     nrs = [d for d in os.listdir(KAMERDOSSIERS)
            if os.path.exists(os.path.join(KAMERDOSSIERS, d, "dossier.yaml"))]
-    return sorted(nrs, key=lambda d: (d not in VOORAAN, VOORAAN.index(d) if d in VOORAAN else 0, d))
+    def vooraan(d):
+        with open(os.path.join(KAMERDOSSIERS, d, "dossier.yaml"), encoding="utf-8") as fh:
+            return bool((yaml.safe_load(fh) or {}).get("vooraan"))
+    return sorted(nrs, key=lambda d: (not vooraan(d), d))
 
 
 def tijdlijn(nr):
@@ -250,7 +254,7 @@ def poc(doel, index, gegevens_, vorm="html"):
         sys.exit("sjabloon: de poc-vorm houdt inline script over; de CSP van het portaal weigert dat")
     app = os.path.join(doel, POC_APP)
     kop = ("/* Gemaakt door werkbank/generatoren/bouw-wetsgeschiedenis.py --poc uit\n"
-           "   wetsgeschiedenis-sjabloon.html in het Wpp-dossier; wijzig het daar. */\n")
+           "   wetsgeschiedenis-sjabloon.html in het dossier waar zij is ontwikkeld; wijzig het daar. */\n")
     if vorm == "vue":
         lijf = re.search(r"<body>\n?(.*?)</body>", html, re.S)[1]
         lijf = re.sub(r'<dialog class="ophaal".*?</dialog>\n?', "", lijf, count=1, flags=re.S)
@@ -259,7 +263,7 @@ def poc(doel, index, gegevens_, vorm="html"):
             sys.exit("sjabloon: de opmaak van de pagina past niet in een Vue-template")
         schrijf(os.path.join(app, "src", "Bekijker.vue"),
                 "<!-- Gemaakt door werkbank/generatoren/bouw-wetsgeschiedenis.py --poc --vue uit\n"
-                "     wetsgeschiedenis-sjabloon.html in het Wpp-dossier; wijzig het daar. -->\n"
+                "     wetsgeschiedenis-sjabloon.html in het dossier waar zij is ontwikkeld; wijzig het daar. -->\n"
                 "<template>\n  <div class=\"bekijker\">\n" + lijf.rstrip() + "\n  </div>\n</template>\n\n"
                 "<script setup>\n// De bekijker is de pagina van het sjabloon; pagina.js tekent erin zodra\n"
                 "// deze opmaak in het document staat. Vue raakt haar daarna niet meer aan.\n"

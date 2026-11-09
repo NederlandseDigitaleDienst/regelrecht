@@ -282,6 +282,26 @@ def relatief(pad, map_):
     return os.path.relpath(pad, map_) if pad else None
 
 
+def namen_van_voorstel(titel, map_, nr):
+    """De namen van een nieuwe wet die nog geen BWB-id heeft: de citeertitel
+    tussen haakjes aan het slot van de titel ('Regels over ... (Wet open
+    overheid)'), en de afkorting die de memorie van toelichting daar meteen
+    achter zet ('Wet open overheid (Woo)'). Zonder die namen haakt een
+    vermelding als 'artikel 5.1 Woo' niet aan haar artikel (gemeten 09-11-2026)."""
+    m = re.search(r"\(([A-Z][^()]*)\)\s*$", titel)
+    if not m or not re.search(r"(?i)wet|besluit|regeling|wetboek", m[1]) or re.search(r"\d{4}, \d", m[1]):
+        return []
+    naam = m[1].strip()
+    namen = [naam]
+    mvt = map_ / f"kst-{nr}-3.xml"
+    if mvt.exists():
+        t = " ".join(mvt.read_text(encoding="utf-8", errors="replace").split())
+        a = re.search(re.escape(naam) + r" \(([A-Z][A-Za-z]{1,9})\)", re.sub(r"<[^>]+>", "", t))
+        if a:
+            namen.insert(0, a[1])
+    return namen
+
+
 def dossier_yaml(nr, map_, reg=None, versie=None, log=None):
     """De dossier.yaml die uit de regeling en de stukken volgt."""
     stukken = json.loads((map_ / "stukken.json").read_text(encoding="utf-8"))
@@ -292,6 +312,12 @@ def dossier_yaml(nr, map_, reg=None, versie=None, log=None):
     wijziging = bool(re.match(r"Wijziging van", titel)) or (versie or {}).get("betreft") in ("Wijziging", "Aanhangig")
     cfg["soort"] = "wijzigingswet" if wijziging else "nieuwe wet"
     cfg["deze_wet"] = [] if wijziging else [x for x in (reg or {}).get("titel", "").split("|") if x]
+    if not wijziging and not cfg["deze_wet"]:
+        # Een nieuwe wet in behandeling: nog geen BWB-id, dus geen naam van
+        # wetten.overheid.nl; dan uit het voorstel zelf.
+        cfg["deze_wet"] = namen_van_voorstel(titel, map_, nr)
+        if cfg["deze_wet"]:
+            cfg["naam"] = cfg["deze_wet"][-1]
     ijk = []
     stb = (versie or {}).get("staatsblad")
     if stb and (map_ / f"{stb}.xml").exists() and not wijziging:

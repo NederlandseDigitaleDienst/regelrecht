@@ -7,9 +7,9 @@ de toelichting aan die bij hetzelfde onderdeel hoort. Het past nog niets
 toe: eerst moet blijken dat elke opdracht te lezen is.
 
 De haken zijn de nummers die de stukken zelf dragen:
-- het stuk: dossier en ondernummer (kst-36742-8);
+- het stuk: dossier en ondernummer (kst-35968-8);
 - het onderdeel: de letter (A, B, ... AA, ... LLLLLL);
-- de toelichting: in de XML de tussenkop "D (art. 27 Wpp)", in een docx de
+- de toelichting: in de XML de tussenkop "D (art. 27 ...)", in een docx de
   REF-velden die naar de bladwijzer van het onderdeel wijzen;
 - het adres: artikel, lid, onderdeel, of het begrip in een definitie-artikel.
 
@@ -335,7 +335,7 @@ def txt(e):
 
 
 LETTER = re.compile(r"^[A-Z]{1,7}$")
-# "D (art. 27 Wpp)" (Wpp), "Onderdeel B (artikel 1.2)" en "Onderdelen A en Q
+# "D (art. 27 ...)" (een letter met het artikel en de afkorting van de wet), "Onderdeel B (artikel 1.2)" en "Onderdelen A en Q
 # (opschrift en artikel 12.13)" (Archiefwet 2026).
 TOEL_KOP = re.compile(r"^(?P<sleutels>[A-Z].*?)\s*\((?P<art>(?:art\.|(?:artikel|artikelen|opschrift)\b).*)\)$")
 

@@ -130,7 +130,7 @@ def andere_wet(staart, deze_wet):
     return False
 
 
-def vermeldingen(t, deze_wet=("Wpp", "Wet op de politieke partijen")):
+def vermeldingen(t, deze_wet=()):
     """De artikelen van deze wet die een alinea noemt, met het lid als dat erbij staat."""
     uit = []
     for m in VERMELDING.finditer(t):

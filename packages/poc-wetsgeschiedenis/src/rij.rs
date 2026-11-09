@@ -347,13 +347,13 @@ async fn draai(state: &AppState, taak: &Taak) -> Result<String, String> {
         }
         Wat::Dossier => {
             let nr = taak.dossier.as_deref().unwrap_or_default();
-            werker::draai(
-                state,
-                &["dossier", &taak.bwb, nr, "--uit", werker::pad(&uit)],
-                None,
-                regel,
-            )
-            .await?;
+            // Zonder wet (een voorstel in behandeling) alleen het nummer.
+            let mut args = vec!["dossier"];
+            if !taak.bwb.is_empty() {
+                args.push(&taak.bwb);
+            }
+            args.extend([nr, "--uit", werker::pad(&uit)]);
+            werker::draai(state, &args, None, regel).await?;
             let naam = bewaar(state, &uit, taak.voor.as_deref())?;
             state.opslag.wis_mislukt(nr);
             log(&format!("Klaar: {naam}"));

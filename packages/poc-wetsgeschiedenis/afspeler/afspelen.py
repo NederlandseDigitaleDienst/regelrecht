@@ -17,7 +17,7 @@ De controle is de vergelijking met de ijkpunten: de officiële teksten die
 er van de wet bestaan. Het gewijzigd voorstel zoals de Tweede Kamer het
 aannam (Eerste Kamerstuk A), het Staatsblad, en na de inwerkingtreding de
 geldende tekst uit het BWB; zolang die er niet zijn, een met de hand
-doorgewerkte bron (de Wpp: document.txt). Het laatste is het eindpunt. Elk
+doorgewerkte bron (een document.txt naast het dossier). Het laatste is het eindpunt. Elk
 artikel moet daar na het afspelen woord voor woord gelijk aan zijn; een
 verschil is een fout in die bron, in een nota, of in deze afspeler, en de
 log zegt welke handeling het artikel raakte.
@@ -412,7 +412,7 @@ def plak(links, rechts):
 # Tekst die de lopende nota zelf invoegt, staat tot het eind van die nota
 # tussen deze twee tekens. Een veegactie van dezelfde nota slaat haar over:
 # de opsteller schreef nieuwe tekst al in de nieuwe termen (gemeten
-# 12-10-2026: zonder dit werd het 'landelijke landelijke politieke partij').
+# 12-10-2026: zonder dit verdubbelde een woord dat de nota net zelf invoegde).
 NIEUW_OPEN, NIEUW_DICHT = "\ue000", "\ue001"
 MERK = f"[{NIEUW_OPEN}{NIEUW_DICHT}]*"
 

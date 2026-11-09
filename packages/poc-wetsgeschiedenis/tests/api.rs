@@ -462,6 +462,27 @@ async fn een_wet_van_voor_de_twee_stappen_krijgt_na_een_herstart_alsnog_haar_hel
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn een_voorstel_in_behandeling_haal_je_op_zijn_dossiernummer_zonder_wet() {
+    let p = proef(10);
+    let (s, t) = p.haal(json!({"dossier": "36999"})).await;
+    assert_eq!(s, StatusCode::ACCEPTED, "{t}");
+    let t = p.wacht_op(t["id"].as_str().unwrap()).await;
+    assert_eq!(t["status"], "klaar", "{t}");
+    // De werker kreeg alleen het nummer, geen wet.
+    let d = p.get("/wetsgeschiedenis/gegevens/36999.json").await.1;
+    assert_eq!(d["soort"], "nieuwe wet");
+    // Een keten zonder wet, of een wet die er geen is, blijft geweigerd.
+    assert_eq!(
+        p.haal(json!({"keten": true})).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        p.haal(json!({"bwb": "x", "dossier": "36999"})).await.0,
+        StatusCode::BAD_REQUEST
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn een_mislukt_dossier_wordt_onthouden_en_een_bezoeker_mag_het_opnieuw() {
     let p = proef(10);
     let (_, t) = p

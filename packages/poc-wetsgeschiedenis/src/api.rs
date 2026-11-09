@@ -173,7 +173,9 @@ async fn haal(State(s): State<AppState>, body: Bytes) -> Result<Response, Fout> 
     }
     let v: HaalVraag = serde_json::from_slice(if body.is_empty() { b"{}" } else { &body })
         .map_err(|e| Fout(StatusCode::BAD_REQUEST, format!("geen JSON ({e})")))?;
-    if !id::is_bwb(&v.bwb) {
+    // Een dossier mag zonder wet: een voorstel in behandeling heeft nog geen
+    // BWB-id. Een keten niet, en een BWB-id dat er staat, moet er een zijn.
+    if (v.keten || !v.bwb.is_empty()) && !id::is_bwb(&v.bwb) {
         return Err(Fout(StatusCode::BAD_REQUEST, BWB_UITLEG.into()));
     }
     let nr = v.dossier.as_ref().map(|d| {

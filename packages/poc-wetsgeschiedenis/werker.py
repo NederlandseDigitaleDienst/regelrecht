@@ -6,6 +6,7 @@ zegt.
     python3 werker.py regeling BWBR0007376 --uit regeling.json
     python3 werker.py keten    BWBR0007376 --uit t.json --gegevens a:b --status s.json [--alles]
     python3 werker.py dossier  BWBR0007376 36889 --uit t.json
+    python3 werker.py dossier  36999 --uit t.json   (een voorstel in behandeling, nog zonder BWB-id)
     python3 werker.py opbouw   BWBR0007376 --uit t.json --gegevens a:b --status s.json
 
 regeling  wat wetten.overheid.nl over de regeling weet (de versies en hun dossiers)
@@ -211,17 +212,22 @@ def main(args):
         schrijf(uit, keten.bouw(args[1], tijdlijn_van=tijdlijn_van(mappen), status_van=status_van(optie(args, "--status"))))
     elif wat == "opbouw":
         schrijf(uit, keten.bouw(args[1], tijdlijn_van=tijdlijn_van(mappen), status_van=status_van(optie(args, "--status"))))
-    elif wat == "dossier" and oude_kamerstukken().is_oud(args[2]):
-        print(f"Dossier {args[2]} is van vóór 1995: de scans uit Staten-Generaal Digitaal lezen", flush=True)
-        log = []
-        t = oude_kamerstukken().tijdlijn(args[1], args[2], kamerdossier.REGELINGEN, kamerdossier.KAMERDOSSIERS, log)
-        print("\n".join(log), flush=True)
-        schrijf(uit, t)
     elif wat == "dossier":
-        print(f"Dossier {args[2]} ophalen", flush=True)
-        kamerdossier.main([args[1], "--dossier", args[2]])
-        print(f"Dossier {args[2]} afspelen", flush=True)
-        t, _ = bouw.tijdlijn(args[2])
+        # 'dossier BWBR... 36889' bij een wet, 'dossier 36999' zonder.
+        bwb, nr = (args[1], args[2]) if re.fullmatch(r"BWBR\d{7}", args[1]) else (None, args[1])
+        if oude_kamerstukken().is_oud(nr):
+            if not bwb:
+                raise SystemExit(f"Dossier {nr} is van vóór 1995 en alleen te lezen bij de wet die het maakte; "
+                                 "haal die wet op met haar BWB-id")
+            print(f"Dossier {nr} is van vóór 1995: de scans uit Staten-Generaal Digitaal lezen", flush=True)
+            log = []
+            t = oude_kamerstukken().tijdlijn(bwb, nr, kamerdossier.REGELINGEN, kamerdossier.KAMERDOSSIERS, log)
+            print("\n".join(log), flush=True)
+        else:
+            print(f"Dossier {nr} ophalen", flush=True)
+            kamerdossier.main(([bwb] if bwb else []) + ["--dossier", nr])
+            print(f"Dossier {nr} afspelen", flush=True)
+            t, _ = bouw.tijdlijn(nr)
         schrijf(uit, t)
     else:
         raise SystemExit(f"onbekende opdracht: {wat}")

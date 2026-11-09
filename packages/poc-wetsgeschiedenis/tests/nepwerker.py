@@ -60,7 +60,10 @@ elif wat in ("keten", "opbouw"):
 elif wat == "dossier":
     while (bron / "poort").exists():
         time.sleep(0.02)
-    if args[2] == "40404":
+    # 'dossier BWBR... 36889' bij een wet, 'dossier 36999' zonder (een voorstel in behandeling).
+    bij_wet = args[1].startswith("BWBR")
+    nr = args[2] if bij_wet else args[1]
+    if nr == "40404":
         fout("geen XML")
     print("stukken opgehaald")
-    schrijf({"dossier": args[2], "naam": f"Dossier {args[2]}", "soort": "wijzigingswet"})
+    schrijf({"dossier": nr, "naam": f"Dossier {nr}", "soort": "wijzigingswet" if bij_wet else "nieuwe wet"})

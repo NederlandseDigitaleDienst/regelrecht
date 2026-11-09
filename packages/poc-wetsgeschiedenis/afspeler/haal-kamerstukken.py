@@ -25,7 +25,7 @@ Uitvoer in <uitmap>:
 Een stuk dat er al staat wordt niet opnieuw opgehaald; een docx die er staat
 omdat de XML de vorige keer niet kwam, krijgt een nieuwe kans.
 
-    python3 haal-kamerstukken.py 36742 ../bron/kamerdossiers/36742
+    python3 haal-kamerstukken.py 36889 ../bron/kamerdossiers/36889
     python3 haal-kamerstukken.py 35968 ../bron/kamerdossiers/35968 --staatsblad stb-2026-149
 """
 import http.client

@@ -26,9 +26,9 @@ beforeEach(() => {
     }),
     'api/log': () => json([{ t: '2026-10-21T10:00:00', soort: 'uit', host: 'gegevensmagazijn.tweedekamer.nl', pad: '/OData', code: 6, uitleg: 'DNS', ms: 12 }]),
   };
-  vi.stubGlobal('fetch', vi.fn(async (url) => {
+  vi.stubGlobal('fetch', vi.fn(async (url, init) => {
     const pad = url.replace(/^\//, '');
-    gevraagd.push(pad);
+    gevraagd.push(pad + (init?.body ? ' ' + init.body : ''));
     return (antwoorden[pad] ?? (() => json({ fout: 'onbekend' }, 404)))();
   }));
   document.body.innerHTML = '<span id="ophalen-plek" class="verborgen"><button id="ophalen">Wet ophalen</button></span>';
@@ -48,6 +48,17 @@ const klik = async (w, tekst) => {
 };
 
 describe('het venster Wet ophalen', () => {
+  test('een dossiernummer haalt het voorstel op zonder wet en zonder opzoeking', async () => {
+    const w = await venster();
+    await w.find('input').setValue('36999');
+    await klik(w, 'Zoek');
+    expect(gevraagd).toContain('api/haal {"dossier":"36999"}');
+    expect(gevraagd.some((g) => g.startsWith('api/regeling/'))).toBe(false);
+    await w.find('input').setValue('3674');
+    await klik(w, 'Zoek');
+    expect(w.find('.ophaal-fout').text()).toContain('nummer van een Kamerdossier');
+  });
+
   test('toont de knop alleen als de dienst er is', async () => {
     await venster();
     expect(document.getElementById('ophalen-plek').classList.contains('verborgen')).toBe(false);
@@ -71,7 +82,7 @@ describe('het venster Wet ophalen', () => {
     const w = await venster();
     await w.find('input').setValue('BWB123');
     await klik(w, 'Zoek');
-    expect(w.find('.ophaal-fout').text()).toBe('Een BWB-id ziet eruit als BWBR0007376.');
+    expect(w.find('.ophaal-fout').text()).toBe('Geef een BWB-id, zoals BWBR0007376, of het nummer van een Kamerdossier, zoals 36889.');
     expect(gevraagd.some((p) => p.startsWith('api/regeling'))).toBe(false);
     w.unmount();
   });

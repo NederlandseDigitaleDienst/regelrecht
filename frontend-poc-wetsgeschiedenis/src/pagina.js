@@ -1,5 +1,5 @@
 /* Gemaakt door werkbank/generatoren/bouw-wetsgeschiedenis.py --poc uit
-   wetsgeschiedenis-sjabloon.html in het Wpp-dossier; wijzig het daar. */
+   wetsgeschiedenis-sjabloon.html in het dossier waar zij is ontwikkeld; wijzig het daar. */
 // ------------------------------------------------------------- welk dossier
 // De gegevens staan in deze pagina gebakken (het losse bestand), of naast haar
 // als JSON (de poc achter het portaal, waar de CSP geen inline script toelaat).

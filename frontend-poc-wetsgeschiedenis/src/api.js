@@ -43,6 +43,8 @@ export const bekendmaking = (x) => (x || '')
   .replace(/^stb-(\d{4})-(\d+)$/, 'Stb. $1, $2')
   .replace(/^stcrt-(\d{4})-(\d+)$/, 'Stcrt. $1, $2');
 export const isBwb = (x) => /^BWBR\d{7}$/.test(x);
+/** Het nummer van een Kamerdossier, voor een voorstel dat nog geen BWB-id heeft. */
+export const isDossier = (x) => /^\d{5}$/.test(x);
 
 /** Een dossier of wet openen: de bekijker leest zijn keuze uit het adres. */
 export function open(id) {
