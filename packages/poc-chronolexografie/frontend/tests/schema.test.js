@@ -82,7 +82,7 @@ describe('the picture of one value', () => {
     expect(heeft(k, 'leest', [aggregaat, 'vergunning_geldig_tot'], [red, 'vergunningen'])).toBe(true);
     expect(heeft(k, 'rekent', [red, 'vergunningen'], [red, 'aantal_geldige_bedrijfsparkeervergunningen'])).toBe(true);
     expect(heeft(k, 'leest', ['beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal', 'aantal_geldige_vergunningen'], [red, 'aantal_geldige_bedrijfsparkeervergunningen'])).toBe(true);
-    expect(namen(aggregaat).sort()).toEqual(['besluit_datum', 'uitspraak_hoofdzaak_op', 'vergunning_geldig_tot']);
+    expect(namen(aggregaat).sort()).toEqual(['besluit_datum', 'uitspraak_hoofdzaak_op', 'vergunning_geldig_tot', 'verleend']);
     // One line into a property per source in the chronicle.
     const bronnen = k.lijnen.filter((l) => l.soort === 'kroniek' && l.naar.begrip.endsWith('#vergunning_geldig_tot'));
     expect(bronnen.map((l) => l.yaml).sort()).toEqual(['effects', 'effects', 'projection.steps']);
