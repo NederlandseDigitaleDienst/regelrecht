@@ -29,13 +29,12 @@
 mod common;
 
 use common::{
-    add_central_seed, insert_traject, seed_account, session_for, state_with_user_token_mode,
-    traject_ref,
+    add_central_seed, contents_file_json, insert_traject, seed_account, session_for,
+    state_with_user_token_mode, traject_ref,
 };
 
 use axum::extract::{Extension, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
-use base64::Engine as _;
 use pretty_assertions::assert_eq;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -101,18 +100,6 @@ fn write_seed_law(central_dir: &std::path::Path) {
         "Feature: seed-versie\n",
     )
     .unwrap();
-}
-
-/// Contents-API-antwoord voor één bestand (base64, zoals GitHub het stuurt).
-fn contents_file_json(name: &str, api_path: &str, body: &str) -> serde_json::Value {
-    serde_json::json!({
-        "name": name,
-        "path": api_path,
-        "sha": format!("sha-{name}"),
-        "type": "file",
-        "content": base64::engine::general_purpose::STANDARD.encode(body),
-        "encoding": "base64",
-    })
 }
 
 /// Trees-listing van de traject-repo: de indexscan ziet de traject-eigen
@@ -203,6 +190,8 @@ fn all_query() -> Query<PaginationParams> {
         q: None,
         ids: None,
         source: None,
+        enriched: false,
+        loaded: false,
     })
 }
 

@@ -102,6 +102,72 @@ pub struct CorpusState {
     /// one — a failing traject writable-own source otherwise reads as
     /// `law_count: 0` while its laws silently fall back to the seed corpus.
     pub index_failures: HashMap<String, String>,
+    /// Bodies fetched on demand for laws the map holds by path only, and the
+    /// budget those fetches spend. Used by the global scope, where Corpus
+    /// juris indexes whole sources and loads a body when someone opens the
+    /// law. A traject keeps its own cache on
+    /// [`crate::traject_corpus::TrajectCorpus`], next to its post-save overlay.
+    pub(crate) lazy_bodies: LazyBodies,
+}
+
+/// How many bodies the global scope may fetch from GitHub per hour. Anyone
+/// can open a law there, without an account, and each uncached body costs a
+/// call on the same service token that trajecten read with (5000 an hour).
+/// A crawler walking the corpus would otherwise spend that quota for
+/// everyone; past this budget an uncached open answers 503 until the hour is
+/// over, while cached bodies keep being served.
+pub(crate) const GLOBAL_FETCHES_PER_HOUR: u32 = 1000;
+
+/// See [`CorpusState::lazy_bodies`].
+#[derive(Default)]
+pub(crate) struct LazyBodies {
+    /// Keyed by `{source_id}/{relative_path}` (see [`global_body_key`]):
+    /// one version of one law. Emptied on a reload, so upstream changes show.
+    pub(crate) cache: tokio::sync::RwLock<crate::traject_corpus::BoundedCache<String>>,
+    budget: std::sync::Mutex<FetchBudget>,
+}
+
+impl LazyBodies {
+    /// Spend one fetch from this hour's budget; `false` when it is used up.
+    pub(crate) fn take_fetch(&self) -> bool {
+        // A poisoned lock only means another thread panicked mid-count; the
+        // counter itself is still usable.
+        let mut budget = self
+            .budget
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        budget.take(std::time::Instant::now(), GLOBAL_FETCHES_PER_HOUR)
+    }
+}
+
+/// A fixed one-hour window of fetches.
+#[derive(Default)]
+struct FetchBudget {
+    window_start: Option<std::time::Instant>,
+    used: u32,
+}
+
+impl FetchBudget {
+    fn take(&mut self, now: std::time::Instant, per_hour: u32) -> bool {
+        let hour = std::time::Duration::from_secs(3600);
+        if self
+            .window_start
+            .is_none_or(|start| now.duration_since(start) >= hour)
+        {
+            self.window_start = Some(now);
+            self.used = 0;
+        }
+        if self.used >= per_hour {
+            return false;
+        }
+        self.used += 1;
+        true
+    }
+}
+
+/// The key of a body in [`LazyBodies::cache`]: one version of one law.
+pub(crate) fn global_body_key(source_id: &str, relative_path: &str) -> String {
+    format!("{source_id}/{relative_path}")
 }
 
 impl CorpusState {
@@ -113,6 +179,23 @@ impl CorpusState {
             backends: HashMap::new(),
             auth_file: None,
             index_failures: HashMap::new(),
+            lazy_bodies: Default::default(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FetchBudget;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn the_fetch_budget_runs_out_and_refills_after_an_hour() {
+        let start = Instant::now();
+        let mut budget = FetchBudget::default();
+        assert!(budget.take(start, 2));
+        assert!(budget.take(start, 2));
+        assert!(!budget.take(start + Duration::from_secs(10), 2));
+        assert!(budget.take(start + Duration::from_secs(3600), 2));
     }
 }
