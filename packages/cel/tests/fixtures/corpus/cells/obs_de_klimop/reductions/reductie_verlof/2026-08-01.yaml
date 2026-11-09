@@ -12,9 +12,10 @@ valid_from: '2026-08-01'
 # 8:79 met 8:72). De staat houdt of het besluit verlof verleent en de eerste
 # verlofdag, ook als een beslissing op bezwaar een nieuw besluit in de plaats
 # van het herroepen besluit nam (7:11, tweede lid), en of de bestuursrechter
-# zelf verlof verleende toen hij het besluit vernietigde (Awb 8:72, derde
-# lid, onder b), met de eerste verlofdag daarvan. reductie_verlof_al_verleend_in_schooljaar leest de aggregaten.
-# Er is geen bekendmaking; de url wijst naar artikel 13a.
+# zelf verlof verleende toen hij het besluit vernietigde (Awb 8:72, derde lid,
+# onder b), met de eerste verlofdag daarvan.
+# reductie_verlof_al_verleend_in_schooljaar leest de aggregaten. Er is geen
+# bekendmaking; de url wijst naar artikel 13a.
 url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
 name: Vakantieverlof per besluit bij OBS De Klimop (reductie)
 articles:

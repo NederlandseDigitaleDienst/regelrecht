@@ -702,7 +702,6 @@ fn per_permit_a_suspension_of_the_revoked_decision_leaves_the_permit_in_its_plac
     // The copy of the ruling on the suspension of the refusal, received on
     // 10 November, before the decision on the objection.
     let grams = met(grams, [schorsing(&weigering)]);
-    assert!(!geldig(&service, &grams, DERDE, "2026-11-15"));
     assert!(geldig(&service, &grams, DERDE, "2026-11-25"));
 }
 

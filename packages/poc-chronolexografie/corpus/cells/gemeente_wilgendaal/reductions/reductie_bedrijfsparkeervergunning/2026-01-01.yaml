@@ -10,16 +10,16 @@ valid_from: '2026-01-01'
 # de fictieve parkeerverordening, schema v0.8.17): het besluit en wat ernaar
 # verwijst, zoals een bezwaar, de beslissing erop en het afschrift van de
 # uitspraak in de hoofdzaak (Awb 8:79). Welke records meetellen, volgt uit de
-# effecten die de Awb ze geeft (7:11, tweede lid, en 8:79 met 8:72). Een
-# nieuw besluit dat een beslissing op bezwaar in de plaats van dit besluit
-# nam, houdt die beslissing zelf; het telt in dit aggregaat en valt met de
-# beslissing weg. De staat houdt de dagen die de records dragen; wat ze op
-# een dag betekenen, zegt het fictieve beleid verleende
+# effecten die de Awb ze geeft (7:11, tweede lid, en 8:79 met 8:72). Een nieuw
+# besluit dat een beslissing op bezwaar in de plaats van dit besluit nam,
+# houdt die beslissing zelf; het telt in dit aggregaat en valt met de
+# beslissing weg. De staat houdt de dagen die de records dragen; wat ze op een
+# dag betekenen, zegt het fictieve beleid verleende
 # bedrijfsparkeervergunningen, wanneer een reductie die telt het vraagt. Een
 # schorsing door de voorzieningenrechter is een eigen aggregaat
 # (reductie_schorsing_bedrijfsparkeervergunning); de staat houdt het besluit
-# uit dit aggregaat waarop een schorsing ziet. Er
-# is geen bekendmaking; de url wijst naar het model van de verordening.
+# uit dit aggregaat waarop een schorsing ziet. Er is geen bekendmaking; de url
+# wijst naar het model van de verordening.
 url: https://lokaleregelgeving.overheid.nl/CVDR642699
 name: Bedrijfsparkeervergunning per besluit bij de gemeente Wilgendaal (reductie)
 articles:

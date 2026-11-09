@@ -1383,24 +1383,15 @@ impl Cell {
         id: &str,
         explain: Option<&str>,
     ) -> Result<Replayed> {
-        let gram = self.decision_gram(service, id)?;
-        let target = gram.clone();
-        let submission_id = gram.refers_to.clone().ok_or_else(|| {
+        let decision = self.decision_gram(service, id)?.clone();
+        let submission_id = decision.refers_to.clone().ok_or_else(|| {
             setup(format!(
                 "chronolexogram '{id}' refers to no submission, so it is no decision to replay"
             ))
         })?;
         let grams = self.grams();
-        let position = grams
-            .iter()
-            .position(|g| g.id == target.id)
-            .ok_or_else(|| {
-                setup(format!(
-                    "no decision in the chronicle of '{}' refers to '{submission_id}'",
-                    self.recording_actor
-                ))
-            })?;
-        let decision = grams[position].clone();
+        // `decision_gram` found it, so it is in the chronicle.
+        let position = grams.iter().position(|g| g.id == id).unwrap_or(grams.len());
         let submission = grams[..position]
             .iter()
             .find(|g| g.id == submission_id)

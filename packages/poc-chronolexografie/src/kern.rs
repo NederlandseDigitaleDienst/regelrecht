@@ -2863,9 +2863,10 @@ mod tests {
             beslist["beslissing"]["outputs"]["nieuw_besluit"]["outputs"],
             nieuw["outputs"]
         );
-        assert!(nieuw["findings"]
-            .get("specifieke_aard_beroep_ouder")
-            .is_some());
+        assert_eq!(
+            nieuw["findings"]["specifieke_aard_beroep_ouder"],
+            json!(true)
+        );
         let spoor = beslist["waarom"]["spoor"].as_str().unwrap();
         assert!(spoor.contains("verlofdagen"), "{spoor}");
 
