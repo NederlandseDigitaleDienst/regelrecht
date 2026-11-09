@@ -1,0 +1,57 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
+$id: reductie_schorsing_bedrijfsparkeervergunning
+regulatory_layer: REDUCTIE
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# Geen regelgeving: een reductie van het college van de (fictieve) gemeente
+# Wilgendaal over zijn eigen kroniek (RFC-022 §4.1, RFC-048). Eén aggregaat
+# per afschrift van een uitspraak van de voorzieningenrechter (Awb 8:84,
+# vierde lid, schema v0.8.17), en wat ernaar verwijst: de uitspraak die de
+# voorziening opheft (8:87). Een schorsing trekt niets in: de staat houdt
+# het besluit waarop zij ziet en de dagen die de records dragen. Wat ze op
+# een dag betekenen, zegt artikel 1 van het fictieve beleid verleende
+# bedrijfsparkeervergunningen. Een latere uitspraak over hetzelfde besluit
+# is een eigen aggregaat en laat deze zoals zij was. Er is geen
+# bekendmaking; de url wijst naar het model van de verordening.
+url: https://lokaleregelgeving.overheid.nl/CVDR642699
+name: Schorsing van een bedrijfsparkeervergunning bij de gemeente Wilgendaal (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving. Het systeem van het college van de gemeente Wilgendaal
+      houdt door middel van een chronolexografische reductie op zijn eigen
+      kroniek per uitspraak van de voorzieningenrechter bij op welk besluit
+      zij ziet, waartoe zij strekt, vanaf welke dag zij het besluit schorst,
+      en wanneer de voorziening vervalt of is opgeheven.
+    url: https://lokaleregelgeving.overheid.nl/CVDR642699
+    machine_readable:
+      projection:
+        per: algemene_wet_bestuursrecht#8:84#EXECUTOGRAM
+        state:
+          - name: besluit
+            type: string
+          - name: uitspraak_strekt_tot
+            type: string
+          - name: geschorst_vanaf
+            type: date
+          - name: voorziening_vervalt_op
+            type: date
+          - name: voorziening_opgeheven_op
+            type: date
+        steps:
+          - record: algemene_wet_bestuursrecht#8:84#EXECUTOGRAM
+            actions:
+              - output: besluit
+                value: $record.refers_to
+              - output: uitspraak_strekt_tot
+                value: $record.uitspraak_strekt_tot
+              - output: geschorst_vanaf
+                value: $record.besluit_geschorst_vanaf
+              - output: voorziening_vervalt_op
+                value: $record.voorziening_vervalt_op
+          # De voorzieningenrechter heft de voorziening op (8:87).
+          - record: algemene_wet_bestuursrecht#8:87#EXECUTOGRAM
+            actions:
+              - output: voorziening_opgeheven_op
+                value: $record.voorziening_opgeheven_op

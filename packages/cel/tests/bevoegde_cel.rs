@@ -155,6 +155,7 @@ articles:
 fn reduction(actor: &str) -> String {
     format!(
         r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: reductie_eerder_{actor}
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'

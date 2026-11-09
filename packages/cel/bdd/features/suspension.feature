@@ -24,7 +24,7 @@ Feature: A suspension is a step with a period, not a revocation
       | aanvrager       | burger_x |
     And the cell decides "verlening" on submission "aanvraag"
     Given the calculation date is "2025-04-01"
-    When the cell records fact "besluit_geschorst" as "schorsing" under article "13" of "test_chronicle_effects" with:
+    When the cell records fact "besluit_geschorst" as "schorsing" about "verlening" under article "13" of "test_chronicle_effects" with:
       | aanvrager       | burger_x   |
       | schorsing_vanaf | 2025-04-15 |
       | schorsing_tot   | 2025-06-01 |
@@ -37,10 +37,9 @@ Feature: A suspension is a step with a period, not a revocation
     And record "verlening" is applied
     And property "geschorst_vanaf" was last set by "schorsing"
     And the projection trace is:
-      | record    | event   | detail                                                                     |
-      | aanvraag  | applied | -                                                                          |
-      | verlening | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
-      | schorsing | applied | geschorst_tot: null -> 2025-06-01, geschorst_vanaf: null -> 2025-04-15     |
+      | aggregate | record    | event   | detail                                                                     |
+      | verlening | verlening | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
+      | verlening | schorsing | applied | geschorst_tot: null -> 2025-06-01, geschorst_vanaf: null -> 2025-04-15     |
 
   Scenario: The suspension holds from its first day, not before
     Given the calculation date is "2025-07-01"
@@ -59,7 +58,7 @@ Feature: A suspension is a step with a period, not a revocation
 
   Scenario: Lifting the suspension is a later step that ends the period
     Given the calculation date is "2025-05-10"
-    When the cell records fact "schorsing_opgeheven" as "opheffing" under article "14" of "test_chronicle_effects" with:
+    When the cell records fact "schorsing_opgeheven" as "opheffing" about "schorsing" under article "14" of "test_chronicle_effects" with:
       | aanvrager    | burger_x   |
       | opgeheven_op | 2025-05-10 |
     Given the calculation date is "2025-07-01"
@@ -75,21 +74,20 @@ Feature: A suspension is a step with a period, not a revocation
     # Article 14 gives the earlier of the end the suspension had and the day
     # it is lifted; the step only takes that output.
     Given the calculation date is "2025-07-01"
-    When the cell records fact "schorsing_opgeheven" as "late_opheffing" under article "14" of "test_chronicle_effects" with:
+    When the cell records fact "schorsing_opgeheven" as "late_opheffing" about "schorsing" under article "14" of "test_chronicle_effects" with:
       | aanvrager    | burger_x   |
       | opgeheven_op | 2025-07-01 |
     Given parameter "peildatum" is "2025-06-15"
     When I evaluate "heeft_geldige_kaart_op_peildatum" of "test_reductie_kaart_op_peildatum" over the chronicle
     Then output "heeft_geldige_kaart_op_peildatum" is true
     And the projection trace is:
-      | record         | event   | detail                                                                     |
-      | aanvraag       | applied | -                                                                          |
-      | verlening      | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
-      | schorsing      | applied | geschorst_tot: null -> 2025-06-01, geschorst_vanaf: null -> 2025-04-15     |
-      | late_opheffing | applied | test_chronicle_effects#14: geschorst_tot: 2025-06-01 -> 2025-06-01         |
+      | aggregate | record         | event   | detail                                                                     |
+      | verlening | verlening      | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
+      | verlening | schorsing      | applied | geschorst_tot: null -> 2025-06-01, geschorst_vanaf: null -> 2025-04-15     |
+      | verlening | late_opheffing | applied | test_chronicle_effects#14: geschorst_tot: 2025-06-01 -> 2025-06-01         |
 
   Scenario: A changed suspension overwrites the period, also with no end
-    When the cell records fact "besluit_geschorst" as "nieuwe_schorsing" under article "13" of "test_chronicle_effects" with:
+    When the cell records fact "besluit_geschorst" as "nieuwe_schorsing" about "verlening" under article "13" of "test_chronicle_effects" with:
       | aanvrager       | burger_x   |
       | schorsing_vanaf | 2025-07-01 |
       | schorsing_tot   | null       |
@@ -103,12 +101,12 @@ Feature: A suspension is a step with a period, not a revocation
     And property "geschorst_vanaf" was last set by "nieuwe_schorsing"
 
   Scenario: Lifting a suspension without an end ends it on the day of lifting
-    When the cell records fact "besluit_geschorst" as "nieuwe_schorsing" under article "13" of "test_chronicle_effects" with:
+    When the cell records fact "besluit_geschorst" as "nieuwe_schorsing" about "verlening" under article "13" of "test_chronicle_effects" with:
       | aanvrager       | burger_x   |
       | schorsing_vanaf | 2025-04-15 |
       | schorsing_tot   | null       |
     Given the calculation date is "2025-08-01"
-    When the cell records fact "schorsing_opgeheven" as "opheffing" under article "14" of "test_chronicle_effects" with:
+    When the cell records fact "schorsing_opgeheven" as "opheffing" about "nieuwe_schorsing" under article "14" of "test_chronicle_effects" with:
       | aanvrager    | burger_x   |
       | opgeheven_op | 2025-08-01 |
     Given the calculation date is "2025-09-01"
@@ -123,7 +121,7 @@ Feature: A suspension is a step with a period, not a revocation
     # The lifting's step never runs, so the state keeps the period of the
     # suspension, as if it was never lifted.
     Given the calculation date is "2025-05-10"
-    When the cell records fact "schorsing_opgeheven" as "opheffing" under article "14" of "test_chronicle_effects" with:
+    When the cell records fact "schorsing_opgeheven" as "opheffing" about "schorsing" under article "14" of "test_chronicle_effects" with:
       | aanvrager    | burger_x   |
       | opgeheven_op | 2025-05-10 |
     And the cell records fact "schorsing_vervallen" as "vervallen" about "opheffing" under article "16" of "test_chronicle_effects" with:
@@ -136,7 +134,7 @@ Feature: A suspension is a step with a period, not a revocation
     And property "geschorst_tot" was last set by "schorsing"
 
   Scenario: When a second suspension is revoked, the first period comes back
-    When the cell records fact "besluit_geschorst" as "nieuwe_schorsing" under article "13" of "test_chronicle_effects" with:
+    When the cell records fact "besluit_geschorst" as "nieuwe_schorsing" about "verlening" under article "13" of "test_chronicle_effects" with:
       | aanvrager       | burger_x   |
       | schorsing_vanaf | 2025-07-01 |
       | schorsing_tot   | null       |
@@ -165,8 +163,7 @@ Feature: A suspension is a step with a period, not a revocation
     Then output "heeft_geldige_kaart_op_peildatum" is true
     And record "schorsing" is skipped
     And the projection trace is:
-      | record    | event   | detail                                                                     |
-      | aanvraag  | applied | -                                                                          |
-      | verlening | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
-      | schorsing | skipped | revoked by vervallen                                                       |
-      | vervallen | applied | -                                                                          |
+      | aggregate | record    | event   | detail                                                                     |
+      | verlening | verlening | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
+      | verlening | schorsing | skipped | revoked by vervallen                                                       |
+      | verlening | vervallen | applied | -                                                                          |

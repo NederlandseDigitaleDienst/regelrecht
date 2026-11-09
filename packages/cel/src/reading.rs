@@ -614,6 +614,21 @@ impl ChronicleSource for Reader<'_> {
                 )),
             })
     }
+
+    /// The cell's chronicle as records, for a reduction that reads the
+    /// aggregates of another (`source.projections`, schema v0.8.17): the
+    /// engine plays them on the records.
+    fn records(&self) -> regelrecht_engine::Result<Option<Vec<ChronicleRecord>>> {
+        chronicle_records(&self.grams)
+            .map(Some)
+            .map_err(|e| match e {
+                crate::Error::Engine(e) => e,
+                other => EngineError::ResolutionError(format!(
+                    "the cell of '{}' giving its records: {other}",
+                    self.recording_actor
+                )),
+            })
+    }
 }
 
 impl OpenTermAnswerer for Reader<'_> {
@@ -965,6 +980,7 @@ articles:
     fn reduction(id: &str, valid_from: &str) -> String {
         format!(
             r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: {id}
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
@@ -1043,6 +1059,25 @@ articles:
         vec![decision]
     }
 
+    /// The reader gives the engine its chronicle as records, for a
+    /// reduction that reads aggregates (`source.projections`, schema
+    /// v0.8.17): every gram, in order.
+    #[test]
+    fn the_reader_gives_its_chronicle_as_records() {
+        let grams = decisions();
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            grams.clone(),
+            None,
+        );
+        let records = ChronicleSource::records(&reader).unwrap().expect("records");
+        assert_eq!(records, chronicle_records(&grams).unwrap());
+        assert_eq!(records.len(), 1);
+    }
+
     fn day() -> NaiveDate {
         NaiveDate::from_ymd_opt(2026, 10, 20).unwrap()
     }
@@ -1074,6 +1109,7 @@ articles:
     /// article its parameter names (schema v0.8.11), such as that of the
     /// Awb.
     const WITHOUT_HOLDER: &str = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: reductie_zonder_houder
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
@@ -1108,6 +1144,7 @@ articles:
     /// A reduction of the cell that calls [`WITHOUT_HOLDER`] for the
     /// decisions under `wet_fictief#1`.
     const CALLING: &str = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: reductie_a
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'

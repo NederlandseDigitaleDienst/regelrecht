@@ -93,7 +93,7 @@ export const casusBlok = {
     'Hoe het college zijn bevoegdheid gebruikt, laat artikel 49 open. Het beleid van de gemeente vult dat open begrip in: wie al een geldige kaart van de gemeente heeft, krijgt geen tweede.',
     "Of de aanvrager al zo'n kaart heeft, vraagt het beleid met `source.reduction` aan de cel van de gemeente.",
     'In haar `cel.yaml` staat welke reductie die vraag beantwoordt: `reductie_geldige_gehandicaptenparkeerkaart`.',
-    'De reductie speelt de besluiten over deze aanvrager af en houdt bij of hij een nog geldige kaart heeft. Welke besluiten na bezwaar en beroep meetellen, zegt de Awb zelf: een herroepen of vernietigd besluit telt niet. Het advies van de GGD lezen twee andere reducties uit dezelfde kroniek terug: of er een onderzoek was, en wat het advies vond.',
+    'De reductie leest de besluiten over deze aanvrager, elk met wat erover gaat, zoals een bezwaar of een uitspraak. Het beleid zegt of er een nog geldige kaart bij is. Welke besluiten na bezwaar en beroep meetellen, zegt de Awb zelf: een herroepen of vernietigd besluit telt niet. Het advies van de GGD lezen twee andere reducties uit dezelfde kroniek terug: of er een onderzoek was, en wat het advies vond.',
     'Het antwoord gaat via het beleid terug naar de engine. Die beslist of de aanvrager de kaart krijgt en tot wanneer. Dat besluit komt als nieuwe vastlegging in de kroniek, net als bij stap 2. Vraagt dezelfde persoon binnen die tijd opnieuw, dan volgt een weigering.',
   ],
   knop: 'Gehandicaptenparkeerkaart naspelen',

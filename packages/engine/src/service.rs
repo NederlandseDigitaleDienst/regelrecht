@@ -5413,6 +5413,68 @@ impl LawExecutionService {
         Err(EngineError::DataSourceError(message))
     }
 
+    /// Resolve an input that reads the aggregates of a reduction
+    /// (`source.projections`, schema v0.8.17): the engine plays them on the
+    /// records of the chronicle of the call, for the roots that hold the
+    /// values `where` names ([`Self::projection_rows`]). Without a
+    /// chronicle that gives records, the input is an error, never an empty
+    /// list.
+    fn resolve_projections(
+        &self,
+        law: &ArticleBasedLaw,
+        input: &Input,
+        source: &regelrecht_law_model::Source,
+        reduction: &str,
+        context: &RuleContext,
+        res_ctx: &mut ResolutionContext<'_>,
+    ) -> Result<Value> {
+        let _guard = res_ctx.trace_guard(&input.name, PathNodeType::Resolve);
+        let mut filter = BTreeMap::new();
+        for (name, reference) in source.where_.iter().flatten() {
+            let path = reference.strip_prefix('$').unwrap_or(reference);
+            filter.insert(name.clone(), context.resolve(path)?);
+        }
+        let records = match res_ctx.chronicle {
+            Some(chronicle) => chronicle
+                .records()
+                .inspect_err(|e| res_ctx.trace_set_message(e.to_string()))?
+                .map(|records| (chronicle.keeper().to_string(), records)),
+            None => None,
+        };
+        let Some((keeper, records)) = records else {
+            let message = format!(
+                "input '{}' of {} reads the aggregates of {reduction}, and no chronicle supplies \
+                 its records",
+                input.name, law.id
+            );
+            res_ctx.trace_set_message(message.clone());
+            return Err(EngineError::DataSourceError(message));
+        };
+        let (rows, aggregates) = self
+            .projection_rows_traced(
+                reduction,
+                &records,
+                &filter,
+                res_ctx.calculation_date,
+                res_ctx.trace.is_some(),
+            )
+            .inspect_err(|e| res_ctx.trace_set_message(e.to_string()))?;
+        for node in aggregates {
+            res_ctx.trace_adopt(node);
+        }
+        res_ctx.trace_set_resolve_type(ResolveType::DataSource);
+        res_ctx.trace_set_result(rows.clone());
+        res_ctx.trace_set_source(ValueSource {
+            kind: ResolveType::DataSource,
+            provider: Some(keeper.clone()),
+            scope: Some(law.id.clone()),
+        });
+        res_ctx.trace_set_message(format!(
+            "Resolving from the chronicle of {keeper}: the aggregates of {reduction}"
+        ));
+        Ok(rows)
+    }
+
     /// Whether resolving `input` calls another law: it names a regulation, an
     /// article (RFC-045 §6) or the answer of a cell (`source.reduction`,
     /// RFC-048), and no data source answers for it first, the order
@@ -5516,6 +5578,14 @@ impl LawExecutionService {
         if let Some(read) = crate::load_check::chronicle_read(source) {
             return self
                 .resolve_chronicle_read(law, input, read, context, res_ctx)
+                .map(Some);
+        }
+
+        // The aggregates of another reduction (schema v0.8.17), played on
+        // the chronicle of the call.
+        if let Some(reduction) = &source.projections {
+            return self
+                .resolve_projections(law, input, source, reduction, context, res_ctx)
                 .map(Some);
         }
 

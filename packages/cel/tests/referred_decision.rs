@@ -221,6 +221,7 @@ articles:
 /// decision on objection against it found cause. It links the two by row
 /// id: `bestreden_besluit` holds the id of the contested decision.
 const REDUCTION: &str = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: reductie_al_verleend_fictief
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
@@ -373,6 +374,34 @@ fn grant_then_refuse(cell: &mut Cell, service: &mut LawExecutionService) -> Gran
     assert_eq!(refused.fields["al_verleend"], json!(true));
     assert_eq!(refused.outputs["verleend"], json!(false));
     Granted { granted, refused }
+}
+
+/// A deciding article that may take a decision in turn needs the
+/// submission it is taken on, so the cell does not take it ex officio.
+#[test]
+fn a_decision_that_may_replace_another_is_not_taken_ex_officio() {
+    let mut service = service();
+    let (mut cell, _dir) = cell();
+    let Granted { granted, .. } = grant_then_refuse(&mut cell, &mut service);
+    let before = cell.grams().len();
+    let err = cell
+        .decide_ex_officio(
+            &mut service,
+            &[],
+            BEZWAAR_LAW,
+            "1",
+            Some(&granted.id),
+            &Map::new(),
+            &Map::new(),
+            day("2026-03-05"),
+        )
+        .expect_err("needs its submission");
+    assert!(
+        err.to_string()
+            .contains("may take a decision in turn, which needs the submission it is taken on"),
+        "{err}"
+    );
+    assert_eq!(cell.grams().len(), before);
 }
 
 #[test]

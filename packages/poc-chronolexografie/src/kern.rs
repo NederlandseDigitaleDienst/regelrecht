@@ -1391,7 +1391,8 @@ fn leest_uit(reduction: &regelrecht_engine::ArticleBasedLaw) -> Vec<(String, Str
         .collect()
 }
 
-/// The articles that `reduction` calls for a norm (RFC-048): per regelwerk of
+/// The articles that `reduction` calls for a norm (RFC-048), also through
+/// the aggregates it reads: per regelwerk of
 /// `UITVOERINGSBELEID` or `REDUCTIE` it reads with `source.regulation`, the
 /// articles that give the output it reads ([`artikelen_voor`]), with that
 /// regelwerk. Any called reduction counts, of the cell or of no cell, such
@@ -1407,7 +1408,18 @@ pub(crate) fn beleid_van<'s>(
         &'s regelrecht_engine::ArticleBasedLaw,
         &'s regelrecht_engine::Article,
     )> = Vec::new();
-    for (regelwerk, output) in leest_uit(reduction) {
+    // The aggregates the reduction reads (`source.projections`, schema
+    // v0.8.17) call laws in their steps too.
+    let aggregaten = reduction
+        .articles
+        .iter()
+        .flat_map(|a| a.get_inputs())
+        .filter_map(|i| i.source.as_ref()?.projections.as_deref())
+        .filter_map(|id| service.resolver().get_law(id))
+        .flat_map(leest_uit);
+    let gelezen: Vec<(String, String)> =
+        leest_uit(reduction).into_iter().chain(aggregaten).collect();
+    for (regelwerk, output) in gelezen {
         let Some(law) = service.resolver().get_law(&regelwerk).filter(|law| {
             matches!(
                 law.regulatory_layer,
@@ -2219,6 +2231,21 @@ fn lezingen_van(
             }
             continue;
         }
+        // The aggregates of another reduction (schema v0.8.17): it reads
+        // what that reduction's steps read.
+        if let Some(regelwerk) = &source.projections {
+            if bezig.contains(regelwerk) {
+                continue;
+            }
+            let Some(called) = service.resolver().get_law_for_date(regelwerk, Some(on)) else {
+                continue;
+            };
+            let alle: Vec<&regelrecht_engine::Article> = called.articles.iter().collect();
+            bezig.push(called.id.clone());
+            lezingen_van(service, called, &alle, &BTreeMap::new(), bezig, on, uit);
+            bezig.pop();
+            continue;
+        }
         let (Some(regelwerk), Some(output)) = (&source.regulation, &source.output) else {
             continue;
         };
@@ -2605,6 +2632,57 @@ mod tests {
 
     fn corpus() -> Corpus {
         casus("vakantieverlof")
+    }
+
+    /// Article 2 of the policy on granted leave: a ruling that grants no
+    /// leave keeps the leave the court granted before, with its first day,
+    /// as `reductie_verlof` passes it from its state.
+    #[test]
+    fn a_later_ruling_keeps_the_leave_the_court_granted() {
+        let service = corpus().service().unwrap();
+        let params = |al: bool, dag: Option<&str>| {
+            BTreeMap::from([
+                (
+                    "al_verleend_door_rechter".to_string(),
+                    regelrecht_engine::Value::Bool(al),
+                ),
+                (
+                    "al_eerste_verlofdag_van_de_rechter".to_string(),
+                    dag.map_or(regelrecht_engine::Value::Null, |d| {
+                        regelrecht_engine::Value::String(d.to_string())
+                    }),
+                ),
+                (
+                    "primair_besluit_in_de_plaats".to_string(),
+                    regelrecht_engine::Value::Null,
+                ),
+            ])
+        };
+        let outputs = ["rechter_verleent_verlof", "eerste_verlofdag_van_de_rechter"];
+        let law = "fictief_beleid_verleend_verlof_obs_de_klimop";
+        let na = service
+            .evaluate_law(
+                law,
+                &outputs,
+                params(true, Some("2027-02-01")),
+                "2026-12-01",
+            )
+            .unwrap();
+        assert_eq!(
+            na.outputs["rechter_verleent_verlof"],
+            regelrecht_engine::Value::Bool(true)
+        );
+        assert_eq!(
+            na.outputs["eerste_verlofdag_van_de_rechter"],
+            regelrecht_engine::Value::String("2027-02-01".to_string())
+        );
+        let zonder = service
+            .evaluate_law(law, &outputs, params(false, None), "2026-12-01")
+            .unwrap();
+        assert_eq!(
+            zonder.outputs["rechter_verleent_verlof"],
+            regelrecht_engine::Value::Bool(false)
+        );
     }
 
     /// The court's cell among the other cells of the case.
@@ -3200,9 +3278,9 @@ mod tests {
         assert_eq!(antwoord["geldig_vanaf"], json!("2026-08-01"));
         assert_eq!(antwoord["tot_en_met"], json!(tegen_b.id));
         // The trace of the decision holds how the school answered, under
-        // its answer: the projection its reduction played.
+        // its answer: the aggregates its reduction read, each played.
         let spoor = op_b["waarom"]["spoor"].as_str().unwrap();
-        assert!(spoor.contains("PROJECTION"), "{spoor}");
+        assert!(spoor.contains("the aggregate of"), "{spoor}");
         assert!(op_b["waarom"]["ingevuld"]
             .as_array()
             .unwrap()
@@ -3211,11 +3289,11 @@ mod tests {
                 && f["filled_by"]["answer"]["answers"][0]["law_id"]
                     == json!("reductie_verlof_al_verleend_in_schooljaar")));
 
-        // How the school answered: the reduction plays the chronicle up to
+        // How the school answered: the reduction reads the aggregates up to
         // the objection against B, without B. A does not count: the decision
         // on the objection against it revokes it (Awb 7:11 lid 2, as an
-        // effect), so its step never runs. The refusal in its place counts
-        // and leaves no leave granted.
+        // effect), so its step never runs. The refusal in its place is an
+        // aggregate of its own and grants no leave.
         let hoe = hoe_beantwoord(
             &corpus,
             &cell,
@@ -3234,11 +3312,15 @@ mod tests {
             spoor.contains(&format!("{}: revoked by {herroepen_door}", a.id)),
             "{spoor}"
         );
+        // The refusal in A's place is an aggregate of its own, which grants
+        // no leave.
         let in_plaats = op_a["nieuw_besluit"]["id"].as_str().unwrap();
         assert!(
-            spoor.contains(&format!(
-                "{in_plaats}: fictief_beleid_verleend_verlof_obs_de_klimop#1"
-            )),
+            spoor.contains(&format!("the aggregate of {in_plaats}")),
+            "{spoor}"
+        );
+        assert!(
+            spoor.contains(&format!("{in_plaats}: eerste_verlofdag: null -> ")),
             "{spoor}"
         );
 
@@ -3547,6 +3629,7 @@ mod tests {
                 "fictief_beleid_vestiging_obs_de_klimop",
                 LAW,
                 "reductie_plaats_van_vestiging",
+                "reductie_verlof",
                 "reductie_verlof_al_verleend_in_schooljaar",
                 "reductie_verlof_valt_buiten_schoolvakanties",
                 "regeling_vaststelling_schoolvakanties_20252030",
@@ -3583,11 +3666,14 @@ mod tests {
                 "beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal",
                 "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw",
                 "parkeerverordening_gemeente_wilgendaal",
+                "reductie_bedrijfsparkeervergunning",
                 "reductie_bedrijfsparkeervergunning_op_peildatum",
+                "reductie_gehandicaptenparkeerkaart",
                 "reductie_geldige_bedrijfsparkeervergunningen",
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_geneeskundig_advies",
                 "reductie_geneeskundig_onderzoek",
+                "reductie_schorsing_bedrijfsparkeervergunning",
                 "regeling_gehandicaptenparkeerkaart",
                 "uitvoeringsbesluit_parkeren_gemeente_wilgendaal",
             ]
@@ -3619,11 +3705,14 @@ mod tests {
                 "beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal",
                 "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw",
                 "parkeerverordening_gemeente_wilgendaal",
+                "reductie_bedrijfsparkeervergunning",
                 "reductie_bedrijfsparkeervergunning_op_peildatum",
+                "reductie_gehandicaptenparkeerkaart",
                 "reductie_geldige_bedrijfsparkeervergunningen",
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_geneeskundig_advies",
                 "reductie_geneeskundig_onderzoek",
+                "reductie_schorsing_bedrijfsparkeervergunning",
                 "reductie_vestiging_in_handelsregister",
                 "regeling_gehandicaptenparkeerkaart",
                 "uitvoeringsbesluit_parkeren_gemeente_wilgendaal",

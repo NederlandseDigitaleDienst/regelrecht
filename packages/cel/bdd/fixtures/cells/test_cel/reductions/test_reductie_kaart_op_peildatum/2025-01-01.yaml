@@ -1,13 +1,10 @@
 ---
-# FICTIEF. A reduction of the cell's BDD suite: whether the applicant holds a
-# valid card on the day the question names. It keeps whether the applicant
-# holds a card, as test_reductie_geldige_kaart does, and the period of a
-# suspension of the card (articles 13 and 14 of test_chronicle_effects). A
-# suspension holds from a day on and ends, so it revokes nothing: its step
-# puts the period in the state. Whether the card is valid on the day asked
-# about is article 15 of the law; the answer only passes the state and the
-# day to it. The state holds one period per applicant.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
+# FICTIEF. A read model of the cell's BDD suite: whether the applicant holds
+# a valid card on the day the question names. It reads the aggregates of
+# test_reductie_kaart_per_besluit, each with the period of a suspension
+# (articles 13 and 14 of test_chronicle_effects); article 15 of the law says
+# whether a card is valid on the day.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: test_reductie_kaart_op_peildatum
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'
@@ -19,82 +16,9 @@ articles:
   - number: '1'
     url: https://example.com/test_reductie_kaart_op_peildatum/1
     text: >-
-      FICTIEF. Een verlening geeft de aanvrager een kaart, een weigering niet.
-      Levert hij de kaart in, dan heeft hij er geen meer. Een schorsing legt
-      vast van welke dag tot welke dag de kaart is geschorst; een opheffing
-      beëindigt de schorsing. Of de aanvrager op de peildatum een geldige
-      kaart heeft, volgt uit artikel 15 van de wet.
+      FICTIEF. Of de aanvrager op de peildatum een geldige kaart heeft, volgt
+      uit artikel 15 van de wet.
     machine_readable:
-      projection:
-        key: aanvrager
-        state:
-          - name: in_bezit
-            type: boolean
-          - name: aantal_verleend
-            type: number
-          - name: geschorst_vanaf
-            type: date
-          - name: geschorst_tot
-            type: date
-        steps:
-          - record: test_chronicle_effects#1#BESCHIKKING
-            input: &na_besluit
-              - name: in_bezit_na_besluit
-                type: boolean
-                source:
-                  regulation: test_chronicle_effects
-                  output: in_bezit_na_besluit
-                  parameters: &op_de_kaart
-                    in_bezit: $state.in_bezit
-                    aantal_verleend: $state.aantal_verleend
-                    kaart_verleend: $record.kaart_verleend
-              - name: aantal_verleend_na_besluit
-                type: number
-                source:
-                  regulation: test_chronicle_effects
-                  output: aantal_verleend_na_besluit
-                  parameters: *op_de_kaart
-            actions: &op_de_staat
-              - output: in_bezit
-                value: $in_bezit_na_besluit
-              - output: aantal_verleend
-                value: $aantal_verleend_na_besluit
-          - record: test_chronicle_effects#3
-            input: *na_besluit
-            actions: *op_de_staat
-          - record: test_chronicle_effects#5
-            input:
-              - name: in_bezit_na_inlevering
-                type: boolean
-                source:
-                  regulation: test_chronicle_effects
-                  output: in_bezit_na_inlevering
-            actions:
-              - output: in_bezit
-                value: $in_bezit_na_inlevering
-          # A suspension (article 13): the period goes into the state. A
-          # later suspension sets it again.
-          - record: test_chronicle_effects#13
-            actions:
-              - output: geschorst_vanaf
-                value: $record.schorsing_vanaf
-              - output: geschorst_tot
-                value: $record.schorsing_tot
-          # The lifting of a suspension: article 14 says when the period
-          # ends after it.
-          - record: test_chronicle_effects#14
-            input:
-              - name: geschorst_tot_na_opheffing
-                type: date
-                source:
-                  regulation: test_chronicle_effects
-                  output: geschorst_tot_na_opheffing
-                  parameters:
-                    geschorst_tot: $state.geschorst_tot
-                    opgeheven_op: $record.opgeheven_op
-            actions:
-              - output: geschorst_tot
-                value: $geschorst_tot_na_opheffing
       execution:
         parameters:
           - name: aanvrager
@@ -102,15 +26,19 @@ articles:
           - name: peildatum
             type: date
         input:
+          - name: kaarten
+            type: array
+            source:
+              projections: test_reductie_kaart_per_besluit
+              where:
+                aanvrager: $aanvrager
           - name: kaart_geldig
             type: boolean
             source:
               regulation: test_chronicle_effects
               output: kaart_geldig_op_peildatum
               parameters:
-                in_bezit: $state.in_bezit
-                geschorst_vanaf: $state.geschorst_vanaf
-                geschorst_tot: $state.geschorst_tot
+                kaarten: $kaarten
                 peildatum: $peildatum
         output:
           - name: heeft_geldige_kaart_op_peildatum

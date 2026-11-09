@@ -259,6 +259,18 @@ pub struct Source {
     /// load instead of dropping it silently; it is never written back.
     #[serde(default, skip_serializing, deserialize_with = "present")]
     pub combine: Option<serde_json::Value>,
+    /// The aggregates of a reduction whose projection plays one per record
+    /// of a kind (`projection.per`, schema v0.8.17), by its `$id`: a list
+    /// with one row per root record, the last state of its aggregate with
+    /// the root's `id`. Only the chronicle of the cell that runs the
+    /// reduction answers it. Only a `REDUCTIE` may read it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub projections: Option<String>,
+    /// Only with `projections`: the roots whose aggregates are read, as a
+    /// map from a field or output of the root to a `$`-reference to a
+    /// parameter of the reading article (schema v0.8.17).
+    #[serde(default, rename = "where", skip_serializing_if = "Option::is_none")]
+    pub where_: Option<BTreeMap<String, String>>,
 }
 
 /// Parameter definition in execution spec
@@ -1858,6 +1870,17 @@ pub struct Projection {
     /// a field or an output. Without it, every record is played.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub key: Option<String>,
+    /// Instead of `key` (schema v0.8.17): play one aggregate per record that
+    /// rests on this article, `<regulation>#<article>` with `#<KIND>` where
+    /// the article gives more than one kind: that record, its root, and the
+    /// records that refer to it. Another reduction reads the last state of
+    /// each aggregate through `source.projections`.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_step_record"
+    )]
+    pub per: Option<String>,
     pub state: Vec<StateProperty>,
     pub steps: Vec<ProjectionStep>,
 }
@@ -1962,6 +1985,21 @@ impl ProjectionStep {
     pub fn basis_and_kind(&self) -> (&str, Option<&str>) {
         split_kind(&self.record)
     }
+}
+
+impl Projection {
+    /// The article and the kind of the roots of a projection with `per`.
+    pub fn per_basis_and_kind(&self) -> Option<(&str, Option<&str>)> {
+        self.per.as_deref().map(split_kind)
+    }
+}
+
+/// [`step_record`] for an optional field.
+fn optional_step_record<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    step_record(deserializer).map(Some)
 }
 
 /// Split `<regulation>#<article>[#<KIND>]` into the article and the kind.

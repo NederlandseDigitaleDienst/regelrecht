@@ -31,7 +31,7 @@ export const SOORTEN = [
 export const LIJNSOORTEN = [
   { soort: 'rekent', label: 'rekent met een naam uit hetzelfde regelwerk', yaml: 'actions, source.parameters, source.output, source.regulation' },
   { soort: 'vult_in', label: 'vult een open begrip in', yaml: 'implements' },
-  { soort: 'leest', label: 'gebruikt een uitkomst uit een ander regelwerk', yaml: 'source.regulation, projection.steps' },
+  { soort: 'leest', label: 'gebruikt een uitkomst uit een ander regelwerk', yaml: 'source.regulation, source.projections, projection.steps' },
   { soort: 'vraagt', label: 'vraagt een cel, die een reductie aanwijst', yaml: 'source.reduction, answers' },
   { soort: 'kroniek', label: 'leest de kroniek', yaml: 'source.decisions, source.facts, projection.steps, effects' },
 ];
@@ -329,6 +329,16 @@ export function keten(alle, id, { law, article, naam }) {
           if (d) lijn('vraagt', d.box, d.begrip, celBox, vraag, 'answers');
           lijn('vraagt', celBox, vraag, box, uit.begrip, 'source.reduction');
         }
+      } else if (s.projections) {
+        // The aggregates of another reduction (schema v0.8.17): each
+        // property of their state, set by its steps, runs into the input.
+        const doel = wet(s.projections);
+        const art = doel?.doc.articles.find((a) => a.machine_readable?.projection);
+        const projection = art?.machine_readable.projection;
+        for (const eigenschap of (projection?.state ?? []).map((p) => p.name)) {
+          const d = toestand(s.projections, art.number, projection, eigenschap);
+          if (d) lijn('leest', d.box, d.begrip, box, uit.begrip, 'source.projections');
+        }
       } else if (s.facts) {
         const [fLaw, fArt, feit] = String(s.facts).split('#');
         const doel = wet(fLaw);
@@ -385,7 +395,11 @@ export function keten(alle, id, { law, article, naam }) {
       if (d) lijn('leest', d.box, d.begrip, box, uit.begrip, 'projection.steps');
       const { law: rLaw, article: rArt } = splits(stap.record);
       const r = wet(rLaw);
-      if (r) lijn('kroniek', kroniek(), bron(r, rArt), box, uit.begrip, 'projection.steps');
+      // A step on the instances of a fact names that fact.
+      const feit = r && stap.record.endsWith('#EXECUTOGRAM')
+        ? (artikelVan(r.doc, rArt)?.machine_readable?.requires ?? []).find((q) => q.fact)?.fact
+        : undefined;
+      if (r) lijn('kroniek', kroniek(), bron(r, rArt, feit), box, uit.begrip, 'projection.steps');
     }
     for (const e of effecten) lijn('kroniek', kroniek(), bron(e.w, e.artikel, e.feit), box, uit.begrip, 'effects');
     uit.box.begrippen.get(begrip(box, uit.begrip)).volgorde = volgorde++;

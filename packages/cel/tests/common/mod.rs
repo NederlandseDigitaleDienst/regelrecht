@@ -56,6 +56,20 @@ pub fn repo_corpus() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus")
 }
 
+/// The directory `dir` of the corpus of the chronolexografie PoC
+/// (`packages/poc-chronolexografie/corpus`), as an absolute path that
+/// [`load`] takes as it is. The cell's tests read the Awb from there: the
+/// Awb of the PoC gives a decision on an objection and the receipt of a
+/// ruling their effects (`revokes`), which the reductions over aggregates
+/// read; the Awb of the corpus does not yet.
+pub fn poc(dir: &str) -> String {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../poc-chronolexografie/corpus")
+        .join(dir)
+        .to_string_lossy()
+        .into_owned()
+}
+
 /// Load every version in each directory of `dirs`, relative to a corpus
 /// (`regulation/nl/wet/<id>`, `cells/<cell>/reductions/<id>`), into
 /// `service`: from the fixtures, or else from the repository's corpus.

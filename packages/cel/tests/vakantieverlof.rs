@@ -60,15 +60,16 @@ fn service_without(without: &[&str]) -> LawExecutionService {
     let mut service = LawExecutionService::new();
     let laws = [
         format!("regulation/nl/wet/{LAW}"),
-        format!("regulation/nl/wet/{AWB}"),
+        common::poc("regulation/nl/wet/algemene_wet_bestuursrecht"),
         format!("regulation/nl/uitvoeringsbeleid/{POLICY}"),
         format!("regulation/nl/uitvoeringsbeleid/{SCHOOL_YEAR}"),
         format!("regulation/nl/uitvoeringsbeleid/{LEAVE_POLICY}"),
         // The school's reduction for lid 2, with its cell (RFC-048).
         common::reduction_dir(REDUCTION),
-        // Which decisions still stand after objection and appeal: the
-        // reduction of the Awb, which the school's reduction calls.
-        common::reduction_dir("reductie_algemene_wet_bestuursrecht"),
+        // The decisions under an article as aggregates, with what the Awb
+        // gives a decision on an objection and the receipt of a ruling.
+        common::reduction_dir("reductie_verlof"),
+        common::poc("casussen/vakantieverlof/regulation/nl/uitvoeringsbeleid/fictief_beleid_verleend_verlof_obs_de_klimop"),
     ]
     .into_iter()
     .filter(|law| !without.iter().any(|w| law.ends_with(w)));
@@ -436,7 +437,7 @@ fn decide(
 fn the_decision_takes_the_application_and_the_cell_and_the_policy_says_what_the_head_finds() {
     let shape = decision::derive(&service(), LAW, ARTICLE, day("2026-10-20")).unwrap();
     assert_eq!(shape.kind, "BESCHIKKING");
-    assert_eq!(shape.submission_kind, "AANVRAAG");
+    assert_eq!(shape.submission_kind.as_deref(), Some("AANVRAAG"));
     let asked: Vec<(&str, &Source)> = shape
         .inputs
         .iter()
@@ -1021,6 +1022,7 @@ fn a_cell_reads_the_reductions_it_keeps_from_its_directory() {
             .collect::<Vec<_>>(),
         [
             "reductie_plaats_van_vestiging",
+            "reductie_verlof",
             REDUCTION,
             "reductie_verlof_valt_buiten_schoolvakanties"
         ]
@@ -1070,8 +1072,12 @@ fn an_answer_from_a_reduction_the_cell_does_not_keep_is_refused() {
 
 #[test]
 fn the_reductions_of_no_cell_are_no_cell() {
-    let shared = common::corpus().join("cells/reductions");
-    let e = Cell::in_memory(RECORDING_ACTOR, shared).unwrap_err();
+    // The corpus holds no reduction of no cell any more; the directory
+    // alone is enough.
+    let root = common::cell_tempdir();
+    let shared = root.path().join("cells/reductions");
+    std::fs::create_dir_all(&shared).unwrap();
+    let e = Cell::in_memory(RECORDING_ACTOR, &shared).unwrap_err();
     assert!(
         matches!(&e, Error::Setup(m) if m.contains("reductions of no cell")),
         "{e}"
@@ -1342,7 +1348,7 @@ fn the_shape_of_the_objection_comes_from_the_awb() {
 fn the_decision_on_the_objection_asks_the_contested_decision() {
     let shape = decision::derive(&service(), AWB, OBJECTION, day("2026-11-15")).unwrap();
     assert_eq!(shape.kind, "BESCHIKKING");
-    assert_eq!(shape.submission_kind, "BEZWAAR");
+    assert_eq!(shape.submission_kind.as_deref(), Some("BEZWAAR"));
     assert_eq!(shape.outputs, [ADMISSIBLE, CAUSE, REVOKED, NEW]);
     let source = |name: &str| shape.input(name).map(|i| &i.source);
     assert_eq!(source("bestreden_besluit"), Some(&Source::Application));
@@ -2077,9 +2083,10 @@ fn a_grant_revoked_on_objection_no_longer_counts_on_the_objection_against_the_re
     );
 
     // Step 2: asked why, the cell runs its reduction for that term again,
-    // with its own trace: the Awb reduction counts A among the revoked
-    // decisions and leaves only the refusal in its place standing, which
-    // the filter skips; B itself is not read.
+    // with its own trace: in the aggregate of A, A does not count, because
+    // the decision on the objection against it revoked it (Awb 7:11); the
+    // refusal in its place is an aggregate of its own, which grants no
+    // leave. B itself is not read.
     let explained = cell
         .explain_answer(&mut service(), &[], &on_b[0].id, ONCE)
         .unwrap();
@@ -2090,18 +2097,15 @@ fn a_grant_revoked_on_objection_no_longer_counts_on_the_objection_against_the_re
     );
     let why = explained[0].trace.as_ref().unwrap().render_box_drawing();
     assert!(
-        why.contains(&format!("herroepen_besluiten = ['{}']", a.id)),
-        "A is not among the revoked:\n{why}"
+        why.contains(&format!("the aggregate of {}", a.id))
+            && why.contains(&format!("{}: revoked by {}", a.id, on_a[0].id)),
+        "A is not revoked in its aggregate:\n{why}"
     );
-    let standing = why
-        .lines()
-        .find(|line| line.contains("Result: besluiten_in_stand ="))
-        .unwrap_or_else(|| panic!("no decisions standing:\n{why}"));
-    assert!(!standing.contains(&a.id), "A still stands:\n{why}");
     assert!(
-        why.contains("FOREACH over 0 element(s), 1 skipped by filter = False"),
-        "{why}"
+        why.contains(&format!("the aggregate of {}", on_a[1].id)),
+        "the refusal in A's place is no aggregate of its own:\n{why}"
     );
+    assert!(!why.contains(&b.id), "B was read:\n{why}");
     // A term the decision did not ask the cell is refused.
     let e = cell
         .explain_answer(&mut service(), &[], &on_b[0].id, "verlofdagen")

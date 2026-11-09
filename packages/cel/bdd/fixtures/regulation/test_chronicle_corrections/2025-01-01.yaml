@@ -6,7 +6,7 @@
 # one field of that record (a partial correction, a fact of its own), and
 # article 3 records that an earlier record was wrong from the start, which
 # revokes it (schema v0.8.15, `requires[].effects`).
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: test_chronicle_corrections
 name: Testregister correcties van feiten
 regulatory_layer: WET

@@ -3,7 +3,7 @@ Feature: A reduction plays the chronicle forward
   I want a reduction to play my chronicle forward and keep a state
   So that a decision the law undoes is skipped, and the answer is computed again
 
-  # Exercises `projection` and `produces[].effects` (schema v0.8.14) against
+  # Exercises `projection` and `produces[].effects` (schema v0.8.17) against
   # the synthetic law test_chronicle_effects (packages/cel/bdd/fixtures),
   # which is loosely shaped after the disabled parking card and Awb 7:11 lid 2
   # and is otherwise fictional. The decision on an objection (article 2)
@@ -12,13 +12,16 @@ Feature: A reduction plays the chronicle forward
   # (handing the card in at the desk, recorded as a fact) are fictional
   # throughout: the corpus models neither.
   #
-  # The reduction test_reductie_geldige_kaart (fixtures/cells/test_cel) keeps
-  # two properties: whether the applicant holds a card (`in_bezit`) and how
-  # many grants counted (`aantal_verleend`). It says what a grant, a decision
-  # in the place of another and a card handed in do with them, and nothing
-  # about revoking. The effects of the law decide which records count: a
-  # record counts unless a later record that itself counts revokes it. The
-  # reduction's steps then run over the records that count, in order.
+  # The reduction test_reductie_kaart_per_besluit (fixtures/cells/test_cel)
+  # plays one aggregate per decision on an application: the decision and
+  # every record about it, by `refers_to`, directly or through another
+  # record (an objection, the decision on it, a card handed in). It keeps
+  # whether the card is held (`in_bezit`) and how many grants counted
+  # (`aantal_verleend`), and says nothing about revoking. The effects of the
+  # law decide which records count: a record counts unless a later record
+  # that itself counts revokes it. The read model test_reductie_geldige_kaart
+  # reads the aggregates of the applicant. A trace table lists the steps of
+  # each aggregate it read, by its root.
 
   Background:
     Given the calculation date is "2025-03-01"
@@ -33,9 +36,8 @@ Feature: A reduction plays the chronicle forward
     Then output "heeft_geldige_kaart" is true
     And property "in_bezit" was last set by "verlening"
     And the projection trace is:
-      | record    | event   | detail                                                                     |
-      | aanvraag  | applied | -                                                                          |
-      | verlening | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
+      | aggregate | record    | event   | detail                                                                     |
+      | verlening | verlening | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
 
   Scenario: An unfounded objection leaves the grant in place
     # Article 2 revokes only when its outcome `herroepen` is true, which
@@ -44,7 +46,7 @@ Feature: A reduction plays the chronicle forward
       | ernstig_beperkt | true |
       | aanvrager       | burger_x |
     And the cell decides "verlening" on submission "aanvraag"
-    And the cell records submission "bezwaar" under article "2" of "test_chronicle_effects" with:
+    And the cell records submission "bezwaar" about "verlening" under article "2" of "test_chronicle_effects" with:
       | bestreden_besluit | verlening |
     And the cell decides "beslissing_op_bezwaar" on submission "bezwaar" with:
       | bezwaar_gegrond | false |
@@ -57,7 +59,7 @@ Feature: A reduction plays the chronicle forward
       | ernstig_beperkt | true |
       | aanvrager       | burger_x |
     And the cell decides "verlening" on submission "aanvraag"
-    And the cell records submission "bezwaar" under article "2" of "test_chronicle_effects" with:
+    And the cell records submission "bezwaar" about "verlening" under article "2" of "test_chronicle_effects" with:
       | bestreden_besluit | verlening |
     And the cell decides "herroeping" on submission "bezwaar" with:
       | bezwaar_gegrond | true |
@@ -71,7 +73,7 @@ Feature: A reduction plays the chronicle forward
       | ernstig_beperkt | false |
       | aanvrager       | burger_x |
     And the cell decides "weigering" on submission "aanvraag"
-    And the cell decides "nieuw_besluit" under article "3" of "test_chronicle_effects" with:
+    And the cell decides "nieuw_besluit" about "weigering" under article "3" of "test_chronicle_effects" with:
       | bestreden_besluit | weigering |
       | ernstig_beperkt   | true      |
       | aanvrager         | burger_x          |
@@ -85,7 +87,7 @@ Feature: A reduction plays the chronicle forward
       | ernstig_beperkt | true |
       | aanvrager       | burger_x |
     And the cell decides "verlening" on submission "aanvraag"
-    And the cell decides "nieuw_besluit" under article "3" of "test_chronicle_effects" with:
+    And the cell decides "nieuw_besluit" about "verlening" under article "3" of "test_chronicle_effects" with:
       | bestreden_besluit | verlening |
       | ernstig_beperkt   | false     |
       | aanvrager         | burger_x          |
@@ -100,14 +102,14 @@ Feature: A reduction plays the chronicle forward
       | ernstig_beperkt | true |
       | aanvrager       | burger_x |
     And the cell decides "verlening" on submission "aanvraag"
-    And the cell records fact "kaart_ingeleverd" as "inlevering" under article "5" of "test_chronicle_effects" with:
+    And the cell records fact "kaart_ingeleverd" as "inlevering" about "verlening" under article "5" of "test_chronicle_effects" with:
       | ingeleverd_op | 2025-03-01 |
       | aanvrager     | burger_x   |
     And the cell records submission "tweede_aanvraag" under article "1" of "test_chronicle_effects" with:
       | ernstig_beperkt | true |
       | aanvrager       | burger_x |
     And the cell decides "tweede_verlening" on submission "tweede_aanvraag"
-    And the cell records submission "bezwaar" under article "2" of "test_chronicle_effects" with:
+    And the cell records submission "bezwaar" about "verlening" under article "2" of "test_chronicle_effects" with:
       | bestreden_besluit | verlening |
     And the cell decides "herroeping" on submission "bezwaar" with:
       | bezwaar_gegrond | true |
@@ -115,14 +117,12 @@ Feature: A reduction plays the chronicle forward
     Then output "heeft_geldige_kaart" is true
     And property "in_bezit" was last set by "tweede_verlening"
     And the projection trace is:
-      | record           | event   | detail                                                                     |
-      | aanvraag         | applied | -                                                                          |
-      | verlening        | skipped | revoked by herroeping                                                      |
-      | inlevering       | applied | test_chronicle_effects#8: in_bezit: false -> false                         |
-      | tweede_aanvraag  | applied | -                                                                          |
-      | tweede_verlening | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
-      | bezwaar          | applied | -                                                                          |
-      | herroeping       | applied | -                                                                          |
+      | aggregate        | record           | event   | detail                                                                     |
+      | verlening        | verlening        | skipped | revoked by herroeping                                                      |
+      | verlening        | inlevering       | applied | test_chronicle_effects#8: in_bezit: false -> false                         |
+      | verlening        | bezwaar          | applied | -                                                                          |
+      | verlening        | herroeping       | applied | -                                                                          |
+      | tweede_verlening | tweede_verlening | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
 
   Scenario: The answer reads two properties of the state
     # A card is a replacement when the applicant holds one and more than one
@@ -131,7 +131,7 @@ Feature: A reduction plays the chronicle forward
       | ernstig_beperkt | true |
       | aanvrager       | burger_x |
     And the cell decides "verlening" on submission "aanvraag"
-    And the cell records fact "kaart_ingeleverd" as "inlevering" under article "5" of "test_chronicle_effects" with:
+    And the cell records fact "kaart_ingeleverd" as "inlevering" about "verlening" under article "5" of "test_chronicle_effects" with:
       | ingeleverd_op | 2025-03-01 |
       | aanvrager     | burger_x   |
     And the cell records submission "tweede_aanvraag" under article "1" of "test_chronicle_effects" with:
@@ -140,7 +140,7 @@ Feature: A reduction plays the chronicle forward
     And the cell decides "tweede_verlening" on submission "tweede_aanvraag"
     And I evaluate "kaart_is_vervanging" of "test_reductie_geldige_kaart" over the chronicle
     Then output "kaart_is_vervanging" is true
-    When the cell records submission "bezwaar" under article "2" of "test_chronicle_effects" with:
+    When the cell records submission "bezwaar" about "verlening" under article "2" of "test_chronicle_effects" with:
       | bestreden_besluit | verlening |
     And the cell decides "herroeping" on submission "bezwaar" with:
       | bezwaar_gegrond | true |
@@ -162,7 +162,7 @@ Feature: A reduction plays the chronicle forward
       | ernstig_beperkt | true |
       | aanvrager       | burger_x |
     And the cell decides "tweede_verlening" on submission "tweede_aanvraag"
-    And the cell records submission "bezwaar" under article "2" of "test_chronicle_effects" with:
+    And the cell records submission "bezwaar" about "tweede_verlening" under article "2" of "test_chronicle_effects" with:
       | bestreden_besluit | tweede_verlening |
     And the cell decides "herroeping" on submission "bezwaar" with:
       | bezwaar_gegrond | true |
@@ -176,12 +176,12 @@ Feature: A reduction plays the chronicle forward
       | ernstig_beperkt | true |
       | aanvrager       | burger_x |
     And the cell decides "verlening" on submission "aanvraag"
-    And the cell decides "intrekking" under article "4" of "test_chronicle_effects" with:
+    And the cell decides "intrekking" about "verlening" under article "4" of "test_chronicle_effects" with:
       | ingetrokken_besluit | verlening |
     And I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
     Then record "verlening" is skipped
     And output "heeft_geldige_kaart" is false
-    When the cell records submission "bezwaar" under article "2" of "test_chronicle_effects" with:
+    When the cell records submission "bezwaar" about "intrekking" under article "2" of "test_chronicle_effects" with:
       | bestreden_besluit | intrekking |
     And the cell decides "herroeping" on submission "bezwaar" with:
       | bezwaar_gegrond | true |
@@ -190,12 +190,11 @@ Feature: A reduction plays the chronicle forward
     And record "verlening" is applied
     And output "heeft_geldige_kaart" is true
     And the projection trace is:
-      | record     | event   | detail                                                                     |
-      | aanvraag   | applied | -                                                                          |
-      | verlening  | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
-      | intrekking | skipped | revoked by herroeping                                                      |
-      | bezwaar    | applied | -                                                                          |
-      | herroeping | applied | -                                                                          |
+      | aggregate | record     | event   | detail                                                                     |
+      | verlening | verlening  | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
+      | verlening | intrekking | skipped | revoked by herroeping                                                      |
+      | verlening | bezwaar    | applied | -                                                                          |
+      | verlening | herroeping | applied | -                                                                          |
 
   Scenario: A decision revoked twice stays skipped when one revocation is undone
     # Two well-founded objections revoke the grant; a third revokes the first
@@ -205,15 +204,15 @@ Feature: A reduction plays the chronicle forward
       | ernstig_beperkt | true |
       | aanvrager       | burger_x |
     And the cell decides "verlening" on submission "aanvraag"
-    And the cell records submission "bezwaar_1" under article "2" of "test_chronicle_effects" with:
+    And the cell records submission "bezwaar_1" about "verlening" under article "2" of "test_chronicle_effects" with:
       | bestreden_besluit | verlening |
     And the cell decides "herroeping_1" on submission "bezwaar_1" with:
       | bezwaar_gegrond | true |
-    And the cell records submission "bezwaar_2" under article "2" of "test_chronicle_effects" with:
+    And the cell records submission "bezwaar_2" about "verlening" under article "2" of "test_chronicle_effects" with:
       | bestreden_besluit | verlening |
     And the cell decides "herroeping_2" on submission "bezwaar_2" with:
       | bezwaar_gegrond | true |
-    And the cell records submission "bezwaar_3" under article "2" of "test_chronicle_effects" with:
+    And the cell records submission "bezwaar_3" about "herroeping_1" under article "2" of "test_chronicle_effects" with:
       | bestreden_besluit | herroeping_1 |
     And the cell decides "herroeping_3" on submission "bezwaar_3" with:
       | bezwaar_gegrond | true |
@@ -223,15 +222,14 @@ Feature: A reduction plays the chronicle forward
     And record "verlening" is skipped
     And output "heeft_geldige_kaart" is false
     And the projection trace is:
-      | record       | event   | detail                  |
-      | aanvraag     | applied | -                       |
-      | verlening    | skipped | revoked by herroeping_2 |
-      | bezwaar_1    | applied | -                       |
-      | herroeping_1 | skipped | revoked by herroeping_3 |
-      | bezwaar_2    | applied | -                       |
-      | herroeping_2 | applied | -                       |
-      | bezwaar_3    | applied | -                       |
-      | herroeping_3 | applied | -                       |
+      | aggregate | record       | event   | detail                  |
+      | verlening | verlening    | skipped | revoked by herroeping_2 |
+      | verlening | bezwaar_1    | applied | -                       |
+      | verlening | herroeping_1 | skipped | revoked by herroeping_3 |
+      | verlening | bezwaar_2    | applied | -                       |
+      | verlening | herroeping_2 | applied | -                       |
+      | verlening | bezwaar_3    | applied | -                       |
+      | verlening | herroeping_3 | applied | -                       |
 
   Scenario: Replacing a replacement undoes its replacing
     # A record that is replaced undoes nothing any more: the first
@@ -242,11 +240,11 @@ Feature: A reduction plays the chronicle forward
       | ernstig_beperkt | true |
       | aanvrager       | burger_x |
     And the cell decides "verlening" on submission "aanvraag"
-    And the cell decides "eerste_vervanging" under article "3" of "test_chronicle_effects" with:
+    And the cell decides "eerste_vervanging" about "verlening" under article "3" of "test_chronicle_effects" with:
       | bestreden_besluit | verlening |
       | ernstig_beperkt   | false     |
       | aanvrager         | burger_x          |
-    And the cell decides "tweede_vervanging" under article "3" of "test_chronicle_effects" with:
+    And the cell decides "tweede_vervanging" about "eerste_vervanging" under article "3" of "test_chronicle_effects" with:
       | bestreden_besluit | eerste_vervanging |
       | ernstig_beperkt   | false             |
       | aanvrager         | burger_x          |
@@ -263,15 +261,15 @@ Feature: A reduction plays the chronicle forward
       | ernstig_beperkt | true |
       | aanvrager       | burger_x |
     And the cell decides "verlening" on submission "aanvraag"
-    And the cell decides "eerste_vervanging" under article "3" of "test_chronicle_effects" with:
+    And the cell decides "eerste_vervanging" about "verlening" under article "3" of "test_chronicle_effects" with:
       | bestreden_besluit | verlening |
       | ernstig_beperkt   | false     |
       | aanvrager         | burger_x          |
-    And the cell decides "tweede_vervanging" under article "3" of "test_chronicle_effects" with:
+    And the cell decides "tweede_vervanging" about "eerste_vervanging" under article "3" of "test_chronicle_effects" with:
       | bestreden_besluit | eerste_vervanging |
       | ernstig_beperkt   | true              |
       | aanvrager         | burger_x          |
-    And the cell records submission "bezwaar" under article "2" of "test_chronicle_effects" with:
+    And the cell records submission "bezwaar" about "tweede_vervanging" under article "2" of "test_chronicle_effects" with:
       | bestreden_besluit | tweede_vervanging |
     And the cell decides "herroeping" on submission "bezwaar" with:
       | bezwaar_gegrond | true |
@@ -288,9 +286,9 @@ Feature: A reduction plays the chronicle forward
       | ernstig_beperkt | true |
       | aanvrager       | burger_x |
     And the cell decides "verlening" on submission "aanvraag"
-    And the cell decides "intrekking" under article "4" of "test_chronicle_effects" with:
+    And the cell decides "intrekking" about "verlening" under article "4" of "test_chronicle_effects" with:
       | ingetrokken_besluit | verlening |
-    And the cell decides "waarschuwing" under article "6" of "test_chronicle_effects" with:
+    And the cell decides "waarschuwing" about "intrekking" under article "6" of "test_chronicle_effects" with:
       | bestreden_besluit | intrekking |
     And I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
     Then record "intrekking" is skipped
@@ -305,13 +303,13 @@ Feature: A reduction plays the chronicle forward
       | ernstig_beperkt | true |
       | aanvrager       | burger_x |
     And the cell decides "verlening" on submission "aanvraag"
-    And the cell decides "intrekking" under article "4" of "test_chronicle_effects" with:
+    And the cell decides "intrekking" about "verlening" under article "4" of "test_chronicle_effects" with:
       | ingetrokken_besluit | verlening |
-    And the cell decides "eerste_waarschuwing" under article "6" of "test_chronicle_effects" with:
+    And the cell decides "eerste_waarschuwing" about "intrekking" under article "6" of "test_chronicle_effects" with:
       | bestreden_besluit | intrekking |
-    And the cell decides "tweede_waarschuwing" under article "6" of "test_chronicle_effects" with:
+    And the cell decides "tweede_waarschuwing" about "intrekking" under article "6" of "test_chronicle_effects" with:
       | bestreden_besluit | intrekking |
-    And the cell records submission "bezwaar" under article "2" of "test_chronicle_effects" with:
+    And the cell records submission "bezwaar" about "eerste_waarschuwing" under article "2" of "test_chronicle_effects" with:
       | bestreden_besluit | eerste_waarschuwing |
     And the cell decides "herroeping" on submission "bezwaar" with:
       | bezwaar_gegrond | true |
@@ -328,7 +326,7 @@ Feature: A reduction plays the chronicle forward
       | aanvrager       | burger_x |
     And the cell decides "verlening" on submission "aanvraag"
     Given the calculation date is "2025-04-01"
-    When the cell records submission "bezwaar" under article "2" of "test_chronicle_effects" with:
+    When the cell records submission "bezwaar" about "verlening" under article "2" of "test_chronicle_effects" with:
       | bestreden_besluit | verlening |
     And the cell decides "herroeping" on submission "bezwaar" with:
       | bezwaar_gegrond | true |
@@ -352,71 +350,40 @@ Feature: A reduction plays the chronicle forward
       | ernstig_beperkt | true     |
       | aanvrager       | burger_y |
     And the cell decides "verlening_y" on submission "aanvraag_y"
-    And the cell records submission "bezwaar" under article "2" of "test_chronicle_effects" with:
+    And the cell records submission "bezwaar" about "verlening_x" under article "2" of "test_chronicle_effects" with:
       | bestreden_besluit | verlening_x |
     And the cell decides "herroeping" on submission "bezwaar" with:
       | bezwaar_gegrond | true |
-    And the cell records submission "bezwaar_2" under article "2" of "test_chronicle_effects" with:
+    And the cell records submission "bezwaar_2" about "herroeping" under article "2" of "test_chronicle_effects" with:
       | bestreden_besluit | herroeping |
     And the cell decides "herroeping_2" on submission "bezwaar_2" with:
       | bezwaar_gegrond | true |
     And I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
     Then output "heeft_geldige_kaart" is true
     And the projection trace is:
-      | record       | event   | detail                                                                     |
-      | aanvraag_x   | applied | -                                                                          |
-      | verlening_x  | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
-      | bezwaar      | applied | -                                                                          |
-      | herroeping   | skipped | revoked by herroeping_2                                                    |
-      | bezwaar_2    | applied | -                                                                          |
-      | herroeping_2 | applied | -                                                                          |
+      | aggregate   | record       | event   | detail                                                                     |
+      | verlening_x | verlening_x  | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
+      | verlening_x | bezwaar      | applied | -                                                                          |
+      | verlening_x | herroeping   | skipped | revoked by herroeping_2                                                    |
+      | verlening_x | bezwaar_2    | applied | -                                                                          |
+      | verlening_x | herroeping_2 | applied | -                                                                          |
     Given parameter "aanvrager" is "burger_y"
     When I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
     Then output "heeft_geldige_kaart" is true
     And the projection trace is:
-      | record      | event   | detail                                                                     |
-      | aanvraag_y  | applied | -                                                                          |
-      | verlening_y | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
-
-  Scenario: A decision of another applicant in the place of a grant revokes it for both
-    # A decision in the place of X's grant that carries applicant Y is Y's
-    # record, but what it does with X's grant is law, whoever the question is
-    # about: X's grant no longer counts. For X it counts for its effect only,
-    # so its step gives X no card. For Y it is Y's own record, and the grant
-    # it revokes is outside Y's records, so that effect is not Y's business.
-    When the cell records submission "aanvraag_x" under article "1" of "test_chronicle_effects" with:
-      | ernstig_beperkt | true     |
-      | aanvrager       | burger_x |
-    And the cell decides "verlening_x" on submission "aanvraag_x"
-    And the cell decides "besluit_y" under article "3" of "test_chronicle_effects" with:
-      | bestreden_besluit | verlening_x |
-      | ernstig_beperkt   | true        |
-      | aanvrager         | burger_y    |
-    And I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
-    Then output "heeft_geldige_kaart" is false
-    And record "verlening_x" is skipped
-    And the projection trace is:
-      | record      | event        | detail                 |
-      | aanvraag_x  | applied      | -                      |
-      | verlening_x | skipped      | revoked by besluit_y   |
-      | besluit_y   | effects only | key differs: aanvrager |
-    Given parameter "aanvrager" is "burger_y"
-    When I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
-    Then output "heeft_geldige_kaart" is true
-    And the projection trace is:
-      | record    | event   | detail                                                                     |
-      | besluit_y | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
+      | aggregate   | record      | event   | detail                                                                     |
+      | verlening_y | verlening_y | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
 
   Scenario: A permit moved to another licence plate no longer holds for the old plate
     # Fictional test_parkeervergunning: article 2 moves a permit to another
-    # plate in the place of the earlier one. Keyed by plate, the move carries
-    # the new plate, so it counts for the old plate for its effect only: the
-    # old plate has no permit any more. Keyed by resident, both records are
-    # the resident's, and the permit is for the new plate.
+    # plate in the place of the earlier one. The move is about the permit,
+    # so it plays in the permit's aggregate: the permit no longer counts,
+    # and the move puts the new plate in the state. The old plate has no
+    # permit any more; the resident's permit is for the new plate.
     When the cell decides "vergunning" under article "1" of "test_parkeervergunning" with:
       | bewoner  | burger_x |
       | kenteken | AB-12-CD |
-    And the cell decides "omzetting" under article "2" of "test_parkeervergunning" with:
+    And the cell decides "omzetting" about "vergunning" under article "2" of "test_parkeervergunning" with:
       | oude_vergunning | vergunning |
       | bewoner         | burger_x   |
       | kenteken        | XY-34-ZZ   |
@@ -424,9 +391,9 @@ Feature: A reduction plays the chronicle forward
     When I evaluate "kenteken_heeft_vergunning" of "test_reductie_vergunning_per_kenteken" over the chronicle
     Then output "kenteken_heeft_vergunning" is false
     And the projection trace is:
-      | record     | event        | detail                |
-      | vergunning | skipped      | revoked by omzetting  |
-      | omzetting  | effects only | key differs: kenteken |
+      | aggregate  | record     | event   | detail                                                                          |
+      | vergunning | vergunning | skipped | revoked by omzetting                                                            |
+      | vergunning | omzetting  | applied | test_parkeervergunning#4: kenteken: null -> XY-34-ZZ, vergunning: false -> true |
     Given parameter "kenteken" is "XY-34-ZZ"
     When I evaluate "kenteken_heeft_vergunning" of "test_reductie_vergunning_per_kenteken" over the chronicle
     Then output "kenteken_heeft_vergunning" is true
@@ -436,17 +403,17 @@ Feature: A reduction plays the chronicle forward
     And record "vergunning" is skipped
 
   Scenario: Revoking the move brings the permit back to the old plate
-    # The revocation carries no plate. It refers only to the move, a record
-    # of the new plate, so for the old plate it too counts for its effect
-    # only. Undoing the move revives the permit for the old plate.
+    # The revocation is about the move, and so about the permit too: it
+    # plays in the same aggregate. Undoing the move revives the permit for
+    # the old plate.
     When the cell decides "vergunning" under article "1" of "test_parkeervergunning" with:
       | bewoner  | burger_x |
       | kenteken | AB-12-CD |
-    And the cell decides "omzetting" under article "2" of "test_parkeervergunning" with:
+    And the cell decides "omzetting" about "vergunning" under article "2" of "test_parkeervergunning" with:
       | oude_vergunning | vergunning |
       | bewoner         | burger_x   |
       | kenteken        | XY-34-ZZ   |
-    And the cell decides "herroeping" under article "3" of "test_parkeervergunning" with:
+    And the cell decides "herroeping" about "omzetting" under article "3" of "test_parkeervergunning" with:
       | herroepen_besluit | omzetting |
     Given parameter "kenteken" is "AB-12-CD"
     When I evaluate "kenteken_heeft_vergunning" of "test_reductie_vergunning_per_kenteken" over the chronicle
@@ -458,32 +425,68 @@ Feature: A reduction plays the chronicle forward
     When I evaluate "kenteken_heeft_vergunning" of "test_reductie_vergunning_per_kenteken" over the chronicle
     Then output "kenteken_heeft_vergunning" is false
 
+  Scenario: A withdrawal without a submission is about the grant it withdraws
+    # A withdrawal ex officio (fictional article 4) is taken on no
+    # submission: its refers_to names the grant it affects, so it plays in
+    # that grant's aggregate and revokes it.
+    When the cell records submission "aanvraag" under article "1" of "test_chronicle_effects" with:
+      | ernstig_beperkt | true     |
+      | aanvrager       | burger_x |
+    And the cell decides "verlening" on submission "aanvraag"
+    And the cell decides "intrekking" about "verlening" under article "4" of "test_chronicle_effects" with:
+      | ingetrokken_besluit | verlening |
+    And I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
+    Then output "heeft_geldige_kaart" is false
+    And the projection trace is:
+      | aggregate | record     | event   | detail                |
+      | verlening | verlening  | skipped | revoked by intrekking |
+      | verlening | intrekking | applied | -                     |
+
+  Scenario: A decision revokes only a record it is about
+    # The withdrawal is about the second grant but names the first in its
+    # effect. From schema v0.8.17 a decision revokes only a record its
+    # refers_to reaches, directly or through what that record refers to, so
+    # the cell refuses to record it.
+    When the cell records submission "aanvraag" under article "1" of "test_chronicle_effects" with:
+      | ernstig_beperkt | true     |
+      | aanvrager       | burger_x |
+    And the cell decides "verlening" on submission "aanvraag"
+    And the cell records submission "tweede_aanvraag" under article "1" of "test_chronicle_effects" with:
+      | ernstig_beperkt | true     |
+      | aanvrager       | burger_x |
+    And the cell decides "tweede_verlening" on submission "tweede_aanvraag"
+    And the cell decides "intrekking" about "tweede_verlening" under article "4" of "test_chronicle_effects" with:
+      | ingetrokken_besluit | verlening |
+    Then the cell refuses with "revokes 'verlening' (ingetrokken_besluit), which its refers_to does not reach"
+    When I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
+    Then output "heeft_geldige_kaart" is true
+
   Scenario: A policy takes the cell's answer, and a well-founded objection flips it
     # The normal route: the law (fictional article 9) leaves whether the
     # applicant holds a valid card to the college, whose policy binds that
     # term to the answer of its cell (`source.reduction`). The cell gives the
-    # answer by playing its chronicle through the projection of
-    # test_reductie_geldige_kaart, with the applicant the binding passes as
-    # its key.
+    # answer from test_reductie_geldige_kaart, which reads the aggregates of
+    # the applicant the binding passes.
     When the cell records submission "aanvraag" under article "1" of "test_chronicle_effects" with:
       | ernstig_beperkt | true     |
       | aanvrager       | burger_x |
     And the cell decides "verlening" on submission "aanvraag"
     And I evaluate "mag_parkeren" of "test_chronicle_effects" with the cell answering "heeft_geldige_kaart" from "test_reductie_geldige_kaart"
     Then output "mag_parkeren" is true
-    When the cell records submission "bezwaar" under article "2" of "test_chronicle_effects" with:
+    When the cell records submission "bezwaar" about "verlening" under article "2" of "test_chronicle_effects" with:
       | bestreden_besluit | verlening |
     And the cell decides "herroeping" on submission "bezwaar" with:
       | bezwaar_gegrond | true |
     And I evaluate "mag_parkeren" of "test_chronicle_effects" with the cell answering "heeft_geldige_kaart" from "test_reductie_geldige_kaart"
     Then output "mag_parkeren" is false
 
-  Scenario: A step passes a parameter of the question to the law it calls
+  Scenario: A read model compares the day asked about when it answers
     # Fictional test_bedrijfsvergunning: article 1 grants a permit valid up to
-    # a day, article 2 says a permit counts on a given day while it is valid.
-    # The reduction passes that day, a parameter of the question, to article
-    # 2: the same chronicle answers differently for another day, and the
-    # same question always gets the same answer.
+    # a day, article 2 says which permits count on a given day. Each decision
+    # is an aggregate of test_reductie_vergunning_per_besluit (schema
+    # v0.8.17); the read model passes their rows and the day to article 2:
+    # the same chronicle answers differently for another day, and the same
+    # question always gets the same answer.
     When the cell records submission "aanvraag_1" under article "1" of "test_bedrijfsvergunning" with:
       | bedrijf    | bedrijf_x  |
       | geldig_tot | 2025-06-30 |

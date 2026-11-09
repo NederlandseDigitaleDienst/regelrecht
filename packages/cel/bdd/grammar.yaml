@@ -27,6 +27,16 @@ steps:
     args: [{name: id, type: string}, {name: article, type: string}, {name: law, type: string}]
     datatable: true
 
+  # The same, for a submission about an earlier record (`refers_to`), such
+  # as an objection against a decision: the record it contests.
+  - id: record_submission_about
+    action: record_submission_about
+    keyword: when
+    tier: cel
+    text: 'the cell records submission "{id}" about "{record}" under article "{article}" of "{law}" with:'
+    args: [{name: id, type: string}, {name: record, type: string}, {name: article, type: string}, {name: law, type: string}]
+    datatable: true
+
   # The decision the submission asks for (`requests`), taken with the fields
   # of the submission as parameters.
   - id: decide_on_submission
@@ -56,6 +66,26 @@ steps:
     text: 'the cell decides "{id}" under article "{article}" of "{law}" with:'
     args: [{name: id, type: string}, {name: article, type: string}, {name: law, type: string}]
     datatable: true
+
+  # A decision the cell takes ex officio, on no submission
+  # (`Cell::decide_ex_officio`), about an earlier record (`refers_to`), such
+  # as a withdrawal: the record it affects (schema v0.8.17). A refusal is
+  # kept for "the cell refuses with".
+  - id: decide_under_article_about
+    action: decide_under_article_about
+    keyword: when
+    tier: cel
+    text: 'the cell decides "{id}" about "{record}" under article "{article}" of "{law}" with:'
+    args: [{name: id, type: string}, {name: record, type: string}, {name: article, type: string}, {name: law, type: string}]
+    datatable: true
+
+  # Why the cell refused what it was last asked to record.
+  - id: assert_cell_refuses
+    action: assert_cell_refuses
+    keyword: then
+    tier: cel
+    text: the cell refuses with "{message}"
+    args: [{name: message, type: string}]
 
   # A fact the cell records as an executogram (RFC-051): an instance of a
   # fact the article requires (`requires`), with the values of its fields.
@@ -149,7 +179,10 @@ steps:
   # the properties it set, `property: from -> to`, or `-`), a record skipped
   # (with the records that revoke it), and a record that counts for its
   # effects only (with why). The table has a header row `record | event |
-  # detail` and must match exactly.
+  # detail` and must match exactly. For a reduction that reads aggregates
+  # (`source.projections`, schema v0.8.17) the header is `aggregate | record
+  # | event | detail`: the steps of each aggregate it read, by its root, in
+  # the order of the chronicle.
   - id: assert_projection_trace
     action: assert_projection_trace
     keyword: then

@@ -55,7 +55,7 @@ use crate::engine::ArticleResult;
 use crate::error::{EngineError, Result};
 use crate::service::LawExecutionService;
 use crate::trace::{PathNode, TraceBuilder};
-use crate::types::{ParameterType, PathNodeType, Value};
+use crate::types::{ParameterType, PathNodeType, RegulatoryLayer, Value};
 
 /// The kind of a record of a fact (RFC-051), as the cell writes it.
 const EXECUTOGRAM: &str = "EXECUTOGRAM";
@@ -138,6 +138,17 @@ pub fn has_projection(article: &Article) -> bool {
         .is_some_and(|m| m.projection.is_some())
 }
 
+/// One aggregate of a projection with `per` (schema v0.8.17): its root, its
+/// last state, which record set each property last (`None` for the start
+/// value), and what became of each of its records.
+#[derive(Debug, Clone)]
+pub struct Aggregate {
+    pub root: String,
+    pub state: BTreeMap<String, Value>,
+    pub set_by: BTreeMap<String, Option<String>>,
+    pub events: Vec<ProjectionEvent>,
+}
+
 /// The answer of a projection: the last state, which record set each
 /// property last (`None` for the initial value), every event, and the
 /// result of the reduction's `execution` over the last state.
@@ -215,7 +226,27 @@ impl LawExecutionService {
                      projection answers from one"
                 )));
             }
+            // A reduction without a projection reads the records as its
+            // chronicle, such as a read model over aggregates.
+            if !has_projection(article) && law.regulatory_layer == RegulatoryLayer::Reductie {
+                return self.evaluate_read_model(
+                    law_id,
+                    output_names,
+                    records,
+                    parameters,
+                    calculation_date,
+                    call,
+                    trace,
+                );
+            }
             let projection = projection_of(law_id, article)?.clone();
+            if let Some(per) = &projection.per {
+                return Err(EngineError::InvalidOperation(format!(
+                    "'{law_id}' plays one aggregate per record under {per} and answers no \
+                     question of its own; a reduction reads its aggregates with \
+                     source.projections"
+                )));
+            }
             let question = article.get_parameters().to_vec();
             let key_type = projection.key.as_ref().and_then(|key| {
                 article
@@ -276,6 +307,178 @@ impl LawExecutionService {
             events: played.events,
             result,
         })
+    }
+
+    /// [`Self::evaluate_projection_with`] for a reduction without a
+    /// projection, such as a read model over aggregates (schema v0.8.17):
+    /// its `execution` runs on `records` as its chronicle, unless the call
+    /// already brings one.
+    #[allow(clippy::too_many_arguments)]
+    fn evaluate_read_model(
+        &self,
+        law_id: &str,
+        output_names: &[&str],
+        records: &[ChronicleRecord],
+        parameters: BTreeMap<String, Value>,
+        calculation_date: &str,
+        call: Call<'_>,
+        trace: bool,
+    ) -> Result<ProjectionOutcome> {
+        let given = Records(records);
+        let call = Call {
+            chronicle: call.chronicle.or(Some(&given)),
+            ..call
+        };
+        let result = if trace {
+            self.evaluate_law_with_trace_in(
+                law_id,
+                output_names,
+                parameters,
+                call,
+                calculation_date,
+            )?
+        } else {
+            self.evaluate_law_in(law_id, output_names, parameters, call, calculation_date)?
+        };
+        Ok(ProjectionOutcome {
+            state: BTreeMap::new(),
+            set_by: BTreeMap::new(),
+            events: Vec::new(),
+            result,
+        })
+    }
+
+    /// The aggregates of the reduction `law_id`, whose projection plays one
+    /// per record of a kind (`projection.per`, schema v0.8.17), over the
+    /// records known on `calculation_date`: one row per root record that
+    /// holds every value of `filter` under its name, as a field or an
+    /// output, in the order of the chronicle. A row is the last state of the
+    /// aggregate with the root's `id`. A root that does not count applies
+    /// no step; the other records of its aggregate that count apply
+    /// theirs. The reduction in force on the calculation
+    /// date plays every aggregate.
+    pub fn projection_rows(
+        &self,
+        law_id: &str,
+        records: &[ChronicleRecord],
+        filter: &BTreeMap<String, Value>,
+        calculation_date: &str,
+    ) -> Result<Value> {
+        self.projection_rows_traced(law_id, records, filter, calculation_date, false)
+            .map(|(rows, _)| rows)
+    }
+
+    /// [`Self::projection_rows`], and when `trace` asks for it, per
+    /// aggregate a `PROJECTION` node: which records count and the fold, as
+    /// a projection with a key traces them.
+    pub fn projection_rows_traced(
+        &self,
+        law_id: &str,
+        records: &[ChronicleRecord],
+        filter: &BTreeMap<String, Value>,
+        calculation_date: &str,
+        trace: bool,
+    ) -> Result<(Value, Vec<PathNode>)> {
+        let mut rows = Vec::new();
+        let mut nodes = Vec::new();
+        for (root, played) in
+            self.play_aggregates(law_id, records, filter, calculation_date, trace)?
+        {
+            if trace {
+                let mut node = trace_node(&played);
+                node.message = Some(format!("the aggregate of {root}"));
+                nodes.push(node);
+            }
+            let mut row = played.state;
+            row.insert(ROOT_ID.to_string(), Value::String(root));
+            rows.push(Value::Object(row));
+        }
+        Ok((Value::Array(rows), nodes))
+    }
+
+    /// The aggregates [`Self::projection_rows`] reads, each with its last
+    /// state, which record set each property last, and what became of each
+    /// of its records, as a projection reports them.
+    pub fn aggregates(
+        &self,
+        law_id: &str,
+        records: &[ChronicleRecord],
+        filter: &BTreeMap<String, Value>,
+        calculation_date: &str,
+    ) -> Result<Vec<Aggregate>> {
+        Ok(self
+            .play_aggregates(law_id, records, filter, calculation_date, false)?
+            .into_iter()
+            .map(|(root, played)| Aggregate {
+                root,
+                state: played.state,
+                set_by: played.set_by,
+                events: played.events,
+            })
+            .collect())
+    }
+
+    /// Play the aggregate of each root of `law_id` that holds `filter`, in
+    /// the order of the chronicle.
+    fn play_aggregates(
+        &self,
+        law_id: &str,
+        records: &[ChronicleRecord],
+        filter: &BTreeMap<String, Value>,
+        calculation_date: &str,
+        trace: bool,
+    ) -> Result<Vec<(String, Played)>> {
+        let day = parse_day(calculation_date)?;
+        let projection = {
+            let law = self
+                .resolver()
+                .get_law_for_date(law_id, Some(day))
+                .ok_or_else(|| EngineError::LawNotFound(law_id.to_string()))?;
+            law.articles
+                .iter()
+                .find_map(|a| a.machine_readable.as_ref()?.projection.as_ref())
+                .filter(|p| p.per.is_some())
+                .cloned()
+                .ok_or_else(|| {
+                    EngineError::InvalidOperation(format!(
+                        "'{law_id}' plays no aggregate per record (projection.per), so it has \
+                         no aggregates to read"
+                    ))
+                })?
+        };
+        let Some(per) = projection.per_basis_and_kind() else {
+            return Err(EngineError::InvalidOperation(format!(
+                "'{law_id}' has a projection.per that names no article"
+            )));
+        };
+        let known: Vec<ChronicleRecord> = records
+            .iter()
+            .filter(|r| r.recorded_on <= day)
+            .cloned()
+            .collect();
+        // `per` came with schema v0.8.17, so its step rules hold.
+        self.check_steps(law_id, &projection, &[], day, true)?;
+        self.refuse_unattached_revocations(&known)?;
+        let none = BTreeMap::new();
+        let mut played = Vec::new();
+        for root in known.iter().filter(|r| is_root(per, r)) {
+            // Numbers compare by value, as EQUALS does: 2 and 2.0 are the same.
+            let holds = filter.iter().all(|(name, value)| {
+                root.fields
+                    .get(name)
+                    .or_else(|| root.outputs.get(name))
+                    .is_some_and(|held| crate::operations::values_equal(held, value))
+            });
+            if !holds {
+                continue;
+            }
+            let aggregate = self.aggregate(per, &known, &root.id)?;
+            played.push((
+                root.id.clone(),
+                self.play(law_id, &projection, &known, &aggregate, &none, trace)?,
+            ));
+        }
+        Ok(played)
     }
 
     /// Play the chronicle in two phases. First, which records count: a
@@ -438,9 +641,17 @@ impl LawExecutionService {
         let day = record.recorded_on;
         let date = day.to_string();
         // The record's fields, then its outputs; an output wins over a field
-        // of the same name.
+        // of the same name. From schema v0.8.17, the version that brought
+        // `per`, `$record.refers_to` is the record it refers to, whatever a
+        // field of that name holds; up to v0.8.16 a field keeps its name.
         let mut row = record.fields.clone();
         row.extend(record.outputs.clone());
+        if projection.per.is_some() {
+            row.insert(
+                REFERS_TO.to_string(),
+                record.refers_to.clone().map_or(Value::Null, Value::String),
+            );
+        }
         let mut inputs: BTreeMap<&str, Value> = BTreeMap::new();
         let read = |source: &StepSource, inputs: &BTreeMap<&str, Value>| match source {
             StepSource::Input(name) => inputs
@@ -550,6 +761,57 @@ impl LawExecutionService {
         Some((law, article))
     }
 
+    /// Refuse a decision of `records` whose effect names an earlier record
+    /// that its `refers_to` does not reach. With `per`, a record joins an
+    /// aggregate through `refers_to` only, so such a decision would sit
+    /// outside the aggregate of the record it names, and its revocation
+    /// would go unseen. `per` came with schema v0.8.17, so the rule holds
+    /// whatever version the decision's law declares. A record whose article
+    /// the engine does not hold names nothing it can read, and is passed by.
+    fn refuse_unattached_revocations(&self, records: &[ChronicleRecord]) -> Result<()> {
+        for (i, record) in records.iter().enumerate() {
+            if record.kind == EXECUTOGRAM {
+                continue;
+            }
+            let Ok(article) = self.article_of(record) else {
+                continue;
+            };
+            let Some(decision) = article
+                .get_decision()
+                .filter(|d| d.legal_character() == Some(record.kind.as_str()))
+            else {
+                continue;
+            };
+            let earlier = &records[..i];
+            for effect in decision.effects() {
+                let Some(Value::String(target)) = record.fields.get(&effect.parameter) else {
+                    continue;
+                };
+                if earlier.iter().any(|r| &r.id == target) && !about(record, target, earlier) {
+                    return Err(EngineError::InvalidOperation(format!(
+                        "record '{}' ({}) has an effect on '{target}', which is no record its \
+                         refers_to reaches",
+                        record.id, record.basis
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether the law `record` rests on, in the version of the day it was
+    /// recorded, holds a decision to schema v0.8.17 or later (or names no
+    /// version): from then on a decision revokes only a record it is about.
+    fn about_from_v0_8_17(&self, record: &ChronicleRecord) -> bool {
+        let law_id = record
+            .basis
+            .split_once('#')
+            .map_or(record.basis.as_str(), |(l, _)| l);
+        self.resolver()
+            .get_law_for_date(law_id, Some(record.recorded_on))
+            .is_none_or(|law| crate::load_check::from_version(law, (0, 8, 17)))
+    }
+
     /// The article `record` rests on, in the law of the day it was recorded.
     /// A record whose article cannot be found could undo another one unseen;
     /// that is refused rather than read as "no effects".
@@ -607,21 +869,69 @@ impl LawExecutionService {
                 "'{key_parameter}' is passed as {key:?}, which is no {declared:?}"
             )));
         }
-        let mut members: BTreeSet<String> = BTreeSet::new();
-        let mut foreign: BTreeMap<String, String> = BTreeMap::new();
-        for record in records {
-            let own = record
+        self.gather(records, true, |record| {
+            record
                 .fields
                 .get(key_parameter)
                 .or_else(|| record.outputs.get(key_parameter))
                 // A key that holds null is no key.
                 .filter(|value| !matches!(value, Value::Null))
-                .map(|value| (key_parameter, value));
-            if own.is_some_and(|(_, value)| value == key) {
+                .map(|value| {
+                    (value == key)
+                        .then_some(())
+                        .ok_or_else(|| format!("key differs: {key_parameter}"))
+                })
+        })
+    }
+
+    /// The aggregate of the root record `root` of a projection with `per`
+    /// (schema v0.8.17): the root and the records that refer to it through
+    /// `refers_to`, transitively; a field an effect names does not attach. Another record of the root's kind is an aggregate of
+    /// its own: when it refers in, it counts here for its effects only.
+    fn aggregate(
+        &self,
+        per: (&str, Option<&str>),
+        records: &[ChronicleRecord],
+        root: &str,
+    ) -> Result<Partition> {
+        self.gather(records, false, |record| {
+            if record.id == root {
+                Some(Ok(()))
+            } else if is_root(per, record) {
+                Some(Err(format!("another aggregate under {}", per_name(per))))
+            } else {
+                None
+            }
+        })
+    }
+
+    /// The records of one key or one aggregate. A record refers through its
+    /// `refers_to`, and for a key (schema v0.8.14) also through a field an
+    /// effect of its article names (`via_effects`). `own` says of a record
+    /// whether it belongs itself (`Some(Ok)`), belongs to someone else
+    /// (`Some(Err)`, with why), or holds nothing either way (`None`). A
+    /// record that refers to a member joins too, transitively; it counts
+    /// for its effects only when it belongs to someone else, or holds
+    /// nothing and refers only to records that are someone else's.
+    fn gather(
+        &self,
+        records: &[ChronicleRecord],
+        via_effects: bool,
+        own: impl Fn(&ChronicleRecord) -> Option<std::result::Result<(), String>>,
+    ) -> Result<Partition> {
+        let mut members: BTreeSet<String> = BTreeSet::new();
+        let mut foreign: BTreeMap<String, String> = BTreeMap::new();
+        for record in records {
+            let own = own(record);
+            if matches!(own, Some(Ok(_))) {
                 members.insert(record.id.clone());
                 continue;
             }
-            let references = self.references(record)?;
+            let references = if via_effects {
+                self.references(record)?
+            } else {
+                record.refers_to.iter().cloned().collect()
+            };
             let Some(first) = references.iter().find(|id| members.contains(*id)) else {
                 continue;
             };
@@ -629,9 +939,9 @@ impl LawExecutionService {
                 .iter()
                 .any(|id| members.contains(id) && !foreign.contains_key(id));
             let reason = match own {
-                Some((field, _)) => Some(format!("key differs: {field}")),
-                None if !own_record => Some(format!("refers to {first}")),
-                None => None,
+                Some(Err(why)) => Some(why),
+                _ if !own_record => Some(format!("refers to {first}")),
+                _ => None,
             };
             if let Some(reason) = reason {
                 foreign.insert(record.id.clone(), reason);
@@ -747,6 +1057,16 @@ impl LawExecutionService {
                     "has an effect on '{target}', which is no record recorded before it"
                 ))
             })?;
+            // From schema v0.8.17 a decision revokes only a record it is
+            // about: one its `refers_to` reaches, directly or through the
+            // records it refers to in turn, such as the decision an
+            // objection contests.
+            if !is_fact && self.about_from_v0_8_17(record) && !about(record, &target.id, earlier) {
+                return Err(refuse(format!(
+                    "has an effect on '{}', which is no record its refers_to reaches",
+                    target.id
+                )));
+            }
             holding.push(target.id.as_str());
         }
         Ok(holding)
@@ -763,6 +1083,72 @@ fn fact_of<'a>(
         return None;
     }
     article.required_fact(record.fact.as_deref()?)
+}
+
+/// Whether `record` is about the record `target`: its `refers_to` names
+/// `target`, or names a record of `earlier` that is about it.
+fn about(record: &ChronicleRecord, target: &str, earlier: &[ChronicleRecord]) -> bool {
+    let mut next = record.refers_to.as_deref();
+    // A chain is at most as long as the chronicle before the record.
+    for _ in 0..=earlier.len() {
+        match next {
+            Some(id) if id == target => return true,
+            Some(id) => {
+                next = earlier
+                    .iter()
+                    .find(|r| r.id == id)
+                    .and_then(|r| r.refers_to.as_deref());
+            }
+            None => return false,
+        }
+    }
+    false
+}
+
+/// The name under which a step reads the record a record refers to.
+const REFERS_TO: &str = regelrecht_law_model::RecordEffect::REFERS_TO;
+
+/// The name under which a row of aggregates holds the id of its root.
+pub const ROOT_ID: &str = "id";
+
+/// Whether `record` is a root of a projection with `per`: it rests on that
+/// article, and is of that kind where `per` names one.
+fn is_root(per: (&str, Option<&str>), record: &ChronicleRecord) -> bool {
+    let (basis, kind) = per;
+    record.basis == basis && kind.is_none_or(|k| k == record.kind)
+}
+
+/// `per` as the law writes it.
+fn per_name(per: (&str, Option<&str>)) -> String {
+    match per {
+        (basis, Some(kind)) => format!("{basis}#{kind}"),
+        (basis, None) => basis.to_string(),
+    }
+}
+
+/// The records a caller passes as the chronicle of a read model
+/// ([`LawExecutionService::evaluate_projection`]): they give the
+/// aggregates a reduction reads, not rows of decisions or facts.
+struct Records<'r>(&'r [ChronicleRecord]);
+
+impl crate::answer::Chronicle for Records<'_> {
+    fn keeper(&self) -> &str {
+        "the records passed"
+    }
+
+    fn rows(
+        &self,
+        _service: &LawExecutionService,
+        _law: &ArticleBasedLaw,
+        _read: crate::answer::ChronicleRead<'_>,
+        _calculation_date: &str,
+    ) -> Result<Option<Value>> {
+        Ok(None)
+    }
+
+    fn records(&self) -> Result<Option<Vec<ChronicleRecord>>> {
+        Ok(Some(self.0.to_vec()))
+    }
 }
 
 /// Which records a play reads: all of them (`members` is `None`), or those of
@@ -871,9 +1257,13 @@ pub(crate) fn check_step<'l>(
                     .find(|i| &i.name == name)
                     .map(|i| i.input_type),
             ),
-            StepSource::Record(field) => record
-                .as_ref()
-                .map(|(article, kind)| field_type(article, kind.as_deref(), field)),
+            StepSource::Record(field) => record.as_ref().map(|(article, kind)| {
+                // `per` and `$record.refers_to` came with schema v0.8.17.
+                if projection.per.is_some() && field == REFERS_TO {
+                    return Some(ParameterType::String);
+                }
+                field_type(article, kind.as_deref(), field)
+            }),
             StepSource::State(property) => Some(state_type(projection, property)),
         }
     };
@@ -1126,7 +1516,9 @@ fn state_type(projection: &Projection, name: &str) -> Option<ParameterType> {
 /// article, its outputs and the data derived for it; a submission the
 /// parameters and outputs its item lists (in the object form of `produces`
 /// every parameter and output). Without a kind (a reduction before schema
-/// v0.8.16, [`check_step`]) every parameter and output counts.
+/// v0.8.16, [`check_step`]) every parameter and output counts. A step of a
+/// projection with `per` (schema v0.8.17) also reads `refers_to`, the id of
+/// the record a record refers to ([`check_step`]).
 fn field_type(article: &Article, kind: Option<&str>, name: &str) -> Option<ParameterType> {
     let parameter = || {
         article
@@ -1389,6 +1781,7 @@ mod tests {
     /// `vernietigd`, which revokes the record it refers to when it holds
     /// `vernietigd` true.
     const LAW: &str = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: wet
 regulatory_layer: WET
 publication_date: '2025-01-01'
@@ -1401,6 +1794,7 @@ articles:
         produces:
           - {type: AANVRAAG, requests: 'wet#1'}
           - {type: BESCHIKKING, outputs: [verleend]}
+        parameters: [{name: aanvrager, type: string, required: false}]
         output: [{name: verleend, type: boolean}]
         actions: [{output: verleend, value: true}]
   - number: '2'
@@ -1469,6 +1863,7 @@ articles:
 
     /// Counts the grants that count and whether the last record left a card.
     const REDUCTION: &str = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: reductie
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'
@@ -2280,18 +2675,53 @@ articles:
         assert_eq!(records_in(&y), ["n", "h"]);
     }
 
+    /// From schema v0.8.17 a decision revokes only a record its refers_to
+    /// reaches: `h` refers to x's grant `a` but names y's `n` in its effect,
+    /// which v0.8.16 allowed and v0.8.17 refuses.
     #[test]
-    fn a_record_that_refers_to_one_of_its_own_records_is_its_own() {
-        // `h` revokes `n` (y's) and also names x's grant `a` by `refers_to`:
-        // it refers to a record of x, so x applies its step too.
+    fn a_decision_revokes_only_a_record_it_is_about() {
         let mut h = revoke("h", "n", true);
         h.refers_to = Some("a".to_string());
         let records = [of(grant("a"), "x"), of(replace("n", "a"), "y"), h];
+        // Under v0.8.16 `h` refers to a record of x, so x applies its step.
         let x = play_for("x", &records).unwrap();
+        assert!(records_in(&x).contains(&"h"), "{:?}", records_in(&x));
         assert!(!x
             .events
             .iter()
             .any(|e| matches!(e, ProjectionEvent::EffectsOnly { record, .. } if record == "h")));
+        let mut service = keyed();
+        service
+            .load_law(&LAW.replace(
+                "schema-v0.8.16/schema/v0.8.16",
+                "schema-v0.8.17/schema/v0.8.17",
+            ))
+            .unwrap();
+        let err = service
+            .evaluate_projection(
+                "reductie_per_wie",
+                &["heeft_kaart"],
+                &records,
+                BTreeMap::from([("wie".to_string(), Value::String("x".to_string()))]),
+                "2025-03-01",
+                false,
+            )
+            .expect_err("h is not about n");
+        assert!(
+            err.to_string().contains(
+                "record 'h' (wet#2) has an effect on 'n', which is no record its refers_to reaches"
+            ),
+            "{err}"
+        );
+        // Through a record in between: `h2` refers to `h`, and `h` to `a`.
+        let mut via = revoke("h2", "a", true);
+        via.refers_to = Some("h0".to_string());
+        let mut between = record("h0", "1", &[], &[("verleend", Value::Bool(true))]);
+        between.kind = "AANVRAAG".to_string();
+        between.refers_to = Some("a".to_string());
+        assert!(about(&via, "a", &[grant("a"), between.clone()]));
+        assert!(!about(&via, "n", &[grant("a"), between]));
+        assert!(!about(&revoke("h3", "a", true), "a", &[grant("a")]));
     }
 
     #[test]
@@ -2548,7 +2978,8 @@ articles:
             ),
             (
                 LAW.to_string(),
-                // A parameter of the question, of the wrong type.
+                // A parameter of the question, of the wrong type (up to
+                // v0.8.16; from v0.8.17 a step passes none).
                 with(parameters, "parameters: {verleend: $record.verleend, aantal: $peil}").replace(
                     "      execution:\n        output: [{name: heeft_kaart",
                     "      execution:\n        parameters: [{name: peil, type: date}, {name: n, type: number}]\n        output: [{name: heeft_kaart",
@@ -2619,12 +3050,9 @@ articles:
     #[test]
     fn the_rules_of_v0_8_16_leave_a_reduction_on_v0_8_15_alone() {
         let on = |reduction: &str, v: &str| {
-            reduction.replacen(
-                "$id: reductie",
-                &format!(
-                    "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{v}/schema/{v}/schema.json\n$id: reductie"
-                ),
-                1,
+            reduction.replace(
+                "schema-v0.8.16/schema/v0.8.16",
+                &format!("schema-{v}/schema/{v}"),
             )
         };
         let with = |a: &str, b: &str| REDUCTION.replace(a, b);
@@ -2805,6 +3233,7 @@ articles:
         let reduction = |output: &str| {
             format!(
                 r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: reductie
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'
@@ -2879,6 +3308,7 @@ articles:
         let reduction = |output: &str, field: &str| {
             format!(
                 r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: reductie
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'
@@ -2988,6 +3418,76 @@ articles:
         }
     }
 
+    /// Up to v0.8.16 a field named `refers_to` keeps its own value in a
+    /// step: `$record.refers_to` is the record a record refers to only from
+    /// v0.8.17, the version that brought `per`.
+    #[test]
+    fn under_v0_8_14_a_field_named_refers_to_keeps_its_value() {
+        let law = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: velden
+regulatory_layer: WET
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      execution:
+        produces:
+          - {type: BESCHIKKING, outputs: [b]}
+        parameters: [{name: refers_to, type: string}]
+        output: [{name: b, type: boolean}]
+        actions: [{output: b, value: true}]
+"#;
+        let reduction = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$id: velden_reductie
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      projection:
+        state: [{name: van, type: string}]
+        steps:
+          - record: velden#1#BESCHIKKING
+            actions: [{output: van, value: $record.refers_to}]
+      execution:
+        output: [{name: van, type: string, nullable: true}]
+        actions: [{output: van, value: $state.van}]
+"#;
+        let mut service = LawExecutionService::new();
+        service.load_law(law).unwrap();
+        service.load_law(reduction).unwrap();
+        let besluit = ChronicleRecord {
+            basis: "velden#1".to_string(),
+            refers_to: Some("anders".to_string()),
+            ..record(
+                "b",
+                "1",
+                &[("refers_to", Value::String("veld".to_string()))],
+                &[("b", Value::Bool(true))],
+            )
+        };
+        let outcome = service
+            .evaluate_projection(
+                "velden_reductie",
+                &["van"],
+                &[besluit],
+                BTreeMap::new(),
+                "2025-03-01",
+                false,
+            )
+            .unwrap();
+        assert_eq!(
+            outcome.result.outputs["van"],
+            Value::String("veld".to_string())
+        );
+    }
+
     /// The fields of a record are those the law gives its kind.
     #[test]
     fn a_record_holds_the_fields_its_kind_is_given() {
@@ -3035,5 +3535,460 @@ articles:
             field_type(article, Some("BESCHIKKING"), "c"),
             Some(ParameterType::Number)
         );
+        // `refers_to` is no field the law gives; a step with `per` reads it
+        // besides (check_step).
+        assert_eq!(field_type(article, Some("AANVRAAG"), "refers_to"), None);
+        assert_eq!(field_type(article, None, "refers_to"), None);
+    }
+
+    /// One aggregate per grant under article 1 (schema v0.8.17): the grant
+    /// sets whether there is a card, a card handed in (article 4) that
+    /// refers to it takes it away.
+    const PER_GRANT: &str = r#"
+$id: per_verlening
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      projection:
+        per: wet#1#BESCHIKKING
+        state:
+          - {name: kaart, type: boolean}
+          - {name: aanvrager, type: string}
+        steps:
+          - record: wet#1#BESCHIKKING
+            actions:
+              - {output: kaart, value: $record.verleend}
+              - {output: aanvrager, value: $record.aanvrager}
+          - record: wet#4
+            input:
+              - {name: weg, type: boolean, source: {regulation: wet, output: kaart_weg}}
+            actions: [{output: kaart, value: $weg}]
+"#;
+
+    /// A read model over the aggregates of [`PER_GRANT`]: how many cards
+    /// an applicant holds.
+    const READ_MODEL: &str = r#"
+$id: kaarten_van
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      execution:
+        parameters: [{name: aanvrager, type: string}]
+        input:
+          - name: kaarten
+            type: array
+            source: {projections: per_verlening, where: {aanvrager: $aanvrager}}
+        output: [{name: aantal, type: number}]
+        actions:
+          - output: aantal
+            value: {operation: FOREACH, collection: $kaarten, as: k, filter: $k.kaart, body: 1, combine: ADD}
+"#;
+
+    fn per_service() -> LawExecutionService {
+        let mut service = service();
+        service.load_law(PER_GRANT).unwrap();
+        service.load_law(READ_MODEL).unwrap();
+        service
+    }
+
+    fn granted_to(id: &str, wie: &str) -> ChronicleRecord {
+        record(
+            id,
+            "1",
+            &[("aanvrager", Value::String(wie.to_string()))],
+            &[("verleend", Value::Bool(true))],
+        )
+    }
+
+    fn rows(records: &[ChronicleRecord], filter: &[(&str, &str)]) -> Value {
+        let filter = filter
+            .iter()
+            .map(|(k, v)| ((*k).to_string(), Value::String((*v).to_string())))
+            .collect();
+        per_service()
+            .projection_rows("per_verlening", records, &filter, "2025-03-01")
+            .unwrap()
+    }
+
+    fn row(id: &str, kaart: bool, wie: &str) -> Value {
+        Value::Object(BTreeMap::from([
+            ("id".to_string(), Value::String(id.to_string())),
+            ("kaart".to_string(), Value::Bool(kaart)),
+            ("aanvrager".to_string(), Value::String(wie.to_string())),
+        ]))
+    }
+
+    /// Each grant is an aggregate with what refers to it: a card handed in
+    /// for one grant leaves the other. `where` picks the roots by what they
+    /// hold; without it every root gives a row.
+    #[test]
+    fn an_aggregate_holds_its_root_and_what_refers_to_it() {
+        let handed = ChronicleRecord {
+            refers_to: Some("a".to_string()),
+            ..handed_in("i")
+        };
+        let records = [
+            granted_to("a", "x"),
+            granted_to("b", "x"),
+            granted_to("c", "y"),
+            handed,
+        ];
+        assert_eq!(
+            rows(&records, &[("aanvrager", "x")]),
+            Value::Array(vec![row("a", false, "x"), row("b", true, "x")])
+        );
+        assert_eq!(
+            rows(&records, &[]),
+            Value::Array(vec![
+                row("a", false, "x"),
+                row("b", true, "x"),
+                row("c", true, "y")
+            ])
+        );
+        assert_eq!(
+            rows(&records, &[("aanvrager", "z")]),
+            Value::Array(Vec::new())
+        );
+        let outcome = per_service()
+            .evaluate_projection(
+                "kaarten_van",
+                &["aantal"],
+                &records,
+                BTreeMap::from([("aanvrager".to_string(), Value::String("x".to_string()))]),
+                "2025-03-01",
+                false,
+            )
+            .unwrap();
+        assert_eq!(outcome.result.outputs["aantal"], Value::Int(1));
+        // The same aggregates, each with what became of its records.
+        let x = BTreeMap::from([("aanvrager".to_string(), Value::String("x".to_string()))]);
+        let aggregates = per_service()
+            .aggregates("per_verlening", &records, &x, "2025-03-01")
+            .unwrap();
+        let roots: Vec<&str> = aggregates.iter().map(|a| a.root.as_str()).collect();
+        assert_eq!(roots, ["a", "b"]);
+        let applied = |a: &Aggregate| -> Vec<String> {
+            a.events
+                .iter()
+                .filter_map(|e| match e {
+                    ProjectionEvent::Applied { record, .. } => Some(record.clone()),
+                    _ => None,
+                })
+                .collect()
+        };
+        assert_eq!(applied(&aggregates[0]), ["a", "i"]);
+        assert_eq!(applied(&aggregates[1]), ["b"]);
+        assert_eq!(aggregates[0].state["kaart"], Value::Bool(false));
+        assert_eq!(aggregates[0].set_by["kaart"].as_deref(), Some("i"));
+    }
+
+    /// A revoked root leaves its aggregate as it starts; when the
+    /// revocation is revoked in turn, the root counts again.
+    #[test]
+    fn a_revoked_root_leaves_its_aggregate_as_it_starts() {
+        // A record joins an aggregate through `refers_to` only, not through
+        // the field its effect names.
+        let revoke = |id: &str, target: &str| ChronicleRecord {
+            refers_to: Some(target.to_string()),
+            ..revoke(id, target, true)
+        };
+        // A revocation outside the aggregate is refused, also under a law
+        // on v0.8.16, rather than left unseen.
+        let unattached = vec![granted_to("a", "x"), super::tests::revoke("h", "a", true)];
+        let err = per_service()
+            .projection_rows("per_verlening", &unattached, &BTreeMap::new(), "2025-03-01")
+            .expect_err("h is not about a");
+        assert!(
+            err.to_string().contains(
+                "record 'h' (wet#2) has an effect on 'a', which is no record its refers_to reaches"
+            ),
+            "{err}"
+        );
+        // A record of an article the engine does not hold names nothing.
+        let mut elsewhere = super::tests::revoke("e", "a", true);
+        elsewhere.basis = "elders#1".to_string();
+        assert_eq!(
+            rows(&[granted_to("a", "x"), elsewhere], &[]),
+            Value::Array(vec![row("a", true, "x")])
+        );
+        let mut records = vec![granted_to("a", "x"), revoke("h", "a")];
+        let start = Value::Object(BTreeMap::from([
+            ("id".to_string(), Value::String("a".to_string())),
+            ("kaart".to_string(), Value::Bool(false)),
+            ("aanvrager".to_string(), Value::Null),
+        ]));
+        assert_eq!(rows(&records, &[]), Value::Array(vec![start]));
+        records.push(revoke("h2", "h"));
+        assert_eq!(rows(&records, &[]), Value::Array(vec![row("a", true, "x")]));
+    }
+
+    /// Another record of the root's kind that refers in is an aggregate of
+    /// its own: in this one it counts for its effects only.
+    #[test]
+    fn another_root_that_refers_in_counts_for_its_effects_only() {
+        let other = ChronicleRecord {
+            refers_to: Some("a".to_string()),
+            ..record(
+                "d",
+                "1",
+                &[("aanvrager", Value::String("x".to_string()))],
+                &[("verleend", Value::Bool(false))],
+            )
+        };
+        let service = per_service();
+        let records = [granted_to("a", "x"), other];
+        let aggregate = service
+            .aggregate(("wet#1", Some("BESCHIKKING")), &records, "a")
+            .unwrap();
+        assert_eq!(
+            aggregate.foreign.get("d").map(String::as_str),
+            Some("another aggregate under wet#1#BESCHIKKING")
+        );
+        assert_eq!(
+            rows(&records, &[]),
+            Value::Array(vec![row("a", true, "x"), row("d", false, "x")])
+        );
+    }
+
+    /// A record recorded after the calculation date is no root and plays in
+    /// no aggregate.
+    #[test]
+    fn an_aggregate_holds_what_is_known_on_the_calculation_date() {
+        let later = ChronicleRecord {
+            recorded_on: NaiveDate::from_ymd_opt(2025, 3, 2).unwrap(),
+            ..granted_to("b", "x")
+        };
+        let handed_later = ChronicleRecord {
+            refers_to: Some("a".to_string()),
+            recorded_on: NaiveDate::from_ymd_opt(2025, 3, 2).unwrap(),
+            ..handed_in("i")
+        };
+        assert_eq!(
+            rows(&[granted_to("a", "x"), later, handed_later], &[]),
+            Value::Array(vec![row("a", true, "x")])
+        );
+    }
+
+    /// A projection per record answers no question of its own, and only a
+    /// projection per record has aggregates to read; a read model needs a
+    /// chronicle with records.
+    #[test]
+    fn aggregates_are_read_only_through_source_projections() {
+        let service = per_service();
+        let err = service
+            .evaluate_projection(
+                "per_verlening",
+                &["kaart"],
+                &[],
+                BTreeMap::new(),
+                "2025-03-01",
+                false,
+            )
+            .expect_err("no output");
+        assert!(err.to_string().contains("has no output 'kaart'"), "{err}");
+        let err = service
+            .projection_rows("reductie", &[], &BTreeMap::new(), "2025-03-01")
+            .expect_err("no per");
+        assert!(
+            err.to_string().contains(
+                "'reductie' plays no aggregate per record (projection.per), so it has no \
+                 aggregates to read"
+            ),
+            "{err}"
+        );
+        let err = service
+            .evaluate_law(
+                "kaarten_van",
+                &["aantal"],
+                BTreeMap::from([("aanvrager".to_string(), Value::String("x".to_string()))]),
+                "2025-03-01",
+            )
+            .expect_err("no chronicle");
+        assert!(
+            err.to_string().contains(
+                "input 'kaarten' of kaarten_van reads the aggregates of per_verlening, and no \
+                 chronicle supplies its records"
+            ),
+            "{err}"
+        );
+    }
+
+    /// A step reads the record a record refers to as `$record.refers_to`
+    /// (schema v0.8.17), null when it refers to none; it is a string to the
+    /// loader.
+    #[test]
+    fn a_step_reads_what_its_record_refers_to() {
+        let reduction = PER_GRANT
+            .replace("per_verlening", "per_inlevering")
+            .replace("per: wet#1#BESCHIKKING", "per: wet#4")
+            .replace(
+                "          - {name: aanvrager, type: string}\n",
+                "          - {name: aanvrager, type: string}\n          - {name: voor, type: string}\n",
+            )
+            .replace(
+                "            actions: [{output: kaart, value: $weg}]",
+                "            actions: [{output: kaart, value: $weg}, {output: voor, value: $record.refers_to}]",
+            );
+        let mut service = per_service();
+        service.load_law(&reduction).unwrap();
+        let handed = |id: &str, to: Option<&str>| ChronicleRecord {
+            refers_to: to.map(str::to_string),
+            ..handed_in(id)
+        };
+        let rows = service
+            .projection_rows(
+                "per_inlevering",
+                &[
+                    granted_to("a", "x"),
+                    handed("i", Some("a")),
+                    handed("j", None),
+                ],
+                &BTreeMap::new(),
+                "2025-03-01",
+            )
+            .unwrap();
+        let voor = |row: &Value| match row {
+            Value::Object(fields) => fields["voor"].clone(),
+            other => panic!("{other:?}"),
+        };
+        let Value::Array(rows) = rows else { panic!() };
+        assert_eq!(voor(&rows[0]), Value::String("a".to_string()));
+        assert_eq!(voor(&rows[1]), Value::Null);
+        let err = super::tests::service()
+            .load_law(
+                &reduction.replace("{name: voor, type: string}", "{name: voor, type: boolean}"),
+            )
+            .expect_err("a string as a boolean");
+        assert!(
+            err.to_string()
+                .contains("sets 'voor' from $record.refers_to, a String, which is no Boolean"),
+            "{err}"
+        );
+    }
+
+    /// A chronicle that gives rows of decisions and facts only: it gives
+    /// no records unless it says so, so a read model over it is refused.
+    struct OnlyRows;
+
+    impl crate::answer::Chronicle for OnlyRows {
+        fn keeper(&self) -> &str {
+            "rows only"
+        }
+
+        fn rows(
+            &self,
+            _service: &LawExecutionService,
+            _law: &ArticleBasedLaw,
+            _read: crate::answer::ChronicleRead<'_>,
+            _calculation_date: &str,
+        ) -> Result<Option<Value>> {
+            Ok(None)
+        }
+    }
+
+    /// The records a caller passes are a chronicle of records only: the
+    /// trace names them as the provider, a read of decisions finds no
+    /// rows in them, and a chronicle without records gives a read model
+    /// nothing to play.
+    #[test]
+    fn the_records_passed_are_a_chronicle_of_records_only() {
+        let wie = || BTreeMap::from([("aanvrager".to_string(), Value::String("x".to_string()))]);
+        let outcome = per_service()
+            .evaluate_projection(
+                "kaarten_van",
+                &["aantal"],
+                &[granted_to("a", "x")],
+                wie(),
+                "2025-03-01",
+                true,
+            )
+            .unwrap();
+        let trace = outcome.result.trace.expect("a trace");
+        fn mentions(node: &PathNode, text: &str) -> bool {
+            node.message.as_deref().is_some_and(|m| m.contains(text))
+                || node.children.iter().any(|c| mentions(c, text))
+        }
+        assert!(
+            mentions(&trace, "Resolving from the chronicle of the records passed: the aggregates of per_verlening"),
+            "{trace:?}"
+        );
+        let mut service = per_service();
+        service
+            // Up to schema v0.8.16 a reduction reads decisions.
+            .load_law(&format!(
+                "{}{}",
+                "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json\n",
+                READ_MODEL.replace("kaarten_van", "besluiten_van").replace(
+                    "source: {projections: per_verlening, where: {aanvrager: $aanvrager}}",
+                    "source: {decisions: 'wet#1'}",
+                )
+            ))
+            .unwrap();
+        let err = service
+            .evaluate_projection(
+                "besluiten_van",
+                &["aantal"],
+                &[granted_to("a", "x")],
+                wie(),
+                "2025-03-01",
+                false,
+            )
+            .expect_err("no rows of decisions");
+        assert!(
+            err.to_string().contains("no data source supplies them"),
+            "{err}"
+        );
+        let err = per_service()
+            .evaluate_projection_with(
+                "kaarten_van",
+                &["aantal"],
+                &[granted_to("a", "x")],
+                wie(),
+                "2025-03-01",
+                ProjectionOptions {
+                    call: Call {
+                        chronicle: Some(&OnlyRows),
+                        ..Call::default()
+                    },
+                    trace: false,
+                },
+            )
+            .expect_err("no records");
+        assert!(
+            err.to_string()
+                .contains("no chronicle supplies its records"),
+            "{err}"
+        );
+    }
+
+    /// `where` compares numbers by value, as EQUALS does: a number matches
+    /// the same number written as a decimal.
+    #[test]
+    fn where_compares_numbers_by_value() {
+        let mut root = granted_to("a", "x");
+        root.fields.insert("nummer".to_string(), Value::Int(2));
+        let rows = |value: Value| {
+            per_service()
+                .projection_rows(
+                    "per_verlening",
+                    std::slice::from_ref(&root),
+                    &BTreeMap::from([("nummer".to_string(), value)]),
+                    "2025-03-01",
+                )
+                .unwrap()
+        };
+        assert_eq!(
+            rows(Value::Decimal(rust_decimal::Decimal::new(20, 1))),
+            Value::Array(vec![row("a", true, "x")])
+        );
+        assert_eq!(rows(Value::Int(3)), Value::Array(Vec::new()));
     }
 }

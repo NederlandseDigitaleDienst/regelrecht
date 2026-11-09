@@ -1,16 +1,18 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: reductie_verlof_al_verleend_in_schooljaar
 regulatory_layer: REDUCTIE
 publication_date: '2026-07-01'
 valid_from: '2026-08-01'
 # Geen regelgeving: een reductie van het hoofd van OBS De Klimop over zijn
-# eigen kroniek (RFC-022 §4.1, RFC-048). Ze speelt de kroniek van de jongere
-# af (projection, schema v0.8.14). Welke besluiten meetellen, volgt uit de
+# eigen kroniek (RFC-022 §4.1, RFC-048). Ze speelt zelf niets af: ze leest de
+# aggregaten van de besluiten over de jongere (reductie_verlof), elk met zijn
+# laatste staat (source.projections, schema v0.8.17). Welke besluiten
+# meetellen, volgt uit de
 # effecten die de Awb een besluit geeft: een beslissing op bezwaar die het
 # bestreden besluit herroept (7:11, tweede lid), en de ontvangst van een
 # uitspraak die een besluit met zijn rechtsgevolgen vernietigt (8:79 met
-# 8:72). Wat een besluit dat meetelt betekent, zegt het beleid van het hoofd
+# 8:72). Wat die besluiten voor het schooljaar betekenen, zegt het beleid van het hoofd
 # over verleend verlof (fictief_beleid_verleend_verlof_obs_de_klimop); het
 # schooljaar geeft artikel 2 van zijn beleid vakantieverlof mee. De cel van de
 # school geeft haar uitvoer als het antwoord verlof_al_verleend_in_schooljaar
@@ -30,59 +32,6 @@ articles:
       en 8:72). Wat een besluit betekent, zegt het beleid van het hoofd.
     url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
     machine_readable:
-      projection:
-        # De besluiten over de jongere, en wat ernaar verwijst: een bezwaar,
-        # de beslissing erop, de ontvangst van een uitspraak.
-        key: bsn_jongere
-        state:
-          - name: verleend_in_schooljaar
-            type: boolean
-        steps:
-          # Een besluit op een aanvraag, en een nieuw besluit dat een
-          # beslissing op bezwaar in de plaats van een herroepen besluit nam:
-          # beide berusten op artikel 13a.
-          - record: leerplichtwet_1969#13a#BESCHIKKING
-            input:
-              - name: verleend_in_schooljaar_na_besluit
-                type: boolean
-                source:
-                  regulation: fictief_beleid_verleend_verlof_obs_de_klimop
-                  output: verleend_in_schooljaar_na_besluit
-                  parameters:
-                    verleend_in_schooljaar: $state.verleend_in_schooljaar
-                    verlof_verleend: $record.verlof_verleend
-                    eerste_verlofdag: $record.eerste_verlofdag
-                    # TIJDELIJKE OMWEG: de stap neemt het schooljaar van de
-                    # vraag, zodat het afspelen van de vraag afhangt. Dat
-                    # verdwijnt zodra een besluit een eigen aggregaat is, met
-                    # zijn data in de staat (zie de open vragen).
-                    begin_schooljaar: $begin_schooljaar
-                    einde_schooljaar: $einde_schooljaar
-            actions:
-              - output: verleend_in_schooljaar
-                value: $verleend_in_schooljaar_na_besluit
-          # De ontvangst van een uitspraak (Awb 8:79): voorzag de
-          # bestuursrechter zelf in de zaak (Awb 8:72, derde lid, onder b),
-          # dan telt het verlof dat zijn uitspraak verleent.
-          - record: algemene_wet_bestuursrecht#8:79
-            input:
-              - name: verleend_in_schooljaar_na_uitspraak
-                type: boolean
-                source:
-                  regulation: fictief_beleid_verleend_verlof_obs_de_klimop
-                  output: verleend_in_schooljaar_na_uitspraak
-                  parameters:
-                    verleend_in_schooljaar: $state.verleend_in_schooljaar
-                    primair_besluit_in_de_plaats: $record.primair_besluit_in_de_plaats
-                    # TIJDELIJKE OMWEG: de stap neemt het schooljaar van de
-                    # vraag, zodat het afspelen van de vraag afhangt. Dat
-                    # verdwijnt zodra een besluit een eigen aggregaat is, met
-                    # zijn data in de staat (zie de open vragen).
-                    begin_schooljaar: $begin_schooljaar
-                    einde_schooljaar: $einde_schooljaar
-            actions:
-              - output: verleend_in_schooljaar
-                value: $verleend_in_schooljaar_na_uitspraak
       execution:
         # Wat het antwoord vraagt; artikel 2 van het beleid geeft ze op naam
         # mee.
@@ -96,6 +45,22 @@ articles:
           - name: einde_schooljaar
             type: date
             description: De laatste dag van het schooljaar van het gevraagde verlof.
+        input:
+          - name: besluiten
+            type: array
+            source:
+              projections: reductie_verlof
+              where:
+                bsn_jongere: $bsn_jongere
+          - name: al_verleend
+            type: boolean
+            source:
+              regulation: fictief_beleid_verleend_verlof_obs_de_klimop
+              output: verleend_in_schooljaar
+              parameters:
+                besluiten: $besluiten
+                begin_schooljaar: $begin_schooljaar
+                einde_schooljaar: $einde_schooljaar
         output:
           - name: verlof_al_verleend_in_schooljaar
             type: boolean
@@ -104,4 +69,4 @@ articles:
               al verlof verleende.
         actions:
           - output: verlof_al_verleend_in_schooljaar
-            value: $state.verleend_in_schooljaar
+            value: $al_verleend

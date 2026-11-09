@@ -35,6 +35,8 @@ const BELEID =
 const CEL = `${CORPUS}/cells/gemeente_wilgendaal/cel.yaml`;
 const REDUCTIE =
   `${CORPUS}/cells/gemeente_wilgendaal/reductions/reductie_geldige_bedrijfsparkeervergunningen/2026-01-01.yaml`;
+const AGGREGAAT =
+  `${CORPUS}/cells/gemeente_wilgendaal/reductions/reductie_bedrijfsparkeervergunning/2026-01-01.yaml`;
 const STAP =
   `${CORPUS}/regulation/nl/uitvoeringsbeleid/beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal/2026-01-01.yaml`;
 const AWB = `${CORPUS}/regulation/nl/wet/algemene_wet_bestuursrecht/1994-01-01.yaml`;
@@ -43,7 +45,7 @@ const KVK_REDUCTIE =
   `${CORPUS}/cells/kamer_van_koophandel/reductions/reductie_vestiging_in_handelsregister/2026-01-01.yaml`;
 
 /** The files the panels show, for the page that loads them (UitlegPagina.vue). */
-export const bronnen = [VERORDENING, BESLUIT, BELEID, CEL, REDUCTIE, STAP, AWB, KVK_CEL, KVK_REDUCTIE];
+export const bronnen = [VERORDENING, BESLUIT, BELEID, CEL, REDUCTIE, AGGREGAAT, STAP, AWB, KVK_CEL, KVK_REDUCTIE];
 
 /**
  * The paths of a panel that start open: its own, and the article each one
@@ -185,23 +187,27 @@ export const steps = [
     overline: 'Reductie',
     title: 'Reductie telt de vergunningen',
     text: [
-      'De reductie speelt de kroniek van het bedrijf af, besluit voor besluit, en houdt één getal bij: `aantal`.',
-      'Bij elk besluit onder artikel 2 van de verordening vraagt ze het beleid van het college wat dat besluit met het aantal doet: een verleende vergunning telt als zij op de dag van het besluit nog geldt.',
+      'De gemeente houdt elk besluit onder artikel 2 van de verordening apart bij, met alles wat ernaar verwijst, en zo ook elke schorsing door de voorzieningenrechter.',
+      'Zo\'n bundel heet een aggregaat. Een tweede reductie leest de aggregaten van het bedrijf, en het beleid van het college telt welke vergunningen op de dag van het besluit gelden.',
     ],
     panels: [
       {
-        label: 'De reductie: per besluit één stap, met het aantal als stand',
+        label: 'De reductie: zij leest de aggregaten van het bedrijf en laat het beleid tellen',
         source: REDUCTIE,
         open: [
-          'articles.1.machine_readable.projection.state',
-          'articles.1.machine_readable.projection.steps.0.input.aantal_na_besluit.source.parameters',
-          'articles.1.machine_readable.projection.steps.0.actions',
+          'articles.1.machine_readable.execution.input.vergunningen.source',
+          'articles.1.machine_readable.execution.input.aantal.source.parameters',
         ],
       },
       {
-        label: 'Het beleid zegt wat één besluit met het aantal doet',
+        label: 'Eén aggregaat per besluit',
+        source: AGGREGAAT,
+        open: ['articles.1.machine_readable.projection.per', 'articles.1.machine_readable.projection.steps.0.actions'],
+      },
+      {
+        label: 'Het beleid zegt welke vergunning op de dag geldt',
         source: STAP,
-        open: ['articles.1.machine_readable.execution.actions.aantal_na_besluit.value.cases.0.when'],
+        open: ['articles.2.machine_readable.execution.actions.aantal_geldige_vergunningen.value.filter.cases'],
       },
     ],
   },

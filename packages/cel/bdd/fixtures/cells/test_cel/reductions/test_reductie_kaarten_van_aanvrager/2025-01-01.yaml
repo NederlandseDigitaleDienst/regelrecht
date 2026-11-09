@@ -1,0 +1,57 @@
+---
+# FICTIEF. A read model of the cell's BDD suite (schema v0.8.17): it plays
+# nothing itself, and counts the aggregates of test_reductie_kaart_per_verlening
+# whose root holds the applicant asked about.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
+$id: test_reductie_kaarten_van_aanvrager
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_reductie_kaarten_van_aanvrager
+name: Kaarten van een aanvrager (testreductie)
+
+articles:
+  - number: '1'
+    url: https://example.com/test_reductie_kaarten_van_aanvrager/1
+    text: >-
+      FICTIEF. Hoeveel kaarten de aanvrager kreeg, en tegen hoeveel daarvan
+      op bezwaar is beslist.
+    machine_readable:
+      execution:
+        parameters:
+          - name: aanvrager
+            type: string
+        input:
+          - name: verleningen
+            type: array
+            source:
+              projections: test_reductie_kaart_per_verlening
+              where:
+                aanvrager: $aanvrager
+        output:
+          - name: aantal_kaarten
+            type: number
+          - name: aantal_met_bezwaar
+            type: number
+        actions:
+          - output: aantal_kaarten
+            value:
+              operation: FOREACH
+              collection: $verleningen
+              as: verlening
+              filter: $verlening.kaart
+              body: 1
+              combine: ADD
+          - output: aantal_met_bezwaar
+            value:
+              operation: FOREACH
+              collection: $verleningen
+              as: verlening
+              filter:
+                operation: NOT
+                value:
+                  operation: EQUALS
+                  subject: $verlening.bezwaar_tegen
+                  value: null
+              body: 1
+              combine: ADD

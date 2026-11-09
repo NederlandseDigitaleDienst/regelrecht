@@ -131,7 +131,7 @@ fn service() -> LawExecutionService {
     let laws = [
         format!("regulation/nl/amvb/{LAW}"),
         "regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart".to_string(),
-        format!("regulation/nl/wet/{AWB}"),
+        common::poc("regulation/nl/wet/algemene_wet_bestuursrecht"),
         format!("regulation/nl/uitvoeringsbeleid/{POLICY}"),
         // The reductions of the municipality and of the GGD, each with its
         // cell (RFC-048).
@@ -139,9 +139,10 @@ fn service() -> LawExecutionService {
         common::reduction_dir(REPORTS),
         common::reduction_dir(ADVICE_REDUCTION),
         format!("regulation/nl/uitvoeringsbeleid/{ADVICE_POLICY}"),
-        // Which decisions still stand after objection and appeal: the
-        // reduction of the Awb, which the reductions above call.
-        common::reduction_dir("reductie_algemene_wet_bestuursrecht"),
+        // The decisions under an article as aggregates, with what the Awb
+        // gives a decision on an objection and the receipt of a ruling.
+        common::reduction_dir("reductie_gehandicaptenparkeerkaart"),
+        common::poc("regulation/nl/uitvoeringsbeleid/beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal"),
     ];
     common::load(&mut service, laws);
     service

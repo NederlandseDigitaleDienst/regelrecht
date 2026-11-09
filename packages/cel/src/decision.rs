@@ -73,12 +73,13 @@ pub struct DecisionShape {
     pub kind: String,
     pub law_id: String,
     pub article: String,
-    /// The kind of application it decides on, such as `AANVRAAG`.
-    pub submission_kind: String,
+    /// The kind of application it decides on, such as `AANVRAAG`; none for
+    /// a decision taken ex officio ([`derive_ex_officio`]).
+    pub submission_kind: Option<String>,
     /// The article that establishes that application, `<regulation>#<article>`:
     /// the one whose submission asks for this decision (`requests`), or this
-    /// article in the object form.
-    pub application: String,
+    /// article in the object form; none for a decision taken ex officio.
+    pub application: Option<String>,
     /// The stages of [`STAGES`] that its procedure holds, as the engine names
     /// them.
     pub stages: Vec<ProcedureStage>,
@@ -159,6 +160,28 @@ pub fn derive(
     article: &str,
     day: NaiveDate,
 ) -> Result<DecisionShape> {
+    derive_shape(service, law_id, article, day, true)
+}
+
+/// [`derive`] for a decision taken on no application (ex officio), such as
+/// a withdrawal: the authority supplies every parameter, and the cell the
+/// dates its stages require.
+pub fn derive_ex_officio(
+    service: &LawExecutionService,
+    law_id: &str,
+    article: &str,
+    day: NaiveDate,
+) -> Result<DecisionShape> {
+    derive_shape(service, law_id, article, day, false)
+}
+
+fn derive_shape(
+    service: &LawExecutionService,
+    law_id: &str,
+    article: &str,
+    day: NaiveDate,
+    on_application: bool,
+) -> Result<DecisionShape> {
     let reference = format!("{law_id}#{article}");
     let deciding = article_on(service, law_id, article, day)
         .ok_or_else(|| refused(format!("{reference} has no version in force on {day}")))?;
@@ -170,27 +193,31 @@ pub fn derive(
     // The application it decides on: the submission that asks for this
     // decision with `requests` (RFC-045 §1), in this article or another.
     let date = day.to_string();
-    let applications = service.applications_for(law_id, article, &date)?;
-    let application_reference = match applications.as_slice() {
-        [one] => one.clone(),
-        [] => {
-            return Err(refused(format!(
-                "{reference}: no application asks for this decision (produces requests)"
-            )))
-        }
-        several => {
-            return Err(refused(format!(
-                "{reference}: several applications ask for this decision ({}); the cell \
-                 decides on one kind of application per decision",
-                several.join(", ")
-            )))
-        }
+    let application = if on_application {
+        let applications = service.applications_for(law_id, article, &date)?;
+        let application_reference = match applications.as_slice() {
+            [one] => one.clone(),
+            [] => {
+                return Err(refused(format!(
+                    "{reference}: no application asks for this decision (produces requests)"
+                )))
+            }
+            several => {
+                return Err(refused(format!(
+                    "{reference}: several applications ask for this decision ({}); the cell \
+                     decides on one kind of application per decision",
+                    several.join(", ")
+                )))
+            }
+        };
+        let (application_law, application_article) = application_reference
+            .split_once('#')
+            .ok_or_else(|| setup(format!("'{application_reference}' is no article reference")))?;
+        let shape = shape::derive(service, application_law, application_article, day)?;
+        Some((application_reference, shape))
+    } else {
+        None
     };
-    let (application_law, application_article) = application_reference
-        .split_once('#')
-        .ok_or_else(|| setup(format!("'{application_reference}' is no article reference")))?;
-    let application = shape::derive(service, application_law, application_article, day)?;
-    let submission_kind = application.kind.clone();
     let held: Vec<&str> = service
         .procedure_of(law_id, deciding)?
         .map(|procedure| procedure.stages.iter().map(|s| s.name.as_str()).collect())
@@ -241,10 +268,9 @@ pub fn derive(
                     declared_by: vec![declared_by.clone()],
                 };
                 add_field(&mut fields, field, &reference)?;
-                let source = if application.field(&p.name).is_some()
-                    || application.given.contains(&p.name)
-                    || application.is_moment(&p.name)
-                {
+                let source = if application.as_ref().is_some_and(|(_, a)| {
+                    a.field(&p.name).is_some() || a.given.contains(&p.name) || a.is_moment(&p.name)
+                }) {
                     Source::Application
                 } else {
                     Source::Supplied
@@ -288,8 +314,8 @@ pub fn derive(
         kind,
         law_id: law_id.to_string(),
         article: article.to_string(),
-        submission_kind,
-        application: application_reference,
+        submission_kind: application.as_ref().map(|(_, a)| a.kind.clone()),
+        application: application.map(|(reference, _)| reference),
         stages,
         inputs,
         outputs: outputs.iter().map(|o| (*o).to_string()).collect(),

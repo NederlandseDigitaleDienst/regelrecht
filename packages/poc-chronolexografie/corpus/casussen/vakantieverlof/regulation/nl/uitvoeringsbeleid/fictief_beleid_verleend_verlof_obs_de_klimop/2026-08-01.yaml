@@ -7,15 +7,13 @@ valid_from: '2026-08-01'
 # FICTIEF beleid van het hoofd van OBS De Klimop, eigen keuze in de
 # modellering: geen bekendgemaakt beleid, maar een aanname namens de houder
 # (RFC-048). Er is geen bekendmaking; de url wijst naar artikel 13a.
-# Wat één besluit onder artikel 13a van de Leerplichtwet 1969 betekent voor
-# de vraag of de jongere in een schooljaar al verlof kreeg. De reductie van
-# de school (reductie_verlof_al_verleend_in_schooljaar) speelt haar kroniek
-# af en vraagt dit beleid per besluit dat meetelt (artikel 1), en per
-# ontvangen uitspraak waarin de bestuursrechter zelf in de zaak voorzag
-# (artikel 2). Het staat los van het
-# beleid vakantieverlof, omdat dat beleid de reductie aanroept: een stap van
-# de reductie kan de regeling waaruit zij gevraagd wordt niet opnieuw
-# aanroepen.
+# Wat de besluiten onder artikel 13a van de Leerplichtwet 1969 betekenen
+# voor de vraag of de jongere in een schooljaar al verlof kreeg. De reductie
+# van de school (reductie_verlof_al_verleend_in_schooljaar) geeft dit beleid
+# de besluiten die meetellen, elk als rij (schema v0.8.17, artikel 1).
+# Artikel 2 zegt per ontvangen uitspraak of de bestuursrechter zelf verlof
+# verleende, voor de reductie per besluit. Het staat los van het beleid
+# vakantieverlof, omdat dat beleid de reductie aanroept.
 url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
 name: Verleend vakantieverlof bij OBS De Klimop (fictief beleid)
 competent_authority:
@@ -29,23 +27,17 @@ articles:
       Een weigering telt niet.
     url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
     machine_readable:
-      # Wat één besluit onder artikel 13a betekent voor de vraag of er in
-      # het schooljaar al verlof is verleend. De reductie van de school
-      # vraagt het per besluit dat meetelt, met wat zij tot dan toe wist
-      # (verleend_in_schooljaar), en met het schooljaar dat artikel 1 van
-      # het beleid vakantieverlof geeft. Dit artikel leest niets anders dan
-      # wat het krijgt.
+      # De reductie van de school geeft de besluiten over de jongere als
+      # rijen, en het schooljaar dat artikel 1 van het beleid vakantieverlof
+      # geeft. Dit artikel leest niets anders dan wat het krijgt.
       execution:
         parameters:
-          - name: verleend_in_schooljaar
-            type: boolean
-            description: Of er vóór dit besluit al verlof in het schooljaar was verleend.
-          - name: verlof_verleend
-            type: boolean
-            description: Of het besluit verlof verleent.
-          - name: eerste_verlofdag
-            type: date
-            description: De eerste verlofdag van het besluit.
+          - name: besluiten
+            type: array
+            description: >-
+              De besluiten over de jongere, elk met of het verlof verleent en
+              de eerste verlofdag, en of de bestuursrechter zelf verlof
+              verleende en met welke eerste verlofdag.
           - name: begin_schooljaar
             type: date
             description: De eerste dag van het schooljaar.
@@ -53,94 +45,120 @@ articles:
             type: date
             description: De laatste dag van het schooljaar.
         output:
-          - name: verleend_in_schooljaar_na_besluit
+          - name: verleend_in_schooljaar
             type: boolean
-            description: Of er na dit besluit verlof in het schooljaar is verleend.
+            description: Of er in het schooljaar verlof is verleend.
         actions:
-          - output: verleend_in_schooljaar_na_besluit
+          - output: verleend_in_schooljaar
             value:
-              operation: OR
-              conditions:
-                - $verleend_in_schooljaar
-                - operation: AND
-                  conditions:
-                    - $verlof_verleend
-                    - operation: GREATER_THAN_OR_EQUAL
-                      subject:
-                        operation: DATE_DIFF
-                        from: $begin_schooljaar
-                        to: $eerste_verlofdag
-                        in: days
-                      value: 0
-                    - operation: GREATER_THAN_OR_EQUAL
-                      subject:
-                        operation: DATE_DIFF
-                        from: $eerste_verlofdag
-                        to: $einde_schooljaar
-                        in: days
-                      value: 0
+              operation: FOREACH
+              collection: $besluiten
+              as: besluit
+              # Per besluit eerst of het verlof verleent: zonder verlof is er
+              # geen eerste verlofdag, en AND stopt bij de eerste onwaar.
+              body:
+                operation: OR
+                conditions:
+                  - operation: AND
+                    conditions:
+                      - $besluit.verlof_verleend
+                      - operation: GREATER_THAN_OR_EQUAL
+                        subject:
+                          operation: DATE_DIFF
+                          from: $begin_schooljaar
+                          to: $besluit.eerste_verlofdag
+                          in: days
+                        value: 0
+                      - operation: GREATER_THAN_OR_EQUAL
+                        subject:
+                          operation: DATE_DIFF
+                          from: $besluit.eerste_verlofdag
+                          to: $einde_schooljaar
+                          in: days
+                        value: 0
+                  - operation: AND
+                    conditions:
+                      - $besluit.rechter_verleent_verlof
+                      - operation: GREATER_THAN_OR_EQUAL
+                        subject:
+                          operation: DATE_DIFF
+                          from: $begin_schooljaar
+                          to: $besluit.eerste_verlofdag_van_de_rechter
+                          in: days
+                        value: 0
+                      - operation: GREATER_THAN_OR_EQUAL
+                        subject:
+                          operation: DATE_DIFF
+                          from: $besluit.eerste_verlofdag_van_de_rechter
+                          to: $einde_schooljaar
+                          in: days
+                        value: 0
+              combine: OR
+
   - number: '2'
     text: >-
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Voorziet
       de bestuursrechter zelf in de zaak en verleent zijn uitspraak de jongere
-      verlof met een eerste verlofdag in een schooljaar, dan telt dat als
-      verlof verleend in dat schooljaar, zoals een besluit van het hoofd.
+      verlof, dan telt dat als verlof verleend met de eerste verlofdag die de
+      uitspraak noemt, zoals een besluit van het hoofd. Een latere uitspraak
+      die geen verlof verleent, laat dat verlof staan.
     url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
     machine_readable:
       # Awb 8:72, derde lid, onder b: de uitspraak treedt in de plaats van
       # het vernietigde besluit. De school legt de ontvangst van het afschrift
       # vast (Awb 8:79), niet het besluit dat de uitspraak in de plaats
       # stelt. Welk besluit op de aanvraag dat is, zegt de Awb, en het
-      # afschrift draagt het mee (primair_besluit_in_de_plaats). Dit artikel
-      # leest niets anders dan wat het krijgt.
+      # afschrift draagt het mee (primair_besluit_in_de_plaats). De reductie
+      # per besluit vraagt dit artikel per ontvangen uitspraak over dat
+      # besluit. Dit artikel leest niets anders dan wat het krijgt.
       execution:
         parameters:
-          - name: verleend_in_schooljaar
+          - name: al_verleend_door_rechter
             type: boolean
-            description: Of er vóór deze uitspraak al verlof in het schooljaar was verleend.
+            description: Of de bestuursrechter vóór deze uitspraak al verlof verleende.
+          - name: al_eerste_verlofdag_van_de_rechter
+            type: date
+            nullable: true
+            description: De eerste verlofdag van dat eerdere verlof.
           - name: primair_besluit_in_de_plaats
             type: object
             nullable: true
             description: Het besluit op de aanvraag dat de uitspraak in de plaats stelt, zoals het afschrift het vermeldt.
-          - name: begin_schooljaar
-            type: date
-            description: De eerste dag van het schooljaar.
-          - name: einde_schooljaar
-            type: date
-            description: De laatste dag van het schooljaar.
         output:
-          - name: verleend_in_schooljaar_na_uitspraak
+          - name: uitspraak_verleent_verlof
             type: boolean
-            description: Of er na deze uitspraak verlof in het schooljaar is verleend.
+            description: Of deze uitspraak de jongere verlof verleent.
+          - name: rechter_verleent_verlof
+            type: boolean
+            description: Of de bestuursrechter de jongere na deze uitspraak verlof verleende.
+          - name: eerste_verlofdag_van_de_rechter
+            type: date
+            nullable: true
+            description: De eerste verlofdag van het verlof dat de bestuursrechter verleende.
         actions:
-          # Eerst of er een besluit is dat verlof verleent: AND stopt bij de
-          # eerste onwaar, en zonder besluit is er geen eerste verlofdag.
-          - output: verleend_in_schooljaar_na_uitspraak
+          # Eerst of er een besluit is: AND stopt bij de eerste onwaar.
+          - output: uitspraak_verleent_verlof
+            value:
+              operation: AND
+              conditions:
+                - operation: NOT
+                  value:
+                    operation: EQUALS
+                    subject: $primair_besluit_in_de_plaats
+                    value: null
+                - operation: EQUALS
+                  subject: $primair_besluit_in_de_plaats.outputs.verlof_verleend
+                  value: true
+          - output: rechter_verleent_verlof
             value:
               operation: OR
               conditions:
-                - $verleend_in_schooljaar
-                - operation: AND
-                  conditions:
-                    - operation: NOT
-                      value:
-                        operation: EQUALS
-                        subject: $primair_besluit_in_de_plaats
-                        value: null
-                    - operation: EQUALS
-                      subject: $primair_besluit_in_de_plaats.outputs.verlof_verleend
-                      value: true
-                    - operation: GREATER_THAN_OR_EQUAL
-                      subject:
-                        operation: DATE_DIFF
-                        from: $begin_schooljaar
-                        to: $primair_besluit_in_de_plaats.fields.eerste_verlofdag
-                        in: days
-                      value: 0
-                    - operation: GREATER_THAN_OR_EQUAL
-                      subject:
-                        operation: DATE_DIFF
-                        from: $primair_besluit_in_de_plaats.fields.eerste_verlofdag
-                        to: $einde_schooljaar
-                        in: days
-                      value: 0
+                - $al_verleend_door_rechter
+                - $uitspraak_verleent_verlof
+          - output: eerste_verlofdag_van_de_rechter
+            value:
+              operation: IF
+              cases:
+                - when: $uitspraak_verleent_verlof
+                  then: $primair_besluit_in_de_plaats.fields.eerste_verlofdag
+              default: $al_eerste_verlofdag_van_de_rechter

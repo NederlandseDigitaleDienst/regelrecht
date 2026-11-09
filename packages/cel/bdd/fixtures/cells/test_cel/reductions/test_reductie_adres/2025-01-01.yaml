@@ -1,11 +1,9 @@
 ---
-# FICTIEF. A reduction of the cell's BDD suite over test_chronicle_corrections:
-# where a resident lives, by the facts the cell recorded. A registration sets
-# the postcode and the house number, a correction of the postcode sets the
-# postcode alone. A registration that was wrong from the start does not
-# count: the fact that says so revokes it, which the law declares, not this
-# reduction.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
+# FICTIEF. A read model of the cell's BDD suite
+# (packages/cel/bdd/features/corrections.feature): the address of the
+# resident, from the one registration of the resident that holds a postcode
+# (test_reductie_inschrijving).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: test_reductie_adres
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'
@@ -17,39 +15,45 @@ articles:
   - number: '1'
     url: https://example.com/test_reductie_adres/1
     text: >-
-      FICTIEF. De postcode en het huisnummer van de bewoner, zoals de
-      inschrijvingen en correcties die meetellen ze vastleggen.
+      FICTIEF. De postcode en het huisnummer van de bewoner, uit zijn
+      inschrijving met een postcode.
     machine_readable:
-      projection:
-        key: bewoner
-        state:
-          - name: postcode
-            type: string
-          - name: huisnummer
-            type: number
-        steps:
-          - record: test_chronicle_corrections#1
-            actions:
-              - output: postcode
-                value: $record.postcode
-              - output: huisnummer
-                value: $record.huisnummer
-          - record: test_chronicle_corrections#2
-            actions:
-              - output: postcode
-                value: $record.postcode
       execution:
         parameters:
           - name: bewoner
             type: string
+        input:
+          - name: inschrijvingen
+            type: array
+            source:
+              projections: test_reductie_inschrijving
+              where:
+                bewoner: $bewoner
         output:
           - name: postcode
             type: string
             nullable: true
           - name: huisnummer
             type: number
+            nullable: true
         actions:
           - output: postcode
-            value: $state.postcode
+            value:
+              operation: FOREACH
+              collection: $inschrijvingen
+              as: inschrijving
+              filter:
+                operation: NOT
+                value: {operation: EQUALS, subject: $inschrijving.postcode, value: null}
+              body: $inschrijving.postcode
+              combine: ONLY
           - output: huisnummer
-            value: $state.huisnummer
+            value:
+              operation: FOREACH
+              collection: $inschrijvingen
+              as: inschrijving
+              filter:
+                operation: NOT
+                value: {operation: EQUALS, subject: $inschrijving.postcode, value: null}
+              body: $inschrijving.huisnummer
+              combine: ONLY
