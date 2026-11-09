@@ -100,8 +100,7 @@ Feature: Collection operations
     # cannot carry a nested collection. Three households, of 100+200, 50, and
     # none.
     #
-    # The inner collection is read through the outer binding, which is the only
-    # way an outer variable reaches an inner iteration.
+    # The inner collection is read through the outer binding.
     When I evaluate "totaal_over_huishoudens" of "test_collections"
     Then output "totaal_over_huishoudens" equals 350
     # The outer level alone counts three, so the 350 above really did descend
@@ -117,3 +116,16 @@ Feature: Collection operations
     When I evaluate "hoogste_per_huishouden_totaal" of "test_collections"
     Then the execution fails
     Then the execution fails with "operand is null"
+
+  Scenario: An inner FOREACH compares its element with the outer one
+    Given the calculation date is "2025-01-01"
+    # The inner filter and body see the outer binding (a note of November
+    # 2026 on RFC-016). Of the first household, with threshold 150, only 200
+    # counts; of the second, with threshold 10, both 50 and 20; the third is
+    # empty.
+    When I evaluate "leden_boven_drempel" of "test_collections"
+    Then output "leden_boven_drempel" equals 3
+    # An inner binding with the name of the outer one wins inside the inner
+    # FOREACH: the highest contribution of the members, not a threshold.
+    When I evaluate "hoogste_eigen_bijdrage" of "test_collections"
+    Then output "hoogste_eigen_bijdrage" equals 200

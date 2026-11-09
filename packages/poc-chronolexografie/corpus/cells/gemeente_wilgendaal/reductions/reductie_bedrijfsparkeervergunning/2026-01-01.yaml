@@ -1,0 +1,59 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: reductie_bedrijfsparkeervergunning
+regulatory_layer: REDUCTIE
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# Geen regelgeving: een reductie van het college van de (fictieve) gemeente
+# Wilgendaal over zijn eigen kroniek (RFC-022 §4.1, RFC-048). Eén aggregaat
+# per besluit op een aanvraag om een bedrijfsparkeervergunning (artikel 2 van
+# de fictieve parkeerverordening, schema v0.8.15): het besluit en wat ernaar
+# verwijst, zoals een bezwaar, de beslissing erop en het afschrift van de
+# uitspraak in de hoofdzaak (Awb 8:79). Welke records meetellen, volgt uit de
+# effecten die de Awb ze geeft (7:11, tweede lid, en 8:79 met 8:72). Een
+# besluit dat in de plaats van dit besluit komt, is een eigen aggregaat. De
+# staat houdt de dagen die de records dragen; wat ze op een dag betekenen,
+# zegt het fictieve beleid verleende bedrijfsparkeervergunningen, wanneer een
+# reductie die telt het vraagt. Een schorsing door de voorzieningenrechter
+# is een eigen aggregaat (reductie_schorsing_bedrijfsparkeervergunning). Er
+# is geen bekendmaking; de url wijst naar het model van de verordening.
+url: https://lokaleregelgeving.overheid.nl/CVDR642699
+name: Bedrijfsparkeervergunning per besluit bij de gemeente Wilgendaal (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving. Het systeem van het college van de gemeente Wilgendaal
+      houdt door middel van een chronolexografische reductie op zijn eigen
+      kroniek per besluit op een aanvraag om een bedrijfsparkeervergunning bij
+      op welke dag het is genomen, tot en met welke dag de vergunning geldig
+      is, en op welke dag de bestuursrechter in de hoofdzaak uitspraak deed.
+    url: https://lokaleregelgeving.overheid.nl/CVDR642699
+    machine_readable:
+      projection:
+        per: parkeerverordening_gemeente_wilgendaal#2#BESCHIKKING
+        state:
+          # Of het besluit een vergunning verleent. Telt het besluit niet
+          # mee, dan zet zijn stap niets en blijft dit onwaar.
+          - name: verleend
+            type: boolean
+          - name: besluit_datum
+            type: date
+          - name: vergunning_geldig_tot
+            type: date
+          - name: uitspraak_hoofdzaak_op
+            type: date
+        steps:
+          - record: parkeerverordening_gemeente_wilgendaal#2#BESCHIKKING
+            actions:
+              - output: verleend
+                value: $record.bedrijfsparkeervergunning_verleend
+              - output: besluit_datum
+                value: $record.besluit_datum
+              - output: vergunning_geldig_tot
+                value: $record.vergunning_geldig_tot
+          # De uitspraak in de hoofdzaak (8:79); de voorziening vervalt op de
+          # dag ervan (8:85, tweede lid, onder c).
+          - record: algemene_wet_bestuursrecht#8:79#EXECUTOGRAM
+            actions:
+              - output: uitspraak_hoofdzaak_op
+                value: $record.uitspraak_datum

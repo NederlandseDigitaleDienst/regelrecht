@@ -614,6 +614,21 @@ impl ChronicleSource for Reader<'_> {
                 )),
             })
     }
+
+    /// The cell's chronicle as records, for a reduction that reads the
+    /// aggregates of another (`source.projections`, schema v0.8.15): the
+    /// engine plays them on the records.
+    fn records(&self) -> regelrecht_engine::Result<Option<Vec<ChronicleRecord>>> {
+        chronicle_records(&self.grams)
+            .map(Some)
+            .map_err(|e| match e {
+                crate::Error::Engine(e) => e,
+                other => EngineError::ResolutionError(format!(
+                    "the cell of '{}' giving its records: {other}",
+                    self.recording_actor
+                )),
+            })
+    }
 }
 
 impl OpenTermAnswerer for Reader<'_> {
@@ -1041,6 +1056,25 @@ articles:
         let mut decision = gram("BESCHIKKING", "wet_fictief#1", Some("a"));
         decision.outputs = [("verleend".to_string(), json!(true))].into();
         vec![decision]
+    }
+
+    /// The reader gives the engine its chronicle as records, for a
+    /// reduction that reads aggregates (`source.projections`, schema
+    /// v0.8.15): every gram, in order.
+    #[test]
+    fn the_reader_gives_its_chronicle_as_records() {
+        let grams = decisions();
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            grams.clone(),
+            None,
+        );
+        let records = ChronicleSource::records(&reader).unwrap().expect("records");
+        assert_eq!(records, chronicle_records(&grams).unwrap());
+        assert_eq!(records.len(), 1);
     }
 
     fn day() -> NaiveDate {

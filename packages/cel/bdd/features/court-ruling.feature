@@ -33,10 +33,9 @@ Feature: A ruling received as a copy revokes the decision it annuls
     And I evaluate "heeft_geldige_kaart" of "test_reductie_geldige_kaart" over the chronicle
     Then output "heeft_geldige_kaart" is false
     And the projection trace is:
-      | record    | event   | detail               |
-      | aanvraag  | applied | -                    |
-      | verlening | skipped | revoked by ontvangst |
-      | ontvangst | applied | -                    |
+      | aggregate | record    | event   | detail               |
+      | verlening | verlening | skipped | revoked by ontvangst |
+      | verlening | ontvangst | applied | -                    |
 
   Scenario: The receipt of a ruling that dismisses the appeal revokes nothing
     Given the calculation date is "2025-05-01"
@@ -85,8 +84,7 @@ Feature: A ruling received as a copy revokes the decision it annuls
     Then output "heeft_geldige_kaart" is true
     And record "ontvangst" is skipped
     And the projection trace is:
-      | record       | event   | detail                                                                     |
-      | aanvraag     | applied | -                                                                          |
-      | verlening    | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
-      | ontvangst    | skipped | revoked by hoger_beroep                                                    |
-      | hoger_beroep | applied | -                                                                          |
+      | aggregate | record       | event   | detail                                                                     |
+      | verlening | verlening    | applied | test_chronicle_effects#7: aantal_verleend: 0 -> 1, in_bezit: false -> true |
+      | verlening | ontvangst    | skipped | revoked by hoger_beroep                                                    |
+      | verlening | hoger_beroep | applied | -                                                                          |

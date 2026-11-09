@@ -375,6 +375,34 @@ fn grant_then_refuse(cell: &mut Cell, service: &mut LawExecutionService) -> Gran
     Granted { granted, refused }
 }
 
+/// A deciding article that may take a decision in turn needs the
+/// submission it is taken on, so the cell does not take it ex officio.
+#[test]
+fn a_decision_that_may_replace_another_is_not_taken_ex_officio() {
+    let mut service = service();
+    let (mut cell, _dir) = cell();
+    let Granted { granted, .. } = grant_then_refuse(&mut cell, &mut service);
+    let before = cell.grams().len();
+    let err = cell
+        .decide_ex_officio(
+            &mut service,
+            &[],
+            BEZWAAR_LAW,
+            "1",
+            Some(&granted.id),
+            &Map::new(),
+            &Map::new(),
+            day("2026-03-05"),
+        )
+        .expect_err("needs its submission");
+    assert!(
+        err.to_string()
+            .contains("may take a decision in turn, which needs the submission it is taken on"),
+        "{err}"
+    );
+    assert_eq!(cell.grams().len(), before);
+}
+
 #[test]
 fn the_decision_field_comes_from_refers_to_and_is_kept_as_its_id() {
     let mut service = service();

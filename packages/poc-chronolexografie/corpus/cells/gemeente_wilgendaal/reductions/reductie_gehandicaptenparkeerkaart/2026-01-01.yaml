@@ -1,0 +1,64 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: reductie_gehandicaptenparkeerkaart
+regulatory_layer: REDUCTIE
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# Geen regelgeving: een reductie van het college van de (fictieve) gemeente
+# Wilgendaal over zijn eigen kroniek (RFC-022 §4.1, RFC-048). Eén aggregaat
+# per besluit op een aanvraag om een gehandicaptenparkeerkaart (artikel 49
+# van het BABW, schema v0.8.15): het besluit en wat ernaar verwijst, zoals
+# een bezwaar en de beslissing erop. Welke records meetellen, volgt uit de
+# effecten die de Awb ze geeft (7:11, tweede lid, en 8:79 met 8:72). De staat
+# houdt of het besluit een kaart verstrekt en tot wanneer zij geldig is
+# (artikel 51 van het BABW), en of de bestuursrechter zelf een kaart
+# verstrekte toen hij het besluit vernietigde (Awb 8:72, derde lid,
+# onder b). reductie_geldige_gehandicaptenparkeerkaart leest de aggregaten.
+# Er is geen bekendmaking; de url wijst naar artikel 49.
+url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+name: Gehandicaptenparkeerkaart per besluit bij de gemeente Wilgendaal (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving. Het systeem van het college van de gemeente Wilgendaal
+      houdt door middel van een chronolexografische reductie op zijn eigen
+      kroniek per besluit op een aanvraag om een gehandicaptenparkeerkaart bij
+      of het een kaart verstrekt, en tot en met welke dag zij geldig is.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      projection:
+        per: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49#BESCHIKKING
+        state:
+          - name: verstrekt
+            type: boolean
+          - name: kaart_geldig_tot
+            type: date
+          - name: kaart_van_de_rechter
+            type: boolean
+        steps:
+          # Een besluit op een aanvraag, en een nieuw besluit dat een
+          # beslissing op bezwaar in de plaats van een herroepen besluit nam:
+          # beide berusten op artikel 49, en elk is een eigen aggregaat.
+          - record: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49#BESCHIKKING
+            actions:
+              - output: verstrekt
+                value: $record.gehandicaptenparkeerkaart_verstrekt
+              - output: kaart_geldig_tot
+                value: $record.kaart_geldig_tot
+          # De ontvangst van een uitspraak (Awb 8:79) over dit besluit:
+          # voorzag de bestuursrechter zelf in de zaak en verstrekte hij een
+          # kaart (Awb 8:72, derde lid, onder b), dan heeft de aanvrager een
+          # kaart van de rechter.
+          - record: algemene_wet_bestuursrecht#8:79#EXECUTOGRAM
+            input:
+              - name: kaart_van_de_rechter_na_uitspraak
+                type: boolean
+                source:
+                  regulation: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
+                  output: kaart_van_de_rechter_na_uitspraak
+                  parameters:
+                    al_kaart_van_de_rechter: $state.kaart_van_de_rechter
+                    primair_besluit_in_de_plaats: $record.primair_besluit_in_de_plaats
+            actions:
+              - output: kaart_van_de_rechter
+                value: $kaart_van_de_rechter_na_uitspraak

@@ -146,6 +146,9 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
             let Some(source) = input.source.as_ref() else {
                 continue;
             };
+            if let Err(why) = check_projections_read(input, source, section, reduction) {
+                return refuse(format!("{where_}: {why}"));
+            }
             if let Some(answer) = &source.reduction {
                 let beside = [
                     ("regulation", source.regulation.is_some()),
@@ -246,6 +249,67 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
              none (schema v0.8.12)"
                 .to_string(),
         );
+    }
+    Ok(())
+}
+
+/// An input that reads the aggregates of a reduction (`source.projections`,
+/// schema v0.8.15) does so in a `REDUCTIE`, and stands alone: no other way
+/// to a value beside it. `where` names the roots by values the reading
+/// article declares as parameters, and stands only beside `projections`.
+fn check_projections_read(
+    input: &regelrecht_law_model::Input,
+    source: &regelrecht_law_model::Source,
+    section: &MachineReadable,
+    reduction: bool,
+) -> std::result::Result<(), String> {
+    let name = &input.name;
+    let Some(of) = &source.projections else {
+        return match source.where_ {
+            Some(_) => Err(format!(
+                "input '{name}' has where without projections; where picks the aggregates a \
+                 reduction reads"
+            )),
+            None => Ok(()),
+        };
+    };
+    let beside = [
+        ("regulation", source.regulation.is_some()),
+        ("output", source.output.is_some()),
+        ("parameters", source.parameters.is_some()),
+        ("endpoint", source.endpoint.is_some()),
+        ("decisions", source.decisions.is_some()),
+        ("facts", source.facts.is_some()),
+        ("reduction", source.reduction.is_some()),
+        ("article", source.article.is_some()),
+    ];
+    if let Some((key, _)) = beside.iter().find(|(_, present)| *present) {
+        return Err(format!(
+            "input '{name}' reads the aggregates of {of}, which no {key} can stand beside"
+        ));
+    }
+    if !reduction {
+        return Err(format!(
+            "input '{name}' reads the aggregates of {of}; only a REDUCTIE reads a chronicle \
+             (RFC-048)"
+        ));
+    }
+    let declared: Vec<&str> = section
+        .execution
+        .as_ref()
+        .and_then(|e| e.parameters.as_deref())
+        .unwrap_or_default()
+        .iter()
+        .map(|p| p.name.as_str())
+        .collect();
+    for (field, reference) in source.where_.iter().flatten() {
+        let parameter = reference.strip_prefix('$').filter(|p| declared.contains(p));
+        if parameter.is_none() {
+            return Err(format!(
+                "input '{name}' picks the aggregates of {of} where '{field}' is {reference}, \
+                 which is no $-reference to a parameter of the article"
+            ));
+        }
     }
     Ok(())
 }
@@ -777,6 +841,63 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
         if projection.state.is_empty() {
             return refuse(where_, "has a projection without a state".to_string());
         }
+        // From schema v0.8.15 a projection plays one aggregate per record
+        // (`per`); v0.8.14 played the records of one `key`.
+        if from_version(law, (0, 8, 15)) {
+            if let Some(key) = &projection.key {
+                return refuse(
+                    where_,
+                    format!(
+                        "plays the records of one '{key}' (key); since schema v0.8.15 a \
+                         projection plays one aggregate per record (per), read with \
+                         source.projections"
+                    ),
+                );
+            }
+            if projection.per.is_none() {
+                return refuse(
+                    where_,
+                    "has a projection without per; since schema v0.8.15 a projection plays \
+                     one aggregate per record"
+                        .to_string(),
+                );
+            }
+        }
+        if let Some(per) = &projection.per {
+            if projection.key.is_some() {
+                return refuse(
+                    where_,
+                    format!(
+                        "has a projection with a key and per {per}; it plays the records of \
+                         one key or one aggregate per record, not both"
+                    ),
+                );
+            }
+            if section.execution.is_some() {
+                return refuse(
+                    where_,
+                    format!(
+                        "has a projection per {per} and an execution; it answers no question \
+                         of its own, a reduction reads its aggregates with source.projections"
+                    ),
+                );
+            }
+            // A row of the aggregates holds the id of its root under `id`.
+            if projection
+                .state
+                .iter()
+                .any(|p| p.name == crate::projection::ROOT_ID)
+            {
+                return refuse(
+                    where_,
+                    format!(
+                        "has a projection per {per} with a state property '{}'; a row of its \
+                         aggregates holds the id of its root under that name",
+                        crate::projection::ROOT_ID
+                    ),
+                );
+            }
+        }
         let parameters = section
             .execution
             .as_ref()
@@ -844,8 +965,12 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
                     format!("has two steps for the same records under {basis}"),
                 );
             }
-            let question: Vec<&str> = parameters.iter().map(|p| p.name.as_str()).collect();
-            if let Err(why) = check_step_shape(step, &names, &question) {
+            // Since schema v0.8.15 a step passes no parameter of the
+            // question: the fold depends on the chronicle alone. A file
+            // under an earlier version keeps what that version allowed.
+            let question: Option<Vec<&str>> =
+                passes_question(law).then(|| parameters.iter().map(|p| p.name.as_str()).collect());
+            if let Err(why) = check_step_shape(step, &names, question.as_deref()) {
                 return refuse(
                     where_,
                     format!("the step for records under {} {why}", step.record),
@@ -854,6 +979,13 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Whether a step of `law` may pass a parameter of the question: only under
+/// schema v0.8.14, which allowed it. A file that names no version is held to
+/// the newest.
+fn passes_question(law: &ArticleBasedLaw) -> bool {
+    !from_version(law, (0, 8, 15))
 }
 
 /// The shape of a step, apart from the laws it calls (which are in other
@@ -867,7 +999,7 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
 fn check_step_shape(
     step: &regelrecht_law_model::ProjectionStep,
     names: &[&str],
-    question: &[&str],
+    question: Option<&[&str]>,
 ) -> std::result::Result<(), String> {
     use regelrecht_law_model::StepSource;
     let own = |source: &StepSource| match source {
@@ -920,7 +1052,16 @@ fn check_step_shape(
             match StepSource::parse(value) {
                 Some(source @ (StepSource::Record(_) | StepSource::State(_))) => own(&source)?,
                 // A parameter of the question the reduction answers.
-                Some(StepSource::Input(asked)) if question.contains(&asked.as_str()) => {}
+                Some(StepSource::Input(asked))
+                    if question.is_some_and(|q| q.contains(&asked.as_str())) => {}
+                _ if question.is_none() => {
+                    return Err(format!(
+                        "has input '{}' that passes '{name}' as '{value}'; a parameter of a step \
+                         is $record.<field> or $state.<property>, and since schema v0.8.15 no \
+                         parameter of the question",
+                        input.name
+                    ))
+                }
                 _ => {
                     return Err(format!(
                         "has input '{}' that passes '{name}' as '{value}'; a parameter of a step \
@@ -1763,9 +1904,12 @@ articles:
         );
     }
 
+    /// A rulework under schema v0.8.14, which allowed `key`, an `execution`
+    /// beside the projection and a parameter of the question in a step.
     fn law_with_projection(layer: &str, projection: &str) -> String {
         format!(
             r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: projectie
 regulatory_layer: {layer}
 publication_date: '2025-01-01'
@@ -1923,6 +2067,165 @@ articles:
                 )),
                 "{record}: {err}"
             );
+        }
+    }
+
+    /// A projection plays one aggregate per record (`per`, schema v0.8.15)
+    /// or the records of one key, not both, and answers no question of its
+    /// own.
+    #[test]
+    fn a_projection_per_record_answers_no_question() {
+        let state = "        state:\n          - {name: a, type: boolean}\n        steps:\n          - {record: wet#1, actions: [{output: a, value: $record.v}]}";
+        let per = law_with_projection(
+            "REDUCTIE",
+            &format!("        per: wet#1#BESCHIKKING\n{state}"),
+        );
+        let without_execution = |law: String| {
+            let i = law.find("      execution:\n").unwrap();
+            law[..i].to_string()
+        };
+        LawExecutionService::new()
+            .load_law(&without_execution(per.clone()))
+            .unwrap();
+        for (law, why) in [
+            (
+                per.clone(),
+                "has a projection per wet#1#BESCHIKKING and an execution; it answers no question of its own",
+            ),
+            (
+                without_execution(per.replace("        per:", "        key: x\n        per:")),
+                "has a projection with a key and per wet#1#BESCHIKKING",
+            ),
+            (
+                without_execution(per.replace("{name: a, type: boolean}", "{name: id, type: string}").replace("value: $record.v}", "value: $record.w}").replace("output: a,", "output: id,")),
+                "has a projection per wet#1#BESCHIKKING with a state property 'id'; a row of its aggregates holds the id of its root under that name",
+            ),
+            (
+                without_execution(per.replace("per: wet#1#BESCHIKKING", "per: 'wet#1#beschikking'")),
+                "'wet#1#beschikking' is not <regulation>#<article>, optionally with #<KIND>",
+            ),
+        ] {
+            let err = LawExecutionService::new().load_law(&law).expect_err(why);
+            assert!(err.to_string().contains(why), "{why}: {err}");
+        }
+    }
+
+    /// Since schema v0.8.15 a step passes no parameter of the question and a
+    /// projection plays one aggregate per record (`per`), not the records of
+    /// one `key`. A file under v0.8.14 keeps both; a file that names no
+    /// version is held to the newest.
+    #[test]
+    fn since_v0_8_15_a_projection_has_per_and_its_steps_ask_no_question() {
+        const V0_8_14: &str = "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json\n";
+        const V0_8_15: &str = "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json\n";
+        let projection = "        key: peildatum\n        state:\n          - {name: a, type: boolean}\n        steps:\n          - {record: wet#1, input: [{name: x, type: boolean, source: {regulation: wet, output: o, parameters: {p: $peildatum}}}], actions: [{output: a, value: $x}]}";
+        let keyed = law_with_projection("REDUCTIE", projection).replace(
+            "      execution:\n",
+            "      execution:\n        parameters:\n          - {name: peildatum, type: date}\n",
+        );
+        LawExecutionService::new().load_law(&keyed).unwrap();
+        let without_execution = |law: &str| {
+            let i = law.find("      execution:\n").unwrap();
+            law[..i].to_string()
+        };
+        let per =
+            without_execution(&keyed.replace("        key: peildatum\n", "        per: wet#1\n"));
+        for (law, why) in [
+            (
+                keyed.replace(V0_8_14, V0_8_15),
+                "plays the records of one 'peildatum' (key); since schema v0.8.15 a projection plays one aggregate per record (per)",
+            ),
+            (
+                keyed.replace(V0_8_14, ""),
+                "plays the records of one 'peildatum' (key)",
+            ),
+            (
+                keyed.replace(V0_8_14, V0_8_15).replace("        key: peildatum\n", ""),
+                "has a projection without per; since schema v0.8.15 a projection plays one aggregate per record",
+            ),
+            (
+                per.replace(V0_8_14, V0_8_15),
+                "has input 'x' that passes 'p' as '$peildatum'; a parameter of a step is $record.<field> or $state.<property>, and since schema v0.8.15 no parameter of the question",
+            ),
+            (
+                per.replace(V0_8_14, ""),
+                "and since schema v0.8.15 no parameter of the question",
+            ),
+        ] {
+            let err = LawExecutionService::new().load_law(&law).expect_err(why);
+            assert!(err.to_string().contains(why), "{why}: {err}");
+        }
+    }
+
+    /// An input that reads the aggregates of a reduction stands alone, in a
+    /// REDUCTIE, and picks its roots by parameters of its article.
+    #[test]
+    fn the_aggregates_are_read_alone_in_a_reduction() {
+        let reader = |layer: &str, source: &str| {
+            format!(
+                r#"
+$id: lezer
+regulatory_layer: {layer}
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      execution:
+        parameters: [{{name: wie, type: string}}]
+        input:
+          - {{name: rijen, type: array, source: {source}}}
+        output: [{{name: n, type: number}}]
+        actions:
+          - {{output: n, value: 0}}
+"#
+            )
+        };
+        LawExecutionService::new()
+            .load_law(&reader(
+                "REDUCTIE",
+                "{projections: per_besluit, where: {aanvrager: $wie}}",
+            ))
+            .unwrap();
+        LawExecutionService::new()
+            .load_law(&reader("REDUCTIE", "{projections: per_besluit}"))
+            .unwrap();
+        for (layer, source, why) in [
+            (
+                "WET",
+                "{projections: per_besluit}",
+                "input 'rijen' reads the aggregates of per_besluit; only a REDUCTIE reads a chronicle",
+            ),
+            (
+                "REDUCTIE",
+                "{projections: per_besluit, regulation: wet, output: o}",
+                "input 'rijen' reads the aggregates of per_besluit, which no regulation can stand beside",
+            ),
+            (
+                "REDUCTIE",
+                "{projections: per_besluit, decisions: 'wet#1'}",
+                "input 'rijen' reads the aggregates of per_besluit, which no decisions can stand beside",
+            ),
+            (
+                "REDUCTIE",
+                "{projections: per_besluit, where: {aanvrager: $niemand}}",
+                "input 'rijen' picks the aggregates of per_besluit where 'aanvrager' is $niemand, which is no $-reference to a parameter of the article",
+            ),
+            (
+                "REDUCTIE",
+                "{projections: per_besluit, where: {aanvrager: wie}}",
+                "where 'aanvrager' is wie, which is no $-reference",
+            ),
+            (
+                "REDUCTIE",
+                "{regulation: wet, output: o, where: {aanvrager: $wie}}",
+                "input 'rijen' has where without projections",
+            ),
+        ] {
+            let err = LawExecutionService::new()
+                .load_law(&reader(layer, source))
+                .expect_err(why);
+            assert!(err.to_string().contains(why), "{why}: {err}");
         }
     }
 

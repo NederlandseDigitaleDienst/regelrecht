@@ -1,0 +1,34 @@
+---
+# Tier C: a projection that plays one aggregate per record (schema v0.8.15).
+# Each grant is the root of its own aggregate, with the records that refer
+# to it. It answers no question of its own.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_conformance_per_record
+regulatory_layer: REDUCTIE
+publication_date: '2026-11-08'
+valid_from: '2026-11-08'
+url: https://example.invalid/per-record
+name: Testreductie per verlening
+articles:
+  - number: '1'
+    url: https://example.invalid/per-record/1
+    text: Per verlening of de kaart er nog is.
+    machine_readable:
+      projection:
+        per: test_conformance_decision_effects#2#BESCHIKKING
+        state:
+          - name: in_bezit
+            type: boolean
+        steps:
+          - record: test_conformance_decision_effects#2#BESCHIKKING
+            input:
+              - name: kaart
+                type: boolean
+                source:
+                  regulation: test_conformance_kaart
+                  output: kaart
+                  parameters:
+                    verleend: $record.verleend
+            actions:
+              - output: in_bezit
+                value: $kaart

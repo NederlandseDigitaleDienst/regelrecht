@@ -290,6 +290,18 @@ impl<'l> RuleContext<'l> {
         }
     }
 
+    /// A child context for one iteration of a FOREACH nested in another:
+    /// [`Self::create_child`], keeping the bindings of the outer iterations
+    /// in its local scope, so the inner body and filter can compare their
+    /// element with the outer one. What the inner iteration binds replaces
+    /// an outer binding of the same name.
+    pub fn create_iteration_child(&self) -> Self {
+        Self {
+            local: self.local.clone(),
+            ..self.create_child()
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Trace Methods
     // -------------------------------------------------------------------------

@@ -436,7 +436,7 @@ fn decide(
 fn the_decision_takes_the_application_and_the_cell_and_the_policy_says_what_the_head_finds() {
     let shape = decision::derive(&service(), LAW, ARTICLE, day("2026-10-20")).unwrap();
     assert_eq!(shape.kind, "BESCHIKKING");
-    assert_eq!(shape.submission_kind, "AANVRAAG");
+    assert_eq!(shape.submission_kind.as_deref(), Some("AANVRAAG"));
     let asked: Vec<(&str, &Source)> = shape
         .inputs
         .iter()
@@ -1342,7 +1342,7 @@ fn the_shape_of_the_objection_comes_from_the_awb() {
 fn the_decision_on_the_objection_asks_the_contested_decision() {
     let shape = decision::derive(&service(), AWB, OBJECTION, day("2026-11-15")).unwrap();
     assert_eq!(shape.kind, "BESCHIKKING");
-    assert_eq!(shape.submission_kind, "BEZWAAR");
+    assert_eq!(shape.submission_kind.as_deref(), Some("BEZWAAR"));
     assert_eq!(shape.outputs, [ADMISSIBLE, CAUSE, REVOKED, NEW]);
     let source = |name: &str| shape.input(name).map(|i| &i.source);
     assert_eq!(source("bestreden_besluit"), Some(&Source::Application));

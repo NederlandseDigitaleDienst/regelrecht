@@ -1475,9 +1475,11 @@ articles:
       # toepassing, dus ook het vierde lid daarvan: de griffier zendt het
       # afschrift van de uitspraak aan partijen. Dat het bestuursorgaan het
       # heeft, is een feit dat dit artikel omschrijft, zoals bij artikel
-      # 8:84; de ontvangst verwijst naar het besluit waarop de voorziening
-      # zag. De opheffing werkt van de dag af die het afschrift noemt, niet
-      # terug: het feit trekt niets in. Wijzigen is niet gemodelleerd, en lid
+      # 8:84; de ontvangst verwijst naar het afschrift van de uitspraak die
+      # de voorziening trof en die zij opheft (eigen keuze), zodat een
+      # reductie de opheffing bij die voorziening vindt. De opheffing werkt
+      # van de dag af die het afschrift noemt, niet terug: het feit trekt
+      # niets in. Wijzigen is niet gemodelleerd, en lid
       # 3 (het griffierecht) ook niet.
       requires:
         - fact: afschrift_van_de_uitspraak_tot_opheffing

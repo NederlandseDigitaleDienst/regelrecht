@@ -5,13 +5,15 @@ regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'
 # Geen regelgeving: een reductie van het college van de (fictieve) gemeente
-# Wilgendaal over zijn eigen kroniek (RFC-022 §4.1, RFC-048). Ze speelt de
-# kroniek van de aanvrager af (projection, schema v0.8.14); de geldigheidsduur
-# staat al in elk besluit (artikel 51 van het BABW). Welke besluiten
+# Wilgendaal over zijn eigen kroniek (RFC-022 §4.1, RFC-048). Ze speelt
+# zelf niets af: ze leest de aggregaten van de besluiten over de aanvrager
+# (reductie_gehandicaptenparkeerkaart), elk met zijn laatste staat
+# (source.projections, schema v0.8.15); de geldigheidsduur staat al in elk
+# besluit (artikel 51 van het BABW). Welke besluiten
 # meetellen, volgt uit de effecten die de Awb een besluit geeft: een
 # beslissing op bezwaar die het bestreden besluit herroept (7:11, tweede lid),
 # en de ontvangst van een uitspraak die een besluit met zijn rechtsgevolgen
-# vernietigt (8:79 met 8:72). Wat een besluit dat meetelt betekent, zegt het
+# vernietigt (8:79 met 8:72). Wat die besluiten op een dag betekenen, zegt het
 # beleid van het college over verstrekte kaarten
 # (beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal). De cel
 # van de gemeente geeft haar uitvoer als twee antwoorden (cel.yaml, answers):
@@ -36,59 +38,9 @@ articles:
       aanvraag (artikel 49 van het BABW) een kaart verstrekte die op de dag van
       het besluit nog geldig is. Verstrekte de bestuursrechter hem zelf een
       kaart (Awb 8:72, derde lid, onder b), dan zegt het systeem niets: het
-      kent de geldigheid van die kaart niet, en ziet dus ook niet dat zij is
-      verlopen.
+      kent de geldigheid van die kaart niet.
     url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
     machine_readable:
-      projection:
-        # De besluiten over de aanvrager, en wat ernaar verwijst: een
-        # bezwaar, de beslissing erop, de ontvangst van een uitspraak.
-        key: bsn_aanvrager
-        state:
-          - name: geldige_kaart
-            type: boolean
-          - name: kaart_van_de_rechter
-            type: boolean
-        steps:
-          # Een besluit op een aanvraag, en een nieuw besluit dat een
-          # beslissing op bezwaar in de plaats van een herroepen besluit nam:
-          # beide berusten op artikel 49.
-          - record: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49#BESCHIKKING
-            input:
-              - name: geldige_kaart_na_besluit
-                type: boolean
-                source:
-                  regulation: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
-                  output: geldige_kaart_na_besluit
-                  parameters:
-                    geldige_kaart: $state.geldige_kaart
-                    gehandicaptenparkeerkaart_verstrekt: $record.gehandicaptenparkeerkaart_verstrekt
-                    kaart_geldig_tot: $record.kaart_geldig_tot
-                    # TIJDELIJKE OMWEG: de stap neemt de dag van de vraag
-                    # (besluit_datum), zodat het afspelen van de vraag afhangt.
-                    # Dat verdwijnt zodra een besluit een eigen aggregaat is,
-                    # met zijn data in de staat (zie de open vragen).
-                    besluit_datum: $besluit_datum
-            actions:
-              - output: geldige_kaart
-                value: $geldige_kaart_na_besluit
-          # De ontvangst van een uitspraak (Awb 8:79): voorzag de
-          # bestuursrechter zelf in de zaak en verstrekte hij een kaart (Awb
-          # 8:72, derde lid, onder b), dan heeft de aanvrager een kaart van
-          # de rechter.
-          - record: algemene_wet_bestuursrecht#8:79
-            input:
-              - name: kaart_van_de_rechter_na_uitspraak
-                type: boolean
-                source:
-                  regulation: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
-                  output: kaart_van_de_rechter_na_uitspraak
-                  parameters:
-                    al_kaart_van_de_rechter: $state.kaart_van_de_rechter
-                    primair_besluit_in_de_plaats: $record.primair_besluit_in_de_plaats
-            actions:
-              - output: kaart_van_de_rechter
-                value: $kaart_van_de_rechter_na_uitspraak
       execution:
         # Wat het antwoord vraagt; het beleid dat het koppelt, geeft ze op
         # naam mee.
@@ -99,6 +51,22 @@ articles:
           - name: besluit_datum
             type: date
             description: De dag waarop het college op de aanvraag besluit.
+        input:
+          - name: kaarten
+            type: array
+            source:
+              projections: reductie_gehandicaptenparkeerkaart
+              where:
+                bsn_aanvrager: $bsn_aanvrager
+          - name: geldig
+            type: boolean
+            nullable: true
+            source:
+              regulation: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
+              output: geldige_kaart
+              parameters:
+                kaarten: $kaarten
+                besluit_datum: $besluit_datum
         output:
           - name: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
             type: boolean
@@ -108,23 +76,8 @@ articles:
               het besluit nog geldig is; afwezig als de bestuursrechter hem
               zelf een kaart verstrekte en het college geen geldige kaart.
         actions:
-          # Verstrekte de bestuursrechter zelf een kaart, dan zwijgt het
-          # systeem (null) en oordeelt het college: hoe lang die kaart geldt,
-          # leidt de gemeente niet af. Een vaste "nee" zou de kaart van de
-          # rechter negeren. Dat blijft zo, ook als die kaart allang verlopen
-          # is: zonder einddatum ziet het systeem dat niet, dus vanaf die
-          # uitspraak oordeelt bij elke volgende aanvraag het college, tenzij
-          # het college zelf een kaart verstrekte die op de dag van het besluit
-          # nog geldig is.
           - output: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
-            value:
-              operation: IF
-              cases:
-                - when: $state.geldige_kaart
-                  then: true
-                - when: $state.kaart_van_de_rechter
-                  then: null
-              default: false
+            value: $geldig
   - number: '2'
     text: >-
       Geen regelgeving. Het systeem van het college van de gemeente Wilgendaal
@@ -136,40 +89,6 @@ articles:
       derde lid, onder b); anders zegt het systeem niets.
     url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel2
     machine_readable:
-      projection:
-        key: bsn_aanvrager
-        state:
-          - name: eerder_verstrekt
-            type: boolean
-        steps:
-          - record: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49#BESCHIKKING
-            input:
-              - name: eerder_verstrekt_na_besluit
-                type: boolean
-                source:
-                  regulation: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
-                  output: eerder_verstrekt_na_besluit
-                  parameters:
-                    eerder_verstrekt: $state.eerder_verstrekt
-                    gehandicaptenparkeerkaart_verstrekt: $record.gehandicaptenparkeerkaart_verstrekt
-            actions:
-              - output: eerder_verstrekt
-                value: $eerder_verstrekt_na_besluit
-          # Een kaart die de bestuursrechter zelf verstrekte (Awb 8:72, derde
-          # lid, onder b), telt ook.
-          - record: algemene_wet_bestuursrecht#8:79
-            input:
-              - name: kaart_van_de_rechter_na_uitspraak
-                type: boolean
-                source:
-                  regulation: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
-                  output: kaart_van_de_rechter_na_uitspraak
-                  parameters:
-                    al_kaart_van_de_rechter: $state.eerder_verstrekt
-                    primair_besluit_in_de_plaats: $record.primair_besluit_in_de_plaats
-            actions:
-              - output: eerder_verstrekt
-                value: $kaart_van_de_rechter_na_uitspraak
       execution:
         # Artikel 2 van de regeling kent de dag van het besluit niet; dit
         # antwoord heeft hem ook niet nodig.
@@ -177,6 +96,20 @@ articles:
           - name: bsn_aanvrager
             type: string
             description: Burgerservicenummer van de gehandicapte die de kaart aanvraagt.
+        input:
+          - name: kaarten
+            type: array
+            source:
+              projections: reductie_gehandicaptenparkeerkaart
+              where:
+                bsn_aanvrager: $bsn_aanvrager
+          - name: eerder
+            type: boolean
+            source:
+              regulation: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
+              output: eerder_verstrekt
+              parameters:
+                kaarten: $kaarten
         output:
           - name: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
             type: boolean
@@ -192,6 +125,6 @@ articles:
             value:
               operation: IF
               cases:
-                - when: $state.eerder_verstrekt
+                - when: $eerder
                   then: true
               default: null

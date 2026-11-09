@@ -23,7 +23,7 @@ Feature: A cell corrects a fact it recorded
       | bewoner    | burger_x |
       | postcode   | 1000AA   |
       | huisnummer | 12       |
-    And the cell records fact "postcode_gecorrigeerd" as "correctie" under article "2" of "test_chronicle_corrections" with:
+    And the cell records fact "postcode_gecorrigeerd" as "correctie" about "inschrijving" under article "2" of "test_chronicle_corrections" with:
       | bewoner  | burger_x |
       | postcode | 1000AB   |
     And I evaluate "postcode" of "test_reductie_adres" over the chronicle
@@ -62,7 +62,7 @@ Feature: A cell corrects a fact it recorded
       | bewoner    | burger_x |
       | postcode   | 1000AA   |
       | huisnummer | 12       |
-    And the cell records fact "postcode_gecorrigeerd" as "correctie" under article "2" of "test_chronicle_corrections" with:
+    And the cell records fact "postcode_gecorrigeerd" as "correctie" about "inschrijving" under article "2" of "test_chronicle_corrections" with:
       | bewoner  | burger_x |
       | postcode | 1000AB   |
     And the cell records fact "inschrijving_onjuist" as "onjuist" about "inschrijving" under article "3" of "test_chronicle_corrections" with:

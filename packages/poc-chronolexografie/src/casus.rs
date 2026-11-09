@@ -646,7 +646,8 @@ pub struct Beroep {
 /// The regelwerken are those the article's law reaches, and the reductions
 /// the catalogues of the cells name (`cel.yaml`, `answers`, RFC-048), with
 /// what they reach. A regelwerk reaches another when it reads from it
-/// (`source.regulation`, `source.article`, `source.decisions`), and when the
+/// (`source.regulation`, `source.article`, `source.decisions`,
+/// `source.projections`), and when the
 /// other is in the corpus to act on it: it implements one of its open terms,
 /// such as the policy that binds a term to an answer of a cell, or has a
 /// hook or a procedure that applies to what it produces (the Awb on every
@@ -951,13 +952,18 @@ fn leest<'a>(artikelen: impl Iterator<Item = &'a Article>) -> BTreeSet<String> {
     let mut uit = BTreeSet::new();
     for a in artikelen {
         // A projection reads the records under the article each step names,
-        // and calls the law each input of a step names.
-        let steps = a
+        // and its roots (`per`), and calls the law each input of a step names.
+        let projection = a
             .machine_readable
             .as_ref()
-            .and_then(|m| m.projection.as_ref())
-            .map(|p| p.steps.as_slice())
-            .unwrap_or_default();
+            .and_then(|m| m.projection.as_ref());
+        if let Some((id, _)) = projection
+            .and_then(|p| p.per.as_deref())
+            .and_then(|per| per.split_once('#'))
+        {
+            uit.insert(id.to_string());
+        }
+        let steps = projection.map(|p| p.steps.as_slice()).unwrap_or_default();
         for step in steps {
             if let Some((id, _)) = step.record.split_once('#') {
                 uit.insert(id.to_string());
@@ -969,7 +975,11 @@ fn leest<'a>(artikelen: impl Iterator<Item = &'a Article>) -> BTreeSet<String> {
             }
         }
         for source in a.get_inputs().iter().filter_map(|i| i.source.as_ref()) {
-            if let Some(id) = &source.regulation {
+            // The aggregates of another reduction (schema v0.8.15).
+            for id in [&source.regulation, &source.projections]
+                .into_iter()
+                .flatten()
+            {
                 uit.insert(id.clone());
             }
             for verwijzing in [&source.article, &source.decisions, &source.facts]

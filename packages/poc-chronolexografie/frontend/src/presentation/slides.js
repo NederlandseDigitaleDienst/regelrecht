@@ -29,7 +29,8 @@ export const CORPUS_NAMES = Object.freeze([
   'reductie_geldige_gehandicaptenparkeerkaart',
   'beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal',
   'beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal',
-  'geldige_kaart_na_besluit',
+  'reductie_gehandicaptenparkeerkaart',
+  'geldige_kaart',
   'bestreden_besluit_herroepen',
   'rechtsgevolgen_vernietigd',
   'aanvrager_heeft_geldige_gehandicaptenparkeerkaart',
@@ -61,24 +62,21 @@ answers:
   aanvrager_heeft_geldige_gehandicaptenparkeerkaart: reductie_geldige_gehandicaptenparkeerkaart
   aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt: reductie_geldige_gehandicaptenparkeerkaart`;
 
-const STAP = `# reductie_geldige_gehandicaptenparkeerkaart, artikel 1
+const STAP = `# reductie_gehandicaptenparkeerkaart, artikel 1
 projection:
-  key: bsn_aanvrager
+  per: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49#BESCHIKKING
   state:
-    - name: geldige_kaart
+    - name: verstrekt
       type: boolean
+    - name: kaart_geldig_tot
+      type: date
   steps:
     - record: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49#BESCHIKKING
-      input:
-        - name: geldige_kaart_na_besluit
-          # …
-          source:
-            regulation: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
-            output: geldige_kaart_na_besluit
-            # …
       actions:
-        - output: geldige_kaart
-          value: $geldige_kaart_na_besluit`;
+        - output: verstrekt
+          value: $record.gehandicaptenparkeerkaart_verstrekt
+        - output: kaart_geldig_tot
+          value: $record.kaart_geldig_tot`;
 
 const EFFECT = `# Algemene wet bestuursrecht, artikel 7:11
 - type: BESCHIKKING
@@ -177,11 +175,11 @@ export const slides = [
       'Dat gebeurt altijd in de cel waar die feiten staan.',
       'Hoe een cel reduceert, bepaalt de cel zelf.',
       'RegelRecht biedt één manier: een reductie als regelwerk met een benoemd antwoord.',
-      'In het fragment speelt de cel de besluiten over deze aanvrager af, op volgorde. Wat een besluit met de kaart doet, staat in het beleid van de gemeente.',
+      'In het fragment houdt de cel per besluit bij of het een kaart verstrekt en tot wanneer. Een tweede reductie leest die besluiten van de aanvrager, en het beleid van de gemeente zegt welke kaart op een dag geldig is.',
     ],
     figure: {
       code: STAP,
-      source: `${CORPUS}/cells/gemeente_wilgendaal/reductions/reductie_geldige_gehandicaptenparkeerkaart/2026-01-01.yaml`,
+      source: `${CORPUS}/cells/gemeente_wilgendaal/reductions/reductie_gehandicaptenparkeerkaart/2026-01-01.yaml`,
       label: 'Uit de reductie van de gemeente Wilgendaal, ingekort',
     },
   },

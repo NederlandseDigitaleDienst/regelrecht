@@ -1,7 +1,9 @@
 //! A suspension by the voorzieningenrechter (Awb 8:81) of one of the two
 //! business parking permits of a company, and what it does to the
-//! reductions of the municipality: the one per permit (key `kenteken`) and
-//! the one per company (key `kvk_nummer`).
+//! reductions of the municipality: the one per registration number
+//! (`kenteken`) and the one per company (`kvk_nummer`). Both read the
+//! aggregates of the municipality (schema v0.8.15): one per decision on an
+//! application, and one per copy of a ruling of the voorzieningenrechter.
 //!
 //! The company gets its permits as the game plays them (tests/spel.rs). A
 //! neighbour objects against the first. What follows is not played through
@@ -10,7 +12,8 @@
 //! receives the copy of the ruling (8:84, fourth paragraph) as
 //! `Cell::record_receipt` records the receipt of a copy: an executogram of
 //! the fact the article requires, that refers to the decision the copy
-//! concerns. The lifting (8:87) arrives the same way. That the measure
+//! concerns. The lifting (8:87) arrives the same way, and refers to the
+//! copy of the ruling it lifts, so it joins that suspension. That the measure
 //! lapsed (8:85) is not recorded: it follows from the days the records
 //! carry, such as the day of the judgment in the main case, whose copy the
 //! municipality receives as the game plays it (8:79).
@@ -270,12 +273,14 @@ fn schorsing(besluit: &str) -> Gram {
     )
 }
 
-/// The voorzieningenrechter lifts the measure on 15 December 2026 (8:87).
-fn opheffing(besluit: &str) -> Gram {
+/// The voorzieningenrechter lifts the measure of `voorziening`, the copy
+/// of its ruling, on 15 December 2026 (8:87). The copy of the lifting
+/// refers to that ruling, so it joins the aggregate of the suspension.
+fn opheffing(voorziening: &Gram) -> Gram {
     ontvangst(
         "8:87",
         "afschrift_van_de_uitspraak_tot_opheffing",
-        besluit,
+        &voorziening.id,
         "2026-12-15",
         json!({ "voorziening_opgeheven_op": "2026-12-15" }),
     )
@@ -343,8 +348,9 @@ fn twee() -> EngineValue {
 fn per_permit_the_suspended_permit_is_not_valid_while_the_suspension_holds() {
     let service = service();
     let (mut grams, eerste) = twee_vergunningen_en_een_bezwaar();
-    grams.push(schorsing(&eerste));
-    grams.push(opheffing(&eerste));
+    let voorziening = schorsing(&eerste);
+    grams.push(opheffing(&voorziening));
+    grams.insert(grams.len() - 1, voorziening);
     // Before the suspension, both are valid.
     assert!(geldig(&service, &grams, EERSTE, "2026-11-09"));
     // From its first day the first is suspended; the second is not.
@@ -370,7 +376,7 @@ fn per_permit_the_judgment_in_the_main_case_ends_the_suspension() {
     assert!(!geldig(&service, &grams, EERSTE, "2027-01-10"));
     assert!(geldig(&service, &grams, EERSTE, "2027-01-11"));
     // A lifting after the lapse does not lengthen the suspension.
-    let mut later = opheffing(&eerste);
+    let mut later = opheffing(&schorsing(&eerste));
     later.recorded_on = dag("2027-02-01");
     later
         .fields
@@ -393,40 +399,39 @@ fn per_permit_an_end_set_in_the_ruling_ends_the_suspension() {
     assert!(geldig(&service, &grams, EERSTE, "2026-12-20"));
 }
 
-/// The reduction per company has no step for the copies of 8:84 and 8:87,
-/// so it does not see the suspension at all. This test only shows that
-/// those records leave the count alone; that the count follows the
-/// suspension waits for #1919, see the ignored test below.
+/// Outside the suspension the copies of 8:84 and 8:87 leave the count
+/// alone: before the suspension begins and after it is lifted, both
+/// permits count. The test below counts on a day inside it.
 #[test]
 fn per_company_the_copies_of_rulings_leave_the_count_alone() {
     let service = service();
     let (mut grams, eerste) = twee_vergunningen_en_een_bezwaar();
-    grams.push(schorsing(&eerste));
-    grams.push(opheffing(&eerste));
+    let voorziening = schorsing(&eerste);
+    grams.push(opheffing(&voorziening));
+    grams.insert(grams.len() - 1, voorziening);
     assert_eq!(aantal(&service, &grams, "2026-11-09"), twee());
     assert_eq!(aantal(&service, &grams, "2026-12-15"), twee());
 }
 
 /// The per-company question on a day inside the suspension. One permit is
-/// valid that day, so the answer is 1. The reduction per company cannot say
-/// so with a state of single values, and answers 2. PR D (#1919), with the
-/// decision as an aggregate, settles it; see the question on a period per
-/// decision in
-/// `docs/src/content/docs/concepts/chronolexography/open-questions.md`.
+/// valid that day, so the answer is 1: each permit is an aggregate of its
+/// own, and so is the suspension, which names the permit it concerns.
 #[test]
-#[ignore = "pending: solved in PR D (#1919), the decision as aggregate (chronolexography open questions)"]
 fn per_company_one_permit_counts_while_the_other_is_suspended() {
     let service = service();
     let (mut grams, eerste) = twee_vergunningen_en_een_bezwaar();
-    grams.push(schorsing(&eerste));
-    grams.push(opheffing(&eerste));
+    let voorziening = schorsing(&eerste);
+    grams.push(opheffing(&voorziening));
+    grams.insert(grams.len() - 1, voorziening);
     assert_eq!(aantal(&service, &grams, "2026-11-20"), EngineValue::Int(1));
 }
 
 #[test]
 fn the_reduction_tab_shows_the_copies_the_permit_reduction_reads() {
     // A step on an executogram reads the facts its article requires; the
-    // tab Reductie lists them beside the decisions.
+    // tab Reductie lists them beside the decisions, also those of the
+    // aggregates the reduction reads (source.projections): the permit's,
+    // with the judgment in the main case, then the suspension's.
     let mut spel = spel();
     let stand = spel.reducties(dag("2026-12-01")).unwrap();
     let reductie = stand["reducties"]
@@ -444,9 +449,9 @@ fn the_reduction_tab_shows_the_copies_the_permit_reduction_reads() {
     assert_eq!(
         feiten,
         [
+            "algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak",
             "algemene_wet_bestuursrecht#8:84#afschrift_van_de_uitspraak_van_de_voorzieningenrechter",
             "algemene_wet_bestuursrecht#8:87#afschrift_van_de_uitspraak_tot_opheffing",
-            "algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak",
         ]
     );
 }
@@ -544,7 +549,7 @@ fn per_permit_a_later_suspension_leaves_the_day_of_the_first() {
         grams,
         [
             schorsing(&eerste),
-            opheffing(&eerste),
+            opheffing(&schorsing(&eerste)),
             tweede_schorsing(&eerste),
         ],
     );
@@ -555,14 +560,9 @@ fn per_permit_a_later_suspension_leaves_the_day_of_the_first() {
 
 /// The copy of a ruling on the first decision for a number, received after
 /// a new permit for that number. The ruling concerns the first decision, so
-/// the new permit stays valid. The state per number cannot tell: a step
-/// sees the state of the number, not which decision it stands for, so the
-/// copy suspends the new permit. PR D (#1919), with the decision as an
-/// aggregate, settles it as it does the count per company; see the question
-/// on a period per decision in
-/// `docs/src/content/docs/concepts/chronolexography/open-questions.md`.
+/// the new permit stays valid: the suspension names the first decision,
+/// and the new permit is an aggregate of its own.
 #[test]
-#[ignore = "pending: solved in PR D (#1919), the decision as aggregate (chronolexography open questions)"]
 fn per_permit_a_copy_about_the_earlier_decision_leaves_the_new_permit() {
     let service = service();
     let (grams, eerste) = chronicle(&Verder {
@@ -665,17 +665,14 @@ fn per_permit_a_permit_granted_on_objection_can_be_suspended() {
 /// 1 March 2027, lifted on 1 April 2027. On 10 January 2027 the permit is
 /// valid: the first suspension has ended and the second has not begun. The
 /// step for the second copy skips it, because it begins after the day
-/// asked about, but the step for its lifting does not, and overwrites the
-/// end of the first. PR D (#1919), where each suspension is an aggregate
-/// and a lifting refers to the suspension it ends, settles it; see the
-/// question on a period per decision in
-/// `docs/src/content/docs/concepts/chronolexography/open-questions.md`.
+/// asked about. Each suspension is an aggregate of its own, and a lifting
+/// refers to the suspension it ends, so lifting the second leaves the end
+/// of the first as it was.
 #[test]
-#[ignore = "pending: solved in PR D (#1919), the decision as aggregate (chronolexography open questions)"]
 fn per_permit_lifting_a_later_suspension_leaves_the_end_of_the_first() {
     let service = service();
     let (grams, eerste) = twee_vergunningen_en_een_bezwaar();
-    let mut tweede_opheffing = opheffing(&eerste);
+    let mut tweede_opheffing = opheffing(&tweede_schorsing(&eerste));
     tweede_opheffing.id = "tweede-opheffing".to_string();
     tweede_opheffing.recorded_on = dag("2027-04-01");
     tweede_opheffing
@@ -685,10 +682,12 @@ fn per_permit_lifting_a_later_suspension_leaves_the_end_of_the_first() {
         grams,
         [
             schorsing(&eerste),
-            opheffing(&eerste),
+            opheffing(&schorsing(&eerste)),
             tweede_schorsing(&eerste),
             tweede_opheffing,
         ],
     );
     assert!(geldig(&service, &grams, EERSTE, "2027-01-10"));
+    assert!(!geldig(&service, &grams, EERSTE, "2027-03-10"));
+    assert!(geldig(&service, &grams, EERSTE, "2027-04-01"));
 }

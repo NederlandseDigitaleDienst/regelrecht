@@ -1,0 +1,25 @@
+---
+# Since schema v0.8.15 a projection has no key: it plays one aggregate per
+# record (per). Under v0.8.14 it played the records of one key.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_conformance_projection_key
+regulatory_layer: REDUCTIE
+publication_date: '2026-11-08'
+valid_from: '2026-11-08'
+url: https://example.invalid/per-record
+name: Testreductie per verlening
+articles:
+  - number: '1'
+    url: https://example.invalid/per-record/1
+    text: Per verlening of de kaart er nog is.
+    machine_readable:
+      projection:
+        key: aanvrager
+        state:
+          - name: in_bezit
+            type: boolean
+        steps:
+          - record: test_conformance_decision_effects#2#BESCHIKKING
+            actions:
+              - output: in_bezit
+                value: $record.verleend

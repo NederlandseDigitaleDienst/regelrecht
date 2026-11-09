@@ -1,0 +1,66 @@
+---
+# FICTIEF. A reduction of the cell's BDD suite: one aggregate per permit
+# under article 1 of test_parkeervergunning (schema v0.8.15), with the
+# decisions about it: a move to another plate (article 2) and a revocation
+# (article 3).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_reductie_parkeervergunning
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_reductie_parkeervergunning
+name: Parkeervergunning per besluit (testreductie)
+
+articles:
+  - number: '1'
+    url: https://example.com/test_reductie_parkeervergunning/1
+    text: >-
+      FICTIEF. Per vergunning het kenteken waarvoor zij geldt, en of zij
+      geldt.
+    machine_readable:
+      projection:
+        per: test_parkeervergunning#1
+        state:
+          - name: vergunning
+            type: boolean
+          - name: kenteken
+            type: string
+        steps:
+          - record: test_parkeervergunning#1
+            input: &van_de_vergunning
+              - name: vergunning
+                type: boolean
+                source:
+                  regulation: test_parkeervergunning
+                  output: vergunning
+                  parameters: &verleend
+                    verleend: $record.vergunning_verleend
+                    kenteken: $record.kenteken
+              - name: kenteken_van_vergunning
+                type: string
+                source:
+                  regulation: test_parkeervergunning
+                  output: kenteken_van_vergunning
+                  parameters: *verleend
+            actions: &op_de_staat
+              - output: vergunning
+                value: $vergunning
+              - output: kenteken
+                value: $kenteken_van_vergunning
+          - record: test_parkeervergunning#2
+            input:
+              - name: vergunning
+                type: boolean
+                source:
+                  regulation: test_parkeervergunning
+                  output: vergunning
+                  parameters: &omgezet
+                    verleend: $record.vergunning_omgezet
+                    kenteken: $record.kenteken
+              - name: kenteken_van_vergunning
+                type: string
+                source:
+                  regulation: test_parkeervergunning
+                  output: kenteken_van_vergunning
+                  parameters: *omgezet
+            actions: *op_de_staat

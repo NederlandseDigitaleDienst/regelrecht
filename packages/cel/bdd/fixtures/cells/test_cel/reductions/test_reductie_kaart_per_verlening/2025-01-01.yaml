@@ -1,0 +1,39 @@
+---
+# FICTIEF. A reduction of the cell's BDD suite (schema v0.8.15): one
+# aggregate per decision on an application under article 1 of
+# test_chronicle_effects, with the records that refer to it. The decision
+# sets whether it grants a card; a decision on an objection against it
+# (article 2) writes which decision it contests, so a record of another
+# kind writes the same aggregate. test_reductie_kaarten_van_aanvrager reads
+# the aggregates.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_reductie_kaart_per_verlening
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_reductie_kaart_per_verlening
+name: Kaart per verlening (testreductie)
+
+articles:
+  - number: '1'
+    url: https://example.com/test_reductie_kaart_per_verlening/1
+    text: >-
+      FICTIEF. Per besluit op een aanvraag: of het een kaart verstrekt, en
+      tegen welk besluit een beslissing op bezwaar is genomen.
+    machine_readable:
+      projection:
+        per: test_chronicle_effects#1#BESCHIKKING
+        state:
+          - name: kaart
+            type: boolean
+          - name: bezwaar_tegen
+            type: string
+        steps:
+          - record: test_chronicle_effects#1#BESCHIKKING
+            actions:
+              - output: kaart
+                value: $record.kaart_verleend
+          - record: test_chronicle_effects#2#BESCHIKKING
+            actions:
+              - output: bezwaar_tegen
+                value: $record.bestreden_besluit

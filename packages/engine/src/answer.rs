@@ -190,6 +190,14 @@ pub trait Chronicle {
         read: ChronicleRead<'_>,
         calculation_date: &str,
     ) -> Result<Option<Value>>;
+
+    /// The records of the chronicle, in order, for a reduction that reads
+    /// the aggregates of another (`source.projections`, schema v0.8.15).
+    /// `None` when this chronicle gives no records; the input is then an
+    /// error.
+    fn records(&self) -> Result<Option<Vec<crate::projection::ChronicleRecord>>> {
+        Ok(None)
+    }
 }
 
 /// What a caller gives an execution apart from its parameters: the

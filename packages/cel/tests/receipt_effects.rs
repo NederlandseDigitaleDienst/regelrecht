@@ -35,6 +35,7 @@ fn service() -> LawExecutionService {
     service_of(&[
         &read("regulation/test_chronicle_effects/2025-01-01.yaml"),
         &read("cells/test_cel/reductions/test_reductie_geldige_kaart/2025-01-01.yaml"),
+        &read("cells/test_cel/reductions/test_reductie_kaart_per_besluit/2025-01-01.yaml"),
     ])
 }
 
@@ -147,24 +148,38 @@ fn received(grams: Vec<Gram>, copy: &Afschrift, about: &str) -> (Cell, Gram) {
     (cell, receipt)
 }
 
-/// Whether `burger_<x>` holds a valid card on 2025-10-01, and the events.
+/// Whether `burger_<x>` holds a valid card on 2025-10-01, and the events
+/// of the aggregates the read model read.
 fn holds_card(cell: &Cell, x: &str) -> Result<(bool, Vec<ProjectionEvent>), String> {
     let records = chronicle_records(cell.grams()).unwrap();
-    let outcome = service()
+    let service = service();
+    let aanvrager = BTreeMap::from([(
+        "aanvrager".to_string(),
+        EngineValue::String(format!("burger_{x}")),
+    )]);
+    let outcome = service
         .evaluate_projection(
             "test_reductie_geldige_kaart",
             &["heeft_geldige_kaart"],
             &records,
-            BTreeMap::from([(
-                "aanvrager".to_string(),
-                EngineValue::String(format!("burger_{x}")),
-            )]),
+            aanvrager.clone(),
             "2025-10-01",
             false,
         )
         .map_err(|e| e.to_string())?;
     let holds = outcome.result.outputs["heeft_geldige_kaart"] == EngineValue::Bool(true);
-    Ok((holds, outcome.events))
+    let events = service
+        .aggregates(
+            "test_reductie_kaart_per_besluit",
+            &records,
+            &aanvrager,
+            "2025-10-01",
+        )
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .flat_map(|a| a.events)
+        .collect();
+    Ok((holds, events))
 }
 
 fn skipped(events: &[ProjectionEvent]) -> Vec<&str> {
@@ -242,11 +257,87 @@ fn a_fact_with_effects_may_refer_to_an_earlier_record() {
     restored(cell.grams().to_vec());
 }
 
+/// A withdrawal ex officio (fictional article 4) is taken on no
+/// submission and refers to the grant it withdraws, which it revokes. The
+/// cell refuses one about a record it does not hold, and one whose effect
+/// names a grant it is not about.
 #[test]
-fn only_a_fact_with_effects_refers_and_only_to_a_record_of_the_chronicle() {
-    let mut cell = restored(grants(&["x"]));
-    // Article 5 requires the fact of handing a card in, without effects.
+fn a_decision_ex_officio_refers_to_the_record_it_is_about() {
+    let mut cell = restored(grants(&["x", "y"]));
+    // The Awb gives a decision its stages (procedure).
+    let mut service = service();
+    common::load(
+        &mut service,
+        ["regulation/nl/wet/algemene_wet_bestuursrecht"],
+    );
+    let mut withdraw = |cell: &mut Cell, about: &str, withdrawn: &str| {
+        cell.decide_ex_officio(
+            &mut service,
+            &[],
+            "test_chronicle_effects",
+            "4",
+            Some(about),
+            &object_map(json!({"ingetrokken_besluit": withdrawn})),
+            &object_map(json!({})),
+            day("2025-04-01"),
+        )
+    };
+    let err = withdraw(&mut cell, "elders", "elders").expect_err("no such record");
+    assert!(
+        err.to_string()
+            .contains("refers to 'elders', which is no chronolexogram in the chronicle"),
+        "{err}"
+    );
+    let err = withdraw(&mut cell, "verlening_x", "verlening_y").expect_err("not about y's grant");
+    assert!(
+        err.to_string().contains(
+            "revokes 'verlening_y' (ingetrokken_besluit), which its refers_to does not reach"
+        ),
+        "{err}"
+    );
+    let taken = withdraw(&mut cell, "verlening_x", "verlening_x").unwrap();
+    let [intrekking] = &taken[..] else {
+        panic!("one decision: {taken:?}");
+    };
+    assert_eq!(intrekking.kind, "BESCHIKKING");
+    assert_eq!(intrekking.basis, "test_chronicle_effects#4");
+    assert_eq!(intrekking.refers_to.as_deref(), Some("verlening_x"));
+    assert_eq!(intrekking.after, None);
+    assert_eq!(intrekking.outputs["ingetrokken"], json!(true));
+    assert!(!holds_card(&cell, "x").unwrap().0);
+    assert!(holds_card(&cell, "y").unwrap().0);
+    // The chronicle opens again with it.
+    restored(cell.grams().to_vec());
+    // A decision is taken on an application: a grant under the same
+    // article is not one.
     let err = cell
+        .decide(
+            &mut service,
+            &[],
+            "test_chronicle_effects",
+            "1",
+            "verlening_y",
+            &object_map(json!({})),
+            &object_map(json!({})),
+            day("2025-04-02"),
+        )
+        .expect_err("no application");
+    assert!(
+        err.to_string().contains(
+            "chronolexogram 'verlening_y' is a BESCHIKKING under test_chronicle_effects#1, not an \
+             AANVRAAG under test_chronicle_effects#1"
+        ),
+        "{err}"
+    );
+}
+
+#[test]
+fn a_fact_refers_only_to_a_record_of_the_chronicle() {
+    let mut cell = restored(grants(&["x"]));
+    // Article 5 requires the fact of handing a card in, without effects. It
+    // may still be about the grant: refers_to names the record a record is
+    // about (schema v0.8.15), whether or not the law gives it an effect.
+    let fact = cell
         .record_executogram_referring(
             &service(),
             "test_chronicle_effects#5#kaart_ingeleverd",
@@ -254,14 +345,8 @@ fn only_a_fact_with_effects_refers_and_only_to_a_record_of_the_chronicle() {
             Some("verlening_x"),
             day("2025-04-01"),
         )
-        .expect_err("a fact without effects refers to nothing");
-    assert!(
-        err.to_string().contains(
-            "the fact test_chronicle_effects#5#kaart_ingeleverd refers to 'verlening_x', but \
-             declares no effects"
-        ),
-        "{err}"
-    );
+        .unwrap();
+    assert_eq!(fact.refers_to.as_deref(), Some("verlening_x"));
     let err = cell
         .record_executogram_referring(
             &service(),
@@ -305,13 +390,14 @@ fn only_a_fact_with_effects_refers_and_only_to_a_record_of_the_chronicle() {
 fn the_trace_of_a_decision_holds_the_projection_under_the_answer() {
     // The policy binds the term of article 9 to the cell's answer. Traced,
     // the engine nests how the cell came to it under the node of the
-    // answer: the run of the reduction, with the projection it played and
+    // answer: the run of the read model, with the aggregate it read and
     // the law the step called under the record that counted.
     let read = |path: &str| std::fs::read_to_string(fixtures().join(path)).unwrap();
     let service = service_of(&[
         &read("regulation/test_chronicle_effects/2025-01-01.yaml"),
         &read("regulation/test_beleid_geldige_kaart/2025-01-01.yaml"),
         &read("cells/test_cel/reductions/test_reductie_geldige_kaart/2025-01-01.yaml"),
+        &read("cells/test_cel/reductions/test_reductie_kaart_per_besluit/2025-01-01.yaml"),
     ]);
     let authority = Authority {
         name: "het college van de testcel".to_string(),
@@ -354,12 +440,17 @@ fn the_trace_of_a_decision_holds_the_projection_under_the_answer() {
         panic!("one answer: {}", root.render_box_drawing());
     };
     assert_eq!(answer.name, "heeft_geldige_kaart");
-    // Under the answer: the reduction's own run, and the projection first.
+    // Under the answer: the read model's own run, and in it, where it
+    // reads the aggregates, the one aggregate of the applicant's grant.
     let [run] = &answer.children[..] else {
         panic!("the reduction's run: {}", root.render_box_drawing());
     };
-    let projection = &run.children[0];
-    assert_eq!(projection.name, "PROJECTION");
+    let projection = find(run, "PROJECTION")
+        .unwrap_or_else(|| panic!("a PROJECTION node: {}", run.render_box_drawing()));
+    assert_eq!(
+        projection.message.as_deref(),
+        Some("the aggregate of verlening_x")
+    );
     let names = |n: &PathNode| {
         n.children
             .iter()
@@ -367,10 +458,10 @@ fn the_trace_of_a_decision_holds_the_projection_under_the_answer() {
             .collect::<Vec<_>>()
     };
     assert_eq!(names(projection), ["COUNTS", "FOLD"]);
-    assert_eq!(names(&projection.children[0]), ["COUNT", "COUNT"]);
+    assert_eq!(names(&projection.children[0]), ["COUNT"]);
     let fold = &projection.children[1];
-    assert_eq!(names(fold), ["APPLY", "APPLY"]);
-    let grant = &fold.children[1];
+    assert_eq!(names(fold), ["APPLY"]);
+    let grant = &fold.children[0];
     assert!(
         grant
             .message
@@ -383,18 +474,25 @@ fn the_trace_of_a_decision_holds_the_projection_under_the_answer() {
         !grant.children.is_empty(),
         "the law the step called: {grant:?}"
     );
-    // Every node keeps an id of its own in the one tree.
+    // Every node keeps an id of its own in the one tree, and the aggregate
+    // sits under the answer.
     let mut ids = Vec::new();
     collect_ids(root, &mut ids);
     let unique: BTreeSet<&String> = ids.iter().collect();
     assert_eq!(unique.len(), ids.len(), "{ids:?}");
-    // Under the answer, the run is its first child and the projection the
-    // first child of the run.
     let answer_id = answer.node_id.as_deref().unwrap();
-    assert_eq!(
-        projection.node_id.as_deref(),
-        Some(format!("{answer_id}.0.0").as_str())
-    );
+    assert!(projection
+        .node_id
+        .as_deref()
+        .unwrap()
+        .starts_with(&format!("{answer_id}.")));
+}
+
+/// The first node named `name` under `node`, depth first.
+fn find<'n>(node: &'n PathNode, name: &str) -> Option<&'n PathNode> {
+    node.children
+        .iter()
+        .find_map(|c| (c.name == name).then_some(c).or_else(|| find(c, name)))
 }
 
 /// The `node_id` of `node` and of every node under it.

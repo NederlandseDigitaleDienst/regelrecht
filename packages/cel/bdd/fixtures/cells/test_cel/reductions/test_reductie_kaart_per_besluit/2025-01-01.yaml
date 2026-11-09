@@ -1,0 +1,93 @@
+---
+# FICTIEF. A reduction of the cell's BDD suite: one aggregate per decision
+# on an application under article 1 of test_chronicle_effects (schema
+# v0.8.15), with the records about it: a decision in its place (article 3),
+# the card handed in (article 5), a suspension (article 13) and its lifting
+# (article 14). Which records count follows from the effects of the law; the
+# steps say what a record that counts does with the state.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_reductie_kaart_per_besluit
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_reductie_kaart_per_besluit
+name: Kaart per besluit (testreductie)
+
+articles:
+  - number: '1'
+    url: https://example.com/test_reductie_kaart_per_besluit/1
+    text: >-
+      FICTIEF. Per besluit op een aanvraag: of de aanvrager de kaart heeft,
+      hoeveel verleningen meetelden, en van welke dag tot welke dag de kaart
+      is geschorst.
+    machine_readable:
+      projection:
+        per: test_chronicle_effects#1#BESCHIKKING
+        state:
+          - name: in_bezit
+            type: boolean
+          - name: aantal_verleend
+            type: number
+          - name: geschorst_vanaf
+            type: date
+          - name: geschorst_tot
+            type: date
+        steps:
+          - record: test_chronicle_effects#1#BESCHIKKING
+            input: &na_besluit
+              - name: in_bezit_na_besluit
+                type: boolean
+                source:
+                  regulation: test_chronicle_effects
+                  output: in_bezit_na_besluit
+                  parameters: &op_de_kaart
+                    in_bezit: $state.in_bezit
+                    aantal_verleend: $state.aantal_verleend
+                    kaart_verleend: $record.kaart_verleend
+              - name: aantal_verleend_na_besluit
+                type: number
+                source:
+                  regulation: test_chronicle_effects
+                  output: aantal_verleend_na_besluit
+                  parameters: *op_de_kaart
+            actions: &op_de_staat
+              - output: in_bezit
+                value: $in_bezit_na_besluit
+              - output: aantal_verleend
+                value: $aantal_verleend_na_besluit
+          - record: test_chronicle_effects#3
+            input: *na_besluit
+            actions: *op_de_staat
+          - record: test_chronicle_effects#5
+            input:
+              - name: in_bezit_na_inlevering
+                type: boolean
+                source:
+                  regulation: test_chronicle_effects
+                  output: in_bezit_na_inlevering
+            actions:
+              - output: in_bezit
+                value: $in_bezit_na_inlevering
+          # A suspension (article 13): the period goes into the state. A
+          # later suspension sets it again.
+          - record: test_chronicle_effects#13
+            actions:
+              - output: geschorst_vanaf
+                value: $record.schorsing_vanaf
+              - output: geschorst_tot
+                value: $record.schorsing_tot
+          # The lifting of a suspension: article 14 says when the period
+          # ends after it.
+          - record: test_chronicle_effects#14
+            input:
+              - name: geschorst_tot_na_opheffing
+                type: date
+                source:
+                  regulation: test_chronicle_effects
+                  output: geschorst_tot_na_opheffing
+                  parameters:
+                    geschorst_tot: $state.geschorst_tot
+                    opgeheven_op: $record.opgeheven_op
+            actions:
+              - output: geschorst_tot
+                value: $geschorst_tot_na_opheffing

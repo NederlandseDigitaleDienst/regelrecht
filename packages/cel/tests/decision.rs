@@ -420,7 +420,7 @@ articles:
 fn a_decision_is_taken_on_the_application_that_requests_it_from_another_article() {
     let mut service = service_of(&[GENERAL_LAW, SPLIT_LAW]);
     let shape = decision::derive(&service, LAW, "1", day()).unwrap();
-    assert_eq!(shape.application, "wet_verlof_fictief#2");
+    assert_eq!(shape.application.as_deref(), Some("wet_verlof_fictief#2"));
     let mut cell = bare_cell("fictieve_school");
     let app = cell
         .record_submission(
