@@ -69,7 +69,7 @@ The parameter a decision's effect revokes must be a string or a decision, which 
 
 <FixtureExcerpt fixture="valid/v0_8_15_record_effects.yaml" region="revokes-by-id" />
 
-Not additive, although the schema of v0.8.15 accepts every document that v0.8.14 accepts. The version history counts the version as additive for that reason, but the loader is stricter, as it is for v0.8.16. A version on v0.8.14 still loads. Fix a v0.8.14 version before it declares v0.8.15 if a decision effect names a parameter that is not a string or a decision. The same holds if that parameter may be null.
+Not additive. The schema of v0.8.15 accepts every document that v0.8.14 accepts, but the loader is stricter, as it is for v0.8.16. A version on v0.8.14 still loads. Fix a v0.8.14 version before it declares v0.8.15 if a decision effect names a parameter that is not a string or a decision. The same holds if that parameter may be null.
 
 ## v0.8.14
 
