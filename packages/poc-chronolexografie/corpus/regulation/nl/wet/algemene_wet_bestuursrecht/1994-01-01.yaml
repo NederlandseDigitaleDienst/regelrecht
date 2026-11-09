@@ -1249,6 +1249,7 @@ articles:
             - geschonden_geoordeelde_rechtsregel
             - uitspraak_in_de_plaats
             - primair_besluit_in_de_plaats
+            - uitspraak_datum
           # Artikel 8:72, eerste en tweede lid: de vernietiging van een
           # besluit brengt die van zijn rechtsgevolgen mee, tenzij de
           # bestuursrechter ze in stand laat (derde lid, onder a). Dan telt
@@ -1311,6 +1312,185 @@ articles:
               Het besluit op de aanvraag dat de uitspraak in de plaats stelt
               (artikel 8:72, derde lid, onder b, met artikel 7:11, tweede
               lid), zoals het afschrift het vermeldt.
+          # Artikel 8:77, eerste lid, onder e: de uitspraak vermeldt de dag
+          # waarop zij is uitgesproken. De fase UITSPRAAK van de procedure
+          # beroep legt die dag vast; het afschrift neemt haar over. Een
+          # voorlopige voorziening vervalt op die dag (artikel 8:85, tweede
+          # lid, onder c).
+          - name: uitspraak_datum
+            type: date
+            description: De dag waarop de bestuursrechter uitspraak deed (artikel 8:77, eerste lid, onder e).
+
+  - number: 8:81
+    text: |-
+      1. Indien tegen een besluit bij de bestuursrechter beroep is ingesteld
+      dan wel, voorafgaand aan een mogelijk beroep bij de bestuursrechter,
+      bezwaar is gemaakt of administratief beroep is ingesteld, kan de
+      voorzieningenrechter van de bestuursrechter die bevoegd is of kan worden
+      in de hoofdzaak, op verzoek een voorlopige voorziening treffen indien
+      onverwijlde spoed, gelet op de betrokken belangen, dat vereist.
+      2. Indien bij de bestuursrechter beroep is ingesteld, kan een verzoek om
+      voorlopige voorziening worden gedaan door een partij in de hoofdzaak.
+      3. Indien voorafgaand aan een mogelijk beroep bij de bestuursrechter
+      bezwaar is gemaakt of administratief beroep is ingesteld, kan een
+      verzoek om voorlopige voorziening worden gedaan door de indiener van het
+      bezwaarschrift, onderscheidenlijk door de indiener van het beroepschrift
+      of door de belanghebbende die geen recht heeft tot het instellen van
+      administratief beroep.
+      4. De artikelen 6:4, derde lid, 6:5, 6:6, 6:14, 6:15, 6:17, 6:19 en 6:21
+      zijn van overeenkomstige toepassing. De indiener van het verzoekschrift
+      die bezwaar heeft gemaakt dan wel beroep heeft ingesteld, legt daarbij
+      een afschrift van het bezwaar- of beroepschrift over.
+      5. Indien een verzoek om voorlopige voorziening is gedaan nadat bezwaar
+      is gemaakt of administratief beroep is ingesteld en op dit bezwaar of
+      beroep wordt beslist voordat de zitting heeft plaatsgevonden, wordt de
+      verzoeker in de gelegenheid gesteld beroep bij de bestuursrechter in te
+      stellen. Het verzoek om voorlopige voorziening wordt gelijkgesteld met
+      een verzoek dat wordt gedaan hangende het beroep bij de bestuursrechter.
+    url: https://wetten.overheid.nl/BWBR0005537/2026-08-15#Artikel8:81
+    # Niet apart uitvoerbaar. Het verzoek en de uitspraak van de
+    # voorzieningenrechter erop spelen niet in de cel van de rechtbank: het
+    # schema kent als soort indiening alleen AANVRAAG, BEZWAAR en BEROEP, geen
+    # verzoek om voorlopige voorziening. Wat de voorziening voor het
+    # bestuursorgaan betekent, komt bij het bestuursorgaan binnen met het
+    # afschrift van de uitspraak (artikel 8:84, vierde lid). Wat een
+    # voorlopige voorziening inhoudt, zegt dit artikel niet; in deze poc is
+    # het de schorsing van het besluit (eigen keuze).
+
+  - number: 8:84
+    text: |-
+      1. De voorzieningenrechter doet zo spoedig mogelijk schriftelijk of
+      mondeling uitspraak.
+      2. De uitspraak strekt tot:
+      a. onbevoegdverklaring van de voorzieningenrechter,
+      b. niet-ontvankelijkverklaring van het verzoek,
+      c. afwijzing van het verzoek, of
+      d. gehele of gedeeltelijke toewijzing van het verzoek.
+      3. De voorzieningenrechter kan aan de gehele of gedeeltelijke toewijzing
+      van het verzoek de voorwaarde verbinden dat de indiener van het
+      verzoekschrift financiële zekerheid stelt ten behoeve van de
+      rechtspersoon waartoe het bestuursorgaan behoort.
+      4. De griffier zendt onverwijld een afschrift van de uitspraak of van
+      het proces-verbaal van de mondelinge uitspraak kosteloos aan partijen.
+      5. De artikelen 8:67, tweede tot en met vijfde lid, 8:68, 8:69, 8:72,
+      vierde lid, tweede volzin, aanhef en onder b, en zesde lid, 8:75,
+      8:75a , 8:76, 8:77, eerste en derde lid, 8:78, artikel 8:79, tweede en
+      derde lid, en 8:80 zijn van overeenkomstige toepassing.
+    url: https://wetten.overheid.nl/BWBR0005537/2026-08-15#Artikel8:84
+    # De spatie in "8:75a ," in lid 5 staat zo in de geldende tekst op
+    # wetten.overheid.nl (toestand 2026-08-15) en is overgenomen.
+    machine_readable:
+      # Lid 4: de griffier zendt het afschrift aan partijen, ook aan het
+      # bestuursorgaan dat het besluit nam. Dat is de grondslag waarop de
+      # uitspraak van de voorzieningenrechter het bestuursorgaan bereikt.
+      # Artikel 8:79, eerste lid, geldt hier niet: lid 5 verklaart alleen het
+      # tweede en derde lid van dat artikel van overeenkomstige toepassing.
+      # Dat het bestuursorgaan het afschrift heeft, is een feit dat dit
+      # artikel omschrijft, zoals bij artikel 8:79. Wie het vastlegt, zegt de
+      # wet niet; de partij die het ontvangt, legt het vast (eigen keuze).
+      # Welk besluit het betreft, zegt de ontvangst zelf: zij verwijst naar
+      # het besluit waarop de voorziening ziet (refers_to, RFC-053), zoals bij
+      # artikel 8:79. Wat het afschrift bevat: de voorziening. Eigen keuze:
+      # een voorziening is hier de schorsing van dat besluit, vanaf een dag,
+      # tot de dag waarop zij vervalt als de voorzieningenrechter die bepaalt
+      # (artikel 8:85, eerste lid). Een uitspraak die niet tot toewijzing
+      # strekt (lid 2, onder a tot en met c), schorst niets. De schorsing
+      # trekt het besluit niet in: zij geldt van een dag af en eindigt, dus
+      # het afschrift heeft geen effect op het besluit (`effects`). Wat zij
+      # betekent, zegt de regeling die het besluit leest. Lid 1, 3 en 5 zijn
+      # niet gemodelleerd.
+      requires:
+        - fact: afschrift_van_de_uitspraak_van_de_voorzieningenrechter
+          description: >-
+            Het afschrift van de uitspraak van de voorzieningenrechter dat de
+            griffier aan partijen zendt.
+          parameters:
+            - uitspraak_strekt_tot
+            - besluit_geschorst_vanaf
+            - voorziening_vervalt_op
+      execution:
+        parameters:
+          - name: uitspraak_strekt_tot
+            type: string
+            description: Waartoe de uitspraak strekt (lid 2).
+          - name: besluit_geschorst_vanaf
+            type: date
+            nullable: true
+            description: >-
+              De dag vanaf welke de voorziening het besluit schorst; leeg als
+              de uitspraak niet tot toewijzing strekt.
+          - name: voorziening_vervalt_op
+            type: date
+            nullable: true
+            required: false
+            description: >-
+              De dag waarop de voorziening vervalt, als de
+              voorzieningenrechter die in zijn uitspraak bepaalt (artikel
+              8:85, eerste lid).
+
+  - number: 8:85
+    text: |-
+      1. De voorzieningenrechter kan in zijn uitspraak bepalen wanneer de
+      voorlopige voorziening vervalt.
+      2. De voorlopige voorziening vervalt in ieder geval zodra:
+      a. de termijn voor het instellen van beroep bij de bestuursrechter tegen
+      het besluit dat op bezwaar of in administratief beroep is genomen,
+      ongebruikt is verstreken,
+      b. het bezwaar of het beroep is ingetrokken, of
+      c. de bestuursrechter uitspraak heeft gedaan.
+    url: https://wetten.overheid.nl/BWBR0005537/2026-08-15#Artikel8:85
+    # Niet apart uitvoerbaar, en geen feit: dat de voorziening vervallen is,
+    # volgt uit records die al in de kroniek staan, en wordt niet nog eens
+    # vastgelegd. Lid 1: de dag staat in het afschrift van de uitspraak
+    # (artikel 8:84). Lid 2, onder c: de dag van de uitspraak in de
+    # hoofdzaak staat in het afschrift daarvan (artikel 8:79). De regeling
+    # die het besluit leest, vergelijkt die dagen met de dag waarover de
+    # vraag gaat. Lid 2, onder a en b, zijn in deze poc niet gemodelleerd.
+    # Onder a zou volgen uit de beslissing op bezwaar in de kroniek, de
+    # beroepstermijn (artikel 6:7) en het uitblijven van de gronden van een
+    # beroepschrift die het bestuursorgaan krijgt toegezonden (artikel 8:42,
+    # eerste lid); onder b uit het intrekken van het bezwaar of beroep
+    # (artikel 6:21), dat de poc niet vastlegt.
+
+  - number: 8:87
+    text: |-
+      1. De voorzieningenrechter kan, ook ambtshalve, een voorlopige
+      voorziening opheffen of wijzigen, ook als zij is getroffen met
+      toepassing van artikel 8:72, vijfde lid.
+      2. De artikelen 8:81, tweede, derde en vierde lid, en 8:82 tot en met
+      8:86 zijn van overeenkomstige toepassing. Indien voorafgaand aan een
+      mogelijk beroep bij de bestuursrechter bezwaar is gemaakt of
+      administratief beroep is ingesteld, kan een verzoek om opheffing of
+      wijziging eveneens worden gedaan door een belanghebbende die door de
+      voorlopige voorziening rechtstreeks in zijn belang wordt getroffen, door
+      het bestuursorgaan of door het beroepsorgaan.
+      3. Indien een verzoek om opheffing of wijziging is gedaan door het
+      bestuursorgaan of het beroepsorgaan en het verzoek geheel of
+      gedeeltelijk wordt toegewezen, kan de uitspraak inhouden dat het
+      betaalde griffierecht door de griffier aan het bestuursorgaan wordt
+      terugbetaald.
+    url: https://wetten.overheid.nl/BWBR0005537/2026-08-15#Artikel8:87
+    machine_readable:
+      # Lid 1, opheffen. Lid 2 verklaart artikel 8:84 van overeenkomstige
+      # toepassing, dus ook het vierde lid daarvan: de griffier zendt het
+      # afschrift van de uitspraak aan partijen. Dat het bestuursorgaan het
+      # heeft, is een feit dat dit artikel omschrijft, zoals bij artikel
+      # 8:84; de ontvangst verwijst naar het besluit waarop de voorziening
+      # zag. De opheffing werkt van de dag af die het afschrift noemt, niet
+      # terug: het feit trekt niets in. Wijzigen is niet gemodelleerd, en lid
+      # 3 (het griffierecht) ook niet.
+      requires:
+        - fact: afschrift_van_de_uitspraak_tot_opheffing
+          description: >-
+            Het afschrift van de uitspraak waarin de voorzieningenrechter de
+            voorlopige voorziening opheft.
+          parameters:
+            - voorziening_opgeheven_op
+      execution:
+        parameters:
+          - name: voorziening_opgeheven_op
+            type: date
+            description: De dag vanaf welke de voorziening is opgeheven.
 
   - number: 8:104
     text: |-

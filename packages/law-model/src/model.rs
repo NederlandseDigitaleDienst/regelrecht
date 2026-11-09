@@ -1902,8 +1902,10 @@ pub struct ProjectionStep {
     pub record: String,
     /// The outputs of a law the step takes, each as an article input with
     /// `source: {regulation, output, parameters}`. A parameter is
-    /// `$record.<field>` or `$state.<property>`.
-    #[serde(default)]
+    /// `$record.<field>` or `$state.<property>`. A step without inputs, whose
+    /// actions read only the record and the state, omits the key; skipping
+    /// the empty list keeps a round trip equal to the source.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub input: Vec<Input>,
     /// What the step gives each property of the state, as the actions of
     /// an article: `output` names the property, `value` is an input of the

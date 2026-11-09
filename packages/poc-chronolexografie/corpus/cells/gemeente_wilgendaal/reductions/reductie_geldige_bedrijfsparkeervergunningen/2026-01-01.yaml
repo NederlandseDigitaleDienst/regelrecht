@@ -22,6 +22,12 @@ valid_from: '2026-01-01'
 # vergunning blijft geldig tot zij afloopt of wordt ingetrokken (artikel 5 van
 # de verordening), ook na een verhuizing. Er is geen bekendmaking; de url
 # wijst naar het model van de verordening.
+# Een schorsing door de voorzieningenrechter (Awb 8:81) telt deze reductie
+# niet mee: welke vergunning op een dag geschorst is, staat per vergunning in
+# reductie_bedrijfsparkeervergunning_op_peildatum. Om hier per bedrijf te
+# tellen, is het besluit als aggregaat nodig (#1919); zie tests/schorsing.rs
+# en de open vraag over een periode per besluit
+# (docs/src/content/docs/concepts/chronolexography/open-questions.md).
 url: https://lokaleregelgeving.overheid.nl/CVDR642699
 name: Geldige bedrijfsparkeervergunningen bij de gemeente Wilgendaal (reductie)
 articles:
