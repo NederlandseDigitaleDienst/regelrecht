@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: reductie_geldige_bedrijfsparkeervergunningen
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
@@ -9,7 +9,7 @@ valid_from: '2026-01-01'
 # zelf niets af: ze leest de aggregaten van de besluiten van het bedrijf
 # (reductie_bedrijfsparkeervergunning) en die van de uitspraken van de
 # voorzieningenrechter (reductie_schorsing_bedrijfsparkeervergunning), elk
-# met hun laatste staat (source.projections, schema v0.8.15). De
+# met hun laatste staat (source.projections, schema v0.8.17). De
 # geldigheidsduur staat al in elk besluit (artikel 3 van de fictieve
 # parkeerverordening). Welke besluiten meetellen, volgt uit de effecten die
 # de Awb een besluit geeft (7:11, tweede lid, en 8:79 met 8:72). Welke

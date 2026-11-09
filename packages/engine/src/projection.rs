@@ -138,7 +138,7 @@ pub fn has_projection(article: &Article) -> bool {
         .is_some_and(|m| m.projection.is_some())
 }
 
-/// One aggregate of a projection with `per` (schema v0.8.15): its root, its
+/// One aggregate of a projection with `per` (schema v0.8.17): its root, its
 /// last state, which record set each property last (`None` for the start
 /// value), and what became of each of its records.
 #[derive(Debug, Clone)]
@@ -310,7 +310,7 @@ impl LawExecutionService {
     }
 
     /// [`Self::evaluate_projection_with`] for a reduction without a
-    /// projection, such as a read model over aggregates (schema v0.8.15):
+    /// projection, such as a read model over aggregates (schema v0.8.17):
     /// its `execution` runs on `records` as its chronicle, unless the call
     /// already brings one.
     #[allow(clippy::too_many_arguments)]
@@ -349,7 +349,7 @@ impl LawExecutionService {
     }
 
     /// The aggregates of the reduction `law_id`, whose projection plays one
-    /// per record of a kind (`projection.per`, schema v0.8.15), over the
+    /// per record of a kind (`projection.per`, schema v0.8.17), over the
     /// records known on `calculation_date`: one row per root record that
     /// holds every value of `filter` under its name, as a field or an
     /// output, in the order of the chronicle. A row is the last state of the
@@ -456,7 +456,7 @@ impl LawExecutionService {
             .filter(|r| r.recorded_on <= day)
             .cloned()
             .collect();
-        // `per` came with schema v0.8.15, so its step rules hold.
+        // `per` came with schema v0.8.17, so its step rules hold.
         self.check_steps(law_id, &projection, &[], day, true)?;
         self.refuse_unattached_revocations(&known)?;
         let none = BTreeMap::new();
@@ -641,9 +641,9 @@ impl LawExecutionService {
         let day = record.recorded_on;
         let date = day.to_string();
         // The record's fields, then its outputs; an output wins over a field
-        // of the same name. From schema v0.8.15, the version that brought
+        // of the same name. From schema v0.8.17, the version that brought
         // `per`, `$record.refers_to` is the record it refers to, whatever a
-        // field of that name holds; under v0.8.14 a field keeps its name.
+        // field of that name holds; up to v0.8.16 a field keeps its name.
         let mut row = record.fields.clone();
         row.extend(record.outputs.clone());
         if projection.per.is_some() {
@@ -765,7 +765,7 @@ impl LawExecutionService {
     /// that its `refers_to` does not reach. With `per`, a record joins an
     /// aggregate through `refers_to` only, so such a decision would sit
     /// outside the aggregate of the record it names, and its revocation
-    /// would go unseen. `per` came with schema v0.8.15, so the rule holds
+    /// would go unseen. `per` came with schema v0.8.17, so the rule holds
     /// whatever version the decision's law declares. A record whose article
     /// the engine does not hold names nothing it can read, and is passed by.
     fn refuse_unattached_revocations(&self, records: &[ChronicleRecord]) -> Result<()> {
@@ -800,16 +800,16 @@ impl LawExecutionService {
     }
 
     /// Whether the law `record` rests on, in the version of the day it was
-    /// recorded, holds a decision to schema v0.8.15 or later (or names no
+    /// recorded, holds a decision to schema v0.8.17 or later (or names no
     /// version): from then on a decision revokes only a record it is about.
-    fn about_from_v0_8_15(&self, record: &ChronicleRecord) -> bool {
+    fn about_from_v0_8_17(&self, record: &ChronicleRecord) -> bool {
         let law_id = record
             .basis
             .split_once('#')
             .map_or(record.basis.as_str(), |(l, _)| l);
         self.resolver()
             .get_law_for_date(law_id, Some(record.recorded_on))
-            .is_none_or(|law| crate::load_check::from_version(law, (0, 8, 15)))
+            .is_none_or(|law| crate::load_check::from_version(law, (0, 8, 17)))
     }
 
     /// The article `record` rests on, in the law of the day it was recorded.
@@ -885,7 +885,7 @@ impl LawExecutionService {
     }
 
     /// The aggregate of the root record `root` of a projection with `per`
-    /// (schema v0.8.15): the root and the records that refer to it through
+    /// (schema v0.8.17): the root and the records that refer to it through
     /// `refers_to`, transitively; a field an effect names does not attach. Another record of the root's kind is an aggregate of
     /// its own: when it refers in, it counts here for its effects only.
     fn aggregate(
@@ -1057,11 +1057,11 @@ impl LawExecutionService {
                     "has an effect on '{target}', which is no record recorded before it"
                 ))
             })?;
-            // From schema v0.8.15 a decision revokes only a record it is
+            // From schema v0.8.17 a decision revokes only a record it is
             // about: one its `refers_to` reaches, directly or through the
             // records it refers to in turn, such as the decision an
             // objection contests.
-            if !is_fact && self.about_from_v0_8_15(record) && !about(record, &target.id, earlier) {
+            if !is_fact && self.about_from_v0_8_17(record) && !about(record, &target.id, earlier) {
                 return Err(refuse(format!(
                     "has an effect on '{}', which is no record its refers_to reaches",
                     target.id
@@ -1257,9 +1257,13 @@ pub(crate) fn check_step<'l>(
                     .find(|i| &i.name == name)
                     .map(|i| i.input_type),
             ),
-            StepSource::Record(field) => record
-                .as_ref()
-                .map(|(article, kind)| field_type(article, kind.as_deref(), field)),
+            StepSource::Record(field) => record.as_ref().map(|(article, kind)| {
+                // `per` and `$record.refers_to` came with schema v0.8.17.
+                if projection.per.is_some() && field == REFERS_TO {
+                    return Some(ParameterType::String);
+                }
+                field_type(article, kind.as_deref(), field)
+            }),
             StepSource::State(property) => Some(state_type(projection, property)),
         }
     };
@@ -1512,13 +1516,10 @@ fn state_type(projection: &Projection, name: &str) -> Option<ParameterType> {
 /// article, its outputs and the data derived for it; a submission the
 /// parameters and outputs its item lists (in the object form of `produces`
 /// every parameter and output). Without a kind (a reduction before schema
-/// v0.8.16, [`check_step`]) every parameter and output counts. Every record
-/// holds `refers_to`, the id of the record it refers to (schema v0.8.17).
+/// v0.8.16, [`check_step`]) every parameter and output counts. A step of a
+/// projection with `per` (schema v0.8.17) also reads `refers_to`, the id of
+/// the record a record refers to ([`check_step`]).
 fn field_type(article: &Article, kind: Option<&str>, name: &str) -> Option<ParameterType> {
-    // `refers_to` came with schema v0.8.15, which is when a step has a kind.
-    if kind.is_some() && name == REFERS_TO {
-        return Some(ParameterType::String);
-    }
     let parameter = || {
         article
             .get_parameters()
@@ -2674,9 +2675,9 @@ articles:
         assert_eq!(records_in(&y), ["n", "h"]);
     }
 
-    /// From schema v0.8.15 a decision revokes only a record its refers_to
+    /// From schema v0.8.17 a decision revokes only a record its refers_to
     /// reaches: `h` refers to x's grant `a` but names y's `n` in its effect,
-    /// which v0.8.14 allowed and v0.8.15 refuses.
+    /// which v0.8.16 allowed and v0.8.17 refuses.
     #[test]
     fn a_decision_revokes_only_a_record_it_is_about() {
         let mut h = revoke("h", "n", true);
@@ -2969,8 +2970,8 @@ articles:
                 with(parameters, "parameters: {verleend: $state.aantal, aantal: $state.aantal}"),
                 "input 'kaart_na' passes $state.aantal, a Number, as 'verleend', a Boolean",
             ),
-            // A parameter of the question: since v0.8.15 a step passes none
-            // (since_v0_8_15_a_projection_has_per_and_its_steps_ask_no_question).
+            // A parameter of the question: since v0.8.17 a step passes none
+            // (since_v0_8_17_a_projection_has_per_and_its_steps_ask_no_question).
             (
                 LAW.to_string(),
                 with(parameters, "parameters: {verleend: $record.bestaat_niet, aantal: $state.aantal}"),
@@ -3405,7 +3406,7 @@ articles:
 
     /// Under v0.8.14 a field named `refers_to` keeps its own value in a
     /// step: `$record.refers_to` is the record a record refers to only from
-    /// v0.8.15, the version that brought `per`.
+    /// v0.8.17, the version that brought `per`.
     #[test]
     fn under_v0_8_14_a_field_named_refers_to_keeps_its_value() {
         let law = r#"
@@ -3520,16 +3521,13 @@ articles:
             field_type(article, Some("BESCHIKKING"), "c"),
             Some(ParameterType::Number)
         );
-        // `refers_to` is a field of every kind since v0.8.15; without a kind
-        // (v0.8.14) only a field the law declares counts.
-        assert_eq!(
-            field_type(article, Some("AANVRAAG"), "refers_to"),
-            Some(ParameterType::String)
-        );
+        // `refers_to` is no field the law gives; a step with `per` reads it
+        // besides (check_step).
+        assert_eq!(field_type(article, Some("AANVRAAG"), "refers_to"), None);
         assert_eq!(field_type(article, None, "refers_to"), None);
     }
 
-    /// One aggregate per grant under article 1 (schema v0.8.15): the grant
+    /// One aggregate per grant under article 1 (schema v0.8.17): the grant
     /// sets whether there is a card, a card handed in (article 4) that
     /// refers to it takes it away.
     const PER_GRANT: &str = r#"
@@ -3810,7 +3808,7 @@ articles:
     }
 
     /// A step reads the record a record refers to as `$record.refers_to`
-    /// (schema v0.8.15), null when it refers to none; it is a string to the
+    /// (schema v0.8.17), null when it refers to none; it is a string to the
     /// loader.
     #[test]
     fn a_step_reads_what_its_record_refers_to() {

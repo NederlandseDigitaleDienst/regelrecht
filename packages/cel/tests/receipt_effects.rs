@@ -345,7 +345,7 @@ fn a_fact_refers_only_to_a_record_of_the_chronicle() {
     let mut cell = restored(grants(&["x"]));
     // Article 5 requires the fact of handing a card in, without effects. It
     // may still be about the grant: refers_to names the record a record is
-    // about (schema v0.8.15), whether or not the law gives it an effect.
+    // about (schema v0.8.17), whether or not the law gives it an effect.
     let fact = cell
         .record_executogram_referring(
             &service(),

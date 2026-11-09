@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.16",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.17",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -1232,6 +1232,22 @@
                     "$ref": "#/definitions/variableReference"
                   },
                   "description": "Values whose fields are passed to the `article` as parameters, merged in order: a later one wins over an earlier one, and `parameters` wins over all of them. Each is an object, such as the `fields` or `findings` of a `decision` value, or null, which adds nothing; any other value is an error at run time. Only with `article`."
+                },
+                "projections": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9_]+$",
+                  "description": "Since v0.8.17: the aggregates of a reduction with a `projection`, by the `$id` of that reduction. A list with one row per root record the chronicle holds on the calculation date: the last state of its aggregate, with the root's `id`. With `where`, only the roots that hold each named value, as a field or an output. Only a `REDUCTIE` reads it, and the cell that runs the reduction plays the aggregates on its own chronicle; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters`, `endpoint`, `decisions`, `facts`, `reduction` or `article`. Without a chronicle the input is an error, never an empty list."
+                },
+                "where": {
+                  "type": "object",
+                  "propertyNames": {
+                    "pattern": "^[a-z_][a-z0-9_]*$"
+                  },
+                  "additionalProperties": {
+                    "type": "string",
+                    "pattern": "^\\$[a-z_][a-z0-9_]*$"
+                  },
+                  "description": "Since v0.8.17, only with `projections`: the roots whose aggregates are read, by the values they hold. A map from the name of a field or output of the root to a `$`-reference to a parameter of the reading article; a root that holds another value under a name, or none, is left out. Numbers compare by value."
                 }
               },
               "additionalProperties": false,
@@ -1359,6 +1375,57 @@
                       }
                     ]
                   }
+                },
+                "projections": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "regulation"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "output"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "parameters"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "endpoint"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "decisions"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "facts"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "reduction"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "article"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "where": {
+                  "required": [
+                    "projections"
+                  ]
                 }
               },
               "examples": [
@@ -1397,6 +1464,12 @@
                   "output": "verlof_verleend",
                   "parameters": {
                     "bsn": "$bsn"
+                  }
+                },
+                {
+                  "projections": "reductie_bedrijfsparkeervergunning",
+                  "where": {
+                    "kvk_nummer": "$kvk_nummer"
                   }
                 }
               ]
@@ -2384,7 +2457,7 @@
               "effects": {
                 "type": "array",
                 "minItems": 1,
-                "description": "Since v0.8.15, only with `fact`: what an instance of this fact does with the record it refers to, as a decision does with `produces[].effects`. A fact is no decision, but the law can give a recorded fact a legal effect on a decision, such as the receipt of a copy of a ruling that annuls the decision (Awb 8:72 lid 1, 8:79). A fact revokes the record it refers to (`refers_to`, RFC-053), so which record the fact is about has one source: the receipt of a copy refers to the decision it concerns, and since v0.8.15 a fact with effects may refer to another earlier record. The record does not count, from the start (ex tunc). With `when` a boolean parameter the fact holds must be true for the effect to hold. The effect reads nothing but the fact, so whether a record counts never depends on the state or on the day asked about. The loader checks that `revokes` is `refers_to` and that `when` names a boolean parameter the fact holds that is not nullable.",
+                "description": "Since v0.8.15, only with `fact`: what an instance of this fact does with the record it refers to, as a decision does with `produces[].effects`. A fact is no decision, but the law can give a recorded fact a legal effect on a decision, such as the receipt of a copy of a ruling that annuls the decision (Awb 8:72 lid 1, 8:79). A fact revokes the record it refers to (`refers_to`, RFC-053), so which record the fact is about has one source: the receipt of a copy refers to the decision it concerns, and since v0.8.17 any fact may refer to the earlier record it is about; with effects, that is the record it revokes. `refers_to` names, on every record, the record this record is about. The record does not count, from the start (ex tunc). With `when` a boolean parameter the fact holds must be true for the effect to hold. The effect reads nothing but the fact, so whether a record counts never depends on the state or on the day asked about. The loader checks that `revokes` is `refers_to` and that `when` names a boolean parameter the fact holds that is not nullable.",
                 "items": {
                   "type": "object",
                   "description": "Since v0.8.15: the fact revokes the record it refers to, optionally only `when` a boolean it holds is true.",
@@ -2798,22 +2871,18 @@
         },
         "projection": {
           "type": "object",
-          "description": "Since v0.8.14, only in a `REDUCTIE`: the reduction plays a cell's chronicle forward and keeps a state, and its `execution` answers from the state after the last record, reading each property as `$state.<name>`. Each record may change the state through the step this reduction gives for its article (`steps`): the step takes outputs of a law, with parameters from the record and the state, and its actions give properties their values from them. Which records count follows from the effects their laws give: those of a decision (`produces[].effects`) and, since v0.8.15, those of a fact the law requires (`requires[].effects`): such a fact revokes the record it refers to. A record counts unless a later record that itself counts revokes it. So a record that is revoked revokes nothing, and a record it alone revoked counts again. Only the records that count change the state, in the order the cell recorded them. A revoked record is gone from the whole history (ex tunc); a change from a later day on is a step with a date property. The chronicle itself is never changed, and a record recorded after the calculation date is not played. Only a call that plays a chronicle answers from it: a cell that gives the answer to a policy through `source.reduction`, or `evaluate_projection` in the Rust engine. The engine refuses such an article on every path that bypasses the chronicle: asked directly, from another rulework, at a stage, or with a `state` the caller passes. A step is pure: the next state follows from the state before, the record and the question alone, because each output a step takes depends only on what the step passes. Purity holds per output a step reads, not per article: that output, and every output of its article it reads in turn, reads no `input` and no open term, while another output of the same article may. Since v0.8.16, when a reduction loads, the loader checks its steps against the laws it holds; a law never depends on a reduction that reads it, so a law that arrives later always loads, and the engine checks the steps again when it plays the projection. A step may pass a parameter of the question, so the projection depends on the question, as it does through its key; the same question on the same chronicle always gets the same answer. One version of this reduction, the one in force on the calculation date, gives every step and the answer; the effects of a record come from the version of its law in force on the day it was recorded. The engine records, per property, which record set it last. The article declares no parameter `state`.",
+          "description": "Since v0.8.14, only in a `REDUCTIE`. Since v0.8.17 a projection plays one aggregate per record of a kind (`per`): that record, the root, and every record that refers to it through `refers_to`, directly or through another record of the aggregate. Each record may change the state of its aggregate through the step this reduction gives for its article (`steps`): the step takes outputs of a law, with parameters from the record and the state, and its actions give properties their values from them. Which records count follows from the effects their laws give (`produces[].effects`, `requires[].effects`): a record counts unless a later record that itself counts revokes it. So a record that is revoked revokes nothing, and a record it alone revoked counts again. Only the records that count change the state, in the order the cell recorded them; a root that does not count applies no step, while the other records of its aggregate that count apply theirs. A revoked record is gone from the whole history (ex tunc); a change from a later day on is a step with a date property. The chronicle itself is never changed, and a record recorded after the calculation date is not played. A step is pure: the next state follows from the state before and the record alone, because each output a step takes depends only on what the step passes, and a step passes no parameter of a question. Purity holds per output a step reads, not per article: that output, and every output of its article it reads in turn, reads no `input` and no open term, while another output of the same article may. Since v0.8.16, when a reduction loads, the loader checks its steps against the laws it holds; a law never depends on a reduction that reads it, so a law that arrives later always loads, and the engine checks the steps again when it plays the projection. One version of this reduction, the one in force on the calculation date, gives every step; the effects of a record come from the version of its law in force on the day it was recorded. The engine records, per property, which record set it last. A projection answers no question of its own and the article has no `execution`: another reduction reads the last state of each aggregate with `source.projections`, and answers from those rows. Up to v0.8.16 a projection played the records of one `key`, answered from its own `execution`, and a step could pass a parameter of the question.",
           "additionalProperties": false,
           "required": [
+            "per",
             "state",
             "steps"
           ],
           "properties": {
-            "key": {
-              "type": "string",
-              "pattern": "^[a-z_][a-z0-9_]*$",
-              "description": "The parameter of this article that names whose records are played, such as an applicant. A record belongs when it holds this value under the same name, as a field or an output. A record that refers to one of the partition, through its `refers_to` or a field an effect of its article names (such as `bestreden_besluit`), joins it too, transitively. It joins for its effects only when it belongs to someone else: when it holds a key of its own with another value, or holds none and refers only to records of someone else. Such a record revokes what it names here as well, because what a record does with another follows from the law and not from the question; its step is not applied, and the trace shows it as counting for its effects only. A record that revokes such a record joins in the same way, so what it revoked counts again. A record without a key (or whose key is null) joins through its reference, so a record that holds no key plays only when it refers in. Records join only through what refers to them, never through what they refer to. An effect on a record outside the partition is ignored. The value passed for the key must be of the parameter's type. Without `key`, every record is played."
-            },
             "state": {
               "type": "array",
               "minItems": 1,
-              "description": "The properties of the state, each with its type. Before the first record a property holds the start value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date.",
+              "description": "The properties of the state, each with its type. Before the first record a property holds the start value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date. Not `id`, under which a row of the aggregates holds its root.",
               "items": {
                 "type": "object",
                 "additionalProperties": false,
@@ -2825,7 +2894,10 @@
                   "name": {
                     "type": "string",
                     "pattern": "^[a-z_][a-z0-9_]*$",
-                    "description": "The name of the property, read as `$state.<name>`."
+                    "description": "The name of the property, read as `$state.<name>`.",
+                    "not": {
+                      "const": "id"
+                    }
                   },
                   "type": {
                     "type": "string",
@@ -2870,9 +2942,27 @@
                   "input": {
                     "type": "array",
                     "items": {
-                      "$ref": "#/definitions/inputField"
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/inputField"
+                        },
+                        {
+                          "properties": {
+                            "source": {
+                              "properties": {
+                                "parameters": {
+                                  "additionalProperties": {
+                                    "type": "string",
+                                    "pattern": "^\\$(record|state)\\.[a-z0-9_]+$"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
-                    "description": "The outputs of a law the step takes, each written as an article input with `source: {regulation, output, parameters}` and no other kind of source. A parameter is `$record.<field>` (since v0.8.16 a field of the kind of record the step is about, as its law declares it: for a fact the parameters it holds, for a decision the parameters of its article, its outputs and the data derived for it, for a submission what its item lists), `$state.<property>` (the state before the record) or `$<name>`, a parameter of the question the reduction answers, such as a reference date. The step passes no parameter the called article does not declare, and since v0.8.16 every required parameter the output reads, directly or through another output of its article. The engine calls the law in the version in force on the day the record was recorded, not on the calculation date, the same rule as for effects. The output it takes reads nothing else: neither that output nor any output of its article it reads in turn may read an `input` or an open term; other outputs of the article may. An article that plays a projection itself cannot be called. Since v0.8.16 the loader checks this when the reduction loads, against the laws it holds, and the engine again when it plays the projection, against the versions in force on the calculation date, and nests the trace of the call under the step."
+                    "description": "The outputs of a law the step takes, each written as an article input with `source: {regulation, output, parameters}` and no other kind of source. A parameter is `$record.<field>` (since v0.8.16 a field of the kind of record the step is about, as its law declares it: for a fact the parameters it holds, for a decision the parameters of its article, its outputs and the data derived for it, for a submission what its item lists), or `$state.<property>` (the state before the record). `$record.refers_to` is the id of the record this record refers to, or null. A step passes no parameter of a question. The step passes no parameter the called article does not declare, and since v0.8.16 every required parameter the output reads, directly or through another output of its article. The engine calls the law in the version in force on the day the record was recorded, not on the calculation date, the same rule as for effects. The output it takes reads nothing else: neither that output nor any output of its article it reads in turn may read an `input` or an open term; other outputs of the article may. An article that plays a projection itself cannot be called. Since v0.8.16 the loader checks this when the reduction loads, against the laws it holds, and the engine again when it plays the projection, against the versions in force on the calculation date, and nests the trace of the call under the step."
                   },
                   "actions": {
                     "type": "array",
@@ -2931,10 +3021,21 @@
                         }
                       ]
                     },
-                    "description": "What the step gives each property of the state, as the actions of an article: `output` names a property of the state, `value` is an input of the step (`$<input>`), a field of the record (`$record.<field>`) or a property of the state before it (`$state.<property>`). Only a bare reference: a step computes nothing itself, so what a record does stays in the law. A property no action names keeps its value, and a step gives a property one action at most. Every value must be of the property's type; a null fits only a string or a date."
+                    "description": "What the step gives each property of the state, as the actions of an article: `output` names a property of the state, `value` is an input of the step (`$<input>`), a field of the record (`$record.<field>`) or a property of the state before it (`$state.<property>`). Only a bare reference: a step computes nothing itself, so what a record does stays in the law. A property no action names keeps its value, and a step gives a property one action at most. Every value must be of the property's type; a null fits only a string or a date. `$record.refers_to` is the id of the record this record refers to, or null, such as the decision a copy of a ruling concerns."
                   }
                 }
               }
+            },
+            "per": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]+#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?(#[A-Z][A-Z_]*)?$",
+              "not": {
+                "pattern": " lid [0-9]"
+              },
+              "description": "Since v0.8.17: the projection plays one aggregate per record that rests on this article (`<regulation>#<article>`, with `#<KIND>` where the article gives more than one kind), such as a decision that grants a permit or the copy of a ruling that suspends one. The aggregate holds that record, its root, and every record that refers to it through `refers_to`, directly or through another record of the aggregate. Another record of the root's kind that refers in is an aggregate of its own: in this one it counts for its effects only, so a decision in the place of the root revokes it here, while its step is not applied. A state property is not called `id`: a row of the aggregates holds the id of its root under that name.",
+              "examples": [
+                "parkeerverordening_gemeente_wilgendaal#2#BESCHIKKING"
+              ]
             }
           }
         },
@@ -3197,7 +3298,23 @@
           }
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "projection"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "execution"
+              ]
+            }
+          }
+        }
+      ]
     },
     "datePartOperation": {
       "type": "object",
@@ -3337,7 +3454,7 @@
             "properties": {
               "revokes": {
                 "type": "string",
-                "description": "A string or decision parameter (a decision counts by its id) that names the earlier record this decision revokes: it does not count, from the start (ex tunc), such as the contested decision revoked on objection (`revokes: bestreden_besluit`, Awb 7:11 lid 2). A decision in the place of another revokes it, and counts as a decision of its own. From v0.8.15 the loader refuses a parameter of another type or one that may be null."
+                "description": "A string or decision parameter (a decision counts by its id) that names the earlier record this decision revokes: it does not count, from the start (ex tunc), such as the contested decision revoked on objection (`revokes: bestreden_besluit`, Awb 7:11 lid 2). A decision in the place of another revokes it, and counts as a decision of its own. From v0.8.15 the loader refuses a parameter of another type or one that may be null. From v0.8.17 that record is one this decision is about, through its `refers_to`."
               },
               "when": {
                 "type": "string",
@@ -3349,7 +3466,7 @@
             ]
           },
           "minItems": 1,
-          "description": "Since v0.8.14, only on a decision: the earlier records it revokes, such as the decision on an objection that revokes the contested decision (Awb 7:11 lid 2), or a new decision in the place of the contested one, which revokes it and counts itself. Each effect names a parameter of this article that names the other record: a string that holds its id, or a decision, which counts by its id, and with `when` a boolean output of this decision that must be true for the effect to hold. From the effects a runtime that records decisions and facts derives which records count: a record counts unless a later record that itself counts revokes it. A revoked record has no consequences and revokes nothing, so a record it alone revoked counts again; a new decision that should keep a revocation in force declares that effect itself. A revocation takes a record out of the whole history (ex tunc). A change from a later day on (ex nunc), such as a suspension or a withdrawal with effect from a date, is no effect: it is a step of the reduction with a date property, and whether the record counts never depends on the day asked about. A fact the article requires may have effects as well (`requires[].effects`, since v0.8.15). The engine carries the effects out when it plays a chronicle through a reduction with a `projection`; the loader checks that it sits on a decision, that every named parameter is a parameter of the article (from v0.8.15 a string or decision parameter that is not nullable), and that every `when` names a boolean output of the decision."
+          "description": "Since v0.8.14, only on a decision: the earlier records it revokes, such as the decision on an objection that revokes the contested decision (Awb 7:11 lid 2), or a new decision in the place of the contested one, which revokes it and counts itself. Each effect names a parameter of this article that names the other record: a string that holds its id, or a decision, which counts by its id, and with `when` a boolean output of this decision that must be true for the effect to hold. From the effects a runtime that records decisions and facts derives which records count: a record counts unless a later record that itself counts revokes it. A revoked record has no consequences and revokes nothing, so a record it alone revoked counts again; a new decision that should keep a revocation in force declares that effect itself. A revocation takes a record out of the whole history (ex tunc). A change from a later day on (ex nunc), such as a suspension or a withdrawal with effect from a date, is no effect: it is a step of the reduction with a date property, and whether the record counts never depends on the day asked about. From v0.8.17 a decision revokes only a record it is about: its `refers_to` names that record, or names a record that refers to it in turn, as a decision on an objection refers to the objection and the objection to the decision it contests. A decision taken on no submission, such as a withdrawal ex officio, refers to the decision it affects. The cell and the engine refuse a decision that revokes another record; they count no fixed number of steps, so a decision on an objection (Awb 7:11) and one the court puts in place (Awb 8:72) follow the same rule. `refers_to` names, on every record, the record this record is about. A fact the article requires may have effects as well (`requires[].effects`, since v0.8.15). The engine carries the effects out when it plays a chronicle through a reduction with a `projection`; the loader checks that it sits on a decision, that every named parameter is a parameter of the article (from v0.8.15 a string or decision parameter that is not nullable), and that every `when` names a boolean output of the decision."
         },
         "decision_type": {
           "type": "string",

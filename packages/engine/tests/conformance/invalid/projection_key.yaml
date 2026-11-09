@@ -1,7 +1,7 @@
 ---
-# Since schema v0.8.15 a projection has no key: it plays one aggregate per
+# Since schema v0.8.17 a projection has no key: it plays one aggregate per
 # record (per). Under v0.8.14 it played the records of one key.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: test_conformance_projection_key
 regulatory_layer: REDUCTIE
 publication_date: '2026-11-08'

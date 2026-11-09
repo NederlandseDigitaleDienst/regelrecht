@@ -5414,7 +5414,7 @@ impl LawExecutionService {
     }
 
     /// Resolve an input that reads the aggregates of a reduction
-    /// (`source.projections`, schema v0.8.15): the engine plays them on the
+    /// (`source.projections`, schema v0.8.17): the engine plays them on the
     /// records of the chronicle of the call, for the roots that hold the
     /// values `where` names ([`Self::projection_rows`]). Without a
     /// chronicle that gives records, the input is an error, never an empty
@@ -5581,7 +5581,7 @@ impl LawExecutionService {
                 .map(Some);
         }
 
-        // The aggregates of another reduction (schema v0.8.15), played on
+        // The aggregates of another reduction (schema v0.8.17), played on
         // the chronicle of the call.
         if let Some(reduction) = &source.projections {
             return self

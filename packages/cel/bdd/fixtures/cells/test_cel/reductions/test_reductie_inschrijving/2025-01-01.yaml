@@ -1,8 +1,8 @@
 ---
 # FICTIEF. A reduction of the cell's BDD suite: one aggregate per
 # registration under article 1 of test_chronicle_corrections (schema
-# v0.8.15), with the corrections about it (article 2).
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+# v0.8.17), with the corrections about it (article 2).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: test_reductie_inschrijving
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'

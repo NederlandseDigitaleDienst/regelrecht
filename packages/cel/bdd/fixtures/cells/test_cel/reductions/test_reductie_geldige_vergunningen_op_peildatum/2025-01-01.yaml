@@ -3,9 +3,9 @@
 # how many permits of a company count on the day the question names. It
 # reads the aggregates of test_reductie_vergunning_per_besluit of that
 # company and passes them with the day to article 2 of the law (schema
-# v0.8.15), so the fold depends on the chronicle alone and the day is
+# v0.8.17), so the fold depends on the chronicle alone and the day is
 # compared when the question is answered.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: test_reductie_geldige_vergunningen_op_peildatum
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'

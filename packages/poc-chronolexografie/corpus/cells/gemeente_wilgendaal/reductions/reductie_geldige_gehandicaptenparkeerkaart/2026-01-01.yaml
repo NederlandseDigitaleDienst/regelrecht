@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: reductie_geldige_gehandicaptenparkeerkaart
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
@@ -8,7 +8,7 @@ valid_from: '2026-01-01'
 # Wilgendaal over zijn eigen kroniek (RFC-022 §4.1, RFC-048). Ze speelt
 # zelf niets af: ze leest de aggregaten van de besluiten over de aanvrager
 # (reductie_gehandicaptenparkeerkaart), elk met zijn laatste staat
-# (source.projections, schema v0.8.15); de geldigheidsduur staat al in elk
+# (source.projections, schema v0.8.17); de geldigheidsduur staat al in elk
 # besluit (artikel 51 van het BABW). Welke besluiten
 # meetellen, volgt uit de effecten die de Awb een besluit geeft: een
 # beslissing op bezwaar die het bestreden besluit herroept (7:11, tweede lid),

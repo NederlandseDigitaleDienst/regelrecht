@@ -3,7 +3,7 @@ Feature: A reduction plays the chronicle forward
   I want a reduction to play my chronicle forward and keep a state
   So that a decision the law undoes is skipped, and the answer is computed again
 
-  # Exercises `projection` and `produces[].effects` (schema v0.8.15) against
+  # Exercises `projection` and `produces[].effects` (schema v0.8.17) against
   # the synthetic law test_chronicle_effects (packages/cel/bdd/fixtures),
   # which is loosely shaped after the disabled parking card and Awb 7:11 lid 2
   # and is otherwise fictional. The decision on an objection (article 2)
@@ -444,7 +444,7 @@ Feature: A reduction plays the chronicle forward
 
   Scenario: A decision revokes only a record it is about
     # The withdrawal is about the second grant but names the first in its
-    # effect. From schema v0.8.15 a decision revokes only a record its
+    # effect. From schema v0.8.17 a decision revokes only a record its
     # refers_to reaches, directly or through what that record refers to, so
     # the cell refuses to record it.
     When the cell records submission "aanvraag" under article "1" of "test_chronicle_effects" with:
@@ -484,7 +484,7 @@ Feature: A reduction plays the chronicle forward
     # Fictional test_bedrijfsvergunning: article 1 grants a permit valid up to
     # a day, article 2 says which permits count on a given day. Each decision
     # is an aggregate of test_reductie_vergunning_per_besluit (schema
-    # v0.8.15); the read model passes their rows and the day to article 2:
+    # v0.8.17); the read model passes their rows and the day to article 2:
     # the same chronicle answers differently for another day, and the same
     # question always gets the same answer.
     When the cell records submission "aanvraag_1" under article "1" of "test_bedrijfsvergunning" with:

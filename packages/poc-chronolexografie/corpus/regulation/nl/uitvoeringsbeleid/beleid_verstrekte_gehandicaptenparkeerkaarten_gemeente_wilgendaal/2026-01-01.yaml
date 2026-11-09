@@ -11,7 +11,7 @@ valid_from: '2026-01-01'
 # van het BABW) betekenen voor de vragen of de aanvrager een geldige kaart
 # heeft en of hij eerder een kaart kreeg. De reductie van de gemeente
 # (reductie_geldige_gehandicaptenparkeerkaart) geeft dit beleid de besluiten
-# die meetellen, elk als rij (schema v0.8.15); artikel 3 zegt per ontvangen
+# die meetellen, elk als rij (schema v0.8.17); artikel 3 zegt per ontvangen
 # uitspraak of de bestuursrechter zelf een kaart verstrekte, voor de reductie
 # per besluit. Het staat los van het beleid gehandicaptenparkeerkaart, omdat
 # dat beleid de reductie aanroept.

@@ -1,8 +1,8 @@
 ---
-# FICTIEF. A read model of the cell's BDD suite (schema v0.8.15): it plays
+# FICTIEF. A read model of the cell's BDD suite (schema v0.8.17): it plays
 # nothing itself, and counts the aggregates of test_reductie_kaart_per_verlening
 # whose root holds the applicant asked about.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: test_reductie_kaarten_van_aanvrager
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'

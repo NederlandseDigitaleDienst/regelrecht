@@ -681,7 +681,7 @@ impl Cell {
     }
 
     /// [`Cell::record_executogram`], for a fact about the earlier
-    /// chronolexogram `refers_to` of this chronicle (schema v0.8.15).
+    /// chronolexogram `refers_to` of this chronicle (schema v0.8.17).
     /// `refers_to` names the record this record is about, as it does for
     /// every record: a suspension of a decision, a correction of a
     /// registration, or the record that a ruling on further appeal annulled
@@ -999,7 +999,7 @@ impl Cell {
     }
 
     /// Take the decision of article `article` of `law_id` on no
-    /// application (ex officio), such as a withdrawal (schema v0.8.15). The
+    /// application (ex officio), such as a withdrawal (schema v0.8.17). The
     /// authority supplies every parameter in `supplied` and its findings in
     /// `findings`, as for [`Cell::decide`]; the cell fills the dates the
     /// stages require. `refers_to` names the earlier chronolexogram of this
@@ -2523,13 +2523,13 @@ pub(crate) fn refuse_decimal_key(name: &str, value: &serde_json::Value) -> Resul
 }
 
 /// Refuse a decision of `grams`, about to follow `earlier` in a chronicle,
-/// that revokes a record it is not about (schema v0.8.15): the record an
+/// that revokes a record it is not about (schema v0.8.17): the record an
 /// effect of its article names must be one its `refers_to` reaches,
 /// directly or through the records it refers to in turn (decision,
 /// submission, the decision the submission contests, ...). The cell counts
 /// no fixed number of steps and knows no procedure, so a decision on an
 /// objection (Awb 7:11) and a decision the court puts in place (Awb 8:72)
-/// are held to the same rule. A law under v0.8.14 keeps what that version
+/// are held to the same rule. A law under v0.8.16 or earlier keeps what that version
 /// allowed.
 fn revokes_only_what_it_is_about(
     service: &LawExecutionService,
@@ -2546,11 +2546,11 @@ fn revokes_only_what_it_is_about(
         else {
             continue;
         };
-        let from_v0_8_15 = law
+        let from_v0_8_17 = law
             .schema_version()
             .and_then(regelrecht_law_model::parse_schema_version)
-            .is_none_or(|version| version >= (0, 8, 15));
-        if !from_v0_8_15 {
+            .is_none_or(|version| version >= (0, 8, 17));
+        if !from_v0_8_17 {
             continue;
         }
         let Some(decision) = law
@@ -2631,14 +2631,14 @@ mod tests {
             .join("bdd/fixtures/regulation/test_chronicle_effects/2025-01-01.yaml");
         let yaml = std::fs::read_to_string(path)
             .unwrap()
-            .replace("v0.8.15", version);
+            .replace("v0.8.17", version);
         let mut service = LawExecutionService::new();
         service.load_law(&yaml).unwrap();
         service
     }
 
     /// The decision on an objection about x's grant (article 2) may revoke
-    /// that grant, but not y's: from v0.8.15 it revokes only a record it is
+    /// that grant, but not y's: from v0.8.17 it revokes only a record it is
     /// about, through the objection it was taken on. Under v0.8.14 it may.
     #[test]
     fn a_decision_revokes_only_a_record_its_refers_to_reaches() {
@@ -2674,7 +2674,7 @@ mod tests {
                 serde_json::json!({"bestreden_besluit": contested}),
             )
         };
-        let now = service("v0.8.15");
+        let now = service("v0.8.17");
         revokes_only_what_it_is_about(&now, &earlier, &[decision("verlening_x")]).unwrap();
         let err = revokes_only_what_it_is_about(&now, &earlier, &[decision("verlening_y")])
             .expect_err("not about y's grant");
@@ -2696,8 +2696,8 @@ mod tests {
         let mut loose = decision("verlening_x");
         loose.refers_to = None;
         assert!(revokes_only_what_it_is_about(&now, &earlier, &[loose]).is_err());
-        // v0.8.14 keeps what it allowed.
-        revokes_only_what_it_is_about(&service("v0.8.14"), &earlier, &[decision("verlening_y")])
+        // v0.8.16 keeps what it allowed.
+        revokes_only_what_it_is_about(&service("v0.8.16"), &earlier, &[decision("verlening_y")])
             .unwrap();
     }
 }

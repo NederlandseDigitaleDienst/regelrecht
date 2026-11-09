@@ -14,7 +14,7 @@ valid_from: '2026-01-01'
 # per afschrift van een uitspraak van de voorzieningenrechter een
 # (reductie_schorsing_bedrijfsparkeervergunning); de reducties die tellen,
 # per bedrijf en per kenteken, geven dit beleid de rijen van die
-# aggregaten en de dag (schema v0.8.15). Wat een rij op die dag betekent,
+# aggregaten en de dag (schema v0.8.17). Wat een rij op die dag betekent,
 # staat hier: artikel 1 zegt welke besluiten op de dag geschorst zijn,
 # artikel 2 welke vergunningen geldig zijn. Het beleid staat los van het
 # beleid bedrijfsparkeervergunning, omdat dat beleid de reductie per bedrijf

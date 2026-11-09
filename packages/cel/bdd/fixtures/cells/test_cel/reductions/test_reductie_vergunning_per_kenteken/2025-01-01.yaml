@@ -2,7 +2,7 @@
 # FICTIEF. A read model of the cell's BDD suite: whether a plate has a
 # permit, from the aggregates of test_reductie_parkeervergunning. A permit
 # moved to another plate holds the new plate in its state.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: test_reductie_vergunning_per_kenteken
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'

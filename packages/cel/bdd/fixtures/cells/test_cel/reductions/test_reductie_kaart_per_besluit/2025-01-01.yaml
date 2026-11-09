@@ -1,11 +1,11 @@
 ---
 # FICTIEF. A reduction of the cell's BDD suite: one aggregate per decision
 # on an application under article 1 of test_chronicle_effects (schema
-# v0.8.15), with the records about it: a decision in its place (article 3),
+# v0.8.17), with the records about it: a decision in its place (article 3),
 # the card handed in (article 5), a suspension (article 13) and its lifting
 # (article 14). Which records count follows from the effects of the law; the
 # steps say what a record that counts does with the state.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: test_reductie_kaart_per_besluit
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'

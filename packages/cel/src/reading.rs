@@ -616,7 +616,7 @@ impl ChronicleSource for Reader<'_> {
     }
 
     /// The cell's chronicle as records, for a reduction that reads the
-    /// aggregates of another (`source.projections`, schema v0.8.15): the
+    /// aggregates of another (`source.projections`, schema v0.8.17): the
     /// engine plays them on the records.
     fn records(&self) -> regelrecht_engine::Result<Option<Vec<ChronicleRecord>>> {
         chronicle_records(&self.grams)
@@ -1060,7 +1060,7 @@ articles:
 
     /// The reader gives the engine its chronicle as records, for a
     /// reduction that reads aggregates (`source.projections`, schema
-    /// v0.8.15): every gram, in order.
+    /// v0.8.17): every gram, in order.
     #[test]
     fn the_reader_gives_its_chronicle_as_records() {
         let grams = decisions();

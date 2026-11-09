@@ -330,7 +330,7 @@ export function keten(alle, id, { law, article, naam }) {
           lijn('vraagt', celBox, vraag, box, uit.begrip, 'source.reduction');
         }
       } else if (s.projections) {
-        // The aggregates of another reduction (schema v0.8.15): each
+        // The aggregates of another reduction (schema v0.8.17): each
         // property of their state, set by its steps, runs into the input.
         const doel = wet(s.projections);
         const art = doel?.doc.articles.find((a) => a.machine_readable?.projection);

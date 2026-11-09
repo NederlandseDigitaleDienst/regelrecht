@@ -260,7 +260,7 @@ pub struct Source {
     #[serde(default, skip_serializing, deserialize_with = "present")]
     pub combine: Option<serde_json::Value>,
     /// The aggregates of a reduction whose projection plays one per record
-    /// of a kind (`projection.per`, schema v0.8.15), by its `$id`: a list
+    /// of a kind (`projection.per`, schema v0.8.17), by its `$id`: a list
     /// with one row per root record, the last state of its aggregate with
     /// the root's `id`. Only the chronicle of the cell that runs the
     /// reduction answers it. Only a `REDUCTIE` may read it.
@@ -268,7 +268,7 @@ pub struct Source {
     pub projections: Option<String>,
     /// Only with `projections`: the roots whose aggregates are read, as a
     /// map from a field or output of the root to a `$`-reference to a
-    /// parameter of the reading article (schema v0.8.15).
+    /// parameter of the reading article (schema v0.8.17).
     #[serde(default, rename = "where", skip_serializing_if = "Option::is_none")]
     pub where_: Option<BTreeMap<String, String>>,
 }
@@ -1870,7 +1870,7 @@ pub struct Projection {
     /// a field or an output. Without it, every record is played.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub key: Option<String>,
-    /// Instead of `key` (schema v0.8.15): play one aggregate per record that
+    /// Instead of `key` (schema v0.8.17): play one aggregate per record that
     /// rests on this article, `<regulation>#<article>` with `#<KIND>` where
     /// the article gives more than one kind: that record, its root, and the
     /// records that refer to it. Another reduction reads the last state of

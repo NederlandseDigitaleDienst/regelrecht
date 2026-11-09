@@ -11,7 +11,7 @@
 # measure that suspends the card for a while, the lifting of that measure,
 # when a suspended card is valid on a day, and the revocation of a
 # suspension, each loosely after the Awb or invented for the tests.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: test_chronicle_effects
 name: Testwet effecten van besluiten
 regulatory_layer: WET

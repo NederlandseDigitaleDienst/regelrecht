@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: reductie_schorsing_bedrijfsparkeervergunning
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
@@ -7,7 +7,7 @@ valid_from: '2026-01-01'
 # Geen regelgeving: een reductie van het college van de (fictieve) gemeente
 # Wilgendaal over zijn eigen kroniek (RFC-022 §4.1, RFC-048). Eén aggregaat
 # per afschrift van een uitspraak van de voorzieningenrechter (Awb 8:84,
-# vierde lid, schema v0.8.15), en wat ernaar verwijst: de uitspraak die de
+# vierde lid, schema v0.8.17), en wat ernaar verwijst: de uitspraak die de
 # voorziening opheft (8:87). Een schorsing trekt niets in: de staat houdt
 # het besluit waarop zij ziet en de dagen die de records dragen. Wat ze op
 # een dag betekenen, zegt artikel 1 van het fictieve beleid verleende

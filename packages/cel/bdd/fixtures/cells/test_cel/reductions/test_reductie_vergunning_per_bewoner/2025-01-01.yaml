@@ -1,7 +1,7 @@
 ---
 # FICTIEF. A read model of the cell's BDD suite: the plate of the permit of
 # a resident, from the aggregates of test_reductie_parkeervergunning.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: test_reductie_vergunning_per_bewoner
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'

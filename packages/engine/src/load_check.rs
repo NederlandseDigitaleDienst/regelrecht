@@ -254,7 +254,7 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
 }
 
 /// An input that reads the aggregates of a reduction (`source.projections`,
-/// schema v0.8.15) does so in a `REDUCTIE`, and stands alone: no other way
+/// schema v0.8.17) does so in a `REDUCTIE`, and stands alone: no other way
 /// to a value beside it. `where` names the roots by values the reading
 /// article declares as parameters, and stands only beside `projections`.
 fn check_projections_read(
@@ -841,14 +841,14 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
         if projection.state.is_empty() {
             return refuse(where_, "has a projection without a state".to_string());
         }
-        // From schema v0.8.15 a projection plays one aggregate per record
-        // (`per`); v0.8.14 played the records of one `key`.
-        if from_version(law, (0, 8, 15)) {
+        // From schema v0.8.17 a projection plays one aggregate per record
+        // (`per`); up to v0.8.16 it played the records of one `key`.
+        if from_version(law, (0, 8, 17)) {
             if let Some(key) = &projection.key {
                 return refuse(
                     where_,
                     format!(
-                        "plays the records of one '{key}' (key); since schema v0.8.15 a \
+                        "plays the records of one '{key}' (key); since schema v0.8.17 a \
                          projection plays one aggregate per record (per), read with \
                          source.projections"
                     ),
@@ -857,7 +857,7 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
             if projection.per.is_none() {
                 return refuse(
                     where_,
-                    "has a projection without per; since schema v0.8.15 a projection plays \
+                    "has a projection without per; since schema v0.8.17 a projection plays \
                      one aggregate per record"
                         .to_string(),
                 );
@@ -965,7 +965,7 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
                     format!("has two steps for the same records under {basis}"),
                 );
             }
-            // Since schema v0.8.15 a step passes no parameter of the
+            // Since schema v0.8.17 a step passes no parameter of the
             // question: the fold depends on the chronicle alone. A file
             // under an earlier version keeps what that version allowed.
             let question: Option<Vec<&str>> =
@@ -985,7 +985,7 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
 /// schema v0.8.14, which allowed it. A file that names no version is held to
 /// the newest.
 fn passes_question(law: &ArticleBasedLaw) -> bool {
-    !from_version(law, (0, 8, 15))
+    !from_version(law, (0, 8, 17))
 }
 
 /// The shape of a step, apart from the laws it calls (which are in other
@@ -1057,7 +1057,7 @@ fn check_step_shape(
                 _ if question.is_none() => {
                     return Err(format!(
                         "has input '{}' that passes '{name}' as '{value}'; a parameter of a step \
-                         is $record.<field> or $state.<property>, and since schema v0.8.15 no \
+                         is $record.<field> or $state.<property>, and since schema v0.8.17 no \
                          parameter of the question",
                         input.name
                     ))
@@ -2070,7 +2070,7 @@ articles:
         }
     }
 
-    /// A projection plays one aggregate per record (`per`, schema v0.8.15)
+    /// A projection plays one aggregate per record (`per`, schema v0.8.17)
     /// or the records of one key, not both, and answers no question of its
     /// own.
     #[test]
@@ -2110,14 +2110,14 @@ articles:
         }
     }
 
-    /// Since schema v0.8.15 a step passes no parameter of the question and a
+    /// Since schema v0.8.17 a step passes no parameter of the question and a
     /// projection plays one aggregate per record (`per`), not the records of
-    /// one `key`. A file under v0.8.14 keeps both; a file that names no
+    /// one `key`. A file under v0.8.16 or earlier keeps both; a file that names no
     /// version is held to the newest.
     #[test]
-    fn since_v0_8_15_a_projection_has_per_and_its_steps_ask_no_question() {
+    fn since_v0_8_17_a_projection_has_per_and_its_steps_ask_no_question() {
         const V0_8_14: &str = "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json\n";
-        const V0_8_15: &str = "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json\n";
+        const V0_8_17: &str = "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json\n";
         let projection = "        key: peildatum\n        state:\n          - {name: a, type: boolean}\n        steps:\n          - {record: wet#1, input: [{name: x, type: boolean, source: {regulation: wet, output: o, parameters: {p: $peildatum}}}], actions: [{output: a, value: $x}]}";
         let keyed = law_with_projection("REDUCTIE", projection).replace(
             "      execution:\n",
@@ -2132,24 +2132,24 @@ articles:
             without_execution(&keyed.replace("        key: peildatum\n", "        per: wet#1\n"));
         for (law, why) in [
             (
-                keyed.replace(V0_8_14, V0_8_15),
-                "plays the records of one 'peildatum' (key); since schema v0.8.15 a projection plays one aggregate per record (per)",
+                keyed.replace(V0_8_14, V0_8_17),
+                "plays the records of one 'peildatum' (key); since schema v0.8.17 a projection plays one aggregate per record (per)",
             ),
             (
                 keyed.replace(V0_8_14, ""),
                 "plays the records of one 'peildatum' (key)",
             ),
             (
-                keyed.replace(V0_8_14, V0_8_15).replace("        key: peildatum\n", ""),
-                "has a projection without per; since schema v0.8.15 a projection plays one aggregate per record",
+                keyed.replace(V0_8_14, V0_8_17).replace("        key: peildatum\n", ""),
+                "has a projection without per; since schema v0.8.17 a projection plays one aggregate per record",
             ),
             (
-                per.replace(V0_8_14, V0_8_15),
-                "has input 'x' that passes 'p' as '$peildatum'; a parameter of a step is $record.<field> or $state.<property>, and since schema v0.8.15 no parameter of the question",
+                per.replace(V0_8_14, V0_8_17),
+                "has input 'x' that passes 'p' as '$peildatum'; a parameter of a step is $record.<field> or $state.<property>, and since schema v0.8.17 no parameter of the question",
             ),
             (
                 per.replace(V0_8_14, ""),
-                "and since schema v0.8.15 no parameter of the question",
+                "and since schema v0.8.17 no parameter of the question",
             ),
         ] {
             let err = LawExecutionService::new().load_law(&law).expect_err(why);

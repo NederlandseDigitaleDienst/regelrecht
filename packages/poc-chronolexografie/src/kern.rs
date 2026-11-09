@@ -1409,7 +1409,7 @@ pub(crate) fn beleid_van<'s>(
         &'s regelrecht_engine::Article,
     )> = Vec::new();
     // The aggregates the reduction reads (`source.projections`, schema
-    // v0.8.15) call laws in their steps too.
+    // v0.8.17) call laws in their steps too.
     let aggregaten = reduction
         .articles
         .iter()
@@ -2231,7 +2231,7 @@ fn lezingen_van(
             }
             continue;
         }
-        // The aggregates of another reduction (schema v0.8.15): it reads
+        // The aggregates of another reduction (schema v0.8.17): it reads
         // what that reduction's steps read.
         if let Some(regelwerk) = &source.projections {
             if bezig.contains(regelwerk) {

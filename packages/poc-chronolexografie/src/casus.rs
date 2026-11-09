@@ -975,7 +975,7 @@ fn leest<'a>(artikelen: impl Iterator<Item = &'a Article>) -> BTreeSet<String> {
             }
         }
         for source in a.get_inputs().iter().filter_map(|i| i.source.as_ref()) {
-            // The aggregates of another reduction (schema v0.8.15).
+            // The aggregates of another reduction (schema v0.8.17).
             for id in [&source.regulation, &source.projections]
                 .into_iter()
                 .flatten()

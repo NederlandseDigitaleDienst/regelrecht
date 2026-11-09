@@ -2,7 +2,7 @@
 //! business parking permits of a company, and what it does to the
 //! reductions of the municipality: the one per registration number
 //! (`kenteken`) and the one per company (`kvk_nummer`). Both read the
-//! aggregates of the municipality (schema v0.8.15): one per decision on an
+//! aggregates of the municipality (schema v0.8.17): one per decision on an
 //! application, and one per copy of a ruling of the voorzieningenrechter.
 //!
 //! The company gets its permits as the game plays them (tests/spel.rs). A

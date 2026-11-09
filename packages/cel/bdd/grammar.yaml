@@ -69,7 +69,7 @@ steps:
 
   # A decision the cell takes ex officio, on no submission
   # (`Cell::decide_ex_officio`), about an earlier record (`refers_to`), such
-  # as a withdrawal: the record it affects (schema v0.8.15). A refusal is
+  # as a withdrawal: the record it affects (schema v0.8.17). A refusal is
   # kept for "the cell refuses with".
   - id: decide_under_article_about
     action: decide_under_article_about
@@ -180,7 +180,7 @@ steps:
   # (with the records that revoke it), and a record that counts for its
   # effects only (with why). The table has a header row `record | event |
   # detail` and must match exactly. For a reduction that reads aggregates
-  # (`source.projections`, schema v0.8.15) the header is `aggregate | record
+  # (`source.projections`, schema v0.8.17) the header is `aggregate | record
   # | event | detail`: the steps of each aggregate it read, by its root, in
   # the order of the chronicle.
   - id: assert_projection_trace

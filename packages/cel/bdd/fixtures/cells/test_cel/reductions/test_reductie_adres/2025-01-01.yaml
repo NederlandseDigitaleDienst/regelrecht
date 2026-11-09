@@ -3,7 +3,7 @@
 # (packages/cel/bdd/features/corrections.feature): the address of the
 # resident, from the one registration of the resident that holds a postcode
 # (test_reductie_inschrijving).
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: test_reductie_adres
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'

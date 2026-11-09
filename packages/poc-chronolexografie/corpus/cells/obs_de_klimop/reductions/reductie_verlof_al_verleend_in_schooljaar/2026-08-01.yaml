@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: reductie_verlof_al_verleend_in_schooljaar
 regulatory_layer: REDUCTIE
 publication_date: '2026-07-01'
@@ -7,7 +7,7 @@ valid_from: '2026-08-01'
 # Geen regelgeving: een reductie van het hoofd van OBS De Klimop over zijn
 # eigen kroniek (RFC-022 §4.1, RFC-048). Ze speelt zelf niets af: ze leest de
 # aggregaten van de besluiten over de jongere (reductie_verlof), elk met zijn
-# laatste staat (source.projections, schema v0.8.15). Welke besluiten
+# laatste staat (source.projections, schema v0.8.17). Welke besluiten
 # meetellen, volgt uit de
 # effecten die de Awb een besluit geeft: een beslissing op bezwaar die het
 # bestreden besluit herroept (7:11, tweede lid), en de ontvangst van een

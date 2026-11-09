@@ -3,7 +3,7 @@ Feature: One aggregate per decision, read as rows
   I want a projection that plays one aggregate per decision
   So that a read model can count the decisions, each with its own state
 
-  # Exercises `projection.per` and `source.projections` (schema v0.8.15)
+  # Exercises `projection.per` and `source.projections` (schema v0.8.17)
   # against the synthetic law test_chronicle_effects. The reduction
   # test_reductie_kaart_per_verlening (fixtures/cells/test_cel) plays one
   # aggregate per decision on an application under article 1: the decision,

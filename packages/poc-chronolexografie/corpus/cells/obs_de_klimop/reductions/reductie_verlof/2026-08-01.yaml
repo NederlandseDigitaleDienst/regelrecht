@@ -1,12 +1,12 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: reductie_verlof
 regulatory_layer: REDUCTIE
 publication_date: '2026-07-01'
 valid_from: '2026-08-01'
 # Geen regelgeving: een reductie van het hoofd van OBS De Klimop over zijn
 # eigen kroniek (RFC-022 §4.1, RFC-048). Eén aggregaat per besluit onder
-# artikel 13a van de Leerplichtwet 1969 (schema v0.8.15): het besluit en wat
+# artikel 13a van de Leerplichtwet 1969 (schema v0.8.17): het besluit en wat
 # ernaar verwijst, zoals een bezwaar en de beslissing erop. Welke records
 # meetellen, volgt uit de effecten die de Awb ze geeft (7:11, tweede lid, en
 # 8:79 met 8:72). De staat houdt of het besluit verlof verleent en de eerste

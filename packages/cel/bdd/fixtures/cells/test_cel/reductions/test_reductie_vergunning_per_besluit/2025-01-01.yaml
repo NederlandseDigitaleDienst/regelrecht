@@ -1,9 +1,9 @@
 ---
 # FICTIEF. A reduction of the cell's BDD suite over test_bedrijfsvergunning
-# (schema v0.8.15): one aggregate per decision on an application, with the
+# (schema v0.8.17): one aggregate per decision on an application, with the
 # day up to which its permit is valid. test_reductie_geldige_vergunningen_op_peildatum
 # reads the aggregates.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: test_reductie_vergunning_per_besluit
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'

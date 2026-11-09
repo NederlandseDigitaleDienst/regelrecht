@@ -4,7 +4,7 @@
 # test_reductie_kaart_per_besluit, each with the period of a suspension
 # (articles 13 and 14 of test_chronicle_effects); article 15 of the law says
 # whether a card is valid on the day.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: test_reductie_kaart_op_peildatum
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'

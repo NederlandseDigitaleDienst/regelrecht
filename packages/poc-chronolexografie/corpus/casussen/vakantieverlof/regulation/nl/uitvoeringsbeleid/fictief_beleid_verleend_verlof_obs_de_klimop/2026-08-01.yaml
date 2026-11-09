@@ -10,7 +10,7 @@ valid_from: '2026-08-01'
 # Wat de besluiten onder artikel 13a van de Leerplichtwet 1969 betekenen
 # voor de vraag of de jongere in een schooljaar al verlof kreeg. De reductie
 # van de school (reductie_verlof_al_verleend_in_schooljaar) geeft dit beleid
-# de besluiten die meetellen, elk als rij (schema v0.8.15, artikel 1).
+# de besluiten die meetellen, elk als rij (schema v0.8.17, artikel 1).
 # Artikel 2 zegt per ontvangen uitspraak of de bestuursrechter zelf verlof
 # verleende, voor de reductie per besluit. Het staat los van het beleid
 # vakantieverlof, omdat dat beleid de reductie aanroept.

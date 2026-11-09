@@ -192,7 +192,7 @@ pub trait Chronicle {
     ) -> Result<Option<Value>>;
 
     /// The records of the chronicle, in order, for a reduction that reads
-    /// the aggregates of another (`source.projections`, schema v0.8.15).
+    /// the aggregates of another (`source.projections`, schema v0.8.17).
     /// `None` when this chronicle gives no records; the input is then an
     /// error.
     fn records(&self) -> Result<Option<Vec<crate::projection::ChronicleRecord>>> {
