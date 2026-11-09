@@ -12,7 +12,7 @@ use common::{answered, cell_tempdir, day, object_map};
 
 use std::path::Path;
 
-use regelrecht_cel::{Cell, Error, Gram, Reference, Source, decision, shape};
+use regelrecht_cel::{Cell, Disk, Error, Gram, Reference, Source, decision, shape};
 use regelrecht_engine::LawExecutionService;
 use serde_json::{Map, Value, json};
 
@@ -1593,6 +1593,32 @@ fn an_objection_against_a_decision_on_objection_is_not_admissible() {
     assert_eq!(decided[0].outputs[ADMISSIBLE], json!(false));
     assert_eq!(decided[0].outputs[CAUSE], Value::Null);
     assert_eq!(decided[0].outputs[REVOKED], json!(false));
+}
+
+#[test]
+fn a_new_decision_changed_in_the_chronicle_does_not_replay() {
+    // The new decision is part of the decision on the objection, which holds
+    // it with every output its stages gave. A chronicle in which those
+    // outputs were changed afterwards no longer holds what the decision
+    // gave: taken again, the decision refuses it.
+    let mut cell = cell();
+    let refused = refused_on_profession(&mut cell);
+    let bezwaar = object(&mut cell, &refused.id, &objection(&[]), "2026-11-15").unwrap();
+    let decided = reconsider(&mut cell, &bezwaar.id, &profession(true), "2026-11-15").unwrap();
+    cell.explain(&mut service(), &[], &decided[0].id).unwrap();
+    let mut grams = cell.grams().to_vec();
+    let held = grams.last_mut().unwrap().outputs.get_mut(NEW).unwrap();
+    assert_eq!(held["outputs"]["verlof_verleend"], json!(true));
+    held["outputs"]["verlof_verleend"] = json!(false);
+    let dir = lid_2_dir();
+    let changed = Cell::restore(&Disk, RECORDING_ACTOR, dir.path(), grams).unwrap();
+    let e = changed
+        .explain(&mut service(), &[], &decided[0].id)
+        .unwrap_err();
+    assert!(
+        e.to_string().contains("the replay is not this decision"),
+        "{e}"
+    );
 }
 
 #[test]
