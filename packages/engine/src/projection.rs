@@ -198,7 +198,7 @@ impl LawExecutionService {
         let Some(first) = output_names.first() else {
             return Err(EngineError::InvalidOperation("no output asked".to_string()));
         };
-        let (projection, key_type, question, since_v0_8_15) = {
+        let (projection, key_type, question, since_v0_8_16) = {
             let law = self
                 .resolver()
                 .get_law_for_date(law_id, Some(day))
@@ -224,8 +224,8 @@ impl LawExecutionService {
                     .find(|p| &p.name == key)
                     .map(|p| p.param_type)
             });
-            let since_v0_8_15 = crate::load_check::from_version(law, (0, 8, 15));
-            (projection, key_type, question, since_v0_8_15)
+            let since_v0_8_16 = crate::load_check::from_version(law, (0, 8, 16));
+            (projection, key_type, question, since_v0_8_16)
         };
 
         // The reduction reads its state as `$state`; a caller cannot pass
@@ -242,7 +242,7 @@ impl LawExecutionService {
             .filter(|r| r.recorded_on <= day)
             .cloned()
             .collect();
-        self.check_steps(law_id, &projection, &question, day, since_v0_8_15)?;
+        self.check_steps(law_id, &projection, &question, day, since_v0_8_16)?;
         let partition = self.partition(&projection, key_type.as_ref(), &known, &parameters)?;
         let played = self.play(law_id, &projection, &known, &partition, &parameters, trace)?;
 
@@ -380,16 +380,17 @@ impl LawExecutionService {
 
     /// Refuse a step that does not fit the laws it names, in their versions
     /// in force on `day`, the calculation date ([`check_step`]). From schema
-    /// v0.8.15 the loader checks the same when the reduction loads, against
+    /// v0.8.16 the loader checks the same when the reduction loads, against
     /// the laws it holds then; this check also holds the step to a law that
-    /// arrived later. For a reduction on v0.8.14 this is the only check.
+    /// arrived later. For a reduction on v0.8.15 or earlier this is the only
+    /// check.
     fn check_steps(
         &self,
         law_id: &str,
         projection: &Projection,
         question: &[regelrecht_law_model::Parameter],
         day: NaiveDate,
-        since_v0_8_15: bool,
+        since_v0_8_16: bool,
     ) -> Result<()> {
         let law_of = |id: &str| self.resolver().get_law_for_date(id, Some(day));
         for step in &projection.steps {
@@ -399,7 +400,7 @@ impl LawExecutionService {
                 question,
                 &law_of,
                 Versions::InForce(day),
-                since_v0_8_15,
+                since_v0_8_16,
             )
             .map_err(|why| {
                 EngineError::InvalidOperation(format!(
@@ -813,19 +814,19 @@ impl std::fmt::Display for Versions {
 /// parameter of the question, of the parameter's type, and have the type of
 /// that output; each property the step sets must get a value of its type.
 ///
-/// Three of these rules came with schema v0.8.15 and hold only for a
-/// reduction on v0.8.15 or later (`since_v0_8_15`), so a reduction valid
-/// under the released v0.8.14 still loads: the article must give a record,
-/// `$record` reads only the fields of the kind of record the step is about,
-/// and every required parameter the output reads must be passed. Under
-/// v0.8.14 `$record` reads any parameter or output of the article.
+/// Three of these rules came with schema v0.8.16 and hold only for a
+/// reduction on v0.8.16 or later (`since_v0_8_16`), so a reduction valid
+/// under a released v0.8.14 or v0.8.15 still loads: the article must give a
+/// record, `$record` reads only the fields of the kind of record the step is
+/// about, and every required parameter the output reads must be passed.
+/// Before v0.8.16 `$record` reads any parameter or output of the article.
 pub(crate) fn check_step<'l>(
     projection: &Projection,
     step: &ProjectionStep,
     question: &[regelrecht_law_model::Parameter],
     law_of: &dyn Fn(&str) -> Option<&'l ArticleBasedLaw>,
     versions: Versions,
-    since_v0_8_15: bool,
+    since_v0_8_16: bool,
 ) -> std::result::Result<(), String> {
     // The article of `law_id` that `pick` finds: `Ok(None)` when the loader
     // does not hold that law yet, so there is nothing to check against.
@@ -848,15 +849,15 @@ pub(crate) fn check_step<'l>(
     )?;
     let record = match record_article {
         Some(article) => match record_kind(article, basis, kind)? {
-            None if since_v0_8_15 => {
+            None if since_v0_8_16 => {
                 return Err(
                     "the article gives no record, so no record rests on it to take a step for"
                         .to_string(),
                 )
             }
-            // Before v0.8.15 a step on such an article loads and never
+            // Before v0.8.16 a step on such an article loads and never
             // applies, and `$record` reads the whole article.
-            kind => Some((article, kind.filter(|_| since_v0_8_15))),
+            kind => Some((article, kind.filter(|_| since_v0_8_16))),
         },
         None => None,
     };
@@ -935,7 +936,7 @@ pub(crate) fn check_step<'l>(
         // a fact of the article holds, need not be passed.
         let reads = output_reads(called, output);
         if let Some(required) = called.get_parameters().iter().find(|p| {
-            since_v0_8_15
+            since_v0_8_16
                 && p.required != Some(false)
                 && reads.contains(&p.name)
                 && !parameters.contains_key(&p.name)
@@ -1125,7 +1126,7 @@ fn state_type(projection: &Projection, name: &str) -> Option<ParameterType> {
 /// article, its outputs and the data derived for it; a submission the
 /// parameters and outputs its item lists (in the object form of `produces`
 /// every parameter and output). Without a kind (a reduction before schema
-/// v0.8.15, [`check_step`]) every parameter and output counts.
+/// v0.8.16, [`check_step`]) every parameter and output counts.
 fn field_type(article: &Article, kind: Option<&str>, name: &str) -> Option<ParameterType> {
     let parameter = || {
         article
@@ -2609,13 +2610,14 @@ articles:
         }
     }
 
-    /// Three rules on a step came with schema v0.8.15: the article gives a
+    /// Three rules on a step came with schema v0.8.16: the article gives a
     /// record, `$record` reads only the fields of its kind, and every
     /// required parameter the output reads is passed. A reduction that
-    /// declares v0.8.14, which the released schema allows, still loads in
-    /// either order and plays; from v0.8.15 it is refused.
+    /// declares v0.8.14 or v0.8.15, which the released schemas allow, still
+    /// loads in either order and passes the play-time check; from v0.8.16 it
+    /// is refused.
     #[test]
-    fn the_rules_of_v0_8_15_leave_a_reduction_on_v0_8_14_alone() {
+    fn the_rules_of_v0_8_16_leave_a_reduction_on_v0_8_15_alone() {
         let on = |reduction: &str, v: &str| {
             reduction.replacen(
                 "$id: reductie",
@@ -2649,29 +2651,31 @@ articles:
                 "input 'aantal_na' passes no 'aantal'",
             ),
         ] {
-            for err in refused_in_either_order(LAW, &on(&reduction, "v0.8.15")) {
+            for err in refused_in_either_order(LAW, &on(&reduction, "v0.8.16")) {
                 assert!(err.contains(why), "{why}: {err}");
             }
-            let old = on(&reduction, "v0.8.14");
-            for law_first in [true, false] {
-                let mut service = LawExecutionService::new();
-                let order = if law_first { [LAW, &old] } else { [&old, LAW] };
-                for law in order {
-                    service.load_law(law).expect("valid under v0.8.14");
+            for v in ["v0.8.14", "v0.8.15"] {
+                let old = on(&reduction, v);
+                for law_first in [true, false] {
+                    let mut service = LawExecutionService::new();
+                    let order = if law_first { [LAW, &old] } else { [&old, LAW] };
+                    for law in order {
+                        service.load_law(law).expect(v);
+                    }
+                    service
+                        .evaluate_projection(
+                            "reductie",
+                            &["heeft_kaart"],
+                            &[],
+                            BTreeMap::new(),
+                            "2025-03-01",
+                            false,
+                        )
+                        .expect(v);
                 }
-                service
-                    .evaluate_projection(
-                        "reductie",
-                        &["heeft_kaart"],
-                        &[],
-                        BTreeMap::new(),
-                        "2025-03-01",
-                        false,
-                    )
-                    .expect("passes the play-time check under v0.8.14");
             }
         }
-        // The check at load came with v0.8.15 too: a reduction on v0.8.14
+        // The check at load came with v0.8.16 too: a reduction on v0.8.15
         // that breaks an older rule loads after the law, and the play
         // refuses it.
         let wrong_type = with(
@@ -2679,13 +2683,13 @@ articles:
             "              - name: kaart_na\n                type: number",
         );
         let why = "input 'kaart_na' is a Number, but 'kaart' of wet is a Boolean";
-        let err = refused_in_either_order(LAW, &on(&wrong_type, "v0.8.15"));
+        let err = refused_in_either_order(LAW, &on(&wrong_type, "v0.8.16"));
         assert!(err[0].contains(why), "{why}: {}", err[0]);
         let mut service = LawExecutionService::new();
         service.load_law(LAW).unwrap();
         service
-            .load_law(&on(&wrong_type, "v0.8.14"))
-            .expect("v0.8.14 is not checked at load");
+            .load_law(&on(&wrong_type, "v0.8.15"))
+            .expect("v0.8.15 is not checked at load");
         let err = service
             .evaluate_projection(
                 "reductie",
