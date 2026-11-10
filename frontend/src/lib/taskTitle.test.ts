@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { taskTitle, runningTitle } from './taskTitle';
 
-// De weergavenaam-resolver zoals useCorpusLaws 'm levert.
+// De weergavenaam-resolver zoals de corpuslezer 'm levert.
 const lawName = (id: string | null | undefined) =>
   id === 'wet_op_de_zorgtoeslag' ? 'Wet op de zorgtoeslag' : String(id);
 

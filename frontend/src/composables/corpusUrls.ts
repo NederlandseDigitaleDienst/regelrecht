@@ -1,9 +1,9 @@
-// Centralised URL builders for the editor's corpus endpoints. The two
-// shapes - global (`/api/corpus/...`, read-only) and traject-scoped
-// (`/api/trajects/{ref}/corpus/...`, read + write) - are picked by
-// whether a traject ref is present at call time. Putting the choice in
-// one place keeps composables aligned and prevents the pattern from
-// drifting per file.
+// URL builders for the editor's corpus endpoints that the corpus reader
+// (src/corpus) does not own: writes, scenarios, annotations, documents,
+// favorites and uploads. Reads of ruleworks and the law list go through
+// `useCorpus()` instead. The two shapes - global (`/api/corpus/...`,
+// read-only) and traject-scoped (`/api/trajects/{ref}/corpus/...`, read +
+// write) - are picked by whether a traject ref is present at call time.
 //
 // The `trajectRef` is the URL-form identifier `{slug}-{8hex}` returned
 // by the backend on `t.ref`. The backend resolves it back to a UUID via
@@ -21,38 +21,6 @@ export function corpusBase(trajectRef: TrajectRef): string {
 
 export function lawUrl(trajectRef: TrajectRef, lawId: string): string {
   return `${corpusBase(trajectRef)}/laws/${encodeURIComponent(lawId)}`;
-}
-
-// All versions of a law (newest-first), as a JSON array of YAML strings.
-// Unlike `lawUrl` (one "best for today" body), the scenario dependency loader
-// feeds every version to the engine so its date-aware version selection can
-// pick the one in force on the scenario's calculation date - otherwise a
-// referenced law that has a future-dated version would load only that future
-// version and fail "not yet in force" for a past-dated scenario.
-export function lawVersionsUrl(trajectRef: TrajectRef, lawId: string): string {
-  return `${lawUrl(trajectRef, lawId)}/versions`;
-}
-
-// The outputs a law offers to other laws (name, type, parameters), for the
-// `source.output` picker. A law that exists only in the traject has outputs
-// only on the traject route.
-export function lawOutputsUrl(trajectRef: TrajectRef, lawId: string): string {
-  return `${lawUrl(trajectRef, lawId)}/outputs`;
-}
-
-export function lawsListUrl(trajectRef: TrajectRef, query = ''): string {
-  const q = query ? `?${query}` : '';
-  return `${corpusBase(trajectRef)}/laws${q}`;
-}
-
-// Law ids edited in a traject (branch-vs-base diff). Only exists under the
-// traject prefix - there is no global "changed laws" notion - so this is
-// traject-only, like the documents builders. Callers already short-circuit
-// the no-traject case (see `fetchChangedLawIds`); the guard here documents
-// that contract and fails loudly if a future caller forgets it.
-export function changedLawsUrl(trajectRef: TrajectRef): string {
-  requireTraject(trajectRef, 'changed-laws listing');
-  return `${corpusBase(trajectRef)}/changed-laws`;
 }
 
 // Favorieten horen bij de plek waar je werkt: in een traject de wetten van dat
@@ -74,14 +42,6 @@ export function favoriteUrl(trajectRef: TrajectRef, lawId: string): string {
 export function trajectSourcesUrl(trajectRef: TrajectRef): string {
   requireTraject(trajectRef, 'sources listing');
   return `/api/trajects/${encodeURIComponent(trajectRef)}/sources`;
-}
-
-// Law ids whose articles `implements` an open_term of `lawId` (the IoC
-// reverse link). Computed server-side over the in-memory corpus, so the
-// scenario dependency loader resolves implementing regulations with a
-// single request instead of fetching and parsing every law in the corpus.
-export function implementorsUrl(trajectRef: TrajectRef, lawId: string): string {
-  return `${lawUrl(trajectRef, lawId)}/implementors`;
 }
 
 export function scenariosListUrl(trajectRef: TrajectRef, lawId: string): string {

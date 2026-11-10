@@ -12,11 +12,6 @@ import { holdRetryFloor } from '../lib/retryFeedback';
 import type { LawArticle, LawDocument } from '../lib/lawFormat';
 export type { LawArticle, LawDocument } from '../lib/lawFormat';
 
-/** A rulework body as the corpus reader hands it out. */
-export type LawCacheEntry = LawBody;
-
-type TrajectRef = string | null | undefined;
-
 /** The JSON body of a law save/create (`{ pr, etag }`). */
 type SaveResponse = { pr?: unknown; etag?: string | null } | null;
 
@@ -25,22 +20,12 @@ function parseLaw(text: string): LawDocument | null {
   return yaml.load(text) as LawDocument | null;
 }
 
-// Shared apiFetch options for law GETs. The thrown ApiError carries the
+// apiFetch options for the direct-URL load. The thrown ApiError carries the
 // HTTP status so callers can branch on `.status === 404`; the message
-// keeps its historical shape.
-export const lawFetchInit = Object.freeze({
+// matches the corpus reader's.
+const lawFetchInit = Object.freeze({
   errorMessage: (status: number) => `Failed to fetch: ${status}`,
 });
-
-/**
- * Fetch a law's YAML, possibly from cache, through the given traject.
- *
- * @param {string|null} trajectRef - traject to read (null = global read)
- * @param {string} lawId
- */
-export async function fetchLaw(trajectRef: TrajectRef, lawId: string): Promise<LawCacheEntry> {
-  return useCorpus().forTraject(trajectRef).law(lawId);
-}
 
 export function useLaw(
   lawParam?: string | null,
@@ -117,7 +102,7 @@ export function useLaw(
     const loadTrajectRef = currentTrajectRef;
     try {
       loading.value = true;
-      let entry: LawCacheEntry;
+      let entry: LawBody;
       if (initialDirectUrl) {
         // Direct URL: not a corpus route, so fetch inline and record the
         // body under its resolved `$id`.

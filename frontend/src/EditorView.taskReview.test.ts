@@ -116,11 +116,6 @@ vi.mock('./composables/useLaw', () => ({
     currentEtag,
     lastSavedPr: ref(null),
   }),
-  fetchLaw: vi.fn(),
-}));
-
-vi.mock('./composables/useCorpusLaws', () => ({
-  useCorpusLaws: () => ({ displayName: (id: string) => id, refresh: vi.fn() }),
 }));
 
 vi.mock('./composables/useEngine', () => ({
