@@ -68,6 +68,12 @@ voorbeeld:
     gronden_bezwaar_of_beroep: >-
       mijn inkomen daalt in 2025: ik werk vanaf februari vier dagen in plaats
       van vijf
+  # Wat het bestuursorgaan oordeelt over de ontvankelijkheid van het
+  # bezwaar (Awb 7:11): de indiener is belanghebbende (1:2, 7:1 en 8:1),
+  # en was bij een te laat bezwaarschrift in verzuim (6:11).
+  beslissing_op_bezwaar:
+    indiener_bezwaarschrift_is_belanghebbende: true
+    indiener_bezwaarschrift_niet_in_verzuim: false
 
 scenarios:
   - naam: Voorschot wordt verleend

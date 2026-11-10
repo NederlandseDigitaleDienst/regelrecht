@@ -383,9 +383,9 @@ articles:
       # Lid 1: of het bezwaar- of beroepschrift op tijd is, hangt af van de
       # ontvangst. Dat is het moment dat voor het bezwaar of beroep rechtens
       # telt. Lid 2 (verzending per post) is niet gemodelleerd. Een te laat
-      # bezwaar- of beroepschrift blijft een bezwaar- of beroepschrift;
-      # artikel 6:11 (verschoonbare termijnoverschrijding) is niet
-      # gemodelleerd.
+      # bezwaar- of beroepschrift blijft een bezwaar- of beroepschrift; of
+      # het daarom niet-ontvankelijk is, beslissen de artikelen 7:11 en 8:70,
+      # met artikel 6:11.
       hooks:
         - hook_point: post_actions
           applies_to:
@@ -433,11 +433,56 @@ articles:
                 in: days
               value: 0
 
+  - number: '6:11'
+    text: |-
+      Ten aanzien van een na afloop van de termijn ingediend bezwaar- of
+      beroepschrift blijft niet-ontvankelijkverklaring op grond daarvan
+      achterwege indien redelijkerwijs niet kan worden geoordeeld dat de
+      indiener in verzuim is geweest.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel6:11
+    # Niet apart uitvoerbaar. Of redelijkerwijs niet kan worden geoordeeld
+    # dat de indiener in verzuim is geweest, is een oordeel per geval van wie
+    # op het bezwaar of beroep beslist. Dat open begrip staat daarom bij het
+    # artikel dat de ontvankelijkheid bepaalt: bij artikel 7:11 voor het
+    # bestuursorgaan, bij artikel 8:70 voor de bestuursrechter. Het wordt
+    # alleen gevraagd als het bezwaar- of beroepschrift te laat is (artikel
+    # 6:9).
+
+  - number: '6:21'
+    text: |-
+      1. Het bezwaar of beroep kan schriftelijk worden ingetrokken.
+      2. Tijdens het horen kan de intrekking ook mondeling geschieden.
+    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel6:21
+    machine_readable:
+      # Lid 1 en 2: dat het bezwaar of beroep is ingetrokken, is een feit dat
+      # dit artikel omschrijft, zoals bij artikel 8:79. Het telt voor artikel
+      # 8:85, tweede lid, onder b: de voorlopige voorziening vervalt zodra het
+      # bezwaar of het beroep is ingetrokken. Wie de intrekking vastlegt,
+      # zegt de wet niet; de partij die haar ontvangt, legt haar vast (eigen
+      # keuze). Eigen keuze: de intrekking verwijst naar wat in de kroniek
+      # van het bestuursorgaan staat (refers_to, RFC-053): het bezwaar, of bij
+      # een beroep, dat in de kroniek van de bestuursrechter staat, de
+      # beslissing op bezwaar waartegen het is ingesteld. Een intrekking trekt
+      # geen besluit in, dus het feit heeft geen effect op een besluit
+      # (`effects`). Of zij schriftelijk of mondeling geschiedde, legt het
+      # feit niet vast.
+      requires:
+        - fact: intrekking_van_het_bezwaar_of_beroep
+          description: >-
+            De intrekking van het bezwaar of het beroep door de indiener.
+          parameters:
+            - ingetrokken_op
+      execution:
+        parameters:
+          - name: ingetrokken_op
+            type: date
+            description: De dag waarop het bezwaar of beroep is ingetrokken.
+
   - number: '7:1'
     text: |-
       1. Degene aan wie het recht is toegekend beroep bij een bestuursrechter in
       te stellen, dient alvorens beroep in te stellen bezwaar te maken, tenzij:
-      a. het besluit op bezwaar of in administratief beroep is genomen,
+      a. het besluit in bezwaar of in administratief beroep is genomen,
       b. het besluit aan goedkeuring is onderworpen,
       c. het besluit een goedkeuring of een weigering daarvan inhoudt,
       d. het besluit is voorbereid met toepassing van afdeling 3.4,
@@ -454,12 +499,14 @@ articles:
       tegen het besluit waartegen bezwaar is gemaakt.
     url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel7:1
     # Niet apart uitvoerbaar. Lid 1, onder a, toetsen twee artikelen: 7:11
-    # (geen bezwaar tegen een besluit dat op bezwaar is genomen) en 8:70
-    # (beroep alleen tegen een besluit dat op bezwaar is genomen). Beide lezen
-    # taken_on van het bestreden besluit (RFC-045 §7). Niet gemodelleerd zijn
-    # het besluit in administratief beroep (onder a) en de uitzonderingen
-    # onder b tot en met g: beroep zonder voorafgaand bezwaar is in dit
-    # corpus altijd niet-ontvankelijk.
+    # (geen bezwaar tegen een besluit dat in bezwaar is genomen) en 8:70
+    # (beroep alleen tegen een besluit dat in bezwaar is genomen). Beide lezen
+    # taken_on van het bestreden besluit (RFC-045 §7). Lid 1, aanhef, met
+    # artikel 8:1: bezwaar maakt wie beroep kan instellen, een belanghebbende;
+    # dat toetst artikel 7:11 met een open begrip, zoals artikel 8:70 bij het
+    # beroep. Niet gemodelleerd zijn het besluit in administratief beroep
+    # (onder a) en de uitzonderingen onder b tot en met g: beroep zonder
+    # voorafgaand bezwaar is in dit corpus altijd niet-ontvankelijk.
 
   - number: '7:2'
     text: |-
@@ -535,6 +582,39 @@ articles:
       # geeft dat een andere uitkomst, dan herroept het bestuursorgaan het
       # besluit en neemt het in zijn plaats het besluit dat de heroverweging
       # gaf (RFC-045 §7).
+      #
+      # Wie op het bezwaar beslist, is het bestuursorgaan dat het besluit nam
+      # (artikel 6:4, eerste lid). Het artikel noemt geen bestuursorgaan, dus
+      # hier staat geen competent_authority: het bestuursorgaan van de cel
+      # beantwoordt de open begrippen hieronder. Ze heten anders dan de
+      # begrippen van artikel 8:70, omdat de bestuursrechter die bij een
+      # uitspraak die in de plaats treedt (artikel 8:72, derde lid, onder b)
+      # allebei kan geven, en het bezwaar en het beroep elk een eigen
+      # indiener en een eigen termijn hebben.
+      open_terms:
+        # Artikel 7:1, eerste lid: bezwaar maakt "degene aan wie het recht is
+        # toegekend beroep bij een bestuursrechter in te stellen", en dat is
+        # volgens artikel 8:1 "een belanghebbende" (artikel 1:2, eerste lid).
+        - id: indiener_bezwaarschrift_is_belanghebbende
+          type: boolean
+          required: true
+          decided_per_case_by: het bestuursorgaan dat op het bezwaar beslist (artikelen 1:2, 7:1 en 8:1)
+          description: >-
+            Of de indiener van het bezwaarschrift belanghebbende is: degene
+            wiens belang rechtstreeks bij het bestreden besluit is betrokken
+            (artikelen 1:2, eerste lid, 7:1, eerste lid, en 8:1).
+        # Artikel 6:11: bij een te laat ingediend bezwaarschrift blijft de
+        # niet-ontvankelijkverklaring achterwege "indien redelijkerwijs niet
+        # kan worden geoordeeld dat de indiener in verzuim is geweest". Alleen
+        # gevraagd als het bezwaarschrift te laat is.
+        - id: indiener_bezwaarschrift_niet_in_verzuim
+          type: boolean
+          required: true
+          decided_per_case_by: het bestuursorgaan dat op het bezwaar beslist (artikel 6:11)
+          description: >-
+            Of redelijkerwijs niet kan worden geoordeeld dat de indiener van het
+            na afloop van de termijn ingediende bezwaarschrift in verzuim is
+            geweest (artikel 6:11).
       execution:
         # Lid 1: de heroverweging vindt plaats "op grondslag van" het bezwaar.
         # Dit artikel brengt twee dingen voort, zoals artikel 13a van de
@@ -592,11 +672,13 @@ articles:
             type: boolean
             description: >-
               Of het bezwaar ontvankelijk is (lid 1). Getoetst zijn de termijn
-              (artikel 6:9) en dat het bestreden besluit niet op bezwaar onder
-              dit artikel is genomen (artikel 7:1, eerste lid, onder a): niet
-              de beslissing op bezwaar, en dus ook niet het nieuwe besluit dat
-              zij in de plaats van een herroepen besluit nam en zelf houdt. De
-              overige vereisten en artikel 6:11 nog niet.
+              (artikel 6:9, met artikel 6:11 bij een te laat bezwaarschrift),
+              dat het bestreden besluit niet in bezwaar onder dit artikel is
+              genomen (artikel 7:1, eerste lid, onder a): niet de beslissing op
+              bezwaar, en dus ook niet het nieuwe besluit dat zij in de plaats
+              van een herroepen besluit nam en zelf houdt; en dat de indiener
+              belanghebbende is (artikelen 1:2, 7:1 en 8:1). De overige
+              vereisten nog niet.
           - name: heroverweging_geeft_aanleiding
             type: boolean
             nullable: true
@@ -618,26 +700,39 @@ articles:
               vervalt het nieuwe besluit met haar.
         actions:
           # Eigen keuze: lid 1 zegt niet wanneer een bezwaar ontvankelijk is.
-          # Hier de termijn (artikel 6:9), en dat er geen bezwaar openstaat
-          # tegen een besluit dat op bezwaar is genomen: daartegen staat
-          # beroep open (artikel 7:1, eerste lid, onder a, dat niet is
-          # opgenomen). Dat is de beslissing op het bezwaar, inclusief het
-          # nieuwe besluit dat zij in de plaats van een herroepen besluit nam:
-          # dat hoort bij de beslissing en is geen eigen besluit in de
-          # kroniek. Een besluitwaarde uit de kroniek noemt in taken_on het
-          # artikel van de indiening waarop het besluit is genomen (RFC-045
-          # §7). De overige vereisten (artikelen 1:2, 6:5 met 6:6) en artikel
-          # 6:11 nog niet.
+          # Hier drie vereisten, in deze volgorde; AND stopt bij de eerste
+          # die niet geldt, dus een begrip na een vereiste dat faalt, wordt
+          # niet gevraagd.
+          # 1. De termijn (artikel 6:9). Is het bezwaarschrift te laat, dan
+          #    blijft niet-ontvankelijkverklaring achterwege als redelijkerwijs
+          #    niet kan worden geoordeeld dat de indiener in verzuim is geweest
+          #    (artikel 6:11). Dat oordeel wordt alleen bij een te laat
+          #    bezwaarschrift gevraagd.
+          # 2. Er staat geen bezwaar open tegen een besluit dat in bezwaar is
+          #    genomen: daartegen staat beroep open (artikel 7:1, eerste lid,
+          #    onder a). Dat is de beslissing op het bezwaar, inclusief het
+          #    nieuwe besluit dat zij in de plaats van een herroepen besluit
+          #    nam: dat hoort bij de beslissing en is geen eigen besluit in de
+          #    kroniek. Een besluitwaarde uit de kroniek noemt in taken_on het
+          #    artikel van de indiening waarop het besluit is genomen (RFC-045
+          #    §7).
+          # 3. De indiener is belanghebbende (artikelen 1:2, 7:1, eerste lid,
+          #    en 8:1), zoals bij het beroep in artikel 8:70.
+          # De overige vereisten (artikel 6:5 met 6:6) nog niet.
           - output: bezwaar_ontvankelijk
             value:
               operation: AND
               conditions:
-                - $bezwaar_of_beroepschrift_tijdig_ingediend
+                - operation: OR
+                  conditions:
+                    - $bezwaar_of_beroepschrift_tijdig_ingediend
+                    - $indiener_bezwaarschrift_niet_in_verzuim
                 - operation: NOT
                   value:
                     operation: EQUALS
                     subject: $bestreden_besluit.taken_on
                     value: algemene_wet_bestuursrecht#7:11
+                - $indiener_bezwaarschrift_is_belanghebbende
           # Lid 2: "voor zover de heroverweging daartoe aanleiding geeft".
           # Eigen keuze: aanleiding is er als de heroverweging een andere
           # uitkomst geeft dan het bestreden besluit. Alleen wat het
@@ -744,6 +839,18 @@ articles:
             Of de indiener van het beroepschrift belanghebbende is: degene
             wiens belang rechtstreeks bij het bestreden besluit is betrokken
             (artikelen 1:2, eerste lid, en 8:1).
+        # Artikel 6:11: bij een te laat ingediend beroepschrift blijft de
+        # niet-ontvankelijkverklaring achterwege "indien redelijkerwijs niet
+        # kan worden geoordeeld dat de indiener in verzuim is geweest". Alleen
+        # gevraagd als het beroepschrift te laat is.
+        - id: indiener_beroepschrift_niet_in_verzuim
+          type: boolean
+          required: true
+          decided_per_case_by: de bestuursrechter (artikel 6:11)
+          description: >-
+            Of redelijkerwijs niet kan worden geoordeeld dat de indiener van het
+            na afloop van de termijn ingediende beroepschrift in verzuim is
+            geweest (artikel 6:11).
         # Artikel 8:77, tweede lid: bij een gegrondverklaring vermeldt de
         # uitspraak "welke geschreven of ongeschreven rechtsregel of welk
         # algemeen rechtsbeginsel geschonden wordt geoordeeld". Dat oordeel
@@ -859,9 +966,10 @@ articles:
             type: boolean
             description: >-
               Of het beroep ontvankelijk is. Getoetst zijn de termijn (artikel
-              6:9), dat het bestreden besluit op bezwaar is genomen (artikel
-              7:1, eerste lid) en dat de indiener belanghebbende is (artikel
-              8:1). De overige vereisten en artikel 6:11 nog niet.
+              6:9, met artikel 6:11 bij een te laat beroepschrift), dat het
+              bestreden besluit in bezwaar is genomen (artikel 7:1, eerste
+              lid) en dat de indiener belanghebbende is (artikel 8:1). De
+              overige vereisten nog niet.
           - name: beroep_gegrond
             type: boolean
             nullable: true
@@ -911,21 +1019,26 @@ articles:
               (artikel 8:72, derde lid, onder b, met artikel 7:11, tweede lid).
         actions:
           # Eigen keuze: dit artikel zegt niet wanneer een beroep ontvankelijk
-          # is. Hier de termijn (artikel 6:9); dat het bestreden besluit op
-          # bezwaar is genomen, want wie beroep instelt dient eerst bezwaar te
-          # maken (artikel 7:1, eerste lid, onder a; het besluit in
+          # is. Hier de termijn (artikel 6:9), met artikel 6:11: bij een te
+          # laat beroepschrift oordeelt de bestuursrechter of de indiener
+          # redelijkerwijs niet in verzuim is geweest; dat het bestreden
+          # besluit in bezwaar is genomen, want wie beroep instelt dient eerst
+          # bezwaar te maken (artikel 7:1, eerste lid, onder a; het besluit in
           # administratief beroep en de uitzonderingen onder b tot en met g
-          # zijn niet gemodelleerd); en dat de indiener
-          # belanghebbende is (artikel 8:1). Een besluitwaarde uit de kroniek
-          # noemt in taken_on het artikel van de indiening waarop het besluit
-          # is genomen (RFC-045 §7): de beslissing op bezwaar en het nieuwe
-          # besluit dat zij in de plaats van een herroepen besluit nam,
-          # hebben allebei 7:11. Artikel 6:6 en 6:11 nog niet.
+          # zijn niet gemodelleerd); en dat de indiener belanghebbende is
+          # (artikel 8:1). Een besluitwaarde uit de kroniek noemt in taken_on
+          # het artikel van de indiening waarop het besluit is genomen
+          # (RFC-045 §7): de beslissing op bezwaar en het nieuwe besluit dat
+          # zij in de plaats van een herroepen besluit nam, hebben allebei
+          # 7:11. Artikel 6:6 nog niet.
           - output: beroep_ontvankelijk
             value:
               operation: AND
               conditions:
-                - $bezwaar_of_beroepschrift_tijdig_ingediend
+                - operation: OR
+                  conditions:
+                    - $bezwaar_of_beroepschrift_tijdig_ingediend
+                    - $indiener_beroepschrift_niet_in_verzuim
                 - operation: EQUALS
                   subject: $bestreden_besluit.taken_on
                   value: algemene_wet_bestuursrecht#7:11
@@ -1445,15 +1558,21 @@ articles:
     # Niet apart uitvoerbaar, en geen feit: dat de voorziening vervallen is,
     # volgt uit records die al in de kroniek staan, en wordt niet nog eens
     # vastgelegd. Lid 1: de dag staat in het afschrift van de uitspraak
-    # (artikel 8:84). Lid 2, onder c: de dag van de uitspraak in de
-    # hoofdzaak staat in het afschrift daarvan (artikel 8:79). De regeling
-    # die het besluit leest, vergelijkt die dagen met de dag waarover de
-    # vraag gaat. Lid 2, onder a en b, zijn in deze poc niet gemodelleerd.
-    # Onder a zou volgen uit de beslissing op bezwaar in de kroniek, de
-    # beroepstermijn (artikel 6:7) en het uitblijven van de gronden van een
+    # (artikel 8:84). Lid 2, onder b: de dag van de intrekking van het
+    # bezwaar of beroep staat in de intrekking (artikel 6:21). Onder c: de
+    # dag van de uitspraak in de hoofdzaak staat in het afschrift daarvan
+    # (artikel 8:79). De regeling die het besluit leest, vergelijkt die
+    # dagen met de dag waarover de vraag gaat.
+    #
+    # Lid 2, onder a, is in deze poc niet gemodelleerd. Het volgt uit de dag
+    # waarop de beslissing op bezwaar is bekendgemaakt, de beroepstermijn
+    # (artikelen 6:7 en 6:8) en het uitblijven van de gronden van een
     # beroepschrift die het bestuursorgaan krijgt toegezonden (artikel 8:42,
-    # eerste lid); onder b uit het intrekken van het bezwaar of beroep
-    # (artikel 6:21), dat de poc niet vastlegt.
+    # eerste lid). Een reductie kan de dag van bekendmaking niet lezen: die
+    # staat in de kroniek bij de beslissing als datum van de fase
+    # BEKENDMAKING, en een stap leest alleen de parameters en uitvoer van
+    # het artikel waarop een record berust. Daarvoor is eerst een wijziging
+    # in de engine nodig.
 
   - number: 8:87
     text: |-

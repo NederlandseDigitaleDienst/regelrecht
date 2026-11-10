@@ -87,10 +87,14 @@ input:
 
 This call runs on the day of the decision on the objection. It uses the fields and findings of the contested decision, plus any new findings of the authority. [Cross-Law References](/concepts/cross-law-references#calling-the-decision-of-an-article) describes the decision value.
 
+Two questions of admissibility are for the authority to judge in the single case, as open terms of 7:11 with `decided_per_case_by`: whether the objector is an interested party (Awb 7:1 lid 1 with 8:1 and 1:2), and, for an objection that came in late, whether the objector can reasonably not be held at fault (Awb 6:11). 7:11 tests the period first, then the contested decision, then the interested party, and stops at the first test that fails. A finding the deciding article asks cannot be left out, so the authority gives both findings on every objection; the one under 6:11 only matters when the objection is late.
+
 | Situation | Result |
 |---|---|
-| Late (Awb 6:9) | Not admissible; no reconsideration |
+| Late (Awb 6:9), and the authority finds the objector at fault | Not admissible; no reconsideration |
+| Late, but the authority finds the objector not at fault (Awb 6:11) | Admissible as far as the period goes |
 | Against a decision on objection (Awb 7:1 lid 1 onder a) | Not admissible. The engine sees this because the contested decision's `taken_on` is 7:11 |
+| The authority finds the objector no interested party (Awb 7:1 lid 1 with 8:1) | Not admissible; no reconsideration |
 | Admissible, and the outputs are the same | Unfounded; the decision stands |
 | Admissible, and an output differs | The decision is revoked; `nieuw_besluit` holds the new decision, which is part of the decision on the objection and has no record of its own |
 
@@ -119,7 +123,7 @@ produces:
 
 - Awb 6:5 and 6:9 hook onto the appeal just as onto the objection. Their text speaks of the "bezwaar- of beroepschrift", and their output names follow that text: `termijn_einddatum`, `bezwaar_of_beroepschrift_tijdig_ingediend`. On a decision on objection, `termijn_einddatum` is the last day for lodging the appeal.
 - An appeal is admissible when all of these hold:
-  - it came in on time;
+  - it came in on time, or the court finds that the appellant can reasonably not be held at fault for the delay (6:11);
   - the contested decision was taken on objection (`taken_on` is 7:11, Awb 7:1 lid 1);
   - the court finds the appellant an interested party (8:1).
 - Whether the appeal is well founded is for the court to judge. The court finds whether the decision breaches a rule of law, and which rule (8:77 lid 2). These are open terms with `decided_per_case_by`, and the court gives them as findings.
@@ -129,7 +133,8 @@ produces:
 
 | Situation | Result |
 |---|---|
-| Late (Awb 6:9) | Not admissible; the court judges nothing |
+| Late (Awb 6:9), and the court finds the appellant at fault | Not admissible; the court judges nothing |
+| Late, but the court finds the appellant not at fault (Awb 6:11) | Admissible as far as the period goes |
 | Against a decision on an application, without objection (Awb 7:1 lid 1) | Not admissible |
 | No rule breached | Unfounded; the decision stands |
 | A rule breached, legal effects not kept | Well founded: the decision is annulled, with an order for a new decision |

@@ -230,8 +230,20 @@ impl Spel {
         ok(self.met(|c, cell| kern::bezwaren(c, cell, besluit, velden, datum))?)
     }
 
-    pub fn heroverweging(&mut self, id: &str, datum: NaiveDate) -> Antwoord {
-        ok(self.met(|c, cell| kern::heroverweging(c, cell, id, datum))?)
+    /// Whether the objection `id` is admissible with what the authority
+    /// judges on that (`ontvankelijkheid`), and what it can find anew
+    /// ([`kern::heroverweging`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`kern::heroverweging`], and when no case is chosen.
+    pub fn heroverweging(
+        &mut self,
+        id: &str,
+        ontvankelijkheid: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| kern::heroverweging(c, cell, id, ontvankelijkheid, datum))?)
     }
 
     pub fn beslissen_op_bezwaar(

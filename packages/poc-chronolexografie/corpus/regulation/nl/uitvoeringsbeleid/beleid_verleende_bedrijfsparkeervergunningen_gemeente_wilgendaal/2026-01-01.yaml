@@ -36,17 +36,21 @@ articles:
       schorsen; dit beleid maakt daarin geen onderscheid. Zij eindigt op de dag
       waarop de voorziening volgens de uitspraak vervalt (artikel 8:85,
       eerste lid), op de dag waarop de voorzieningenrechter haar opheft
-      (artikel 8:87, eerste lid), of op de dag waarop de bestuursrechter na
-      het begin van de schorsing uitspraak doet in de hoofdzaak over het
-      besluit (artikel 8:85, tweede lid, onder c). Elke uitspraak van de
+      (artikel 8:87, eerste lid), op de dag waarop na het begin van de
+      schorsing het bezwaar tegen het besluit of het beroep tegen de
+      beslissing op dat bezwaar is ingetrokken (artikel 8:85, tweede lid,
+      onder b), of op de dag waarop de bestuursrechter na het begin van de
+      schorsing uitspraak doet in de hoofdzaak over het besluit (artikel
+      8:85, tweede lid, onder c). Elke uitspraak van de
       voorzieningenrechter geldt voor zich: een latere uitspraak over
       hetzelfde besluit laat een eerdere zoals zij was.
     url: https://lokaleregelgeving.overheid.nl/CVDR733452
     machine_readable:
       # Elke rij van schorsingen is één afschrift van een uitspraak van de
       # voorzieningenrechter, met wat ernaar verwijst: een opheffing (8:87).
-      # De dag van de uitspraak in de hoofdzaak (8:85, tweede lid, onder c)
-      # staat bij het besluit; de binnenste FOREACH zoekt die op bij het
+      # Wat de voorziening op grond van 8:85, tweede lid, doet vervallen (de
+      # dag van de intrekking, de dag van de uitspraak in de hoofdzaak),
+      # staat bij het besluit; de binnenste FOREACH zoekt het op bij het
       # besluit waarop de schorsing ziet.
       execution:
         parameters:
@@ -54,8 +58,9 @@ articles:
             type: array
             description: >-
               De besluiten op aanvragen, elk met het besluit uit zijn
-              aggregaat dat de vergunning nu verleent en de dag van de
-              uitspraak in de hoofdzaak.
+              aggregaat dat de vergunning nu verleent, de dag waarop het
+              bezwaar of beroep is ingetrokken en de dag van de uitspraak in
+              de hoofdzaak.
           - name: schorsingen
             type: array
             description: >-
@@ -115,8 +120,11 @@ articles:
                                 to: $peildatum
                                 in: days
                               value: 0
-                  # Vervallen door de uitspraak in de hoofdzaak over het besluit,
-                  # na het begin van de schorsing (8:85, tweede lid, onder c).
+                  # Vervallen door wat bij het besluit staat, na het begin van
+                  # de schorsing (8:85, tweede lid): het bezwaar of beroep is
+                  # ingetrokken (onder b), of de bestuursrechter deed uitspraak
+                  # in de hoofdzaak (onder c). Onder a is niet gemodelleerd;
+                  # zie artikel 8:85 in de Awb van deze poc.
                   - operation: NOT
                     value:
                       operation: FOREACH
@@ -131,22 +139,46 @@ articles:
                           - operation: EQUALS
                             subject: $vergunning.besluit_dat_verleent
                             value: $schorsing.besluit
-                          - operation: NOT
-                            value: {operation: EQUALS, subject: $vergunning.uitspraak_hoofdzaak_op, value: null}
-                          - operation: GREATER_THAN_OR_EQUAL
-                            subject:
-                              operation: DATE_DIFF
-                              from: $schorsing.geschorst_vanaf
-                              to: $vergunning.uitspraak_hoofdzaak_op
-                              in: days
-                            value: 0
-                          - operation: GREATER_THAN_OR_EQUAL
-                            subject:
-                              operation: DATE_DIFF
-                              from: $vergunning.uitspraak_hoofdzaak_op
-                              to: $peildatum
-                              in: days
-                            value: 0
+                          - operation: OR
+                            conditions:
+                              # Onder b: vanaf de dag van de intrekking.
+                              - operation: AND
+                                conditions:
+                                  - operation: NOT
+                                    value: {operation: EQUALS, subject: $vergunning.ingetrokken_op, value: null}
+                                  - operation: GREATER_THAN_OR_EQUAL
+                                    subject:
+                                      operation: DATE_DIFF
+                                      from: $schorsing.geschorst_vanaf
+                                      to: $vergunning.ingetrokken_op
+                                      in: days
+                                    value: 0
+                                  - operation: GREATER_THAN_OR_EQUAL
+                                    subject:
+                                      operation: DATE_DIFF
+                                      from: $vergunning.ingetrokken_op
+                                      to: $peildatum
+                                      in: days
+                                    value: 0
+                              # Onder c: vanaf de dag van de uitspraak.
+                              - operation: AND
+                                conditions:
+                                  - operation: NOT
+                                    value: {operation: EQUALS, subject: $vergunning.uitspraak_hoofdzaak_op, value: null}
+                                  - operation: GREATER_THAN_OR_EQUAL
+                                    subject:
+                                      operation: DATE_DIFF
+                                      from: $schorsing.geschorst_vanaf
+                                      to: $vergunning.uitspraak_hoofdzaak_op
+                                      in: days
+                                    value: 0
+                                  - operation: GREATER_THAN_OR_EQUAL
+                                    subject:
+                                      operation: DATE_DIFF
+                                      from: $vergunning.uitspraak_hoofdzaak_op
+                                      to: $peildatum
+                                      in: days
+                                    value: 0
                       body: true
                       combine: OR
               body: $schorsing.besluit

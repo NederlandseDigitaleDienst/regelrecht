@@ -67,31 +67,58 @@ async function besluit(a) {
   if (antwoord) besluitVorm.wis(a.id);
 }
 
-// Bij een bezwaar eerst de ontvankelijkheid, zoals Awb 7:11 die beslist
-// (op tijd volgens 6:9, en niet tegen een besluit op bezwaar). Alleen dan
-// heroverweegt het bestuursorgaan en vraagt de pagina bevindingen: een
-// bevinding zonder heroverweging weigert de cel. De vragen komen uit de
-// bevindingen van het bestreden besluit; 'Laat staan' houdt wat het toen
-// vond.
+// Bij een bezwaar eerst de ontvankelijkheid, zoals Awb 7:11 die beslist:
+// op tijd volgens 6:9 of verschoonbaar te laat volgens 6:11, niet tegen een
+// besluit dat in bezwaar is genomen, en door een belanghebbende (1:2, 7:1
+// en 8:1). Of de indiener belanghebbende is en of hij bij een te laat
+// bezwaarschrift in verzuim was, oordeelt het bestuursorgaan zelf; die
+// oordelen komen uit de wet (`decided_per_case_by` bij artikel 7:11). Alleen
+// bij een ontvankelijk bezwaar heroverweegt het bestuursorgaan en vraagt de
+// pagina bevindingen: een bevinding zonder heroverweging weigert de cel. De
+// vragen komen uit de bevindingen van het bestreden besluit; 'Laat staan'
+// houdt wat het toen vond.
 const toetsen = reactive({});
 const opnieuwVorm = formulier((id) => scenarioWaarden('beslissing_op_bezwaar', { bezwaar: id }));
 const opnieuw = opnieuwVorm.eigen;
+const ontvankelijkheidsOordelen = () => state.vormen?.beslissing_op_bezwaar?.bevindingen ?? [];
+// Wat het bestuursorgaan over de ontvankelijkheid oordeelt. Een schakelaar
+// die uit staat, zegt nee, zoals bij een besluit (`uit`).
+const ontvankelijkheid = (bz) => {
+  const gegeven = zonderLeeg(opnieuwVorm.waarden(bz.id));
+  const standaard = !!(state.casus.bron && state.scenario);
+  return Object.fromEntries(
+    ontvankelijkheidsOordelen().map((o) => [o.naam, gegeven[o.naam] ?? standaard]),
+  );
+};
 // Wat het bestuursorgaan oordeelt over begrippen die de cel niet weet (stil.js).
 const { stil, meldStil } = stilBegrippen(oordeel, opnieuw);
 const beslissingen = reactive({});
 
 async function toets(bz) {
-  const antwoord = await stap(() => api.heroverweging(bz.id, state.datum));
+  const antwoord = await stap(() => api.heroverweging(bz.id, ontvankelijkheid(bz), state.datum));
   if (antwoord) {
     toetsen[bz.id] = antwoord;
     opnieuwVorm.wis(bz.id);
   }
 }
 
-// Wat het bestuursorgaan bij de heroverweging opnieuw vindt; 'Laat staan'
-// geeft niets.
-const gegevenOpBezwaar = (bz) =>
-  zonderLeeg(toetsen[bz.id]?.ontvankelijk ? opnieuwVorm.waarden(bz.id) : {});
+// Wat het bestuursorgaan over de ontvankelijkheid oordeelt, en wat het bij
+// de heroverweging opnieuw vindt; 'Laat staan' geeft niets.
+const gegevenOpBezwaar = (bz) => ({
+  ...(toetsen[bz.id]?.ontvankelijk ? zonderLeeg(opnieuwVorm.waarden(bz.id)) : {}),
+  ...ontvankelijkheid(bz),
+});
+
+// Waarom een bezwaar niet-ontvankelijk is, in de volgorde waarin Awb 7:11
+// het toetst (kern::heroverweging, `reden`).
+const NIET_ONTVANKELIJK = {
+  te_laat:
+    'Het bezwaar kwam te laat (Awb 6:9), en het bestuursorgaan oordeelde dat de indiener in verzuim was (Awb 6:11). Er is geen heroverweging, dus het bestuursorgaan geeft geen bevindingen.',
+  genomen_in_bezwaar:
+    'Tegen dit besluit staat geen bezwaar open (Awb 7:1): het is in bezwaar genomen. Er is geen heroverweging.',
+  geen_belanghebbende:
+    'Het bestuursorgaan oordeelde dat de indiener geen belanghebbende is (Awb 1:2, 7:1 en 8:1). Er is geen heroverweging.',
+};
 // De begrippen die de cel bij dit bezwaar niet weet en die niet al onder de
 // bevindingen van het bestreden besluit staan.
 const stilBijBezwaar = (bz) =>
@@ -169,8 +196,9 @@ const uitkomstOpBezwaar = (uit) =>
   <nldd-simple-section>
     <nldd-title slot="header" size="3" text="Open bezwaren">
       <nldd-text slot="supporting-text">
-        Beslissen op bezwaar (Awb 7:11). Eerst de ontvankelijkheid: een bezwaar dat te laat
-        kwam, of tegen een besluit op bezwaar, wordt niet heroverwogen. Anders heroverweegt
+        Beslissen op bezwaar (Awb 7:11). Eerst de ontvankelijkheid: een bezwaar dat zonder
+        verschoning te laat kwam, tegen een besluit dat in bezwaar is genomen, of van iemand die
+        geen belanghebbende is, wordt niet heroverwogen. Anders heroverweegt
         het bestuursorgaan: <ArtikelLink :basis="besluitBasis()" /> wordt opnieuw toegepast op dezelfde aanvraag. Het kan
         een bevinding opnieuw geven, bijvoorbeeld na nieuwe stukken bij het bezwaar. Verschilt
         de uitkomst, dan herroept de beslissing het besluit en komt er een nieuw besluit. Een
@@ -191,7 +219,14 @@ const uitkomstOpBezwaar = (uit) =>
           :supporting-text="`ontvangen ${bz.recorded_on} · ${bz.fields.gronden_bezwaar_of_beroep ?? ''}`"
         ></nldd-title>
         <template v-if="!toetsen[bz.id]">
-          <nldd-text size="sm" color="secondary">Stap 1: is het bezwaar ontvankelijk? Dat beslist Awb 7:11 op de speeldatum.</nldd-text>
+          <nldd-text size="sm" color="secondary">Stap 1: is het bezwaar ontvankelijk? Het bestuursorgaan oordeelt of de indiener belanghebbende is, en of hij bij een te laat bezwaarschrift in verzuim was. Daarmee beslist Awb 7:11 op de speeldatum.</nldd-text>
+          <VeldInvoer
+            v-for="o in ontvankelijkheidsOordelen()"
+            :key="o.naam"
+            :model-value="opnieuwVorm.waarden(bz.id)[o.naam]"
+            :veld="o"
+            @update:model-value="opnieuwVorm.zet(bz.id, o.naam, $event)"
+          />
           <nldd-button appearance="primary" text="Ontvankelijkheid toetsen" @click="toets(bz)"></nldd-button>
         </template>
         <template v-else-if="!toetsen[bz.id].ontvankelijk">
@@ -199,13 +234,13 @@ const uitkomstOpBezwaar = (uit) =>
             icon="warning"
             icon-color="warning"
             text="Niet-ontvankelijk"
-            :supporting-text="toetsen[bz.id].tijdig === false ? 'Het bezwaar kwam te laat (Awb 6:9). Er is geen heroverweging, dus het bestuursorgaan geeft geen bevindingen.' : 'Tegen dit besluit staat geen bezwaar open (Awb 7:1): het is genomen op bezwaar. Er is geen heroverweging.'"
+            :supporting-text="NIET_ONTVANKELIJK[toetsen[bz.id].reden]"
           ></nldd-inline-dialog>
           <nldd-container layout="grid" gap="16">
             <nldd-container>
               <nldd-button appearance="primary" text="Beslissen op bezwaar" @click="beslisOpBezwaar(bz)"></nldd-button>
             </nldd-container>
-            <Voorvertoning soort="bezwaar" :op="bz.id" :bevindingen="{}" />
+            <Voorvertoning soort="bezwaar" :op="bz.id" :bevindingen="ontvankelijkheid(bz)" />
           </nldd-container>
         </template>
         <template v-else>

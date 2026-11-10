@@ -176,8 +176,17 @@ impl Poc {
         )
     }
 
-    pub fn heroverweging(&mut self, bezwaar: &str, datum: &str) -> Result<String, JsError> {
-        antwoord(self.spel.heroverweging(bezwaar, dag(datum)?))
+    pub fn heroverweging(
+        &mut self,
+        bezwaar: &str,
+        ontvankelijkheid: &str,
+        datum: &str,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.heroverweging(
+            bezwaar,
+            &kaart("ontvankelijkheid", ontvankelijkheid)?,
+            dag(datum)?,
+        ))
     }
 
     #[wasm_bindgen(js_name = beslissenOpBezwaar)]

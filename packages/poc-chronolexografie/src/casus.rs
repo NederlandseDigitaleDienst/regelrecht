@@ -224,6 +224,10 @@ pub struct Voorbeeld {
     pub bevindingen: Map<String, Value>,
     #[serde(default)]
     pub bezwaar: Map<String, Value>,
+    /// What the authority judges on the admissibility of an objection
+    /// (Awb 7:11 with 6:11 and 8:1), which the form starts with.
+    #[serde(default)]
+    pub beslissing_op_bezwaar: Map<String, Value>,
     /// The beroepschrift (Awb 6:5).
     #[serde(default)]
     pub beroep: Map<String, Value>,

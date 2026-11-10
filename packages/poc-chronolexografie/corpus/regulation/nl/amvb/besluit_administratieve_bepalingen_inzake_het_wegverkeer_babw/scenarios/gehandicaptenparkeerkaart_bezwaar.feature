@@ -61,11 +61,13 @@ Feature: Het bezwaar tegen een besluit op een gehandicaptenparkeerkaart
     # 2031, maar dezelfde uitkomst, dus geen aanleiding. Het bestreden besluit
     # telt bij de heroverweging niet mee als geldige kaart. In de cel leest de
     # reductie die het antwoord geeft de kroniek zonder het bestreden besluit;
-    # hier is het een vaststelling van het college.
+    # hier is het een vaststelling van het college, net als dat de indiener
+    # belanghebbende is (Awb 1:2, 7:1 en 8:1).
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
       | bestreden_besluit | {"basis": "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49", "taken_on": "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49", "fields": {"bsn_aanvrager": "999990020", "kaart_als_bestuurder": true, "kaart_als_passagier": false, "besluit_datum": "2026-11-20", "dagtekening": "2026-10-12"}, "findings": {"langdurige_loopbeperking_volgens_college": true, "continu_afhankelijk_van_hulp_bestuurder_volgens_college": false, "permanent_rolstoelgebonden_volgens_college": false, "ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college": false}, "outputs": {"gehandicaptenparkeerkaart_verstrekt": true, "kaart_vermeldt_bestuurder": true, "kaart_vermeldt_passagier": false}} |
     Given the following findings:
+      | indiener_bezwaarschrift_is_belanghebbende                         | true  |
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college | false |
       | geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college          | true  |
     When I evaluate outputs "bestreden_besluit_herroepen, nieuw_besluit" of "algemene_wet_bestuursrecht"
