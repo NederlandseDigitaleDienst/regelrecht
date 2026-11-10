@@ -2985,10 +2985,12 @@ mod tests {
                 { "regelwerk": beleid, "laag": "UITVOERINGSBELEID", "artikel": "2" }
             ])
         );
-        assert!(reductie(lid_2)["tekst"][0]["tekst"]
-            .as_str()
-            .unwrap()
-            .contains("chronolexografische reductie"));
+        assert!(
+            reductie(lid_2)["tekst"][0]["tekst"]
+                .as_str()
+                .unwrap()
+                .contains("chronolexografische reductie")
+        );
         assert_eq!(cell.grams().len(), 5);
     }
 
