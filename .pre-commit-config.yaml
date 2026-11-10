@@ -194,6 +194,13 @@ repos:
         pass_filenames: false
         files: ^script/(check-)?orphan-tests(\.test)?\.mjs$
 
+      - id: book-lints-tests
+        name: De rust-idioms-poort meldt wat op gewijzigde regels staat
+        entry: just book-lints-test
+        language: system
+        pass_filenames: false
+        files: ^\.claude/skills/rust-idioms/book-lints(\.test)?\.mjs$
+
       - id: awb-parity
         name: De Awb zegt in beide corpora hetzelfde
         entry: just awb-parity-test

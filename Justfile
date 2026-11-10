@@ -217,6 +217,13 @@ orphan-tests:
 orphan-tests-test:
     node --test script/orphan-tests.test.mjs
 
+# The gate of the rust-idioms skill reports clippy findings on changed lines
+# only. Its diff parser and test-code check decide whether a finding is shown,
+# and a mistake there reads as a green gate.
+[doc("Check the rust-idioms gate")]
+book-lints-test:
+    node --test .claude/skills/rust-idioms/book-lints.test.mjs
+
 # De Awb staat in twee corpora en moet daar hetzelfde zeggen. Het overzetten
 # ging twee keer mis op een weggevallen laatste regel — één keer de termijn in
 # artikel 6:8, waardoor de einddatum van de bezwaartermijn gelijk werd aan de
@@ -271,7 +278,7 @@ preview-environments-test:
 # container-backed suites; on a machine without a daemon, swap `test` for
 # `test-no-docker`.
 [doc("Run all quality checks, exactly what CI runs (needs Docker)")]
-check: format lint build-check validate validate-annotations deploy-filters-test ghcr-cleanup-test precompress-test security-headers-test first-load-test ci-gate-test merge-queue-checks-test nldd-imports-test nldd-slots nldd-slots-test orphan-tests orphan-tests-test dockerfile-consistency-test deploy-gate-test deployed-urls-test preview-environments-test advisories-report-test dev-preflight-test test
+check: format lint build-check validate validate-annotations deploy-filters-test ghcr-cleanup-test precompress-test security-headers-test first-load-test ci-gate-test merge-queue-checks-test nldd-imports-test nldd-slots nldd-slots-test orphan-tests orphan-tests-test book-lints-test dockerfile-consistency-test deploy-gate-test deployed-urls-test preview-environments-test advisories-report-test dev-preflight-test test
 
 # --- Tests ---
 

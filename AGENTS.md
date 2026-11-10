@@ -349,6 +349,28 @@ een sleutel die maar in één bestand landt is een bug, geen halve klus.
   talen in euro's; alleen de scheidingstekens en de plaats van het symbool
   verschillen.
 
+## Rust code
+
+Before you write, change or review Rust, read the `rust-idioms` skill. It holds
+idioms from *The Rust Programming Language* that the compiler does not enforce:
+ownership in signatures, panic versus `Result`, types that carry their
+invariants, function and module size, doc sections.
+
+The skill has a gate, `.claude/skills/rust-idioms/book-lints.mjs`, which runs
+clippy with the lints that match those rules and reports only the lines you
+changed. It is a check on your own lines and comes on top of `just check`,
+which stays what the pre-commit hooks and CI run.
+
+Where the skill and this repository differ, the repository wins:
+
+- The workspace lints warn on `unwrap_used`, `expect_used` and `panic`, and
+  `just lint` turns warnings into errors. Propagate the error. An `expect`
+  that truly cannot fail carries `#[allow(clippy::expect_used)]` and a comment
+  that says why.
+- `REVIEW.md` allows no panic on a path reachable during law execution.
+- A poisoned lock is recovered or reported in the way the surrounding crate
+  already does it, not left to panic.
+
 ## Frontend code
 
 Frontends are Vue applications that follow Vue's own conventions: Vite to build,
