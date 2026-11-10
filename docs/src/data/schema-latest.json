@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.17",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.18/schema/v0.8.18/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.18",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -2869,14 +2869,15 @@
                 "properties": {
                   "record": {
                     "type": "string",
-                    "pattern": "^[a-z0-9_]+#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?(#[A-Z][A-Z_]*)?$",
+                    "pattern": "^[a-z0-9_]+#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?(#([A-Z][A-Z_]*|[a-z][a-z0-9_]*))?$",
                     "not": {
                       "pattern": " lid [0-9]"
                     },
-                    "description": "The article the record rests on (its `basis`), as `<regulation>#<article>`. When the article produces or requires more than one kind of record, a third segment names the kind: a submission kind, a legal character or `EXECUTOGRAM`, such as `test_chronicle_effects#1#BESCHIKKING` for the decision of an article that also establishes an application. Without it the article must give one kind of record; with it, the kind must be one the article gives. A step on an article that requires a fact applies to the instances of that fact; an article that requires more than one fact cannot have a step. Since v0.8.16 the loader checks this when the reduction loads, against the newest version it holds of that law, and the engine again when it plays the projection, against the version in force on the calculation date.",
+                    "description": "The article the record rests on (its `basis`), as `<regulation>#<article>`. When the article produces or requires more than one kind of record, a third segment names the kind: a submission kind, a legal character or `EXECUTOGRAM`, such as `test_chronicle_effects#1#BESCHIKKING` for the decision of an article that also establishes an application. Without it the article must give one kind of record; with it, the kind must be one the article gives. A step on an article that requires a fact applies to the instances of that fact. Since v0.8.18 the third segment may instead be the name of a fact the article requires, in lower case, such as `test_chronicle_corrections#4#plaats_gehuurd`: the step applies to the instances of that fact alone, and `$record` reads the fields of that fact. An article that requires more than one fact has a step per fact, each by its name; without a name, or with `EXECUTOGRAM`, it cannot have a step. Since v0.8.16 the loader checks this when the reduction loads, against the newest version it holds of that law, and the engine again when it plays the projection, against the version in force on the calculation date.",
                     "examples": [
                       "test_chronicle_effects#3",
-                      "test_chronicle_effects#1#BESCHIKKING"
+                      "test_chronicle_effects#1#BESCHIKKING",
+                      "test_chronicle_corrections#4#plaats_gehuurd"
                     ]
                   },
                   "input": {
@@ -2968,11 +2969,11 @@
             },
             "per": {
               "type": "string",
-              "pattern": "^[a-z0-9_]+#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?(#[A-Z][A-Z_]*)?$",
+              "pattern": "^[a-z0-9_]+#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?(#([A-Z][A-Z_]*|[a-z][a-z0-9_]*))?$",
               "not": {
                 "pattern": " lid [0-9]"
               },
-              "description": "Since v0.8.17: the projection plays one aggregate per record that rests on this article (`<regulation>#<article>`, with `#<KIND>` where the article gives more than one kind), such as a decision that grants a permit or the copy of a ruling that suspends one. The aggregate holds that record, its root, and every record that refers to it through `refers_to`, directly or through another record of the aggregate. Another record of the root's kind that refers in is an aggregate of its own: in this one it counts for its effects only, so a decision in the place of the root revokes it here, while its step is not applied. A state property is not called `id`: a row of the aggregates holds the id of its root under that name.",
+              "description": "Since v0.8.17: the projection plays one aggregate per record that rests on this article (`<regulation>#<article>`, with `#<KIND>` where the article gives more than one kind, or since v0.8.18 `#<fact>`, the name of a fact the article requires, for the instances of that fact alone; since v0.8.18 the loader holds `per` to its article as it holds a step), such as a decision that grants a permit or the copy of a ruling that suspends one. The aggregate holds that record, its root, and every record that refers to it through `refers_to`, directly or through another record of the aggregate. Another record of the root's kind that refers in is an aggregate of its own: in this one it counts for its effects only, so a decision in the place of the root revokes it here, while its step is not applied. A state property is not called `id`: a row of the aggregates holds the id of its root under that name.",
               "examples": [
                 "parkeerverordening_gemeente_wilgendaal#2#BESCHIKKING"
               ]

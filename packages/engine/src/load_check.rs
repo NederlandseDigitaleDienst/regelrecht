@@ -60,7 +60,7 @@ use crate::article::ArticleBasedLaw;
 use crate::error::{EngineError, Result};
 use regelrecht_law_model::{
     ActionOperation, ActionValue, CompetentAuthority, MachineReadable, ParameterType,
-    RegulatoryLayer,
+    RegulatoryLayer, names_fact,
 };
 
 /// Refuse a construct that a later schema version removed, naming what
@@ -870,6 +870,23 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
                 );
             }
         }
+        // A record address may name a fact since schema v0.8.18.
+        if !from_version(law, (0, 8, 18)) {
+            let named = projection
+                .per_basis_and_kind()
+                .into_iter()
+                .chain(projection.steps.iter().map(|s| s.basis_and_kind()))
+                .find_map(|(_, segment)| segment.filter(|s| names_fact(s)));
+            if let Some(fact) = named {
+                return refuse(
+                    where_,
+                    format!(
+                        "names the fact '{fact}'; a fact name came with schema v0.8.18, \
+                         before it a record address names a kind"
+                    ),
+                );
+            }
+        }
         if let Some(per) = &projection.per {
             if projection.key.is_some() {
                 return refuse(
@@ -962,10 +979,19 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
             // Two steps for one record would leave which one applies to the
             // order they are written in.
             let (basis, kind) = step.basis_and_kind();
+            // A step on a fact (schema v0.8.18) and one on EXECUTOGRAM on
+            // the same article both apply to an instance of that fact.
+            let overlap = |a: Option<&str>, b: Option<&str>| match (a, b) {
+                (None, _) | (_, None) => true,
+                (Some(a), Some(b)) => {
+                    a == b
+                        || (names_fact(a) && b == crate::projection::EXECUTOGRAM)
+                        || (a == crate::projection::EXECUTOGRAM && names_fact(b))
+                }
+            };
             if projection.steps[..i].iter().any(|earlier| {
                 let (earlier_basis, earlier_kind) = earlier.basis_and_kind();
-                earlier_basis == basis
-                    && (earlier_kind.is_none() || kind.is_none() || earlier_kind == kind)
+                earlier_basis == basis && overlap(earlier_kind, kind)
             }) {
                 return refuse(
                     where_,
@@ -1157,6 +1183,18 @@ pub(crate) fn check_projection_wiring<'l>(
             .as_ref()
             .and_then(|e| e.parameters.as_deref())
             .unwrap_or_default();
+        crate::projection::check_per(
+            projection,
+            lookup,
+            crate::projection::Versions::Loaded,
+            from_version(law, (0, 8, 18)),
+        )
+        .map_err(|why| {
+            format!(
+                "{where_}: per {}: {why}",
+                projection.per.as_deref().unwrap_or_default()
+            )
+        })?;
         for step in &projection.steps {
             crate::projection::check_step(
                 projection,
@@ -2069,8 +2107,9 @@ articles:
                 .expect_err(why);
             assert!(err.to_string().contains(why), "{why}: {err}");
         }
-        // A kind is in capitals, after a third `#`.
-        for record in ["wet#1#beschikking", "wet#1#"] {
+        // A kind is in capitals after a third `#`, a fact name (schema
+        // v0.8.18) in lower case.
+        for record in ["wet#1#Beschikking", "wet#1#"] {
             let projection = format!(
                 "{state}        steps:\n          - {{record: '{record}', actions: [{{output: a, value: $record.v}}]}}"
             );
@@ -2079,11 +2118,23 @@ articles:
                 .expect_err(record);
             assert!(
                 err.to_string().contains(&format!(
-                    "'{record}' is not <regulation>#<article>, optionally with #<KIND>"
+                    "'{record}' is not <regulation>#<article>, optionally with #<KIND> or #<fact>"
                 )),
                 "{record}: {err}"
             );
         }
+        // A fact name in a file on an earlier version.
+        let projection = format!(
+            "{state}        steps:\n          - {{record: 'wet#1#beschikking', actions: [{{output: a, value: $record.v}}]}}"
+        );
+        let err = LawExecutionService::new()
+            .load_law(&law_with_projection("REDUCTIE", &projection))
+            .expect_err("a fact name before v0.8.18");
+        assert!(
+            err.to_string()
+                .contains("names the fact 'beschikking'; a fact name came with schema v0.8.18"),
+            "{err}"
+        );
     }
 
     /// A projection plays one aggregate per record (`per`, schema v0.8.17)
@@ -2122,9 +2173,9 @@ articles:
             ),
             (
                 without_execution(
-                    per.replace("per: wet#1#BESCHIKKING", "per: 'wet#1#beschikking'"),
+                    per.replace("per: wet#1#BESCHIKKING", "per: 'wet#1#Beschikking'"),
                 ),
-                "'wet#1#beschikking' is not <regulation>#<article>, optionally with #<KIND>",
+                "'wet#1#Beschikking' is not <regulation>#<article>, optionally with #<KIND> or #<fact>",
             ),
         ] {
             let err = LawExecutionService::new().load_law(&law).expect_err(why);

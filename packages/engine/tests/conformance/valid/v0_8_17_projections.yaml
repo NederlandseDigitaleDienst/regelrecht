@@ -1,7 +1,7 @@
 ---
 # Tier C: a read model over the aggregates of another reduction (schema
 # v0.8.17): one row per root that holds the asked value, counted by a law.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.18/schema/v0.8.18/schema.json
 $id: test_conformance_projections
 regulatory_layer: REDUCTIE
 publication_date: '2026-11-08'

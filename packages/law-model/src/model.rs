@@ -1979,16 +1979,28 @@ impl std::fmt::Display for StepSource {
     }
 }
 
+/// Whether the third segment of a record address (`per`, `steps[].record`)
+/// names a fact the article requires, in lower case, such as `ingeleverd` in
+/// `wet#4#ingeleverd` (schema v0.8.18), rather than a kind in capitals.
+pub fn names_fact(segment: &str) -> bool {
+    segment.starts_with(|c: char| c.is_ascii_lowercase())
+        && segment
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+}
+
 impl ProjectionStep {
-    /// The article the step is about and the kind it names, if any: `wet#1`
-    /// and `BESCHIKKING` for `wet#1#BESCHIKKING`.
+    /// The article the step is about and the kind or the fact it names, if
+    /// any: `wet#1` and `BESCHIKKING` for `wet#1#BESCHIKKING`, `wet#4` and
+    /// `ingeleverd` for `wet#4#ingeleverd` ([`names_fact`]).
     pub fn basis_and_kind(&self) -> (&str, Option<&str>) {
         split_kind(&self.record)
     }
 }
 
 impl Projection {
-    /// The article and the kind of the roots of a projection with `per`.
+    /// The article and the kind or the fact of the roots of a projection
+    /// with `per`.
     pub fn per_basis_and_kind(&self) -> Option<(&str, Option<&str>)> {
         self.per.as_deref().map(split_kind)
     }
@@ -2002,7 +2014,8 @@ where
     step_record(deserializer).map(Some)
 }
 
-/// Split `<regulation>#<article>[#<KIND>]` into the article and the kind.
+/// Split `<regulation>#<article>[#<KIND>|#<fact>]` into the article and the
+/// third segment.
 fn split_kind(record: &str) -> (&str, Option<&str>) {
     match record.split('#').count() {
         3 => record
@@ -2013,20 +2026,23 @@ fn split_kind(record: &str) -> (&str, Option<&str>) {
 }
 
 /// Deserialize `<regulation>#<article>`, optionally followed by `#<KIND>`,
-/// a kind in capitals.
+/// a kind in capitals, or by `#<fact>`, the name of a fact in lower case
+/// (schema v0.8.18; the loader refuses it in a file on an earlier version).
 fn step_record<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
     let (basis, kind) = split_kind(&s);
-    let kind_ok =
-        kind.is_none_or(|k| !k.is_empty() && k.chars().all(|c| c.is_ascii_uppercase() || c == '_'));
+    let kind_ok = kind.is_none_or(|k| {
+        names_fact(k) || (!k.is_empty() && k.chars().all(|c| c.is_ascii_uppercase() || c == '_'))
+    });
     if is_article_reference(basis) && kind_ok {
         Ok(s)
     } else {
         Err(serde::de::Error::custom(format!(
-            "'{s}' is not <regulation>#<article>, optionally with #<KIND>, without a paragraph"
+            "'{s}' is not <regulation>#<article>, optionally with #<KIND> or #<fact>, without a \
+             paragraph"
         )))
     }
 }

@@ -2179,19 +2179,24 @@ fn lezingen_van(
                 .get_law_for_date(law, Some(on))?
                 .find_article_by_number(nummer)
         });
+        // A step that names a fact (schema v0.8.18) reads that fact alone.
+        let genoemd = kind.filter(|k| regelrecht_law_model::names_fact(k));
         let feiten: Vec<String> = article
-            .filter(|a| kind == Some(EXECUTOGRAM) || a.get_decision().is_none())
+            .filter(|a| {
+                genoemd.is_some() || kind == Some(EXECUTOGRAM) || a.get_decision().is_none()
+            })
             .map(|a| {
                 a.get_requires()
                     .iter()
-                    .filter_map(|r| r.fact.as_ref())
+                    .filter_map(|r| r.fact.as_deref())
+                    .filter(|feit| genoemd.is_none_or(|g| g == *feit))
                     .map(|feit| format!("{basis}#{feit}"))
                     .collect()
             })
             .unwrap_or_default();
         let bronnen = if feiten.is_empty() {
             // A step on facts whose article is not found reads nothing here.
-            if kind == Some(EXECUTOGRAM) {
+            if kind == Some(EXECUTOGRAM) || genoemd.is_some() {
                 continue;
             }
             vec![Bron::Besluiten(basis.to_string())]
