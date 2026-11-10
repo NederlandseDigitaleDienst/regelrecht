@@ -55,8 +55,8 @@ pub mod wasm;
 
 // Re-export commonly used items
 pub use annotation::{
-    law_id_from_source, resolve as resolve_note, MatchResult, MatchStatus, SelectorHint,
-    SkipReason, TextMatch, TextQuoteSelector,
+    MatchResult, MatchStatus, SelectorHint, SkipReason, TextMatch, TextQuoteSelector,
+    law_id_from_source, resolve as resolve_note,
 };
 pub use answer::{
     Answer, AnswerProvenance, AnswerRequest, Authority, Call, Chronicle, ChronicleRead,
@@ -75,10 +75,10 @@ pub use context::RuleContext;
 pub use data_source::{DataSource, DataSourceMatch, DataSourceRegistry, DictDataSource};
 pub use engine::{ArticleEngine, ArticleResult, FilledBy, OpenTermFilled, OutputProvenance};
 pub use error::{EngineError, ExternalError, Result};
-pub use operations::{evaluate_value, execute_operation, ValueResolver};
+pub use operations::{ValueResolver, evaluate_value, execute_operation};
 pub use projection::{
-    has_projection, Aggregate, ChronicleRecord, ProjectionEvent, ProjectionOptions,
-    ProjectionOutcome, StateChange,
+    Aggregate, ChronicleRecord, ProjectionEvent, ProjectionOptions, ProjectionOutcome, StateChange,
+    has_projection,
 };
 pub use receipt::ExecutionReceipt;
 pub use resolver::{
@@ -94,7 +94,7 @@ pub use types::{
     Connectivity, LegalStatus, MissingFact, MissingKind, Operation, ParameterType, PathNodeType,
     RegulatoryLayer, ResolveType, UntranslatableMode, Value,
 };
-pub use uri::{internal_reference, ReferenceType, RegelrechtUri, RegelrechtUriBuilder};
+pub use uri::{ReferenceType, RegelrechtUri, RegelrechtUriBuilder, internal_reference};
 
 /// Library version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

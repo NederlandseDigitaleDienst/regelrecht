@@ -24,8 +24,8 @@ use tokio::sync::{Mutex, RwLock};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use regelrecht_corpus::dto::PaginationParams;
 use regelrecht_corpus::CorpusRegistry;
+use regelrecht_corpus::dto::PaginationParams;
 use regelrecht_editor_api::corpus_handlers::{
     get_corpus_law, get_corpus_law_versions, list_corpus_laws,
 };
@@ -152,7 +152,11 @@ async fn body_text(response: impl IntoResponse) -> String {
 #[tokio::test]
 async fn corpus_juris_finds_and_opens_laws_it_did_not_load_up_front() {
     let server = MockServer::start().await;
-    std::env::set_var("GITHUB_API_BASE", server.uri());
+    // SAFETY: std locks its own environment access, so the hazard is C code
+    // (a host-name lookup) reading it on another thread. This binary runs this
+    // one test, on tokio's single-threaded runtime, and the test awaits
+    // everything it starts, so no lookup is running elsewhere at this point.
+    unsafe { std::env::set_var("GITHUB_API_BASE", server.uri()) };
     mount_github(&server).await;
 
     let local_dir = tempfile::tempdir().unwrap();
@@ -271,5 +275,6 @@ async fn corpus_juris_finds_and_opens_laws_it_did_not_load_up_front() {
         .unwrap();
     assert_eq!(body_text(response).await, law_body(LOADED_LAW));
 
-    std::env::remove_var("GITHUB_API_BASE");
+    // SAFETY: as at the first `set_var` in this test.
+    unsafe { std::env::remove_var("GITHUB_API_BASE") };
 }

@@ -654,13 +654,14 @@ impl RuleResolver {
         // allows besides a date: a `#`-reference (RFC-001). Anything else is a
         // typo, and a typo here reads in `select_in` as "this version has no
         // start date", which puts it in force on every date there is.
-        if let Some(valid_from) = &law.valid_from {
-            if !is_internal_reference(valid_from) && parse_date(valid_from).is_err() {
-                return Err(EngineError::LoadError(format!(
-                    "law '{law_id}': valid_from '{valid_from}' is neither a valid date \
+        if let Some(valid_from) = &law.valid_from
+            && !is_internal_reference(valid_from)
+            && parse_date(valid_from).is_err()
+        {
+            return Err(EngineError::LoadError(format!(
+                "law '{law_id}': valid_from '{valid_from}' is neither a valid date \
                      (YYYY-MM-DD) nor an internal reference (#...)"
-                )));
-            }
+            )));
         }
 
         Self::check_hook_filters(&law)?;
@@ -932,10 +933,10 @@ impl RuleResolver {
         let candidate = candidate.ok_or(SelectionReason::NotYetInForce)?;
 
         // Upper bound (inclusive): in force iff reference_date <= valid_to.
-        if let Some(valid_to) = candidate.valid_to.as_ref().and_then(|s| parse_date(s).ok()) {
-            if reference_date > valid_to {
-                return Err(SelectionReason::EndedOn(valid_to));
-            }
+        if let Some(valid_to) = candidate.valid_to.as_ref().and_then(|s| parse_date(s).ok())
+            && reference_date > valid_to
+        {
+            return Err(SelectionReason::EndedOn(valid_to));
         }
         Ok(candidate)
     }
@@ -958,12 +959,12 @@ impl RuleResolver {
         let law = self.get_law_for_date(law_id, reference_date)?;
         // Try indexed lookup first (O(1)), fall back to linear scan
         let index_key = format!("{}\0{}", law_id, output);
-        if let Some(article_number) = self.output_index.get(&index_key) {
-            if let Some(article) = law.find_article_by_number(article_number) {
-                // Verify the article in this version actually has the output
-                if article.has_output(output) {
-                    return Some(article);
-                }
+        if let Some(article_number) = self.output_index.get(&index_key)
+            && let Some(article) = law.find_article_by_number(article_number)
+        {
+            // Verify the article in this version actually has the output
+            if article.has_output(output) {
+                return Some(article);
             }
         }
         // Fallback: linear scan (handles version-specific differences)
@@ -1181,25 +1182,25 @@ impl RuleResolver {
 
             // Delegation gate: a layer the declaring article did not authorise
             // is not a weaker candidate but no candidate at all.
-            if let Some(expected) = delegation_type {
-                if !Self::matches_delegation(law, law_id, open_term_id, expected)? {
-                    tracing::debug!(
-                        candidate = %entry.law_id,
-                        candidate_layer = %law.regulatory_layer.as_str(),
-                        delegation_type = %expected,
-                        "Skipping: regulatory_layer is not the layer the open term delegates to"
-                    );
-                    lookup.refusals.push(DelegationRefusal {
-                        declaring_law: law_id.to_string(),
-                        declaring_article: article.to_string(),
-                        open_term: open_term_id.to_string(),
-                        required_layer: expected.to_string(),
-                        refused_law: law.id.clone(),
-                        refused_article: entry.article_number.clone(),
-                        refused_layer: law.regulatory_layer.as_str().to_string(),
-                    });
-                    continue;
-                }
+            if let Some(expected) = delegation_type
+                && !Self::matches_delegation(law, law_id, open_term_id, expected)?
+            {
+                tracing::debug!(
+                    candidate = %entry.law_id,
+                    candidate_layer = %law.regulatory_layer.as_str(),
+                    delegation_type = %expected,
+                    "Skipping: regulatory_layer is not the layer the open term delegates to"
+                );
+                lookup.refusals.push(DelegationRefusal {
+                    declaring_law: law_id.to_string(),
+                    declaring_article: article.to_string(),
+                    open_term: open_term_id.to_string(),
+                    required_layer: expected.to_string(),
+                    refused_law: law.id.clone(),
+                    refused_article: entry.article_number.clone(),
+                    refused_layer: law.regulatory_layer.as_str().to_string(),
+                });
+                continue;
             }
 
             let Some(art) = law
@@ -1266,10 +1267,10 @@ impl RuleResolver {
                 .implementations
                 .iter()
                 .position(|(law, _)| law.id == winner_law.id);
-            if let Some(idx) = winner_idx {
-                if idx != 0 {
-                    lookup.implementations.swap(0, idx);
-                }
+            if let Some(idx) = winner_idx
+                && idx != 0
+            {
+                lookup.implementations.swap(0, idx);
             }
         }
 
@@ -1486,99 +1487,99 @@ impl RuleResolver {
 
         // Add new index entries from the most recent version
         // Access law_versions directly to avoid borrowing self through get_law()
-        if let Some(versions) = self.law_versions.get(law_id) {
-            if let Some(law) = versions.first() {
-                // Procedure index (top-level)
-                if let Some(procedures) = &law.procedure {
-                    for proc_def in procedures {
-                        let key = (
+        if let Some(versions) = self.law_versions.get(law_id)
+            && let Some(law) = versions.first()
+        {
+            // Procedure index (top-level)
+            if let Some(procedures) = &law.procedure {
+                for proc_def in procedures {
+                    let key = (
+                        proc_def.applies_to.legal_character.clone(),
+                        proc_def.id.clone(),
+                    );
+                    self.procedure_index
+                        .insert(key, (proc_def.clone(), law_id.to_string()));
+
+                    if proc_def.default.unwrap_or(false) {
+                        self.procedure_defaults.insert(
                             proc_def.applies_to.legal_character.clone(),
                             proc_def.id.clone(),
                         );
-                        self.procedure_index
-                            .insert(key, (proc_def.clone(), law_id.to_string()));
+                    }
+                }
+            }
 
-                        if proc_def.default.unwrap_or(false) {
-                            self.procedure_defaults.insert(
-                                proc_def.applies_to.legal_character.clone(),
-                                proc_def.id.clone(),
-                            );
+            for article in &law.articles {
+                // Output index
+                if let Some(exec) = article.get_execution_spec()
+                    && let Some(outputs) = &exec.output
+                {
+                    for output in outputs {
+                        self.output_index.insert(
+                            format!("{}\0{}", law_id, output.name),
+                            article.number.clone(),
+                        );
+                    }
+                }
+
+                // Implements index (IoC). A reduction fills no term: its
+                // cell gives it as a named answer (RFC-048), and the
+                // loader refuses `implements` on one
+                // (`reject_removed_constructs`).
+                let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
+                if let Some(impl_decls) = article.get_implements().filter(|_| !reduction) {
+                    for decl in impl_decls {
+                        let key = (
+                            decl.law.clone(),
+                            decl.article.clone(),
+                            decl.open_term.clone(),
+                        );
+                        let entry = LawArticleRef {
+                            law_id: law_id.to_string(),
+                            article_number: article.number.clone(),
+                        };
+                        let candidates = self.implements_index.entry(key).or_default();
+                        if !candidates.contains(&entry) {
+                            candidates.push(entry);
                         }
                     }
                 }
 
-                for article in &law.articles {
-                    // Output index
-                    if let Some(exec) = article.get_execution_spec() {
-                        if let Some(outputs) = &exec.output {
-                            for output in outputs {
-                                self.output_index.insert(
-                                    format!("{}\0{}", law_id, output.name),
-                                    article.number.clone(),
-                                );
-                            }
-                        }
+                // Hooks index. A hook with neither a legal_character nor
+                // a submission never gets here: `load_law` refuses the
+                // law, because there is no honest key to file it under
+                // (see `check_hook_filters`).
+                if let Some(hook_decls) = article.get_hooks() {
+                    for decl in hook_decls {
+                        let f = &decl.applies_to;
+                        let target = match (&f.legal_character, &f.submission) {
+                            (Some(lc), _) => HookTarget::Decision(lc.clone()),
+                            (None, Some(kind)) => HookTarget::Submission(kind.clone()),
+                            (None, None) => continue,
+                        };
+                        let entry = HookEntry {
+                            law_id: law_id.to_string(),
+                            article_number: article.number.clone(),
+                            filter: f.clone(),
+                        };
+                        self.hooks_index
+                            .entry((decl.hook_point, target))
+                            .or_default()
+                            .push(entry);
                     }
+                }
 
-                    // Implements index (IoC). A reduction fills no term: its
-                    // cell gives it as a named answer (RFC-048), and the
-                    // loader refuses `implements` on one
-                    // (`reject_removed_constructs`).
-                    let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
-                    if let Some(impl_decls) = article.get_implements().filter(|_| !reduction) {
-                        for decl in impl_decls {
-                            let key = (
-                                decl.law.clone(),
-                                decl.article.clone(),
-                                decl.open_term.clone(),
-                            );
-                            let entry = LawArticleRef {
-                                law_id: law_id.to_string(),
-                                article_number: article.number.clone(),
-                            };
-                            let candidates = self.implements_index.entry(key).or_default();
-                            if !candidates.contains(&entry) {
-                                candidates.push(entry);
-                            }
-                        }
-                    }
-
-                    // Hooks index. A hook with neither a legal_character nor
-                    // a submission never gets here: `load_law` refuses the
-                    // law, because there is no honest key to file it under
-                    // (see `check_hook_filters`).
-                    if let Some(hook_decls) = article.get_hooks() {
-                        for decl in hook_decls {
-                            let f = &decl.applies_to;
-                            let target = match (&f.legal_character, &f.submission) {
-                                (Some(lc), _) => HookTarget::Decision(lc.clone()),
-                                (None, Some(kind)) => HookTarget::Submission(kind.clone()),
-                                (None, None) => continue,
-                            };
-                            let entry = HookEntry {
-                                law_id: law_id.to_string(),
-                                article_number: article.number.clone(),
-                                filter: f.clone(),
-                            };
-                            self.hooks_index
-                                .entry((decl.hook_point, target))
-                                .or_default()
-                                .push(entry);
-                        }
-                    }
-
-                    // Overrides index
-                    if let Some(ovr_decls) = article.get_overrides() {
-                        for decl in ovr_decls {
-                            let key = (decl.law.clone(), decl.article.clone(), decl.output.clone());
-                            let entry = LawArticleRef {
-                                law_id: law_id.to_string(),
-                                article_number: article.number.clone(),
-                            };
-                            let candidates = self.overrides_index.entry(key).or_default();
-                            if !candidates.contains(&entry) {
-                                candidates.push(entry);
-                            }
+                // Overrides index
+                if let Some(ovr_decls) = article.get_overrides() {
+                    for decl in ovr_decls {
+                        let key = (decl.law.clone(), decl.article.clone(), decl.output.clone());
+                        let entry = LawArticleRef {
+                            law_id: law_id.to_string(),
+                            article_number: article.number.clone(),
+                        };
+                        let candidates = self.overrides_index.entry(key).or_default();
+                        if !candidates.contains(&entry) {
+                            candidates.push(entry);
                         }
                     }
                 }
@@ -2016,14 +2017,18 @@ articles:
         assert_eq!(article.number, "1");
 
         // Non-existent output
-        assert!(resolver
-            .get_article_by_output("test_law", "nonexistent", None)
-            .is_none());
+        assert!(
+            resolver
+                .get_article_by_output("test_law", "nonexistent", None)
+                .is_none()
+        );
 
         // Non-existent law
-        assert!(resolver
-            .get_article_by_output("nonexistent", "test_output", None)
-            .is_none());
+        assert!(
+            resolver
+                .get_article_by_output("nonexistent", "test_output", None)
+                .is_none()
+        );
     }
 
     #[test]
@@ -2048,9 +2053,11 @@ articles:
         assert!(!resolver.unload_law("test_law")); // Already removed
 
         // Output index should also be removed
-        assert!(resolver
-            .get_article_by_output("test_law", "test_output", None)
-            .is_none());
+        assert!(
+            resolver
+                .get_article_by_output("test_law", "test_output", None)
+                .is_none()
+        );
     }
 
     #[test]
@@ -2082,14 +2089,18 @@ articles:
         assert_eq!(law.articles[0].number, "2");
 
         // Old output should be gone
-        assert!(resolver
-            .get_article_by_output("test_law", "test_output", None)
-            .is_none());
+        assert!(
+            resolver
+                .get_article_by_output("test_law", "test_output", None)
+                .is_none()
+        );
 
         // New output should exist
-        assert!(resolver
-            .get_article_by_output("test_law", "new_output", None)
-            .is_some());
+        assert!(
+            resolver
+                .get_article_by_output("test_law", "new_output", None)
+                .is_some()
+        );
     }
 
     #[test]
@@ -2203,26 +2214,32 @@ articles:
             .unwrap();
 
         // In force before and on the (inclusive) end date.
-        assert!(resolver
-            .get_law_for_date(
-                "test_law",
-                Some(NaiveDate::from_ymd_opt(2023, 6, 1).unwrap())
-            )
-            .is_some());
-        assert!(resolver
-            .get_law_for_date(
-                "test_law",
-                Some(NaiveDate::from_ymd_opt(2023, 12, 31).unwrap())
-            )
-            .is_some());
+        assert!(
+            resolver
+                .get_law_for_date(
+                    "test_law",
+                    Some(NaiveDate::from_ymd_opt(2023, 6, 1).unwrap())
+                )
+                .is_some()
+        );
+        assert!(
+            resolver
+                .get_law_for_date(
+                    "test_law",
+                    Some(NaiveDate::from_ymd_opt(2023, 12, 31).unwrap())
+                )
+                .is_some()
+        );
 
         // No longer in force the day after valid_to.
-        assert!(resolver
-            .get_law_for_date(
-                "test_law",
-                Some(NaiveDate::from_ymd_opt(2024, 1, 1).unwrap())
-            )
-            .is_none());
+        assert!(
+            resolver
+                .get_law_for_date(
+                    "test_law",
+                    Some(NaiveDate::from_ymd_opt(2024, 1, 1).unwrap())
+                )
+                .is_none()
+        );
     }
 
     #[test]
@@ -2251,12 +2268,14 @@ articles:
 
         // After the newer version has ended: the law is no longer in force.
         // It must NOT resurrect the older open-ended version (RFC-019 §2).
-        assert!(resolver
-            .get_law_for_date(
-                "test_law",
-                Some(NaiveDate::from_ymd_opt(2025, 6, 1).unwrap())
-            )
-            .is_none());
+        assert!(
+            resolver
+                .get_law_for_date(
+                    "test_law",
+                    Some(NaiveDate::from_ymd_opt(2025, 6, 1).unwrap())
+                )
+                .is_none()
+        );
     }
 
     #[test]
@@ -2290,9 +2309,11 @@ articles:
             ))
         );
         // In force.
-        assert!(resolver
-            .get_law_for_date_result("test_law", NaiveDate::from_ymd_opt(2023, 6, 1).unwrap())
-            .is_ok());
+        assert!(
+            resolver
+                .get_law_for_date_result("test_law", NaiveDate::from_ymd_opt(2023, 6, 1).unwrap())
+                .is_ok()
+        );
     }
 
     #[test]
@@ -4306,9 +4327,11 @@ articles:
         assert_eq!(hooks[0].law_id, "hookwet");
 
         assert!(resolver.find_procedure("BESCHIKKING", None).is_some());
-        assert!(resolver
-            .find_procedure("BESCHIKKING", Some("beschikking"))
-            .is_some());
+        assert!(
+            resolver
+                .find_procedure("BESCHIKKING", Some("beschikking"))
+                .is_some()
+        );
     }
 
     /// Unloading one law must remove exactly that law's index entries and leave
@@ -4366,9 +4389,11 @@ articles:
 
         // Procedures: the unloaded law's procedure is gone, the other remains.
         assert!(resolver.find_procedure("BESCHIKKING", None).is_none());
-        assert!(resolver
-            .find_procedure("ALGEMEEN_VERBINDEND_VOORSCHRIFT", None)
-            .is_some());
+        assert!(
+            resolver
+                .find_procedure("ALGEMEEN_VERBINDEND_VOORSCHRIFT", None)
+                .is_some()
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -4571,12 +4596,16 @@ articles:
             .unwrap();
 
         // The default is found by character, and by its own name.
-        assert!(resolver
-            .find_procedure_reported("BESCHIKKING", None)
-            .is_ok());
-        assert!(resolver
-            .find_procedure_reported("BESCHIKKING", Some("beschikking"))
-            .is_ok());
+        assert!(
+            resolver
+                .find_procedure_reported("BESCHIKKING", None)
+                .is_ok()
+        );
+        assert!(
+            resolver
+                .find_procedure_reported("BESCHIKKING", Some("beschikking"))
+                .is_ok()
+        );
 
         // A named procedure that no law defines is a different answer.
         assert_eq!(
@@ -4682,9 +4711,13 @@ articles:
             .unwrap();
 
         // On a date the newest version covers, the index speaks for it.
-        assert!(resolver
-            .declarations_from_another_version(Some(NaiveDate::from_ymd_opt(2025, 6, 1).unwrap()))
-            .is_empty());
+        assert!(
+            resolver
+                .declarations_from_another_version(Some(
+                    NaiveDate::from_ymd_opt(2025, 6, 1).unwrap()
+                ))
+                .is_empty()
+        );
 
         // On a date the older version covers, it does not.
         let notes = resolver
@@ -4869,9 +4902,11 @@ articles:
         assert_eq!(by_id.id, "beschikking");
 
         // Unknown procedure id, and unknown legal character.
-        assert!(resolver
-            .find_procedure("BESCHIKKING", Some("nope"))
-            .is_none());
+        assert!(
+            resolver
+                .find_procedure("BESCHIKKING", Some("nope"))
+                .is_none()
+        );
         assert!(resolver.find_procedure("ONBEKEND", None).is_none());
     }
 

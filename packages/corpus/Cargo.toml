@@ -1,7 +1,7 @@
 [package]
 name = "regelrecht-corpus"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 authors = ["MinBZK <noreply@minbzk.nl>"]
 description = "RegelRecht corpus client - Git integration for the regelrecht-corpus repository"
 license = "EUPL-1.2"

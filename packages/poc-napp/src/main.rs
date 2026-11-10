@@ -17,9 +17,9 @@ mod state;
 
 use std::sync::Arc;
 
+use axum::Router;
 use axum::extract::Request;
 use axum::routing::{get, post, put};
-use axum::Router;
 use regelrecht_auth::OidcAppState;
 use sqlx::sqlite::SqlitePoolOptions;
 use tower_http::services::{ServeDir, ServeFile};
@@ -74,16 +74,15 @@ async fn main() -> anyhow::Result<()> {
     let role_overridden = std::env::var("OIDC_REQUIRED_ROLE")
         .map(|v| !v.is_empty())
         .unwrap_or(false);
-    if !role_overridden {
-        if let Some(config) = oidc_config.as_mut() {
-            if let Some(role) = realm_membership_role(&config.issuer_url) {
-                tracing::info!(
-                    role,
-                    "OIDC_REQUIRED_ROLE niet gezet; realm-lidmaatschap volstaat als toegangseis"
-                );
-                config.required_role = role;
-            }
-        }
+    if !role_overridden
+        && let Some(config) = oidc_config.as_mut()
+        && let Some(role) = realm_membership_role(&config.issuer_url)
+    {
+        tracing::info!(
+            role,
+            "OIDC_REQUIRED_ROLE niet gezet; realm-lidmaatschap volstaat als toegangseis"
+        );
+        config.required_role = role;
     }
     let (oidc_client, end_session_url) = if let Some(ref config) = oidc_config {
         match regelrecht_auth::discover_client(config).await {

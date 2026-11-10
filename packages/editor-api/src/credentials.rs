@@ -55,7 +55,7 @@
 use axum::http::{HeaderMap, StatusCode};
 use uuid::Uuid;
 
-use regelrecht_corpus::auth::{token_env_name, CredentialResolver, TokenContext, TokenDecision};
+use regelrecht_corpus::auth::{CredentialResolver, TokenContext, TokenDecision, token_env_name};
 use regelrecht_corpus::backend::{EditorUser, RepoBackend, WriteContext};
 
 use crate::github_oauth::{self, GithubOAuth};
@@ -439,7 +439,7 @@ mod tests {
     use tokio::sync::{Mutex, RwLock};
 
     use crate::config::AppConfig;
-    use crate::github_oauth::{seal_token_cookie_for_tests, GithubOAuth};
+    use crate::github_oauth::{GithubOAuth, seal_token_cookie_for_tests};
     use crate::state::{AppState, CorpusState};
     use crate::traject_corpus::TrajectCorpusCache;
 

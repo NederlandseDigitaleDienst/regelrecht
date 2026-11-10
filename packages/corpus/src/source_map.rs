@@ -619,15 +619,15 @@ impl SourceMap {
 
         // Keep the matching version entry coherent with the edited body so the
         // version-set loader (`get_law_versions`) reflects read-your-writes too.
-        if let Some(entries) = self.versions.get_mut(law_id) {
-            if let Some(v) = entries.iter_mut().find(|v| v.file_path == file_path) {
-                v.name = name;
-                v.display_name = display_name;
-                v.implements = implements;
-                v.has_machine_readable = has_machine_readable;
-                v.yaml_content = new_content;
-                v.content_sha = None;
-            }
+        if let Some(entries) = self.versions.get_mut(law_id)
+            && let Some(v) = entries.iter_mut().find(|v| v.file_path == file_path)
+        {
+            v.name = name;
+            v.display_name = display_name;
+            v.implements = implements;
+            v.has_machine_readable = has_machine_readable;
+            v.yaml_content = new_content;
+            v.content_sha = None;
         }
         true
     }
@@ -844,10 +844,10 @@ fn resolve_name_reference(doc: &LawDoc, reference: &str) -> Option<String> {
             continue;
         };
         for action in &exec.actions {
-            if action.output.as_deref() == Some(reference) {
-                if let Some(serde_yaml_ng::Value::String(s)) = &action.value {
-                    return Some(s.clone());
-                }
+            if action.output.as_deref() == Some(reference)
+                && let Some(serde_yaml_ng::Value::String(s)) = &action.value
+            {
+                return Some(s.clone());
             }
         }
     }

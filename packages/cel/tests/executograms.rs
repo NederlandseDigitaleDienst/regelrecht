@@ -7,9 +7,9 @@
 // a failing fixture reports itself.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use regelrecht_cel::{reading, Cell, Error, EXECUTOGRAM};
+use regelrecht_cel::{Cell, EXECUTOGRAM, Error, reading};
 use regelrecht_engine::{AnswerRequest, Authority, LawExecutionService, OpenTermAnswerer};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 mod common;
 use common::{cell_tempdir, day, object_map};

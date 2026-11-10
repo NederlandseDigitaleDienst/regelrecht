@@ -1,5 +1,5 @@
-use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
+use sqlx::postgres::PgPoolOptions;
 
 use crate::config::PipelineConfig;
 use crate::error::Result;

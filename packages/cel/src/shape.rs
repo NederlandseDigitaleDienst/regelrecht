@@ -15,10 +15,10 @@
 
 use chrono::NaiveDate;
 use regelrecht_engine::{Article, Authority, LawExecutionService, ParameterType};
-use regelrecht_law_model::{stored, ArticleRequirement};
+use regelrecht_law_model::{ArticleRequirement, stored};
 use serde::Serialize;
 
-use crate::error::{refused, setup, Result};
+use crate::error::{Result, refused, setup};
 
 /// A parameter of an article that takes part in the submission.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -181,17 +181,22 @@ pub fn derive(
                 )));
             }
             if let Some(name) = &m.parameter {
-                match execution.parameters.iter().flatten().find(|p| &p.name == name) {
+                match execution
+                    .parameters
+                    .iter()
+                    .flatten()
+                    .find(|p| &p.name == name)
+                {
                     None => {
                         return Err(setup(format!(
                             "{declared_by}: the moment is parameter '{name}', which it does not declare"
-                        )))
+                        )));
                     }
                     Some(p) if p.param_type != ParameterType::Date => {
                         return Err(setup(format!(
                             "{declared_by}: the moment is parameter '{name}', which is a {:?}, not a Date",
                             p.param_type
-                        )))
+                        )));
                     }
                     Some(_) => {}
                 }
@@ -239,7 +244,7 @@ pub(crate) fn add_field(fields: &mut Vec<Field>, field: Field, reference: &str) 
                 field.name,
                 f.first_declared_by(),
                 field.first_declared_by()
-            )))
+            )));
         }
     }
     Ok(())

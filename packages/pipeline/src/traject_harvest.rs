@@ -17,8 +17,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::error::{PipelineError, Result};
-use crate::harvest::{execute_harvest, HarvestPayload};
-use crate::law_convert::{validate_law_yaml, GeneratedLaw};
+use crate::harvest::{HarvestPayload, execute_harvest};
+use crate::law_convert::{GeneratedLaw, validate_law_yaml};
 
 /// Marker in de schema-validatiefout hieronder. De worker classificeert de
 /// fout hiermee als deterministisch (terminaal, geen retry) — door de

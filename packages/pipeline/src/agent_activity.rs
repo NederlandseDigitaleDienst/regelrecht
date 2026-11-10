@@ -311,9 +311,9 @@ pub fn count_articles(yaml: &str) -> (usize, usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent::AgentDialect;
     use crate::agent::claude::ClaudeDialect;
     use crate::agent::opencode::OpenCodeDialect;
-    use crate::agent::AgentDialect;
 
     /// Record a line as the supervisor does: read by the dialect, then
     /// recorded. The parsing itself is tested next to each dialect.

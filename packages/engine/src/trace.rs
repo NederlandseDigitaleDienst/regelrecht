@@ -522,11 +522,11 @@ impl PathNode {
         }
 
         // Add duration if present (and significant)
-        if let Some(duration) = self.duration_us {
-            if duration >= 100 {
-                // Only show if >= 0.1ms
-                line.push_str(&format!(" ({}μs)", duration));
-            }
+        if let Some(duration) = self.duration_us
+            && duration >= 100
+        {
+            // Only show if >= 0.1ms
+            line.push_str(&format!(" ({duration}μs)"));
         }
 
         lines.push(line);
@@ -923,14 +923,14 @@ fn missing_names(missing: &[crate::types::MissingFact]) -> String {
 /// order they were asked, rather than the object as a dict.
 fn format_outputs(output_names: &str, result: &Value) -> String {
     let names: Vec<&str> = output_names.split(", ").collect();
-    if let (true, Value::Object(obj)) = (names.len() > 1, result) {
-        if names.iter().all(|name| obj.contains_key(*name)) {
-            return names
-                .iter()
-                .map(|name| format!("{} = {}", name, format_value_display(&obj[*name])))
-                .collect::<Vec<_>>()
-                .join(", ");
-        }
+    if let (true, Value::Object(obj)) = (names.len() > 1, result)
+        && names.iter().all(|name| obj.contains_key(*name))
+    {
+        return names
+            .iter()
+            .map(|name| format!("{} = {}", name, format_value_display(&obj[*name])))
+            .collect::<Vec<_>>()
+            .join(", ");
     }
     format!("{} = {}", output_names, format_value_display(result))
 }

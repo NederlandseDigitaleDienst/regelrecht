@@ -155,7 +155,9 @@ pub enum EngineError {
     /// reporting it as a missing output tells an operator to go looking for a
     /// modelling error that is not there, and leaves the citizen without the
     /// ground for a decision that does exist.
-    #[error("Output '{output}' of law '{law_id}' does not arise: {grounds} ({voided_by} article {article})")]
+    #[error(
+        "Output '{output}' of law '{law_id}' does not arise: {grounds} ({voided_by} article {article})"
+    )]
     OutputVoided {
         law_id: String,
         output: String,

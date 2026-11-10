@@ -51,16 +51,17 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::NaiveDate;
 use regelrecht_engine::{
-    has_projection, Answer as EngineAnswer, AnswerProvenance, AnswerRequest, ArticleBasedLaw,
-    ArticleResult, Authority, Call, Chronicle as ChronicleSource, ChronicleRead, ChronicleRecord,
-    EngineError, LawExecutionService, OpenTermAnswerer, ProjectionOptions, RegulatoryLayer, Value,
+    Answer as EngineAnswer, AnswerProvenance, AnswerRequest, ArticleBasedLaw, ArticleResult,
+    Authority, Call, Chronicle as ChronicleSource, ChronicleRead, ChronicleRecord, EngineError,
+    LawExecutionService, OpenTermAnswerer, ProjectionOptions, RegulatoryLayer, Value,
+    has_projection,
 };
 use serde::Serialize;
 use serde_json::Map;
 
-use crate::chronicle::Gram;
 use crate::chronicle::EXECUTOGRAM;
-use crate::error::{refused, setup, Result};
+use crate::chronicle::Gram;
+use crate::error::{Result, refused, setup};
 use crate::shape::{self, article_on};
 use regelrecht_law_model::stored;
 
@@ -274,7 +275,7 @@ fn row(
             {
                 return Err(setup(format!(
                     "{label} holds '{name}' twice, as {held} and as {value}"
-                )))
+                )));
             }
             _ => {
                 row.insert(name.clone(), value);
@@ -502,7 +503,7 @@ impl<'c> Reader<'c> {
                         "the answer '{name}' takes '{}' (reduction '{reduction}' article {}), \
                          which the binding does not pass",
                         p.name, article.number
-                    )))
+                    )));
                 }
             }
         }
@@ -840,13 +841,15 @@ mod tests {
         decision
             .outputs
             .insert("eerste_verlofdag".into(), json!("2027-03-01"));
-        assert!(rows(
-            &LawExecutionService::new(),
-            &[decision],
-            BASIS,
-            "BESCHIKKING"
-        )
-        .is_err());
+        assert!(
+            rows(
+                &LawExecutionService::new(),
+                &[decision],
+                BASIS,
+                "BESCHIKKING"
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -859,13 +862,15 @@ mod tests {
         decision
             .outputs
             .insert("aandeel".into(), json!({"__decimal": "5.00"}));
-        assert!(rows(
-            &LawExecutionService::new(),
-            &[decision],
-            BASIS,
-            "BESCHIKKING"
-        )
-        .is_ok());
+        assert!(
+            rows(
+                &LawExecutionService::new(),
+                &[decision],
+                BASIS,
+                "BESCHIKKING"
+            )
+            .is_ok()
+        );
     }
 
     #[test]
@@ -1327,11 +1332,13 @@ articles:
             )
             .unwrap();
         assert_eq!(result.outputs["verleend"], Value::Bool(true));
-        assert!(result
-            .open_terms
-            .iter()
-            .any(|f| f.term == "al_verleend_volgens_hoofd"
-                && f.filled_by == regelrecht_engine::FilledBy::Finding));
+        assert!(
+            result
+                .open_terms
+                .iter()
+                .any(|f| f.term == "al_verleend_volgens_hoofd"
+                    && f.filled_by == regelrecht_engine::FilledBy::Finding)
+        );
     }
 
     #[test]
@@ -1417,11 +1424,13 @@ articles:
                 "2026-10-20",
             )
             .unwrap();
-        assert!(result
-            .open_terms
-            .iter()
-            .any(|f| f.term == "al_verleend_volgens_hoofd"
-                && f.filled_by == regelrecht_engine::FilledBy::Finding));
+        assert!(
+            result
+                .open_terms
+                .iter()
+                .any(|f| f.term == "al_verleend_volgens_hoofd"
+                    && f.filled_by == regelrecht_engine::FilledBy::Finding)
+        );
         assert!(reader.asked().is_empty());
     }
 

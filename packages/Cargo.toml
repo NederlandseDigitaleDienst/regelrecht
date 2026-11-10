@@ -1,5 +1,5 @@
 [workspace]
-resolver = "2"
+resolver = "3"
 members = [
     "admin",
     "arch-extract",
@@ -18,6 +18,9 @@ members = [
     "shared",
     "tui",
 ]
+
+[workspace.package]
+edition = "2024"
 
 [workspace.lints.clippy]
 unwrap_used = "warn"

@@ -160,8 +160,13 @@ async fn received_put_auths(server: &MockServer) -> Vec<String> {
 #[tokio::test]
 async fn service_token_takes_precedence_on_writes_and_github_403_maps_to_dutch_403() {
     let server = MockServer::start().await;
-    std::env::set_var("GITHUB_API_BASE", server.uri());
-    std::env::set_var(SERVICE_TOKEN_ENV, SERVICE_TOKEN);
+    // SAFETY: std locks its own environment access, so the hazard is C code
+    // (a host-name lookup) reading it on another thread. This binary runs this
+    // one test, on tokio's single-threaded runtime, and the test awaits
+    // everything it starts, so no lookup is running elsewhere at this point.
+    unsafe { std::env::set_var("GITHUB_API_BASE", server.uri()) };
+    // SAFETY: as at the first `set_var` in this test.
+    unsafe { std::env::set_var(SERVICE_TOKEN_ENV, SERVICE_TOKEN) };
 
     let db = TestDb::new().await;
     let central = tempfile::tempdir().unwrap();
@@ -345,6 +350,8 @@ async fn service_token_takes_precedence_on_writes_and_github_403_maps_to_dutch_4
     .await
     .expect("save op een token-loze repo moet met het gekoppelde token slagen");
 
-    std::env::remove_var(SERVICE_TOKEN_ENV);
-    std::env::remove_var("GITHUB_API_BASE");
+    // SAFETY: as at the first `set_var` in this test.
+    unsafe { std::env::remove_var(SERVICE_TOKEN_ENV) };
+    // SAFETY: as at the first `set_var` in this test.
+    unsafe { std::env::remove_var("GITHUB_API_BASE") };
 }

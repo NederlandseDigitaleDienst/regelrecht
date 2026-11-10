@@ -35,7 +35,7 @@ pub mod reading;
 pub mod shape;
 
 pub use cell::{Cell, Reference};
-pub use chronicle::{Afschrift, Chronicle, Gram, GramMoment, Received, EXECUTOGRAM};
+pub use chronicle::{Afschrift, Chronicle, EXECUTOGRAM, Gram, GramMoment, Received};
 pub use decision::{DecisionShape, Input, Source};
 pub use error::{Error, Result};
 pub use files::{Bundle, Disk, Files};

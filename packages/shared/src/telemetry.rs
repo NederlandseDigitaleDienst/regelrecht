@@ -5,8 +5,8 @@
 
 use std::env::VarError;
 
-use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::fmt::format::FmtSpan;
 
 /// Install the default `tracing_subscriber::fmt` global subscriber, honoring
 /// `RUST_LOG` and falling back to `default_level` when it is unset.

@@ -58,7 +58,7 @@ use serde_wasm_bindgen::Serializer;
 use std::collections::BTreeMap;
 use wasm_bindgen::prelude::*;
 
-use crate::annotation::{self, law_id_from_source, TextQuoteSelector};
+use crate::annotation::{self, TextQuoteSelector, law_id_from_source};
 use crate::config;
 use crate::engine::OutputProvenance;
 use crate::error::EngineError;

@@ -240,9 +240,11 @@ fn an_input_nobody_reads_cannot_fail_the_execution() {
             10,
         )
         .unwrap();
-    assert!(adult
-        .evaluate_law_output("lazy_toeslag", "voldoet", bsn(), "2025-01-01")
-        .is_err());
+    assert!(
+        adult
+            .evaluate_law_output("lazy_toeslag", "voldoet", bsn(), "2025-01-01")
+            .is_err()
+    );
 }
 
 const TWICE: &str = r#"
@@ -454,9 +456,11 @@ articles:
         .evaluate_law_output("lazy_required", "vast", bsn(), "2025-01-01")
         .unwrap();
     assert_eq!(result.outputs["vast"], Value::Int(1));
-    assert!(service
-        .evaluate_law_output("lazy_required", "verdubbeld", bsn(), "2025-01-01")
-        .is_err());
+    assert!(
+        service
+            .evaluate_law_output("lazy_required", "verdubbeld", bsn(), "2025-01-01")
+            .is_err()
+    );
 }
 
 #[test]
@@ -1525,9 +1529,11 @@ fn an_open_term_default_does_not_read_a_later_term() {
     let law = two_terms("$opslag", "5", "basis");
     let mut service = LawExecutionService::new();
     service.load_law(&law).unwrap();
-    assert!(service
-        .evaluate_law_output("lazy_two_terms", "uitkomst", BTreeMap::new(), "2025-01-01")
-        .is_err());
+    assert!(
+        service
+            .evaluate_law_output("lazy_two_terms", "uitkomst", BTreeMap::new(), "2025-01-01")
+            .is_err()
+    );
 }
 
 #[test]

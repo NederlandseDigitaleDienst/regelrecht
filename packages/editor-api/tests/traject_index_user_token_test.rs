@@ -166,7 +166,11 @@ fn cookie_headers(oauth: &GithubOAuth, account_id: Uuid) -> HeaderMap {
 #[tokio::test]
 async fn traject_index_scans_with_user_token_and_fails_loud_without_any_token() {
     let server = MockServer::start().await;
-    std::env::set_var("GITHUB_API_BASE", server.uri());
+    // SAFETY: std locks its own environment access, so the hazard is C code
+    // (a host-name lookup) reading it on another thread. This binary runs this
+    // one test, on tokio's single-threaded runtime, and the test awaits
+    // everything it starts, so no lookup is running elsewhere at this point.
+    unsafe { std::env::set_var("GITHUB_API_BASE", server.uri()) };
 
     let db = TestDb::new().await;
     let central = tempfile::tempdir().unwrap();
@@ -394,5 +398,6 @@ async fn traject_index_scans_with_user_token_and_fails_loud_without_any_token() 
         err.1
     );
 
-    std::env::remove_var("GITHUB_API_BASE");
+    // SAFETY: as at the first `set_var` in this test.
+    unsafe { std::env::remove_var("GITHUB_API_BASE") };
 }

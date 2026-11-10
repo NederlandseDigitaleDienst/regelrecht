@@ -165,15 +165,13 @@ pub fn split_number<'a>(known: &'a [String], entry: &str) -> (&'a str, String) {
         if entry == candidate {
             return (candidate.as_str(), String::new());
         }
-        if let Some(rest) = entry.strip_prefix(candidate.as_str()) {
-            if let Some(path) = rest.strip_prefix('.') {
-                if best
-                    .as_ref()
-                    .is_none_or(|(cur, _)| cur.len() < candidate.len())
-                {
-                    best = Some((candidate.as_str(), path.to_string()));
-                }
-            }
+        if let Some(rest) = entry.strip_prefix(candidate.as_str())
+            && let Some(path) = rest.strip_prefix('.')
+            && best
+                .as_ref()
+                .is_none_or(|(cur, _)| cur.len() < candidate.len())
+        {
+            best = Some((candidate.as_str(), path.to_string()));
         }
     }
     best.unwrap_or(("", entry.to_string()))
@@ -459,19 +457,31 @@ articles:
         // Thrown away, this can only be guessed back as the widest scope, and
         // the widest one is wrong in exactly the cases that matter.
         for (text, want) in [
-            ("In deze wet wordt verstaan onder: a. toeslag: ...", DefinitionScope::WholeLaw),
-            ("In dit hoofdstuk wordt verstaan onder: b. peildatum: ...", DefinitionScope::Chapter),
+            (
+                "In deze wet wordt verstaan onder: a. toeslag: ...",
+                DefinitionScope::WholeLaw,
+            ),
+            (
+                "In dit hoofdstuk wordt verstaan onder: b. peildatum: ...",
+                DefinitionScope::Chapter,
+            ),
             (
                 "In deze afdeling en de daarop berustende bepalingen wordt verstaan onder een aangewezen bestuursorgaan: ...",
                 DefinitionScope::Division,
             ),
-            ("In deze paragraaf wordt verstaan onder: c. termijn: ...", DefinitionScope::Paragraph),
+            (
+                "In deze paragraaf wordt verstaan onder: c. termijn: ...",
+                DefinitionScope::Paragraph,
+            ),
             (
                 "Voor de toepassing van dit artikel wordt verstaan onder: d. jaar: ...",
                 DefinitionScope::ArticleOnly,
             ),
             // States no scope at all, so it claims nothing beyond itself.
-            ("Hieronder wordt verstaan onder kind: een eigen kind.", DefinitionScope::ArticleOnly),
+            (
+                "Hieronder wordt verstaan onder kind: een eigen kind.",
+                DefinitionScope::ArticleOnly,
+            ),
         ] {
             assert_eq!(definition_scope(text), Some(want), "{text}");
         }

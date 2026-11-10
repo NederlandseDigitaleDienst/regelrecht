@@ -17,13 +17,13 @@
 mod common;
 
 use common::{
-    insert_traject, seed_account_record, state_with_user_token_mode, traject_ref, verified_session,
-    TEST_NAME,
+    TEST_NAME, insert_traject, seed_account_record, state_with_user_token_mode, traject_ref,
+    verified_session,
 };
 
+use axum::Json;
 use axum::extract::{Extension, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
-use axum::Json;
 use pretty_assertions::assert_eq;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -126,7 +126,11 @@ fn all_laws_query() -> Query<PaginationParams> {
 #[tokio::test]
 async fn changing_the_root_path_reindexes_the_traject_corpus() {
     let server = MockServer::start().await;
-    std::env::set_var("GITHUB_API_BASE", server.uri());
+    // SAFETY: std locks its own environment access, so the hazard is C code
+    // (a host-name lookup) reading it on another thread. This binary runs this
+    // one test, on tokio's single-threaded runtime, and the test awaits
+    // everything it starts, so no lookup is running elsewhere at this point.
+    unsafe { std::env::set_var("GITHUB_API_BASE", server.uri()) };
     mount_tree(&server).await;
 
     let db = TestDb::new().await;

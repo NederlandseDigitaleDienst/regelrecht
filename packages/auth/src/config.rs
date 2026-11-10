@@ -71,15 +71,15 @@ fn parse_oidc_config(client_id: String) -> Result<OidcConfig, String> {
 
 fn resolve_issuer_url() -> Result<String, String> {
     // OIDC_DISCOVERY_URL takes priority (RIG-style injection)
-    if let Ok(discovery_url) = env::var("OIDC_DISCOVERY_URL") {
-        if !discovery_url.is_empty() {
-            // Strip /.well-known/openid-configuration suffix if present
-            let issuer = discovery_url
-                .strip_suffix("/.well-known/openid-configuration")
-                .unwrap_or(&discovery_url);
-            tracing::info!("using OIDC_DISCOVERY_URL for issuer: {issuer}");
-            return Ok(issuer.to_string());
-        }
+    if let Ok(discovery_url) = env::var("OIDC_DISCOVERY_URL")
+        && !discovery_url.is_empty()
+    {
+        // Strip /.well-known/openid-configuration suffix if present
+        let issuer = discovery_url
+            .strip_suffix("/.well-known/openid-configuration")
+            .unwrap_or(&discovery_url);
+        tracing::info!("using OIDC_DISCOVERY_URL for issuer: {issuer}");
+        return Ok(issuer.to_string());
     }
 
     // Fallback: construct from KEYCLOAK_BASE_URL + KEYCLOAK_REALM
@@ -120,6 +120,19 @@ mod tests {
 
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
+    fn set_env(key: &str, value: &str) {
+        // SAFETY: std locks its own environment access, so the hazard is C code
+        // reading the environment on another thread. No unit test in this crate
+        // resolves a host name or calls libc time functions, and every test
+        // that changes these variables holds `ENV_LOCK`.
+        unsafe { env::set_var(key, value) };
+    }
+
+    fn remove_env(key: &str) {
+        // SAFETY: as in `set_env`.
+        unsafe { env::remove_var(key) };
+    }
+
     const OIDC_VARS: &[&str] = &[
         "OIDC_CLIENT_ID",
         "OIDC_CLIENT_SECRET",
@@ -131,16 +144,16 @@ mod tests {
 
     fn clear_oidc_env() {
         for var in OIDC_VARS {
-            env::remove_var(var);
+            remove_env(var);
         }
     }
 
     fn set_complete_oidc_env() {
-        env::set_var("OIDC_CLIENT_ID", "test-client");
-        env::set_var("OIDC_CLIENT_SECRET", "secret");
-        env::set_var("KEYCLOAK_BASE_URL", "https://keycloak.example.com");
-        env::set_var("KEYCLOAK_REALM", "test-realm");
-        env::set_var("OIDC_REQUIRED_ROLE", "editor-reader");
+        set_env("OIDC_CLIENT_ID", "test-client");
+        set_env("OIDC_CLIENT_SECRET", "secret");
+        set_env("KEYCLOAK_BASE_URL", "https://keycloak.example.com");
+        set_env("KEYCLOAK_REALM", "test-realm");
+        set_env("OIDC_REQUIRED_ROLE", "editor-reader");
     }
 
     #[test]
@@ -175,7 +188,7 @@ mod tests {
         let _lock = ENV_LOCK.lock();
         clear_oidc_env();
         set_complete_oidc_env();
-        env::set_var(
+        set_env(
             "OIDC_DISCOVERY_URL",
             "https://idp.example.com/realms/my-realm/.well-known/openid-configuration",
         );
@@ -190,7 +203,7 @@ mod tests {
     fn missing_secret_is_error() {
         let _lock = ENV_LOCK.lock();
         clear_oidc_env();
-        env::set_var("OIDC_CLIENT_ID", "test-client");
+        set_env("OIDC_CLIENT_ID", "test-client");
 
         let result = parse_oidc_from_env();
         assert!(result.is_err());
@@ -202,8 +215,8 @@ mod tests {
     fn missing_issuer_is_error() {
         let _lock = ENV_LOCK.lock();
         clear_oidc_env();
-        env::set_var("OIDC_CLIENT_ID", "test-client");
-        env::set_var("OIDC_CLIENT_SECRET", "secret");
+        set_env("OIDC_CLIENT_ID", "test-client");
+        set_env("OIDC_CLIENT_SECRET", "secret");
 
         let result = parse_oidc_from_env();
         assert!(result.is_err());
@@ -215,10 +228,10 @@ mod tests {
     fn missing_required_role_defaults_to_allowed_user() {
         let _lock = ENV_LOCK.lock();
         clear_oidc_env();
-        env::set_var("OIDC_CLIENT_ID", "test-client");
-        env::set_var("OIDC_CLIENT_SECRET", "secret");
-        env::set_var("KEYCLOAK_BASE_URL", "https://keycloak.example.com");
-        env::set_var("KEYCLOAK_REALM", "test-realm");
+        set_env("OIDC_CLIENT_ID", "test-client");
+        set_env("OIDC_CLIENT_SECRET", "secret");
+        set_env("KEYCLOAK_BASE_URL", "https://keycloak.example.com");
+        set_env("KEYCLOAK_REALM", "test-realm");
         // No OIDC_REQUIRED_ROLE — falls back to `allowed-user`.
 
         let oidc = parse_oidc_from_env().expect("should succeed").unwrap();
@@ -231,11 +244,11 @@ mod tests {
     fn empty_required_role_defaults_to_allowed_user() {
         let _lock = ENV_LOCK.lock();
         clear_oidc_env();
-        env::set_var("OIDC_CLIENT_ID", "test-client");
-        env::set_var("OIDC_CLIENT_SECRET", "secret");
-        env::set_var("KEYCLOAK_BASE_URL", "https://keycloak.example.com");
-        env::set_var("KEYCLOAK_REALM", "test-realm");
-        env::set_var("OIDC_REQUIRED_ROLE", "");
+        set_env("OIDC_CLIENT_ID", "test-client");
+        set_env("OIDC_CLIENT_SECRET", "secret");
+        set_env("KEYCLOAK_BASE_URL", "https://keycloak.example.com");
+        set_env("KEYCLOAK_REALM", "test-realm");
+        set_env("OIDC_REQUIRED_ROLE", "");
 
         let oidc = parse_oidc_from_env().expect("should succeed").unwrap();
         assert_eq!(oidc.required_role, "allowed-user");
@@ -248,7 +261,7 @@ mod tests {
         let _lock = ENV_LOCK.lock();
         clear_oidc_env();
         set_complete_oidc_env();
-        env::set_var("OIDC_REQUIRED_ROLE", "harvester-admin");
+        set_env("OIDC_REQUIRED_ROLE", "harvester-admin");
 
         let oidc = parse_oidc_from_env().expect("should succeed").unwrap();
         assert_eq!(oidc.required_role, "harvester-admin");

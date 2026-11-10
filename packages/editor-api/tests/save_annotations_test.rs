@@ -22,20 +22,20 @@
 mod common;
 
 use common::{
-    app_state, empty_state, insert_traject, local_traject, seed_account_record, traject_ref,
-    verified_session, TEST_NAME,
+    TEST_NAME, app_state, empty_state, insert_traject, local_traject, seed_account_record,
+    traject_ref, verified_session,
 };
 
+use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::http::{HeaderMap, StatusCode};
-use axum::Json;
 use pretty_assertions::assert_eq;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use regelrecht_editor_api::accounts::AccountRecord;
 use regelrecht_editor_api::corpus_handlers::{
-    get_annotations, get_traject_annotations, save_annotations, SaveResponse,
+    SaveResponse, get_annotations, get_traject_annotations, save_annotations,
 };
 use regelrecht_editor_api::state::AppState;
 

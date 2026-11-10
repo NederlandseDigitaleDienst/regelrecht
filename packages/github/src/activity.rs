@@ -127,10 +127,12 @@ mod tests {
             .mount(&server)
             .await;
 
-        assert!(client_for(&server)
-            .branch_deletion_recorded("acme/foo", "traject/tarief-1a2b", Some("t"))
-            .await
-            .unwrap());
+        assert!(
+            client_for(&server)
+                .branch_deletion_recorded("acme/foo", "traject/tarief-1a2b", Some("t"))
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]
@@ -142,10 +144,12 @@ mod tests {
             .mount(&server)
             .await;
 
-        assert!(!client_for(&server)
-            .branch_deletion_recorded("acme/foo", "traject/tarief-1a2b", Some("t"))
-            .await
-            .unwrap());
+        assert!(
+            !client_for(&server)
+                .branch_deletion_recorded("acme/foo", "traject/tarief-1a2b", Some("t"))
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]
@@ -161,10 +165,12 @@ mod tests {
             .mount(&server)
             .await;
 
-        assert!(!client_for(&server)
-            .branch_deletion_recorded("acme/foo", "main", Some("t"))
-            .await
-            .unwrap());
+        assert!(
+            !client_for(&server)
+                .branch_deletion_recorded("acme/foo", "main", Some("t"))
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]
@@ -182,10 +188,12 @@ mod tests {
             .mount(&server)
             .await;
 
-        assert!(!client_for(&server)
-            .branch_deletion_recorded("acme/foo", "traject/tarief-1a2b", Some("t"))
-            .await
-            .unwrap());
+        assert!(
+            !client_for(&server)
+                .branch_deletion_recorded("acme/foo", "traject/tarief-1a2b", Some("t"))
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]

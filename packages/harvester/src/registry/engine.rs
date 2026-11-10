@@ -98,8 +98,8 @@ impl ParseEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::registry::handler::{ElementHandler, RecurseFn};
     use crate::registry::ElementType;
+    use crate::registry::handler::{ElementHandler, RecurseFn};
     use roxmltree::Document;
 
     struct TestHandler {

@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::enrich::{
-    run_llm_subprocess, AgentRun, AgentUsage, EnrichConfig, LlmProvider, SessionAction, ToolPolicy,
+    AgentRun, AgentUsage, EnrichConfig, LlmProvider, SessionAction, ToolPolicy, run_llm_subprocess,
 };
 use crate::error::Result;
 

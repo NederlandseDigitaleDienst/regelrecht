@@ -1,7 +1,7 @@
 [package]
 name = "regelrecht-cel"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 authors = ["MinBZK <noreply@minbzk.nl>"]
 description = "A cell that records an application from the law, the decision on it and an objection against that, in its chronicle (chronolexography, RFC-045, RFC-046 and RFC-048)"
 license = "EUPL-1.2"

@@ -534,7 +534,10 @@ fn a_call_that_may_be_skipped_needs_a_nullable_input() {
         ),
     ] {
         let message = load_error(&[VERLOF, &with_nullable(input)]);
-        assert!(message.contains("[N5]") && message.contains(why), "{why}: {message}");
+        assert!(
+            message.contains("[N5]") && message.contains(why),
+            "{why}: {message}"
+        );
         assert!(!message.contains("and so is"), "{why}: {message}");
         // Declared nullable, the same call loads.
         let nullable = with_nullable(&input.replacen(

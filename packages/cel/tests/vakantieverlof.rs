@@ -12,9 +12,9 @@ use common::{answered, cell_tempdir, day, object_map};
 
 use std::path::Path;
 
-use regelrecht_cel::{decision, shape, Cell, Error, Gram, Reference, Source};
+use regelrecht_cel::{Cell, Error, Gram, Reference, Source, decision, shape};
 use regelrecht_engine::LawExecutionService;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 const LAW: &str = "leerplichtwet_1969";
 const ARTICLE: &str = "13a";
@@ -545,12 +545,16 @@ fn the_awb_hooks_on_the_decision_land_in_its_gram_and_not_in_the_application() {
         assert!(!app.outputs.contains_key(output), "{output}");
     }
     // And the hooks on the application do not fire again.
-    assert!(!gram
-        .outputs
-        .contains_key("redelijke_beslistermijn_einddatum"));
-    assert!(!gram
-        .outputs
-        .contains_key("aanvraag_bevat_wat_artikel_4_2_eist"));
+    assert!(
+        !gram
+            .outputs
+            .contains_key("redelijke_beslistermijn_einddatum")
+    );
+    assert!(
+        !gram
+            .outputs
+            .contains_key("aanvraag_bevat_wat_artikel_4_2_eist")
+    );
     assert_eq!(cell.grams(), [app, gram]);
 }
 

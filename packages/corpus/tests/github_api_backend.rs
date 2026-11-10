@@ -9,7 +9,7 @@
 use std::path::Path;
 
 use base64::Engine;
-use regelrecht_corpus::annotation_sidecar::{read_sidecar, write_sidecar, LegacyFallback};
+use regelrecht_corpus::annotation_sidecar::{LegacyFallback, read_sidecar, write_sidecar};
 use regelrecht_corpus::backend::{RepoBackend, WriteContext};
 use regelrecht_corpus::github_api_backend::GitHubApiBackend;
 use regelrecht_corpus::models::GitHubSource;
@@ -777,11 +777,13 @@ async fn read_on_a_branch_that_does_not_exist_yet_is_a_plain_miss() {
         .mount(&server)
         .await;
 
-    assert!(backend(&server)
-        .read_file(Path::new("wet/x.yaml"))
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        backend(&server)
+            .read_file(Path::new("wet/x.yaml"))
+            .await
+            .unwrap()
+            .is_none()
+    );
 }
 
 /// A read against a branch that does not exist answers "absent", and the
@@ -934,11 +936,12 @@ async fn changed_files_with_token_prefers_the_override_over_the_backend_token() 
         .await;
 
     let b = backend(&server);
-    assert!(b
-        .changed_files_with_token(Some("user-token"))
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        b.changed_files_with_token(Some("user-token"))
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -1028,10 +1031,12 @@ async fn sidecar_with_subpath_is_written_and_read_at_the_repo_root() {
 
     let b = subpath_backend(&server, Some("regulation/nl"));
     assert_eq!(b.repo_subpath(), Some("regulation/nl"));
-    assert!(read_sidecar(&b, SIDECAR_LAW, None, LegacyFallback::Read)
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        read_sidecar(&b, SIDECAR_LAW, None, LegacyFallback::Read)
+            .await
+            .unwrap()
+            .is_none()
+    );
 
     write_sidecar(&b, SIDECAR_LAW, "notes v1\n").await.unwrap();
     b.write_file(Path::new("wet/x.yaml"), "law\n")
@@ -1162,10 +1167,12 @@ async fn sidecar_without_subpath_is_unchanged() {
 
     let b = subpath_backend(&server, None);
     assert_eq!(b.repo_subpath(), None);
-    assert!(read_sidecar(&b, SIDECAR_LAW, None, LegacyFallback::Read)
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        read_sidecar(&b, SIDECAR_LAW, None, LegacyFallback::Read)
+            .await
+            .unwrap()
+            .is_none()
+    );
     write_sidecar(&b, SIDECAR_LAW, "notes\n").await.unwrap();
     b.persist(&ctx()).await.unwrap();
 
@@ -1189,15 +1196,18 @@ async fn repo_root_access_rejects_escapes() {
     let server = MockServer::start().await;
     let b = subpath_backend(&server, Some("regulation/nl"));
     for bad in ["../outside.yaml", "/etc/passwd", "annotations/../../x"] {
-        assert!(b
-            .read_repo_file_with_token(Path::new(bad), None)
-            .await
-            .is_err());
+        assert!(
+            b.read_repo_file_with_token(Path::new(bad), None)
+                .await
+                .is_err()
+        );
         assert!(b.write_repo_file(Path::new(bad), "x").await.is_err());
     }
-    assert!(read_sidecar(&b, "../wet", None, LegacyFallback::Read)
-        .await
-        .is_err());
+    assert!(
+        read_sidecar(&b, "../wet", None, LegacyFallback::Read)
+            .await
+            .is_err()
+    );
     assert!(write_sidecar(&b, "a/b", "x").await.is_err());
     assert!(server.received_requests().await.unwrap().is_empty());
 }
@@ -1269,10 +1279,12 @@ async fn sidecar_save_on_a_minted_branch_refuses_when_base_has_legacy_notes() {
         .await;
 
     let b = subpath_backend(&server, Some("regulation/nl"));
-    assert!(read_sidecar(&b, SIDECAR_LAW, None, LegacyFallback::Read)
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        read_sidecar(&b, SIDECAR_LAW, None, LegacyFallback::Read)
+            .await
+            .unwrap()
+            .is_none()
+    );
     write_sidecar(&b, SIDECAR_LAW, "new note\n").await.unwrap();
     let err = b.persist(&ctx()).await.unwrap_err();
     assert!(
@@ -1311,10 +1323,12 @@ async fn sidecar_absence_check_costs_nothing_on_an_existing_branch() {
         .await;
 
     let b = subpath_backend(&server, Some("regulation/nl"));
-    assert!(read_sidecar(&b, SIDECAR_LAW, None, LegacyFallback::Read)
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        read_sidecar(&b, SIDECAR_LAW, None, LegacyFallback::Read)
+            .await
+            .unwrap()
+            .is_none()
+    );
     write_sidecar(&b, SIDECAR_LAW, "new note\n").await.unwrap();
     b.persist(&ctx()).await.unwrap();
 }
@@ -1339,10 +1353,12 @@ async fn sidecar_read_without_legacy_fallback_is_one_request() {
         .await;
 
     let b = subpath_backend(&server, Some("regulation/nl"));
-    assert!(read_sidecar(&b, SIDECAR_LAW, None, LegacyFallback::Skip)
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        read_sidecar(&b, SIDECAR_LAW, None, LegacyFallback::Skip)
+            .await
+            .unwrap()
+            .is_none()
+    );
 }
 
 /// Regression guard for the cache re-keying: on a source with a subpath a

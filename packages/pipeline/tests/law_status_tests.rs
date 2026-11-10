@@ -150,12 +150,16 @@ async fn test_set_coverage_score_validation() {
         .await
         .unwrap();
 
-    assert!(law_status::set_coverage_score(&db.pool, "test_law", 1.5)
-        .await
-        .is_err());
-    assert!(law_status::set_coverage_score(&db.pool, "test_law", -0.1)
-        .await
-        .is_err());
+    assert!(
+        law_status::set_coverage_score(&db.pool, "test_law", 1.5)
+            .await
+            .is_err()
+    );
+    assert!(
+        law_status::set_coverage_score(&db.pool, "test_law", -0.1)
+            .await
+            .is_err()
+    );
 
     assert!(
         law_status::set_coverage_score(&db.pool, "test_law", f64::NAN)
@@ -168,12 +172,16 @@ async fn test_set_coverage_score_validation() {
             .is_err()
     );
 
-    assert!(law_status::set_coverage_score(&db.pool, "test_law", 0.0)
-        .await
-        .is_ok());
-    assert!(law_status::set_coverage_score(&db.pool, "test_law", 1.0)
-        .await
-        .is_ok());
+    assert!(
+        law_status::set_coverage_score(&db.pool, "test_law", 0.0)
+            .await
+            .is_ok()
+    );
+    assert!(
+        law_status::set_coverage_score(&db.pool, "test_law", 1.0)
+            .await
+            .is_ok()
+    );
 }
 
 #[tokio::test]

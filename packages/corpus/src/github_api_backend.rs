@@ -54,8 +54,8 @@ use tokio::sync::Mutex;
 use regelrecht_github::{Committer, GithubClient, GithubError};
 
 use crate::backend::{
-    normalized_subpath, validate_relative_path, FileEntry, PersistOutcome, RecursiveFileEntry,
-    RepoBackend, WriteContext,
+    FileEntry, PersistOutcome, RecursiveFileEntry, RepoBackend, WriteContext, normalized_subpath,
+    validate_relative_path,
 };
 use crate::error::{CorpusError, Result};
 use crate::models::GitHubSource;
@@ -306,7 +306,7 @@ impl GitHubApiBackend {
     ///
     /// [`implements_index`]: crate::implements_index
     async fn implements_from_index(&self) -> Result<Option<Vec<(String, Vec<String>)>>> {
-        use crate::implements_index::{ImplementsIndex, IMPLEMENTS_INDEX_FILENAME};
+        use crate::implements_index::{IMPLEMENTS_INDEX_FILENAME, ImplementsIndex};
 
         let repo = self.full_repo();
         let inner = self.inner.lock().await;
@@ -1194,8 +1194,8 @@ fn is_unsigned_existing_file(e: &GithubError) -> bool {
 mod tests {
     #![allow(clippy::unwrap_used)]
 
-    use flate2::write::GzEncoder;
     use flate2::Compression;
+    use flate2::write::GzEncoder;
     use wiremock::matchers::{method, path as path_matcher};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 

@@ -16,11 +16,11 @@ use std::process::ExitCode;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::SystemTime;
 
+use axum::Router;
 use axum::extract::State;
-use axum::http::{header, StatusCode};
+use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
-use axum::Router;
 use tower_http::services::{ServeDir, ServeFile};
 
 use crate::build::{self, DeepScope};

@@ -917,10 +917,12 @@ fn a_loaded_reduction_fills_nothing_by_itself() {
     parameters.insert(ONCE_HEAD.to_string(), Value::Bool(false));
     let result = granted_13a(&service, parameters).unwrap();
     assert_eq!(result.outputs["verlof_verleend"], Value::Bool(true));
-    assert!(result
-        .open_terms
-        .iter()
-        .any(|f| f.term == ONCE_HEAD && f.filled_by == FilledBy::Finding));
+    assert!(
+        result
+            .open_terms
+            .iter()
+            .any(|f| f.term == ONCE_HEAD && f.filled_by == FilledBy::Finding)
+    );
 }
 
 #[test]
@@ -934,10 +936,12 @@ fn an_answerer_that_gives_no_answer_leaves_it_to_the_policy() {
     let result = granted_13a_with(&service, parameters, &answerer).unwrap();
     assert_eq!(result.outputs["verlof_verleend"], Value::Bool(false));
     assert_eq!(answerer.asked.borrow().len(), 1);
-    assert!(result
-        .open_terms
-        .iter()
-        .any(|f| f.term == ONCE_HEAD && f.filled_by == FilledBy::Finding));
+    assert!(
+        result
+            .open_terms
+            .iter()
+            .any(|f| f.term == ONCE_HEAD && f.filled_by == FilledBy::Finding)
+    );
     // Without a finding either, the policy's required term has no value.
     let e = granted_13a_with(&service, application(), &answerer).unwrap_err();
     assert!(e.to_string().contains(ONCE), "{e}");
@@ -953,10 +957,12 @@ fn a_silent_answerer_leaves_it_to_the_policy() {
     let answerer = Answerer::giving_value(Some(Value::Null));
     let result = granted_13a_with(&service, parameters, &answerer).unwrap();
     assert_eq!(result.outputs["verlof_verleend"], Value::Bool(false));
-    assert!(result
-        .open_terms
-        .iter()
-        .any(|f| f.term == ONCE_HEAD && f.filled_by == FilledBy::Finding));
+    assert!(
+        result
+            .open_terms
+            .iter()
+            .any(|f| f.term == ONCE_HEAD && f.filled_by == FilledBy::Finding)
+    );
     let trace = result.trace.unwrap().render_box_drawing();
     assert!(trace.contains("is silent (null)"), "{trace}");
     assert!(!trace.contains("is silent for this case"), "{trace}");
@@ -1040,10 +1046,12 @@ fn without_an_answerer_the_term_is_the_heads_finding_or_an_error() {
     parameters.insert(ONCE_HEAD.to_string(), Value::Bool(true));
     let result = granted_13a(&service, parameters).unwrap();
     assert_eq!(result.outputs["verlof_verleend"], Value::Bool(false));
-    assert!(result
-        .open_terms
-        .iter()
-        .any(|f| f.term == ONCE_HEAD && matches!(f.filled_by, FilledBy::Finding)));
+    assert!(
+        result
+            .open_terms
+            .iter()
+            .any(|f| f.term == ONCE_HEAD && matches!(f.filled_by, FilledBy::Finding))
+    );
     // No default: without the head's finding there is no answer, and no
     // second leave granted by silence.
     let e = granted_13a(&service, application()).unwrap_err();
@@ -1124,10 +1132,12 @@ fn in_the_call_anew_the_engine_asks_the_answerer() {
         result.outputs["bestreden_besluit_herroepen"],
         Value::Bool(true)
     );
-    assert!(result
-        .open_terms
-        .iter()
-        .any(|f| f.term == ONCE && f.filled_by == bound()));
+    assert!(
+        result
+            .open_terms
+            .iter()
+            .any(|f| f.term == ONCE && f.filled_by == bound())
+    );
     let root = result.trace.unwrap();
     assert_eq!(answered(&root).len(), 1, "{}", root.render_box_drawing());
 }
@@ -1703,9 +1713,11 @@ fn a_parameter_that_names_no_article_is_an_error_not_a_read() {
             "{not_an_article}: {e}"
         );
     }
-    assert!(chronicle
-        .asked
-        .borrow()
-        .iter()
-        .all(|(_, read)| !read.contains("leerplichtwet_1969")));
+    assert!(
+        chronicle
+            .asked
+            .borrow()
+            .iter()
+            .all(|(_, read)| !read.contains("leerplichtwet_1969"))
+    );
 }

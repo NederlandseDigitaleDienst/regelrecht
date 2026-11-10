@@ -1,7 +1,7 @@
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::Json;
-use regelrecht_corpus::dto::{build_source_summaries, PaginationParams, SourceSummary};
+use regelrecht_corpus::dto::{PaginationParams, SourceSummary, build_source_summaries};
 use serde::Serialize;
 
 use crate::error::ApiError;

@@ -28,11 +28,11 @@ use std::path::Path;
 
 use chrono::NaiveDate;
 use regelrecht_cel::reading::chronicle_records;
-use regelrecht_cel::{Gram, Received, EXECUTOGRAM};
+use regelrecht_cel::{EXECUTOGRAM, Gram, Received};
 use regelrecht_engine::{LawExecutionService, Value as EngineValue};
 use regelrecht_poc_chronolexografie::kern::Corpus;
 use regelrecht_poc_chronolexografie::spel::Spel;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 const CASUS: &str = "bedrijfsparkeervergunning";
 const BAKKERIJ: &str = "99990011";

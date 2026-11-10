@@ -11,8 +11,8 @@
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
-use regelrecht_cel::identity::REDUCTIONS;
 use regelrecht_cel::Cell;
+use regelrecht_cel::identity::REDUCTIONS;
 use regelrecht_engine::{LawExecutionService, PathNode};
 use serde_json::{Map, Value};
 

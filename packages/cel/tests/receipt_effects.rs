@@ -13,12 +13,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use regelrecht_cel::reading::{chronicle_records, Reader};
-use regelrecht_cel::{Afschrift, Cell, Disk, Gram, Received, EXECUTOGRAM};
+use regelrecht_cel::reading::{Reader, chronicle_records};
+use regelrecht_cel::{Afschrift, Cell, Disk, EXECUTOGRAM, Gram, Received};
 use regelrecht_engine::{
     Authority, Call, LawExecutionService, PathNode, ProjectionEvent, Value as EngineValue,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 mod common;
 use common::{answered, day, object_map, service_of};
@@ -512,11 +512,13 @@ fn the_trace_of_a_decision_holds_the_projection_under_the_answer() {
     let unique: BTreeSet<&String> = ids.iter().collect();
     assert_eq!(unique.len(), ids.len(), "{ids:?}");
     let answer_id = answer.node_id.as_deref().unwrap();
-    assert!(projection
-        .node_id
-        .as_deref()
-        .unwrap()
-        .starts_with(&format!("{answer_id}.")));
+    assert!(
+        projection
+            .node_id
+            .as_deref()
+            .unwrap()
+            .starts_with(&format!("{answer_id}."))
+    );
 }
 
 /// The first node named `name` under `node`, depth first.

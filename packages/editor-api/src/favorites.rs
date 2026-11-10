@@ -8,9 +8,9 @@
 //! De traject-varianten hangen onder `/api/trajects/{ref}/favorites` en checken
 //! het lidmaatschap zelf, dezelfde re-check die de andere traject-routes doen.
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::Json;
 use tower_sessions::Session;
 use uuid::Uuid;
 

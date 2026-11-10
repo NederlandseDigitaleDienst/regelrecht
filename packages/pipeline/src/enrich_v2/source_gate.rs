@@ -854,12 +854,11 @@ fn resolve<'a>(
     }
     let mut best: Option<(&SourceArticle, &str)> = None;
     for (candidate, article) in official {
-        if let Some(rest) = number.strip_prefix(*candidate) {
-            if let Some(path) = rest.strip_prefix('.') {
-                if best.is_none_or(|(cur, _)| cur.number.len() < candidate.len()) {
-                    best = Some((article, path));
-                }
-            }
+        if let Some(rest) = number.strip_prefix(*candidate)
+            && let Some(path) = rest.strip_prefix('.')
+            && best.is_none_or(|(cur, _)| cur.number.len() < candidate.len())
+        {
+            best = Some((article, path));
         }
     }
     best
@@ -1205,10 +1204,12 @@ articles:
         .unwrap();
         let report = verify(&corpus, &official);
         // The premise: zero overlap while the counts match.
-        assert!(!report
-            .verdicts
-            .values()
-            .any(|v| matches!(v, Verdict::Verified | Verdict::Drift { .. })));
+        assert!(
+            !report
+                .verdicts
+                .values()
+                .any(|v| matches!(v, Verdict::Verified | Verdict::Drift { .. }))
+        );
         let err = rewrite(&corpus, &official, &report).unwrap_err();
         assert!(err.contains("different law"), "{err}");
         // The refusal must tell the user the next step.

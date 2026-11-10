@@ -40,9 +40,9 @@ use crate::error::{EngineError, Result};
 use crate::operations::ValueResolver;
 use crate::priority;
 use crate::resolver::{
-    hook_filter_admits, missing_article_reason, submission_filter_admits, DeclarationKind,
-    DeclarationNotInForce, DeclarationsFromOtherVersion, DelegationRefusal, HookEntry,
-    LawArticleRef, ProcedureMiss, RuleResolver, SelectionReason,
+    DeclarationKind, DeclarationNotInForce, DeclarationsFromOtherVersion, DelegationRefusal,
+    HookEntry, LawArticleRef, ProcedureMiss, RuleResolver, SelectionReason, hook_filter_admits,
+    missing_article_reason, submission_filter_admits,
 };
 use crate::trace::{LegalAnchor, PathNode, TraceBuilder, ValueSource};
 use crate::types::{
@@ -744,7 +744,7 @@ fn check_decision_parameters(
                     article,
                     &declared.name,
                     &format!("is of type {}", other.type_name()),
-                ))
+                ));
             }
         };
         let flaw = if at_top {
@@ -2112,10 +2112,10 @@ impl LawExecutionService {
         // leaves a consumer to discover an absence it has no ground for; the
         // error carries the words of the article that excluded it.
         for name in output_names {
-            if !result.outputs.contains_key(*name) {
-                if let Some(error) = voided_output_error(law_id, name, &result.output_provenance) {
-                    return Err(error);
-                }
+            if !result.outputs.contains_key(*name)
+                && let Some(error) = voided_output_error(law_id, name, &result.output_provenance)
+            {
+                return Err(error);
             }
         }
         Ok(result)
@@ -2539,7 +2539,7 @@ impl LawExecutionService {
                     "{law_id} article {article_number} establishes an {kind} and follows \
                      procedure '{}', which has no stage {kind} for the hooks on it to fire at",
                     procedure.id
-                )))
+                )));
             }
         };
         let articles = self.taking_part(law, article, ref_date, |hook_point| {
@@ -4261,14 +4261,14 @@ impl LawExecutionService {
         // call in the same situation was already turned into a skip by
         // `resolve_external_input_internal`, so it never gets here with a
         // deeper depth.
-        if res_ctx.depth == 0 {
-            if let Some((name, value)) = required_parameter_for_nobody(article, &parameters) {
-                return Err(EngineError::MissingParameter {
-                    law_id: law.id.clone(),
-                    name,
-                    value: value.to_string(),
-                });
-            }
+        if res_ctx.depth == 0
+            && let Some((name, value)) = required_parameter_for_nobody(article, &parameters)
+        {
+            return Err(EngineError::MissingParameter {
+                law_id: law.id.clone(),
+                name,
+                value: value.to_string(),
+            });
         }
         check_decision_parameters(law, article, &parameters, res_ctx.depth == 0)?;
 
@@ -5123,31 +5123,31 @@ impl LawExecutionService {
         // term's id (RFC-045 §5), and wins over a default. A regulation that is
         // silent on a term with a default leaves it to the default, not to
         // a finding (RFC-036, RFC-048 §2).
-        if let Some(by) = &term.decided_per_case_by {
-            if let Some(value) = parameters.get(&term.id) {
-                if !silent.is_empty() {
-                    let message = format!(
-                        "Open term '{}' on {}#{} is filled by its default: implementation {} \
+        if let Some(by) = &term.decided_per_case_by
+            && let Some(value) = parameters.get(&term.id)
+        {
+            if !silent.is_empty() {
+                let message = format!(
+                    "Open term '{}' on {}#{} is filled by its default: implementation {} \
                          is silent for this case (null); the finding of {by} for it is asked by \
                          none (RFC-048)",
-                        term.id,
-                        law.id,
-                        article.number,
-                        silent.join(", ")
-                    );
-                    res_ctx.trace_set_message(message.clone());
-                    res_ctx.leave(&ot_key);
-                    return Err(EngineError::InvalidOperation(message));
-                }
-                res_ctx.trace_set_result(value.clone());
-                res_ctx.trace_set_message(format!(
-                    "Open term '{}' decided in this case by {by}",
-                    term.id
-                ));
-                res_ctx.note_open_term(&law.id, &article.number, &term.id, FilledBy::Finding);
+                    term.id,
+                    law.id,
+                    article.number,
+                    silent.join(", ")
+                );
+                res_ctx.trace_set_message(message.clone());
                 res_ctx.leave(&ot_key);
-                return Ok(value.clone());
+                return Err(EngineError::InvalidOperation(message));
             }
+            res_ctx.trace_set_result(value.clone());
+            res_ctx.trace_set_message(format!(
+                "Open term '{}' decided in this case by {by}",
+                term.id
+            ));
+            res_ctx.note_open_term(&law.id, &article.number, &term.id, FilledBy::Finding);
+            res_ctx.leave(&ot_key);
+            return Ok(value.clone());
         }
         let value = if let Some(ref default) = term.default {
             // No implementation found, or a silent one — execute default actions
@@ -6123,7 +6123,7 @@ impl LawExecutionService {
                             "an article reference or a decision value in {named_by} for {caller}"
                         ),
                         actual: other.to_string(),
-                    })
+                    });
                 }
             },
         };
@@ -6200,9 +6200,9 @@ impl LawExecutionService {
                 return refuse(
                     res_ctx,
                     format!(
-                    "{caller} takes '{output}' from {target}, which is no output of its decision"
-                ),
-                )
+                        "{caller} takes '{output}' from {target}, which is no output of its decision"
+                    ),
+                );
             }
         };
 
@@ -6678,13 +6678,13 @@ impl LawExecutionService {
             .resolver
             .get_law_for_date_reported(law_id, reference_date)
             .map_err(|reason| selection_error(law_id, valid_from.unwrap_or(""), reason))?;
-        if let Some(requested) = valid_from {
-            if law.valid_from.as_deref() != Some(requested) {
-                return Err(EngineError::LoadError(format!(
-                    "law '{law_id}' has no loaded version with valid_from {requested}; \
+        if let Some(requested) = valid_from
+            && law.valid_from.as_deref() != Some(requested)
+        {
+            return Err(EngineError::LoadError(format!(
+                "law '{law_id}' has no loaded version with valid_from {requested}; \
                      the viewed version may have failed to load"
-                )));
-            }
+            )));
         }
         Ok(law)
     }
@@ -6702,11 +6702,11 @@ impl LawExecutionService {
         // Collect output names from all articles
         let mut outputs = Vec::new();
         for article in &law.articles {
-            if let Some(exec) = article.get_execution_spec() {
-                if let Some(output_specs) = &exec.output {
-                    for output in output_specs {
-                        outputs.push(output.name.clone());
-                    }
+            if let Some(exec) = article.get_execution_spec()
+                && let Some(output_specs) = &exec.output
+            {
+                for output in output_specs {
+                    outputs.push(output.name.clone());
                 }
             }
         }

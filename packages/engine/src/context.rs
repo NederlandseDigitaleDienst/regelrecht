@@ -237,10 +237,10 @@ impl<'l> RuleContext<'l> {
     pub fn get_calculation_date(&self) -> &str {
         // Extract ISO date string from the cached reference_date_value
         // This is safe because we always set it in new()
-        if let Value::Object(obj) = &self.reference_date_value {
-            if let Some(Value::String(iso)) = obj.get("iso") {
-                return iso.as_str();
-            }
+        if let Value::Object(obj) = &self.reference_date_value
+            && let Some(Value::String(iso)) = obj.get("iso")
+        {
+            return iso.as_str();
         }
         // Fallback - should never happen since we always set iso in new()
         "1970-01-01"
@@ -474,13 +474,13 @@ impl<'l> RuleContext<'l> {
         // 5. An input or open term of this article, resolved on its first
         // read (RFC-043). Where a value was passed under the input's name the
         // hook answers `None`, and the parameter below wins.
-        if let Some(LazyHook(lazy)) = self.lazy {
-            if let Some(result) = lazy.resolve_input(path) {
-                return result.map(|(value, resolve_type)| {
-                    self.trace_set_resolve_type(resolve_type);
-                    value
-                });
-            }
+        if let Some(LazyHook(lazy)) = self.lazy
+            && let Some(result) = lazy.resolve_input(path)
+        {
+            return result.map(|(value, resolve_type)| {
+                self.trace_set_resolve_type(resolve_type);
+                value
+            });
         }
 
         // 6. Parameters (direct inputs)

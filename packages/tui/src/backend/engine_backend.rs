@@ -66,13 +66,12 @@ impl EngineHandle {
 
     pub fn try_recv(&mut self) -> Option<EngineResponse> {
         // Check if the engine thread has died (panicked)
-        if !self.dead {
-            if let Some(ref handle) = self.thread_handle {
-                if handle.is_finished() {
-                    self.dead = true;
-                    return Some(EngineResponse::ThreadDied);
-                }
-            }
+        if !self.dead
+            && let Some(ref handle) = self.thread_handle
+            && handle.is_finished()
+        {
+            self.dead = true;
+            return Some(EngineResponse::ThreadDied);
         }
         self.resp_rx.try_recv().ok()
     }

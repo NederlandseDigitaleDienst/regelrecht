@@ -1,6 +1,6 @@
 //! Git Refs API: check a branch exists and create one off another's tip.
 
-use reqwest::header::{HeaderValue, CONTENT_TYPE};
+use reqwest::header::{CONTENT_TYPE, HeaderValue};
 use serde::Deserialize;
 
 use crate::client::GithubClient;

@@ -18,7 +18,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use axum::http::StatusCode;
 use regelrecht_editor_api::traject_index_diagnosis::{
-    classify_index_failure, index_failure_to_status, IndexFailureKind, OwnSourceTarget, TokenOrigin,
+    IndexFailureKind, OwnSourceTarget, TokenOrigin, classify_index_failure, index_failure_to_status,
 };
 use regelrecht_github::GithubClient;
 

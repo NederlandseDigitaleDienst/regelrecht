@@ -1,7 +1,7 @@
 [package]
 name = "regelrecht-poc-portal"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 authors = ["MinBZK <noreply@minbzk.nl>"]
 description = "Portal serving the regelrecht proof-of-concepts behind one hostname, each with its own password"
 license = "EUPL-1.2"

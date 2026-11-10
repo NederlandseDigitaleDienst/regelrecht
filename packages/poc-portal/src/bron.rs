@@ -357,15 +357,15 @@ impl Cache {
         Fut: Future<Output = Result<Opgehaald, String>>,
     {
         let mut staat = self.laatste.lock().await;
-        if let Some((op, o)) = staat.goed.as_ref() {
-            if nu.saturating_duration_since(*op) < self.ttl {
-                return Ok(o.clone());
-            }
+        if let Some((op, o)) = staat.goed.as_ref()
+            && nu.saturating_duration_since(*op) < self.ttl
+        {
+            return Ok(Arc::clone(o));
         }
-        if let (None, Some((op, e))) = (&staat.goed, &staat.fout) {
-            if nu.saturating_duration_since(*op) < self.fout_ttl {
-                return Err(e.clone());
-            }
+        if let (None, Some((op, e))) = (&staat.goed, &staat.fout)
+            && nu.saturating_duration_since(*op) < self.fout_ttl
+        {
+            return Err(e.clone());
         }
         match haal().await {
             Ok(o) => {

@@ -49,7 +49,7 @@ use tower_sessions::Session;
 use uuid::Uuid;
 
 use regelrecht_corpus::models::SourceType;
-use regelrecht_corpus::source_map::{collect_law_references, LawReferenceKind};
+use regelrecht_corpus::source_map::{LawReferenceKind, collect_law_references};
 use regelrecht_github::GithubClient;
 use regelrecht_law_model::parse_law_header;
 

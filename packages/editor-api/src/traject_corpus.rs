@@ -26,8 +26,8 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use regelrecht_corpus::backend::create_backend;
@@ -632,11 +632,10 @@ impl TrajectCorpus {
             if saved_key
                 .as_ref()
                 .is_some_and(|(s, r)| s == &source_id && r == &relative_path)
+                && let Some(body) = &saved_body
             {
-                if let Some(body) = &saved_body {
-                    out.push(body.clone());
-                    continue;
-                }
+                out.push(body.clone());
+                continue;
             }
             // Eagerly-loaded (local) version body is already in the index.
             if let Some(body) = body {
@@ -915,7 +914,7 @@ impl TrajectCorpus {
             let guard = self.implements_index.read().await;
             match guard.as_ref() {
                 Some(index) if !self.implements_index_stale.load(Ordering::SeqCst) => {
-                    return index.clone();
+                    return Arc::clone(index);
                 }
                 other => other.cloned(),
             }
@@ -936,10 +935,10 @@ impl TrajectCorpus {
         // (re)built while we waited.
         {
             let guard = self.implements_index.read().await;
-            if let Some(index) = guard.as_ref() {
-                if !self.implements_index_stale.load(Ordering::SeqCst) {
-                    return index.clone();
-                }
+            if let Some(index) = guard.as_ref()
+                && !self.implements_index_stale.load(Ordering::SeqCst)
+            {
+                return Arc::clone(index);
             }
         }
 
@@ -1233,10 +1232,10 @@ impl TrajectCorpus {
         )
         .await
         .ok();
-        if let Some(cached) = self.changed_cache.read().await.as_ref() {
-            if cached.computed_at.elapsed() < CHANGED_LAWS_TTL {
-                return Ok(cached.law_ids.clone());
-            }
+        if let Some(cached) = self.changed_cache.read().await.as_ref()
+            && cached.computed_at.elapsed() < CHANGED_LAWS_TTL
+        {
+            return Ok(cached.law_ids.clone());
         }
 
         match self.compute_changed_law_ids(token).await {
@@ -1365,11 +1364,11 @@ impl TrajectCorpus {
     /// law back to its base content, which should eventually disappear
     /// from the list).
     pub async fn record_changed_law(&self, law_id: &str) {
-        if let Some(cached) = self.changed_cache.write().await.as_mut() {
-            if !cached.law_ids.iter().any(|id| id == law_id) {
-                cached.law_ids.push(law_id.to_string());
-                cached.law_ids.sort();
-            }
+        if let Some(cached) = self.changed_cache.write().await.as_mut()
+            && !cached.law_ids.iter().any(|id| id == law_id)
+        {
+            cached.law_ids.push(law_id.to_string());
+            cached.law_ids.sort();
         }
         // No cache entry yet: leave it absent — the next changed-laws
         // request computes the real diff (which includes this save).
@@ -1547,7 +1546,7 @@ impl TrajectCorpusCache {
                 }
                 Some(cached) if cached.is_fresh(self.index_ttl) => {
                     tracing::debug!(traject = %traject_id, cache = "hit", "traject corpus served from cache");
-                    return Ok(cached.corpus.clone());
+                    return Ok(Arc::clone(&cached.corpus));
                 }
                 Some(cached) => {
                     let stale = cached.corpus.clone();
@@ -1580,11 +1579,11 @@ impl TrajectCorpusCache {
         // Re-check under the build lock: the previous holder may have
         // built while we waited. A snapshot this request's token could
         // still heal is NOT served — it is exactly what we came to rebuild.
-        if let Some(cached) = slot.state.read().await.as_ref() {
-            if !heals_own_index(&cached.corpus) {
-                tracing::debug!(traject = %traject_id, cache = "hit", "traject corpus served from cache");
-                return Ok(cached.corpus.clone());
-            }
+        if let Some(cached) = slot.state.read().await.as_ref()
+            && !heals_own_index(&cached.corpus)
+        {
+            tracing::debug!(traject = %traject_id, cache = "hit", "traject corpus served from cache");
+            return Ok(Arc::clone(&cached.corpus));
         }
 
         tracing::debug!(traject = %traject_id, cache = "cold", "building traject corpus (cold)");
@@ -1640,10 +1639,10 @@ fn spawn_background_refresh(
         // Between losing the state read lock and winning the build lock a
         // previous holder may already have refreshed — don't enumerate the
         // sources twice within one TTL window.
-        if let Some(cached) = slot.state.read().await.as_ref() {
-            if cached.is_fresh(index_ttl) {
-                return;
-            }
+        if let Some(cached) = slot.state.read().await.as_ref()
+            && cached.is_fresh(index_ttl)
+        {
+            return;
         }
 
         let span = tracing::info_span!("traject_index_refresh", traject = %traject_id);
@@ -2548,9 +2547,11 @@ mod tests {
         assert!(cache.get("law_0").is_none());
         assert!(cache.get("law_9").is_none());
         assert!(cache.get("law_10").is_some());
-        assert!(cache
-            .get(&format!("law_{}", BODY_CACHE_MAX_ENTRIES + 9))
-            .is_some());
+        assert!(
+            cache
+                .get(&format!("law_{}", BODY_CACHE_MAX_ENTRIES + 9))
+                .is_some()
+        );
     }
 
     #[test]
@@ -2912,11 +2913,13 @@ mod tests {
         );
 
         // Build the index against the pre-save body: no implementors.
-        assert!(corpus
-            .implementors_of("wet_hoger")
-            .await
-            .implementors
-            .is_empty());
+        assert!(
+            corpus
+                .implementors_of("wet_hoger")
+                .await
+                .implementors
+                .is_empty()
+        );
 
         // The save adds an `implements` declaration; the lookup must see
         // it immediately — no snapshot rollover needed.
@@ -2935,11 +2938,13 @@ mod tests {
         corpus
             .record_save("regeling_a".to_string(), law_body("regeling_a", None))
             .await;
-        assert!(corpus
-            .implementors_of("wet_hoger")
-            .await
-            .implementors
-            .is_empty());
+        assert!(
+            corpus
+                .implementors_of("wet_hoger")
+                .await
+                .implementors
+                .is_empty()
+        );
     }
 
     // ---- TTL index refresh ----
@@ -3066,11 +3071,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         write_law_file(dir.path(), "wet_hoger", &law_body("wet_hoger", None));
         let old = local_corpus(dir.path()).await;
-        assert!(old
-            .implementors_of("wet_hoger")
-            .await
-            .implementors
-            .is_empty());
+        assert!(
+            old.implementors_of("wet_hoger")
+                .await
+                .implementors
+                .is_empty()
+        );
 
         // A new implementing regulation lands upstream (e.g. merged on
         // the central corpus / saved on another replica).
@@ -3093,11 +3099,12 @@ mod tests {
             vec!["regeling_a".to_string()]
         );
         assert!(!refreshed.implements_index_stale.load(Ordering::SeqCst));
-        assert!(old
-            .implementors_of("wet_hoger")
-            .await
-            .implementors
-            .is_empty());
+        assert!(
+            old.implementors_of("wet_hoger")
+                .await
+                .implementors
+                .is_empty()
+        );
     }
 
     // ---- stale-while-revalidate on the implements index ----
@@ -3841,11 +3848,13 @@ mod tests {
                 gen_before,
             )
             .await;
-        assert!(corpus
-            .cached_scenario_list("wet_a")
-            .await
-            .unwrap()
-            .is_empty());
+        assert!(
+            corpus
+                .cached_scenario_list("wet_a")
+                .await
+                .unwrap()
+                .is_empty()
+        );
 
         // An undisturbed read (no write in between) stores normally.
         let gen_before = corpus.sidecar_write_generation();
@@ -3880,11 +3889,13 @@ mod tests {
         corpus
             .store_scenario_list_read("wet_b".to_string(), Vec::new(), gen_before)
             .await;
-        assert!(corpus
-            .cached_scenario_list("wet_b")
-            .await
-            .unwrap()
-            .is_empty());
+        assert!(
+            corpus
+                .cached_scenario_list("wet_b")
+                .await
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

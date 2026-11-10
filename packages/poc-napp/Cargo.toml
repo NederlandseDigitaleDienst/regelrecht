@@ -1,7 +1,7 @@
 [package]
 name = "regelrecht-poc-napp"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 authors = ["MinBZK <noreply@minbzk.nl>"]
 description = "PoC: het subsidieproces uit het wetsvoorstel Wet op de politieke partijen, uitgevoerd door de engine"
 license = "EUPL-1.2"

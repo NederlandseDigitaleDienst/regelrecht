@@ -137,12 +137,14 @@ mod tests {
 
     #[test]
     fn a_word_may_match_the_id_or_the_name() {
-        assert!(rank(
-            "awir inkomensafhankelijke",
-            "awir",
-            Some("Algemene wet inkomensafhankelijke regelingen")
-        )
-        .is_some());
+        assert!(
+            rank(
+                "awir inkomensafhankelijke",
+                "awir",
+                Some("Algemene wet inkomensafhankelijke regelingen")
+            )
+            .is_some()
+        );
     }
 
     #[test]

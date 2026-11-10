@@ -240,7 +240,7 @@ fn test_references_extracted() {
 #[test]
 fn test_illustratie_leaves_a_marker_in_the_text() {
     use regelrecht_harvester::splitting::{
-        create_dutch_law_hierarchy, LeafSplitStrategy, SplitContext, SplitEngine,
+        LeafSplitStrategy, SplitContext, SplitEngine, create_dutch_law_hierarchy,
     };
 
     let xml = std::fs::read_to_string(
@@ -278,7 +278,7 @@ fn test_illustratie_leaves_a_marker_in_the_text() {
 /// Load a formula fixture and return the harvested article text.
 fn harvest_formule_fixture(name: &str) -> String {
     use regelrecht_harvester::splitting::{
-        create_dutch_law_hierarchy, LeafSplitStrategy, SplitContext, SplitEngine,
+        LeafSplitStrategy, SplitContext, SplitEngine, create_dutch_law_hierarchy,
     };
     let xml = std::fs::read_to_string(
         Path::new(env!("CARGO_MANIFEST_DIR"))

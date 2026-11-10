@@ -21,9 +21,9 @@ use regelrecht_engine::{
 };
 use serde_json::Map;
 
-use crate::chronicle::{Afschrift, Chronicle, Gram, GramMoment, Received, EXECUTOGRAM};
-use crate::decision::{self, finding_field, DecisionShape, Source};
-use crate::error::{refused, setup, Result};
+use crate::chronicle::{Afschrift, Chronicle, EXECUTOGRAM, Gram, GramMoment, Received};
+use crate::decision::{self, DecisionShape, Source, finding_field};
+use crate::error::{Result, refused, setup};
 use crate::files::{Disk, Files};
 use crate::identity;
 use crate::reading::{Asked, Reader};
@@ -185,14 +185,13 @@ impl Cell {
                 gram.kind.as_str(),
                 gram.received.as_ref(),
                 gram.refers_to.as_deref(),
-            ) {
-                if !before.iter().any(|g| g.id == on) {
-                    return Err(setup(format!(
-                        "executogram '{}' in the chronicle of '{recording_actor}' refers to \
+            ) && !before.iter().any(|g| g.id == on)
+            {
+                return Err(setup(format!(
+                    "executogram '{}' in the chronicle of '{recording_actor}' refers to \
                          '{on}', which is not a chronolexogram before it",
-                        gram.id
-                    )));
-                }
+                    gram.id
+                )));
             }
             // A decision taken again names a chronolexogram before it that
             // refers to the last decision on the same submission.
@@ -217,14 +216,14 @@ impl Cell {
             // The receipt of a copy refers to a chronolexogram before it that
             // is no executogram. Whether that is a decision needs the law,
             // which `Cell::record_receipt` has and opening does not.
-            if let (Some(_), Some(on)) = (gram.received.as_ref(), gram.refers_to.as_deref()) {
-                if !before.iter().any(|g| g.id == on && g.kind != EXECUTOGRAM) {
-                    return Err(setup(format!(
-                        "the receipt '{}' in the chronicle of '{recording_actor}' refers to \
+            if let (Some(_), Some(on)) = (gram.received.as_ref(), gram.refers_to.as_deref())
+                && !before.iter().any(|g| g.id == on && g.kind != EXECUTOGRAM)
+            {
+                return Err(setup(format!(
+                    "the receipt '{}' in the chronicle of '{recording_actor}' refers to \
                          '{on}', which is not a chronolexogram before it or is an executogram",
-                        gram.id
-                    )));
-                }
+                    gram.id
+                )));
             }
         }
         Ok(Self {
@@ -1041,14 +1040,14 @@ impl Cell {
         findings: &Map<String, serde_json::Value>,
         on: NaiveDate,
     ) -> Result<Vec<Gram>> {
-        if let Some(about) = refers_to {
-            if !self.grams().iter().any(|g| g.id == about) {
-                return Err(refused(format!(
-                    "the decision of {law_id}#{article} refers to '{about}', which is no \
+        if let Some(about) = refers_to
+            && !self.grams().iter().any(|g| g.id == about)
+        {
+            return Err(refused(format!(
+                "the decision of {law_id}#{article} refers to '{about}', which is no \
                      chronolexogram in the chronicle of '{}'",
-                    self.recording_actor
-                )));
-            }
+                self.recording_actor
+            )));
         }
         self.decide_on(
             service,
@@ -1216,14 +1215,14 @@ impl Cell {
         // A decision is replaced once: the cell does not record a second
         // decision in the place of the same one.
         drop(reader);
-        if let Some(contested) = except.as_deref().filter(|_| !taken.is_empty()) {
-            if let Some((earlier, replacement)) = self.replacement_of(contested, &set_aside) {
-                return Err(refused(format!(
-                    "the decision of {} would take a decision in the place of '{contested}', \
+        if let Some(contested) = except.as_deref().filter(|_| !taken.is_empty())
+            && let Some((earlier, replacement)) = self.replacement_of(contested, &set_aside)
+        {
+            return Err(refused(format!(
+                "the decision of {} would take a decision in the place of '{contested}', \
                      which chronolexogram '{replacement}' already replaces (taken by '{earlier}')",
-                    shape.basis()
-                )));
-            }
+                shape.basis()
+            )));
         }
         let mut grams = vec![Gram {
             id,
@@ -1816,11 +1815,13 @@ impl Cell {
                  {}, but taken again on these fields that article decides {}",
                 deciding.basis(),
                 serde_json::Value::Object(expected.clone()),
-                serde_json::json!(shape
-                    .outputs
-                    .iter()
-                    .filter_map(|o| Some((o.clone(), outputs.get(o)?.clone())))
-                    .collect::<Map<_, _>>())
+                serde_json::json!(
+                    shape
+                        .outputs
+                        .iter()
+                        .filter_map(|o| Some((o.clone(), outputs.get(o)?.clone())))
+                        .collect::<Map<_, _>>()
+                )
             )));
         }
         if let Some(taken_on) = object
@@ -2104,7 +2105,7 @@ fn asked(
                              needs (Awb 4:5)",
                             applied.id,
                             shape.basis()
-                        )))
+                        )));
                     }
                     // The moment is no field: the day the cell recorded it.
                     Some(applied) => applied
@@ -2121,7 +2122,7 @@ fn asked(
                         "the decision of {} asks '{name}' of the deciding authority ({})",
                         shape.basis(),
                         input.field.first_declared_by()
-                    )))
+                    )));
                 }
             },
             Source::Cell => Some(serde_json::Value::String(on.to_string())),
@@ -2475,7 +2476,7 @@ fn whole(
                 return Err(refused(format!(
                     "the {what} needs '{}', which is left out",
                     field.name
-                )))
+                )));
             }
         };
         values.insert(field.name.clone(), value);

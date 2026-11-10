@@ -10,7 +10,7 @@ use serde_json::json;
 
 use regelrecht_pipeline::job_queue::{self, CreateJobRequest};
 use regelrecht_pipeline::law_convert::{
-    finish_law_convert_job, GeneratedLaw, LawConvertPayload, ValidatedLawMeta,
+    GeneratedLaw, LawConvertPayload, ValidatedLawMeta, finish_law_convert_job,
 };
 use regelrecht_pipeline::models::{JobStatus, JobType};
 use regelrecht_pipeline::tasks::{self, BlobKind};

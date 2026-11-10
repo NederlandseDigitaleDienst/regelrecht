@@ -14,7 +14,7 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::error::{refused, setup, Result};
+use crate::error::{Result, refused, setup};
 use regelrecht_law_model::stored;
 
 /// The `kind` of an executogram: the record of a fact an article requires

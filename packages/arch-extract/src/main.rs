@@ -33,7 +33,7 @@ mod syn_pass;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use build::{build_model, DeepScope};
+use build::{DeepScope, build_model};
 
 /// Default, repo-relative location the generated model is written to. This path
 /// is gitignored: the model is a local, on-demand artifact, not committed.

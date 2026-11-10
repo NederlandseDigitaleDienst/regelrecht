@@ -203,7 +203,11 @@ fn ids_query() -> Query<PaginationParams> {
 #[tokio::test]
 async fn traject_index_shows_promoted_law_and_surfaces_failed_own_scans() {
     let server = MockServer::start().await;
-    std::env::set_var("GITHUB_API_BASE", server.uri());
+    // SAFETY: std locks its own environment access, so the hazard is C code
+    // (a host-name lookup) reading it on another thread. This binary runs this
+    // one test, on tokio's single-threaded runtime, and the test awaits
+    // everything it starts, so no lookup is running elsewhere at this point.
+    unsafe { std::env::set_var("GITHUB_API_BASE", server.uri()) };
 
     let db = TestDb::new().await;
     let central = tempfile::tempdir().unwrap();
@@ -408,5 +412,6 @@ async fn traject_index_shows_promoted_law_and_surfaces_failed_own_scans() {
     assert_eq!(own.law_count, 1, "de gepromote wet telt mee in de index");
     assert_eq!(own.index_error, None, "gezonde scan → geen index_error");
 
-    std::env::remove_var("GITHUB_API_BASE");
+    // SAFETY: as at the first `set_var` in this test.
+    unsafe { std::env::remove_var("GITHUB_API_BASE") };
 }

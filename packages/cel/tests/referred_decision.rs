@@ -18,9 +18,9 @@ mod common;
 
 use common::{bare_cell, cell_tempdir, day, object_map};
 
-use regelrecht_cel::{reading, Cell, Error, Gram, Reference};
+use regelrecht_cel::{Cell, Error, Gram, Reference, reading};
 use regelrecht_engine::LawExecutionService;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 /// A procedure for a beschikking, a period that runs from the
 /// announcement, and whether an objection came in within it.
@@ -1714,10 +1714,11 @@ fn a_term_only_a_reduction_fills_is_no_finding_and_replays() {
     .unwrap()
     .remove(0);
     assert_eq!(granted.fields["al_verleend"], json!(false));
-    assert!(cell
-        .findings(&mut service, &[], &granted.id)
-        .unwrap()
-        .is_empty());
+    assert!(
+        cell.findings(&mut service, &[], &granted.id)
+            .unwrap()
+            .is_empty()
+    );
     let result = cell.explain(&mut service, &[], &granted.id).unwrap();
     assert!(result.open_terms.iter().any(|f| f.term == "al_verleend"
         && matches!(&f.filled_by, regelrecht_engine::FilledBy::Answer { answers, .. }

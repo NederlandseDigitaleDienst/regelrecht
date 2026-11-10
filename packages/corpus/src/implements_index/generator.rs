@@ -24,8 +24,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use super::{
-    normalised_scan_root, scan_tree, ImplementsIndex, ScanFailure, ScanFailureKind,
-    IMPLEMENTS_INDEX_FILENAME, IMPLEMENTS_INDEX_VERSION,
+    IMPLEMENTS_INDEX_FILENAME, IMPLEMENTS_INDEX_VERSION, ImplementsIndex, ScanFailure,
+    ScanFailureKind, normalised_scan_root, scan_tree,
 };
 
 /// Default subtree to scan, relative to the repo root.

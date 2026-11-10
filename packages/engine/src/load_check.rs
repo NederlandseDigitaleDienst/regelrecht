@@ -135,12 +135,10 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
     let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
     let policy = law.regulatory_layer == RegulatoryLayer::Uitvoeringsbeleid;
     for (where_, section) in sections(law) {
-        if reduction {
-            if let Some(key) = acts_on_law(section) {
-                return refuse(format!(
-                    "{where_}: a REDUCTIE is no regulation and does not act on law ({key})"
-                ));
-            }
+        if reduction && let Some(key) = acts_on_law(section) {
+            return refuse(format!(
+                "{where_}: a REDUCTIE is no regulation and does not act on law ({key})"
+            ));
         }
         for input in inputs(section) {
             let Some(source) = input.source.as_ref() else {
@@ -439,7 +437,7 @@ pub(crate) fn reject_misplaced_competence(law: &ArticleBasedLaw) -> Result<()> {
                 None if requirement.competent_authority.is_some() => {
                     return refuse(
                         "a requires entry has a competent_authority but no fact".to_string(),
-                    )
+                    );
                 }
                 None => {}
             }
@@ -616,10 +614,10 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
                     .when
                     .as_deref()
                     .map(|w| (w, "its condition", &[ParameterType::Boolean][..]));
-                if let Some((name, role, types)) = named {
-                    if let Err(why) = check(name, role, types) {
-                        return refuse(why);
-                    }
+                if let Some((name, role, types)) = named
+                    && let Err(why) = check(name, role, types)
+                {
+                    return refuse(why);
                 }
             }
         }
@@ -702,12 +700,12 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
                 None => {
                     return refuse(format!(
                         "requests the decision of '{target}', but this law has no article {number}"
-                    ))
+                    ));
                 }
                 Some(a) if a.get_decision().is_none() => {
                     return refuse(format!(
                         "requests the decision of '{target}', which takes no decision"
-                    ))
+                    ));
                 }
                 Some(_) => {}
             }
@@ -725,8 +723,8 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
         // nothing the article produces: refused, so a forgotten or misspelt
         // output fails. Beside a decision that lists its outputs, it belongs
         // to no item (RFC-045 §1).
-        if article.get_decision().is_none() {
-            if let Some(name) = article
+        if article.get_decision().is_none()
+            && let Some(name) = article
                 .get_outputs()
                 .iter()
                 .map(|o| o.name.as_str())
@@ -735,12 +733,11 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
                         .iter()
                         .any(|&p| article.outputs_of(p).contains(name))
                 })
-            {
-                return refuse(format!(
-                    "declares output '{name}', but nothing it produces yields it; \
+        {
+            return refuse(format!(
+                "declares output '{name}', but nothing it produces yields it; \
                      a submission yields only the outputs it lists"
-                ));
-            }
+            ));
         }
         let mut listed: Vec<&str> = Vec::new();
         let named = produced
@@ -913,13 +910,13 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
             .as_ref()
             .and_then(|e| e.parameters.as_deref())
             .unwrap_or_default();
-        if let Some(key) = &projection.key {
-            if !parameters.iter().any(|p| &p.name == key) {
-                return refuse(
-                    where_,
-                    format!("plays the records of one '{key}', which is no parameter it declares"),
-                );
-            }
+        if let Some(key) = &projection.key
+            && !parameters.iter().any(|p| &p.name == key)
+        {
+            return refuse(
+                where_,
+                format!("plays the records of one '{key}', which is no parameter it declares"),
+            );
         }
         let declares_state = section
             .execution
@@ -1070,14 +1067,14 @@ fn check_step_shape(
                          is $record.<field> or $state.<property>, and since schema v0.8.17 no \
                          parameter of the question",
                         input.name
-                    ))
+                    ));
                 }
                 _ => {
                     return Err(format!(
                         "has input '{}' that passes '{name}' as '{value}'; a parameter of a step \
                          is $record.<field>, $state.<property> or a parameter of the question",
                         input.name
-                    ))
+                    ));
                 }
             }
         }
@@ -1238,13 +1235,13 @@ pub(crate) fn reject_unknown_state(law: &ArticleBasedLaw) -> Result<()> {
                     return refuse(format!(
                         "reads $state as a whole; name a property of its state: {}",
                         declared.join(", ")
-                    ))
+                    ));
                 }
                 Some(name) if !declared.contains(&name) => {
                     return refuse(format!(
                         "reads $state.{name}, which is no property of its state: {}",
                         declared.join(", ")
-                    ))
+                    ));
                 }
                 Some(_) => {}
             }
@@ -1945,8 +1942,9 @@ articles:
     #[test]
     fn a_projection_keeps_to_its_own_state() {
         let state = "        state:\n          - {name: a, type: boolean}\n";
-        let ok =
-            format!("{state}        steps:\n          - {{record: wet#1, actions: [{{output: a, value: $record.v}}]}}");
+        let ok = format!(
+            "{state}        steps:\n          - {{record: wet#1, actions: [{{output: a, value: $record.v}}]}}"
+        );
         LawExecutionService::new()
             .load_law(&law_with_projection("REDUCTIE", &ok))
             .unwrap();
@@ -1957,7 +1955,9 @@ articles:
             .load_law(&law_with_projection("REDUCTIE", kinds))
             .unwrap();
         // A step may pass a parameter of the question the reduction answers.
-        let asks = format!("{state}        steps:\n          - {{record: wet#1, input: [{{name: x, type: boolean, source: {{regulation: wet, output: o, parameters: {{p: $peildatum}}}}}}], actions: [{{output: a, value: $x}}]}}");
+        let asks = format!(
+            "{state}        steps:\n          - {{record: wet#1, input: [{{name: x, type: boolean, source: {{regulation: wet, output: o, parameters: {{p: $peildatum}}}}}}], actions: [{{output: a, value: $x}}]}}"
+        );
         let with_question = law_with_projection("REDUCTIE", &asks).replace(
             "      execution:\n",
             "      execution:\n        parameters:\n          - {name: peildatum, type: date}\n",
@@ -1993,7 +1993,9 @@ articles:
             ),
             (
                 "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1, actions: [{{output: b, value: $record.v}}]}}"),
+                format!(
+                    "{state}        steps:\n          - {{record: wet#1, actions: [{{output: b, value: $record.v}}]}}"
+                ),
                 "the step for records under wet#1 sets 'b', which is no property of its state",
             ),
             (
@@ -2018,12 +2020,16 @@ articles:
             ),
             (
                 "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1, actions: [{{output: a, value: $record.v}}]}}\n          - {{record: wet#1#BESCHIKKING, actions: [{{output: a, value: $record.v}}]}}"),
+                format!(
+                    "{state}        steps:\n          - {{record: wet#1, actions: [{{output: a, value: $record.v}}]}}\n          - {{record: wet#1#BESCHIKKING, actions: [{{output: a, value: $record.v}}]}}"
+                ),
                 "has two steps for the same records under wet#1",
             ),
             (
                 "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1#BESCHIKKING, actions: [{{output: a, value: $record.v}}]}}\n          - {{record: wet#1#BESCHIKKING, actions: [{{output: a, value: $record.v}}]}}"),
+                format!(
+                    "{state}        steps:\n          - {{record: wet#1#BESCHIKKING, actions: [{{output: a, value: $record.v}}]}}\n          - {{record: wet#1#BESCHIKKING, actions: [{{output: a, value: $record.v}}]}}"
+                ),
                 "has two steps for the same records under wet#1",
             ),
         ] {
@@ -2107,11 +2113,17 @@ articles:
                 "has a projection with a key and per wet#1#BESCHIKKING",
             ),
             (
-                without_execution(per.replace("{name: a, type: boolean}", "{name: id, type: string}").replace("value: $record.v}", "value: $record.w}").replace("output: a,", "output: id,")),
+                without_execution(
+                    per.replace("{name: a, type: boolean}", "{name: id, type: string}")
+                        .replace("value: $record.v}", "value: $record.w}")
+                        .replace("output: a,", "output: id,"),
+                ),
                 "has a projection per wet#1#BESCHIKKING with a state property 'id'; a row of its aggregates holds the id of its root under that name",
             ),
             (
-                without_execution(per.replace("per: wet#1#BESCHIKKING", "per: 'wet#1#beschikking'")),
+                without_execution(
+                    per.replace("per: wet#1#BESCHIKKING", "per: 'wet#1#beschikking'"),
+                ),
                 "'wet#1#beschikking' is not <regulation>#<article>, optionally with #<KIND>",
             ),
         ] {
@@ -2150,7 +2162,9 @@ articles:
                 "plays the records of one 'peildatum' (key)",
             ),
             (
-                keyed.replace(V0_8_14, V0_8_17).replace("        key: peildatum\n", ""),
+                keyed
+                    .replace(V0_8_14, V0_8_17)
+                    .replace("        key: peildatum\n", ""),
                 "has a projection without per; since schema v0.8.17 a projection plays one aggregate per record",
             ),
             (
@@ -2248,7 +2262,9 @@ articles:
             let schema = if version.is_empty() {
                 String::new()
             } else {
-                format!("$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{version}/schema/{version}/schema.json\n")
+                format!(
+                    "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{version}/schema/{version}/schema.json\n"
+                )
             };
             format!(
                 r#"

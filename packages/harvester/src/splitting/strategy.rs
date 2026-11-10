@@ -39,10 +39,10 @@ impl SplitStrategy for LeafSplitStrategy {
         }
 
         // Respect max depth if set
-        if let Some(max_depth) = context.max_depth {
-            if context.depth >= max_depth {
-                return true;
-            }
+        if let Some(max_depth) = context.max_depth
+            && context.depth >= max_depth
+        {
+            return true;
         }
 
         true
@@ -50,26 +50,24 @@ impl SplitStrategy for LeafSplitStrategy {
 
     fn get_number(&self, node: Node<'_, '_>, spec: &ElementSpec) -> Option<String> {
         // Try primary number source first
-        if let Some(source) = spec.number_source.as_deref() {
-            if let Some(nr_node) = find_by_path(node, source) {
-                let nr = get_text(nr_node);
-                if let Some(cleaned) = self.clean_number(&nr) {
-                    return Some(cleaned);
-                }
+        if let Some(source) = spec.number_source.as_deref()
+            && let Some(nr_node) = find_by_path(node, source)
+        {
+            let nr = get_text(nr_node);
+            if let Some(cleaned) = self.clean_number(&nr) {
+                return Some(cleaned);
             }
         }
 
         // Fallback: try label attribute for artikel elements (used by repealed articles)
         // Repealed articles ("Vervallen") often lack <kop><nr> but retain the label attribute
         // Example: <artikel label="Artikel 4"> with text "Vervallen"
-        if spec.tag == "artikel" {
-            if let Some(label) = node.attribute("label") {
-                if let Some(nr) = label.strip_prefix("Artikel ") {
-                    if let Some(cleaned) = self.clean_number(nr) {
-                        return Some(cleaned);
-                    }
-                }
-            }
+        if spec.tag == "artikel"
+            && let Some(label) = node.attribute("label")
+            && let Some(nr) = label.strip_prefix("Artikel ")
+            && let Some(cleaned) = self.clean_number(nr)
+        {
+            return Some(cleaned);
         }
 
         None

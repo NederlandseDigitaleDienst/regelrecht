@@ -201,7 +201,11 @@ fn all_query() -> Query<PaginationParams> {
 #[tokio::test]
 async fn user_token_reads_serve_the_private_traject_repo_and_fail_loud_without_link() {
     let server = MockServer::start().await;
-    std::env::set_var("GITHUB_API_BASE", server.uri());
+    // SAFETY: std locks its own environment access, so the hazard is C code
+    // (a host-name lookup) reading it on another thread. This binary runs this
+    // one test, on tokio's single-threaded runtime, and the test awaits
+    // everything it starts, so no lookup is running elsewhere at this point.
+    unsafe { std::env::set_var("GITHUB_API_BASE", server.uri()) };
 
     let db = TestDb::new().await;
     let central = tempfile::tempdir().unwrap();
@@ -382,5 +386,6 @@ async fn user_token_reads_serve_the_private_traject_repo_and_fail_loud_without_l
         "de branchversie (via user-token) moet de seed-kopie overrulen"
     );
 
-    std::env::remove_var("GITHUB_API_BASE");
+    // SAFETY: as at the first `set_var` in this test.
+    unsafe { std::env::remove_var("GITHUB_API_BASE") };
 }

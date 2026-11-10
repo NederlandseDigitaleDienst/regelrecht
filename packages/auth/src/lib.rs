@@ -2,8 +2,8 @@
 
 use std::sync::Arc;
 
-use axum::routing::get;
 use axum::Router;
+use axum::routing::get;
 
 pub mod config;
 pub mod handlers;
@@ -14,15 +14,15 @@ pub mod security_headers;
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils;
 
-pub use config::{parse_base_url, parse_oidc_from_env, OidcConfig};
+pub use config::{OidcConfig, parse_base_url, parse_oidc_from_env};
 pub use handlers::{
     AuthStatus, PersonInfo, SESSION_KEY_AUTHENTICATED, SESSION_KEY_EMAIL,
     SESSION_KEY_EMAIL_VERIFIED, SESSION_KEY_NAME, SESSION_KEY_ROLES, SESSION_KEY_SUB,
 };
 pub use middleware::{
-    check_session_role, refresh_session_token, require_role, require_session_auth, RoleCheck,
+    RoleCheck, check_session_role, refresh_session_token, require_role, require_session_auth,
 };
-pub use oidc::{discover_client, ConfiguredClient, DiscoveryResult};
+pub use oidc::{ConfiguredClient, DiscoveryResult, discover_client};
 // De middleware zelf wordt bewust niet hier heruitgevoerd: hij heet net als
 // zijn module, en dan wordt `regelrecht_auth::security_headers::…` een
 // dubbelzinnig pad.

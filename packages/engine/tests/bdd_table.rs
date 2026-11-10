@@ -11,7 +11,7 @@ mod value_conversion;
 mod table;
 
 use regelrecht_engine::Value;
-use table::{rows_to_params, rows_to_records, Rows};
+use table::{Rows, rows_to_params, rows_to_records};
 use value_conversion::convert_gherkin_value;
 
 fn rows(raw: &[&[&str]]) -> Rows {
