@@ -1,0 +1,35 @@
+---
+# Only a decision is taken on a submission: `taken_on` on a submission is
+# refused (schema v0.8.19).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$id: test_conformance_taken_on_on_submission
+regulatory_layer: WET
+publication_date: '2026-11-09'
+valid_from: '2026-11-09'
+bwb_id: BWBR0099981
+name: Testwet aanvraag die op een aanvraag wordt genomen
+url: https://example.invalid/taken-on-on-submission
+articles:
+  - number: '1'
+    url: https://example.invalid/taken-on-on-submission/1
+    text: Op aanvraag wordt een bedrag toegekend.
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: test_conformance_taken_on_on_submission#1
+            taken_on: test_conformance_taken_on_on_submission#1
+            parameters:
+              - bedrag
+          - type: BESCHIKKING
+            outputs:
+              - toegekend
+        parameters:
+          - name: bedrag
+            type: number
+        output:
+          - name: toegekend
+            type: number
+        actions:
+          - output: toegekend
+            value: $bedrag

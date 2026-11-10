@@ -125,6 +125,21 @@ describe('hoofdvelden', () => {
     expect(hoofdvelden(besluit)).toEqual(['verstrekt: true']);
   });
 
+  it('gives the outcome of the article a decision is under', () => {
+    met({ v: ['voorschot_verleend', 'voorschotbedrag', 'derde'] });
+    state.casus.uitkomst = 'toegekend';
+    state.casus.besluiten = [
+      { basis: 'awir#14', uitkomst: 'toegekend' },
+      { basis: 'awir#16', uitkomst: 'voorschot_verleend' },
+    ];
+    const voorschot = {
+      id: 'v',
+      basis: 'awir#16',
+      outputs: { voorschot_verleend: true, voorschotbedrag: 157700, derde: 1 },
+    };
+    expect(hoofdvelden(voorschot)).toEqual(['voorschot_verleend: true']);
+  });
+
   it('gives at most two own fields, and none when there are more', () => {
     met({ twee: ['kenteken', 'kvk'], drie: ['a', 'b', 'c'] });
     expect(hoofdvelden({ id: 'twee', fields: { kenteken: 'AB', kvk: '1', hook: 'x' } })).toEqual(['kenteken: AB', 'kvk: 1']);

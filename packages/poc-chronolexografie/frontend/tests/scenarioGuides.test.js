@@ -109,6 +109,21 @@ describe('bouwGids', () => {
     expect(besluit.expect.check({ decided: [true] })).toBe(false);
   });
 
+  it('counts the decisions under the article a step names', () => {
+    const g = bouwGids({
+      naam: 'x',
+      stappen: [{ stap: 'aanvraag' }, { stap: 'besluit', artikel: 'awir#16', uitkomst: 'afgewezen' }],
+    });
+    const besluit = g.steps[1];
+    // The allowance granted, the advance refused: the step is about the advance.
+    const k = { decided: [true], decidedOnder: (basis) => (basis === 'awir#16' ? [false] : [true]) };
+    expect(besluit.done(k)).toBe(true);
+    expect(besluit.expect.check(k)).toBe(true);
+    // Only the allowance taken: the step is not done yet.
+    const alleen = { decided: [true], decidedOnder: (basis) => (basis === 'awir#16' ? [] : [true]) };
+    expect(besluit.done(alleen)).toBe(false);
+  });
+
   it('counts a record as done whatever the visitor changed in it', () => {
     const feit = 'beleid#1#vestiging_ingeschreven';
     const casus = { andere_cellen: [{ cel: 'kvk', begin: { executogrammen: [{ feit }, { feit }] } }] };

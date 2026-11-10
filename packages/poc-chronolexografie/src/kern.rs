@@ -358,6 +358,28 @@ impl Corpus {
         &self.afleiding.decision
     }
 
+    /// The decision `basis` (`<law>#<article>`) of the case, as its law and
+    /// article: one the application leads to, or a refusal.
+    fn besluit_onder<'b>(&self, basis: &'b str) -> Result<(&'b str, &'b str)> {
+        basis
+            .split_once('#')
+            .filter(|_| self.afleiding.besluiten.iter().any(|b| b == basis))
+            .ok_or_else(|| {
+                Error::Refused(format!(
+                    "the application of this case leads to no decision under '{basis}'"
+                ))
+            })
+    }
+
+    /// The output that says whether the decision `basis` grants what was
+    /// asked.
+    fn uitkomst_van(&self, basis: &str) -> &str {
+        self.casus
+            .uitkomst_per_besluit
+            .get(basis)
+            .unwrap_or(&self.casus.uitkomst)
+    }
+
     fn awb(&self) -> &str {
         &self.afleiding.objection_law
     }
@@ -391,6 +413,10 @@ impl Corpus {
             "andere_cellen": c.andere_cellen,
             "scenarios": c.scenarios,
             "besluit": format!("{}#{}", a.decision_law, a.decision),
+            "besluiten": a.besluiten.iter().map(|basis| json!({
+                "basis": basis,
+                "uitkomst": self.uitkomst_van(basis),
+            })).collect::<Vec<_>>(),
             "beslissing_op_bezwaar": format!("{}#{}", a.objection_law, a.objection),
             "rechter": rechter,
             "beroep": a.beroep.as_ref().map(|b| format!("{}#{}", b.law, b.article)),
@@ -458,6 +484,108 @@ fn in_te_vullen(shape: &shape::Shape) -> Vec<Value> {
         .filter(|f| f.type_ != ParameterType::Decision)
         .map(veld)
         .collect()
+}
+
+/// What the authority gives for the article an application names: the
+/// decision under `law_id#article`, or an article it reads an output of
+/// (`source.regulation`), reads that article (`source.article:
+/// $<parameter>`), `velden` holds the reference under the same name, and an
+/// input of that article the authority gives goes in under its name, over
+/// its source. Which inputs the authority gives the law does not say, since a
+/// source may answer them elsewhere: those the case's example findings name
+/// ([`Casus::voorbeeld`]).
+fn genoemde_invoer(
+    service: &LawExecutionService,
+    corpus: &Corpus,
+    law_id: &str,
+    article: &str,
+    velden: &BTreeMap<String, Value>,
+    on: NaiveDate,
+) -> Vec<shape::Field> {
+    let mut uit: Vec<shape::Field> = Vec::new();
+    let mut gelezen = vec![(law_id.to_string(), article.to_string())];
+    let mut i = 0;
+    while i < gelezen.len() {
+        let (law, number) = gelezen[i].clone();
+        i += 1;
+        let Some(leest) = shape::article_on(service, &law, &number, on) else {
+            continue;
+        };
+        for source in leest.get_inputs().iter().filter_map(|i| i.source.as_ref()) {
+            if let (Some(verder), Some(output)) = (&source.regulation, &source.output)
+                && let Some(a) = service
+                    .resolver()
+                    .get_article_by_output(verder, output, Some(on))
+            {
+                let waar = (verder.clone(), a.number.clone());
+                if !gelezen.contains(&waar) {
+                    gelezen.push(waar);
+                }
+            }
+            let Some(naam) = source.article.as_deref().and_then(|a| a.strip_prefix('$')) else {
+                continue;
+            };
+            let Some((genoemde_wet, nummer)) = velden
+                .get(naam)
+                .and_then(Value::as_str)
+                .and_then(|r| r.split_once('#'))
+            else {
+                continue;
+            };
+            let Some(genoemd) = shape::article_on(service, genoemde_wet, nummer, on) else {
+                continue;
+            };
+            for input in genoemd.get_inputs() {
+                if corpus.casus.voorbeeld.bevindingen.contains_key(&input.name)
+                    && !uit.iter().any(|f| f.name == input.name)
+                {
+                    uit.push(shape::Field {
+                        name: input.name.clone(),
+                        type_: input.input_type,
+                        nullable: input.is_nullable(),
+                        declared_by: vec![format!("{genoemde_wet}#{nummer}")],
+                    });
+                }
+            }
+        }
+    }
+    uit
+}
+
+/// Refuse a decision under `law_id#article` on the application with `velden`
+/// that lacks a value [`genoemde_invoer`] asks of the authority, or holds one
+/// of the wrong type: the engine would give an unknown outcome, or calculate
+/// with it.
+fn genoemde_invoer_gegeven(
+    service: &LawExecutionService,
+    corpus: &Corpus,
+    law_id: &str,
+    article: &str,
+    velden: &BTreeMap<String, Value>,
+    bevindingen: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<()> {
+    for field in genoemde_invoer(service, corpus, law_id, article, velden, on) {
+        match bevindingen.get(&field.name) {
+            None => {
+                return Err(Error::Refused(format!(
+                    "the decision asks '{}' of the deciding authority ({})",
+                    field.name,
+                    field.first_declared_by()
+                )));
+            }
+            Some(value) if !shape::fits(&field, value) => {
+                return Err(Error::Refused(format!(
+                    "'{}' is {value}, which does not fit a {:?} ({})",
+                    field.name,
+                    field.type_,
+                    field.first_declared_by()
+                )));
+            }
+            Some(_) => {}
+        }
+    }
+    Ok(())
 }
 
 /// The findings the deciding article of `shape` asks of `wie`, the
@@ -1813,7 +1941,8 @@ fn decide(
     })
 }
 
-/// The deciding authority decides on the application `aanvraag` with its findings.
+/// The deciding authority takes the decision the application `aanvraag`
+/// requests, with its findings.
 pub fn besluiten(
     corpus: &Corpus,
     cell: &mut Cellen,
@@ -1821,16 +1950,45 @@ pub fn besluiten(
     bevindingen: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Besluit> {
-    let besluit = beslissen(
+    let basis = format!("{}#{}", corpus.decision_law(), corpus.decision());
+    besluiten_onder(corpus, cell, aanvraag, &basis, bevindingen, on)
+}
+
+/// The deciding authority takes the decision `basis` the application
+/// `aanvraag` leads to, with its findings. A decision stands on its own: the
+/// others of the application stay open.
+///
+/// # Errors
+///
+/// [`Error::Refused`] when the application leads to no decision under
+/// `basis`, when that decision is already taken on it, or when a finding the
+/// named article asks is missing; the cell's own refusals and errors as for
+/// [`besluiten`].
+pub fn besluiten_onder(
+    corpus: &Corpus,
+    cell: &mut Cellen,
+    aanvraag: &str,
+    basis: &str,
+    bevindingen: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<Besluit> {
+    let (law_id, article) = corpus.besluit_onder(basis)?;
+    let velden = cell
+        .grams()
+        .iter()
+        .find(|g| g.id == aanvraag)
+        .map(|g| g.fields.clone())
+        .unwrap_or_default();
+    genoemde_invoer_gegeven(
+        &corpus.service()?,
         corpus,
-        cell,
-        corpus.decision_law(),
-        corpus.decision(),
-        aanvraag,
+        law_id,
+        article,
+        &velden,
         bevindingen,
         on,
-    )?
-    .remove(0);
+    )?;
+    let besluit = beslissen(corpus, cell, law_id, article, aanvraag, bevindingen, on)?.remove(0);
     let waarom = waarom(corpus, cell, &besluit.id)?;
     Ok(Besluit { besluit, waarom })
 }
@@ -1943,11 +2101,23 @@ fn opnieuw_te_vinden(corpus: &Corpus, cell: &Cellen, bestreden: &Gram) -> Result
     let mut service = corpus.service()?;
     let shape = decision::derive(&service, law_id, article, bestreden.recorded_on)?;
     let mut bevindingen = Vec::new();
+    let genoemd = genoemde_invoer(
+        &service,
+        corpus,
+        law_id,
+        article,
+        &bestreden.fields,
+        bestreden.recorded_on,
+    );
     for naam in cell.findings(&mut service, &cell.sfeer(), &bestreden.id)? {
-        let Some(term) = shape.finding(&naam, cell.authority()) else {
-            continue;
+        let field = match shape.finding(&naam, cell.authority()) {
+            Some(term) => decision::finding_field(term),
+            None => match genoemd.iter().find(|f| f.name == naam) {
+                Some(field) => field.clone(),
+                None => continue,
+            },
         };
-        let mut v = veld(&decision::finding_field(term));
+        let mut v = veld(&field);
         v["eerder"] = bestreden.fields.get(&naam).cloned().unwrap_or(Value::Null);
         bevindingen.push(v);
     }
@@ -2175,9 +2345,39 @@ pub fn voorvertoning_besluit(
     bevindingen: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Voorvertoning<Besluit>> {
-    voorvertonen(corpus, cell, bevindingen, &[], on, |c, b| {
-        besluiten(corpus, c, aanvraag, b, on)
-    })
+    let basis = format!("{}#{}", corpus.decision_law(), corpus.decision());
+    voorvertoning_besluit_onder(corpus, cell, aanvraag, &basis, bevindingen, on)
+}
+
+/// [`voorvertoning_besluit`] of the decision `basis` the application leads to.
+///
+/// # Errors
+///
+/// [`Error::Refused`] when the application leads to no decision under
+/// `basis`; a refusal of the decision itself comes back in the preview, as
+/// for [`voorvertoning_besluit`].
+pub fn voorvertoning_besluit_onder(
+    corpus: &Corpus,
+    cell: &Cellen,
+    aanvraag: &str,
+    basis: &str,
+    bevindingen: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<Voorvertoning<Besluit>> {
+    let (law_id, article) = corpus.besluit_onder(basis)?;
+    let service = corpus.service()?;
+    let velden = cell
+        .grams()
+        .iter()
+        .find(|g| g.id == aanvraag)
+        .map(|g| g.fields.clone())
+        .unwrap_or_default();
+    let genoemd = genoemde_invoer(&service, corpus, law_id, article, &velden, on);
+    let mut uit = voorvertonen(corpus, cell, bevindingen, &[], on, |c, b| {
+        besluiten_onder(corpus, c, aanvraag, basis, b, on)
+    })?;
+    uit.stil.extend(genoemd.iter().map(veld));
+    Ok(uit)
 }
 
 /// What the decision on the objection `bezwaar` would be with these
@@ -3829,19 +4029,19 @@ mod tests {
     }
 
     #[test]
-    fn zorgtoeslag_the_application_asks_for_the_advance_and_the_policy_its_amount() {
+    fn zorgtoeslag_the_application_asks_for_the_allowance_of_the_article_it_names() {
         // Awir art. 15 establishes the application and asks for the
-        // decision of art. 16, the advance, which the Dienst Toeslagen takes
-        // as the article names it. Its open term, the amount the allowance
-        // is expected to come to, is filled by the Dienst's policy, which
-        // reads the Wet op de zorgtoeslag; that law reads the standard
-        // premium from its regeling, and the Awir, the Zvw and the Wet IB
-        // 2001 are read by the articles of these laws.
+        // decision of art. 14, the allowance, which the Dienst Toeslagen
+        // takes as the article names it. Art. 14 reads the amount from the
+        // article the application names, so the case's own Wet op de
+        // zorgtoeslag runs without an article of the Awir naming it; that
+        // law reads the standard premium from its regeling, and the Awir,
+        // the Zvw and the Wet IB 2001 are read by its articles.
         let zorg = casus("zorgtoeslag");
         let a = &zorg.afleiding;
         assert_eq!(
             (a.decision_law.as_str(), a.decision.as_str()),
-            ("algemene_wet_inkomensafhankelijke_regelingen", "16")
+            ("algemene_wet_inkomensafhankelijke_regelingen", "14")
         );
         assert_eq!(a.objection, "7:11");
         assert!(a.beroep.is_none(), "no court among the cells of this case");
@@ -3865,9 +4065,9 @@ mod tests {
 
     #[test]
     fn zorgtoeslag_the_preview_asks_each_estimate_of_the_dienst() {
-        // The deciding article asks no finding of its own: its open term is
-        // filled by the policy, which leaves each estimate to the Dienst.
-        // The preview asks them one at a time, as the case reaches them.
+        // The deciding article asks no finding of its own. The Dienst gives
+        // its estimates for the inputs of the article the application names
+        // (wet_op_de_zorgtoeslag#2), and the preview asks all five at once.
         let corpus = casus("zorgtoeslag");
         let mut cell = corpus.cell().unwrap();
         let op = day("2025-01-06");
@@ -3876,6 +4076,7 @@ mod tests {
         let velden = map(json!({
             "bsn": "999993653",
             "berekeningsjaar": 2025,
+            "gevraagde_tegemoetkoming": "wet_op_de_zorgtoeslag#2",
             "aanvraag_ondertekend": true,
             "naam_aanvrager": "S. de Vries",
             "adres_aanvrager": "Voorbeeldlaan 7",
@@ -3885,29 +4086,33 @@ mod tests {
         let app = aanvragen(&corpus, &mut cell, &velden, op).unwrap();
 
         let leeg = voorvertoning_besluit(&corpus, &cell, &app.id, &Map::new(), op).unwrap();
-        let eerste = namen(&leeg.stil);
-        assert_eq!(eerste.len(), 1);
-        assert!(eerste[0].starts_with("vermoedelijk_"), "{eerste:?}");
-        assert_eq!(
-            leeg.stil[0]["basis"],
-            json!("beleid_zorgtoeslag_dienst_toeslagen#1")
-        );
+        assert_eq!(namen(&leeg.stil).len(), 5);
+        assert_eq!(leeg.stil[0]["basis"], json!("wet_op_de_zorgtoeslag#2"));
         assert!(leeg.voorlopig.is_none());
+        assert!(leeg.geweigerd.unwrap().contains("asks '"));
+        // The decision itself refuses as well: without them the engine would
+        // give an unknown outcome.
+        assert!(matches!(
+            besluiten(&corpus, &mut cell, &app.id, &Map::new(), op),
+            Err(Error::Refused(_))
+        ));
 
         let oordelen = map(json!({
-            "vermoedelijk_toetsingsinkomen": 2500000,
-            "vermoedelijk_heeft_toeslagpartner": false,
-            "vermoedelijk_toetsingsinkomen_toeslagpartner": 0,
-            "vermoedelijk_verzekerd": true,
-            "vermoedelijk_vermogen_onder_grens": true,
+            "toetsingsinkomen": 2500000,
+            "heeft_toeslagpartner": false,
+            "toetsingsinkomen_toeslagpartner": 0,
+            "is_verzekerde": true,
+            "vermogen_onder_grens": true,
         }));
         let alle = voorvertoning_besluit(&corpus, &cell, &app.id, &oordelen, op).unwrap();
         assert_eq!(alle.stil.len(), 5);
         let besluit = alle.voorlopig.unwrap().besluit;
-        assert_eq!(besluit.outputs["voorschot_verleend"], json!(true));
-        assert_eq!(besluit.outputs["voorschotbedrag"], json!(157700));
+        assert_eq!(besluit.outputs["tegemoetkoming_toegekend"], json!(true));
+        assert_eq!(besluit.outputs["tegemoetkomingbedrag"], json!(157700));
         assert!(cell.kronieken()[0].iter().all(|g| g.kind != "BESCHIKKING"));
     }
+
+    const VOORSCHOT: &str = "algemene_wet_inkomensafhankelijke_regelingen#16";
 
     /// The advance on an application for 2025 received on `ontvangen`,
     /// with the Dienst's estimates over the defaults: a single person,
@@ -3919,6 +4124,7 @@ mod tests {
         let velden = map(json!({
             "bsn": "999993653",
             "berekeningsjaar": 2025,
+            "gevraagde_tegemoetkoming": "wet_op_de_zorgtoeslag#2",
             "aanvraag_ondertekend": true,
             "naam_aanvrager": "S. de Vries",
             "adres_aanvrager": "Voorbeeldlaan 7",
@@ -3927,14 +4133,14 @@ mod tests {
         }));
         let app = aanvragen(&corpus, &mut cell, &velden, op).unwrap();
         let mut oordelen = map(json!({
-            "vermoedelijk_toetsingsinkomen": 2500000,
-            "vermoedelijk_heeft_toeslagpartner": false,
-            "vermoedelijk_toetsingsinkomen_toeslagpartner": 0,
-            "vermoedelijk_verzekerd": true,
-            "vermoedelijk_vermogen_onder_grens": true,
+            "toetsingsinkomen": 2500000,
+            "heeft_toeslagpartner": false,
+            "toetsingsinkomen_toeslagpartner": 0,
+            "is_verzekerde": true,
+            "vermogen_onder_grens": true,
         }));
         oordelen.extend(map(verwachting));
-        besluiten(&corpus, &mut cell, &app.id, &oordelen, op)
+        besluiten_onder(&corpus, &mut cell, &app.id, VOORSCHOT, &oordelen, op)
             .unwrap()
             .besluit
             .outputs
@@ -3951,27 +4157,21 @@ mod tests {
         let partner = voorschot(
             "2025-01-06",
             json!({
-                "vermoedelijk_heeft_toeslagpartner": true,
-                "vermoedelijk_toetsingsinkomen_toeslagpartner": 1000000,
+                "heeft_toeslagpartner": true,
+                "toetsingsinkomen_toeslagpartner": 1000000,
             }),
         );
         assert_eq!(bedrag(&partner), json!(208800));
 
         // Assets above the limit: no entitlement, so no advance.
-        let vermogen = voorschot(
-            "2025-01-06",
-            json!({ "vermoedelijk_vermogen_onder_grens": false }),
-        );
+        let vermogen = voorschot("2025-01-06", json!({ "vermogen_onder_grens": false }));
         assert_eq!(
             (bedrag(&vermogen), verleend(&vermogen)),
             (json!(0), json!(false))
         );
 
         // Awir 14 lid 5: an allowance of € 20 is under € 24.
-        let klein = voorschot(
-            "2025-01-06",
-            json!({ "vermoedelijk_toetsingsinkomen": 3956800 }),
-        );
+        let klein = voorschot("2025-01-06", json!({ "toetsingsinkomen": 3956800 }));
         assert_eq!((bedrag(&klein), verleend(&klein)), (json!(0), json!(false)));
 
         // Awir 16 lid 1: an application from 1 April of the next year on
@@ -3980,6 +4180,69 @@ mod tests {
         assert_eq!((bedrag(&laat), verleend(&laat)), (json!(0), json!(false)));
         let tijdig = voorschot("2026-03-31", json!({}));
         assert_eq!(bedrag(&tijdig), json!(157700));
+    }
+
+    #[test]
+    fn zorgtoeslag_the_application_leads_to_the_advance_and_the_allowance_each_on_its_own() {
+        // The application requests the allowance and also leads to the
+        // advance; taking one leaves the other open, and a second advance on
+        // it is refused.
+        let corpus = casus("zorgtoeslag");
+        assert_eq!(
+            corpus.afleiding.besluiten,
+            ["algemene_wet_inkomensafhankelijke_regelingen#14", VOORSCHOT]
+        );
+        let mut cell = corpus.cell().unwrap();
+        let op = day("2025-01-06");
+        let velden = map(json!({
+            "bsn": "999993653",
+            "berekeningsjaar": 2025,
+            "gevraagde_tegemoetkoming": "wet_op_de_zorgtoeslag#2",
+            "aanvraag_ondertekend": true,
+            "naam_aanvrager": "S. de Vries",
+            "adres_aanvrager": "Voorbeeldlaan 7",
+            "dagtekening": "2025-01-03",
+            "gevraagde_beschikking": "zorgtoeslag over 2025",
+        }));
+        let app = aanvragen(&corpus, &mut cell, &velden, op).unwrap();
+        let oordelen = map(json!({
+            "toetsingsinkomen": 2500000,
+            "heeft_toeslagpartner": false,
+            "toetsingsinkomen_toeslagpartner": 0,
+            "is_verzekerde": true,
+            "vermogen_onder_grens": true,
+        }));
+        let voorschot =
+            besluiten_onder(&corpus, &mut cell, &app.id, VOORSCHOT, &oordelen, op).unwrap();
+        assert!(matches!(
+            besluiten_onder(&corpus, &mut cell, &app.id, VOORSCHOT, &oordelen, op),
+            Err(Error::Refused(_))
+        ));
+        // On an objection the form asks the same values again: the advance
+        // reaches the named article through art. 14.
+        let bezwaar = bezwaren(
+            &corpus,
+            &mut cell,
+            &voorschot.besluit.id,
+            &bezwaar_velden("2025-01-10"),
+            day("2025-01-10"),
+        )
+        .unwrap();
+        let heroverweging = heroverweging(&corpus, &cell, &bezwaar.id, day("2025-01-20")).unwrap();
+        assert_eq!(
+            namen(heroverweging["bevindingen"].as_array().unwrap()).len(),
+            5
+        );
+        let later = day("2025-01-20");
+        let toekenning = besluiten(&corpus, &mut cell, &app.id, &oordelen, later).unwrap();
+        assert_eq!(
+            toekenning.besluit.outputs["tegemoetkomingbedrag"],
+            json!(157700)
+        );
+        assert!(matches!(
+            besluiten_onder(&corpus, &mut cell, &app.id, "wet#1", &oordelen, later),
+            Err(Error::Refused(_))
+        ));
     }
 
     #[test]

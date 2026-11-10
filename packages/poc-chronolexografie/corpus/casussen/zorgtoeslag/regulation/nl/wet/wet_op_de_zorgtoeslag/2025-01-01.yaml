@@ -133,7 +133,9 @@ articles:
         # Geen produces: dit artikel zegt of de verzekerde aanspraak heeft op
         # een zorgtoeslag en hoe hoog die is. De beschikking erover geeft de
         # Dienst Toeslagen op grond van de Awir: het voorschot (artikel 16) en
-        # de toekenning (artikel 14).
+        # de toekenning (artikel 14). De Awir leest de uitvoer uit dit artikel
+        # als de aanvraag het noemt, onder haar eigen woord: de zorgtoeslag
+        # is een tegemoetkoming (artikel 1, onder e).
         parameters:
           - name: bsn
             type: string
@@ -198,9 +200,9 @@ articles:
             source:
               output: vermogen_onder_grens
         output:
-          - name: heeft_recht_op_zorgtoeslag
+          - name: aanspraak_op_tegemoetkoming
             type: boolean
-          - name: hoogte_zorgtoeslag
+          - name: hoogte_tegemoetkoming
             type: amount
             type_spec:
               unit: eurocent
@@ -251,7 +253,7 @@ articles:
                       - $toetsingsinkomen
                       - $toetsingsinkomen_toeslagpartner
               default: $toetsingsinkomen
-          - output: hoogte_zorgtoeslag
+          - output: hoogte_tegemoetkoming
             # RFC-039: the action states which sentence of the law it carries out,
             # so a trace step can cite the text it came from instead of only naming
             # the article it was reached through.
@@ -354,7 +356,7 @@ articles:
                                         default: $drempelinkomen_alleenstaande
                                   - $percentage_toetsingsinkomen
                           default: 0
-          - output: heeft_recht_op_zorgtoeslag
+          - output: aanspraak_op_tegemoetkoming
             # Deze verwijzing blijft bewust op artikelniveau. De drie
             # voorwaarden komen uit drie bepalingen: verzekerd zijn uit artikel
             # 1 onderdeel a, de vermogenstoets uit artikel 3, en alleen het
@@ -382,7 +384,7 @@ articles:
                   subject: $vermogen_onder_grens
                   value: true
                 - operation: GREATER_THAN
-                  subject: $hoogte_zorgtoeslag
+                  subject: $hoogte_tegemoetkoming
                   value: 0
   - number: '3'
     text: >-

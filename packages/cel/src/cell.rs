@@ -200,7 +200,7 @@ impl Cell {
                 let last = gram
                     .refers_to
                     .as_deref()
-                    .and_then(|on| decisions_on(before, on).last().copied());
+                    .and_then(|on| decisions_on(before, on, &gram.basis).last().copied());
                 let later = before.iter().find(|g| g.id == after);
                 let follows = later.zip(last).is_some_and(|(later, last)| {
                     later.refers_to.as_deref() == Some(last.id.as_str())
@@ -1112,7 +1112,7 @@ impl Cell {
         let set_aside: Vec<String> = applied
             .as_ref()
             .map(|a| {
-                decisions_on(self.grams(), &a.id)
+                decisions_on(self.grams(), &a.id, &shape.basis())
                     .iter()
                     .map(|g| g.id.clone())
                     .collect()
@@ -1583,11 +1583,11 @@ impl Cell {
     /// - under `findings`, the deciding authority's findings for this case
     ///   ([`Cell::findings`], from a replay) on the open terms of the
     ///   decision: of the deciding article, and of a policy that fills one of
-    ///   its terms and leaves a case to the authority (RFC-048 §2);
+    ///   its terms and leaves a case to the authority (RFC-048 §2), and those
+    ///   given for an article the decision called, which a call anew needs
+    ///   again;
     /// - no value a regulation filled: a call anew reads the regulation in
     ///   force on its own day;
-    /// - no finding given for an article the decision called: that is
-    ///   recorded with the decision that article produced, the new decision;
     /// - under `fields`, the parameters.
     ///
     /// Data derived for the decision is no part of it. A decision the fields
@@ -1625,7 +1625,9 @@ impl Cell {
         for (name, value) in &gram.fields {
             if shape.input(name).is_some() {
                 fields.insert(name.clone(), value.clone());
-            } else if used.contains(name) && shape.finding(name, &self.authority).is_some() {
+            } else if used.contains(name) {
+                // A finding on a term of the decision, or one given for an
+                // article it called; the engine applies it there anew.
                 findings.insert(name.clone(), value.clone());
             }
         }
@@ -1840,7 +1842,9 @@ impl Cell {
                 shape.basis()
             )));
         }
-        let last = decisions_on(self.grams(), id).last().copied();
+        let last = decisions_on(self.grams(), id, &shape.basis())
+            .last()
+            .copied();
         match (last, after) {
             (None, None) => Ok(gram),
             (Some(decided), None) => Err(refused(format!(
@@ -1901,12 +1905,15 @@ fn refuse_decision_recorded_in_turn(
     }
 }
 
-/// The decisions taken on the submission `id` in `grams`, in their order:
-/// those that refer to it.
-fn decisions_on<'g>(grams: &'g [Gram], id: &str) -> Vec<&'g Gram> {
+/// The decisions under `basis` taken on the submission `id` in `grams`, in
+/// their order: those of that article that refer to it. A submission may
+/// lead to more than one decision, such as the allowance it asks for and
+/// the advance a decision is taken on it for (`taken_on`, schema v0.8.19):
+/// each stands on its own, so taking one leaves the other open.
+fn decisions_on<'g>(grams: &'g [Gram], id: &str, basis: &str) -> Vec<&'g Gram> {
     grams
         .iter()
-        .filter(|g| g.refers_to.as_deref() == Some(id))
+        .filter(|g| g.refers_to.as_deref() == Some(id) && g.basis == basis)
         .collect()
 }
 

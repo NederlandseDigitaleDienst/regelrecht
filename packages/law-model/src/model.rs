@@ -473,6 +473,18 @@ pub struct ProducedItem {
         deserialize_with = "optional_article_reference"
     )]
     pub requests: Option<String>,
+    /// For a decision: the article whose submission it is taken on,
+    /// `<regulation>#<article>`, when the deciding article says so itself,
+    /// such as the advance granted to whoever applies for an allowance
+    /// (Awir 16 lid 1, on the application of Awir 15; schema v0.8.19). The
+    /// decision value of a decision taken on that submission holds it as its
+    /// `taken_on`.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_article_reference"
+    )]
+    pub taken_on: Option<String>,
     /// For a decision: the kind of decision.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub decision_type: Option<String>,
@@ -615,6 +627,16 @@ impl<'a> Produced<'a> {
         match self {
             Self::Object(_) => None,
             Self::Item(i) => i.requests.as_deref(),
+        }
+    }
+
+    /// For a decision in the list form: the article whose submission it is
+    /// taken on, `<regulation>#<article>`, when it names one (schema
+    /// v0.8.19).
+    pub fn taken_on(self) -> Option<&'a str> {
+        match self {
+            Self::Object(_) => None,
+            Self::Item(i) => i.taken_on.as_deref(),
         }
     }
 
@@ -2251,6 +2273,14 @@ impl Article {
             None if !self.produces_list() && self.get_decision().is_some() => Some(own.to_string()),
             None => None,
         }
+    }
+
+    /// The article whose submission the decision of this article is taken
+    /// on, when its decision item names one with `taken_on` (schema
+    /// v0.8.19). Whether that article establishes a submission, only the
+    /// corpus it runs in can say.
+    pub fn decision_taken_on(&self) -> Option<&str> {
+        self.get_decision()?.taken_on()
     }
 
     /// The names of the outputs that belong to `item`, one of

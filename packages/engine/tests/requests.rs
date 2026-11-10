@@ -167,3 +167,63 @@ fn a_request_for_a_decision_that_is_not_there_is_an_error_when_used() {
         .to_string();
     assert!(e.contains("which takes no decision"), "{e}");
 }
+
+/// A decision that names the submission it is taken on (`taken_on`, schema
+/// v0.8.19): the advance of article 2 is taken on the application of
+/// article 1, which asks for the allowance of article 1 itself.
+const ADVANCE_LAW: &str = r#"
+$id: wet_toeslag
+regulatory_layer: WET
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+articles:
+  - number: '1'
+    text: De Dienst kent op aanvraag een toeslag toe.
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: wet_toeslag#1
+            parameters: [jaar]
+          - type: BESCHIKKING
+            outputs: [toegekend]
+        parameters:
+          - {name: jaar, type: number}
+        output:
+          - {name: toegekend, type: boolean}
+        actions:
+          - {output: toegekend, value: true}
+  - number: '2'
+    text: Wie een aanvraag indient, krijgt een voorschot.
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            taken_on: wet_toeslag#1
+        parameters:
+          - {name: jaar, type: number}
+        output:
+          - {name: voorschot, type: boolean}
+        actions:
+          - {output: voorschot, value: true}
+"#;
+
+#[test]
+fn a_decision_taken_on_a_submission_finds_that_submission() {
+    let service = service(&[ADVANCE_LAW]);
+    let applications = |article: &str| {
+        service
+            .applications_for("wet_toeslag", article, DAY)
+            .unwrap()
+    };
+    assert_eq!(applications("1"), ["wet_toeslag#1"]);
+    assert_eq!(applications("2"), ["wet_toeslag#1"]);
+    // The application still asks for the allowance only.
+    assert_eq!(
+        service
+            .requested_decision("wet_toeslag", "1", DAY)
+            .unwrap()
+            .as_deref(),
+        Some("wet_toeslag#1")
+    );
+}

@@ -136,6 +136,51 @@ impl Poc {
         )
     }
 
+    /// Take the decision `basis` the application `op` leads to
+    /// ([`Spel::besluiten_onder`]).
+    ///
+    /// # Errors
+    ///
+    /// A [`JsError`] when `bevindingen` is no JSON object or `datum` no date
+    /// (YYYY-MM-DD), or with the refusal or error of the game.
+    #[wasm_bindgen(js_name = besluitenOnder)]
+    pub fn besluiten_onder(
+        &mut self,
+        op: &str,
+        basis: &str,
+        bevindingen: &str,
+        datum: &str,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.besluiten_onder(
+            op,
+            basis,
+            &kaart("bevindingen", bevindingen)?,
+            dag(datum)?,
+        ))
+    }
+
+    /// A preview of the decision `basis` ([`Spel::voorvertoning_besluit_onder`]).
+    ///
+    /// # Errors
+    ///
+    /// A [`JsError`] when `bevindingen` is no JSON object or `datum` no date
+    /// (YYYY-MM-DD), or with the refusal or error of the game.
+    #[wasm_bindgen(js_name = voorvertoningBesluitOnder)]
+    pub fn voorvertoning_besluit_onder(
+        &mut self,
+        op: &str,
+        basis: &str,
+        bevindingen: &str,
+        datum: &str,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.voorvertoning_besluit_onder(
+            op,
+            basis,
+            &kaart("bevindingen", bevindingen)?,
+            dag(datum)?,
+        ))
+    }
+
     #[wasm_bindgen(js_name = voorvertoningBesluit)]
     pub fn voorvertoning_besluit(
         &mut self,

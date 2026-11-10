@@ -13,7 +13,7 @@
 import { computed, reactive, watch } from 'vue';
 import { guideFor } from './scenarioGuides.js';
 import { counts, progress } from './scenarioProgress.js';
-import { aanvragen, besluitOp, bezwaarBasis, isBesluit, state } from './state.js';
+import { aanvragen, besluitBases, besluitOp, bezwaarBasis, isBesluit, state } from './state.js';
 
 // Which example values a kind of step starts from.
 const VOORBEELD = {
@@ -52,7 +52,10 @@ function past(step, doel) {
       return !doel.aanvraag || aanvragen()[step.doel - 1]?.id === doel.aanvraag;
     case 'bezwaar': {
       const a = aanvragen()[step.doel - 1];
-      return !doel.besluit || (!!a && besluitOp(a.id)?.id === doel.besluit);
+      return (
+        !doel.besluit ||
+        (!!a && besluitBases().some((basis) => besluitOp(a.id, basis)?.id === doel.besluit))
+      );
     }
     case 'beslissing_op_bezwaar':
       return !doel.bezwaar || bezwaren()[step.doel - 1]?.id === doel.bezwaar;

@@ -23,16 +23,20 @@ corpus:
 # De uitvoer die zegt of het besluit het gevraagde toewijst. De wet merkt die
 # niet aan: decision_type TOEKENNING zegt wat voor besluit het is, niet welke
 # van zijn uitvoer de toewijzing is.
-uitkomst: voorschot_verleend
+uitkomst: tegemoetkoming_toegekend
+uitkomst_per_besluit:
+  algemene_wet_inkomensafhankelijke_regelingen#16: voorschot_verleend
 
 # Een verzekerde vraagt zorgtoeslag aan over 2025 (Awir artikel 15). De
-# Dienst Toeslagen verleent op die aanvraag een voorschot tot het bedrag
-# waarop de zorgtoeslag vermoedelijk wordt vastgesteld (Awir artikel 16). Per
-# aanvraag schat de Dienst in wat hij daarvoor verwacht, zoals het
-# toetsingsinkomen. Het bedrag zelf volgt uit de Wet op de zorgtoeslag en de
-# standaardpremie voor 2025. Tegen het voorschot staat bezwaar open. De
-# betaling in termijnen en de toekenning na de aanslag inkomstenbelasting
-# speelt deze casus nog niet na.
+# aanvraag noemt het artikel dat de aanspraak geeft, artikel 2 van de Wet op de
+# zorgtoeslag. Op die aanvraag verleent de Dienst Toeslagen een voorschot tot
+# het bedrag waarop de zorgtoeslag vermoedelijk wordt vastgesteld (Awir artikel
+# 16). Wat hij verwacht, zoals het toetsingsinkomen, geeft hij als zijn eigen
+# bevindingen, onder de namen die dat artikel vraagt. Het bedrag volgt uit dat
+# artikel en de standaardpremie voor 2025. Tegen het voorschot staat bezwaar
+# open. De toekenning (Awir artikel 14) staat op dezelfde aanvraag open; zij
+# volgt later (Awir artikel 19), en de scenario's spelen haar niet. De betaling in
+# termijnen speelt deze casus nog niet na.
 
 # Wat de bezoeker leest.
 titel: Voorschot zorgtoeslag
@@ -49,17 +53,20 @@ voorbeeld:
   aanvraag:
     bsn: '999993653'
     berekeningsjaar: 2025
+    # Welke tegemoetkoming de aanvraag vraagt: het artikel dat de aanspraak
+    # geeft (Awir artikel 15, tijdelijke keuze).
+    gevraagde_tegemoetkoming: wet_op_de_zorgtoeslag#2
     aanvraag_ondertekend: true
     naam_aanvrager: S. de Vries
     adres_aanvrager: Voorbeeldlaan 7, 1234 AB Wilgendaal
     dagtekening: '2025-01-03'
     gevraagde_beschikking: zorgtoeslag over 2025
   bevindingen:
-    vermoedelijk_toetsingsinkomen: 2500000
-    vermoedelijk_heeft_toeslagpartner: false
-    vermoedelijk_toetsingsinkomen_toeslagpartner: 0
-    vermoedelijk_verzekerd: true
-    vermoedelijk_vermogen_onder_grens: true
+    toetsingsinkomen: 2500000
+    heeft_toeslagpartner: false
+    toetsingsinkomen_toeslagpartner: 0
+    is_verzekerde: true
+    vermogen_onder_grens: true
   bezwaar:
     bezwaar_of_beroepschrift_ondertekend: true
     naam_indiener: S. de Vries
@@ -78,6 +85,8 @@ scenarios:
       - stap: aanvraag
         verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
       - stap: besluit
+        artikel: algemene_wet_inkomensafhankelijke_regelingen#16
+        tekst: 'Klik onder Open aanvragen op Besluit nemen: Awir artikel 16.'
         verhaal: >-
           De Dienst verwacht een inkomen van € 25.000 en vindt een
           zorgverzekering.
@@ -93,9 +102,11 @@ scenarios:
       - stap: aanvraag
         verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
       - stap: besluit
+        artikel: algemene_wet_inkomensafhankelijke_regelingen#16
+        tekst: 'Klik onder Open aanvragen op Besluit nemen: Awir artikel 16.'
         verhaal: De Dienst vindt geen zorgverzekering voor 2025.
         invoer:
-          vermoedelijk_verzekerd: false
+          is_verzekerde: false
         uitkomst: afgewezen
         uitvoer:
           voorschotbedrag: 0
@@ -108,9 +119,11 @@ scenarios:
       - stap: aanvraag
         verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
       - stap: besluit
+        artikel: algemene_wet_inkomensafhankelijke_regelingen#16
+        tekst: 'Klik onder Open aanvragen op Besluit nemen: Awir artikel 16.'
         verhaal: De Dienst verwacht een inkomen van € 45.000.
         invoer:
-          vermoedelijk_toetsingsinkomen: 4500000
+          toetsingsinkomen: 4500000
         uitkomst: afgewezen
         uitvoer:
           voorschotbedrag: 0
@@ -122,7 +135,7 @@ scenarios:
         verhaal: De Dienst verwacht nu een inkomen van € 30.000.
         datum: 2025-02-03
         invoer:
-          vermoedelijk_toetsingsinkomen: 3000000
+          toetsingsinkomen: 3000000
         uitkomst: gegrond
         uitvoer:
           voorschotbedrag: 133100
@@ -138,6 +151,8 @@ scenarios:
       - stap: aanvraag
         verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
       - stap: besluit
+        artikel: algemene_wet_inkomensafhankelijke_regelingen#16
+        tekst: 'Klik onder Open aanvragen op Besluit nemen: Awir artikel 16.'
         verhaal: De Dienst beslist op de aanvraag.
         uitkomst: toegewezen
         gezien: 'Toegewezen: het voorschot is € 1.577.'

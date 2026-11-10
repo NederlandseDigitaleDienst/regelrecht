@@ -1,0 +1,61 @@
+---
+# Tier C: a decision that names the submission it is taken on (`taken_on`,
+# schema v0.8.19). The application asks for the decision of article 2 and
+# leads to the advance of article 3 as well, each taken on its own.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$id: test_conformance_taken_on
+regulatory_layer: WET
+publication_date: '2026-11-09'
+valid_from: '2026-11-09'
+bwb_id: BWBR0099981
+name: Testwet aanvraag met twee besluiten
+url: https://example.invalid/taken-on
+articles:
+  - number: '1'
+    url: https://example.invalid/taken-on/1
+    text: Op aanvraag wordt een bedrag toegekend.
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: test_conformance_taken_on#2
+            parameters:
+              - bedrag
+        parameters:
+          - name: bedrag
+            type: number
+  - number: '2'
+    url: https://example.invalid/taken-on/2
+    text: Het bedrag wordt toegekend.
+    machine_readable:
+      execution:
+        produces:
+          legal_character: BESCHIKKING
+          decision_type: TOEKENNING
+        parameters:
+          - name: bedrag
+            type: number
+        output:
+          - name: toegekend
+            type: number
+        actions:
+          - output: toegekend
+            value: $bedrag
+  - number: '3'
+    url: https://example.invalid/taken-on/3
+    text: Wie een aanvraag indient, krijgt een voorschot.
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            decision_type: TOEKENNING
+            taken_on: test_conformance_taken_on#1
+        parameters:
+          - name: bedrag
+            type: number
+        output:
+          - name: voorschot
+            type: number
+        actions:
+          - output: voorschot
+            value: $bedrag

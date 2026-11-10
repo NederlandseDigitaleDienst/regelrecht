@@ -21,7 +21,7 @@ produces:
     derived: [vergunning_geldig_tot]
 ```
 
-- The application lists what it contains and names the decision it asks for (Awb 4:2 lid 1 onder c).
+- The application lists what it contains and names the decision it asks for (Awb 4:2 lid 1 onder c). An article can also take its decision on an application that asks for another one. Its decision then names, under `taken_on`, the article that establishes that application, as the advance on an allowance does (Awir 16 lid 1). Taking one of the two decisions leaves the other open.
 - The decision lists its `outputs`. `derived` holds values that follow from the decision but are not part of it, such as the end date of a permit.
 - [Law Format](/concepts/law-format#what-the-article-produces) gives the rules for the list. An article that produces only one thing keeps the single-object form.
 

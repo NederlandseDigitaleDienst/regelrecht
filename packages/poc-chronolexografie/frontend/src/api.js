@@ -105,11 +105,22 @@ export const api = {
   // eerder record in het begin van die cel waarover het feit gaat, of null.
   vastleggen: (cel, feit, velden, datum, verwijstNaar = null) =>
     roep((p) => p.vastleggen(cel, feit, json(velden), datum, verwijstNaar ?? undefined)),
-  besluiten: (op, bevindingen, datum) => roep((p) => p.besluiten(op, json(bevindingen), datum)),
+  // Zonder `basis` het besluit dat de aanvraag vraagt; met `basis` een ander
+  // besluit waartoe zij leidt.
+  besluiten: (op, bevindingen, datum, basis) =>
+    roep((p) =>
+      basis
+        ? p.besluitenOnder(op, basis, json(bevindingen), datum)
+        : p.besluiten(op, json(bevindingen), datum),
+    ),
   // Wat het besluit zou worden, op een kopie van de cel: er wordt niets
   // vastgelegd. Een weigering van de cel komt terug als `{ geweigerd }`.
-  voorvertoningBesluit: (op, bevindingen, datum) =>
-    roep((p) => p.voorvertoningBesluit(op, json(bevindingen), datum)),
+  voorvertoningBesluit: (op, bevindingen, datum, basis) =>
+    roep((p) =>
+      basis
+        ? p.voorvertoningBesluitOnder(op, basis, json(bevindingen), datum)
+        : p.voorvertoningBesluit(op, json(bevindingen), datum),
+    ),
   bezwaren: (besluit, velden, datum) => roep((p) => p.bezwaren(besluit, json(velden), datum)),
   heroverweging: (bezwaar, datum) => roep((p) => p.heroverweging(bezwaar, datum)),
   beslissenOpBezwaar: (op, bevindingen, datum) =>
