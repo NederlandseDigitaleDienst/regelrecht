@@ -13,8 +13,8 @@
 //! This is deliberately a thin, purpose-built helper rather than a general
 //! crypto layer: one key, one algorithm, one blob format.
 
-use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use chacha20poly1305::aead::rand_core::RngCore;
 use chacha20poly1305::aead::{Aead, KeyInit, OsRng};
 use chacha20poly1305::{ChaCha20Poly1305, Nonce};

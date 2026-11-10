@@ -241,10 +241,10 @@ fn group_best_versions(
         }
 
         let law_id = parts[parts.len() - 2];
-        if let Some(f) = filter {
-            if !f.contains(law_id) {
-                continue;
-            }
+        if let Some(f) = filter
+            && !f.contains(law_id)
+        {
+            continue;
         }
 
         let new_date = crate::source_map::extract_date_from_path(rel);
@@ -343,7 +343,7 @@ pub fn each_yaml_in_tar_gz(
 
 #[cfg(test)]
 mod tests {
-    use super::{group_best_versions, TreeFile};
+    use super::{TreeFile, group_best_versions};
     use std::collections::HashMap;
 
     fn sorted_ids(map: &HashMap<String, TreeFile>) -> Vec<String> {

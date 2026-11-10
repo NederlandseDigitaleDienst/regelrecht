@@ -1,9 +1,9 @@
-use axum::routing::{get, post};
 use axum::Router;
+use axum::routing::{get, post};
 use tower_http::trace::TraceLayer;
 
-use regelrecht_pipeline::api::{bwb_search, harvest, status};
 use regelrecht_pipeline::ApiState;
+use regelrecht_pipeline::api::{bwb_search, harvest, status};
 
 #[tokio::main]
 async fn main() {

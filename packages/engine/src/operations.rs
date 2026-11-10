@@ -33,7 +33,7 @@
 //! an unknown (Kleene): `AND` with a `false` is `false` whatever the unknown
 //! turns out to be, `OR` with a `true` is `true`.
 
-use crate::article::{foreach_binding, ActionOperation, ActionValue, Case, CombineOp};
+use crate::article::{ActionOperation, ActionValue, Case, CombineOp, foreach_binding};
 use crate::context::RuleContext;
 use crate::error::{EngineError, Result};
 use crate::types::{PathNodeType, Value};
@@ -229,10 +229,10 @@ pub fn evaluate_value<R: ValueResolver>(
     match value {
         ActionValue::Literal(v) => {
             // Check if it's a variable reference (starts with $)
-            if let Value::String(s) = v {
-                if let Some(var_name) = s.strip_prefix('$') {
-                    return resolver.resolve(var_name);
-                }
+            if let Value::String(s) = v
+                && let Some(var_name) = s.strip_prefix('$')
+            {
+                return resolver.resolve(var_name);
             }
             Ok(v.clone())
         }
@@ -570,12 +570,12 @@ fn execute_equality<R: ValueResolver>(
     // sharing an `iso` field do not become equal (RFC-021). A side that fails to
     // parse as a date leaves the structural verdict untouched. Scoped to EQUALS so
     // membership and other structural comparisons keep their existing semantics.
-    if !equal && is_mixed_date_pair(&subject_val, &value_val) {
-        if let (Ok(subject_date), Ok(value_date)) =
+    if !equal
+        && is_mixed_date_pair(&subject_val, &value_val)
+        && let (Ok(subject_date), Ok(value_date)) =
             (parse_date(&subject_val), parse_date(&value_val))
-        {
-            equal = subject_date == value_date;
-        }
+    {
+        equal = subject_date == value_date;
     }
 
     Ok(Value::Bool(if negate { !equal } else { equal }))
@@ -755,7 +755,7 @@ pub(crate) fn add_values(evaluated: &[Value]) -> Result<Value> {
                         return Err(EngineError::TypeMismatch {
                             expected: "array".to_string(),
                             actual: format!("{:?}", val),
-                        })
+                        });
                     }
                 }
             }
@@ -771,7 +771,7 @@ pub(crate) fn add_values(evaluated: &[Value]) -> Result<Value> {
                         return Err(EngineError::TypeMismatch {
                             expected: "string".to_string(),
                             actual: format!("{:?}", val),
-                        })
+                        });
                     }
                 }
             }
@@ -1482,11 +1482,11 @@ pub fn execute_foreach(
         // bound under its own name would shadow an outer variable of that
         // name, and the body could no longer compare the row with it
         // (RFC-049).
-        if as_name.is_none() {
-            if let Value::Object(fields) = item {
-                for (key, value) in fields {
-                    child.set_local(key.clone(), value.clone());
-                }
+        if as_name.is_none()
+            && let Value::Object(fields) = item
+        {
+            for (key, value) in fields {
+                child.set_local(key.clone(), value.clone());
             }
         }
 
@@ -2083,7 +2083,7 @@ fn execute_date_diff<R: ValueResolver>(
             return Err(type_error(
                 "string ('days', 'months', or 'years')",
                 &unit_val,
-            ))
+            ));
         }
     };
 
@@ -2299,11 +2299,7 @@ fn calculate_months_difference(date1: NaiveDate, date2: NaiveDate) -> i64 {
     }
 
     let total = total_months as i64;
-    if negate {
-        -total
-    } else {
-        total
-    }
+    if negate { -total } else { total }
 }
 
 /// Return the number of days in a given month.
@@ -2357,11 +2353,7 @@ fn calculate_years_difference(date1: NaiveDate, date2: NaiveDate) -> i64 {
     }
 
     let years = years as i64;
-    if negate {
-        -years
-    } else {
-        years
-    }
+    if negate { -years } else { years }
 }
 
 // =============================================================================
@@ -2925,9 +2917,11 @@ mod tests {
                 construct: "afronden".into(),
             };
             let op = round_op(lit(tainted), 0);
-            assert!(execute_operation(&op, &resolver, 0)
-                .unwrap()
-                .is_untranslatable());
+            assert!(
+                execute_operation(&op, &resolver, 0)
+                    .unwrap()
+                    .is_untranslatable()
+            );
         }
 
         #[test]
@@ -4640,10 +4634,12 @@ mod tests {
                 Some("ITEM 0: skipped by filter")
             );
             assert_eq!(items[2].name, "ITEM_2");
-            assert!(items[2]
-                .message
-                .as_deref()
-                .is_some_and(|m| m.starts_with("ITEM 2: ")));
+            assert!(
+                items[2]
+                    .message
+                    .as_deref()
+                    .is_some_and(|m| m.starts_with("ITEM 2: "))
+            );
         }
 
         #[test]
@@ -7137,12 +7133,14 @@ mod tests {
         .to_string();
         assert!(err.contains("records NOT_EQUALS compares"), "{err}");
         assert!(err.contains("5 against 5.0 at .n"), "{err}");
-        assert!(compound_equal(
-            &record(Value::Decimal(dec!(5.0))),
-            &record(Value::Decimal(dec!(5.00))),
-            "EQUALS"
-        )
-        .unwrap());
+        assert!(
+            compound_equal(
+                &record(Value::Decimal(dec!(5.0))),
+                &record(Value::Decimal(dec!(5.00))),
+                "EQUALS"
+            )
+            .unwrap()
+        );
         assert!(!compound_equal(&record(Value::Int(5)), &record(Value::Int(6)), "EQUALS").unwrap());
     }
 }

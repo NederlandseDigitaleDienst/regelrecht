@@ -16,7 +16,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
-use regelrecht_cel::{identity, Cell, Error, Files};
+use regelrecht_cel::{Cell, Error, Files, identity};
 use regelrecht_engine::LawLoad;
 use regelrecht_law_model::{
     Article, ArticleBasedLaw, AuthorityType, CompetentAuthority, HookFilter, NamedAuthority,
@@ -764,7 +764,7 @@ fn beroep(
                 "case '{casus}': both '{}' and '{}' are {wie}",
                 a.recording_actor(),
                 b.recording_actor()
-            )))
+            )));
         }
     };
     let ontvangst = ontvangst(regelwerken, casus, gevonden, &law, &article)?;
@@ -986,10 +986,10 @@ fn leest<'a>(artikelen: impl Iterator<Item = &'a Article>) -> BTreeSet<String> {
                 .into_iter()
                 .flatten()
             {
-                if let Some((id, _)) = verwijzing.split_once('#') {
-                    if !id.starts_with('$') {
-                        uit.insert(id.to_string());
-                    }
+                if let Some((id, _)) = verwijzing.split_once('#')
+                    && !id.starts_with('$')
+                {
+                    uit.insert(id.to_string());
                 }
             }
         }

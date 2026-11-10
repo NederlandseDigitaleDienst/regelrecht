@@ -12,16 +12,16 @@ use std::sync::Arc;
 
 use chrono::NaiveDate;
 use regelrecht_cel::{
-    decision, reading, shape, Cell, Disk, Error, Files, Gram, Reference, Source, EXECUTOGRAM,
+    Cell, Disk, EXECUTOGRAM, Error, Files, Gram, Reference, Source, decision, reading, shape,
 };
 use regelrecht_engine::{
     ArticleResult, Authority, EngineError, FilledBy, LawExecutionService, OpenTermFilled,
     ParameterType, PathNode, PathNodeType,
 };
 use regelrecht_law_model::stored;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
-use crate::casus::{afleiden, casussen, Afleiding, Beroep, Casus, Regelwerken};
+use crate::casus::{Afleiding, Beroep, Casus, Regelwerken, afleiden, casussen};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -745,10 +745,10 @@ fn handelingen(
         for (_, reduction) in reducties_in(&|id: &str| service.resolver().get_law(id), &[cell]) {
             for article in &reduction.articles {
                 for input in article.get_inputs() {
-                    if let Some(f) = input.source.as_ref().and_then(|s| s.facts.as_ref()) {
-                        if !feiten.contains(f) {
-                            feiten.push(f.clone());
-                        }
+                    if let Some(f) = input.source.as_ref().and_then(|s| s.facts.as_ref())
+                        && !feiten.contains(f)
+                    {
+                        feiten.push(f.clone());
                     }
                 }
             }
@@ -1580,10 +1580,11 @@ fn invoerwaarde<'a>(
 
 /// The first value the trace under `node` gives each of `namen`.
 fn eerste_waarden(node: &PathNode, namen: &[String], uit: &mut Map<String, Value>) -> Result<()> {
-    if let Some(waarde) = &node.result {
-        if namen.contains(&node.name) && !uit.contains_key(&node.name) {
-            uit.insert(node.name.clone(), stored::to_stored(waarde)?);
-        }
+    if let Some(waarde) = &node.result
+        && namen.contains(&node.name)
+        && !uit.contains_key(&node.name)
+    {
+        uit.insert(node.name.clone(), stored::to_stored(waarde)?);
     }
     for child in &node.children {
         eerste_waarden(child, namen, uit)?;
@@ -2773,10 +2774,12 @@ mod tests {
         assert!(bezwaar.contains(&"gronden_bezwaar_of_beroep".to_string()));
         // The contested decision the cell fills from `refers_to`.
         assert!(!bezwaar.contains(&"bestreden_besluit".to_string()));
-        assert!(vormen["beslissing_op_bezwaar"]["uitvoer"]
-            .as_array()
-            .unwrap()
-            .contains(&json!("bestreden_besluit_herroepen")));
+        assert!(
+            vormen["beslissing_op_bezwaar"]["uitvoer"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("bestreden_besluit_herroepen"))
+        );
     }
 
     #[test]
@@ -2853,9 +2856,11 @@ mod tests {
             nieuw["id"]
         );
         let gebruikt = waarom(&corpus, &cell, nieuw["id"].as_str().unwrap()).unwrap();
-        assert!(gebruikt
-            .bevindingen
-            .contains(&"specifieke_aard_beroep_ouder".to_string()));
+        assert!(
+            gebruikt
+                .bevindingen
+                .contains(&"specifieke_aard_beroep_ouder".to_string())
+        );
         let spoor = beslist["waarom"]["spoor"].as_str().unwrap();
         assert!(spoor.contains("verlofdagen"), "{spoor}");
 
@@ -2967,10 +2972,12 @@ mod tests {
                 { "regelwerk": beleid, "laag": "UITVOERINGSBELEID", "artikel": "2" }
             ])
         );
-        assert!(reductie(lid_2)["tekst"][0]["tekst"]
-            .as_str()
-            .unwrap()
-            .contains("chronolexografische reductie"));
+        assert!(
+            reductie(lid_2)["tekst"][0]["tekst"]
+                .as_str()
+                .unwrap()
+                .contains("chronolexografische reductie")
+        );
         assert_eq!(cell.grams().len(), 6);
     }
 
@@ -3281,13 +3288,15 @@ mod tests {
         // its answer: the aggregates its reduction read, each played.
         let spoor = op_b["waarom"]["spoor"].as_str().unwrap();
         assert!(spoor.contains("the aggregate of"), "{spoor}");
-        assert!(op_b["waarom"]["ingevuld"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|f| f["term"] == json!("verlof_al_verleend_in_schooljaar")
-                && f["filled_by"]["answer"]["answers"][0]["law_id"]
-                    == json!("reductie_verlof_al_verleend_in_schooljaar")));
+        assert!(
+            op_b["waarom"]["ingevuld"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|f| f["term"] == json!("verlof_al_verleend_in_schooljaar")
+                    && f["filled_by"]["answer"]["answers"][0]["law_id"]
+                        == json!("reductie_verlof_al_verleend_in_schooljaar"))
+        );
 
         // How the school answered: the reduction reads the aggregates up to
         // the objection against B, without B. A does not count: the decision
@@ -4926,8 +4935,7 @@ mod tests {
         assert_eq!(ingesteld.kind, "BEROEP");
         assert_eq!(ingesteld.received.as_ref().unwrap().id, op_bezwaar);
         assert_eq!(
-            wat_volgt(&corpus, &cell, &ingesteld.id).unwrap()
-                ["bezwaar_of_beroepschrift_tijdig_ingediend"],
+            wat_volgt(&corpus, &cell, &ingesteld.id).unwrap()["bezwaar_of_beroepschrift_tijdig_ingediend"],
             json!(true)
         );
 
@@ -4959,8 +4967,8 @@ mod tests {
             json!(false)
         );
         assert_eq!(
-            in_de_plaats["uitspraak"]["outputs"]["uitspraak_in_de_plaats"]["outputs"]
-                ["nieuw_besluit"]["outputs"]["verlof_verleend"],
+            in_de_plaats["uitspraak"]["outputs"]["uitspraak_in_de_plaats"]["outputs"]["nieuw_besluit"]
+                ["outputs"]["verlof_verleend"],
             json!(true)
         );
 
@@ -4999,10 +5007,12 @@ mod tests {
             json!("2027-01-25")
         );
         assert_eq!(gedaan["niet_gevraagd"], json!([]));
-        assert!(gedaan["waarom"]["bevindingen"]
-            .as_array()
-            .unwrap()
-            .contains(&json!("rechtsgevolgen_in_stand")));
+        assert!(
+            gedaan["waarom"]["bevindingen"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("rechtsgevolgen_in_stand"))
+        );
 
         let ontvangst = toezenden(
             &corpus,

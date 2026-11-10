@@ -12,8 +12,8 @@
 //! De hersteltermijn van twee weken is bestuurspraktijk, geen wet: AWB 6:6
 //! eist alleen "een daartoe gestelde termijn".
 
-use axum::extract::{Path, State};
 use axum::Json;
+use axum::extract::{Path, State};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -24,7 +24,7 @@ use uuid::Uuid;
 use crate::db;
 use crate::engine;
 use crate::handlers::{
-    bad_request, forbidden, internal_error, not_found, session_beoordelaar, session_kvk, ApiError,
+    ApiError, bad_request, forbidden, internal_error, not_found, session_beoordelaar, session_kvk,
 };
 use crate::machtiging;
 use crate::state::AppState;

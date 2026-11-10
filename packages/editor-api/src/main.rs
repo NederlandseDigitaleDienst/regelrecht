@@ -4,9 +4,9 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use axum::middleware as axum_middleware;
-use axum::routing::{get, MethodRouter};
 use axum::Router;
+use axum::middleware as axum_middleware;
+use axum::routing::{MethodRouter, get};
 use tokio::sync::{Mutex, RwLock};
 use tower::ServiceExt;
 use tower_http::services::{ServeDir, ServeFile};
@@ -1504,10 +1504,10 @@ mod static_service_tests {
 #[cfg(test)]
 mod security_header_tests {
     use super::{middleware, serve_static_and_secure};
+    use axum::Router;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use axum::routing::get;
-    use axum::Router;
     use tower::ServiceExt;
 
     /// The router shape both production branches end in: some API routes,

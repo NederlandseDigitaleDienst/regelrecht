@@ -67,11 +67,11 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 use regelrecht_pipeline::enrich::{
-    execute_enrich_with_runner, AgentCallRecord, AgentUsage, EnrichConfig, EnrichPayload,
-    FeedbackRounds, LlmProvider, ProcessLlmRunner, RunSteps, SessionReuse,
+    AgentCallRecord, AgentUsage, EnrichConfig, EnrichPayload, FeedbackRounds, LlmProvider,
+    ProcessLlmRunner, RunSteps, SessionReuse, execute_enrich_with_runner,
 };
 use regelrecht_pipeline::enrich_v2::checks;
-use regelrecht_pipeline::enrich_v2::closure::{plan_closure, LawIndex, Plan, StopRules, Task};
+use regelrecht_pipeline::enrich_v2::closure::{LawIndex, Plan, StopRules, Task, plan_closure};
 
 struct Args {
     corpus: PathBuf,
@@ -152,7 +152,7 @@ fn parse_args() -> Result<Args, String> {
                      [--max-plan-articles 200] [--steps window,reconcile] \
                      [--session-reuse window|repair|off]"
                         .to_string(),
-                )
+                );
             }
             other => return Err(format!("unknown option: {other}")),
         }

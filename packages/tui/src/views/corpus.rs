@@ -340,19 +340,17 @@ impl CorpusView {
 
     fn load_preview(&mut self) {
         let visible = self.visible_nodes();
-        if let Some(node) = visible.get(self.selected) {
-            if !node.is_dir
-                && node
-                    .path
-                    .extension()
-                    .is_some_and(|ext| ext == "yaml" || ext == "yml")
-            {
-                if let Ok(content) = std::fs::read_to_string(&node.path) {
-                    self.preview_metadata = Some(corpus_scanner::extract_metadata(&content));
-                    self.preview_content = Some(content);
-                    self.preview_scroll = 0;
-                }
-            }
+        if let Some(node) = visible.get(self.selected)
+            && !node.is_dir
+            && node
+                .path
+                .extension()
+                .is_some_and(|ext| ext == "yaml" || ext == "yml")
+            && let Ok(content) = std::fs::read_to_string(&node.path)
+        {
+            self.preview_metadata = Some(corpus_scanner::extract_metadata(&content));
+            self.preview_content = Some(content);
+            self.preview_scroll = 0;
         }
     }
 }
@@ -368,28 +366,29 @@ fn highlight_yaml_line(line: &str) -> Line<'_> {
         );
     }
 
-    if let Some(rest) = trimmed.strip_prefix("- ") {
-        if let Some((key, val)) = rest.split_once(':') {
-            let indent = &line[..line.len() - trimmed.len()];
-            return Line::from(vec![
-                Span::styled(format!("{indent}- "), dim),
-                Span::styled(key.to_string(), Style::default()),
-                Span::styled(":", dim),
-                Span::styled(val.to_string(), dim),
-            ]);
-        }
+    if let Some(rest) = trimmed.strip_prefix("- ")
+        && let Some((key, val)) = rest.split_once(':')
+    {
+        let indent = &line[..line.len() - trimmed.len()];
+        return Line::from(vec![
+            Span::styled(format!("{indent}- "), dim),
+            Span::styled(key.to_string(), Style::default()),
+            Span::styled(":", dim),
+            Span::styled(val.to_string(), dim),
+        ]);
     }
 
-    if let Some((key, val)) = trimmed.split_once(':') {
-        if !key.contains("//") && !key.contains(' ') {
-            let indent = &line[..line.len() - trimmed.len()];
-            return Line::from(vec![
-                Span::styled(indent.to_string(), dim),
-                Span::styled(key.to_string(), Style::default()),
-                Span::styled(":", dim),
-                Span::styled(val.to_string(), dim),
-            ]);
-        }
+    if let Some((key, val)) = trimmed.split_once(':')
+        && !key.contains("//")
+        && !key.contains(' ')
+    {
+        let indent = &line[..line.len() - trimmed.len()];
+        return Line::from(vec![
+            Span::styled(indent.to_string(), dim),
+            Span::styled(key.to_string(), Style::default()),
+            Span::styled(":", dim),
+            Span::styled(val.to_string(), dim),
+        ]);
     }
 
     Line::styled(line, dim)

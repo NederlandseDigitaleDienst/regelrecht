@@ -6,8 +6,8 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
-use regelrecht_harvester::manifest;
 use regelrecht_harvester::LawSource;
+use regelrecht_harvester::manifest;
 
 /// Maximum recursion depth for follow-up harvest jobs.
 /// Prevents unbounded job creation from circular or deeply nested law references.

@@ -42,7 +42,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, USER_AGENT};
+use reqwest::header::{ACCEPT, AUTHORIZATION, HeaderMap, HeaderValue, USER_AGENT};
 
 use crate::contents::DirectoryEntry;
 use crate::error::{GithubError, Result};
@@ -539,6 +539,19 @@ mod tests {
     use wiremock::matchers::{header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
+    fn set_env(key: &str, value: &str) {
+        // SAFETY: std locks its own environment access, so the hazard is C code
+        // reading the environment on another thread. The tests in this crate talk
+        // to mock servers on 127.0.0.1 and resolve no host names, the C path that
+        // would read it.
+        unsafe { std::env::set_var(key, value) };
+    }
+
+    fn remove_env(key: &str) {
+        // SAFETY: as in `set_env`.
+        unsafe { std::env::remove_var(key) };
+    }
+
     // `GITHUB_API_BASE` mutates process-global env, which every test in this
     // binary shares, so the env-sensitive assertions live in this ONE test.
     // No other test may read or write that var — not even defensively — because
@@ -547,21 +560,21 @@ mod tests {
     #[test]
     fn env_base_url_is_read_at_construction_and_trimmed() {
         // Unset: falls back to api.github.com.
-        std::env::remove_var("GITHUB_API_BASE");
+        remove_env("GITHUB_API_BASE");
         let c = GithubClient::new().unwrap();
         assert_eq!(c.api_base, "https://api.github.com");
 
         // Set with a trailing slash: trimmed.
-        std::env::set_var("GITHUB_API_BASE", "https://ghe.example.test/api/v3/");
+        set_env("GITHUB_API_BASE", "https://ghe.example.test/api/v3/");
         let c = GithubClient::new().unwrap();
         assert_eq!(c.api_base, "https://ghe.example.test/api/v3");
 
         // Blank / whitespace-only: ignored, back to the default.
-        std::env::set_var("GITHUB_API_BASE", "   ");
+        set_env("GITHUB_API_BASE", "   ");
         let c = GithubClient::new().unwrap();
         assert_eq!(c.api_base, "https://api.github.com");
 
-        std::env::remove_var("GITHUB_API_BASE");
+        remove_env("GITHUB_API_BASE");
     }
 
     #[test]

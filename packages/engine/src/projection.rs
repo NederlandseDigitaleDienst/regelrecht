@@ -671,10 +671,10 @@ impl LawExecutionService {
                 .called_article(regulation, output, day)
                 .ok_or_else(|| {
                     fail(format!(
-                    "input '{}' takes '{output}' of {regulation}, which no article in force on \
+                        "input '{}' takes '{output}' of {regulation}, which no article in force on \
                      {day} gives",
-                    input.name
-                ))
+                        input.name
+                    ))
                 })?;
             refuse_impure(article, output).map_err(|why| {
                 fail(format!(
@@ -1035,7 +1035,7 @@ impl LawExecutionService {
                     _ => {
                         return Err(refuse(format!(
                             "has an effect that depends on '{when}', but holds no boolean under it"
-                        )))
+                        )));
                     }
                 }
             }
@@ -1239,7 +1239,7 @@ pub(crate) fn check_step<'l>(
                 return Err(
                     "the article gives no record, so no record rests on it to take a step for"
                         .to_string(),
-                )
+                );
             }
             // Before v0.8.16 a step on such an article loads and never
             // applies, and `$record` reads the whole article.
@@ -1311,13 +1311,13 @@ pub(crate) fn check_step<'l>(
                         "input '{}' passes {source} as '{name}', but {}",
                         input.name,
                         no_such(&source, true)
-                    ))
+                    ));
                 }
                 Some(Some(t)) if t != parameter.param_type => {
                     return Err(format!(
                         "input '{}' passes {source}, a {t:?}, as '{name}', a {:?}",
                         input.name, parameter.param_type
-                    ))
+                    ));
                 }
                 Some(Some(_)) => {}
             }
@@ -1356,12 +1356,12 @@ pub(crate) fn check_step<'l>(
                 return Err(format!(
                     "sets '{property}' from {source}, but {}",
                     no_such(&source, false)
-                ))
+                ));
             }
             (Some(Some(t)), Some(want)) if t != want => {
                 return Err(format!(
                     "sets '{property}' from {source}, a {t:?}, which is no {want:?}"
-                ))
+                ));
             }
             _ => {}
         }
@@ -1399,7 +1399,7 @@ fn record_kind(
                 "needs a kind: the article gives {}; write {basis}#{}",
                 distinct.join(" and "),
                 distinct.last().map_or("", String::as_str)
-            ))
+            ));
         }
         Some(kind) if !kinds.iter().any(|k| k == kind) => {
             return Err(format!(
@@ -1409,14 +1409,14 @@ fn record_kind(
                 } else {
                     distinct.join(" and ")
                 }
-            ))
+            ));
         }
         _ if kinds.iter().filter(|k| *k == EXECUTOGRAM).count() > 1
             && kind.is_none_or(|k| k == EXECUTOGRAM) =>
         {
             return Err(
                 "the article requires more than one fact; a step cannot pick one".to_string(),
-            )
+            );
         }
         _ => {}
     }
@@ -2686,10 +2686,11 @@ articles:
         // Under v0.8.16 `h` refers to a record of x, so x applies its step.
         let x = play_for("x", &records).unwrap();
         assert!(records_in(&x).contains(&"h"), "{:?}", records_in(&x));
-        assert!(!x
-            .events
-            .iter()
-            .any(|e| matches!(e, ProjectionEvent::EffectsOnly { record, .. } if record == "h")));
+        assert!(
+            !x.events
+                .iter()
+                .any(|e| matches!(e, ProjectionEvent::EffectsOnly { record, .. } if record == "h"))
+        );
         let mut service = keyed();
         service
             .load_law(&LAW.replace(
@@ -2804,16 +2805,18 @@ articles:
                     ),
             )
             .unwrap();
-        assert!(service
-            .evaluate_projection(
-                "reductie_soort",
-                &["heeft_kaart"],
-                &[grant("a")],
-                BTreeMap::new(),
-                "2025-03-01",
-                false,
-            )
-            .is_ok());
+        assert!(
+            service
+                .evaluate_projection(
+                    "reductie_soort",
+                    &["heeft_kaart"],
+                    &[grant("a")],
+                    BTreeMap::new(),
+                    "2025-03-01",
+                    false,
+                )
+                .is_ok()
+        );
     }
 
     #[test]
@@ -3065,10 +3068,7 @@ articles:
                 "on wet#6: the article gives no record",
             ),
             (
-                with(
-                    "record: wet#1#BESCHIKKING",
-                    "record: wet#1#AANVRAAG",
-                ),
+                with("record: wet#1#BESCHIKKING", "record: wet#1#AANVRAAG"),
                 "input 'kaart_na' passes $record.verleend as 'verleend', but the record has no such field",
             ),
             (
@@ -3917,7 +3917,10 @@ articles:
                 || node.children.iter().any(|c| mentions(c, text))
         }
         assert!(
-            mentions(&trace, "Resolving from the chronicle of the records passed: the aggregates of per_verlening"),
+            mentions(
+                &trace,
+                "Resolving from the chronicle of the records passed: the aggregates of per_verlening"
+            ),
             "{trace:?}"
         );
         let mut service = per_service();

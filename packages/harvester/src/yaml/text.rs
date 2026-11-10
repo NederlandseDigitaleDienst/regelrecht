@@ -2,7 +2,7 @@
 
 use regex::Regex;
 use std::sync::LazyLock;
-use textwrap::{fill, Options};
+use textwrap::{Options, fill};
 
 use crate::config::TEXT_WRAP_WIDTH;
 
@@ -394,7 +394,9 @@ mod tests {
         // back, in its own place.
         let first = "[artikel 3.2.1, eerste lid, onderdeel a, van de Wet langdurige zorg zoals die gold voor de wijziging][ref1]";
         let second = "[artikel 1 van de Wet zorg en dwang psychogeriatrische en verstandelijk gehandicapte clienten][ref2]";
-        let text = format!("Zie {first} en daarnaast ook {second} voor de nadere invulling van dit begrip in de praktijk.");
+        let text = format!(
+            "Zie {first} en daarnaast ook {second} voor de nadere invulling van dit begrip in de praktijk."
+        );
 
         let wrapped = wrap_text(&text, 60);
 

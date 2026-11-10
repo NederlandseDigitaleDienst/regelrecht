@@ -1,7 +1,7 @@
-use criterion::{criterion_group, criterion_main, Criterion};
-use regelrecht_engine::priority::{resolve_candidate, Candidate};
-use regelrecht_engine::types::RegulatoryLayer;
+use criterion::{Criterion, criterion_group, criterion_main};
 use regelrecht_engine::ArticleBasedLaw;
+use regelrecht_engine::priority::{Candidate, resolve_candidate};
+use regelrecht_engine::types::RegulatoryLayer;
 use std::hint::black_box;
 
 fn make_law(id: &str, layer: RegulatoryLayer, valid_from: &str) -> ArticleBasedLaw {

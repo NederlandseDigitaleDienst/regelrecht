@@ -9,7 +9,7 @@ use std::path::Path;
 use chrono::NaiveDate;
 use regelrecht_poc_chronolexografie::kern::Corpus;
 use regelrecht_poc_chronolexografie::spel::{Fout, Spel};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 fn spel() -> Spel {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -372,10 +372,12 @@ fn parkeerkaart_a_second_card_next_to_a_valid_one() {
         .hoe_beantwoord(id, "aanvrager_heeft_geldige_gehandicaptenparkeerkaart")
         .unwrap();
     let eerste = besluiten[0]["besluit"]["id"].as_str().unwrap();
-    assert!(hoe["antwoorden"][0]["spoor"]
-        .as_str()
-        .unwrap()
-        .contains(eerste));
+    assert!(
+        hoe["antwoorden"][0]["spoor"]
+            .as_str()
+            .unwrap()
+            .contains(eerste)
+    );
 }
 
 #[test]

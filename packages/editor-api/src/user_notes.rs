@@ -185,15 +185,15 @@ pub fn validate(req: &NoteRequest) -> Result<(), StatusCode> {
     if req.value.trim().is_empty() || req.value.len() > MAX_BODY_VALUE_BYTES {
         return Err(StatusCode::BAD_REQUEST);
     }
-    if let Some(format) = &req.format {
-        if !ALLOWED_FORMATS.contains(&format.as_str()) {
-            return Err(StatusCode::BAD_REQUEST);
-        }
+    if let Some(format) = &req.format
+        && !ALLOWED_FORMATS.contains(&format.as_str())
+    {
+        return Err(StatusCode::BAD_REQUEST);
     }
-    if let Some(motivation) = &req.motivation {
-        if !ALLOWED_MOTIVATIONS.contains(&motivation.as_str()) {
-            return Err(StatusCode::BAD_REQUEST);
-        }
+    if let Some(motivation) = &req.motivation
+        && !ALLOWED_MOTIVATIONS.contains(&motivation.as_str())
+    {
+        return Err(StatusCode::BAD_REQUEST);
     }
     if let Some(Some(selector)) = &req.selector {
         // Stored verbatim (it is the client's anchoring, resolved
@@ -299,10 +299,10 @@ pub fn annotation_to_request(
         .as_object()
         .ok_or("a note must be a JSON object")?;
 
-    if let Some(kind) = obj.get("type") {
-        if kind.as_str() != Some("Annotation") {
-            return Err("a note's type must be \"Annotation\"".to_string());
-        }
+    if let Some(kind) = obj.get("type")
+        && kind.as_str() != Some("Annotation")
+    {
+        return Err("a note's type must be \"Annotation\"".to_string());
     }
 
     let body = obj.get("body").ok_or("a personal note needs a body")?;
@@ -335,12 +335,10 @@ pub fn annotation_to_request(
         let target_obj = target
             .as_object()
             .ok_or("a note's target must be an object")?;
-        if let Some(source) = target_obj.get("source").and_then(|s| s.as_str()) {
-            if source != format!("regelrecht://{law_id}") {
-                return Err(
-                    "a note's target does not match the law it is being saved to".to_string(),
-                );
-            }
+        if let Some(source) = target_obj.get("source").and_then(|s| s.as_str())
+            && source != format!("regelrecht://{law_id}")
+        {
+            return Err("a note's target does not match the law it is being saved to".to_string());
         }
         selector = match target_obj.get("selector") {
             // A JSON-null or absent selector is simply an unanchored note.

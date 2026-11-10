@@ -74,27 +74,27 @@ impl CorpusRegistry {
 
         let mut sources = manifest.sources;
 
-        if let Some(local_path) = local_override_path {
-            if local_path.exists() {
-                let local_content = std::fs::read_to_string(local_path).map_err(|e| {
+        if let Some(local_path) = local_override_path
+            && local_path.exists()
+        {
+            let local_content = std::fs::read_to_string(local_path).map_err(|e| {
+                CorpusError::Config(format!(
+                    "Failed to read local override {}: {}",
+                    local_path.display(),
+                    e
+                ))
+            })?;
+
+            let local_manifest: RegistryManifest = serde_yaml_ng::from_str(&local_content)
+                .map_err(|e| {
                     CorpusError::Config(format!(
-                        "Failed to read local override {}: {}",
+                        "Failed to parse local override {}: {}",
                         local_path.display(),
                         e
                     ))
                 })?;
 
-                let local_manifest: RegistryManifest = serde_yaml_ng::from_str(&local_content)
-                    .map_err(|e| {
-                        CorpusError::Config(format!(
-                            "Failed to parse local override {}: {}",
-                            local_path.display(),
-                            e
-                        ))
-                    })?;
-
-                sources = merge_sources(sources, local_manifest.sources);
-            }
+            sources = merge_sources(sources, local_manifest.sources);
         }
 
         // Sort by priority (lowest value = highest priority)
@@ -371,10 +371,10 @@ impl CorpusRegistry {
                 // source it was issued for. A configured service token always
                 // wins (mirroring the request-bound read fallback), and the
                 // override never reaches any other (seed) source.
-                if token.is_none() {
-                    if let Some(o) = scan_override.filter(|o| o.source_id == source.id) {
-                        token = Some(o.token.to_string());
-                    }
+                if token.is_none()
+                    && let Some(o) = scan_override.filter(|o| o.source_id == source.id)
+                {
+                    token = Some(o.token.to_string());
                 }
                 let today = map.reference_date().to_string();
                 for (law_id, path, sha) in

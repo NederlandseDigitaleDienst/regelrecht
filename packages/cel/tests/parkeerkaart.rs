@@ -23,9 +23,9 @@ use common::{day, object_map};
 
 use std::path::{Path, PathBuf};
 
-use regelrecht_cel::{decision, shape, Cell, Error, Gram, Reference, Source};
+use regelrecht_cel::{Cell, Error, Gram, Reference, Source, decision, shape};
 use regelrecht_engine::LawExecutionService;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 const LAW: &str = "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw";
 const ARTICLE: &str = "49";
@@ -142,7 +142,9 @@ fn service() -> LawExecutionService {
         // The decisions under an article as aggregates, with what the Awb
         // gives a decision on an objection and the receipt of a ruling.
         common::reduction_dir("reductie_gehandicaptenparkeerkaart"),
-        common::poc("regulation/nl/uitvoeringsbeleid/beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal"),
+        common::poc(
+            "regulation/nl/uitvoeringsbeleid/beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal",
+        ),
     ];
     common::load(&mut service, laws);
     service
@@ -300,9 +302,11 @@ fn an_application_is_recorded_with_the_awb_deadline() {
         json!("2026-12-08")
     );
     // The decision's outputs wait for the decision.
-    assert!(!gram
-        .outputs
-        .contains_key("gehandicaptenparkeerkaart_verstrekt"));
+    assert!(
+        !gram
+            .outputs
+            .contains_key("gehandicaptenparkeerkaart_verstrekt")
+    );
 }
 
 #[test]

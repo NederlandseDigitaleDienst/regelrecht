@@ -42,7 +42,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use regelrecht_editor_api::accounts::AccountRecord;
 use regelrecht_editor_api::github_oauth::GithubOAuth;
-use regelrecht_editor_api::traject_integrity::{get_traject_integrity, FindingKind};
+use regelrecht_editor_api::traject_integrity::{FindingKind, get_traject_integrity};
 
 use regelrecht_pipeline::test_utils::TestDb;
 
@@ -185,8 +185,13 @@ async fn contents_requests(server: &MockServer) -> usize {
 #[tokio::test]
 async fn integrity_scan_reads_with_the_service_token_and_memoises_bodies() {
     let server = MockServer::start().await;
-    std::env::set_var("GITHUB_API_BASE", server.uri());
-    std::env::set_var(SERVICE_TOKEN_ENV, SERVICE_TOKEN);
+    // SAFETY: std locks its own environment access, so the hazard is C code
+    // (a host-name lookup) reading it on another thread. This binary runs this
+    // one test, on tokio's single-threaded runtime, and the test awaits
+    // everything it starts, so no lookup is running elsewhere at this point.
+    unsafe { std::env::set_var("GITHUB_API_BASE", server.uri()) };
+    // SAFETY: as at the first `set_var` in this test.
+    unsafe { std::env::set_var(SERVICE_TOKEN_ENV, SERVICE_TOKEN) };
 
     let db = TestDb::new().await;
     let central = tempfile::tempdir().unwrap();

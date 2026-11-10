@@ -11,7 +11,7 @@ use std::path::Path;
 
 use chrono::NaiveDate;
 use regelrecht_cel::reading::Reader;
-use regelrecht_cel::{shape, Afschrift, Cell, Chronicle, Disk, Gram, Received, EXECUTOGRAM};
+use regelrecht_cel::{Afschrift, Cell, Chronicle, Disk, EXECUTOGRAM, Gram, Received, shape};
 use regelrecht_engine::projection::describe_applied;
 use regelrecht_engine::{
     Aggregate, Article, Authority, Call, LawExecutionService, ProjectionEvent, ProjectionOutcome,
@@ -20,8 +20,8 @@ use regelrecht_engine::{
 use regelrecht_law_model::stored;
 use walkdir::WalkDir;
 
-use crate::dispatch::{table_cell_value, ArgValue};
-use crate::helpers::table::{rows_to_params, Rows};
+use crate::dispatch::{ArgValue, table_cell_value};
+use crate::helpers::table::{Rows, rows_to_params};
 use crate::world::RegelrechtWorld;
 
 /// The cell that records, as `recording_actor`.

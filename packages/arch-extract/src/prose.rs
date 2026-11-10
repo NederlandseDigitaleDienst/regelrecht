@@ -395,10 +395,10 @@ pub fn bless(
 
     let mut blessed = Vec::new();
     for entry in prose.values() {
-        if let Some(sel) = &selected {
-            if !sel.contains(entry.node.as_str()) {
-                continue;
-            }
+        if let Some(sel) = &selected
+            && !sel.contains(entry.node.as_str())
+        {
+            continue;
         }
         let Some(node) = node_by_id.get(entry.node.as_str()) else {
             continue;

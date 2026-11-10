@@ -8,10 +8,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use axum::body::Body;
-use axum::http::{header, Request, StatusCode};
+use axum::http::{Request, StatusCode, header};
 use tower::ServiceExt as _;
 
-use regelrecht_poc_portal::app::{router, AppState};
+use regelrecht_poc_portal::app::{AppState, router};
 use regelrecht_poc_portal::config::Config;
 use regelrecht_poc_portal::gate;
 
@@ -35,14 +35,26 @@ pocs:
     voorbehoud: Doorgelopen met experts, maar nog steeds een demonstratie.
 "#;
 
+fn set_env(key: &str, value: impl AsRef<std::ffi::OsStr>) {
+    // SAFETY: std locks its own environment access, so the hazard is C code
+    // reading the environment on another thread. These tests drive the router
+    // in-process and resolve no host names, the C path that would read it.
+    unsafe { std::env::set_var(key, value) };
+}
+
+fn remove_env(key: &str) {
+    // SAFETY: as in `set_env`.
+    unsafe { std::env::remove_var(key) };
+}
+
 /// Build a portal over a register of two static PoCs.
 fn app() -> axum::Router {
     // Only the variables every test agrees on are set here, and they are always
     // set to the same values. The static root is not among them: it differs per
     // test, and a process-wide variable that differs per test is a race.
-    std::env::set_var("POC_COOKIE_SECRET", SECRET);
-    std::env::set_var("POC_PW_ALFA", "alfa-geheim");
-    std::env::set_var("POC_PW_BETA", "beta-geheim");
+    set_env("POC_COOKIE_SECRET", SECRET);
+    set_env("POC_PW_ALFA", "alfa-geheim");
+    set_env("POC_PW_BETA", "beta-geheim");
     let config = Config::from_env(REGISTER)
         .expect("config")
         .met_static_root("/nonexistent");
@@ -55,9 +67,9 @@ fn app_met_assistent() -> axum::Router {
         "    bron: poc-alfa\n",
         "    bron: poc-alfa\n    assistent: true\n",
     );
-    std::env::set_var("POC_COOKIE_SECRET", SECRET);
-    std::env::set_var("POC_PW_ALFA", "alfa-geheim");
-    std::env::set_var("POC_PW_BETA", "beta-geheim");
+    set_env("POC_COOKIE_SECRET", SECRET);
+    set_env("POC_PW_ALFA", "alfa-geheim");
+    set_env("POC_PW_BETA", "beta-geheim");
     let config = Config::from_env(&register)
         .expect("config")
         .met_static_root("/nonexistent");
@@ -248,9 +260,9 @@ async fn a_poc_page_carries_the_notice_and_its_assets_do_not() {
     // The static root is set on the config, not through POC_STATIC_DIR: that
     // variable is process-wide, and setting it here raced the other tests in
     // this binary (one failure in five runs).
-    std::env::set_var("POC_COOKIE_SECRET", SECRET);
-    std::env::set_var("POC_PW_ALFA", "alfa-geheim");
-    std::env::set_var("POC_PW_BETA", "beta-geheim");
+    set_env("POC_COOKIE_SECRET", SECRET);
+    set_env("POC_PW_ALFA", "alfa-geheim");
+    set_env("POC_PW_BETA", "beta-geheim");
     let config = Config::from_env(REGISTER)
         .expect("config")
         .met_static_root(dir.to_string_lossy().into_owned());
@@ -280,9 +292,9 @@ async fn a_deep_link_into_a_poc_gets_its_index_and_a_missing_file_a_404() {
     )
     .expect("index");
 
-    std::env::set_var("POC_COOKIE_SECRET", SECRET);
-    std::env::set_var("POC_PW_ALFA", "alfa-geheim");
-    std::env::set_var("POC_PW_BETA", "beta-geheim");
+    set_env("POC_COOKIE_SECRET", SECRET);
+    set_env("POC_PW_ALFA", "alfa-geheim");
+    set_env("POC_PW_BETA", "beta-geheim");
     let config = Config::from_env(REGISTER)
         .expect("config")
         .met_static_root(dir.to_string_lossy().into_owned());
@@ -363,15 +375,15 @@ async fn every_answer_carries_the_security_headers() {
 async fn a_config_without_a_password_refuses_to_start() {
     // The failure mode this guards is a PoC in the register that is served to
     // anyone because its env var was forgotten.
-    std::env::set_var("POC_COOKIE_SECRET", SECRET);
+    set_env("POC_COOKIE_SECRET", SECRET);
     // Ook de wachtwoorden van het basisregister zetten, en niet erop vertrouwen
     // dat een andere test dat al deed: de omgeving is procesbreed en de tests
     // draaien parallel. Liep deze eerst, dan struikelde `from_env` over
     // POC_PW_ALFA en ging de assertie over gamma nooit op -- een test die faalt
     // op de volgorde waarin hij toevallig draait, niet op wat hij bewaakt.
-    std::env::set_var("POC_PW_ALFA", "alfa-geheim");
-    std::env::set_var("POC_PW_BETA", "beta-geheim");
-    std::env::remove_var("POC_PW_GAMMA");
+    set_env("POC_PW_ALFA", "alfa-geheim");
+    set_env("POC_PW_BETA", "beta-geheim");
+    remove_env("POC_PW_GAMMA");
     let register = format!(
         "{REGISTER}  - slug: gamma\n    titel: G\n    samenvatting: S\n    soort: statisch\n    \
          bron: b\n    status: verkenning\n    voorbehoud: Een demonstratie, geen geldend recht.\n"
@@ -405,10 +417,10 @@ fn app_met_bronnen(dir: &std::path::Path) -> axum::Router {
             bron("poortzonder")
         ),
     );
-    std::env::set_var("POC_COOKIE_SECRET", SECRET);
-    std::env::set_var("POC_PW_ALFA", "alfa-geheim");
-    std::env::set_var("POC_PW_BETA", "beta-geheim");
-    std::env::set_var("POC_BRON_POORTLOKAAL", dir);
+    set_env("POC_COOKIE_SECRET", SECRET);
+    set_env("POC_PW_ALFA", "alfa-geheim");
+    set_env("POC_PW_BETA", "beta-geheim");
+    set_env("POC_BRON_POORTLOKAAL", dir);
     let config = Config::from_env(&register)
         .expect("config")
         .met_static_root("/nonexistent");

@@ -201,13 +201,13 @@ impl<'a> CredentialResolver<'a> {
         // 3. Legacy shared CORPUS_GIT_TOKEN — never for strict contexts:
         // a strict key derives from user input, and falling through here
         // would ship the central token to a user-chosen repo.
-        if !ctx.strict {
-            if let Some(token) = non_empty_env("CORPUS_GIT_TOKEN") {
-                return Ok(TokenDecision {
-                    token: Some(token),
-                    origin: TokenOrigin::LegacyShared,
-                });
-            }
+        if !ctx.strict
+            && let Some(token) = non_empty_env("CORPUS_GIT_TOKEN")
+        {
+            return Ok(TokenDecision {
+                token: Some(token),
+                origin: TokenOrigin::LegacyShared,
+            });
         }
 
         // 4. No token
@@ -307,10 +307,23 @@ mod tests {
         prev: Option<String>,
     }
 
+    fn set_env(key: &str, value: &str) {
+        // SAFETY: std locks its own environment access, so the hazard is C
+        // code reading the environment on another thread. These unit tests
+        // resolve no host names and call no libc time functions, the C paths
+        // that would read it.
+        unsafe { std::env::set_var(key, value) };
+    }
+
+    fn remove_env(key: &str) {
+        // SAFETY: as in `set_env`.
+        unsafe { std::env::remove_var(key) };
+    }
+
     impl EnvVarGuard {
         fn set(key: &str, value: &str) -> Self {
             let prev = std::env::var(key).ok();
-            unsafe { std::env::set_var(key, value) };
+            set_env(key, value);
             Self {
                 key: key.to_string(),
                 prev,
@@ -319,7 +332,7 @@ mod tests {
 
         fn unset(key: &str) -> Self {
             let prev = std::env::var(key).ok();
-            unsafe { std::env::remove_var(key) };
+            remove_env(key);
             Self {
                 key: key.to_string(),
                 prev,
@@ -330,8 +343,8 @@ mod tests {
     impl Drop for EnvVarGuard {
         fn drop(&mut self) {
             match &self.prev {
-                Some(v) => unsafe { std::env::set_var(&self.key, v) },
-                None => unsafe { std::env::remove_var(&self.key) },
+                Some(v) => set_env(&self.key, v),
+                None => remove_env(&self.key),
             }
         }
     }
@@ -401,13 +414,13 @@ mod tests {
     fn resolve_reads_per_source_env_var() {
         // Use a unique env var name to avoid test interference
         let key = "CORPUS_AUTH_TEST_SOURCE_123_TOKEN";
-        unsafe { std::env::set_var(key, "env-token-value") };
+        set_env(key, "env-token-value");
 
         let decision = resolve_key("test-source-123", false, None);
         assert_eq!(decision.token(), Some("env-token-value"));
         assert_eq!(decision.origin(), TokenOrigin::ServiceEnv);
 
-        unsafe { std::env::remove_var(key) };
+        remove_env(key);
     }
 
     #[test]

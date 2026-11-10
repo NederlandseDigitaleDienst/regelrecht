@@ -35,7 +35,7 @@
 //! unconditionally rather than reported as "gone".
 
 use base64::Engine;
-use reqwest::header::{HeaderValue, ACCEPT, CONTENT_TYPE, IF_NONE_MATCH};
+use reqwest::header::{ACCEPT, CONTENT_TYPE, HeaderValue, IF_NONE_MATCH};
 use serde::{Deserialize, Serialize};
 
 use crate::client::{CacheKind, CachedPayload, GithubClient};
@@ -154,10 +154,10 @@ impl GithubClient {
             if let Some(accept) = accept {
                 headers.insert(ACCEPT, HeaderValue::from_static(accept));
             }
-            if let Some(hit) = &cached {
-                if let Ok(value) = HeaderValue::from_str(&hit.etag) {
-                    headers.insert(IF_NONE_MATCH, value);
-                }
+            if let Some(hit) = &cached
+                && let Ok(value) = HeaderValue::from_str(&hit.etag)
+            {
+                headers.insert(IF_NONE_MATCH, value);
             }
 
             let response = self
@@ -371,14 +371,14 @@ impl GithubClient {
         let (response, cache_key) = match outcome {
             ConditionalOutcome::Absent => return Ok(None),
             ConditionalOutcome::NotModified(CachedPayload::Raw(content)) => {
-                return Ok(Some(content))
+                return Ok(Some(content));
             }
             // Unreachable: the conditional GET only revalidates an entry
             // whose shape matches, so a 304 always carries a raw body here.
             ConditionalOutcome::NotModified(_) => {
                 return Err(GithubError::Decode(format!(
                     "cached response for {path} is not a raw file body"
-                )))
+                )));
             }
             ConditionalOutcome::Fresh {
                 response,
@@ -413,13 +413,13 @@ impl GithubClient {
         let (response, cache_key) = match outcome {
             ConditionalOutcome::Absent => return Ok(None),
             ConditionalOutcome::NotModified(CachedPayload::File { content, sha }) => {
-                return Ok(Some((content, sha)))
+                return Ok(Some((content, sha)));
             }
             // Unreachable — see `fetch_file_raw_opt`.
             ConditionalOutcome::NotModified(_) => {
                 return Err(GithubError::Decode(format!(
                     "cached response for {path} is not a file body"
-                )))
+                )));
             }
             ConditionalOutcome::Fresh {
                 response,
@@ -471,13 +471,13 @@ impl GithubClient {
         let (response, cache_key) = match outcome {
             ConditionalOutcome::Absent => return Ok(Vec::new()),
             ConditionalOutcome::NotModified(CachedPayload::Directory(entries)) => {
-                return Ok(entries)
+                return Ok(entries);
             }
             // Unreachable — see `fetch_file_raw_opt`.
             ConditionalOutcome::NotModified(_) => {
                 return Err(GithubError::Decode(format!(
                     "cached response for {dir} is not a directory listing"
-                )))
+                )));
             }
             ConditionalOutcome::Fresh {
                 response,
@@ -960,11 +960,12 @@ mod tests {
 
         let c = client(&server);
         for p in ["wet/a.yaml", "wet/b.yaml"] {
-            assert!(c
-                .fetch_file_with_sha("acme/corpus", "main", p, Some("tok"))
-                .await
-                .unwrap()
-                .is_none());
+            assert!(
+                c.fetch_file_with_sha("acme/corpus", "main", p, Some("tok"))
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
         }
     }
 
@@ -1105,11 +1106,13 @@ mod tests {
             .mount(&server)
             .await;
 
-        assert!(client(&server)
-            .fetch_file_with_sha("acme/corpus", "traject/new", "wet/a.yaml", None)
-            .await
-            .unwrap()
-            .is_none());
+        assert!(
+            client(&server)
+                .fetch_file_with_sha("acme/corpus", "traject/new", "wet/a.yaml", None)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[tokio::test]
@@ -1122,11 +1125,13 @@ mod tests {
             .mount(&server)
             .await;
 
-        assert!(client(&server)
-            .fetch_file_with_sha("acme/corpus", "main", "wet/a.yaml", None)
-            .await
-            .unwrap()
-            .is_none());
+        assert!(
+            client(&server)
+                .fetch_file_with_sha("acme/corpus", "main", "wet/a.yaml", None)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     /// The rate-limit payoff: the second read of an unchanged file carries

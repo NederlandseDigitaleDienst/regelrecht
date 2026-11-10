@@ -14,8 +14,8 @@
 //! De beheer-endpoints volgen het beoordelaar-only 403-patroon van
 //! `beheer.rs`.
 
-use axum::extract::{Path, Query, State};
 use axum::Json;
+use axum::extract::{Path, Query, State};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::{Row, SqlitePool};
@@ -24,8 +24,8 @@ use uuid::Uuid;
 
 use crate::handelsregister;
 use crate::handlers::{
-    bad_request, forbidden, forbidden_with, internal_error, not_found, session_beoordelaar,
-    session_kvk, ApiError,
+    ApiError, bad_request, forbidden, forbidden_with, internal_error, not_found,
+    session_beoordelaar, session_kvk,
 };
 use crate::machtiging::{self, Machtiging};
 use crate::register;
@@ -800,10 +800,12 @@ mod tests {
         assert_eq!(partij.naam, "Zwolse Stadspartij");
         assert_eq!(partij.status, register::STATUS_GEVERIFIEERD);
         assert_eq!(partij.decentrale_uitslagen.len(), 1, "uitslagen verhuisd");
-        assert!(register::partij_by_kvk(&state.pool, PLACEHOLDER)
-            .await
-            .expect("query")
-            .is_none());
+        assert!(
+            register::partij_by_kvk(&state.pool, PLACEHOLDER)
+                .await
+                .expect("query")
+                .is_none()
+        );
 
         // Een al beoordeelde claim kan niet nogmaals worden bevestigd.
         let err = bevestig_claim(State(state), beoordelaar_session().await, Path(claim.id))

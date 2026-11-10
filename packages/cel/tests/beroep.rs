@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 
 use regelrecht_cel::{Afschrift, Cell, Error, Gram, Received, Reference};
 use regelrecht_engine::LawExecutionService;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 const LAW: &str = "leerplichtwet_1969";
 const ARTICLE: &str = "13a";
@@ -65,7 +65,9 @@ fn service() -> LawExecutionService {
         // The decisions under an article as aggregates, with what the Awb
         // gives a decision on an objection and the receipt of a ruling.
         common::reduction_dir("reductie_verlof"),
-        common::poc("casussen/vakantieverlof/regulation/nl/uitvoeringsbeleid/fictief_beleid_verleend_verlof_obs_de_klimop"),
+        common::poc(
+            "casussen/vakantieverlof/regulation/nl/uitvoeringsbeleid/fictief_beleid_verleend_verlof_obs_de_klimop",
+        ),
     ];
     common::load(&mut service, laws);
     service

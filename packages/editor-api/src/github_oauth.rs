@@ -41,14 +41,14 @@
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
+use axum::Router;
 use axum::extract::{Extension, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Json, Redirect, Response};
 use axum::routing::{get, post};
-use axum::Router;
 use serde::{Deserialize, Serialize};
 use subtle::ConstantTimeEq;
 use tower_sessions::Session;
@@ -872,10 +872,10 @@ pub async fn disconnect(
     // Best-effort: revoke at GitHub so the token dies immediately. A revoke
     // failure (e.g. token already gone) must not block the disconnect —
     // clearing the cookie is what the user asked for.
-    if let Some(link) = open_token_cookie(oauth, &headers, account.id) {
-        if let Err(e) = revoke(&state.http_client, oauth, &link.access_token).await {
-            tracing::warn!(error = %e, "GitHub token revoke failed; clearing cookie anyway");
-        }
+    if let Some(link) = open_token_cookie(oauth, &headers, account.id)
+        && let Err(e) = revoke(&state.http_client, oauth, &link.access_token).await
+    {
+        tracing::warn!(error = %e, "GitHub token revoke failed; clearing cookie anyway");
     }
 
     // Static config only for `Secure` — see the matching comment in
@@ -1051,8 +1051,8 @@ mod tests {
         );
     }
 
-    use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
+    use base64::engine::general_purpose::STANDARD;
     use wiremock::matchers::{header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 

@@ -99,42 +99,42 @@ pub fn validate_scopes(source_map: &SourceMap, sources: &[Source]) -> Vec<ScopeW
             _ => {}
         }
 
-        if let Some(code) = &gemeente_code {
-            if !scope_matches(&source.scopes, "gemeente_code", code) {
-                push(ScopeWarning {
-                    law_id: law.law_id.clone(),
-                    source_id: law.source_id.clone(),
-                    source_name: law.source_name.clone(),
-                    expected_scopes: expected_scopes(),
-                    actual_scope_code: gemeente_code.clone(),
-                    message: format!(
-                        "Law '{}' from source '{}' has gemeente_code '{}' which is outside declared scopes {:?}",
-                        law.law_id,
-                        source.id,
-                        code,
-                        source.scopes.iter().map(|s| &s.value).collect::<Vec<_>>()
-                    ),
-                });
-            }
+        if let Some(code) = &gemeente_code
+            && !scope_matches(&source.scopes, "gemeente_code", code)
+        {
+            push(ScopeWarning {
+                law_id: law.law_id.clone(),
+                source_id: law.source_id.clone(),
+                source_name: law.source_name.clone(),
+                expected_scopes: expected_scopes(),
+                actual_scope_code: gemeente_code.clone(),
+                message: format!(
+                    "Law '{}' from source '{}' has gemeente_code '{}' which is outside declared scopes {:?}",
+                    law.law_id,
+                    source.id,
+                    code,
+                    source.scopes.iter().map(|s| &s.value).collect::<Vec<_>>()
+                ),
+            });
         }
 
-        if let Some(code) = &waterschap_code {
-            if !scope_matches(&source.scopes, "waterschap_code", code) {
-                push(ScopeWarning {
-                    law_id: law.law_id.clone(),
-                    source_id: law.source_id.clone(),
-                    source_name: law.source_name.clone(),
-                    expected_scopes: expected_scopes(),
-                    actual_scope_code: waterschap_code.clone(),
-                    message: format!(
-                        "Law '{}' from source '{}' has waterschap_code '{}' which is outside declared scopes {:?}",
-                        law.law_id,
-                        source.id,
-                        code,
-                        source.scopes.iter().map(|s| &s.value).collect::<Vec<_>>()
-                    ),
-                });
-            }
+        if let Some(code) = &waterschap_code
+            && !scope_matches(&source.scopes, "waterschap_code", code)
+        {
+            push(ScopeWarning {
+                law_id: law.law_id.clone(),
+                source_id: law.source_id.clone(),
+                source_name: law.source_name.clone(),
+                expected_scopes: expected_scopes(),
+                actual_scope_code: waterschap_code.clone(),
+                message: format!(
+                    "Law '{}' from source '{}' has waterschap_code '{}' which is outside declared scopes {:?}",
+                    law.law_id,
+                    source.id,
+                    code,
+                    source.scopes.iter().map(|s| &s.value).collect::<Vec<_>>()
+                ),
+            });
         }
     }
 
@@ -501,9 +501,11 @@ mod tests {
 
         let warnings = validate_scopes(&map, &[source]);
         assert_eq!(warnings.len(), 1);
-        assert!(warnings[0]
-            .message
-            .contains("unknown regulatory_layer 'WETT'"));
+        assert!(
+            warnings[0]
+                .message
+                .contains("unknown regulatory_layer 'WETT'")
+        );
     }
 
     /// A scoped source that loses on priority still supplies a version for a

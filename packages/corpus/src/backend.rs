@@ -511,10 +511,10 @@ async fn walk_local_tree(
                 continue;
             }
             let path = entry.path();
-            if let Some(ref ext) = extension {
-                if path.extension().is_none_or(|e| e != ext.as_str()) {
-                    continue;
-                }
+            if let Some(ref ext) = extension
+                && path.extension().is_none_or(|e| e != ext.as_str())
+            {
+                continue;
             }
             let Ok(rel) = path.strip_prefix(&abs_dir_clone) else {
                 continue;
@@ -646,10 +646,10 @@ impl RepoBackend for LocalBackend {
                 continue;
             }
             let path = entry.path();
-            if let Some(ext) = extension {
-                if path.extension().is_none_or(|e| e != ext) {
-                    continue;
-                }
+            if let Some(ext) = extension
+                && path.extension().is_none_or(|e| e != ext)
+            {
+                continue;
             }
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                 entries.push(FileEntry {
@@ -900,10 +900,10 @@ impl RepoBackend for GitBackend {
                 continue;
             }
             let path = entry.path();
-            if let Some(ext) = extension {
-                if path.extension().is_none_or(|e| e != ext) {
-                    continue;
-                }
+            if let Some(ext) = extension
+                && path.extension().is_none_or(|e| e != ext)
+            {
+                continue;
             }
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                 entries.push(FileEntry {
@@ -955,7 +955,7 @@ impl RepoBackend for GitBackend {
     ///
     /// [`implements_index`]: crate::implements_index
     async fn read_all_implements(&self) -> Result<Vec<(String, Vec<String>)>> {
-        use crate::implements_index::{ImplementsIndex, IMPLEMENTS_INDEX_FILENAME};
+        use crate::implements_index::{IMPLEMENTS_INDEX_FILENAME, ImplementsIndex};
 
         let index_path = self.client.repo_path().join(IMPLEMENTS_INDEX_FILENAME);
         let raw = match tokio::fs::read_to_string(&index_path).await {
@@ -1328,10 +1328,10 @@ impl RepoBackend for SessionGitBackend {
                 continue;
             }
             let path = entry.path();
-            if let Some(ext) = extension {
-                if path.extension().is_none_or(|e| e != ext) {
-                    continue;
-                }
+            if let Some(ext) = extension
+                && path.extension().is_none_or(|e| e != ext)
+            {
+                continue;
             }
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                 entries.push(FileEntry {
@@ -1821,7 +1821,7 @@ mod tests {
     /// under the subpath until the root file exists.
     #[tokio::test]
     async fn git_sidecar_lives_at_the_repo_root_with_legacy_fallback() {
-        use crate::annotation_sidecar::{read_sidecar, write_sidecar, LegacyFallback};
+        use crate::annotation_sidecar::{LegacyFallback, read_sidecar, write_sidecar};
 
         let dir = TempDir::new().unwrap();
         setup_corpus_checkout(dir.path()).await;
@@ -1881,10 +1881,12 @@ mod tests {
             Some("old notes\nnew note\n")
         );
         assert_eq!(std::fs::read_to_string(&legacy).unwrap(), "old notes\n");
-        assert!(backend
-            .write_repo_file(Path::new("../escape.yaml"), "x")
-            .await
-            .is_err());
+        assert!(
+            backend
+                .write_repo_file(Path::new("../escape.yaml"), "x")
+                .await
+                .is_err()
+        );
     }
 
     #[tokio::test]

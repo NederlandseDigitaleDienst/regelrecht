@@ -1,11 +1,11 @@
 use std::borrow::Cow;
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
-use axum::Json;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use openidconnect::core::CoreResponseType;
 use openidconnect::{
     AuthenticationFlow, AuthorizationCode, CsrfToken, Nonce, OAuth2TokenResponse,
@@ -557,8 +557,8 @@ pub fn extract_realm_roles(jwt: &str) -> Option<Vec<String>> {
 mod tests {
     use super::*;
 
-    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
     use base64::Engine;
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
     fn fake_jwt(payload_json: &str) -> String {
         let header = URL_SAFE_NO_PAD.encode(r#"{"alg":"RS256"}"#);

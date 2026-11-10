@@ -108,6 +108,20 @@ mod tests {
 
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
+    fn set_env(key: &str, value: &str) {
+        // SAFETY: std locks its own environment access, so the hazard is C code
+        // reading the environment on another thread. No unit test in this crate
+        // resolves a host name or calls libc time functions (the middleware
+        // tests build a lazy pool that never connects), and every test that
+        // changes these variables holds `ENV_LOCK`.
+        unsafe { env::set_var(key, value) };
+    }
+
+    fn remove_env(key: &str) {
+        // SAFETY: as in `set_env`.
+        unsafe { env::remove_var(key) };
+    }
+
     const OIDC_VARS: &[&str] = &[
         "OIDC_CLIENT_ID",
         "OIDC_CLIENT_SECRET",
@@ -119,19 +133,19 @@ mod tests {
 
     fn clear_env() {
         for var in OIDC_VARS {
-            env::remove_var(var);
+            remove_env(var);
         }
-        env::remove_var("ADMIN_API_KEY");
-        env::remove_var("BASE_URL");
-        env::remove_var("METRICS_AUTH_TOKEN");
+        remove_env("ADMIN_API_KEY");
+        remove_env("BASE_URL");
+        remove_env("METRICS_AUTH_TOKEN");
     }
 
     fn set_complete_oidc_env() {
-        env::set_var("OIDC_CLIENT_ID", "test-client");
-        env::set_var("OIDC_CLIENT_SECRET", "secret");
-        env::set_var("KEYCLOAK_BASE_URL", "https://keycloak.example.com");
-        env::set_var("KEYCLOAK_REALM", "test-realm");
-        env::set_var("OIDC_REQUIRED_ROLE", "harvester-reader");
+        set_env("OIDC_CLIENT_ID", "test-client");
+        set_env("OIDC_CLIENT_SECRET", "secret");
+        set_env("KEYCLOAK_BASE_URL", "https://keycloak.example.com");
+        set_env("KEYCLOAK_REALM", "test-realm");
+        set_env("OIDC_REQUIRED_ROLE", "harvester-reader");
     }
 
     #[test]
@@ -164,7 +178,7 @@ mod tests {
     fn api_key_from_env() {
         let _lock = ENV_LOCK.lock();
         clear_env();
-        env::set_var("ADMIN_API_KEY", "test-secret-key");
+        set_env("ADMIN_API_KEY", "test-secret-key");
 
         let config = AppConfig::try_from_env().expect("should succeed");
         assert_eq!(config.api_key.as_deref(), Some("test-secret-key"));
@@ -176,7 +190,7 @@ mod tests {
     fn empty_api_key_is_none() {
         let _lock = ENV_LOCK.lock();
         clear_env();
-        env::set_var("ADMIN_API_KEY", "");
+        set_env("ADMIN_API_KEY", "");
 
         let config = AppConfig::try_from_env().expect("should succeed");
         assert!(config.api_key.is_none());
@@ -199,7 +213,7 @@ mod tests {
     fn metrics_token_from_env() {
         let _lock = ENV_LOCK.lock();
         clear_env();
-        env::set_var("METRICS_AUTH_TOKEN", "prom-secret");
+        set_env("METRICS_AUTH_TOKEN", "prom-secret");
 
         let config = AppConfig::try_from_env().expect("should succeed");
         assert!(config.metrics_token_hash.is_some());

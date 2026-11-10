@@ -68,7 +68,7 @@ pub async fn replace_untranslatables(
 #[cfg(feature = "test-utils")]
 mod tests {
     use super::*;
-    use crate::job_queue::{create_job, CreateJobRequest};
+    use crate::job_queue::{CreateJobRequest, create_job};
     use crate::law_status::upsert_law;
     use crate::models::{JobType, Untranslatable};
     use crate::test_utils::TestDb;

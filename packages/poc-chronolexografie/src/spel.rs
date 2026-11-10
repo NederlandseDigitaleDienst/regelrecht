@@ -14,7 +14,7 @@
 use chrono::NaiveDate;
 use regelrecht_cel::{Error, Gram};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 use crate::bundel::BronStand;
 use crate::kern::{self, Cellen, Corpus};

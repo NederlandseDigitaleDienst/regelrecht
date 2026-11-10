@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use chrono::NaiveDate;
-use regelrecht_cel::{shape, Error};
+use regelrecht_cel::{Error, shape};
 use regelrecht_engine::{LawExecutionService, ParameterType};
 use serde_json::json;
 

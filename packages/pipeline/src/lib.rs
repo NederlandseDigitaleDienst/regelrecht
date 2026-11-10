@@ -63,11 +63,11 @@ pub mod worker;
 pub use api_state::ApiState;
 
 pub use config::{PipelineConfig, WorkerConfig};
-pub use db::{create_pool, ensure_schema, MIGRATION_LOCK_KEY};
+pub use db::{MIGRATION_LOCK_KEY, create_pool, ensure_schema};
 pub use enrich::{
-    progress_file_path, EnrichConfig, EnrichPayload, EnrichResult, EnrichmentMetadata,
+    ENRICH_PROVIDERS, EnrichConfig, EnrichPayload, EnrichResult, EnrichmentMetadata,
     EnrichmentResultEnvelope, LlmProvider, LlmRunner, ProcessLlmRunner, RelatedLegislation,
-    ENRICH_PROVIDERS,
+    progress_file_path,
 };
 pub use error::PipelineError;
 pub use harvest::{HarvestPayload, HarvestResult, MAX_HARVEST_DEPTH};

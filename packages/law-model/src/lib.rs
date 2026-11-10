@@ -21,18 +21,18 @@ mod model;
 pub mod stored;
 mod value;
 
-pub use header::{parse_law_header, LawHeader};
+pub use header::{LawHeader, parse_law_header};
 pub use model::{
-    foreach_binding, is_article_reference, is_fact_reference, is_variable_reference, Action,
-    ActionOperation, ActionValue, Article, ArticleBasedLaw, ArticleReference, ArticleRequirement,
-    AuthorityType, Case, CombineOp, CompetentAuthority, Declaration, DeclaredProperty, Definition,
-    Execution, HookDeclaration, HookFilter, HookPoint, ImplementsDeclaration, Input, LegalBasis,
-    MachineReadable, Marking, MarkingResolution, Moment, NamedAuthority, OpenTerm, OpenTermDefault,
-    Output, OverrideDeclaration, Parameter, Placement, PlacementContainer, Preamble,
-    ProcedureAppliesTo, ProcedureDefinition, Produced, ProducedItem, Produces, ProducesList,
-    Projection, ProjectionStep, ProvisionReference, RecordEffect, ResolveSpec, Source, Stage,
-    StageRequirement, StateProperty, StepSource, Submission, Temporal, TypeSpec,
-    UntranslatableEntry, DEFAULT_FOREACH_AS, SUBMISSION_KINDS,
+    Action, ActionOperation, ActionValue, Article, ArticleBasedLaw, ArticleReference,
+    ArticleRequirement, AuthorityType, Case, CombineOp, CompetentAuthority, DEFAULT_FOREACH_AS,
+    Declaration, DeclaredProperty, Definition, Execution, HookDeclaration, HookFilter, HookPoint,
+    ImplementsDeclaration, Input, LegalBasis, MachineReadable, Marking, MarkingResolution, Moment,
+    NamedAuthority, OpenTerm, OpenTermDefault, Output, OverrideDeclaration, Parameter, Placement,
+    PlacementContainer, Preamble, ProcedureAppliesTo, ProcedureDefinition, Produced, ProducedItem,
+    Produces, ProducesList, Projection, ProjectionStep, ProvisionReference, RecordEffect,
+    ResolveSpec, SUBMISSION_KINDS, Source, Stage, StageRequirement, StateProperty, StepSource,
+    Submission, Temporal, TypeSpec, UntranslatableEntry, foreach_binding, is_article_reference,
+    is_fact_reference, is_variable_reference,
 };
 /// The engine reads a version through the model, not from `regelrecht-shared`
 /// itself: it sits on the model alone.

@@ -21,9 +21,9 @@ use common::{
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
-use axum::Json;
 use pretty_assertions::assert_eq;
 use sqlx::PgPool;
 use tower_sessions::Session;
@@ -31,8 +31,8 @@ use uuid::Uuid;
 
 use regelrecht_editor_api::accounts::AccountRecord;
 use regelrecht_editor_api::corpus_handlers::{
-    get_corpus_law, get_traject_corpus_law, get_traject_scenario, list_traject_corpus_laws,
-    list_traject_scenarios, save_law, save_scenario, CorpusLawsResponse,
+    CorpusLawsResponse, get_corpus_law, get_traject_corpus_law, get_traject_scenario,
+    list_traject_corpus_laws, list_traject_scenarios, save_law, save_scenario,
 };
 use regelrecht_editor_api::github_oauth::GithubOAuth;
 use regelrecht_editor_api::state::AppState;
@@ -751,12 +751,14 @@ async fn scenario_saved_before_law_is_readable_and_chains_etag() {
     // The LAW file still does not exist on the writable-own backend —
     // only the scenario does. This is the exact state that used to
     // flip the GET back to the seed.
-    assert!(!writable_own
-        .path()
-        .join("wet")
-        .join(LAW_ID)
-        .join("2025-01-01.yaml")
-        .exists());
+    assert!(
+        !writable_own
+            .path()
+            .join("wet")
+            .join(LAW_ID)
+            .join("2025-01-01.yaml")
+            .exists()
+    );
 
     // GET now returns the just-saved content and its ETag.
     let (get_etag, body) = read_scenario(

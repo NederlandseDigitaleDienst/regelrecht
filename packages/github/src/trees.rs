@@ -59,10 +59,10 @@ impl GithubClient {
 
         let cache_key = Self::cache_key(&url, None, token);
         let mut headers = self.default_headers(token)?;
-        if let Some(etag) = self.cached_etag(&cache_key) {
-            if let Ok(val) = reqwest::header::HeaderValue::from_str(&etag) {
-                headers.insert(reqwest::header::IF_NONE_MATCH, val);
-            }
+        if let Some(etag) = self.cached_etag(&cache_key)
+            && let Ok(val) = reqwest::header::HeaderValue::from_str(&etag)
+        {
+            headers.insert(reqwest::header::IF_NONE_MATCH, val);
         }
 
         let response = self

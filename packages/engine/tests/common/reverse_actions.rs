@@ -17,10 +17,10 @@ pub fn reversed_actions(content: &str) -> Result<String, serde_yaml_ng::Error> {
         match node {
             serde_yaml_ng::Value::Mapping(map) => {
                 for (key, value) in map.iter_mut() {
-                    if key.as_str() == Some("actions") {
-                        if let serde_yaml_ng::Value::Sequence(actions) = value {
-                            reverse_outputs(actions);
-                        }
+                    if key.as_str() == Some("actions")
+                        && let serde_yaml_ng::Value::Sequence(actions) = value
+                    {
+                        reverse_outputs(actions);
                     }
                     reverse(value);
                 }

@@ -345,9 +345,11 @@ regelrecht:hint:
             Some(&a_match())
         );
         assert!(MatchResult::orphaned().single().is_none());
-        assert!(MatchResult::ambiguous(vec![a_match(), a_match()])
-            .single()
-            .is_none());
+        assert!(
+            MatchResult::ambiguous(vec![a_match(), a_match()])
+                .single()
+                .is_none()
+        );
     }
 
     #[test]

@@ -6,4 +6,4 @@ pub mod schema_version;
 pub mod telemetry;
 
 pub use regulatory_layer::RegulatoryLayer;
-pub use schema_version::{parse_schema_version, CURRENT_SCHEMA_VERSION, SCHEMA_URL};
+pub use schema_version::{CURRENT_SCHEMA_VERSION, SCHEMA_URL, parse_schema_version};

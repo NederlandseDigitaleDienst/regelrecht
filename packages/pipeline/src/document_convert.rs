@@ -33,7 +33,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::enrich::{run_llm_subprocess, EnrichConfig, SessionAction};
+use crate::enrich::{EnrichConfig, SessionAction, run_llm_subprocess};
 use crate::error::{PipelineError, Result};
 use crate::models::JobStatus;
 
@@ -917,9 +917,11 @@ mod tests {
         tokio::fs::write(&input, b"data").await.unwrap();
         let output = dir.path().join("out.md");
         // Unknown extension → no tool is even spawned → None (agentic fallback).
-        assert!(try_deterministic_convert(&input, "bin", &output)
-            .await
-            .is_none());
+        assert!(
+            try_deterministic_convert(&input, "bin", &output)
+                .await
+                .is_none()
+        );
         assert!(!output.exists());
     }
 

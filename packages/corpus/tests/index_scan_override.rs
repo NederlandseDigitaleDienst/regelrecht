@@ -80,10 +80,15 @@ async fn mount_tree_requiring_token(server: &MockServer, repo: &str, branch: &st
 #[tokio::test]
 async fn scan_override_reaches_only_its_source_and_loses_from_server_tokens() {
     let server = MockServer::start().await;
-    std::env::set_var("GITHUB_API_BASE", server.uri());
+    // SAFETY: std locks its own environment access, so the hazard is C code
+    // (a host-name lookup) reading it on another thread. This binary runs this
+    // one test, on tokio's single-threaded runtime, and the test awaits
+    // everything it starts, so no lookup is running elsewhere at this point.
+    unsafe { std::env::set_var("GITHUB_API_BASE", server.uri()) };
     // De seed heeft een servertoken; de mock matcht er exact op, dus als
     // de override daar zou lekken (Bearer user-token) faalt de seed-scan.
-    std::env::set_var("CORPUS_AUTH_EXAMPLE_SEED_REF_TOKEN", "seed-server-token");
+    // SAFETY: as at the first `set_var` in this test.
+    unsafe { std::env::set_var("CORPUS_AUTH_EXAMPLE_SEED_REF_TOKEN", "seed-server-token") };
 
     let own = github_source(
         "traject-own",
@@ -136,9 +141,10 @@ async fn scan_override_reaches_only_its_source_and_loses_from_server_tokens() {
         "scan-fout moet de onderliggende 404 dragen, got: {}",
         failed[0].error
     );
-    assert!(map
-        .get_law("wet_van_example_org_example_seed_repo")
-        .is_some());
+    assert!(
+        map.get_law("wet_van_example_org_example_seed_repo")
+            .is_some()
+    );
 
     // ------------------------------------------------------------------
     // Fase 2: met override scant de own via het user-token; de seed
@@ -159,12 +165,14 @@ async fn scan_override_reaches_only_its_source_and_loses_from_server_tokens() {
         failed.is_empty(),
         "beide sources moeten scannen: {failed:?}"
     );
-    assert!(map
-        .get_law("wet_van_example_org_example_own_repo")
-        .is_some());
-    assert!(map
-        .get_law("wet_van_example_org_example_seed_repo")
-        .is_some());
+    assert!(
+        map.get_law("wet_van_example_org_example_own_repo")
+            .is_some()
+    );
+    assert!(
+        map.get_law("wet_van_example_org_example_seed_repo")
+            .is_some()
+    );
 
     // ------------------------------------------------------------------
     // Fase 3: zodra de own-source wél een servertoken heeft, wint dat van
@@ -186,10 +194,13 @@ async fn scan_override_reaches_only_its_source_and_loses_from_server_tokens() {
         })))
         .mount(&server)
         .await;
-    std::env::set_var(
-        "CORPUS_AUTH_EXAMPLE_UNSET_OWN_REF_TOKEN",
-        "own-server-token",
-    );
+    // SAFETY: as at the first `set_var` in this test.
+    unsafe {
+        std::env::set_var(
+            "CORPUS_AUTH_EXAMPLE_UNSET_OWN_REF_TOKEN",
+            "own-server-token",
+        )
+    };
 
     let (map, failed) = registry
         .index_all_sources_with_override(
@@ -202,7 +213,8 @@ async fn scan_override_reaches_only_its_source_and_loses_from_server_tokens() {
         )
         .await
         .unwrap();
-    std::env::remove_var("CORPUS_AUTH_EXAMPLE_UNSET_OWN_REF_TOKEN");
+    // SAFETY: as at the first `set_var` in this test.
+    unsafe { std::env::remove_var("CORPUS_AUTH_EXAMPLE_UNSET_OWN_REF_TOKEN") };
     assert!(
         failed.is_empty(),
         "scan met servertoken moet slagen: {failed:?}"
@@ -217,6 +229,8 @@ async fn scan_override_reaches_only_its_source_and_loses_from_server_tokens() {
         "de user-token-listing mag niet gebruikt zijn zodra er een servertoken is"
     );
 
-    std::env::remove_var("CORPUS_AUTH_EXAMPLE_SEED_REF_TOKEN");
-    std::env::remove_var("GITHUB_API_BASE");
+    // SAFETY: as at the first `set_var` in this test.
+    unsafe { std::env::remove_var("CORPUS_AUTH_EXAMPLE_SEED_REF_TOKEN") };
+    // SAFETY: as at the first `set_var` in this test.
+    unsafe { std::env::remove_var("GITHUB_API_BASE") };
 }

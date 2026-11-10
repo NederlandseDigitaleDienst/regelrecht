@@ -14,8 +14,8 @@
 mod common;
 
 use common::{
-    add_central_seed, insert_traject, seed_account_record, session_for, state_with_user_token_mode,
-    traject_ref, TEST_EMAIL, TEST_NAME,
+    TEST_EMAIL, TEST_NAME, add_central_seed, insert_traject, seed_account_record, session_for,
+    state_with_user_token_mode, traject_ref,
 };
 
 use axum::extract::{Extension, Path, State};
@@ -27,7 +27,7 @@ use uuid::Uuid;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use regelrecht_corpus::annotation_schema::{append_notes_to_sidecar, AppendOutcome};
+use regelrecht_corpus::annotation_schema::{AppendOutcome, append_notes_to_sidecar};
 use regelrecht_editor_api::accounts::AccountRecord;
 use regelrecht_editor_api::corpus_handlers::{get_traject_annotations, save_annotations};
 use regelrecht_editor_api::github_oauth::{self, GithubOAuth};
@@ -158,7 +158,11 @@ async fn read_notes(
 #[tokio::test]
 async fn subpath_traject_reads_legacy_notes_and_saves_at_the_repo_root() {
     let server = MockServer::start().await;
-    std::env::set_var("GITHUB_API_BASE", server.uri());
+    // SAFETY: std locks its own environment access, so the hazard is C code
+    // (a host-name lookup) reading it on another thread. This binary runs this
+    // one test, on tokio's single-threaded runtime, and the test awaits
+    // everything it starts, so no lookup is running elsewhere at this point.
+    unsafe { std::env::set_var("GITHUB_API_BASE", server.uri()) };
 
     let db = TestDb::new().await;
     let seed = tempfile::tempdir().unwrap();
@@ -243,5 +247,6 @@ async fn subpath_traject_reads_legacy_notes_and_saves_at_the_repo_root() {
     // the corpus tests cover the backend read of the root file.
     assert_eq!(read_notes(&state, &account, &tref, &headers).await, written);
 
-    std::env::remove_var("GITHUB_API_BASE");
+    // SAFETY: as at the first `set_var` in this test.
+    unsafe { std::env::remove_var("GITHUB_API_BASE") };
 }

@@ -10,7 +10,7 @@
 use super::dialect::{
     AgentDialect, AgentEvent, Capabilities, CommandRequest, CommandSpec, ToolPolicy,
 };
-use crate::enrich::{claude_model, AgentUsage, LlmProvider, SessionAction};
+use crate::enrich::{AgentUsage, LlmProvider, SessionAction, claude_model};
 
 /// The longest tool target kept in a summary.
 const MAX_TARGET_CHARS: usize = 120;
@@ -50,16 +50,16 @@ impl AgentDialect for ClaudeDialect {
         // If CLAUDE_CODE_OAUTH_TOKEN holds several comma-separated tokens,
         // override the forwarded value with a single one chosen by a
         // time-rotating index, so load spreads across the subscriptions.
-        if let Some(raw) = token {
-            if let Some((idx, count, token)) = select_claude_token(raw, req.rotation_bucket) {
-                // Always apply the selected (trimmed) token — even for a
-                // single token — so stray whitespace or a trailing comma
-                // never reaches claude verbatim. Never log the token value;
-                // only the 1-based position and count.
-                cmd.env
-                    .push(("CLAUDE_CODE_OAUTH_TOKEN".into(), token.to_string()));
-                log_token_rotation(idx, count);
-            }
+        if let Some(raw) = token
+            && let Some((idx, count, token)) = select_claude_token(raw, req.rotation_bucket)
+        {
+            // Always apply the selected (trimmed) token — even for a
+            // single token — so stray whitespace or a trailing comma
+            // never reaches claude verbatim. Never log the token value;
+            // only the 1-based position and count.
+            cmd.env
+                .push(("CLAUDE_CODE_OAUTH_TOKEN".into(), token.to_string()));
+            log_token_rotation(idx, count);
         }
         // Leaving a tool off `--allowedTools` does not take it away: that
         // flag auto-approves, and what it omits merely has to be asked for,
@@ -513,9 +513,10 @@ mod tests {
         assert_eq!(cmd.current_dir.as_deref(), Some(Path::new("/tmp")));
         let args = cmd.args_lossy();
         assert_eq!(args[..2], ["-p", "prompt"]);
-        assert!(args
-            .windows(2)
-            .any(|w| w == ["--output-format", "stream-json"]));
+        assert!(
+            args.windows(2)
+                .any(|w| w == ["--output-format", "stream-json"])
+        );
         assert!(args.iter().any(|a| a == "--include-partial-messages"));
     }
 

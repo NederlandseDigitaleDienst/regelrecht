@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicI64, AtomicU64};
 use std::time::{Duration, Instant};
 
 use axum::extract::State;
-use axum::http::{header, StatusCode};
+use axum::http::{StatusCode, header};
 use axum::response::IntoResponse;
 use prometheus_client::encoding::text::encode;
 use prometheus_client::metrics::family::Family;
@@ -279,10 +279,10 @@ pub async fn metrics_handler(
     // so concurrent scrapers don't redundantly hit the database.
     let mut cache = state.metrics_cache.lock().await;
 
-    if let Some(ref cached) = *cache {
-        if cached.generated_at.elapsed() < CACHE_TTL {
-            return Ok((content_type, cached.body.clone()));
-        }
+    if let Some(ref cached) = *cache
+        && cached.generated_at.elapsed() < CACHE_TTL
+    {
+        return Ok((content_type, cached.body.clone()));
     }
 
     let snapshot = fetch_metrics(&state.pool).await.map_err(|e| {

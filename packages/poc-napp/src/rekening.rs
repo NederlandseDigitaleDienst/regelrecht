@@ -19,13 +19,13 @@
 //! claim flow (parallel branch) creates the registration first, after which
 //! the board can submit the account here. No shadow table.
 
-use axum::extract::State;
 use axum::Json;
+use axum::extract::State;
 use serde::Deserialize;
 use serde_json::json;
 use tower_sessions::Session;
 
-use crate::handlers::{bad_request, forbidden_with, internal_error, session_kvk, ApiError};
+use crate::handlers::{ApiError, bad_request, forbidden_with, internal_error, session_kvk};
 use crate::machtiging::{self, Machtiging};
 use crate::register;
 use crate::state::AppState;

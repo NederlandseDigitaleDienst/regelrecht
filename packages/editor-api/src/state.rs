@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use regelrecht_auth::{ConfiguredClient, OidcAppState, OidcConfig};
-use regelrecht_corpus::backend::RepoBackend;
 use regelrecht_corpus::SourceMap;
+use regelrecht_corpus::backend::RepoBackend;
 use sqlx::PgPool;
 use tokio::sync::{Mutex, RwLock};
 

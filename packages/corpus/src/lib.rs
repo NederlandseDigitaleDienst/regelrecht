@@ -22,7 +22,7 @@ pub use backend::PrInfo;
 #[cfg(feature = "github")]
 pub use backend::SessionGitBackend;
 pub use client::CorpusClient;
-pub use config::{deployment_from_hostname, CorpusConfig};
+pub use config::{CorpusConfig, deployment_from_hostname};
 pub use error::CorpusError;
 #[cfg(feature = "github")]
 pub use github::FetchResult;

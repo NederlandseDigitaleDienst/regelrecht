@@ -8,9 +8,9 @@
 // `allow-*-in-tests` in clippy.toml only reaches `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use regelrecht_corpus::CorpusRegistry;
 use regelrecht_corpus::models::{LocalSource, Source, SourceType};
 use regelrecht_corpus::source_map::SourceMap;
-use regelrecht_corpus::CorpusRegistry;
 use std::path::PathBuf;
 
 fn fixtures_dir() -> PathBuf {
@@ -358,12 +358,13 @@ fn test_multi_repo_both_repos_priority_wins() {
     );
 
     // conflict was recorded
-    assert!(map
-        .resolved_conflicts()
-        .iter()
-        .any(|c| c.law_id == "shared_law"
-            && c.winner_source_id == "repo1"
-            && c.loser_source_id == "repo2"));
+    assert!(
+        map.resolved_conflicts()
+            .iter()
+            .any(|c| c.law_id == "shared_law"
+                && c.winner_source_id == "repo1"
+                && c.loser_source_id == "repo2")
+    );
 }
 
 #[test]

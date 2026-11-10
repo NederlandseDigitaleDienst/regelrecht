@@ -32,8 +32,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 
-use crate::error::{refused, setup, Result};
-use crate::shape::{self, add_field, article_on, Field};
+use crate::error::{Result, refused, setup};
+use crate::shape::{self, Field, add_field, article_on};
 
 /// The stages a decision runs, in order: the first of these pairs that the
 /// procedure of its article holds. For a beschikking the decision itself
@@ -200,14 +200,14 @@ fn derive_shape(
             [] => {
                 return Err(refused(format!(
                     "{reference}: no application asks for this decision (produces requests)"
-                )))
+                )));
             }
             several => {
                 return Err(refused(format!(
                     "{reference}: several applications ask for this decision ({}); the cell \
                      decides on one kind of application per decision",
                     several.join(", ")
-                )))
+                )));
             }
         };
         let (application_law, application_article) = application_reference

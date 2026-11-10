@@ -145,10 +145,10 @@ fn first_difference(a: &Value, b: &Value, path: &str) -> Option<String> {
                         }
                     }
                     (Some(xv), None) => {
-                        return Some(format!("{sub}: source has {xv}, model omits"))
+                        return Some(format!("{sub}: source has {xv}, model omits"));
                     }
                     (None, Some(yv)) => {
-                        return Some(format!("{sub}: source omits, model has {yv}"))
+                        return Some(format!("{sub}: source omits, model has {yv}"));
                     }
                     (None, None) => {}
                 }
@@ -614,15 +614,15 @@ fn branch_matches(schema: &Value, branch: &Value, instance: &Value) -> bool {
             let Some(present) = object.get(key) else {
                 continue;
             };
-            if let Some(constant) = sub.get("const") {
-                if present != constant {
-                    return false;
-                }
+            if let Some(constant) = sub.get("const")
+                && present != constant
+            {
+                return false;
             }
-            if let Some(allowed) = sub.get("enum").and_then(Value::as_array) {
-                if !allowed.contains(present) {
-                    return false;
-                }
+            if let Some(allowed) = sub.get("enum").and_then(Value::as_array)
+                && !allowed.contains(present)
+            {
+                return false;
             }
         }
     }

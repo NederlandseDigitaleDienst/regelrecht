@@ -1,9 +1,9 @@
 //! HTTP handlers: auth (mock eHerkenning + mock SSO fallback), aanvragen,
 //! besluiten, bekendmaking, register en betaalopdrachten.
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::Json;
 use chrono::Utc;
 use regelrecht_auth::{
     SESSION_KEY_AUTHENTICATED, SESSION_KEY_EMAIL, SESSION_KEY_NAME, SESSION_KEY_SUB,

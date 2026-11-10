@@ -32,7 +32,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(doc)]
 use crate::casus::Casus;
-use crate::casus::{casussen as lees_casussen, Regelwerken};
+use crate::casus::{Regelwerken, casussen as lees_casussen};
 use crate::kern::{Corpus, Result};
 
 /// This crate's corpus, under the repository root: the cases under

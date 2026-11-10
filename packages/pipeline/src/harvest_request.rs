@@ -77,13 +77,13 @@ pub async fn request_harvest(
     law_id: &str,
     opts: HarvestRequestOptions,
 ) -> Result<HarvestRequestOutcome> {
-    if let Some(ref date) = opts.date {
-        if let Err(e) = regelrecht_harvester::validate_date(date) {
-            tracing::debug!(law_id = %law_id, date = %date, error = %e, "rejected harvest request: invalid date");
-            return Ok(HarvestRequestOutcome::InvalidDate {
-                reason: e.to_string(),
-            });
-        }
+    if let Some(ref date) = opts.date
+        && let Err(e) = regelrecht_harvester::validate_date(date)
+    {
+        tracing::debug!(law_id = %law_id, date = %date, error = %e, "rejected harvest request: invalid date");
+        return Ok(HarvestRequestOutcome::InvalidDate {
+            reason: e.to_string(),
+        });
     }
 
     let mut tx = pool.begin().await?;

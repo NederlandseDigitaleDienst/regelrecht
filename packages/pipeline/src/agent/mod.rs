@@ -20,8 +20,8 @@ use std::path::Path;
 
 pub use dialect::ToolPolicy;
 pub(crate) use dialect::{AgentDialect, AgentEvent, StepFinish};
-pub(crate) use supervisor::run_llm_subprocess;
 pub use supervisor::AgentRun;
+pub(crate) use supervisor::run_llm_subprocess;
 
 use crate::enrich::LlmProvider;
 

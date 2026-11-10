@@ -1,7 +1,7 @@
 [package]
 name = "regelrecht-tui"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 authors = ["MinBZK <noreply@minbzk.nl>"]
 description = "RegelRecht TUI dashboard for law execution, testing, and monitoring"
 license = "EUPL-1.2"

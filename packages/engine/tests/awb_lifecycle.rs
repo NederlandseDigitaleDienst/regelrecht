@@ -34,9 +34,14 @@ fn load_corpus() -> LawExecutionService {
         .filter_map(|e| e.ok())
     {
         let path = entry.path();
-        if path.is_file() && path.extension().is_some_and(|ext| ext == "yaml") {
-            if let Ok(content) = std::fs::read_to_string(path) {
-                let _ = service.load_law(&content);
+        if path.is_file()
+            && path.extension().is_some_and(|ext| ext == "yaml")
+            && let Ok(content) = std::fs::read_to_string(path)
+        {
+            // A law that does not load is left out; the tests below fail on
+            // the laws they need, so say which one was skipped.
+            if let Err(e) = service.load_law(&content) {
+                eprintln!("skipped {}: {e}", path.display());
             }
         }
     }

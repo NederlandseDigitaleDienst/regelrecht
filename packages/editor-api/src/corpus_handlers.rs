@@ -2,9 +2,9 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Extension, Multipart, Path, Query, State};
 use axum::http::StatusCode;
-use axum::Json;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tower_sessions::Session;
@@ -13,20 +13,20 @@ use uuid::Uuid;
 use regelrecht_auth::handlers::{
     SESSION_KEY_EMAIL, SESSION_KEY_EMAIL_VERIFIED, SESSION_KEY_NAME, SESSION_KEY_SUB,
 };
+use regelrecht_corpus::CorpusError;
 use regelrecht_corpus::annotation_schema::{
-    append_notes_to_sidecar, first_note_not_targeting_law, parse_and_validate_annotation_yaml,
-    validate_annotation_doc, AppendOutcome,
+    AppendOutcome, append_notes_to_sidecar, first_note_not_targeting_law,
+    parse_and_validate_annotation_yaml, validate_annotation_doc,
 };
 use regelrecht_corpus::annotation_sidecar::{self, LegacyFallback};
 use regelrecht_corpus::backend::{EditorUser, PersistOutcome, RepoBackend, WriteContext};
-use regelrecht_corpus::dto::{build_source_summaries, PaginationParams, SourceSummary};
+use regelrecht_corpus::dto::{PaginationParams, SourceSummary, build_source_summaries};
 use regelrecht_corpus::models::SourceType;
 use regelrecht_corpus::source_map::{
-    collect_law_outputs, extract_date_from_path, extract_law_id, validate_yaml_syntax, LoadedLaw,
-    SourceMap,
+    LoadedLaw, SourceMap, collect_law_outputs, extract_date_from_path, extract_law_id,
+    validate_yaml_syntax,
 };
 use regelrecht_corpus::timing;
-use regelrecht_corpus::CorpusError;
 use regelrecht_github::GithubClient;
 
 use crate::accounts::AccountRecord;
@@ -34,7 +34,7 @@ use crate::credentials::{self, TrajectCredentials, WriteAuthorization};
 use crate::state::{AppState, CorpusState};
 use crate::traject_corpus::{ScenarioListEntry, TrajectCorpus, TrajectCorpusError};
 use crate::traject_index_diagnosis::{
-    classify_index_failure, index_failure_to_status, IndexFailureKind, TokenOrigin,
+    IndexFailureKind, TokenOrigin, classify_index_failure, index_failure_to_status,
 };
 use crate::trajects::resolve_traject_ref;
 use crate::user_notes;
@@ -831,10 +831,10 @@ fn filter_corpus_laws_counted(
     let mut entries: Vec<(crate::law_search::Rank, bool, CorpusLawEntry)> = source_map
         .laws()
         .filter_map(|law| {
-            if let Some(source_id) = source_filter {
-                if law.source_id != source_id {
-                    return None;
-                }
+            if let Some(source_id) = source_filter
+                && law.source_id != source_id
+            {
+                return None;
             }
             if params.loaded && !law.is_loaded() {
                 return None;
@@ -1923,13 +1923,13 @@ async fn resolve_backend_for_law(
         .clone();
 
     // 1. Prefer the law's own backend if it can accept writes.
-    if let Some(entry) = corpus.backends.get(&law.source_id) {
-        if entry.writable {
-            return Ok(ResolvedBackend {
-                law,
-                backend: entry.backend.clone(),
-            });
-        }
+    if let Some(entry) = corpus.backends.get(&law.source_id)
+        && entry.writable
+    {
+        return Ok(ResolvedBackend {
+            law,
+            backend: Arc::clone(&entry.backend),
+        });
     }
 
     // 2. Look for another writable backend that contains the same law file
@@ -2801,23 +2801,22 @@ pub async fn save_annotations(
     // write. Schema drift on a committed sidecar is rare, but when it
     // happens the user must get a distinct, actionable error. Accepted
     // limitation documented in RFC-018 §10.
-    if let Some(text) = base_text.as_deref() {
-        if !text.trim().is_empty() {
-            if let Err(errors) = parse_and_validate_annotation_yaml(text) {
-                tracing::warn!(
-                    law_id = %law_id,
-                    errors = ?errors,
-                    "save_annotations: existing sidecar fails the current schema; blocking append"
-                );
-                return Err((
-                    StatusCode::CONFLICT,
-                    "The notes file on the branch is itself invalid against the \
+    if let Some(text) = base_text.as_deref()
+        && !text.trim().is_empty()
+        && let Err(errors) = parse_and_validate_annotation_yaml(text)
+    {
+        tracing::warn!(
+            law_id = %law_id,
+            errors = ?errors,
+            "save_annotations: existing sidecar fails the current schema; blocking append"
+        );
+        return Err((
+            StatusCode::CONFLICT,
+            "The notes file on the branch is itself invalid against the \
                      current schema. This is not a problem with your note; the \
                      existing file must be repaired before new notes can be added."
-                        .to_string(),
-                ));
-            }
-        }
+                .to_string(),
+        ));
     }
 
     // Append-only: keep the base file's bytes verbatim (preserves the
@@ -3559,14 +3558,14 @@ fn check_if_match(
                 return Err((
                     StatusCode::PRECONDITION_FAILED,
                     format!("{noun} bestaat (nog) niet"),
-                ))
+                ));
             }
             (val, Some(etag)) if val == etag.as_str() => {}
             _ => {
                 return Err((
                     StatusCode::PRECONDITION_FAILED,
                     format!("{noun} is intussen door iemand anders gewijzigd"),
-                ))
+                ));
             }
         }
     }
@@ -4351,13 +4350,13 @@ pub async fn promote_corpus_law(
     // zinloos/gevaarlijk (overschrijven van traject-edits). De index kan een
     // blinde vlek hebben (file net gecommit); de per-bestand check verderop
     // is de belt-and-braces.
-    if let Some(law) = traject.corpus.source_map.get_law(&law_id) {
-        if law.source_id == traject.writable_own_source_id {
-            return Err((
-                StatusCode::CONFLICT,
-                "Dit regelwerk staat al in dit traject.".to_string(),
-            ));
-        }
+    if let Some(law) = traject.corpus.source_map.get_law(&law_id)
+        && law.source_id == traject.writable_own_source_id
+    {
+        return Err((
+            StatusCode::CONFLICT,
+            "Dit regelwerk staat al in dit traject.".to_string(),
+        ));
     }
 
     // Verzamel alle te kopiëren bestanden uit de seed-bron(nen), vóórdat de
@@ -4702,13 +4701,12 @@ pub async fn save_traject_document(
     if let Some(ct) = headers
         .get(axum::http::header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
+        && !allowed_document_content_type(ct)
     {
-        if !allowed_document_content_type(ct) {
-            return Err((
-                StatusCode::UNSUPPORTED_MEDIA_TYPE,
-                "Alleen text/markdown of text/plain is toegestaan".to_string(),
-            ));
-        }
+        return Err((
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "Alleen text/markdown of text/plain is toegestaan".to_string(),
+        ));
     }
 
     let traject = require_traject_corpus_from_ref(&state, &session, &traject_ref).await?;
@@ -5854,12 +5852,14 @@ sources:
         // Een bron-id dat niet in deze index bestaat filtert alles weg —
         // geen stille terugval op de volledige lijst.
         let map = two_source_map();
-        assert!(filter_corpus_laws(
-            &map,
-            &HashSet::new(),
-            &params(Some("bestaat-niet"), None, None)
-        )
-        .is_empty());
+        assert!(
+            filter_corpus_laws(
+                &map,
+                &HashSet::new(),
+                &params(Some("bestaat-niet"), None, None)
+            )
+            .is_empty()
+        );
     }
 
     #[test]

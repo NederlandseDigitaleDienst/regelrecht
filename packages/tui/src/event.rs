@@ -36,10 +36,10 @@ where
         }
 
         // Poll for keyboard events with a short timeout for responsiveness
-        if event::poll(Duration::from_millis(50))? {
-            if let Event::Key(key) = event::read()? {
-                handle_key(app, key);
-            }
+        if event::poll(Duration::from_millis(50))?
+            && let Event::Key(key) = event::read()?
+        {
+            handle_key(app, key);
         }
     }
 }

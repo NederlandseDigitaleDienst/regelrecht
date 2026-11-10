@@ -60,20 +60,20 @@ impl BddView {
 
     pub fn scan_features(&mut self, project_root: &Path) {
         let features_dir = project_root.join("features");
-        if features_dir.is_dir() {
-            if let Ok(entries) = std::fs::read_dir(&features_dir) {
-                let mut features: Vec<FeatureEntry> = entries
-                    .flatten()
-                    .filter(|e| e.path().extension().is_some_and(|ext| ext == "feature"))
-                    .map(|e| {
-                        let filename = e.file_name().to_string_lossy().to_string();
-                        let name = filename.trim_end_matches(".feature").replace('_', " ");
-                        FeatureEntry { name, filename }
-                    })
-                    .collect();
-                features.sort_by(|a, b| a.name.cmp(&b.name));
-                self.features = features;
-            }
+        if features_dir.is_dir()
+            && let Ok(entries) = std::fs::read_dir(&features_dir)
+        {
+            let mut features: Vec<FeatureEntry> = entries
+                .flatten()
+                .filter(|e| e.path().extension().is_some_and(|ext| ext == "feature"))
+                .map(|e| {
+                    let filename = e.file_name().to_string_lossy().to_string();
+                    let name = filename.trim_end_matches(".feature").replace('_', " ");
+                    FeatureEntry { name, filename }
+                })
+                .collect();
+            features.sort_by(|a, b| a.name.cmp(&b.name));
+            self.features = features;
         }
         self.scanned = true;
         if !self.features.is_empty() {
@@ -284,10 +284,10 @@ impl BddView {
                     if let Ok(n) = num_str.trim().parse::<usize>() {
                         self.failed = n;
                     }
-                } else if let Some(num_str) = part.strip_suffix(" skipped") {
-                    if let Ok(n) = num_str.trim().parse::<usize>() {
-                        self.skipped = n;
-                    }
+                } else if let Some(num_str) = part.strip_suffix(" skipped")
+                    && let Ok(n) = num_str.trim().parse::<usize>()
+                {
+                    self.skipped = n;
                 }
             }
         }

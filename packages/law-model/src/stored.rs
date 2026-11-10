@@ -95,7 +95,7 @@ pub fn to_stored(value: &Value) -> Result<J, StoredError> {
             J::Object(marker)
         }
         Value::Object(map) if map.contains_key(DECIMAL_KEY) => {
-            return Err(StoredError::ReservedKey(value.to_string()))
+            return Err(StoredError::ReservedKey(value.to_string()));
         }
         Value::Array(items) => J::Array(items.iter().map(to_stored).collect::<Result<_, _>>()?),
         Value::Object(map) => J::Object(

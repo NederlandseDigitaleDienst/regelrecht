@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use regelrecht_editor_api::accounts::AccountRecord;
 use regelrecht_editor_api::state::AppState;
-use regelrecht_editor_api::task_requests::{request_traject_harvest, TrajectHarvestRequest};
+use regelrecht_editor_api::task_requests::{TrajectHarvestRequest, request_traject_harvest};
 
 use regelrecht_pipeline::test_utils::TestDb;
 

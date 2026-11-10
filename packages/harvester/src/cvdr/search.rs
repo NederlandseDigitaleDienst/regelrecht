@@ -210,10 +210,9 @@ fn find_xml_content_url(doc: &Document<'_>, cvdr_id: &str) -> Result<String> {
             if let Some(href) = node
                 .attribute("src")
                 .or_else(|| node.attribute("resourceIdentifier"))
+                && (href.ends_with(".xml") || href.contains("/xml/"))
             {
-                if href.ends_with(".xml") || href.contains("/xml/") {
-                    return Ok(href.to_string());
-                }
+                return Ok(href.to_string());
             }
             if let Some(text) = node.text() {
                 let text = text.trim();
@@ -226,14 +225,15 @@ fn find_xml_content_url(doc: &Document<'_>, cvdr_id: &str) -> Result<String> {
         // Look for gzd:enrichedData containing the XML URL
         if name == "enrichedData" {
             for child in node.descendants() {
-                if child.is_element() && local_name(&child) == "stukIdentifier" {
-                    if let Some(text) = child.text() {
-                        let text = text.trim();
-                        if !text.is_empty() {
-                            // The stukIdentifier often contains a URL to the XML
-                            if text.starts_with("http") {
-                                return Ok(text.to_string());
-                            }
+                if child.is_element()
+                    && local_name(&child) == "stukIdentifier"
+                    && let Some(text) = child.text()
+                {
+                    let text = text.trim();
+                    if !text.is_empty() {
+                        // The stukIdentifier often contains a URL to the XML
+                        if text.starts_with("http") {
+                            return Ok(text.to_string());
                         }
                     }
                 }

@@ -191,7 +191,11 @@ async fn user_token_mode_writes_promote_and_save_through_the_traject_repo() {
     let server = MockServer::start().await;
     // Test-seam (zie `GithubClient::new`): alle clients in dit proces —
     // ook die diep in `build_traject_corpus` — praten tegen wiremock.
-    std::env::set_var("GITHUB_API_BASE", server.uri());
+    // SAFETY: std locks its own environment access, so the hazard is C code
+    // (a host-name lookup) reading it on another thread. This binary runs this
+    // one test, on tokio's single-threaded runtime, and the test awaits
+    // everything it starts, so no lookup is running elsewhere at this point.
+    unsafe { std::env::set_var("GITHUB_API_BASE", server.uri()) };
 
     let db = TestDb::new().await;
     let central = tempfile::tempdir().unwrap();
@@ -307,5 +311,6 @@ async fn user_token_mode_writes_promote_and_save_through_the_traject_repo() {
     // De branch-bootstrap (POST /git/refs, `.expect(1)` op de mock) is
     // precies één keer gebeurd: bij de eerste geslaagde persist, met het
     // user-token. wiremock verifieert dat bij drop van de server.
-    std::env::remove_var("GITHUB_API_BASE");
+    // SAFETY: as at the first `set_var` in this test.
+    unsafe { std::env::remove_var("GITHUB_API_BASE") };
 }

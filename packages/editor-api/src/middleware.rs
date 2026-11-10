@@ -1,8 +1,8 @@
 pub use regelrecht_auth::middleware::{refresh_session_token, require_role};
-pub use regelrecht_auth::security_headers::{security_headers, EDITOR_CSP};
+pub use regelrecht_auth::security_headers::{EDITOR_CSP, security_headers};
 
 use axum::extract::Request;
-use axum::http::{header::HeaderName, HeaderValue};
+use axum::http::{HeaderValue, header::HeaderName};
 use axum::middleware::Next;
 use axum::response::Response;
 use regelrecht_corpus::timing;

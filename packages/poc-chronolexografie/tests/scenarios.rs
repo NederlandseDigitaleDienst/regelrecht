@@ -12,7 +12,7 @@ use std::path::Path;
 use chrono::NaiveDate;
 use regelrecht_poc_chronolexografie::kern::Corpus;
 use regelrecht_poc_chronolexografie::spel::Spel;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 fn spel() -> Spel {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"));

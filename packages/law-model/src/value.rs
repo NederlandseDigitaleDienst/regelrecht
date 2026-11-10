@@ -3,8 +3,8 @@
 //! `Value`, `Operation` and `ParameterType` describe the *format* of a law
 //! document (literals, operation tags, parameter types). They are the canonical
 //! representation re-exported by the engine at `regelrecht_engine::types`.
-use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::Decimal;
+use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -253,10 +253,10 @@ impl<'de> Visitor<'de> for ValueVisitor {
         // usable `missing` list is a plain object, exactly as in
         // `From<serde_json::Value>`: the two readers must agree, and `From`
         // cannot fail. Only a well-formed sentinel becomes an Unknown.
-        if obj.get(UNKNOWN_KEY) == Some(&Value::Bool(true)) {
-            if let Some(missing) = obj.get(MISSING_KEY).and_then(missing_facts_from_value) {
-                return Ok(Value::Unknown(missing));
-            }
+        if obj.get(UNKNOWN_KEY) == Some(&Value::Bool(true))
+            && let Some(missing) = obj.get(MISSING_KEY).and_then(missing_facts_from_value)
+        {
+            return Ok(Value::Unknown(missing));
         }
         Ok(Value::Object(obj))
     }
@@ -1039,11 +1039,13 @@ mod tests {
         assert!(Value::Decimal(dec!(1.5)).to_bool());
         assert!(!Value::Decimal(dec!(0.0)).to_bool());
         // Untranslatable is falsy
-        assert!(!Value::Untranslatable {
-            article: "1".into(),
-            construct: "test".into(),
-        }
-        .to_bool());
+        assert!(
+            !Value::Untranslatable {
+                article: "1".into(),
+                construct: "test".into(),
+            }
+            .to_bool()
+        );
     }
 
     #[test]

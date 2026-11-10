@@ -1,12 +1,12 @@
 use pretty_assertions::assert_eq;
 
 use regelrecht_pipeline::harvest_request::{
-    request_harvest, HarvestRequestOptions, HarvestRequestOutcome,
+    HarvestRequestOptions, HarvestRequestOutcome, request_harvest,
 };
 use regelrecht_pipeline::law_status;
 use regelrecht_pipeline::models::{JobStatus, JobType, LawStatusValue, Priority};
 use regelrecht_pipeline::test_utils::TestDb;
-use regelrecht_pipeline::{job_queue, HarvestPayload};
+use regelrecht_pipeline::{HarvestPayload, job_queue};
 
 const LAW_ID: &str = "BWBR0018451";
 
