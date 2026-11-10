@@ -1015,7 +1015,8 @@ async fn preflight_repo(
 
     // Build the shared GitHub client for the pre-flight. A build
     // failure is an infrastructure problem, not a caller error → 503.
-    let mut client = regelrecht_github::GithubClient::new().map_err(|e| {
+    let github = state.corpus.read().await.github.clone();
+    let mut client = github.client().map_err(|e| {
         tracing::error!(error = %e, "failed to build GitHub client for repo preflight");
         (
             StatusCode::SERVICE_UNAVAILABLE,

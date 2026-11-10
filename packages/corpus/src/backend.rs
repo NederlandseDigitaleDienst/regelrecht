@@ -1479,7 +1479,19 @@ impl RepoBackend for SessionGitBackend {
 /// the same node — or a pod restart racing with a previous instance — do
 /// not share a working directory and corrupt each other's git state during
 /// concurrent `clone`/`pull --rebase`/`push`.
-pub fn create_backend(source: &Source, auth_token: Option<&str>) -> Result<Box<dyn RepoBackend>> {
+///
+/// `settings` supplies the API client for a GitHub source; without the
+/// `github` feature it goes unused.
+///
+/// # Errors
+///
+/// When the GitHub client for a GitHub source cannot be built.
+#[cfg_attr(not(feature = "github"), allow(unused_variables))]
+pub fn create_backend(
+    source: &Source,
+    auth_token: Option<&str>,
+    settings: &crate::GithubSettings,
+) -> Result<Box<dyn RepoBackend>> {
     match &source.source_type {
         SourceType::Local { local } => Ok(Box::new(LocalBackend::new(
             source.id.clone(),
@@ -1492,7 +1504,8 @@ pub fn create_backend(source: &Source, auth_token: Option<&str>) -> Result<Box<d
                 github,
                 None,
                 auth_token.map(str::to_string),
-            )?))
+                settings.client()?,
+            )))
         }
         #[cfg(not(feature = "github"))]
         SourceType::GitHub { github } => {

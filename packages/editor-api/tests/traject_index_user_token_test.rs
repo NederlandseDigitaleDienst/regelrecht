@@ -26,16 +26,16 @@
 //!    noemt. Geen 428 (opnieuw koppelen lost dit niet op) en geen stille
 //!    fallback; `index_error` blijft zichtbaar op `/sources`.
 //!
-//! GitHub wordt gespeeld door wiremock via de proces-brede
-//! `GITHUB_API_BASE`-seam — daarom staan alle scenario's in ÉÉN test.
+//! GitHub wordt gespeeld door wiremock; de `GithubSettings` die de test in de
+//! app-state zet, wijzen de clients daarheen.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod common;
 
 use common::{
-    add_central_seed, insert_traject, seed_account, state_with_user_token_mode, traject_ref,
-    verified_session,
+    add_central_seed, app_state_with_github, github_settings, insert_traject, seed_account,
+    traject_ref, verified_session,
 };
 
 use axum::extract::{Extension, Path, Query, State};
@@ -160,17 +160,9 @@ fn cookie_headers(oauth: &GithubOAuth, account_id: Uuid) -> HeaderMap {
     headers
 }
 
-/// Eén test voor alle scenario's: de `GITHUB_API_BASE`-override is
-/// proces-breed, dus parallelle tests met elk een eigen mockserver zouden
-/// elkaars fetchers verhangen.
 #[tokio::test]
 async fn traject_index_scans_with_user_token_and_fails_loud_without_any_token() {
     let server = MockServer::start().await;
-    // SAFETY: std locks its own environment access, so the hazard is C code
-    // (a host-name lookup) reading it on another thread. This binary runs this
-    // one test, on tokio's single-threaded runtime, and the test awaits
-    // everything it starts, so no lookup is running elsewhere at this point.
-    unsafe { std::env::set_var("GITHUB_API_BASE", server.uri()) };
 
     let db = TestDb::new().await;
     let central = tempfile::tempdir().unwrap();
@@ -178,7 +170,11 @@ async fn traject_index_scans_with_user_token_and_fails_loud_without_any_token() 
     write_central_law(central.path(), SEED_ONLY_LAW);
 
     let oauth = GithubOAuth::for_tests(true); // user-token-modus aan
-    let state = state_with_user_token_mode(db.pool.clone(), oauth.clone());
+    let state = app_state_with_github(
+        Some(db.pool.clone()),
+        Some(oauth.clone()),
+        github_settings(&server.uri(), &[]),
+    );
 
     // Alice heeft haar GitHub-account gekoppeld; Bob (ook lid) niet.
     let (alice_id, alice_sub) = seed_account(&db.pool, "alice@test.local").await;
@@ -397,7 +393,4 @@ async fn traject_index_scans_with_user_token_and_fails_loud_without_any_token() 
         "geen enkele situatie mag terugvallen op de generieke melding, got: {}",
         err.1
     );
-
-    // SAFETY: as at the first `set_var` in this test.
-    unsafe { std::env::remove_var("GITHUB_API_BASE") };
 }

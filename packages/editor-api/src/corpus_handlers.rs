@@ -27,7 +27,6 @@ use regelrecht_corpus::source_map::{
     validate_yaml_syntax,
 };
 use regelrecht_corpus::timing;
-use regelrecht_github::GithubClient;
 
 use crate::accounts::AccountRecord;
 use crate::credentials::{self, TrajectCredentials, WriteAuthorization};
@@ -582,10 +581,9 @@ async fn require_traject_index(scope: &ReadScope) -> Result<(), (StatusCode, Str
 
     let (kind, status, message) = match t.traject.own_source_target() {
         Some(target) => {
-            // Plain `new()`: it honours the same `GITHUB_API_BASE` seam the
-            // scan's own client did, so the probe reaches the same host that
-            // just refused it.
-            let kind = match GithubClient::new() {
+            // From the traject's own settings, like the scan's client, so the
+            // probe reaches the same host that just refused it.
+            let kind = match t.traject.corpus.github.client() {
                 Ok(client) => classify_index_failure(&client, &target, token).await,
                 // No client, nothing to probe with — an infrastructure
                 // fault of our own, not a diagnosis.
@@ -2209,13 +2207,10 @@ async fn require_traject_corpus_from_ref_with_scan_token(
         ));
     }
 
-    let auth_file = {
-        let corpus = state.corpus.read().await;
-        corpus.auth_file.clone()
-    };
+    let github = state.corpus.read().await.github.clone();
     state
         .trajects
-        .get_or_build(pool, traject_id, auth_file, own_scan_token)
+        .get_or_build(pool, traject_id, &github, own_scan_token)
         .await
         .map_err(|e| traject_corpus_error(traject_id, e))
 }
@@ -3248,7 +3243,7 @@ pub async fn reload_corpus(
     // Gather everything we need under a read lock so concurrent readers
     // (law fetches, scenario loads, dependency resolution) are not blocked
     // for the duration of the GitHub round-trip.
-    let (registry, auth_file, mut law_ids) = {
+    let (registry, github, mut law_ids) = {
         let corpus = state.corpus.read().await;
         // Only the laws whose bodies were loaded: the rest of each source is
         // held by path and indexed again below, and fetching every body here
@@ -3261,7 +3256,7 @@ pub async fn reload_corpus(
             .filter(|l| l.is_loaded())
             .map(|l| l.law_id.clone())
             .collect();
-        (corpus.registry.clone(), corpus.auth_file.clone(), law_ids)
+        (corpus.registry.clone(), corpus.github.clone(), law_ids)
     };
 
     // Include any extras the caller explicitly requests (e.g. a freshly
@@ -3273,11 +3268,7 @@ pub async fn reload_corpus(
     }
 
     let mut new_map = registry
-        .load_favorites_async(
-            &law_ids,
-            auth_file.as_deref(),
-            &regelrecht_shared::dates::today_str(),
-        )
+        .load_favorites_async(&law_ids, &github, &regelrecht_shared::dates::today_str())
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "corpus reload failed");
@@ -3290,7 +3281,7 @@ pub async fn reload_corpus(
     // then the rest of each source by path.
     new_map.prefer_version_in_force();
     let index_failures: std::collections::HashMap<String, String> = registry
-        .index_github_sources_into(&mut new_map, auth_file.as_deref())
+        .index_github_sources_into(&mut new_map, &github)
         .await
         .into_iter()
         .map(|f| (f.source_id, f.error))

@@ -253,7 +253,7 @@ mod tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn client_for(server: &MockServer) -> GithubClient {
-        GithubClient::new().unwrap().with_base_url(server.uri())
+        GithubClient::from_base(Some(&server.uri())).unwrap()
     }
 
     fn ok_repo_body(default_branch: &str, push: bool, private: bool) -> serde_json::Value {

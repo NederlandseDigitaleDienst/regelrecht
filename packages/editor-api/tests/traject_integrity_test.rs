@@ -17,19 +17,17 @@
 //! * dat een tweede aanroep zonder nieuwe commits geen enkele body opnieuw
 //!   leest (de memo op blob-sha).
 //!
-//! GitHub wordt gespeeld door wiremock via de proces-brede
-//! `GITHUB_API_BASE`-seam en het service-token komt uit een env var — beide
-//! proces-breed, dus alle scenario's staan in ÉÉN test (zelfde afweging als
-//! `service_token_write_precedence_test.rs`). Alle namen zijn fictief: dit is
-//! een publieke repo.
+//! GitHub wordt gespeeld door wiremock. De `GithubSettings` die de test in
+//! de app-state zet, wijzen de clients daarheen en dragen ook het
+//! service-token. Alle namen zijn fictief: dit is een publieke repo.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod common;
 
 use common::{
-    add_central_seed, insert_traject, seed_account, session_for, state_with_user_token_mode,
-    traject_ref,
+    add_central_seed, app_state_with_github, github_settings, insert_traject, seed_account,
+    session_for, traject_ref,
 };
 
 use axum::extract::{Extension, Path, State};
@@ -185,13 +183,6 @@ async fn contents_requests(server: &MockServer) -> usize {
 #[tokio::test]
 async fn integrity_scan_reads_with_the_service_token_and_memoises_bodies() {
     let server = MockServer::start().await;
-    // SAFETY: std locks its own environment access, so the hazard is C code
-    // (a host-name lookup) reading it on another thread. This binary runs this
-    // one test, on tokio's single-threaded runtime, and the test awaits
-    // everything it starts, so no lookup is running elsewhere at this point.
-    unsafe { std::env::set_var("GITHUB_API_BASE", server.uri()) };
-    // SAFETY: as at the first `set_var` in this test.
-    unsafe { std::env::set_var(SERVICE_TOKEN_ENV, SERVICE_TOKEN) };
 
     let db = TestDb::new().await;
     let central = tempfile::tempdir().unwrap();
@@ -200,7 +191,11 @@ async fn integrity_scan_reads_with_the_service_token_and_memoises_bodies() {
     // User-token-modus AAN én een gebruiker zónder gekoppeld GitHub-account:
     // een writable-own met service-token mag daar niet op stuklopen.
     let oauth = GithubOAuth::for_tests(true);
-    let state = state_with_user_token_mode(db.pool.clone(), oauth);
+    let state = app_state_with_github(
+        Some(db.pool.clone()),
+        Some(oauth),
+        github_settings(&server.uri(), &[(SERVICE_TOKEN_ENV, SERVICE_TOKEN)]),
+    );
 
     let (owner_id, sub) = seed_account(&db.pool, "alice@test.local").await;
     let account = AccountRecord {

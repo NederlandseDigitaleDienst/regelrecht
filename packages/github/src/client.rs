@@ -265,30 +265,35 @@ pub struct GithubClient {
 
 impl GithubClient {
     /// Build a client pointed at `api.github.com`, or at whatever
-    /// `GITHUB_API_BASE` names when that env var is set.
+    /// `GITHUB_API_BASE` names when that env var is set (a GitHub Enterprise
+    /// seam; production deployments leave it unset). The variable is read
+    /// once, here at construction.
     ///
-    /// The env override is read **once, here at construction**. It is the
-    /// load-bearing test seam: the client is built deep inside backend /
-    /// registry code with no config plumbing to inject a base URL, so the
-    /// integration tests stand up a wiremock GitHub and point every client in
-    /// the process at it via this env var. It doubles as a GitHub Enterprise
-    /// seam; production deployments leave it unset.
+    /// # Errors
+    ///
+    /// When the HTTP client cannot be built.
     pub fn new() -> Result<Self> {
+        Self::from_base(std::env::var("GITHUB_API_BASE").ok().as_deref())
+    }
+
+    /// Build a client pointed at `api_base`, read the way `GITHUB_API_BASE`
+    /// is: trimmed, without a trailing slash, and `api.github.com` when it is
+    /// `None` or blank. Code that receives its settings, rather than reading
+    /// the process environment, builds its client here.
+    ///
+    /// # Errors
+    ///
+    /// When the HTTP client cannot be built.
+    pub fn from_base(api_base: Option<&str>) -> Result<Self> {
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(30))
             .timeout(Duration::from_secs(60))
             .build()
             .map_err(|e| GithubError::Config(format!("failed to create HTTP client: {e}")))?;
 
-        let api_base = std::env::var("GITHUB_API_BASE")
-            .ok()
-            .map(|s| s.trim().trim_end_matches('/').to_string())
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| "https://api.github.com".to_string());
-
         Ok(Self {
             client,
-            api_base,
+            api_base: api_base_from(api_base),
             cache_budget: RESPONSE_CACHE_BUDGET_BYTES,
             state: Mutex::new(ClientState::default()),
         })
@@ -315,8 +320,8 @@ impl GithubClient {
     }
 
     /// In-place variant of [`with_base_url`](Self::with_base_url) for call
-    /// sites that already hold the client by `&mut` (e.g. a backend reaching
-    /// through its guard to repoint the client at a test server).
+    /// sites that already hold the client by `&mut` (e.g. the repo preflight,
+    /// which repoints its client at the OAuth configuration's API base).
     pub fn set_base_url(&mut self, base_url: impl Into<String>) {
         self.api_base = base_url.into().trim_end_matches('/').to_string();
     }
@@ -532,6 +537,16 @@ impl GithubClient {
     }
 }
 
+/// The API base for a `GITHUB_API_BASE` value: trimmed, without a trailing
+/// slash, and `https://api.github.com` when it is unset or blank.
+fn api_base_from(value: Option<&str>) -> String {
+    value
+        .map(|s| s.trim().trim_end_matches('/'))
+        .filter(|s| !s.is_empty())
+        .unwrap_or("https://api.github.com")
+        .to_string()
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
@@ -539,42 +554,14 @@ mod tests {
     use wiremock::matchers::{header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    fn set_env(key: &str, value: &str) {
-        // SAFETY: std locks its own environment access, so the hazard is C code
-        // reading the environment on another thread. The tests in this crate talk
-        // to mock servers on 127.0.0.1 and resolve no host names, the C path that
-        // would read it.
-        unsafe { std::env::set_var(key, value) };
-    }
-
-    fn remove_env(key: &str) {
-        // SAFETY: as in `set_env`.
-        unsafe { std::env::remove_var(key) };
-    }
-
-    // `GITHUB_API_BASE` mutates process-global env, which every test in this
-    // binary shares, so the env-sensitive assertions live in this ONE test.
-    // No other test may read or write that var — not even defensively — because
-    // a `remove_var` racing this test's `set_var` makes it fail intermittently.
-    // Tests that need a specific base URL use `with_base_url`/`set_base_url`.
     #[test]
-    fn env_base_url_is_read_at_construction_and_trimmed() {
-        // Unset: falls back to api.github.com.
-        remove_env("GITHUB_API_BASE");
-        let c = GithubClient::new().unwrap();
-        assert_eq!(c.api_base, "https://api.github.com");
-
-        // Set with a trailing slash: trimmed.
-        set_env("GITHUB_API_BASE", "https://ghe.example.test/api/v3/");
-        let c = GithubClient::new().unwrap();
-        assert_eq!(c.api_base, "https://ghe.example.test/api/v3");
-
-        // Blank / whitespace-only: ignored, back to the default.
-        set_env("GITHUB_API_BASE", "   ");
-        let c = GithubClient::new().unwrap();
-        assert_eq!(c.api_base, "https://api.github.com");
-
-        remove_env("GITHUB_API_BASE");
+    fn api_base_falls_back_to_github_and_is_trimmed() {
+        assert_eq!(api_base_from(None), "https://api.github.com");
+        assert_eq!(
+            api_base_from(Some("https://ghe.example.test/api/v3/")),
+            "https://ghe.example.test/api/v3"
+        );
+        assert_eq!(api_base_from(Some("   ")), "https://api.github.com");
     }
 
     #[test]
@@ -712,7 +699,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = GithubClient::new().unwrap().with_base_url(server.uri());
+        let client = GithubClient::from_base(Some(&server.uri())).unwrap();
         let url = format!("{}/probe", client.api_base);
 
         // First call: no cached etag, store the one we get back.

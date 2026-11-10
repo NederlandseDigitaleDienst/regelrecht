@@ -37,9 +37,8 @@ fn backend(server: &MockServer) -> GitHubApiBackend {
         &src,
         Some("main".to_string()),
         Some("test-token".to_string()),
+        regelrecht_github::GithubClient::from_base(Some(&server.uri())).unwrap(),
     )
-    .unwrap()
-    .with_api_base(server.uri())
 }
 
 /// A 404 only counts as absence once the repo has proven readable —
@@ -606,9 +605,12 @@ async fn sub_path_prefixes_api_calls() {
         .await;
 
     let src = github_source("acme", "corpus", "traject/abc", Some("regulation/nl"));
-    let b = GitHubApiBackend::new(&src, Some("main".to_string()), Some("t".to_string()))
-        .unwrap()
-        .with_api_base(server.uri());
+    let b = GitHubApiBackend::new(
+        &src,
+        Some("main".to_string()),
+        Some("t".to_string()),
+        regelrecht_github::GithubClient::from_base(Some(&server.uri())).unwrap(),
+    );
     let got = b.read_file(Path::new("wet/x.yaml")).await.unwrap();
     assert_eq!(got.as_deref(), Some("c"));
 }
@@ -633,9 +635,12 @@ async fn changed_files_maps_compare_to_source_relative_paths() {
         .await;
 
     let src = github_source("acme", "corpus", "traject/abc", Some("regulation/nl"));
-    let b = GitHubApiBackend::new(&src, Some("main".to_string()), Some("t".to_string()))
-        .unwrap()
-        .with_api_base(server.uri());
+    let b = GitHubApiBackend::new(
+        &src,
+        Some("main".to_string()),
+        Some("t".to_string()),
+        regelrecht_github::GithubClient::from_base(Some(&server.uri())).unwrap(),
+    );
 
     let mut changed = b.changed_files().await.unwrap();
     changed.sort();
@@ -673,9 +678,12 @@ async fn changed_files_without_token_is_empty_and_makes_no_request() {
     // No mounted mock: any HTTP call would 404 from wiremock. A read-only
     // backend (no token) must short-circuit before hitting the network.
     let src = github_source("acme", "corpus", "traject/abc", None);
-    let b = GitHubApiBackend::new(&src, Some("main".to_string()), None)
-        .unwrap()
-        .with_api_base(server.uri());
+    let b = GitHubApiBackend::new(
+        &src,
+        Some("main".to_string()),
+        None,
+        regelrecht_github::GithubClient::from_base(Some(&server.uri())).unwrap(),
+    );
     assert!(b.changed_files().await.unwrap().is_empty());
 }
 
@@ -909,9 +917,12 @@ async fn changed_files_with_token_compares_as_the_user_without_a_service_token()
         .await;
 
     let src = github_source("acme", "corpus", "traject/abc", None);
-    let b = GitHubApiBackend::new(&src, Some("main".to_string()), None)
-        .unwrap()
-        .with_api_base(server.uri());
+    let b = GitHubApiBackend::new(
+        &src,
+        Some("main".to_string()),
+        None,
+        regelrecht_github::GithubClient::from_base(Some(&server.uri())).unwrap(),
+    );
 
     let changed = b
         .changed_files_with_token(Some("user-token"))
@@ -950,9 +961,12 @@ async fn changed_files_with_no_token_at_all_stays_empty() {
     // Neither an override nor a configured token: still a short-circuit
     // before the network (no mounted mock would answer).
     let src = github_source("acme", "corpus", "traject/abc", None);
-    let b = GitHubApiBackend::new(&src, Some("main".to_string()), None)
-        .unwrap()
-        .with_api_base(server.uri());
+    let b = GitHubApiBackend::new(
+        &src,
+        Some("main".to_string()),
+        None,
+        regelrecht_github::GithubClient::from_base(Some(&server.uri())).unwrap(),
+    );
     assert!(b.changed_files_with_token(None).await.unwrap().is_empty());
 }
 
@@ -967,9 +981,12 @@ const LEGACY_SIDECAR: &str =
 
 fn subpath_backend(server: &MockServer, sub: Option<&str>) -> GitHubApiBackend {
     let src = github_source("acme", "corpus", "traject/abc", sub);
-    GitHubApiBackend::new(&src, Some("main".to_string()), Some("t".to_string()))
-        .unwrap()
-        .with_api_base(server.uri())
+    GitHubApiBackend::new(
+        &src,
+        Some("main".to_string()),
+        Some("t".to_string()),
+        regelrecht_github::GithubClient::from_base(Some(&server.uri())).unwrap(),
+    )
 }
 
 fn contents_file(path: &str, sha: &str, body: &str) -> ResponseTemplate {

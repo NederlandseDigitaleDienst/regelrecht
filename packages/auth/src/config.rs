@@ -1,6 +1,8 @@
 //! Shared OIDC configuration, loaded from environment variables.
-
-use std::env;
+//!
+//! Each parser takes the variable lookup as a parameter, so tests pass their
+//! own values instead of changing the process environment.
+//! [`parse_oidc_from_env`] and [`parse_base_url`] pass [`process_env`].
 
 #[derive(Clone)]
 pub struct OidcConfig {
@@ -26,22 +28,44 @@ impl std::fmt::Debug for OidcConfig {
 /// Returns `None` when `OIDC_CLIENT_ID` is not set, `Some(config)` when
 /// all required variables are present, or an error string when the
 /// configuration is incomplete.
+///
+/// # Errors
+///
+/// When `OIDC_CLIENT_ID` is set but the secret or the issuer is missing.
 pub fn parse_oidc_from_env() -> Result<Option<OidcConfig>, String> {
-    match env::var("OIDC_CLIENT_ID").ok() {
+    parse_oidc_from(process_env)
+}
+
+/// [`parse_oidc_from_env`] with the variables read through `env`.
+///
+/// # Errors
+///
+/// As [`parse_oidc_from_env`].
+pub fn parse_oidc_from(env: impl Fn(&str) -> Option<String>) -> Result<Option<OidcConfig>, String> {
+    match env("OIDC_CLIENT_ID") {
         None => Ok(None),
-        Some(client_id) => Ok(Some(parse_oidc_config(client_id)?)),
+        Some(client_id) => Ok(Some(parse_oidc_config(client_id, &env)?)),
     }
 }
 
-fn parse_oidc_config(client_id: String) -> Result<OidcConfig, String> {
-    let client_secret = env::var("OIDC_CLIENT_SECRET").unwrap_or_default();
+/// Reads a variable from the process environment; a value that is not valid
+/// Unicode counts as unset.
+pub fn process_env(key: &str) -> Option<String> {
+    std::env::var(key).ok()
+}
+
+fn parse_oidc_config(
+    client_id: String,
+    env: &impl Fn(&str) -> Option<String>,
+) -> Result<OidcConfig, String> {
+    let client_secret = env("OIDC_CLIENT_SECRET").unwrap_or_default();
     if client_secret.is_empty() {
         return Err("OIDC_CLIENT_ID is set but OIDC_CLIENT_SECRET is missing. \
              Refusing to start without complete OIDC configuration."
             .to_string());
     }
 
-    let issuer_url = resolve_issuer_url()?;
+    let issuer_url = resolve_issuer_url(env)?;
 
     // Minimum realm role required to log in (the login gate). Typically
     // `<app>-reader`. Per-route `require_role` middleware layers finer-grained
@@ -49,8 +73,7 @@ fn parse_oidc_config(client_id: String) -> Result<OidcConfig, String> {
     // with the pre-RBAC deployment; operators should set it explicitly to the
     // per-app reader role (`editor-reader` / `harvester-reader`) once the
     // migration in `docs/auth-and-roles.md` is complete.
-    let required_role = env::var("OIDC_REQUIRED_ROLE")
-        .ok()
+    let required_role = env("OIDC_REQUIRED_ROLE")
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| {
             tracing::warn!(
@@ -69,9 +92,9 @@ fn parse_oidc_config(client_id: String) -> Result<OidcConfig, String> {
     })
 }
 
-fn resolve_issuer_url() -> Result<String, String> {
+fn resolve_issuer_url(env: &impl Fn(&str) -> Option<String>) -> Result<String, String> {
     // OIDC_DISCOVERY_URL takes priority (RIG-style injection)
-    if let Ok(discovery_url) = env::var("OIDC_DISCOVERY_URL")
+    if let Some(discovery_url) = env("OIDC_DISCOVERY_URL")
         && !discovery_url.is_empty()
     {
         // Strip /.well-known/openid-configuration suffix if present
@@ -83,8 +106,8 @@ fn resolve_issuer_url() -> Result<String, String> {
     }
 
     // Fallback: construct from KEYCLOAK_BASE_URL + KEYCLOAK_REALM
-    let base = env::var("KEYCLOAK_BASE_URL").unwrap_or_default();
-    let realm = env::var("KEYCLOAK_REALM").unwrap_or_default();
+    let base = env("KEYCLOAK_BASE_URL").unwrap_or_default();
+    let realm = env("KEYCLOAK_REALM").unwrap_or_default();
 
     if !base.is_empty() && !realm.is_empty() {
         let issuer = format!("{}/realms/{}", base.trim_end_matches('/'), realm);
@@ -98,9 +121,21 @@ fn resolve_issuer_url() -> Result<String, String> {
 }
 
 /// Parse `BASE_URL` from the environment. Returns validated URL or error.
+///
+/// # Errors
+///
+/// When `BASE_URL` is set but is not a valid URL.
 pub fn parse_base_url() -> Result<Option<String>, String> {
-    let base_url = env::var("BASE_URL")
-        .ok()
+    parse_base_url_from(process_env)
+}
+
+/// [`parse_base_url`] with the variable read through `env`.
+///
+/// # Errors
+///
+/// As [`parse_base_url`].
+pub fn parse_base_url_from(env: impl Fn(&str) -> Option<String>) -> Result<Option<String>, String> {
+    let base_url = env("BASE_URL")
         .filter(|s| !s.is_empty())
         .map(|s| {
             let trimmed = s.trim_end_matches('/').to_string();
@@ -116,62 +151,47 @@ pub fn parse_base_url() -> Result<Option<String>, String> {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
+    use std::collections::HashMap;
 
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
-
-    fn set_env(key: &str, value: &str) {
-        // SAFETY: std locks its own environment access, so the hazard is C code
-        // reading the environment on another thread. No unit test in this crate
-        // resolves a host name or calls libc time functions, and every test
-        // that changes these variables holds `ENV_LOCK`.
-        unsafe { env::set_var(key, value) };
+    /// A lookup over fixed values, standing in for the process environment.
+    fn env_of(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> + use<> {
+        let vars: HashMap<String, String> = pairs
+            .iter()
+            .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+            .collect();
+        move |key| vars.get(key).cloned()
     }
 
-    fn remove_env(key: &str) {
-        // SAFETY: as in `set_env`.
-        unsafe { env::remove_var(key) };
-    }
-
-    const OIDC_VARS: &[&str] = &[
-        "OIDC_CLIENT_ID",
-        "OIDC_CLIENT_SECRET",
-        "OIDC_DISCOVERY_URL",
-        "KEYCLOAK_BASE_URL",
-        "KEYCLOAK_REALM",
-        "OIDC_REQUIRED_ROLE",
+    const COMPLETE_OIDC: &[(&str, &str)] = &[
+        ("OIDC_CLIENT_ID", "test-client"),
+        ("OIDC_CLIENT_SECRET", "secret"),
+        ("KEYCLOAK_BASE_URL", "https://keycloak.example.com"),
+        ("KEYCLOAK_REALM", "test-realm"),
+        ("OIDC_REQUIRED_ROLE", "editor-reader"),
     ];
 
-    fn clear_oidc_env() {
-        for var in OIDC_VARS {
-            remove_env(var);
-        }
-    }
-
-    fn set_complete_oidc_env() {
-        set_env("OIDC_CLIENT_ID", "test-client");
-        set_env("OIDC_CLIENT_SECRET", "secret");
-        set_env("KEYCLOAK_BASE_URL", "https://keycloak.example.com");
-        set_env("KEYCLOAK_REALM", "test-realm");
-        set_env("OIDC_REQUIRED_ROLE", "editor-reader");
+    /// [`COMPLETE_OIDC`] with `extra` added, replacing a key it already has.
+    fn complete_with(extra: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> + use<> {
+        let mut pairs: Vec<(&str, &str)> = COMPLETE_OIDC
+            .iter()
+            .filter(|(k, _)| !extra.iter().any(|(e, _)| e == k))
+            .copied()
+            .collect();
+        pairs.extend_from_slice(extra);
+        env_of(&pairs)
     }
 
     #[test]
     fn no_oidc_vars_returns_none() {
-        let _lock = ENV_LOCK.lock();
-        clear_oidc_env();
-
-        let result = parse_oidc_from_env().expect("should succeed");
+        let result = parse_oidc_from(env_of(&[])).expect("should succeed");
         assert!(result.is_none());
     }
 
     #[test]
     fn complete_keycloak_vars_enables_auth() {
-        let _lock = ENV_LOCK.lock();
-        clear_oidc_env();
-        set_complete_oidc_env();
-
-        let oidc = parse_oidc_from_env().expect("should succeed").unwrap();
+        let oidc = parse_oidc_from(env_of(COMPLETE_OIDC))
+            .expect("should succeed")
+            .unwrap();
         assert_eq!(oidc.client_id, "test-client");
         assert_eq!(oidc.client_secret, "secret");
         assert_eq!(
@@ -179,93 +199,67 @@ mod tests {
             "https://keycloak.example.com/realms/test-realm"
         );
         assert_eq!(oidc.required_role, "editor-reader");
-
-        clear_oidc_env();
     }
 
     #[test]
     fn discovery_url_takes_priority() {
-        let _lock = ENV_LOCK.lock();
-        clear_oidc_env();
-        set_complete_oidc_env();
-        set_env(
+        let env = complete_with(&[(
             "OIDC_DISCOVERY_URL",
             "https://idp.example.com/realms/my-realm/.well-known/openid-configuration",
-        );
-
-        let oidc = parse_oidc_from_env().expect("should succeed").unwrap();
+        )]);
+        let oidc = parse_oidc_from(env).expect("should succeed").unwrap();
         assert_eq!(oidc.issuer_url, "https://idp.example.com/realms/my-realm");
-
-        clear_oidc_env();
     }
 
     #[test]
     fn missing_secret_is_error() {
-        let _lock = ENV_LOCK.lock();
-        clear_oidc_env();
-        set_env("OIDC_CLIENT_ID", "test-client");
-
-        let result = parse_oidc_from_env();
+        let result = parse_oidc_from(env_of(&[("OIDC_CLIENT_ID", "test-client")]));
         assert!(result.is_err());
-
-        clear_oidc_env();
     }
 
     #[test]
     fn missing_issuer_is_error() {
-        let _lock = ENV_LOCK.lock();
-        clear_oidc_env();
-        set_env("OIDC_CLIENT_ID", "test-client");
-        set_env("OIDC_CLIENT_SECRET", "secret");
-
-        let result = parse_oidc_from_env();
+        let result = parse_oidc_from(env_of(&[
+            ("OIDC_CLIENT_ID", "test-client"),
+            ("OIDC_CLIENT_SECRET", "secret"),
+        ]));
         assert!(result.is_err());
-
-        clear_oidc_env();
     }
 
     #[test]
     fn missing_required_role_defaults_to_allowed_user() {
-        let _lock = ENV_LOCK.lock();
-        clear_oidc_env();
-        set_env("OIDC_CLIENT_ID", "test-client");
-        set_env("OIDC_CLIENT_SECRET", "secret");
-        set_env("KEYCLOAK_BASE_URL", "https://keycloak.example.com");
-        set_env("KEYCLOAK_REALM", "test-realm");
-        // No OIDC_REQUIRED_ROLE — falls back to `allowed-user`.
-
-        let oidc = parse_oidc_from_env().expect("should succeed").unwrap();
+        let env = env_of(&[
+            ("OIDC_CLIENT_ID", "test-client"),
+            ("OIDC_CLIENT_SECRET", "secret"),
+            ("KEYCLOAK_BASE_URL", "https://keycloak.example.com"),
+            ("KEYCLOAK_REALM", "test-realm"),
+        ]);
+        let oidc = parse_oidc_from(env).expect("should succeed").unwrap();
         assert_eq!(oidc.required_role, "allowed-user");
-
-        clear_oidc_env();
     }
 
     #[test]
     fn empty_required_role_defaults_to_allowed_user() {
-        let _lock = ENV_LOCK.lock();
-        clear_oidc_env();
-        set_env("OIDC_CLIENT_ID", "test-client");
-        set_env("OIDC_CLIENT_SECRET", "secret");
-        set_env("KEYCLOAK_BASE_URL", "https://keycloak.example.com");
-        set_env("KEYCLOAK_REALM", "test-realm");
-        set_env("OIDC_REQUIRED_ROLE", "");
-
-        let oidc = parse_oidc_from_env().expect("should succeed").unwrap();
+        let env = complete_with(&[("OIDC_REQUIRED_ROLE", "")]);
+        let oidc = parse_oidc_from(env).expect("should succeed").unwrap();
         assert_eq!(oidc.required_role, "allowed-user");
-
-        clear_oidc_env();
     }
 
     #[test]
     fn custom_role_from_env() {
-        let _lock = ENV_LOCK.lock();
-        clear_oidc_env();
-        set_complete_oidc_env();
-        set_env("OIDC_REQUIRED_ROLE", "harvester-admin");
-
-        let oidc = parse_oidc_from_env().expect("should succeed").unwrap();
+        let env = complete_with(&[("OIDC_REQUIRED_ROLE", "harvester-admin")]);
+        let oidc = parse_oidc_from(env).expect("should succeed").unwrap();
         assert_eq!(oidc.required_role, "harvester-admin");
+    }
 
-        clear_oidc_env();
+    #[test]
+    fn base_url_is_trimmed_and_validated() {
+        let env = env_of(&[("BASE_URL", "https://editor.example.com/")]);
+        assert_eq!(
+            parse_base_url_from(env).unwrap().as_deref(),
+            Some("https://editor.example.com")
+        );
+        assert!(parse_base_url_from(env_of(&[("BASE_URL", "not a url")])).is_err());
+        assert_eq!(parse_base_url_from(env_of(&[])).unwrap(), None);
     }
 }

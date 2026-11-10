@@ -5,17 +5,16 @@
 //! subpath stay readable, and the next save builds on them but writes the
 //! merged result to the repository root.
 //!
-//! GitHub is played by wiremock; `GITHUB_API_BASE` (the test seam in
-//! `GithubClient::new`) points every client at it. Everything runs in ONE
-//! test so that process-wide env var cannot race between parallel tests.
+//! GitHub is played by wiremock; the `GithubSettings` the test puts in the
+//! app state point every client at it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod common;
 
 use common::{
-    TEST_EMAIL, TEST_NAME, add_central_seed, insert_traject, seed_account_record, session_for,
-    state_with_user_token_mode, traject_ref,
+    TEST_EMAIL, TEST_NAME, add_central_seed, app_state_with_github, github_settings,
+    insert_traject, seed_account_record, session_for, traject_ref,
 };
 
 use axum::extract::{Extension, Path, State};
@@ -158,11 +157,6 @@ async fn read_notes(
 #[tokio::test]
 async fn subpath_traject_reads_legacy_notes_and_saves_at_the_repo_root() {
     let server = MockServer::start().await;
-    // SAFETY: std locks its own environment access, so the hazard is C code
-    // (a host-name lookup) reading it on another thread. This binary runs this
-    // one test, on tokio's single-threaded runtime, and the test awaits
-    // everything it starts, so no lookup is running elsewhere at this point.
-    unsafe { std::env::set_var("GITHUB_API_BASE", server.uri()) };
 
     let db = TestDb::new().await;
     let seed = tempfile::tempdir().unwrap();
@@ -175,7 +169,11 @@ async fn subpath_traject_reads_legacy_notes_and_saves_at_the_repo_root() {
     .unwrap();
 
     let oauth = GithubOAuth::for_tests(true);
-    let state = state_with_user_token_mode(db.pool.clone(), oauth.clone());
+    let state = app_state_with_github(
+        Some(db.pool.clone()),
+        Some(oauth.clone()),
+        github_settings(&server.uri(), &[]),
+    );
     let account = seed_account_record(&db.pool, TEST_EMAIL, TEST_NAME).await;
     let tref = traject_ref(seeded_traject(&db.pool, account.id, seed.path()).await);
 
@@ -246,7 +244,4 @@ async fn subpath_traject_reads_legacy_notes_and_saves_at_the_repo_root() {
     // sidecar cache the save filled (read-your-writes), not from GitHub;
     // the corpus tests cover the backend read of the root file.
     assert_eq!(read_notes(&state, &account, &tref, &headers).await, written);
-
-    // SAFETY: as at the first `set_var` in this test.
-    unsafe { std::env::remove_var("GITHUB_API_BASE") };
 }

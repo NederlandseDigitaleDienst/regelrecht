@@ -16,9 +16,8 @@
 //!   koppel-flow), terwijl reads die de writable-own niet raken (seed-wetten,
 //!   de wettenlijst) gewoon blijven werken.
 //!
-//! GitHub wordt gespeeld door wiremock via de proces-brede
-//! `GITHUB_API_BASE`-seam — daarom staan alle scenario's in ÉÉN test
-//! (zelfde afweging als `promote_user_token_write_test.rs`). De indexscan
+//! GitHub wordt gespeeld door wiremock; de `GithubSettings` die de test in de
+//! app-state zet, wijzen de clients daarheen. De indexscan
 //! (Trees API) is hier bewust wél leesbaar zonder token: het ticket
 //! repareert de request-gebonden reads, niet de scan — de fixture zet dus
 //! een gevulde index neer en laat alleen de Contents-reads authenticatie
@@ -29,8 +28,8 @@
 mod common;
 
 use common::{
-    add_central_seed, contents_file_json, insert_traject, seed_account, session_for,
-    state_with_user_token_mode, traject_ref,
+    add_central_seed, app_state_with_github, contents_file_json, github_settings, insert_traject,
+    seed_account, session_for, traject_ref,
 };
 
 use axum::extract::{Extension, Path, Query, State};
@@ -195,24 +194,20 @@ fn all_query() -> Query<PaginationParams> {
     })
 }
 
-/// Eén test voor alle scenario's: de `GITHUB_API_BASE`-override is
-/// proces-breed, dus parallelle tests met elk een eigen mockserver zouden
-/// elkaars fetchers verhangen.
 #[tokio::test]
 async fn user_token_reads_serve_the_private_traject_repo_and_fail_loud_without_link() {
     let server = MockServer::start().await;
-    // SAFETY: std locks its own environment access, so the hazard is C code
-    // (a host-name lookup) reading it on another thread. This binary runs this
-    // one test, on tokio's single-threaded runtime, and the test awaits
-    // everything it starts, so no lookup is running elsewhere at this point.
-    unsafe { std::env::set_var("GITHUB_API_BASE", server.uri()) };
 
     let db = TestDb::new().await;
     let central = tempfile::tempdir().unwrap();
     write_seed_law(central.path());
 
     let oauth = GithubOAuth::for_tests(true); // user-token-modus aan
-    let state = state_with_user_token_mode(db.pool.clone(), oauth.clone());
+    let state = app_state_with_github(
+        Some(db.pool.clone()),
+        Some(oauth.clone()),
+        github_settings(&server.uri(), &[]),
+    );
 
     let (owner_id, sub) = seed_account(&db.pool, "alice@test.local").await;
     let account = AccountRecord {
@@ -385,7 +380,4 @@ async fn user_token_reads_serve_the_private_traject_repo_and_fail_loud_without_l
         body, BRANCH_SCENARIO,
         "de branchversie (via user-token) moet de seed-kopie overrulen"
     );
-
-    // SAFETY: as at the first `set_var` in this test.
-    unsafe { std::env::remove_var("GITHUB_API_BASE") };
 }

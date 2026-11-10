@@ -62,35 +62,41 @@ pub fn upstream_url(
 }
 
 impl Config {
-    /// Point this configuration at another static root.
+    /// Read the configuration from the process environment, or explain what
+    /// is missing.
     ///
-    /// For tests: `POC_STATIC_DIR` is process-wide, so a test that sets it
-    /// races every other test in the binary — which is how a passing suite
-    /// still failed one run in five. Building the config and then moving it
-    /// keeps that choice on the test rather than on the environment.
-    #[must_use]
-    pub fn met_static_root(mut self, root: impl Into<String>) -> Self {
-        self.static_root = root.into();
-        self
+    /// # Errors
+    ///
+    /// When the register does not parse, or the cookie secret or a PoC's
+    /// password is missing.
+    pub fn from_env(registry_yaml: &str) -> Result<Self, ConfigError> {
+        Self::from_lookup(registry_yaml, |key| std::env::var(key).ok())
     }
 
-    /// Read the configuration, or explain what is missing.
-    pub fn from_env(registry_yaml: &str) -> Result<Self, ConfigError> {
+    /// [`Config::from_env`] with every variable read through `env`, so a test
+    /// passes its own values instead of changing the process environment.
+    ///
+    /// # Errors
+    ///
+    /// As [`Config::from_env`].
+    pub fn from_lookup(
+        registry_yaml: &str,
+        env: impl Fn(&str) -> Option<String>,
+    ) -> Result<Self, ConfigError> {
         let registry =
             Registry::from_yaml(registry_yaml).map_err(|e| ConfigError::Registry(e.to_string()))?;
 
-        let secret = std::env::var("POC_COOKIE_SECRET").map_err(|_| ConfigError::NoSecret)?;
+        let secret = env("POC_COOKIE_SECRET").ok_or(ConfigError::NoSecret)?;
         let sleutel = Sleutel::new(&secret).map_err(ConfigError::BadSecret)?;
 
         let mut wachtwoorden = HashMap::new();
         for poc in &registry.pocs {
-            let env = poc.wachtwoord_env();
-            let value = std::env::var(&env)
-                .ok()
+            let env_name = poc.wachtwoord_env();
+            let value = env(&env_name)
                 .filter(|v| !v.trim().is_empty())
                 .ok_or_else(|| ConfigError::NoPassword {
                     slug: poc.slug.clone(),
-                    env: env.clone(),
+                    env: env_name.clone(),
                 })?;
             wachtwoorden.insert(poc.slug.clone(), value);
         }
@@ -99,14 +105,9 @@ impl Config {
             registry,
             sleutel,
             wachtwoorden,
-            static_root: std::env::var("POC_STATIC_DIR")
-                .unwrap_or_else(|_| "/app/static".to_string()),
-            port: std::env::var("POC_PORT")
-                .ok()
-                .and_then(|p| p.parse().ok())
-                .unwrap_or(8000),
-            deployment: std::env::var("HOSTNAME")
-                .ok()
+            static_root: env("POC_STATIC_DIR").unwrap_or_else(|| "/app/static".to_string()),
+            port: env("POC_PORT").and_then(|p| p.parse().ok()).unwrap_or(8000),
+            deployment: env("HOSTNAME")
                 .as_deref()
                 .and_then(regelrecht_corpus::deployment_from_hostname),
         })

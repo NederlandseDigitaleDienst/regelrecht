@@ -9,6 +9,8 @@
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
+use std::collections::HashMap;
+
 use tower::ServiceExt as _;
 
 use regelrecht_poc_portal::app::{AppState, router};
@@ -35,30 +37,33 @@ pocs:
     voorbehoud: Doorgelopen met experts, maar nog steeds een demonstratie.
 "#;
 
-fn set_env(key: &str, value: impl AsRef<std::ffi::OsStr>) {
-    // SAFETY: std locks its own environment access, so the hazard is C code
-    // reading the environment on another thread. These tests drive the router
-    // in-process and resolve no host names, the C path that would read it.
-    unsafe { std::env::set_var(key, value) };
+/// The variables every portal in these tests gets: the cookie secret, the
+/// passwords of alfa and beta, and a static root that does not exist. `extra`
+/// adds to them or replaces one. Each test passes its own values, so none of
+/// them touches the process environment.
+fn env_with(extra: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> + use<> {
+    let vars: HashMap<String, String> = [
+        ("POC_COOKIE_SECRET", SECRET),
+        ("POC_PW_ALFA", "alfa-geheim"),
+        ("POC_PW_BETA", "beta-geheim"),
+        ("POC_STATIC_DIR", "/nonexistent"),
+    ]
+    .into_iter()
+    .chain(extra.iter().copied())
+    .map(|(k, v)| (k.to_string(), v.to_string()))
+    .collect();
+    move |key| vars.get(key).cloned()
 }
 
-fn remove_env(key: &str) {
-    // SAFETY: as in `set_env`.
-    unsafe { std::env::remove_var(key) };
+/// A portal over `register`, configured from `env_with(extra)`.
+fn portal(register: &str, extra: &[(&str, &str)]) -> axum::Router {
+    let config = Config::from_lookup(register, env_with(extra)).expect("config");
+    router(AppState::with_env(config, env_with(extra)))
 }
 
 /// Build a portal over a register of two static PoCs.
 fn app() -> axum::Router {
-    // Only the variables every test agrees on are set here, and they are always
-    // set to the same values. The static root is not among them: it differs per
-    // test, and a process-wide variable that differs per test is a race.
-    set_env("POC_COOKIE_SECRET", SECRET);
-    set_env("POC_PW_ALFA", "alfa-geheim");
-    set_env("POC_PW_BETA", "beta-geheim");
-    let config = Config::from_env(REGISTER)
-        .expect("config")
-        .met_static_root("/nonexistent");
-    router(AppState::new(config))
+    portal(REGISTER, &[])
 }
 
 /// Een portaal waarin alfa een beleidsassistent heeft en beta niet.
@@ -67,13 +72,7 @@ fn app_met_assistent() -> axum::Router {
         "    bron: poc-alfa\n",
         "    bron: poc-alfa\n    assistent: true\n",
     );
-    set_env("POC_COOKIE_SECRET", SECRET);
-    set_env("POC_PW_ALFA", "alfa-geheim");
-    set_env("POC_PW_BETA", "beta-geheim");
-    let config = Config::from_env(&register)
-        .expect("config")
-        .met_static_root("/nonexistent");
-    router(AppState::new(config))
+    portal(&register, &[])
 }
 
 fn cookie_voor(slug: &str) -> String {
@@ -257,16 +256,7 @@ async fn a_poc_page_carries_the_notice_and_its_assets_do_not() {
     .expect("index");
     std::fs::write(dir.join("alfa/app.js"), "console.log(1)").expect("js");
 
-    // The static root is set on the config, not through POC_STATIC_DIR: that
-    // variable is process-wide, and setting it here raced the other tests in
-    // this binary (one failure in five runs).
-    set_env("POC_COOKIE_SECRET", SECRET);
-    set_env("POC_PW_ALFA", "alfa-geheim");
-    set_env("POC_PW_BETA", "beta-geheim");
-    let config = Config::from_env(REGISTER)
-        .expect("config")
-        .met_static_root(dir.to_string_lossy().into_owned());
-    let app = router(AppState::new(config));
+    let app = portal(REGISTER, &[("POC_STATIC_DIR", &dir.to_string_lossy())]);
 
     let (_, html) = get(&app, "/alfa/", Some(&cookie_voor("alfa"))).await;
     assert!(html.contains("data-poc-portaal"), "{html}");
@@ -292,13 +282,7 @@ async fn a_deep_link_into_a_poc_gets_its_index_and_a_missing_file_a_404() {
     )
     .expect("index");
 
-    set_env("POC_COOKIE_SECRET", SECRET);
-    set_env("POC_PW_ALFA", "alfa-geheim");
-    set_env("POC_PW_BETA", "beta-geheim");
-    let config = Config::from_env(REGISTER)
-        .expect("config")
-        .met_static_root(dir.to_string_lossy().into_owned());
-    let app = router(AppState::new(config));
+    let app = portal(REGISTER, &[("POC_STATIC_DIR", &dir.to_string_lossy())]);
 
     let (status, html) = get(
         &app,
@@ -375,22 +359,13 @@ async fn every_answer_carries_the_security_headers() {
 async fn a_config_without_a_password_refuses_to_start() {
     // The failure mode this guards is a PoC in the register that is served to
     // anyone because its env var was forgotten.
-    set_env("POC_COOKIE_SECRET", SECRET);
-    // Ook de wachtwoorden van het basisregister zetten, en niet erop vertrouwen
-    // dat een andere test dat al deed: de omgeving is procesbreed en de tests
-    // draaien parallel. Liep deze eerst, dan struikelde `from_env` over
-    // POC_PW_ALFA en ging de assertie over gamma nooit op -- een test die faalt
-    // op de volgorde waarin hij toevallig draait, niet op wat hij bewaakt.
-    set_env("POC_PW_ALFA", "alfa-geheim");
-    set_env("POC_PW_BETA", "beta-geheim");
-    remove_env("POC_PW_GAMMA");
     let register = format!(
         "{REGISTER}  - slug: gamma\n    titel: G\n    samenvatting: S\n    soort: statisch\n    \
          bron: b\n    status: verkenning\n    voorbehoud: Een demonstratie, geen geldend recht.\n"
     );
     // `Config` holds the signing key and every password, so it deliberately
     // does not derive Debug — hence matching rather than `expect_err`.
-    match Config::from_env(&register) {
+    match Config::from_lookup(&register, env_with(&[])) {
         Ok(_) => panic!("a PoC without a password must not start"),
         Err(e) => assert!(e.to_string().contains("POC_PW_GAMMA"), "{e}"),
     }
@@ -398,8 +373,7 @@ async fn a_config_without_a_password_refuses_to_start() {
 
 /// A portal in which alfa has two sources: `poortlokaal` from a local folder
 /// (`POC_BRON_POORTLOKAAL`) and `poortzonder` with neither a folder nor a
-/// token. The names are this test's own, so no other test sets their
-/// variables.
+/// token.
 fn app_met_bronnen(dir: &std::path::Path) -> axum::Router {
     let bron = |naam: &str| {
         format!(
@@ -417,14 +391,10 @@ fn app_met_bronnen(dir: &std::path::Path) -> axum::Router {
             bron("poortzonder")
         ),
     );
-    set_env("POC_COOKIE_SECRET", SECRET);
-    set_env("POC_PW_ALFA", "alfa-geheim");
-    set_env("POC_PW_BETA", "beta-geheim");
-    set_env("POC_BRON_POORTLOKAAL", dir);
-    let config = Config::from_env(&register)
-        .expect("config")
-        .met_static_root("/nonexistent");
-    router(AppState::new(config))
+    portal(
+        &register,
+        &[("POC_BRON_POORTLOKAAL", &dir.to_string_lossy())],
+    )
 }
 
 #[tokio::test]

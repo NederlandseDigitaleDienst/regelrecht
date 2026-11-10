@@ -17,20 +17,17 @@
 //!   user-token-flow blijft werken — de save committet met het gekoppelde
 //!   token (regressiebescherming).
 //!
-//! GitHub wordt gespeeld door wiremock via de proces-brede
-//! `GITHUB_API_BASE`-seam — daarom staan alle scenario's in ÉÉN test
-//! (zelfde afweging als `promote_user_token_write_test.rs`). Het
-//! service-token komt uit een env var en is dus eveneens proces-breed;
-//! test-binaries zijn aparte processen, dus dit lekt niet naar andere
-//! testbestanden.
+//! GitHub wordt gespeeld door wiremock. De `GithubSettings` die de test in
+//! de app-state zet, wijzen de clients daarheen en dragen ook het
+//! service-token.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod common;
 
 use common::{
-    add_central_seed, insert_traject, seed_account, session_for, state_with_user_token_mode,
-    traject_ref,
+    add_central_seed, app_state_with_github, github_settings, insert_traject, seed_account,
+    session_for, traject_ref,
 };
 
 use axum::extract::{Extension, Path, State};
@@ -154,26 +151,20 @@ async fn received_put_auths(server: &MockServer) -> Vec<String> {
         .collect()
 }
 
-/// Eén test voor alle scenario's: de `GITHUB_API_BASE`-override en het
-/// `CORPUS_AUTH_*`-service-token zijn proces-brede env vars, dus parallelle
-/// tests zouden elkaars configuratie verhangen.
 #[tokio::test]
 async fn service_token_takes_precedence_on_writes_and_github_403_maps_to_dutch_403() {
     let server = MockServer::start().await;
-    // SAFETY: std locks its own environment access, so the hazard is C code
-    // (a host-name lookup) reading it on another thread. This binary runs this
-    // one test, on tokio's single-threaded runtime, and the test awaits
-    // everything it starts, so no lookup is running elsewhere at this point.
-    unsafe { std::env::set_var("GITHUB_API_BASE", server.uri()) };
-    // SAFETY: as at the first `set_var` in this test.
-    unsafe { std::env::set_var(SERVICE_TOKEN_ENV, SERVICE_TOKEN) };
 
     let db = TestDb::new().await;
     let central = tempfile::tempdir().unwrap();
     write_central_laws(central.path());
 
     let oauth = GithubOAuth::for_tests(true); // user-token-schrijfmodus AAN
-    let state = state_with_user_token_mode(db.pool.clone(), oauth.clone());
+    let state = app_state_with_github(
+        Some(db.pool.clone()),
+        Some(oauth.clone()),
+        github_settings(&server.uri(), &[(SERVICE_TOKEN_ENV, SERVICE_TOKEN)]),
+    );
 
     let (owner_id, sub) = seed_account(&db.pool, "alice@test.local").await;
     let account = AccountRecord {
@@ -349,9 +340,4 @@ async fn service_token_takes_precedence_on_writes_and_github_403_maps_to_dutch_4
     )
     .await
     .expect("save op een token-loze repo moet met het gekoppelde token slagen");
-
-    // SAFETY: as at the first `set_var` in this test.
-    unsafe { std::env::remove_var(SERVICE_TOKEN_ENV) };
-    // SAFETY: as at the first `set_var` in this test.
-    unsafe { std::env::remove_var("GITHUB_API_BASE") };
 }

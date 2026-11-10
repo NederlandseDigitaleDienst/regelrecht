@@ -55,7 +55,7 @@
 use axum::http::{HeaderMap, StatusCode};
 use uuid::Uuid;
 
-use regelrecht_corpus::auth::{CredentialResolver, TokenContext, TokenDecision, token_env_name};
+use regelrecht_corpus::auth::{TokenContext, TokenDecision, token_env_name};
 use regelrecht_corpus::backend::{EditorUser, RepoBackend, WriteContext};
 
 use crate::github_oauth::{self, GithubOAuth};
@@ -340,11 +340,9 @@ impl<'a> TrajectCredentials<'a> {
         &self,
         auth_ref: &str,
     ) -> Result<String, (StatusCode, String)> {
-        let auth_file = {
-            let corpus = self.state.corpus.read().await;
-            corpus.auth_file.clone()
-        };
-        let service_token = CredentialResolver::new(auth_file.as_deref())
+        let github = self.state.corpus.read().await.github.clone();
+        let service_token = github
+            .credentials()
             .resolve(TokenContext::strict(auth_ref))
             .map(TokenDecision::into_token)
             .map_err(|e| {

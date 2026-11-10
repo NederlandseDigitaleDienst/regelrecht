@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use regelrecht_auth::{ConfiguredClient, OidcAppState, OidcConfig};
@@ -93,8 +92,9 @@ pub struct CorpusState {
     /// the same abstraction as writes — preventing read/write path
     /// mismatches when a fallback writable backend is used.
     pub backends: HashMap<String, BackendEntry>,
-    /// Path to corpus-auth.yaml for GitHub authentication during reload.
-    pub auth_file: Option<PathBuf>,
+    /// How this server reaches GitHub: the API base, `corpus-auth.yaml` and
+    /// the token variables. Read once at startup; tests build their own.
+    pub github: regelrecht_corpus::GithubSettings,
     /// Source id → error of the last failed index scan for that source.
     /// Sources absent from this map enumerated fine. Surfaced on
     /// `GET /api/sources` (and the traject variant) as `index_error`, so a
@@ -177,7 +177,7 @@ impl CorpusState {
             registry: regelrecht_corpus::CorpusRegistry::empty(),
             source_map: SourceMap::new(regelrecht_shared::dates::today_str()),
             backends: HashMap::new(),
-            auth_file: None,
+            github: regelrecht_corpus::GithubSettings::none(),
             index_failures: HashMap::new(),
             lazy_bodies: Default::default(),
         }
