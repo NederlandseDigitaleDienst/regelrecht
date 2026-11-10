@@ -59,6 +59,16 @@ A chronicle holds three kinds of entry. An executogram is a fact that an article
 
 A chronolexogram does not copy anything the law already says. The law in force on `recorded_on` tells where each field came from and on what legal basis. To see which fields were the authority's findings, the cell takes the decision again (a replay). The chronicle only grows: entries are added in date order and never changed.
 
+### One chronicle per cell
+
+The position paper lets a cell keep more than one chronicle: "Een chronolexocel kan één of meerdere chronolexokronieken beheren". Each has a time axis of its own. Within a chronicle the chronolexograms have a defined order, and "die ordening bestaat niet over kronieken heen". How a cell divides its facts over its chronicles, the paper lists as further research.
+
+The implementation keeps one chronicle per cell, and the cell's rules lean on its order. A decision is taken on the chronicle as it stood before it, and a replay reads that same prefix. A fact or a receipt refers to a record before it. A decision revokes only what its `refers_to` chain reaches, and a projection plays its aggregates record by record.
+
+Splitting the chronicle keeps those rules intact as long as a record lands in the chronicle of the record it refers to. It breaks them where a decision in one chronicle asks for an answer from another. OBS De Klimop decides on leave (Leerplichtwet 1969, article 13a) with the school's establishment, a fact under a rulework of its own that refers to no application. Split by rulework, that decision reads a second chronicle, and "as it stood before the decision" no longer says where to stop reading there. The only measure that crosses chronicles is the calendar date, which is the ordering the paper rules out. Between cells the PoC already reads by date (`known_on`), and whether that holds is the open question of a second date.
+
+The rule that a date may not go back does not call for a split either. A cell records on the day it records, so records made in real time never go back. A fact that took place earlier is recorded today, with its earlier day as the moment that counts (`moment`). In the PoC every case starts its cells anew, so the parking permits and the disabled parking cards of Wilgendaal never share a chronicle. The choices a second chronicle needs are on [the open questions page](/concepts/chronolexography/open-questions).
+
 ## Recording and deciding
 
 - `Cell::record_submission` runs the article that establishes the submission. It runs that article at the stage named after the kind of submission, so the hooks on the submission run too. A required field that is missing goes under `missing`, because an incomplete application is still an application (Awb 4:5). The moment the law counts from is the day the cell records the submission. A submission may refer to a decision (`refers_to`), as an objection does. The cell does not store what the article and its hooks give. `Cell::submission_outputs` computes it again from the fields, under the law in force on `recorded_on`. A decision on the submission computes it the same way, for example whether an objection came in time (Awb 6:9).
