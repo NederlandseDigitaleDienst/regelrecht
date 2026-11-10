@@ -6,7 +6,7 @@
 // match with its source and priority (lower = searched first: the traject's
 // own repo, then the example rulework, then the central corpus).
 
-import type { CorpusLaw } from '../composables/useCorpusLaws';
+import type { CorpusLaw } from '../corpus';
 
 export interface SourceGroup {
   sourceId: string;

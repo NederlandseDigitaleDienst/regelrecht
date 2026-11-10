@@ -2,7 +2,6 @@
 import { ref, computed, shallowRef, nextTick, watch, watchEffect, onBeforeUnmount, inject } from 'vue';
 import { useRoute, useRouter, onBeforeRouteUpdate, onBeforeRouteLeave } from 'vue-router';
 import type { RouteLocationNormalized } from 'vue-router';
-import * as yaml from 'js-yaml';
 import type { NLDDButton } from '@nldd/design-system/button';
 import type { NLDDModalDialog } from '@nldd/design-system/modal-dialog';
 import type { NLDDSearchField } from '@nldd/design-system/search-field';
@@ -29,15 +28,14 @@ import {
   toggleLocalFavorite,
   moveLocalFavoritesToAccount,
 } from './composables/useLocalFavorites';
-import { useCorpusLaws } from './composables/useCorpusLaws';
+import { useCorpus } from './corpus';
 // useEnrichState (bovenop useTaskActions), niet useTasks: LibraryView heeft
 // alleen gerichte refreshes nodig - na een geannuleerde job, na een eigen
 // aanvraag - en mag daarvoor niet de 30s-poll aanzetten (die hoort bij de
 // taken-componenten, en anonieme bezoekers pollen nooit).
 import { useEnrichState } from './composables/useEnrichState';
-import { lawFetchInit } from './composables/useLaw';
 import { useTrajects, refreshTrajects } from './composables/useTrajects';
-import { lawsListUrl, lawUrl, lawUploadUrl, changedLawsUrl, favoritesUrl, favoriteUrl } from './composables/corpusUrls';
+import { lawUploadUrl, favoritesUrl, favoriteUrl } from './composables/corpusUrls';
 import { SUPPORT_EMAIL, paneChromeVisible } from './constants';
 import { registerSearchPopover, setLibraryEmpty, openSearch } from './composables/useAppChrome';
 import { homeTarget } from './composables/useLastVisitedRoute';
@@ -46,7 +44,7 @@ import { useTrajectDocumentJobs } from './composables/useTrajectDocumentJobs';
 import { useDocumentUpload } from './composables/useDocumentUpload';
 import { useAddActions } from './composables/useAddActions';
 import { useDocumentTaskReview } from './composables/useDocumentTaskReview';
-import { humanizeLawId } from './lib/lawName';
+import { humanizeLawId, resolveLawName } from './lib/lawName';
 import { officialTextUrl } from './lib/searchResults';
 import { sameTraject } from './lib/taskReview';
 import { apiFetch, apiFetchJson, ApiError } from './lib/apiFetch';
@@ -56,7 +54,7 @@ import { holdRetryFloor, RETRY_MIN_SPINNER_MS } from './lib/retryFeedback';
 import { singleParam } from './lib/routeParams';
 import type { RequestError } from './lib/apiFetch';
 import type { ExecutionAction, LawArticle, LawDocument } from './lib/lawFormat';
-import type { CorpusLaw } from './composables/useCorpusLaws';
+import type { CorpusLaw } from './corpus';
 import type { RunningTaskJob } from './composables/useTasks';
 import type { UploadResult } from './lib/uploadMultipart';
 
@@ -531,11 +529,12 @@ function goToTakenCategorie({ categorie, lawId }: CategorySelection) {
     params: { trajectRef: activeTrajectRef.value, categorie, contextLawId: lawId || undefined },
   });
 }
-// Titel van de gekozen categorie, voor zowel de top-title-bar als de kop in
-// main. Een wet-context draagt de weergavenaam (de route draagt alleen het
-// law_id); useCorpusLaws deelt zijn scope-cache met TasksCategoriesPane, dus
-// dit is geen tweede fetch.
-const { displayName: corpusLawName } = useCorpusLaws(activeTrajectRef);
+// Title of the chosen category, for both the top title bar and the heading in
+// main. A law context carries the display name (the route carries only the
+// law_id); the corpus reader shares its names list with TasksCategoriesPane,
+// so this is not a second fetch.
+const corpus = useCorpus();
+const corpusLawName = corpus.displayName;
 const TAKEN_TITELS: Record<string, string> = {
   alle: 'Alle taken',
   prioriteit: 'Prioriteit',
@@ -1113,16 +1112,15 @@ function onDetailTabChange(e: CustomEvent<{ item?: NLDDTabBarItem } | null>) {
 // entry is fetched there too, for the GitHub link on Algemeen (`source_url`).
 const lawEntry = shallowRef<CorpusLaw | null>(null);
 const claimLawEntry = useLatest();
+// The traject is a trigger only: the corpus reader reads the active one.
 watch(
   [selectedLawId, activeTrajectRef],
-  async ([lawId, trajectRef]) => {
+  async ([lawId]) => {
     const isCurrent = claimLawEntry();
     lawEntry.value = null;
     if (!lawId) return;
     try {
-      const list = await apiFetchJson<CorpusLaw[]>(
-        lawsListUrl(trajectRef, `ids=${encodeURIComponent(lawId)}`),
-      );
+      const { laws: list } = await corpus.searchLaws({ ids: [lawId] });
       if (isCurrent()) lawEntry.value = list.find((l) => l.law_id === lawId) ?? null;
     } catch {
       // Unknown, so treat it as text only: the safe side for a public page.
@@ -1327,14 +1325,8 @@ function resolveLawReference(value: unknown): unknown {
   return null;
 }
 
-const lawName = computed(() => {
-  if (!selectedLaw.value) return '';
-  const nameRef = selectedLaw.value.name;
-  const resolved = resolveLawReference(nameRef);
-  // The YAML is unchecked; a name (or the action output it points at) is a string.
-  if (resolved) return resolved as string;
-  return humanizeLawId(selectedLaw.value.$id || selectedLaw.value.law_id || '');
-});
+// The same name the editor shows: a reference resolves only to a literal string.
+const lawName = computed(() => (selectedLaw.value ? resolveLawName(selectedLaw.value as LawDocument) : ''));
 
 /**
  * Metadata for a law id from whatever the sidebar has loaded: the `?ids=` set
@@ -1617,10 +1609,10 @@ async function loadFavorites(trajectRef: string | null | undefined, isCurrent: (
 // hidden instead of surfacing an error in the sidebar. The backend returns
 // an empty array (not an error) when nothing has been saved yet, which maps
 // to an empty Set and a hidden section all the same.
-async function fetchChangedLawIds(trajectRef: string | null | undefined): Promise<Set<string> | null> {
-  if (!trajectRef) return null;
+async function fetchChangedLawIds(): Promise<Set<string> | null> {
   try {
-    return new Set(await apiFetchJson<string[]>(changedLawsUrl(trajectRef)));
+    const ids = await corpus.changedLaws();
+    return ids ? new Set(ids) : null;
   } catch {
     // Any failure (HTTP or network) just hides the section - see above.
     return null;
@@ -1632,8 +1624,8 @@ async function fetchChangedLawIds(trajectRef: string | null | undefined): Promis
 // `useLawPromote` and `AddLawSheet` already use). Federated sources are
 // deliberately left out: the central one is the full BWB corpus.
 //
-// Why not reuse `useCorpusLaws` (already instantiated above, and it does hold
-// `source_priority`): its list is the UNFILTERED route, which the backend
+// Why not reuse the corpus reader's names list (it does hold
+// `source_priority`): that list is the UNFILTERED route, which the backend
 // sorts by `law_id` across every source and then truncates at the limit. A
 // traject that federates the central BWB corpus can therefore lose its own
 // laws past that cap - they simply sort too late - and filtering the result on
@@ -1727,7 +1719,7 @@ async function loadIndex() {
     // its own branch. Both are id-only.
     const [, changedIds] = await Promise.all([
       loadFavorites(trajectRef, isCurrent),
-      fetchChangedLawIds(trajectRef),
+      fetchChangedLawIds(),
     ]);
     if (!isCurrent()) return;
     changedLawIds.value = changedIds;
@@ -1745,21 +1737,13 @@ async function loadIndex() {
       // Probe die status ook zonder ids, zodat de gebruiker de foutstatus
       // ziet in plaats van een normaal ogende lege bibliotheek.
       if (trajectRef) {
-        await apiFetch(lawsListUrl(trajectRef, 'limit=1'), {
-          errorMessage: (status) => `Failed to load corpus: ${status}`,
-        });
+        await corpus.searchLaws({ limit: 1 });
         if (!isCurrent()) return;
       }
       laws.value = [];
       return;
     }
-    const query = `ids=${encodeURIComponent([...ids].join(','))}&limit=1000`;
-    const res = await apiFetch(lawsListUrl(trajectRef, query), {
-      errorMessage: (status) => `Failed to load corpus: ${status}`,
-    });
-    // Gate before and after json(): skip parsing for stale 200s, and catch races during it.
-    if (!isCurrent()) return;
-    const corpusLaws = (await res.json()) as CorpusLaw[];
+    const { laws: corpusLaws } = await corpus.searchLaws({ ids: [...ids], limit: 1000 });
     if (!isCurrent()) return;
     laws.value = corpusLaws.sort((a, b) => a.law_id.localeCompare(b.law_id));
   } catch (e) {
@@ -1780,15 +1764,13 @@ async function loadLaw(lawId: string, { minLoadingMs = 0 }: { minLoadingMs?: num
   let failed = false;
   try {
     selectedLawLoading.value = true;
-    const res = await apiFetch(lawUrl(activeTrajectRef.value, lawId), lawFetchInit);
-    // Gate before and after `res.text()`: skip the body read for stale 200s, and catch races during it.
+    // Fresh: the library shows what the traject holds now, including edits
+    // by others since this rulework was last opened here.
+    const body = await corpus.law(lawId, { fresh: true });
     if (!isCurrent()) return;
-    const text = await res.text();
-    if (!isCurrent()) return;
+    selectedLawText.value = body.rawYaml;
     // Unchecked YAML: the types say what the view reads, nothing validates it.
-    const parsed = yaml.load(text) as LibraryLawDocument | null;
-    selectedLawText.value = text;
-    selectedLaw.value = parsed;
+    selectedLaw.value = body.law as LibraryLawDocument | null;
     // selectedArticleNumber is set from the route on initial mount and via
     // onBeforeRouteUpdate; we don't validate here so an invalid number
     // surfaces as the articleNotFound error state instead of being silently
@@ -1797,7 +1779,7 @@ async function loadLaw(lawId: string, { minLoadingMs = 0 }: { minLoadingMs?: num
     if (!isCurrent()) return;
     failed = true;
     selectedLaw.value = null;
-    // apiFetch throws an ApiError (with status), a network failure a TypeError,
+    // The reader throws an ApiError (with status), a network failure a TypeError,
     // a bad YAML body a YAMLException: all Errors.
     lawError.value = e as RequestError;
   } finally {

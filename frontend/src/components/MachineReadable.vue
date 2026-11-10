@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { isRawDefinition, type ExecutionAction, type ExecutionField, type MachineReadableSection, type RawDefinition } from '../lib/lawFormat';
 import { formatDefinitionValue } from '../lib/definitionForm';
-import { computed, inject, ref, toRef, watch, nextTick } from 'vue';
+import { computed, inject, ref, watch, nextTick } from 'vue';
 import { humanize } from '../utils/outputFormat';
 import { decisionOf } from '@regelrecht/frontend-shared/produces';
 import type { Decision, ProducedItem } from '@regelrecht/frontend-shared/produces';
-import { useCorpusLaws } from '../composables/useCorpusLaws';
+import { useCorpus } from '../corpus';
 import BreakableName from './BreakableName.vue';
 import RowActionsMenu from './RowActionsMenu.vue';
 import MachineEmptyState from './MachineEmptyState.vue';
@@ -58,9 +58,6 @@ const props = withDefaults(defineProps<{
   /** True while a save PUT is in flight */
   saving?: boolean;
   /** Error from the most recent save attempt (Error instance or null) */
-  /** Active traject ref - scopes the corpus-laws lookup so display
-   *  names reflect the traject's view (including its in-progress edits). */
-  trajectRef?: string | null;
   /** Read-only context: offer a button that opens the editor so the missing
    *  machine-readable version can be created there. Ignored when `editable`,
    *  which seeds it in place instead. */
@@ -96,7 +93,6 @@ const props = withDefaults(defineProps<{
   editable: false,
   dirty: false,
   saving: false,
-  trajectRef: null,
   canCreate: false,
   canEnrich: false,
   needs: '',
@@ -111,7 +107,7 @@ const props = withDefaults(defineProps<{
   links: () => new Map(),
 });
 
-const { displayName: lawDisplayName } = useCorpusLaws(toRef(props, 'trajectRef'));
+const { displayName: lawDisplayName } = useCorpus();
 
 // Provided by AppShell; see LibraryView's "Bewerken" button.
 const onLoginTriggerPointerdown = inject('onLoginTriggerPointerdown', () => {});
@@ -410,7 +406,6 @@ function addOutput() {
         :article="article"
         :law="law"
         :law-id="lawId"
-        :traject-ref="trajectRef"
         :editable="editable"
         :links="links"
         @open-action="(action, path) => emit('open-action', action, path)"

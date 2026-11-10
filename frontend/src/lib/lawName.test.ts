@@ -38,7 +38,7 @@ describe('resolveLawName', () => {
         { number: '1', machine_readable: { execution: { actions: [{ output: 'naam', value: { operation: 'ADD' } }] } } },
       ],
     } as unknown as LawDocument;
-    expect(typeof resolveLawName(law)).toBe('string');
-    expect(resolveLawName(law)).toBe('#naam');
+    // Not the raw reference either: the readable id.
+    expect(resolveLawName(law)).toBe('Wet X');
   });
 });

@@ -27,11 +27,11 @@ import { ref, computed, watch, nextTick } from 'vue';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
 import type { NLDDTextField } from '@nldd/design-system/text-field';
 import { useBwbSearch, MIN_QUERY_LENGTH } from '../composables/useBwbSearch';
-import type { CorpusLaw } from '../composables/useCorpusLaws';
+import { useCorpus, type CorpusLaw } from '../corpus';
 import { useTrajects } from '../composables/useTrajects';
 import { useLawPromote } from '../composables/useLawPromote';
-import { lawsListUrl, trajectHarvestUrl } from '../composables/corpusUrls';
-import { apiFetch, apiFetchJson, ApiError } from '../lib/apiFetch';
+import { trajectHarvestUrl } from '../composables/corpusUrls';
+import { apiFetch, ApiError } from '../lib/apiFetch';
 import { useLatest } from '../lib/useLatest';
 
 const emit = defineEmits<{
@@ -47,6 +47,7 @@ type ValueEvent = Event & { detail?: { value?: string } | null };
 type HarvestRequestState = 'busy' | 'requested' | 'conflict' | 'error';
 
 const { activeTrajectRef, activeTraject } = useTrajects();
+const corpus = useCorpus();
 const { results: bwbResults, loading: bwbLoading, search: searchBwb, clear: clearBwb } = useBwbSearch();
 
 const search = ref('');
@@ -166,9 +167,7 @@ async function runSearch(term: string) {
     // Traject-scoped zoekopdracht: dekt de volledige centrale seed (het
     // traject federeert die) en de eigen repo. source_priority 0 = de eigen
     // schrijfbare repo -> al in het traject, niet promoteerbaar.
-    const laws = await apiFetchJson<CorpusLaw[]>(
-      lawsListUrl(activeTrajectRef.value, `q=${encodeURIComponent(term)}&limit=60`),
-    );
+    const { laws } = await corpus.searchLaws({ q: term, limit: 60 });
     if (!isCurrent()) return;
     centralLaws.value = laws;
     setLawsFromSearch(laws);

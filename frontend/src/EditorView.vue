@@ -3,8 +3,8 @@ import { ref, computed, reactive, watch, watchEffect, nextTick, onBeforeUnmount 
 import { useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router';
 import * as yaml from 'js-yaml';
 import { withDecisionField } from '@regelrecht/frontend-shared/produces';
-import { useLaw, fetchLaw } from './composables/useLaw';
-import { useCorpusLaws } from './composables/useCorpusLaws';
+import { useLaw } from './composables/useLaw';
+import { useCorpus } from './corpus';
 import { useEngine } from './composables/useEngine';
 import { useAuth } from './composables/useAuth';
 import { useTrajects } from './composables/useTrajects';
@@ -333,10 +333,10 @@ const tabRestore = createTabRestore({
 
 // When the active traject changes (router.push to /editor/{otherRef}/…)
 // the URL stays on the same component; re-fetch the open law through the
-// new traject's backends. The corpus list needs no handling here -
-// `useCorpusLaws(activeTrajectRef)` re-scopes reactively on the same
-// change. `switchLaw` crosses trajects too via its third argument so the
-// law cache key stays correct.
+// new traject's backends. The display names need no handling here - the
+// corpus reader follows the route's traject itself. `switchLaw` crosses
+// trajects too via its third argument, so it reads through the new traject
+// before the route has committed.
 //
 // Also flush the WASM engine: it caches loaded laws by id only, so
 // without this a scenario run after a traject switch would evaluate
@@ -957,11 +957,12 @@ const searchPopoverRef = ref(null);
 // the shell's search button/field opens it.
 registerSearchPopover(searchPopoverRef);
 
-// Shared corpus list via `useCorpusLaws` - the same per-scope cache
-// MachineReadable reads, so an editor mount fires ONE laws-list fetch
-// instead of a private duplicate GET. Traject switches re-scope
-// reactively; fetch failures degrade to the humanized law id.
-const { displayName: corpusDisplayName } = useCorpusLaws(activeTrajectRef);
+// Display names from the corpus reader - the same per-traject list
+// MachineReadable reads, so an editor mount fires ONE laws-list fetch.
+// Traject switches follow the route; fetch failures degrade to the
+// humanized law id.
+const corpus = useCorpus();
+const corpusDisplayName = corpus.displayName;
 
 /**
  * Display name for the failed law on the error inline-dialog. Tries the
@@ -1279,14 +1280,15 @@ watchEffect(() => {
 onBeforeUnmount(clearEditorChrome);
 
 // Load lawNames for the open tabs (parallel, deduplicated). Reads go through
-// the given traject so tab labels match what the editor pane shows after a
-// save. Runs on startup and again after a traject switch, since a switch swaps
-// in that traject's own tab set whose labels still need resolving.
+// the active traject, which callers pass as `trajectRef` to key the labels, so
+// tab labels match what the editor pane shows after a save. Runs on startup
+// and again after a traject switch, since a switch swaps in that traject's own
+// tab set whose labels still need resolving.
 function backfillTabLabels(trajectRef: string | null | undefined) {
   const uniqueLawIds = [...new Set(tabsFor(trajectRef).map(t => t.lawId))];
   Promise.all(uniqueLawIds.map(async (id) => {
     try {
-      const entry = await fetchLaw(trajectRef, id);
+      const entry = await corpus.law(id);
       // Drop late results from a superseded switch: a fast A -> B -> C swap
       // could otherwise land B's label on C's tab when both trajects have the
       // same law open (its name may differ per traject after a concept edit).
@@ -3307,7 +3309,6 @@ async function handleActionSave() {
                   :review-article="reviewArticleForPane"
                   :dirty="isMachineReadableDirty"
                   :saving="lawSaving"
-                  :traject-ref="activeTrajectRef"
                   regelrijm
                   :law="law"
                   :law-id="lawId"
@@ -3473,8 +3474,8 @@ async function handleActionSave() {
        would be slotted into the main pane and pick up its ::slotted flex-grow,
        stealing height from the pane content. -->
   <Teleport to="body">
-    <ActionSheet regelrijm :action="activeAction" :article="editedArticle" :editable="canEdit" :is-new="activeActionIsNew" :law="law" :law-id="lawId" :traject-ref="activeTrajectRef" :focus-path="activeActionPath" @close="handleActionClose" @save="handleActionSave" @navigate="handleSheetNavigate" @open-output="handleSheetOpenOutput" />
-    <EditSheet :item="activeEditItem" :article="editedArticle" :traject-ref="activeTrajectRef" @save="handleSave" @close="activeEditItem = null" />
+    <ActionSheet regelrijm :action="activeAction" :article="editedArticle" :editable="canEdit" :is-new="activeActionIsNew" :law="law" :law-id="lawId" :focus-path="activeActionPath" @close="handleActionClose" @save="handleActionSave" @navigate="handleSheetNavigate" @open-output="handleSheetOpenOutput" />
+    <EditSheet :item="activeEditItem" :article="editedArticle" @save="handleSave" @close="activeEditItem = null" />
     <SearchPopover
       ref="searchPopoverRef"
       @select-law="onSearchSelectLaw"
@@ -3566,7 +3567,6 @@ async function handleActionSave() {
         :result="lastResult"
         :output-name="lastOutputName"
         :expectations="lastExpectations"
-        :traject-ref="activeTrajectRef"
       />
     </nldd-page>
   </nldd-sheet>

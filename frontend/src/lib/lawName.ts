@@ -15,8 +15,9 @@ export function humanizeLawId(id: unknown): string {
 
 /**
  * A rulework's display name: its `name`, or, when that is a reference like
- * `#wet_naam`, the literal string the referenced action outputs, falling back
- * to a readable version of the id.
+ * `#wet_naam`, the literal string the referenced action outputs. Without a
+ * name, or with a reference that does not resolve to a string, it is a
+ * readable version of the id: the raw `#wet_naam` is never a name.
  */
 export function resolveLawName(law: LawDocument | null | undefined): string {
   if (!law) return '';
@@ -32,6 +33,7 @@ export function resolveLawName(law: LawDocument | null | undefined): string {
         if (action.output === outputName && typeof action.value === 'string') return action.value;
       }
     }
+    return humanizeLawId(law.$id);
   }
   // No explicit name → a readable version of the id, never the raw snake_case
   // (e.g. tab labels / titles for laws whose YAML carries no `name`).

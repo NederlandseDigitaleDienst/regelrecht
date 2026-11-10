@@ -4,7 +4,9 @@ import { mount } from '@vue/test-utils';
 import type { VueWrapper } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import AddLawSheet from './AddLawSheet.vue';
-import type { CorpusLaw } from '../composables/useCorpusLaws';
+import type { CorpusLaw } from '../corpus';
+import type { MemoryTransport } from '../corpus/memoryTransport';
+import { installTestCorpus } from '../test-utils/corpusSetup';
 import type { BwbSearchResult } from '../composables/useBwbSearch';
 
 // De sheet is traject-gebonden: useTrajects() leest de trajectRef uit de
@@ -67,9 +69,15 @@ interface AddLawSheetInternals {
 }
 const internals = (wrapper: VueWrapper) => wrapper.vm as unknown as AddLawSheetInternals;
 
+/** The in-memory corpus the sheet searches; its `calls` show which corpus was read. */
+let corpusTransport: MemoryTransport;
+
+// The search reads the traject's corpus (in memory); the global fetch stub
+// answers auth, the external wetten.overheid.nl search, promote and harvest.
 function stubFetch(
   { searchLaws = SEARCH_LAWS, bwbResults = [] }: { searchLaws?: CorpusLaw[]; bwbResults?: BwbSearchResult[] } = {},
 ) {
+  corpusTransport = installTestCorpus({ '': {}, [TRAJECT_REF]: { list: searchLaws } }, TRAJECT_REF).transport;
   vi.stubGlobal(
     'fetch',
     vi.fn<FetchStub>(async (url, init = {}) => {
@@ -81,9 +89,6 @@ function stubFetch(
       }
       if (u.includes('/corpus/harvest') && init.method === 'POST') {
         return { ok: true, status: 202, json: async () => ({ job_id: 'j1' }) };
-      }
-      if (u.startsWith(`/api/trajects/${TRAJECT_REF}/corpus/laws`)) {
-        return { ok: true, json: async () => searchLaws };
       }
       return { ok: true, json: async () => [] };
     }),
@@ -109,14 +114,8 @@ describe('AddLawSheet', () => {
     const wrapper = mount(AddLawSheet);
     await searchFor(wrapper, 'wet');
 
-    const urls = fetchMock().mock.calls.map((c) => String(c[0]));
-    expect(
-      urls.some(
-        (u) => u.startsWith(`/api/trajects/${TRAJECT_REF}/corpus/laws?`) && u.includes('q=wet'),
-      ),
-    ).toBe(true);
-    // Geen tweede zoekpad: de globale corpus-URL wordt niet aangeroepen.
-    expect(urls.some((u) => u.startsWith('/api/corpus/laws'))).toBe(false);
+    // Only the traject's corpus was read, not the global one.
+    expect(corpusTransport.calls).toEqual([`${TRAJECT_REF} list`]);
     expect(internals(wrapper).sortedLaws.map((l) => l.law_id)).toEqual([
       'wet_al_binnen',
       'wet_voorbeeld',
@@ -156,17 +155,14 @@ describe('AddLawSheet', () => {
   });
 
   it('een 409 op promote markeert de wet alsnog als al-in-traject', async () => {
-    stubFetch();
+    stubFetch({ searchLaws: [] });
     fetchMock().mockImplementation(async (url, init = {}) => {
       const u = String(url);
       if (u.includes('/promote') && init.method === 'POST') {
         return { ok: false, status: 409, text: async () => 'al in traject', headers: { get: () => '' } };
       }
       if (u.includes('/auth/status')) return { ok: false, json: async () => ({}) };
-      if (u.startsWith(`/api/trajects/${TRAJECT_REF}/corpus/laws`)) {
-        return { ok: true, json: async () => [] };
-      }
-      return { ok: true, json: async () => SEARCH_LAWS };
+      return { ok: true, json: async () => [] };
     });
 
     const wrapper = mount(AddLawSheet);
@@ -195,20 +191,12 @@ describe('AddLawSheet', () => {
     expect(row.get('nldd-text-cell').attributes('text')).toBe('Voorbeeldwet extern');
   });
 
-  // De zoekopdracht gaat naar `/api/trajects/{ref}/corpus/laws`, dus een
-  // mislukte zoekopdracht gaat over de bibliotheek van dít traject - niet over
-  // het centrale corpus. De melding moet daar ook naar wijzen, ook wanneer de
-  // trajectenlijst (en dus de naam) nog niet binnen is: de scope hangt aan de
-  // ref uit de route, niet aan het opgehaalde traject-object.
+  // The search reads the traject's corpus, so a failed search is about this
+  // traject's library, not the central corpus. The message must say so too,
+  // even before the traject list (and so its name) has arrived: the scope
+  // follows the ref in the route, not the fetched traject object.
   it('wijst bij een mislukte zoekopdracht naar het traject, niet naar het centrale corpus', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn<FetchStub>(async (url) => {
-        const u = String(url);
-        if (u.startsWith(`/api/trajects/${TRAJECT_REF}/corpus/laws`)) throw new Error('boom');
-        return { ok: true, json: async () => [] };
-      }),
-    );
+    installTestCorpus({ '': {}, [TRAJECT_REF]: { failures: { list: 500 } } }, TRAJECT_REF);
     const wrapper = mount(AddLawSheet);
     await searchFor(wrapper, 'wet');
 

@@ -6,7 +6,7 @@ import OperationSettings, { type OperationSettingsArticle } from './OperationSet
 import { articleContext, formatLiteral, pathKey, renderAction, renderFocus } from '@regelrecht/frontend-shared/regelrijm/index';
 import type { Path, Segment, Token } from '@regelrecht/frontend-shared/regelrijm/index';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
-import { fetchLaw } from '../composables/useLaw';
+import { useCorpus } from '../corpus';
 import { humanize } from '../utils/outputFormat';
 import RegelRijmText from '../regelrijm/RegelRijmText.vue';
 import { followReference, isNavigable, originHint, rawAt, resolveReference, type NavigableTarget } from '../regelrijm/regelrijmNav';
@@ -30,7 +30,6 @@ const props = withDefaults(defineProps<{
    *  belongs to, so a name in the reading can lead to the rule computing it. */
   law?: Record<string, unknown> | null;
   lawId?: string | null;
-  trajectRef?: string | null;
   /** The path of the part to open at, from a click on an operation word in a
    *  RegelRijm reading. Null opens at the top of the action. */
   focusPath?: Path | null;
@@ -42,9 +41,10 @@ const props = withDefaults(defineProps<{
   regelrijm: false,
   law: null,
   lawId: null,
-  trajectRef: null,
   focusPath: null,
 });
+
+const corpus = useCorpus();
 
 const emit = defineEmits<{
   close: [];
@@ -229,7 +229,7 @@ async function followName(seg: Token) {
   const from = props.action;
   const to = await followReference(seg.ref, {
     law: props.law, lawId: props.lawId, article: props.article, label: humanize,
-    load: (id: string) => fetchLaw(props.trajectRef ?? null, id),
+    load: (id: string) => corpus.law(id),
   });
   // The sheet may have closed or moved on while another law loaded.
   if (!to || props.action !== from) return;

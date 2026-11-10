@@ -4,8 +4,8 @@
  * Provides the engine and helpers for loading laws and dependencies.
  */
 import { ref } from 'vue';
-import { lawVersionsUrl } from './corpusUrls';
-import { apiFetchJson, apiFetchText } from '../lib/apiFetch';
+import { apiFetchText } from '../lib/apiFetch';
+import { useCorpus } from '../corpus';
 import { createLruMap } from '../lib/lruMap';
 import type { GherkinEngine } from '@regelrecht/frontend-shared/gherkin';
 
@@ -96,10 +96,9 @@ async function initEngine(): Promise<EditorEngine> {
 }
 
 /**
- * Fetch a law's YAML from the API and load it into the engine. When
- * `trajectRef` is given the read goes through the traject's per-source
- * backends (read-your-writes for in-progress edits); omit it for the
- * global view.
+ * Fetch a law's YAML through the corpus reader and load it into the engine.
+ * The read goes through the active traject (read-your-writes for in-progress
+ * edits), and the scope recorded is the traject the versions came from.
  *
  * Loads **every** version of the law (not just today's-best) so the
  * engine's date-aware resolution can pick the one in force on a given
@@ -114,22 +113,21 @@ async function initEngine(): Promise<EditorEngine> {
  * scenario runs after a traject switch would evaluate against the
  * previous scope's dependencies.
  */
-async function loadDependency(lawId: string, trajectRef: string | null = null): Promise<void> {
+async function loadDependency(lawId: string): Promise<void> {
   const engine = await initEngine();
-  const scope = trajectRef || '';
+  const corpus = useCorpus();
   if (engine.hasLaw(lawId)) {
-    if (loadedScopes.get(lawId) === scope) return;
+    if (loadedScopes.get(lawId) === (corpus.trajectRef ?? '')) return;
     engine.unloadLaw(lawId);
   }
 
-  const yamls = await apiFetchJson<unknown>(lawVersionsUrl(trajectRef, lawId), {
-    errorMessage: (status) => `Failed to fetch versions of law '${lawId}': ${status}`,
-  });
+  const { trajectRef, yamls } = await corpus.versions(lawId);
   // Only record the scope once a body actually loaded, so an empty result
   // (unknown law) - or one whose every version was unloadable - stays
   // retryable rather than masking the law as "loaded under this scope".
+  // The scope is the traject the versions came from, not the one active now.
   if (loadLawVersions(engine, yamls, lawId)) {
-    loadedScopes.set(lawId, scope);
+    loadedScopes.set(lawId, trajectRef ?? '');
   }
 }
 

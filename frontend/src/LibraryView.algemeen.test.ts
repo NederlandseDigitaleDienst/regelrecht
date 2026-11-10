@@ -7,6 +7,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, type VueWrapper } from '@vue/test-utils';
 import { nextTick, ref } from 'vue';
 import * as harness from './test-utils/libraryViewHarness';
+import { installTestCorpus, type TestCorpus } from './test-utils/corpusSetup';
+import type { CorpusLaw } from './corpus';
 
 const routeState: { name: string; params: Record<string, string>; query: Record<string, string>; fullPath: string; hash: string } = {
   name: 'corpus-juris',
@@ -23,22 +25,12 @@ vi.mock('./composables/useTrajects', () =>
   harness.trajectsModule(() => ({ activeTrajectRef, activeTraject: ref({ name: 'Traject A' }) })),
 );
 
-// What the server sends: the law's file, and its list entry for `?ids=`.
-const server = vi.hoisted(() => ({
+// What the corpus holds: the law's file, and its list entry for `?ids=`.
+const server = {
   lawText: '',
-  entry: {} as Record<string, unknown>,
-  listUrls: [] as string[],
-}));
-vi.mock('./lib/apiFetch', () =>
-  harness.apiFetchModule({
-    apiFetch: vi.fn(async () => ({ ok: true, status: 200, json: async () => [], text: async () => server.lawText })),
-    apiFetchJson: vi.fn(async (url: string) => {
-      if (!url.includes('ids=')) return [];
-      server.listUrls.push(url);
-      return [server.entry];
-    }),
-  }),
-);
+  entry: { law_id: 'wet_a' } as CorpusLaw,
+};
+vi.mock('./lib/apiFetch', () => harness.apiFetchModule());
 vi.mock('./composables/useFeatureFlags', () => harness.featureFlags());
 vi.mock('./composables/useDocumentsManager', () => harness.documentsManager());
 vi.mock('./composables/useTrajectDocumentJobs', () => harness.trajectDocumentJobs());
@@ -47,8 +39,13 @@ vi.mock('./composables/useDocumentTaskReview', () => harness.documentTaskReview(
 
 import LibraryView from './LibraryView.vue';
 
-const mountLibrary = () =>
-  shallowMount(LibraryView, { global: { stubs: { teleport: true } } }) as VueWrapper;
+let corpus: TestCorpus;
+// The same law globally and in the traject; the route decides which is read.
+function mountLibrary() {
+  const content = { laws: { wet_a: server.lawText }, list: [server.entry] };
+  corpus = installTestCorpus({ '': content, 'traject-aaaa1111': content }, activeTrajectRef.value);
+  return shallowMount(LibraryView, { global: { stubs: { teleport: true } } }) as VueWrapper;
+}
 
 async function settle() {
   for (let i = 0; i < 6; i++) await nextTick();
@@ -69,7 +66,6 @@ beforeEach(() => {
   routeState.hash = '';
   server.lawText = LAW_TEXT;
   server.entry = { law_id: 'wet_a', source_url: FOLDER };
-  server.listUrls = [];
 });
 
 describe('LibraryView Algemeen', () => {
@@ -129,7 +125,7 @@ describe('LibraryView Algemeen', () => {
     routeState.params = { trajectRef: 'traject-aaaa1111', lawId: 'wet_a', articleNumber: 'algemeen' };
     const wrapper = mountLibrary();
     await settle();
-    expect(server.listUrls.some((u) => u.includes('/trajects/traject-aaaa1111/'))).toBe(true);
+    expect(corpus.transport.calls).toContain('traject-aaaa1111 list');
     expect(wrapper.get('[data-testid="algemeen-link-github"]').attributes('href')).toBe(FOLDER);
   });
 });

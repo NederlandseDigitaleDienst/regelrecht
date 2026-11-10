@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useDependencies, extractRegulationRefs } from './useDependencies';
 import { res, stubFetch } from '../test-utils/fetchStubs';
+import { installTestCorpus } from '../test-utils/corpusSetup';
 
 // Fake WASM engine: tracks which law ids are loaded, plus every body handed to
 // `loadLaw` so multi-version loading can be asserted (the real engine keys
@@ -229,51 +230,86 @@ describe('useDependencies.loadAllDependencies', () => {
 });
 
 describe('useDependencies.loadImplementors', () => {
-  it('resolves implementors with a single request and loads them', async () => {
-    const fetchSpy = vi.fn().mockImplementation(async (url: string) => {
-      if (url.endsWith('/implementors')) return res({ json: ['regeling_standaardpremie'] });
-      return res({ ok: false, status: 404, json: [] });
-    });
-    stubFetch(fetchSpy);
+  const TRAJECT = 'mig-1a2b3c4d';
+
+  it('resolves implementors through the active traject and loads them', async () => {
+    const { transport } = installTestCorpus({
+      [TRAJECT]: { implementors: { wet_op_de_zorgtoeslag: ['regeling_standaardpremie'] } },
+    }, TRAJECT);
     const engine = fakeEngine();
     const fetchLawVersions = vi.fn(async (id: string) => depVersions(id));
 
     const { loadImplementors } = useDependencies();
-    await loadImplementors('wet_op_de_zorgtoeslag', engine, fetchLawVersions, 'mig-1a2b3c4d');
+    await loadImplementors('wet_op_de_zorgtoeslag', engine, fetchLawVersions);
 
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
-      '/api/trajects/mig-1a2b3c4d/corpus/laws/wet_op_de_zorgtoeslag/implementors',
-    );
-    expect(fetchSpy.mock.calls.some((c) => String(c[0]).includes('limit=1000'))).toBe(false);
+    expect(transport.calls).toEqual([`${TRAJECT} implementors wet_op_de_zorgtoeslag`]);
     expect(engine.loaded.has('regeling_standaardpremie')).toBe(true);
   });
 
-  it('runs at most once per (trajectRef, lawId)', async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(res({ json: ['regeling_standaardpremie'] }));
-    stubFetch(fetchSpy);
+  it('hands over the versions of an implementor the engine already has, without reloading it', async () => {
+    installTestCorpus({ [TRAJECT]: { implementors: { wet_op_de_zorgtoeslag: ['regeling_standaardpremie'] } } }, TRAJECT);
+    const engine = fakeEngine();
+    engine.loaded.add('regeling_standaardpremie');
+    const loadLaw = vi.spyOn(engine, 'loadLaw');
+    const fetchLawVersions = vi.fn(async (id: string) => depVersions(id));
+
+    const { loadImplementors } = useDependencies();
+    await loadImplementors('wet_op_de_zorgtoeslag', engine, fetchLawVersions);
+
+    // The caller builds its type map from what it is handed.
+    expect(fetchLawVersions).toHaveBeenCalledWith('regeling_standaardpremie');
+    expect(loadLaw).not.toHaveBeenCalled();
+  });
+
+  it('runs at most once per (traject, lawId)', async () => {
+    const { transport, trajectRef } = installTestCorpus({
+      [TRAJECT]: { implementors: { wet_op_de_zorgtoeslag: ['regeling_standaardpremie'] } },
+      'ander-89abcdef': { implementors: { wet_op_de_zorgtoeslag: [] } },
+    }, TRAJECT);
     const engine = fakeEngine();
     const fetchLawVersions = vi.fn(async (id: string) => depVersions(id));
 
     const { loadImplementors } = useDependencies();
-    await loadImplementors('wet_op_de_zorgtoeslag', engine, fetchLawVersions, 'mig-1a2b3c4d');
-    await loadImplementors('wet_op_de_zorgtoeslag', engine, fetchLawVersions, 'mig-1a2b3c4d');
+    await loadImplementors('wet_op_de_zorgtoeslag', engine, fetchLawVersions);
+    await loadImplementors('wet_op_de_zorgtoeslag', engine, fetchLawVersions);
+    trajectRef.value = 'ander-89abcdef';
+    await loadImplementors('wet_op_de_zorgtoeslag', engine, fetchLawVersions);
 
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(transport.calls).toEqual([
+      `${TRAJECT} implementors wet_op_de_zorgtoeslag`,
+      'ander-89abcdef implementors wet_op_de_zorgtoeslag',
+    ]);
+  });
+
+  it('hands the implementors to every run, without scanning again', async () => {
+    const { transport } = installTestCorpus({
+      [TRAJECT]: { implementors: { wet_op_de_zorgtoeslag: ['regeling_standaardpremie'] } },
+    }, TRAJECT);
+    const engine = fakeEngine();
+    const { loadImplementors } = useDependencies();
+    await loadImplementors('wet_op_de_zorgtoeslag', engine, vi.fn(async (id: string) => depVersions(id)));
+
+    // A later run (another keystroke, another article) builds its own type map.
+    const secondRun = vi.fn(async (id: string) => depVersions(id));
+    await loadImplementors('wet_op_de_zorgtoeslag', engine, secondRun);
+
+    expect(secondRun).toHaveBeenCalledWith('regeling_standaardpremie');
+    expect(transport.calls).toEqual([`${TRAJECT} implementors wet_op_de_zorgtoeslag`]);
   });
 
   it('is best-effort: a failed scan resolves without throwing and can be retried', async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(res({ ok: false, status: 500 }));
-    stubFetch(fetchSpy);
+    const { transport } = installTestCorpus({
+      '': { failures: { 'implementors wet_op_de_zorgtoeslag': 500 } },
+    });
     const engine = fakeEngine();
     const { loadImplementors } = useDependencies();
     await expect(
-      loadImplementors('wet_op_de_zorgtoeslag', engine, vi.fn(), null),
+      loadImplementors('wet_op_de_zorgtoeslag', engine, vi.fn()),
     ).resolves.toBeUndefined();
     // A transient failure must not permanently suppress the scan: a second
     // call retries (the guard key was reset on failure).
-    await loadImplementors('wet_op_de_zorgtoeslag', engine, vi.fn(), null);
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    await loadImplementors('wet_op_de_zorgtoeslag', engine, vi.fn());
+    expect(transport.calls).toHaveLength(2);
   });
 });
 

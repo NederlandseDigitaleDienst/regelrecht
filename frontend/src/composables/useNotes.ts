@@ -160,7 +160,7 @@ export function useNotes(
       // refetches when a previous load came from a different traject.
       // A bare `if (!engine.hasLaw(id))` gate here would skip that scope
       // check and resolve notes against stale-scope content.
-      await loadDependency(id, tr);
+      await loadDependency(id);
       // `vf` selects the viewed version inside the engine's full version
       // set; `undefined` (no valid_from on the law) means the latest.
       const result = engine.resolveNotes(id, yamlText, vf ?? undefined);
@@ -309,10 +309,10 @@ export function useResolvedDraftNotes(
     }
     try {
       const engine = await initEngine();
-      // Pass the scope so the engine cache can detect a stale copy
-      // from a previous traject and refetch - without this a switch
-      // would keep highlighting drafts against the old law content.
-      await loadDependency(id, tr);
+      // loadDependency checks the scope, so the engine cache detects a
+      // stale copy from a previous traject and refetches - without this a
+      // switch would keep highlighting drafts against the old law content.
+      await loadDependency(id);
       const out: { note: Note; match: MatchResult }[] = [];
       for (const note of notes) {
         const selector = note?.target?.selector;

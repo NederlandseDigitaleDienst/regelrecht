@@ -21,12 +21,12 @@
  * Mounten start via `useTasks()` de gedeelde 30s-poll; de route erachter vereist
  * login, dus anonieme bezoekers pollen nooit.
  */
-import { computed, nextTick, onMounted, ref, toRef, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
 import { useTrajectTasks } from '../composables/useTasks';
 import type { RunningTaskJob, TaskRecord, TaskRecordPayload } from '../composables/useTasks';
-import { useCorpusLaws } from '../composables/useCorpusLaws';
+import { useCorpus } from '../corpus';
 import { homeTarget } from '../composables/useLastVisitedRoute';
 import { reviewTarget, taskNamesTraject } from '../lib/taskReview';
 import { taskTitle, runningTitle } from '../lib/taskTitle';
@@ -67,7 +67,7 @@ interface TaskWithError extends TaskRecord {
 
 const router = useRouter();
 const { tasks, running, resolveTask, requestEnrich, refresh } = useTrajectTasks(() => props.trajectRef);
-const { displayName } = useCorpusLaws(toRef(props, 'trajectRef'));
+const { displayName } = useCorpus();
 
 // runningTitle may pass a job without a law_id; displayName (via humanizeLawId)
 // renders a missing id as '' either way, so '' stands in for it here.

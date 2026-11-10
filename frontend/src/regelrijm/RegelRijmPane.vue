@@ -11,7 +11,7 @@
 import { computed, reactive, ref, useId, watch } from 'vue';
 import { articleContext, formatLiteral, references, renderAction } from '@regelrecht/frontend-shared/regelrijm/index';
 import type { ActionReading, ArticleContext, Path, Token, Unit } from '@regelrecht/frontend-shared/regelrijm/index';
-import { fetchLaw } from '../composables/useLaw';
+import { useCorpus } from '../corpus';
 import { humanize } from '../utils/outputFormat';
 import RowActionsMenu from '../components/RowActionsMenu.vue';
 import QuotedFragment from '../components/QuotedFragment.vue';
@@ -31,7 +31,6 @@ const props = withDefaults(defineProps<{
   article?: PaneArticle | null;
   law?: Record<string, unknown> | null;
   lawId?: string | null;
-  trajectRef?: string | null;
   editable?: boolean;
   /** Output → fragments of the article text linked to it (linksByOutput). */
   links?: ReadonlyMap<string, LinkedFragment[]>;
@@ -39,7 +38,6 @@ const props = withDefaults(defineProps<{
   article: null,
   law: null,
   lawId: null,
-  trajectRef: null,
   editable: false,
   links: () => new Map(),
 });
@@ -127,22 +125,25 @@ const rules = computed(() => {
 // regelwerk is loaded; the tooltip fills in as it arrives.
 const elsewhere = reactive<Record<string, Elsewhere>>({});
 const ownName = ref<string | null>(null);
-watch(() => [props.lawId, props.trajectRef], async ([id, traject]) => {
+// Names are read from the active traject; watching `corpus.trajectRef`
+// re-reads them when the traject changes.
+const corpus = useCorpus();
+watch(() => [props.lawId, corpus.trajectRef] as const, async ([id, traject]) => {
   ownName.value = null;
   if (!id) return;
   let name: string | null = null;
   try {
-    name = (await fetchLaw(traject, id))?.lawName ?? null;
+    name = (await corpus.law(id))?.lawName ?? null;
   } catch {
     name = null;
   }
   // An answer for a law or traject the pane has since left is dropped.
-  if (props.lawId === id && props.trajectRef === traject) ownName.value = name;
+  if (props.lawId === id && corpus.trajectRef === traject) ownName.value = name;
 }, { immediate: true });
 
 // A traject can hold another version of a law, so the cache goes with it.
-let cachedFor = props.trajectRef;
-watch([rules, () => props.trajectRef], ([list, traject]) => {
+let cachedFor = corpus.trajectRef;
+watch([rules, () => corpus.trajectRef], ([list, traject]) => {
   if (traject !== cachedFor) {
     for (const k of Object.keys(elsewhere)) delete elsewhere[k];
     cachedFor = traject;
@@ -155,7 +156,7 @@ watch([rules, () => props.trajectRef], ([list, traject]) => {
       elsewhere[k] = { loading: true };
       // An answer that arrives after a traject switch belongs to the old one.
       const keep = (v: Elsewhere) => { if (cachedFor === traject) elsewhere[k] = v; };
-      fetchLaw(traject, target.lawId).then(
+      corpus.law(target.lawId).then(
         (entry) => {
           const hit = findOutput(entry?.law, target.output);
           keep({ lawName: entry?.lawName ?? humanize(target.lawId), articleNumber: hit ? String(hit.article.number) : null });
@@ -200,7 +201,7 @@ async function follow(seg: Token) {
   const from = `${props.lawId}|${props.article?.number}`;
   const to = await followReference(seg.ref, {
     law: props.law, lawId: props.lawId, article: props.article, label: humanize,
-    load: (id) => fetchLaw(props.trajectRef, id),
+    load: (id) => corpus.law(id),
   });
   // The editor may have moved to another article while another law loaded.
   if (!to || `${props.lawId}|${props.article?.number}` !== from) return;
