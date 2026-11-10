@@ -144,12 +144,14 @@ pub struct GitHubApiBackend {
 }
 
 impl GitHubApiBackend {
+    /// A backend for `github`, reading and writing through `client`.
     pub fn new(
         github: &GitHubSource,
         base_branch: Option<String>,
         token: Option<String>,
-    ) -> Result<Self> {
-        Ok(Self {
+        client: GithubClient,
+    ) -> Self {
+        Self {
             owner: github.owner.clone(),
             repo: github.repo.clone(),
             branch: github.effective_ref().to_string(),
@@ -157,28 +159,13 @@ impl GitHubApiBackend {
             sub_path: github.path.clone(),
             token,
             inner: Mutex::new(Inner {
-                client: GithubClient::new()?,
+                client,
                 sha_cache: HashMap::new(),
                 absent_reads: std::collections::HashSet::new(),
                 pending: Vec::new(),
                 branch_ready: false,
             }),
-        })
-    }
-
-    /// Repoint the backend's underlying fetcher at a different API base
-    /// URL. Production code never calls this — it's the seam our
-    /// wiremock-backed unit tests use to avoid hitting the real GitHub.
-    /// Must be called before any other backend method (taking `&mut self`
-    /// makes that easy to enforce at the type level).
-    pub fn with_api_base(mut self, base_url: impl Into<String>) -> Self {
-        // `get_mut` is fine because we still hold &mut self, so the mutex
-        // isn't contended. Mutate the client in place rather than
-        // rebuilding it (which would propagate a fallible
-        // `GithubClient::new` call for what is meant to be a trivial
-        // test-only seam).
-        self.inner.get_mut().client.set_base_url(base_url);
-        self
+        }
     }
 
     fn full_repo(&self) -> String {
@@ -1243,9 +1230,8 @@ mod tests {
             &nl_source(),
             Some("main".to_string()),
             Some("tok".to_string()),
+            regelrecht_github::GithubClient::from_base(Some(&server.uri())).unwrap(),
         )
-        .unwrap()
-        .with_api_base(server.uri())
     }
 
     /// A committed index over `regulation`, recording `tree_sha` for that
@@ -1478,10 +1464,12 @@ mod tests {
             path: Some("regulation/nl".to_string()),
             git_ref: None,
         };
-        let backend =
-            GitHubApiBackend::new(&src, Some("main".to_string()), Some("tok".to_string()))
-                .unwrap()
-                .with_api_base(server.uri());
+        let backend = GitHubApiBackend::new(
+            &src,
+            Some("main".to_string()),
+            Some("tok".to_string()),
+            regelrecht_github::GithubClient::from_base(Some(&server.uri())).unwrap(),
+        );
 
         let mut got = backend.read_all_implements().await.unwrap();
         got.sort();
@@ -1534,9 +1522,8 @@ mod tests {
             &src,
             Some("main".to_string()),
             Some("service-tok".to_string()),
-        )
-        .unwrap()
-        .with_api_base(server.uri());
+            regelrecht_github::GithubClient::from_base(Some(&server.uri())).unwrap(),
+        );
         backend
             .write_file(
                 std::path::Path::new("wet/foo/2025-01-01.yaml"),

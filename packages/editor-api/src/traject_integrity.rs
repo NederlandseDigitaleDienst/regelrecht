@@ -843,10 +843,9 @@ async fn scan_own_source(
 
     let (files, bodies) = match &source.source_type {
         SourceType::GitHub { github } => {
-            // Plain `new()`: it honours the same `GITHUB_API_BASE` seam every
-            // other GitHub read in this process does, so the scan reaches the
-            // host the traject's normal reads reach.
-            let client = GithubClient::new().map_err(|e| {
+            // From the traject's own settings, so the scan reaches the host
+            // the traject's normal reads reach.
+            let client = traject.corpus.github.client().map_err(|e| {
                 tracing::error!(
                     traject = %traject.traject_id,
                     error = %e,

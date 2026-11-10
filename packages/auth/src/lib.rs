@@ -14,7 +14,10 @@ pub mod security_headers;
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils;
 
-pub use config::{OidcConfig, parse_base_url, parse_oidc_from_env};
+pub use config::{
+    OidcConfig, parse_base_url, parse_base_url_from, parse_oidc_from, parse_oidc_from_env,
+    process_env,
+};
 pub use handlers::{
     AuthStatus, PersonInfo, SESSION_KEY_AUTHENTICATED, SESSION_KEY_EMAIL,
     SESSION_KEY_EMAIL_VERIFIED, SESSION_KEY_NAME, SESSION_KEY_ROLES, SESSION_KEY_SUB,

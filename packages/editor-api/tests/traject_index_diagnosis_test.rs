@@ -2,8 +2,8 @@
 //! source: geeft de classificatie het juiste antwoord, en leest de melding
 //! die eruit komt als iets waar een gebruiker wat mee kan?
 //!
-//! GitHub wordt gespeeld door wiremock; de client wijst via `with_base_url`
-//! naar die mock. Geen database, geen netwerk naar buiten — de classificatie
+//! GitHub wordt gespeeld door wiremock; de client wordt met `from_base` op
+//! die mock gericht. Geen database, geen netwerk naar buiten — de classificatie
 //! is bewust een losse functie zodat precies dit mogelijk is.
 //!
 //! Repo-coördinaten zijn verzonnen placeholders (`example-org/...`): dit is
@@ -48,7 +48,7 @@ fn target() -> OwnSourceTarget {
 }
 
 fn client_for(server: &MockServer) -> GithubClient {
-    GithubClient::new().unwrap().with_base_url(server.uri())
+    GithubClient::from_base(Some(&server.uri())).unwrap()
 }
 
 /// `GET /repos/{owner}/{repo}` — repo bestaat en het token mag pushen.

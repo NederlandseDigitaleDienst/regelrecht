@@ -1,5 +1,3 @@
-use std::env;
-
 use sha2::{Digest, Sha256};
 
 pub use regelrecht_auth::OidcConfig;
@@ -42,7 +40,12 @@ impl AppConfig {
     }
 
     fn try_from_env() -> Result<Self, String> {
-        let oidc = regelrecht_auth::parse_oidc_from_env()?;
+        Self::try_from_lookup(regelrecht_auth::process_env)
+    }
+
+    /// Build the configuration with every variable read through `env`.
+    fn try_from_lookup(env: impl Fn(&str) -> Option<String>) -> Result<Self, String> {
+        let oidc = regelrecht_auth::parse_oidc_from(&env)?;
 
         if oidc.is_some() {
             tracing::info!("OIDC authentication is enabled");
@@ -55,14 +58,14 @@ impl AppConfig {
             );
         }
 
-        let base_url = regelrecht_auth::parse_base_url()?;
+        let base_url = regelrecht_auth::parse_base_url_from(&env)?;
         if base_url.is_none() && oidc.is_some() {
             tracing::info!(
                 "BASE_URL is not set — OIDC redirect URLs will be derived from request headers"
             );
         }
 
-        let api_key = env::var("ADMIN_API_KEY").ok().filter(|s| !s.is_empty());
+        let api_key = env("ADMIN_API_KEY").filter(|s| !s.is_empty());
         if let Some(ref key) = api_key {
             if key.len() < 32 {
                 tracing::warn!(
@@ -76,9 +79,7 @@ impl AppConfig {
             .as_ref()
             .map(|k| Sha256::digest(k.as_bytes()).into());
 
-        let metrics_token = env::var("METRICS_AUTH_TOKEN")
-            .ok()
-            .filter(|s| !s.is_empty());
+        let metrics_token = env("METRICS_AUTH_TOKEN").filter(|s| !s.is_empty());
         if metrics_token.is_some() {
             tracing::info!("Metrics endpoint authentication is enabled (METRICS_AUTH_TOKEN)");
         }
@@ -104,131 +105,65 @@ impl AppConfig {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
+    use std::collections::HashMap;
 
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
-
-    fn set_env(key: &str, value: &str) {
-        // SAFETY: std locks its own environment access, so the hazard is C code
-        // reading the environment on another thread. No unit test in this crate
-        // resolves a host name or calls libc time functions (the middleware
-        // tests build a lazy pool that never connects), and every test that
-        // changes these variables holds `ENV_LOCK`.
-        unsafe { env::set_var(key, value) };
+    /// Build the configuration from fixed values instead of the process
+    /// environment.
+    fn config_of(pairs: &[(&str, &str)]) -> Result<AppConfig, String> {
+        let vars: HashMap<&str, &str> = pairs.iter().copied().collect();
+        AppConfig::try_from_lookup(|key| vars.get(key).map(|v| (*v).to_string()))
     }
 
-    fn remove_env(key: &str) {
-        // SAFETY: as in `set_env`.
-        unsafe { env::remove_var(key) };
-    }
-
-    const OIDC_VARS: &[&str] = &[
-        "OIDC_CLIENT_ID",
-        "OIDC_CLIENT_SECRET",
-        "OIDC_DISCOVERY_URL",
-        "KEYCLOAK_BASE_URL",
-        "KEYCLOAK_REALM",
-        "OIDC_REQUIRED_ROLE",
+    const COMPLETE_OIDC: &[(&str, &str)] = &[
+        ("OIDC_CLIENT_ID", "test-client"),
+        ("OIDC_CLIENT_SECRET", "secret"),
+        ("KEYCLOAK_BASE_URL", "https://keycloak.example.com"),
+        ("KEYCLOAK_REALM", "test-realm"),
+        ("OIDC_REQUIRED_ROLE", "harvester-reader"),
     ];
-
-    fn clear_env() {
-        for var in OIDC_VARS {
-            remove_env(var);
-        }
-        remove_env("ADMIN_API_KEY");
-        remove_env("BASE_URL");
-        remove_env("METRICS_AUTH_TOKEN");
-    }
-
-    fn set_complete_oidc_env() {
-        set_env("OIDC_CLIENT_ID", "test-client");
-        set_env("OIDC_CLIENT_SECRET", "secret");
-        set_env("KEYCLOAK_BASE_URL", "https://keycloak.example.com");
-        set_env("KEYCLOAK_REALM", "test-realm");
-        set_env("OIDC_REQUIRED_ROLE", "harvester-reader");
-    }
 
     #[test]
     fn no_oidc_vars_disables_auth() {
-        let _lock = ENV_LOCK.lock();
-        clear_env();
-
-        let config = AppConfig::try_from_env().expect("should succeed");
+        let config = config_of(&[]).expect("should succeed");
         assert!(config.oidc.is_none());
         assert!(!config.is_auth_enabled());
-
-        clear_env();
     }
 
     #[test]
     fn complete_keycloak_vars_enables_auth() {
-        let _lock = ENV_LOCK.lock();
-        clear_env();
-        set_complete_oidc_env();
-
-        let config = AppConfig::try_from_env().expect("should succeed");
+        let config = config_of(COMPLETE_OIDC).expect("should succeed");
         assert!(config.is_auth_enabled());
         let oidc = config.oidc.unwrap();
         assert_eq!(oidc.client_id, "test-client");
-
-        clear_env();
     }
 
     #[test]
     fn api_key_from_env() {
-        let _lock = ENV_LOCK.lock();
-        clear_env();
-        set_env("ADMIN_API_KEY", "test-secret-key");
-
-        let config = AppConfig::try_from_env().expect("should succeed");
+        let config = config_of(&[("ADMIN_API_KEY", "test-secret-key")]).expect("should succeed");
         assert_eq!(config.api_key.as_deref(), Some("test-secret-key"));
-
-        clear_env();
     }
 
     #[test]
     fn empty_api_key_is_none() {
-        let _lock = ENV_LOCK.lock();
-        clear_env();
-        set_env("ADMIN_API_KEY", "");
-
-        let config = AppConfig::try_from_env().expect("should succeed");
+        let config = config_of(&[("ADMIN_API_KEY", "")]).expect("should succeed");
         assert!(config.api_key.is_none());
-
-        clear_env();
     }
 
     #[test]
     fn no_api_key_is_none() {
-        let _lock = ENV_LOCK.lock();
-        clear_env();
-
-        let config = AppConfig::try_from_env().expect("should succeed");
+        let config = config_of(&[]).expect("should succeed");
         assert!(config.api_key.is_none());
-
-        clear_env();
     }
 
     #[test]
     fn metrics_token_from_env() {
-        let _lock = ENV_LOCK.lock();
-        clear_env();
-        set_env("METRICS_AUTH_TOKEN", "prom-secret");
-
-        let config = AppConfig::try_from_env().expect("should succeed");
+        let config = config_of(&[("METRICS_AUTH_TOKEN", "prom-secret")]).expect("should succeed");
         assert!(config.metrics_token_hash.is_some());
-
-        clear_env();
     }
 
     #[test]
     fn no_metrics_token_is_none() {
-        let _lock = ENV_LOCK.lock();
-        clear_env();
-
-        let config = AppConfig::try_from_env().expect("should succeed");
+        let config = config_of(&[]).expect("should succeed");
         assert!(config.metrics_token_hash.is_none());
-
-        clear_env();
     }
 }

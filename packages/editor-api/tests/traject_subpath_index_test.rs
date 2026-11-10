@@ -9,16 +9,17 @@
 //! volgende listing scant opnieuw onder het nieuwe pad, en wat erbuiten
 //! ligt telt niet meer mee.
 //!
-//! GitHub wordt gespeeld door wiremock via de proces-brede
-//! `GITHUB_API_BASE`-seam; de repo-namen zijn fictief (publieke repo).
+//! GitHub wordt gespeeld door wiremock; de `GithubSettings` die de test in de
+//! app-state zet, wijzen de clients daarheen. De repo-namen zijn fictief
+//! (publieke repo).
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod common;
 
 use common::{
-    TEST_NAME, insert_traject, seed_account_record, state_with_user_token_mode, traject_ref,
-    verified_session,
+    TEST_NAME, app_state_with_github, github_settings, insert_traject, seed_account_record,
+    traject_ref, verified_session,
 };
 
 use axum::Json;
@@ -126,16 +127,15 @@ fn all_laws_query() -> Query<PaginationParams> {
 #[tokio::test]
 async fn changing_the_root_path_reindexes_the_traject_corpus() {
     let server = MockServer::start().await;
-    // SAFETY: std locks its own environment access, so the hazard is C code
-    // (a host-name lookup) reading it on another thread. This binary runs this
-    // one test, on tokio's single-threaded runtime, and the test awaits
-    // everything it starts, so no lookup is running elsewhere at this point.
-    unsafe { std::env::set_var("GITHUB_API_BASE", server.uri()) };
     mount_tree(&server).await;
 
     let db = TestDb::new().await;
     let oauth = GithubOAuth::for_tests(true);
-    let state = state_with_user_token_mode(db.pool.clone(), oauth.clone());
+    let state = app_state_with_github(
+        Some(db.pool.clone()),
+        Some(oauth.clone()),
+        github_settings(&server.uri(), &[]),
+    );
     let alice = seed_account_record(&db.pool, EMAIL, TEST_NAME).await;
     let headers = cookie_headers(&oauth, alice.id);
     let traject_id = seeded_traject(&db.pool, alice.id).await;

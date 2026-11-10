@@ -19,6 +19,7 @@ use uuid::Uuid;
 use regelrecht_auth::handlers::{
     SESSION_KEY_EMAIL, SESSION_KEY_EMAIL_VERIFIED, SESSION_KEY_NAME, SESSION_KEY_SUB,
 };
+use regelrecht_corpus::GithubSettings;
 use regelrecht_editor_api::accounts::AccountRecord;
 use regelrecht_editor_api::config::AppConfig;
 use regelrecht_editor_api::github_oauth::GithubOAuth;
@@ -29,6 +30,38 @@ use regelrecht_editor_api::traject_corpus::TrajectCorpusCache;
 pub const TEST_NAME: &str = "Test User";
 /// The email `session_for` puts in the session.
 pub const TEST_EMAIL: &str = "alice@test.local";
+
+/// GitHub settings that point at `api_base` (a mock server's URI) and know
+/// exactly the server tokens in `tokens`, as `(variable, value)`. A test hands
+/// these to the corpus instead of setting `GITHUB_API_BASE` or a token
+/// variable in the process environment.
+pub fn github_settings(api_base: &str, tokens: &[(&str, &str)]) -> GithubSettings {
+    let tokens: Vec<(String, String)> = tokens
+        .iter()
+        .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+        .collect();
+    GithubSettings::new(Some(api_base), None, move |key| {
+        tokens
+            .iter()
+            .find(|(k, _)| k == key)
+            .map(|(_, v)| v.clone())
+    })
+}
+
+/// An `AppState` whose global corpus reaches GitHub through `github`, and
+/// otherwise [`app_state`].
+pub fn app_state_with_github(
+    pool: Option<PgPool>,
+    oauth: Option<GithubOAuth>,
+    github: GithubSettings,
+) -> AppState {
+    let mut corpus = CorpusState::empty();
+    corpus.github = github;
+    AppState {
+        corpus: Arc::new(RwLock::new(corpus)),
+        ..app_state(pool, oauth)
+    }
+}
 
 /// An `AppState` with an empty global corpus and no OIDC, pipeline or
 /// harvest backends. `oauth` configures GitHub OAuth; its

@@ -11,6 +11,7 @@ pub mod error;
 pub mod github;
 #[cfg(feature = "github")]
 pub mod github_api_backend;
+pub mod github_settings;
 pub mod implements_index;
 pub mod models;
 pub mod registry;
@@ -28,6 +29,7 @@ pub use error::CorpusError;
 pub use github::FetchResult;
 #[cfg(feature = "github")]
 pub use github_api_backend::GitHubApiBackend;
+pub use github_settings::GithubSettings;
 pub use models::{RegistryManifest, Source, SourceType};
 pub use registry::{CorpusRegistry, ScanTokenOverride, SourceIndexFailure};
 pub use source_map::SourceMap;

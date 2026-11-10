@@ -30,6 +30,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
+use regelrecht_corpus::GithubSettings;
 use regelrecht_corpus::backend::create_backend;
 use regelrecht_corpus::models::{GitHubSource, LocalSource, Source, SourceType};
 use regelrecht_corpus::source_map::collect_law_implements;
@@ -469,7 +470,9 @@ impl TrajectCorpus {
     /// stored on this shared, cross-user snapshot.
     pub fn own_server_token(&self) -> Option<String> {
         let source = self.own_source()?;
-        regelrecht_corpus::auth::CredentialResolver::new(self.corpus.auth_file.as_deref())
+        self.corpus
+            .github
+            .credentials()
             .resolve_source(source)
             .ok()
             .and_then(regelrecht_corpus::auth::TokenDecision::into_token)
@@ -1509,11 +1512,16 @@ impl TrajectCorpusCache {
     /// rebuilt synchronously when a request finally carries one — serving
     /// the broken snapshot to that request would fail it loudly for no
     /// reason when the user's own access can heal the index right now.
+    ///
+    /// # Errors
+    ///
+    /// When the traject does not exist or has no writable-own source, the
+    /// database query fails, or the first build of its corpus fails.
     pub async fn get_or_build(
         &self,
         pool: &PgPool,
         traject_id: Uuid,
-        auth_file: Option<PathBuf>,
+        github: &GithubSettings,
         own_scan_token: Option<&str>,
     ) -> Result<Arc<TrajectCorpus>, TrajectCorpusError> {
         // A snapshot whose writable-own scan failed while no user token was
@@ -1589,7 +1597,7 @@ impl TrajectCorpusCache {
         tracing::debug!(traject = %traject_id, cache = "cold", "building traject corpus (cold)");
         let corpus = timing::measure(
             "build",
-            build_traject_corpus(pool, traject_id, auth_file.as_deref(), own_scan_token),
+            build_traject_corpus(pool, traject_id, github, own_scan_token),
         )
         .await?;
 
@@ -1745,7 +1753,7 @@ impl From<regelrecht_corpus::error::CorpusError> for TrajectCorpusError {
 async fn build_traject_corpus(
     pool: &PgPool,
     traject_id: Uuid,
-    auth_file: Option<&std::path::Path>,
+    settings: &GithubSettings,
     own_scan_token: Option<&str>,
 ) -> Result<Arc<TrajectCorpus>, TrajectCorpusError> {
     let rows = sqlx::query_as::<_, TrajectSourceRow>(
@@ -1815,7 +1823,8 @@ async fn build_traject_corpus(
         // read-only mirrors keep working. The index scan below
         // (`index_all_sources_async`) goes through the same resolver, so
         // scan and push can no longer disagree about the token.
-        let token_result = regelrecht_corpus::auth::CredentialResolver::new(auth_file)
+        let token_result = settings
+            .credentials()
             .resolve_source(source)
             .map(regelrecht_corpus::auth::TokenDecision::into_token);
         let token = token_result.unwrap_or_else(|e| {
@@ -1842,7 +1851,7 @@ async fn build_traject_corpus(
                 traject = %traject_id,
                 source_id = %source.id,
                 auth_ref = ?source.auth_ref,
-                auth_file = ?auth_file,
+                auth_file = ?settings.auth_file(),
                 expected_env = %expected_env,
                 user_scan_token = own_scan_token.is_some(),
                 "traject writable-own source resolved NO server token — server-side pushes \
@@ -1869,9 +1878,10 @@ async fn build_traject_corpus(
                 github,
                 row.gh_base_branch.as_deref(),
                 token.as_deref(),
+                settings,
             ),
             SourceType::GitHub { .. } | SourceType::Local { .. } => {
-                create_backend(source, token.as_deref())
+                create_backend(source, token.as_deref(), settings)
             }
         };
         match backend_result {
@@ -1952,7 +1962,7 @@ async fn build_traject_corpus(
     let today = regelrecht_shared::dates::today_str();
     let (source_map, index_failures) = match timing::measure(
         "index",
-        registry.index_all_sources_with_override(auth_file, scan_override, &today),
+        registry.index_all_sources_with_override(settings, scan_override, &today),
     )
     .await
     {
@@ -2003,7 +2013,7 @@ async fn build_traject_corpus(
             registry,
             source_map,
             backends,
-            auth_file: auth_file.map(|p| p.to_path_buf()),
+            github: settings.clone(),
             index_failures,
             lazy_bodies: Default::default(),
         },
@@ -2067,7 +2077,7 @@ async fn refresh_traject_corpus(
     own_scan_token: Option<&str>,
 ) -> Result<Arc<TrajectCorpus>, TrajectCorpusError> {
     let registry = old.corpus.registry.clone();
-    let auth_file = old.corpus.auth_file.clone();
+    let github = &old.corpus.github;
     // Same user-token fallback as the cold build: without it, a traject
     // whose writable-own repo is only readable through the acting user's
     // token could never refresh its index (every TTL refresh would fail
@@ -2079,7 +2089,7 @@ async fn refresh_traject_corpus(
     });
     let (source_map, failed) = registry
         .index_all_sources_with_override(
-            auth_file.as_deref(),
+            github,
             scan_override,
             &regelrecht_shared::dates::today_str(),
         )
@@ -2117,7 +2127,7 @@ async fn next_snapshot(old: &Arc<TrajectCorpus>, source_map: SourceMap) -> Arc<T
             registry: old.corpus.registry.clone(),
             source_map,
             backends: old.corpus.backends.clone(),
-            auth_file: old.corpus.auth_file.clone(),
+            github: old.corpus.github.clone(),
             // A refresh only lands when every source enumerated (see
             // `refresh_traject_corpus`), so the refreshed snapshot has no
             // scan failures to report.
@@ -2271,6 +2281,7 @@ fn build_traject_github_backend(
     github: &GitHubSource,
     base_branch: Option<&str>,
     token: Option<&str>,
+    settings: &GithubSettings,
 ) -> Result<Box<dyn regelrecht_corpus::backend::RepoBackend>, regelrecht_corpus::error::CorpusError>
 {
     use regelrecht_corpus::github_api_backend::GitHubApiBackend;
@@ -2283,7 +2294,8 @@ fn build_traject_github_backend(
         github,
         Some(base_branch.unwrap_or("main").to_string()),
         token.map(|t| t.to_string()),
-    )?;
+        settings.client()?,
+    );
     Ok(Box::new(backend))
 }
 
@@ -2476,7 +2488,7 @@ mod tests {
                 registry: CorpusRegistry::empty(),
                 source_map,
                 backends,
-                auth_file: None,
+                github: GithubSettings::none(),
                 index_failures: HashMap::new(),
                 lazy_bodies: Default::default(),
             },
@@ -2970,7 +2982,7 @@ mod tests {
         };
         let registry = CorpusRegistry::from_sources(vec![source.clone()]);
         let source_map = registry.load_local_sources("2026-06-01").unwrap();
-        let mut backend = create_backend(&source, None).unwrap();
+        let mut backend = create_backend(&source, None, &GithubSettings::none()).unwrap();
         backend.ensure_ready().await.unwrap();
         let writable = backend.is_writable();
         let backends = HashMap::from([(
@@ -2985,7 +2997,7 @@ mod tests {
                 registry,
                 source_map,
                 backends,
-                auth_file: None,
+                github: GithubSettings::none(),
                 index_failures: HashMap::new(),
                 lazy_bodies: Default::default(),
             },

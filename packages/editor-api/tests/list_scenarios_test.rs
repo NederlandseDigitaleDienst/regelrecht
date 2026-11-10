@@ -140,7 +140,12 @@ async fn list_scenarios_global_returns_target_law_ids() {
 
     let mut backends = HashMap::new();
     for source in registry.sources() {
-        let mut backend = regelrecht_corpus::backend::create_backend(source, None).unwrap();
+        let mut backend = regelrecht_corpus::backend::create_backend(
+            source,
+            None,
+            &regelrecht_corpus::GithubSettings::none(),
+        )
+        .unwrap();
         backend.ensure_ready().await.unwrap();
         let writable = backend.is_writable();
         backends.insert(

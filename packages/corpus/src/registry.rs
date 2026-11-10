@@ -179,15 +179,20 @@ impl CorpusRegistry {
     /// fast and avoids burning rate limits on thousands of unused files.
     /// A source marked `load_all` is the exception: it is small by design,
     /// so every law in it is fetched.
+    ///
+    /// # Errors
+    ///
+    /// When the GitHub client cannot be built, a local source or a fetched
+    /// file does not load, a token lookup fails, or a fetch fails.
     #[cfg(feature = "github")]
     pub async fn load_favorites_async(
         &self,
         law_ids: &std::collections::HashSet<String>,
-        auth_file: Option<&Path>,
+        github_settings: &crate::GithubSettings,
         today: &str,
     ) -> Result<SourceMap> {
         let mut map = SourceMap::new(today);
-        let client = regelrecht_github::GithubClient::new()?;
+        let client = github_settings.client()?;
 
         // Determine which law_ids are NOT already covered by local sources,
         // so we only fetch what's missing from GitHub.
@@ -219,7 +224,8 @@ impl CorpusRegistry {
                 } else {
                     Some(&missing)
                 };
-                let token = crate::auth::CredentialResolver::new(auth_file)
+                let token = github_settings
+                    .credentials()
                     .resolve_source(source)?
                     .into_token();
                 match crate::github::fetch_source_filtered(
@@ -279,13 +285,18 @@ impl CorpusRegistry {
     /// to enumerate (non-fatal, mirroring [`load_all_sources_async`]) — the
     /// error string travels with the id so callers can surface *why* a
     /// source's laws are missing instead of only showing a zero law count.
+    ///
+    /// # Errors
+    ///
+    /// When the GitHub client cannot be built; a source that fails is
+    /// reported in the returned list instead.
     #[cfg(feature = "github")]
     pub async fn index_all_sources_async(
         &self,
-        auth_file: Option<&Path>,
+        github_settings: &crate::GithubSettings,
         today: &str,
     ) -> Result<(SourceMap, Vec<SourceIndexFailure>)> {
-        self.index_all_sources_with_override(auth_file, None, today)
+        self.index_all_sources_with_override(github_settings, None, today)
             .await
     }
 
@@ -294,20 +305,25 @@ impl CorpusRegistry {
     /// user's token here so the writable-own repo can be enumerated when
     /// the server has no token for it. See the override type for the
     /// containment rules (single source, server token wins, never stored).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::index_all_sources_async`].
     #[cfg(feature = "github")]
     pub async fn index_all_sources_with_override(
         &self,
-        auth_file: Option<&Path>,
+        github_settings: &crate::GithubSettings,
         scan_override: Option<ScanTokenOverride<'_>>,
         today: &str,
     ) -> Result<(SourceMap, Vec<SourceIndexFailure>)> {
         let mut map = SourceMap::new(today);
-        let client = regelrecht_github::GithubClient::new()?;
+        let client = github_settings.client()?;
         let mut failed: Vec<SourceIndexFailure> = Vec::new();
 
         for source in &self.sources {
             if let Err(e) =
-                Self::index_one_source(&mut map, &client, source, auth_file, scan_override).await
+                Self::index_one_source(&mut map, &client, source, github_settings, scan_override)
+                    .await
             {
                 tracing::warn!(
                     source_id = %source.id,
@@ -349,7 +365,7 @@ impl CorpusRegistry {
         map: &mut SourceMap,
         client: &regelrecht_github::GithubClient,
         source: &Source,
-        auth_file: Option<&Path>,
+        github_settings: &crate::GithubSettings,
         scan_override: Option<ScanTokenOverride<'_>>,
     ) -> Result<()> {
         match &source.source_type {
@@ -363,7 +379,8 @@ impl CorpusRegistry {
                 // also a repo the server can index (and vice versa — no more
                 // "promote succeeded but the index reads with a different
                 // token and comes back empty").
-                let mut token = crate::auth::CredentialResolver::new(auth_file)
+                let mut token = github_settings
+                    .credentials()
                     .resolve_source(source)?
                     .into_token();
                 // Only when the server resolves NO token may the per-call
@@ -416,10 +433,10 @@ impl CorpusRegistry {
     pub async fn index_github_sources_into(
         &self,
         map: &mut SourceMap,
-        auth_file: Option<&Path>,
+        github_settings: &crate::GithubSettings,
     ) -> Vec<SourceIndexFailure> {
         let mut failed = Vec::new();
-        let client = match regelrecht_github::GithubClient::new() {
+        let client = match github_settings.client() {
             Ok(client) => client,
             Err(e) => {
                 for source in &self.sources {
@@ -449,7 +466,8 @@ impl CorpusRegistry {
                 continue;
             }
             let listed = async {
-                let token = crate::auth::CredentialResolver::new(auth_file)
+                let token = github_settings
+                    .credentials()
                     .resolve_source(source)?
                     .into_token();
                 crate::github::list_source_law_paths(&client, github, token.as_deref(), &today)

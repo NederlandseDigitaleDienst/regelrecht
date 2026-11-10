@@ -167,23 +167,42 @@ impl<'a> TokenContext<'a> {
 /// This layer knows nothing about sessions, user OAuth, or HTTP status
 /// codes; user-token fallbacks live in the editor-api on top of the
 /// [`TokenDecision`] this returns.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct CredentialResolver<'a> {
     auth_file: Option<&'a Path>,
+    /// Reads the token variables; the process environment outside tests.
+    env: &'a dyn Fn(&str) -> Option<String>,
+}
+
+impl std::fmt::Debug for CredentialResolver<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CredentialResolver")
+            .field("auth_file", &self.auth_file)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<'a> CredentialResolver<'a> {
     /// Build a resolver that consults the given `corpus-auth.yaml` (if any)
-    /// as its file-backed lookup step.
-    pub fn new(auth_file: Option<&'a Path>) -> Self {
-        Self { auth_file }
+    /// as its file-backed lookup step and reads the token variables through
+    /// `env`. Servers get theirs from
+    /// [`GithubSettings::credentials`](crate::GithubSettings::credentials).
+    pub fn with_env(auth_file: Option<&'a Path>, env: &'a dyn Fn(&str) -> Option<String>) -> Self {
+        Self { auth_file, env }
+    }
+
+    /// Read a variable through `env`, treating "unset" and "set but empty"
+    /// the same way (an empty token would send a bogus `Authorization`
+    /// header downstream).
+    fn non_empty_env(&self, key: &str) -> Option<String> {
+        (self.env)(key).filter(|v| !v.is_empty())
     }
 
     /// Resolve a token for the given context. See the type-level docs for
     /// the resolution order.
     pub fn resolve(&self, ctx: TokenContext<'_>) -> Result<TokenDecision> {
         // 1. Per-source environment variable
-        if let Some(token) = non_empty_env(&token_env_name(ctx.key)) {
+        if let Some(token) = self.non_empty_env(&token_env_name(ctx.key)) {
             return Ok(TokenDecision {
                 token: Some(token),
                 origin: TokenOrigin::ServiceEnv,
@@ -202,7 +221,7 @@ impl<'a> CredentialResolver<'a> {
         // a strict key derives from user input, and falling through here
         // would ship the central token to a user-chosen repo.
         if !ctx.strict
-            && let Some(token) = non_empty_env("CORPUS_GIT_TOKEN")
+            && let Some(token) = self.non_empty_env("CORPUS_GIT_TOKEN")
         {
             return Ok(TokenDecision {
                 token: Some(token),
@@ -228,13 +247,10 @@ impl<'a> CredentialResolver<'a> {
     }
 }
 
-/// Read an env var, treating "unset" and "set but empty" the same way
-/// (empty tokens would send a bogus `Authorization` header downstream).
-fn non_empty_env(key: &str) -> Option<String> {
-    match std::env::var(key) {
-        Ok(v) if !v.is_empty() => Some(v),
-        _ => None,
-    }
+/// Read a variable from the process environment; a value that is not valid
+/// Unicode counts as unset.
+pub(crate) fn process_env(key: &str) -> Option<String> {
+    std::env::var(key).ok()
 }
 
 /// Read the auth file (if any) and look up `auth_ref` in it. Returns
@@ -273,20 +289,29 @@ fn find_in_auth_file(auth_ref: &str, auth_file: Option<&Path>) -> Result<Option<
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
     use std::io::Write;
-    use std::sync::Mutex;
     use tempfile::NamedTempFile;
 
-    // Tests in this module mutate the process-wide environment via
-    // `CORPUS_GIT_TOKEN` / per-source vars. cargo's default parallel
-    // test runner would then race two tests reading/writing the same
-    // env vars and produce flakes. Serialize the env-mutating tests
-    // behind one mutex so they take turns. Tests that only read a
-    // unique-named var don't need it.
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    /// A lookup over fixed values, standing in for the process environment.
+    /// Every test passes its own, so none of them reads a token the test
+    /// runner happens to have set, and none changes the process environment.
+    fn env_of(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> + use<> {
+        let vars: HashMap<String, String> = pairs
+            .iter()
+            .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+            .collect();
+        move |key| vars.get(key).cloned()
+    }
 
-    fn resolve_key(key: &str, strict: bool, auth_file: Option<&Path>) -> TokenDecision {
-        CredentialResolver::new(auth_file)
+    fn resolve_key(
+        key: &str,
+        strict: bool,
+        auth_file: Option<&Path>,
+        env: &[(&str, &str)],
+    ) -> TokenDecision {
+        let env = env_of(env);
+        CredentialResolver::with_env(auth_file, &env)
             .resolve(if strict {
                 TokenContext::strict(key)
             } else {
@@ -299,56 +324,6 @@ mod tests {
             .unwrap()
     }
 
-    /// RAII guard: set an env var for the duration of a test, restoring
-    /// the previous value (or absence) on drop — even on assert failure,
-    /// so one failing case can't poison the environment for the next.
-    struct EnvVarGuard {
-        key: String,
-        prev: Option<String>,
-    }
-
-    fn set_env(key: &str, value: &str) {
-        // SAFETY: std locks its own environment access, so the hazard is C
-        // code reading the environment on another thread. These unit tests
-        // resolve no host names and call no libc time functions, the C paths
-        // that would read it.
-        unsafe { std::env::set_var(key, value) };
-    }
-
-    fn remove_env(key: &str) {
-        // SAFETY: as in `set_env`.
-        unsafe { std::env::remove_var(key) };
-    }
-
-    impl EnvVarGuard {
-        fn set(key: &str, value: &str) -> Self {
-            let prev = std::env::var(key).ok();
-            set_env(key, value);
-            Self {
-                key: key.to_string(),
-                prev,
-            }
-        }
-
-        fn unset(key: &str) -> Self {
-            let prev = std::env::var(key).ok();
-            remove_env(key);
-            Self {
-                key: key.to_string(),
-                prev,
-            }
-        }
-    }
-
-    impl Drop for EnvVarGuard {
-        fn drop(&mut self) {
-            match &self.prev {
-                Some(v) => set_env(&self.key, v),
-                None => remove_env(&self.key),
-            }
-        }
-    }
-
     /// Full decision table: every combination of
     /// `{strict, per-source env set, auth-file entry present, legacy set}`
     /// against the expected `TokenDecision`. Pins the three standing
@@ -356,8 +331,6 @@ mod tests {
     /// legacy, and strict lookups never see the legacy token.
     #[test]
     fn decision_table_covers_all_strict_env_file_legacy_combinations() {
-        let _g = ENV_LOCK.lock().unwrap();
-
         let key = "decision-table-src";
         let env_key = token_env_name(key);
         assert_eq!(env_key, "CORPUS_AUTH_DECISION_TABLE_SRC_TOKEN");
@@ -391,19 +364,16 @@ mod tests {
         ];
 
         for &(strict, env, has_file, legacy, want_token, want_origin) in cases {
-            let _env = if env {
-                EnvVarGuard::set(&env_key, "env-token")
-            } else {
-                EnvVarGuard::unset(&env_key)
-            };
-            let _legacy = if legacy {
-                EnvVarGuard::set("CORPUS_GIT_TOKEN", "legacy-token")
-            } else {
-                EnvVarGuard::unset("CORPUS_GIT_TOKEN")
-            };
+            let mut vars = Vec::new();
+            if env {
+                vars.push((env_key.as_str(), "env-token"));
+            }
+            if legacy {
+                vars.push(("CORPUS_GIT_TOKEN", "legacy-token"));
+            }
             let auth_file = has_file.then(|| file.path());
 
-            let decision = resolve_key(key, strict, auth_file);
+            let decision = resolve_key(key, strict, auth_file, &vars);
             let case = format!("strict={strict} env={env} file={has_file} legacy={legacy}");
             assert_eq!(decision.token(), want_token, "token mismatch for {case}");
             assert_eq!(decision.origin(), want_origin, "origin mismatch for {case}");
@@ -412,15 +382,10 @@ mod tests {
 
     #[test]
     fn resolve_reads_per_source_env_var() {
-        // Use a unique env var name to avoid test interference
-        let key = "CORPUS_AUTH_TEST_SOURCE_123_TOKEN";
-        set_env(key, "env-token-value");
-
-        let decision = resolve_key("test-source-123", false, None);
+        let env = [("CORPUS_AUTH_TEST_SOURCE_123_TOKEN", "env-token-value")];
+        let decision = resolve_key("test-source-123", false, None, &env);
         assert_eq!(decision.token(), Some("env-token-value"));
         assert_eq!(decision.origin(), TokenOrigin::ServiceEnv);
-
-        remove_env(key);
     }
 
     #[test]
@@ -435,52 +400,51 @@ sources:
         let mut file = NamedTempFile::new().unwrap();
         file.write_all(yaml.as_bytes()).unwrap();
 
-        let decision = resolve_key("amsterdam", false, Some(file.path()));
+        let decision = resolve_key("amsterdam", false, Some(file.path()), &[]);
         assert_eq!(decision.token(), Some("file-token-123"));
         assert_eq!(decision.origin(), TokenOrigin::ServiceAuthFile);
 
-        let decision = resolve_key("rotterdam", false, Some(file.path()));
+        let decision = resolve_key("rotterdam", false, Some(file.path()), &[]);
         assert_eq!(decision.token(), Some("file-token-456"));
     }
 
     #[test]
     fn resolve_without_any_source_is_none() {
-        let _g = ENV_LOCK.lock().unwrap();
-        // Make sure the legacy CORPUS_GIT_TOKEN doesn't leak from the
-        // test runner's environment and turn this assertion into a flake.
-        let _legacy = EnvVarGuard::unset("CORPUS_GIT_TOKEN");
-        let decision = resolve_key("nonexistent", false, None);
+        let decision = resolve_key("nonexistent", false, None, &[]);
         assert_eq!(decision.token(), None);
         assert_eq!(decision.origin(), TokenOrigin::None);
     }
 
     #[test]
     fn resolve_falls_back_to_legacy_corpus_git_token() {
-        let _g = ENV_LOCK.lock().unwrap();
         // No per-source var, no auth file → resolver picks up
         // CORPUS_GIT_TOKEN so deployments that still set only the legacy
         // single-token variable keep working across all sources.
-        let _legacy = EnvVarGuard::set("CORPUS_GIT_TOKEN", "legacy-token-value");
-        let decision = resolve_key("any-source-here", false, None);
+        let env = [("CORPUS_GIT_TOKEN", "legacy-token-value")];
+        let decision = resolve_key("any-source-here", false, None, &env);
         assert_eq!(decision.token(), Some("legacy-token-value"));
         assert_eq!(decision.origin(), TokenOrigin::LegacyShared);
     }
 
     #[test]
     fn per_source_env_wins_over_legacy_corpus_git_token() {
-        let _g = ENV_LOCK.lock().unwrap();
-        let _legacy = EnvVarGuard::set("CORPUS_GIT_TOKEN", "legacy-loses");
-        let _per_source = EnvVarGuard::set("CORPUS_AUTH_PRIORITY_TEST_TOKEN", "per-source-wins");
-        let decision = resolve_key("priority-test", false, None);
+        let env = [
+            ("CORPUS_GIT_TOKEN", "legacy-loses"),
+            ("CORPUS_AUTH_PRIORITY_TEST_TOKEN", "per-source-wins"),
+        ];
+        let decision = resolve_key("priority-test", false, None, &env);
         assert_eq!(decision.token(), Some("per-source-wins"));
         assert_eq!(decision.origin(), TokenOrigin::ServiceEnv);
     }
 
     #[test]
     fn resolve_with_missing_auth_file_is_none() {
-        let _g = ENV_LOCK.lock().unwrap();
-        let _legacy = EnvVarGuard::unset("CORPUS_GIT_TOKEN");
-        let decision = resolve_key("test", false, Some(Path::new("/nonexistent/auth.yaml")));
+        let decision = resolve_key(
+            "test",
+            false,
+            Some(Path::new("/nonexistent/auth.yaml")),
+            &[],
+        );
         assert_eq!(decision.token(), None);
     }
 
@@ -493,9 +457,8 @@ sources:
         // central token on the next outgoing GitHub call. This test
         // pins the strict behaviour so a future refactor of the
         // resolver can't silently regress it.
-        let _g = ENV_LOCK.lock().unwrap();
-        let _legacy = EnvVarGuard::set("CORPUS_GIT_TOKEN", "central-secret");
-        let decision = CredentialResolver::new(None)
+        let env = env_of(&[("CORPUS_GIT_TOKEN", "central-secret")]);
+        let decision = CredentialResolver::with_env(None, &env)
             .resolve(TokenContext::strict("attacker-supplied-key"))
             .unwrap();
         assert_eq!(
@@ -510,14 +473,8 @@ sources:
     fn strict_context_still_uses_per_source_env() {
         // The strict variant still honours the explicit per-source env
         // var — that's the path operators are supposed to configure.
-        // Holds `ENV_LOCK` like the sibling strict test: even though
-        // the key here is unique, env-mutating tests run serialised so
-        // a concurrent test holding the lock and mutating arbitrary
-        // env vars can't race with this one.
-        let _g = ENV_LOCK.lock().unwrap();
-        let _per_source =
-            EnvVarGuard::set("CORPUS_AUTH_STRICT_PER_SOURCE_OK_TOKEN", "per-source-value");
-        let decision = CredentialResolver::new(None)
+        let env = env_of(&[("CORPUS_AUTH_STRICT_PER_SOURCE_OK_TOKEN", "per-source-value")]);
+        let decision = CredentialResolver::with_env(None, &env)
             .resolve(TokenContext::strict("strict-per-source-ok"))
             .unwrap();
         assert_eq!(decision.token(), Some("per-source-value"));
@@ -550,9 +507,8 @@ sources:
         // source object — most importantly the index scan, which used to
         // fall back to `CORPUS_GIT_TOKEN` while the push path resolved
         // strictly.
-        let _g = ENV_LOCK.lock().unwrap();
-        let _legacy = EnvVarGuard::set("CORPUS_GIT_TOKEN", "central-secret");
-        let resolver = CredentialResolver::new(None);
+        let env = env_of(&[("CORPUS_GIT_TOKEN", "central-secret")]);
+        let resolver = CredentialResolver::with_env(None, &env);
         let strict = resolver
             .resolve_source(&local_source("user-picked-ref", true))
             .unwrap();
@@ -578,9 +534,12 @@ sources:
         // The lookup key is `auth_ref` when present (RFC-010: `auth_ref`
         // in the manifest references an entry in the auth config), the
         // source id otherwise.
-        let _g = ENV_LOCK.lock().unwrap();
-        let _per_ref = EnvVarGuard::set("CORPUS_AUTH_REF_KEY_WINS_TOKEN", "ref-token");
-        let decision = CredentialResolver::new(None)
+        let env = env_of(&[
+            ("CORPUS_AUTH_REF_KEY_WINS_TOKEN", "ref-token"),
+            ("CORPUS_AUTH_ID_KEY_WINS_TOKEN", "id-token"),
+        ]);
+        let resolver = CredentialResolver::with_env(None, &env);
+        let decision = resolver
             .resolve_source(&local_source("ref-key-wins", false))
             .unwrap();
         assert_eq!(decision.token(), Some("ref-token"));
@@ -588,10 +547,7 @@ sources:
         let mut no_ref = local_source("unused", false);
         no_ref.auth_ref = None;
         no_ref.id = "id-key-wins".to_string();
-        let _per_id = EnvVarGuard::set("CORPUS_AUTH_ID_KEY_WINS_TOKEN", "id-token");
-        let decision = CredentialResolver::new(None)
-            .resolve_source(&no_ref)
-            .unwrap();
+        let decision = resolver.resolve_source(&no_ref).unwrap();
         assert_eq!(decision.token(), Some("id-token"));
     }
 
@@ -599,16 +555,14 @@ sources:
     fn empty_env_var_counts_as_unset() {
         // An empty per-source var must not shadow the auth file (or
         // produce an empty Authorization header downstream).
-        let _g = ENV_LOCK.lock().unwrap();
         let key = "empty-env-src";
-        let _empty = EnvVarGuard::set(&token_env_name(key), "");
-        let _legacy = EnvVarGuard::unset("CORPUS_GIT_TOKEN");
+        let env_key = token_env_name(key);
 
         let yaml = format!("sources:\n  - id: {key}\n    token: file-wins\n");
         let mut file = NamedTempFile::new().unwrap();
         file.write_all(yaml.as_bytes()).unwrap();
 
-        let decision = resolve_key(key, false, Some(file.path()));
+        let decision = resolve_key(key, false, Some(file.path()), &[(&env_key, "")]);
         assert_eq!(decision.token(), Some("file-wins"));
         assert_eq!(decision.origin(), TokenOrigin::ServiceAuthFile);
     }

@@ -30,8 +30,8 @@
 //! # The client
 //!
 //! One [`GithubClient`] holds a shared `reqwest::Client`, one header builder,
-//! one base-url mechanism (`GITHUB_API_BASE` read at construction — a
-//! load-bearing test seam), and ETag + rate-limit state behind a
+//! one API base (given to [`GithubClient::from_base`], or read from
+//! `GITHUB_API_BASE` by [`GithubClient::new`]), and ETag + rate-limit state behind a
 //! `std::sync::Mutex` so every method takes `&self`. The lock is never held
 //! across a `.await`.
 

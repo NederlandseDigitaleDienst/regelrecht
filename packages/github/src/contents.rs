@@ -696,7 +696,7 @@ mod tests {
     const MISSING_PATH_BODY: &str = r#"{"message":"Not Found","status":"404"}"#;
 
     fn client(server: &MockServer) -> GithubClient {
-        GithubClient::new().unwrap().with_base_url(server.uri())
+        GithubClient::from_base(Some(&server.uri())).unwrap()
     }
 
     /// The probe that turns a 404 into absence: the repo answers, so this

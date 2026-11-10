@@ -4,15 +4,14 @@
 //! stays as it was: a law the same source supplied, a law a local source
 //! provides, and a law refused for a conflict are not indexed over.
 //!
-//! GitHub is played by wiremock through the process-wide `GITHUB_API_BASE`
-//! seam, so everything sits in one test: parallel tests with their own mock
-//! servers would point each other's clients at the wrong server.
+//! GitHub is played by wiremock; the `GithubSettings` the test passes point
+//! every client at it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod common;
 
-use common::{app_state, contents_file_json};
+use common::{app_state, contents_file_json, github_settings};
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -152,11 +151,7 @@ async fn body_text(response: impl IntoResponse) -> String {
 #[tokio::test]
 async fn corpus_juris_finds_and_opens_laws_it_did_not_load_up_front() {
     let server = MockServer::start().await;
-    // SAFETY: std locks its own environment access, so the hazard is C code
-    // (a host-name lookup) reading it on another thread. This binary runs this
-    // one test, on tokio's single-threaded runtime, and the test awaits
-    // everything it starts, so no lookup is running elsewhere at this point.
-    unsafe { std::env::set_var("GITHUB_API_BASE", server.uri()) };
+    let github = github_settings(&server.uri(), &[]);
     mount_github(&server).await;
 
     let local_dir = tempfile::tempdir().unwrap();
@@ -191,7 +186,7 @@ async fn corpus_juris_finds_and_opens_laws_it_did_not_load_up_front() {
     )
     .unwrap();
     map.prefer_version_in_force();
-    let failures = registry.index_github_sources_into(&mut map, None).await;
+    let failures = registry.index_github_sources_into(&mut map, &github).await;
     assert!(failures.is_empty(), "index failed: {failures:?}");
 
     let version_sources = |law_id: &str| -> Vec<String> {
@@ -213,9 +208,11 @@ async fn corpus_juris_finds_and_opens_laws_it_did_not_load_up_front() {
     assert!(!map.get_law(INDEXED_LAW).unwrap().is_loaded());
 
     let mut corpus = CorpusState::empty();
+    corpus.github = github.clone();
     corpus.backends = HashMap::new();
     for id in ["local", "central"] {
-        let mut backend = regelrecht_corpus::backend::create_backend(&source(id), None).unwrap();
+        let mut backend =
+            regelrecht_corpus::backend::create_backend(&source(id), None, &github).unwrap();
         backend.ensure_ready().await.unwrap();
         corpus.backends.insert(
             id.to_string(),
@@ -274,7 +271,4 @@ async fn corpus_juris_finds_and_opens_laws_it_did_not_load_up_front() {
         .await
         .unwrap();
     assert_eq!(body_text(response).await, law_body(LOADED_LAW));
-
-    // SAFETY: as at the first `set_var` in this test.
-    unsafe { std::env::remove_var("GITHUB_API_BASE") };
 }

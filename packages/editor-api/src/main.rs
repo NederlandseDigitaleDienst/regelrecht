@@ -782,15 +782,12 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
         regelrecht_corpus::CorpusRegistry::empty()
     };
 
-    let auth_file = if auth_path.exists() {
-        Some(auth_path.as_path())
-    } else {
-        None
-    };
+    let github =
+        regelrecht_corpus::GithubSettings::from_env(auth_path.exists().then_some(auth_path));
 
     let today = regelrecht_shared::dates::today_str();
     let mut source_map = match registry
-        .load_favorites_async(favorites, auth_file, &today)
+        .load_favorites_async(favorites, &github, &today)
         .await
     {
         Ok(map) => {
@@ -824,19 +821,19 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
     // `prefer_version_in_force`, so a law refused for a conflict between two
     // sources is left out rather than kept as a version.
     let index_failures: HashMap<String, String> = registry
-        .index_github_sources_into(&mut source_map, auth_file)
+        .index_github_sources_into(&mut source_map, &github)
         .await
         .into_iter()
         .map(|f| (f.source_id, f.error))
         .collect();
 
-    let backends = init_backends(&registry, auth_file).await;
+    let backends = init_backends(&registry, &github).await;
 
     CorpusState {
         registry,
         source_map,
         backends,
-        auth_file: auth_file.map(|p| p.to_path_buf()),
+        github,
         index_failures,
         lazy_bodies: Default::default(),
     }
@@ -850,7 +847,7 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
 /// read/write path mismatch — see [`crate::state::BackendEntry::writable`].
 async fn init_backends(
     registry: &regelrecht_corpus::CorpusRegistry,
-    auth_file: Option<&std::path::Path>,
+    github: &regelrecht_corpus::GithubSettings,
 ) -> HashMap<String, crate::state::BackendEntry> {
     let mut backends = HashMap::new();
 
@@ -863,7 +860,8 @@ async fn init_backends(
         // `CORPUS_GIT_TOKEN` keep working — but a strict source ever
         // reaching this path now resolves strictly, consistent with the
         // traject backend path in `traject_corpus.rs`.
-        let token = regelrecht_corpus::auth::CredentialResolver::new(auth_file)
+        let token = github
+            .credentials()
             .resolve_source(source)
             .map(regelrecht_corpus::auth::TokenDecision::into_token)
             .unwrap_or_else(|e| {
@@ -874,7 +872,7 @@ async fn init_backends(
         // When a push token is present, the backend will push commits to the
         // remote repo. This requires authentication on the write endpoints —
         // do NOT enable push tokens without adding auth middleware first.
-        match regelrecht_corpus::backend::create_backend(source, token.as_deref()) {
+        match regelrecht_corpus::backend::create_backend(source, token.as_deref(), github) {
             Ok(mut backend) => {
                 if let Err(e) = backend.ensure_ready().await {
                     tracing::warn!(
