@@ -1,16 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import type { VueWrapper } from '@vue/test-utils';
+import { installTestCorpus } from '../test-utils/corpusSetup';
 
 // useTasks' network leg - same pattern as TasksListPane.test.js.
 const apiFetch = vi.fn();
 vi.mock('@regelrecht/frontend-shared', () => ({ apiFetch: (...a: unknown[]) => apiFetch(...a) }));
 
-// useCorpusLaws' network leg: the pane resolves law_ids to display names
-// through it (same mock shape as useCorpusLaws.test.js).
-const apiFetchJson = vi.fn();
-vi.mock('../lib/apiFetch', () => ({
-  apiFetchJson: (...a: unknown[]) => apiFetchJson(...a),
+vi.mock('../lib/apiFetch', async (importOriginal) => ({
+  ...(await importOriginal()),
   apiFetch: (...a: unknown[]) => apiFetch(...a),
 }));
 
@@ -50,7 +48,6 @@ describe('TasksCategoriesPane', () => {
   beforeEach(() => {
     vi.resetModules();
     apiFetch.mockReset();
-    apiFetchJson.mockReset();
   });
 
   // Rows go into the mocked JSON response as-is, so they stay untyped here.
@@ -63,16 +60,19 @@ describe('TasksCategoriesPane', () => {
       status: 200,
       json: async () => ({ tasks, open_count: tasks.length, running }),
     });
-    apiFetchJson.mockResolvedValue([
-      { law_id: 'wet_op_de_zorgtoeslag', display_name: 'Wet op de zorgtoeslag' },
-      { law_id: 'participatiewet', display_name: 'Participatiewet' },
-    ]);
+    // The pane resolves law_ids to display names through the corpus.
+    installTestCorpus({
+      'traject-abcd1234': {
+        list: [
+          { law_id: 'wet_op_de_zorgtoeslag', display_name: 'Wet op de zorgtoeslag' },
+          { law_id: 'participatiewet', display_name: 'Participatiewet' },
+        ],
+      },
+    }, 'traject-abcd1234');
     const { default: Pane } = await import('./TasksCategoriesPane.vue');
     const wrapper = mount(Pane, { props: { trajectRef: 'traject-abcd1234', ...props }, attachTo: document.body });
-    // Flush both composables' deferred loads.
-    await wrapper.vm.$nextTick();
-    await Promise.resolve();
-    await Promise.resolve();
+    // Flush the task load and the names list.
+    await flushPromises();
     await wrapper.vm.$nextTick();
     return wrapper;
   }

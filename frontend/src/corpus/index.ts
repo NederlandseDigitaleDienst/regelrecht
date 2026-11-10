@@ -9,15 +9,20 @@ export { createHttpTransport } from './httpTransport';
 export type { CorpusTransport } from './transport';
 export type * from './types';
 
-let installed: CorpusReader | null = null;
+// Kept on globalThis rather than in a module variable: a test that mocks a
+// module this one depends on gets its own instance of this module, and must
+// still see the reader the test setup installed.
+const INSTALLED = Symbol.for('regelrecht.editor.corpusReader');
+type WithReader = typeof globalThis & { [INSTALLED]?: CorpusReader };
 
 /** Make `reader` the one `useCorpus()` returns. */
 export function installCorpus(reader: CorpusReader): void {
-  installed = reader;
+  (globalThis as WithReader)[INSTALLED] = reader;
 }
 
 /** The installed corpus reader. Throws when none is installed, so a missing setup fails loudly. */
 export function useCorpus(): CorpusReader {
-  if (!installed) throw new Error('No corpus reader installed; call installCorpus() first');
-  return installed;
+  const reader = (globalThis as WithReader)[INSTALLED];
+  if (!reader) throw new Error('No corpus reader installed; call installCorpus() first');
+  return reader;
 }

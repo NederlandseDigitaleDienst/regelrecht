@@ -1,10 +1,12 @@
 import './nldd-components.js';
 import '@nldd/design-system/styles';
-import { createApp } from 'vue';
+import { computed, createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
 import { installApiAuthGuard } from './lib/apiAuthGuard';
 import { installDevSlowMode } from './lib/devSlowMode';
+import { createCorpusReader, createHttpTransport, installCorpus } from './corpus';
+import { singleParam } from './lib/routeParams';
 
 // Catch 401s on /api/* calls fired while a page is open and redirect to login,
 // mirroring the router's navigation guard. Must run before any fetch.
@@ -14,6 +16,12 @@ installApiAuthGuard();
 // visible locally. No-op in a production build and when unset. Installed after
 // the auth guard so a 401 redirect is not held up by the delay.
 installDevSlowMode();
+
+// Corpus reads go to the traject the route names; see src/corpus.
+installCorpus(createCorpusReader({
+  transport: createHttpTransport(),
+  trajectRef: computed(() => singleParam(router.currentRoute.value.params.trajectRef) ?? null),
+}));
 
 const app = createApp(App);
 app.use(router);

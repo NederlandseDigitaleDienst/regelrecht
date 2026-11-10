@@ -4,7 +4,7 @@ import { lastSavedPr, sanitizeSavedPr } from './useSavedPr';
 import { lawCreateUrl, lawUrl } from './corpusUrls';
 import { apiFetch } from '../lib/apiFetch';
 import type { RequestError } from '../lib/apiFetch';
-import { createLruMap } from '../lib/lruMap';
+import { useCorpus, type LawBody } from '../corpus';
 import { useLatest } from '../lib/useLatest';
 import { resolveLawName } from '../lib/lawName';
 export { resolveLawName } from '../lib/lawName';
@@ -12,13 +12,8 @@ import { holdRetryFloor } from '../lib/retryFeedback';
 import type { LawArticle, LawDocument } from '../lib/lawFormat';
 export type { LawArticle, LawDocument } from '../lib/lawFormat';
 
-/** A cached law: the parsed body, its source text and its ETag. */
-export interface LawCacheEntry {
-  law: LawDocument | null;
-  rawYaml: string;
-  lawName: string;
-  etag: string | null;
-}
+/** A rulework body as the corpus reader hands it out. */
+export type LawCacheEntry = LawBody;
 
 type TrajectRef = string | null | undefined;
 
@@ -30,22 +25,6 @@ function parseLaw(text: string): LawDocument | null {
   return yaml.load(text) as LawDocument | null;
 }
 
-// Shared law cache, keyed by `${trajectRef || ''}::${lawId}` so a law
-// opened in traject A and in traject B (or globally) returns the
-// per-traject view rather than whichever was fetched first. The
-// trajectRef is part of the URL, so per-tab navigation never silently
-// mixes content across trajects.
-//
-// LRU-capped so a long session that hops across many trajects doesn't
-// grow the cache without bound. 50 entries comfortably covers global +
-// a handful of trajects × the laws a session realistically opens;
-// evictions are cheap (the next fetch re-populates from the API).
-const lawCache = createLruMap<string, LawCacheEntry>(50);
-
-function lawCacheKey(trajectRef: TrajectRef, lawId: string): string {
-  return `${trajectRef || ''}::${lawId}`;
-}
-
 // Shared apiFetch options for law GETs. The thrown ApiError carries the
 // HTTP status so callers can branch on `.status === 404`; the message
 // keeps its historical shape.
@@ -53,67 +32,14 @@ export const lawFetchInit = Object.freeze({
   errorMessage: (status: number) => `Failed to fetch: ${status}`,
 });
 
-// The single cache-entry shape shared by every producer (fresh fetch,
-// direct-URL load, save). The `etag` is echoed back as `If-Match` on the
-// next save so a concurrent edit by another traject member surfaces as a
-// 412 instead of a silent overwrite (same chain as useTrajectDocuments).
-function makeEntry(law: LawDocument | null, rawYaml: string, etag: string | null): LawCacheEntry {
-  return { law, rawYaml, lawName: resolveLawName(law), etag };
-}
-
-// In-flight law GETs, keyed like `lawCache`. Simultaneous callers share
-// one request instead of racing duplicate GETs against an empty cache -
-// which is exactly what an editor mount does: `useLaw().load()` fetches
-// the routed law while the persisted-tab label loader `fetchLaw`s the
-// same id in parallel. Entries are removed when the request settles, so
-// a failed fetch never pins a rejected promise (retries hit the network).
-const pendingLawFetches = new Map<string, Promise<LawCacheEntry>>();
-
 /**
- * The network leg shared by `fetchLaw` and `useLaw().load()`: always
- * fetches (no cache read - `load()` relies on that for freshness),
- * single-flighted per cache key, and stores the entry in `lawCache`
- * under the requested id (and the body's resolved `$id`, when the two
- * differ) before resolving.
- */
-function fetchLawFresh(trajectRef: TrajectRef, lawId: string): Promise<LawCacheEntry> {
-  const key = lawCacheKey(trajectRef, lawId);
-  const pending = pendingLawFetches.get(key);
-  if (pending) return pending;
-  const p = (async () => {
-    const res = await apiFetch(lawUrl(trajectRef, lawId), lawFetchInit);
-    const text = await res.text();
-    const law = parseLaw(text);
-    const entry = makeEntry(law, text, res.headers.get('ETag'));
-    // Always overwrite: this is fresh content, so any pre-existing entry
-    // is by definition stale (older body and/or ETag) - keeping it would
-    // hand `fetchLaw`/`switchLaw` callers outdated YAML and a
-    // precondition doomed to 412.
-    lawCache.set(key, entry);
-    const resolvedId = law?.$id;
-    if (resolvedId && resolvedId !== lawId) {
-      lawCache.set(lawCacheKey(trajectRef, resolvedId), entry);
-    }
-    return entry;
-  })();
-  pendingLawFetches.set(key, p);
-  p.catch(() => {}).finally(() => pendingLawFetches.delete(key));
-  return p;
-}
-
-/**
- * Fetch a law's YAML, possibly from cache. The traject id is part of
- * the cache key so this never returns content from a different traject
- * than the caller asked for.
+ * Fetch a law's YAML, possibly from cache, through the given traject.
  *
- * @param {string|null} trajectRef - active traject (null = global read)
+ * @param {string|null} trajectRef - traject to read (null = global read)
  * @param {string} lawId
  */
 export async function fetchLaw(trajectRef: TrajectRef, lawId: string): Promise<LawCacheEntry> {
-  const key = lawCacheKey(trajectRef, lawId);
-  const cached = lawCache.get(key);
-  if (cached) return cached;
-  return fetchLawFresh(trajectRef, lawId);
+  return useCorpus().forTraject(trajectRef).law(lawId);
 }
 
 export function useLaw(
@@ -133,6 +59,10 @@ export function useLaw(
     lawParam = params.get('law') || null;
   }
   const initialArticle = articleParam || null;
+  // useLaw reads through an explicit traject, not the route's: during a
+  // cross-traject navigation it loads for the traject the route has not
+  // committed yet (see `lawTrajectRef`).
+  const corpus = useCorpus();
   // Current traject id for this composable instance. `switchLaw` may
   // update this when navigation crosses trajects, so URL builders read
   // through the closure instead of capturing a snapshot.
@@ -189,27 +119,25 @@ export function useLaw(
       loading.value = true;
       let entry: LawCacheEntry;
       if (initialDirectUrl) {
-        // Direct URL: no law id to key the shared in-flight map on, so
-        // fetch inline and cache under the body's resolved `$id`.
+        // Direct URL: not a corpus route, so fetch inline and record the
+        // body under its resolved `$id`.
         const res = await apiFetch(initialDirectUrl, lawFetchInit);
         if (!isCurrent()) return;
         const text = await res.text();
         // Deliberately no second staleness check between `.text()` and the
-        // parse (the original had one): the content is fresh either way and
-        // the cache key is snapshotted above, so caching it mirrors
-        // `fetchLawFresh` semantics even if this load went stale mid-flight;
-        // the final `isCurrent()` below still guards all component state.
-        const parsed = parseLaw(text);
-        entry = makeEntry(parsed, text, res.headers.get('ETag'));
+        // record: the content is fresh either way and the traject is
+        // snapshotted above, so recording it is right even if this load went
+        // stale mid-flight; the final `isCurrent()` below still guards all
+        // component state.
         // load() only runs while lawParam is set (see the call below).
-        const resolvedId = parsed?.$id || (lawParam as string);
-        lawCache.set(lawCacheKey(loadTrajectRef, resolvedId), entry);
+        const resolvedId = parseLaw(text)?.$id || (lawParam as string);
+        entry = corpus.forTraject(loadTrajectRef).recordBody(resolvedId, text, res.headers.get('ETag'));
       } else {
-        // Fresh fetch (never the cache), shared with any concurrent
-        // `fetchLaw` for the same law so a mount doesn't fire duplicate
-        // GETs. Cache writes happen inside `fetchLawFresh`.
+        // Fresh fetch (never the cache): opening a rulework to edit it needs
+        // the current ETag. Shared with any concurrent read of the same law,
+        // so a mount doesn't fire duplicate GETs.
         // load() only runs while lawParam is set (see the call below).
-        entry = await fetchLawFresh(loadTrajectRef, lawParam as string);
+        entry = await corpus.forTraject(loadTrajectRef).law(lawParam as string, { fresh: true });
       }
       if (!isCurrent()) return;
       rawYaml.value = entry.rawYaml;
@@ -279,7 +207,7 @@ export function useLaw(
         currentTrajectRef = newTrajectRef || null;
         lawTrajectRef.value = currentTrajectRef;
       }
-      const entry = await fetchLaw(currentTrajectRef, newLawId);
+      const entry = await corpus.forTraject(currentTrajectRef).law(newLawId);
       if (!isCurrent()) return false;
       law.value = entry.law;
       rawYaml.value = entry.rawYaml;
@@ -410,16 +338,15 @@ export function useLaw(
       // authoritative; the body echo is the fallback (mirrors
       // useTrajectDocuments).
       const newEtag = res.headers.get('ETag') ?? json?.etag ?? null;
-      const parsed = parseLaw(yamlText);
+      // Recorded for the traject the save went to, even if the user has
+      // switched since.
+      const saved = corpus.forTraject(savedTrajectRef).recordBody(savedLawId, yamlText, newEtag);
       // Bail on the success path if the user navigated away mid-flight.
       if (lawId.value === savedLawId && currentTrajectRef === savedTrajectRef) {
         rawYaml.value = yamlText;
-        law.value = parsed;
+        law.value = saved.law;
         currentEtag.value = newEtag;
       }
-      const resolvedId = parsed?.$id || savedLawId;
-      const savedKey = lawCacheKey(savedTrajectRef, resolvedId);
-      lawCache.set(savedKey, makeEntry(parsed, yamlText, newEtag));
     } catch (e) {
       if (lawId.value === savedLawId && currentTrajectRef === savedTrajectRef) {
         saveError.value = e as RequestError;
@@ -480,7 +407,7 @@ export function useLaw(
     if (!lawId.value) return false;
     const reloadedLawId = lawId.value;
     const reloadedTrajectRef = currentTrajectRef;
-    const entry = await fetchLawFresh(reloadedTrajectRef, reloadedLawId);
+    const entry = await corpus.forTraject(reloadedTrajectRef).law(reloadedLawId, { fresh: true });
     if (lawId.value !== reloadedLawId || currentTrajectRef !== reloadedTrajectRef) return false;
     law.value = entry.law;
     rawYaml.value = entry.rawYaml;
@@ -528,12 +455,7 @@ export function useLaw(
       law.value = parsed;
       currentEtag.value = newEtag;
       const resolvedId = parsed?.$id;
-      if (resolvedId) {
-        lawCache.set(
-          lawCacheKey(savedTrajectRef, resolvedId),
-          makeEntry(parsed, yamlText, newEtag)
-        );
-      }
+      if (resolvedId) corpus.forTraject(savedTrajectRef).recordBody(resolvedId, yamlText, newEtag);
     } catch (e) {
       saveError.value = e as RequestError;
       throw e;

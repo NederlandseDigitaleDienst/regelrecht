@@ -60,7 +60,7 @@ export interface CorpusReader extends TrajectCorpusView {
    * traject the route has not committed yet: `useLaw` during a cross-traject
    * navigation, and recording a save that finished after a switch.
    */
-  forTraject(trajectRef: TrajectRef): TrajectCorpusView;
+  forTraject(trajectRef: string | null | undefined): TrajectCorpusView;
 }
 
 export interface CorpusReaderOptions {

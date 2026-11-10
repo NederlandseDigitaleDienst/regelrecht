@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useLaw, fetchLaw, resolveLawName } from './useLaw';
-import type { LawDocument } from '../lib/lawFormat';
+import { flushPromises } from '@vue/test-utils';
+import { useLaw } from './useLaw';
 import { res, stubFetch as stubGlobalFetch } from '../test-utils/fetchStubs';
+import { installTestCorpus } from '../test-utils/corpusSetup';
+import type { MemoryCorpus } from '../corpus/memoryTransport';
 
+// Reads come from the in-memory corpus; the fetch stub only sees writes.
 type FetchOptions = { method?: string; headers?: Record<string, string>; body?: unknown };
 interface FetchCall {
   url: string;
@@ -27,22 +30,28 @@ async function waitForLoaded(law: ReturnType<typeof useLaw>) {
   });
 }
 
+const TRAJECT = 'tr-12345678';
+
+// One traject's corpus; the route stays on the global corpus, since useLaw
+// reads through the traject it was given.
+function corpusWith(laws: MemoryCorpus['laws'], etags: MemoryCorpus['etags'] = {}, trajectRef = TRAJECT) {
+  return installTestCorpus({ '': {}, [trajectRef]: { laws, etags } });
+}
+
 beforeEach(() => {
   vi.restoreAllMocks();
 });
 
 describe('useLaw optimistic concurrency', () => {
   it('captures the ETag on load and sends it back as If-Match on save', async () => {
+    corpusWith({ wet_etag_chain: '$id: wet_etag_chain\nname: V1\n' }, { wet_etag_chain: '"v1"' });
     const calls: FetchCall[] = [];
     stubFetch(async (url, opts) => {
       calls.push({ url, opts: opts ?? {} });
-      if (opts?.method === 'PUT') {
-        return res({ etag: '"new"', json: { pr: null, etag: '"new"' } });
-      }
-      return res({ body: '$id: wet_etag_chain\nname: V1\n', etag: '"v1"' });
+      return res({ etag: '"new"', json: { pr: null, etag: '"new"' } });
     });
 
-    const law = useLaw('wet_etag_chain', null, 'tr-12345678');
+    const law = useLaw('wet_etag_chain', null, TRAJECT);
     await waitForLoaded(law);
     expect(law.currentEtag.value).toBe('"v1"');
 
@@ -57,14 +66,14 @@ describe('useLaw optimistic concurrency', () => {
   });
 
   it('omits If-Match when the load carried no ETag (older deployments)', async () => {
+    corpusWith({ wet_no_etag: '$id: wet_no_etag\nname: V1\n' });
     const calls: FetchCall[] = [];
     stubFetch(async (url, opts) => {
       calls.push({ url, opts: opts ?? {} });
-      if (opts?.method === 'PUT') return res({ json: { pr: null } });
-      return res({ body: '$id: wet_no_etag\nname: V1\n' });
+      return res({ json: { pr: null } });
     });
 
-    const law = useLaw('wet_no_etag', null, 'tr-12345678');
+    const law = useLaw('wet_no_etag', null, TRAJECT);
     await waitForLoaded(law);
     expect(law.currentEtag.value).toBeNull();
 
@@ -74,12 +83,10 @@ describe('useLaw optimistic concurrency', () => {
   });
 
   it('surfaces a 412 as a Dutch conflict error instead of overwriting silently', async () => {
-    stubFetch(async (_url, opts) => {
-      if (opts?.method === 'PUT') return res({ ok: false, status: 412 });
-      return res({ body: '$id: wet_conflict\nname: V1\n', etag: '"v1"' });
-    });
+    corpusWith({ wet_conflict: '$id: wet_conflict\nname: V1\n' }, { wet_conflict: '"v1"' });
+    stubFetch(async () => res({ ok: false, status: 412 }));
 
-    const law = useLaw('wet_conflict', null, 'tr-12345678');
+    const law = useLaw('wet_conflict', null, TRAJECT);
     await waitForLoaded(law);
 
     await expect(law.saveLaw('$id: wet_conflict\nname: V2\n')).rejects.toThrow(
@@ -98,19 +105,17 @@ describe('useLaw optimistic concurrency', () => {
   // (here, a full two-article proposal unrelated to the loaded law's single
   // article), and If-Match still carries the currently loaded ETag.
   it('sends an arbitrary override YAML verbatim as the PUT body (review-mode full-save)', async () => {
+    corpusWith(
+      { wet_review: '$id: wet_review\narticles:\n  - number: "1"\n    text: origineel\n' },
+      { wet_review: '"v1"' },
+    );
     const calls: FetchCall[] = [];
     stubFetch(async (url, opts) => {
       calls.push({ url, opts: opts ?? {} });
-      if (opts?.method === 'PUT') {
-        return res({ etag: '"v2"', json: { pr: null, etag: '"v2"' } });
-      }
-      return res({
-        body: '$id: wet_review\narticles:\n  - number: "1"\n    text: origineel\n',
-        etag: '"v1"',
-      });
+      return res({ etag: '"v2"', json: { pr: null, etag: '"v2"' } });
     });
 
-    const law = useLaw('wet_review', null, 'tr-12345678');
+    const law = useLaw('wet_review', null, TRAJECT);
     await waitForLoaded(law);
     expect(law.currentEtag.value).toBe('"v1"');
 
@@ -128,117 +133,68 @@ describe('useLaw optimistic concurrency', () => {
     // both articles from the proposal are present after the save.
     expect(law.articles.value.map((a) => a.number)).toEqual(['1', '2']);
   });
-});
 
-describe('useLaw fetch dedup (single-flight)', () => {
-  it('shares one GET between concurrent callers for the same key', async () => {
-    let callCount = 0;
-    stubFetch(async () => {
-      callCount += 1;
-      return res({ body: '$id: wet_single_flight\nname: V1\n', etag: '"v1"' });
-    });
-
-    // Two concurrent fetches for the same key (mirrors an editor mount:
-    // useLaw().load() and fetchLaw() racing the same id against an empty cache).
-    const p1 = fetchLaw('tr-dedupe', 'wet_single_flight');
-    const p2 = fetchLaw('tr-dedupe', 'wet_single_flight');
-    // The second caller joins the in-flight request instead of firing its own.
-    expect(callCount).toBe(1);
-
-    const [e1, e2] = await Promise.all([p1, p2]);
-    // Both callers get the same resolved entry, from one GET.
-    expect(e1).toBe(e2);
-    expect(e1.law?.$id).toBe('wet_single_flight');
-    expect(callCount).toBe(1);
-  });
-
-  it('shares one GET between load() and a concurrent fetchLaw (editor mount)', async () => {
-    // The exact regression this PR fixes: on editor mount, useLaw().load()
-    // fetches the routed law while the persisted-tab label loader
-    // fetchLaw()s the same id in parallel against an empty cache.
-    let callCount = 0;
-    // Assigned by the stub before the test calls it (callCount is checked first).
-    let release!: (value?: unknown) => void;
-    stubFetch(async () => {
-      callCount += 1;
-      // Hold the GET open so the second caller arrives while it's in flight.
-      await new Promise((resolve) => { release = resolve; });
-      return res({ body: '$id: wet_mount_race\nname: V1\n', etag: '"v1"' });
-    });
-
-    const law = useLaw('wet_mount_race', null, 'tr-dedupe');
-    const labelFetch = fetchLaw('tr-dedupe', 'wet_mount_race');
-    expect(callCount).toBe(1);
-
-    release();
-    const entry = await labelFetch;
+  it('records the saved body for the traject it went to, so the next open needs no fetch', async () => {
+    const { corpus, transport } = corpusWith({ wet_saved: '$id: wet_saved\nname: V1\n' }, { wet_saved: '"v1"' });
+    stubFetch(async () => res({ etag: '"v2"', json: { pr: null, etag: '"v2"' } }));
+    const law = useLaw('wet_saved', null, TRAJECT);
     await waitForLoaded(law);
 
-    expect(callCount).toBe(1);
-    expect(entry.law?.$id).toBe('wet_mount_race');
-    // Both consumers converge on the same fetched content.
-    expect(law.rawYaml.value).toBe(entry.rawYaml);
-    expect(law.currentEtag.value).toBe('"v1"');
+    await law.saveLaw('$id: wet_saved\nname: V2\n');
+
+    const reads = transport.calls.length;
+    expect(await corpus.forTraject(TRAJECT).law('wet_saved')).toMatchObject({ lawName: 'V2', etag: '"v2"' });
+    expect(transport.calls.length).toBe(reads);
+  });
+});
+
+describe('useLaw reads', () => {
+  it('opens a rulework with a fresh read, past the cache', async () => {
+    const { corpus, transport } = corpusWith({ wet_vers: '$id: wet_vers\nname: Oud\n' });
+    await corpus.forTraject(TRAJECT).law('wet_vers');
+    // corpusWith above created this traject's corpus and its laws.
+    transport.corpora[TRAJECT]!.laws!.wet_vers = '$id: wet_vers\nname: Nieuw\n';
+
+    const law = useLaw('wet_vers', null, TRAJECT);
+    await waitForLoaded(law);
+
+    expect(law.lawName.value).toBe('Nieuw');
   });
 
-  it('clears the pending entry on settle so a later fresh load re-fetches', async () => {
-    let callCount = 0;
-    stubFetch(async () => {
-      callCount += 1;
-      return res({ body: '$id: wet_pending_clear\nname: V1\n', etag: '"v1"' });
-    });
+  it('reads a cross-traject switch through the traject it was given, not the route', async () => {
+    const { transport } = installTestCorpus({
+      '': {},
+      'tr-alpha': { laws: { wet_x: '$id: wet_x\nname: Alpha\n' } },
+      'tr-beta': { laws: { wet_x: '$id: wet_x\nname: Beta\n' } },
+    }, 'tr-alpha');
+    const law = useLaw('wet_x', null, 'tr-alpha');
+    await waitForLoaded(law);
 
-    // First fresh load fires GET #1 and settles.
-    const a = useLaw('wet_pending_clear', null, 'tr-dedupe');
-    await waitForLoaded(a);
-    expect(callCount).toBe(1);
+    // The route still names tr-alpha: the switch runs before it commits.
+    await law.switchLaw('wet_x', null, 'tr-beta');
 
-    // A subsequent fresh load (load() never reads the cache) fires a new GET -
-    // proving the settled promise wasn't pinned in the pending map.
-    const b = useLaw('wet_pending_clear', null, 'tr-dedupe');
-    await waitForLoaded(b);
-    expect(callCount).toBe(2);
-  });
-
-  it('caches under the resolved $id so a later fetch by canonical id is a hit', async () => {
-    let callCount = 0;
-    stubFetch(async () => {
-      callCount += 1;
-      return res({ body: '$id: wet_canonical\nname: V1\n', etag: '"v1"' });
-    });
-
-    // Requested by a slug that differs from the body's `$id`.
-    const bySlug = await fetchLaw('tr-dedupe', 'wet-canonical-slug');
-    expect(callCount).toBe(1);
-    expect(bySlug.law?.$id).toBe('wet_canonical');
-
-    // The dual-cache write under the resolved `$id` means a later fetch by
-    // the canonical id is served from cache - no extra GET.
-    const byId = await fetchLaw('tr-dedupe', 'wet_canonical');
-    expect(byId).toBe(bySlug);
-    expect(callCount).toBe(1);
+    expect(law.lawName.value).toBe('Beta');
+    expect(transport.calls.at(-1)).toBe('tr-beta law wet_x');
   });
 
   it('a traject switch during a direct-URL load cannot poison the new traject cache', async () => {
-    // The direct-URL branch caches under the traject the load was issued
+    // The direct-URL branch records under the traject the load was issued
     // for. If a cross-traject switchLaw lands while the response body is
-    // still streaming, the late cache write must go to the OLD traject's
-    // key - never the new one, where it would shadow the real law.
-    let releaseText: ((text: string) => void) | undefined;
-    const calls: string[] = [];
-    stubFetch(async (url) => {
-      calls.push(url);
-      if (url === '/direct/wet_direct.yaml') {
-        return {
-          ok: true,
-          status: 200,
-          headers: { get: (k: string) => (k.toLowerCase() === 'etag' ? '"d1"' : null) },
-          // Body held open so the traject switch can land mid-flight.
-          text: () => new Promise((resolve) => { releaseText = resolve; }),
-        };
-      }
-      return res({ body: `$id: ${url.split('/').pop()}\nname: X\n`, etag: '"x1"' });
+    // still streaming, the late record must go to the OLD traject - never
+    // the new one, where it would shadow the real law.
+    const { corpus, transport } = installTestCorpus({
+      '': {},
+      'tr-old': {},
+      'tr-new': { laws: { wet_other: '$id: wet_other\nname: X\n', wet_direct: '$id: wet_direct\nname: Echt\n' } },
     });
+    let releaseText: ((text: string) => void) | undefined;
+    stubFetch(async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: (k: string) => (k.toLowerCase() === 'etag' ? '"d1"' : null) },
+      // Body held open so the traject switch can land mid-flight.
+      text: () => new Promise((resolve) => { releaseText = resolve; }),
+    }));
 
     const law = useLaw('/direct/wet_direct.yaml', null, 'tr-old');
     await vi.waitFor(() => expect(releaseText).toBeDefined());
@@ -248,34 +204,12 @@ describe('useLaw fetch dedup (single-flight)', () => {
     releaseText!('$id: wet_direct\nname: Direct\n');
     await waitForLoaded(law);
 
-    // Fetching the same id in the new traject must go to the network -
-    // a cache hit here would serve the direct-URL body as tr-new content.
-    const before = calls.length;
-    const entry = await fetchLaw('tr-new', 'wet_direct');
-    expect(calls.length).toBe(before + 1);
-    expect(calls[calls.length - 1]).toBe('/api/trajects/tr-new/corpus/laws/wet_direct');
-    expect(entry.law?.$id).toBe('wet_direct');
-  });
-
-  it('does not pin a rejected fetch - the next call retries', async () => {
-    let callCount = 0;
-    stubFetch(async () => {
-      callCount += 1;
-      if (callCount === 1) throw new Error('network down');
-      return res({ body: '$id: wet_retry\nname: V1\n', etag: '"v1"' });
-    });
-
-    // First call fails; a failed fetch must not pin a rejected promise.
-    await expect(fetchLaw('tr-dedupe', 'wet_retry')).rejects.toThrow(
-      /network down/i,
-    );
-    expect(callCount).toBe(1);
-
-    // The retry gets a fresh GET (nothing was cached, nothing pinned) and
-    // succeeds.
-    const entry = await fetchLaw('tr-dedupe', 'wet_retry');
-    expect(entry.law?.$id).toBe('wet_retry');
-    expect(callCount).toBe(2);
+    // The same id in the new traject comes from its own corpus.
+    const entry = await corpus.forTraject('tr-new').law('wet_direct');
+    expect(entry.lawName).toBe('Echt');
+    expect(transport.calls.at(-1)).toBe('tr-new law wet_direct');
+    // And the direct body landed under the old traject.
+    expect((await corpus.forTraject('tr-old').law('wet_direct')).lawName).toBe('Direct');
   });
 });
 
@@ -351,9 +285,7 @@ describe('useLaw law_create-flow (seedFromYaml + createLaw)', () => {
 
 describe('useLaw clearLaw (traject-switch reset)', () => {
   it('drops the open law so lawId settles on null and the panes go empty', async () => {
-    stubFetch(async () =>
-      res({ body: '$id: wet_clear\nname: V1\narticles:\n  - number: "1"\n', etag: '"v1"' }),
-    );
+    corpusWith({ wet_clear: '$id: wet_clear\nname: V1\narticles:\n  - number: "1"\n' }, { wet_clear: '"v1"' });
 
     const law = useLaw('wet_clear', '1', 'tr-12345678');
     await waitForLoaded(law);
@@ -374,18 +306,13 @@ describe('useLaw clearLaw (traject-switch reset)', () => {
   });
 
   it('makes an in-flight load discard its writes so a late response cannot repopulate', async () => {
-    let release!: (value?: unknown) => void;
-    const gate = new Promise((r) => { release = r; });
-    stubFetch(async () => {
-      await gate;
-      return res({ body: '$id: wet_slow\nname: V1\narticles:\n  - number: "1"\n', etag: '"v1"' });
-    });
+    corpusWith({ wet_slow: '$id: wet_slow\nname: V1\narticles:\n  - number: "1"\n' });
 
     const law = useLaw('wet_slow', '1', 'tr-12345678');
-    // The load is still in flight (gated). Clear before it resolves.
+    // The load is still in flight (reads resolve asynchronously). Clear before it resolves.
     law.clearLaw();
-    release();
-    await waitForLoaded(law);
+    // Let the read settle; its writes must be discarded.
+    await flushPromises();
 
     // The stale load's writes were discarded: still cleared.
     expect(law.lawId.value).toBeNull();
@@ -395,9 +322,8 @@ describe('useLaw clearLaw (traject-switch reset)', () => {
 
 describe('useLaw lawTrajectRef (which traject the open law belongs to)', () => {
   it('exposes the initial traject and follows a cross-traject switchLaw', async () => {
-    stubFetch(async () =>
-      res({ body: '$id: wet_x\nname: V1\narticles:\n  - number: "1"\n', etag: '"v1"' }),
-    );
+    const body = '$id: wet_x\nname: V1\narticles:\n  - number: "1"\n';
+    installTestCorpus({ '': {}, 'tr-alpha': { laws: { wet_x: body } }, 'tr-beta': { laws: { wet_x: body } } });
 
     const law = useLaw('wet_x', '1', 'tr-alpha');
     await waitForLoaded(law);
@@ -414,28 +340,5 @@ describe('useLaw lawTrajectRef (which traject the open law belongs to)', () => {
     // A same-traject switch (newTrajectRef omitted) leaves it untouched.
     await law.switchLaw('wet_x', '1');
     expect(law.lawTrajectRef.value).toBe('tr-beta');
-  });
-});
-
-describe('resolveLawName', () => {
-  it('returns the action value a #name reference points at', () => {
-    const law = {
-      $id: 'wet_x',
-      name: '#naam',
-      articles: [{ number: '1', machine_readable: { execution: { actions: [{ output: 'naam', value: 'Wet X' }] } } }],
-    } as unknown as LawDocument;
-    expect(resolveLawName(law)).toBe('Wet X');
-  });
-
-  it('never returns a non-string action value as the name', () => {
-    const law = {
-      $id: 'wet_x',
-      name: '#naam',
-      articles: [
-        { number: '1', machine_readable: { execution: { actions: [{ output: 'naam', value: { operation: 'ADD' } }] } } },
-      ],
-    } as unknown as LawDocument;
-    expect(typeof resolveLawName(law)).toBe('string');
-    expect(resolveLawName(law)).toBe('#naam');
   });
 });
