@@ -33,6 +33,13 @@ export function lawVersionsUrl(trajectRef: TrajectRef, lawId: string): string {
   return `${lawUrl(trajectRef, lawId)}/versions`;
 }
 
+// The outputs a law offers to other laws (name, type, parameters), for the
+// `source.output` picker. A law that exists only in the traject has outputs
+// only on the traject route.
+export function lawOutputsUrl(trajectRef: TrajectRef, lawId: string): string {
+  return `${lawUrl(trajectRef, lawId)}/outputs`;
+}
+
 export function lawsListUrl(trajectRef: TrajectRef, query = ''): string {
   const q = query ? `?${query}` : '';
   return `${corpusBase(trajectRef)}/laws${q}`;
