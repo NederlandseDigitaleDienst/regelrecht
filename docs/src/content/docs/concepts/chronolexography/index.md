@@ -129,6 +129,26 @@ Schema v0.8.14 adds a second way to reduce. A reduction with a `projection` decl
 
 A step names the article its records rest on, such as `test_chronicle_effects#3`. Where the article gives more than one kind of record, such as an application and the decision on it, a third segment names the kind: `test_chronicle_effects#1#BESCHIKKING`. A step on an article that requires a fact applies to the recorded instances of that fact.
 
+An article often requires more than one fact. Article 4 of the test register `test_chronicle_corrections` requires the rent of a parking place and its termination. `#EXECUTOGRAM` cannot tell those apart, so up to schema v0.8.17 such an article could have no step at all. Since v0.8.18 the third segment may be the name of a fact the article requires, in lower case. The step then applies to the instances of that fact alone, and `$record` reads the fields of that fact. `per` takes the same notation:
+
+```yaml
+# test_reductie_plaats_per_huur (fictional), one aggregate per rent
+projection:
+  per: test_chronicle_corrections#4#plaats_gehuurd
+  state:
+    - {name: plaatsnummer, type: string}
+    - {name: einde_huur, type: date}
+  steps:
+    - record: test_chronicle_corrections#4#plaats_gehuurd
+      actions:
+        - {output: plaatsnummer, value: $record.plaatsnummer}
+    - record: test_chronicle_corrections#4#huur_opgezegd
+      actions:
+        - {output: einde_huur, value: $record.einde_huur}
+```
+
+The loader refuses a fact name the article does not require, and a fact name in a file on v0.8.17 or earlier. On an article with more than one fact, a step without a third segment or with `#EXECUTOGRAM` is still refused, and the error names the steps to write instead. A step on a fact and a step on `#EXECUTOGRAM` under the same article would both apply to that fact, so the loader refuses the pair. From v0.8.18 the loader holds `per` to the same rules as a step, so `per: test_chronicle_corrections#4` is refused too: every record of both facts would be a root. `#EXECUTOGRAM` and the other kinds work as before.
+
 What a record does with the state is law, so a step does not compute it. It is written like an article: its `input` takes outputs of a law through `source.regulation`, with parameters from a field of the record (`$record.<field>`) or a property of the state (`$state.<property>`), and its `actions`, written as the actions of an article, give properties of the state their values: `output` names a property and `value` is a bare reference to an input of the step, a field of the record or a property of the state. A property no action names keeps its value, and one step gives a property one action at most. In the parking-card test, article 7 of the test law says that a grant gives the applicant a card and raises the number of grants by one, and article 8 says that a card handed in is gone:
 
 ```yaml

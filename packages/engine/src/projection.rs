@@ -46,7 +46,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::NaiveDate;
 use regelrecht_law_model::{
-    Article, ArticleBasedLaw, Projection, ProjectionStep, StateProperty, StepSource,
+    Article, ArticleBasedLaw, Projection, ProjectionStep, StateProperty, StepSource, names_fact,
 };
 use serde::{Deserialize, Serialize};
 
@@ -58,7 +58,7 @@ use crate::trace::{PathNode, TraceBuilder};
 use crate::types::{ParameterType, PathNodeType, RegulatoryLayer, Value};
 
 /// The kind of a record of a fact (RFC-051), as the cell writes it.
-const EXECUTOGRAM: &str = "EXECUTOGRAM";
+pub(crate) const EXECUTOGRAM: &str = "EXECUTOGRAM";
 
 /// The name under which a step and the answer read the state.
 pub const STATE: &str = "state";
@@ -596,6 +596,14 @@ impl LawExecutionService {
         since_v0_8_16: bool,
     ) -> Result<()> {
         let law_of = |id: &str| self.resolver().get_law_for_date(id, Some(day));
+        let since_v0_8_18 =
+            law_of(law_id).is_some_and(|law| crate::load_check::from_version(law, (0, 8, 18)));
+        check_per(projection, &law_of, Versions::InForce(day), since_v0_8_18).map_err(|why| {
+            EngineError::InvalidOperation(format!(
+                "'{law_id}' per {}: {why}",
+                projection.per.as_deref().unwrap_or_default()
+            ))
+        })?;
         for step in &projection.steps {
             check_step(
                 projection,
@@ -1112,10 +1120,24 @@ const REFERS_TO: &str = regelrecht_law_model::RecordEffect::REFERS_TO;
 pub const ROOT_ID: &str = "id";
 
 /// Whether `record` is a root of a projection with `per`: it rests on that
-/// article, and is of that kind where `per` names one.
+/// article, and is of that kind or an instance of that fact where `per`
+/// names one.
 fn is_root(per: (&str, Option<&str>), record: &ChronicleRecord) -> bool {
-    let (basis, kind) = per;
-    record.basis == basis && kind.is_none_or(|k| k == record.kind)
+    let (basis, selector) = per;
+    record.basis == basis && selects(selector, record)
+}
+
+/// Whether the third segment of a record address picks `record`: none picks
+/// every record on the article, a kind the records of that kind, and the
+/// name of a fact (schema v0.8.18) the instances of that fact.
+fn selects(selector: Option<&str>, record: &ChronicleRecord) -> bool {
+    match selector {
+        None => true,
+        Some(fact) if names_fact(fact) => {
+            record.kind == EXECUTOGRAM && record.fact.as_deref() == Some(fact)
+        }
+        Some(kind) => kind == record.kind,
+    }
 }
 
 /// `per` as the law writes it.
@@ -1227,6 +1249,8 @@ pub(crate) fn check_step<'l>(
         }
     };
     let (basis, kind) = step.basis_and_kind();
+    // A step that names a fact (schema v0.8.18) reads the fields of that fact.
+    let fact = kind.filter(|k| names_fact(k));
     let (record_law, number) = basis.split_once('#').unwrap_or((basis, ""));
     let record_article = article(
         record_law,
@@ -1262,7 +1286,10 @@ pub(crate) fn check_step<'l>(
                 if projection.per.is_some() && field == REFERS_TO {
                     return Some(ParameterType::String);
                 }
-                field_type(article, kind.as_deref(), field)
+                match fact {
+                    Some(fact) => executogram_field_type(article, Some(fact), field),
+                    None => field_type(article, kind.as_deref(), field),
+                }
             }),
             StepSource::State(property) => Some(state_type(projection, property)),
         }
@@ -1369,6 +1396,37 @@ pub(crate) fn check_step<'l>(
     Ok(())
 }
 
+/// `per` held to the law it names, as a step is ([`record_kind`]): the
+/// kind it names must be one the article gives, the fact one it requires,
+/// and without either the article must give one kind of record and require
+/// at most one fact. A reduction on v0.8.17 or earlier (`since_v0_8_18`
+/// false) is held to this only where `per` names a fact, which came with
+/// v0.8.18. `Ok` when the loader does not hold that law yet.
+pub(crate) fn check_per<'l>(
+    projection: &Projection,
+    law_of: &dyn Fn(&str) -> Option<&'l ArticleBasedLaw>,
+    versions: Versions,
+    since_v0_8_18: bool,
+) -> std::result::Result<(), String> {
+    let Some((basis, segment)) = projection.per_basis_and_kind() else {
+        return Ok(());
+    };
+    if !since_v0_8_18 && !segment.is_some_and(names_fact) {
+        return Ok(());
+    }
+    let (law_id, number) = basis.split_once('#').unwrap_or((basis, ""));
+    let article = match (law_of(law_id), versions) {
+        (Some(law), _) => law.find_article_by_number(number),
+        (None, Versions::Loaded) => return Ok(()),
+        (None, Versions::InForce(_)) => None,
+    }
+    .ok_or_else(|| format!("{basis} names no article {versions}"))?;
+    match record_kind(article, basis, segment)? {
+        None => Err("the article gives no record, so no record is a root".to_string()),
+        Some(_) => Ok(()),
+    }
+}
+
 /// Why a step cannot read `source`: there is no such field, property, input
 /// or, in a parameter (`in_parameter`), parameter of the question.
 fn no_such(source: &StepSource, in_parameter: bool) -> &'static str {
@@ -1382,14 +1440,30 @@ fn no_such(source: &StepSource, in_parameter: bool) -> &'static str {
 
 /// The kind of record a step on `article` is about: the kind it names, or
 /// the one kind the article gives (`None` when it gives none, so no record
-/// rests on it). Refused when the article gives more than one kind and the
-/// step names none, when it names a kind the article does not give, and
-/// when it would have to pick one of several facts.
+/// rests on it), or `EXECUTOGRAM` when it names a fact the article requires
+/// (schema v0.8.18). Refused when the article gives more than one kind and
+/// the step names none, when it names a kind the article does not give or a
+/// fact it does not require, and when it would have to pick one of several
+/// facts.
 fn record_kind(
     article: &Article,
     basis: &str,
     kind: Option<&str>,
 ) -> std::result::Result<Option<String>, String> {
+    let facts = facts_of(article);
+    if let Some(fact) = kind.filter(|k| names_fact(k)) {
+        if facts.contains(&fact) {
+            return Ok(Some(EXECUTOGRAM.to_string()));
+        }
+        return Err(if facts.is_empty() {
+            format!("the article requires no fact '{fact}'")
+        } else {
+            format!(
+                "the article requires no fact '{fact}', only {}",
+                facts.join(" and ")
+            )
+        });
+    }
     let kinds = kinds_of(article);
     let mut distinct = kinds.clone();
     distinct.dedup();
@@ -1414,9 +1488,15 @@ fn record_kind(
         _ if kinds.iter().filter(|k| *k == EXECUTOGRAM).count() > 1
             && kind.is_none_or(|k| k == EXECUTOGRAM) =>
         {
-            return Err(
-                "the article requires more than one fact; a step cannot pick one".to_string(),
-            );
+            return Err(format!(
+                "the article requires more than one fact; it cannot pick one, so name the \
+                 fact: {}",
+                facts
+                    .iter()
+                    .map(|f| format!("{basis}#{f}"))
+                    .collect::<Vec<_>>()
+                    .join(" or ")
+            ));
         }
         _ => {}
     }
@@ -1424,16 +1504,51 @@ fn record_kind(
 }
 
 /// The step the reduction gives for `record`, if any: the one on its
-/// article, of its kind when the step names one. A step without a kind is
-/// on an article that has one kind of record ([`LawExecutionService::check_steps`]).
+/// article, of its kind or its fact when the step names one. A step
+/// without either is on an article that has one kind of record
+/// ([`LawExecutionService::check_steps`]).
 fn step_for<'p>(
     projection: &'p Projection,
     record: &ChronicleRecord,
 ) -> Option<&'p ProjectionStep> {
     projection.steps.iter().find(|s| {
-        let (basis, kind) = s.basis_and_kind();
-        basis == record.basis && kind.is_none_or(|k| k == record.kind)
+        let (basis, selector) = s.basis_and_kind();
+        basis == record.basis && selects(selector, record)
     })
+}
+
+/// The facts an article requires, by name, in the order it lists them.
+fn facts_of(article: &Article) -> Vec<&str> {
+    article
+        .get_requires()
+        .iter()
+        .filter_map(|r| r.fact.as_deref())
+        .collect()
+}
+
+/// The type of the field `name` of an executogram under `article`: a
+/// parameter a fact the article requires holds, of the fact `fact` alone
+/// when one is named (schema v0.8.18), or `None`.
+fn executogram_field_type(
+    article: &Article,
+    fact: Option<&str>,
+    name: &str,
+) -> Option<ParameterType> {
+    let holds = article
+        .get_requires()
+        .iter()
+        .filter(|r| r.fact.is_some() && fact.is_none_or(|f| r.fact.as_deref() == Some(f)))
+        .flat_map(|r| r.parameters.iter().flatten())
+        .any(|p| p == name);
+    holds
+        .then(|| {
+            article
+                .get_parameters()
+                .iter()
+                .find(|p| p.name == name)
+                .map(|p| p.param_type)
+        })
+        .flatten()
 }
 
 /// The kinds of record an article gives: per item it produces, its kind (a
@@ -1538,13 +1653,7 @@ fn field_type(article: &Article, kind: Option<&str>, name: &str) -> Option<Param
         return parameter().or_else(output);
     };
     if kind == EXECUTOGRAM {
-        let holds = article
-            .get_requires()
-            .iter()
-            .filter(|r| r.fact.is_some())
-            .flat_map(|r| r.parameters.iter().flatten())
-            .any(|p| p == name);
-        return holds.then(parameter).flatten();
+        return executogram_field_type(article, None, name);
     }
     let item = article
         .get_produced()
@@ -2830,7 +2939,7 @@ articles:
             let reduction = REDUCTION.replace("record: wet#4\n", &format!("record: {step}\n"));
             for err in refused_in_either_order(&law, &reduction) {
                 assert!(
-                    err.contains("the article requires more than one fact; a step cannot pick one"),
+                    err.contains("the article requires more than one fact; it cannot pick one"),
                     "{step}: {err}"
                 );
             }
@@ -3993,5 +4102,274 @@ articles:
             Value::Array(vec![row("a", true, "x")])
         );
         assert_eq!(rows(Value::Int(3)), Value::Array(Vec::new()));
+    }
+
+    /// [`LAW`] with article 4 requiring two facts: a card handed in
+    /// (`ingeleverd`, on `op`) and a card reported lost (`verloren`, on
+    /// `gemeld`).
+    fn two_facts() -> String {
+        LAW.replace(
+            "        - fact: ingeleverd\n          parameters: [op]\n      execution:\n        parameters: [{name: op, type: date}]\n",
+            "        - fact: ingeleverd\n          parameters: [op]\n        - fact: verloren\n          parameters: [gemeld]\n      execution:\n        parameters: [{name: op, type: date}, {name: gemeld, type: date}]\n",
+        )
+    }
+
+    /// One aggregate per card handed in (schema v0.8.18): `per` and each
+    /// step name the fact, not the kind, so article 4 may require two.
+    const PER_FACT: &str = r#"
+$id: per_inlevering
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      projection:
+        per: wet#4#ingeleverd
+        state:
+          - {name: ingeleverd_op, type: date}
+          - {name: verloren_op, type: date}
+        steps:
+          - record: wet#4#ingeleverd
+            actions: [{output: ingeleverd_op, value: $record.op}]
+          - record: wet#4#verloren
+            actions: [{output: verloren_op, value: $record.gemeld}]
+"#;
+
+    /// [`refused_in_either_order`] for a projection with `per`, which the
+    /// engine plays when a read model asks for its rows.
+    fn per_refused_in_either_order(law: &str, reduction: &str) -> [String; 2] {
+        let mut service = LawExecutionService::new();
+        service.load_law(law).unwrap();
+        let after = service
+            .load_law(reduction)
+            .expect_err(reduction)
+            .to_string();
+        let mut service = LawExecutionService::new();
+        let before = match service.load_law(reduction) {
+            Err(alone) => alone.to_string(),
+            Ok(_) => {
+                service
+                    .load_law(law)
+                    .expect("the law loads after the reduction");
+                service
+                    .projection_rows("reductie", &[], &BTreeMap::new(), "2025-03-01")
+                    .expect_err(reduction)
+                    .to_string()
+            }
+        };
+        [after, before]
+    }
+
+    fn on(day: &str) -> Value {
+        Value::String(day.to_string())
+    }
+
+    #[test]
+    fn a_projection_addresses_each_of_two_facts_by_its_name() {
+        let mut service = LawExecutionService::new();
+        service.load_law(&two_facts()).unwrap();
+        service.load_law(PER_FACT).unwrap();
+        let lost = |id: &str, about: Option<&str>| ChronicleRecord {
+            refers_to: about.map(str::to_string),
+            ..fact(id, "4", "verloren", &[("gemeld", on("2025-02-01"))])
+        };
+        let records = [
+            fact("a", "4", "ingeleverd", &[("op", on("2025-01-10"))]),
+            lost("b", Some("a")),
+            // A loss that refers to nothing is no root: the roots are the
+            // cards handed in.
+            lost("c", None),
+            fact("d", "4", "ingeleverd", &[("op", on("2025-01-20"))]),
+        ];
+        let rows = service
+            .projection_rows("per_inlevering", &records, &BTreeMap::new(), "2025-03-01")
+            .unwrap();
+        let row = |id: &str, op: &str, verloren: Option<&str>| {
+            Value::Object(BTreeMap::from([
+                ("id".to_string(), Value::String(id.to_string())),
+                ("ingeleverd_op".to_string(), on(op)),
+                ("verloren_op".to_string(), verloren.map_or(Value::Null, on)),
+            ]))
+        };
+        assert_eq!(
+            rows,
+            Value::Array(vec![
+                row("a", "2025-01-10", Some("2025-02-01")),
+                row("d", "2025-01-20", None),
+            ])
+        );
+        // `per` on the other fact makes its records the roots.
+        let mut service = LawExecutionService::new();
+        service.load_law(&two_facts()).unwrap();
+        service
+            .load_law(&PER_FACT.replace("per: wet#4#ingeleverd", "per: wet#4#verloren"))
+            .unwrap();
+        let roots: Vec<String> = service
+            .aggregates("per_inlevering", &records, &BTreeMap::new(), "2025-03-01")
+            .unwrap()
+            .into_iter()
+            .map(|a| a.root)
+            .collect();
+        assert_eq!(roots, ["b", "c"]);
+    }
+
+    #[test]
+    fn a_fact_name_the_article_does_not_require_is_refused() {
+        let step = PER_FACT
+            .replace("$id: per_inlevering", "$id: reductie")
+            .replace("record: wet#4#verloren", "record: wet#4#gestolen");
+        for err in per_refused_in_either_order(&two_facts(), &step) {
+            assert!(
+                err.contains(
+                    "the article requires no fact 'gestolen', only ingeleverd and verloren"
+                ),
+                "{err}"
+            );
+        }
+        let per = PER_FACT
+            .replace("$id: per_inlevering", "$id: reductie")
+            .replace("per: wet#4#ingeleverd", "per: wet#4#gestolen");
+        for err in per_refused_in_either_order(&two_facts(), &per) {
+            assert!(
+                err.contains("per wet#4#gestolen: the article requires no fact 'gestolen'"),
+                "{err}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_step_on_a_fact_reads_only_the_fields_of_that_fact() {
+        let reduction = PER_FACT
+            .replace("$id: per_inlevering", "$id: reductie")
+            .replace("value: $record.op}", "value: $record.gemeld}");
+        for err in per_refused_in_either_order(&two_facts(), &reduction) {
+            assert!(err.contains("the record has no such field"), "{err}");
+        }
+    }
+
+    #[test]
+    fn a_step_on_a_fact_and_one_on_all_its_facts_overlap() {
+        let reduction = PER_FACT.replace(
+            "          - record: wet#4#verloren\n",
+            "          - record: wet#4#EXECUTOGRAM\n",
+        );
+        let mut service = LawExecutionService::new();
+        service.load_law(LAW).unwrap();
+        let err = service
+            .load_law(&reduction)
+            .expect_err("two steps for one record");
+        assert!(
+            err.to_string()
+                .contains("has two steps for the same records under wet#4"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn a_fact_name_needs_schema_v0_8_18() {
+        let version = |v: &str| {
+            format!(
+                "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{v}/schema/{v}/schema.json{PER_FACT}"
+            )
+        };
+        let mut service = LawExecutionService::new();
+        service.load_law(&two_facts()).unwrap();
+        let err = service
+            .load_law(&version("v0.8.17"))
+            .expect_err("a fact name under v0.8.17");
+        assert!(
+            err.to_string()
+                .contains("names the fact 'ingeleverd'; a fact name came with schema v0.8.18"),
+            "{err}"
+        );
+        assert!(service.load_law(&version("v0.8.18")).is_ok());
+    }
+
+    #[test]
+    fn per_on_an_article_with_two_facts_names_one_since_v0_8_18() {
+        let bare = PER_FACT
+            .replace("$id: per_inlevering", "$id: reductie")
+            .replace("per: wet#4#ingeleverd", "per: wet#4");
+        for err in per_refused_in_either_order(&two_facts(), &bare) {
+            assert!(
+                err.contains("per wet#4: the article requires more than one fact"),
+                "{err}"
+            );
+        }
+        // A file on v0.8.17 keeps the `per` it had; its steps there name no
+        // fact.
+        let earlier = format!(
+            "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json{}",
+            PER_GRANT.replace("per: wet#1#BESCHIKKING", "per: wet#1")
+        );
+        let mut service = LawExecutionService::new();
+        service.load_law(LAW).unwrap();
+        service.load_law(&earlier).unwrap();
+        let later = earlier.replace("v0.8.17", "v0.8.18");
+        let mut service = LawExecutionService::new();
+        service.load_law(LAW).unwrap();
+        let err = service
+            .load_law(&later)
+            .expect_err("per without a kind on an article with two kinds");
+        assert!(err.to_string().contains("per wet#1: needs a kind"), "{err}");
+    }
+
+    #[test]
+    fn per_on_an_article_that_gives_no_record_is_refused() {
+        let none = PER_FACT
+            .replace("$id: per_inlevering", "$id: reductie")
+            .replace("per: wet#4#ingeleverd", "per: wet#6");
+        for err in per_refused_in_either_order(&two_facts(), &none) {
+            assert!(
+                err.contains("per wet#6: the article gives no record"),
+                "{err}"
+            );
+        }
+    }
+
+    /// An executogram of a named fact holds the fields of that fact alone,
+    /// each of its own type.
+    #[test]
+    fn an_executogram_of_a_named_fact_holds_its_own_fields() {
+        let law = ArticleBasedLaw::from_yaml_str(
+            r#"
+$id: feiten
+regulatory_layer: WET
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      requires:
+        - fact: ingeleverd
+          parameters: [op]
+        - fact: verloren
+          parameters: [reden]
+      execution:
+        parameters: [{name: op, type: date}, {name: reden, type: string}]
+"#,
+        )
+        .unwrap();
+        let article = &law.articles[0];
+        assert_eq!(
+            executogram_field_type(article, Some("ingeleverd"), "op"),
+            Some(ParameterType::Date)
+        );
+        assert_eq!(
+            executogram_field_type(article, Some("verloren"), "reden"),
+            Some(ParameterType::String)
+        );
+        assert_eq!(
+            executogram_field_type(article, Some("ingeleverd"), "reden"),
+            None
+        );
+        // Without a name, the fields of every fact.
+        assert_eq!(
+            executogram_field_type(article, None, "reden"),
+            Some(ParameterType::String)
+        );
     }
 }

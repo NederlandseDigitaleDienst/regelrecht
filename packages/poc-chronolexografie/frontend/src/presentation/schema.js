@@ -395,10 +395,16 @@ export function keten(alle, id, { law, article, naam }) {
       if (d) lijn('leest', d.box, d.begrip, box, uit.begrip, 'projection.steps');
       const { law: rLaw, article: rArt } = splits(stap.record);
       const r = wet(rLaw);
-      // A step on the instances of a fact names that fact.
-      const feit = r && stap.record.endsWith('#EXECUTOGRAM')
-        ? (artikelVan(r.doc, rArt)?.machine_readable?.requires ?? []).find((q) => q.fact)?.fact
-        : undefined;
+      // A step on the instances of a fact names that fact: by its name since
+      // schema v0.8.18 (`#<fact>`), or as `#EXECUTOGRAM` on an article with one.
+      const derde = stap.record.split('#')[2];
+      const feit = !r
+        ? undefined
+        : /^[a-z][a-z0-9_]*$/.test(derde ?? '')
+          ? derde
+          : derde === 'EXECUTOGRAM'
+            ? (artikelVan(r.doc, rArt)?.machine_readable?.requires ?? []).find((q) => q.fact)?.fact
+            : undefined;
       if (r) lijn('kroniek', kroniek(), bron(r, rArt, feit), box, uit.begrip, 'projection.steps');
     }
     for (const e of effecten) lijn('kroniek', kroniek(), bron(e.w, e.artikel, e.feit), box, uit.begrip, 'effects');

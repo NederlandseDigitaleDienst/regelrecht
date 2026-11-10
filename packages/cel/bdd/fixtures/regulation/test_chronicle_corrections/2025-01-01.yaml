@@ -5,7 +5,9 @@
 # text of a law. Article 1 records where someone lives, article 2 corrects
 # one field of that record (a partial correction, a fact of its own), and
 # article 3 records that an earlier record was wrong from the start, which
-# revokes it (schema v0.8.15, `requires[].effects`).
+# revokes it (schema v0.8.15, `requires[].effects`). Article 4 requires two
+# facts, the rent of a parking place and its termination, which
+# aggregates.feature reads by name (schema v0.8.18).
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: test_chronicle_corrections
 name: Testregister correcties van feiten
@@ -75,3 +77,31 @@ articles:
         parameters:
           - name: reden
             type: string
+
+  - number: '4'
+    url: https://example.com/test_chronicle_corrections/4
+    text: >-
+      FICTIEF. Het college legt vast dat een bewoner een parkeerplaats huurt,
+      met het nummer van de plaats, en dat hij de huur opzegt, met de dag
+      waarop de huur eindigt.
+    machine_readable:
+      # Two facts under one article (schema v0.8.18 lets a projection name
+      # each): the rent of a place, and its termination, which refers to it.
+      requires:
+        - fact: plaats_gehuurd
+          description: De bewoner huurt de plaats met het nummer dat het feit noemt.
+          parameters:
+            - bewoner
+            - plaatsnummer
+        - fact: huur_opgezegd
+          description: De huur waarnaar het feit verwijst, eindigt op de dag die het noemt.
+          parameters:
+            - einde_huur
+      execution:
+        parameters:
+          - name: bewoner
+            type: string
+          - name: plaatsnummer
+            type: string
+          - name: einde_huur
+            type: date

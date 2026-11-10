@@ -88,3 +88,22 @@ Feature: One aggregate per decision, read as rows
     Given the calculation date is "2025-04-01"
     When I evaluate "aantal_kaarten" of "test_reductie_kaarten_van_aanvrager" over the chronicle
     Then output "aantal_kaarten" equals 3
+
+  Scenario: A projection names the fact of its records when an article requires two
+    # Article 4 of test_chronicle_corrections requires the rent of a place
+    # and its termination. The reduction test_reductie_plaats_per_huur
+    # addresses each by its fact name (schema v0.8.18): one aggregate per
+    # rent, and the termination that refers to it ends that rent alone.
+    Given parameter "bewoner" is "burger_x"
+    When the cell records fact "plaats_gehuurd" as "huur_1" under article "4" of "test_chronicle_corrections" with:
+      | bewoner      | burger_x |
+      | plaatsnummer | P-12     |
+    And the cell records fact "plaats_gehuurd" as "huur_2" under article "4" of "test_chronicle_corrections" with:
+      | bewoner      | burger_x |
+      | plaatsnummer | P-14     |
+    And I evaluate "aantal_plaatsen" of "test_reductie_plaatsen_van_bewoner" over the chronicle
+    Then output "aantal_plaatsen" equals 2
+    When the cell records fact "huur_opgezegd" as "opzegging" about "huur_1" under article "4" of "test_chronicle_corrections" with:
+      | einde_huur | 2025-02-28 |
+    And I evaluate "aantal_plaatsen" of "test_reductie_plaatsen_van_bewoner" over the chronicle
+    Then output "aantal_plaatsen" equals 1
