@@ -1147,7 +1147,7 @@ async function selectTab(tab: OpenTab) {
 // the URL carries no law (a fresh load / refresh returns the user where they
 // were); a law in the URL is a deep link and wins. A traject switch and browser
 // back/forward run the same restore through their own hooks (the
-// watch(activeTrajectRef) else-branch and onBeforeRouteUpdate below). Replaces
+// watch(activeTrajectRef) else-branch and the bare-root route watch below). Replaces
 // the old openSavedActiveTab. Pruning a 404'ing tab is gated on confirmed
 // traject membership, so at mount - before the traject list has loaded - the
 // restore leaves tabs in place and a later entry re-runs it.
@@ -1192,22 +1192,9 @@ watch(trajectMissing, (missing) => {
 onBeforeRouteUpdate(async (to) => {
   const newLawId = singleParam(to.params.lawId);
   const newArticle = singleParam(to.params.articleNumber);
-  if (!newLawId) {
-    // Back/forward (or the Home/Editor tab) to the bare editor root WITHIN the
-    // same traject: the watch(activeTrajectRef) won't fire (ref unchanged), so
-    // restore the last active article here. A trajectRef change is left to that
-    // watch (which restores too). Not awaited and not blocking: restore's own
-    // `router.replace` fires only after its `switchLaw` await, by which point
-    // this navigation to the bare root has already committed.
-    const trajectChanged =
-      (to.params.trajectRef || null) !== (route.params.trajectRef || null);
-    if (!trajectChanged) {
-      tabRestore
-        .restoreForTraject(singleParam(to.params.trajectRef) || null, { hasLawInUrl: false })
-        .catch(console.warn);
-    }
-    return;
-  }
+  // The bare editor root is restored by the watch below, after the navigation
+  // has committed.
+  if (!newLawId) return;
   if (newLawId !== lawId.value) {
     const isCurrent = claimTabSwitch();
     await switchLaw(newLawId, newArticle, singleParam(to.params.trajectRef) || null);
@@ -1220,6 +1207,25 @@ onBeforeRouteUpdate(async (to) => {
     selectedArticleNumber.value = String(newArticle);
   }
 });
+
+// Back/forward, the Home/Editor tab, or closing the last tab to the bare editor
+// root WITHIN the same traject: watch(activeTrajectRef) won't fire (ref
+// unchanged), so restore the last active article here; a trajectRef change is
+// left to that watch. This must run after the navigation has committed, never
+// from a route guard: a restore that ends on the root calls
+// `router.replace(root)`, and from inside the guard for a navigation to that
+// same root it starts a new navigation that runs the guard again. Closing the
+// last tab hung the page that way. Once committed, that replace is a duplicate
+// and does nothing. Only while the editor is the current route: leaving it for
+// another page of the same traject has no law in the URL either.
+watch(
+  () => [singleParam(route.params.lawId), singleParam(route.params.trajectRef) || null] as const,
+  ([lawIdInUrl, trajectRef], [, previousTrajectRef]) => {
+    if (route.name !== 'editor-traject') return;
+    if (lawIdInUrl || trajectRef !== previousTrajectRef) return;
+    tabRestore.restoreForTraject(trajectRef, { hasLawInUrl: false }).catch(console.warn);
+  },
+);
 
 // `next` is the tab bar's own replacement pick, handed over by its tabdismiss
 // event (see AppShell's onTabDismiss). Follow it: the bar has already marked
