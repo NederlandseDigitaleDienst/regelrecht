@@ -107,13 +107,14 @@ Feature: Het bezwaar en de beslissing erop
     Then output "bestreden_besluit_herroepen" is false
     Then output "nieuw_besluit" is absent
 
-  Scenario: Tegen het nieuwe besluit dat op bezwaar is genomen staat geen bezwaar open
-    # Het besluit berust op artikel 13a, maar is genomen op het bezwaar: in
-    # de plaats van een herroepen weigering. Ook daartegen staat beroep open
-    # (artikel 7:1, eerste lid, onder a).
+  Scenario: Tegen een beslissing op bezwaar die een nieuw besluit nam, staat geen bezwaar open
+    # De beslissing herroept een weigering en neemt in de plaats daarvan een
+    # nieuw besluit onder artikel 13a. Dat nieuwe besluit hoort bij de
+    # beslissing (nieuw_besluit). Ook tegen deze beslissing staat beroep
+    # open, geen bezwaar (artikel 7:1, eerste lid, onder a).
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
-      | bestreden_besluit | {"basis": "leerplichtwet_1969#13a", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar_volgens_hoofd": false, "specifieke_aard_beroep_ouder": true, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": true}} |
+      | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": true, "bestreden_besluit_herroepen": true, "nieuw_besluit": {"basis": "leerplichtwet_1969#13a", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"verlof_al_verleend_in_schooljaar_volgens_hoofd": false, "specifieke_aard_beroep_ouder": true, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": true}}}} |
     When I evaluate outputs "bestreden_besluit_herroepen, nieuw_besluit" of "algemene_wet_bestuursrecht"
     Then the execution succeeds
     Then output "bezwaar_ontvankelijk" is false

@@ -12,9 +12,9 @@ const vertalingen = [
   // Een besluit wordt maar één keer vervangen (de cel, bij een tweede
   // beslissing op bezwaar die hetzelfde besluit zou vervangen).
   [
-    /in the place of '([^']+)', which chronolexogram '([^']+)' already replaces/,
-    (besluit, vervanger) =>
-      `Besluit ${kort(besluit)} is na een eerder bezwaar al vervangen door besluit ${kort(vervanger)}. Een besluit kan maar één keer worden vervangen. Er is niets vastgelegd.`,
+    /in the place of '([^']+)', which the decision '([^']+)' already replaces/,
+    (besluit, beslissing) =>
+      `Besluit ${kort(besluit)} is al vervangen door de beslissing op bezwaar ${kort(beslissing)}. Een besluit kan maar één keer worden vervangen. Er is niets vastgelegd.`,
   ],
   // De kroniek loopt alleen vooruit; dezelfde dag mag.
   [
@@ -52,6 +52,13 @@ const vertalingen = [
       `${hoofdletter(state.casus?.rol ?? 'het bestuursorgaan')} heeft "${leesbaar(begrip)}" nog niet beoordeeld, en het besluit heeft die bevinding nodig.`,
   ],
   [/the application '[^']+' is already decided on/, () => 'Hierop is al besloten.'],
+  // Een spel dat dit tabblad bewaarde voordat een beslissing op bezwaar het
+  // nieuwe besluit zelf ging houden (de cel, Cell::restore). Het spel is al
+  // weggegooid (state.js, hervatten); de cel zet het niet om.
+  [
+    /the chronicle of '[^']+' is in an older form/,
+    () => 'Dit spel is opgeslagen in een oudere vorm en kan niet verder. Begin opnieuw met een casus.',
+  ],
   // Een stap voordat er een casus gekozen is.
   [/no case is chosen/, () => 'Er is geen casus gekozen. Kies een casus.'],
   // De cel laadt niet in deze browser (api.js): de WASM of de bundel kwam

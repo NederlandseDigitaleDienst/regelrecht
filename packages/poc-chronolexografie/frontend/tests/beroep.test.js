@@ -20,8 +20,10 @@ const ontvangst = {
   received: { from: 'rechtbank', id: uitspraak.id },
   fields: { opdracht_nieuw_besluit: true, termijn_nieuw_besluit_einddatum: '2027-01-25' },
 };
-const gegrond = { id: id('00002222'), kind: 'BESCHIKKING', basis: 'awb#7:11', refers_to: bezwaar.id, after: ontvangst.id, outputs: { bestreden_besluit_herroepen: true, nieuw_besluit: id('00003333') } };
-const nieuw = { id: id('00003333'), kind: 'BESCHIKKING', basis: 'wet#1', refers_to: bezwaar.id, outputs: { toegekend: true } };
+// Het nieuwe besluit is geen eigen chronolexogram: de beslissing op bezwaar
+// houdt het als waarde (één handeling, één record).
+const besluitwaarde = (toegekend) => ({ basis: 'wet#1', taken_on: 'awb#7:11', fields: {}, findings: {}, outputs: { toegekend } });
+const gegrond = { id: id('00002222'), kind: 'BESCHIKKING', basis: 'awb#7:11', refers_to: bezwaar.id, after: ontvangst.id, recorded_on: '2027-01-18', outputs: { bestreden_besluit_herroepen: true, nieuw_besluit: besluitwaarde(true) } };
 
 beforeEach(() => {
   state.casus = {
@@ -48,7 +50,7 @@ describe('het beroep in twee kronieken', () => {
 
   it('het dossier volgt de stukken over de celgrens', () => {
     state.rechter = [beroep, uitspraak];
-    state.grammen.push(ontvangst, gegrond, nieuw);
+    state.grammen.push(ontvangst, gegrond);
     const stappen = dossier(aanvraag).map((s) => [s.rol, s.rechter]);
     expect(stappen).toEqual([
       ['Aanvraag', false],
@@ -59,30 +61,27 @@ describe('het beroep in twee kronieken', () => {
       ['Uitspraak', true],
       ['Ontvangst uitspraak', false],
       ['Beslissing op bezwaar', false],
-      ['Nieuw besluit', false],
     ]);
-    // De tweede beslissing herroept de weigering; het nieuwe besluit geldt.
-    expect(geldendBesluit(aanvraag)).toEqual(nieuw);
+    // De tweede beslissing herroept de weigering; het nieuwe besluit dat zij
+    // houdt, geldt, met haar dag.
+    expect(geldendBesluit(aanvraag)).toEqual({ ...besluitwaarde(true), recorded_on: '2027-01-18' });
   });
 
   it('een verlening die een vernietigde beslissing nam, geldt niet meer', () => {
     // Gegrond met verlening, door de rechter vernietigd, daarna ongegrond. De
     // latere beslissing geldt; dat de vernietigde zonder haar al niet geldt,
     // toetst de test hieronder.
-    const verleend = { ...nieuw, id: id('00004444') };
-    const eerst = { ...gegrond, id: id('00005555'), after: undefined, outputs: { bestreden_besluit_herroepen: true, nieuw_besluit: verleend.id } };
+    const eerst = { ...gegrond, id: id('00005555'), after: undefined };
     const daarna = { ...ongegrond, id: id('00006666'), after: ontvangst.id };
     const vernietigd = { ...ontvangst, refers_to: eerst.id, fields: { ...ontvangst.fields, rechtsgevolgen_vernietigd: true } };
-    state.grammen = [aanvraag, weigering, bezwaar, eerst, verleend, vernietigd, daarna];
-    expect(dossier(aanvraag).map((s) => s.gram.id)).not.toContain(verleend.id);
+    state.grammen = [aanvraag, weigering, bezwaar, eerst, vernietigd, daarna];
     expect(geldendBesluit(aanvraag)).toEqual(weigering);
   });
 
   it('tussen de ontvangst en het opnieuw beslissen geldt de vernietigde verlening al niet', () => {
-    const verleend = { ...nieuw, id: id('00004444') };
-    const eerst = { ...gegrond, id: id('00005555'), after: undefined, outputs: { bestreden_besluit_herroepen: true, nieuw_besluit: verleend.id } };
+    const eerst = { ...gegrond, id: id('00005555'), after: undefined };
     const vernietigd = { ...ontvangst, refers_to: eerst.id, fields: { ...ontvangst.fields, rechtsgevolgen_vernietigd: true } };
-    state.grammen = [aanvraag, weigering, bezwaar, eerst, verleend, vernietigd];
+    state.grammen = [aanvraag, weigering, bezwaar, eerst, vernietigd];
     expect(geldendBesluit(aanvraag)).toEqual(weigering);
   });
 

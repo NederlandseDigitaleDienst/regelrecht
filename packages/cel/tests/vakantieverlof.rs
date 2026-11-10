@@ -12,7 +12,7 @@ use common::{answered, cell_tempdir, day, object_map};
 
 use std::path::Path;
 
-use regelrecht_cel::{Cell, Error, Gram, Reference, Source, decision, shape};
+use regelrecht_cel::{Cell, Disk, Error, Gram, Reference, Source, decision, shape};
 use regelrecht_engine::LawExecutionService;
 use serde_json::{Map, Value, json};
 
@@ -1534,19 +1534,19 @@ fn grounds_on_objection_lead_the_head_to_judge_anew_and_revoke_the_refusal() {
     let refused = refused_on_profession(&mut cell);
     let bezwaar = object(&mut cell, &refused.id, &objection(&[]), "2026-11-01").unwrap();
     let decided = reconsider(&mut cell, &bezwaar.id, &profession(true), "2026-11-15").unwrap();
-    assert_eq!(decided.len(), 2);
-    let (decision, new) = (&decided[0], &decided[1]);
+    // One act, one record: the decision on the objection holds the new one.
+    assert_eq!(decided.len(), 1);
+    let decision = &decided[0];
+    let new = common::in_turn(decision);
 
     // What the head found anew is recorded with the decision on it.
     assert_eq!(decision.fields[PROFESSION], json!(true));
     assert_eq!(decision.outputs[CAUSE], json!(true));
     assert_eq!(decision.outputs[REVOKED], json!(true));
-    // The decision on the objection holds the new decision by its id.
-    assert_eq!(decision.outputs[NEW], json!(new.id));
-    assert_eq!(new.kind, "BESCHIKKING");
+    // The decision on the objection holds the new decision as its value,
+    // taken on the objection.
+    assert_eq!(decision.outputs[NEW]["taken_on"], json!(bezwaar.basis));
     assert_eq!(new.basis, "leerplichtwet_1969#13a");
-    assert_eq!(new.refers_to.as_deref(), Some(bezwaar.id.as_str()));
-    assert_eq!(new.recorded_on, day("2026-11-15"));
     // The application's own fields.
     assert_eq!(new.fields["eerste_verlofdag"], json!("2027-02-01"));
     assert_eq!(new.fields["laatste_verlofdag"], json!("2027-02-05"));
@@ -1563,7 +1563,7 @@ fn grounds_on_objection_lead_the_head_to_judge_anew_and_revoke_the_refusal() {
         new.outputs["termijn_einddatum"],
         refused.outputs["termijn_einddatum"]
     );
-    assert_eq!(cell.grams().len(), 5);
+    assert_eq!(cell.grams().len(), 4);
 
     // The new decision counts: a later application this school year is refused.
     let later = apply_and_decide(&mut cell, "2027-05-10", "2027-05-14", "2027-03-01");
@@ -1596,31 +1596,61 @@ fn an_objection_against_a_decision_on_objection_is_not_admissible() {
 }
 
 #[test]
-fn an_objection_against_the_decision_taken_on_objection_is_not_admissible() {
-    // The new decision rests on art. 13a, but it was taken on the objection,
-    // in the place of the revoked refusal: against it too beroep is open,
-    // not bezwaar (Awb 7:1 lid 1 onder a). Its decision value says so in
-    // `taken_on`, which the cell derives from the submission it refers to.
+fn a_new_decision_changed_in_the_chronicle_does_not_replay() {
+    // The new decision is part of the decision on the objection, which holds
+    // it with every output its stages gave. A chronicle in which those
+    // outputs were changed afterwards no longer holds what the decision
+    // gave: taken again, the decision refuses it.
     let mut cell = cell();
     let refused = refused_on_profession(&mut cell);
-    let bezwaar = object(&mut cell, &refused.id, &objection(&[]), "2026-11-01").unwrap();
+    let bezwaar = object(&mut cell, &refused.id, &objection(&[]), "2026-11-15").unwrap();
     let decided = reconsider(&mut cell, &bezwaar.id, &profession(true), "2026-11-15").unwrap();
-    let new = &decided[1];
-    assert_eq!(new.basis, "leerplichtwet_1969#13a");
-    assert_eq!(new.outputs["verlof_verleend"], json!(true));
+    cell.explain(&mut service(), &[], &decided[0].id).unwrap();
+    let mut grams = cell.grams().to_vec();
+    let held = grams.last_mut().unwrap().outputs.get_mut(NEW).unwrap();
+    assert_eq!(held["outputs"]["verlof_verleend"], json!(true));
+    held["outputs"]["verlof_verleend"] = json!(false);
+    let dir = lid_2_dir();
+    let changed = Cell::restore(&Disk, RECORDING_ACTOR, dir.path(), grams).unwrap();
+    let e = changed
+        .explain(&mut service(), &[], &decided[0].id)
+        .unwrap_err();
+    assert!(
+        e.to_string().contains("the replay is not this decision"),
+        "{e}"
+    );
+}
 
-    let again = object(&mut cell, &new.id, &objection(&[]), "2026-11-20").unwrap();
-    assert_eq!(given(&cell, &again)[TIMELY], json!(true));
-    // The objection is not reconsidered, so a finding anew is asked by no
-    // article and refused; without one it is decided on.
-    let e = reconsider(&mut cell, &again.id, &profession(false), "2026-11-25").unwrap_err();
-    assert!(e.to_string().contains(&format!("'{PROFESSION}'")), "{e}");
-    let decided = decide_objection(&mut cell, &again.id, "2026-11-25").unwrap();
-    assert_eq!(decided.len(), 1);
-    assert_eq!(decided[0].outputs[ADMISSIBLE], json!(false));
-    assert_eq!(decided[0].outputs[CAUSE], Value::Null);
-    assert_eq!(decided[0].outputs[REVOKED], json!(false));
-    assert_eq!(decided[0].outputs[NEW], Value::Null);
+#[test]
+fn a_chronicle_with_a_decision_recorded_in_turn_does_not_open() {
+    // The older form: the new decision a decision on an objection took was
+    // a chronolexogram of its own, which the decision held by its id. The
+    // cell does not convert such a chronicle; it refuses it and says why.
+    let mut cell = cell();
+    let refused = refused_on_profession(&mut cell);
+    let bezwaar = object(&mut cell, &refused.id, &objection(&[]), "2026-11-15").unwrap();
+    reconsider(&mut cell, &bezwaar.id, &profession(true), "2026-11-15").unwrap();
+    let mut grams = cell.grams().to_vec();
+    let mut new = common::in_turn(grams.last().unwrap());
+    new.id = "nieuw-besluit".into();
+    new.refers_to = Some(bezwaar.id.clone());
+    new.kind = "BESCHIKKING".into();
+    grams
+        .last_mut()
+        .unwrap()
+        .outputs
+        .insert(NEW.into(), json!(new.id));
+    grams.push(new);
+    let dir = lid_2_dir();
+    let Err(e) = Cell::restore(&Disk, RECORDING_ACTOR, dir.path(), grams) else {
+        panic!("an older chronicle opens");
+    };
+    assert!(
+        e.to_string().contains("is in an older form")
+            && e.to_string()
+                .contains("holds 'nieuw-besluit' as 'nieuw_besluit'"),
+        "{e}"
+    );
 }
 
 #[test]
@@ -1637,12 +1667,12 @@ fn a_decision_already_replaced_on_objection_is_not_replaced_again() {
     let second = object(&mut cell, &granted.id, &objection(&[]), "2026-11-02").unwrap();
     let decided = reconsider(&mut cell, &first.id, &profession(false), "2026-11-15").unwrap();
     assert_eq!(decided[0].outputs[REVOKED], json!(true));
-    let replacement = &decided[1].id;
+    let replaced_by = &decided[0].id;
     let recorded = cell.grams().len();
 
     let e = reconsider(&mut cell, &second.id, &profession(false), "2026-11-16").unwrap_err();
     assert!(
-        matches!(&e, Error::Refused(m) if m.contains("already replaces") && m.contains(replacement.as_str()) && m.contains(&granted.id)),
+        matches!(&e, Error::Refused(m) if m.contains("already replaces") && m.contains(replaced_by.as_str()) && m.contains(&granted.id)),
         "{e}"
     );
     assert_eq!(cell.grams().len(), recorded);
@@ -1718,12 +1748,13 @@ fn a_revoked_grant_does_not_count_as_leave_granted() {
     let bezwaar = object(&mut cell, &granted.id, &objection(&[]), "2026-11-01").unwrap();
     let decided = reconsider(&mut cell, &bezwaar.id, &profession(false), "2026-11-15").unwrap();
     assert_eq!(decided[0].outputs[REVOKED], json!(true));
-    let new = &decided[1];
+    let new = common::in_turn(&decided[0]);
     assert_eq!(new.outputs["verlof_verleend"], json!(false));
 
     // The revoked grant stays in the chronicle, and its row is as it was.
-    // The row of the decision on the objection names it by id and says it
-    // revoked it; the reduction leaves it out (RFC-048 §6).
+    // The row of the decision on the objection names it by id, says it
+    // revoked it, and holds the refusal in its place as a row in turn; the
+    // reduction leaves the grant out (RFC-048 §6).
     let rows = |basis: &str| {
         serde_json::to_value(
             regelrecht_cel::reading::rows(&service(), cell.grams(), basis, "BESCHIKKING").unwrap(),
@@ -1736,14 +1767,11 @@ fn a_revoked_grant_does_not_count_as_leave_granted() {
         .iter()
         .map(|row| json!([row["id"], row["verlof_verleend"]]))
         .collect();
-    assert_eq!(
-        granted_rows,
-        [json!([granted.id, true]), json!([new.id, false])]
-    );
+    assert_eq!(granted_rows, [json!([granted.id, true])]);
     let on_objection = rows("algemene_wet_bestuursrecht#7:11");
     assert_eq!(on_objection[0]["bestreden_besluit"], json!(granted.id));
     assert_eq!(on_objection[0][REVOKED], json!(true));
-    assert_eq!(on_objection[0][NEW], json!(new.id));
+    assert_eq!(on_objection[0][NEW]["verlof_verleend"], json!(false));
 
     // Neither the revoked grant nor the refusal in its place counts.
     let later = apply_and_decide(&mut cell, "2027-05-10", "2027-05-14", "2027-03-01");
@@ -1785,7 +1813,7 @@ fn an_objection_is_decided_with_decide_and_reads_back_from_the_file() {
         reconsider(&mut cell, &bezwaar.id, &profession(true), "2026-11-15").unwrap();
         cell.grams().to_vec()
     };
-    assert_eq!(recorded.len(), 5);
+    assert_eq!(recorded.len(), 4);
     let cell = Cell::open(RECORDING_ACTOR, &path, school.path()).unwrap();
     assert_eq!(cell.grams(), recorded);
 }
@@ -2003,7 +2031,7 @@ fn a_reduction_reads_the_decisions_on_objection_with_their_own_outcome() {
     assert_eq!(rows[0]["bestreden_besluit"], json!(refused.id));
     assert_eq!(rows[0][REVOKED], json!(true));
     assert_eq!(rows[0][ADMISSIBLE], json!(true));
-    assert_eq!(rows[0][NEW], json!(decided[1].id));
+    assert_eq!(rows[0][NEW]["verlof_verleend"], json!(true));
 }
 
 /// The owner's case (slice 4c): leave A is granted, leave B in the same
@@ -2026,20 +2054,23 @@ fn a_grant_revoked_on_objection_no_longer_counts_on_the_objection_against_the_re
     let against_a = object(&mut cell, &a.id, &objection(&[]), "2026-11-01").unwrap();
     let on_a = reconsider(&mut cell, &against_a.id, &profession(false), "2026-11-15").unwrap();
     assert_eq!(on_a[0].outputs[REVOKED], json!(true));
-    assert_eq!(on_a[1].outputs["verlof_verleend"], json!(false));
+    assert_eq!(
+        common::in_turn(&on_a[0]).outputs["verlof_verleend"],
+        json!(false)
+    );
 
     // On the objection against B, art. 13a anew no longer counts A.
     let against_b = object(&mut cell, &b.id, &objection(&[]), "2026-11-20").unwrap();
     let on_b = decide_objection(&mut cell, &against_b.id, "2026-12-01").unwrap();
     assert_eq!(on_b[0].outputs[CAUSE], json!(true));
     assert_eq!(on_b[0].outputs[REVOKED], json!(true));
-    let new_b = &on_b[1];
+    let new_b = common::in_turn(&on_b[0]);
     assert_eq!(new_b.outputs["verlof_verleend"], json!(true));
     // The cell filled the term, so the new decision has no finding on it;
     // its value is the cell's answer.
     assert_eq!(new_b.fields[ONCE], json!(false));
-    let found = cell.findings(&mut service(), &[], &new_b.id).unwrap();
-    assert!(!found.contains(&ONCE.to_string()), "{found:?}");
+    let found = &on_b[0].outputs[NEW]["findings"];
+    assert!(found.get(ONCE).is_none(), "{found}");
 
     // Step 1: the trace of the decision on B's objection holds one node for
     // the term, within art. 13a called anew: the cell's answer, with the
@@ -2088,9 +2119,9 @@ fn a_grant_revoked_on_objection_no_longer_counts_on_the_objection_against_the_re
 
     // Step 2: asked why, the cell runs its reduction for that term again,
     // with its own trace: in the aggregate of A, A does not count, because
-    // the decision on the objection against it revoked it (Awb 7:11); the
-    // refusal in its place is an aggregate of its own, which grants no
-    // leave. B itself is not read.
+    // the decision on the objection against it revoked it (Awb 7:11), and
+    // the refusal it took in A's place grants no leave. B itself is not
+    // read.
     let explained = cell
         .explain_answer(&mut service(), &[], &on_b[0].id, ONCE)
         .unwrap();
@@ -2106,8 +2137,12 @@ fn a_grant_revoked_on_objection_no_longer_counts_on_the_objection_against_the_re
         "A is not revoked in its aggregate:\n{why}"
     );
     assert!(
-        why.contains(&format!("the aggregate of {}", on_a[1].id)),
-        "the refusal in A's place is no aggregate of its own:\n{why}"
+        why.contains(&format!(
+            "{}: fictief_beleid_verleend_verlof_obs_de_klimop#3: eerste_verlofdag: null -> \
+             2027-02-01, verlof_verleend: false -> false",
+            on_a[0].id
+        )),
+        "the refusal in A's place does not land in A's aggregate:\n{why}"
     );
     assert!(!why.contains(&b.id), "B was read:\n{why}");
     // A term the decision did not ask the cell is refused.
@@ -2119,9 +2154,6 @@ fn a_grant_revoked_on_objection_no_longer_counts_on_the_objection_against_the_re
         "{e}"
     );
 
-    // Explaining the new decision explains the decision that took it.
-    let again = cell.explain(&mut service(), &[], &new_b.id).unwrap();
-    assert_eq!(again.outputs, result.outputs);
     // Nothing stays behind in the service.
     let mut kept = service();
     let laws = kept.law_count();

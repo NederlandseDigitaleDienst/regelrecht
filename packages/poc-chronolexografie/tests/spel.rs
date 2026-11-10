@@ -311,7 +311,7 @@ fn the_appeal_from_the_objection_to_the_decision_taken_again() {
     // Both chronicles: the court's is that of another cell of the case. A
     // reset empties it too.
     let kroniek = spel.kroniek().unwrap();
-    assert_eq!(kroniek["grammen"].as_array().unwrap().len(), 8);
+    assert_eq!(kroniek["grammen"].as_array().unwrap().len(), 7);
     let rechter = &kroniek["andere"][0];
     assert_eq!(rechter["cel"], json!("rechtbank_wilgendaal"));
     assert_eq!(rechter["cel_naam"], json!("Rechtbank Wilgendaal"));
@@ -531,10 +531,7 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
         gegrond["beslissing"]["outputs"]["bestreden_besluit_herroepen"],
         json!(true)
     );
-    let nieuw = gegrond["beslissing"]["outputs"]["nieuw_besluit"]
-        .as_str()
-        .unwrap()
-        .to_string();
+    let beslissing = gegrond["beslissing"]["id"].as_str().unwrap().to_string();
 
     let tweede = spel.aanvragen(&aanvraag, dag("2027-03-01")).unwrap();
     let besluit = spel
@@ -555,8 +552,9 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
 
     // The reduction explains itself in its trace. The decision on the
     // objection revokes the refusal (Awb 7:11 lid 2, as an effect), so the
-    // refusal does not count. The decision it put in its place is an
-    // aggregate of its own, and its step gives the card the cell counted.
+    // refusal does not count. The decision it put in its place is part of
+    // it, and its step gives the card the cell counted, in the aggregate of
+    // the refusal.
     let refusal = geweigerd["besluit"]["id"].as_str().unwrap();
     let id = besluit["besluit"]["id"].as_str().unwrap();
     let hoe = spel
@@ -565,11 +563,11 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
     let spoor = hoe["antwoorden"][0]["spoor"].as_str().unwrap();
     assert!(spoor.contains(&format!("{refusal}: revoked by")), "{spoor}");
     assert!(
-        spoor.contains(&format!("the aggregate of {nieuw}")),
+        spoor.contains(&format!("the aggregate of {refusal}")),
         "{spoor}"
     );
     assert!(
-        spoor.contains(&format!("{nieuw}: kaart_geldig_tot: null -> ")),
+        spoor.contains(&format!("{beslissing}: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#4: kaart_geldig_tot: null -> ")),
         "{spoor}"
     );
 }
@@ -769,10 +767,7 @@ fn bedrijfsparkeervergunning_the_maximum_in_the_ring_and_a_permit_on_objection()
         json!(true),
         "{gegrond}"
     );
-    let nieuw = gegrond["beslissing"]["outputs"]["nieuw_besluit"]
-        .as_str()
-        .unwrap()
-        .to_string();
+    let beslissing = gegrond["beslissing"]["id"].as_str().unwrap().to_string();
 
     let derde = bedrijf_vraagt_met(
         &mut spel,
@@ -793,27 +788,32 @@ fn bedrijfsparkeervergunning_the_maximum_in_the_ring_and_a_permit_on_objection()
             "aantal_geldige_bedrijfsparkeervergunningen",
         )
         .unwrap();
-    // The refusal does not count: the decision on the objection revokes it,
-    // so its aggregate starts and stays empty. The first permit and the
-    // decision in the place of the refusal are aggregates of their own,
-    // each with its last valid day.
+    // The refusal does not count: the decision on the objection revokes it.
+    // The decision it put in the refusal's place is part of it, and lands in
+    // the refusal's aggregate through the step on the decision on the
+    // objection. The first permit is an aggregate of its own. Each has its
+    // last valid day.
     let spoor = hoe["antwoorden"][0]["spoor"].as_str().unwrap();
     let refusal = geweigerd["besluit"]["id"].as_str().unwrap();
-    assert!(
-        spoor.contains(&format!("the aggregate of {refusal}")),
-        "{spoor}"
-    );
-    assert!(spoor.contains(&format!("{refusal}: revoked by")), "{spoor}");
-    for telt in [eerste["besluit"]["id"].as_str().unwrap(), nieuw.as_str()] {
+    let eerste = eerste["besluit"]["id"].as_str().unwrap();
+    for aggregaat in [refusal, eerste] {
         assert!(
-            spoor.contains(&format!("the aggregate of {telt}")),
-            "{telt}: {spoor}"
-        );
-        assert!(
-            spoor.contains(&format!("{telt}: besluit_datum: null -> ")),
-            "{telt}: {spoor}"
+            spoor.contains(&format!("the aggregate of {aggregaat}")),
+            "{aggregaat}: {spoor}"
         );
     }
+    assert!(spoor.contains(&format!("{refusal}: revoked by")), "{spoor}");
+    assert!(
+        spoor.contains(&format!("{eerste}: besluit_datum: null -> ")),
+        "{spoor}"
+    );
+    assert!(
+        spoor.contains(&format!(
+            "{beslissing}: beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal#3: \
+             besluit_datum: null -> "
+        )),
+        "{spoor}"
+    );
 }
 
 #[test]
@@ -1011,7 +1011,7 @@ fn bedrijfsparkeervergunning_the_hardship_clause_on_objection_grants_a_third_per
         json!("2027-11-19")
     );
     // The new decision records the judgement that carries it.
-    assert_eq!(nieuw["fields"][HARDHEID], json!(true), "{nieuw}");
+    assert_eq!(nieuw["findings"][HARDHEID], json!(true), "{nieuw}");
 
     let vierde = bedrijf_vraagt_met(
         &mut spel,
