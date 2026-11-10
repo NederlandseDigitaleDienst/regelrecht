@@ -4328,4 +4328,48 @@ articles:
             );
         }
     }
+
+    /// An executogram of a named fact holds the fields of that fact alone,
+    /// each of its own type.
+    #[test]
+    fn an_executogram_of_a_named_fact_holds_its_own_fields() {
+        let law = ArticleBasedLaw::from_yaml_str(
+            r#"
+$id: feiten
+regulatory_layer: WET
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      requires:
+        - fact: ingeleverd
+          parameters: [op]
+        - fact: verloren
+          parameters: [reden]
+      execution:
+        parameters: [{name: op, type: date}, {name: reden, type: string}]
+"#,
+        )
+        .unwrap();
+        let article = &law.articles[0];
+        assert_eq!(
+            executogram_field_type(article, Some("ingeleverd"), "op"),
+            Some(ParameterType::Date)
+        );
+        assert_eq!(
+            executogram_field_type(article, Some("verloren"), "reden"),
+            Some(ParameterType::String)
+        );
+        assert_eq!(
+            executogram_field_type(article, Some("ingeleverd"), "reden"),
+            None
+        );
+        // Without a name, the fields of every fact.
+        assert_eq!(
+            executogram_field_type(article, None, "reden"),
+            Some(ParameterType::String)
+        );
+    }
 }
