@@ -100,23 +100,21 @@ export const casusBlok = {
 };
 
 export const regelrecht = {
-  title: 'Wat RegelRecht is',
+  title: 'RegelRecht',
   bullets: [
-    'RegelRecht legt een wet één keer vast als uitvoerbare regels.',
-    'Per artikel staan de wettekst en de regels naast elkaar.',
-    'Eén engine voert de regels uit en laat zien welke artikelen hij gebruikte.',
-    'Burger, uitvoerder, wetgever en rechter gebruiken dezelfde regels.',
+    'Wetten worden machine-uitvoerbaar vastgelegd.',
+    'Iedereen kan ze inzien.',
+    'Burger, uitvoerder, wetgever en rechter kennen en gebruiken dezelfde wet.',
   ],
 };
 
 export const chronolexografie = {
-  title: 'Hoe chronolexografie daarop uitbreidt',
+  title: 'Chronolexografie',
   bullets: [
-    'Elke organisatie legt haar aanvragen en besluiten vast in de kroniek van haar cel.',
-    'In de kroniek komt alleen iets bij. Daardoor kun je elk besluit uit het verleden naspelen.',
-    'Een reductie is een rekenregel die de kroniek terugleest.',
-    'De RegelRecht-engine gebruikt de uitkomst van een reductie.',
-    'Bijvoorbeeld: hoeveel geldige parkeervergunningen een bedrijf al heeft, voor het maximum per bedrijf.',
+    'Elke organisatie legt feiten vast in haar eigen kroniek.',
+    'Een kroniek groeit alleen: er gaat nooit iets uit.',
+    'Een reductie zoekt in de kroniek de feiten op die voor een vraag tellen, en leidt daaruit de geldende situatie af.',
+    'RegelRecht rekent met de uitkomst van die reductie.',
   ],
 };
 
