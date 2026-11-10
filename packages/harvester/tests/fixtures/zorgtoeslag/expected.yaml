@@ -2,7 +2,7 @@
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: wet_op_de_zorgtoeslag
 regulatory_layer: WET
-publication_date: '2024-10-16'
+publication_date: '2024-11-20'
 valid_from: '2025-01-01'
 bwb_id: BWBR0018451
 url: https://wetten.overheid.nl/BWBR0018451/2025-01-01

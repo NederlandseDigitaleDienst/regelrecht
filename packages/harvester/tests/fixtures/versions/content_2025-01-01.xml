@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Trimmed from the Awir (BWBR0018472) toestand of 2025-01-01. -->
+<toestand bwb-id="BWBR0018472" inwerkingtreding="2025-01-01">
+  <wetgeving soort="wet">
+    <wet-besluit>
+    <wettekst>
+      <artikel label="Artikel 1" inwerking="2005-09-01" publicatie_bron="2005-07-05" status="goed">
+        <kop><label>Artikel</label><nr status="officieel">1</nr></kop>
+        <al>In deze wet wordt verstaan onder vreemdeling als bedoeld in <extref doc="32001L0055" label="richtlijn" reeks="Celex">Richtlijn 2001/55/EG</extref>.</al>
+      </artikel>
+      <artikel label="Artikel 13" inwerking="2025-01-01" publicatie_bron="2024-12-24" status="goed">
+        <kop><label>Artikel</label><nr status="officieel">13</nr></kop>
+        <al>Tekst van artikel 13 per 2025.</al>
+      </artikel>
+      <artikel label="Artikel 13a" publicatie_bron="2025-06-01" status="nogniet">
+        <kop><label>Artikel</label><nr status="officieel">13a</nr></kop>
+        <al>Tekst van artikel 13a.</al>
+      </artikel>
+    </wettekst>
+    </wet-besluit>
+  </wetgeving>
+</toestand>
