@@ -2,11 +2,18 @@
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
 $id: algemene_wet_bestuursrecht
 regulatory_layer: WET
-publication_date: '2026-01-01'
-valid_from: '1994-01-01'
+publication_date: '2020-07-17'
+valid_from: '2021-07-01'
 name: Algemene wet bestuursrecht
 bwb_id: BWBR0005537
-url: https://wetten.overheid.nl/BWBR0005537/2024-01-01
+url: https://wetten.overheid.nl/BWBR0005537/2021-07-01
+# De opgenomen artikelen in de tekst die gold vanaf 1 juli 2021, toen de
+# laatste wijziging daarvan in werking trad: artikel 6:8, gewijzigd door de
+# Wet elektronische publicaties (Stb. 2020, 262, bekendgemaakt op 17 juli
+# 2020). Elk `text`-veld is gelijk aan de toestand van 1 juli 2021 op
+# wetten.overheid.nl, en de opgenomen leden luiden nog zo in de toestand van
+# 15 augustus 2026. Een artikel dat hier maar ten dele staat, zegt bij het
+# artikel welke leden zijn weggelaten.
 
 procedure:
   - id: beschikking
@@ -68,7 +75,7 @@ articles:
   - number: '3:46'
     text: |-
       Een besluit dient te berusten op een deugdelijke motivering.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel3:46
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel3:46
     machine_readable:
       hooks:
         - hook_point: pre_actions
@@ -92,7 +99,7 @@ articles:
       2. De aanvrager verschaft voorts de gegevens en bescheiden die voor de
       beslissing op de aanvraag nodig zijn en waarover hij redelijkerwijs de
       beschikking kan krijgen.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel4:2
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel4:2
     machine_readable:
       # Lid 1: wat elke aanvraag ten minste bevat. Het artikel haakt op elke
       # aanvraag (RFC-045). Afdeling 4.1.1 gaat over de aanvraag om een
@@ -161,7 +168,7 @@ articles:
       verstreken wanneer het bestuursorgaan binnen acht weken na ontvangst van
       de aanvraag geen beschikking heeft gegeven, noch een mededeling als
       bedoeld in artikel 4:14, derde lid, heeft gedaan.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel4:13
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel4:13
     machine_readable:
       # Lid 1: de beslistermijn loopt vanaf de ontvangst van de aanvraag; dat is
       # het moment dat voor de aanvraag rechtens telt.
@@ -178,8 +185,8 @@ articles:
               bwb_id: BWBR0005537
               article: '4:13'
               paragraph: '1'
-              url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel4:13
-              juriconnect: jci1.3:c:BWBR0005537&artikel=4:13&lid=1&z=2024-01-01&g=2024-01-01
+              url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel4:13
+              juriconnect: jci1.3:c:BWBR0005537&artikel=4:13&lid=1&z=2021-07-01&g=2021-07-01
         parameters:
           - name: datum_ontvangst
             type: date
@@ -214,7 +221,7 @@ articles:
       van een beroepschrift bij het beroepsorgaan.
       3. Het instellen van beroep bij een bestuursrechter geschiedt door het
       indienen van een beroepschrift bij die rechter.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel6:4
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel6:4
     # Niet uitvoerbaar gemaakt. Lid 1 zegt bij wie het bezwaarschrift wordt
     # ingediend, zoals artikel 4:1 dat voor de aanvraag zegt. Het bezwaar zelf
     # ontstaat bij het artikel dat erop beslist (7:11), zoals de aanvraag om
@@ -235,7 +242,7 @@ articles:
       3. Indien het bezwaar- of beroepschrift in een vreemde taal is gesteld en
       een vertaling voor een goede behandeling van het bezwaar of beroep
       noodzakelijk is, dient de indiener zorg te dragen voor een vertaling.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel6:5
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel6:5
     machine_readable:
       # Lid 1, voor het bezwaarschrift en voor het beroepschrift bij de
       # bestuursrechter: het artikel haakt op elk bezwaar en elk beroep. Lid 2
@@ -309,7 +316,7 @@ articles:
     text: |-
       De termijn voor het indienen van een bezwaar- of
       beroepschrift bedraagt zes weken.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel6:7
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel6:7
     machine_readable:
       hooks:
         - hook_point: post_actions
@@ -329,7 +336,7 @@ articles:
       1. De termijn vangt aan met ingang van de dag na die
       waarop het besluit op de voorgeschreven wijze is
       bekendgemaakt.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel6:8
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel6:8
     machine_readable:
       hooks:
         - hook_point: post_actions
@@ -378,7 +385,7 @@ articles:
       2. Bij verzending per post is een bezwaar- of beroepschrift tijdig
       ingediend indien het voor het einde van de termijn ter post is bezorgd,
       mits het niet later dan een week na afloop van de termijn is ontvangen.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel6:9
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel6:9
     machine_readable:
       # Lid 1: of het bezwaar- of beroepschrift op tijd is, hangt af van de
       # ontvangst. Dat is het moment dat voor het bezwaar of beroep rechtens
@@ -402,8 +409,8 @@ articles:
               bwb_id: BWBR0005537
               article: '6:9'
               paragraph: '1'
-              url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel6:9
-              juriconnect: jci1.3:c:BWBR0005537&artikel=6:9&lid=1&z=2024-01-01&g=2024-01-01
+              url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel6:9
+              juriconnect: jci1.3:c:BWBR0005537&artikel=6:9&lid=1&z=2021-07-01&g=2021-07-01
         parameters:
           - name: datum_ontvangst_bezwaar_of_beroepschrift
             type: date
@@ -439,7 +446,7 @@ articles:
       beroepschrift blijft niet-ontvankelijkverklaring op grond daarvan
       achterwege indien redelijkerwijs niet kan worden geoordeeld dat de
       indiener in verzuim is geweest.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel6:11
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel6:11
     # Niet apart uitvoerbaar. Of redelijkerwijs niet kan worden geoordeeld
     # dat de indiener in verzuim is geweest, is een oordeel per geval van wie
     # op het bezwaar of beroep beslist. Dat open begrip staat daarom bij het
@@ -452,7 +459,7 @@ articles:
     text: |-
       1. Het bezwaar of beroep kan schriftelijk worden ingetrokken.
       2. Tijdens het horen kan de intrekking ook mondeling geschieden.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel6:21
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel6:21
     machine_readable:
       # Lid 1 en 2: dat het bezwaar of beroep is ingetrokken, is een feit dat
       # dit artikel omschrijft, zoals bij artikel 8:79. Het telt voor artikel
@@ -497,7 +504,7 @@ articles:
       2. Tegen de beslissing op het bezwaar kan beroep worden ingesteld met
       toepassing van de voorschriften die gelden voor het instellen van beroep
       tegen het besluit waartegen bezwaar is gemaakt.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel7:1
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel7:1
     # Niet apart uitvoerbaar. Lid 1, onder a, toetsen twee artikelen: 7:11
     # (geen bezwaar tegen een besluit dat in bezwaar is genomen) en 8:70
     # (beroep alleen tegen een besluit dat in bezwaar is genomen). Beide lezen
@@ -515,7 +522,7 @@ articles:
       2. Het bestuursorgaan stelt daarvan in ieder geval de indiener van het
       bezwaarschrift op de hoogte alsmede de belanghebbenden die bij de
       voorbereiding van het besluit hun zienswijze naar voren hebben gebracht.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel7:2
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel7:2
     # Niet gemodelleerd. Het horen is een handeling vóór de beslissing op het
     # bezwaar, geen berekening.
 
@@ -539,7 +546,7 @@ articles:
       procedurevoorschriften.
       5. Indien toepassing is gegeven aan het tweede, derde of vierde lid, doet
       het bestuursorgaan hiervan schriftelijk mededeling aan belanghebbenden.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel7:10
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel7:10
     machine_readable:
       # Lid 1, zonder commissie als bedoeld in artikel 7:13. Opschorting (lid 2),
       # verdaging (lid 3) en verder uitstel (lid 4) zijn niet gemodelleerd.
@@ -574,7 +581,7 @@ articles:
       2. Voor zover de heroverweging daartoe aanleiding geeft, herroept het
       bestuursorgaan het bestreden besluit en neemt het voor zover nodig in de
       plaats daarvan een nieuw besluit.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel7:11
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel7:11
     machine_readable:
       # Lid 1: de heroverweging van het bestreden besluit is dat besluit
       # opnieuw nemen, onder het artikel waarop het berust, met zijn gegevens
@@ -791,7 +798,7 @@ articles:
       overeenkomstige toepassing en wordt met het oog op de aanvang van de
       beroepstermijn zo duidelijk mogelijk aangegeven wanneer de bekendmaking
       van de beslissing overeenkomstig het tweede lid heeft plaatsgevonden.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel7:12
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel7:12
     # Niet apart gemodelleerd. De beslissing op het bezwaar is een beschikking
     # (zie 7:11), dus artikel 3:46 haakt er al op en geeft motivering_vereist.
     # Lid 2 tot en met 4 (bekendmaking en mededeling) zijn niet gemodelleerd.
@@ -800,7 +807,7 @@ articles:
     text: |-
       Een belanghebbende kan tegen een besluit beroep instellen bij de
       bestuursrechter.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:1
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel8:1
     # Niet apart uitvoerbaar. "Tegen een besluit": het bestreden besluit is
     # een besluitwaarde (type decision) van artikel 8:70. Of de indiener
     # belanghebbende is (artikel 1:2, eerste lid: "degene wiens belang
@@ -815,7 +822,7 @@ articles:
       b. niet-ontvankelijkverklaring van het beroep,
       c. ongegrondverklaring van het beroep, of
       d. gegrondverklaring van het beroep.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:70
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel8:70
     machine_readable:
       # Bevoegd gezag (RFC-002): de bestuursrechter doet de uitspraak (onder
       # a: "onbevoegdverklaring van de bestuursrechter"). Hij beantwoordt ook
@@ -1153,7 +1160,7 @@ articles:
       verbeurt. De artikelen 611a, vierde lid, 611b tot en met 611d en 611g van
       het Wetboek van Burgerlijke Rechtsvordering zijn van overeenkomstige
       toepassing.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel8:72
     machine_readable:
       # Bevoegd gezag (RFC-002): de bestuursrechter vernietigt en bepaalt
       # (lid 1, 3 en 4). Hij beantwoordt de open begrippen hieronder.
@@ -1326,7 +1333,7 @@ articles:
       3. De uitspraak wordt ondertekend door de voorzitter en de griffier. Bij
       verhindering van de voorzitter of de griffier wordt dit in de uitspraak
       vermeld.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:77
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel8:77
     # Niet apart uitvoerbaar. Lid 2 is het oordeel van de bestuursrechter; de
     # open begrippen daarvoor staan bij artikel 8:70, en de uitspraak geeft de
     # vermelde rechtsregel als uitvoer. Lid 1 en 3 zijn niet gemodelleerd.
@@ -1336,7 +1343,7 @@ articles:
       1. Binnen twee weken na de dagtekening van de uitspraak stelt de griffier
       kosteloos een afschrift van de uitspraak of van het proces-verbaal van de
       mondelinge uitspraak ter beschikking van partijen.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:79
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel8:79
     machine_readable:
       # Het ter beschikking stellen van het afschrift is de fase TOEZENDING
       # van de procedure beroep hierboven. Dat een partij het afschrift
@@ -1463,7 +1470,7 @@ articles:
       verzoeker in de gelegenheid gesteld beroep bij de bestuursrechter in te
       stellen. Het verzoek om voorlopige voorziening wordt gelijkgesteld met
       een verzoek dat wordt gedaan hangende het beroep bij de bestuursrechter.
-    url: https://wetten.overheid.nl/BWBR0005537/2026-08-15#Artikel8:81
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel8:81
     # Niet apart uitvoerbaar. Het verzoek en de uitspraak van de
     # voorzieningenrechter erop spelen niet in de cel van de rechtbank: het
     # schema kent als soort indiening alleen AANVRAAG, BEZWAAR en BEROEP, geen
@@ -1492,9 +1499,10 @@ articles:
       vierde lid, tweede volzin, aanhef en onder b, en zesde lid, 8:75,
       8:75a , 8:76, 8:77, eerste en derde lid, 8:78, artikel 8:79, tweede en
       derde lid, en 8:80 zijn van overeenkomstige toepassing.
-    url: https://wetten.overheid.nl/BWBR0005537/2026-08-15#Artikel8:84
-    # De spatie in "8:75a ," in lid 5 staat zo in de geldende tekst op
-    # wetten.overheid.nl (toestand 2026-08-15) en is overgenomen.
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel8:84
+    # De spatie in "8:75a ," in lid 5 staat zo in de tekst op
+    # wetten.overheid.nl (toestanden 2021-07-01 en 2026-08-15) en is
+    # overgenomen.
     machine_readable:
       # Lid 4: de griffier zendt het afschrift aan partijen, ook aan het
       # bestuursorgaan dat het besluit nam. Dat is de grondslag waarop de
@@ -1554,7 +1562,7 @@ articles:
       ongebruikt is verstreken,
       b. het bezwaar of het beroep is ingetrokken, of
       c. de bestuursrechter uitspraak heeft gedaan.
-    url: https://wetten.overheid.nl/BWBR0005537/2026-08-15#Artikel8:85
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel8:85
     # Niet apart uitvoerbaar, en geen feit: dat de voorziening vervallen is,
     # volgt uit records die al in de kroniek staan, en wordt niet nog eens
     # vastgelegd. Lid 1: de dag staat in het afschrift van de uitspraak
@@ -1591,7 +1599,7 @@ articles:
       gedeeltelijk wordt toegewezen, kan de uitspraak inhouden dat het
       betaalde griffierecht door de griffier aan het bestuursorgaan wordt
       terugbetaald.
-    url: https://wetten.overheid.nl/BWBR0005537/2026-08-15#Artikel8:87
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel8:87
     machine_readable:
       # Lid 1, opheffen. Lid 2 verklaart artikel 8:84 van overeenkomstige
       # toepassing, dus ook het vierde lid daarvan: de griffier zendt het
@@ -1626,7 +1634,7 @@ articles:
       voorzieningenrechter van de rechtbank,
       c. een uitspraak van de rechtbank op een verzoek als bedoeld in artikel
       8:88, eerste lid.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:104
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel8:104
     # Niet gemodelleerd. Hoger beroep tegen de uitspraak (en artikel 8:105,
     # de Afdeling bestuursrechtspraak van de Raad van State) volgt later. De
     # leden 2 tot en met 4 zijn hier niet opgenomen.
@@ -1637,5 +1645,5 @@ articles:
       van de Raad van State, tenzij een andere hogerberoepsrechter bevoegd is
       ingevolge hoofdstuk 4 van de bij deze wet behorende Bevoegdheidsregeling
       bestuursrechtspraak dan wel ingevolge een ander wettelijk voorschrift.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:105
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel8:105
     # Niet gemodelleerd; zie artikel 8:104. Lid 2 is hier niet opgenomen.

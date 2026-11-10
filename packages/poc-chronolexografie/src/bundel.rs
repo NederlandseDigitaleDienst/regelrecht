@@ -788,10 +788,10 @@ articles:
     #[test]
     fn a_source_runs_its_own_copy_of_an_id_of_this_crate() {
         let mut bron = voorbeeld();
-        let awb = "regulation/nl/wet/algemene_wet_bestuursrecht/1994-01-01.yaml";
+        let awb = "regulation/nl/wet/algemene_wet_bestuursrecht/2021-07-01.yaml";
         let tekst = bron.bestanden.remove(awb).unwrap();
         bron.bestanden
-            .insert("regulation/nl/wet/awb_kopie/1994-01-01.yaml".into(), tekst);
+            .insert("regulation/nl/wet/awb_kopie/2021-07-01.yaml".into(), tekst);
         let casus = "casussen/voorbeeld_subsidie.yaml";
         let tekst = bron.bestanden[casus].replace(
             "regulation/nl/wet/algemene_wet_bestuursrecht",

@@ -249,7 +249,7 @@ export const slides = [
     ],
     figure: {
       code: EFFECT,
-      source: `${CORPUS}/regulation/nl/wet/algemene_wet_bestuursrecht/1994-01-01.yaml`,
+      source: `${CORPUS}/regulation/nl/wet/algemene_wet_bestuursrecht/2021-07-01.yaml`,
       label: 'De effecten in de Awb, ingekort',
     },
   },
