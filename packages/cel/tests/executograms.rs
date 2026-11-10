@@ -333,7 +333,7 @@ fn the_rows_are_the_executograms_of_that_fact() {
 
 /// A reduction of the fictional school that reads the executograms of the
 /// fact `fact`, and gives the answer `plaats`. It reads them directly
-/// (`source.facts`), which schema v0.8.18 no longer allows, so it declares
+/// (`source.facts`), which schema v0.8.19 no longer allows, so it declares
 /// v0.8.17.
 fn reduction(fact: &str) -> String {
     format!(
@@ -473,7 +473,7 @@ articles:
                   then: $x_volgens_hoofd
               default: $antwoord
 "#;
-    // A reduction that only calls a law, which schema v0.8.18 no longer
+    // A reduction that only calls a law, which schema v0.8.19 no longer
     // allows, so it declares v0.8.17.
     let reduction = r#"
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json

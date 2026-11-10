@@ -3654,7 +3654,7 @@ articles:
             Value::String("veld".to_string())
         );
         // So does a field named `id`: `$record.id` is the record's own id
-        // only in a projection with `per`, from v0.8.18.
+        // only in a projection with `per`, from v0.8.19.
         assert_eq!(
             outcome.result.outputs["eigen"],
             Value::String("eigen veld".to_string())
@@ -3663,8 +3663,9 @@ articles:
 
     /// Since schema v0.8.19 a step of a projection with `per` reads the id of
     /// its record as `$record.id`, as it reads `$record.refers_to` since
-    /// v0.8.17. Under v0.8.18 and earlier `$record.id` stays what it was: a field of the
-    /// record named `id`. Nothing that loaded under v0.8.18 is refused.
+    /// v0.8.17. Under v0.8.18 and earlier `$record.id` stays what it was: a
+    /// field of the record named `id`, of its own type. Nothing that loaded
+    /// under v0.8.18 is refused.
     #[test]
     fn a_step_reads_the_id_of_its_record_since_v0_8_19() {
         let law = r#"
@@ -3732,6 +3733,35 @@ articles:
                 "{version}"
             );
         }
+        // Under v0.8.18 `$record.id` has the type of the field: a number
+        // field fills a number property, and the play holds the step to it.
+        let numeric = law.replace("{name: id, type: string}", "{name: id, type: number}");
+        let mut service = LawExecutionService::new();
+        service.load_law(&numeric).unwrap();
+        service
+            .load_law(
+                &reduction("v0.8.18")
+                    .replace("{name: welk, type: string}", "{name: welk, type: number}"),
+            )
+            .unwrap();
+        let melding = ChronicleRecord {
+            basis: "velden#1".to_string(),
+            ..fact("r", "1", "gemeld", &[("id", Value::Int(7))])
+        };
+        assert_eq!(
+            service
+                .projection_rows(
+                    "per_melding",
+                    std::slice::from_ref(&melding),
+                    &BTreeMap::new(),
+                    "2025-03-01"
+                )
+                .unwrap(),
+            Value::Array(vec![Value::Object(BTreeMap::from([
+                ("id".to_string(), Value::String("r".to_string())),
+                ("welk".to_string(), Value::Int(7)),
+            ]))])
+        );
     }
 
     /// The fields of a record are those the law gives its kind.

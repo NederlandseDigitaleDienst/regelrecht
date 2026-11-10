@@ -1,6 +1,6 @@
 ---
 # Test data for source.facts on an older schema version (v0.8.12), read by
-# the tests of packages/cel. From schema v0.8.18 a reduction reads recorded
+# the tests of packages/cel. From schema v0.8.19 a reduction reads recorded
 # facts as aggregates (projection.per, read with source.projections); this
 # copy keeps the old form tested while those versions are valid.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
